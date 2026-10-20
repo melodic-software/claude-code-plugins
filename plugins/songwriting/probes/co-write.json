@@ -1,0 +1,134 @@
+{
+  "skill": "songwriting:co-write",
+  "plugin": "songwriting",
+  "skill_dir": "plugins/songwriting/skills/co-write",
+  "ranking_note": "Authored from the before descriptions at commit 11a25e8bb3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling songwriting skills the near-miss negatives aim at; one or two negatives are adjacent non-songwriting requests.",
+  "competitors": [
+    "songwriting:workflow",
+    "songwriting:rhyme",
+    "songwriting:diagnose",
+    "songwriting:suno",
+    "songwriting:meter-prosody",
+    "songwriting:metaphor",
+    "songwriting:song-form"
+  ],
+  "competitor_dirs": {
+    "songwriting:workflow": "plugins/songwriting/skills/workflow",
+    "songwriting:rhyme": "plugins/songwriting/skills/rhyme",
+    "songwriting:diagnose": "plugins/songwriting/skills/diagnose",
+    "songwriting:suno": "plugins/songwriting/skills/suno",
+    "songwriting:meter-prosody": "plugins/songwriting/skills/meter-prosody",
+    "songwriting:metaphor": "plugins/songwriting/skills/metaphor",
+    "songwriting:song-form": "plugins/songwriting/skills/song-form"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My buddy and I are writing together tonight over Zoom. What ground rules keep us from shooting ideas down too early?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Help me come up with a bunch of possible names for a song about leaving my hometown."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Let's play that vowel chain game to find a title, starting from the word 'harbor'."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need a ton of alternatives for the last line of my second verse, quantity over quality."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Dump every chorus idea you can think of for a song called 'Paper Moon'."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My co-writer says 'that's bad' to everything I pitch. How should we give each other notes in the room?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Throw me twenty possible song names for a breakup tune set in a diner."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Brainstorm a big pile of options for my pre-chorus, I'll pick later."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm running a writing session with two other writers Saturday. How do we structure it Pat's way?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Give me rhymes for 'window' that aren't 'shadow'."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I've got nothing, I just want to start a song from scratch. Where do I begin?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Here's my finished draft, tell me what's not working in it."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write me a Suno style prompt for dreamy shoegaze."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draft an agenda for my team's Monday standup meeting."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Does 'into the fire' scan right on the downbeat here?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find me a fresh metaphor for loneliness."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is my song verse/chorus or AABA?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Suggest some names for my new coffee shop."
+    }
+  ]
+}

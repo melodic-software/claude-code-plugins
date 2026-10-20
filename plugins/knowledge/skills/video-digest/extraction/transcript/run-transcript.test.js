@@ -121,6 +121,18 @@ describe("runTranscriptCli envelope consumption", () => {
     );
   });
 
+  it("keeps cues out of the CLI's transcripts rows", async () => {
+    const vttPath = await writeVtt("7zZy1QTvokM.en.vtt");
+    mockAcquiredEnvelope([captionEntry(vttPath)]);
+
+    const code = await runTranscriptCli(["node", "run-transcript.js", VIDEO_URL]);
+    expect(code).toBe(0);
+
+    const output = JSON.parse(captured.stdout.join(""));
+    expect(output.transcripts).toHaveLength(1);
+    for (const row of output.transcripts) expect(row).not.toHaveProperty("cues");
+  });
+
   it("caption-absent X entry exits 0 with the named transcriptDegradation provenance field", async () => {
     const xUrl = "https://x.com/someone/status/1001551623938805763";
     mockAcquiredEnvelope(

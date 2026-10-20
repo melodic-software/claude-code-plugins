@@ -8,7 +8,7 @@
 # the entry so `git commit` runs it from a flat installed copy.
 # Expected values come from the requirement: a path-scoped rule the index block
 # does not list is drift, and the block `render-index.sh write` produces is not.
-# test-scope: plugins/instruction-placement/git-hooks/entries.json plugins/instruction-placement/scripts/render-index.sh plugins/instruction-placement/scripts/lib/discover.sh plugins/instruction-placement/lib/git-hooks/check-lib.sh plugins/instruction-placement/lib/git-hooks/install.mjs
+# test-scope: plugins/instruction-placement/git-hooks/entries.json plugins/instruction-placement/scripts/render-index.sh plugins/instruction-placement/scripts/lib/discover.sh plugins/instruction-placement/lib/git-hooks/check-lib.sh plugins/instruction-placement/lib/git-hooks/install.mjs plugins/instruction-placement/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
 

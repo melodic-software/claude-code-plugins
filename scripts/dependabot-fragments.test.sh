@@ -60,7 +60,7 @@ else
   fail "rc=$rc out='$out' content='$(cat "$f/$want_path" 2>/dev/null)'"
 fi
 if [[ ! -e "$f/.changes/beta" ]]; then
-  ok "writes nothing for a legacy plugin, which the pull request bumped itself"
+  ok "writes nothing for a plugin not in fragment mode"
 else
   fail "wrote a fragment for legacy beta"
 fi

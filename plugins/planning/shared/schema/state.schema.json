@@ -1,0 +1,1196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state",
+  "title": "Shared interview session file",
+  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements`, `reports`, `passes`, `lateActs` and a question's `for` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks). A mention in text a person wrote is stored as `<@pid>` (migrate.py MENTION), so it shows the person's current name.",
+  "type": "object",
+  "required": [
+    "schemaVersion", "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
+    "questions", "cards", "votes", "reactions", "locks", "suggestions", "suggestionVotes", "proposals",
+    "chat", "requests", "results", "uploads", "annotations", "prefs", "notifications", "inboxSeen",
+    "discussions", "discussionSeen", "mergeRequests", "aboutYou", "log"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {"enum": [6]},
+    "pluginVersion": {"type": "string"},
+    "writtenBy": {"type": "string"},
+    "rev": {"type": "integer", "minimum": 0},
+    "session": {"$ref": "#/$defs/session"},
+    "people": {"type": "object", "additionalProperties": {"$ref": "#/$defs/person"}},
+    "credentials": {"$ref": "#/$defs/credentials"},
+    "rounds": {"type": "array", "items": {"$ref": "#/$defs/round"}},
+    "questions": {"type": "array", "items": {"$ref": "#/$defs/question"}},
+    "cards": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/card"}}},
+    "votes": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/cardRef"}}},
+    "reactions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"$ref": "#/$defs/reaction"}}
+        }
+      }
+    },
+    "locks": {"type": "object", "additionalProperties": {"$ref": "#/$defs/lock"}},
+    "suggestions": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/suggestion"}}},
+    "suggestionVotes": {"type": "object", "additionalProperties": {"type": "object", "additionalProperties": {"type": "string"}}},
+    "proposals": {"type": "array", "items": {"$ref": "#/$defs/proposal"}},
+    "chat": {"type": "array", "items": {"$ref": "#/$defs/chatMessage"}},
+    "requests": {"type": "array", "items": {"$ref": "#/$defs/request"}},
+    "results": {
+      "description": "qid -> its results; `session` -> the results about the whole session, which carry no qid.",
+      "type": "object",
+      "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/result"}}
+    },
+    "uploads": {"type": "array", "items": {"$ref": "#/$defs/upload"}},
+    "annotations": {"type": "array", "items": {"$ref": "#/$defs/annotation"}},
+    "prefs": {"type": "object", "additionalProperties": {"$ref": "#/$defs/prefs"}},
+    "notifications": {
+      "type": "object",
+      "additionalProperties": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/notification"}}
+    },
+    "inboxSeen": {
+      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join: and an id for the owner) and the status each had then; an item whose status moved since is unread.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {"enum": ["waiting", "running", "answered", "unshared", "shared", "declined", "failed", "open"]}
+      }
+    },
+    "discussions": {
+      "description": "Each question's Discussion, qid -> its comments oldest first.",
+      "type": "object",
+      "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/comment"}}
+    },
+    "discussionSeen": {
+      "description": "Per person, qid -> the time of the newest comment they saw when they last opened that question's Discussion; others' comments after it are new to them.",
+      "type": "object",
+      "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ts"}}
+    },
+    "mergeRequests": {"type": "array", "items": {"$ref": "#/$defs/mergeRequest"}},
+    "aboutYou": {"type": "object", "additionalProperties": {"$ref": "#/$defs/aboutYou"}},
+    "disagreements": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/disagreement"}}},
+    "reports": {
+      "description": "Problem reports, report id (F<N>) -> report; only the owner reads them. Optional: a file written before them has none.",
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/problemReport"}
+    },
+    "passes": {
+      "description": "qid -> pid -> that person's Pass on the question: no view given, on any purpose, with an optional reason (required of a person the question is `for`). Optional: a file written before them has none.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "required": ["ts"],
+          "additionalProperties": false,
+          "properties": {"reason": {"$ref": "#/$defs/note"}, "ts": {"$ref": "#/$defs/ts"}}
+        }
+      }
+    },
+    "lateActs": {
+      "description": "qid -> pid -> when that person last voted, backed, reacted, disagreed or passed on the question after its round closed, and that round: the digest's `late` lists what they hold. Optional: a file written before them has none.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "required": ["round", "at"],
+          "additionalProperties": false,
+          "properties": {"round": {"type": "integer", "minimum": 1}, "at": {"$ref": "#/$defs/ts"}}
+        }
+      }
+    },
+    "backs": {
+      "description": "Multi questions: qid -> pid -> the other people's own Something else options that person backs, any number of them (votes keeps one per person).",
+      "type": "object",
+      "additionalProperties": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/cardRef"}}}
+    },
+    "cleared": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/clearedCard"}}},
+    "log": {"$ref": "#/$defs/eventLog"}
+  },
+  "$defs": {
+    "ts": {"type": "number"},
+    "seq": {"type": "integer", "minimum": 1},
+    "pid": {"type": "string"},
+    "qid": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/questionId"},
+    "text": {"type": "string", "maxLength": 2000},
+    "note": {"type": "string", "maxLength": 200},
+    "url": {"type": "string", "maxLength": 2000, "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://\\S+$"},
+    "assetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg)$"},
+    "cardRef": {"type": "string"},
+    "attachments": {"description": "Upload ids, each an accepted upload of the record's author.", "type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}},
+    "svgAssetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.svg$"},
+    "reaction": {"enum": ["thumbs", "down", "heart", "idea"]},
+    "rect": {
+      "description": "An area in percent (0-100) of the image or page it marks: x and w of its width, y and h of its height. Writes refuse x + w or y + h above 100; a file written before that rule loads as it is, and the page clamps such an area into the image.",
+      "type": "object",
+      "required": ["x", "y", "w", "h"],
+      "additionalProperties": false,
+      "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "w": {"type": "number"}, "h": {"type": "number"}}
+    },
+    "session": {
+      "type": "object",
+      "required": ["title", "goal", "createdAt", "phase", "share", "guestKey", "settings", "seq"],
+      "additionalProperties": false,
+      "properties": {
+        "title": {"type": "string", "maxLength": 80},
+        "goal": {"type": "string", "maxLength": 200},
+        "intro": {"description": "\"Why you're here\": who asks, why, roughly how long, what happens to the answers; 1..600 characters.", "type": "string", "maxLength": 600},
+        "createdAt": {"$ref": "#/$defs/ts"},
+        "phase": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["live"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["ended"]}, "at": {"$ref": "#/$defs/ts"}}
+            }
+          ]
+        },
+        "share": {
+          "type": "object",
+          "required": ["url"],
+          "additionalProperties": false,
+          "properties": {"url": {"anyOf": [{"enum": [""]}, {"$ref": "#/$defs/url"}]}, "changedAt": {"$ref": "#/$defs/ts"}}
+        },
+        "guestKey": {"type": "string"},
+        "settings": {"$ref": "#/$defs/settings"},
+        "seq": {
+          "type": "object",
+          "required": ["P", "S", "R", "X", "M", "G", "U", "N", "A"],
+          "additionalProperties": false,
+          "properties": {
+            "P": {"type": "integer", "minimum": 0},
+            "S": {"type": "integer", "minimum": 0},
+            "R": {"type": "integer", "minimum": 0},
+            "X": {"type": "integer", "minimum": 0},
+            "M": {"type": "integer", "minimum": 0},
+            "G": {"type": "integer", "minimum": 0},
+            "U": {"type": "integer", "minimum": 0},
+            "N": {"type": "integer", "minimum": 0},
+            "A": {"type": "integer", "minimum": 0},
+            "F": {"type": "integer", "minimum": 0},
+            "D": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "required": ["voting", "signoff", "chat", "follow", "names", "digestNames", "uploads", "claudeTake", "theme"],
+      "additionalProperties": false,
+      "properties": {
+        "voting": {"type": "boolean"},
+        "signoff": {"type": "boolean"},
+        "chat": {"type": "boolean"},
+        "follow": {"type": "boolean"},
+        "names": {"enum": ["full", "initials", "someone"]},
+        "digestNames": {"type": "boolean"},
+        "uploads": {"type": "boolean"},
+        "claudeTake": {"enum": ["answerFirst", "always"]},
+        "approveJoins": {"description": "New joins wait for the owner's admit; absent is off.", "type": "boolean"},
+        "reviewAnswers": {"description": "Every answer waits for the owner's Share. A new session writes it off; absent (a session from before it) is on.", "type": "boolean"},
+        "theme": {
+          "type": "object",
+          "required": ["mode", "accent"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": {"enum": ["system", "light", "dark"]},
+            "accent": {"enum": ["teal", "indigo", "violet", "amber"]}
+          }
+        }
+      }
+    },
+    "person": {
+      "type": "object",
+      "required": ["pid", "name", "joinedAt", "role", "trusted", "color", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "pid": {"$ref": "#/$defs/pid"},
+        "name": {"type": "string", "maxLength": 40},
+        "joinedAt": {"$ref": "#/$defs/ts"},
+        "role": {"enum": ["owner", "leader", "guest"]},
+        "trusted": {"type": "boolean"},
+        "color": {"enum": ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10"]},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["active"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "at", "by"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["removed"]}, "at": {"$ref": "#/$defs/ts"}, "by": {"enum": ["host"]}}
+            },
+            {
+              "description": "Joined under Approve new joins: waits in the owner's queue until admitted or declined; device and browser are the owner's hint, as the join said them.",
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["waiting"]},
+                "at": {"$ref": "#/$defs/ts"},
+                "device": {"$ref": "#/$defs/deviceKind"},
+                "browser": {"enum": ["chrome", "safari", "firefox", "edge", "samsung", "in-app", "other"]}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "credentials": {
+      "type": "object",
+      "required": ["owner", "secrets"],
+      "additionalProperties": false,
+      "properties": {
+        "owner": {
+          "type": "object",
+          "required": ["tokenHash", "rotatedAt"],
+          "additionalProperties": false,
+          "properties": {"tokenHash": {"type": "string"}, "rotatedAt": {"$ref": "#/$defs/ts"}}
+        },
+        "secrets": {"type": "object", "additionalProperties": {"$ref": "#/$defs/pid"}},
+        "watchers": {
+          "type": "object",
+          "description": "sha256 of a person's watcher key -> pid: what their own Claude uses on /api/mine/requests, nowhere else. Absent in states written before it.",
+          "additionalProperties": {"$ref": "#/$defs/pid"}
+        }
+      }
+    },
+    "round": {
+      "type": "object",
+      "required": ["n", "openedAt", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "n": {"type": "integer", "minimum": 1},
+        "openedAt": {"$ref": "#/$defs/ts"},
+        "status": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["kind"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["open"]},
+                "ready": {
+                  "type": "object",
+                  "required": ["by", "at"],
+                  "additionalProperties": false,
+                  "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "sentAt", "eventSeq"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["sent"]}, "sentAt": {"$ref": "#/$defs/ts"}, "eventSeq": {"$ref": "#/$defs/seq"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "sentAt", "ackAt", "eventSeq"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["working"]},
+                "sentAt": {"$ref": "#/$defs/ts"},
+                "ackAt": {"$ref": "#/$defs/ts"},
+                "eventSeq": {"$ref": "#/$defs/seq"}
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "sentAt", "ackAt", "closedAt", "next"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["closed"]},
+                "sentAt": {"$ref": "#/$defs/ts"},
+                "ackAt": {"$ref": "#/$defs/ts"},
+                "closedAt": {"$ref": "#/$defs/ts"},
+                "next": {"type": ["integer", "null"], "minimum": 1}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "purpose": {"enum": ["decide", "gather", "poll"]},
+    "answerScope": {"enum": ["person", "device"]},
+    "option": {
+      "description": "`other: true` marks the built-in Something else option (id `other`) the server adds to choice, multi and rank questions; Claude never writes it.",
+      "type": "object",
+      "required": ["id", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"enum": ["opt-1", "opt-2", "opt-3", "opt-4", "opt-5", "opt-6", "opt-7", "opt-8", "other"]},
+        "label": {"$ref": "#/$defs/text"},
+        "image": {"$ref": "#/$defs/assetId"},
+        "other": {"enum": [true]}
+      }
+    },
+    "variant": {
+      "type": "object",
+      "required": ["id", "label", "asset"],
+      "additionalProperties": false,
+      "properties": {"id": {"type": "string"}, "label": {"$ref": "#/$defs/text"}, "asset": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg|html)$"}}
+    },
+    "format": {
+      "oneOf": [
+        {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["text"]}}},
+        {
+          "type": "object",
+          "required": ["kind", "options"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["choice"]},
+            "options": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"$ref": "#/$defs/option"}}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "options"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["multi"]},
+            "options": {"type": "array", "minItems": 2, "maxItems": 9, "items": {"$ref": "#/$defs/option"}}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "min", "max", "labels"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["scale"]},
+            "min": {"enum": [1]},
+            "max": {"type": "integer", "minimum": 3, "maximum": 10},
+            "labels": {
+              "type": "object",
+              "required": ["min", "max"],
+              "additionalProperties": false,
+              "properties": {"min": {"$ref": "#/$defs/scaleLabel"}, "max": {"$ref": "#/$defs/scaleLabel"}, "mid": {"$ref": "#/$defs/scaleLabel"}}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "options"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["rank"]},
+            "options": {"type": "array", "minItems": 3, "maxItems": 7, "items": {"$ref": "#/$defs/option"}}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "image", "rect"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["confirm"]}, "image": {"$ref": "#/$defs/assetId"}, "rect": {"$ref": "#/$defs/rect"}}
+        },
+        {
+          "type": "object",
+          "required": ["kind", "variants"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["prototype"]},
+            "variants": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"$ref": "#/$defs/variant"}}
+          }
+        }
+      ]
+    },
+    "reference": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "asset"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["image"]},
+            "asset": {"$ref": "#/$defs/assetId"},
+            "rect": {"$ref": "#/$defs/rect"},
+            "caption": {"$ref": "#/$defs/text"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "text", "source"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["quote"]},
+            "text": {"$ref": "#/$defs/text"},
+            "source": {"type": "string"},
+            "url": {"$ref": "#/$defs/url"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "url"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["link"]}, "url": {"$ref": "#/$defs/url"}, "title": {"type": "string"}}
+        },
+        {
+          "type": "object",
+          "required": ["kind", "asset", "alt"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["diagram"]},
+            "asset": {"$ref": "#/$defs/svgAssetId"},
+            "alt": {"$ref": "#/$defs/text"},
+            "caption": {"$ref": "#/$defs/text"}
+          }
+        }
+      ]
+    },
+    "scaleLabel": {"type": "string", "maxLength": 80},
+    "references": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/reference"}},
+    "origin": {
+      "oneOf": [
+        {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["claude"]}}},
+        {
+          "type": "object",
+          "required": ["kind", "proposal"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["proposal"]}, "proposal": {"type": "string"}}
+        },
+        {
+          "type": "object",
+          "required": ["kind", "proposal", "by"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["host"]}, "proposal": {"type": "string"}, "by": {"$ref": "#/$defs/pid"}}
+        }
+      ]
+    },
+    "reviewFlag": {
+      "type": "object",
+      "required": ["because", "at", "why"],
+      "additionalProperties": false,
+      "properties": {
+        "because": {"$ref": "#/$defs/qid"},
+        "at": {"$ref": "#/$defs/ts"},
+        "why": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["lock-changed"]}}},
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["unlocked"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "suggestion"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["suggested"]}, "suggestion": {"type": "string"}}
+            }
+          ]
+        }
+      }
+    },
+    "questionRules": {
+      "description": "A recommendation only on a `text` question that did not come from the host; `answerScope: device` never on a `prototype` question.",
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "properties": {
+                "format": {"properties": {"kind": {"enum": ["text"]}}},
+                "origin": {"properties": {"kind": {"enum": ["claude", "proposal"]}}}
+              }
+            },
+            {"properties": {"recommendation": {"type": "null"}}}
+          ]
+        },
+        {
+          "anyOf": [
+            {"properties": {"format": {"properties": {"kind": {"enum": ["text", "choice", "confirm"]}}}}},
+            {"properties": {"answerScope": {"enum": ["person"]}}}
+          ]
+        }
+      ]
+    },
+    "question": {
+      "type": "object",
+      "required": ["id", "text", "alternatives", "dependsOn", "round", "purpose", "format", "answerScope", "references", "origin", "needsReview"],
+      "additionalProperties": false,
+      "allOf": [{"$ref": "#/$defs/questionRules"}],
+      "properties": {
+        "id": {"$ref": "#/$defs/qid"},
+        "text": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/text"},
+        "short": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"},
+        "scope": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/scope"},
+        "context": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/context"},
+        "recommendation": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/recommendation"},
+        "basis": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/basis"},
+        "alternatives": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/alternatives"},
+        "dependsOn": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/dependsOn"},
+        "round": {"type": "integer", "minimum": 1},
+        "purpose": {"$ref": "#/$defs/purpose"},
+        "format": {"$ref": "#/$defs/format"},
+        "answerScope": {"$ref": "#/$defs/answerScope"},
+        "references": {"$ref": "#/$defs/references"},
+        "origin": {"$ref": "#/$defs/origin"},
+        "lockedText": {"type": "string"},
+        "needsReview": {"type": "array", "items": {"$ref": "#/$defs/reviewFlag"}},
+        "for": {"description": "Who must answer, as pids, each once (session.py checks): optional; absent asks everyone.", "type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pid"}}
+      }
+    },
+    "deviceKind": {"enum": ["phone", "tablet", "computer"]},
+    "deviceInfo": {
+      "type": "object",
+      "required": ["kind", "browser", "screen"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"$ref": "#/$defs/deviceKind"},
+        "browser": {"enum": ["chrome", "safari", "firefox", "edge", "samsung", "in-app", "other"]},
+        "screen": {
+          "type": "object",
+          "required": ["w", "h"],
+          "additionalProperties": false,
+          "properties": {"w": {"type": "integer", "minimum": 0}, "h": {"type": "integer", "minimum": 0}}
+        }
+      }
+    },
+    "cardHidden": {
+      "description": "The owner hid this answer from everyone else, the tally and the digest; it holds through its author's new versions until the owner shows it.",
+      "type": "object",
+      "required": ["by", "at"],
+      "additionalProperties": false,
+      "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}, "reason": {"$ref": "#/$defs/note"}}
+    },
+    "cardEdited": {
+      "description": "The owner replaced the text: who and when.",
+      "type": "object",
+      "required": ["by", "at"],
+      "additionalProperties": false,
+      "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
+    },
+    "cardHistory": {
+      "description": "Earlier versions, oldest first (the original kept), each with who wrote it and when; kept once the owner hid or edited the answer, and only the owner reads it.",
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "required": ["text", "by", "at"],
+        "additionalProperties": false,
+        "properties": {"text": {"$ref": "#/$defs/text"}, "by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
+      }
+    },
+    "clearedCard": {
+      "description": "A person answer its author cleared after the owner hid or edited it: its last text, its marks and versions, for the owner only. The author's next answer in the same place takes it up.",
+      "type": "object",
+      "required": ["pid", "text", "at", "clearedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "pid": {"$ref": "#/$defs/pid"},
+        "device": {"$ref": "#/$defs/deviceKind"},
+        "text": {"$ref": "#/$defs/text"},
+        "at": {"$ref": "#/$defs/ts"},
+        "clearedAt": {"$ref": "#/$defs/ts"},
+        "hidden": {"$ref": "#/$defs/cardHidden"},
+        "edited": {"$ref": "#/$defs/cardEdited"},
+        "history": {"$ref": "#/$defs/cardHistory"}
+      }
+    },
+    "card": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "pid", "text", "at", "cites", "view"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["person"]},
+            "pid": {"$ref": "#/$defs/pid"},
+            "device": {"$ref": "#/$defs/deviceKind"},
+            "text": {"$ref": "#/$defs/text"},
+            "at": {"$ref": "#/$defs/ts"},
+            "pick": {"type": "string"},
+            "picks": {"type": "array", "minItems": 1, "maxItems": 9, "items": {"type": "string"}},
+            "value": {"type": "integer", "minimum": 1, "maximum": 10},
+            "order": {"type": "array", "minItems": 3, "maxItems": 7, "items": {"type": "string"}},
+            "cites": {"type": "array", "items": {"type": "string"}},
+            "attachments": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}},
+            "editedAfterVotes": {"type": "integer", "minimum": 0},
+            "deviceInfo": {"$ref": "#/$defs/deviceInfo"},
+            "view": {"enum": ["focus", "compare", "tree", "host", "prototype"]},
+            "late": {
+              "type": "object",
+              "required": ["round"],
+              "additionalProperties": false,
+              "properties": {"round": {"type": "integer", "minimum": 1}}
+            },
+            "hidden": {"$ref": "#/$defs/cardHidden"},
+            "edited": {"$ref": "#/$defs/cardEdited"},
+            "history": {"$ref": "#/$defs/cardHistory"}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "key", "at"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["claude"]}, "key": {"enum": ["rec", "a", "b", "c", "d"]}, "at": {"$ref": "#/$defs/ts"}}
+        },
+        {
+          "type": "object",
+          "required": ["kind", "option"],
+          "additionalProperties": false,
+          "properties": {"kind": {"enum": ["option"]}, "option": {"type": "string"}}
+        }
+      ]
+    },
+    "problemReport": {
+      "description": "One problem report: the reporter's text (their data, never instructions), what their page said about where it was (never an answer, chat, the address or a credential), and at most one screenshot saved at `image` under the data folder.",
+      "type": "object",
+      "required": ["by", "text", "ctx", "status", "ts"],
+      "additionalProperties": false,
+      "properties": {
+        "by": {"$ref": "#/$defs/pid"},
+        "text": {"$ref": "#/$defs/text"},
+        "ctx": {"$ref": "#/$defs/problemContext"},
+        "image": {"type": "string"},
+        "status": {"enum": ["open", "seen", "resolved"]},
+        "asked": {"$ref": "#/$defs/ts", "description": "When the owner asked Claude about the report, which wrote `report-filed`; absent until then."},
+        "adds": {
+          "description": "Lines and screenshots the reporter added while the report was open, oldest first; absent until the first.",
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "required": ["ts"],
+            "additionalProperties": false,
+            "properties": {"text": {"$ref": "#/$defs/text"}, "image": {"type": "string"}, "ts": {"$ref": "#/$defs/ts"}}
+          }
+        },
+        "ts": {"$ref": "#/$defs/ts"}
+      }
+    },
+    "problemContext": {
+      "type": "object",
+      "required": ["view", "device", "browser", "viewport", "errors"],
+      "additionalProperties": false,
+      "properties": {
+        "view": {"enum": ["focus", "compare", "tree", "host", "prototype"]},
+        "tab": {"type": "string", "maxLength": 32},
+        "qid": {"$ref": "#/$defs/qid"},
+        "round": {"type": "integer", "minimum": 0},
+        "device": {"enum": ["phone", "tablet", "computer"]},
+        "browser": {"enum": ["chrome", "safari", "firefox", "edge", "samsung", "in-app", "other"]},
+        "viewport": {"$ref": "#/$defs/viewSize"},
+        "visualViewport": {
+          "type": "object",
+          "required": ["w", "h", "scale"],
+          "additionalProperties": false,
+          "properties": {"w": {"type": "number", "minimum": 0}, "h": {"type": "number", "minimum": 0}, "scale": {"type": "number", "minimum": 0}}
+        },
+        "build": {"type": "string", "maxLength": 32},
+        "errors": {"type": "array", "maxItems": 5, "items": {"type": "string", "maxLength": 300}}
+      }
+    },
+    "viewSize": {
+      "type": "object",
+      "required": ["w", "h"],
+      "additionalProperties": false,
+      "properties": {"w": {"type": "number", "minimum": 0}, "h": {"type": "number", "minimum": 0}}
+    },
+    "disagreement": {
+      "type": "object",
+      "required": ["pid", "card", "reason", "at"],
+      "additionalProperties": false,
+      "properties": {"pid": {"$ref": "#/$defs/pid"}, "card": {"$ref": "#/$defs/cardRef"}, "reason": {"$ref": "#/$defs/note"}, "at": {"$ref": "#/$defs/ts"}}
+    },
+    "lock": {
+      "type": "object",
+      "required": ["at", "by", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "at": {"$ref": "#/$defs/ts"},
+        "by": {"$ref": "#/$defs/pid"},
+        "source": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["kind", "card", "text"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["card"]},
+                "card": {"$ref": "#/$defs/cardRef"},
+                "text": {"type": "string"},
+                "editedBy": {"description": "The locked text is the owner's edit of the answer, not its author's words.", "enum": ["host"]}
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "suggestion", "text"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["suggestion"]}, "suggestion": {"type": "string"}, "text": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "text", "from"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["edited"]}, "text": {"$ref": "#/$defs/text"}, "from": {"type": ["string", "null"]}}
+            },
+            {
+              "description": "A closed poll: the counts are frozen and no answer is chosen. Only a poll question holds it.",
+              "type": "object",
+              "required": ["kind"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["poll"]}}
+            }
+          ]
+        }
+      }
+    },
+    "suggestion": {
+      "type": "object",
+      "required": ["id", "pid", "text", "note", "at", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "text": {"$ref": "#/$defs/text"},
+        "note": {"$ref": "#/$defs/note"},
+        "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
+        "fromProposal": {"type": "string"},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["open"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["used"]}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["dismissed"]}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "by", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["closed"]}, "by": {"enum": ["unlock"]}, "at": {"$ref": "#/$defs/ts"}}
+            }
+          ]
+        }
+      }
+    },
+    "proposal": {
+      "type": "object",
+      "required": ["id", "pid", "text", "at", "via", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "text": {"$ref": "#/$defs/text"},
+        "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
+        "via": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["direct"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "message", "by"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["chat"]}, "message": {"type": "string"}, "by": {"$ref": "#/$defs/pid"}}
+            }
+          ]
+        },
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["new"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "by"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["parked"]}, "by": {"$ref": "#/$defs/pid"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "question"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["question"]}, "question": {"$ref": "#/$defs/qid"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "question", "suggestion"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["suggested"]}, "question": {"$ref": "#/$defs/qid"}, "suggestion": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "question", "reason"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["merged"]}, "question": {"$ref": "#/$defs/qid"}, "reason": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "reason"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["later"]}, "reason": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "reason"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["not-placed"]}, "reason": {"type": "string"}}
+            }
+          ]
+        }
+      }
+    },
+    "chatMessage": {
+      "type": "object",
+      "required": ["id", "pid", "text", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "text": {"$ref": "#/$defs/text"},
+        "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
+        "replyTo": {
+          "type": "object",
+          "required": ["id", "pid", "excerpt"],
+          "additionalProperties": false,
+          "properties": {"id": {"type": "string"}, "pid": {"$ref": "#/$defs/pid"}, "excerpt": {"type": "string", "maxLength": 140}, "claude": {"enum": [true]}}
+        },
+        "proposed": {"type": "string"},
+        "request": {"type": "string", "description": "The request about the whole session its \"@Claude\" filed."},
+        "claude": {
+          "description": "Claude's shared answer to a request about the whole session, written as the host's message.",
+          "type": "object",
+          "oneOf": [
+            {"required": ["result"], "additionalProperties": false, "properties": {"result": {"type": "string"}}},
+            {"required": ["takenDown"], "additionalProperties": false, "properties": {"takenDown": {"const": true}}, "description": "The owner took the answer down; its text reads so."}
+          ]
+        },
+        "reactions": {
+          "description": "emoji -> the people who put it on this message; at most 20 emoji, from the page's fixed set (session.CHAT_EMOJI).",
+          "type": "object",
+          "additionalProperties": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pid"}}
+        }
+      }
+    },
+    "comment": {
+      "description": "One Discussion comment. `edited`: when its author last changed it. `hidden`: the owner hid it; only the owner and its author see it. `request`: the ask request its \"@Claude\" filed.",
+      "type": "object",
+      "required": ["id", "pid", "text", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "text": {"$ref": "#/$defs/text"},
+        "at": {"$ref": "#/$defs/ts"},
+        "attachments": {"$ref": "#/$defs/attachments"},
+        "edited": {"$ref": "#/$defs/ts"},
+        "hidden": {
+          "type": "object",
+          "required": ["by", "at"],
+          "additionalProperties": false,
+          "properties": {"by": {"$ref": "#/$defs/pid"}, "at": {"$ref": "#/$defs/ts"}}
+        },
+        "request": {"type": "string"},
+        "reactions": {
+          "description": "emoji -> the people who put it on this comment, as on a chat message.",
+          "type": "object",
+          "additionalProperties": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pid"}}
+        }
+      }
+    },
+    "requestKind": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/event#/$defs/requestKind"},
+    "request": {
+      "type": "object",
+      "description": "No qid: a request about the whole session (a chat message's \"@Claude\", or Ask Claude's \"About the whole session\"), on the host's Claude only.",
+      "required": ["id", "pid", "at", "kind", "text", "edited", "runner", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "qid": {"$ref": "#/$defs/qid"},
+        "msg": {"type": "string", "description": "The chat message whose \"@Claude\" filed it."},
+        "audience": {"enum": ["me"], "description": "Just me: its answer shows to its asker and the owner until one of them shares it; absent asks for everyone."},
+        "at": {"$ref": "#/$defs/ts"},
+        "kind": {"$ref": "#/$defs/requestKind"},
+        "text": {"$ref": "#/$defs/text"},
+        "attachments": {"$ref": "#/$defs/attachments"},
+        "edited": {"type": "boolean"},
+        "runner": {"enum": ["host", "self"]},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["pending"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "since"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["running"]}, "since": {"$ref": "#/$defs/ts"}, "eventSeq": {"$ref": "#/$defs/seq"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["declined"]}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at", "result"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["done"]}, "at": {"$ref": "#/$defs/ts"}, "result": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at", "reason", "cancelled"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["failed"]},
+                "at": {"$ref": "#/$defs/ts"},
+                "reason": {"type": "string"},
+                "cancelled": {"type": "boolean"}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "used": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "additionalProperties": false,
+        "properties": {"name": {"type": "string"}, "type": {"enum": ["skill", "workflow", "mcp", "cli"]}}
+      }
+    },
+    "sources": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "required": ["title", "url"],
+        "additionalProperties": false,
+        "properties": {"title": {"type": "string"}, "url": {"$ref": "#/$defs/url"}}
+      }
+    },
+    "summary": {"type": "string", "maxLength": 4000},
+    "report": {"type": "string", "maxLength": 60000},
+    "result": {
+      "type": "object",
+      "description": "No qid: the answer to a request about the whole session, kept under results.session. `msg`: the chat message that shows it once shared.",
+      "required": ["id", "at", "request", "kind", "used", "why", "summary", "sources", "report", "by", "published"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "qid": {"$ref": "#/$defs/qid"},
+        "msg": {"type": "string"},
+        "at": {"$ref": "#/$defs/ts"},
+        "request": {"type": ["string", "null"]},
+        "kind": {"$ref": "#/$defs/requestKind"},
+        "used": {"$ref": "#/$defs/used"},
+        "why": {"type": "string"},
+        "summary": {"$ref": "#/$defs/summary"},
+        "sources": {"$ref": "#/$defs/sources"},
+        "report": {"$ref": "#/$defs/report"},
+        "by": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["host-claude"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "pid"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["guest-claude"]}, "pid": {"$ref": "#/$defs/pid"}}
+            }
+          ]
+        },
+        "published": {"type": "boolean"},
+        "publishedAt": {"$ref": "#/$defs/ts"},
+        "private": {"const": true, "description": "Unshared, and its asker sees it: a Just me answer, or one the owner took down."},
+        "takenDown": {"type": "object", "required": ["at"], "additionalProperties": false, "properties": {"at": {"$ref": "#/$defs/ts"}}, "description": "The owner took it down; only the owner shares it again."}
+      }
+    },
+    "upload": {
+      "type": "object",
+      "required": ["id", "pid", "at", "qid", "file", "ext", "mime", "size", "chunks", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "at": {"$ref": "#/$defs/ts"},
+        "qid": {"type": ["string", "null"]},
+        "file": {"type": "string"},
+        "ext": {"type": "string"},
+        "mime": {"type": "string"},
+        "size": {"type": "integer", "minimum": 0},
+        "thumb": {"type": "string"},
+        "shown": {"const": true, "description": "The owner approved this guest's received picture: everyone who sees what carries it sees it."},
+        "chunks": {"type": "integer", "minimum": 0},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["offered"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "tmp"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["accepted"]}, "tmp": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "tmp", "received", "bytes"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": {"enum": ["uploading"]},
+                "tmp": {"type": "string"},
+                "received": {"type": "integer", "minimum": 0},
+                "bytes": {"type": "integer", "minimum": 0}
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "stored", "sha256"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["done"]}, "stored": {"type": "string"}, "sha256": {"type": "string"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at", "by"],
+              "additionalProperties": false,
+              "description": "A received file its uploader or the owner removed: it left every record, and its file was deleted.",
+              "properties": {"kind": {"enum": ["removed"]}, "at": {"$ref": "#/$defs/ts"}, "by": {"$ref": "#/$defs/pid"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["declined"]}, "at": {"$ref": "#/$defs/ts"}, "why": {"enum": ["removed"]}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["withdrawn"]}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "reason"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["failed"]}, "reason": {"type": "string"}}
+            }
+          ]
+        }
+      }
+    },
+    "annotation": {
+      "type": "object",
+      "required": ["id", "pid", "qid", "variant", "at", "text", "anchor"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "qid": {"$ref": "#/$defs/qid"},
+        "variant": {"type": "string"},
+        "at": {"$ref": "#/$defs/ts"},
+        "text": {"$ref": "#/$defs/text"},
+        "anchor": {
+          "type": "object",
+          "required": ["selector", "rect"],
+          "additionalProperties": false,
+          "description": "selector: the pinned element's path, tag names from the variant's root joined by ' > ', each may carry :nth-of-type(n), or 'img' on an image variant; writes refuse any other shape, and a file written before that rule loads as it is. rect: the element's box in percent of the variant's reference box (an html variant's whole scrollable page when pinned, an image variant's image), used when the element is gone.",
+          "properties": {"selector": {"type": "string"}, "rect": {"$ref": "#/$defs/rect"}}
+        }
+      }
+    },
+    "pref": {
+      "type": "object",
+      "required": ["value", "at"],
+      "additionalProperties": false,
+      "properties": {"value": {}, "at": {"$ref": "#/$defs/ts"}}
+    },
+    "prefs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "claudeTake": {"$ref": "#/$defs/pref"},
+        "sort": {"$ref": "#/$defs/pref"},
+        "filter": {"$ref": "#/$defs/pref"},
+        "round": {"$ref": "#/$defs/pref"},
+        "expandedRounds": {"$ref": "#/$defs/pref"},
+        "theme": {"$ref": "#/$defs/pref"},
+        "accent": {"$ref": "#/$defs/pref"},
+        "follow": {"$ref": "#/$defs/pref"},
+        "mute": {"$ref": "#/$defs/pref"},
+        "tour": {"$ref": "#/$defs/pref"},
+        "toolbar": {"$ref": "#/$defs/pref"},
+        "autoAdvance": {"$ref": "#/$defs/pref"},
+        "popups": {"$ref": "#/$defs/pref"}
+      }
+    },
+    "notification": {
+      "type": "object",
+      "required": ["id", "kind", "title", "at", "read"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"enum": ["mention", "reply", "request", "proposal", "round", "merge", "role", "queue", "ready", "votes", "reaction", "report", "discussion"]},
+        "title": {"type": "string"},
+        "at": {"$ref": "#/$defs/ts"},
+        "read": {"type": "boolean"},
+        "by": {"$ref": "#/$defs/pid"},
+        "body": {"type": "string"},
+        "qid": {"$ref": "#/$defs/qid"},
+        "msg": {"type": "string"},
+        "comment": {"type": "string", "description": "The Discussion comment the notification is about, on question `qid`."},
+        "rollup": {
+          "type": "object",
+          "required": ["key", "since", "n"],
+          "additionalProperties": false,
+          "properties": {"key": {"type": "string"}, "since": {"$ref": "#/$defs/ts"}, "n": {"type": "integer", "minimum": 1}}
+        }
+      }
+    },
+    "mergeRequest": {
+      "type": "object",
+      "required": ["id", "from", "to", "at", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "from": {"$ref": "#/$defs/pid"},
+        "to": {"$ref": "#/$defs/pid"},
+        "at": {"$ref": "#/$defs/ts"},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["pending"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["approved"]}, "at": {"$ref": "#/$defs/ts"}}
+            },
+            {
+              "type": "object",
+              "required": ["kind", "at", "why"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["declined"]}, "at": {"$ref": "#/$defs/ts"}, "why": {"enum": ["host", "gone"]}}
+            }
+          ]
+        }
+      }
+    },
+    "aboutYou": {
+      "type": "object",
+      "required": ["techComfort", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "techComfort": {"enum": ["low", "ok", "high"]},
+        "note": {"type": "string"},
+        "at": {"$ref": "#/$defs/ts"}
+      }
+    },
+    "eventLog": {
+      "type": "object",
+      "required": ["seq", "events", "handled"],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {"type": "integer", "minimum": 0},
+        "events": {"type": "array", "items": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/event"}},
+        "handled": {"type": "array", "items": {"$ref": "#/$defs/seq"}}
+      }
+    }
+  }
+}

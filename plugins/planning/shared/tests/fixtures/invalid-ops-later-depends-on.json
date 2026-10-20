@@ -1,0 +1,29 @@
+{
+  "ops": [
+    {
+      "op": "open-round",
+      "questions": [
+        {
+          "id": "Q1",
+          "text": "Should the pay button show the total?",
+          "scope": "Payment step, pay button",
+          "recommendation": "Yes, as 'Pay 42.00'.",
+          "alternatives": [{"key": "a", "text": "Keep 'Pay now'."}, {"key": "b", "text": "Show the total above the button."}],
+          "dependsOn": ["Q2"],
+          "purpose": "decide",
+          "format": {"kind": "text"}
+        },
+        {
+          "id": "Q2",
+          "text": "Where should the order summary sit?",
+          "scope": "Payment step, desktop checkout",
+          "recommendation": "In a right-hand column.",
+          "alternatives": [{"key": "a", "text": "Below the form."}, {"key": "b", "text": "In a header bar."}],
+          "dependsOn": [],
+          "purpose": "decide",
+          "format": {"kind": "text"}
+        }
+      ]
+    }
+  ]
+}

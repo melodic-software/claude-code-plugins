@@ -3,6 +3,26 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-10-18
+
+### Added
+
+- Git-hook drift notices honor a decline key at any git config scope: `decline --global` declines an entry in every clone, `checks.git-hooks.declined` set true declines every entry of every plugin, and an entry's own key set to `false` in a clone opts it back in.
+
+- `/instruction-placement:check` fails a `.claude/rules/` file whose YAML frontmatter will not parse. Claude Code ignores such frontmatter and loads the rule as if it had no `paths`, so the rule silently applies to every session. `glob-tools.sh rules` prints a `FRONTMATTER` row per file (line and reason) and exits 1. It screens for a tab in indentation, a plain value starting with `*`, `@` or a backtick (the unquoted `paths: **/*.ts`), and a plain value holding a colon followed by a space or ending in a colon; it is not a full YAML parser.
+
+### Changed
+
+- The routing rubric names a path-scoped skill (a `SKILL.md` with `paths:`) as a destination for procedure content scoped to file types; constraints stay in rules. It records that the deny on routing file-creation rules to `paths:` stays until a canary measures whether a Write-triggered rule arrives before the file is written.
+
+- Setup links the marketplace adoption guide for what each install scope means to the user.
+
+### Fixed
+
+- The setup git-hook decisions reference now covers the `unsafe-path` decision and the fuller `modified` case the installer reports, and is generated from one shared source so it no longer falls behind.
+
+- The generated plugin options section of the README no longer claims which setup route most people prefer.
+
 ## [0.24.1] - 2026-10-16
 
 ### Fixed

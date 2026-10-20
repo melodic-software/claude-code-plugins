@@ -472,7 +472,8 @@ measurements below carry the conditions they were taken under.
   ([`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs), as of
   2026-10-11; recheck when that section changes which scopes the key is read from); the user file is located from `${CLAUDE_PLUGIN_ROOT}`, not from
   repo-redirectable environment, and the managed (enterprise) file at its fixed system path, with its
-  drop-in directory, is read too so an org can enforce audit-only. An absent
+  drop-in directory, is read too so an org can enforce audit-only (on Linux and WSL a managed value
+  that enables execution counts only from a root-owned file the user cannot write). An absent
   or unreadable value fails closed to enabled. The one residual a hook cannot read is a value supplied only
   via a session `--settings` file. The skill's own kill-switch probe + skill-content value remain a
   defense-in-depth honoring layer over the guard.

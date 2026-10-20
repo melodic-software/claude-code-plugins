@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Quality bar: production (assumed: none given)\nCriteria: docs/standards/service-boundaries.md\nOverrides bundled default Duplicated Code per docs/standards/service-boundaries.md",
+      "why": "the exact line"
+    },
+    {
+      "answer": "Overrides bundled default `Duplicated Code` per `docs/standards/service-boundaries.md`",
+      "why": "code-span formatting"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The consumer standard permits copies across services, so the duplication is not reported.",
+      "why": "applies the standard without the override line"
+    },
+    {
+      "answer": "Overrides bundled default Duplicated Code per README.md",
+      "why": "names the index, not the standards file"
+    }
+  ]
+}

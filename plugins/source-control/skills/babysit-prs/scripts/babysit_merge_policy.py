@@ -32,8 +32,8 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Mapping
-from dataclasses import dataclass, replace
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -53,8 +53,16 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     is_owner_repo_pair,
+    pull_request_commits_once,
+    record_pull_request_total,
 )
-from babysit_risk import ChangedFile, glob_match
+from babysit_risk import (
+    DECLARATION_FILES,
+    ChangedFile,
+    declaration_pointers,
+    glob_match,
+    is_capability_path,
+)
 from babysit_util import (
     is_json_array,
     is_json_object,
@@ -121,6 +129,11 @@ ISSUES_PAGE_LIMIT = 10
 
 class PolicyReadError(RuntimeError):
     """A policy input could not be read; callers fail closed."""
+
+
+class _SymlinkAt(PolicyReadError):
+    """A clone holds a symlink where a file was asked for. The contents API
+    follows an in-repository symlink, so the caller reads it there instead."""
 
 
 @dataclass(frozen=True)
@@ -421,19 +434,55 @@ class PipelineConfig:
     # `report` reports it and writes nothing, and `enforce` merges it
     # whatever `merge.report-only` says.
     dependabot_mode: str = "off"
+    # `merge.dependabot.majors`: `hold` (absent, or any other value) refuses a
+    # Dependabot pull request with a major update, or one whose version cannot
+    # be read, whatever the review verdict says, so a human merges it;
+    # `review` lets the verdict merge it.
+    dependabot_majors: str = "hold"
     # The pr-merge lane's risk switches under `merge.diff-check` (owner
     # decision Q624): absent, the HIGH path floor and the C2 contradictions
     # are off and there is no file cap (`max_changed_lines` None: no line
     # cap); a value other than true or false turns a switch on. The local
-    # babysit lane ignores them and keeps every check.
+    # babysit lane ignores them, except that `high_path_floor` gates the floor
+    # additions there too (`babysit_risk.RiskInput.floor_extensions`).
     high_path_floor: bool = False
+    # `merge.diff-check.floor-paths`: globs joined to the floor (owner
+    # decision Q641); they hold a pull request for a human, unlike
+    # denied-paths, which makes it ineligible.
+    floor_paths: tuple[str, ...] = ()
+    # `merge.diff-check.floor-script-scopes`: globs inside which a `.ps1` or
+    # `.cjs` file, or a file with git mode 100755, holds the same way (owner
+    # decision Q646).
+    floor_script_scopes: tuple[str, ...] = ()
     c2_contradictions: bool = False
     max_changed_files: int | None = None
+    # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
+    # Absent, or anything but a whole number of at least 1, is 1. The gate
+    # reads it at the default branch head instead (`_run_max_in_flight`).
+    max_in_flight: int = 1
+    # `merge.max-queue-ejections`: failed-check merge-queue removals since
+    # the head last changed at which the gate stops enqueuing that head.
+    # Absent, or anything but a whole number from 1 to
+    # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
+    max_queue_ejections: int = 2
+    # `merge.check-inputs`: git pathspecs of what the pull request checks
+    # read. When the base changed one since a pull request's merge base, the
+    # pr-merge lane updates its branch from the base instead of enqueuing it
+    # (`babysit_check_inputs`). Absent or empty, nothing is updated.
+    check_inputs: tuple[str, ...] = ()
 
+
+# The most `merge.max-queue-ejections` may be, and the timeline items the
+# enqueue reads back. A full read with no head change in it may have missed
+# older removals, so it counts as unreadable and refuses.
+MAX_QUEUE_EJECTIONS_LIMIT = 20
 
 LOCAL_BABYSIT = "local-babysit"
 PR_MERGE = "pr-merge"
 DEPENDABOT_MODES = ("off", "report", "enforce")
+DEPENDABOT_MAJORS = ("hold", "review")
+# The refusal for a major update under `merge.dependabot.majors: hold`.
+MAJOR_HELD = "dependabot-major-held"
 
 
 def enabled_authority(config: PipelineConfig) -> str | None:
@@ -506,17 +555,24 @@ def read_config_at(
 ) -> PipelineConfig:
     """`merge:` from `docs/conventions/pr-pipeline.yaml` and `babysit_loop_merge`
     from `.claude/source-control.md`, both read at `base_sha` through
-    `file_at(path, sha)` (text, or None when absent), by default the contents
-    API. A pipeline file the shared reader rejects is off; an absent one has
-    no merge block (rung off, authority unset). Raises `PolicyReadError` when
-    the pipeline file cannot be read.
+    `file_at(path, sha)` (text, or None when absent), by default a local clone
+    holding `base_sha` (`_clones_holding`), else the contents API. A pipeline
+    file the shared reader rejects is off; an absent one has no merge block
+    (rung off, authority unset). Raises `PolicyReadError` when the pipeline
+    file cannot be read.
     """
     owner, name = _split_repo(repo)
     if not SHA_RE.fullmatch(base_sha or ""):
         raise PolicyReadError(f"base SHA is not a 40-hex commit id: {base_sha!r}")
     if file_at is None:
+        root = next(_clones_holding(base_sha), None)
 
         def file_at(path: str, sha: str) -> str | None:
+            if root is not None:
+                try:
+                    return _git_file_at(root, path, sha)
+                except _SymlinkAt:
+                    pass
             return _file_at(owner, name, path, sha)
 
     notes: list[str] = []
@@ -542,9 +598,15 @@ def read_config_at(
             ("merge.diff-check.high-path-floor", False),
             ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
+            ("merge.diff-check.floor-paths", True),
+            ("merge.diff-check.floor-script-scopes", True),
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
             ("merge.dependabot.mode", False),
+            ("merge.dependabot.majors", False),
+            ("merge.max-in-flight", False),
+            ("merge.max-queue-ejections", False),
+            ("merge.check-inputs", True),
         ],
     )
     if values is None:
@@ -590,6 +652,28 @@ def read_config_at(
             f"merge.dependabot.mode {dependabot_mode!r} is not off, report or enforce"
         )
         dependabot_mode = "off"
+    dependabot_majors = scalar("merge.dependabot.majors") or "hold"
+    if dependabot_majors not in DEPENDABOT_MAJORS:
+        notes.append(
+            f"merge.dependabot.majors {dependabot_majors!r} is not hold or review"
+        )
+        dependabot_majors = "hold"
+    in_flight_cap = scalar("merge.max-in-flight")
+    if in_flight_cap is not None and not re.fullmatch(r"[1-9][0-9]*", in_flight_cap):
+        notes.append(
+            f"merge.max-in-flight {in_flight_cap!r} is not a count of 1 or more"
+        )
+        in_flight_cap = None
+    ejections = scalar("merge.max-queue-ejections")
+    if ejections is not None and not (
+        re.fullmatch(r"[1-9][0-9]?", ejections)
+        and int(ejections) <= MAX_QUEUE_EJECTIONS_LIMIT
+    ):
+        notes.append(
+            f"merge.max-queue-ejections {ejections!r} is not a count from 1 to "
+            f"{MAX_QUEUE_EJECTIONS_LIMIT}"
+        )
+        ejections = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -602,9 +686,15 @@ def read_config_at(
         report_only=report_only not in (None, "false"),
         require_verifier_verdict=verdict not in (None, "false"),
         dependabot_mode=dependabot_mode,
+        dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
+        floor_paths=tuple(values["merge.diff-check.floor-paths"]),
+        floor_script_scopes=tuple(values["merge.diff-check.floor-script-scopes"]),
         c2_contradictions=c2_contradictions,
         max_changed_files=int(files) if files else None,
+        max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
+        max_queue_ejections=int(ejections) if ejections else 2,
+        check_inputs=tuple(values["merge.check-inputs"]),
     )
 
 
@@ -1425,7 +1515,7 @@ def lane_eligibility(
     touching no `merge.diff-check.denied-paths`. Such a pull request is
     class `LANE_CLASS`; no `work-class:` label is read.
     `pr` is the REST record, whose `changed_files` the file listing must
-    reach. Holds (the `do-not-merge` label, a `Hold:` line) are the gate's.
+    reach. Holds (a hold label, a `Hold:` line) are the gate's.
     `self_logins` and `permission` are unused: no human read remains."""
     owner, name = _split_repo(repo)
     issue_number = None
@@ -1610,11 +1700,13 @@ def dependabot_eligibility(
     *,
     pr: Mapping[str, Any],
     agent_identity: str | None,
+    hold_majors: bool = True,
 ) -> Eligibility:
     """Whether the pr-merge lane may merge a Dependabot pull request: not a
     fork, opened by Dependabot's App; tier `auto` (`babysit_dependabot.classify`),
     or tier `review` with the lanes App's `verdict=merge` round marker at the
-    current head (`merge_verdict`), where a diff beyond the manifests, lock
+    current head (`merge_verdict`) and, under `hold_majors`
+    (`merge.dependabot.majors: hold`), no major or unreadable update, where a diff beyond the manifests, lock
     files and `uses:` repins Dependabot manages also makes the tier `review`;
     every commit Dependabot's (plus, after a review, the lanes App's
     `[dependabot skip]` fixes) and every push Dependabot's (or that commit's
@@ -1622,7 +1714,7 @@ def dependabot_eligibility(
     the head; and no human blocking comment. A running `ci-status` waits. The
     class is C2 (mechanical), so the rung and its cap still bind it. No
     closing issue and no denied-path rule: `ci-status` is the gate. The
-    `do-not-merge` label and a body hold are the gate's, as for every pull
+    hold labels and a body hold are the gate's, as for every pull
     request."""
     owner, name = _split_repo(repo)
     head = str(json_object(pr.get("head")).get("sha") or "")
@@ -1642,9 +1734,14 @@ def dependabot_eligibility(
             author.get("login")
         ):
             return Eligibility(False, "not-dependabot-authored")
-        commits = _paginated(
-            f"repos/{owner}/{name}/pulls/{number}/commits?per_page=100",
-            f"#{number} commits",
+        commits = pull_request_commits_once(
+            f"{owner}/{name}",
+            number,
+            json_object(pr.get("head")).get("sha"),
+            lambda: _paginated(
+                f"repos/{owner}/{name}/pulls/{number}/commits?per_page=100",
+                f"#{number} commits",
+            ),
         )
         total = pr.get("commits")
         if (
@@ -1700,6 +1797,27 @@ def dependabot_eligibility(
         # A tier `review` pull request merges only on the review activity's
         # `verdict=merge` at this head, and may then carry its fix commits.
         lane_commits = None
+        # Fail closed: an update whose version cannot be read (a SHA pin), or
+        # no readable update at all, is held like a major, marked
+        # `(unreadable)`; so is every update when the title and the commit
+        # metadata disagree, marked `(disagree)`.
+        disagree = "sources-disagree" in tier.reasons
+        majors = [
+            u.name
+            if u.major
+            else f"{u.name}(unreadable)"
+            if u.major is None
+            else f"{u.name}(disagree)"
+            for u in tier.updates
+            if u.major is not False or disagree
+        ] or ([] if tier.updates else ["updates(unreadable)"])
+        if hold_majors and majors:
+            return Eligibility(
+                False,
+                f"{MAJOR_HELD}:{','.join(majors)}",
+                "C2",
+                dependabot=tier,
+            )
         if tier.tier != dependabot.AUTO:
             comments = _paginated(
                 f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
@@ -1898,8 +2016,14 @@ def derive_auto_merge(
 
 @dataclass(frozen=True)
 class InFlight:
+    """`queued` holds every merge-queue entry's pull request number, or None
+    when the queue was not read whole; `unverified` counts the unverified
+    auto-merges read, all of them when clear."""
+
     clear: bool
     reason: str | None
+    queued: frozenset[int] | None = field(default=None, compare=False)
+    unverified: int = field(default=0, compare=False)
 
 
 def in_flight(
@@ -1912,14 +2036,17 @@ def in_flight(
     branch: str = "main",
     merged_since: datetime | None = None,
     lane_merges_only: bool = False,
+    max_in_flight: int = 1,
 ) -> InFlight:
-    """Clear only when no merge-queue entry is the agent identity's and every
+    """Clear only while the merges in flight number fewer than
+    `max_in_flight`: the agent identity's merge-queue entries plus every
     auto-merge (`derive_auto_merge`: a non-human enqueue, or a queue-bypassing
     merge by a non-human; with `lane_merges_only`, only the identity's)
-    merged into `branch` since `merged_since` is verified. With no
-    floor it is not clear and reads nothing; a history the read cannot reach
-    the floor or end of is not clear. `verified` judges one auto-merge;
-    without it none is, so any auto-merge keeps the path not clear."""
+    merged into `branch` since `merged_since` and not verified. The reason
+    names the entry or merge that reached the count. Any queue entry with an
+    unknown enqueuer is not clear. With no floor it is not clear and reads
+    nothing; a history the read cannot reach the floor or end of is not
+    clear. `verified` judges one auto-merge; without it none is."""
     owner, name = _split_repo(repo)
     if not agent_identity:
         return InFlight(False, "agent-identity-unconfigured")
@@ -1935,6 +2062,8 @@ def in_flight(
         self_logins=self_logins,
         permission=permission,
     )
+    queued: frozenset[int] | None = None
+    count = unverified = 0
     try:
         data = _graphql(MERGE_QUEUE, "merge queue", o=owner, r=name, b=branch)
         queue = json_object(json_object(data.get("repository")).get("mergeQueue"))
@@ -1942,16 +2071,21 @@ def in_flight(
         nodes = [json_object(n) for n in json_array(entries.get("nodes"))]
         if not queue or entries.get("totalCount") != len(nodes):
             return InFlight(False, "merge-queue-unreadable")
-        for entry in nodes:
-            number = json_object(entry.get("pullRequest")).get("number")
+        numbers = [json_object(n.get("pullRequest")).get("number") for n in nodes]
+        if all(type(n) is int for n in numbers):
+            queued = frozenset(numbers)
+        for entry, number in zip(nodes, numbers, strict=True):
             enqueuer = json_object(entry.get("enqueuer"))
             if not enqueuer:
-                return InFlight(False, f"entry-enqueuer-unknown:#{number}")
+                return InFlight(False, f"entry-enqueuer-unknown:#{number}", queued)
             if _login_key(enqueuer.get("login")) == _login_key(agent_identity):
-                return InFlight(False, f"identity-entry-queued:#{number}")
+                count += 1
+                if count >= max_in_flight:
+                    reason = f"identity-entry-queued:#{number}"
+                    return InFlight(False, reason, queued)
         merges = _merged_since(owner, name, branch, merged_since)
         if merges is None:
-            return InFlight(False, "merged-history-truncated")
+            return InFlight(False, "merged-history-truncated", queued)
         for pr in merges:
             merge = derive_auto_merge(
                 pr, human, agent_identity, lane_merges_only=lane_merges_only
@@ -1959,10 +2093,14 @@ def in_flight(
             if not isinstance(merge, AutoMerge):
                 continue
             if verified is None or not verified(merge):
-                return InFlight(False, f"unverified-auto-merge:#{merge.number}")
+                count += 1
+                unverified += 1
+                if count >= max_in_flight:
+                    reason = f"unverified-auto-merge:#{merge.number}"
+                    return InFlight(False, reason, queued, unverified)
     except PolicyReadError as exc:
-        return InFlight(False, f"unreadable: {exc}")
-    return InFlight(True, None)
+        return InFlight(False, f"unreadable: {exc}", queued, unverified)
+    return InFlight(True, None, queued, unverified)
 
 
 # --- Holds on a queued entry -------------------------------------------------------------------
@@ -2068,10 +2206,15 @@ def entry_hold(
     permission: Permission | None = None,
 ) -> str | None:
     """Why a queued entry of the agent identity must leave the queue (D3): the
-    `do-not-merge` label, a body hold, a human blocking comment, or the opt-in
+    `do-not-merge` or human-gated label, a body hold, a human blocking comment, or the opt-in
     label removed since the enqueue or put back by a non-human. An unreadable
     entry is a hold."""
-    from babysit_merge import BODY_MERGE_HOLD_RE, MERGE_HOLD_LABEL  # noqa: PLC0415
+    from babysit_merge import (  # noqa: PLC0415
+        BODY_MERGE_HOLD_RE,
+        human_gated_label,
+        merge_hold_label,
+    )
+    from babysit_postmerge import PostMergeReadError  # noqa: PLC0415
 
     owner, name = _split_repo(repo)
     permission = permission or permission_reader(repo)
@@ -2089,8 +2232,9 @@ def entry_hold(
         events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
         if labels is None or not events:
             return "unreadable"
-        if any(label.casefold() == MERGE_HOLD_LABEL for label in labels):
-            return MERGE_HOLD_LABEL
+        # Only unattended runs judge queued entries.
+        if held_by := merge_hold_label(labels, human_gated=human_gated_label(repo)):
+            return held_by
         if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
             return "body-hold"
         blockers = _human_blockers(owner, name, number, identity)
@@ -2101,7 +2245,7 @@ def entry_hold(
         )
         if opt_in:
             return opt_in
-    except PolicyReadError as exc:
+    except (PolicyReadError, PostMergeReadError) as exc:
         return f"unreadable: {exc}"
     return None
 
@@ -2151,6 +2295,56 @@ def _default_branch_head(repo: str) -> tuple[str, str]:
     return branch, sha
 
 
+MAX_IN_FLIGHT_SECTION = "max-in-flight"
+
+
+def _run_max_in_flight(
+    repo: str,
+    branch: str,
+    head: str | None,
+    base: PipelineConfig,
+    *,
+    shared: bool = True,
+) -> tuple[int, str]:
+    """`merge.max-in-flight` and where it was read. It caps the one merge
+    queue, so every candidate reads it at the head of `branch` (the default
+    branch; `head` when already read), not at its own base. `shared` reads
+    and saves it once per cache window (`run_cache.MAX_AGE`) for the run's
+    gate processes, never saving a failed read; a failed read falls back to
+    `base`'s value."""
+    cached = (
+        run_cache.get(MAX_IN_FLIGHT_SECTION, repo, run_cache.MAX_AGE)
+        if shared
+        else None
+    )
+    if type(cached) is int and cached >= 1:
+        return cached, "default-branch"
+    owner, name = _split_repo(repo)
+    if head is None:
+        status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
+        head = payload.get("sha") if status == 200 and is_json_object(payload) else None
+    if not isinstance(head, str):
+        return base.max_in_flight, "base"
+    if head == base.base_sha:
+        config = base
+    else:
+        try:
+            config = read_config_at(
+                repo,
+                head,
+                lambda path, sha: (
+                    _file_at(owner, name, path, sha) if path == CONFIG_PATH else None
+                ),
+            )
+        except PolicyReadError:
+            return base.max_in_flight, "base"
+    if config.error:
+        return base.max_in_flight, "base"
+    if shared:
+        run_cache.put(MAX_IN_FLIGHT_SECTION, repo, config.max_in_flight)
+    return config.max_in_flight, "default-branch"
+
+
 def pull_request(repo: str, number: int) -> dict[str, Any]:
     """The pull request's REST record, with a base and head SHA that are full
     commit ids."""
@@ -2165,6 +2359,7 @@ def pull_request(repo: str, number: int) -> dict[str, Any]:
         and isinstance(head.get("ref"), str)
     ):
         raise PolicyReadError(f"#{number} could not be read (status {status})")
+    record_pull_request_total(repo, number, head.get("sha"), pr.get("commits"))
     return pr
 
 
@@ -2183,6 +2378,13 @@ def _history_checkouts() -> list[Path]:
     return [Path(__file__).resolve().parent, Path.cwd()]
 
 
+# How a history read sees a clone's real commits, beside the
+# `--no-replace-objects` each caller passes: a graft file is ignored, and a
+# missing object fails the read rather than being lazily fetched. A graft or
+# replace ref would cut or rewrite the history a clone reports.
+HISTORY_GIT_ENV = {"GIT_GRAFT_FILE": os.devnull, "GIT_NO_LAZY_FETCH": "1"}
+
+
 def _git(root: Path, *args: str) -> str | None:
     """The stdout of `git` run in `root`, or None when it fails."""
     try:
@@ -2190,6 +2392,7 @@ def _git(root: Path, *args: str) -> str | None:
             ["git", "--no-replace-objects", "-C", str(root), *args],
             allowed_executables=("git",),
             check=False,
+            env_overrides=HISTORY_GIT_ENV,
         )
     except (RuntimeError, ValueError, OSError):
         return None
@@ -2205,7 +2408,9 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
     if not entry:
         return None
     mode, kind = entry.split(" ", 2)[:2]
-    if kind != "blob" or mode == "120000":
+    if mode == "120000":
+        raise _SymlinkAt(f"{path} at {sha} is a symlink")
+    if kind != "blob":
         raise PolicyReadError(f"{path} at {sha} is not a file")
     text = _git(root, "cat-file", "blob", f"{sha}:{path}")
     if text is None:
@@ -2213,12 +2418,10 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
     return text
 
 
-def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
-    """The pipeline file's commits from `base_sha`, newest first, as (SHA,
-    committer date), from the first clone in `_history_checkouts` that holds
-    `base_sha` with its whole history (not shallow); None when none does.
-    A commit id names its whole ancestry, so any clone holding it answers
-    for the repository."""
+def _clones_holding(sha: str) -> Iterator[Path]:
+    """The top of each clone in `_history_checkouts` that holds `sha` with its
+    whole history (not shallow or partial). A commit id names its whole
+    ancestry and tree, so any clone holding it answers for the repository."""
     for checkout in _history_checkouts():
         # Pathspecs resolve against the working directory, so run at the top.
         top = _git(checkout, "rev-parse", "--show-toplevel")
@@ -2227,8 +2430,20 @@ def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
         root = Path(top.strip())
         if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
             continue
-        if _git(root, "cat-file", "-e", f"{base_sha}^{{commit}}") is None:
+        # A partial clone lacks older blobs, which the read never fetches.
+        promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
+        if _git(root, "config", "--get-regexp", promisor) is not None:
             continue
+        if _git(root, "cat-file", "-e", f"{sha}^{{commit}}") is None:
+            continue
+        yield root
+
+
+def _local_history(base_sha: str) -> tuple[Path, list[tuple[str, str]]] | None:
+    """The pipeline file's commits from `base_sha`, newest first, as (SHA,
+    committer date), from the first clone holding `base_sha`
+    (`_clones_holding`); None when none does."""
+    for root in _clones_holding(base_sha):
         log = _git(
             root,
             "-c",
@@ -2330,7 +2545,18 @@ def merged_since_floor(
 
 
 def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
-    """Each path's git mode at `sha`, or None when the listing is truncated."""
+    """Each path's git mode at `sha`, or None when the listing is truncated:
+    from a local clone holding `sha` (`_clones_holding`), else the trees API."""
+    for root in _clones_holding(sha):
+        listing = _git(root, "ls-tree", "-r", "-t", "-z", "--full-tree", sha)
+        if listing is not None:
+            # Each entry is `<mode> <type> <id>\t<path>`.
+            return {
+                path: meta.split(" ", 1)[0]
+                for meta, _, path in (
+                    entry.partition("\t") for entry in listing.split("\0") if entry
+                )
+            }
     status, payload = _get(f"repos/{owner}/{name}/git/trees/{sha}?recursive=1")
     if status != 200 or not is_json_object(payload):
         raise PolicyReadError(f"the tree at {sha} could not be read (status {status})")
@@ -2345,7 +2571,7 @@ def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
 def _changed_files(
     owner: str, name: str, pr: dict[str, Any], base_sha: str
 ) -> tuple[tuple[ChangedFile, ...], bool]:
-    """The pull request's files with git modes from the trees API (the files
+    """The pull request's files with git modes from `_tree_modes` (the files
     API carries none): the head side at its head, the previous side at
     `base_sha`. Complete only when every listing reads to its end."""
     number, head = pr.get("number"), pr.get("headRefOid")
@@ -2374,6 +2600,7 @@ def _changed_files(
                 additions=entry.get("additions"),
                 deletions=entry.get("deletions"),
                 has_patch="patch" in entry,
+                patch=entry.get("patch"),
                 mode=(side or {}).get(path),
                 previous_mode=None
                 if status in ("added", "removed")
@@ -2397,6 +2624,120 @@ def changed_files(
     return _changed_files(
         owner, name, shaped, str(json_object(pr.get("base")).get("sha"))
     )
+
+
+# Capability file text by (owner, name, path, sha): a SHA pins the text, so a
+# run reads each side of each file once.
+_TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
+
+
+def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
+    key = (owner, name, path, sha)
+    if key not in _TEXT_AT:
+        # Quoted, so a `?` or `#` in a changed path cannot pick another ref.
+        _TEXT_AT[key] = _file_at(owner, name, quote(path, safe="/"), sha)
+    return _TEXT_AT[key]
+
+
+def with_capability_contents(
+    repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
+) -> tuple[ChangedFile, ...]:
+    """Each changed capability file (not removed) with its base text at the
+    base SHA, from its previous path on a rename or copy, and its head text
+    at the head SHA, or the reason either could not be read."""
+    owner, name = _split_repo(repo)
+    base = json_object(pr.get("base")).get("sha")
+    head = json_object(pr.get("head")).get("sha")
+    read = []
+    for changed in files:
+        if changed.status == "removed" or not is_capability_path(changed.path):
+            read.append(changed)
+            continue
+        try:
+            if not (isinstance(base, str) and base and isinstance(head, str) and head):
+                raise PolicyReadError(
+                    "the pull request record names no base or head SHA"
+                )
+            before = (
+                None
+                if changed.status == "added"
+                else _text_at(owner, name, changed.previous_path or changed.path, base)
+            )
+            after = _text_at(owner, name, changed.path, head)
+            read.append(replace(changed, contents=(before, after)))
+        except Exception as exc:  # noqa: BLE001 - any failure reads as unreadable (HIGH)
+            reason = f"{type(exc).__name__}: {exc}"
+            # repr escapes a newline in the author-controlled path, so the line
+            # cannot start a workflow command.
+            print(
+                f"capability contents of {changed.path!r}: {reason!r}", file=sys.stderr
+            )
+            read.append(replace(changed, contents_error=reason))
+    return tuple(read)
+
+
+_TREE_MODE = "040000"
+
+
+def declarations_at(
+    repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
+) -> tuple[tuple[str, str | None], ...] | None:
+    """`babysit_risk.RiskInput.declarations`: `DECLARATION_FILES` files and
+    the config files their plugin.json points at, at the base SHA as (path,
+    text), with None for a file that could not be read. From a clone holding
+    the base, every plugin's, which costs no API call; else, through the
+    contents API, only those of a plugin directory a changed path sits in: a
+    declared path outside its own plugin is unsafe, so only another plugin's
+    escaping declaration could floor a changed file, and a change outside
+    every plugin reads none. None when the base tree cannot be listed; the
+    scorer holds the floor either way."""
+    plugins = {
+        "/".join(parts[:2]).casefold()
+        for path in changed
+        if isinstance(path, str)
+        and len(parts := path.split("/")) >= 3
+        and parts[0].casefold() == "plugins"
+    }
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        root = next(_clones_holding(base), None)
+        if root is None and not plugins:
+            return ()
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"declarations at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return None
+    if modes is None:
+        return None
+
+    def read(path: str) -> str | None:
+        if modes.get(path) in (None, _TREE_MODE):
+            return None
+        try:
+            if root is not None:
+                return _git_file_at(root, path, base)
+            return _text_at(owner, name, path, base)
+        except (PolicyReadError, ValueError) as exc:
+            print(f"declaration {path!r}: {type(exc).__name__}", file=sys.stderr)
+            return None
+
+    found = [
+        (path, read(path))
+        for path in sorted(modes)
+        if (root is not None or "/".join(path.split("/")[:2]).casefold() in plugins)
+        and any(glob_match(g, path) for g in DECLARATION_FILES)
+    ]
+    named = {path for path, _ in found}
+    pointers = (
+        q for path, text in list(found) for q in declaration_pointers(path, text)
+    )
+    for pointer in dict.fromkeys(pointers):
+        if pointer not in named:
+            found.append((pointer, read(pointer)))
+    return tuple(found)
 
 
 # --- Promotion evidence -----------------------------------------------------------------------
@@ -2575,6 +2916,21 @@ class PostMergeGate:
 
 # How old a shared post-merge answer may be: the pr-merge job's timeout.
 SHARED_MAX_AGE = timedelta(minutes=30)
+# How old a shared answer still waiting on a lane merge's verifying run may
+# be: that run may have passed since. The verify-evidence listing's bound.
+SHARED_UNVERIFIED_MAX_AGE = run_cache.MAX_AGE
+# Refusals that bind the answer to another candidate, not to an older state,
+# or leave the binding unknown: a recompute under one is not written over
+# the run's answer.
+SHARED_BINDING_REFUSALS = frozenset(
+    {
+        "identity-differs",
+        "self-logins-differ",
+        "lane-differs",
+        "floor-differs",
+        "config-unreadable",
+    }
+)
 # Runner clocks may run ahead of GitHub's; `since` starts this much earlier.
 SINCE_CLOCK_MARGIN = timedelta(minutes=5)
 
@@ -2665,11 +3021,16 @@ def shared_refusal(
     now: datetime | None = None,
 ) -> str | None:
     """Why `shared` may not stand in for this pull request's own reads, or
-    None: it must name the same identity, self logins and lane, be no older
-    than `SHARED_MAX_AGE`, have no demotion record filed or changed since
-    (`_demotion_changed`), give this base the floor its own read would
-    (`merged_since_floor` with the shared demotion), and judge every merge
-    the post-merge check would judge now.
+    None: it must name the same identity, self logins and lane, give this
+    base the floor its own read would (`merged_since_floor` with the shared
+    demotion), be no older than `SHARED_MAX_AGE` (`SHARED_UNVERIFIED_MAX_AGE`
+    while it passes with a merge unverified), have no demotion record filed
+    or changed since (`_demotion_changed`), and judge every merge the
+    post-merge check would judge now. The binding comes before the age, so a
+    candidate bound elsewhere reports `SHARED_BINDING_REFUSALS` and does not
+    replace the run's answer. The floor is compared under the shared answer's
+    demotion, which may be out of date; that changes only the reason and the
+    write-back, since any refusal reads afresh.
 
     The check judges `branch` from the floor, never the base, so the answer
     holds for any base with that floor. A newer default-branch head changes
@@ -2680,7 +3041,7 @@ def shared_refusal(
     created after it verified."""
     age = (now or datetime.now(UTC)) - shared.computed_at
     owner, name = _split_repo(repo)
-    checks = (
+    binding = (
         (_login_key(shared.identity) != _login_key(identity), "identity-differs"),
         (
             {_login_key(s) for s in shared.self_logins}
@@ -2688,13 +3049,10 @@ def shared_refusal(
             "self-logins-differ",
         ),
         (shared.lane_merges_only != lane, "lane-differs"),
-        (not timedelta(0) <= age <= SHARED_MAX_AGE, "stale"),
     )
-    refusal = next((text for refused, text in checks if refused), None)
+    refusal = next((text for refused, text in binding if refused), None)
     if refusal:
         return refusal
-    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
-        return "demotion-changed"
     try:
         # The same newest config commit is the same floor; any other base
         # walks its own config history to the floor it would read.
@@ -2706,6 +3064,25 @@ def shared_refusal(
             return "floor-differs"
     except PolicyReadError:
         return "config-unreadable"
+    checks = (
+        (not timedelta(0) <= age <= SHARED_MAX_AGE, "stale"),
+        # A refusing answer refuses whatever was verified since, so only a
+        # passing one with a merge still unverified is read again.
+        (
+            age > SHARED_UNVERIFIED_MAX_AGE
+            and shared.gate.refusal is None
+            and any(
+                json_object(m).get("verified") is not True
+                for m in json_array(shared.gate.report.get("autoMerges"))
+            ),
+            "unverified-stale",
+        ),
+    )
+    refusal = next((text for refused, text in checks if refused), None)
+    if refusal:
+        return refusal
+    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
+        return "demotion-changed"
     status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
     head = payload.get("sha") if status == 200 and is_json_object(payload) else None
     if head == shared.main_sha:
@@ -2746,6 +3123,7 @@ def assess(
     lane_kill_switch: str | None = None,
     lane_rung_cap: str | None = None,
     shared: SharedPostMerge | None = None,
+    share: Callable[[SharedPostMerge], object] | None = None,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
@@ -2759,18 +3137,24 @@ def assess(
     merges in flight. The
     config at the base must enable that authority (`enabled_authority`).
 
-    Config at the pull request's base SHA, then authority, identity, the
+    Config at the pull request's base SHA (`merge.max-in-flight` alone at
+    the default branch head, `_run_max_in_flight`), then authority, identity, the
     credential chokepoint, the kill switch, a base that is the default
     branch, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
     in-flight rule, the promotion evidence and the pull request's
-    eligibility and class: each refuses a merge, and all are reported.
+    eligibility and class: each refuses a merge, and all are reported, but
+    an in-flight refusal of a pull request not in the merge queue stops the
+    reads there.
 
     `post_merge(floor, identity)` runs the post-merge check from the floor
     (`merged_since_floor`) and must be given: without it the path refuses.
     `shared`, the run's one answer for every candidate, replaces the
     demotion, floor and post-merge reads when `shared_refusal` passes it.
+    `share(answer)` receives those reads, when made and readable, bound as a
+    `SharedPostMerge` for the next candidate, unless `shared` was refused as
+    bound to another candidate (`SHARED_BINDING_REFUSALS`); it must not raise.
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
     promoted. `self_logins` names only lane or bot self identities (see
@@ -2874,6 +3258,18 @@ def assess(
         )
         details["postMergeShared"] = f"unused:{unusable}" if unusable else "used"
         reuse = None if unusable else shared
+        if unusable in SHARED_BINDING_REFUSALS:
+            share = None
+    # Bound before the reads it covers: a merge after this head read moves
+    # the head, and a record changed after `computed_at` is re-read.
+    computed_at = datetime.now(UTC)
+    owner, name = _split_repo(repo)
+    head = None
+    if share is not None and reuse is None:
+        status, payload = _get(
+            f"repos/{owner}/{name}/commits/{quote(default, safe='')}"
+        )
+        head = payload.get("sha") if status == 200 and is_json_object(payload) else None
     demotion = reuse.demotion if reuse else read_demotion(repo, **readers)
     details["demotion"] = {
         "active": demotion.active,
@@ -2896,6 +3292,30 @@ def assess(
         else PostMergeGate("unchecked", {}, None)
     )
     details["postMerge"] = dict(gate.report)
+    if (
+        share is not None
+        and isinstance(head, str)
+        and SHA_RE.fullmatch(head)
+        and gate.report.get("readable") is True
+    ):
+        try:
+            config_sha = newest_config_commit(repo, base_sha)
+        except PolicyReadError:
+            config_sha = None
+        if config_sha:
+            share(
+                SharedPostMerge(
+                    main_sha=head,
+                    config_sha=config_sha,
+                    identity=resolved.login,
+                    self_logins=frozenset(self_logins),
+                    lane_merges_only=lane,
+                    computed_at=computed_at,
+                    demotion=demotion,
+                    floor=floor,
+                    gate=gate,
+                )
+            )
     if gate.refusal:
         return replace(stopped, reason=f"post-merge:{gate.refusal}")
 
@@ -2906,6 +3326,11 @@ def assess(
         cap=cap.value,
         demoted=demotion.active,
     )
+    # The one setting not bound to the base; the post-enqueue room check
+    # reads it again, uncached.
+    flight_cap, cap_source = _run_max_in_flight(
+        repo, default, head if isinstance(head, str) else None, config
+    )
     flight = in_flight(
         repo,
         **readers,
@@ -2913,17 +3338,57 @@ def assess(
         branch=base_ref,
         merged_since=floor,
         lane_merges_only=lane,
+        max_in_flight=flight_cap,
     )
+    details.update(
+        rung=rung.rung,
+        rungInputs=dict(rung.inputs),
+        rungCap={"value": cap.value, "reason": cap.reason},
+        inFlight={
+            "clear": flight.clear,
+            "reason": flight.reason,
+            "cap": flight_cap,
+            "capSource": cap_source,
+        },
+    )
+    inputs.update(rung=rung.rung, flight=flight, flight_cap=flight_cap)
+    # Past an on rung, the in-flight refusal outranks every read below. With
+    # no queue entry of its own, nothing below writes for this pull request
+    # either (its risk comment and verifier escalation wait for a run below
+    # the merge.max-in-flight cap), so it skips them. A Dependabot pull request is read in
+    # full: its class decides the gate's dependency-manager hold.
+    if (
+        rung.rung != "off"
+        and not flight.clear
+        and not dependabot_pr
+        and flight.queued is not None
+        and number not in flight.queued
+    ):
+        return UnattendedPolicy(
+            f"in-flight:{flight.reason}",
+            identity,
+            details,
+            enabled=True,
+            promoted=True if lane else None,
+            inputs=inputs,
+        )
     if dependabot_pr:
         promo = Promotion(None, "not-read-in-pr-merge-lane")
         eligible = (
-            dependabot_eligibility(repo, number, pr=pr, agent_identity=identity)
+            dependabot_eligibility(
+                repo,
+                number,
+                pr=pr,
+                agent_identity=identity,
+                hold_majors=config.dependabot_majors == "hold",
+            )
             if config.dependabot_mode != "off"
             else Eligibility(False, "dependabot-merge-off")
         )
         promoted = True
         details["dependabot"] = {
             "mode": config.dependabot_mode,
+            "majors": config.dependabot_majors,
             **(eligible.dependabot.report() if eligible.dependabot else {}),
         }
     elif lane:
@@ -2945,10 +3410,6 @@ def assess(
         eligible = eligibility(repo, number, **readers)
         promoted = promo.promoted(eligible.work_class)
     details.update(
-        rung=rung.rung,
-        rungInputs=dict(rung.inputs),
-        rungCap={"value": cap.value, "reason": cap.reason},
-        inFlight={"clear": flight.clear, "reason": flight.reason},
         promotion={
             "cells": dict(promo.cells) if promo.cells is not None else None,
             "reason": promo.reason,
@@ -2959,7 +3420,7 @@ def assess(
             "workClass": eligible.work_class,
         },
     )
-    inputs.update(rung=rung.rung, eligibility=eligible)
+    inputs["eligibility"] = eligible
     # What refuses this pull request itself, whatever else does: its own
     # queued entry leaves the queue on it.
     own = (
