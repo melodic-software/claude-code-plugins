@@ -20,11 +20,11 @@
   "dependencies": {
     "@melodic/repo-analysis": "file:../../../vendor/repo-analysis",
     "@melodic/video-digestion": "file:../../../vendor/video-digestion",
-    "playwright": "^1.52.0"
+    "playwright": "^1.64.1"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
   }
 }

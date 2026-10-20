@@ -115,6 +115,12 @@ printf 'adapter_dirs: [~/adapters]\n' >"$REPO/.claude/testing.yaml"
 mkdir -p "$HOME/adapters"
 run
 assert_eq "a leading ~/ in adapter_dirs is the home directory" "0:$HOME/adapters" "$rc:$(records adapter_dirs)"
+printf 'project_kinds:\n  - %s\n' "'**/Ops.*/*.csproj=operational'" >"$REPO/.claude/testing.yaml"
+run
+assert_eq "a project_kinds entry resolves as written" "0:**/Ops.*/*.csproj=operational" "$rc:$(records project_kinds)"
+printf 'project_kinds:\n  - %s\n' "'**/Ops.*/*.csproj=risky'" >"$REPO/.claude/testing.yaml"
+run
+assert_eq "a project_kinds entry with an unknown kind exits 2" 2 "$rc"
 printf 'extend:\n  js-vitest:\n    language: [js]\n' >"$REPO/.claude/testing.yaml"
 run
 assert_eq "extend of a scalar field exits 2" 2 "$rc"

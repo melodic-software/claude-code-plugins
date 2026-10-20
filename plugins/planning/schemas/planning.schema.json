@@ -21,6 +21,108 @@
       "description": "When true, /planning:design hands off the stub files the change needs with their signatures, and /planning:plan places a stub phase right after phase_order's dead-code removal step (first when there is none). Stub bodies use the language's ordinary not-implemented form. A quoted \"true\" or \"false\" is a string, not a boolean, and is invalid.",
       "type": "boolean",
       "default": false
+    },
+    "time_units": {
+      "description": "When true, an estimate or budget of work may be stated in hours, days or weeks; when false, the planning skills use the work_size levels instead. Practice cadence and measurement windows are not estimates and are unaffected. A quoted \"true\" or \"false\" is a string, not a boolean, and is invalid.",
+      "type": "boolean",
+      "default": false
+    },
+    "pre_confirmed_label": {
+      "description": "A tracker label name. In an unattended run, an item carrying it that states its problem counts as problem-confirmed. Unset: no pre-confirmation.",
+      "type": "string",
+      "minLength": 1
+    },
+    "work_size": {
+      "description": "The levels the Brief's Work size uses, per dimension: an ordered map of level name to a one-line quoted description. A dimension set here replaces that dimension's default as a whole. The last level of size is the split trigger, whatever it is named.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "appetite": {
+          "description": "How much the human is willing to spend on the work.",
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "default": {
+            "Small": "A contained change the human will spend little on.",
+            "Medium": "A real piece of work the human will fund with some care.",
+            "Large": "A major investment the human accepts."
+          }
+        },
+        "size": {
+          "description": "How big the work is. The last level means split.",
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "default": {
+            "Small": "One focused change with few moving parts.",
+            "Medium": "Several coordinated changes inside one deliverable.",
+            "Large": "Too big for one deliverable: split it."
+          }
+        },
+        "uncertainty": {
+          "description": "How much of the work is not yet known.",
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "default": {
+            "Known": "The approach and its unknowns are understood.",
+            "Knowable": "The open points can be settled by looking.",
+            "Unknown": "The open points need experiment or discovery."
+          }
+        }
+      }
+    },
+    "shared_session": {
+      "description": "Starting settings for a /planning:interview shared session. Read once, when a session's state is first created; the owner changes a running session from its Host view.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uploads": {
+          "description": "Whether guests may offer files. The owner still accepts each one.",
+          "type": "boolean",
+          "default": false
+        },
+        "names": {
+          "description": "What guests see of who answered and voted. full: names. initials: initials and vote counts, never voter ids. someone: guests see \"Someone\". The owner and leaders always see names.",
+          "enum": ["full", "initials", "someone"],
+          "default": "full"
+        },
+        "digest_names": {
+          "description": "Whether the round sent to Claude names who answered, except people a question is aimed at, who are always named.",
+          "type": "boolean",
+          "default": false
+        },
+        "claude_take": {
+          "description": "When people see Claude's suggestion cards. answer-first: after they answer or vote. always: at once. Each person can switch for themselves.",
+          "enum": ["answer-first", "always"],
+          "default": "answer-first"
+        },
+        "voting": {
+          "description": "Whether people vote on answers.",
+          "type": "boolean",
+          "default": true
+        },
+        "signoff": {
+          "description": "Whether a leader's lock needs everyone's agreement first. The owner's lock never does.",
+          "type": "boolean",
+          "default": false
+        },
+        "chat": {
+          "description": "Whether the side chat is on. Chat is never sent to Claude.",
+          "type": "boolean",
+          "default": true
+        },
+        "follow": {
+          "description": "Whether pages move to a new round when it arrives.",
+          "type": "boolean",
+          "default": true
+        },
+        "accent": {
+          "description": "The page's accent color.",
+          "enum": ["teal", "indigo", "violet", "amber"],
+          "default": "teal"
+        }
+      }
     }
   }
 }

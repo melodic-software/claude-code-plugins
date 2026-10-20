@@ -78,6 +78,12 @@
       "description": "Comma-separated <app slug>:<check name> pairs block-unresolved-pr-merge never judges as pending or failing. The default, github-actions:merge, is the pr-merge lane's own merge job, which runs as the merger rather than as a gate. Empty judges every check.",
       "default": "github-actions:merge"
     },
+    "block_fix_request_post_enabled": {
+      "type": "boolean",
+      "title": "Block-fix-request-post guard",
+      "description": "Blocks an agent from posting the PR-fix lane fix request (a line starting \"PR-fix lane: please fix this finding\") to GitHub through gh, curl or a GitHub MCP write tool. Only the owner posts it, in the GitHub UI. On by default.",
+      "default": true
+    },
     "block_windows_drive_tmp_enabled": {
       "type": "boolean",
       "title": "Block-Windows-drive-tmp guard",
@@ -146,5 +152,5 @@
       "min": 1
     }
   },
-  "version": "0.52.0"
+  "version": "0.53.0"
 }

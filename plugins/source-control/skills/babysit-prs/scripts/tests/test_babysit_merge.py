@@ -28,6 +28,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_gh as gh
 from repo_config_fake import RepoConfigFake
 import babysit_merge as merge
+import babysit_postmerge as postmerge
 import refresh_pr_branch as refresh
 
 HEAD = "a" * 40
@@ -41,6 +42,23 @@ LINKED_ISSUE = 999  # distinct from the PR so the two comment fetches are separa
 LINKED_REF = f"owner/repo#{LINKED_ISSUE}"
 
 
+def role_label_stub(label: str = "needs-human") -> Any:
+    """A patcher for the tracker's human-gated label read, which an
+    autonomous gate makes; started per module so no test reads GitHub."""
+    return mock.patch.object(postmerge, "_role_label", return_value=label)
+
+
+_role_label = role_label_stub()
+
+
+def setUpModule() -> None:
+    _role_label.start()
+
+
+def tearDownModule() -> None:
+    _role_label.stop()
+
+
 def _queue_read(
     *,
     in_queue: bool = False,
@@ -48,6 +66,7 @@ def _queue_read(
     armed: bool = False,
     state: str | None = None,
     position: int | None = None,
+    failed_ejections: int | None = 0,
 ) -> dict[str, Any]:
     """A `read_merge_queue` answer; the default is a base with no merge queue."""
     return {
@@ -58,6 +77,7 @@ def _queue_read(
         "autoMergeArmed": armed,
         "state": state,
         "position": position,
+        "failedEjections": failed_ejections,
     }
 
 
@@ -710,6 +730,20 @@ class PullRequestBodyHold(TierEvaluateHarness):
                         result["blockers"],
                     )
 
+    def test_needs_human_label_does_not_block_an_attended_merge(self) -> None:
+        # The person the label asks for may merge; autonomous runs hold on it
+        # (test_babysit_merge_unattended.NeedsHumanHoldsOnlyAutonomous).
+        result = self._evaluate(_pr(labels=[{"name": "needs-human"}]), tier=None)
+        self.assertTrue(result["ready"], result["blockers"])
+
+    def test_needs_human_label_blocks_the_autopilot_tier(self) -> None:
+        result = self._evaluate(_pr(labels=[{"name": "Needs-Human"}]), tier=TIER)
+        self.assertFalse(result["ready"])
+        self.assertTrue(
+            any("'needs-human' label" in b for b in result["blockers"]),
+            result["blockers"],
+        )
+
     def test_other_labels_do_not_block_without_the_tier(self) -> None:
         result = self._evaluate(_pr(labels=[{"name": "needs-review"}]), tier=None)
         self.assertTrue(result["ready"], result["blockers"])
@@ -992,7 +1026,9 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
                 return rules
             raise AssertionError(f"unexpected gh_json call: {args}")
 
-        def commits_side_effect(repo: str, number: int) -> list[dict[str, Any]]:
+        def commits_side_effect(
+            repo: str, number: int, head: str | None = None
+        ) -> list[dict[str, Any]]:
             if commits_error:
                 raise RuntimeError("simulated commit-verification fetch failure")
             return commits or []

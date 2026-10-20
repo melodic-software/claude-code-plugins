@@ -111,6 +111,15 @@ scripts/sync-plugin-options-docs.py
 # tree are already covered by the *.json and *.md entries above.
 plugins/miro/server/*
 
+# The knowledge plugin's video-digest and course-digest extraction pipelines,
+# Node packages whose tests are vitest (`*.test.js`), not a suite convention
+# this tool selects. The lane covering each is its knowledge block of the
+# `test-node` job in .github/workflows/pr-require-checks.yml, which runs when a
+# file under the package changes (scripts/plan-test-lanes.sh):
+# `run-tests.sh install`, `build` (typecheck) and `test`.
+plugins/knowledge/skills/video-digest/extraction/*
+plugins/knowledge/skills/course-digest/extraction/*
+
 # Plugin mods: a hooks module (`register.tsx`), the TypeScript it imports, and
 # its `*.test.ts` tests. None is one of the four suite conventions this tool
 # selects. The lane covering them is the "Validate plugin and catalog manifests"

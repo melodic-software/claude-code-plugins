@@ -14,9 +14,18 @@ that override their own behavior are out of scope. A count outside
 The HIGH path floor and the lane table are fixed here on purpose. A weaker value
 could only come from a file a pull request can edit, and this module's own path
 is in the floor, so a pull request cannot change the rule it is judged by. The
-configured `merge.diff-check.denied-paths` is joined to the floor, never in
-place of it. Every glob matches case-insensitively, because a lane host on a
-case-insensitive filesystem treats `Claude.md` as `CLAUDE.md`.
+configured `merge.diff-check.denied-paths` and `floor-paths` are joined to the
+floor, never in place of it. So are the paths each plugin's base-side
+`DECLARATION_FILES` declare as run (`RiskInput.declarations`); a declaration it
+cannot read rates HIGH as `high-path:**`. With the floor, a SKILL.md, agents/**/*.md or
+commands/**/*.md file whose head text gains or changes a capability frontmatter
+key, adds a `!` command, or changes a line inside a ```! block, compared with
+its base text, or whose text could not be read, rates HIGH as
+`high-capability`.
+`floor_extensions` gates FLOOR_ADDITIONS, `floor-paths`, the script scopes and
+the capability check in every lane. Every glob matches case-insensitively,
+because a lane host on a case-insensitive filesystem treats `Claude.md` as
+`CLAUDE.md`.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -39,7 +48,9 @@ and a blast radius other than LOW above C2 to `blast-radius-missing`.
 from __future__ import annotations
 
 import enum
+import json
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
@@ -78,6 +89,12 @@ class ChangedFile:
     # caller passes None for an absent side; "000000" (git's absent mode) is
     # read as absent and accepted only for an added file.
     previous_mode: str | None = None
+    # The files API's unified patch text, when it sent one (None otherwise).
+    patch: str | None = None
+    # A capability file's (base, head) text, None for an absent side, read by
+    # the caller while the floor applies; contents_error says why it could not.
+    contents: tuple[str | None, str | None] | None = None
+    contents_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -101,9 +118,23 @@ class RiskInput:
     # The switches the pr-merge lane may turn off (merge.diff-check); the
     # defaults keep every check. An unset line cap is MED unless optional.
     high_floor: bool = True
+    # merge.diff-check.high-path-floor in every lane: false leaves out
+    # FLOOR_ADDITIONS, floor_paths, floor_script_scopes and the capability
+    # check, so the floor is main's HIGH_FLOOR alone where high_floor holds.
+    floor_extensions: bool = True
+    # merge.diff-check.floor-paths: globs joined to HIGH_FLOOR while it applies.
+    floor_paths: tuple[str, ...] = ()
+    # merge.diff-check.floor-script-scopes: globs inside which, as at the top
+    # level, a script file (`_SCRIPT_SUFFIXES`, or git mode 100755) scores
+    # HIGH with the floor.
+    floor_script_scopes: tuple[str, ...] = ()
     c2_contradictions: bool = True
     max_changed_files: int | None = 8  # None: no cap
     lines_optional: bool = False
+    # Each DECLARATION_FILES file at the base SHA as (path, text), None when
+    # unreadable; None when the base tree could not be listed. What they
+    # declare runs joins HIGH_FLOOR while it applies.
+    declarations: tuple[tuple[str, str | None], ...] | None = ()
 
 
 @dataclass(frozen=True)
@@ -117,7 +148,6 @@ class Reason:
 class RiskResult:
     score: Risk  # max(reason.severity), LOW when no reason
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
-
 
 
 HIGH_FLOOR: tuple[str, ...] = (
@@ -141,6 +171,7 @@ HIGH_FLOOR: tuple[str, ...] = (
     "plugins/*/hooks/**",
     "prompts/**",
     "plugins/*/lib/**",  # synced copies of lib/ that hooks run
+    "plugins/*/bin/**",  # on the Bash tool's PATH while the plugin is enabled
     # Hook-run scripts outside hooks/.
     "plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py",
     "plugins/disk-hygiene/skills/clean/scripts/engine_context.py",
@@ -155,8 +186,35 @@ HIGH_FLOOR: tuple[str, ...] = (
     "**/.gitmodules",
     "**/CLAUDE.local.md",
     "**/.mcp.json",
+    "**/.lsp.json",
     "**/AGENTS.override.md",
 )
+# Floor entries `merge.diff-check.high-path-floor` gates in every lane.
+FLOOR_ADDITIONS: tuple[str, ...] = (
+    "plugins/*/monitors/**",  # commands Claude Code runs in the background
+    "plugins/*/workflows/**",
+)
+
+# Plugin files that declare what Claude Code runs. The caller reads each at the
+# base SHA, so a pull request cannot drop the declaration that floors its code.
+DECLARATION_FILES: tuple[str, ...] = (
+    "plugins/*/.claude-plugin/plugin.json",
+    "plugins/*/.mcp.json",
+    "plugins/*/.lsp.json",
+    "plugins/*/hooks/hooks.json",
+    "plugins/*/monitors/monitors.json",
+)
+# plugin.json keys whose values Claude Code runs or reads as run config; its
+# other `./` paths (types, skills) are not executable. A string value of one is
+# a pointer to a config file, which is read and declares too.
+_EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
+_PLUGIN_ROOT_REF = re.compile(
+    r"\$(?:\{CLAUDE_PLUGIN_ROOT\}|CLAUDE_PLUGIN_ROOT\b)([^\s\"'`;|&<>(){}$]*)"
+)
+# Any spelling of the variable; one _PLUGIN_ROOT_REF does not consume (a
+# default, a trim, PowerShell's or cmd's form) is unsafe.
+_PLUGIN_ROOT_NAME = re.compile("CLAUDE_PLUGIN_ROOT", re.IGNORECASE)
+_RELATIVE = ("./", "../", ".\\", "..\\")
 
 # Lane -> (code, severity) for an open finding on that lane. Both lanes are
 # required: a lane absent from the input is unbound.
@@ -385,23 +443,405 @@ def _mode_problems(changed: Any, raw_path: Any, status: str | None) -> list[str]
     return found
 
 
-def _high_path_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
+def _readable_globs(value: Any, unsafe: list[str]) -> tuple[str, ...]:
+    globs = _sequence(value)
+    if globs is None or not all(isinstance(p, str) and _safe_glob(p) for p in globs):
+        unsafe.append(f"configured HIGH set unreadable: {_show(value)}")
+        return ()  # match only the floor
+    return globs
+
+
+def _strings(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if not isinstance(value, (dict, list)):
+        return []
+    items = value.values() if isinstance(value, dict) else value
+    return [s for item in items for s in _strings(item)]
+
+
+def _resolve(root: str, rest: str) -> list[str] | None:
+    """The segments of a path under the plugin root, None when it leaves it."""
+    parts: list[str] = []
+    for segment in rest.replace("\\", "/").split("/"):
+        if segment == "..":
+            if not parts:
+                return None
+            parts.pop()
+        elif segment not in ("", "."):
+            parts.append(segment)
+    return parts
+
+
+def _under_root(root: str, rest: str) -> str | None:
+    """A declared path as the directory holding it (code beside an entry point
+    runs with it), or the path itself at the plugin root; None when it leaves
+    the plugin."""
+    parts = _resolve(root, rest)
+    if parts is None:
+        return None
+    return "/".join([root, *(parts[:-1] if len(parts) > 1 else parts)])
+
+
+_DECLARATION_NAMES = {g.removeprefix("plugins/*/") for g in DECLARATION_FILES}
+_PLUGIN_JSON = ".claude-plugin/plugin.json"
+# A monitors file holds the monitors array; the other declarations an object.
+_MONITORS = "monitors/monitors.json"
+
+
+def _located(path: Any) -> tuple[str, str, str] | None:
+    """(normalized path, plugin root, casefolded path under the root) for a
+    safe path inside a plugin directory."""
+    normalized, safe = normalize_path(path)
+    parts = normalized.split("/")
+    if not safe or len(parts) < 3 or parts[0] != "plugins":
+        return None
+    return normalized, "/".join(parts[:2]), "/".join(parts[2:]).casefold()
+
+
+def _load(text: Any, *, array: bool = False) -> dict[str, Any] | list[Any] | None:
+    if not isinstance(text, str):
+        return None
+    try:
+        data = json.loads(text)
+    except (ValueError, RecursionError):
+        return None
+    return (
+        data if isinstance(data, dict) or (array and isinstance(data, list)) else None
+    )
+
+
+def _executable_values(data: dict[str, Any]) -> list[tuple[Any, bool]]:
+    """Each executable key's value, and whether it is a monitors value."""
+    experimental = data.get("experimental")
+    monitors = experimental.get("monitors") if isinstance(experimental, dict) else None
+    keyed = [(data.get(key), key == "monitors") for key in _EXECUTABLE_KEYS]
+    return [*keyed, (monitors, True)]
+
+
+def _pointers(path: Any, text: Any) -> list[tuple[str, bool]]:
+    """`declaration_pointers`, each with whether a monitors key names it."""
+    located, data = _located(path), _load(text)
+    if located is None or located[2] != _PLUGIN_JSON or not isinstance(data, dict):
+        return []
+    root = located[1]
+    found = []
+    for value, monitors in _executable_values(data):
+        pointers = [value] if isinstance(value, str) else _sequence(value) or ()
+        for pointer in pointers:
+            parts = _resolve(root, pointer) if isinstance(pointer, str) else None
+            if parts:
+                found.append(("/".join([root, *parts]), monitors))
+    return found
+
+
+def declaration_pointers(path: Any, text: Any) -> tuple[str, ...]:
+    """The config files a plugin.json's executable keys point at (a string or
+    a list of strings), as repository paths for the caller to read at the base
+    SHA; () for any other file, unreadable text, or a pointer leaving the
+    plugin, which the scorer rates."""
+    return tuple(dict.fromkeys(pointer for pointer, _ in _pointers(path, text)))
+
+
+def _declared_paths(value: Any, unsafe: list[str]) -> tuple[str, ...]:
+    """The paths base-side declarations run: every `${CLAUDE_PLUGIN_ROOT}`
+    reference and every `./` or `../` path, resolved against the plugin root,
+    in plugin.json under an executable key only, and in the files its pointers
+    name. A declaration it cannot read, a pointer not read, a reference it
+    cannot resolve, or a path outside its plugin is unsafe."""
+    entries = _sequence(value)
+    if entries is None:
+        unsafe.append(f"declarations unreadable: {_show(value)}")
+        return ()
+    pairs = []
+    for entry in entries:
+        pair = _sequence(entry)
+        pairs.append(pair if pair is not None and len(pair) == 2 else (entry, None))
+    named = [
+        (p.casefold(), monitors)
+        for path, text in pairs
+        for p, monitors in _pointers(path, text)
+    ]
+    pointers = {p for p, _ in named}
+    monitor_files = {p for p, monitors in named if monitors}
+    read = {located[0].casefold() for path, _ in pairs if (located := _located(path))}
+    unsafe.extend(f"pointer not read: {_show(p)}" for p in sorted(pointers - read))
+    found = []
+    for path, text in pairs:
+        located = _located(path)
+        if located is None or not (
+            located[2] in _DECLARATION_NAMES or located[0].casefold() in pointers
+        ):
+            unsafe.append(f"declaration file not recognized: {_show(path)}")
+            continue
+        _, root, name = located
+        array = name == _MONITORS or located[0].casefold() in monitor_files
+        data = _load(text, array=array)
+        if data is None or (name == _PLUGIN_JSON and not isinstance(data, dict)):
+            unsafe.append(f"declaration unreadable: {_show(path)}")
+            continue
+        scope = (
+            [value for value, _ in _executable_values(data)]
+            if isinstance(data, dict) and name == _PLUGIN_JSON
+            else data
+        )
+        for string in _strings(scope):
+            refs = [m.group(1) for m in _PLUGIN_ROOT_REF.finditer(string)]
+            if len(_PLUGIN_ROOT_NAME.findall(string)) > len(refs):
+                unsafe.append(f"{_show(path)} names the plugin root as {_show(string)}")
+            if string.startswith(_RELATIVE):
+                refs.append(string)
+            for ref in refs:
+                declared = _under_root(root, ref)
+                if declared is None or not normalize_path(declared)[1]:
+                    unsafe.append(f"{_show(path)} declares {_show(ref)}")
+                else:
+                    found.append(declared)
+    return tuple(dict.fromkeys(found))
+
+
+_SCRIPT_SUFFIXES = (".ps1", ".cjs")
+_EXECUTABLE_MODE = "100755"
+
+
+def _script_reasons(files: list[_File], raw_files: list[Any], scopes) -> list[Reason]:
+    hits = []
+    for f, raw in zip(files, raw_files):
+        modes = (getattr(raw, "mode", None), getattr(raw, "previous_mode", None))
+        for path in f.paths:
+            # The top level is always in scope (owner decision Q646).
+            top = "/" not in path
+            if not path or not (top or any(glob_match(g, path) for g in scopes)):
+                continue
+            if path.casefold().endswith(_SCRIPT_SUFFIXES) or _EXECUTABLE_MODE in modes:
+                hits.append(path)
+    if not hits:
+        return []
+    return [Reason("high-script", Risk.HIGH, ", ".join(dict.fromkeys(hits)))]
+
+
+# Files whose frontmatter grants capability, and the keys that grant it.
+_CAPABILITY_FILES = ("**/SKILL.md", "**/agents/**/*.md", "**/commands/**/*.md")
+_CAPABILITY_KEYS = frozenset(
+    {
+        "hooks",
+        "allowed-tools",
+        "tools",
+        "disallowed-tools",
+        "disallowedtools",
+        "permissionmode",
+        "mcpservers",
+        "disable-model-invocation",
+        "context",
+        "agent",
+        "shell",
+        "skills",
+        "memory",
+    }
+)
+_HUNK = re.compile(r"@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@")
+_FRONT_KEY = re.compile(r"([A-Za-z][A-Za-z0-9_-]*)[ \t]*:(?:[ \t]|$)")
+# A `|` or `>` block scalar header: its indented lines are text.
+_BLOCK_SCALAR = re.compile(r"[|>][0-9+-]*(?:[ \t]+#.*)?$")
+# Anchors, aliases, tags and merge keys let one entry change another's value.
+# YAML reads them only where a node starts: at line start, after `key: ` or
+# `[`, `{`, `,` in a flow collection, and after any run of `- `, `? ` or `: `
+# block indicators there. So `Bash(git *)` and `x:*` stay text.
+_INDIRECT = re.compile(
+    r"(?:^|[\[{,]|:(?=[ \t]))(?:[ \t]*[-?:][ \t]+)*[ \t]*[&*!][^\s,\]}]|^[ \t]*<<[ \t]*:"
+)
+# Unanchored, so a ```! after a quote marker, a list marker or text counts.
+_FENCED_BANG = re.compile(r"(?:`{3,}|~{3,})[ \t]*!")
+# A closing fence starts its line, so a quoted fence inside a block never
+# ends it early: the block can only read longer.
+_CLOSING_FENCE = re.compile(r"[ \t]*(?:`{3,}|~{3,})")
+
+
+def is_capability_path(path: str) -> bool:
+    """Whether Claude Code reads this file's frontmatter as capability."""
+    return any(glob_match(g, path) for g in _CAPABILITY_FILES)
+
+
+def _front_block(text: str) -> tuple[str | None, bool]:
+    """The frontmatter text between the opening and closing `---` lines, and
+    whether its shape is one this reader follows: no BOM, no CR, the opening
+    and closing lines exactly `---`. No frontmatter is ("", True); a file whose
+    start only looks like frontmatter is (the whole text, False)."""
+    first, _, rest = text.partition("\n")
+    if first != "---":
+        if text.lstrip("\ufeff \t\r\n").startswith("---"):
+            return text, False
+        return "", True
+    lines = rest.split("\n")
+    end = next(
+        (i for i, line in enumerate(lines) if line.rstrip() in ("---", "...")), None
+    )
+    if end is None or lines[end] != "---":
+        return rest, False
+    block = "\n".join(lines[:end])
+    return block, "\r" not in block
+
+
+def _front_entries(block: str) -> dict[str, str] | None:
+    """Top-level frontmatter entries, each key (casefolded) to its lines, read
+    strictly: None for any shape a line-by-line read cannot follow."""
+    entries: dict[str, list[str]] = {}
+    key, scalar = None, False
+    for line in block.split("\n"):
+        if not line.strip() or line.startswith("#"):
+            if key is not None:
+                entries[key].append(line)
+            continue
+        if _INDIRECT.search(line):
+            return None
+        named = _FRONT_KEY.match(line)
+        if named:
+            key = named.group(1).casefold()
+            if key in entries:
+                return None
+            entries[key] = [line]
+            value = line[named.end() :].strip()
+            scalar = bool(value) and not _BLOCK_SCALAR.match(value)
+        elif key is not None and (
+            line[0] in " \t" or line == "-" or line.startswith("- ")
+        ):
+            # An indented key under a plain scalar may be read as its own entry.
+            if scalar and _FRONT_KEY.match(line.strip()):
+                return None
+            entries[key].append(line)
+        else:
+            return None
+    return {k: "\n".join(v).rstrip() for k, v in entries.items()}
+
+
+def _inline_lines(text: str) -> list[str]:
+    return [line for line in text.split("\n") if "!`" in line]
+
+
+def _bang_lines(text: str) -> set[int]:
+    """The 1-based lines of `text` inside a ```! block, opener and closer
+    included; the block runs to the next line starting with a fence, or to the
+    end."""
+    inside, found = False, set()
+    for number, line in enumerate(text.split("\n"), 1):
+        opener = None if inside else _FENCED_BANG.search(line)
+        if opener:
+            inside = True
+            found.add(number)
+        elif inside:
+            found.add(number)
+            inside = not _CLOSING_FENCE.match(line)
+    return found
+
+
+def _changed_lines(patch: str) -> set[int]:
+    """Head-side line numbers a unified patch adds, and the head lines on
+    either side of each line it removes."""
+    changed: set[int] = set()
+    line_no = None
+    for line in patch.split("\n"):
+        hunk = _HUNK.match(line)
+        if hunk:
+            line_no = int(hunk.group(1))
+        elif line_no is not None and line and line[0] in " +-":
+            if line[0] == "-":
+                changed.update((line_no - 1, line_no))
+                continue
+            if line[0] == "+":
+                changed.add(line_no)
+            line_no += 1
+    return changed
+
+
+def _content_triggers(before: str, after: str, raw: Any) -> list[str]:
+    """What the head text gains over the base text: frontmatter capability
+    keys, `!` commands, and changes inside a ```! block (fail closed)."""
+    triggers = []
+    base_block, base_ok = _front_block(before)
+    head_block, head_ok = _front_block(after)
+    if base_block != head_block or base_ok != head_ok:
+        base = _front_entries(base_block or "") if base_ok else None
+        head = _front_entries(head_block or "") if head_ok else None
+        if base is None or head is None:
+            triggers.append("frontmatter the reader cannot follow")
+        else:
+            triggers += [
+                f"frontmatter {k}"
+                for k in sorted(_CAPABILITY_KEYS)
+                if base.get(k) != head.get(k)
+            ]
+    # Every line holding a `!` command, compared as a multiset, so a rewritten
+    # or swapped command counts as well as an added one.
+    if Counter(_inline_lines(after)) - Counter(_inline_lines(before)):
+        triggers.append("adds or changes a !` command")
+    if len(_FENCED_BANG.findall(after)) > len(_FENCED_BANG.findall(before)):
+        triggers.append("adds a ```! block")
+    block = _bang_lines(after)
+    if block and before != after:
+        patch = getattr(raw, "patch", None)
+        changed = _changed_lines(patch) if isinstance(patch, str) else set()
+        if not changed:
+            triggers.append(
+                "changes a file with a ```! block and no patch to place them"
+            )
+        elif changed & block:
+            triggers.append("changes a line inside a ```! block")
+    return triggers
+
+
+def _capability_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason]:
+    """A capability file the head gains capability in, compared by content:
+    `ChangedFile.contents` holds the base and head text, read by the caller."""
+    hits = []
+    for f, raw in zip(files, raw_files):
+        capable = [is_capability_path(p) if p else False for p in f.paths]
+        if f.status == "removed" or not capable[0]:
+            continue
+        contents = getattr(raw, "contents", None)
+        error = getattr(raw, "contents_error", None)
+        if error is not None or not (
+            isinstance(contents, tuple)
+            and len(contents) == 2
+            and all(c is None or isinstance(c, str) for c in contents)
+        ):
+            triggers = [f"contents unreadable: {_show(error)}"]
+        else:
+            before, after = (c or "" for c in contents)
+            triggers = _content_triggers(before, after, raw)
+        # Unchanged frontmatter reads the same on both sides of a rename or copy.
+        if f.status == "copied" or (f.status == "renamed" and not all(capable)):
+            triggers.append(f"{f.status} into a capability path")
+        if triggers:
+            hits.append(f"{f.path}: {', '.join(dict.fromkeys(triggers))}")
+    return [Reason("high-capability", Risk.HIGH, "; ".join(hits))] if hits else []
+
+
+def _high_path_reasons(
+    inp: RiskInput, files: list[_File], raw_files: list[Any]
+) -> list[Reason]:
     unsafe = [raw for f in files for raw in f.unsafe]
-    configured = _sequence(inp.high_paths)
-    if configured is None or not all(
-        isinstance(p, str) and _safe_glob(p) for p in configured
-    ):
-        unsafe.append(f"configured HIGH set unreadable: {_show(inp.high_paths)}")
-        configured = ()  # match only the floor
+    configured = _readable_globs(inp.high_paths, unsafe)
+    on = inp.high_floor is not False
+    extended = on and inp.floor_extensions is not False
+    added = (
+        (*FLOOR_ADDITIONS, *_readable_globs(inp.floor_paths, unsafe))
+        if extended
+        else ()
+    )
+    declared = _declared_paths(inp.declarations, unsafe) if on else ()
+    floor = (*HIGH_FLOOR, *added, *declared) if on else ()
+    scopes = _readable_globs(inp.floor_script_scopes, unsafe) if extended else ()
     reasons = []
     if unsafe:
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
     paths = [path for f in files for path in f.paths if path]
-    floor = HIGH_FLOOR if inp.high_floor is not False else ()
     for pattern in dict.fromkeys((*floor, *configured)):
         hits = [path for path in paths if glob_match(pattern, path)]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
+    if extended:
+        reasons.extend(_capability_reasons(files, raw_files))
+        reasons.extend(_script_reasons(files, raw_files, scopes))
     return reasons
 
 
@@ -546,7 +986,7 @@ def _score(inp: RiskInput) -> RiskResult:
         *_class_reasons(inp, files or []),
         *_size_reasons(inp, files),
         *_lane_reasons(inp.lanes),
-        *_high_path_reasons(inp, files or []),
+        *_high_path_reasons(inp, files or [], list(raw_files or ())),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)

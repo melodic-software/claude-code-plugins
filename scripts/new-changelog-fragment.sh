@@ -4,7 +4,8 @@
 #   scripts/new-changelog-fragment.sh [--stdin] [--carriers-of <canonical>]... [<plugin>...] <major|minor|patch|none>
 #
 # Writes, in the git work tree the caller stands in, one
-# .changes/<plugin>/<branch-slug>-<8 hex>.md per named plugin, holding
+# .changes/<plugin>/<branch-slug>-<8 hex>.md per named plugin or listed
+# convention (scripts/lib/changelog-fragments.sh), holding
 # the front matter, and prints each path. --carriers-of adds every plugin that
 # carries a copy of <canonical> in scripts/shared-copies.txt, so one edit to a
 # shared library takes one command. A plugin named twice gets one fragment. A
@@ -87,8 +88,8 @@ for plugin in "${names[@]}"; do
     echo "$self: '$plugin' is not a plugin name (lowercase letters, digits and -)." >&2
     exit 2
   fi
-  if [[ ! -f "plugins/$plugin/.claude-plugin/plugin.json" ]]; then
-    echo "$self: no plugin named '$plugin' (plugins/$plugin/.claude-plugin/plugin.json is missing)." >&2
+  if ! changelog_fragments::root_of "$plugin" >/dev/null; then
+    echo "$self: no plugin named '$plugin' (plugins/$plugin/.claude-plugin/plugin.json is missing) and no convention docs/conventions/$plugin/CHANGELOG.md." >&2
     exit 2
   fi
   changelog_fragments::in_mode "$plugin"

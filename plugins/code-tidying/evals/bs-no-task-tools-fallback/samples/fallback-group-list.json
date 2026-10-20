@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "batch-simplify finished (72h scope, unattended). No task tools in this session, so I tracked the groups in a list:\n\n- Group 1 (src): src/greet.sh simplified, verification passed.\n- Group 2 (repo): repo/tool.sh simplified, verification passed.\n\nEdits are uncommitted in the working tree.",
+      "why": "separate entry with an outcome for each of the src and repo groups"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "batch-simplify finished (72h scope, unattended). Group 1 (bash): src/greet.sh and repo/tool.sh simplified, verification passed. Edits are uncommitted in the working tree.",
+      "why": "one merged group"
+    },
+    {
+      "answer": "batch-simplify finished. Simplified: src/greet.sh, repo/tool.sh.",
+      "why": "file list only, no per-group entries"
+    }
+  ]
+}

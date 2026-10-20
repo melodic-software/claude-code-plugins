@@ -689,6 +689,12 @@ not run:
   and [turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off).
 - **As of**: 2026-10-03, Claude Code 2.1.288.
 - **Recheck trigger**: that table changes a row, or that section changes what stops a mod.
+- **Pointer** (WSL sessions): the first bullet's "plugins are not available" rests on
+  [Claude Code Desktop in WSL: What works in a WSL session](https://code.claude.com/docs/en/desktop-wsl#what-works-in-a-wsl-session),
+  which lists connectors and plugins among the features not yet available there.
+- **As of**: 2026-10-18.
+- **Recheck trigger**: that section drops plugins from its unavailable list, or the mods overview's
+  WSL row stops saying plugins are unavailable.
 
 This is not a degraded install and not a missing dependency. Before the module, the only writer
 was a statusline tee, and `reference/cloud-headless-capture.md` records the channel inventory made

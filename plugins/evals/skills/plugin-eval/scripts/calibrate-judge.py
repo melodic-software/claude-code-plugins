@@ -15,8 +15,11 @@ build writes, under --out (which must be empty or absent):
     .claude-plugin/plugin.json   an empty plugin, so `claude plugin eval <out>`
                                  runs the suite with no skill to fire
     evals/<case>/prompt.md       the source case's prompt, unchanged, as the
-                                 user turn; the sample and the instruction to
-                                 reproduce it ride in append_system_prompt
+                                 user turn
+    evals/<case>/case.yaml       the sample and the instruction to reproduce it,
+                                 as execution.append_system_prompt (not in
+                                 prompt.md frontmatter, where a `---` inside the
+                                 sample would end the frontmatter early)
     evals/<case>/graders/<g>.md  the source llm grader, copied as is
     manifest.json                generated case -> source case, grader, sample
                                  index, expected PASS or FAIL, and the sample
@@ -285,16 +288,27 @@ def write(path, text):
         handle.write(text)
 
 
-def prompt_md(sample, prompt):
+def prompt_md(prompt):
+    """prompt.md carries no append_system_prompt: its frontmatter would override
+    case.yaml's, and the CLI ends frontmatter at a `---` inside the sample."""
     return (
         "---\n"
         'description: "Judge calibration case; its source and label are in the manifest"\n'
         "max_turns: %d\n"
         "timeout_seconds: %d\n"
         "allowed_tools: []\n"
-        "append_system_prompt: %s\n"
-        "---\n\n%s\n"
-        % (MAX_TURNS, TIMEOUT_SECONDS, yaml_quoted(system_prompt(sample)), prompt)
+        "---\n\n%s\n" % (MAX_TURNS, TIMEOUT_SECONDS, prompt)
+    )
+
+
+def case_yaml(name, sample):
+    """The sample rides in case.yaml's execution block; yaml_quoted escapes every
+    newline, so a `---` in the sample never starts a line."""
+    return (
+        'schema_version: "1.1"\n'
+        "name: %s\n"
+        "execution:\n"
+        "  append_system_prompt: %s\n" % (yaml_quoted(name), yaml_quoted(system_prompt(sample)))
     )
 
 
@@ -362,14 +376,15 @@ def build(args):
             for number, (key, index, answer, why) in enumerate(ordered, 1):
                 name = "%s--%02d" % (stem, number)
                 try:
-                    text = prompt_md(answer, prompt)
+                    yaml_text = case_yaml(name, answer)
                 except ValueError as error:
                     notes.append(
                         "skip %s/%s must-%s sample %d: %s"
                         % (case, grader, key, index, error)
                     )
                     continue
-                write(os.path.join(out, EVAL_DIR, name, "prompt.md"), text)
+                write(os.path.join(out, EVAL_DIR, name, "case.yaml"), yaml_text)
+                write(os.path.join(out, EVAL_DIR, name, "prompt.md"), prompt_md(prompt))
                 write(
                     os.path.join(out, EVAL_DIR, name, "graders", grader + ".md"),
                     grader_text,
