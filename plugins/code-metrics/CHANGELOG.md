@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1] - 2026-10-20
+
+### Fixed
+
+- The YAML subset reader no longer ends a double-quoted string at a backslash-escaped quote: `x: ["a\",b", c]` now reads as two items, `a",b` and `c`, as the shared `lib/yaml-subset.mjs` reads it, and a `#` comment after such a string is found correctly. The reader stays its own implementation because the plugin requires Python and treats Node as optional.
+
 ## [0.7.0] - 2026-10-20
 
 ### Fixed
