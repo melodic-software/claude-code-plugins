@@ -709,16 +709,24 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    kept threads, checks paths, and records a reply: it refuses a disposition file outside the
    scratch directory or off the template, and a `VALID` reply whose fix is not on the lane branch
    or whose lane branch changes a file outside every kept thread's scope or any `.github/` path.
-   A thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except
-   one under `hooks/`, `.claude-plugin/` or a `.claude/` directory, a `CLAUDE.md` or `AGENTS.md`,
-   or a `.sh`, `.py`, `.mjs`, `.js` or `.ts` file; and a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
-   directory. It posts nothing. The promote step then moves the PR branch only when every path the
+   Every path must be plain ASCII letters, digits and `_@+.-` in `/`-separated segments. A
+   thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except an
+   instruction path (the list `apply-ci-fix` refuses below) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
+   `.py`, `.mjs`, `.cjs`, `.js`, `.ts`, `.mts` or `.cts` file; a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
+   directory; and its `named_paths`. The select step sets those from the thread's fix requests by a
+   trusted person with write access: each file-shaped word outside fenced code and quoted lines,
+   read from the repository root when it holds a `/` and from the thread path's directory when it
+   does not, kept when it is in the thread path's `plugins/<p>/` directory, in normal form, not
+   under `.github/` and not an instruction path (the same list `apply-ci-fix` refuses below), and
+   a regular file, not a symbolic link or gitlink, at the gated head (ten per thread
+   at most). It posts nothing. The promote step then moves the PR branch only when every path the
    lane branch changes is in a kept thread's scope, none under `.github/`, in fewer than 300
    files, judged by a copy of the base's `thread-scope.mjs` taken before the head checkout and
-   imported only when its SHA-256 matches.
+   imported only when its SHA-256 matches, and every path it adds or changes is a regular file
+   (mode `100644` or `100755`) at the lane branch's tip.
 3. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
-   `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths and
-   comment ids, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
+   `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths,
+   comment ids and named paths, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
    uploads both as `feedback-replies-<run attempt>`. Its `feedback-round` output is then `true`,
    `feedback-run-sha256` is the SHA-256 of that `run.json`, and `feedback-run-attempt` is the
    attempt in the artifact's name.
@@ -931,7 +939,8 @@ passes the model job's `patch-state`, `patch-sha256`, `patch-attempt`, `head-sha
    head with `git diff-tree -r --no-renames`. A path under `.github/` (thread-scope.mjs's
    `isProtectedPath`, the rule the review-threads mode applies), or an agent instruction path at
    any depth and in any case (`CLAUDE.md`, `AGENTS.md`, a `.claude/` or `.claude-plugin/` directory,
-   a plugin's `hooks/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), escalates
+   a plugin's `hooks/`, `monitors/` or `bin/`, `.mcp.json`, `.lsp.json`, `.gitmodules`,
+   `CODEOWNERS`), escalates
    `ci-fix-protected-path` and pushes none of the patch, whatever the report escalated; a mode `120000` or `160000` on either side, or no change, escalates
    `ci-fix-invalid`. It then re-reads the pull request and its labels and stops uncommitted
    (`awaiting-human`) on a draft or a hold label, fails when `git/ref heads/<head ref>` is no
