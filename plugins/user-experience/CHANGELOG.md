@@ -3,6 +3,12 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2] - 2026-10-20
+
+### Fixed
+
+- Team settings now resolve a `research_paths`, `persona_paths` or `output_home` entry that does not exist yet through its deepest existing ancestor before the root, dot and outside-the-project checks, so a committed link to the project root can no longer carry `rootlink/.claude` or `rootlink/.github/workflows` into a dot directory. `rootlink/new` stays allowed.
+
 ## [0.2.1] - 2026-10-20
 
 ### Changed
