@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.15.2] - 2026-10-20
+
+### Changed
+
+- The babysit merge gate's dequeue report names the reason the merge queue removed the pull request, and for `branch_protection_failure` names the likely cause: a body line GitHub's 72-character squash wrap starts with the word `committer` and a space, which breaks the squash commit's signature.
+
 ## [1.15.1] - 2026-10-20
 
 ### Fixed
