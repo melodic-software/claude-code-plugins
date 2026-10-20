@@ -19,6 +19,45 @@ const CHMOD_RULE = "Bash(chmod +x *)";
 const CHMOD_SENTENCE =
   "run chmod +x on every new or changed file that starts with #! or ends in .sh, because the commit takes each file's mode from disk, then commit";
 
+// Every write lane denies the shell commands that can print a file or the
+// environment, read-only ones that need no allow rule
+// (https://code.claude.com/docs/en/permissions#read-only-commands) among
+// them, and Read of process files.
+const SHELL_DENIED = [
+  "Bash(echo *)",
+  "Bash(printf *)",
+  "Bash(cat *)",
+  "Bash(head *)",
+  "Bash(tail *)",
+  "Bash(grep *)",
+  "Bash(find *)",
+  "Bash(env *)",
+  "Bash(printenv *)",
+  "Bash(strings *)",
+  "Bash(od *)",
+  "Bash(xxd *)",
+  "Bash(diff *)",
+  "Bash(sed *)",
+  "Bash(awk *)",
+  "Bash(sort *)",
+  "Bash(cut *)",
+  "Bash(tr *)",
+  "Bash(base64 *)",
+  "Bash(nl *)",
+  "Bash(tac *)",
+  "Bash(rev *)",
+  "Bash(uniq *)",
+  "Bash(fold *)",
+  "Bash(column *)",
+  "Bash(jq *)",
+  "Bash(xargs *)",
+  "Bash(more *)",
+  "Bash(less *)",
+  "Read(//proc/**)",
+];
+// The deny rules other than the write lanes' shell set.
+const ownDenied = (denied) => denied.filter((rule) => !SHELL_DENIED.includes(rule));
+
 // The Bash rules other than the commit grant's chmod rule.
 const wrapperRules = (allowed) => allowed.filter((rule) => rule.startsWith("Bash") && rule !== CHMOD_RULE);
 
@@ -137,7 +176,7 @@ test("prepare: merge-base leaves out the commit tool and the instruction to comm
   assert.ok(!args.includes("chmod"), args);
   // Still a writing skill: it edits and stages its resolution.
   assert.match(args, /--allowedTools "Skill\(source-control:resolve-conflicts\),Read\([^)]*\),Edit,Write,Agent,Edit\(/);
-  assert.ok(args.includes("--disallowedTools \"WebFetch,WebSearch\""), args);
+  assert.ok(args.includes(`--disallowedTools "WebFetch,WebSearch,${SHELL_DENIED.join(",")}"`), args);
 });
 
 // pr-run-activity.md, "Skill activities": each listed check runs from the base
@@ -984,7 +1023,7 @@ const RESEARCH_SKILLS = [
 test("a write skill without web-access has no web tools and only its own plugin", () => {
   const { status, allowed, denied, plugins } = stage({ SKILL: "work-items:work" });
   assert.equal(status, 0);
-  assert.deepEqual(denied, ["WebFetch", "WebSearch"]);
+  assert.deepEqual(ownDenied(denied), ["WebFetch", "WebSearch"]);
   assert.ok(!allowed.some((rule) => rule.startsWith("Web")), allowed.join(" | "));
   assert.deepEqual(plugins, ["work-items@melodic-software"]);
 });
@@ -992,7 +1031,7 @@ test("a write skill without web-access has no web tools and only its own plugin"
 test("web-access disabled grants nothing", () => {
   const { status, allowed, denied } = withWebAccess({ enabled: false, domains: "any" });
   assert.equal(status, 0);
-  assert.deepEqual(denied, ["WebFetch", "WebSearch"]);
+  assert.deepEqual(ownDenied(denied), ["WebFetch", "WebSearch"]);
   assert.ok(!allowed.some((rule) => rule.startsWith("Web") || RESEARCH_SKILLS.includes(rule)), allowed.join(" | "));
 });
 
@@ -1023,7 +1062,7 @@ test("web-access with any domain allows the read-docs scripts and points their f
   // Both the bare and the double-quoted path, since a rule matches the path as written.
   assert.deepEqual(wrapperRules(allowed), readDocsRules(env));
   // The skill's bare Edit and Write must not reach the scripts its rules run.
-  assert.deepEqual(denied, [`Edit(/${env.DOCS_DIR}/**)`, `Write(/${env.DOCS_DIR}/**)`]);
+  assert.deepEqual(ownDenied(denied), [`Edit(/${env.DOCS_DIR}/**)`, `Write(/${env.DOCS_DIR}/**)`]);
   for (const name of ["fetch-docs.sh", "docs-cache.sh", "html2md.py"]) {
     assert.equal(statSync(path.join(env.DOCS_DIR, name)).mode & 0o222, 0, name);
   }
@@ -1056,10 +1095,27 @@ test("a docs script copy path a rule cannot carry fails the stage", () => {
   assert.ok(wrapperRules(allowed).length === 0, allowed.join(" | "));
 });
 
+// With a domain list the docs scripts stay denied, so the prompt names
+// WebFetch on the listed hosts as the way to read a page, not read-docs.
+test("web-access with a domain list tells the run to read the listed hosts with WebFetch", () => {
+  const { status, args } = withWebAccess({ enabled: true, domains: ["code.claude.com", "docs.github.com"] });
+  assert.equal(status, 0);
+  assert.ok(args.includes("read pages only on these hosts: code.claude.com docs.github.com."), args);
+  assert.ok(args.includes("read a page on one of those hosts with WebFetch"), args);
+  assert.ok(!args.includes("read each external source through /discovery:read-docs"), args);
+});
+
+test("web-access with any domain points the run at the research skills", () => {
+  const { status, args } = withWebAccess({ enabled: true, domains: "any" });
+  assert.equal(status, 0);
+  assert.ok(args.includes("read each external source through /discovery:read-docs"), args);
+  assert.ok(!args.includes("read pages only on these hosts"), args);
+});
+
 test("web-access with a domain list allows a fetch to those domains only", () => {
   const { status, allowed, denied } = withWebAccess({ enabled: true, domains: ["code.claude.com", "*.github.com"] });
   assert.equal(status, 0);
-  assert.deepEqual(denied, []);
+  assert.deepEqual(ownDenied(denied), []);
   const web = allowed.filter((rule) => rule.startsWith("WebFetch"));
   assert.deepEqual(web, ["WebFetch(domain:code.claude.com)", "WebFetch(domain:*.github.com)"]);
   assert.ok(allowed.includes("WebSearch"), allowed.join(" | "));
@@ -1132,3 +1188,27 @@ test("prepare: ci-context with applied-by.patch keeps the ci-context tool set", 
   assert.ok(args.includes(`${ciDir}/context.json`), args);
   assert.ok(!args.includes(UNCOMMITTED_SENTENCE), args);
 });
+
+// Every write lane, in every mode the runner builds, carries the whole shell
+// deny set: a mode that resets or rebuilds the deny list must not drop it.
+for (const [name, run] of [
+  ["mutate-branch", () => stage({})],
+  ["mutate-tracker", () => stage({ EFFECT: "mutate-tracker" })],
+  ["publish-artifact", () => stage({ EFFECT: "publish-artifact" })],
+  ["merge", () => stage({ EFFECT: "merge" })],
+  ["a lane that cannot commit", () => stage({ CAN_COMMIT: "false" })],
+  ["prepare: merge-base", () => stage({ PREPARE: "merge-base" })],
+  ["prepare: review-threads", () => withThreads()],
+  ["prepare: dependency-review", () => withDependency()],
+  ["verify-scripts", () => withVerify([VERIFY])],
+  ["checks", () => withChecks(["scripts/check-x.sh --check"])],
+  ["web-access any", () => withWebAccess({ enabled: true, domains: "any" })],
+  ["web-access with a domain list", () => withWebAccess({ enabled: true, domains: ["code.claude.com"] })],
+  ["a read skill that hands on a patch", () => withAppliedBy({ patch: "apply-patch" })],
+]) {
+  test(`a write lane denies every shell read command and Read of /proc: ${name}`, () => {
+    const { status, denied } = run();
+    assert.equal(status, 0);
+    for (const rule of SHELL_DENIED) assert.ok(denied.includes(rule), `${rule} in ${denied.join(" | ")}`);
+  });
+}
