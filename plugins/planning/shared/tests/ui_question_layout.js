@@ -121,7 +121,7 @@ async function main() {
         askFs: fs(askBox.querySelector(".vf-cbox")), ansFs: fs(ansBox.querySelector(".vf-cbox")),
         rule: getComputedStyle(askBox).borderBottomWidth, order: askBox.compareDocumentPosition(ansBox) === Node.DOCUMENT_POSITION_FOLLOWING };
     });
-    ok("the card reads \"Ann (you) asked\", the ask, a 1px line, then \"Claude\" and the answer", card.askLbl === "Ann (you) asked" && card.ansLbl === "Claude" && card.rule === "1px" && card.order, JSON.stringify(card));
+    ok("the card reads \"You asked\", the ask, a 1px line, then \"Claude\" and the answer", card.askLbl === "You asked" && card.ansLbl === "Claude" && card.rule === "1px" && card.order, JSON.stringify(card));
     ok("ask and answer text have the same computed font-size", card.askFs === card.ansFs, JSON.stringify(card));
     await ann.evaluate(t => window.Core.request("Q2", "ask", t), ASK2);
     const req2 = await owner.evaluate(async t => {
