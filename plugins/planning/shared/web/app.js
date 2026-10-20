@@ -521,7 +521,17 @@
 
     // ---------- safe rich text: paragraphs, "- " lists and bare http(s) links, built as DOM nodes ----------
     const LINK = /\bhttps?:\/\/[^\s<>"']+/g;
+    /** One line's safe inline markdown: **bold** and `code`, each as an element with text only; links and mentions
+     *  inside bold still render. */
     function inline(parent, line) {
+      for (const part of line.split(/(\*\*[^*\n]+?\*\*|`[^`\n]+`)/)) {
+        if (!part) continue;
+        if (part.length > 4 && part.startsWith("**") && part.endsWith("**")) { const b = E("strong"); links(b, part.slice(2, -2)); parent.append(b); }
+        else if (part.length > 2 && part[0] === "`" && part.endsWith("`")) parent.append(E("code", "vf-code", part.slice(1, -1)));
+        else links(parent, part);
+      }
+    }
+    function links(parent, line) {
       let i = 0;
       for (const m of line.matchAll(LINK)) {
         const url = m[0].replace(/[).,;:!?]+$/, "");
@@ -554,13 +564,20 @@
       }
       if (i < s.length) parent.append(s.slice(i));
     }
+    /** Text as safe markdown, built from elements and text nodes only: paragraphs, "#" headings (a bold line, never a
+     *  page heading), bullet and numbered lists, and inline's bold and code. */
     function rich(text) {
       const f = document.createDocumentFragment();
       for (const block of String(text || "").replace(/\r/g, "").split(/\n\s*\n/)) {
         let p = null, ul = null;
         for (const raw of block.split("\n")) {
-          const m = raw.match(/^\s*[-*•]\s+(.*)$/);
-          if (m) { p = null; if (!ul) { ul = E("ul", "vf-ul"); f.append(ul); } const li = E("li"); inline(li, m[1]); ul.append(li); }
+          const h = raw.match(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/), m = raw.match(/^\s*[-*•]\s+(.*)$/), n = raw.match(/^\s*\d{1,3}[.)]\s+(.*)$/);
+          if (h) { p = ul = null; const hd = E("p", "vf-mdh"); inline(hd, h[1]); f.append(hd); }
+          else if (m || n) {
+            p = null; const tag = m ? "ul" : "ol";
+            if (ul?.tagName.toLowerCase() !== tag) { ul = E(tag, m ? "vf-ul" : "vf-ol"); f.append(ul); }
+            const li = E("li"); inline(li, (m || n)[1]); ul.append(li);
+          }
           else if (raw.trim()) { ul = null; if (p) p.append(E("br")); else { p = E("p"); f.append(p); } inline(p, raw); }
         }
       }
@@ -1071,7 +1088,7 @@
     orRow.append(orStart, orWhyBtn, orTour);
     // Follow-up item 6: this is the welcome card, shown once per person on each device until Skip or Start here; Skip
     // closes it and the tour offer at once. "Show the tour again" in the person's settings brings both back.
-    const orLead = E("p", "vf-orient-lead", "Enter your name to join, then answer this round's questions.");
+    const orLead = E("p", "vf-orient-lead", "You're in. Answer this round's questions.");
     const orHide = btn("vf-btn vf-btn-ghost vf-btn-sm vf-orient-x", "Skip"); orHide.setAttribute("aria-label", "Skip the welcome and the tour");
     const orCatch = catchUpEl(() => { ui.orientHidden = true; });
     orient.append(orHide, orLead, orH, orGoal, orAsk, orCatch, orRow, orWhy);
@@ -1375,7 +1392,7 @@
     const passLine = E("div", "vf-passline"); passLine.append(passNote, passBtn, passUndo);
     passBox.append(passLine, passForm, passWho);
     passBtn.onclick = () => { ui.passOpen = ui.cur; passErr.textContent = ""; render(); passIn.focus(); };
-    passCancel.onclick = () => { ui.passOpen = ""; render(); passBtn.focus(); };
+    passCancel.onclick = () => { ui.passOpen = ""; render(); if (!passBtn.hidden) passBtn.focus(); };
     passForm.onsubmit = e => {
       e.preventDefault();
       const qid = ui.cur, reason = passIn.value.trim();
@@ -2942,7 +2959,7 @@
       return { x, r, label: x ? ansLabel(x) : r ? rstat(r) : "" };
     }
     /** What became of an answer, as its request's line says it. */
-    const ansLabel = x => (x.takenDown ? "Taken down by the host" : x.private ? (isMe(x.byCid) ? "Answered, just for you" : "Answered, just for the asker") : x.published === false ? "Answered, waiting for the host to share" : "Answered");
+    const ansLabel = x => (x.takenDown ? "Taken down by the host" : x.private ? (isMe(x.byCid) ? "Answered, just for you" : "Answered, just for the asker") : x.published === false ? (Core.me.isOwner ? "Answered, waiting for you to share" : "Answered, waiting for the host to share") : "Answered");
     /** Ask Claude on "About the whole session", with one answer ("x:<id>") or request ("r:<id>") of it in view. */
     function openGeneral(key) {
       if (key?.startsWith("x:")) ui.resClosed.delete(key.slice(2));
@@ -3021,7 +3038,7 @@
       if (mine) { k.chip.textContent = IX_STAT[i.status] || i.status; k.chip.dataset.stat = i.status; }
       k.what.textContent = ixText(i, S);
       const x = i.result ? (S.research?.[i.qid || Core.GENERAL] || []).find(y => y.id === i.result) : null;
-      const sub = i.status === "unshared" ? "Waiting for the host to share" : i.status === "failed" ? i.reason || ""
+      const sub = i.status === "unshared" ? (Core.me.isOwner ? "Waiting for you to share" : "Waiting for the host to share") : i.status === "failed" ? i.reason || ""
         : i.status === "answered" && !Core.me.isOwner ? (x?.own ? "Only you see it until the host shares it" : x?.takenDown ? "The host took it down; only you and the host see it" : "Just me: only you and the host see it") : "";
       k.sub.textContent = sub; k.sub.hidden = !sub;
       k.tm.textContent = since(mine ? i.changedTs : i.ts); k.tm.hidden = !i.ts;
@@ -5282,8 +5299,9 @@
       ta.placeholder = S.youRemoved ? "The host removed you from this session."
         : S.ended && !Core.me.isOwner ? "This session has ended."
         : q && notOpenYet(q) ? `Round ${roundOf(q)} opens after round ${curRound().current}. You can answer then.`
-        : ro ? `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Suggest a change above." : ""}`
-        : lockedQ ? (Core.canModerate() ? "This question is locked. Edit or unlock it above." : "This question is locked. Suggest a change above.")
+        // no "above" or "below": where Edit, Unlock and Suggest a change sit differs by width; a phone gets the short form
+        : ro ? (phone.matches ? "Read-only: sent to Claude" : `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Use Suggest a change." : ""}`)
+        : lockedQ ? (phone.matches ? "Locked" : Core.canModerate() ? "This question is locked. Use Edit or Unlock." : "This question is locked. Use Suggest a change.")
         : ownOpt ? "Your own option is your answer here. Change it above."
         // A phone's composer is one line: the first half alone, so it is never cut mid-word.
         : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option first" : q?.format === "rank" ? "Save your ranking first" : "Pick first")
@@ -5406,7 +5424,8 @@
     const KIND_REQ = { ask: "Ask", research: "Research", explore: "Explore", design: "Design", prototype: "Prototype" };
     const RSTAT = { pending: "Waiting for the host", running: "Running", declined: "Declined", done: "Done", failed: "Failed" };
     const RSTAT_SELF = { pending: "Waiting for your Claude", running: "Your Claude is on it" };
-    const rstat = r => (r.runner === "self" && RSTAT_SELF[r.status]) || RSTAT[r.status] || r.status;
+    // the host reads their own turn: the request waits for them, not for "the host"
+    const rstat = r => (r.runner === "self" && RSTAT_SELF[r.status]) || (r.status === "pending" && Core.me.isOwner ? "Waiting for you to run it" : RSTAT[r.status]) || r.status;
     function threadItems(S, q) {
       const res = (S.research?.[q.id] || []).map(x => ({ t: "res", id: "x:" + x.id, ts: x.ts, x }));
       const reqs = new Map();
@@ -5599,18 +5618,20 @@
       if (thList._q !== q.id) { resetList(thList); thList._q = q.id; }
       sync(thList, items, i => i.id, i => (i.t === "res" ? makeRes() : i.t === "note" ? makeThNote() : makeThReq()),
         (li, i) => (i.t === "res" ? fillRes(li, i.x, q) : i.t === "note" ? fillThNote(li, i.a, q) : fillThReq(li, i.r, q)));
-      thEmpty.hidden = items.length > 0;
       const mineOpen = (S.myRequests || []).filter(r => r.qid === q.id && r.runner !== "self" && (r.status === "pending" || r.status === "running")).length;
       const others = Math.max(0, (S.requestCounts?.byQ?.[q.id] || 0) - (Core.me.isOwner ? (S.requests || []).filter(r => r.qid === q.id && (r.status === "pending" || r.status === "running")).length : mineOpen));
       reqChip.textContent = others ? `${others} more open with the host` : "";
       reqChip.hidden = !others;
+      // with others' requests open, the head and the empty line say so, never "Nothing asked yet" beside the count
+      thEmpty.hidden = items.length > 0;
+      thEmpty.textContent = others ? "Others asked Claude about this question. Answers show here once the host runs them." : "Nothing asked yet. Ask Claude about this question, or have it research something.";
       const res = items.filter(i => i.t === "res"), reqs = items.filter(i => i.t === "req"), nNotes = items.length - res.length - reqs.length;
       const nNew = res.filter(i => resNew(i.x, q)).length;
       const nRun = reqs.filter(i => i.r.status === "running").length, nWait = reqs.filter(i => i.r.status === "pending").length;
       const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
       clNew.textContent = nNew ? `${nNew} new` : ""; clNew.hidden = !nNew;
       clCounts.textContent = [res.length && plural(res.length, "answer"), nRun && `${nRun} running`, nWait && `${nWait} waiting`, nNotes && plural(nNotes, "note")]
-        .filter(Boolean).join(" · ") || "Nothing asked yet";
+        .filter(Boolean).join(" · ") || (others ? "" : "Nothing asked yet");
       return nNew;
     }
     function showResult(qid, xid) {
@@ -6797,7 +6818,10 @@
 
       // rail
       const answered = S.questions.filter(q => myState(q.id) !== "open" || Core.lockOf(q.id)).length;
-      railMeta.textContent = `${S.questions.filter(q => myState(q.id) !== "open").length} of ${S.questions.length} answered`;
+      // per person, the complement of catchUp's count: what I answered or took part in, or what is decided; someone else's
+      // answer does not make it mine
+      const mineDone = x => ["answered", "took"].includes(myState(x.id)) || !!Core.lockOf(x.id);
+      railMeta.textContent = `${S.questions.filter(mineDone).length} of ${S.questions.length} answered`;
       const byRound = new Map(), shownQs = shownQuestions(), cuNow = catchUp();
       for (const x of shownQs) { const r = roundOf(x); if (!byRound.has(r)) byRound.set(r, []); byRound.get(r).push(x); }
       const roundNums = [...new Set([...qs.map(roundOf), cur])].sort((a, b) => a - b);
@@ -6828,8 +6852,9 @@
         head.append(toggle, curHead);
         const ul = E("ul", "vf-qlist"); ul.setAttribute("role", "list");
         if (ui.freshRound === n) ul._primed = true; // a round that opened while we watched animates its questions in
-        const cu = catchUpEl(); // shown above the current round only
-        g.append(cu, head, ul);
+        const cu = catchUpEl(); // shown in the round it is about, under its head
+        g.dataset.round = String(n);
+        g.append(head, cu, ul);
         g._k = { toggle, tLabel, check, curHead, name, meta, prog, send, readyNote, ul, cu };
         return g;
       }, (g, n) => {
@@ -6837,11 +6862,11 @@
         const decided = inRound.filter(x => Core.lockOf(x.id)).length, all = inRound.length > 0 && decided === inRound.length;
         const expanded = isCur || openRounds().has(n);
         g.classList.toggle("vf-round-cur", isCur);
-        k.cu._paint(isCur ? cuNow : null);
+        k.cu._paint(cuNow?.n === n ? cuNow : null);
         k.toggle.hidden = isCur; k.curHead.hidden = !isCur;
         k.toggle.setAttribute("aria-expanded", String(expanded));
         // ux-review-2 #7: guests count what they answered; "decided" is the moderators' word.
-        const done = mod ? decided : inRound.filter(x => myState(x.id) !== "open").length, word = mod ? "decided" : "answered";
+        const done = mod ? decided : inRound.filter(mineDone).length, word = mod ? "decided" : "answered";
         k.tLabel.textContent = n > cur ? `Round ${n}, opens after round ${cur}` : `Round ${n}, ${done} of ${inRound.length} ${word}`;
         k.check.hidden = !done;
         k.name.textContent = `Round ${n}`;
@@ -7020,13 +7045,17 @@
       if (!goalBack.hidden) goalBackTxt.textContent = `Goal: ${S.goal}`;
       if (!orient.hidden) {
         const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];
-        const nQ = inCur.length || S.questions.length, hostName = disp(nameOf(S.ownerPid, "The host"));
+        // the questions this person owes (myState open), not the round's: one asked of someone else is not theirs
+        const nQ = inCur.filter(x => myState(x.id) === "open" && !Core.lockOf(x.id) && !readOnly(x) && (!Core.askedOf(x.id).length || askedOfMe(x.id))).length;
+        const hostName = disp(nameOf(S.ownerPid, "The host"));
         orH.textContent = me.name ? `Welcome, ${me.name}` : "Welcome";
         orGoal.textContent = S.goal ? `Goal: ${S.goal}` : ""; orGoal.hidden = !S.goal;
         const how = "On each one, pick an option, or type your answer in the box under the question. Chat is for people; start a message with @Claude to ask Claude.";
         // On a phone the how-to sentence folds in with the intro, so the card stays short.
-        orAsk.textContent = `${hostName} asks you to answer ${nQ} question${nQ === 1 ? "" : "s"}.${phone.matches ? "" : " " + how}`;
-        orStart.textContent = `Start here: question ${Math.max(1, inCur.indexOf(target) + 1)}`; orStart._q = target?.id;
+        orAsk.textContent = `${nQ ? `${hostName} asks you to answer ${nQ} question${nQ === 1 ? "" : "s"}.` : `${hostName} has no questions waiting for you right now.`}${phone.matches ? "" : " " + how}`;
+        // past round 1 the step names its round, so it reads apart from a catch-up link to an earlier one
+        const tRound = target ? roundOf(target) : cur, tPos = Math.max(1, S.questions.filter(x => roundOf(x) === tRound).indexOf(target) + 1);
+        orStart.textContent = tRound > 1 ? `Start here: round ${tRound}, question ${tPos}` : `Start here: question ${tPos}`; orStart._q = target?.id;
         orCatch._paint(catchUp());
         if (ui.introOpen == null) { ui.introOpen = !phone.matches && !store.get(INTRO_SEEN(), false); store.put(INTRO_SEEN(), true); }
         const hasWhy = !!S.intro || phone.matches;
@@ -7080,15 +7109,16 @@
           : !canPass ? ""
           : mineNow === "soft" ? (q.purpose === "poll" ? `${disp(other.name)} answered. Pick if you have a view, or Pass.` : `${disp(other.name)} answered. 👍 if you agree, or Pass.`)
           : mineNow === "open" && askedOfMe(q.id) ? "This question is asked of you." : "";
-        passBtn.hidden = !canPass || !!myPass || mineNow === "answered" || mineNow === "took";
+        const passable = canPass && !myPass && mineNow !== "answered" && mineNow !== "took";
         passUndo.hidden = !canPass || !myPass;
-        passForm.hidden = passBtn.hidden || ui.passOpen !== q.id;
+        passForm.hidden = !passable || ui.passOpen !== q.id;
+        passBtn.hidden = !passable || !passForm.hidden; // the open form has its own Pass and Cancel
         passBtn.setAttribute("aria-expanded", String(!passForm.hidden));
-        passLbl.textContent = askedOfMe(q.id) ? "Why you pass (needed: it is asked of you)" : "Why you pass (optional)";
+        passLbl.textContent = askedOfMe(q.id) ? "Your reason for passing (needed: this is asked of you)" : "Your reason for passing (optional)";
         const passed = me.isOwner ? Object.entries(S.passes[q.id] || {}) : [];
         passWho.textContent = passed.length ? `Passed: ${passed.map(([p, r]) => disp(nameOf(p)) + (r.reason ? ` (${r.reason})` : "")).join(", ")}` : "";
         passWho.hidden = !passed.length;
-        passBox.hidden = !passNote.textContent && passBtn.hidden && passUndo.hidden && passWho.hidden;
+        passBox.hidden = !passNote.textContent && passBtn.hidden && passForm.hidden && passUndo.hidden && passWho.hidden;
         qDeps.textContent = q.dependsOn?.length ? `Depends on ${q.dependsOn.join(", ")}` : ""; qDeps.hidden = !qDeps.textContent;
         const nSug = openSugs(q.id).length;
         qSug.textContent = mod && lk && nSug ? `${nSug} suggestion${nSug > 1 ? "s" : ""}` : ""; qSug.hidden = !qSug.textContent;

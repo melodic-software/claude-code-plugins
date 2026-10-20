@@ -783,9 +783,14 @@
 
 /* ---------- rich, clamped text ---------- */
 .app .vf-rich { overflow-wrap: anywhere; }
-.app .vf-rich > :is(p, ul) + :is(p, ul) { margin-block-start: 0.6em; }
-.app .vf-rich .vf-ul { list-style: disc; padding-inline-start: 1.25em; }
-.app .vf-rich .vf-ul > li + li { margin-block-start: 0.2em; }
+.app .vf-rich > :is(p, ul, ol) + :is(p, ul, ol) { margin-block-start: 0.6em; }
+.app .vf-rich :is(.vf-ul, .vf-ol) { padding-inline-start: 1.25em; }
+.app .vf-rich .vf-ul { list-style: disc; }
+.app .vf-rich .vf-ol { list-style: decimal; }
+.app .vf-rich :is(.vf-ul, .vf-ol) > li + li { margin-block-start: 0.2em; }
+.app .vf-rich .vf-mdh { font-weight: 650; }
+.app .vf-rich > * + .vf-mdh { margin-block-start: 0.9em; }
+.app .vf-rich .vf-code { font-family: ui-monospace, monospace; font-size: 0.92em; padding: 0 0.25em; border-radius: 4px; background: color-mix(in oklch, currentColor 12%, transparent); }
 .app .vf-link { color: var(--accent-text); text-decoration: underline; text-decoration-color: color-mix(in oklch, var(--accent-text) 40%, transparent); text-underline-offset: 2px; }
 .app .vf-msg-mine .vf-link { color: inherit; }
 .app .vf-cbox { margin-block-start: 6px; font-size: 13.5px; line-height: 1.5; }
@@ -1521,7 +1526,8 @@
 .app .vf-disc-hint { color: var(--faint); font-size: 12px; }
 /* Chat: "@Claude" asks Claude about the whole session; its message says so, and Claude's answer replies in the thread. */
 .app .vf-mhint { margin: 0; padding: 6px 14px 0; color: var(--faint); font-size: 12px; }
-.app .vf-msent { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-block-size: 24px; color: var(--faint); font-size: 12px; }
+.app .vf-msent { grid-column: 2; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; min-block-size: 24px; color: var(--faint); font-size: 12px; }
+.app .vf-msg-mine .vf-msent { grid-column: 1; }
 .app .vf-msent:hover { color: var(--text); }
 .app :is(.vf-mhint, .vf-msent, .vf-apgen, .vf-ixq)[hidden] { display: none; }
 .app .vf-ixq.vf-ixgen { font-weight: 600; color: var(--accent-text); }
