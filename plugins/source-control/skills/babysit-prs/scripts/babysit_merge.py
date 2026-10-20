@@ -94,7 +94,9 @@ Contract enforced here (encoded as code, not convention):
   enqueued at its pinned head after a second kill-switch read, an armed
   auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment, unless
   the base changed a `merge.check-inputs` path since its merge base, when its
-  branch is updated from the base (`update-branch`) instead; a later run that reads the queued entry back as merged at that head
+  branch is updated from the base (`update-branch`) instead, or, for a
+  shared-copy canonical it carries, it gets the human-gated role label and one
+  upserted `<!-- babysit-merge-shared-copy-escalation -->` comment; a later run that reads the queued entry back as merged at that head
   dispatches the full run. It refuses `--allow-dependency`, `--auto`,
   `--allow-unpinned-head`, `--stacked-prs` and `--allow-unprotected`. Absent
   the flag the gate is unchanged, except that plain `--merge` refuses at exit 10 when the token's
@@ -2753,6 +2755,8 @@ VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
 VERIFY_SUMMARY_MAX = 1500
 QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
+# Cleared by clear-escalations.mjs once the head moves, like the verify one.
+SHARED_COPY_ESCALATION_MARKER = "<!-- babysit-merge-shared-copy-escalation -->"
 # The attended queue's escalation marker (work-items reference
 # escalation-marker.md): first line of the held-major comment, so
 # /work-items:attend-queue lists the pull request as escalated.
@@ -3334,6 +3338,31 @@ def major_escalation_body(majors: str, head: str) -> str:
             "holds those Dependabot updates for a human "
             "(`merge.dependabot.majors: hold`), whatever the review verdict "
             "says; the pr-merge lane will not merge this pull request.",
+        ]
+    )
+
+
+def shared_copy_escalation_body(
+    reason: str, sources: list[str], branch: str, merge_base: str, head: str
+) -> str:
+    """The needs-human comment for a pull request whose carried shared-copy
+    canonicals changed on the base: a function of its arguments only, so a
+    rerun at the same head renders the same body."""
+    names = ", ".join(f"`{s.replace('`', "'")}`" for s in sources)
+    return "\n".join(
+        [
+            SHARED_COPY_ESCALATION_MARKER,
+            f"Unattended merge: the shared-library canonical source {names} changed "
+            f"on `{branch}` since merge base `{merge_base}`, so the generated "
+            f"copies this pull request carries are stale at head `{head}`.",
+            "",
+            f"Refusal: `{reason}`",
+            "",
+            "Updating the branch from the base cannot regenerate them, so the "
+            "pr-merge lane will not enqueue it. To fix: merge "
+            f"`{branch}` into this branch, run `scripts/sync-shared-copies.sh`, "
+            "commit the regenerated copies, and push. pr-merge judges the new "
+            "head afresh.",
         ]
     )
 
@@ -3958,13 +3987,24 @@ def unattended_enqueue(
     # Updating merges the base's canonical but not the copies the pull request
     # generated from its own, so the drift check fails until they are
     # regenerated: refused, with the fix named, instead of updated.
-    if inputs_read.get("regenerate"):
-        return hold(
-            f"shared-copy-sources-changed:{','.join(inputs_read['regenerate'])} "
+    # No lane acts on the refusal, so it is escalated to a person.
+    if sources := inputs_read.get("regenerate"):
+        reason = (
+            f"shared-copy-sources-changed:{','.join(sources)} "
             f"changed on {branch} since merge base {inputs_read['mergeBase']}; "
             f"merge {branch} and run scripts/sync-shared-copies.sh, then the new "
             "head is enqueued once its checks pass"
         )
+        body = shared_copy_escalation_body(
+            reason, sources, branch, str(inputs_read["mergeBase"]), pin
+        )
+        try:
+            step["escalation"] = escalate(
+                repo, number, identity, body, SHARED_COPY_ESCALATION_MARKER, inputs
+            )
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            step["escalationError"] = str(exc)
+        return hold(reason)
     if inputs_read["state"] == "stale" and eligible_dependabot is None:
         stale = (
             f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
