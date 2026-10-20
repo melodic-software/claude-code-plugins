@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# verify-gate.sh — Bind the ready flip's verify result to the head commit.
+# verify-gate.sh: bind the ready flip's verify result to the head commit.
 #
 # The `ready` action's verify gate runs in its own Bash call, so its exit status cannot stop
 # the later call that flips the draft. `record` writes the gate's result for one head commit;
 # `check` runs in the same shell command as `gh pr ready` and refuses unless that exact head
-# has a recorded `pass`, or a recorded `skipped` (the run was invoked with `--skip verify`).
+# has a recorded `pass`, or a recorded `skipped` (`--skip verify` or `pre_ready` turned it off).
 # A result recorded for another head never counts, so a commit after the gate voids it.
 #
 # Usage:

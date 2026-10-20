@@ -41,6 +41,14 @@ bash "$SCRIPT" record --head "$HEAD_A" --result fail
 bash "$SCRIPT" check --head "$HEAD_A" >/dev/null 2>&1
 assert_exit "a later failure replaces an earlier pass" 3 "$?"
 
+HEAD_C=$(printf 'c%.0s' $(seq 40))
+printf 'garbage\n' >"$READY_VERIFY_DIR/$HEAD_C"
+bash "$SCRIPT" check --head "$HEAD_C" >/dev/null 2>&1
+assert_exit "an unknown recorded value refuses the flip" 2 "$?"
+
+bash "$SCRIPT" check --head "$HEAD_B" --result pass >/dev/null 2>&1
+assert_exit "check with --result is a usage error" 1 "$?"
+
 bash "$SCRIPT" record --head "$HEAD_A" --result maybe >/dev/null 2>&1
 assert_exit "an unknown result is a usage error" 1 "$?"
 bash "$SCRIPT" check --head abc123 >/dev/null 2>&1
