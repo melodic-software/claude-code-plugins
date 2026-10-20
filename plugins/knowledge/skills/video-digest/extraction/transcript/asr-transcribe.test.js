@@ -51,6 +51,38 @@ describe("detectAsrCapability", () => {
     expect(spawn).toHaveBeenCalledTimes(3);
   });
 
+  it("probes a configured interpreter before the PATH candidates", async () => {
+    const spawn = vi
+      .fn()
+      .mockResolvedValueOnce(spawnResult({ success: true, code: 0, stdout: "1.2.1\n" }));
+    const detection = await detectAsrCapability({
+      spawn,
+      env: { VIDEO_DIGEST_ASR_PYTHON: "/venv/bin/python" },
+    });
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(spawn.mock.calls[0][0]).toBe("/venv/bin/python");
+    expect(detection.python).toBe("/venv/bin/python");
+  });
+
+  it("falls through to the PATH candidates when the configured interpreter fails", async () => {
+    const spawn = vi
+      .fn()
+      .mockResolvedValueOnce(spawnResult({ error: "ENOENT" }))
+      .mockResolvedValueOnce(spawnResult({ success: true, code: 0, stdout: "1.1.0\n" }));
+    const detection = await detectAsrCapability({
+      spawn,
+      env: { VIDEO_DIGEST_ASR_PYTHON: "/venv/bin/python" },
+    });
+    expect(spawn.mock.calls.map((call) => call[0])).toEqual(["/venv/bin/python", "python"]);
+    expect(detection.python).toBe("python");
+  });
+
+  it("probes only the PATH candidates when the option is unset or blank", async () => {
+    const spawn = vi.fn().mockResolvedValue(spawnResult({ error: "ENOENT" }));
+    await detectAsrCapability({ spawn, env: { VIDEO_DIGEST_ASR_PYTHON: "  " } });
+    expect(spawn.mock.calls.map((call) => call[0])).toEqual(["python", "python3", "py"]);
+  });
+
   it("caches the detection per process", async () => {
     const spawn = vi
       .fn()

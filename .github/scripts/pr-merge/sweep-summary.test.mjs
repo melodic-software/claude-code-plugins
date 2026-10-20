@@ -231,9 +231,55 @@ test("a gate that ended early on success is a budget stop naming where the next 
   });
   assert.deepEqual(out.budget_stop, {
     reached: 2,
+    skipped: 0,
     candidates: 5,
     next_after: 8302,
   });
+});
+
+// A row the skip step carried, as babysit_merge_skip.py writes it; the skip
+// step leaves only the gated candidates in candidates.json.
+const carried = (pr) =>
+  row(pr, {
+    exit: 10,
+    reason: "risk:MED",
+    carried: { judgedAt: "2026-10-19T10:00:00+00:00", skips: 1, runId: "1" },
+  });
+
+test("skipped rows are neither reached nor missing from the listed count", () => {
+  // 10 listed, 6 skipped, the budget stopped after 1 of the 4 gated.
+  const rows = [8801, 8802, 8803, 8804, 8805, 8806].map(carried);
+  const out = summarize({
+    ...meta,
+    results: [...rows, row(8807)],
+    candidates: 4,
+    held: [],
+    gateOutcome: "success",
+    cursor: { last: 8807 },
+  });
+  assert.equal(out.candidates, 10);
+  assert.equal(out.skipped, 6);
+  assert.deepEqual(out.budget_stop, {
+    reached: 1,
+    skipped: 6,
+    candidates: 10,
+    next_after: 8807,
+  });
+});
+
+test("a gate that reached every gated candidate is no budget stop when some were skipped", () => {
+  const rows = [8811, 8812].map(carried);
+  const out = summarize({
+    ...meta,
+    results: [held(8810, "do-not-merge"), ...rows, row(8813)],
+    candidates: 1,
+    held: [{ number: 8810 }],
+    gateOutcome: "success",
+    cursor: { last: 8813 },
+  });
+  assert.equal(out.candidates, 3);
+  assert.equal(out.skipped, 2);
+  assert.equal(out.budget_stop, null);
 });
 
 test("a cancelled or failed gate is no budget stop", () => {

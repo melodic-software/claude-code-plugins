@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/20261018T090000Z-handoff-retry-backoff.md", "content": "x"}}
+      ],
+      "why": "writes the save-point"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/<user>/w/notes.md", "content": "x"}}
+      ],
+      "why": "writes elsewhere"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/tmp/<user>/w/.work/handoffs/old.md"}}
+      ],
+      "why": "reads only"
+    }
+  ]
+}

@@ -400,21 +400,6 @@ models:
       # Only an experiment answers it: skip until a probe has (probe-first).
       unknown: probe-first
 
-# The funding role whose secrets pay for each Claude lane's runs (README.md,
-# Funding). A lane on ci-workflows' run-claude-cli action (today intake and
-# pr-verify) passes its role with <ROLE>_CLAUDE_API_KEY and
-# <ROLE>_CLAUDE_CODE_OAUTH_TOKEN, role upper-snake; the others are the role each
-# lane takes when it moves there.
-funding:
-  intake: automations
-  pr-unblock: automations
-  fix-ci: automations
-  pr-verify: automations
-  pr-refine: automations
-  claude-review: reviews
-  claude-security-review: reviews
-  work-resolve-issue: issue-lane
-
 loop:
   review-rounds: 3
   dependency-review-rounds: 2
@@ -481,6 +466,22 @@ merge:
   # The merge queue tests each PR against the latest base plus the PRs ahead
   # of it.
   max-in-flight: 5
+  # Paths the PR checks read (git pathspecs). When main changed one since a
+  # PR's merge base, the gate updates the PR from main instead of enqueuing
+  # it, and a later run enqueues the new head once its checks pass: a head
+  # green on an old base fails the queue's merge with main and takes every
+  # entry built behind it down too (2026-10-19: about 6 slots). The
+  # shared-copy registry is what `Verify generated shared-library copies`
+  # checks the whole tree against, so it counts only for a PR touching a
+  # canonical or copy it registers at main's tip; the docs-only allowlist
+  # decides which test lanes a PR ran, so it counts for every PR. Each update
+  # reruns the PR's checks, verifier and reviews, so a path main changes often
+  # (scripts/**, these YAML files) costs more reruns than the ejections it
+  # saves. Workflow files are left out: the lane
+  # token holds no workflows permission to push them into a PR branch.
+  check-inputs:
+    - scripts/shared-copies.txt
+    - scripts/docs-only-paths.txt
   # Minutes pr-merge's gate loop runs before it starts no further candidate;
   # the next run starts after the last one reached. Runs 39190604942,
   # 39187691831 and 39183126369 (the last three scheduled sweeps that ran
@@ -488,6 +489,19 @@ merge:
   # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
   # candidate included, inside the 15 minutes between scheduled runs.
   gate-budget-minutes: 10
+  # Minutes a MED or HIGH reasons comment must stand unchanged at the head
+  # before the gate adds the human-gated label; 0 is no minimum. 60 is longer
+  # than a review lane's run (judgment), so a review still running at the
+  # head, which scores MED, finishes first.
+  risk-escalation-minutes: 60
+  # A candidate the last run refused on unchanged inputs is reported with that
+  # refusal instead of gated again (babysit_merge_skip.py); it is gated again
+  # once its refusal is max-minutes old or has been skipped max-skips runs in
+  # a row. 3 skips at the 15-minute schedule gate it about hourly; 60 caps
+  # the wait whatever else starts runs (judgment). 0 in either: no skips.
+  skip-unchanged:
+    max-minutes: 60
+    max-skips: 3
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane

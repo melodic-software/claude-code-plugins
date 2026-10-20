@@ -2,7 +2,7 @@
 // reads the prototype's state names; toView() builds them from the contract snapshot, and each action
 // below sends the contract route's body. The map: .work/shared-interview-ui/snapshot-map.md.
 (() => {
-  const SCHEMA_VERSION = 5; // the session file version this page was built for; another one reloads it
+  const SCHEMA_VERSION = 6; // the session file version this page was built for; another one reloads it
   const memory = new Map();
   const store = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })()
     || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
@@ -1292,7 +1292,7 @@
     const row = Core.el("div", "core-row"), keep = Core.el("button", null, "Keep"), change = Core.el("button", "core-btn-quiet", "Switch");
     keep.type = change.type = "button";
     keep.onclick = () => dlg.close();
-    change.onclick = () => { put("secret", other); drop("pid"); drop("name"); location.reload(); };
+    change.onclick = () => { put("secret", other); drop("pid"); drop("name"); Core.switching = true; location.reload(); };
     row.append(change, keep);
     dlg.append(h, row);
     dlg.addEventListener("close", () => dlg.remove());

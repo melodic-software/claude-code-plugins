@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "You said this comment is already posted on OPS-311, so I have not changed it. Here is a reshaped version you can post as a new comment or swap in yourself:\n\n> **Do not run `reindex-all` during business hours.** It locks the `orders` table for about 40 minutes and checkout fails while it runs. Run it after 22:00.\n>\n> **On call Thursday?** Confirm in this thread by Wednesday 5pm that you have read the runbook change.\n\nBefore: 131 words. After: 52 words."
+    },
+    {
+      "answer": "Reshaped below. Your call whether it replaces the original; I'd leave the posted one as is and reply with this.\n\n1. Never start reindex-all in working hours: the orders table locks for ~40 min and checkout breaks. Use the after-22:00 window.\n2. Thursday on-call: ack the runbook change here by Wednesday 5 PM.\n\n131 words -> 44 words."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "> Do not run `reindex-all` during business hours. It locks `orders` for about 40 minutes and checkout fails. Thursday on-call: confirm by Wednesday 5pm.\n\nBefore: 131 words. After: 28 words."
+    },
+    {
+      "answer": "Done. The posted comment has been replaced with this:\n\nDo not run reindex-all during business hours (orders locked ~40 minutes). Thursday on-call: confirm by Wednesday 5pm."
+    }
+  ]
+}

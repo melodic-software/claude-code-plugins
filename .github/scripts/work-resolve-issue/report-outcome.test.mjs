@@ -103,15 +103,22 @@ test("done opens a PR whose body starts with Closes #N", () => {
   assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
 });
 
-// A recorded keep-Refs decision (#7741): the PR links without closing, and a
-// human merges it because the merge gate finds no closing issue to read.
-test('done with "link": "refs" opens a PR that starts Refs: #N and carries the hold line', () => {
+// A recorded keep-Refs decision (#7741): the PR links without closing. The
+// merge gate finds no closing issue to read, so it never merges it; Refs alone
+// adds no hold line.
+test('done with "link": "refs" opens a PR that starts Refs: #N and carries no hold line', () => {
   withDir({ "work-outcome.json": JSON.stringify({ ...done, link: "refs" }) }, (dir) => {
     const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
     assert.ok(plan.body.startsWith("Refs: #77\n"), plan.body);
     assert.ok(!plan.body.includes("Closes #77"), plan.body);
-    assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
+    assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+    assert.equal(plan.refsHold, "needs-human");
   });
+});
+
+test("a Refs PR with a trusted merge: human label still carries the hold line", () => {
+  const plan = decideDone({ outcome: { ...done, link: "refs" }, humanMerge: true });
+  assert.ok(plan.body.startsWith("Refs: #77\n\nHold: a human merges this\n"), plan.body);
 });
 
 test("an unknown link value still closes the issue", () => {
@@ -532,9 +539,14 @@ test("an issue title carrying an issue reference or URL loses it", () => {
   );
 });
 
-test("a diff the compare listing may have cut short carries the hold line", () => {
+test("a diff the compare listing may have cut short carries the hold line while a path is denied", () => {
   const files = Array.from({ length: 300 }, (_, i) => `docs/f${i}.md`);
   assert.ok(decideDone({ changedFiles: files }).body.split("\n").includes("Hold: a human merges this"));
+});
+
+test("with no denied path a diff at the compare cap carries no hold line, since the cut can hide nothing", () => {
+  const files = Array.from({ length: 300 }, (_, i) => `docs/f${i}.md`);
+  assert.ok(!decideDone({ changedFiles: files, holdPaths: [] }).body.includes("Hold: a human merges this"));
 });
 
 test("done with no branch is stopped, since nothing was committed", () => {
@@ -806,12 +818,23 @@ test("main does not adopt an open PR from the branch that someone else opened", 
 });
 
 // A resumed run can finish the inherited work without a commit of its own:
-// its branch was deleted, so the PR opens from the branch it resumed.
+// its branch was deleted, so the PR opens from the branch it resumed, once
+// run-checks has checked that whole branch and every commit on it ahead of
+// the default branch is the lanes App's.
 const RESUMED = "work-resolve-issue/issue-77-100-1";
-// A resumed run that reports done with no commit of its own opens no PR: the
-// runner checks only this run's own branch, so the resumed branch's work is
-// unchecked. It goes to a person, and the comment names the branch and why.
-test("main on a resumed done with no commit of its own hands back, naming the resumed branch", async () => {
+const APP_COMMIT = {
+  author: { login: "melodic-automation-lanes[bot]", type: "Bot" },
+  committer: { login: "web-flow" },
+  commit: { verification: { verified: true, reason: "valid" } },
+};
+const resumedCompare = (commits = [APP_COMMIT, APP_COMMIT]) => [
+  "GET",
+  /\/compare\//,
+  200,
+  { files: [{ filename: "README.md" }], commits, total_commits: commits.length },
+];
+
+test("main on a resumed done with no commit of its own and no check results hands back, naming the resumed branch", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", resume: RESUMED }) },
     async (dir) => {
@@ -832,10 +855,114 @@ test("main on a resumed done with no commit of its own hands back, naming the re
   );
 });
 
-test("a resumed done with no new commit is stopped, not opened, and names why", () => {
-  const plan = decideDone({ branch: "", resumed: RESUMED });
-  assert.equal(plan.action, "hand-back");
-  assert.match(plan.comment, /resumed `work-resolve-issue\/issue-77-100-1` and reported done with no new commit/);
+test("main on a resumed done with no commit of its own opens the PR from the resumed branch its checks passed on", async () => {
+  await withAsyncDir(
+    {
+      "work-outcome.json": JSON.stringify(done),
+      "lane.json": JSON.stringify({ branch: "", resume: RESUMED }),
+      "runner-checks": checksFile({ branch: RESUMED }),
+    },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(RESUMED),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        resumedCompare(),
+        ["GET", /\/pulls$/, 200, []],
+        ["POST", /\/pulls$/, 201, { number: 90, head: { sha: CHECKED_TIP } }],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      // The compare reads the tip the runner checked, not wherever the name points now.
+      assert.ok(calls.some((c) => c.path === `/repos/o/r/compare/main...${CHECKED_TIP}`), JSON.stringify(calls.map((c) => c.path)));
+      assert.ok(!calls.some((c) => c.method === "PATCH"));
+      const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls"))?.body;
+      assert.ok(pull, "no PR was opened");
+      assert.equal(pull.head, RESUMED);
+      assert.ok(pull.body.startsWith("Closes #77\n"), pull.body);
+      assert.ok(pull.body.includes(`against ${CHECKED_TIP}:\n\n- ${FRAGMENTS}: passed\n`), pull.body);
+      assert.match(pull.body, /resumed `work-resolve-issue\/issue-77-100-1` and made no commit of its own/);
+      assert.ok(pull.body.includes(`the runner checked that whole branch at ${CHECKED_TIP}`), pull.body);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/77/")));
+    },
+  );
+});
+
+// The resumed branch comes from lane.json, which code the model started can
+// rewrite, so the runner opens it only when its checks name it, the branch is
+// still at the tip they checked, they passed, and every commit ahead of the
+// default branch is the lanes App's.
+test("main on a resumed done hands back when its branch's checks fail, moved, or carry a commit not the App's", async () => {
+  for (const [label, checks, tip, compare] of [
+    ["a failing check", checksFile({ branch: RESUMED, results: [{ check: FRAGMENTS, exit: 1 }] }), CHECKED_TIP, resumedCompare()],
+    ["no checks ran", checksFile({ branch: RESUMED, results: [] }), CHECKED_TIP, resumedCompare()],
+    ["results for another branch", checksFile(), CHECKED_TIP, resumedCompare()],
+    ["a tip the branch moved off", checksFile({ branch: RESUMED }), "d".repeat(40), resumedCompare()],
+    ["a commit not the App's", checksFile({ branch: RESUMED }), CHECKED_TIP, resumedCompare([APP_COMMIT, { ...APP_COMMIT, author: { login: "stranger" } }])],
+    ["a cut-short commit listing", checksFile({ branch: RESUMED }), CHECKED_TIP, ["GET", /\/compare\//, 200, { files: [], commits: [APP_COMMIT], total_commits: 300 }]],
+  ]) {
+    await withAsyncDir(
+      { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", resume: RESUMED }), "runner-checks": checks },
+      async (dir) => {
+        const { fetch, calls } = fakeFetch([
+          ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+          branchTip(RESUMED, tip),
+          ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+          compare,
+          ["POST", /\/issues\/77\/labels$/, 200, []],
+          ["DELETE", /\/labels\//, 200, []],
+          ["POST", /\/issues\/77\/comments$/, 201, {}],
+        ]);
+        assert.equal(await main({ env: env(dir), fetch }), 0, label);
+        assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")), label);
+        const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
+        assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=stopped"), `${label}: ${comment}`);
+        assert.ok(comment.includes(RESUMED), `${label}: ${comment}`);
+      },
+    );
+  }
+});
+
+// The branch name can move between the tip check and the PR open, so a PR
+// whose head is not the checked tip is closed and the issue handed back.
+test("main closes a resumed branch's new PR whose head is not the tip the runner checked, and hands back", async () => {
+  await withAsyncDir(
+    {
+      "work-outcome.json": JSON.stringify(done),
+      "lane.json": JSON.stringify({ branch: "", resume: RESUMED }),
+      "runner-checks": checksFile({ branch: RESUMED }),
+    },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(RESUMED),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        resumedCompare(),
+        ["GET", /\/pulls$/, 200, []],
+        ["POST", /\/pulls$/, 201, { number: 90, head: { sha: "d".repeat(40) } }],
+        ["PATCH", /\/pulls\/90$/, 200, {}],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      assert.deepEqual(calls.find((c) => c.method === "PATCH" && c.path.endsWith("/pulls/90"))?.body, { state: "closed" });
+      assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/77/labels")).body, { labels: ["needs-human"] });
+      const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
+      assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=stopped"), comment);
+      assert.ok(comment.includes(CHECKED_TIP), comment);
+    },
+  );
+});
+
+test("a resumed done with no new commit is stopped unless the runner's checks passed on the resumed branch", () => {
+  for (const checks of [null, NO_CHECKS, { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 1 }] }]) {
+    const plan = decideDone({ branch: "", resumed: RESUMED, checks });
+    assert.equal(plan.action, "hand-back");
+    assert.match(plan.comment, /resumed `work-resolve-issue\/issue-77-100-1` and reported done with no new commit/);
+  }
+  const plan = decideDone({ branch: "", resumed: RESUMED, checks: { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 0 }] } });
+  assert.equal(plan.action, "open-pr");
+  assert.equal(plan.branch, RESUMED);
 });
 
 test("main on a resumed stop with no commit of its own names no branch", async () => {

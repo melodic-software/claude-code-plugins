@@ -65,13 +65,13 @@ PER_SESSION = {
     "tokens.main": lambda r: _get(r, "tokens", "main", "output"),
     "tokens.sub": lambda r: _get(r, "tokens", "sub", "output"),
     "cache.missed_input_tokens": lambda r: _get(r, "cache_miss", "missed_input_tokens"),
-    "time.active_s": lambda r: _get(r, "time", "active_s"),
+    "time.active_s": lambda r: _get(r, "time", "active_gap_s"),
     "context.clear_commands": lambda r: _get(r, "context", "clear_commands"),
     "human.turns": lambda r: _get(r, "human", "turns"),
     "tools.interrupts": lambda r: _get(r, "tools", "interrupts"),
     "tools.denials": _denials,
     "subagents.count": lambda r: _get(r, "subagents", "count"),
-    "hooks.stop_ms": lambda r: _get(r, "stop_hooks", "ms_p90"),
+    "hooks.stop_ms": lambda r: _get(r, "stop_hooks", "wait_ms_p90"),
 }
 
 

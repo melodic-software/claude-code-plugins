@@ -305,5 +305,34 @@ printf 'open(%s, "w").write("ran")\n' "'$TMP/planted-ran'" >"$P/json.py"
 (cd "$P" && bash "$SCRIPT" --json --all >/dev/null 2>&1)
 assert_eq "a json.py planted in the cwd is not imported" "absent" "$([[ -e "$TMP/planted-ran" ]] && echo present || echo absent)"
 
+# ---- the frozen count agrees with the report -----------------------------------
+# The report drops scope.exclude matches through the dispatcher; the frozen count
+# is the scanner's --count given the same globs. Three of the six suppressions
+# below sit in excluded paths, so both must read 3 suppressions, 2 unjustified.
+X="$TMP/excluded"
+mkdir -p "$X/docs/conventions" "$X/src/api/generated" "$X/vendor" "$X/gen" "$X/web"
+gx() { git -C "$X" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }
+gx init -q -b main
+EXCLUDES=('vendor/' '**/generated/**' '*/out.py')
+{
+  printf '%s\n' 'scope:' '  exclude:'
+  printf "    - '%s'\n" "${EXCLUDES[@]}"
+} >"$X/docs/conventions/code-metrics.yaml"
+printf '%s\n' "${EXCLUDES[@]}" >"$TMP/excludes"
+printf '%s\n' 'x = 1  # noqa: E501 the URL is kept whole' 'y = 2  # noqa' >"$X/src/app.py"
+printf '%s\n' 'foo(); // eslint-disable-line no-console' >"$X/web/main.js"
+printf '%s\n' 'x = 1  # noqa: E501' >"$X/vendor/lib.py"
+printf '%s\n' 'x = 1  # noqa' >"$X/src/api/generated/models.py"
+printf '%s\n' 'x = 1  # noqa: F401' >"$X/gen/out.py"
+gx add -A
+gx commit -q -m fixture
+report="$(cd "$X" && bash "$SCRIPT" --json --all)"
+assert_eq "the report over the excluded fixture exits 0" 0 "$?"
+assert_eq "the report counts only the files outside scope.exclude" "suppressions=3
+unjustified=2" "$(printf '%s' "$report" | doc_field '"suppressions=%d\nunjustified=%d" % (d["counts"]["suppressions"], d["counts"]["unjustified"])')"
+frozen="$(cd "$X" && "$PY" "$SCRIPT_DIR/suppression-scan.py" --count --exclude-from "$TMP/excludes")"
+assert_eq "--count given scope.exclude equals the report's counts" "suppressions=3
+unjustified=2" "$frozen"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

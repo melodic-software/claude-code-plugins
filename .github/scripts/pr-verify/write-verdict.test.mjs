@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { artifactName, buildVerdict, main, structuredOutput } from "./write-verdict.mjs";
+import { artifactName, buildVerdict, checkKeyLeg, main, structuredOutput } from "./write-verdict.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -209,7 +209,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     ["missing execution file", { EXECUTION_FILE: path.join(dir, "missing.json") }],
     ["unparsable execution file", { EXECUTION_FILE: unparsable }],
     ["unreadable spec", { EXECUTION_FILE: okFile, SPEC_FILE: path.join(dir, "missing.json") }],
-    // A denial on the key leg, then a credit stop and a clean subscription leg.
+    // A log with a denial on any leg.
     ["a denial on an earlier leg", { EXECUTION_FILE: okFile, LOG_FILE: log("denied-log", 1, 0) }],
     ["missing log file", { EXECUTION_FILE: okFile, LOG_FILE: path.join(dir, "missing.jsonl") }],
     ["no log file", { EXECUTION_FILE: okFile, LOG_FILE: "" }],
@@ -218,5 +218,28 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     assert.throws(() => main(other), undefined, label);
     assert.equal(existsSync(path.join(other.VERDICT_DIR, "verdict.json")), false, label);
     assert.equal(existsSync(other.GITHUB_OUTPUT), false, label);
+  }
+});
+
+test("checkKeyLeg clears the subscription job only for a readable log with no denial", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-key-leg-"));
+  const file = (name, text) => {
+    const target = path.join(dir, name);
+    writeFileSync(target, text);
+    return target;
+  };
+  const clean = { LOG_FILE: file("clean.jsonl", JSON.stringify({ leg: 1, denials: { count: 0 } })), GITHUB_OUTPUT: path.join(dir, "out") };
+  checkKeyLeg(clean);
+  assert.equal(readFileSync(clean.GITHUB_OUTPUT, "utf8"), "clean=true\n");
+
+  for (const [label, logFile] of [
+    ["a denial", file("denied.jsonl", JSON.stringify({ leg: 1, denials: { count: 2 } }))],
+    ["a malformed log", file("bad.jsonl", "{not json")],
+    ["a missing log", path.join(dir, "missing.jsonl")],
+    ["no log", ""],
+  ]) {
+    const env = { LOG_FILE: logFile, GITHUB_OUTPUT: path.join(dir, `out-${label}`) };
+    assert.throws(() => checkKeyLeg(env), undefined, label);
+    assert.equal(existsSync(env.GITHUB_OUTPUT), false, label);
   }
 });
