@@ -4,9 +4,8 @@
 #
 # WHY THIS EXISTS. `claude plugin uninstall <id> -s project` has no path flag, so
 # the only route to a project-scope record whose path no longer exists is to
-# recreate the path, reap from inside it, and remove it again. Step 2b used to
-# hand the user that chain to paste once per path; twenty paths meant an ad-hoc
-# batch script. This is that script, with the chain unchanged.
+# recreate the path, reap from inside it, and remove it again. This script does
+# that for each confirmed dead path.
 #
 # PER PATH, IN ORDER, STOPPING AT THE FIRST FAILURE:
 #   1. mkdir <path>             plain `mkdir`, never `-p`: it FAILS when the path
