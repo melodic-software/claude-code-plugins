@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "### Load-bearing assumptions\n\n| Assumption | Source | Falsifying check | Response if false |\n|---|---|---|---|\n| The reporting replica lags the primary by under five minutes | Brief | Phase 1 Sanity Check: `pytest tests/test_invoices.py` exits 0 against replica rows | Moderate: flag and continue |\n",
+      "why": "the table row carries the assumption and a tier"
+    },
+    {
+      "answer": "Load-bearing assumptions: replica lag under five minutes (Brief); falsified by the Phase 1 Sanity Check; response Major, stop and replan.\n",
+      "why": "prose form of the same row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "### Load-bearing assumptions\n\nNone.\n",
+      "why": "the assumption was dropped"
+    },
+    {
+      "answer": "The export reads from the replica, per the Brief's constraint. Response tiers: Minor, Moderate, Major.\n",
+      "why": "no Load-bearing assumptions section"
+    }
+  ]
+}

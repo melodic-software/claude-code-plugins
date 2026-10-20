@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "This sounds like an idea that hasn't settled yet, so I'd start with /planning:brainstorm: it lays out a few ways a houseplant swap could work in Neighborly, from cheapest to most ambitious, and hands back here once one resonates. Want to run it?",
+      "why": "recommends brainstorm as the next step"
+    },
+    {
+      "answer": "Before any spec: what problem would a plant swap solve for your neighbors, and why do you want it? Once that's clearer, I recommend /planning:brainstorm to explore approaches before we lock anything.",
+      "why": "asks the why and recommends brainstorm"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: Should swaps be limited to one neighborhood? My recommendation: yes.\nQ2: What are the acceptance criteria for a completed swap? My recommendation: both neighbors confirm the handoff.",
+      "why": "treats the idea as settled and runs a spec interview"
+    },
+    {
+      "answer": "Great idea. I'll write a Brief: neighbors list plants, request a swap, and confirm the exchange.",
+      "why": "jumps to a Brief and never names brainstorm"
+    }
+  ]
+}

@@ -48,6 +48,21 @@ solution stay on its parameters. A concern that the solution may not cover the p
 under `### Captured assumptions` with the condition that would revisit it, and stated in one line,
 never asked.
 
+## Idea-stage requests
+
+This section applies when the run is `/planning:brainstorm`, or when the user says the idea is not
+settled or declines the stated problem. Every other request follows "Prescribed solution"
+unchanged.
+
+- **A named solution is a candidate.** A solution the user names, with or without a stated
+  problem, is one candidate among others, never the accepted approach. One question may ask
+  whether to rethink it or keep it.
+- **Problem before mechanism.** While eliciting the problem, the agent introduces no mechanism of
+  its own. The problem fields, evidence ratings and "Restate and confirm" still apply, and the
+  user's reason for wanting the problem solved is asked and kept in the user's words.
+- **Where it is recorded.** With no Brief, the run records the confirmed problem and the user's
+  why in its own artifact: `/planning:brainstorm` writes them to its handoff block.
+
 ## Artifact with history
 
 When the request concerns an existing artifact whose problem lives in its history (a mechanism,

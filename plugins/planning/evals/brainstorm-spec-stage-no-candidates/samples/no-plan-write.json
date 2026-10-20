@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "src/exports/csv_export.py"}}], "why": "reads only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/csv-export-timeout/PLAN.md", "content": "## Brief"}}], "why": "writes the Brief before the interview"}
+  ]
+}

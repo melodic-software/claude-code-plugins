@@ -149,6 +149,20 @@
         "The column-order decision is inlined with no Q or D id attached to it (no coined id such as D5 or D1)",
         "No item body contains a path under the memory root (default .work/) or a <slug>/PLAN.md or interview-checklist.md path"
       ]
+    },
+    {
+      "id": 12,
+      "name": "no-container-item-carries-problem-intent-and-its-own-assumption",
+      "prompt": "/work-items:decompose — the topic is shift-swap. Its approved PLAN.md Brief has `### Problem`: nurses trade shifts by text message, so the roster the charge nurse prints is wrong most mornings. Its `### Goal`: swaps happen inside the scheduling app. `- Intent (why, in the user's words): \"the printed roster should be right without anyone phoning around\"`, `- Vision (where this heads): every roster change goes through one place`, `- When goals conflict, prefer: a correct roster over a fast swap`. Under `## Plan` its `### Load-bearing assumptions` table has two rows: `Every nurse has an app account | staffing export | count accounts against the staff list | invite the missing nurses first` and `The roster printer reads the app's nightly snapshot | ward IT note | print after a test swap | add a refresh before printing`. Phase 1 is the swap request and approval flow, which depends on the first row only; Phase 2 is the printed roster reflecting approved swaps, which depends on the second row only. The repository is public. Publish the breakdown as plain items with no spec container; I approve it in advance.",
+      "expected_output": "Publishes two items. Each body copies the Brief's Problem (shift trades by text leave the printed roster wrong) and the Goal with its Intent, Vision and When-goals-conflict lines. The swap-flow item's Load-bearing assumptions table holds only the app-account row; the printed-roster item's holds only the nightly-snapshot row. No body names a memory-root path.",
+      "files": [],
+      "expectations": [
+        "Every published item body carries the Brief's Problem as text: nurses trading shifts by text message leaves the printed roster wrong",
+        "Every published item body carries the Intent line quoting the user's words about the printed roster being right without anyone phoning around",
+        "The swap request and approval item carries the app-account assumption row and not the nightly-snapshot row",
+        "The printed-roster item carries the nightly-snapshot assumption row and not the app-account row",
+        "No item body contains a path under the memory root (default .work/) or a <slug>/PLAN.md path"
+      ]
     }
   ]
 }

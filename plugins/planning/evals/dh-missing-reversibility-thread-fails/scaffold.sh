@@ -21,7 +21,7 @@ Let a customer download every record the product holds about their account as on
 
 ### Captured assumptions
 - Quality bar: production
-- Intent: second variant = speculative; existing structure: one Django app per product area; upstream: none
+- Variation intent: second variant = speculative; existing structure: one Django app per product area; upstream: none
 MD
 
 cat >"$slice/design-threads.md" <<'MD'
@@ -31,7 +31,7 @@ cat >"$slice/design-threads.md" <<'MD'
 
 - Status: RESOLVED
 - Decision: keep the exporter specific to accounts; no generic export framework.
-- Rationale: the Brief's `Intent:` line says a second export variant is speculative, so the reuse
+- Rationale: the Brief's `Variation intent:` line says a second export variant is speculative, so the reuse
   default waits for a third occurrence; SRP keeps archive building apart from delivery.
 
 ## T2. Archive format
