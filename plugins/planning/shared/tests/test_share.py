@@ -49,7 +49,8 @@ class Running(ShareCase):
         return share(self.d, "apply", "--file", str(f))
 
     def join(self, name):
-        code, _, out = call(self.guest_port(), "POST", "/api/join", {"name": name, "device": "computer"})
+        key = json.loads((self.d / "state.json").read_text(encoding="utf-8"))["session"]["guestKey"]
+        code, _, out = call(self.guest_port(), "POST", "/api/join", {"name": name, "device": "computer", "key": key})
         self.assertEqual(code, 200, out)
         return {"X-Session-Secret": out["secret"]}
 
@@ -80,7 +81,8 @@ class TestEnsureRunning(Running):
         self.assertEqual(code, 0, err)
         (self.d / tunnel.RECORD).write_text(json.dumps(rec), encoding="utf-8")  # its pid has exited
         runs = self.d.parent / "cf-runs.txt"
-        slow = env(FAKE_CF_DELAY=str(int(share_cli.START_SECONDS) + 2), SHARED_TUNNEL_SECONDS="60", FAKE_CF_ARGS=str(runs))
+        # a 6 s start limit keeps the case (a tunnel slower than the limit) without waiting out the real 15 s one
+        slow = env(SHARED_START_SECONDS="6", FAKE_CF_DELAY="8", SHARED_TUNNEL_SECONDS="60", FAKE_CF_ARGS=str(runs))
         code, out, err = share(self.d, "ensure-running", environ=slow)
         self.assertEqual(code, 0, err)
         now = tunnel.read(self.d)
@@ -91,7 +93,7 @@ class TestEnsureRunning(Running):
     def test_it_answers_the_contract_fields(self):
         out = self.first
         self.assertEqual(sorted(out), ENSURE_KEYS)
-        self.assertRegex(out["guestUrl"], r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/$")
+        self.assertRegex(out["guestUrl"], r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/#join=[A-Za-z0-9_-]{12}$")
         self.assertEqual(out["localUrl"], f"http://127.0.0.1:{self.guest_port()}/")
         self.assertEqual((out["tunnel"], out["resumed"], out["shareChanged"]), ("quick", False, False))
         # share.py resolves --dir; a Windows temp folder may be named in its 8.3 short form.
@@ -181,7 +183,7 @@ class TestStopStatusUrl(Running):
         owner = {"X-Owner-Token": self.owner_token()}
         _, _, out = call(self.guest_port(), "POST", "/api/link/guest", {}, owner)
         _, url, _ = share(self.d, "url")
-        self.assertEqual(url["guestUrl"], self.first["guestUrl"] + "#join=" + out["guestKey"])
+        self.assertEqual(url["guestUrl"], self.first["guestUrl"].split("#")[0] + "#join=" + out["guestKey"])
 
     def test_list_finds_every_session_under_the_root(self):
         other = self.root / "topic" / "shared" / "designer"
@@ -549,7 +551,7 @@ class TestTunnelRestart(Running):
         cf = tunnel.read(self.d)
         detached.stop(cf["pid"], cf["marker"])
         new = wait_for(lambda: (u := share(self.d, "url")[1]["guestUrl"]) != self.first["guestUrl"] and u, seconds=30, step=0.5)
-        self.assertRegex(new, r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/$")
+        self.assertRegex(new, r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com/#join=[A-Za-z0-9_-]{12}$")
         code, out, _ = share(self.d, "ensure-running")
         self.assertEqual((code, out["guestUrl"], out["shareChanged"]), (0, new, True))
         _, _, snap = call(self.guest_port(), "GET", "/api/state", headers={"X-Owner-Token": self.owner_token()})
@@ -710,7 +712,8 @@ class TestNamedTunnel(ShareCase):
     def test_it_serves_the_hostname_and_says_named(self):
         code, out, err = self.ensure()
         self.assertEqual(code, 0, err)
-        self.assertEqual((out["guestUrl"], out["tunnel"]), (f"https://{self.HOST}/", "named"))
+        self.assertRegex(out["guestUrl"], rf"^https://{re.escape(self.HOST)}/#join=[A-Za-z0-9_-]{{12}}$")
+        self.assertEqual(out["tunnel"], "named")
         self.assertEqual(self.args.read_text(encoding="utf-8").splitlines(), [f"tunnel --no-autoupdate run --token-file {self.token}"])
         self.assertIn(f"must name http://127.0.0.1:{self.port}. Run it on this machine only", err)
         self.assertEqual(share(self.d, "status")[1]["tunnel"], "named")
@@ -754,9 +757,10 @@ class TestNamedTunnel(ShareCase):
     def test_a_quick_session_switched_to_named_moves_its_guests(self):
         code, first, err = share(self.d, "ensure-running", "--guest-port", str(self.port), environ=self.env())  # the server probes with its start environment
         self.assertEqual(code, 0, err)
-        _, _, joined = call(self.port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+        key = first["guestUrl"].split("#join=")[1]
+        _, _, joined = call(self.port, "POST", "/api/join", {"key": key, "name": "Ann", "device": "computer"})
         code, out, err = self.ensure()
-        self.assertEqual((code, out["guestUrl"], out["shareChanged"]), (0, f"https://{self.HOST}/", True), err)
+        self.assertEqual((code, out["guestUrl"], out["shareChanged"]), (0, f"https://{self.HOST}/#join={key}", True), err)
         old = tunnel.host(first["guestUrl"].split("#")[0])
         moved = wait_for(lambda: call(self.port, "GET", "/api/state", headers={"Host": old})[2].get("moved"))
         self.assertEqual(moved, f"https://{self.HOST}")

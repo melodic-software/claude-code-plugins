@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:claude-code-plugin:machine-health:mutes",
+  "title": "Mutes",
+  "description": "Per-user muted finding items for machine-health checks. Lives at $StateBase/state/mutes.json. Not checked into source control. The orchestrator reads it and passes each check its muted keys as an argument; checks never read it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "checks"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["1.0"],
+      "description": "Schema version for future migrations."
+    },
+    "checks": {
+      "type": "object",
+      "description": "Keyed by check id as declared in catalog/checks.jsonc.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["muted_findings"],
+        "properties": {
+          "muted_findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["key", "added_at"],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z-]{1,16}:[0-9a-f]{16}$",
+                  "description": "FindingKey of the muted item: <kind>:<first 16 hex of SHA-256>."
+                },
+                "label": {
+                  "type": ["string", "null"],
+                  "description": "Display text of the item when it was muted."
+                },
+                "reason": {
+                  "type": ["string", "null"]
+                },
+                "added_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "run_id": {
+                  "type": ["string", "null"],
+                  "description": "run_id of the run whose page the mute was picked on."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

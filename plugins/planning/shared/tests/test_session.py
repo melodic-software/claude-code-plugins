@@ -139,8 +139,11 @@ class SessionCase(unittest.TestCase):
 
     def join(self, name, **body):
         self.clock.tick()
-        out = self.s.join(None, {"name": name, "device": "computer", **body})
+        out = self.s.join(None, {"name": name, "device": "computer", "key": self.key(), **body})
         return out["pid"], out["secret"]
+
+    def key(self):
+        return self.s.state["session"]["guestKey"]
 
     def people(self, *names):
         return [self.join(n)[0] for n in names]
@@ -385,7 +388,7 @@ class TestJoin(SessionCase):
     def test_a_name_matching_an_offline_person_offers_was(self):
         ann, _ = self.join("Ann")
         self.s._presence.clear()
-        out = self.s.join(None, {"name": "ann"})
+        out = self.s.join(None, {"key": self.key(), "name": "ann"})
         self.assertEqual(out["was"], {"pid": ann, "name": "Ann"})
 
     def test_was_never_reveals_a_name_the_session_hides(self):
@@ -394,7 +397,7 @@ class TestJoin(SessionCase):
             with self.subTest(names=names):
                 self.act("update_settings", HOST, {"names": names})
                 self.s._presence.clear()
-                self.assertNotIn("was", self.s.join(None, {"name": "ann"}))
+                self.assertNotIn("was", self.s.join(None, {"key": self.key(), "name": "ann"}))
 
     def test_a_join_while_names_are_hidden_keeps_the_name_whether_or_not_it_is_taken(self):
         """A " 2" suffix would tell the joiner someone already has the name."""
@@ -403,9 +406,9 @@ class TestJoin(SessionCase):
             with self.subTest(names=names):
                 self.act("update_settings", HOST, {"names": names})
                 self.clock.tick(5)
-                self.assertEqual(self.s.join(None, {"name": "alice"})["name"], "alice")
+                self.assertEqual(self.s.join(None, {"key": self.key(), "name": "alice"})["name"], "alice")
                 self.clock.tick(5)
-                self.assertEqual(self.s.join(None, {"name": f"Nobody {names}"})["name"], f"Nobody {names}")
+                self.assertEqual(self.s.join(None, {"key": self.key(), "name": f"Nobody {names}"})["name"], f"Nobody {names}")
 
     def test_a_nameless_join_while_names_are_hidden_is_numbered_whatever_names_were_typed(self):
         """Skipping a typed "Guest N" would tell the joiner someone typed it."""
@@ -421,21 +424,21 @@ class TestJoin(SessionCase):
         self.assertGreater(session.JOINS_PER_KEY, session.JOINS_PER_WINDOW)
         for i in range(session.JOINS_PER_KEY):
             self.clock.tick(1)
-            self.s.join(None, {"name": f"P{i}"}, address=f"198.51.100.{i}")
-        err = self.refused("join-rate", "join", None, {"name": "One more"})
+            self.s.join(None, {"key": self.key(), "name": f"P{i}"}, address=f"198.51.100.{i}")
+        err = self.refused("join-rate", "join", None, {"key": self.key(), "name": "One more"})
         self.assertEqual(err.http, 429)
         with self.assertRaises(session.DomainError):
-            self.s.join(None, {"name": "Fresh address"}, address="203.0.113.250")
+            self.s.join(None, {"key": self.key(), "name": "Fresh address"}, address="203.0.113.250")
         key = self.act("rotate_guest_link", HOST, {})["guestKey"]
         self.assertTrue(self.s.join(None, {"name": "New link", "key": key}, address="203.0.113.251")["pid"])
 
     def test_join_records_are_forgotten_once_their_window_passes(self):
         for i in range(50):
-            self.s.join(None, {"name": f"P{i}"}, address=f"198.51.100.{i}")
+            self.s.join(None, {"key": self.key(), "name": f"P{i}"}, address=f"198.51.100.{i}")
         self.clock.tick(session.JOIN_KEY_WINDOW)
-        self.s.join(None, {"name": "Later"}, address="203.0.113.9")
-        self.assertEqual(list(self.s._joins), [("", "203.0.113.9")])
-        self.assertEqual(len(self.s._key_joins[""]), 1)
+        self.s.join(None, {"key": self.key(), "name": "Later"}, address="203.0.113.9")
+        self.assertEqual(list(self.s._joins), [(self.key(), "203.0.113.9")])
+        self.assertEqual(len(self.s._key_joins[self.key()]), 1)
 
     def test_joiners_get_the_first_unused_color(self):
         a, b = self.people("Ann", "Bo")
@@ -457,6 +460,20 @@ class TestJoin(SessionCase):
         err = self.refused("ended", "join", None, {"name": "Ann"})
         self.assertEqual(err.http, 403)
 
+    def test_a_new_session_issues_a_guest_key_and_refuses_a_join_without_it(self):
+        self.assertEqual(self.key(), "tok0002x9")  # Ids: the owner token is the first token, then 9 bytes, as rotation draws
+        self.refused("bad-guest-key", "join", None, {"name": "Ann"}, http=403)
+        self.assertTrue(self.s.join(None, {"name": "Ann", "key": "tok0002x9"})["pid"])
+
+    def test_a_session_saved_without_a_guest_key_stays_keyless_after_a_load(self):
+        doc = self.disk()
+        doc["session"]["guestKey"] = ""
+        self.path.write_text(json.dumps(doc), encoding="utf-8")
+        s = session.Session.load(self.path, clock=self.clock, ids=self.ids, validate_writes=True)
+        self.assertTrue(s.join(None, {"name": "Ann"})["pid"])
+        self.assertEqual(s.state["session"]["guestKey"], "")
+        self.assertEqual(json.loads(self.path.read_text(encoding="utf-8"))["session"]["guestKey"], "")
+
     def test_join_needs_the_current_guest_key_once_one_was_issued(self):
         key = self.act("rotate_guest_link", HOST, {})["guestKey"]
         self.refused("bad-guest-key", "join", None, {"name": "Ann"}, http=403)
@@ -465,13 +482,13 @@ class TestJoin(SessionCase):
 
     def test_join_rate_is_limited_per_address(self):
         for i in range(session.JOINS_PER_WINDOW):
-            self.s.join(None, {"name": f"P{i}"}, address="203.0.113.7")
+            self.s.join(None, {"key": self.key(), "name": f"P{i}"}, address="203.0.113.7")
         with self.assertRaises(session.DomainError) as ctx:
-            self.s.join(None, {"name": "Late"}, address="203.0.113.7")
+            self.s.join(None, {"key": self.key(), "name": "Late"}, address="203.0.113.7")
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "join-rate"))
-        self.s.join(None, {"name": "Elsewhere"}, address="198.51.100.2")
+        self.s.join(None, {"key": self.key(), "name": "Elsewhere"}, address="198.51.100.2")
         self.clock.tick(session.JOIN_WINDOW)
-        self.s.join(None, {"name": "Later"}, address="203.0.113.7")
+        self.s.join(None, {"key": self.key(), "name": "Later"}, address="203.0.113.7")
 
     def test_a_full_session_forgets_an_idle_person_or_refuses(self):
         with mock.patch.object(session, "MAX_PEOPLE", 3):
@@ -483,7 +500,7 @@ class TestJoin(SessionCase):
             self.assertNotIn(idle, self.s.state["people"])
             self.act("propose", newcomer, {"text": "Mine"})
             self.s._presence.clear()
-            err = self.refused("full", "join", None, {"name": "One more"})
+            err = self.refused("full", "join", None, {"key": self.key(), "name": "One more"})
             self.assertEqual(err.http, 503)
 
     def test_owner_join_keeps_pid_host_and_sets_the_name(self):
@@ -2177,19 +2194,19 @@ class TestHiddenCharacters(SessionCase):
     def test_names_compare_by_their_compatibility_form_but_keep_their_letters(self):
         for name in ("Clau\U000000adde", "\U0000ff23laude", "\U0000ff23\U0000ff2c\U0000ff21\U0000ff35\U0000ff24\U0000ff25"):
             with self.subTest(name=name):
-                self.refused("reserved-name", "join", None, {"name": name, "device": "computer"})
-        self.assertEqual(self.s.join(None, {"name": "An\U000000adn", "device": "computer"})["name"], "Ann 2")
-        fullwidth = self.s.join(None, {"name": "\U0000ff21nn", "device": "computer"})["name"]
+                self.refused("reserved-name", "join", None, {"key": self.key(), "name": name, "device": "computer"})
+        self.assertEqual(self.s.join(None, {"key": self.key(), "name": "An\U000000adn", "device": "computer"})["name"], "Ann 2")
+        fullwidth = self.s.join(None, {"key": self.key(), "name": "\U0000ff21nn", "device": "computer"})["name"]
         self.assertEqual(fullwidth, "\U0000ff21nn 3")
 
     def test_invisible_marks_and_lookalike_letters_do_not_make_another_claude(self):
         for name in ("CLAUDE\U0000200d", "Clau\U000017b4de", "Clau\U0000180bde", "\U00000421l\U00000430ud\U00000435", "C\U000013deaude"):
             with self.subTest(name=name.encode("unicode_escape").decode()):
-                self.refused("reserved-name", "join", None, {"name": name, "device": "computer"})
+                self.refused("reserved-name", "join", None, {"key": self.key(), "name": name, "device": "computer"})
 
     def test_a_joiner_does_not_make_a_name_unique_but_a_lookalike_letter_does(self):
-        self.assertEqual(self.s.join(None, {"name": "Ann\U0000200d", "device": "computer"})["name"], "Ann\U0000200d 2")
-        self.assertEqual(self.s.join(None, {"name": "\U00000410nn", "device": "computer"})["name"], "\U00000410nn")  # confusables are for "Claude" only
+        self.assertEqual(self.s.join(None, {"key": self.key(), "name": "Ann\U0000200d", "device": "computer"})["name"], "Ann\U0000200d 2")
+        self.assertEqual(self.s.join(None, {"key": self.key(), "name": "\U00000410nn", "device": "computer"})["name"], "\U00000410nn")  # confusables are for "Claude" only
 
     def test_a_field_of_only_hidden_characters_is_refused_as_empty(self):
         self.refused("empty", "chat", self.ann, {"text": "\u202e\u200b\x00 \u2066"}, http=400)
@@ -2626,7 +2643,7 @@ class TestInbox(TestRequests):
         self.act("report", self.ann, {"text": "The button is gone.", "ctx": {"view": "focus", "device": "phone", "browser": "safari", "viewport": {"w": 390, "h": 844}, "errors": []}})
         self.act("update_settings", HOST, {"approveJoins": True})
         self.clock.tick()
-        jib = self.s.join(None, {"name": "Jib"})["pid"]
+        jib = self.s.join(None, {"key": self.key(), "name": "Jib"})["pid"]
         waiting = self.inbox(HOST, "waiting")
         self.assertEqual(sorted(waiting), sorted([f"run:{r1}", f"share:{xid}", "merge:G1", "report:F1", f"join:{jib}"]))
         self.assertEqual(self.inbox(HOST, "mine"), {})
@@ -3396,9 +3413,10 @@ class TestSnapshots(SessionCase):
         return next(c for c in snap["cards"]["Q1"] if c["ref"] == ref)
 
     def test_the_anonymous_view_has_exactly_three_keys(self):
-        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False})
-        self.act("rotate_guest_link", HOST, {})
-        self.assertTrue(self.s.anonymous_view()["joinNeedsKey"])
+        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": True})
+        with self.s._tx() as st:  # a session from before every new one had a guest key
+            st["session"]["guestKey"] = ""
+        self.assertFalse(self.s.anonymous_view()["joinNeedsKey"])
 
     def test_a_removed_person_reads_nothing(self):
         self.act("set_removed", HOST, {"pid": self.cy, "on": True})
@@ -4221,7 +4239,7 @@ class TestApproveJoins(SessionCase):
     def test_join_waits_when_approval_on(self):
         self.act("update_settings", HOST, {"approveJoins": True})
         self.clock.tick()
-        out = self.s.join(None, {"name": "Jib"})
+        out = self.s.join(None, {"key": self.key(), "name": "Jib"})
         self.assertTrue(out["waiting"])
         for read in (lambda: self.s.resolve(secret=out["secret"]), lambda: self.s.snapshot(out["pid"])):
             with self.assertRaises(session.DomainError) as ctx:
@@ -4270,7 +4288,7 @@ class TestApproveJoins(SessionCase):
 
     def test_approval_is_off_and_absent_until_the_owner_sets_it(self):
         self.assertNotIn("approveJoins", self.disk()["session"]["settings"])
-        out = self.s.join(None, {"name": "Ann"})
+        out = self.s.join(None, {"key": self.key(), "name": "Ann"})
         self.assertNotIn("waiting", out)
         self.assertEqual(self.s.snapshot(out["pid"])["me"]["pid"], out["pid"])
         self.refused("bad-field", "update_settings", HOST, {"approveJoins": "yes"}, http=400)
@@ -4745,32 +4763,32 @@ class TestWaitingList(SessionCase):
     def test_the_owner_sees_join_order_and_a_device_hint(self):
         self.act("update_settings", HOST, {"approveJoins": True})
         self.clock.tick()
-        self.s.join(None, {"name": "Jib", "device": "phone", "browser": "safari"})
+        self.s.join(None, {"key": self.key(), "name": "Jib", "device": "phone", "browser": "safari"})
         self.clock.tick()
-        self.s.join(None, {"name": "Kai"})
+        self.s.join(None, {"key": self.key(), "name": "Kai"})
         self.clock.tick()
-        self.s.join(None, {"name": "Lu", "device": "computer", "browser": "netscape"})
+        self.s.join(None, {"key": self.key(), "name": "Lu", "device": "computer", "browser": "netscape"})
         got = [(j["name"], j["n"], j.get("device"), j.get("browser")) for j in self.s.snapshot(HOST)["joinRequests"]]
         self.assertEqual(got, [("Jib", 1, "phone", "safari"), ("Kai", 2, None, None), ("Lu", 3, "computer", "other")])
 
     def test_at_most_20_wait_and_a_21st_is_told_why(self):
         self.act("update_settings", HOST, {"approveJoins": True})
         for i in range(20):
-            self.s.join(None, {"name": f"W{i}"}, address=f"198.51.100.{i}")
+            self.s.join(None, {"key": self.key(), "name": f"W{i}"}, address=f"198.51.100.{i}")
         with self.assertRaises(session.DomainError) as ctx:
-            self.s.join(None, {"name": "One more"}, address="198.51.100.99")
+            self.s.join(None, {"key": self.key(), "name": "One more"}, address="198.51.100.99")
         self.assertEqual((ctx.exception.http, ctx.exception.code), (503, "waiting-full"))
         self.assertIn("let", ctx.exception.message)
 
     def test_a_full_session_evicts_an_idle_guest_never_a_waiting_one(self):
         with mock.patch.object(session, "MAX_PEOPLE", 4):
             self.act("update_settings", HOST, {"approveJoins": True})
-            jib = self.s.join(None, {"name": "Jib"})["pid"]  # the least recently joined: the old rule's pick
-            kai = self.s.join(None, {"name": "Kai"})["pid"]
+            jib = self.s.join(None, {"key": self.key(), "name": "Jib"})["pid"]  # the least recently joined: the old rule's pick
+            kai = self.s.join(None, {"key": self.key(), "name": "Kai"})["pid"]
             self.act("update_settings", HOST, {"approveJoins": False})
-            idle = self.s.join(None, {"name": "Idle"})["pid"]  # active, never seen, holds nothing
+            idle = self.s.join(None, {"key": self.key(), "name": "Idle"})["pid"]  # active, never seen, holds nothing
             self.clock.tick()
-            self.s.join(None, {"name": "Lu"})
+            self.s.join(None, {"key": self.key(), "name": "Lu"})
             people = self.s.state["people"]
             self.assertIn(jib, people)
             self.assertIn(kai, people)

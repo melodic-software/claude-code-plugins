@@ -279,6 +279,7 @@ async function main() {
     // ---------- the phone, Ask Claude with "Run it on my own Claude" on: nothing scrolls sideways ----------
     await pia.evaluate(() => document.querySelector(".vf-asktop").click());
     const asked = await until(pia, () => !!document.querySelector(".vf-drawer:not([hidden]) .vf-apform"));
+    await pia.selectOption(".vf-apq select", { index: 1 }); // the top Ask Claude opens on the whole session, which offers no own Claude
     await pia.click(".vf-apself");
     const connected = await until(pia, () => !document.querySelector(".vf-apconnect").hidden);
     await pia.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => null))));
@@ -475,7 +476,7 @@ async function main() {
       const clip = async when => { const e = await p.evaluate(() => { const a = document.querySelector(".vf-apscroll"); return [a.scrollWidth, a.clientWidth]; }); if (e[0] > e[1] + TOL) bad.push(`Ask Claude${when}: .vf-apscroll content ${e[0]} clipped in ${e[1]}`); };
       if (w === 320) {
         await clip(", keyboard up");
-        await keyboard(p, false); await p.click(".vf-apself");
+        await keyboard(p, false); await p.selectOption(".vf-apq select", { index: 1 }); await p.click(".vf-apself");
         await until(p, () => !document.querySelector(".vf-apconnect").hidden); await settle(p);
         await clip(" with \"Run it on my own Claude\" on");
       }
@@ -629,7 +630,7 @@ async function main() {
       q("Q1", "Card or cash?", { kind: "text" }), q("Q2", "Which header?", { kind: "text" }), q("Q12", "Anything else?", { kind: "text" })] }]);
     const nb = N.localUrl.replace(/\/$/, ""), ntok = new URL(N.ownerUrl).hash.replace(/^#owner=/, "");
     const npost = (route, body, h) => fetch(nb + route, { method: "POST", headers: { "Content-Type": "application/json", ...h }, body: JSON.stringify(body) }).then(r => r.json());
-    const ng = await npost("/api/join", { name: "Num", device: "computer" }, {});
+    const ng = await npost("/api/join", { name: "Num", device: "computer", key: N.guestKey }, {});
     await npost("/api/answer", { qid: "Q2", text: "The slim one.", view: "focus" }, { "X-Session-Secret": ng.secret });
     for (const [label, context] of [["1440x900", { viewport: { width: 1440, height: 900 } }], ["390x844", PHONE]]) {
       const own = await rec.open(N.ownerUrl, { context });

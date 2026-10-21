@@ -492,7 +492,7 @@ async function main() {
     await until(hostTab, () => window.Core.snapshot()?.me?.role === "owner");
     await hostTab.click(".vf-fab");
     await hostTab.fill(".vf-minput", UNSENT_HOST);
-    await hostTab.goto(A.localUrl + "?as=guest");
+    await hostTab.goto(`${A.localUrl}?as=guest#join=${A.guestKey}`);
     await joinAs(hostTab, "Hal");
     await hostTab.click(".vf-fab");
     await hostTab.waitForTimeout(500);
@@ -505,7 +505,8 @@ async function main() {
     await annTab.evaluate(sec => { location.hash = "me=" + sec; }, boSecret);
     await annTab.reload();
     await until(annTab, () => !!document.querySelector("dialog.core-switch[open]"));
-    await annTab.click("dialog.core-switch button:text-is('Switch')");
+    // Switch reloads the page: wait for the new one, since a wait begun on the old page ends when it unloads.
+    await Promise.all([annTab.waitForEvent("domcontentloaded"), annTab.click("dialog.core-switch button:text-is('Switch')")]);
     await until(annTab, () => window.Core.snapshot()?.me?.name === "Bo Lee" && !!document.querySelector(".vf-chat"), null, 10000);
     if (await annTab.evaluate(() => document.querySelector(".vf-chat").hidden)) await annTab.click(".vf-fab");
     await annTab.waitForTimeout(500);
