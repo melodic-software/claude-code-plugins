@@ -141,22 +141,20 @@ eligible for skip 2. Compare the base and head manifests:
   mode turned on, a cap or budget raised), or that is removed, is a finding: every user who never
   set it gets the wider action on update. Name the control and the action that now reaches it
   unchecked. A change that lowers a value's protection is a finding too.
-- Any field added or changed that the manifest reference sections below mark as running code,
-  fetching code, granting tools, or moving a value out of secure storage, read through those
-  pointers at review time: name in the summary what runs and where it comes from (the command,
-  server, or script, and the path, package, or URL with its pin), even when nothing is wrong. A
-  source outside the repository with no pin, a command fed consumer-controlled input, or a tool
-  grant wider than the command needs is a finding with its exploit path. When the pointers
-  cannot be read (this skill grants no WebFetch), flag each changed field the lane cannot
-  classify rather than pass it.
-- A change to the plugin's identity, version pin, or default enablement: say what installed users
-  get on update.
+- Default deny. Every other field added, changed, or removed is a `manifest <field>: flag`,
+  whatever the lane believes about it, unless it is in this repository's inert set:
+  `description`, `keywords`, `author`, `homepage`, `repository`, `license`. On each such flag,
+  name in the summary what runs and where it comes from (the command, server, or script, and the
+  path, package, or URL with its pin), or what installed users get on update. A source outside
+  the repository with no pin, a command fed consumer-controlled input, or a tool grant wider than
+  the command needs also gets its exploit path.
 
 For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
 `manifest <field>: flag, <reason>`, so the outcome reads without the inline comments. Every
 `flag` line is a finding: it counts in the review's findings total, which is what holds the merge.
 
-Pointer: what each field loads, runs, grants, or stores is read at
+The pointers below are reading material for naming what a flagged field runs, never the test
+for whether it is flagged. Pointer: what each field loads, runs, grants, or stores is read at
 [plugin manifest reference: Fields](https://code.claude.com/docs/en/plugins-reference#fields),
 [Component path forms](https://code.claude.com/docs/en/plugins-reference#component-path-forms),
 [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration), and
