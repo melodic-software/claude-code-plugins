@@ -134,7 +134,7 @@ own session, so it treats advisor state as unknown and may suggest the user chec
   <https://code.claude.com/docs/en/skills#available-string-substitutions> and
   <https://code.claude.com/docs/en/env-vars#variables>; for choosing, checking and disabling the
   advisor, see <https://code.claude.com/docs/en/advisor#enable-the-advisor>,
-  <https://code.claude.com/docs/en/advisor#use-the-advisor-command> and
+  <https://code.claude.com/docs/en/advisor#use-the-/advisor-command> and
   <https://code.claude.com/docs/en/advisor#turn-the-advisor-off>.
 - **As of**: 2026-10-11
 - **Recheck trigger**: the skills page drops the `${CLAUDE_EFFORT}` substitution row, the advisor

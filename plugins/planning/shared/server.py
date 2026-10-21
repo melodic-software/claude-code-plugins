@@ -18,7 +18,12 @@ No secret travels on this command line: the control token and the owner token co
 
 The domain rules live in session.py; this file routes, authenticates, caps and renders. It also
 watches the tunnel (tunnel.py): when its process exits it starts a new one, allows the new host and
-records the new link, so the owner's view says to share it again.
+records the new link, so the owner's view says to share it again (a named tunnel comes back at the
+same address). After a switch to another address it still allows the retired tunnel's host while
+that tunnel runs, and answers a page there with the new address only, so the page can move there
+with its identity (core.js). A switch happens only once the new address proves it reaches this
+server: share.py asks the control route `POST /api/tunnel-check`, and the server fetches
+`<address>/api/tunnel-probe/<nonce>` and expects the answer only it knows.
 """
 
 from __future__ import annotations
@@ -27,6 +32,7 @@ import argparse
 import collections
 import contextlib
 import hashlib
+import http.client
 import ipaddress
 import json
 import logging
@@ -35,6 +41,7 @@ import re
 import secrets
 import signal
 import socket
+import ssl
 import sys
 import threading
 import time
@@ -241,7 +248,8 @@ def batch_json(items):
 
 
 def client_fields(body):
-    """A client-log body checked against CLIENT_FIELDS: strings within their limits, a known kind, a message."""
+    """A client-log body checked against CLIENT_FIELDS: strings within their limits, a known kind, a message; each
+    string with its hidden characters dropped (session._visible), as every text field a guest sends."""
     extra = sorted(set(body) - set(CLIENT_FIELDS))
     if extra:
         raise DomainError(400, "bad-field", f"{extra[0][:40]} is not a client-log field.", field=extra[0][:40])
@@ -251,11 +259,12 @@ def client_fields(body):
             raise DomainError(400, "bad-field", f"{k} must be a string.", field=k)
         if v is not None and len(v) > limit:
             raise DomainError(400, "too-long", f"{k} allows at most {limit} characters.", field=k, max=limit)
-    if body.get("kind") not in CLIENT_KINDS:
+    out = {k: None if body.get(k) is None else session._visible(body[k]) for k in CLIENT_FIELDS}  # what a guest's text may hold
+    if out["kind"] not in CLIENT_KINDS:
         raise DomainError(400, "bad-field", f"kind must be one of {', '.join(CLIENT_KINDS)}.", field="kind")
-    if not body.get("message"):
+    if not out["message"]:
         raise DomainError(400, "empty", "message is empty.", field="message")
-    return {k: body.get(k) for k in CLIENT_FIELDS}
+    return out
 
 
 class StartRefused(Exception):
@@ -277,6 +286,27 @@ def build_hash():
         h.update(path.encode())
         h.update(f.read_bytes() if f.is_file() else b"-")
     return h.hexdigest()[:12]
+
+
+PROBE_PATH = re.compile(r"/api/tunnel-probe/([0-9a-f]{32})")
+PROBE_SECONDS = 30.0  # judgment: how long a new tunnel address may take to start reaching this server
+
+
+def probe_target(url):
+    """(connection, Host header) for fetching through `url`, an https address. SHARED_PROBE_ORIGIN (tests) sends the
+    request to a loopback http origin instead, with the same Host."""
+    host = urlparse(url).hostname or ""
+    origin = urlparse(os.environ.get("SHARED_PROBE_ORIGIN") or "")
+    if origin.scheme == "http" and origin.hostname in ("127.0.0.1", "localhost"):
+        return http.client.HTTPConnection(origin.hostname, origin.port or 80, timeout=5), host
+    return http.client.HTTPSConnection(host, 443, timeout=5, context=ssl.create_default_context()), host
+
+
+def tunnel_kind(rec, up):
+    """What a status says of the tunnel: named or quick while it runs, down when it does not, off with no record."""
+    if not rec:
+        return "off"
+    return ("named" if tunnel.config(rec)[0] else "quick") if up else "down"
 
 
 def read_json(path):
@@ -457,15 +487,19 @@ class ControlHandler(session_bridge.LoopbackHandler):
             ok=True,
             publicUrl=app.public_url,
             guestPort=app.guest_port,
-            tunnel="quick" if rec and app.tunnel_up else ("down" if rec else "off"),
+            tunnel=tunnel_kind(rec, app.tunnel_up),
             lease=self.hub.lease_view(),
         )
         return self.send(200, out)
 
     def route_post(self, path, msg):
+        app = self.hub.app
+        if path == "/api/tunnel-check":
+            url = msg.get("url")
+            problem = app.probe_tunnel(url) if isinstance(url, str) else "url must be a string"
+            return self.send(200, {"ok": problem is None, **({"error": problem} if problem else {})})
         if path != "/api/ops":
             return self.send(404, {"error": "not found"})
-        app = self.hub.app
         try:
             out = app.session.apply(msg)
         except DomainError as exc:
@@ -705,6 +739,10 @@ class GuestHandler(BaseHTTPRequestHandler):
         return pid
 
     def do_GET(self):
+        probe = PROBE_PATH.fullmatch(urlparse(self.path).path)
+        if probe:  # before the Host check: the probe arrives on an address not yet allowed; it answers a pending nonce only
+            answer = self.app.answer_probe(probe.group(1))
+            return self.send(200, {"probe": answer}) if answer else self.send(404, {"error": "not-found"})
         if self.refused():
             return None
         url = urlparse(self.path)
@@ -751,6 +789,8 @@ class GuestHandler(BaseHTTPRequestHandler):
 
     def state(self):
         app = self.app
+        if app.moved(self.headers.get("Host", "")):  # the old address after a switch: only where the session went
+            return self.send(200, {"moved": app.public_url})
         pid = self.identity()
         if pid is None:
             return self.send(200, app.session.anonymous_view())
@@ -763,7 +803,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         snap["build"] = app.build
         if snap["me"]["role"] in ("owner", "leader"):
             share = dict(app.session.state["session"]["share"])
-            share["tunnel"] = "quick" if app.tunnel_up else "down"
+            share["tunnel"] = tunnel_kind(tunnel.read(app.dir), True) if app.tunnel_up else "down"
             snap["share"] = share
         return self.send(200, snap, extra={"ETag": tag})
 
@@ -922,12 +962,14 @@ class App:
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
         self.tunnel_host = ""
+        self.retired_host = ""  # the address before a switch, while its tunnel still runs
         self.tunnel_up = False
         self._next_tunnel_try = 0.0
         self._backoff = 2.0
         self._last_sync = 0.0
         self._stop = threading.Event()
         self._chunk_lock, self._chunk_readers = threading.Lock(), set()
+        self._probe_lock, self._probes = threading.Lock(), {}  # nonce asked -> (answer, expiry)
         self.guest = GuestServer(("127.0.0.1", guest_port), GuestHandler)
         self.guest.app = self
         self.guest_port = self.guest.server_address[1]
@@ -989,16 +1031,64 @@ class App:
     def host_ok(self, host, origin):
         if not host:
             return False
-        if host not in self.local_hosts and host != self.tunnel_host:
+        public = {h for h in (self.tunnel_host, self.retired_host) if h}
+        if host not in self.local_hosts and host not in public:
             now = time.monotonic()
             if now - self._last_sync > 1.0:  # a tunnel share.py just started may not be seen yet
                 self._last_sync = now
                 self.sync_tunnel(restart=False)
-            if host != self.tunnel_host or not host:
+            public = {h for h in (self.tunnel_host, self.retired_host) if h}
+            if host not in public:
                 return False
         if origin is None:
             return True
-        return origin in {f"http://{h}" for h in self.local_hosts} or (bool(self.tunnel_host) and origin == f"https://{self.tunnel_host}")
+        return origin in {f"http://{h}" for h in self.local_hosts} or origin in {f"https://{h}" for h in public}
+
+    def answer_probe(self, nonce):
+        """The answer to a pending probe nonce, once, else None."""
+        with self._probe_lock:
+            now = time.monotonic()
+            self._probes = {k: v for k, v in self._probes.items() if v[1] > now}
+            hit = self._probes.pop(nonce, None)
+        return hit[0] if hit else None
+
+    def probe_tunnel(self, url):
+        """None once `url` (an https address) reaches this server: a fetch of <url>/api/tunnel-probe/<nonce> gets back the
+        answer only this process knows. Else why not, after PROBE_SECONDS of tries."""
+        if urlparse(url).scheme != "https" or not urlparse(url).hostname:
+            return f"{url!r} is not an https address"
+        nonce, answer = secrets.token_hex(16), secrets.token_hex(16)
+        seconds = float(os.environ.get("SHARED_PROBE_SECONDS") or PROBE_SECONDS)
+        with self._probe_lock:
+            self._probes[nonce] = (answer, time.monotonic() + seconds + 5)
+        deadline, why = time.monotonic() + seconds, "no answer"
+        while True:
+            conn, host = probe_target(url)
+            try:
+                conn.request("GET", f"/api/tunnel-probe/{nonce}", headers={"Host": host})
+                resp = conn.getresponse()
+                body = resp.read(4096)
+                try:
+                    got = json.loads(body).get("probe") if resp.status == 200 else None
+                except (ValueError, AttributeError):
+                    got = None
+                if got == answer:
+                    return None
+                why = f"HTTP {resp.status}" + (", and not this server's answer" if resp.status == 200 else "")
+            except (OSError, http.client.HTTPException) as exc:
+                why = str(exc) or type(exc).__name__
+            finally:
+                conn.close()
+            if time.monotonic() >= deadline:
+                with self._probe_lock:
+                    self._probes.pop(nonce, None)
+                self.log.warning("tunnel check: %s does not reach this server (%s)", url, loggable(why))
+                return f"{url} does not reach this server ({why})"
+            time.sleep(1.0)
+
+    def moved(self, host):
+        """True when `host` is the retired tunnel's: the session now answers at public_url."""
+        return bool(self.retired_host) and host == self.retired_host and host != self.tunnel_host and bool(self.public_url)
 
     def etag(self, pid):
         tick = int(time.time() // PRESENCE_TICK)
@@ -1015,14 +1105,17 @@ class App:
         rec = tunnel.read(self.dir)
         if rec is None:
             self.tunnel_up = False
+            self.retired_host = ""
             return
+        old = tunnel.retired(self.dir)
+        self.retired_host = tunnel.host(old["url"]) if old else ""
         live = tunnel.alive(self.dir)
         if (live is None or live.get("port") != self.guest_port) and restart and self.watch_tunnel:
             if time.monotonic() < self._next_tunnel_try:
                 self.tunnel_up = False
                 return
             try:
-                live = tunnel.ensure(self.dir, self.guest_port)
+                live = tunnel.ensure(self.dir, self.guest_port, *tunnel.config(rec))  # a named tunnel comes back at its address
                 self._backoff = 2.0
                 self.log.info("tunnel started: %s", live["url"])
             except (tunnel.TunnelDown, TimeoutError) as exc:
@@ -1042,6 +1135,7 @@ class App:
     def watch(self):
         while not self._stop.wait(TUNNEL_POLL):
             try:
+                tunnel.sweep(self.dir)
                 self.sync_tunnel()
                 if time.monotonic() >= self._batch_at:
                     self.flush_summaries()
