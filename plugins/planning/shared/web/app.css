@@ -150,7 +150,7 @@
 .app .vf-btn .vf-i { inline-size: 14px; block-size: 14px; margin-inline-end: 6px; }
 .app .vf-vote .vf-i { inline-size: 14px; block-size: 14px; }
 @media (hover: hover) and (pointer: fine) {
-  .app .vf-btn-ghost:hover:not(:disabled), .app .vf-tbtn:hover { background: var(--raise); color: var(--text); }
+  .app .vf-btn-ghost:hover:not(:disabled), .app .vf-tbtn:hover, .app .vf-propose:hover { background: var(--raise); color: var(--text); }
   .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--accent) 88%, white); }
   .app .vf-btn-brass:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--brass) 88%, white); }
   .app .vf-q:hover { background: var(--raise); color: var(--text); }
@@ -1036,7 +1036,7 @@
 .app .vf-cancel-send { justify-self: start; position: relative; z-index: 1; }
 
 /* ---------- proposals ---------- */
-.app .vf-propose { inline-size: 100%; margin-block-start: 6px; color: var(--text); }
+.app .vf-propose { inline-size: 100%; margin-block-start: 6px; color: var(--text); border: 1px solid var(--line-input); } /* a standard secondary button: its edge 3:1 */
 .app :is(.vf-proposepop, .vf-reportpop) { inline-size: 340px; display: grid; gap: 8px; }
 .app :is(.vf-proposepop, .vf-reportpop) .vf-pop-title { margin: 0; }
 /* Report a problem: the screenshot row hides once its chip shows; the sent list wraps */

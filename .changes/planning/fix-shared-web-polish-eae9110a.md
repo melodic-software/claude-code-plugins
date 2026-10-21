@@ -4,6 +4,7 @@ bump: minor
 
 ### Changed
 
+- The Propose a question button at the foot of the question list is a standard secondary button, its border at the 3:1 field-boundary strength, instead of a faint ghost button.
 - Past 12 people, the shared interview page's Host view shows each person on one compact line (presence dot, name, state and a menu button that opens their card with the host's actions); at 12 or fewer the rows stay as they were.
 - On the shared interview page, the comment box works before a pick on every question that takes one, including a choice with Something else and a scale; the comment goes in with the pick, and a comment typed before choosing Something else becomes the own option's draft.
 
