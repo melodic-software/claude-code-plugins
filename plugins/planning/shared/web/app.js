@@ -3835,7 +3835,9 @@
           // (the server says so on my own uploads).
           const mine = (Core.state.myUploads || []).find(u => u.id === a.upload), st2 = mine?.status;
           if (a.pasted && mine && !mine.carried && ["offered", "accepted", "uploading", "done"].includes(st2)) {
-            Core.uploadAct(a.upload, st2 === "done" ? "remove" : "withdraw").then(() => forget(a.upload)).catch(fail);
+            // draftOnly: a page that has not yet seen a send carry it never takes the file off what was sent (#8615)
+            Core.uploadAct(a.upload, st2 === "done" ? "remove" : "withdraw", true).then(() => forget(a.upload))
+              .catch(e => { if (e?.status !== "carried") fail(e); }); // carried: it stays on the post, and its copy here too
           }
         };
         li.append(x); return li;
