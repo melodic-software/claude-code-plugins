@@ -782,3 +782,74 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   `Get-Volume` failing (Storage module unavailable) degrades to scanning the system drive
   alone rather than `UNKNOWN`. The check is Windows-only; a POSIX port would need its own
   baseline semantics (`/` has a very different expected set) and is not scaffolded.
+
+---
+
+## 20. Storage top-N
+
+- **Script:** `scripts/windows/checks/Test-StorageTopN.ps1`, walking through
+  `scripts/windows/lib/Measure-FolderSize.ps1`.
+- **Category:** `storage`
+- **Needs admin:** no. A folder the standard token cannot list is counted in
+  `detail.inaccessible_count` and the walk goes on.
+- **Remediation:** none. The check sizes folders; it never opens a file for its content, moves or
+  deletes anything.
+- **Commands:**
+
+  ```powershell
+  $opts = [System.IO.EnumerationOptions]::new()
+  $opts.RecurseSubdirectories = $false
+  $opts.IgnoreInaccessible = $false
+  $opts.AttributesToSkip = [System.Enum]::ToObject([System.IO.FileAttributes], 0x441000)
+  [System.IO.DirectoryInfo]::new($env:USERPROFILE).EnumerateFileSystemInfos('*', $opts)
+  ```
+
+- **Roots, in scan order:** the reclaim locations `%TEMP%` (hint `temp`), the current user's
+  `%SystemDrive%\$Recycle.Bin\<SID>` (`recycle-bin`), `%ProgramData%\Package Cache`
+  (`package-cache`) and `%SystemDrive%\Windows.old` (`windows-old`), then `%USERPROFILE%`. Every
+  root's own level is listed before any folder is walked, so a sync root directly under a root is
+  always recorded. A missing root is reported with `status` `absent`. `%TEMP%` lies under the profile, so it is walked twice;
+  `detail.scanned_bytes` counts a root nested in another scanned root only once.
+- **What it lists:** each folder directly under a root is sized by its own walk (logical `Length`
+  of every file below it), and the 15 largest per root become FindingItems of kind `folder`,
+  identity the full path, severity `INFO`, with `logical_bytes`, `allocated_bytes`, `file_count`,
+  `complete` and `reclaim_hint`. Loose files at a root count toward that root's total only.
+- **Cloud files are never hydrated.** Decision: the walk never descends a directory at or under a
+  cloud sync root and never opens an enumerated file. A directory is under a sync root when
+  `%OneDrive%`, `%OneDriveConsumer%` or `%OneDriveCommercial%` prefixes its path, or when it or an
+  ancestor carries ReparsePoint plus a cloud bit (RECALL_ON_OPEN `0x40000`, PINNED `0x80000`,
+  UNPINNED `0x100000`, RECALL_ON_DATA_ACCESS `0x400000`). Each skipped sync root is one item with
+  `skip_reason` `cloud-sync-root` and no size, shown as "skipped: cloud sync root"; the scalar
+  `detail.skipped_sync_roots` counts them. Every other reparse directory (junction, directory
+  symlink) is not descended and is counted in `detail.skipped_reparse_dirs`. `AttributesToSkip` is
+  Offline | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS, so a placeholder outside a sync root is never
+  seen; Hidden and System are not skipped, so `AppData` is counted.
+  - **Pointer**: when deciding which attribute bits mark a file or directory that is not fully
+    local, fetch
+    [File Attribute Constants](https://learn.microsoft.com/en-us/windows/win32/fileio/file-attribute-constants)
+    live. **As of**: 2026-10-21. **Recheck trigger**: that page changes the meaning or value of
+    RECALL_ON_OPEN, RECALL_ON_DATA_ACCESS, PINNED or UNPINNED, or a OneDrive host shows a sync
+    root that carries none of those bits and is not named by a OneDrive variable.
+- **Budget:** one 60-second budget, held in `Measure-FolderSize.ps1`, covers the scan (tested
+  before each directory and each entry) and the allocated-size pass (tested before each file).
+  The orchestrator kills a check at 90 seconds, so the walk stops early and keeps its partial
+  figures. Each root's walk gets an equal share of the budget left, with the allocated pass
+  counted as one more claimant, and time a root leaves unused passes on; one large `%TEMP%`
+  cannot starve the profile. Within a root, folders are walked in listing order, so one very large
+  folder can still leave its later siblings unsized. A cut scan sets `detail.scan_complete = false`.
+- **Allocated size:** a second pass calls `GetCompressedFileSizeW` on the files of each listed
+  folder holding at most 10,000 files, inside the remaining budget. It skips a file that is itself
+  a reparse point, since opening a file symlink reaches its target. A folder over the cap, cut by
+  the budget, or with a file whose size cannot be read keeps `allocated_bytes = null`, and
+  `detail.allocated_complete` is then false.
+- **Severity rubric:**
+  - `INFO`: any unmuted item. Every item is `INFO`: a large folder is a fact for the reader, not a
+    fault.
+  - `OK`: every item muted (or none listed) and the scan completed.
+  - `UNKNOWN`: every item muted (or none listed) and the budget cut the scan, since a partial walk
+    cannot vouch for OK; or the check threw.
+  - No `WARN` or `CRIT`. Free-space pressure belongs to `disk-space` (section 2).
+- **Detail scalars:** `scanned_bytes`, `top1_bytes`, `scan_complete`, `allocated_complete`,
+  `inaccessible_count`, `skipped_reparse_dirs`, `skipped_sync_roots`, `items_count`,
+  `muted_count`. `detail.roots[]` gives each root's `status` (`scanned`, `absent`,
+  `inaccessible`, `reparse` or `cloud-sync-root`), totals and `reclaim_hint`.
