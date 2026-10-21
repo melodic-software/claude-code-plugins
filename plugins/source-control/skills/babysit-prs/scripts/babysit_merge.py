@@ -2099,6 +2099,19 @@ def _failed_ejections(pr: dict[str, Any]) -> int | None:
     return count if len(nodes) < merge_policy.MAX_QUEUE_EJECTIONS_LIMIT else None
 
 
+def _last_removal_reason(pr: dict[str, Any]) -> str | None:
+    """The reason of the queue's newest removal of the pull request, or None
+    when a head change is newer than every removal or none can be read."""
+    nodes = json_object(pr.get("timelineItems")).get("nodes")
+    for node in reversed(nodes if is_json_array(nodes) else []):
+        node = json_object(node)
+        if node.get("__typename") != "RemovedFromMergeQueueEvent":
+            return None
+        reason = node.get("reason")
+        return reason if isinstance(reason, str) and reason else None
+    return None
+
+
 def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
     """The PR's merge-queue standing as GitHub reports it now.
 
@@ -2143,6 +2156,7 @@ def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
         "state": entry.get("state") if entry else None,
         "position": entry.get("position") if entry else None,
         "failedEjections": _failed_ejections(pr),
+        "lastRemovalReason": _last_removal_reason(pr),
     }
 
 
@@ -2497,7 +2511,9 @@ def update_pending(path: Path, key: str, entry: dict[str, Any] | None) -> None:
         write_state(path, {"schema_version": 1, "requests": requests})
 
 
-def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] | None:
+def check_pending_request(
+    repo: str, number: int, path: Path, *, write: bool = True
+) -> dict[str, Any] | None:
     """The PR's recorded async merge request as GitHub reports it now.
 
     A request left pending stays live on GitHub: it can still merge after a
@@ -2510,6 +2526,9 @@ def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] 
     A merged request is checked against every head the gate evaluated
     (`verification`), since its `sha` pinned only this PR. A check that cannot
     read the heads back keeps the record for the next run.
+
+    With `write` False (a report-only run) the report is the same and the
+    record is left as it was.
     """
     key = f"{repo}#{number}"
     with state_lock(path):
@@ -2517,7 +2536,7 @@ def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] 
     if not is_json_object(entry):
         return None
     if entry.get("queued"):
-        return check_queued_entry(repo, number, path, entry)
+        return check_queued_entry(repo, number, path, entry, write=write)
     current = read_async_merge(repo, number, str(entry.get("uuid") or ""))
     report = {
         **entry,
@@ -2532,13 +2551,13 @@ def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] 
         report["verification"] = verify_request_landed(repo, number, entry)
         if report["verification"]["verified"] is None:
             return report
-    if current["expired"] or current["status"] in ASYNC_TERMINAL_STATUSES:
+    if write and (current["expired"] or current["status"] in ASYNC_TERMINAL_STATUSES):
         update_pending(path, key, None)
     return report
 
 
 def check_queued_entry(
-    repo: str, number: int, path: Path, entry: dict[str, Any]
+    repo: str, number: int, path: Path, entry: dict[str, Any], *, write: bool = True
 ) -> dict[str, Any]:
     """A recorded merge-queue entry as GitHub reports it now.
 
@@ -2572,7 +2591,7 @@ def check_queued_entry(
                 "position": None,
                 "entersWhenReady": True,
             }
-        if entry.get("unconfirmed"):
+        if write and entry.get("unconfirmed"):
             confirmed = {
                 field: value
                 for field, value in entry.items()
@@ -2595,12 +2614,15 @@ def check_queued_entry(
                 "position": None,
                 "unconfirmed": True,
             }
-            update_pending(path, key, {**entry, "unseenReads": unseen})
+            if write:
+                update_pending(path, key, {**entry, "unseenReads": unseen})
             return report
         report["status"] = "dequeued"
     else:
         report["status"] = "dequeued"
-    update_pending(path, key, None)
+        report["removalReason"] = queue.get("lastRemovalReason")
+    if write:
+        update_pending(path, key, None)
     return report
 
 
@@ -2677,6 +2699,17 @@ def _queue_position(queue: dict[str, Any]) -> str:
     return f"{where}, state {queue.get('state') or 'unknown'}"
 
 
+# A queue push the signed-commit rule refuses is removed as
+# `branch_protection_failure`. One known cause: GitHub wraps the body into the
+# squash message, and a message line starting with `committer ` breaks
+# the commit's signature (#7279, #7360). Requeuing rebuilds the same message.
+SQUASH_SIGNATURE_CAUSE = (
+    "if the base requires signed commits, the likely cause is a body line that "
+    "GitHub's 72-character wrap starts with 'committer ', which breaks the squash "
+    "commit's signature; reword the body before requeuing"
+)
+
+
 def queued_entry_hold(
     prior: dict[str, Any], verified: Any
 ) -> tuple[str | None, str | None]:
@@ -2721,11 +2754,19 @@ def queued_entry_hold(
             None,
         )
     if status == "dequeued":
+        removal = prior.get("removalReason")
+        cause = (
+            f"the queue removed it as {removal!r}"
+            if removal
+            else "removed by hand or through the API, a failed or timed-out queue "
+            "check, or a requirement it no longer meets"
+        )
+        if removal == "branch_protection_failure":
+            cause += f"; {SQUASH_SIGNATURE_CAUSE}"
         dequeued = (
-            f"left the merge queue without merging (queued at {since}): removed by "
-            "hand or through the API, a failed or timed-out queue check, or a "
-            "requirement it no longer meets -- dequeued, not merged; the record is "
-            "cleared and the next run gates it again"
+            f"left the merge queue without merging (queued at {since}): {cause} -- "
+            "dequeued, not merged; the record is cleared and the next run gates it "
+            "again"
         )
         return dequeued, dequeued
     if verified is not True:
@@ -2768,6 +2809,7 @@ STOP_REFUSALS = (
     "post-merge:",
     "rung-off:",
     merge_policy.DEFAULT_BRANCH_UNREADABLE,
+    merge_policy.AUTHORITY_DIFFERS,
 )
 # The run-cache section of queued entries a gate process judged and kept.
 SWEEP = "queue-sweep"
@@ -3967,8 +4009,24 @@ def unattended_enqueue(
     if opt_in:
         return hold(f"ineligible:{opt_in}")
     # An enqueue never rests on a read shared within the run: a default
-    # branch or base rules the gate took from the run cache are read again,
-    # and any change holds.
+    # branch, its head's merge config or base rules the gate took from the
+    # run cache are read again, and any change holds.
+    if (cached_head := merge_policy.SHARED_HEAD_CONFIGS.get(repo)) is not None:
+        try:
+            _, head = merge_policy._default_branch_head(repo, branch)
+            if head != cached_head:
+                config = inputs["config"]
+                main = merge_policy.read_config_at(repo, head)
+                if main.error:
+                    raise merge_policy.PolicyReadError(main.error)
+                fresh = merge_policy.stricter_config(config, main)
+                if replace(fresh, notes=()) != replace(config, notes=()):
+                    return hold(
+                        "the default branch's merge config changed since the "
+                        "gate read it"
+                    )
+        except merge_policy.PolicyReadError as exc:
+            return hold(f"the default branch's merge config is unreadable: {exc}")
     if repo in merge_policy.SHARED_DEFAULT_BRANCHES:
         try:
             default = merge_policy._default_branch(repo)
@@ -3990,7 +4048,10 @@ def unattended_enqueue(
     # update with no answer (a timeout, no status, a server error) may have
     # landed, so the old head is held rather than pinned.
     inputs_read = check_inputs.changed_since_merge_base(
-        inputs["config"].check_inputs, pin, branch
+        inputs["config"].check_inputs,
+        pin,
+        branch,
+        extra=inputs["config"].head_check_inputs,
     )
     step["checkInputs"] = inputs_read
     # Updating merges the base's canonical but not the copies the pull request
@@ -4149,6 +4210,7 @@ def _main() -> int:
     global SHARE_BASE_READS
     SHARED_RULES.clear()
     merge_policy.SHARED_DEFAULT_BRANCHES.clear()
+    merge_policy.SHARED_HEAD_CONFIGS.clear()
     # allow_abbrev=False: the permission grants covering this gate state their
     # conditions as the literal presence or absence of a flag in the command
     # text -- above all "no --merge means check-only". Prefix abbreviation
@@ -4319,7 +4381,8 @@ def _main() -> int:
         default=None,
         help=(
             "with --unattended, the merge authority this run is (default "
-            "local-babysit); merge.authority at the base must name it. "
+            "local-babysit); merge.authority at the base and at the default "
+            "branch head must name it. "
             "pr-merge is the CI lane: a CI-labeled C2 pull request off the "
             "denied paths, or a mergeable Dependabot pull request on a green "
             "ci-status, no promotion read, and nothing written while "
@@ -4530,6 +4593,7 @@ def _main() -> int:
     # Any policy failure refuses: this decides who may merge, and an
     # unreadable answer is not a permissive one.
     unattended: merge_policy.UnattendedPolicy | None = None
+    report_only = False
     if args.unattended:
         # Only lane or bot self logins reach the policy's human test: the
         # operator's own login there would make the operator non-human.
@@ -4573,7 +4637,8 @@ def _main() -> int:
             )
         # Report-only: the decision is reported and nothing is written, so
         # `--merge` runs as a check.
-        if (unattended.details or {}).get("reportOnly"):
+        report_only = bool((unattended.details or {}).get("reportOnly"))
+        if report_only:
             args.merge = False
         if args.merge:
             writes = unattended_writes(repo, number, unattended)
@@ -4600,7 +4665,17 @@ def _main() -> int:
                 actingLogin=None,
                 agentIdentity=identity,
             )
-        if not acting or acting.casefold() == identity.strip().casefold():
+        # Each identity the base or the default branch head sets: a rotation
+        # leaves both able to bypass the unattended checks until it lands.
+        named = [
+            str(i)
+            for i in (unattended.details or {}).get("agentIdentities") or [identity]
+        ]
+        matched = next(
+            (i for i in named if acting.casefold() == i.strip().casefold()), None
+        )
+        if not acting or matched:
+            identity = matched or identity
             return _refuse(
                 f"the token acts as {acting or 'an unknown login'!r}, the configured "
                 f"merge.agent-identity {identity!r}; it merges only through "
@@ -4670,7 +4745,9 @@ def _main() -> int:
     prior: dict[str, Any] | None = None
     if pending_path is not None:
         try:
-            prior = check_pending_request(repo, number, pending_path)
+            prior = check_pending_request(
+                repo, number, pending_path, write=not report_only
+            )
         except (RuntimeError, OSError) as exc:
             return _refuse(f"pending merge record unreadable: {exc}", 2)
 

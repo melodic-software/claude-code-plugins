@@ -67,6 +67,8 @@ teaching from them.
 ## Codebase mode and a repository's own vocabulary
 
 In `codebase` mode the glossary may point to or build on the repository's shared vocabulary
-document when one exists (a `UBIQUITOUS-LANGUAGE.md`, or a domain glossary under `docs/`). The two
+document when one exists (the nearest `GLOSSARY.md`, or the name the domain-driven-design
+`glossary_file` setting sets, with the nearest `GLOSSARY-MAP.md` in a multi-context repository, or a
+domain glossary under `docs/`). The two
 stay separate. The repository's document is the team's agreed vocabulary and is authoritative; the
 learning glossary records this one learner's understanding, which may still be partial.

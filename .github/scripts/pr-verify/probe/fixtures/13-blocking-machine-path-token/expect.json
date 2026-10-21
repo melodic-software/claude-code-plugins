@@ -1,0 +1,7 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "main",
+  "defect": "machine-specific data: a hard-coded /Volumes/AlexSSD cache path and a token-shaped fallback credential (AWS's documented example key id, not a real secret) the issue forbids",
+  "mentions": ["Volumes", "machine", "absolute path", "local path", "hard-?coded", "FALLBACK_TOKEN", "credential", "secret", "AKIA"]
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The first-join welcome card (follow-up item 6), against `share.sh ensure-running` with the fake cloudflared: a new
-// guest's first view opens with the welcome card, its first line "Enter your name to join, then answer this round's
+// guest's first view opens with the welcome card, its first line "You're in. Answer this round's
 // questions.", the session goal and the first step, and a visible Skip; Skip closes the card and the tour offer at
 // once (the `tour` pref says skipped) and the card stays closed after a reload on that device; "Show the tour again"
 // in the person's settings brings the card and the tour offer back; on a 390x844 phone Skip is a whole 44 px target.
@@ -14,7 +14,7 @@ const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_ha
 
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
 const GOAL = "Settle the checkout layout before the sprint";
-const LEAD = "Enter your name to join, then answer this round's questions.";
+const LEAD = "You're in. Answer this round's questions.";
 const shown = () => { const c = document.querySelector(".vf-orient"); return !!c && !c.hidden && c.getClientRects().length > 0; };
 
 async function main() {
@@ -41,7 +41,7 @@ async function main() {
       return { first: lines[0]?.textContent, leadAboveHeading: !!lead && lead.getBoundingClientRect().bottom <= h.getBoundingClientRect().top + 1, text: c.textContent,
         start: c.querySelector(".vf-orient-start")?.textContent, skip: skip?.textContent, skipShown: !!skip && skip.getClientRects().length > 0 };
     });
-    ok("its first line is \"Enter your name to join, then answer this round's questions.\"", card.first === LEAD && card.leadAboveHeading, JSON.stringify(card));
+    ok("its first line is \"You're in. Answer this round's questions.\"", card.first === LEAD && card.leadAboveHeading, JSON.stringify(card));
     ok("it shows the session goal and the first step", card.text.includes(`Goal: ${GOAL}`) && card.start === "Start here: question 1", JSON.stringify(card));
     ok("it shows a visible Skip", card.skip === "Skip" && card.skipShown, JSON.stringify(card));
     ok("it offers the optional tour after it", await until(ann, () => { const t = document.querySelector(".vf-orient-tour"); return !!t && !t.hidden && t.textContent === "Show me around"; }));

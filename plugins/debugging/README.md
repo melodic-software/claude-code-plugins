@@ -22,7 +22,8 @@ when you describe broken behavior with no pre-existing reproduction.
 1. **Build the reproduction loop**, where most of the effort goes. One quick command
    that gives the same pass or fail for this bug on every run. Ten kinds of loop,
    ranked from a failing test down to a script a person runs by hand.
-2. **Reproduce**. Run the loop; confirm it shows *the* failure the user described.
+2. **Reproduce**. Run the loop; confirm it shows *the* failure the user described,
+   then minimize the reproduction.
 3. **Hypothesize**. Rank three to five candidate causes, each with a prediction a
    test could disprove, before the first test runs.
 4. **Instrument**. Each probe checks one prediction and changes one thing; each

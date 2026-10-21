@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`parseDuration(\"-5m\")` returns `-300000`, and a negative timeout disables the watchdog.\n\n## Fix\n\n`parseDuration` rejects a negative value with the error `duration must be positive`.\n\n## Done when\n\n- [ ] Negative durations throw `duration must be positive`.\n- [ ] Required: a test that fails if a negative duration does not throw."
+  },
+  "pr": {
+    "title": "fix(sample-kit): reject negative durations",
+    "body": "Adds the negative-duration check and a test for it."
+  }
+}

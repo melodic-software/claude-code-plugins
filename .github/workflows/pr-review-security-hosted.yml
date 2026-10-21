@@ -4,8 +4,8 @@ name: pr-review-security-hosted
 # melodic-software/standards
 # (components/claude-lanes-hosted/claude-security-review.yml) is
 # `locally-owned` for this repository in distribution/sync-manifest.yml, so
-# this copy can add the resolve-model job below. It differs from the component
-# in that job and these comments.
+# this copy can add the resolve-model and kill-switch jobs below. It differs
+# from the component in those jobs and these comments.
 #
 # Thin caller for the org's reusable security-review lane (advisory verdict,
 # fail-closed execution check). The reusable workflow owns the action pin,
@@ -31,7 +31,7 @@ name: pr-review-security-hosted
 #
 # RUNNER PLACEMENT: hosted shape, the sibling of
 # components/claude-lanes/claude-security-review.yml, differing from it only
-# in these comments, `runner`, the resolve-model job and the workflow `name:`. It is an interim with
+# in these comments, `runner`, the resolve-model and kill-switch jobs and the workflow `name:`. It is an interim with
 # the same removal trigger as the code-review caller. See that file's header.
 
 on:
@@ -118,18 +118,64 @@ jobs:
             exit 1
           fi
 
+  # The pinned reusable reads no kill switch, so this caller does. The org
+  # and repository switches fail closed (check-kill-switch); the lane's own
+  # CLAUDE_SECURITY_REVIEW_DISABLED stops it only at `true`, as github-iac's
+  # README documents for the review-lane switches. A failed job leaves proceed
+  # empty, which also stops the review.
+  kill-switch:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out the default branch for the kill-switch action
+    outputs:
+      proceed: ${{ steps.kill.outputs.proceed == 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true' && 'true' || 'false' }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/check-kill-switch/
+            /.node-version
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED == 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+          LANE_SWITCH: ${{ vars.CLAUDE_SECURITY_REVIEW_DISABLED }}
+        run: |
+          echo "::notice::a kill switch stops this security review (lanes: ${REASON:-unreadable}, CLAUDE_SECURITY_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
+
   pr-review-security:
-    needs: resolve-model
+    needs: [resolve-model, kill-switch]
     # A draft is work in progress and does not spend a review; the
     # ready_for_review trigger above is what delivers one when it is ready.
-    if: ${{ !cancelled() && github.event.pull_request.draft == false }}
+    if: ${{ !cancelled() && github.event.pull_request.draft == false && needs.kill-switch.outputs.proceed == 'true' }}
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post the security review, tracking comment and
                              # the lane's reviewed-head marker comment
       id-token: write        # OIDC, mints the Claude GitHub App token (required
                              # even with an OAuth/API-key credential)
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@96b50d451c4483c476f2f963674e0a3ba9d50fe3 # v0.48.0
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@3a2c748fdef9cfb9ceec5a66289e21842189689f # v0.55.0
     with:
       runner: ubuntu-24.04
       # Empty unless resolve-model succeeded, so a failed job's partial output

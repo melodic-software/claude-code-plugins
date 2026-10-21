@@ -28,9 +28,9 @@ parser.
 ## Thread 4: Principles. RESOLVED
 
 Principles applied: information hiding keeps the trust decision in the proxy, out of the handlers.
-Generalize now or wait: the Brief's `Intent: not applicable (confirmed)` line settles it: no
+Generalize now or wait: the Brief's `Variation intent: not applicable (confirmed)` line settles it: no
 variation question.
-Rationale: the Intent line is the user's answer.
+Rationale: the Variation intent line is the user's answer.
 
 ## Thread 5: Lifecycle and reversibility. RESOLVED
 

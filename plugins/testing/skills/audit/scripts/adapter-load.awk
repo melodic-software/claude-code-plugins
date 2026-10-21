@@ -308,7 +308,7 @@ FNR == 1 {
   key = substr(body, 1, RLENGTH - 1)
   # run-e2e's keys share the config file; scripts/resolve-config.sh e2e reads
   # them, so the scan neither parses nor checks their values.
-  if (MODE == "config" && ind == 0 && key ~ /^(e2e_driver|reuse_running_instance|feature_map_dir|pixel_tolerance)$/) {
+  if (MODE == "config" && ind == 0 && key ~ /^(e2e_driver|reuse_running_instance|feature_map_dir|browser_driver|pixel_tolerance)$/) {
     sp = 0
     E2E_KEY = key; E2E_WARNED = (key == "pixel_tolerance")
     next

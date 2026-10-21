@@ -100,8 +100,7 @@ build posts nothing:
 
 ```bash
 LOGIN=$(gh api user --jq .login) || exit 1
-HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exit 1
-COMMENT=$(bash "<skill-dir>/scripts/ready-skip-comment.sh" --login "$LOGIN" --head "$HEAD_SHA" \
+COMMENT=$(bash "<skill-dir>/scripts/ready-skip-comment.sh" --login "$LOGIN" \
   --reason "$REASON" --step code-review) || exit 1
 printf '%s\n' "$COMMENT" | gh pr comment "$PR_NUMBER" --body-file -
 ```
@@ -149,17 +148,28 @@ earlier draft one:
 ```bash
 RUNS_BEFORE=$(gh run list --commit "$HEAD_SHA" --event pull_request -L 100 \
   --json databaseId -q 'map(.databaseId)') || RUNS_BEFORE='[]'
-gh pr ready "$PR_NUMBER"
+bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
+  gh pr ready "$PR_NUMBER"
 ```
+
+`verify-gate.sh check` exits 0 only when the record that ends 2.5.3 holds `pass`, or `skipped`,
+when `--skip` removed `verify` or `pre_ready` disabled it, for exactly `HEAD_SHA`; exit 3 is a
+recorded failure and exit 2 a missing or unreadable result.
+The `&&` keeps the refusal and the flip in one command, so a refused check cannot be followed by
+the flip. The cloud-session routes below are not covered by it: before either, run the `check`
+command above as its own preceding command, and flip only when it exits 0.
 
 In a cloud session `gh pr ready` fails, because the flip is a GraphQL mutation. The proxy's REST
-route:
+route, guarded the same way:
 
 ```bash
-gh api --method POST "repos/{owner}/{repo}/pulls/$PR_NUMBER/ccr/ready_for_review"
+bash "<skill-dir>/scripts/verify-gate.sh" check --head "$HEAD_SHA" &&
+  gh api --method POST "repos/{owner}/{repo}/pulls/$PR_NUMBER/ccr/ready_for_review"
 ```
 
-Or the GitHub MCP `update_pull_request` call with `draft: false`.
+Or the GitHub MCP `update_pull_request` call with `draft: false`. It is a tool call, so a shell
+`&&` cannot cover it: run `verify-gate.sh check` as its own preceding command and make the call
+only on exit 0.
 
 ## Confirm a ready run
 

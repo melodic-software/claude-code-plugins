@@ -2,7 +2,7 @@
 // Page alignment check: seeds a varied session and an empty one through `share.sh ensure-running` (fake cloudflared,
 // spare ports), then opens every view below at each size and theme and checks the page: no mention token (<@pid>) in
 // its text, attributes or fields, and the geometry: no page scroll,
-// no horizontal overflow, no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
+// no horizontal overflow, the focus view's blocks on the question's column (column), no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
 // place, the phone tab bar, choice and confirm controls above the fold, and icon-only buttons with the icon centered
 // on the button within 0.5 px (icon-center).
 //   node plugins/planning/shared/tests/align.js
@@ -251,6 +251,8 @@ function views(page, CFG) {
   let guests = 0;
   return {
     "focus-q1-short": () => gotoQ("Q1"),
+    // O113: the owner's "Who must answer" panel, open; the column rule holds it to the question's width
+    "for-panel": async () => { await gotoQ("Q1"); if (!(await clickIn(".vf-forbtn"))) return false; await W(120); return page.evaluate(() => !document.querySelector(".vf-forbox").hidden); },
     "focus-q3-longword": () => gotoQ("Q3"),
     "focus-q4-locked": () => gotoQ("Q4"),
     "focus-q5-emoji": () => gotoQ("Q5"),
@@ -408,6 +410,18 @@ const check = (page, theme) => page.evaluate(theme => {
     }
   }
 
+  // 2b. The focus view's column (O113): each block beside the question text spans the question text's width and place.
+  const qt = document.querySelector(".vf-focus .vf-qtext");
+  if (qt && vis(qt)) {
+    const qr = qt.getBoundingClientRect();
+    for (const el of qt.parentElement.children) {
+      const cs = getComputedStyle(el);
+      if (el === qt || !vis(el) || cs.display.startsWith("inline") || cs.position !== "static") continue;
+      const r = el.getBoundingClientRect();
+      if (Math.abs(r.left - qr.left) > 1 || Math.abs(r.right - qr.right) > 1) fail("column", `${name(el)} x ${r.left.toFixed(1)}..${r.right.toFixed(1)} is not on the question's column x ${qr.left.toFixed(1)}..${qr.right.toFixed(1)}`);
+    }
+  }
+
   // 3. Visible text never overlaps other visible text.
   const texts = [];
   for (const el of open) {
@@ -492,6 +506,23 @@ const check = (page, theme) => page.evaluate(theme => {
       }
     }
   }
+  // live-pill: the Live pill sits on the title's line, its center y within 1px of the title row's, its left edge at most
+  // 8px past the title or rename pencil before it, inside the row, and clear of every other top-bar control
+  const pill = app.querySelector(".vf-top .vf-live"), trow = app.querySelector(".vf-top .vf-titlerow");
+  if (pill && trow && vis(pill) && vis(trow)) {
+    const pb = pill.getBoundingClientRect(), rb = trow.getBoundingClientRect();
+    const before = [...trow.children].filter(k => k !== pill && vis(k)).map(k => k.getBoundingClientRect()).filter(b => b.right <= pb.left + T);
+    const prevRight = before.length ? Math.max(...before.map(b => b.right)) : rb.left;
+    const dy = (pb.top + pb.bottom) / 2 - (rb.top + rb.bottom) / 2;
+    if (Math.abs(dy) > 1) fail("live-pill", `${name(pill)} center y off the title row's by ${dy.toFixed(1)}px`);
+    if (pb.left - prevRight > 8 + T) fail("live-pill", `${name(pill)} left x ${pb.left.toFixed(1)} sits ${(pb.left - prevRight).toFixed(1)}px past the title row's content end ${prevRight.toFixed(1)}`);
+    if (pb.left < rb.left - T || pb.right > rb.right + T) fail("live-pill", `${name(pill)} x ${pb.left.toFixed(1)}..${pb.right.toFixed(1)} outside the title row x ${rb.left.toFixed(1)}..${rb.right.toFixed(1)}`);
+    for (const el of app.querySelectorAll(".vf-top button, .vf-top .vf-people, .vf-top .vf-here")) {
+      if (!vis(el) || trow.contains(el)) continue;
+      const b = el.getBoundingClientRect();
+      if (b.left < pb.right - T && b.right > pb.left + T && b.top < pb.bottom - T && b.bottom > pb.top + T) fail("live-pill", `${name(pill)} overlaps ${name(el)}`);
+    }
+  } else if (pill && vis(pill)) fail("live-pill", `${name(pill)} shows with no title row beside it`);
   // toast: centered on the center pane ±1px, text centered, clear of composer, tab bar, chat button and chat
   const toast = app.querySelector(".vf-toast.vf-on");
   if (toast && vis(toast)) {

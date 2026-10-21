@@ -161,8 +161,10 @@ activities:
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
   resolve-issue:
-    # Works one issue labeled agent-ready: either commits the change to a new
-    # branch, or stops and says why. The runner adds `--issue <number>`.
+    # Works one issue labeled agent-ready: either leaves the change in the
+    # working tree, or stops and says why. The runner adds `--issue <number>`.
+    # It holds no write token: the read runner turns its uncommitted change
+    # into a patch that apply-issue-patch commits to a new branch.
     skill: work-items:work
     args: --ci
     # Validates the format of every changelog fragment before the skill
@@ -186,8 +188,8 @@ activities:
     # read-only copy of the base. A script that changes files, runs code from
     # the checkout or reaches the network hands the run that power, so list
     # one only when it limits that itself. Each script starts with GH_TOKEN
-    # and GITHUB_TOKEN unset, but code it runs can still read the lane's
-    # push-capable token from any same-user process's /proc/<pid>/environ,
+    # and GITHUB_TOKEN unset, but code it runs can still read the job's
+    # read-only token from any same-user process's /proc/<pid>/environ,
     # so no script here runs checkout code: run-test-file.sh and
     # check-skill.sh are left out, and the PR's own CI runs the tests.
     # git-mv-rm.sh renames and removes paths inside the checkout.
@@ -219,7 +221,12 @@ activities:
     web-access:
       enabled: true
       domains: [code.claude.com, platform.claude.com, docs.anthropic.com, docs.github.com, nodejs.org, docs.python.org]
-    effect: mutate-branch
+    # Runs model-chosen commands, so no write token: the change leaves as a
+    # patch, and the run's outcome file goes to report-outcome.
+    effect: read
+    applied-by:
+      patch: apply-issue-patch
+      work-outcome: report-outcome
     gating: advisory
     # Reads the issue's title and body, which anyone can write, and its
     # comments by listed authors.
@@ -237,6 +244,30 @@ activities:
       # Only issues labeled agent-ready after this time start a run; an issue
       # labeled earlier starts nothing.
       labeled-after: "2026-10-14T19:21:59Z"
+  apply-issue-patch:
+    # Commits resolve-issue's patch to a new branch,
+    # work-resolve-issue/issue-<n>-<run id>-<attempt>, made at the commit the
+    # run started from (the default branch tip it checked out, or a resumed
+    # branch's tip), as one commit. A script, no model, and it runs nothing
+    # from the patch; patch-rules.json's `issue` row holds what it admits.
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    # Makes the lane branch, nothing else; it never moves an existing one.
+    effect: mutate-branch
+    gating: advisory
+    # Reads the patch and the report the model wrote.
+    reads-untrusted: true
+    inputs:
+      - issue
+    applies-when:
+      # Read again right before the commit: a hold added, or agent-ready
+      # removed, while the model worked drops the patch.
+      labels-absent:
+        - needs-human
+        - needs-owner-decision
+        - "status: needs-decision"
+      labels:
+        - agent-ready
   report-outcome:
     # Opens a ready pull request from the branch, or comments on the issue
     # and labels it needs-human. A Refs pull request also labels the issue
@@ -293,8 +324,14 @@ lanes:
     stage: work
     slots:
       - activity: resolve-issue
+      # Runs after resolve-issue, in its own job with its own token.
+      - activity: apply-issue-patch
+        needs:
+          - resolve-issue
       - activity: report-outcome
-        needs: [resolve-issue]
+        needs:
+          - resolve-issue
+          - apply-issue-patch
   pr-refine:
     stage: refine
     slots:
@@ -442,8 +479,9 @@ limits:
   # wip block below derives it otherwise.
   wip-cap: 12
   # Restarts after a run reaches its turn cap, per agent-ready a person adds.
-  # 0 hands every capped run back to a person, naming the cap; it stays 0
-  # until the lane commits a capped run's leftover edits.
+  # 0 hands every capped run back to a person, naming the cap; the run's
+  # leftover edits still reach a lane branch. Raise it above 0 only after the
+  # sandbox timeout probe passes and a security review (#7677).
   turn-cap-restarts: 0
   # Hours of issue-lane admissions the admitted backlog (open issues with
   # agent-ready) may hold before new agent-ready labels pause.
@@ -451,6 +489,9 @@ limits:
   # Share of the lane's hourly merge rate admitted per hour; the release point
   # is this factor times hourly merges times admission-window-hours.
   admission-factor: 0.8
+  # Admissions per hour the release point never falls below, so a day with
+  # no lane merges cannot hold admissions shut (owner decision 2026-10-21).
+  admission-min-per-hour: 1
 
 wip:
   # Cap = lane PRs merged per hour over the window times this target.
@@ -463,13 +504,37 @@ wip:
   # in it (not limits.admission-factor, which sizes the agent-ready backlog).
   opened-to-merged-ratio: 0.8
   # Held lane PRs (needs-human, do-not-merge, or a "Hold: a human merges
-  # this" body line) count here, not against the cap. Step down to 30 later.
-  held-cap: 60
+  # this" body line) count here, not against the cap; at this many the lane
+  # pauses (owner decision 2026-10-21).
+  held-cap: 10
   held-alarm-hours: 24
-  # Over the WIP cap the lane pauses from this date; the held cap only alerts.
+  # Over the WIP cap or the held cap the lane pauses from this date.
   # The owner clears it to only alert. Empty: over a cap the lane alerts and
   # keeps starting runs.
   pause-from: "2026-10-18"
+
+# The red-main revert rule (owner decision 2026-10-20). post-merge-demotion-
+# alert.yml's report job reads it after a scheduled or dispatched
+# pr-require-checks run on main fails: red is confirmed only when the one
+# re-run of the failed jobs fails again in the same job, and the culprit is
+# the one merge that fails while its parent passes.
+red-main:
+  # true: the job names the culprit, the evidence runs and the revert it
+  # would open, in its step summary and one log issue, and writes nothing
+  # else. It stays true for 3 days of reports with no wrong blame before any
+  # revert merges; this version has no revert path either way.
+  dry-run: true
+  # Auto-reverts in any 24 hours, dry-run decisions included; past it a person
+  # gets the culprit. 3 is judgment: no source gives a value.
+  daily-cap: 3
+  # A culprit merged longer ago than this goes to a person, since later merges
+  # may build on it. 24 is judgment, as daily-cap.
+  max-culprit-age-hours: 24
+  # Minutes the job waits for the re-run of a full run pr-merge dispatched,
+  # which pr-merge's next scheduled run (every 15 minutes) starts and which
+  # raises no event of its own: 15 to start plus a full run's longest lane
+  # (16) plus queue time.
+  confirm-wait-minutes: 40
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
@@ -562,6 +627,7 @@ merge:
     denied-paths: []
     high-path-floor: true
     floor-paths:
+      - "docs/adr/**"
       - "**/bin/**"
       - "**/.lsp.json"
       - "**/settings*.json"
