@@ -286,7 +286,8 @@ jobs:
   # the lane branch whose scripts/ is replaced by the base's, so every script
   # the check runs is the base's. The branch's own data there (.txt, .json and
   # .jsonl, such as scripts/fragment-plugins.txt) is restored from its commit,
-  # so the check reads the same lists the PR's CI does. The results, with the
+  # so the check reads the same lists the PR's CI does; a check reads list
+  # entries as data and never executes them. The results, with the
   # tip they checked, are this job's `checks` output, never the outcome
   # artifact, which code the model started can rewrite. report-outcome gets
   # them only when this job succeeded, and stops a done run whose checks
@@ -408,7 +409,7 @@ jobs:
           # Code stays the base's; the branch's own data lists come back from its commit.
           find "$LANE/scripts" -type f \( -name '*.txt' -o -name '*.json' -o -name '*.jsonl' \) -delete
           git -C "$LANE" ls-files -z -- 'scripts/*.txt' 'scripts/*.json' 'scripts/*.jsonl' |
-            xargs -0r git -C "$LANE" restore --source=HEAD -- ||
+            xargs -0r env GIT_LFS_SKIP_SMUDGE=1 git -C "$LANE" restore --source=HEAD -- ||
             fail "cannot restore the lane branch's scripts/ data files"
           [[ -z $(find "$LANE/scripts" -type l -print -quit) ]] || fail "the lane branch's scripts/ holds a symlink"
           shape='^scripts/[A-Za-z0-9_-]+\.sh( --[a-z][a-z-]*)*$'
