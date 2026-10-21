@@ -5,7 +5,8 @@
 Apply one owner decision to <StateBase>/state/approvals.json or mutes.json.
 
 .DESCRIPTION
-The sole writer of both files. Actions:
+The writer of both files under the rule in reference/shared/approvals.md,
+"Writing approvals and mutes". Actions:
 
   mute     mutes.json: append { key, label, reason, added_at, run_id } to
            checks.<CheckId>.muted_findings; a key already there is skipped.
@@ -15,12 +16,13 @@ The sole writer of both files. Actions:
   revoke   approvals.json: remediations.<RemediationId>.approved = false and
            approved_at = now.
 
-Arguments are validated first: CheckId must be a shipped check id, FindingKey
-must match <kind>:<16 hex>, RemediationId must be a shipped remediation. Then
-state/approvals.lock is held across one read, the change, the schema check and
-one Write-StateFile replace, so a second writer waits and applies its change to
-the file the first one wrote. A document that fails its schema is never
-written. Writing under a cloud-synced StateBase is refused.
+CheckId must be a shipped check id and RemediationId a shipped remediation
+(Get-RemediationId). state/approvals.lock (Enter-RunLock) is held across one
+read, the change, the schema check and one Write-StateFile replace, so a
+second writer waits and applies its change to the file the first one wrote. A
+document that fails its schema is never written, which also refuses a malformed
+FindingKey; unmuting a key that is not muted throws. Writing under a StateBase
+a OneDrive variable names (Assert-StateBaseLocation) is refused.
 
 approved_by is "setup picks <RunId>" when a run id is given, else
 "setup apply". Timestamps keep the local offset, as the other state files do.
@@ -32,6 +34,7 @@ Returns { Action, Path, Changed }; Changed is $false when nothing differed.
 . (Join-Path $PSScriptRoot 'Enter-RunLock.ps1')
 . (Join-Path $PSScriptRoot 'Assert-StateBaseLocation.ps1')
 . (Join-Path $PSScriptRoot 'ConvertFrom-Jsonc.ps1')
+. (Join-Path $PSScriptRoot 'Get-RemediationId.ps1')
 
 function Set-ApprovalState {
     [CmdletBinding(SupportsShouldProcess = $true)]
@@ -53,16 +56,9 @@ function Set-ApprovalState {
         Label = $Label; Notes = $Notes; RunId = $RunId
     }
     $catalogRoot = Join-Path $PSScriptRoot '..\..\..\catalog'
-    $remediationIds = @('restart-stopped-service', 'clear-temp-files')
-    $keyPattern = '^[a-z-]{1,16}:[0-9a-f]{16}$'
-    $now = (Get-Date).ToString('o')
+    $remediationIds = @(Get-RemediationId)
     $orNull = { param($Value) if ([string]::IsNullOrEmpty($Value)) { $null } else { [System.Text.Json.Nodes.JsonValue]::Create([string]$Value) } }
 
-    $assertKey = {
-        if ($request.FindingKey -cnotmatch $keyPattern) {
-            throw "Set-ApprovalState: finding key '$($request.FindingKey)' does not match <kind>:<16 hex>."
-        }
-    }
     $assertRemediation = {
         if ($request.RemediationId -notin $remediationIds) {
             throw "Set-ApprovalState: '$($request.RemediationId)' is not a shipped remediation ($($remediationIds -join ', '))."
@@ -83,7 +79,6 @@ function Set-ApprovalState {
                 $shipped = @((Get-Content -LiteralPath (Join-Path $catalogRoot 'checks.jsonc') -Raw |
                             ConvertFrom-Jsonc).checks | ForEach-Object { [string]$_.id })
                 if ($request.CheckId -notin $shipped) { throw "Set-ApprovalState: '$($request.CheckId)' is not a shipped check id." }
-                & $assertKey
             }
             Apply    = {
                 param($Doc)
@@ -108,7 +103,7 @@ function Set-ApprovalState {
         }
         unmute  = @{
             File     = $mutesFile
-            Validate = $assertKey
+            Validate = {}
             Apply    = {
                 param($Doc)
                 $removed = 0
@@ -172,6 +167,8 @@ function Set-ApprovalState {
         throw "Set-ApprovalState: '$(Join-Path $stateDir 'approvals.lock')' is held by another writer; gave up after $LockTimeoutSeconds s."
     }
     try {
+        # Stamped once the lock is held, so a writer that waited records when its change landed.
+        $now = (Get-Date).ToString('o')
         $schemaPath = Join-Path $catalogRoot "schemas\$($spec.File.Schema)"
         $jsonOptions = [System.Text.Json.JsonSerializerOptions]@{
             WriteIndented = $true

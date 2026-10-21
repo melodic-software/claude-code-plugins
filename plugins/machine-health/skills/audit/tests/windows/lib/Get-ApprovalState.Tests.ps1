@@ -178,7 +178,7 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
             Test-Path -LiteralPath $script:approvalsPath | Should -BeFalse
         }
 
-        It 'writes the migration through Write-StateFile, which never overwrites a file that appeared meanwhile' {
+        It 'hands the migration to Write-StateFile with an update that declines a file already present' {
             Set-Content -LiteralPath $script:todoPath -Value '- [x] Clear-TempFiles' -Encoding utf8
             $script:update = $null
             Mock Write-StateFile { $script:update = $Update; $true }

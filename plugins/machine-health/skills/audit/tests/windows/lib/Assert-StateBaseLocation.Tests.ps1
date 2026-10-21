@@ -3,8 +3,9 @@
 <#
 .SYNOPSIS
 Tests for scripts/windows/lib/Assert-StateBaseLocation.ps1 -- the sync-root
-rule: a OneDrive variable prefixes the path, or the path or an ancestor carries
-ReparsePoint plus a cloud attribute bit (0x40000, 0x80000, 0x100000, 0x400000).
+rule: a OneDrive variable prefixing the path flags it; the path or an ancestor
+carrying ReparsePoint plus a cloud attribute bit only warns, as does an
+ordinary junction.
 #>
 
 BeforeAll {
@@ -70,7 +71,7 @@ Describe 'Assert-StateBaseLocation' -Tag 'lib' {
 
     # Only PINNED and UNPINNED stick when set through the file attributes; NTFS drops the two
     # RECALL bits, so no TestDrive folder can carry them.
-    It 'flags a folder under a ReparsePoint carrying cloud bit <Bit> with the variables unset' -ForEach @(
+    It 'warns but does not flag a folder under a ReparsePoint carrying cloud bit <Bit> with the variables unset' -ForEach @(
         @{ Bit = '0x80000'; Value = 0x80000 }
         @{ Bit = '0x100000'; Value = 0x100000 }
     ) {
@@ -87,11 +88,13 @@ Describe 'Assert-StateBaseLocation' -Tag 'lib' {
             return
         }
 
-        $result = Assert-StateBaseLocation -Path (Join-Path $link 'state-base\not-created-yet')
+        $result = Assert-StateBaseLocation -Path (Join-Path $link 'state-base\not-created-yet') -WarningVariable warned -WarningAction SilentlyContinue
 
-        $result.Synced | Should -BeTrue
-        $result.Folder | Should -Be $link
-        $result.Rule | Should -BeLike "*$Bit*"
+        $result.Synced | Should -BeFalse
+        $result.Rule | Should -BeNullOrEmpty
+        @($warned).Count | Should -Be 1
+        "$($warned[0])" | Should -BeLike "*$link*"
+        "$($warned[0])" | Should -BeLike "*$Bit*"
     }
 
     It 'warns but does not flag a path under an ordinary junction' {

@@ -119,6 +119,34 @@ Describe 'Write-StateFile' -Tag 'lib' {
         @(Get-ChildItem -LiteralPath $script:dir -Filter '*.tmp').Count | Should -Be 0
     }
 
+    It 'throws naming the file and the temp file when the re-applied replace fails' {
+        Mock Start-Sleep {}
+        $target = $script:path
+        $holder = [System.Collections.Generic.List[System.IDisposable]]::new()
+        $update = {
+            param($current)
+            if ($null -eq $current) {
+                # The file appears before the first-write move, held by a reader that does not share Delete.
+                [System.IO.File]::WriteAllText($target, 'theirs')
+                $holder.Add([System.IO.File]::Open($target, 'Open', 'Read', [System.IO.FileShare]::Read))
+                return 'mine'
+            }
+            return "$current+mine"
+        }
+        try {
+            $thrown = $null
+            try { Write-StateFile -Path $script:path -Update $update } catch { $thrown = $_.Exception.Message }
+            $temps = @(Get-ChildItem -LiteralPath $script:dir -Filter '*.tmp')
+            $temps.Count | Should -Be 1
+            $thrown | Should -BeLike "*$($script:path)*"
+            $thrown | Should -BeLike "*$($temps[0].FullName)*"
+            [System.IO.File]::ReadAllText($temps[0].FullName) | Should -Be 'theirs+mine'
+        } finally {
+            foreach ($h in $holder) { $h.Dispose() }
+        }
+        [System.IO.File]::ReadAllText($script:path) | Should -Be 'theirs'
+    }
+
     It 'propagates an -Update failure without creating a temp file' {
         [System.IO.File]::WriteAllText($script:path, 'old')
 

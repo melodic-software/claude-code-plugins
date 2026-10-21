@@ -16,6 +16,8 @@ Returns $null when another handle still holds the lock after -TimeoutSeconds
 (default 0: no wait). Any other failure throws.
 #>
 
+. (Join-Path $PSScriptRoot 'Get-InnerHResult.ps1')
+
 function Enter-RunLock {
     [CmdletBinding()]
     [OutputType([System.IO.FileStream])]
@@ -25,7 +27,6 @@ function Enter-RunLock {
         [ValidateRange(0, 600)] [int] $TimeoutSeconds = 0
     )
 
-    $sharingViolation = 0x80070020
     $lockPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath(
         (Join-Path $StateDir "$Name.lock"))
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -33,11 +34,7 @@ function Enter-RunLock {
         try {
             return [System.IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None')
         } catch {
-            $ex = $_.Exception
-            if ($ex -is [System.Management.Automation.MethodInvocationException] -and $ex.InnerException) {
-                $ex = $ex.InnerException
-            }
-            if ($ex.HResult -ne $sharingViolation) { throw }
+            if ((Get-InnerHResult $_) -ne $script:SharingViolationHResult) { throw }
         }
         if ($watch.Elapsed.TotalSeconds -ge $TimeoutSeconds) { return $null }
         Start-Sleep -Milliseconds 100
