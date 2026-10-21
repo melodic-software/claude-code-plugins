@@ -867,9 +867,9 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 - **Category:** `services`
 - **Needs admin:** no. Decision: without elevation `tasks_complete` is false and named in
   `admin_fields`, and every other source is read the same either way. Why: the `startup-items` row
-  of `scripts/windows/lib/Get-ElevationMatrix.ps1`, measured by the elevated-vs-standard probe
-  (`FINDINGS-elevated-vs-standard`). **As of**: 2026-10-21. **Recheck trigger**: a standard-token
-  run lists as many logon tasks as an elevated run on the same host.
+  of `scripts/windows/lib/Get-ElevationMatrix.ps1`; `Complete` comes from
+  `scripts/windows/lib/Get-LogonTaskInventory.ps1`. **As of**: 2026-10-21. **Recheck trigger**: a
+  standard-token run lists as many logon tasks as an elevated run on the same host.
 - **Remediation:** none. The check lists; turning an entry off is the owner's action in Task
   Manager or Settings.
 - **Commands:**
@@ -892,10 +892,9 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   StartupApproved value or, like RunOnce, has no StartupApproved key. A logon task reads `enabled` or
   `disabled` from its task state. Decision: decode only the bytes in the table in
   `scripts/windows/lib/Read-StartupApproved.ps1` (its header covers the encoding) and keep every
-  other byte `unknown` with its raw value. Basis: the laptop-vs-desk probe
-  (`FINDINGS-laptop-vs-desk`) found first bytes on both fleet hosts that the table leaves
-  `unknown`. **As of**: 2026-10-21. **Recheck trigger**: a probe ties one of those bytes to the
-  state Task Manager shows, or Microsoft documents the key.
+  other byte `unknown` with its raw value, pinned by
+  `tests/windows/lib/Read-StartupApproved.Tests.ps1`. **As of**: 2026-10-21. **Recheck trigger**: a
+  probe ties another first byte to the state Task Manager shows, or Microsoft documents the key.
 - **Severity rubric:**
   - `UNKNOWN`: any unmuted item in the `unknown` approved state, or any location with a read
     state other than `ok` or `absent` (`Test-ReadStateUsable` in
@@ -916,9 +915,9 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 - **Needs admin:** no. UserAssist, the source every verdict rests on, is read un-elevated.
   Decision: un-elevated, `prefetch_state` and `bam_state` read `denied` and are named in
   `admin_fields`; elevated, Prefetch and BAM add launch times. Why: the `app-last-use` row of
-  `scripts/windows/lib/Get-ElevationMatrix.ps1`, measured by the elevated-vs-standard probe
-  (`FINDINGS-elevated-vs-standard`). **As of**: 2026-10-21. **Recheck trigger**: a standard-token
-  run reads either source.
+  `scripts/windows/lib/Get-ElevationMatrix.ps1`; the reads are in
+  `scripts/windows/lib/Get-ElevatedAppEvidence.ps1`. **As of**: 2026-10-21. **Recheck trigger**: a
+  standard-token run reads either source.
 - **Remediation:** none. The check never uninstalls anything.
 - **Commands:**
 
@@ -948,10 +947,10 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   - `no-evidence`: UserAssist did not read, or nothing could name the app in it: a packaged app
     with no UserAssist entry, or a Win32 app with neither an install folder nor a DisplayIcon
     executable.
-  - Decision: `no-launch-recorded` means no recorded launch, never proof the app was not run.
-    Basis: the app-usage research (`RESEARCH-app-usage`) found UserAssist records shell launches
-    only. The record layout is decoded in `scripts/windows/lib/Read-UserAssist.ps1` (its header
-    covers the layout); a host whose values no longer fit reads `userassist_state` `error`.
+  - Decision: a missing launch record is never treated as proof the app is unused;
+    `no-launch-recorded` means only that no launch was recorded. The record layout is decoded in
+    `scripts/windows/lib/Read-UserAssist.ps1` (its header covers the layout); a host whose values
+    no longer fit reads `userassist_state` `error`.
     **As of**: 2026-10-21. **Recheck trigger**: `userassist_state` reads `error` on a fleet host,
     or `launched_count` reads 0 where apps are in daily use.
 - **Severity rubric:**
