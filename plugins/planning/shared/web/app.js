@@ -2810,7 +2810,7 @@
         b.append(E("span", "vf-mreact-e", e), E("span", "vf-mreact-n", String(pids.length)));
         const who = pids.map(p => (isMe(p) ? "you" : p ? disp(nameOf(p)) : "someone"));
         b.setAttribute("aria-pressed", String(mine));
-        b.setAttribute("aria-label", `${e} ${pids.length}, from ${who.join(", ")}. ${mine ? "Take yours back" : "Add yours"}`);
+        b.setAttribute("aria-label", `${e}: ${pids.length}, from ${who.join(", ")}`); // aria-pressed says whether it is yours
         b.title = who.join(", ");
         b.onclick = () => react(m.id, e, !mine).catch(fail);
         return b;
