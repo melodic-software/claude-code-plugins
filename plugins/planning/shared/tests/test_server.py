@@ -36,6 +36,8 @@ HTML_ASSET_CSP = (
     "connect-src 'none'; frame-ancestors 'self'"
 )
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
+# Sleeps past the one-write-a-second limit: time.sleep(WRITE_INTERVAL) can read as a hair under it on the throttle's time.time clock.
+PAST_WRITE = session.WRITE_INTERVAL + 0.05
 
 
 def raw_exchange(port, data, *, wait=5.0):
@@ -444,11 +446,11 @@ class TestFormatsAndPresenceRoutes(ServerCase):
 
     def test_multi_scale_and_rank_picks_travel_in_their_own_fields(self):
         self.assertEqual(self.pick({"qid": "Q1", "options": ["opt-2", "other"], "other": "Price"})[2], {"ok": True, "picks": ["opt-2", "other"]})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         self.assertEqual(self.pick({"qid": "Q2", "value": 4})[2], {"ok": True, "value": 4})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         self.assertEqual(self.pick({"qid": "Q3", "order": ["opt-3", "opt-1", "opt-2"]})[2], {"ok": True, "order": ["opt-3", "opt-1", "opt-2"]})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         code, _, out = self.pick({"qid": "Q3", "order": ["opt-3"]})
         self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "order"))
 
@@ -1017,7 +1019,7 @@ class TestSnapshot(ServerCase):
 
 
 class TestSnapshotContract(unittest.TestCase):
-    """The snapshot names the page's core.js reads, per .work/shared-interview-ui/snapshot-map.md
+    """The snapshot names the page's core.js reads, per plugins/planning/shared/snapshot-map.md
     (the page reads the prototype's names; core.js builds them from these). A key the server drops
     or renames fails here before it blanks part of the page."""
 
@@ -1343,7 +1345,15 @@ class TestClientLog(LogCase):
     def test_a_lone_surrogate_in_a_message_still_reaches_the_log(self):
         _, guest = self.join("Ann")
         self.assertEqual(self.post("/api/client-log", {"kind": "error", "message": "cut-emoji-\ud83d"}, guest)[0], 200)
-        self.assertIn("cut-emoji-\\ud83d", self.entry_for("cut-emoji-"))
+        self.assertIn('message=cut-emoji- ', self.entry_for("cut-emoji-") + " ")  # the half emoji is dropped, the entry kept
+
+    def test_hidden_characters_never_reach_the_log(self):
+        pid, guest = self.join("Ann")
+        body = {"kind": "error", "message": "Type\U0000202eError\U0000200b", "source": "/app\U00002066.js", "route": "/\U000e0041x"}
+        self.assertEqual(self.post("/api/client-log", body, guest)[0], 200)
+        self.assertTrue(self.entry_for(" client ").endswith(f"client pid={pid} kind=error message=TypeError source=/app.js route=/x"))
+        code, _, out = self.post("/api/client-log", {"kind": "error", "message": "\U0000202e\U0000200b"}, guest)
+        self.assertEqual((code, out["error"]), (400, "empty"))
 
     def test_a_message_cannot_forge_a_log_line(self):
         """U+2028 and U+2029 end a line for str.splitlines(): escaped, the forged request entry stays inside the
@@ -2013,11 +2023,11 @@ class TestUploads(ServerCase):
             self.assertEqual(self.chunk(self.ann, done, i)[0], 200)
         code, _, out = self.post("/api/answer", {"qid": "Q1", "text": "The funnel.", "view": "focus", "attachments": [done]}, self.ann)
         self.assertEqual(code, 200, out)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         sending = self.accepted(self.ann, name="b.pdf")
         self.assertEqual(self.chunk(self.ann, sending, 0)[0], 200)
         offered = self.offer(self.bo)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         declined = self.accepted(self.bo, name="c.pdf")
         self.assertEqual(self.chunk(self.bo, declined, 0)[0], 200)
         self.post("/api/upload/act", {"id": declined, "action": "decline"}, self.owner)
@@ -2054,10 +2064,10 @@ class TestUploads(ServerCase):
                 self.assertEqual(self.chunk(who, uid, i, pic)[0], 200)
         for uid in (shown, hidden):
             self.assertEqual(self.post("/api/upload/act", {"id": uid, "action": "approve"}, self.owner)[0], 200)
-            time.sleep(session.WRITE_INTERVAL)
+            time.sleep(PAST_WRITE)
         code, _, out = self.post("/api/chat", {"text": "Look", "attachments": [shown]}, self.ann)
         self.assertEqual(code, 200, out)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         code, _, out = self.post("/api/discussion", {"qid": "Q1", "text": "Mine", "attachments": [hidden]}, self.bo)
         self.assertEqual(code, 200, out)
         self.assertEqual(self.post("/api/discussion/hide", {"qid": "Q1", "id": out["id"], "on": True}, self.owner)[0], 200)
@@ -2100,7 +2110,7 @@ class TestUploads(ServerCase):
 
     def test_one_piece_per_person_is_read_at_a_time(self):
         first = self.accepted(self.ann)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         second = self.accepted(self.ann, name="b.pdf")
         piece = self.DATA[:self.CHUNK]
         head = "".join(f"{k}: {v}\r\n" for k, v in {"Host": f"127.0.0.1:{self.port}", "Content-Length": str(len(piece)), **self.chunk_headers(self.ann, first, 0, piece)}.items())

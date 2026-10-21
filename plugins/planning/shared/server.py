@@ -248,7 +248,8 @@ def batch_json(items):
 
 
 def client_fields(body):
-    """A client-log body checked against CLIENT_FIELDS: strings within their limits, a known kind, a message."""
+    """A client-log body checked against CLIENT_FIELDS: strings within their limits, a known kind, a message; each
+    string with its hidden characters dropped (session._visible), as every text field a guest sends."""
     extra = sorted(set(body) - set(CLIENT_FIELDS))
     if extra:
         raise DomainError(400, "bad-field", f"{extra[0][:40]} is not a client-log field.", field=extra[0][:40])
@@ -258,11 +259,12 @@ def client_fields(body):
             raise DomainError(400, "bad-field", f"{k} must be a string.", field=k)
         if v is not None and len(v) > limit:
             raise DomainError(400, "too-long", f"{k} allows at most {limit} characters.", field=k, max=limit)
-    if body.get("kind") not in CLIENT_KINDS:
+    out = {k: None if body.get(k) is None else session._visible(body[k]) for k in CLIENT_FIELDS}  # what a guest's text may hold
+    if out["kind"] not in CLIENT_KINDS:
         raise DomainError(400, "bad-field", f"kind must be one of {', '.join(CLIENT_KINDS)}.", field="kind")
-    if not body.get("message"):
+    if not out["message"]:
         raise DomainError(400, "empty", "message is empty.", field="message")
-    return {k: body.get(k) for k in CLIENT_FIELDS}
+    return out
 
 
 class StartRefused(Exception):

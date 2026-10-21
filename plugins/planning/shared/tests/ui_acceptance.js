@@ -57,6 +57,7 @@ async function main() {
     // ---------- join dialog ----------
     const gus = await rec.open(A.localUrl);
     await gus.waitForSelector("dialog.core-name[open]");
+    await until(gus, () => !!document.getElementById("core-name-sub")?.textContent.trim()); // the title comes with the first poll
     const parts = await gus.evaluate(() => {
       const d = document.querySelector("dialog.core-name");
       const shown = [...d.querySelectorAll("form > *")].filter(e => e.offsetParent && (e.matches("input, button") || e.textContent.trim()));

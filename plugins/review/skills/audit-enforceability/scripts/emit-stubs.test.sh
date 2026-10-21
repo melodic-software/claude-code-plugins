@@ -214,11 +214,11 @@ assert_eq "case 7: the stdin classes form exits 0" "0" "$?"
 assert_contains "case 7: the stdin form still reports every row" "$out7_report" "7 findings"
 assert_eq "case 7: the unclassified rank still produced a stub" "7" "$(count_files "$OUT7")"
 stub7="$(cat "$OUT7"/07-*.md)"
-assert_contains "case 7: the unclassified rank falls to rung llm-only" "$stub7" "rung: llm-only"
+assert_contains "case 7: the unclassified rank falls to rung automated-review" "$stub7" "rung: automated-review"
 assert_contains "case 7: the unclassified rank is classed unclassified" "$stub7" "finding-class: unclassified"
 assert_contains "case 7: the unclassified rank records basis unresolved" "$stub7" "class-basis: unresolved"
 assert_contains "case 7: the unclassified rank has no owner" "$stub7" "owner: none"
-assert_contains "case 7: the llm-only rung reaches the filename" "$(ls "$OUT7")" "07-llm-only-"
+assert_contains "case 7: the automated-review rung reaches the filename" "$(ls "$OUT7")" "07-automated-review-"
 
 # A TSV row whose first field is not a rank the table carries is refused whole:
 # it is either a stray rank or a fragment of a broken row, and nothing is written.
@@ -969,7 +969,7 @@ assert_not_contains "case 37: a dry run prints no stub body" "$dry6" "Error text
 # some subscripts twice; BASH_COMPAT=51 reproduces that, so a lookup that
 # reached an arithmetic or -v context would create the marker file.
 PWNED="$TEST_TMPDIR/pwned38"
-printf '%s\tstyle\tjudgment\thook\tnone\n' "\$(touch $PWNED)" >"$TEST_TMPDIR/classes-inject.tsv"
+printf '%s\tstyle\tjudgment\taction-guard\tnone\n' "\$(touch $PWNED)" >"$TEST_TMPDIR/classes-inject.tsv"
 env BASH_COMPAT=51 bash "$EMIT" --findings "$FINDINGS" --classes - --out "$TEST_TMPDIR/out38" \
   --scan-dir "$SCAN_DIR" <"$TEST_TMPDIR/classes-inject.tsv" >/dev/null 2>&1
 assert_eq "case 38: a substitution-shaped rank exits 2" "2" "$?"
@@ -980,10 +980,18 @@ assert_eq "case 38: the substitution never ran" "0" "$(path_exists "$PWNED")"
 # The closed set is the rung table in context/stub-shape.md. A known rung still
 # writes; anything else exits 2 before any stub is written.
 OUT39="$TEST_TMPDIR/out39"
-printf '1\tstyle\tjudgment\thook\tnone\n' |
+printf '1\tstyle\tjudgment\taction-guard\tnone\n' |
   bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT39" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
 assert_eq "case 39: a known rung exits 0" "0" "$?"
-assert_contains "case 39: a known rung keeps its stage" "$(cat "$OUT39"/01-*.md)" "earliest-stage: tool-call"
+assert_contains "case 39: action-guard maps to the tool-call stage" "$(cat "$OUT39"/01-*.md)" "earliest-stage: tool-call"
+
+# The ladder 1.x ids are no longer in the closed set: llm-only is refused whole.
+OUT39A="$TEST_TMPDIR/out39a"
+old_err="$(printf '1\tstyle\tjudgment\tllm-only\tnone\n' |
+  bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT39A" --scan-dir "$SCAN_DIR" 2>&1 >/dev/null)"
+assert_eq "case 39: the retired llm-only id exits 2" "2" "$?"
+assert_eq "case 39: the retired llm-only id writes nothing" "0" "$(path_exists "$OUT39A")"
+assert_contains "case 39: the refusal names the retired id" "$old_err" "Rung: llm-only"
 
 OUT39B="$TEST_TMPDIR/out39b"
 {
@@ -1024,8 +1032,8 @@ assert_eq "case 39: a rung holding a newline writes nothing" "0" "$(path_exists 
 #
 # The counting rungs are the ones whose check reports a violation count:
 # editorconfig-severity, analyzer-pack-rule, custom-analyzer, semgrep-rule and
-# architecture-test (ranks 1-5 of the fixture). make-impossible, hook and
-# llm-only have no count to hold a ceiling on. Case 1 passed no flag, so its
+# architecture-test (ranks 1-5 of the fixture). make-impossible, action-guard and
+# automated-review have no count to hold a ceiling on. Case 1 passed no flag, so its
 # stubs show the default.
 RATCHET_HEADING=$'\n## Ratchet offer\n'
 for rank in 01 02 03 04 05; do
@@ -1033,7 +1041,7 @@ for rank in 01 02 03 04 05; do
     "$(cat "$OUT1"/"$rank"-*.md)" "$RATCHET_HEADING"
 done
 for rank in 06 07; do
-  assert_not_contains "case 40: flag absent, rank $rank (hook or llm-only) has no offer" \
+  assert_not_contains "case 40: flag absent, rank $rank (action-guard or automated-review) has no offer" \
     "$(cat "$OUT1"/"$rank"-*.md)" "$RATCHET_HEADING"
 done
 assert_contains "case 40: the offer hands a non-zero count to /review:ratchet" \
