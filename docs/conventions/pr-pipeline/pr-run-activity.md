@@ -616,8 +616,10 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    off, an empty token on the fallback call included.
 6. Before any upload or step summary, `leak-scan` runs the base's `findSecret`
    (`lib/publish-gate.mjs`, read through the API at the base SHA, never from the checkout) over the
-   reply, the run fields, the patch, every changed or untracked file and the execution file; a hit
-   fails the run naming the pattern, uploads and summarizes nothing, and leaves `patch-state` empty.
+   reply, the run fields, the patch, every changed or untracked file and the execution file. A
+   credential format fails the run naming the pattern and asking for rotation, uploads and
+   summarizes nothing, and leaves `patch-state` empty; a `password or secret assignment` only
+   warns, naming the file.
 
 The issue lane's skill stays on claude-code-action.
 
