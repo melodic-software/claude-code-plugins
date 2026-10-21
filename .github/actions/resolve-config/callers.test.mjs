@@ -1311,6 +1311,26 @@ test("leak scan: a password or secret assignment warns, naming the file and not 
   }
 });
 
+test("leak scan: an assignment never hides a credential the gate finds only in its normalized copy", async (t) => {
+  const cases = {
+    // An early assignment line, then a key split by an HTML tag.
+    "a tag-split key after an assignment line": [`${ASSIGNMENT}\nnotes ${KEY.slice(0, 7)}<i></i>${KEY.slice(7)}\n`, "Anthropic key"],
+    // One line: an assignment, then an entity-escaped token later in the gate's order.
+    "an entity-escaped token on the assignment's line": [`${ASSIGNMENT} &#x63;${CREDENTIALS["Cloudflare API token"].slice(1)}\n`, "Cloudflare API token"],
+    // The escaped token is the assignment's own value.
+    "an entity-escaped token as the assignment's value": [`token = '&#x63;${CREDENTIALS["Cloudflare API token"].slice(1)}'\n`, "Cloudflare API token"],
+    // A second assignment only the normalized copy shows fails closed.
+    "a tag-split second assignment": [`${ASSIGNMENT} secret=<b></b>'abcdefgh1'\n`, "password or secret assignment"],
+  };
+  for (const [name, [text, label]] of Object.entries(cases)) {
+    const { clean, failed } = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), text));
+    assert.equal(clean, "false", name);
+    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized\nrotate this credential`, name);
+  }
+  const plain = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`));
+  assert.deepEqual({ clean: plain.clean, failed: plain.failed, warnings: plain.warnings.length }, { clean: "true", failed: null, warnings: 1 });
+});
+
 test("leak scan: a gate whose labels lack the warning label still blocks its credentials", async (t) => {
   const gate = [
     'export const SECRET_PATTERNS = Object.freeze([["Anthropic key", /\\bsk-ant-[A-Za-z0-9_-]{20,}/]]);',

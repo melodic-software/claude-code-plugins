@@ -1360,17 +1360,38 @@ jobs:
               fs.writeFileSync(path.join(dir, 'publish-gate.mjs'), source);
               const { findSecret, SECRET_PATTERNS } = await import(pathToFileURL(path.join(dir, 'publish-gate.mjs')).href);
               // A credential format blocks. The one broad label, an assignment
-              // that may be a test fixture, only warns. A pattern is tested on
-              // its own, so an earlier warning label never hides a credential
-              // on the same line; findSecret adds the gate's normalized copy.
+              // that may be a test fixture, only warns. Each line is judged on
+              // its own: every blocking pattern on the raw line, then findSecret
+              // (which adds the gate's normalized copy). When findSecret names
+              // the assignment first, its raw matches are blanked and the line
+              // is read again, and each match is read again with its = and :
+              // blanked, so the assignment never hides a credential; an
+              // assignment that survives the blanking (normalized only) blocks.
               const blocking = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
-              const warning = SECRET_PATTERNS.filter(([label]) => label === WARN_ONLY);
+              const warnPattern = SECRET_PATTERNS.find(([label]) => label === WARN_ONLY)?.[1];
+              const warnAll = warnPattern && new RegExp(warnPattern.source, warnPattern.flags.includes('g') ? warnPattern.flags : `${warnPattern.flags}g`);
+              const classifyLine = (line) => {
+                const raw = blocking.find(([, re]) => re.test(line));
+                if (raw) return { block: raw[0] };
+                const first = findSecret(line);
+                if (!first) return {};
+                if (first[0] !== WARN_ONLY || !warnAll) return { block: first[0] };
+                const again = findSecret(line.replace(warnAll, (match) => ' '.repeat(match.length)));
+                if (again) return { block: again[0] };
+                for (const [match] of line.matchAll(warnAll)) {
+                  const inside = findSecret(match.replace(/[:=]/g, ' '));
+                  if (inside) return { block: inside[0] };
+                }
+                return { warn: true };
+              };
               const classify = (text) => {
-                const lines = text.split(/\r?\n/);
-                const first = findSecret(text);
-                const block = blocking.find(([, re]) => lines.some((line) => re.test(line)))?.[0] ?? (first && first[0] !== WARN_ONLY ? first[0] : null);
-                if (block) return { block };
-                return { warn: first !== null || warning.some(([, re]) => lines.some((line) => re.test(line))) };
+                let warn = false;
+                for (const line of text.split(/\r?\n/)) {
+                  const result = classifyLine(line);
+                  if (result.block) return result;
+                  warn ||= Boolean(result.warn);
+                }
+                return { warn };
               };
               const paths = ['--', ':(top)', ':(top,exclude).lane'];
               git('read-tree', HEAD_SHA);
