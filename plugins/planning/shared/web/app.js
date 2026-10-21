@@ -5153,6 +5153,7 @@
       k.fresh.hidden = !fresh;
       k.edit.hidden = editing || running; k.save.hidden = k.cancel.hidden = !editing;
       paintReqActs(k, r);
+      if (editing) k.move.hidden = true; // the row is its text box, Save and Cancel until the edit ends
     }
 
     // ---------- answer card ----------
