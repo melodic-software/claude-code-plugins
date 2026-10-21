@@ -38,17 +38,27 @@ file, of no mode 100755, and under no declared path; it also takes no hold from
 the floor entries in `_EVALS_FLOOR` that no denied path repeats. Every other
 floor entry (a `.claude-plugin/` manifest, `**/CLAUDE.md`, `**/.claude/**` and
 the rest) still holds it.
+While the floor applies, a changed path in a directory from
+plugins/<plugin>/evals/ down to its own whose case.yaml, at the base
+(`RiskInput.eval_cases`) or on either side of the diff, could name a
+`context.scaffold_script` rates HIGH as `eval-scaffold-review-required`: a
+scaffold runs as the operator outside the sandbox under `--scaffold`. A case
+file is scaffold-free only when the strict frontmatter reader follows it and
+every `context` line is `history_file`, `add_dirs` or a list item; an unread
+case file (`eval_cases` None, or a None text) holds.
 A plugins/<plugin>/.claude-plugin/plugin.json or the top-level
 .claude-plugin/marketplace.json takes no `**/.claude-plugin/**` floor hold
-unless a denied path repeats that pattern. Its base
-and head JSON are compared instead, and it rates HIGH as
-`manifest-review-required` when a `userConfig` entry is removed or its
-`default` changes, an `options` enum is added or changed, `hooks`,
-`mcpServers`, `lspServers`, `monitors` (also under `experimental`) or
-`dependencies` change (in a marketplace entry too), a marketplace entry's
-`source`, `metadata.pluginRoot` or `allowCrossMarketplaceDependenciesOn`
-changes, or either side cannot be read or parsed or repeats a key. Every other
-manifest change takes the normal path.
+unless a denied path repeats that pattern. Its base and head JSON are compared
+against allow-lists instead, and any other difference rates HIGH as
+`manifest-review-required`, so an unlisted key fails closed. In plugin.json
+only `_PLUGIN_CLEAR` keys may differ, and `version` may not be removed; a
+`userConfig` entry may change only its `title` or `description`, an added entry
+clears only with a `default` and no `options`, and a removed one holds. In
+marketplace.json only `plugins` and `metadata.description`/`version` may
+differ; a plugin entry, matched by name, may change only `_ENTRY_CLEAR` keys,
+and an added, removed or renamed entry holds. A manifest whose side cannot be
+read or parsed, or repeats a key, holds; an added plugin.json is compared with
+`{}`, so it holds.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -165,6 +175,10 @@ class RiskInput:
     # Each AGENT_FILES file at the base SHA as (path, text), None when
     # unreadable; None when not read, so no skill change may skip its hold.
     agents: tuple[tuple[str, str | None], ...] | None = None
+    # Each case.yaml at the base SHA in a directory `eval_case_dirs` names for
+    # a changed path, as (path, text), None when unreadable; None when not
+    # read, so every changed path under plugins/<plugin>/evals/ holds.
+    eval_cases: tuple[tuple[str, str | None], ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -967,8 +981,39 @@ def _eval_data(f: _File, raw: Any, declared: tuple[str, ...]) -> bool:
 
 _MANIFEST_FLOOR = "**/.claude-plugin/**"
 _MANIFEST_CODE = "manifest-review-required"
-_RUN_KEYS = ("hooks", "mcpServers", "lspServers", "monitors", "dependencies")
 _MISSING = object()
+# The plugin.json keys that may differ without review; `userConfig` is
+# checked entry by entry.
+_PLUGIN_CLEAR = frozenset(
+    {
+        "version",
+        "description",
+        "keywords",
+        "author",
+        "homepage",
+        "repository",
+        "license",
+        "defaultEnabled",
+        "userConfig",
+    }
+)
+# The userConfig entry attributes that may differ without review.
+_USER_CONFIG_CLEAR = frozenset({"title", "description"})
+# The marketplace entry keys that may differ without review.
+_ENTRY_CLEAR = frozenset(
+    {
+        "version",
+        "description",
+        "keywords",
+        "author",
+        "homepage",
+        "repository",
+        "license",
+        "category",
+        "tags",
+    }
+)
+_METADATA_CLEAR = frozenset({"description", "version"})
 
 
 def is_manifest_path(path: str) -> bool:
@@ -1006,14 +1051,29 @@ def _object(data: dict[str, Any], key: str) -> Any:
     return value if isinstance(value, dict) else None
 
 
-def _run_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
-    found = [k for k in _RUN_KEYS if base.get(k, _MISSING) != head.get(k, _MISSING)]
-    before, after = _object(base, "experimental"), _object(head, "experimental")
-    if before is None or after is None:
-        found.append("experimental")
-    elif before.get("monitors", _MISSING) != after.get("monitors", _MISSING):
-        found.append("experimental.monitors")
+def _differing(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+    """The keys added, removed or changed between two objects, sorted."""
+    return sorted(
+        k
+        for k in set(before) | set(after)
+        if before.get(k, _MISSING) != after.get(k, _MISSING)
+    )
+
+
+def _unlisted(
+    prefix: str, before: dict[str, Any], after: dict[str, Any], clear: frozenset
+) -> list[str]:
+    """Each differing key outside `clear`, and a removed `version`."""
+    found = [f"{prefix}{k}" for k in _differing(before, after) if k not in clear]
+    if "version" in before and "version" not in after:
+        found.append(f"{prefix}version removed")
     return found
+
+
+def _added_user_config_clears(entry: Any) -> bool:
+    """An added userConfig key clears review only with a `default` and no
+    `options`."""
+    return isinstance(entry, dict) and "default" in entry and "options" not in entry
 
 
 def _user_config_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
@@ -1021,57 +1081,62 @@ def _user_config_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str
     if before is None or after is None:
         return ["userConfig is not an object"]
     found = []
-    for key in sorted(set(before) | set(after)):
-        if key not in after:
+    for key in _differing(before, after):
+        old, new = before.get(key, _MISSING), after.get(key, _MISSING)
+        if new is _MISSING:
             found.append(f"userConfig.{key} removed")
-            continue
-        added = key not in before
-        old, new = before.get(key, {}), after[key]
-        if not (isinstance(old, dict) and isinstance(new, dict)):
+        elif old is _MISSING:
+            if not _added_user_config_clears(new):
+                found.append(
+                    f"userConfig.{key} added without a default or with options"
+                )
+        elif not (isinstance(old, dict) and isinstance(new, dict)):
             found.append(f"userConfig.{key} is not an object")
-            continue
-        if not added and old.get("default", _MISSING) != new.get("default", _MISSING):
-            found.append(f"userConfig.{key}.default changed")
-        if old.get("options", _MISSING) != new.get("options", _MISSING):
-            found.append(f"userConfig.{key}.options added or changed")
+        else:
+            found += _unlisted(f"userConfig.{key}.", old, new, _USER_CONFIG_CLEAR)
     return found
 
 
+def _plugin_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
+    return _unlisted("", base, head, _PLUGIN_CLEAR) + _user_config_changes(base, head)
+
+
+def _entries(data: dict[str, Any]) -> dict[str, Any] | None:
+    """`plugins` by name, None unless a list of uniquely named objects."""
+    plugins = data.get("plugins", [])
+    if not isinstance(plugins, list):
+        return None
+    named = {
+        e["name"]: e
+        for e in plugins
+        if isinstance(e, dict) and isinstance(e.get("name"), str)
+    }
+    return named if len(named) == len(plugins) else None
+
+
 def _marketplace_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
-    found = []
-    for key in ("allowCrossMarketplaceDependenciesOn",):
-        if base.get(key, _MISSING) != head.get(key, _MISSING):
-            found.append(key)
+    found = [k for k in _differing(base, head) if k not in ("plugins", "metadata")]
     before, after = _object(base, "metadata"), _object(head, "metadata")
     if before is None or after is None:
         found.append("metadata is not an object")
-    elif before.get("pluginRoot", _MISSING) != after.get("pluginRoot", _MISSING):
-        found.append("metadata.pluginRoot")
-    entries = []
-    for data in (base, head):
-        plugins = data.get("plugins", [])
-        named = (
-            {
-                e["name"]: e
-                for e in plugins
-                if isinstance(e, dict) and isinstance(e.get("name"), str)
-            }
-            if isinstance(plugins, list)
-            else None
-        )
-        if named is None or len(named) != len(plugins):
-            return [*found, "plugins is not a list of uniquely named entries"]
-        entries.append(named)
-    for name, entry in entries[1].items():
-        old = entries[0].get(name, {})
-        if old.get("source", _MISSING) != entry.get("source", _MISSING):
-            found.append(f"plugins[{name}].source")
-        found += [f"plugins[{name}].{k}" for k in _run_changes(old, entry)]
+    else:
+        found += _unlisted("metadata.", before, after, _METADATA_CLEAR)
+    old, new = _entries(base), _entries(head)
+    if old is None or new is None:
+        return [*found, "plugins is not a list of uniquely named entries"]
+    for name in sorted(set(old) | set(new)):
+        if name not in new:
+            found.append(f"plugins[{name}] removed")
+        elif name not in old:
+            found.append(f"plugins[{name}] added")
+        else:
+            found += _unlisted(f"plugins[{name}].", old[name], new[name], _ENTRY_CLEAR)
     return found
 
 
 def _manifest_changes(f: _File, raw: Any) -> list[str]:
-    """What in a manifest change needs review (`_MANIFEST_CODE`)."""
+    """What in a manifest change needs review (`_MANIFEST_CODE`): every key
+    outside the allow-lists that differs, so an unlisted key fails closed."""
     contents = getattr(raw, "contents", None)
     if f.status not in ("modified", "added") or f.paths != (f.path,):
         return [f"{f.status} manifest"]
@@ -1085,7 +1150,91 @@ def _manifest_changes(f: _File, raw: Any) -> list[str]:
         return ["unreadable, malformed or a repeated key"]
     if f.path.endswith("marketplace.json"):
         return _marketplace_changes(base, head)
-    return _run_changes(base, head) + _user_config_changes(base, head)
+    return _plugin_changes(base, head)
+
+
+_EVAL_SCAFFOLD_CODE = "eval-scaffold-review-required"
+_CASE_FILE = "case.yaml"
+# The `context` keys that run nothing; `scaffold_script` runs a script.
+_SAFE_CONTEXT = frozenset({"history_file", "add_dirs"})
+_CONTEXT_KEY = re.compile(r"[ \t]+([A-Za-z_][A-Za-z0-9_-]*)[ \t]*:(?:[ \t]|$)")
+_CONTEXT_ITEM = re.compile(r"[ \t]+-(?:[ \t]|$)")
+
+
+def eval_case_dirs(path: str) -> list[str]:
+    """Every directory from plugins/<plugin>/evals down to the file's own
+    that could hold the file's eval case, matched case-sensitively."""
+    parts = path.split("/")
+    if len(parts) < 4 or parts[0] != "plugins" or parts[2] != "evals":
+        return []
+    return ["/".join(parts[:end]) for end in range(3, len(parts))]
+
+
+def _scaffolds(text: Any) -> bool:
+    """Whether a case.yaml could name a `context.scaffold_script`: true unless
+    the strict reader follows it and every `context` line is a plain key in
+    `_SAFE_CONTEXT` or a list item."""
+    if not isinstance(text, str):
+        return True
+    entries = _front_entries(text)
+    if entries is None:
+        return True
+    block = entries.get("context")
+    if block is None:
+        return False
+    head, *lines = block.split("\n")
+    if head.rstrip() != "context:":
+        return True
+    for line in lines:
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        key = _CONTEXT_KEY.match(line)
+        if key and key.group(1) in _SAFE_CONTEXT:
+            continue
+        if not key and _CONTEXT_ITEM.match(line):
+            continue
+        return True
+    return False
+
+
+def _scaffold_hits(
+    inp: RiskInput, files: list[_File], raw_files: list[Any]
+) -> list[str]:
+    """Each changed path in an eval case directory whose case.yaml, at the base
+    (`RiskInput.eval_cases`) or on either side of this diff, could name a
+    scaffold script, or could not be read (fail closed)."""
+    base = _sequence(inp.eval_cases)
+    texts: dict[str, list[Any]] = {}
+    for entry in base or ():
+        pair = _sequence(entry)
+        if pair is None or len(pair) != 2 or not isinstance(pair[0], str):
+            return [f"{f.path} (case files unreadable)" for f in files]
+        texts.setdefault(pair[0], []).append(pair[1])
+    for f, raw in zip(files, raw_files):
+        if f.status == "removed" or f.path.rsplit("/", 1)[-1] != _CASE_FILE:
+            continue
+        contents = getattr(raw, "contents", None)
+        ok = getattr(raw, "contents_error", None) is None and (
+            isinstance(contents, tuple) and len(contents) == 2
+        )
+        # An added file has no base side; a missing side reads as unreadable.
+        if not ok:
+            contents = (None,)
+        elif f.status == "added":
+            contents = contents[1:]
+        texts.setdefault(f.path, []).extend(contents)
+    hits = []
+    for f in files:
+        dirs = {d for p in f.paths if p for d in eval_case_dirs(p)}
+        if not dirs:
+            continue
+        if base is None:
+            hits.append(f"{f.path} (case files not read)")
+        elif any(
+            _scaffolds(t) for d in dirs for t in texts.get(f"{d}/{_CASE_FILE}", ())
+        ):
+            hits.append(f.path)
+    return hits
 
 
 def _high_path_reasons(
@@ -1136,6 +1285,9 @@ def _high_path_reasons(
     ]
     if review:
         reasons.append(Reason(_MANIFEST_CODE, Risk.HIGH, "; ".join(review)))
+    scaffolded = _scaffold_hits(inp, files, raw_files) if on else []
+    if scaffolded:
+        reasons.append(Reason(_EVAL_SCAFFOLD_CODE, Risk.HIGH, ", ".join(scaffolded)))
     if extended:
         reasons.extend(_capability_reasons(files, raw_files, inp.agents, evals))
         reasons.extend(_script_reasons(files, raw_files, scopes))

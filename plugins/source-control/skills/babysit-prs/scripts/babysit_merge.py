@@ -3086,6 +3086,14 @@ def score_unattended(
         )
         else None
     )
+    # Case files at the base, read only when an eval case directory changed;
+    # None (unknown) holds every such change.
+    eval_cases = (
+        merge_policy.eval_cases_at(repo, pr, changed)
+        if lane_switches.get("high_floor", True)
+        and any(p and babysit_risk.eval_case_dirs(p) for p in changed)
+        else None
+    )
     risk = babysit_risk.score(
         babysit_risk.RiskInput(
             work_class=eligible.work_class,
@@ -3100,6 +3108,7 @@ def score_unattended(
             floor_extensions=config.high_path_floor,
             declarations=declarations,
             agents=agents,
+            eval_cases=eval_cases,
             lanes=lanes,
             blast_radius=None,
             **lane_switches,

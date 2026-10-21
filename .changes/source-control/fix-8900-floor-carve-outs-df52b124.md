@@ -26,12 +26,28 @@ bump: minor
 
   A `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
   `.claude-plugin/marketplace.json` no longer takes the `**/.claude-plugin/**`
-  hold. `babysit_risk.score` compares its base and head JSON and rates it
-  HIGH as `manifest-review-required` when a `userConfig` entry is removed or
-  its `default` changes, an `options` enum is added or changed, `hooks`,
-  `mcpServers`, `lspServers`, `monitors` or `dependencies` change, a
-  marketplace entry's `source`, `metadata.pluginRoot` or
-  `allowCrossMarketplaceDependenciesOn` changes, or either side cannot be
-  read, does not parse or repeats a key. Version, description, keyword,
-  author and added `userConfig` edits take the normal path. Any other file
-  under `.claude-plugin/`, eval stub manifests included, still holds.
+  hold. `babysit_risk.score` compares its base and head JSON against
+  allow-lists and rates any other difference HIGH as
+  `manifest-review-required`, so an unlisted key such as `skills`, `commands`
+  or `name` fails closed. In `plugin.json` only `version`, `description`,
+  `keywords`, `author`, `homepage`, `repository`, `license`, `defaultEnabled`
+  and `userConfig` may differ, and `version` may not be removed; an existing
+  `userConfig` entry may change only its `title` or `description`, an added
+  entry clears only with a `default` and no `options`, and a removed entry
+  holds. In `marketplace.json` only `plugins` and `metadata.description` or
+  `metadata.version` may differ; an existing plugin entry may change only
+  its version, description, keywords, author, homepage, repository, license,
+  category and tags, and an added, removed or renamed entry holds. A new
+  `plugin.json`, or a side that cannot be read, does not parse or repeats a
+  key, holds. Any other file under `.claude-plugin/`, eval stub manifests
+  included, still holds.
+
+- hold eval cases that run a scaffold script
+
+  A changed file in a directory from `plugins/<plugin>/evals/` down to its
+  own whose `case.yaml`, at the base or on either side of the diff, could
+  name a `context.scaffold_script` rates HIGH as
+  `eval-scaffold-review-required`, because `--scaffold` runs that script
+  outside the sandbox. The merge wrapper reads those case files at the base
+  only when such a path changes; an unread or unparsable case file holds.
+  The base readers now also refuse a base or head that is not a commit SHA.

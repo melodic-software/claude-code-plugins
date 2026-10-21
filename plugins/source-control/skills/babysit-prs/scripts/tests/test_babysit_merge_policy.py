@@ -5397,7 +5397,7 @@ class CapabilityContents(unittest.TestCase):
     """The floor's capability check reads each changed capability file once
     per side, at the pull request's base and head SHAs."""
 
-    PR = {"base": {"sha": "b" * 40}, "head": {"sha": "h" * 40}}
+    PR = {"base": {"sha": "b" * 40}, "head": {"sha": "c" * 40}}
 
     def setUp(self) -> None:
         policy._TEXT_AT.clear()
@@ -5428,7 +5428,7 @@ class CapabilityContents(unittest.TestCase):
         skill = self.changed("p/skills/s/SKILL.md")
         texts = {
             ("p/skills/s/SKILL.md", "b" * 40): "old",
-            ("p/skills/s/SKILL.md", "h" * 40): "new",
+            ("p/skills/s/SKILL.md", "c" * 40): "new",
         }
         out, calls = self.read([skill, skill, self.changed("docs/x.md")], texts)
         self.assertEqual([f.contents for f in out[:2]], [("old", "new")] * 2)
@@ -5439,20 +5439,20 @@ class CapabilityContents(unittest.TestCase):
         moved = self.changed(
             "p/agents/a.md", status="renamed", previous_path="p/notes/a.md"
         )
-        texts = {("p/notes/a.md", "b" * 40): "old", ("p/agents/a.md", "h" * 40): "new"}
+        texts = {("p/notes/a.md", "b" * 40): "old", ("p/agents/a.md", "c" * 40): "new"}
         out, _ = self.read([moved], texts)
         self.assertEqual(out[0].contents, ("old", "new"))
 
     def test_an_added_file_reads_only_its_head(self) -> None:
         added = self.changed("p/commands/go.md", status="added")
-        out, calls = self.read([added], {("p/commands/go.md", "h" * 40): "new"})
+        out, calls = self.read([added], {("p/commands/go.md", "c" * 40): "new"})
         self.assertEqual((out[0].contents, len(calls)), ((None, "new"), 1))
 
     def test_a_path_is_quoted_so_it_cannot_pick_another_ref(self) -> None:
         odd = self.changed("p/x?ref=main#/SKILL.md")
         quoted = "p/x%3Fref%3Dmain%23/SKILL.md"
         out, calls = self.read(
-            [odd], {(quoted, "b" * 40): "a", (quoted, "h" * 40): "a"}
+            [odd], {(quoted, "b" * 40): "a", (quoted, "c" * 40): "a"}
         )
         self.assertEqual({path for path, _ in calls}, {quoted})
 

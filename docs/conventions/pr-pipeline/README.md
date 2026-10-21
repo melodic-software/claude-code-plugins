@@ -631,15 +631,21 @@ and its queued entries leave; two different identities, or an unreadable head co
   preload takes no capability hold, and a non-script file under `plugins/<plugin>/evals/` takes no
   capability hold and none from the `plugins/review/**`, `plugins/guardrails/**`,
   `plugins/work-items/**` or `plugins/**/scripts/**` entries; a manifest, a named file such as
-  `CLAUDE.md`, a declared path and `denied-paths` still hold it. A
-  `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level `.claude-plugin/marketplace.json`
-  leaves the floor: its parsed base and head are compared, and it scores HIGH as
-  `manifest-review-required` only when a `userConfig` entry is removed or its `default` changes, an
-  `options` enum is added or changed, `hooks`, `mcpServers`, `lspServers`, `monitors` or
-  `dependencies` change, a marketplace entry's `source` (or `metadata.pluginRoot` or
-  `allowCrossMarketplaceDependenciesOn`) changes, or either side cannot be read, does not parse or
-  repeats a key. That reason waits for a human like any other HIGH one; every other manifest edit
-  takes the normal path.
+  `CLAUDE.md`, a declared path and `denied-paths` still hold it. Any changed file in an eval case
+  directory whose `case.yaml` could name a `context.scaffold_script`, or could not be read, scores
+  HIGH as `eval-scaffold-review-required`, since `--scaffold` runs that script outside the
+  sandbox. A `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
+  `.claude-plugin/marketplace.json` leaves the floor: its parsed base and head are compared against
+  allow-lists, and any difference outside them scores HIGH as `manifest-review-required`. In
+  `plugin.json` only `version`, `description`, `keywords`, `author`, `homepage`, `repository`,
+  `license`, `defaultEnabled` and `userConfig` may differ, and `version` may not be removed; an
+  existing `userConfig` entry may change only its `title` or `description`, an added entry needs a
+  `default` and no `options`, and a removed entry holds. In `marketplace.json` only `plugins` and
+  `metadata.description` or `metadata.version` may differ; an existing plugin entry may change only
+  `version`, `description`, `keywords`, `author`, `homepage`, `repository`, `license`, `category`
+  and `tags`, and an added, removed or renamed entry holds. A side that cannot be read, does not
+  parse or repeats a key holds, and so does a new `plugin.json`. That reason waits for a human like
+  any other HIGH one.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.

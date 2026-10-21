@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import difflib
+import json
 import functools
 import pathlib
 import re
@@ -1996,7 +1997,7 @@ class EvalDataTests(unittest.TestCase):
             (gains,),
         ):
             with self.subTest(files=[f.path for f in files]):
-                result = score(_input(files=files))
+                result = score(_input(files=files, eval_cases=()))
                 self.assertEqual(result.score, Risk.LOW, _codes(result))
 
     def test_a_script_under_evals_holds(self):
@@ -2042,7 +2043,9 @@ class EvalDataTests(unittest.TestCase):
             FRONT.replace("y\n", "y\nallowed-tools: Bash\n", 1),
         )
         self.assertIn("high-capability", _codes(score(_input(files=(skill,)))))
-        low = score(_input(files=(_file("plugins/evals/evals/case/prompt.md"),)))
+        low = score(
+            _input(files=(_file("plugins/evals/evals/case/prompt.md"),), eval_cases=())
+        )
         self.assertEqual(low.score, Risk.LOW, _codes(low))
 
     def test_a_skill_level_or_differently_cased_evals_directory_holds(self):
@@ -2217,11 +2220,12 @@ class ManifestTests(unittest.TestCase):
         )
         self.assertEqual(_codes(score(_input(files=(errored,)))), (self.REVIEW,))
 
-    def test_an_added_plugin_manifest_is_judged_against_nothing(self):
+    def test_an_added_plugin_manifest_holds(self):
+        # Judged against an empty object, so its `name` is an added key.
         added = dict(status="added", previous_mode=None)
-        self.assertEqual(self._codes(MANIFEST, None, PLUGIN_BASE, **added), ())
-        hooked = PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "hooks": {},')
-        self.assertEqual(self._codes(MANIFEST, None, hooked, **added), (self.REVIEW,))
+        self.assertEqual(
+            self._codes(MANIFEST, None, PLUGIN_BASE, **added), (self.REVIEW,)
+        )
 
     def test_other_claude_plugin_files_keep_the_floor_hold(self):
         for path in (
@@ -2241,6 +2245,273 @@ class ManifestTests(unittest.TestCase):
         codes = _codes(score(_input(files=files)))
         self.assertIn("high-path:plugins/*/scripts/**", codes)
         self.assertNotIn(self.REVIEW, codes)
+
+
+def _with(base, **keys):
+    """`base` with each key set to its JSON value, or removed when None."""
+    data = json.loads(base)
+    for key, value in keys.items():
+        if value is None:
+            data.pop(key, None)
+        else:
+            data[key] = value
+    return json.dumps(data)
+
+
+def _option(**attrs):
+    data = json.loads(PLUGIN_BASE)
+    data["userConfig"]["guard_enabled"].update(attrs)
+    for key, value in attrs.items():
+        if value is None:
+            del data["userConfig"]["guard_enabled"][key]
+    return json.dumps(data)
+
+
+def _entry(**attrs):
+    data = json.loads(MARKET_BASE)
+    data["plugins"][0].update(attrs)
+    for key, value in attrs.items():
+        if value is None:
+            del data["plugins"][0][key]
+    return json.dumps(data)
+
+
+class ManifestAllowListTests(unittest.TestCase):
+    """Only listed keys may differ; every other difference holds, naming the
+    key that triggered it."""
+
+    REVIEW = "manifest-review-required"
+
+    def _detail(self, path, before, after):
+        result = score(_input(files=(_manifest_change(path, before, after),)))
+        return {r.code: r.detail for r in result.reasons}
+
+    def test_listed_plugin_keys_clear(self):
+        for after in (
+            _with(PLUGIN_BASE, version="2.0.0"),
+            _with(PLUGIN_BASE, description="Other."),
+            _with(PLUGIN_BASE, keywords=["a"]),
+            _with(PLUGIN_BASE, author={"name": "a"}),
+            _with(PLUGIN_BASE, homepage="https://example.com"),
+            _with(PLUGIN_BASE, repository="https://example.com/r"),
+            _with(PLUGIN_BASE, license="MIT"),
+            _with(PLUGIN_BASE, defaultEnabled=False),
+            _with(PLUGIN_BASE, description=None),
+            _option(title="Guard"),
+            _option(description="Turns the guard on."),
+        ):
+            with self.subTest(after=after):
+                self.assertEqual(self._detail(MANIFEST, PLUGIN_BASE, after), {})
+
+    def test_an_added_user_config_key_clears_only_with_a_default_and_no_options(self):
+        def add(entry):
+            data = json.loads(PLUGIN_BASE)
+            data["userConfig"]["mode"] = entry
+            return json.dumps(data)
+
+        clears = add({"type": "string", "default": "x"})
+        self.assertEqual(self._detail(MANIFEST, PLUGIN_BASE, clears), {})
+        for entry in (
+            {"type": "string"},
+            {"type": "string", "default": "a", "options": ["a", "b"]},
+            "x",
+        ):
+            with self.subTest(entry=entry):
+                detail = self._detail(MANIFEST, PLUGIN_BASE, add(entry))
+                self.assertIn("userConfig.mode added", detail.get(self.REVIEW, ""))
+
+    def test_each_unlisted_plugin_change_holds_and_names_its_key(self):
+        for after, named in (
+            (_with(PLUGIN_BASE, skills=["./evals/skills/"]), "skills"),
+            (_with(PLUGIN_BASE, commands=["./docs/run.md"]), "commands"),
+            (_with(PLUGIN_BASE, agents=["./x/"]), "agents"),
+            (_with(PLUGIN_BASE, outputStyles="./styles/"), "outputStyles"),
+            (_with(PLUGIN_BASE, channels=[{"server": "x"}]), "channels"),
+            (_with(PLUGIN_BASE, settings={"agent": "x"}), "settings"),
+            (_with(PLUGIN_BASE, somethingNew=True), "somethingNew"),
+            (_with(PLUGIN_BASE, name="bar"), "name"),
+            (_with(PLUGIN_BASE, version=None), "version removed"),
+            (_with(PLUGIN_BASE, userConfig=[]), "userConfig is not an object"),
+            (_with(PLUGIN_BASE, userConfig={}), "userConfig.guard_enabled removed"),
+            (_option(sensitive=True), "userConfig.guard_enabled.sensitive"),
+            (_option(type="string"), "userConfig.guard_enabled.type"),
+            (_option(default=False), "userConfig.guard_enabled.default"),
+            (_option(options=[True, False]), "userConfig.guard_enabled.options"),
+            (_option(required=True), "userConfig.guard_enabled.required"),
+            (
+                _with(PLUGIN_BASE, userConfig={"guard_enabled": True}),
+                "userConfig.guard_enabled is not an object",
+            ),
+        ):
+            with self.subTest(named):
+                detail = self._detail(MANIFEST, PLUGIN_BASE, after)
+                self.assertIn(named, detail.get(self.REVIEW, ""))
+
+    def test_a_sensitive_option_turned_off_holds(self):
+        before = _option(sensitive=True)
+        after = _option(sensitive=False)
+        detail = self._detail(MANIFEST, before, after)
+        self.assertIn("userConfig.guard_enabled.sensitive", detail.get(self.REVIEW, ""))
+
+    def test_a_skills_path_to_eval_data_holds_with_the_eval_skill(self):
+        manifest = _manifest_change(
+            MANIFEST, PLUGIN_BASE, _with(PLUGIN_BASE, skills=["./evals/skills/"])
+        )
+        skill = _edit(
+            "plugins/foo/evals/skills/y/SKILL.md",
+            FRONT,
+            FRONT.replace("y\n", "y\nallowed-tools: Bash(*)\n", 1),
+        )
+        result = score(_input(files=(manifest, skill), eval_cases=()))
+        self.assertEqual(result.score, Risk.HIGH)
+        self.assertIn(self.REVIEW, _codes(result))
+
+    def test_listed_marketplace_changes_clear(self):
+        for after in (
+            _entry(version="2.0.0"),
+            _entry(description="Foo."),
+            _entry(keywords=["a"]),
+            _entry(author={"name": "a"}),
+            _entry(homepage="https://example.com"),
+            _entry(repository="https://example.com/r"),
+            _entry(license="MIT"),
+            _entry(category="tools"),
+            _entry(tags=["a"]),
+            _with(MARKET_BASE, metadata={"description": "M.", "version": "1.0.0"}),
+        ):
+            with self.subTest(after=after):
+                self.assertEqual(self._detail(MARKETPLACE, MARKET_BASE, after), {})
+
+    def test_each_unlisted_marketplace_change_holds_and_names_its_key(self):
+        versioned = _entry(version="1.0.0")
+        two = MARKET_BASE.replace(
+            "]}", ', {"name": "bar", "source": "./plugins/bar"}]}'
+        )
+        for before, after, named in (
+            (MARKET_BASE, _entry(strict=False), "plugins[foo].strict"),
+            (MARKET_BASE, _entry(skills=["./x/"]), "plugins[foo].skills"),
+            (MARKET_BASE, _entry(source="./plugins/x"), "plugins[foo].source"),
+            (versioned, MARKET_BASE, "plugins[foo].version removed"),
+            (two, MARKET_BASE, "plugins[bar] removed"),
+            (MARKET_BASE, two, "plugins[bar] added"),
+            (MARKET_BASE, _entry(name="foo2"), "plugins[foo] removed"),
+            (MARKET_BASE, _with(MARKET_BASE, owner={"name": "x"}), "owner"),
+            (MARKET_BASE, _with(MARKET_BASE, name="n"), "name"),
+            (
+                MARKET_BASE,
+                _with(MARKET_BASE, metadata={"pluginRoot": "./x"}),
+                "metadata.pluginRoot",
+            ),
+            (MARKET_BASE, _with(MARKET_BASE, metadata=[]), "metadata is not an object"),
+            (MARKET_BASE, _with(MARKET_BASE, plugins={}), "plugins is not a list"),
+            (
+                MARKET_BASE,
+                two.replace('"bar"', '"foo"'),
+                "plugins is not a list of uniquely named entries",
+            ),
+        ):
+            with self.subTest(named):
+                detail = self._detail(MARKETPLACE, before, after)
+                self.assertIn(named, detail.get(self.REVIEW, ""))
+
+
+CASE_DIR = "plugins/foo/evals/case"
+CASE = f"{CASE_DIR}/case.yaml"
+PLAIN_CASE = 'schema_version: "1.1"\nname: case\n'
+SAFE_CASE = PLAIN_CASE + "context:\n  history_file: h.jsonl\n  add_dirs:\n    - data\n"
+SCAFFOLD_CASE = PLAIN_CASE + "context:\n  scaffold_script: scaffold.sh\n"
+
+
+class EvalScaffoldTests(unittest.TestCase):
+    """A changed file in an eval case directory whose case.yaml could name a
+    scaffold script holds, failing closed when the case file is unread."""
+
+    CODE = "eval-scaffold-review-required"
+
+    def _codes(self, files, eval_cases=()):
+        return _codes(score(_input(files=files, eval_cases=eval_cases)))
+
+    def test_a_scaffold_script_added_or_changed_holds(self):
+        other = SCAFFOLD_CASE.replace("scaffold.sh", "setup.txt")
+        for before, after in (
+            (PLAIN_CASE, SCAFFOLD_CASE),
+            (SAFE_CASE, SAFE_CASE + "  scaffold_script: setup.txt\n"),
+            (SCAFFOLD_CASE, other),
+            (SCAFFOLD_CASE, PLAIN_CASE),
+        ):
+            with self.subTest(after=after):
+                codes = self._codes((_edit(CASE, before, after),))
+                self.assertEqual(codes, (self.CODE,))
+        added = _file(CASE, status="added", previous_mode=None, contents=(None, other))
+        self.assertEqual(self._codes((added,)), (self.CODE,))
+
+    def test_any_file_in_a_scaffolded_case_holds(self):
+        for path in (
+            f"{CASE_DIR}/setup.txt",
+            f"{CASE_DIR}/setup.bash",
+            f"{CASE_DIR}/scaffold.sh",
+            f"{CASE_DIR}/graders/a.md",
+        ):
+            with self.subTest(path):
+                codes = self._codes((_file(path),), ((CASE, SCAFFOLD_CASE),))
+                self.assertIn(self.CODE, codes)
+
+    def test_a_file_in_an_unscaffolded_case_is_low(self):
+        for eval_cases in ((), ((CASE, PLAIN_CASE),), ((CASE, SAFE_CASE),)):
+            with self.subTest(eval_cases=eval_cases):
+                result = score(
+                    _input(
+                        files=(_file(f"{CASE_DIR}/setup.txt"),), eval_cases=eval_cases
+                    )
+                )
+                self.assertEqual(result.score, Risk.LOW, _codes(result))
+        safe = _edit(CASE, PLAIN_CASE, SAFE_CASE)
+        added = _file(
+            CASE, status="added", previous_mode=None, contents=(None, SAFE_CASE)
+        )
+        for changed in (safe, added):
+            with self.subTest(changed.status):
+                self.assertEqual(self._codes((changed,)), ())
+
+    def test_a_case_file_that_could_hide_a_scaffold_holds(self):
+        for text in (
+            PLAIN_CASE + 'context:\n  "scaffold_script": s.txt\n',
+            PLAIN_CASE + 'context:\n  "\\x73caffold_script": s.txt\n',
+            PLAIN_CASE + "context: {scaffold_script: s.txt}\n",
+            PLAIN_CASE + "context:\n  other: x\n",
+            PLAIN_CASE + "context:\n  add_dirs: [a,\n    b]\n",
+            PLAIN_CASE + "base: &b\n  scaffold_script: s.txt\ncontext:\n  <<: *b\n",
+            PLAIN_CASE + "context:\n  ? scaffold_script\n  : s.txt\n",
+            PLAIN_CASE + "Context:\n  history_file: h\n",
+            "{context: {scaffold_script: s.txt}}\n",
+            None,
+        ):
+            with self.subTest(text=text):
+                codes = self._codes((_file(f"{CASE_DIR}/setup.txt"),), ((CASE, text),))
+                self.assertEqual(codes, (self.CODE,))
+
+    def test_an_unread_case_file_holds(self):
+        unreadable = dataclasses.replace(
+            _edit(CASE, PLAIN_CASE, PLAIN_CASE), contents=None, contents_error="502"
+        )
+        for files, eval_cases in (
+            ((_file(f"{CASE_DIR}/setup.txt"),), None),
+            ((_file(f"{CASE_DIR}/setup.txt"),), (("bad",),)),
+            ((unreadable,), ()),
+            ((_file(CASE, contents=None),), ()),
+        ):
+            with self.subTest(files=files, eval_cases=eval_cases):
+                self.assertEqual(self._codes(files, eval_cases), (self.CODE,))
+
+    def test_a_file_below_a_scaffolded_case_or_a_removed_case_file_holds(self):
+        deep = _file(f"{CASE_DIR}/fixtures/sub/setup.txt")
+        self.assertIn(self.CODE, self._codes((deep,), ((CASE, SCAFFOLD_CASE),)))
+        removed = _file(CASE, status="removed", contents=None)
+        self.assertIn(self.CODE, self._codes((removed,), ((CASE, SCAFFOLD_CASE),)))
+
+    def test_a_file_outside_plugin_evals_takes_no_scaffold_hold(self):
+        path = "plugins/foo/skills/x/evals/case/setup.txt"
+        self.assertNotIn(self.CODE, _codes(score(_input(files=(_file(path),)))))
 
 
 if __name__ == "__main__":
