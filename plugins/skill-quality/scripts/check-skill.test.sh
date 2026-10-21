@@ -4963,6 +4963,7 @@ compatibility: Requires git.' 0 "multi-line block-scalar description with colon-
 make_skill script-stdin "$good_body"
 mkdir -p "$SKILLS/script-stdin/scripts"
 printf '#!/usr/bin/env bash\nif read -r -t 2 _x; then exit 1; fi\nexit 0\n' >"$SKILLS/script-stdin/scripts/x.test.sh"
+git -C "$TMP" add "$SKILLS/script-stdin/scripts/x.test.sh"
 out="$(run script-stdin 2>&1 </dev/zero)"
 if grep -q 'script test passed: scripts/x.test.sh' <<<"$out"; then
   pass "check 7 gives a skill script test EOF on stdin"
@@ -4972,6 +4973,7 @@ fi
 make_skill script-long "$good_body"
 mkdir -p "$SKILLS/script-long/scripts"
 printf '#!/usr/bin/env bash\nseq 1 300\nexit 1\n' >"$SKILLS/script-long/scripts/x.test.sh"
+git -C "$TMP" add "$SKILLS/script-long/scripts/x.test.sh"
 out="$(run script-long 2>&1)"
 if grep -q 'output truncated to the last 100 lines; run bash .*x.test.sh for all of it' <<<"$out" &&
   grep -qx '300' <<<"$out" && ! grep -qx '200' <<<"$out"; then
@@ -4994,6 +4996,7 @@ for scope_r in other nogit; do
     >"$SCOPE_TMP/$scope_r/skills/good-skill/scripts/x.test.sh"
 done
 git -C "$SCOPE_TMP/other" init -q
+git -C "$SCOPE_TMP/other" add skills
 mkdir -p "$SCOPE_TMP/plaincwd"
 # scope_case LABEL CWD SKILLS-ROOT MARKER single|root run|skip
 scope_case() {
@@ -5036,6 +5039,32 @@ scope_case "skips a repo's test from a cwd in no repo (single mode)" "$SCOPE_TMP
   "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" single skip
 scope_case "skips a repo's test from a cwd in no repo (root mode)" "$SCOPE_TMP/plaincwd" \
   "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" root skip
+# A plugin copy git never tracked, under a directory that is itself a work
+# tree (a home-directory repo), shares the invoker's toplevel but is no part of
+# its repository: skipped. A tracked test beside an untracked one still runs.
+mkdir -p "$SCOPE_TMP/home/cache/skills/good-skill/scripts"
+git -C "$SCOPE_TMP/home" init -q
+printf '%s' "$good_body" >"$SCOPE_TMP/home/cache/skills/good-skill/SKILL.md"
+printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/home.ran" \
+  >"$SCOPE_TMP/home/cache/skills/good-skill/scripts/x.test.sh"
+scope_case "skips an untracked test under the invoking work tree (single mode)" "$SCOPE_TMP/home" \
+  "$SCOPE_TMP/home/cache/skills" "$SCOPE_TMP/home.ran" single skip
+scope_case "skips an untracked test under the invoking work tree (root mode)" "$SCOPE_TMP/home" \
+  "$SCOPE_TMP/home/cache/skills" "$SCOPE_TMP/home.ran" root skip
+printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/home-tracked.ran" \
+  >"$SCOPE_TMP/home/cache/skills/good-skill/scripts/y.test.sh"
+git -C "$SCOPE_TMP/home" add cache/skills/good-skill/scripts/y.test.sh
+rm -f "$SCOPE_TMP/home.ran" "$SCOPE_TMP/home-tracked.ran"
+out="$(cd "$SCOPE_TMP/home" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING_TOPLEVEL \
+  CHECK_SKILL_SKILLS_ROOT="$SCOPE_TMP/home/cache/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" good-skill 2>&1)"
+if [[ ! -f "$SCOPE_TMP/home.ran" && -f "$SCOPE_TMP/home-tracked.ran" ]] &&
+  grep -q 'script tests skipped: the skill is outside the current repository' <<<"$out"; then
+  pass "check 7 runs a tracked test and skips an untracked one beside it"
+else
+  fail "check 7 should run only the tracked test: $out"
+fi
+
 # An exported GIT_DIR and GIT_WORK_TREE naming the skill's repo must not make
 # it the invoking repo: both toplevel probes ignore them.
 rm -f "$SCOPE_TMP/other.ran"
