@@ -192,7 +192,7 @@ async function crowd(s, C) {
   s.apply(C.dir, [{ op: "open-round", questions: [q("Q1", "Which loot rule should the first playable use?")] }]);
   const base = C.localUrl.replace(/\/$/, "");
   for (let i = 1; i <= 13; i++) {
-    const r = await fetch(base + "/api/join", { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": `198.51.100.${i}` }, body: JSON.stringify({ name: `Guest ${i}`, device: "computer" }) });
+    const r = await fetch(base + "/api/join", { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": `198.51.100.${i}` }, body: JSON.stringify({ name: `Guest ${i}`, device: "computer", key: C.guestKey }) });
     if (!r.ok) throw new Error(`join Guest ${i} -> ${r.status}`);
   }
 }
