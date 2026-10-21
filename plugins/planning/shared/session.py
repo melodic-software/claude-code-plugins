@@ -1501,7 +1501,11 @@ class Session:
         own limits, so one person's tabs and devices never refuse each other. A beat that changes
         `visible` or `away` is taken at once, outside the tab's one-a-second limit, since the page
         sends one the moment its visibility changes; such changes have their own one-a-second limit,
-        so flipping visibility cannot flood. A person keeps MAX_TABS tabs, the least recent dropped."""
+        so flipping visibility cannot flood. A reload keeps the tab id, so a new page's first beat can land
+        inside the old page's limits: a too-soon beat that changes nothing is answered without being recorded,
+        and a tab may make two changes inside one interval (the old page's hidden, the new page's visible), so
+        flips still cap at about two a second. A too-soon beat that changes `q` or typing is refused as before.
+        A person keeps MAX_TABS tabs, the least recent dropped."""
         body = _body(body)
         err = wire_error(body, "heartbeat")
         if err:
@@ -1514,6 +1518,8 @@ class Session:
             raise _bad("tab", "tab must name the tab: 1 to 32 letters, digits, - or _.")
         visible = body.get("visible", True)
         away = body.get("away") is True
+        shown = {"q": (body.get("q") or "")[:16], "typing": body.get("typing") is True, "chatTyping": body.get("chatTyping") is True}
+        identity = lambda p: {"pid": pid, "name": p["name"], "role": p["role"], "trusted": p["trusted"]}  # noqa: E731
         with self._lock:
             person = self._person(pid)
             now = self.now()
@@ -1523,15 +1529,18 @@ class Session:
             old = rec["tabs"].get(tab)
             changed = old is not None and (old["visible"] != visible or (old.get("awayAt") is not None) != away)
             route = f"heartbeat-change:{tab}" if changed else f"heartbeat:{tab}"
-            self._throttle(pid, route, now, HEARTBEAT_INTERVAL)
+            last = self._last_write.get((pid, route), float("-inf"))
+            if now - last < HEARTBEAT_INTERVAL:
+                if not changed and old is not None and all(old[k] == v for k, v in shown.items()):
+                    return identity(person)  # the same beat again: nothing to record
+                if not changed or now - self._last_write.get((pid, f"heartbeat-prev:{tab}"), float("-inf")) < HEARTBEAT_INTERVAL:
+                    raise DomainError(429, "slow-down", "Wait a moment before sending again.")
             recent = rec.setdefault("recent", collections.deque(maxlen=MAX_TABS))
             if len(recent) == MAX_TABS and now - recent[0] < HEARTBEAT_INTERVAL:
                 raise DomainError(429, "slow-down", "Wait a moment before sending again.")
             old = old or {}
             beat = {
-                "q": (body.get("q") or "")[:16],
-                "typing": body.get("typing") is True,
-                "chatTyping": body.get("chatTyping") is True,
+                **shown,
                 "seen": now,
                 "visible": visible,
                 "inputAt": now - body.get("lastInput", 0),
@@ -1549,11 +1558,13 @@ class Session:
             tabs[tab] = beat
             if self._presence_entry(pid, rec, now) != was:  # a beat that changes nothing anyone sees moves no ETag
                 self._presence_rev += 1
+            if changed and last > float("-inf"):
+                self._wrote(pid, f"heartbeat-prev:{tab}", last)
             self._wrote(pid, route, now)
             recent.append(now)
             if changed:
                 self._wrote(pid, f"heartbeat:{tab}", now)
-            return {"pid": pid, "name": person["name"], "role": person["role"], "trusted": person["trusted"]}
+            return identity(person)
 
     def rename(self, pid, body):
         """POST /api/rename: `{name, pid?}`. Each person renames themselves; the owner alone may name a target `pid`,

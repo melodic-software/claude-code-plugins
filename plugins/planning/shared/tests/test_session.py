@@ -2138,8 +2138,9 @@ class TestWriteLimits(SessionCase):
 
     def test_the_heartbeat_takes_about_one_a_second(self):
         q_of = lambda: next(p["q"] for p in self.s.snapshot(HOST)["presence"] if p["pid"] == self.ann)  # noqa: E731
-        self.twice("heartbeat", {"q": "Q1"}, {"q": "Q3"})
+        self.twice("heartbeat", {"q": "Q1"}, {"q": "Q3"})  # too soon and it moves q: refused
         self.assertEqual(q_of(), "Q1")
+        self.assertEqual(self.s.heartbeat(self.ann, {"q": "Q1"})["pid"], self.ann)  # too soon, the same beat: answered
         self.clock.tick(session.HEARTBEAT_INTERVAL)
         self.s.heartbeat(self.ann, {"q": "Q3"})
         self.assertEqual(q_of(), "Q3")
@@ -3747,19 +3748,39 @@ class TestPresenceStates(SessionCase):
         self.beat(self.ann, visible=True)
         self.beat(self.ann, visible=False)
         self.assertEqual(self.state_of(self.ann)["state"], "away")
-        with self.assertRaises(session.DomainError) as ctx:
-            self.beat(self.ann, visible=False)
+        rev = self.s.presence_rev()
+        self.assertEqual(self.beat(self.ann, visible=False)["pid"], self.ann)  # the same beat again: answered, not recorded
+        self.assertEqual((self.state_of(self.ann)["state"], self.s.presence_rev()), ("away", rev))
+        with self.assertRaises(session.DomainError) as ctx:  # too soon, and it would move q
+            self.beat(self.ann, visible=False, q="Q1")
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
 
-    def test_flipping_visibility_is_limited_to_one_change_a_second(self):
+    def test_flipping_visibility_is_limited_to_two_changes_a_second(self):
         self.beat(self.ann, visible=True)
         self.clock.tick(2)
         self.beat(self.ann, visible=False)
+        self.beat(self.ann, visible=True)  # the second change inside the second: a reload's hidden, then its visible
         with self.assertRaises(session.DomainError) as ctx:
-            self.beat(self.ann, visible=True)
+            self.beat(self.ann, visible=False)
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+        self.assertEqual(self.state_of(self.ann)["state"], "active")
         self.clock.tick(1)
-        self.beat(self.ann, visible=True)
+        self.beat(self.ann, visible=False)
+        self.assertEqual(self.state_of(self.ann)["state"], "away")
+
+    def test_a_reloaded_page_beats_at_once_without_a_slow_down(self):
+        """A reload keeps the tab id: the old page beats, goes hidden as it unloads, and the new page beats
+        visible at once, all inside one second. None of them is refused."""
+        tab = "a" * 24
+        self.beat(self.ann, visible=True, tab=tab)
+        self.clock.tick(0.4)
+        self.beat(self.ann, visible=True, tab=tab)  # a new page's first beat, nothing changed
+        self.clock.tick(2)
+        self.beat(self.ann, visible=True, tab=tab)
+        self.clock.tick(0.2)
+        self.beat(self.ann, visible=False, tab=tab)  # the old page unloads
+        self.clock.tick(0.3)
+        self.beat(self.ann, visible=True, tab=tab)  # the new page's first beat
         self.assertEqual(self.state_of(self.ann)["state"], "active")
 
     def test_manual_away_lasts_while_sent_and_ends_with_the_next_input_beat(self):
@@ -3791,11 +3812,12 @@ class TestPresenceStates(SessionCase):
         self.beat(self.ann, tab="laptop")
         self.beat(self.ann, tab="phone")  # same instant, another tab: not a second beat of the first
         with self.assertRaises(session.DomainError) as ctx:
-            self.beat(self.ann, tab="laptop")
+            self.beat(self.ann, tab="laptop", q="Q1")
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
-        self.beat(self.ann, tab="phone", visible=False)  # a change beat on its own tab
+        self.beat(self.ann, tab="phone", visible=False)  # change beats on its own tab: two a second
+        self.beat(self.ann, tab="phone", visible=True)
         with self.assertRaises(session.DomainError):
-            self.beat(self.ann, tab="phone", visible=True)
+            self.beat(self.ann, tab="phone", visible=False)
 
     def test_a_hidden_tab_does_not_make_a_person_in_use_elsewhere_away(self):
         self.beat(self.ann, tab="a", visible=True)
