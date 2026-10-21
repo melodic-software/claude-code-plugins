@@ -15,12 +15,18 @@ include_fragments = "full"
 # whole trees of markdown, are excluded by path below.
 hidden = true
 
-# No `accept` key: lychee's default status set applies, so a 429 fails the link.
-# Accepting 429 would count a throttled response as OK on the first reply, which
-# skips lychee's retry with per-host backoff (`max_retries`, default 3) and
-# never checks the page's fragment. lychee's rate-limit docs name accepting 429
-# a last resort. A host that still throttles after the retries is a per-host
-# pacing problem, not a reason to stop checking every link on every host.
+# Transient failures do not fail an online run: a throttled (429) or erroring
+# (5xx) host, or a timeout, says nothing about whether the link is dead. A dead
+# link (404, 410 and every other 4xx) still fails. Setting `accept` replaces
+# lychee's default set, so the default 100..=103 and 200..=299 are restated.
+# Cost: an accepted 429 or 5xx counts as OK on the first reply, so it is not
+# retried and its #fragment is not checked. The online run's job summary lists
+# accepted 429 and 5xx links and timeouts so a host that stays down is noticed.
+# lychee 0.24.2 never retries a rejected 5xx; revisit accepting 5xx when
+# https://github.com/lycheeverse/lychee/pull/2324 ships in a release.
+# The offline lane makes no HTTP requests, so neither key changes it.
+accept = ["100..=103", "200..=299", "429", "500..=599"]
+accept_timeouts = true
 
 # Rewrite JavaScript-rendered fragments to the same URL without the fragment.
 # These anchors exist only after the page's scripts run, so lychee, which reads

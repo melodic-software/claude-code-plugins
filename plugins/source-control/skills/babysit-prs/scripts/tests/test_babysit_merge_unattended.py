@@ -1827,6 +1827,51 @@ class CheckInputsChangedOnTheBase(Unattended):
             {"status": 403, "message": "Resource not accessible by integration"},
         )
 
+    def test_a_standards_sync_head_is_never_updated(self) -> None:
+        # The sync App is the branch's only writer: a merge commit from the
+        # base fails the managed-files guard, so the head enqueues as before.
+        self.pr_labels = [{"name": "Standards-Sync"}]
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+        read = out["unattended"]["enqueue"]["checkInputs"]
+        self.assertIs(read["updated"], False)
+        self.assertIn("'standards-sync'", read["updateSkipped"])
+
+    def test_the_standards_sync_label_comes_from_the_tracker_config(self) -> None:
+        def read(owner: str, name: str, **kwargs: Any) -> str:
+            if kwargs.get("role") == "standards-sync":
+                return "sync-managed"
+            return "needs-human"
+
+        with mock.patch.object(postmerge, "_role_label", side_effect=read):
+            self.pr_labels = [{"name": "sync-managed"}]
+            self.run_main()
+            self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+            # The unmapped default no longer skips the update.
+            self.log = []
+            self.pr_labels = [{"name": "standards-sync"}]
+            self.run_main()
+            self.assertEqual(self.log, [f"update-branch:expected_head_sha={HEAD}"])
+
+    def test_an_unreadable_standards_sync_label_holds(self) -> None:
+        # Neither updated nor enqueued: a stale head fails the queue's merge.
+        def read(owner: str, name: str, **kwargs: Any) -> str:
+            if kwargs.get("role") == "standards-sync":
+                raise postmerge.PostMergeReadError("tracker: HTTP 502")
+            return "needs-human"
+
+        with mock.patch.object(postmerge, "_role_label", side_effect=read):
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+        self.assertTrue(
+            any(
+                "standards-sync role label is unreadable" in b for b in out["blockers"]
+            ),
+            out["blockers"],
+        )
+
     SHARED_COPY_LABEL = (
         f"write:api -X POST repos/owner/repo/issues/{PR}/labels -f labels[]=needs-human"
     )
