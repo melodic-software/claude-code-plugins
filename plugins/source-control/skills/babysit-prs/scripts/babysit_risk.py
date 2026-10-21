@@ -26,6 +26,18 @@ its base text, or whose text could not be read, rates HIGH as
 the capability check in every lane. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Claude.md` as
 `CLAUDE.md`.
+Two changes take no `high-capability` hold: a modified
+plugins/<plugin>/skills/<skill>/SKILL.md whose head text is its base text with
+the one line `disable-model-invocation: true` added as a new frontmatter key,
+unless an agent definition at the base (`RiskInput.agents`, unknown when None)
+or changed in the diff could preload the skill (its `skills` entry names the
+skill's directory or `name`, or it cannot be read); and eval data. Eval data is
+a safe file whose every path is under plugins/<plugin>/evals/ (segments matched
+case-sensitively), not a `*.sh`, `*.py`, `*.mjs`, `*.js`, `*.ps1` or `*.cjs`
+file, of no mode 100755, and under no declared path; it also takes no hold from
+the floor entries in `_EVALS_FLOOR` that no denied path repeats. Every other
+floor entry (a `.claude-plugin/` manifest, `**/CLAUDE.md`, `**/.claude/**` and
+the rest) still holds it.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -139,6 +151,9 @@ class RiskInput:
     # unreadable; None when the base tree could not be listed. What they
     # declare runs joins HIGH_FLOOR while it applies.
     declarations: tuple[tuple[str, str | None], ...] | None = ()
+    # Each AGENT_FILES file at the base SHA as (path, text), None when
+    # unreadable; None when not read, so no skill change may skip its hold.
+    agents: tuple[tuple[str, str | None], ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -633,7 +648,8 @@ def _script_reasons(files: list[_File], raw_files: list[Any], scopes) -> list[Re
 
 
 # Files whose frontmatter grants capability, and the keys that grant it.
-_CAPABILITY_FILES = ("**/SKILL.md", "**/agents/**/*.md", "**/commands/**/*.md")
+AGENT_FILES = "**/agents/**/*.md"
+_CAPABILITY_FILES = ("**/SKILL.md", AGENT_FILES, "**/commands/**/*.md")
 _CAPABILITY_KEYS = frozenset(
     {
         "hooks",
@@ -801,13 +817,15 @@ def _content_triggers(before: str, after: str, raw: Any) -> list[str]:
     return triggers
 
 
-def _capability_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason]:
+def _capability_reasons(
+    files: list[_File], raw_files: list[Any], agents: Any, evals: set[str]
+) -> list[Reason]:
     """A capability file the head gains capability in, compared by content:
     `ChangedFile.contents` holds the base and head text, read by the caller."""
     hits = []
     for f, raw in zip(files, raw_files):
         capable = [is_capability_path(p) if p else False for p in f.paths]
-        if f.status == "removed" or not capable[0]:
+        if f.status == "removed" or not capable[0] or f.path in evals:
             continue
         contents = getattr(raw, "contents", None)
         error = getattr(raw, "contents_error", None)
@@ -820,12 +838,120 @@ def _capability_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason
         else:
             before, after = (c or "" for c in contents)
             triggers = _content_triggers(before, after, raw)
+            if (
+                f.status == "modified"
+                and f.paths == (f.path,)
+                and is_skill_path(f.path)
+                and contents[0] is not None
+                and _adds_only_dmi(before, after)
+                and not _preloaded(f.path, after, agents, files, raw_files)
+            ):
+                triggers = []
         # Unchanged frontmatter reads the same on both sides of a rename or copy.
         if f.status == "copied" or (f.status == "renamed" and not all(capable)):
             triggers.append(f"{f.status} into a capability path")
         if triggers:
             hits.append(f"{f.path}: {', '.join(dict.fromkeys(triggers))}")
     return [Reason("high-capability", Risk.HIGH, "; ".join(hits))] if hits else []
+
+
+_DMI_LINE = "disable-model-invocation: true"
+_DMI_KEY = "disable-model-invocation"
+
+
+def is_skill_path(path: str) -> bool:
+    """plugins/<plugin>/skills/<skill>/SKILL.md, matched case-sensitively."""
+    parts = path.split("/")
+    return (
+        len(parts) == 5
+        and parts[0] == "plugins"
+        and parts[2] == "skills"
+        and parts[4] == "SKILL.md"
+    )
+
+
+def _adds_only_dmi(before: str, after: str) -> bool:
+    """The head text is the base text with one line, `_DMI_LINE`, added as a
+    new top-level frontmatter key and every other entry unchanged."""
+    old, new = before.split("\n"), after.split("\n")
+    if len(new) != len(old) + 1:
+        return False
+    at = next((i for i, (a, b) in enumerate(zip(old, new)) if a != b), len(old))
+    if new[at] != _DMI_LINE or new[:at] + new[at + 1 :] != old:
+        return False
+    (base_block, base_ok), (head_block, head_ok) = map(_front_block, (before, after))
+    if not (base_ok and head_ok and new[0] == "---"):
+        return False
+    if not 1 <= at <= len((head_block or "").split("\n")):
+        return False
+    base, head = _front_entries(base_block or ""), _front_entries(head_block or "")
+    # A base that already has the key reads as a duplicate (None) at the head.
+    return base is not None and head == {**base, _DMI_KEY: _DMI_LINE}
+
+
+def _tokens(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9_.-]+", text.casefold()))
+
+
+def _preloaded(
+    path: str, after: str, agents: Any, files: list[_File], raw_files: list[Any]
+) -> bool:
+    """Whether an agent definition at the base (`RiskInput.agents`) or changed
+    in this diff could preload the skill at `path`: its `skills` entry names
+    the skill's directory or `name`, or it cannot be read (fail closed)."""
+    entries = _sequence(agents)
+    if entries is None:
+        return True
+    texts = []
+    for entry in entries:
+        pair = _sequence(entry)
+        texts.append(pair[1] if pair is not None and len(pair) == 2 else None)
+    for f, raw in zip(files, raw_files):
+        if f.status != "removed" and any(glob_match(AGENT_FILES, p) for p in f.paths):
+            contents = getattr(raw, "contents", None)
+            ok = isinstance(contents, tuple) and len(contents) == 2
+            texts.append(contents[1] if ok else None)
+    head = _front_entries(_front_block(after)[0] or "") or {}
+    names = {path.split("/")[3].casefold()}
+    names |= _tokens(head.get("name", "").partition(":")[2])
+    for text in texts:
+        if not isinstance(text, str):
+            return True
+        block, ok = _front_block(text)
+        found = _front_entries(block or "") if ok else None
+        if found is None or names & _tokens(found.get("skills", "").partition(":")[2]):
+            return True
+    return False
+
+
+# The floor entries eval data does not take: they hold it by location only.
+_EVALS_FLOOR = frozenset(
+    {
+        "plugins/review/**",
+        "plugins/guardrails/**",
+        "plugins/work-items/**",
+        "plugins/**/scripts/**",
+    }
+)
+_EVAL_SCRIPTS = (".sh", ".py", ".mjs", ".js", ".ps1", *_SCRIPT_SUFFIXES)
+
+
+def _eval_data(f: _File, raw: Any, declared: tuple[str, ...]) -> bool:
+    """A safe file whose every path is under plugins/<plugin>/evals/, matched
+    case-sensitively, is no script by name or mode, and is under no declared
+    path."""
+    modes = (getattr(raw, "mode", None), getattr(raw, "previous_mode", None))
+    if f.unsafe or not f.paths or _EXECUTABLE_MODE in modes:
+        return False
+    for path in f.paths:
+        parts = path.split("/")
+        if len(parts) < 4 or parts[0] != "plugins" or parts[2] != "evals":
+            return False
+        if path.casefold().endswith(_EVAL_SCRIPTS):
+            return False
+        if any(glob_match(d, path) for d in declared):
+            return False
+    return True
 
 
 def _high_path_reasons(
@@ -847,12 +973,24 @@ def _high_path_reasons(
     if unsafe:
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
     paths = [path for f in files for path in f.paths if path]
+    evals = {
+        p
+        for f, raw in zip(files, raw_files)
+        if on and _eval_data(f, raw, declared)
+        for p in f.paths
+    }
+    eval_exempt = _EVALS_FLOOR.difference(configured)
     for pattern in dict.fromkeys((*floor, *configured)):
-        hits = [path for path in paths if glob_match(pattern, path)]
+        hits = [
+            path
+            for path in paths
+            if glob_match(pattern, path)
+            and not (pattern in eval_exempt and path in evals)
+        ]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
     if extended:
-        reasons.extend(_capability_reasons(files, raw_files))
+        reasons.extend(_capability_reasons(files, raw_files, inp.agents, evals))
         reasons.extend(_script_reasons(files, raw_files, scopes))
     return reasons
 

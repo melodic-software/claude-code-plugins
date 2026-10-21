@@ -57,6 +57,7 @@ from babysit_gh import (
     record_pull_request_total,
 )
 from babysit_risk import (
+    AGENT_FILES,
     DECLARATION_FILES,
     ChangedFile,
     declaration_pointers,
@@ -2902,6 +2903,52 @@ def with_capability_contents(
 _TREE_MODE = "040000"
 
 
+def _base_text(
+    owner: str,
+    name: str,
+    root: Path | None,
+    modes: Mapping[str, str],
+    path: str,
+    base: str,
+) -> str | None:
+    """A file's text at the base SHA, from the clone at `root` when there is
+    one, else the contents API; None when absent, a tree, or unreadable."""
+    if modes.get(path) in (None, _TREE_MODE):
+        return None
+    try:
+        if root is not None:
+            return _git_file_at(root, path, base)
+        return _text_at(owner, name, path, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"base file {path!r}: {type(exc).__name__}", file=sys.stderr)
+        return None
+
+
+def agents_at(
+    repo: str, pr: Mapping[str, Any]
+) -> tuple[tuple[str, str | None], ...] | None:
+    """`babysit_risk.RiskInput.agents`: every `AGENT_FILES` file at the base
+    SHA as (path, text), None for a file that could not be read; None when the
+    base tree cannot be listed."""
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        root = next(_clones_holding(base), None)
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"agents at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return None
+    if modes is None:
+        return None
+    return tuple(
+        (path, _base_text(owner, name, root, modes, path, base))
+        for path in sorted(modes)
+        if modes[path] != _TREE_MODE and glob_match(AGENT_FILES, path)
+    )
+
+
 def declarations_at(
     repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
 ) -> tuple[tuple[str, str | None], ...] | None:
@@ -2937,15 +2984,7 @@ def declarations_at(
         return None
 
     def read(path: str) -> str | None:
-        if modes.get(path) in (None, _TREE_MODE):
-            return None
-        try:
-            if root is not None:
-                return _git_file_at(root, path, base)
-            return _text_at(owner, name, path, base)
-        except (PolicyReadError, ValueError) as exc:
-            print(f"declaration {path!r}: {type(exc).__name__}", file=sys.stderr)
-            return None
+        return _base_text(owner, name, root, modes, path, base)
 
     found = [
         (path, read(path))

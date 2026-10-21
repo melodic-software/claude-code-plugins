@@ -625,7 +625,13 @@ and its queued entries leave; two different identities, or an unreadable head co
   `merge.diff-check.denied-paths` and, while `high-path-floor` is true, `floor-paths`,
   `floor-script-scopes` and the capability check (see the pr-merge lane), matched
   case-insensitively. A diff that touches any of them
-  scores HIGH and is never merged unattended.
+  scores HIGH and is never merged unattended. Two changes are exempt, as `babysit_risk.py`'s
+  docstring states: adding only the line `disable-model-invocation: true` to a
+  `plugins/<plugin>/skills/<skill>/SKILL.md` frontmatter that no agent's `skills` list could
+  preload takes no capability hold, and a non-script file under `plugins/<plugin>/evals/` takes no
+  capability hold and none from the `plugins/review/**`, `plugins/guardrails/**`,
+  `plugins/work-items/**` or `plugins/**/scripts/**` entries; a manifest, a named file such as
+  `CLAUDE.md`, a declared path and `denied-paths` still hold it.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.

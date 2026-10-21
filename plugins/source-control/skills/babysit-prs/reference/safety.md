@@ -1017,7 +1017,9 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
-   Only LOW merges. A C3 pull request also needs a LOW blast-radius rating, which nothing supplies
+   Only LOW merges. Adding only `disable-model-invocation: true` to a plugin skill no agent
+   preloads, and a non-script file under `plugins/<plugin>/evals/`, take no hold from the floor
+   entries `babysit_risk.py`'s docstring names. A C3 pull request also needs a LOW blast-radius rating, which nothing supplies
    yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With

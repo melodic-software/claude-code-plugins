@@ -1880,5 +1880,220 @@ class CapabilityTriggerTests(unittest.TestCase):
         self.assertEqual(result.score, Risk.LOW, _codes(result))
 
 
+DMI = FRONT.replace("y\n", "y\ndisable-model-invocation: true\n", 1)
+OTHER_AGENT = ("plugins/foo/agents/a.md", "---\nname: a\nskills:\n  - foo:other\n---\n")
+
+
+class DisableModelInvocationTests(unittest.TestCase):
+    """Adding only `disable-model-invocation: true` to a skill's frontmatter
+    takes no capability hold unless an agent could preload the skill."""
+
+    def test_adding_only_the_line_with_no_preloading_agent_is_low(self):
+        result = score(_input(files=(_edit(SKILL, FRONT, DMI),), agents=(OTHER_AGENT,)))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+    def test_agents_not_read_holds(self):
+        result = score(_input(files=(_edit(SKILL, FRONT, DMI),)))
+        self.assertEqual(_codes(result), ("high-capability",))
+
+    def test_a_preloading_or_unreadable_agent_holds(self):
+        for agent in (
+            ("plugins/x/agents/a.md", "---\nname: a\nskills:\n  - foo:bar\n---\n"),
+            ("plugins/x/agents/a.md", "---\nname: a\nskills:\n  - foo:x\n---\n"),
+            (".claude/agents/a.md", "---\nskills: [bar]\n---\n"),
+            ("plugins/x/agents/a.md", None),
+            ("plugins/x/agents/a.md", "---\nskills: &a bar\n---\n"),
+        ):
+            with self.subTest(agent=agent):
+                result = score(
+                    _input(files=(_edit(SKILL, FRONT, DMI),), agents=(agent,))
+                )
+                self.assertEqual(_codes(result), ("high-capability",))
+
+    def test_an_agent_changed_in_the_diff_that_preloads_the_skill_holds(self):
+        agent = _edit(
+            "plugins/foo/agents/a.md",
+            "---\nname: a\n---\n",
+            "---\nname: a\nskills:\n  - foo:bar\n---\n",
+        )
+        result = score(
+            _input(files=(_edit(SKILL, FRONT, DMI), agent), agents=(OTHER_AGENT,))
+        )
+        reasons = {r.code: r.detail for r in result.reasons}
+        self.assertIn(SKILL, reasons.get("high-capability", ""))
+
+    def test_any_other_frontmatter_or_body_change_holds(self):
+        for after in (
+            FRONT.replace("y\n", "y\ndisable-model-invocation: false\n", 1),
+            DMI.replace("description: y", "description: z"),
+            DMI.replace("Body.", "Body, reworded."),
+            FRONT.replace(
+                "y\n", "y\ndisable-model-invocation: true\nallowed-tools: Bash\n", 1
+            ),
+            FRONT.replace("y\n", "y\n  disable-model-invocation: true\n", 1),
+        ):
+            with self.subTest(after=after):
+                changed = _edit(SKILL, FRONT, after)
+                result = score(_input(files=(changed,), agents=(OTHER_AGENT,)))
+                self.assertIn("high-capability", _codes(result))
+
+    def test_the_line_splitting_a_continued_value_holds(self):
+        before = FRONT.replace("y\n", "y\n  more\n", 1)
+        after = before.replace("y\n", "y\ndisable-model-invocation: true\n", 1)
+        result = score(
+            _input(files=(_edit(SKILL, before, after),), agents=(OTHER_AGENT,))
+        )
+        self.assertEqual(_codes(result), ("high-capability",))
+
+    def test_changing_an_existing_value_to_true_holds(self):
+        before = FRONT.replace("y\n", "y\ndisable-model-invocation: false\n", 1)
+        result = score(
+            _input(files=(_edit(SKILL, before, DMI),), agents=(OTHER_AGENT,))
+        )
+        self.assertEqual(_codes(result), ("high-capability",))
+
+    def test_an_agent_or_a_skill_outside_plugin_skills_holds(self):
+        for path in ("plugins/foo/agents/bar.md", ".claude/skills/bar/SKILL.md"):
+            with self.subTest(path):
+                result = score(
+                    _input(files=(_edit(path, FRONT, DMI),), agents=(OTHER_AGENT,))
+                )
+                self.assertIn("high-capability", _codes(result))
+
+    def test_a_floored_skill_keeps_its_path_hold(self):
+        path = "plugins/review/skills/bar/SKILL.md"
+        result = score(_input(files=(_edit(path, FRONT, DMI),), agents=(OTHER_AGENT,)))
+        self.assertEqual(_codes(result), ("high-path:plugins/review/**",))
+
+    def test_a_mixed_change_holds(self):
+        files = (_edit(SKILL, FRONT, DMI), _file("plugins/foo/scripts/run.sh"))
+        codes = _codes(score(_input(files=files, agents=(OTHER_AGENT,))))
+        self.assertIn("high-path:plugins/*/scripts/**", codes)
+        self.assertNotIn("high-capability", codes)
+
+
+class EvalDataTests(unittest.TestCase):
+    """Non-script files under plugins/<plugin>/evals/ take no hold from the
+    floor's location entries or the capability check."""
+
+    def test_eval_data_under_floored_locations_is_low(self):
+        gains = _edit(
+            "plugins/foo/evals/stub/skills/y/SKILL.md",
+            FRONT,
+            FRONT.replace("y\n", "y\nallowed-tools: Bash\n", 1),
+        )
+        for files in (
+            (
+                _file("plugins/review/evals/case-a/prompt.md"),
+                _file("plugins/review/evals/case-a/case.yaml"),
+            ),
+            (_file("plugins/foo/evals/scripts/data.json"),),
+            (_file("plugins/foo/evals/case/fixture.sh.fixture"),),
+            (gains,),
+        ):
+            with self.subTest(files=[f.path for f in files]):
+                result = score(_input(files=files))
+                self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+    def test_a_script_under_evals_holds(self):
+        for changed, code in (
+            (_file("plugins/review/evals/case-a/scaffold.sh"), "plugins/review/**"),
+            (_file("plugins/review/evals/case-a/run.PY"), "plugins/review/**"),
+            (
+                _file("plugins/review/evals/case-a/run", mode="100755"),
+                "plugins/review/**",
+            ),
+            (_file("plugins/foo/evals/scripts/grade.mjs"), "plugins/**/scripts/**"),
+        ):
+            with self.subTest(changed.path):
+                self.assertIn(
+                    f"high-path:{code}", _codes(score(_input(files=(changed,))))
+                )
+
+    def test_a_stub_manifest_under_evals_holds(self):
+        for name in ("plugin.json", "marketplace.json"):
+            path = f"plugins/foo/evals/case/stub/.claude-plugin/{name}"
+            with self.subTest(name):
+                self.assertIn(
+                    "high-path:**/.claude-plugin/**",
+                    _codes(score(_input(files=(_file(path),)))),
+                )
+
+    def test_a_named_floor_file_under_evals_holds(self):
+        for path, code in (
+            ("plugins/foo/evals/fixtures/CLAUDE.md", "**/CLAUDE.md"),
+            ("plugins/foo/evals/fixtures/.claude/settings.json", "**/.claude/**"),
+        ):
+            with self.subTest(path):
+                self.assertIn(
+                    f"high-path:{code}", _codes(score(_input(files=(_file(path),))))
+                )
+
+    def test_a_file_in_the_evals_plugin_outside_evals_holds(self):
+        result = score(_input(files=(_file("plugins/evals/probes/scripts/data.json"),)))
+        self.assertIn("high-path:plugins/**/scripts/**", _codes(result))
+        skill = _edit(
+            "plugins/evals/skills/y/SKILL.md",
+            FRONT,
+            FRONT.replace("y\n", "y\nallowed-tools: Bash\n", 1),
+        )
+        self.assertIn("high-capability", _codes(score(_input(files=(skill,)))))
+        low = score(_input(files=(_file("plugins/evals/evals/case/prompt.md"),)))
+        self.assertEqual(low.score, Risk.LOW, _codes(low))
+
+    def test_a_skill_level_or_differently_cased_evals_directory_holds(self):
+        for path in (
+            "plugins/review/skills/x/evals/case/prompt.md",
+            "plugins/review/Evals/case/prompt.md",
+        ):
+            with self.subTest(path):
+                self.assertIn(
+                    "high-path:plugins/review/**",
+                    _codes(score(_input(files=(_file(path),)))),
+                )
+
+    def test_a_traversal_path_holds(self):
+        path = "plugins/review/evals/../skills/x.md"
+        codes = _codes(score(_input(files=(_file(path),))))
+        self.assertIn("high-path:plugins/review/**", codes)
+
+    def test_a_rename_into_evals_holds(self):
+        moved = _file(
+            "plugins/review/evals/case/notes.md",
+            status="renamed",
+            previous_path="plugins/review/skills/x/notes.md",
+        )
+        self.assertIn(
+            "high-path:plugins/review/**", _codes(score(_input(files=(moved,))))
+        )
+
+    def test_a_denied_or_declared_eval_path_holds(self):
+        path = "plugins/review/evals/data/x.json"
+        denied = score(_input(files=(_file(path),), high_paths=("plugins/review/**",)))
+        self.assertIn("high-path:plugins/review/**", _codes(denied))
+        hooks = (
+            '{"hooks": {"Stop": [{"hooks": [{"command":'
+            ' "${CLAUDE_PLUGIN_ROOT}/evals/data/x.json"}]}]}}'
+        )
+        declared = score(
+            _input(
+                files=(_file(path),),
+                declarations=(("plugins/review/hooks/hooks.json", hooks),),
+            )
+        )
+        self.assertIn("high-path:plugins/review/**", _codes(declared))
+
+    def test_a_mixed_change_holds_on_its_non_eval_file(self):
+        files = (
+            _file("plugins/review/evals/case/prompt.md"),
+            _file("plugins/review/skills/x/notes.md"),
+        )
+        reasons = {r.code: r.detail for r in score(_input(files=files)).reasons}
+        self.assertEqual(
+            reasons.get("high-path:plugins/review/**"),
+            "plugins/review/skills/x/notes.md",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
