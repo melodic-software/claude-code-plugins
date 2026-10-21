@@ -408,7 +408,7 @@ class TestNamed(TunnelCase):
 
     def test_a_token_variable_in_this_environment_never_reaches_cloudflared(self):
         """cloudflared's TUNNEL_TOKEN takes precedence over --token-file; the fake exits when either variable reaches it."""
-        with mock.patch.dict(os.environ, {"TUNNEL_TOKEN": "other", "TUNNEL_TOKEN_FILE": "/other"}):
+        with mock.patch.dict(os.environ, {"TUNNEL_TOKEN": "other", "TUNNEL_TOKEN_FILE": "/other", "CLOUDFLARE_API_TOKEN": "api", "CF_API_TOKEN": "api"}):
             self.assertEqual(tunnel.ensure(self.d, 4321, HOST, self.token)["url"], f"https://{HOST}")
             tunnel.stop(self.d)
             self.assertRegex(tunnel.ensure(self.d, 4321)["url"], ADDRESS)

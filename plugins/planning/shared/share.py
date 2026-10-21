@@ -147,7 +147,7 @@ def start_server(d, guest, control, *, defaults_file=None):
     cmd = detached.python(str(HERE / "server.py"), "--dir", str(d), "--guest-port", str(guest), "--control-port", str(control), "--nonce", nonce)
     if defaults_file:
         cmd += ["--defaults-file", str(Path(defaults_file).resolve())]
-    proc = detached.spawn(cmd, log=d / SERVER_ERR, cwd=d)
+    proc = detached.spawn(cmd, log=d / SERVER_ERR, env=tunnel.child_env(), cwd=d)
     s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
     if s is not None:
         detached.release(proc)

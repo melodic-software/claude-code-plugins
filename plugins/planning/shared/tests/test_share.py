@@ -695,6 +695,13 @@ class TestNamedTunnel(ShareCase):
         self.assertIn(f"must name http://127.0.0.1:{self.port}. Run it on this machine only", err)
         self.assertEqual(share(self.d, "status")[1]["tunnel"], "named")
 
+    @unittest.skipIf(not Path("/proc/self/environ").exists(), "reads a process's environment from /proc")
+    def test_no_cloudflare_token_variable_reaches_the_server(self):
+        code, _, err = share(self.d, "ensure-running", "--guest-port", str(self.port), environ=env(CLOUDFLARE_API_TOKEN="api", CF_API_TOKEN="api", TUNNEL_TOKEN="t"))
+        self.assertEqual(code, 0, err)
+        names = {kv.split(b"=", 1)[0] for kv in Path(f"/proc/{self.session_record()['pid']}/environ").read_bytes().split(b"\0") if kv}
+        self.assertFalse(names & {b"CLOUDFLARE_API_TOKEN", b"CF_API_TOKEN", b"TUNNEL_TOKEN", b"TUNNEL_TOKEN_FILE"})
+
     def test_the_token_is_in_no_output_log_or_argument(self):
         code, out, err = self.ensure()
         self.assertEqual(code, 0, err)

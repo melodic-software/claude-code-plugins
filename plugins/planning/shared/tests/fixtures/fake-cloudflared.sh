@@ -5,12 +5,13 @@
 #   tunnel --no-autoupdate run --token-file F a named tunnel: prints "Registered tunnel connection" with
 #                                             the fields connection/observer.go logs once F is readable,
 #                                             and exits 1 when it is not
-# Either form exits 2 when TUNNEL_TOKEN or TUNNEL_TOKEN_FILE reaches it: tunnel.py must not pass them on.
+# Either form exits 2 when TUNNEL_TOKEN, TUNNEL_TOKEN_FILE, CLOUDFLARE_API_TOKEN or CF_API_TOKEN reaches it:
+# tunnel.py must not pass them on.
 #   FAKE_CF_DELAY  seconds before the banner or the connection line (default 0)
 #   FAKE_CF_NOURL  when set, never print an address or a connection
 #   FAKE_CF_ARGS   when set, append the arguments to this file, one run per line
 [[ -n "${FAKE_CF_ARGS:-}" ]] && printf '%s\n' "$*" >>"$FAKE_CF_ARGS"
-if [[ -n "${TUNNEL_TOKEN:-}${TUNNEL_TOKEN_FILE:-}" ]]; then
+if [[ -n "${TUNNEL_TOKEN:-}${TUNNEL_TOKEN_FILE:-}${CLOUDFLARE_API_TOKEN:-}${CF_API_TOKEN:-}" ]]; then
   echo "fake-cloudflared: a token variable was inherited" >&2
   exit 2
 fi

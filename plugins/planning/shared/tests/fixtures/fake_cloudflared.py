@@ -10,7 +10,7 @@ args = sys.argv[1:]
 if os.environ.get("FAKE_CF_ARGS"):
     with open(os.environ["FAKE_CF_ARGS"], "a", encoding="utf-8") as f:
         f.write(" ".join(args) + "\n")
-if os.environ.get("TUNNEL_TOKEN") or os.environ.get("TUNNEL_TOKEN_FILE"):
+if any(os.environ.get(k) for k in ("TUNNEL_TOKEN", "TUNNEL_TOKEN_FILE", "CLOUDFLARE_API_TOKEN", "CF_API_TOKEN")):
     sys.exit("fake-cloudflared: a token variable was inherited")
 ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 if args[:4] == ["tunnel", "--no-autoupdate", "run", "--token-file"] and len(args) > 4:

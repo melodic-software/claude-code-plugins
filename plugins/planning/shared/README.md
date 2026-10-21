@@ -93,7 +93,8 @@ empty `--tunnel-hostname ''` goes back to the quick tunnel. share.py
 checks the file (it exists, is not empty, and on macOS and Linux no other user can read it) but
 never reads it: cloudflared does, through
 [`--token-file`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/)
-(cloudflared 2025.4.0 or later), so the token is on no command line and in no output. A named
+(cloudflared 2025.4.0 or later), so the token is on no command line and in no output. Neither cloudflared nor the server inherits `TUNNEL_TOKEN`,
+`TUNNEL_TOKEN_FILE`, `CLOUDFLARE_API_TOKEN` or `CF_API_TOKEN` from the shell that starts them. A named
 session's guest port is fixed: `--guest-port`, else 8765, and a busy port refuses the start
 (exit 2) instead of moving, because the tunnel's ingress rule names that port. The token file must
 stay in place while the session runs: the server restarts cloudflared from it whenever cloudflared

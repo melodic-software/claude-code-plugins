@@ -58,7 +58,8 @@ READY = re.compile(r"Registered tunnel connection")  # a named tunnel's first co
 HOSTNAME = re.compile(r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]")
 START_SECONDS = 30.0  # how long a new tunnel may take to print its address
 RETIRE_SECONDS = 600.0  # judgment: how long the old address keeps answering after a switch, so open pages move
-TOKEN_ENV = ("TUNNEL_TOKEN", "TUNNEL_TOKEN_FILE")  # cloudflared reads these; the child never inherits them
+# cloudflared reads the first two; the last two are Cloudflare API tokens. No child of this plugin inherits any of them.
+TOKEN_ENV = ("TUNNEL_TOKEN", "TUNNEL_TOKEN_FILE", "CLOUDFLARE_API_TOKEN", "CF_API_TOKEN")
 EXE = "cloudflared.exe" if detached.WINDOWS else "cloudflared"  # the program file an adopted pid must run
 MISSING = "missing prerequisite: cloudflared (not on PATH; see the planning plugin's prerequisites.json)"
 
@@ -79,9 +80,9 @@ def _command(exe, port, hostname="", token_file=""):
     return [*head, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{port}"]
 
 
-def _env():
-    """This process's environment without cloudflared's token variables, which would override --token-file or turn a
-    quick tunnel into a named one."""
+def child_env():
+    """This process's environment without TOKEN_ENV: cloudflared's token variables would override --token-file or turn a
+    quick tunnel into a named one, and no child needs a Cloudflare API token."""
     return {k: v for k, v in os.environ.items() if k.upper() not in TOKEN_ENV}
 
 
@@ -212,7 +213,7 @@ def _start(data_dir, port, hostname="", token_file="", retired_entry=None):
     d = Path(data_dir)
     log = d / LOG
     try:
-        proc = detached.spawn(_command(exe, port, hostname, token_file), log=log, env=_env(), cwd=d)
+        proc = detached.spawn(_command(exe, port, hostname, token_file), log=log, env=child_env(), cwd=d)
     except OSError as exc:
         raise TunnelDown(f"cloudflared did not start: {exc}") from exc
     seconds = float(os.environ.get("SHARED_TUNNEL_SECONDS") or START_SECONDS)
