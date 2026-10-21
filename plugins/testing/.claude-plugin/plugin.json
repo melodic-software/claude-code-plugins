@@ -12,7 +12,7 @@
     "test_guards_enabled": {
       "type": "boolean",
       "title": "Test guard hooks",
-      "description": "Ask Claude for a reason when an edit removes or skips tests or assertions. Off by default.",
+      "description": "Adds an advisory note when an edit removes tests or assertions, adds a skip or changes an expected value, and, only with rules test-weaken-block: error, denies an added skip or removed test block that adds no test-change: marker; it never asks, and is off by default.",
       "default": false
     },
     "e2e_driver": {
