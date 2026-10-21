@@ -217,10 +217,13 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
   // creation time is checked here.
   await source("lane stops", async () => {
     data.laneStops = [];
+    let unread = false;
     for (let page = 1; page <= LIMITS.commentPages; page += 1) {
       const batch = await get(
         `/repos/${repo}/issues/comments?since=${iso(windowStart)}&sort=created&direction=desc&per_page=100&page=${page}`,
       );
+      // Newest first: once a page reaches back before the window, nothing older matters.
+      unread = batch.length === 100 && !batch.some((c) => Date.parse(c.created_at) < windowStart.getTime());
       for (const c of batch) {
         const at = Date.parse(c.created_at);
         if (c.user?.login !== agentIdentity || at < windowStart.getTime() || at > now.getTime()) continue;
@@ -229,8 +232,9 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
         const issue = Number(/\/issues\/(\d+)$/.exec(c.issue_url ?? "")?.[1]) || null;
         data.laneStops.push({ id: c.id, outcome: marker.outcome, issue, url: c.html_url, createdAt: c.created_at });
       }
-      if (batch.length < 100) break;
+      if (!unread) break;
     }
+    if (unread) gaps.push(`lane stops: over ${LIMITS.commentPages * 100} comments in the window; the oldest were not read`);
   });
 
   await source("audits", async () => {

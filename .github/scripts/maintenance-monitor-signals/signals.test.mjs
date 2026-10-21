@@ -389,6 +389,8 @@ test("signal 9: the fingerprint holds for the same stops and changes on a new on
   const fp = (stops) => detect({ ...base, laneStops: stops })[0].fingerprint;
   assert.equal(fp([stop(1, "limited"), stop(2, "limited")]), fp([stop(2, "limited"), stop(1, "limited")]));
   assert.notEqual(fp([stop(1, "limited")]), fp([stop(1, "limited"), stop(2, "limited")]));
+  // A stop seen again in the next run's window overlap keeps the fingerprint.
+  assert.equal(fp([stop(1, "limited"), stop(2, "limited")]), fp([stop(2, "limited")]));
 });
 
 test("detect runs every signal, and empty data files nothing", () => {

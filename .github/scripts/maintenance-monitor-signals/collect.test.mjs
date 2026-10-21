@@ -197,6 +197,18 @@ test("a replay (no own rate reading) skips the live-only Actions sample", async 
   );
 });
 
+test("lane stops: full pages inside the window are a gap; a page reaching before it stops the paging", async () => {
+  const page = (createdAt) => Array.from({ length: 100 }, (_, i) => laneComment(1000 + i, "", { created_at: createdAt }));
+  const full = fakeApi([[/\/issues\/comments\?since=/, page("2026-10-19T16:00:00Z")], ...routes()]);
+  const data = await collect(input(full));
+  assert.equal(full.calls.filter((p) => p.includes("/issues/comments?")).length, 5);
+  assert.ok(data.gaps.some((g) => g.startsWith("lane stops: over 500 comments")));
+  const older = fakeApi([[/\/issues\/comments\?since=/, page("2026-10-19T15:00:00Z")], ...routes()]);
+  const quiet = await collect(input(older));
+  assert.equal(older.calls.filter((p) => p.includes("/issues/comments?")).length, 1);
+  assert.ok(!quiet.gaps.some((g) => g.startsWith("lane stops")));
+});
+
 test("a failed source is a gap; the rest still read", async () => {
   const api = fakeApi([[/\/pulls\?state=closed/, new Error("GET /pulls: HTTP 502")], ...routes()]);
   const data = await collect(input(api));

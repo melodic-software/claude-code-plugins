@@ -303,7 +303,9 @@ export function laneStopFindings({ laneStops = [] }) {
       area: "Issue lane (work-resolve-issue)",
       summary: `work-resolve-issue left ${stops.length} outcome=${outcome} markers in the last hour.`,
       facts: stops.map((s) => `#${s.issue ?? "?"} ${s.createdAt}: ${s.url}`),
-      evidence: [`lane-stop:${outcome}`, stops.map((s) => Number(s.id)).sort((a, b) => a - b)],
+      // The newest stop only: a stop seen again in the window's overlap with the
+      // previous run keeps the fingerprint, so a completed issue is not reopened.
+      evidence: [`lane-stop:${outcome}`, Math.max(...stops.map((s) => Number(s.id)))],
     }),
   );
 }
