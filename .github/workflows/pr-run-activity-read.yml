@@ -1910,17 +1910,70 @@ jobs:
                 if (whole && whole[0] !== WARN_ONLY) return credential(whole[0]);
                 return { warn };
               };
+              // Two more passes, on credential formats only (owner ruling Q37),
+              // each blocking with the label and the rotation line:
+              // - UTF-16LE: the text with its NUL bytes removed, so a token
+              //   written two bytes a character reads as one. #8532 reads a
+              //   NUL as a space to keep line numbers (b9e9475b3a); here it is
+              //   removed, since a space between every character would split
+              //   the token again.
+              // - Split lines: each pair of adjacent lines joined with no
+              //   separator, counting only a match that straddles the join of
+              //   a pattern neither line matches alone, so a token cut across
+              //   two lines is caught and nothing a single line holds is
+              //   judged twice. In the patch the pair is hunk
+              //   lines with their +, - or space prefix removed and the file
+              //   headers dropped, or a token split inside an added hunk
+              //   would join as "...ab+cd..." and never match.
+              const straddles = (left, right) => {
+                const joined = left + right;
+                for (const [label, re] of blocking) {
+                  if (re.test(left) || re.test(right)) continue;
+                  for (const match of joined.matchAll(new RegExp(re.source, `${re.flags.replace('g', '')}g`))) {
+                    if (match.index < left.length && match.index + match[0].length > left.length) return label;
+                  }
+                }
+                return null;
+              };
+              const credentialIn = (text) => {
+                for (const line of text.split(/\r?\n/)) {
+                  const raw = blocking.find(([, re]) => re.test(line));
+                  if (raw) return raw[0];
+                }
+                const found = findSecret(text);
+                return found && found[0] !== WARN_ONLY ? found[0] : null;
+              };
+              const HUNK_HEADER = /^(?:\+\+\+|---) /;
+              const deeper = (text, diff) => {
+                const plain = text.replace(/\0/g, '');
+                if (plain !== text) {
+                  const label = credentialIn(plain);
+                  if (label) return label;
+                }
+                let lines = plain.split(/\r?\n/);
+                if (diff) lines = lines.filter((line) => /^[-+ ]/.test(line) && !HUNK_HEADER.test(line)).map((line) => line.slice(1));
+                for (let i = 0; i + 1 < lines.length; i += 1) {
+                  const label = straddles(lines[i], lines[i + 1]);
+                  if (label) return label;
+                }
+                return null;
+              };
               // Each source has a kind, which names no model-chosen text.
               const warned = new Set();
-              const judge = (kind, bytes, how = (b) => classify(b.toString('latin1'))) => {
+              const judge = (kind, bytes, how = (b) => classify(b.toString('latin1')), diff = false) => {
                 if (hit || !bytes) return;
                 const { block, credential: format, warn } = how(bytes);
-                if (block) hit = { label: block, credential: format };
+                if (block) {
+                  hit = { label: block, credential: format };
+                  return;
+                }
+                const deep = deeper(bytes.toString('latin1'), diff);
+                if (deep) hit = { label: deep, credential: true };
                 else if (warn) warned.add(kind);
               };
               judge('the reply', reply);
               judge('the reply', turns);
-              judge('the patch', patch);
+              judge('the patch', patch, undefined, true);
               // The patch as the apply job applies it, onto the gated head: every
               // file it makes, by name and bytes. git apply takes a blob the store
               // already holds in place of a binary hunk's bytes, so the head's

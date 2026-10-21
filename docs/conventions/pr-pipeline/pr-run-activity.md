@@ -1100,9 +1100,10 @@ outcome. The issue lane's run job holds the OAuth token alone and runs no scan.
 
 Recorded, not fixed:
 
-- The scan blocks credential formats only (owner ruling Q37). A credential written as UTF-16LE,
-  wrapped in base64 or split across lines passes. Whether to catch UTF-16LE (N16) is an open owner
-  question.
+- The scan blocks credential formats only (owner ruling Q37). Beside the per-line scan it reads
+  each text with its NUL bytes removed, so a UTF-16LE credential is caught, and each pair of
+  adjacent lines joined (in the patch, hunk lines without their `+`, `-` or space prefix), so a
+  credential split across two lines is caught (N16). A credential wrapped in base64 still passes.
 - Issue mode still publishes from the run job, unscanned: its `Show the skill's run in the step
   summary`, `Upload the skill's final reply` and `Upload the patch` steps, and the gate verdict's
   step summary (`Check the gate skill's verdict`). That predates the scan job and is slated for 6b.

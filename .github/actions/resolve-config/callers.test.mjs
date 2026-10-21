@@ -2471,3 +2471,79 @@ test("scan job: an empty default branch fails closed before the opener is checke
   assert.equal(runStep(assertStep, root, { DEFAULT_BRANCH: "main" }).status, 0);
 });
 
+// --- leak scan: UTF-16LE and split-line passes ---
+
+// A stateless installation token, ghs_<app id>_<JWT>, about 520 characters,
+// built at run time so no credential-shaped literal sits in the file.
+const B64URL = (n) => "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_".repeat(Math.ceil(n / 38)).slice(0, n);
+const GHS = ["ghs", `1234567_eyJ${B64URL(100)}.eyJ${B64URL(300)}.${B64URL(108)}`].join("_");
+const SK = KEY;
+const utf16 = (text) => Buffer.from(text, "utf16le");
+// Split so neither line holds the prefix and enough of the token to match.
+const split = (token) => `the token is ${token.slice(0, 2)}\n${token.slice(2)} and that is all\n`;
+// The main gate as it was before #8857 added the stateless ghs_ form.
+const MAIN_GATE = read("../../../lib/publish-gate.mjs");
+const PRE_8857_GATE = (() => {
+  const old = MAIN_GATE.replace("ghs_[A-Za-z0-9._-]{36,}|gh[pousr]_", "gh[pousr]_");
+  assert.notEqual(old, MAIN_GATE, "the main gate carries #8857's ghs_ form");
+  return old;
+})();
+const inReply = (bytes) => ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), bytes);
+const inPatch = (bytes) => ({ work }) => writeFileSync(join(work, "tracked.txt"), bytes);
+
+test("leak scan: a UTF-16LE or line-split credential blocks in the reply and in the patch, with its label and the rotation line", async (t) => {
+  assert.ok(GHS.length > 500 && GHS.length < 540, String(GHS.length));
+  const cases = [
+    // #8857's ghs_ form needs a gate that has it: main's.
+    ["GitHub token", GHS, MAIN_GATE],
+    // The same shapes on the gate before #8857, with an Anthropic key.
+    ["Anthropic key", SK, PRE_8857_GATE],
+    ["Anthropic key", SK, MAIN_GATE],
+  ];
+  for (const [label, token, gate] of cases) {
+    const shapes = { "UTF-16LE": utf16(`done: ${token}\r\n`), "split across two lines": Buffer.from(split(token)) };
+    for (const [shape, bytes] of Object.entries(shapes)) {
+      for (const [where, plant] of [["reply", inReply(bytes)], ["patch", inPatch(bytes)]]) {
+        const name = `${label} ${shape} in the ${where}${gate === PRE_8857_GATE ? " (pre-#8857 gate)" : ""}`;
+        const { clean, failed, outputs } = await scanWith(t, plant, gate);
+        assert.equal(clean, "false", name);
+        assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized\nrotate this credential`, name);
+        if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
+      }
+    }
+  }
+  // Without #8857's form, the stateless token itself passes: the passes add no format.
+  const old = await scanWith(t, inReply(utf16(`done: ${GHS}\n`)), PRE_8857_GATE);
+  assert.equal(old.clean, "true", old.failed);
+  if (old.outputs.dir) rmSync(old.outputs.dir, { recursive: true, force: true });
+});
+
+test("leak scan: clean multi-line and clean UTF-16LE text stay clean in the reply and the patch", async (t) => {
+  const prose = "The fix renames the helper.\nIt keeps the old name as an alias\nsk-\nfor one release, then drops it.\n";
+  for (const bytes of [Buffer.from(prose), utf16(prose), utf16("ghs_ is the installation token prefix.\n")]) {
+    for (const plant of [inReply(bytes), inPatch(bytes)]) {
+      for (const gate of [MAIN_GATE, PRE_8857_GATE]) {
+        const { clean, failed, outputs } = await scanWith(t, plant, gate);
+        assert.deepEqual({ clean, failed }, { clean: "true", failed: null });
+        if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
+test("leak scan: the split-line pass joins patch hunk lines without their prefixes, and counts only a match across the join", async () => {
+  const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
+  const body = script.slice(script.indexOf("const straddles"), script.indexOf("// Each source has a kind"));
+  const { findSecret, SECRET_PATTERNS } = await import(new URL("../../../lib/publish-gate.mjs", import.meta.url));
+  const WARN_ONLY = "password or secret assignment";
+  const blocking = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
+  const deeper = new Function("blocking", "findSecret", "WARN_ONLY", `${body}; return deeper;`)(blocking, findSecret, WARN_ONLY);
+  const hunk = `diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1,2 @@\n+the token is ${GHS.slice(0, 2)}\n+${GHS.slice(2)}\n`;
+  assert.equal(deeper(hunk, true), "GitHub token", "an added-hunk split joins without the + prefixes");
+  assert.equal(deeper(hunk, false), null, "kept, the + prefix breaks the token");
+  assert.equal(deeper(` ${GHS.slice(0, 2)}\n+${GHS.slice(2)}\n`, true), "GitHub token", "a context line joins an added line");
+  // A match wholly inside one line is the per-line scan's, never this pass's.
+  assert.equal(deeper(`${GHS}\nnext line\n`, false), null);
+  assert.equal(deeper(utf16(`x ${GHS}`).toString("latin1"), false), "GitHub token");
+});
+
