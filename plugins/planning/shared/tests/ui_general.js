@@ -137,6 +137,12 @@ async function main() {
     ok("Move to puts Ann's request on Q1", await until(ann, t => (window.Core.state.myRequests || []).some(r => r.text === t && r.qid === "Q1"), PICK_ASK));
     ok("  and its row names Q1", await until(ann, t => [...document.querySelectorAll(".vf-apreqs > li")].some(li => li.textContent.includes(t) && li.querySelector(".vf-qref").textContent.startsWith("Q1:")), PICK_ASK));
     ok("Bo's page holds no Move to for Ann's request", await bo.evaluate(t => ![...document.querySelectorAll("li")].some(li => li.textContent.includes(t) && li.querySelector(".vf-req-move:not([hidden])")), PICK_ASK));
+    // ---------- Move to: once the host takes up her request, only the host can move it ----------
+    const pickId = await ann.evaluate(t => window.Core.state.myRequests.find(r => r.text === t).id, PICK_ASK);
+    await owner.evaluate(id => window.Core.requestAct(id, "decline"), pickId);
+    ok("the host declines Ann's request", await until(ann, id => window.Core.state.myRequests.find(r => r.id === id)?.status === "declined", pickId));
+    ok("  and her row holds no Move to", await until(ann, t => [...document.querySelectorAll(".vf-apreqs > li")].some(li => li.textContent.includes(t)
+      && li.querySelector(".vf-req-move")?.hidden), PICK_ASK), await ann.evaluate(t => [...document.querySelectorAll(".vf-apreqs > li")].find(li => li.textContent.includes(t))?.outerHTML.slice(0, 300), PICK_ASK));
 
     // ---------- a reply to Claude's answer quotes Claude ----------
     await ann.keyboard.press("Escape");

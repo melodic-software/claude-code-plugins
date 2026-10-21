@@ -5085,12 +5085,14 @@
       k.publish.hidden = !((owner && draft) || canShare);
       k.takeDown.hidden = !(owner && !draft);
     }
+    // as session.py _move_request: an asker moves a host-run request only until the host takes it up
+    const canMove = r => Core.me.isOwner || (isMe(r.cid) && (r.runner === "self" || r.status === "pending"));
     function paintReqActs(k, r) {
       const owner = Core.me.isOwner;
       k.run.hidden = k.decline.hidden = !(owner && r.status === "pending");
       k.failB.hidden = !(owner && r.status === "running");
       k.rerun.hidden = !(owner && (r.status === "running" || r.status === "failed"));
-      k.move.hidden = !(owner || isMe(r.cid)) || r.status === "running" || (!!Core.state.ended && !owner) || !!Core.state.youRemoved;
+      k.move.hidden = !canMove(r) || r.status === "running" || (!!Core.state.ended && !owner) || !!Core.state.youRemoved;
       if (!k.move.hidden) fillMove(k.move, r);
       return k.run.hidden && k.failB.hidden && k.rerun.hidden && k.move.hidden;
     }
