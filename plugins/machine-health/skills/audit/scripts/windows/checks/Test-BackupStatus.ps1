@@ -6,10 +6,9 @@ Check: whether anything backs this machine up. Emits a CheckResult JSON on stdou
 See reference/windows/check-catalog.md#27-backup-status for rubric.
 
 .DESCRIPTION
-Reads every backup signal through Get-BackupSignal (system image, restore
-points, File History, the Windows Backup app, OneDrive Known Folder Move) and
-reports one source row each. Restore points and the wbadmin version count are
-readable elevated only. Read-only: the check never starts or configures a backup.
+Reads every backup signal through Get-BackupSignal and reports one source row
+each; the source list and the rubric are in the catalog section above.
+Read-only: the check never starts or configures a backup.
 #>
 [CmdletBinding()]
 param(
@@ -25,17 +24,17 @@ $ErrorActionPreference = 'Continue'
 
 $id = 'backup-status'
 $category = 'reliability'
+$src = $BackupSignalSource
 $commands = @(
-    "Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-Backup'; Id = 4, 5, 7, 8, 9, 14 }"
-    'wbadmin get versions (elevated only)'
-    "Get-CimInstance -Namespace root/default -ClassName SystemRestore (elevated only)"
-    "Get-ChildItem `"`$env:LOCALAPPDATA\Microsoft\Windows\FileHistory\Configuration`" -Filter 'Config*.xml'"
-    "Get-WinEvent -ListLog 'Microsoft-Windows-UserSettingsBackup-Orchestrator/Operational'"
-    "Get-Item 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive', 'HKCU:\SOFTWARE\Policies\Microsoft\OneDrive'"
+    "Get-WinEvent -FilterHashtable @{ LogName = '$($src.BackupChannel)'; Id = $($src.BackupEventIds -join ', ') }"
+    "wbadmin $($src.WbadminArguments -join ' ') (elevated only)"
+    "Get-CimInstance -Namespace $($src.RestoreNamespace) -ClassName $($src.RestoreClass) (elevated only)"
+    "Get-ChildItem `"`$env:LOCALAPPDATA\$($src.FileHistoryFolder)`" -Filter '$($src.FileHistoryFilter)'"
+    "Get-WinEvent -ListLog '$($src.WindowsBackupLog)'"
+    "Get-Item $(($src.OneDrivePolicyKeys | ForEach-Object { "'$_'" }) -join ', ')"
 )
 
-$deprecation = 'System Image Backup has been deprecated since Windows 10 version 1709.'
-$FailureSummary = "Backup-status check failed. $deprecation"
+$FailureSummary = 'Backup-status check failed.'
 $PassThru = $false
 $CheckBody = {
     $elevated = [bool](Test-IsElevated)
@@ -58,10 +57,12 @@ $CheckBody = {
     $lead = $present.Count -gt 0 ? "Backup sources present: $($present -join ', ')" :
         "No backup source present among $($sources.Count) checked"
     $adminNote = $needsAdmin.Count -gt 0 ? "; $($needsAdmin -join ', ') readable elevated only" : ''
-    $summary = "$lead$adminNote. $deprecation"
-
     $byName = @{}
     foreach ($s in $sources) { $byName[$s.Source] = $s }
+    $systemImage = $byName[$BackupSourceId.SystemImage]
+    $deprecation = 'System Image Backup has been deprecated since Windows 10 version 1709.'
+    # The note rides on the summary only when a system image is what protects the machine.
+    $summary = "$lead$adminNote." + ($systemImage -and $systemImage.State -eq 'present' ? " $deprecation" : '')
     $detail = @{
         sources           = @($sources | ForEach-Object {
                 [ordered]@{
@@ -75,8 +76,8 @@ $CheckBody = {
             })
         protected_count   = $present.Count
         needs_admin_count = $needsAdmin.Count
-        restore_points    = $elevated ? $byName['restore-points'].Count : $null
-        system_image      = $elevated ? $byName['system-image'].Count : $null
+        restore_points    = $elevated ? $byName[$BackupSourceId.RestorePoints].Count : $null
+        system_image      = $elevated ? $systemImage.Count : $null
         deprecation_note  = $deprecation
         items_count       = 0
         muted_count       = 0

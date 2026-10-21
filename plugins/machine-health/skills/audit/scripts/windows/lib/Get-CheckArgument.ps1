@@ -16,8 +16,9 @@ dispatcher must inject:
  - any check that declares -MutedKeys: a string[] of the owner's muted
    FindingKeys for that check, since checks never read mutes.json.
  - any check that declares -SampleSeconds: the run's sampling window, offered
-   only when the orchestrator passes one so the script's own default stands
-   otherwise.
+   only when the caller passes one. The orchestrator always does; the
+   ContainsKey branch serves callers that pass none, so the check script's own
+   default stands, as it does on a direct run of the script.
 
 The candidates are filtered against the parameters the check script declares
 (read from its metadata, without running it), because splatting a parameter a
@@ -27,7 +28,13 @@ no per-id edit in this file.
 
 The orchestrator computes the run-scoped paths and muted keys and passes them
 in. Neutrally named: cross-OS algorithm.
+
+Get-CheckTimeoutSec gives the dispatch timeout for the splat: the base, or for a
+check that samples, its window plus a margin when that is longer.
 #>
+
+$script:CheckTimeoutBaseSec = 90
+$script:SampleTimeoutMarginSec = 30
 
 function Get-CheckArgument {
     [CmdletBinding()]
@@ -60,4 +67,15 @@ function Get-CheckArgument {
         if ($name -in $declared) { $splat[$name] = $candidates[$name] }
     }
     return $splat
+}
+
+function Get-CheckTimeoutSec {
+    [CmdletBinding()]
+    [OutputType([int])]
+    param(
+        [Parameter(Mandatory = $true)] [AllowEmptyCollection()] [hashtable] $Arguments
+    )
+
+    if (-not $Arguments.ContainsKey('SampleSeconds')) { return $script:CheckTimeoutBaseSec }
+    return [int][math]::Max($script:CheckTimeoutBaseSec, $Arguments['SampleSeconds'] + $script:SampleTimeoutMarginSec)
 }

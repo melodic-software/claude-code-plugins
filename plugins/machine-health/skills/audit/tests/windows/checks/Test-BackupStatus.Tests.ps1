@@ -65,15 +65,16 @@ Describe 'Test-BackupStatus' -Tag 'check' {
             ($script:Result.detail.sources | Where-Object source -EQ 'windows-backup').state | Should -Be 'present'
         }
 
-        It 'states the System Image Backup deprecation' {
-            $script:Result.summary | Should -BeLike "*$script:Deprecation*"
+        It 'carries the deprecation note in detail, not in the summary, when no system image protects the machine' {
+            $script:Result.detail.deprecation_note | Should -Be $script:Deprecation
+            $script:Result.summary | Should -Not -BeLike "*$script:Deprecation*"
         }
     }
 
     Context 'elevated' {
         BeforeAll { Mock Test-IsElevated { $true } }
 
-        It 'is WARN when no source is present, and still states the deprecation' {
+        It 'is WARN when no source is present' {
             Mock Get-BackupSignal {
                 New-SourceSet -State @{
                     'system-image' = 'unknown'; 'restore-points' = 'absent'; 'file-history' = 'absent'
@@ -82,7 +83,6 @@ Describe 'Test-BackupStatus' -Tag 'check' {
             }
             $result = Invoke-BackupStatus
             $result.severity | Should -Be 'WARN'
-            $result.summary | Should -BeLike "*$script:Deprecation*"
             $result.detail.protected_count | Should -Be 0
         }
 
@@ -110,11 +110,22 @@ Describe 'Test-BackupStatus' -Tag 'check' {
             (Invoke-BackupStatus).severity | Should -Be 'UNKNOWN'
         }
 
-        It 'still states the deprecation when the read throws' {
+        It 'is UNKNOWN when the read throws' {
             Mock Get-BackupSignal { throw 'read failed' }
+            (Invoke-BackupStatus).severity | Should -Be 'UNKNOWN'
+        }
+
+        It 'puts the deprecation in the summary when a system image is the present source' {
+            Mock Get-BackupSignal {
+                New-SourceSet -State @{
+                    'system-image' = 'present'; 'restore-points' = 'absent'; 'file-history' = 'absent'
+                    'windows-backup' = 'absent'; 'onedrive-kfm' = 'absent'
+                } -Count @{ 'system-image' = 2; 'restore-points' = 0 }
+            }
             $result = Invoke-BackupStatus
-            $result.severity | Should -Be 'UNKNOWN'
+            $result.severity | Should -Be 'OK'
             $result.summary | Should -BeLike "*$script:Deprecation*"
+            $result.detail.system_image | Should -Be 2
         }
     }
 }

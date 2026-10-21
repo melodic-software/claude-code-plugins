@@ -463,7 +463,8 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         $checkArgs = Get-CheckArgument -CheckId $entry.id -ScriptPath $scriptPath -RunLog $runLog `
             -BatteryReportPath $batteryReportPath -MutedKeys $muted -SampleSeconds $SampleSeconds
         Write-MachineHealthLog "check_dispatch id=$($entry.id) script=$($entry.script)"
-        $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec 90 -Arguments $checkArgs
+        $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec (Get-CheckTimeoutSec -Arguments $checkArgs) `
+            -Arguments $checkArgs
 
         if (-not $dispatch.ok) {
             $checkResults.Add((New-UnknownCheckResult -Entry $entry `

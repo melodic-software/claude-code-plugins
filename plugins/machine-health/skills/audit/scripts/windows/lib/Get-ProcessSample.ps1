@@ -5,18 +5,16 @@
 Sample per-process CPU share and system-wide performance counters over one window.
 
 .DESCRIPTION
-Takes two Get-Process snapshots -SampleSeconds apart. A process's CPU share is
-its processor-time delta over (measured interval x logical CPUs) x 100, so a
-process that keeps one of four CPUs busy reads 25. A process absent from the
-first snapshot started inside the window, so all of its processor time counts.
-Snapshots join on Id plus start time, so a reused process id never yields a
-delta against an unrelated process.
+Takes two Get-Process snapshots -SampleSeconds apart and computes each process's
+CPU share from them (formula and its rationale: reference/windows/check-catalog.md
+section 26). A process absent from the first snapshot started inside the window,
+so all of its processor time counts. Snapshots join on Id plus start time, so a
+reused process id never yields a delta against an unrelated process.
 
-The system-wide counters are read with Get-Counter during the window, between
-the two snapshots, so the call takes about -SampleSeconds plus snapshot cost.
-Only system counters are read: the per-process counter set errors
-intermittently when processes come and go. Counter paths are English; on another
-display language the read fails and ReadState is 'error'.
+The system counters in $ProcessSampleCounter are read with Get-Counter during the
+window, between the two snapshots, so the call takes about -SampleSeconds plus
+snapshot cost. Counter paths are English; on another display language the read
+fails and ReadState is 'error'.
 
 Returns:
   IntervalSeconds  measured seconds between the snapshots
@@ -30,14 +28,10 @@ Returns:
   ReadState        'ok' when every counter read, else 'error'
 #>
 
-function Get-ProcessSample {
-    [CmdletBinding()]
-    [OutputType([pscustomobject])]
-    param(
-        [ValidateRange(1, 3600)] [int] $SampleSeconds = 15
-    )
-
-    $counterPaths = [ordered]@{
+# The counter set and its per-sample interval; the check's commands entry and the
+# catalog both point here rather than list the counters again.
+$script:ProcessSampleCounter = [pscustomobject]@{
+    Paths          = [ordered]@{
         CpuTotalPct          = '\Processor(_Total)\% Processor Time'
         ProcessorQueueLength = '\System\Processor Queue Length'
         CommittedPct         = '\Memory\% Committed Bytes In Use'
@@ -45,11 +39,21 @@ function Get-ProcessSample {
         DiskReadSec          = '\PhysicalDisk(_Total)\Avg. Disk sec/Read'
         DiskWriteSec         = '\PhysicalDisk(_Total)\Avg. Disk sec/Write'
     }
+    SampleInterval = 1
+}
 
+function Get-ProcessSample {
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true)] [int] $SampleSeconds
+    )
+
+    $counterPaths = $script:ProcessSampleCounter.Paths
     $first = Get-ProcessSnapshot
     $startedAt = Get-Date
-    $sets = @(Get-Counter -Counter @($counterPaths.Values) -SampleInterval 1 -MaxSamples $SampleSeconds `
-            -ErrorAction SilentlyContinue)
+    $sets = @(Get-Counter -Counter @($counterPaths.Values) -SampleInterval $script:ProcessSampleCounter.SampleInterval `
+            -MaxSamples $SampleSeconds -ErrorAction SilentlyContinue)
     # A counter read that fails early still leaves the CPU deltas a full window.
     $remainingMs = [int]($SampleSeconds * 1000 - ((Get-Date) - $startedAt).TotalMilliseconds)
     if ($remainingMs -gt 0) { Start-Sleep -Milliseconds $remainingMs }

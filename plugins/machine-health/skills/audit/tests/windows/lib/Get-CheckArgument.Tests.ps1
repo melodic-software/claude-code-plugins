@@ -98,6 +98,32 @@ param([switch] $Human)
             $splat.ContainsKey('SampleSeconds') | Should -BeFalse
         }
 
+        It 'keeps the base dispatch timeout for a check that does not sample' {
+            Get-CheckTimeoutSec -Arguments @{ MutedKeys = [string[]]@() } | Should -Be 90
+            Get-CheckTimeoutSec -Arguments @{ SampleSeconds = 15 } | Should -Be 90
+        }
+
+        It 'stretches the dispatch timeout to the window plus its margin when that is longer' {
+            Get-CheckTimeoutSec -Arguments @{ SampleSeconds = 75 } | Should -Be 105
+        }
+
+        It 'allows a window that reaches the sustained window and fits under its timeout' {
+            $orchestrator = Join-Path $script:SkillRoot 'scripts\windows\Invoke-MachineHealthCheck.ps1'
+            $range = (Get-Command -Name $orchestrator -CommandType ExternalScript).Parameters['SampleSeconds'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateRangeAttribute] }
+            $max = [int]$range.MaxRange
+            $check = Join-Path $script:ChecksRoot 'Test-TopProcesses.ps1'
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($check, [ref]$null, [ref]$null)
+            $assign = $ast.Find({
+                    param($n)
+                    $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                    $n.Left.Extent.Text -ceq '$SustainedSeconds'
+                }, $false)
+            $sustained = [int]$assign.Right.Extent.Text
+            $max | Should -BeGreaterOrEqual $sustained
+            Get-CheckTimeoutSec -Arguments @{ SampleSeconds = $max } | Should -BeGreaterThan $max
+        }
+
         It 'never gives -SampleSeconds to a check that does not declare it' {
             $splat = Get-CheckArgument -CheckId 'disk-health' `
                 -ScriptPath (Join-Path $script:ChecksRoot 'Test-DiskHealth.ps1') -SampleSeconds 60

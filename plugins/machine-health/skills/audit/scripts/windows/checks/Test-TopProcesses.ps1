@@ -7,11 +7,10 @@ See reference/windows/check-catalog.md#26-top-processes for rubric.
 
 .DESCRIPTION
 Samples processes and system counters over -SampleSeconds (Get-ProcessSample)
-and grades the system counters against Microsoft Learn's published bands. Those
-bands are written for Windows Server, and the result says so. Disk latency is
-graded only when the window is long enough to call it sustained. The listed
-processes are context: they never raise the severity, and a muted one stays
-listed with muted = $true.
+and grades the system counters. The bands, their mapping to severity, the
+sustained window and why the listed processes never raise severity are the
+catalog section's decisions (see above). -SampleSeconds keeps a default for
+direct runs; the orchestrator validates and passes the run's window.
 #>
 [CmdletBinding()]
 param(
@@ -28,20 +27,22 @@ $ErrorActionPreference = 'Continue'
 
 $id = 'top-processes'
 $category = 'reliability'
+$counter = $ProcessSampleCounter
 $commands = @(
     "Get-Process (two snapshots $SampleSeconds s apart)"
-    "Get-Counter -Counter '\Processor(_Total)\% Processor Time', '\System\Processor Queue Length', '\Memory\% Committed Bytes In Use', '\Memory\Available MBytes', '\PhysicalDisk(_Total)\Avg. Disk sec/Read', '\PhysicalDisk(_Total)\Avg. Disk sec/Write' -SampleInterval 1 -MaxSamples $SampleSeconds"
+    ("Get-Counter -Counter $(($counter.Paths.Values | ForEach-Object { "'$_'" }) -join ', ') " +
+        "-SampleInterval $($counter.SampleInterval) -MaxSamples $SampleSeconds")
 )
+# The shortest window that grades disk latency (catalog section 26). The orchestrator's
+# -SampleSeconds maximum must reach it; Get-CheckArgument.Tests.ps1 checks that.
+$SustainedSeconds = 60
 
 $FailureSummary = 'Top-processes sample failed.'
 $PassThru = $false
 $CheckBody = {
     $thresholdsLabel = 'Windows Server guidance (Microsoft Learn)'
-    # Learn's disk-latency guidance tolerates spikes and asks for latency sustained over about a minute.
-    $sustainedSeconds = 60
     $topCount = 10
-    # Learn's Warning band reads INFO and its Critical band WARN: a window of seconds on a
-    # client is evidence to look at, not the imminent failure the rubric keeps CRIT for.
+    # Values per band, keyed by the severity each reads as (mapping: catalog section 26).
     $band = @{
         CpuPct           = @{ INFO = 50; WARN = 80 }
         QueuePerCpu      = 2
@@ -57,7 +58,7 @@ $CheckBody = {
         [math]::Round($c.ProcessorQueueLength / $sample.LogicalCpus, 2) : $null
     $availablePct = ($null -ne $c.AvailableMb -and $c.TotalPhysicalMb) ?
         [math]::Round($c.AvailableMb / $c.TotalPhysicalMb * 100, 1) : $null
-    $sustained = $SampleSeconds -ge $sustainedSeconds
+    $sustained = $SampleSeconds -ge $SustainedSeconds
 
     $signals = [System.Collections.Generic.List[pscustomobject]]::new()
     $add = { param($metric, $level, $text) $signals.Add([pscustomobject]@{ metric = $metric; severity = $level; text = $text }) }
@@ -113,16 +114,11 @@ $CheckBody = {
                 }
         })
 
-    $floor = switch ($sample.ReadState) {
-        'ok' { 'OK' }
-        'absent' { 'OK' }
-        default { 'UNKNOWN' }
-    }
-    $severity = Get-WorstSeverity -Levels (@(Get-UnmutedSeverity -Items $items) + @($signals | ForEach-Object severity))
-    if ($floor -ne 'OK' -and $severity -eq 'OK') { $severity = $floor }
+    $severity = Get-WorstSeverity -Levels @($signals | ForEach-Object severity)
+    if ($severity -eq 'OK') { $severity = Get-UnmutedSeverity -ReadState $sample.ReadState }
 
     $diskNote = $sustained ? "disk latency $($c.DiskLatencyMs) ms" :
-        "disk latency not sustained-tested (window under $sustainedSeconds s)"
+        "disk latency not sustained-tested (window under $SustainedSeconds s)"
     $lead = "CPU $($c.CpuTotalPct)% over $($sample.IntervalSeconds) s on $($sample.LogicalCpus) CPUs"
     $top = @($byCpu | Select-Object -First 3 | ForEach-Object { "$($_.Name) $($_.CpuPct)%" }) -join ', '
     $flagged = @($signals | Where-Object severity -NE 'OK' | ForEach-Object text) -join '; '
