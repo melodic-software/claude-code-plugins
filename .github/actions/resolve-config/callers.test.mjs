@@ -9,7 +9,7 @@
 // work-resolve-issue.yml caps its concurrent runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -1498,4 +1498,124 @@ test("leak scan: the uploads and the summary read the scanned copies, and the pa
   const { createHash } = await import("node:crypto");
   assert.equal(outputs["patch-sha256"], createHash("sha256").update(original).digest("hex"));
   rmSync(outputs.dir, { recursive: true, force: true });
+});
+
+// --- post-leg git in the head workspace ---
+
+// A checkout as the run left it, with git config the model could plant: a
+// filter its .gitattributes names, an fsmonitor and a hook, each touching a
+// marker if git runs it.
+function plantedCheckout(t) {
+  const root = mkdtempSync(join(tmpdir(), "post-leg-git-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const work = join(root, "work");
+  const temp = join(root, "temp");
+  const marks = join(root, "marks");
+  for (const dir of [work, join(temp, "read-patch"), marks]) mkdirSync(dir, { recursive: true });
+  writeFileSync(join(temp, "read-patch", "collect-patch.sh"), readFileSync(COLLECT));
+  const git = (...args) => spawnSync("git", args, { cwd: work, encoding: "utf8" });
+  git("init", "-q", "-b", "main");
+  writeFileSync(join(work, "tracked.txt"), "unchanged\n");
+  git("add", "tracked.txt");
+  git("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "head");
+  const head = git("rev-parse", "HEAD").stdout.trim();
+  const plant = () => {
+    const script = (name) => {
+      const file = join(root, `${name}.sh`);
+      writeFileSync(file, `#!/bin/sh\ntouch '${join(marks, name)}'\ncat\n`, { mode: 0o755 });
+      return file;
+    };
+    git("config", "filter.x.clean", script("filter"));
+    mkdirSync(join(work, ".git", "info"), { recursive: true });
+    writeFileSync(join(work, ".git", "info", "attributes"), "* filter=x\n");
+    git("config", "core.fsmonitor", script("fsmonitor"));
+    mkdirSync(join(work, ".git", "hooks"), { recursive: true });
+    writeFileSync(join(work, ".git", "hooks", "post-index-change"), readFileSync(script("hook")), { mode: 0o755 });
+  };
+  return { root, work, temp, marks, head, git, plant };
+}
+
+const runStep = (step, cwd, env) =>
+  spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", step.run], { cwd, env: { PATH: process.env.PATH, ...env }, encoding: "utf8" });
+
+test("pr-run-activity-read.yml: the dirty-tree check runs no git config the model planted and prints no path", (t) => {
+  const steps = runSteps();
+  const tree = steps.find((s) => s.id === "tree");
+  const copy = steps.find((s) => s.name === "Copy the patch collector from the base");
+  // The collector is copied for every activity that runs, not only patch mode.
+  assert.equal(evaluate(copy.if, { "steps.go.outputs.run": "true" }), true);
+  assert.ok(steps.indexOf(copy) < steps.findIndex((s) => s.name === "Check out the PR head"), "copied before head code");
+  // setup runs before the plant, so its own git runs nothing planted.
+  const check = (setup) => {
+    const state = plantedCheckout(t);
+    setup(state);
+    state.plant();
+    const output = join(state.root, "github-output");
+    writeFileSync(output, "");
+    const result = runStep(tree, state.work, {
+      HEAD_SHA: state.head,
+      TREE_DIFF: join(state.temp, "tree-check", "tree.diff"),
+      RUNNER_TEMP: state.temp,
+      GITHUB_OUTPUT: output,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(readdirSync(state.marks), [], "nothing planted ran");
+    assert.equal(result.stdout, "", "no path reaches the log");
+    assert.equal(existsSync(join(state.temp, "tree-check", "tree.diff")), false, "the diff is not kept");
+    return readFileSync(output, "utf8");
+  };
+  assert.equal(check(() => {}), "dirty-tree=false\n", "config, attributes and hooks in .git are no change");
+  assert.equal(check(({ work }) => writeFileSync(join(work, "tracked.txt"), "changed\n")), "dirty-tree=true\n");
+  assert.equal(check(({ work }) => writeFileSync(join(work, "made.txt"), "new\n")), "dirty-tree=true\n", "an untracked file");
+  assert.equal(
+    check(({ work, git }) => {
+      writeFileSync(join(work, "made.txt"), "new\n");
+      git("add", "made.txt");
+      git("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "made");
+    }),
+    "dirty-tree=true\n",
+    "a commit the activity made is a change against the gated head",
+  );
+  assert.equal(
+    check(({ work }) => {
+      mkdirSync(join(work, ".lane"));
+      writeFileSync(join(work, ".lane", "prompt.md"), "staged\n");
+    }),
+    "dirty-tree=false\n",
+    "the staged .lane/ is no change",
+  );
+  // A collector that fails fails the step.
+  const broken = plantedCheckout(t);
+  writeFileSync(join(broken.temp, "read-patch", "collect-patch.sh"), "exit 1\n");
+  assert.notEqual(runStep(tree, broken.work, { HEAD_SHA: broken.head, TREE_DIFF: join(broken.temp, "x", "d"), RUNNER_TEMP: broken.temp, GITHUB_OUTPUT: join(broken.root, "o") }).status, 0);
+});
+
+test("pr-run-activity-read.yml: after the collector, no checkout's post step finds a .git/config to run git in", (t) => {
+  const steps = runSteps();
+  const remove = steps.find((s) => s.name === "Remove the checkouts' .git directories");
+  const at = (predicate) => steps.findIndex(predicate);
+  assert.ok(at((s) => s === remove) > at((s) => s.id === "patch"), "after the collector");
+  assert.ok(at((s) => s === remove) > at((s) => s.id === "tree"), "after the tree check");
+  // Every git step in the job runs before it.
+  const gitAfter = steps.slice(at((s) => s === remove) + 1).filter((s) => /\bgit\b/.test(String(s.run ?? "")) || String(s.uses ?? "").startsWith("actions/checkout@"));
+  assert.deepEqual(gitAfter.map((s) => s.name), []);
+  // It runs after a failed or skipped collector, and whenever the head checkout ran in PR mode.
+  const runs = (overrides) => atStep(remove.if, prRun(remove.if, overrides));
+  assert.equal(runs({}), true);
+  assert.equal(runs({ "steps.patch.outcome": "failure", "job.status": "failure" }), true);
+  assert.equal(runs({ "steps.go.outputs.run": "" }), false, "no head checkout");
+  assert.equal(runs({ "inputs.issue-number": "7" }), false, "issue mode is unchanged");
+  // actions/checkout@3d3c42e5 cleanup() returns when <path>/.git/config is
+  // missing (src/git-source-provider.ts:331-336), and each post step passes
+  // its own checkout's path (src/main.ts:34): the workspace and .base.
+  const state = plantedCheckout(t);
+  state.plant();
+  mkdirSync(join(state.work, ".base", ".git"), { recursive: true });
+  writeFileSync(join(state.work, ".base", ".git", "config"), "[core]\n\tfsmonitor = /bin/false\n");
+  const result = runStep(remove, state.temp, { GITHUB_WORKSPACE: state.work });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(join(state.work, ".git", "config")), false);
+  assert.equal(existsSync(join(state.work, ".base", ".git", "config")), false);
+  assert.equal(readFileSync(join(state.work, "tracked.txt"), "utf8"), "unchanged\n", "the work tree stays");
+  assert.equal(runStep(remove, state.temp, {}).status, 1, "an unset workspace removes nothing");
 });

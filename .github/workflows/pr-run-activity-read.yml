@@ -724,8 +724,10 @@ jobs:
           done
           echo "ready=true" >>"$GITHUB_OUTPUT"
 
+      # The collector writes the patch in patch mode and checks the tree is
+      # clean otherwise.
       - name: Copy the patch collector from the base
-        if: steps.go.outputs.run == 'true' && steps.config.outputs.applied-by-patch != ''
+        if: steps.go.outputs.run == 'true'
         env:
           DEST: ${{ runner.temp }}/read-patch
         run: |
@@ -1255,16 +1257,25 @@ jobs:
           fi
           echo "skip-reason=$reason" >>"$GITHUB_OUTPUT"
 
+      # Through the collector, so git reads none of the checkout's .git
+      # config, hooks or info files: any change against the gated head,
+      # committed or not, is a dirty tree. No path is printed, since the
+      # activity chose the names.
       - name: Check the working tree is clean
         id: tree
         if: steps.go.outputs.run == 'true' && steps.config.outputs.applied-by-patch == ''
+        env:
+          HEAD_SHA: ${{ steps.start.outputs.sha }}
+          TREE_DIFF: ${{ runner.temp }}/tree-check/tree.diff
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            git status --short
-            echo "dirty-tree=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "dirty-tree=false" >>"$GITHUB_OUTPUT"
-          fi
+          mkdir -p "${TREE_DIFF%/*}"
+          out=$(bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$TREE_DIFF")
+          rm -f "$TREE_DIFF"
+          case "$(sed -n 's/^state=//p' <<<"$out")" in
+            written) echo "dirty-tree=true" >>"$GITHUB_OUTPUT" ;;
+            empty) echo "dirty-tree=false" >>"$GITHUB_OUTPUT" ;;
+            *) exit 1 ;;
+          esac
 
       # Patch output mode, for an activity whose applied-by names a patch, in
       # place of the clean-tree check, and only after an act step that
@@ -1732,6 +1743,15 @@ jobs:
           path: ${{ runner.temp }}/verdict/verdict.json
           retention-days: 1
           if-no-files-found: error
+
+      # Each actions/checkout post step runs git in its checkout's path
+      # whenever <path>/.git/config is there, as a node step that holds the
+      # job's runtime token. The head checkout's .git is the model's to write,
+      # and the head checkout removed .base, so the model could make one
+      # there too; with both gone, both post steps return before any git runs.
+      - name: Remove the checkouts' .git directories
+        if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
+        run: rm -rf "${GITHUB_WORKSPACE:?}/.git" "${GITHUB_WORKSPACE:?}/.base/.git"
 
       # The launcher steps fail softly. A run that handed off ends green and
       # leaves the activity to the fallback call; any other PR-mode skill run
