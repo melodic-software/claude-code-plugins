@@ -1,5 +1,5 @@
 ---
-description: "Maps each finding in one review findings file to the cheapest deterministic check that could catch it (editorconfig severity, analyzer rule, custom analyzer, Semgrep rule, architecture test, hook, or llm-only) and writes one proposal stub per finding; it proposes and never implements. Use when: 'which of these findings could a linter or analyzer catch', 'audit enforceability', 'promote findings to a deterministic check', 'what rung catches this', 'can we stop re-finding this'."
+description: "Maps each finding in one review findings file to the cheapest deterministic check that could catch it (editorconfig severity, analyzer rule, custom analyzer, Semgrep rule, architecture test, action-guard, or automated-review) and writes one proposal stub per finding; it proposes and never implements. Use when: 'which of these findings could a linter or analyzer catch', 'audit enforceability', 'promote findings to a deterministic check', 'what rung catches this', 'can we stop re-finding this'."
 argument-hint: "<findings-file>"
 user-invocable: true
 disable-model-invocation: false
@@ -61,7 +61,7 @@ Per row, first hit wins. **Never drop a row**: the last step always produces a c
    Class from that row, `class-basis: dimension`. An unlisted dimension falls through.
 4. Your own judgment over the `Finding` and `Action` text, into the crosswalk's class vocabulary.
    `class-basis: judgment`.
-5. Nothing resolved: class `unclassified`, rung `llm-only`, `class-basis: unresolved`.
+5. Nothing resolved: class `unclassified`, rung `automated-review`, `class-basis: unresolved`.
 
 This step is done when every rank in the table carries exactly one class and one basis, and the
 count of classified rows equals the count of rows the table carried.
@@ -202,12 +202,12 @@ the rule.
 - **`architecture-test`**: point at ArchUnitNET (<https://archunitnet.readthedocs.io/>) for .NET
   and the dependency-cruiser repository docs (<https://github.com/sverweij/dependency-cruiser>)
   for JS/TS.
-- **`hook`**: run `/harness-config:audit-automation-gaps hooks` (if the `harness-config` plugin is
+- **`action-guard`**: run `/harness-config:audit-automation-gaps hooks` (if the `harness-config` plugin is
   enabled) and present the stub as a candidate in its candidate-list step, which is
   self-generated and takes no findings input; otherwise the stub records the candidate with the
   evidence that skill's gates ask for (frequency, incident history, the enforcement level already
   covering it) and stops.
-- **`llm-only`**: say plainly that no check catches this one and it stays a review-time judgment.
+- **`automated-review`**: say plainly that no check catches this one and it stays a review-time judgment.
 
 ## 7. Boundary
 

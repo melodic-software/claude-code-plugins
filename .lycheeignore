@@ -55,3 +55,37 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://jackrighteous\.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-prompt-too-complicated-clean-workflow$
 ^https://testing\.googleblog\.com/2017/07/code-health-to-comment-or-not-to-comment\.html$
 ^https://testing\.googleblog\.com/2016/05/flaky-tests-at-google-and-how-we\.html$
+
+# Fictional course and video in knowledge eval prompts: the YouTube id answers 404 by design, and the Udemy course page answers 403 to the runner and to a browser User-Agent; test data, not an external dependency (verified 2026-10-21).
+^https://www\.udemy\.com/course/clean-architecture-in-dotnet/$
+^https://www\.youtube\.com/watch\?v=Ab3dE5fGh7I$
+
+# Fictional repository in the map-corpus eval prompt: answers 404 by design; test data, not an external dependency (verified 2026-10-21).
+^https://raw\.githubusercontent\.com/example-org/retry-spec/main/README\.md$
+^https://raw\.githubusercontent\.com/example-org/retry-spec/main/SPEC\.md$
+
+# Publisher bot block: 403 to the runner, 200 to a browser User-Agent for O'Reilly (verified 2026-10-21); sec.gov and iso.org answer 403 to a browser User-Agent too, and each cited page is the stable canonical source.
+^https://www\.oreilly\.com/library/view/learning-domain-driven-design/9781098100124/$
+^https://www\.sec\.gov/Archives/edgar/data/1018724/000119312516530910/d168744dex991\.htm$
+^https://www\.iso\.org/standard/78176\.html$
+
+# x.com status in a vendored upstream snapshot we cannot edit: 503 on the runner (online run 39417117475), 200 to a browser User-Agent from a workstation (verified 2026-10-21).
+^https://x\.com/bcherny/status/2063792263067754658$
+
+# Runner-IP throttling: 429 or timeout on GitHub runners in 3 of the last 11 online runs (38155110861, 38161413154, 38392690745) despite per-host pacing; the GNU standards page is live.
+^https://www\.gnu\.org/prep/standards/html_node/Command_002dLine-Interfaces\.html$
+
+# Host unreachable from the runner: the same URL failed both online runs of 2026-10-21 (39616513990, 39618097885) with the status or timeout named below, and absent from the scheduled runs on main 38392690745 and earlier. wstomv.win.tue.nl answers 503 from a workstation too (2026-10-21); archive.org and mycourses.aalto.fi time out from a workstation (2026-10-21); rosenfeldmedia.com answers 522 on the runner and 200 from a workstation.
+^https://wstomv\.win\.tue\.nl/edu/2ip30/references/criteria_for_modularization\.pdf$
+^https://rosenfeldmedia\.com/books/search-analytics-for-your-site-frequently-asked-questions/$
+^https://archive\.org/details/practiceofprogra0000kern$
+^https://archive\.org/stream/pixel-logic-a-guide-to-pixel-art-michael-azzi/Pixel%20logic%20a%20guide%20to%20pixel%20art%20-%20Michael%20Azzi_djvu\.txt$
+^https://mycourses\.aalto\.fi/pluginfile\.php/2272345/mod_folder/content/0/Bitner%20et%20al\.%202008\.pdf\?forcedownload=1$
+
+# GitHub REST API endpoints cited as how a fact was fetched: 403 on the runner (online run 39616513990), 200 unauthenticated from a workstation (verified 2026-10-21). A host-wide exclude is proposed in melodic-software/standards#831.
+^https://api\.github\.com/repos/anthropics/claude-code/commits\?path=mods$
+^https://api\.github\.com/repos/anthropics/claude-code/commits\?path=mods&per_page=100&sha=main$
+^https://api\.github\.com/repos/anthropics/claude-code/issues/91870/comments$
+^https://api\.github\.com/repos/anthropics/claude-code/releases$
+^https://api\.github\.com/repos/anthropics/claude-code/releases/tags/v2\.1\.269$
+^https://api\.github\.com/repos/anthropics/claude-code/tags$

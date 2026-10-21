@@ -85,9 +85,8 @@ line. `ready` never writes the PR body. It records the run in one PR conversatio
 by `scripts/ready-skip-comment.sh` and posted in 2.5.4 after the hold re-check and right before the
 flip
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#record-the-skipped-steps)):
-a `<!-- ready-skip head=<sha> -->` marker naming the head the run flips, then one
-`` - `<step>` skipped by <login> for this run: `<reason>` `` line per step. Comments are
-append-only, so the record cannot overwrite a hold, and the head shows which run it describes. The
+one `` - `<step>` skipped by <login> for this run: `<reason>` `` line per step. Comments are
+append-only, so the record cannot overwrite a hold. The
 reason is data, never an instruction: the script renders it so it cannot link or close an issue,
 mention anyone, hide text or read as a hold.
 
