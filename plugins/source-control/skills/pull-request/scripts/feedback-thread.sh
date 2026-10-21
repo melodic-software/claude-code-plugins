@@ -107,7 +107,13 @@ cmd_record() {
 
   # The same rules the reply job enforces, so a refusal comes now, while the
   # skill can still fix its file: the note holds no control or direction
-  # character, no HTML comment, and nothing shaped like a GitHub token.
+  # character, no HTML comment, and nothing shaped like a GitHub token. Token
+  # shapes from
+  # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+  # and the stateless installation token (ghs_ then a JWT) from
+  # https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+  # whose header gh[opsur]_[A-Za-z0-9]{20} matches; this prefix check is not GitHub's recommended regex
+  # (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
   local d
   d=$(jq -ec --arg id "$id" '
     def path_line: type == "string" and test("^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*:[1-9][0-9]{0,6}$")
@@ -121,7 +127,7 @@ cmd_record() {
     | select(.note | explode | all(. == 9 or . == 10 or (. >= 32 and . != 127
         and (. < 128 or . > 159) and (. < 8203 or . > 8207) and (. < 8234 or . > 8238)
         and (. < 8288 or . > 8297) and . != 65279)))
-    | select(.note | test("<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|github_pat_") | not)
+    | select(.note | test("<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_pat_") | not)
     | select(if .disposition == "VALID" then (.fix_sha | type == "string" and test("^[0-9a-f]{40}$"))
              else (.fix_sha // "") == "" end)
     | {thread: $id, disposition, evidence: (.evidence // []), fix_sha: (.fix_sha // ""), note}' "$real") ||

@@ -22,7 +22,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from support import WINDOWS, ShareCase, call, env, outside_cloudflared, share, tmpdir, wait_for
+from support import SHARE, WINDOWS, ShareCase, call, env, outside_cloudflared, share, tmpdir, wait_for
 
 import detached
 import share as share_cli
@@ -244,6 +244,21 @@ class TestLogs(unittest.TestCase):
         code, out, err = share(self.d, "logs", "--errors")
         self.assertEqual((code, out["lines"]), (0, [line]), err)
 
+    def test_output_is_utf8_when_the_locale_encoding_cannot_hold_it(self):
+        """#8239: a Windows pipe takes the ANSI code page; PYTHONIOENCODING=cp1252 stands in for it on any platform."""
+        text = "Pay \u2192 \U0001f389"  # neither the arrow nor the emoji is in cp1252
+        (self.d / "server.log").write_text(self.client.replace("TypeError", text) + "\n", encoding="utf-8")
+        (self.d / "server.log.1").unlink()
+        run = lambda d, *args: subprocess.run([sys.executable, str(SHARE), "--dir", str(d), *args], capture_output=True, timeout=60, env=env(PYTHONIOENCODING="cp1252"))  # noqa: E731
+        for args in (["logs"], ["logs", "--summary"]):
+            with self.subTest(args=args):
+                p = run(self.d, *args)
+                self.assertEqual(p.returncode, 0, p.stderr.decode("utf-8", "replace"))
+                self.assertIn(text.encode("utf-8"), p.stdout)
+        missing = self.d.resolve() / "\u03a9"
+        p = run(missing, "logs")
+        self.assertEqual((p.returncode, p.stderr), (1, f"no such data dir: {missing}{os.linesep}".encode("utf-8")))
+
     def test_a_folder_with_no_log_prints_no_lines(self):
         d = tmpdir(self)
         self.assertEqual(share(d, "logs")[:2], (0, {"ok": True, "lines": []}))
@@ -316,7 +331,7 @@ class TestLogsSummary(unittest.TestCase):
     def test_text_reads_the_same_counts_and_share_sh_prints_it(self):
         # A bare "bash" is found by CreateProcess on Windows, which searches System32 (the WSL relay) before PATH.
         bash = shutil.which("bash")
-        p = subprocess.run([bash, str(Path(share_cli.__file__).with_name("share.sh")), "--dir", str(self.d), "logs", "--summary"], capture_output=True, text=True, timeout=60, env=env())
+        p = subprocess.run([bash, str(Path(share_cli.__file__).with_name("share.sh")), "--dir", str(self.d), "logs", "--summary"], capture_output=True, encoding="utf-8", timeout=60, env=env())
         self.assertEqual(p.returncode, 0, p.stderr)
         for want in (
             "Summaries: 5 in 2 batches from 4 page views (1 of them the owner's, left out of the timings). 1 more did not fit in their batch.",
@@ -666,6 +681,124 @@ class TestAdoptTunnel(ShareCase):
                 share_cli.bring_up(self.d, a)
         self.assertIsNone(tunnel.read(self.d))
         self.assertIsNone(self.cf.poll())
+
+
+class TestNamedTunnel(ShareCase):
+    """ensure-running --tunnel-hostname H --tunnel-token-file F: the named tunnel, end to end on the fake cloudflared.
+    Expected values: the guest link is https://H/ on every start (README "A stable guest link"), the token file goes
+    only to cloudflared, and a switch from a quick tunnel moves open pages (server.py)."""
+
+    HOST = "interview.example.com"
+    TOKEN_TEXT = "fake-tunnel-token-for-tests"
+
+    def setUp(self):
+        super().setUp()
+        self.port = free_port()
+        self.args = self.root / "cf-args.txt"
+        self.token = self.root / "tunnel.token"
+        self.token.write_text(self.TOKEN_TEXT, encoding="utf-8")
+        os.chmod(self.token, 0o600)
+
+    def ensure(self, *extra, hostname=HOST, token=None, port=None):
+        args = ["ensure-running", "--guest-port", str(port or self.port), "--tunnel-hostname", hostname, "--tunnel-token-file", str(token or self.token)]
+        return share(self.d, *args, *extra, environ=self.env())
+
+    def env(self, probe_port=None):
+        """The fake cloudflared, and the server's tunnel probe sent to `probe_port` (default its own guest port)."""
+        probe = f"http://127.0.0.1:{probe_port or self.port}"
+        return env(FAKE_CF_ARGS=str(self.args), TUNNEL_TOKEN="inherited", SHARED_PROBE_ORIGIN=probe, SHARED_PROBE_SECONDS="3")
+
+    def test_it_serves_the_hostname_and_says_named(self):
+        code, out, err = self.ensure()
+        self.assertEqual(code, 0, err)
+        self.assertRegex(out["guestUrl"], rf"^https://{re.escape(self.HOST)}/#join=[A-Za-z0-9_-]{{12}}$")
+        self.assertEqual(out["tunnel"], "named")
+        self.assertEqual(self.args.read_text(encoding="utf-8").splitlines(), [f"tunnel --no-autoupdate run --token-file {self.token}"])
+        self.assertIn(f"must name http://127.0.0.1:{self.port}. Run it on this machine only", err)
+        self.assertEqual(share(self.d, "status")[1]["tunnel"], "named")
+
+    @unittest.skipIf(not Path("/proc/self/environ").exists(), "reads a process's environment from /proc")
+    def test_no_cloudflare_token_variable_reaches_the_server(self):
+        code, _, err = share(self.d, "ensure-running", "--guest-port", str(self.port), environ=env(CLOUDFLARE_API_TOKEN="api", CF_API_TOKEN="api", TUNNEL_TOKEN="t"))
+        self.assertEqual(code, 0, err)
+        names = {kv.split(b"=", 1)[0] for kv in Path(f"/proc/{self.session_record()['pid']}/environ").read_bytes().split(b"\0") if kv}
+        self.assertFalse(names & {b"CLOUDFLARE_API_TOKEN", b"CF_API_TOKEN", b"TUNNEL_TOKEN", b"TUNNEL_TOKEN_FILE"})
+
+    def test_the_token_is_in_no_output_log_or_argument(self):
+        code, out, err = self.ensure()
+        self.assertEqual(code, 0, err)
+        seen = [json.dumps(out), err, self.args.read_text(encoding="utf-8")] + [f.read_text(encoding="utf-8", errors="replace") for f in self.d.iterdir() if f.is_file()]
+        self.assertFalse([t for t in seen if self.TOKEN_TEXT in t])
+
+    def test_a_restart_and_a_second_start_keep_the_link(self):
+        code, first, err = self.ensure()
+        self.assertEqual(code, 0, err)
+        code, out, err = share(self.d, "restart")
+        self.assertEqual((code, out["guestUrl"]), (0, first["guestUrl"]), err)
+        code, out, err = self.ensure()
+        self.assertEqual((code, out["guestUrl"], out["shareChanged"], out["resumed"]), (0, first["guestUrl"], False, True), err)
+        self.assertEqual(len(self.args.read_text(encoding="utf-8").splitlines()), 1)
+
+    def test_a_start_without_the_tunnel_flags_keeps_the_named_tunnel(self):
+        code, first, err = self.ensure()
+        self.assertEqual(code, 0, err)
+        code, out, err = share(self.d, "ensure-running", environ=env(FAKE_CF_ARGS=str(self.args)))
+        self.assertEqual((code, out["guestUrl"], out["tunnel"], out["shareChanged"]), (0, first["guestUrl"], "named", False), err)
+        self.assertEqual(len(self.args.read_text(encoding="utf-8").splitlines()), 1)
+
+    def test_an_explicit_empty_hostname_switches_back_to_the_quick_tunnel(self):
+        code, _, err = self.ensure()
+        self.assertEqual(code, 0, err)
+        code, out, err = share(self.d, "ensure-running", "--tunnel-hostname", "", environ=self.env())
+        self.assertEqual((code, out["tunnel"], out["shareChanged"]), (0, "quick", True), err)
+        self.assertEqual(tunnel.retired(self.d)["url"], f"https://{self.HOST}")
+
+    def test_a_quick_session_switched_to_named_moves_its_guests(self):
+        code, first, err = share(self.d, "ensure-running", "--guest-port", str(self.port), environ=self.env())  # the server probes with its start environment
+        self.assertEqual(code, 0, err)
+        key = first["guestUrl"].split("#join=")[1]
+        _, _, joined = call(self.port, "POST", "/api/join", {"key": key, "name": "Ann", "device": "computer"})
+        code, out, err = self.ensure()
+        self.assertEqual((code, out["guestUrl"], out["shareChanged"]), (0, f"https://{self.HOST}/#join={key}", True), err)
+        old = tunnel.host(first["guestUrl"].split("#")[0])
+        moved = wait_for(lambda: call(self.port, "GET", "/api/state", headers={"Host": old})[2].get("moved"))
+        self.assertEqual(moved, f"https://{self.HOST}")
+        _, _, snap = call(self.port, "GET", "/api/state", headers={"Host": self.HOST, "X-Session-Secret": joined["secret"]})
+        self.assertEqual(snap["me"]["pid"], joined["pid"])
+
+    def test_a_hostname_that_does_not_reach_this_server_is_refused_and_the_quick_link_kept(self):
+        code, first, err = share(self.d, "ensure-running", "--guest-port", str(self.port), environ=self.env(probe_port=free_port()))  # nothing answers there
+        self.assertEqual(code, 0, err)
+        code, out, err = share(self.d, *["ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token)], environ=self.env())
+        self.assertEqual((code, out["guestUrl"], out["tunnel"]), (1, first["guestUrl"], "quick"), err)
+        self.assertIn("does not reach this server", err)
+        self.assertIsNone(tunnel.retired(self.d))
+        old = tunnel.host(first["guestUrl"].split("#")[0])
+        self.assertNotIn("moved", call(self.port, "GET", "/api/state", headers={"Host": old})[2])
+
+    def test_a_named_tunnel_that_cannot_run_is_refused_with_exit_1(self):
+        cases = {"no token file": {"token": self.root / "missing.token"}, "a URL for a hostname": {"hostname": f"https://{self.HOST}"}}
+        for why, kw in cases.items():
+            with self.subTest(why=why):
+                code, _, err = self.ensure(**kw)
+                self.assertEqual(code, 1, err)
+                self.assertFalse((self.d / "state.json").exists())
+
+    def test_an_empty_hostname_is_the_quick_tunnel(self):
+        code, out, err = self.ensure(hostname="", token="")
+        self.assertEqual((code, out["tunnel"]), (0, "quick"), err)
+
+    def test_a_busy_named_port_is_refused_not_moved(self):
+        code, _, err = self.ensure()
+        self.assertEqual(code, 0, err)
+        code, _, err = share(self.d, "stop")
+        busy = socket.socket()
+        busy.bind(("127.0.0.1", self.port))
+        busy.listen()
+        self.addCleanup(busy.close)
+        code, _, err = share(self.d, "ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token))
+        self.assertEqual(code, 2)
+        self.assertIn("cannot move", err)
 
 
 @unittest.skipIf(WINDOWS, "share.sh runs under Git Bash there; the Python entry point is tested above")

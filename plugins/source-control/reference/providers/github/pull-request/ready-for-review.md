@@ -100,8 +100,7 @@ build posts nothing:
 
 ```bash
 LOGIN=$(gh api user --jq .login) || exit 1
-HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exit 1
-COMMENT=$(bash "<skill-dir>/scripts/ready-skip-comment.sh" --login "$LOGIN" --head "$HEAD_SHA" \
+COMMENT=$(bash "<skill-dir>/scripts/ready-skip-comment.sh" --login "$LOGIN" \
   --reason "$REASON" --step code-review) || exit 1
 printf '%s\n' "$COMMENT" | gh pr comment "$PR_NUMBER" --body-file -
 ```

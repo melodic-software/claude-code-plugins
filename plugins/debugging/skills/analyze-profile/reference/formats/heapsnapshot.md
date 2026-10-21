@@ -58,6 +58,26 @@ SELECT p.depth, p.via, n.type, n.name FROM path p JOIN nodes n ON n.idx = p.idx 
 
 Node `idx = 0` is the synthetic root. The first holder found is not always the shortest path;
 when the path loops or runs past 30 steps, query the holders at each step by hand.
+The `retainers` command below returns the shortest path.
+
+### Shortest path to the root
+
+Breadth-first over the holders, skipping weak references; `<idx>` is the node `idx`, and each row
+prints `depth`, `idx`, `node_id`, `type`, `name` and `via`, from the object up to node 0. It exits 1
+when no path reaches the root and 2 when `<idx>` is not a node:
+
+```bash
+python3 "<skill-dir>/scripts/query_profile.py" retainers "$work/heap.db" <idx>
+```
+
+### Compare two snapshots
+
+Which types grew between two converted snapshots, largest byte growth first (`--limit` defaults
+to 20); a `type, name` in one snapshot only counts 0 in the other:
+
+```bash
+python3 "<skill-dir>/scripts/query_profile.py" compare "$work/before.db" "$work/after.db"
+```
 
 ## Reading it
 
@@ -65,3 +85,4 @@ The cause is the first holder on the path that the application owns: a module-le
 listener list, a closure kept by a timer. Find where that holder is created or added to in source,
 and report that file and line. One snapshot shows what is held, not what grows; for a leak, load
 two snapshots taken minutes apart and compare counts per `type, name`.
+The `compare` command above does that.

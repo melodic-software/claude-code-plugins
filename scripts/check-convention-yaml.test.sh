@@ -38,7 +38,7 @@ LOG=""
 new_repo() {
   fixture_tree::build repo --sut "$SUT_SRC" --git --label convention-yaml || return 1
   mkdir -p "$repo/.stub" "$repo/docs/conventions" "$repo/lib"
-  cp "$SCRIPT_DIR/../lib/yaml-subset.awk" "$repo/lib/"
+  cp "$SCRIPT_DIR/../lib/yaml-subset.awk" "$SCRIPT_DIR/../lib/resolve-convention-home.sh" "$repo/lib/"
   printf '%s\n' "$STUB_BODY" >"$repo/.stub/check-jsonschema"
   chmod +x "$repo/.stub/check-jsonschema"
   : >"$repo/.stub/log"
@@ -57,7 +57,7 @@ put() {
 run_sut() {
   local errf
   errf="$repo/.stub/stderr"
-  OUT="$(env CHECK_JSONSCHEMA_BIN="$repo/.stub/check-jsonschema" STUB_LOG="$repo/.stub/log" "$@" \
+  OUT="$(env -u GITHUB_ACTIONS -u GITHUB_BASE_REF CHECK_JSONSCHEMA_BIN="$repo/.stub/check-jsonschema" STUB_LOG="$repo/.stub/log" "$@" \
     bash "$repo/scripts/check-convention-yaml.sh" --check 2>"$errf")"
   RC=$?
   ERR="$(cat "$errf")"
@@ -243,6 +243,120 @@ new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/sche
 rm "$repo/lib/yaml-subset.awk"
 run_sut
 if [[ $RC -eq 2 && "$ERR" == *yaml-subset.awk* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+
+# 11b. The convention home is the one the pointer region binds (ADR 0075 fix 3).
+#      The expected paths follow from the region grammar in
+#      lib/resolve-convention-home.sh: the first backticked token inside the
+#      region is the home, and a declined or absent region leaves docs/conventions.
+region_for() {
+  printf '%s\n' '# Team' '' '<!-- BEGIN GENERATED: convention-home -->' \
+    "Team conventions live in \`$1\` — read the topic doc there" '<!-- END GENERATED: convention-home -->'
+}
+label="a repository bound to Documentation has its Documentation/<concern>.yaml validated"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put Documentation/alpha.yaml 'mode: on' &&
+  put AGENTS.md "$(region_for Documentation)"
+run_sut
+if [[ $RC -eq 0 && "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- Documentation/alpha.yaml" &&
+  "$OUT" == *"1 Documentation YAML file(s)"* ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="a repository bound to Documentation does not read docs/conventions YAML"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put Documentation/keep.md '# prose' &&
+  put docs/conventions/alpha.yaml 'reject: true' && put AGENTS.md "$(region_for Documentation)"
+run_sut
+if [[ $RC -eq 0 && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="a cross-plugin schema is found under the bound home"
+new_repo && put Documentation/beta.yaml 'mode: on' && put Documentation/beta/beta.schema.json '{}' &&
+  put AGENTS.md "$(region_for Documentation)"
+run_sut
+if [[ $RC -eq 0 && "$LOG" == "--schemafile Documentation/beta/beta.schema.json -- Documentation/beta.yaml" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="a declined home leaves docs/conventions"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put docs/conventions/alpha.yaml 'mode: on' &&
+  put AGENTS.md $'<!-- BEGIN GENERATED: convention-home -->\ndeclined\n<!-- END GENERATED: convention-home -->'
+run_sut
+if [[ $RC -eq 0 && "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- docs/conventions/alpha.yaml" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="a pointer to a missing directory exits 1 naming the region"
+new_repo && put AGENTS.md "$(region_for Documentation)"
+run_sut
+if [[ $RC -eq 1 && "$ERR" == *"pointer target directory missing: Documentation"* && -z "$LOG" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+# 11c. The home is read from the merge base with the base branch, not from the
+#      head: a head commit that moves the pointer away from a rejected file
+#      still has that file checked, on a pull request (GITHUB_BASE_REF) and
+#      locally (origin's default branch).
+for base_env in GITHUB_BASE_REF=main GITHUB_BASE_REF=; do
+  label="a head-only pointer change does not move the checked home ($base_env)"
+  new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put docs/conventions/alpha.yaml 'reject: true'
+  git_test_config "$repo" update-ref refs/remotes/origin/main HEAD
+  put Documentation/keep.md '# prose' && put AGENTS.md "$(region_for Documentation)"
+  run_sut "$base_env"
+  if [[ $RC -eq 1 && "$ERR" == *"docs/conventions/alpha.yaml: does not validate"* &&
+    "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- docs/conventions/alpha.yaml" ]]; then
+    ok "$label"
+  else
+    fail "$label: $(state)"
+  fi
+done
+# 11d. The home the working tree binds is checked beside the merge base's.
+#      Each case commits a base, points origin/main at it, then commits the head.
+base_here() { git_test_config "$repo" update-ref refs/remotes/origin/main HEAD; }
+label="B3: a head that adds a region has its new home checked"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && base_here &&
+  put NewHome/alpha.yaml 'reject: true' && put AGENTS.md "$(region_for NewHome)"
+run_sut GITHUB_BASE_REF=main
+if [[ $RC -eq 1 && "$ERR" == *"NewHome/alpha.yaml: does not validate"* ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="B: a head that moves the pointer to an invalid home exits 1"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put Documentation/alpha.yaml 'mode: on' &&
+  put AGENTS.md "$(region_for Documentation)" && base_here
+git_test_config "$repo" mv Documentation 'Bad Home' >/dev/null
+put AGENTS.md "$(region_for 'Bad Home')"
+run_sut GITHUB_BASE_REF=main
+if [[ $RC -eq 1 && "$ERR" == *"working tree"* ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="B2: a head that deletes the bound home exits 1"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put Documentation/alpha.yaml 'mode: on' &&
+  put AGENTS.md "$(region_for Documentation)" && base_here
+git_test_config "$repo" rm -rq Documentation && git_test_config "$repo" commit -qm 'drop home' >/dev/null
+run_sut GITHUB_BASE_REF=main
+if [[ $RC -eq 1 && "$ERR" == *"working tree"*"pointer target directory missing: Documentation"* ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="W1: a broken pointer at the base warns, and the head that restores the home passes"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put AGENTS.md "$(region_for Documentation)" && base_here &&
+  put Documentation/alpha.yaml 'mode: on'
+run_sut GITHUB_BASE_REF=main
+if [[ $RC -eq 0 && "$ERR" == *"merge base"*"pointer target directory missing"* &&
+  "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- Documentation/alpha.yaml" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="P4: no merge base under GITHUB_ACTIONS exits 2"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put docs/conventions/alpha.yaml 'mode: on'
+run_sut GITHUB_ACTIONS=true
+if [[ $RC -eq 2 && "$ERR" == *"no merge base"* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="P4: no merge base with a GITHUB_BASE_REF exits 2"
+run_sut GITHUB_BASE_REF=main
+if [[ $RC -eq 2 && "$ERR" == *"no merge base"* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="a missing lib/resolve-convention-home.sh exits 2"
+new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/schemas/alpha.schema.json '{}'
+rm "$repo/lib/resolve-convention-home.sh"
+run_sut
+if [[ $RC -eq 2 && "$ERR" == *resolve-convention-home.sh* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
 
 # 12. An unknown argument is a usage error.
 label="unknown argument exits 2"

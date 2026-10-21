@@ -51,6 +51,33 @@
         "Does not itself perform the freshness/drift verification",
         "Still delivers the orientation briefing"
       ]
+    },
+    {
+      "id": 5,
+      "name": "catch-up-opens-with-needs-you",
+      "prompt": "/session-flow:orient catch-up. (Since my last message two subagents returned results and two decisions are waiting on me: which API shape to ship, and whether to approve the force-push to the release branch. The chat also touched one open pull request.)",
+      "expected_output": "The skill runs the catch-up scope, anchored at the user's last own message. The reply opens with a Needs you section that gives the count 2, then says what happened with what each result means, then covers each of the two action items with the decision, why it matters now, the options and their costs, a recommendation, and what happens if the user does not answer. It re-checks pull requests and CI the chat touched read-only, stays within the word cap, and writes nothing.",
+      "files": [],
+      "expectations": [
+        "Opens with a Needs you section that states 2 action items",
+        "Gives each action item a recommendation and an if-unanswered line",
+        "Lists what happened most important first, each result with what it means for the user",
+        "Re-checks the state of touched pull requests and CI read-only, saying what could not be checked",
+        "Stays within the word cap and writes nothing"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "catch-up-nothing-happened",
+      "prompt": "/session-flow:orient catch-up. (Nothing has run since my last message, and nothing is waiting on me.)",
+      "expected_output": "The skill runs the catch-up scope, finds nothing happened since the user's last message and no action item waiting, says so in the Needs you section, and stops without padding the reply with a four-part briefing.",
+      "files": [],
+      "expectations": [
+        "Says in the Needs you section that there are no action items",
+        "Says nothing happened since the user's last message",
+        "Stops there, without a four-part briefing or invented content",
+        "Writes nothing"
+      ]
     }
   ]
 }

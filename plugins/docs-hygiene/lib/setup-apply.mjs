@@ -1,19 +1,33 @@
 // GENERATED from lib/setup-apply.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
 // Write or check a plugin's repository settings file,
-// docs/conventions/<plugin>.yaml, against the plugin's JSON Schema. Each
-// plugin's skills/setup/scripts/setup-apply.mjs is a thin entry point that
-// calls run() with its own paths.
+// <home>/<plugin>.yaml, against the plugin's JSON Schema. <home> is the
+// repository's convention home (see "Convention home" below). Each plugin's
+// skills/setup/scripts/setup-apply.mjs is a thin entry point that calls run()
+// with its own paths.
 //
 // Usage of an entry point:
-//   setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ...
+//   setup-apply.mjs [--root <dir>] [--yes] [--home <dir>] <key>=<value> ...
+//   setup-apply.mjs [--root <dir>] --decline
 //   setup-apply.mjs [--root <dir>] --check [--ref <ref>]
 //
 //   --root <dir>  repository root; default: git's toplevel for the current
 //                 directory. A symlinked root is resolved first, and every
 //                 check below applies to the resolved directory.
-//   --yes         the operator has seen the diff and confirmed it; needed to
-//                 change a file that already exists.
+//   --yes         the operator has seen the diff or the offer and confirmed it;
+//                 needed to change a file that already exists, to write a
+//                 pointer region and the overlay ignore line into a repository
+//                 that has none, and to write into a --home no pointer names.
+//                 A missing settings file is created without it.
+//   --home <dir>  the convention home to offer when the repository binds none:
+//                 a repo-relative directory by the resolver's grammar. The
+//                 default is docs/conventions. Finding an equivalent home the
+//                 repository already has is the setup skill's interview; the
+//                 chosen home arrives here. A bound repository keeps its home,
+//                 so a different --home is refused.
+//   --decline     record that the repository declines a convention home: a
+//                 region holding a `declined` line, so the next run does not
+//                 offer again and writes <plugin>.yaml under docs/conventions.
 //   --check       validate the existing file and print one INFO, PASS or WARN
 //                 line per finding; write nothing. A WARN on one key's value,
 //                 or on a key outside the schema, leaves a PASS line for every
@@ -25,6 +39,28 @@
 //                 is read only from refs/remotes/origin/<name>, matched
 //                 exactly, and exits 2 when that ref is absent. Elsewhere
 //                 --ref is a usage error.
+//
+// Convention home. The home is read with lib/resolve-convention-home.sh, which
+// sits beside this file (a plugin's lib/ carries a generated copy), from the
+// pointer region in AGENTS.md or CLAUDE.md; the grammar is in that header.
+//   bound         the region names a home: <home>/<plugin>.yaml is written
+//                 there. A home other than docs/conventions is one the
+//                 repository already had, so <plugin>.yaml stays lowercase-kebab
+//                 and is listed in <home>/conventions-index.md.
+//   unbound       no region: the offer. Without --yes the offer is printed and
+//                 only a missing docs/conventions/<plugin>.yaml is written
+//                 (exit 0); with a different --home nothing is written (exit
+//                 3), since the file would sit where no pointer names it. With
+//                 --yes the writer creates
+//                 the home, writes <plugin>.yaml, adds `<home>/**/*.local.*` to
+//                 .gitignore, and adds the region to the instruction file the
+//                 repository already keeps (AGENTS.md, else CLAUDE.md, else a
+//                 new AGENTS.md), announcing each write. Nothing becomes
+//                 always-loaded: the region is one pointer line.
+//   declined      the region holds a `declined` line: docs/conventions, no offer.
+//   inapplicable  the root is not a git work tree: docs/conventions, no offer.
+// A broken region (two pointers, a missing directory, an invalid path) is a
+// refusal that names it.
 //
 // Allowed values come from the schema: `true` and `false` for a boolean key,
 // the listed strings for an enum key (quoted or not in the file), for an
@@ -57,13 +93,14 @@
 // ending (a file mixing CRLF and LF is refused), writes each key over its own
 // line or appends it, and validates the result.
 //
-// checkPath() refuses a root that is $HOME or an ancestor of it, a docs/ or
-// docs/conventions/ that is a symlink, not a directory, or resolves outside
-// the root, and a target that is a symlink, not a regular file, or has more
-// than one link. It runs before reading, before each mkdir, before the temp
-// file opens and before the rename. The write goes to a temp file opened with
-// O_EXCL|O_NOFOLLOW beside the target, renamed over it once the target still
-// holds what was read.
+// checkFile() refuses a root that is $HOME or an ancestor of it, a directory on
+// the way to a target (the home's segments) that is a symlink, not a
+// directory, or resolves outside the root, and a target (the settings file, the
+// index, .gitignore, the instruction file) that is a symlink, not a regular
+// file, or has more than one link. It runs before reading, before each mkdir,
+// before the temp file opens and before the rename. Each write goes to a temp
+// file opened with O_EXCL|O_NOFOLLOW beside the target, renamed over it once the
+// target still holds what was read.
 //
 // Every refusal is one line on stderr with no stack trace, and a failure
 // removes only a temp file this run created. Printed text escapes control
@@ -72,9 +109,10 @@
 //
 // Exit codes: 0 written, already configured, or --check found a valid or
 // absent file; 1 refused (an invalid value or key, an invalid existing file,
-// an unsafe path, a failed read or write), or --check found a problem; 2
-// usage or environment error; 3 the existing file would change and --yes was
-// not given (the diff is on stdout).
+// an unsafe path, a broken pointer region, a failed read or write), or --check
+// found a problem; 2 usage or environment error; 3 a write needs the
+// operator's confirmation and --yes was not given (the diff or the offer is on
+// stdout).
 
 import { spawnSync } from "node:child_process";
 import {
@@ -90,7 +128,14 @@ import {
   writeSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { join, sep } from "node:path";
+import { dirname, join, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const DEFAULT_HOME = "docs/conventions";
+const REGION_BEGIN = "<!-- BEGIN GENERATED: convention-home -->";
+const REGION_END = "<!-- END GENERATED: convention-home -->";
+const INDEX_NAME = "conventions-index.md";
+const INSTRUCTION_FILES = ["AGENTS.md", "CLAUDE.md"];
 
 class Refusal extends Error {
   constructor(message, code = 1) {
@@ -129,14 +174,18 @@ function real(p, what = p) {
 }
 
 function parseArgs(argv, withRef) {
-  const opts = { root: "", yes: false, check: false, ref: null, pairs: [] };
-  const usage = `usage: setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ... | --check${withRef ? " [--ref <ref>]" : ""}`;
+  const opts = { root: "", yes: false, check: false, ref: null, home: null, decline: false, pairs: [] };
+  const usage = `usage: setup-apply.mjs [--root <dir>] [--yes] [--home <dir>] <key>=<value> ... | --decline | --check${withRef ? " [--ref <ref>]" : ""}`;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--root") {
       if (i + 1 >= argv.length) refuse("--root needs a directory", 2);
       opts.root = argv[++i];
-    } else if (withRef && a === "--ref") {
+    } else if (a === "--home") {
+      if (i + 1 >= argv.length) refuse("--home needs a repo-relative directory", 2);
+      opts.home = argv[++i];
+    } else if (a === "--decline") opts.decline = true;
+    else if (withRef && a === "--ref") {
       if (i + 1 >= argv.length) refuse("--ref needs a commit id or origin/<name>", 2);
       opts.ref = argv[++i];
     } else if (a === "--yes") opts.yes = true;
@@ -145,6 +194,10 @@ function parseArgs(argv, withRef) {
     else refuse(`unexpected argument: ${a}; ${usage}`, 2);
   }
   if (opts.check && opts.pairs.length) refuse("--check takes no <key>=<value> arguments", 2);
+  if (opts.decline && (opts.check || opts.pairs.length || opts.home !== null)) {
+    refuse("--decline takes no <key>=<value> arguments, --home or --check", 2);
+  }
+  if (opts.home !== null && opts.check) refuse("--home is a write option; --check reads the bound home", 2);
   if (opts.ref !== null && !opts.check) refuse("--ref is a --check option; a write always targets the working tree", 2);
   // Only a full commit id or origin/<name>: nothing git could read as an
   // option, a revision range, a path or a reflog expression.
@@ -152,7 +205,7 @@ function parseArgs(argv, withRef) {
   if (r !== null && !(/^[0-9a-f]{40}$/.test(r) || (/^origin\/[A-Za-z0-9._/-]+$/.test(r) && !r.includes("..") && !r.startsWith("origin/-")))) {
     refuse(`invalid --ref ${JSON.stringify(r)}; expected a 40-hex commit id or origin/<name>`, 2);
   }
-  if (!opts.check && !opts.pairs.length) refuse("nothing to write; pass at least one <key>=<value>", 2);
+  if (!opts.check && !opts.pairs.length && !opts.decline) refuse("nothing to write; pass at least one <key>=<value>", 2);
   return opts;
 }
 
@@ -575,7 +628,10 @@ export function run(config) {
 
 function main(config, argv) {
   const name = `${config.plugin}.yaml`;
-  const rel = `docs/conventions/${name}`;
+  // The convention home and the settings file in it. The defaults hold until
+  // the pointer region is read, below.
+  let home = DEFAULT_HOME;
+  let rel = `${home}/${name}`;
   const opts = parseArgs(argv, Boolean(config.ref));
 
   let root = opts.root;
@@ -602,15 +658,14 @@ function main(config, argv) {
   }
   const keys = Object.fromEntries(Object.entries(schema.properties).filter(([k]) => k !== "$schema"));
   const check = (text) => validate(text, { keys, parser: config.parser, exactKeyNames: config.exactKeyNames, schemaKey: config.schemaKey });
-  const target = join(root, rel);
 
   const checkRoot = () => {
     const realRoot = real(root, "root");
-    const home = process.env.HOME || homedir();
-    if (home) {
-      let realHome = home;
+    const userHome = process.env.HOME || homedir();
+    if (userHome) {
+      let realHome = userHome;
       try {
-        realHome = realpathSync(home);
+        realHome = realpathSync(userHome);
       } catch {
         // An unresolvable home is compared as given.
       }
@@ -621,40 +676,47 @@ function main(config, argv) {
     return realRoot;
   };
 
+  // The directories on the way to relPath: "a/b/c.yaml" gives "a", "a/b".
+  const dirPrefixes = (relPath) => {
+    const segments = relPath.split("/").slice(0, -1);
+    return segments.map((_, i) => segments.slice(0, i + 1).join("/"));
+  };
+
   // Refuse any path shape that could send a write somewhere other than
-  // <root>/docs/conventions/<plugin>.yaml. Returns true when the target exists.
-  const checkPath = () => {
+  // <root>/<relPath>. Returns true when the target exists.
+  const checkFile = (relPath) => {
     const realRoot = checkRoot();
-    for (const part of ["docs", "docs/conventions"]) {
+    for (const part of dirPrefixes(relPath)) {
       const st = lstatOrNull(join(root, part), part);
       if (!st) return false;
       if (st.isSymbolicLink()) refuse(`${part} is a symlink; refusing to write through it`);
       if (!st.isDirectory()) refuse(`${part} exists and is not a directory; nothing written`);
       if (real(join(root, part), part) !== join(realRoot, part)) refuse(`${part} resolves outside the repository; nothing written`);
     }
-    const st = lstatOrNull(target, rel);
+    const st = lstatOrNull(join(root, relPath), relPath);
     if (!st) return false;
-    if (st.isSymbolicLink()) refuse(`${rel} is a symlink; refusing to write through it`);
-    if (st.isDirectory()) refuse(`${rel} is a directory where a file belongs; nothing written`);
-    if (!st.isFile()) refuse(`${rel} exists and is not a regular file; nothing written`);
-    if (st.nlink > 1) refuse(`${rel} has ${st.nlink} hard links; refusing to write through it`);
+    if (st.isSymbolicLink()) refuse(`${relPath} is a symlink; refusing to write through it`);
+    if (st.isDirectory()) refuse(`${relPath} is a directory where a file belongs; nothing written`);
+    if (!st.isFile()) refuse(`${relPath} exists and is not a regular file; nothing written`);
+    if (st.nlink > 1) refuse(`${relPath} has ${st.nlink} hard links; refusing to write through it`);
     return true;
   };
 
-  const readTarget = () => {
-    if (!checkPath()) return null;
+  const readFile = (relPath) => {
+    if (!checkFile(relPath)) return null;
     try {
-      return readFileSync(target, "utf8");
+      return readFileSync(join(root, relPath), "utf8");
     } catch (e) {
-      refuse(`${rel}: could not read it (${why(e)}); nothing written`);
+      refuse(`${relPath}: could not read it (${why(e)}); nothing written`);
     }
   };
+  const readTarget = () => readFile(rel);
 
   // expected is the file as read at the start (null when absent); a target
   // that no longer matches it is refused rather than overwritten.
-  const writeTarget = (text, expected) => {
-    for (const part of ["docs", "docs/conventions"]) {
-      checkPath();
+  const writeFile = (relPath, text, expected) => {
+    for (const part of dirPrefixes(relPath)) {
+      checkFile(relPath);
       if (lstatOrNull(join(root, part), part)) continue;
       try {
         mkdirSync(join(root, part));
@@ -662,13 +724,16 @@ function main(config, argv) {
         refuse(`${part}: could not create it (${why(e)}); nothing written`);
       }
     }
-    if (readTarget() !== expected) refuse(`${rel} changed while this ran; nothing written, run again`);
-    const tmpRel = `docs/conventions/.${name}.${config.fixedTemp ? "" : `${process.pid}.`}tmp`;
+    if (readFile(relPath) !== expected) refuse(`${relPath} changed while this ran; nothing written, run again`);
+    const slash = relPath.lastIndexOf("/") + 1;
+    const tmpRel = `${relPath.slice(0, slash)}.${relPath.slice(slash)}.${config.fixedTemp ? "" : `${process.pid}.`}tmp`;
     const tmp = join(root, tmpRel);
+    const target = join(root, relPath);
+    const mode = expected === null ? 0o644 : lstatSync(target).mode & 0o777;
     const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0);
     let fd = -1;
     try {
-      fd = openSync(tmp, flags, 0o644);
+      fd = openSync(tmp, flags, mode);
     } catch (e) {
       if (e.code === "EEXIST" || e.code === "ELOOP") {
         refuse(`${tmpRel} already exists (another run, or one that stopped early); remove it and run again; nothing written`);
@@ -682,7 +747,7 @@ function main(config, argv) {
       const open = fd;
       fd = -1;
       closeSync(open);
-      checkPath();
+      checkFile(relPath);
       renameSync(tmp, target);
     } catch (e) {
       try {
@@ -692,17 +757,17 @@ function main(config, argv) {
         rmSync(tmp, { force: true });
       } catch {}
       if (e instanceof Refusal) throw e;
-      refuse(`${rel}: could not write it (${why(e)}); nothing written`);
+      refuse(`${relPath}: could not write it (${why(e)}); nothing written`);
     }
   };
 
-  // The file as committed at --ref: { sha, text }, text null when the commit
-  // has no such path. Every git argument is the validated ref, a resolved
-  // object id or a fixed string, passed without a shell.
-  const readAtRef = () => {
+  // The commit --ref names, as a 40-hex id. Every git argument is the
+  // validated ref, a resolved object id or a fixed string, passed without a
+  // shell.
+  const git = (...a) => spawnSync("git", ["-C", root, ...a], { encoding: "utf8" });
+  const resolveRef = () => {
     checkRoot();
     const ref = opts.ref;
-    const git = (...a) => spawnSync("git", ["-C", root, ...a], { encoding: "utf8" });
     // origin/<name> is read only from refs/remotes/origin/<name>, matched
     // exactly by show-ref. rev-parse would apply its short-name lookup, where a
     // local branch, a tag or a refs/... look-alike can win or stand in for it.
@@ -715,6 +780,13 @@ function main(config, argv) {
     const rev = git("rev-parse", "--verify", "--quiet", "--end-of-options", `${commitish}^{commit}`);
     const sha = rev.status === 0 ? rev.stdout.trim() : "";
     if (!/^[0-9a-f]{40}$/.test(sha)) refuse(`--ref ${ref} does not resolve to a commit`, 2);
+    return sha;
+  };
+
+  // The file as committed at sha: { sha, text }, text null when the commit
+  // has no such path.
+  const readAtRef = (sha) => {
+    const ref = opts.ref;
     const tree = git("ls-tree", "-z", "--full-tree", sha, "--", rel);
     if (tree.status !== 0) refuse(`${rel} at ${ref} (${sha}): could not list it`);
     const entry = tree.stdout.split("\0").find(Boolean);
@@ -725,6 +797,112 @@ function main(config, argv) {
     if (blob.status !== 0) refuse(`${rel} at ${ref} (${sha}): could not read it`);
     return { sha, text: blob.stdout };
   };
+
+  // The convention home, from the pointer region (lib/resolve-convention-home.sh).
+  // The resolver reads the committed files when given a commit, else the
+  // working tree. Its stdout is the home; its exit code is the state.
+  const resolver = config.resolver ?? join(dirname(fileURLToPath(import.meta.url)), "resolve-convention-home.sh");
+  const runResolver = (args, input) => {
+    if (!lstatOrNull(resolver, "the convention-home resolver")) {
+      refuse(`the convention-home resolver ${resolver} is missing; nothing written`, 2);
+    }
+    const r = spawnSync("bash", [resolver, ...args], { input, encoding: "utf8" });
+    if (r.error) refuse(`cannot run bash: ${why(r.error)}`, 2);
+    const lines = (r.stderr ?? "").split("\n").filter(Boolean);
+    for (const l of lines.filter((l) => l.startsWith("duplicate:"))) process.stderr.write(printable(`setup-apply: WARN ${l}\n`));
+    return { status: r.status, out: (r.stdout ?? "").trim(), message: lines.find((l) => !l.startsWith("duplicate:")) ?? "" };
+  };
+  const sha = opts.ref === null ? null : resolveRef();
+  const bound = runResolver(["--root", root, ...(sha ? ["--ref", sha] : [])]);
+  const states = { 0: "bound", 1: "unbound", 4: "declined", 5: "inapplicable" };
+  const state = states[bound.status];
+  if (state === undefined) {
+    refuse(`${bound.message || `the convention-home resolver exited ${bound.status}`}; nothing written`, bound.status === 3 ? 1 : 2);
+  }
+  if (state === "bound") home = bound.out;
+  if (opts.home !== null) {
+    // The grammar is the resolver's: the home goes in as a region on stdin.
+    const asked = /[`\r\n]/.test(opts.home) ? { status: 1, out: "" } : runResolver(["-"], `${REGION_BEGIN}\n\`${opts.home}\`\n${REGION_END}\n`);
+    if (asked.status !== 0) refuse(`--home ${JSON.stringify(opts.home)} is not a repo-relative directory of [A-Za-z0-9._-] segments`, 2);
+    if (state === "unbound") home = asked.out;
+    else if (asked.out !== home) refuse(`--home ${asked.out} differs from the ${state === "bound" ? "bound" : "default"} home ${home}; nothing written`, 2);
+  }
+  rel = `${home}/${name}`;
+  // A home other than the default, bound by the pointer or chosen with --home,
+  // is one the repository already had: our file is listed in an index there.
+  const indexRel = (state === "bound" || opts.home !== null) && home !== DEFAULT_HOME ? `${home}/${INDEX_NAME}` : null;
+
+  // The pointer region and the overlay ignore line, planned before anything is
+  // written: { file, existing, proposed } per file, proposed null for no change.
+  const eolOf = (text) => {
+    const crlf = (text.match(/\r\n/g) ?? []).length;
+    return crlf && crlf === (text.match(/\n/g) ?? []).length ? "\r\n" : "\n";
+  };
+  const appendLines = (text, lines) => {
+    const eol = eolOf(text);
+    const tail = text === "" || text.endsWith("\n") ? "" : eol;
+    return `${text}${tail}${lines.join(eol)}${eol}`;
+  };
+  const isShim = (text) => {
+    const lines = text.replace(/^﻿/, "").split("\n").map((l) => l.trim()).filter(Boolean);
+    return lines.length > 0 && lines.every((l) => l === "@AGENTS.md");
+  };
+  const planRegion = (regionLines) => {
+    // A symlinked instruction file is read through (the resolver counts a link
+    // to the other file as one file) and is refused only when it is the file
+    // to write.
+    const peek = (file) => {
+      const st = lstatOrNull(join(root, file), file);
+      if (!st) return null;
+      if (!st.isSymbolicLink()) return { file, text: readFile(file), link: false, real: real(join(root, file), file) };
+      try {
+        return { file, text: readFileSync(join(root, file), "utf8"), link: true, real: realpathSync(join(root, file)) };
+      } catch {
+        return { file, text: "", link: true, real: null };
+      }
+    };
+    const present = INSTRUCTION_FILES.map(peek).filter(Boolean);
+    for (const f of present) {
+      if (f.text.split("\n").some((l) => l.trim() === REGION_BEGIN)) {
+        refuse(`${f.file} has a convention-home region with no pointer line; name the home inside it by hand; nothing written`);
+      }
+    }
+    // The file the repository already keeps instructions in: AGENTS.md first,
+    // then CLAUDE.md unless it only imports AGENTS.md; AGENTS.md is created
+    // only when neither exists. A link is followed to the real file beside it.
+    let chosen = present.find((f) => f.file === "AGENTS.md") ?? present.find((f) => !isShim(f.text)) ?? { file: "AGENTS.md", text: null };
+    if (chosen.link) chosen = present.find((f) => !f.link && f.real === chosen.real) ?? chosen;
+    // Refused here, before any write, so a refusal never leaves a half-set-up repository.
+    if (chosen.link) refuse(`${chosen.file} is a symlink; refusing to write through it; nothing written`);
+    const text = chosen.text ?? "";
+    return { file: chosen.file, existing: chosen.text, proposed: appendLines(text, text === "" ? regionLines : ["", ...regionLines]) };
+  };
+  const planIgnore = () => {
+    const line = `${home}/**/*.local.*`;
+    const existing = readFile(".gitignore");
+    if (existing !== null && existing.split("\n").some((l) => l.replace(/\r$/, "").trim() === line)) return { line, existing, proposed: null };
+    return { line, existing, proposed: appendLines(existing ?? "", [line]) };
+  };
+  const regionLines = (pointer) => [
+    REGION_BEGIN,
+    ...(pointer
+      ? [`Team conventions live in \`${home}\` — read the topic doc there`, "before changing a governed surface."]
+      : ["This repository declined a convention home; plugins use their bundled defaults.", "declined"]),
+    REGION_END,
+  ];
+
+  if (opts.decline) {
+    if (state === "declined") {
+      process.stdout.write("this repository already declined a convention home; nothing written\n");
+      return 0;
+    }
+    if (state === "bound") refuse(`this repository binds ${home}; there is no offer to decline; nothing written`);
+    if (state === "inapplicable") refuse("no convention home applies to this root; there is no offer to decline; nothing written");
+    const plan = planRegion(regionLines(false));
+    writeFile(plan.file, plan.proposed, plan.existing);
+    process.stdout.write(`wrote ${plan.file}: a convention-home region recording that this repository declined a home\n`);
+    return 0;
+  }
 
   // Command-line pairs are checked before the file is read, so a bad request
   // is refused the same way whether the file exists or not.
@@ -752,7 +930,7 @@ function main(config, argv) {
 
   let existing = null;
   if (opts.ref !== null) {
-    const at = readAtRef();
+    const at = readAtRef(sha);
     if (at.mode) {
       process.stdout.write(`WARN ${rel} at ${opts.ref} (${at.sha}): not a regular file (mode ${at.mode})\n`);
       return 1;
@@ -825,22 +1003,118 @@ function main(config, argv) {
     if ((readBack.get(k) ?? "") !== value) refuse(`${k}=${value} would not read back as given; nothing written`);
   }
 
-  if (existing !== null && proposed === existing) {
+  const changes = existing === null || proposed !== existing;
+
+  // The index of a home the repository already had lists our file. Creating it
+  // needs no confirmation; changing an index that exists does.
+  let index = null;
+  if (indexRel !== null) {
+    const indexExisting = readFile(indexRel);
+    const listed = indexExisting !== null && indexExisting.includes(`](${name})`);
+    if (!listed) {
+      const entry = `- [${name}](${name}) — settings written by the ${config.plugin} plugin's setup`;
+      index = {
+        existing: indexExisting,
+        proposed:
+          indexExisting === null
+            ? `# Convention index\n\nFiles the Claude Code plugins wrote in this home. Their names stay lowercase-kebab so the repository can rename them and update the pointer later.\n\n${entry}\n`
+            : appendLines(indexExisting, [entry]),
+      };
+    }
+  }
+
+  // An unbound repository is offered the pointer region and the overlay ignore
+  // line, written in the same step as the file.
+  // Without --yes nothing in the offer is written, so a plan the writer would
+  // refuse (a symlinked AGENTS.md or .gitignore) does not stop the settings
+  // file; the refusal is printed in place of the offer.
+  let offer = null;
+  let offerRefused = null;
+  if (state === "unbound") {
+    try {
+      offer = { region: planRegion(regionLines(true)), ignore: planIgnore() };
+    } catch (e) {
+      if (!(e instanceof Refusal) || opts.yes) throw e;
+      offerRefused = e.message.replace(/;? ?nothing written$/, "");
+    }
+  }
+  // pending: the settings file waits for --yes too, so the offer lists it.
+  const printOffer = (pending) => {
+    if (offer === null) {
+      process.stdout.write(
+        printable(`No convention home is bound in this repository, and setup cannot add the pointer region: ${offerRefused}. Add the region by hand, or re-run with --home <dir>.\n`),
+      );
+      return;
+    }
+    const { region, ignore } = offer;
+    process.stdout.write(
+      printable(
+        [
+          `No convention home is bound in this repository. With the operator's confirmation, setup will:`,
+          ...(pending && changes ? [`  - write ${rel} (the home is created if missing)`] : []),
+          `  - add a convention-home region naming \`${home}\` to ${region.file}${region.existing === null ? " (created: neither AGENTS.md nor CLAUDE.md exists)" : ""}`,
+          ignore.proposed === null
+            ? `  - leave .gitignore as it is (it already holds ${ignore.line})`
+            : `  - add the overlay ignore line ${ignore.line} to .gitignore so personal <concern>.local.* files stay untracked`,
+          `Nothing is always-loaded: the region is one pointer line. ${pending ? "Nothing was written" : "Neither was written"}. Re-run with --yes once the operator confirms,`,
+          `with --home <dir> to name a different home, or with --decline to record that this repository declines a home.`,
+          "",
+        ].join("\n"),
+      ),
+    );
+  };
+
+  const unbound = offer !== null || offerRefused !== null;
+  if (!changes && index === null && !unbound) {
     process.stdout.write(`${rel}: already configured; nothing written\n`);
     return 0;
   }
 
-  if (existing !== null && !opts.yes) {
-    const diff = spawnSync("diff", ["-u", "--label", `a/${rel}`, "--label", `b/${rel}`, target, "-"], {
-      input: proposed,
-      encoding: "utf8",
-    });
-    process.stdout.write(printable(diff.stdout));
-    process.stdout.write(`${rel} exists and would change; nothing written. Show this diff, and re-run with --yes once the operator confirms.\n`);
+  // Without --yes a missing settings file is still created; changing an
+  // existing file or index waits, and so does a file in a --home the pointer
+  // does not name yet, since an unbound repository reads docs/conventions.
+  const strandedHome = unbound && home !== DEFAULT_HOME;
+  if (!opts.yes && ((existing !== null && changes) || (index !== null && index.existing !== null) || strandedHome)) {
+    if (existing !== null && changes) {
+      const diff = spawnSync("diff", ["-u", "--label", `a/${rel}`, "--label", `b/${rel}`, join(root, rel), "-"], {
+        input: proposed,
+        encoding: "utf8",
+      });
+      process.stdout.write(printable(diff.stdout));
+      process.stdout.write(`${rel} exists and would change; nothing written. Show this diff, and re-run with --yes once the operator confirms.\n`);
+    }
+    if (index !== null && index.existing !== null) {
+      process.stdout.write(`${indexRel} exists and would list ${name}; nothing written. Re-run with --yes once the operator confirms.\n`);
+    }
+    if (unbound) printOffer(true);
     return 3;
   }
 
-  writeTarget(proposed, existing);
-  process.stdout.write(printable(`wrote ${rel}\n${proposed}`));
+  if (changes) {
+    writeFile(rel, proposed, existing);
+    process.stdout.write(printable(`wrote ${rel}\n${proposed}`));
+  } else {
+    process.stdout.write(`${rel}: already configured\n`);
+  }
+  if (index !== null) {
+    writeFile(indexRel, index.proposed, index.existing);
+    process.stdout.write(`wrote ${indexRel}: listed ${name}\n`);
+  }
+  if (unbound && !opts.yes) {
+    // Printed after the settings write, so a refusal there stays one line.
+    printOffer(false);
+    return 0;
+  }
+  if (offer !== null) {
+    // The ignore line goes in before the pointer, so no repository ever binds a
+    // home without ignoring its personal overlay.
+    const { region, ignore } = offer;
+    if (ignore.proposed !== null) {
+      writeFile(".gitignore", ignore.proposed, ignore.existing);
+      process.stdout.write(printable(`wrote .gitignore: added ${ignore.line} (personal overlay files stay untracked)\n`));
+    }
+    writeFile(region.file, region.proposed, region.existing);
+    process.stdout.write(printable(`wrote ${region.file}: added a convention-home region naming \`${home}\`\n`));
+  }
   return 0;
 }
