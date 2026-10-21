@@ -2185,6 +2185,7 @@
   .app .vf-qtools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-inline-size: 0; max-inline-size: 100%; }
   .app .vf-qtools .vf-select { block-size: 44px; }
   .app .vf-qtools .vf-forbtn { block-size: auto; min-block-size: 44px; max-inline-size: 100%; white-space: normal; text-align: start; }
+  .app .vf-qtools .vf-forchip { order: 1; white-space: normal; overflow-wrap: anywhere; } /* who it asks follows the button, so a long list never splits the purpose from it */
   .app .vf-qnav { display: flex; gap: 0; margin-inline-start: auto; flex: none; }
   /* who else is on the question: up to 3 avatars in a slot this row keeps empty or not, so presence never moves the page */
   .app .vf-onit { display: none; }

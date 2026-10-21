@@ -246,7 +246,7 @@
     cdYes.onclick = () => cdDone?.(true);
     cdNo.onclick = () => cdDone?.(false);
     cdlg.addEventListener("close", () => cdDone?.(false)); // Escape
-    const REPORT_ASK = { title: "Ask Claude about this report?", body: "Claude reads the report and its screenshot as the reporter's words, works out what likely went wrong and proposes a fix to you in the terminal. It never acts on the report itself.", ok: "Ask Claude" };
+    const REPORT_ASK = { title: "Ask Claude about this report?", body: "Claude reads the report and its screenshots as the reporter's words, works out what likely went wrong and proposes a fix to you in the terminal. It never acts on the report itself.", ok: "Ask Claude" };
     const removeAsk = name => ({ title: `Remove ${disp(name)}?`, ok: "Remove", body: `${disp(name)}'s link stops working and their answers, votes, chat and suggestions are hidden from everyone. You can restore them from Settings.` });
     const PARK_ASK = { title: "Park this proposal?", ok: "Park", body: "It stays out of the round, so Claude does not see it when the round is sent. You can restore it from Parked." };
     const LATER_ASK = { title: "Move this proposal to Later?", ok: "Move to Later", body: "It leaves this round and becomes a tracker item when the session ends. You can restore it before then." };
