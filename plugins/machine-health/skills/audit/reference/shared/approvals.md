@@ -79,6 +79,37 @@ The optional `check_overrides` block carries per-host user curation:
 
 Shipped lists always take precedence; user lists augment them.
 
+## Finding mutes (`mutes.json`)
+
+Muted finding items live in their own file, `<StateBase>/state/mutes.json`, beside
+`approvals.json`; mutes never go in `approvals.json`. Schema:
+[`catalog/schemas/mutes.schema.json`](../../catalog/schemas/mutes.schema.json).
+
+```json
+{
+  "schema_version": "1.0",
+  "checks": {
+    "browser-extensions": {
+      "muted_findings": [
+        { "key": "ext:3f9a0c1d2e4b5a67", "label": "<item title>", "reason": null,
+          "added_at": "2026-10-21T12:00:00Z", "run_id": "<latest.json run_id>" }
+      ]
+    }
+  }
+}
+```
+
+- The entry fields are defined by the schema; `key` is the item's FindingKey and the item shape
+  is in [`output-schema.md`](output-schema.md#detail-of-a-list-style-check-findingitems).
+- The orchestrator reads the file with `Get-MuteState` (`scripts/windows/lib/Get-MutedFindingKey.ps1`)
+  and passes each check that declares `-MutedKeys` its muted keys. Checks never read `mutes.json`.
+- The read creates nothing, migrates nothing and writes no log. A missing, empty, malformed or
+  schema-invalid file means no mutes; a broken file warns and is left as it is.
+- `Get-ApprovalState` and `Get-MuteState` read through `Read-SharedText`
+  (`FileShare.ReadWrite | FileShare.Delete`), so a writer replacing the file never blocks a run.
+- A plugin build older than `mutes.json` ignores the file: muted items count toward severity again
+  until the upgrade. Nothing FAILs and nothing is stripped.
+
 ## Testing
 
 Pester tests in `tests/windows/lib/Get-ApprovalState.Tests.ps1` cover:
@@ -89,6 +120,12 @@ Pester tests in `tests/windows/lib/Get-ApprovalState.Tests.ps1` cover:
 - Valid file - returns parsed approvals
 - Migration path: TODO.md `[x]` present, no approvals.json - migrates, writes file, logs
 - Revocation: edit file, re-read, respects new state
+- Shared read: succeeds while another handle holds the file for write
+
+`tests/windows/lib/Get-MutedFindingKey.Tests.ps1` covers `mutes.json`: the schema, the per-check
+key lookup, the fail-safe fallbacks, the shared read, and that the read creates no file or folder.
+`tests/windows/lib/Read-SharedText.Tests.ps1` covers the shared open, including a holder with
+delete access.
 
 ## Known limits
 

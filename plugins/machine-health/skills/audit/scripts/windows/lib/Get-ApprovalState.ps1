@@ -22,6 +22,7 @@ After migration, TODO.md checkboxes are ignored permanently.
 #>
 
 . (Join-Path $PSScriptRoot 'Assert-ApprovalState.ps1')
+. (Join-Path $PSScriptRoot 'Read-SharedText.ps1')
 . (Join-Path $PSScriptRoot 'Write-MachineHealthLog.ps1')
 
 function New-DefaultApprovalState {
@@ -118,7 +119,7 @@ function Get-ApprovalState {
 
     if (Test-Path -LiteralPath $approvalsPath) {
         try {
-            $raw = Get-Content -LiteralPath $approvalsPath -Raw -ErrorAction Stop
+            $raw = Read-SharedText -Path $approvalsPath
             if ([string]::IsNullOrWhiteSpace($raw)) {
                 return (New-DefaultApprovalState)
             }
