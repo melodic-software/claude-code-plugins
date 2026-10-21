@@ -35,7 +35,13 @@ name: work-unblock
 # or was closed unmerged, the App adds needs-triage and takes agent-ready off,
 # after a comment; a person adding agent-ready again re-runs it. A Refs PR
 # merging also lifts the needs-human report-outcome put on the issue for it.
-# These share the five-a-run cap.
+# It also relabels a red-main fix issue post-merge-demotion-alert.yml reopened
+# on a repeat failure: that reopen keeps agent-ready but, made with the
+# workflow's GITHUB_TOKEN, starts no run. Matched by the issue's
+# `<!-- post-merge-fix check=... -->` first line and the workflow's
+# recurrence comment, the App removes and re-adds agent-ready once per such
+# comment, unless the issue is held, has an open lane PR or a lane run in
+# flight. These share the five-a-run cap.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label a person removed.
