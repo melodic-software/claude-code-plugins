@@ -2174,7 +2174,8 @@ az_read() {
   }
   : >"$ERR_FILE"
   # WSLENV carries the setting to a Windows az run from WSL; elsewhere it is inert.
-  WSLENV="${WSLENV:+$WSLENV:}AZURE_EXTENSION_USE_DYNAMIC_INSTALL" AZURE_EXTENSION_USE_DYNAMIC_INSTALL=no az "$@" "${AZ_SUB_ARGS[@]}" --only-show-errors -o json >"$out" 2>"$ERR_FILE"
+  # az reads its stdin, so it gets none: a caller's loop input stays the loop's.
+  WSLENV="${WSLENV:+$WSLENV:}AZURE_EXTENSION_USE_DYNAMIC_INSTALL" AZURE_EXTENSION_USE_DYNAMIC_INSTALL=no az "$@" "${AZ_SUB_ARGS[@]}" --only-show-errors -o json >"$out" 2>"$ERR_FILE" </dev/null
   rc=$?
   if ((rc != 0)); then
     LAST_ERR="$(grep -m1 -v '^[[:space:]]*$' "$ERR_FILE" 2>/dev/null)"

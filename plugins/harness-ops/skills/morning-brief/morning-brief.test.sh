@@ -754,6 +754,8 @@ chmod +x "$GH_STUB_DIR/gh"
 # MSG. Every call's arguments go to MB_AZ_LOG when set.
 cat >"$GH_STUB_DIR/az" <<'STUB'
 #!/usr/bin/env bash
+# The real az reads whatever its stdin holds; drain what is waiting, as it does.
+while IFS= read -r -t 0.05 _; do :; done
 [[ -n "${MB_AZ_LOG:-}" ]] && printf '%s\n' "$*" >>"$MB_AZ_LOG"
 if [[ "${MB_AZ_MODE:-logged-out}" != serve ]]; then
   printf "ERROR: Please run 'az login' to setup account.\n" >&2
