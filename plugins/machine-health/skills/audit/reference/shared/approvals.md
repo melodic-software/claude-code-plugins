@@ -1,6 +1,6 @@
 # Approvals and per-user state
 
-User-specific approval state lives at `<StateBase>/state/approvals.json`, **not** in the plugin's shipped `TODO.md`. The skill ships with defaults (nothing approved); the user enables individual remediations via `/machine-health:setup` or by editing the JSON directly.
+User-specific approval state lives at `<StateBase>/state/approvals.json`, **not** in the plugin's shipped `TODO.md`. The skill ships with defaults (nothing approved); the user enables individual remediations via `/machine-health:setup`.
 
 Schema: [`catalog/schemas/approvals.schema.json`](../../catalog/schemas/approvals.schema.json).
 
@@ -23,9 +23,29 @@ The `TODO.md` shipped with the plugin is **policy documentation**, not state. It
 remediations available for approval, their risks, and how to enable them. It contains no
 checkbox that drives behavior. Runtime proposals accumulate in `<StateBase>/TODO.md`.
 
+## Writing approvals and mutes
+
+`approvals.json` and `mutes.json` have one writer, `Set-ApprovalState`, which
+`/machine-health:setup apply` runs (`approve=`, `revoke=`, `unmute=`). The one-time TODO.md migration below is the only other path that writes `approvals.json`,
+and it never overwrites an existing file. Both go through the same atomic replace.
+
+What a write guarantees:
+
+- A reader sees the old file or the new one, never a partial write, and a reader never blocks it.
+- Concurrent writers are serialized by `<StateBase>/state/approvals.lock`: a second writer waits and
+  applies its change to the file the first one wrote.
+- The result is validated against the file's schema before it replaces anything; an invalid result
+  leaves the file as it was.
+- Nothing is written when a OneDrive variable names `<StateBase>` or a folder above it.
+
+Hand edits of `approvals.json` or `mutes.json` are unsupported while an audit or setup session
+runs: the lock covers the plugin's writers, not an editor, so a hand edit can be overwritten or can
+overwrite a change made at the same moment.
+
 ## Enabling a remediation
 
-Default state: both shipped remediations start as `approved: false`. Enable by editing `approvals.json`:
+Default state: both shipped remediations start as `approved: false`. Enable one with
+`/machine-health:setup apply approve=<remediation-id>`, which writes an entry like these:
 
 ```json
 {
@@ -68,7 +88,8 @@ change recorded in `CHANGELOG.md`, not a condition this file predicts.
 
 ## Revoking an approval
 
-Flip `approved: true` to `false`. Next run respects it immediately. No cache.
+`/machine-health:setup apply revoke=<remediation-id>` sets `approved` to `false` and refreshes
+`approved_at`. The next run respects it immediately. No cache.
 
 ## Per-host check overrides
 
@@ -121,6 +142,12 @@ Pester tests in `tests/windows/lib/Get-ApprovalState.Tests.ps1` cover:
 - Migration path: TODO.md `[x]` present, no approvals.json - migrates, writes file, logs
 - Revocation: edit file, re-read, respects new state
 - Shared read: succeeds while another handle holds the file for write
+- The migration writes through `Write-StateFile` and never overwrites a file that appeared meanwhile
+
+`tests/windows/lib/Write-StateFile.Tests.ps1` covers the replace recipe and its sharing and
+first-write cases; `tests/windows/lib/Set-ApprovalState.Tests.ps1` covers each action, the
+refusals, the schema check before the replace, the `approvals.lock` wait and the synced
+`<StateBase>` refusal.
 
 `tests/windows/lib/Get-MutedFindingKey.Tests.ps1` covers `mutes.json`: the schema, the per-check
 key lookup, the fail-safe fallbacks, the shared read, and that the read creates no file or folder.
