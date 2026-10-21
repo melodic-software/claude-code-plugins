@@ -3403,7 +3403,7 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
                 self.assertEqual(details["cap"], 5)
                 self.assertEqual(details["capSource"], "default-branch")
 
-    def test_an_unreadable_head_config_refuses_and_an_unparseable_one_stops(
+    def test_an_unreadable_head_config_refuses_and_an_unparsable_one_stops(
         self,
     ) -> None:
         for answer in (502, file_payload("merge: [unclosed\n")):
@@ -3681,7 +3681,7 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         with self.assertRaises(policy.PolicyReadError):
             self.lane_assess(post_merge=lambda floor, who: gate())
 
-    def test_an_unparseable_main_config_stops(self) -> None:
+    def test_an_unparsable_main_config_stops(self) -> None:
         duplicate = LOOSE_PIPELINE.replace("merge:\n", "merge:\n  rung: C2\n")
         for main in ("merge: [unclosed\n", duplicate):
             with self.subTest(main=main):

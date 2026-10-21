@@ -1575,7 +1575,7 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(out["unattended"]["reason"], "authority-differs")
         self.assertEqual(self.log, ["dequeue:all"])
 
-    def test_an_unparseable_default_branch_config_dequeues_the_identitys_entries(
+    def test_an_unparsable_default_branch_config_dequeues_the_identitys_entries(
         self,
     ) -> None:
         self.main_head = "d" * 40
