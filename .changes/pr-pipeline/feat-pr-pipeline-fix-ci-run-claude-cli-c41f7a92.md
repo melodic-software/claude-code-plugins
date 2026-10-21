@@ -21,6 +21,11 @@ bump: minor
   [`patch-rules.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/resolve-config/patch-rules.json)
   caps a patch at 300 files and gains the optional `instruction-path` refusal, so fix-ci still
   pushes no agent instruction path. apply-patch refuses a row with no `requires` list.
+- `collect-patch.sh` runs git against a fresh scratch repository that borrows only the checkout's
+  objects, so no filter, hook, fsmonitor or include the activity planted in `.git` runs. The PR-mode
+  leak scan applies the patch onto the gated head, as apply-patch does, and scans every file it
+  makes; it scans copies of the reply and patch that the uploads then read, and the run's
+  `patch-sha256` is the scanned copy's.
 
 ### Removed
 

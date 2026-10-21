@@ -305,7 +305,9 @@ jobs:
       patch-state: >-
         ${{ steps.patch-upload.outcome == 'success' && 'written'
         || steps.patch.outputs.state == 'empty' && 'empty' || '' }}
-      patch-sha256: ${{ steps.patch-upload.outcome == 'success' && steps.patch.outputs.sha256 || '' }}
+      patch-sha256: >-
+        ${{ steps.patch-upload.outcome == 'success'
+        && (inputs.issue-number == '' && steps.leak-scan.outputs.patch-sha256 || steps.patch.outputs.sha256) || '' }}
       patch-attempt: ${{ steps.patch-upload.outcome == 'success' && github.run_attempt || '' }}
       reply-attempt: ${{ steps.reply-upload.outcome == 'success' && github.run_attempt || '' }}
       # Issue mode, all from steps that run before any model turn.
@@ -1293,21 +1295,32 @@ jobs:
 
       # PR mode: the skill ran Bash with the API key in reach, and artifacts
       # are readable by anyone who can read the repository; masking covers
-      # logs and summaries only. Before any upload or summary, this scans
-      # what leaves the job (the reply, the run fields, the patch and every
-      # changed or untracked file's bytes, listed through a scratch index and
-      # covering a binary hunk) and the
-      # execution file, which the launcher never scans, with the publish
-      # gate's findSecret. The model could edit the checkout and its .git, so
-      # lib/publish-gate.mjs comes from the API at the trusted base SHA, with
-      # the job's read-only token, into a fresh directory, and must import
-      # only node: builtins. A credential format fails the step naming the
-      # pattern, never the value, and says to rotate it; every upload and
+      # logs and summaries only. Before any upload or summary, this copies
+      # what leaves the job (the reply, the run fields and the patch) into a
+      # fresh directory and scans those copies; the uploads and the summary
+      # read only the copies, and the patch-sha256 the apply job checks is
+      # the scanned copy's. It also scans the execution file, which the
+      # launcher never scans, and every changed or untracked file's name and
+      # bytes, listed through a scratch index. The patch is applied as the
+      # apply job applies it, onto the gated head in a scratch index, and
+      # every file it makes is scanned by name and bytes: a binary hunk's
+      # bytes are compressed in the patch text. The model could edit the
+      # checkout and its .git, so git here never reads that directory's
+      # config, hooks or info files (a fresh repository borrows only its
+      # objects, and the patch applies onto a copy of the head's objects
+      # each named by its own hash), and lib/publish-gate.mjs comes from the API at the trusted
+      # base SHA, with the job's read-only token, into a fresh directory,
+      # and must import only node: builtins. A credential format fails the
+      # step naming the pattern, never the value, and says to rotate it; a
+      # patch that does not apply, or a scan that does not finish (the
+      # timeout included), fails it with no rotation; every upload and
       # summary after it needs clean == 'true'. The one broad label, a
-      # password or secret assignment, is a warning naming the file only.
+      # password or secret assignment, is a warning naming the kind of
+      # source, never a path.
       - name: Scan the outputs for credentials
         id: leak-scan
         if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
+        timeout-minutes: 10
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
@@ -1323,21 +1336,12 @@ jobs:
             const fs = require('fs');
             const os = require('os');
             const path = require('path');
+            const crypto = require('crypto');
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
             const { BASE_SHA, HEAD_SHA, EXECUTION_FILE, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
             // The one findSecret label that warns instead of blocking.
             const WARN_ONLY = 'password or secret assignment';
-            // A scratch index, as collect-patch.sh uses: the checkout's own index
-            // is the model's to write (assume-unchanged, skip-worktree).
-            const index = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-index-')), 'index');
-            const git = (...args) =>
-              execFileSync('/usr/bin/git', ['-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', '-c', 'core.hooksPath=/dev/null', ...args], {
-                cwd: GITHUB_WORKSPACE,
-                env: { PATH: '/usr/bin:/bin', HOME: process.env.HOME ?? '/tmp', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_INDEX_FILE: index },
-                maxBuffer: 1 << 30,
-                stdio: ['ignore', 'pipe', 'ignore'],
-              });
             // A regular file's bytes, a link's target text; anything else holds none.
             const read = (file) => {
               let stat;
@@ -1352,13 +1356,49 @@ jobs:
             let hit = null;
             try {
               if (!/^[0-9a-f]{40}$/.test(BASE_SHA ?? '') || !/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no base or head');
+              const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
               const { data } = await github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: BASE_SHA });
               const source = Buffer.from(data.content, 'base64').toString('utf8');
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
               if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');
-              const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
-              fs.writeFileSync(path.join(dir, 'publish-gate.mjs'), source);
-              const { findSecret, SECRET_PATTERNS } = await import(pathToFileURL(path.join(dir, 'publish-gate.mjs')).href);
+              fs.writeFileSync(path.join(scratch, 'publish-gate.mjs'), source);
+              const { findSecret, SECRET_PATTERNS } = await import(pathToFileURL(path.join(scratch, 'publish-gate.mjs')).href);
+              // git with no global or system config, in a fresh bare repository
+              // that borrows at most the checkout's objects and nothing else
+              // from its .git: no filter, hook, fsmonitor or include the model
+              // planted runs (collect-patch.sh runs the same way).
+              const home = path.join(scratch, 'home');
+              fs.mkdirSync(home);
+              fs.writeFileSync(path.join(scratch, 'config'), '');
+              const clean = { PATH: '/usr/bin:/bin', HOME: home, XDG_CONFIG_HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: path.join(scratch, 'config'), GIT_NO_REPLACE_OBJECTS: '1' };
+              const repo = (name, extra, borrow = true) => {
+                const dir = path.join(scratch, name);
+                execFileSync('/usr/bin/git', ['init', '-q', '--bare', '--template=', dir], { env: clean, stdio: 'ignore' });
+                if (borrow) fs.writeFileSync(path.join(dir, 'objects', 'info', 'alternates'), `${path.join(GITHUB_WORKSPACE, '.git', 'objects')}\n`);
+                const env = { ...clean, GIT_DIR: dir, GIT_INDEX_FILE: path.join(dir, 'scan-index'), ...extra };
+                return (args, input) =>
+                  execFileSync('/usr/bin/git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', ...args], {
+                    cwd: extra?.GIT_WORK_TREE ?? scratch,
+                    env,
+                    input,
+                    maxBuffer: 1 << 30,
+                    stdio: [input ? 'pipe' : 'ignore', 'pipe', 'ignore'],
+                  });
+              };
+              // What leaves is copied once; the scan reads the copy and the
+              // uploads after it read the same bytes, so a process the run
+              // left behind cannot swap them by the paths it knew.
+              const out = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-out-'));
+              const keep = (file, name) => {
+                const bytes = read(file);
+                if (bytes) fs.writeFileSync(path.join(out, name), bytes, { flag: 'wx', mode: 0o444 });
+                return bytes;
+              };
+              const reply = keep(`${REPLY_DIR}/reply.txt`, 'reply.txt');
+              const turns = keep(`${REPLY_DIR}/act-turns.json`, 'act-turns.json');
+              const patch = keep(PATCH_FILE, 'patch.diff');
+              core.setOutput('dir', out);
+              if (patch) core.setOutput('patch-sha256', crypto.createHash('sha256').update(patch).digest('hex'));
               // A credential format blocks and asks for rotation. The one broad
               // label, an assignment that may be a test fixture, only warns, and
               // only on a plain line. Each line is judged on its own: every
@@ -1367,7 +1407,7 @@ jobs:
               // its matches are blanked and the line read again, and each match
               // is read again with its = and : blanked. A line whose assignment
               // sits beside markup or escapes the gate folds (a tag, an entity,
-              // a doubled backslash: publish-gate.mjs normalize(), lines 59-65),
+              // a doubled backslash: publish-gate.mjs normalize(), lines 60-66),
               // or whose assignment only the folded copy shows, blocks under its
               // own label: blanking cannot be trusted there. findSecret on the
               // whole text runs too, and any credential label from it blocks.
@@ -1404,34 +1444,97 @@ jobs:
                 if (whole && whole[0] !== WARN_ONLY) return credential(whole[0]);
                 return { warn };
               };
-              const paths = ['--', ':(top)', ':(top,exclude).lane'];
-              git('read-tree', HEAD_SHA);
-              git('add', '-A', ...paths);
-              const listed = (...filter) =>
-                git('diff', '--cached', '--name-only', '--no-renames', ...filter, '-z', HEAD_SHA, ...paths).toString('latin1').split('\0').filter(Boolean);
-              const added = new Set(listed('--diff-filter=A'));
-              const kindOf = (name) => (added.has(name) ? 'an untracked file' : 'a changed file');
-              // Each source is [kind, bytes]; a kind names no model-chosen text.
-              // A file's name is a source too: it reaches the patch.
-              const sources = [
-                ['the reply', read(`${REPLY_DIR}/reply.txt`)],
-                ['the reply', read(`${REPLY_DIR}/act-turns.json`)],
-                ['the patch', read(PATCH_FILE)],
-                ['the execution file', read(EXECUTION_FILE)],
-                ...listed().flatMap((name) => [
-                  [`${kindOf(name)}'s name`, Buffer.from(name, 'latin1')],
-                  [kindOf(name), read(path.join(GITHUB_WORKSPACE, name))],
-                ]),
-              ];
-              const warned = new Set();
-              for (const [kind, bytes] of sources) {
-                if (!bytes) continue;
-                const { block, credential: format, warn } = classify(bytes.toString('latin1'));
-                if (block) {
-                  hit = { label: block, credential: format };
-                  break;
+              // The launcher writes the execution file as one JSON line, so a
+              // credential format is looked for in the raw bytes, and then every
+              // string in it, keys included, is judged on its own lines. A file
+              // that does not parse is judged as text.
+              const classifyExecution = (bytes) => {
+                const raw = bytes.toString('latin1');
+                let value;
+                try {
+                  value = JSON.parse(bytes.toString('utf8'));
+                } catch {
+                  return classify(raw);
                 }
-                if (warn) warned.add(kind);
+                for (const line of raw.split(/\r?\n/)) {
+                  const result = classifyLine(line);
+                  if (result.credential) return result;
+                }
+                const whole = findSecret(raw);
+                if (whole && whole[0] !== WARN_ONLY) return credential(whole[0]);
+                const strings = [];
+                const walk = (node) => {
+                  if (typeof node === 'string') strings.push(node);
+                  else if (Array.isArray(node)) node.forEach(walk);
+                  else if (node && typeof node === 'object') {
+                    for (const [key, child] of Object.entries(node)) {
+                      strings.push(key);
+                      walk(child);
+                    }
+                  }
+                };
+                walk(value);
+                let warn = false;
+                for (const text of strings) {
+                  const result = classify(text);
+                  if (result.block) return result;
+                  warn ||= Boolean(result.warn);
+                }
+                return { warn };
+              };
+              // Each source has a kind, which names no model-chosen text.
+              const warned = new Set();
+              const judge = (kind, bytes, how = (b) => classify(b.toString('latin1'))) => {
+                if (hit || !bytes) return;
+                const { block, credential: format, warn } = how(bytes);
+                if (block) hit = { label: block, credential: format };
+                else if (warn) warned.add(kind);
+              };
+              judge('the reply', reply);
+              judge('the reply', turns);
+              judge('the patch', patch);
+              judge('the execution file', read(EXECUTION_FILE), classifyExecution);
+              // Every changed or untracked file in the checkout, through a
+              // scratch index (the checkout's own is the model's to write:
+              // assume-unchanged, skip-worktree). A file's name reaches the
+              // patch, so it is a source too.
+              const tree = repo('tree', { GIT_WORK_TREE: GITHUB_WORKSPACE });
+              const paths = ['--', ':(top)', ':(top,exclude).lane'];
+              tree(['read-tree', HEAD_SHA]);
+              tree(['add', '-A', ...paths]);
+              const listed = (...filter) =>
+                tree(['diff', '--cached', '--name-only', '--no-renames', ...filter, '-z', HEAD_SHA, ...paths]).toString('latin1').split('\0').filter(Boolean);
+              const added = new Set(listed('--diff-filter=A'));
+              for (const name of listed()) {
+                const kind = added.has(name) ? 'an untracked file' : 'a changed file';
+                judge(`${kind}'s name`, Buffer.from(name, 'latin1'));
+                judge(kind, read(path.join(GITHUB_WORKSPACE, name)));
+              }
+              // The patch as the apply job applies it, onto the gated head: every
+              // file it makes, by name and bytes. git apply takes a blob the store
+              // already holds in place of a binary hunk's bytes, and the model
+              // could plant one under the name of the hunk's blob, so the head's
+              // objects are copied through index-pack, which names each by its
+              // own hash, into a store that borrows nothing. A patch that does
+              // not apply blocks. A missing or blank patch file is no patch: the
+              // collector writes none for no change.
+              if (!hit && patch && patch.toString('latin1').trim() !== '') {
+                const apply = repo('apply', undefined, false);
+                apply(['index-pack', '--stdin'], tree(['pack-objects', '--stdout', '-q'], tree(['rev-list', '--objects', '--no-walk', HEAD_SHA])));
+                apply(['read-tree', HEAD_SHA]);
+                let made = null;
+                try {
+                  apply(['apply', '--cached', '--binary', '-'], patch);
+                  made = apply(['write-tree']).toString('latin1').trim();
+                } catch {
+                  hit = { label: 'the patch does not apply to the head', credential: false };
+                }
+                const fields = made ? apply(['diff-tree', '-r', '-z', '--no-renames', HEAD_SHA, made]).toString('latin1').split('\0') : [];
+                for (let i = 0; i + 1 < fields.length; i += 2) {
+                  const [, mode, , sha] = fields[i].replace(/^:/, '').split(' ');
+                  judge('the patch', Buffer.from(fields[i + 1], 'latin1'));
+                  if (/^(100644|100755|120000)$/.test(mode)) judge('the patch', apply(['cat-file', 'blob', sha]));
+                }
               }
               if (!hit) {
                 for (const kind of warned) core.warning(`leak-scan: ${WARN_ONLY} in ${kind}; not blocking, check it is no real credential`);
@@ -1444,8 +1547,9 @@ jobs:
               core.setFailed(`leak-scan: ${hit.label}; nothing is uploaded or summarized${hit.credential ? '\nrotate this credential' : ''}`);
             }
 
-      # After the scan: model text and run fields, as data. Issue mode has no
-      # scan (its job holds no API key) and keeps its summary.
+      # After the scan: model text and run fields, as data, from the scan's
+      # copies in PR mode. Issue mode has no scan (its job holds no API key)
+      # and keeps its summary.
       - name: Show the skill's run in the step summary
         if: >-
           always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
@@ -1455,7 +1559,7 @@ jobs:
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          REPLY_DIR: ${{ runner.temp }}/skill-reply
+          REPLY_DIR: ${{ steps.leak-scan.outputs.dir || format('{0}/skill-reply', runner.temp) }}
         with:
           retries: 0
           script: |
@@ -1489,10 +1593,11 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
-          # Named files only: head code can write into this directory.
+          # Named files only: head code can write into this directory. PR
+          # mode reads the leak scan's copies.
           path: |
-            ${{ runner.temp }}/skill-reply/reply.txt
-            ${{ runner.temp }}/skill-reply/act-turns.json
+            ${{ steps.leak-scan.outputs.dir || format('{0}/skill-reply', runner.temp) }}/reply.txt
+            ${{ steps.leak-scan.outputs.dir || format('{0}/skill-reply', runner.temp) }}/act-turns.json
           retention-days: 3
           if-no-files-found: error
 
@@ -1505,7 +1610,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/patch/patch.diff
+          path: ${{ steps.leak-scan.outputs.dir || format('{0}/patch', runner.temp) }}/patch.diff
           retention-days: 7
           if-no-files-found: error
 

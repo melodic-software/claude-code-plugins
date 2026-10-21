@@ -552,7 +552,9 @@ set `applied-by`, and an issue-mode activity must set it. The steps:
 2. After an act step that succeeded, in place of the clean-tree check, the collector writes
    everything the activity changed against the gated head (committed, staged, unstaged and
    untracked, ignored files and `.lane/` aside) as one `git diff --binary` patch, through a scratch index, with
-   every diff option that changes the patch's form passed explicitly. A failed, cancelled or
+   every diff option that changes the patch's form passed explicitly. Its git runs against a fresh
+   repository that borrows only the checkout's objects, with no global or system config, so no
+   filter, hook, fsmonitor or include the activity wrote into `.git` runs. A failed, cancelled or
    turnless act step collects nothing and the check fails as usual.
 3. A non-empty patch is uploaded as the artifact `patch-<lane>-<activity>-<run attempt>`, holding
    one file, `patch.diff` (7-day retention). The run's `patch-state` output is then `written`,
@@ -616,12 +618,18 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    off, an empty token on the fallback call included.
 6. Before any upload or step summary, `leak-scan` runs the base's `findSecret`
    (`lib/publish-gate.mjs`, read through the API at the base SHA, never from the checkout) over the
-   reply, the run fields, the patch, every changed or untracked file and the execution file. A
-   credential format fails the run naming the pattern and asking for rotation, uploads and
-   summarizes nothing, and leaves `patch-state` empty. A `password or secret assignment` on a plain
-   line only warns, naming the kind of source, never its path; beside markup or escapes the gate
-   folds it blocks as `assignment hidden by markup or escapes`, without the rotation line. File
-   names are scanned too.
+   reply, the run fields, the patch, every changed or untracked file and the execution file (each
+   string in its JSON on its own lines, and its raw bytes for credential formats). It applies the
+   patch as apply-patch does, onto the gated head's objects copied through `git index-pack`, and
+   scans every file the patch makes. It scans copies of the reply, the run fields and the patch,
+   which the uploads and the summary then read, and the run's `patch-sha256` is the scanned copy's.
+   A credential format fails the run naming the pattern and asking for rotation, uploads and
+   summarizes nothing, and leaves `patch-state` empty. A patch that does not apply, or a scan that
+   does not finish within the step's timeout, fails it without the rotation line. A
+   `password or secret assignment` on a plain line only warns, naming the kind of source, never its
+   path; beside markup or escapes the gate folds it blocks as
+   `assignment hidden by markup or escapes`, without the rotation line. File names are scanned
+   too.
 
 The issue lane's skill stays on claude-code-action.
 

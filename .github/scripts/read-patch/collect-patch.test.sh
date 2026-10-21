@@ -153,6 +153,50 @@ apply_to_fresh
 check 'config: the patch applies' 0 "$APPLY_RC"
 check 'config: the applied tree matches' yes "$SAME"
 
+echo '# planted git config, attributes and hooks'
+# Each plant writes a marker when git runs it; none may run, and the patch
+# holds the bytes on disk, never what a clean filter would stage.
+planted() {
+  local name=$1
+  run_collect
+  check "$name: exit 0" 0 "$RC"
+  check "$name: nothing planted ran" no "$([[ -e $MARK ]] && echo yes || echo no)"
+  check "$name: the patch holds the bytes on disk" 1 "$(grep -c '^+on disk$' "$PATCH")"
+}
+hook() {
+  mkdir -p "$1"
+  printf '#!/bin/sh\ntouch "%s"\n' "$MARK" >"$1/$2"
+  chmod +x "$1/$2"
+}
+new_repo
+MARK="$TMP/ran.filter"
+tg config filter.x.clean "touch '$MARK'; printf 'staged by the filter\\n'"
+mkdir -p "$R/.git/info"
+printf 'edit.txt filter=x\n' >"$R/.git/info/attributes"
+put edit.txt 'on disk\n'
+planted 'a filter in .git/config named by .git/info/attributes'
+new_repo
+MARK="$TMP/ran.include"
+printf '[filter "y"]\n\tclean = touch %s; cat\n' "'$MARK'" >"$R/included"
+tg config include.path "$R/included"
+tg config includeIf."gitdir:$R/".path "$R/included"
+put .gitattributes 'edit.txt filter=y\n'
+put edit.txt 'on disk\n'
+planted 'a filter only an include or includeIf defines, named by a worktree .gitattributes'
+new_repo
+MARK="$TMP/ran.hooks"
+hook "$R/.git/hooks" post-index-change
+hook "$R/hooks" post-index-change
+tg config core.hooksPath "$R/hooks"
+put edit.txt 'on disk\n'
+planted 'a post-index-change hook in .git/hooks and in core.hooksPath'
+new_repo
+MARK="$TMP/ran.fsmonitor"
+hook "$R/.git" monitor
+tg config core.fsmonitor "$R/.git/monitor"
+put edit.txt 'on disk\n'
+planted 'a core.fsmonitor command'
+
 echo '# unsafe input'
 new_repo
 put edit.txt 'changed\n'

@@ -1264,6 +1264,9 @@ function launch(overrides = {}) {
   };
 }
 
+// The file tools never reach the checkout's .git, on every launcher arm.
+const GIT_DENIED = ["Read(./.git/**)", "Edit(./.git/**)", "Write(./.git/**)"];
+
 test("run-claude-cli: a ci-context skill gets Bash, Edit and Write, the staged context and plugin under .lane/, and no claude_args", () => {
   const ciDir = mkdtempSync(path.join(root, "ci-launch-"));
   writeFileSync(path.join(ciDir, "context.json"), '{"head_sha":"x"}');
@@ -1273,7 +1276,7 @@ test("run-claude-cli: a ci-context skill gets Bash, Edit and Write, the staged c
   for (const rule of ["Skill(source-control:pull-request)", "Bash", "Edit", "Write", "Agent", "Grep", "Glob"]) {
     assert.ok(run.allowedTools.includes(rule), `${rule} in ${run.allowedTools.join(" | ")}`);
   }
-  for (const rule of ["WebFetch", "WebSearch", "Edit(./.lane/ci/**)", "Write(./.lane/ci/**)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)", "Edit(./.lane/trusted-context.json)", "Write(./.lane/trusted-context.json)", "Read(//proc/**)"]) {
+  for (const rule of ["WebFetch", "WebSearch", "Edit(./.lane/ci/**)", "Write(./.lane/ci/**)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)", "Edit(./.lane/trusted-context.json)", "Write(./.lane/trusted-context.json)", "Read(//proc/**)", ...GIT_DENIED]) {
     assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   }
   assert.equal(run.pluginDirs, ".lane/plugins/source-control");
@@ -1293,7 +1296,7 @@ test("run-claude-cli: a read skill without ci-context gets no Bash, Edit or Writ
   assert.equal(run.status, 0, run.stdout);
   assert.deepEqual(run.tools.toSorted(), ["Glob", "Grep", "Read", "Skill"]);
   assert.ok(!run.allowedTools.some((rule) => /^(Bash|Edit|Write)/.test(rule)), run.allowedTools.join(" | "));
-  assert.ok(run.deniedTools.includes("Read(//proc/**)"), run.deniedTools.join(" | "));
+  for (const rule of ["Read(//proc/**)", ...GIT_DENIED]) assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   assert.doesNotMatch(run.preamble, /context file/);
 });
 

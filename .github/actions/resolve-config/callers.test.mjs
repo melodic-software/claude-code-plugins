@@ -1162,7 +1162,12 @@ test("pr-run-activity-read.yml: the leak scan loads the publish gate from the AP
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 const KEY = ["sk", "ant", "api03", "x".repeat(40)].join("-");
 
-async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs")) {
+const COLLECT = fileURLToPath(new URL("../../scripts/read-patch/collect-patch.sh", import.meta.url));
+
+// The PR-mode tail of the run job: the plant stands in for the model's run,
+// then the real collector writes the patch from the checkout, then
+// afterCollect stands in for a process the run left behind, then the scan.
+async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), "leak-scan-test-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const work = join(root, "work");
@@ -1179,9 +1184,11 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs")) 
   const head = git("rev-parse", "HEAD").stdout.trim();
   writeFileSync(join(temp, "skill-reply", "reply.txt"), "lint-shell: fixed\n");
   writeFileSync(join(temp, "skill-reply", "act-turns.json"), '{"num_turns": 3}\n');
-  writeFileSync(join(temp, "patch", "patch.diff"), "diff --git a/x b/x\n");
   writeFileSync(join(temp, "execution.json"), "[]\n");
   plant({ work, temp });
+  const collected = spawnSync("bash", [COLLECT, head, join(temp, "patch", "patch.diff")], { cwd: work, encoding: "utf8" });
+  assert.equal(collected.status, 0, collected.stderr);
+  afterCollect({ work, temp, head });
   const outputs = {};
   let failed = null;
   const warnings = [];
@@ -1214,7 +1221,7 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs")) 
     { repo: { owner: "o", repo: "r" } },
     { env },
   );
-  return { clean: outputs.clean, failed, work, warnings };
+  return { clean: outputs.clean, failed, work, temp, warnings, outputs };
 }
 
 test("leak scan: a clean run is clean", async (t) => {
@@ -1280,8 +1287,21 @@ const CREDENTIALS = {
   "Cloudflare API token": `${"cfut"}_${"A".repeat(40)}`,
   "upload token": `${"pgup"}_${"A".repeat(20)}`,
 };
-// Single quotes, so the JSON execution file keeps the quote the pattern needs.
 const ASSIGNMENT = `password = '${["hunter2", "zz9"].join("-")}'`;
+// The execution file as run-claude-cli writes it (lane.cjs at 7b362428, the
+// pinned launcher: JSON.stringify(linesToMessages(stdout))): the CLI's
+// stream-json lines parsed into one array, on one line. A tool result
+// carries the given text; the model's turn names a Windows path, whose
+// backslash the file holds doubled.
+const executionFile = (toolText) =>
+  JSON.stringify(
+    [
+      '{"type":"system","subtype":"init","model":"claude-sonnet-5-5","tools":["Read","Bash"]}',
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Reading C:\\src\\lint.sh" }, { type: "tool_use", id: "t1", name: "Bash", input: { command: "cat .env.example" } }] } }),
+      JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: `${toolText}\nPORT=8080` }] } }),
+      '{"type":"result","subtype":"success","num_turns":3,"result":"lint-shell: fixed"}',
+    ].map((line) => JSON.parse(line)),
+  );
 
 test("leak scan: every credential format the gate names blocks and asks for rotation", async (t) => {
   const { SECRET_PATTERNS } = await import("../../../lib/publish-gate.mjs");
@@ -1302,12 +1322,14 @@ test("leak scan: a plain password or secret assignment warns, naming the kind of
   const plants = {
     "a changed file": ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`),
     "an untracked file": ({ work }) => writeFileSync(join(work, "new-notes.txt"), `${ASSIGNMENT}\n`),
-    "the execution file": ({ temp }) => writeFileSync(join(temp, "execution.json"), JSON.stringify([{ type: "user", text: ASSIGNMENT }])),
+    "the execution file": ({ temp }) => writeFileSync(join(temp, "execution.json"), executionFile(ASSIGNMENT)),
   };
   for (const [kind, plant] of Object.entries(plants)) {
     const { clean, failed, warnings } = await scanWith(t, plant);
     assert.deepEqual({ clean, failed }, { clean: "true", failed: null }, kind);
-    assert.deepEqual(warnings, [`leak-scan: password or secret assignment in ${kind}; not blocking, check it is no real credential`], kind);
+    // A changed or untracked file reaches the patch, which warns as well.
+    const kinds = kind.endsWith("file") && kind !== "the execution file" ? ["the patch", kind] : [kind];
+    assert.deepEqual(warnings, kinds.map((name) => `leak-scan: password or secret assignment in ${name}; not blocking, check it is no real credential`), kind);
     assert.ok(!/hunter2|tracked\.txt|new-notes/.test(warnings[0]), kind);
   }
 });
@@ -1342,7 +1364,7 @@ test("leak scan: an assignment never hides a credential the gate finds only in i
   }
   // Case 15: a plain assignment still only warns.
   const plain = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`));
-  assert.deepEqual({ clean: plain.clean, failed: plain.failed, warnings: plain.warnings.length }, { clean: "true", failed: null, warnings: 1 });
+  assert.deepEqual({ clean: plain.clean, failed: plain.failed, warnings: plain.warnings.length }, { clean: "true", failed: null, warnings: 2 });
 });
 
 test("leak scan: a credential-format file name blocks, and a PEM header alone blocks as a private key", async (t) => {
@@ -1365,4 +1387,115 @@ test("leak scan: a gate whose labels lack the warning label still blocks its cre
   const hit = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `${KEY}\n`), gate);
   assert.equal(hit.clean, "false");
   assert.match(hit.failed, /^leak-scan: Anthropic key; .*\nrotate this credential$/);
+});
+
+test("leak scan: an execution file the launcher writes on one line judges each message's text on its own lines", async (t) => {
+  const file = executionFile(ASSIGNMENT);
+  assert.equal(file.split("\n").length, 1, "the launcher's file is one line");
+  assert.ok(file.includes("\\\\"), "the file holds a doubled backslash away from the assignment");
+  const plain = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "execution.json"), file));
+  assert.deepEqual({ clean: plain.clean, failed: plain.failed }, { clean: "true", failed: null });
+  assert.deepEqual(plain.warnings, ["leak-scan: password or secret assignment in the execution file; not blocking, check it is no real credential"]);
+  // Beside markup on its own line, the assignment still blocks, with no rotation.
+  const hidden = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "execution.json"), executionFile(`<b>${ASSIGNMENT}</b>`)));
+  assert.equal(hidden.failed, `leak-scan: ${HIDDEN}; nothing is uploaded or summarized`);
+  // A JSON escape the parse undoes, and a credential in the raw bytes, both block and ask for rotation.
+  const escaped = JSON.stringify([{ type: "user", text: CREDENTIALS["Cloudflare API token"] }]).replace("cfut", "\\u0063fut");
+  for (const [name, text] of [["escaped", escaped], ["raw", executionFile(KEY)]]) {
+    const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "execution.json"), text));
+    assert.equal(clean, "false", name);
+    assert.match(failed, /\nrotate this credential$/, name);
+  }
+  // A file that does not parse is judged as text.
+  const broken = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "execution.json"), `[{"text": "${ASSIGNMENT} \\\\x"`));
+  assert.equal(broken.failed, `leak-scan: ${HIDDEN}; nothing is uploaded or summarized`);
+});
+
+// A key the working tree no longer shows: the patch carries it as a binary
+// literal, compressed, so only the file the patch makes holds its bytes.
+const KEY_BLOB = Buffer.concat([Buffer.from([0, 1, 0]), Buffer.from(KEY), Buffer.from([0])]);
+const restore = ({ work }) => writeFileSync(join(work, "tracked.txt"), "unchanged\n");
+
+test("leak scan: a key only the patch's binary hunk carries blocks, and a patch that does not apply blocks without rotation", async (t) => {
+  const { clean, failed, temp } = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), KEY_BLOB), undefined, { afterCollect: restore });
+  const patch = readFileSync(join(temp, "patch", "patch.diff"));
+  assert.ok(patch.includes("GIT binary patch") && !patch.includes(KEY), "the key is compressed in the patch");
+  assert.equal(clean, "false");
+  assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+  const stale = await scanWith(t, () => {}, undefined, {
+    afterCollect: ({ temp }) => writeFileSync(join(temp, "patch", "patch.diff"), "diff --git a/gone.txt b/gone.txt\n--- a/gone.txt\n+++ b/gone.txt\n@@ -1 +1 @@\n-a\n+b\n"),
+  });
+  assert.equal(stale.failed, "leak-scan: the patch does not apply to the head; nothing is uploaded or summarized");
+});
+
+test("leak scan: an object planted under the name of the patch's blob never stands in for the hunk's bytes", async (t) => {
+  const { inflateSync, deflateSync } = await import("node:zlib");
+  const { createHash } = await import("node:crypto");
+  const { clean, failed } = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), KEY_BLOB), undefined, {
+    afterCollect: (state) => {
+      restore(state);
+      // The blob the patch makes, planted under its name with benign bytes.
+      const sha = createHash("sha1").update(`blob ${KEY_BLOB.length}\0`).update(KEY_BLOB).digest("hex");
+      const dir = join(state.work, ".git", "objects", sha.slice(0, 2));
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, sha.slice(2)), deflateSync(Buffer.from("blob 7\0benign\n")));
+      assert.equal(inflateSync(readFileSync(join(dir, sha.slice(2)))).toString().endsWith("benign\n"), true);
+    },
+  });
+  assert.equal(clean, "false");
+  assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+});
+
+test("leak scan: no filter, include, hook or fsmonitor planted in the checkout's .git runs while the patch is collected or scanned", async (t) => {
+  const marks = mkdtempSync(join(tmpdir(), "leak-scan-marks-"));
+  t.after(() => rmSync(marks, { recursive: true, force: true }));
+  const mark = (name) => join(marks, name);
+  const hook = (file, name) => {
+    mkdirSync(join(file, ".."), { recursive: true });
+    writeFileSync(file, `#!/bin/sh\ntouch '${mark(name)}'\ncat\n`, { mode: 0o755 });
+  };
+  const { clean, failed, temp } = await scanWith(t, ({ work }) => {
+    const git = (...args) => spawnSync("git", args, { cwd: work, encoding: "utf8" });
+    // Set through git config, as Bash in the run could.
+    git("config", "filter.x.clean", `touch '${mark("filter")}'; printf '\\000${KEY}\\n'`);
+    mkdirSync(join(work, ".git", "info"), { recursive: true });
+    writeFileSync(join(work, ".git", "info", "attributes"), "tracked.txt filter=x\n");
+    writeFileSync(join(work, "included"), `[filter "y"]\n\tclean = touch '${mark("include")}'; cat\n`);
+    git("config", "include.path", join(work, "included"));
+    git("config", `includeIf.gitdir:${work}/.path`, join(work, "included"));
+    writeFileSync(join(work, ".gitattributes"), "doc.txt filter=y\n");
+    writeFileSync(join(work, "doc.txt"), "doc\n");
+    hook(join(work, ".git", "hooks", "post-index-change"), "hook");
+    hook(join(work, "hooks", "post-index-change"), "hooks-path");
+    git("config", "core.hooksPath", join(work, "hooks"));
+    hook(join(work, ".git", "monitor"), "fsmonitor");
+    git("config", "core.fsmonitor", join(work, ".git", "monitor"));
+    writeFileSync(join(work, "tracked.txt"), "benign\n");
+  });
+  assert.deepEqual(readdirSync(marks), [], "nothing planted ran");
+  assert.deepEqual({ clean, failed }, { clean: "true", failed: null });
+  assert.match(readFileSync(join(temp, "patch", "patch.diff"), "latin1"), /^\+benign$/m, "the patch holds the bytes on disk");
+});
+
+test("leak scan: the uploads and the summary read the scanned copies, and the patch SHA-256 the apply job checks is the copy's", async (t) => {
+  const steps = runSteps();
+  const step = (id) => steps.find((s) => s.id === id);
+  const scan = step("leak-scan");
+  assert.equal(typeof scan["timeout-minutes"], "number", "a slow scan ends, failing closed");
+  assert.equal(scan.with.script.match(/setOutput\('clean'/g).length, 1, "clean is set only once the scan finished");
+  const copy = "steps.leak-scan.outputs.dir || format(";
+  assert.ok(String(step("reply-upload").with.path).split("\n").filter(Boolean).every((line) => line.includes(copy)));
+  assert.ok(step("patch-upload").with.path.includes(copy));
+  assert.ok(steps.find((s) => s.name === "Show the skill's run in the step summary").env.REPLY_DIR.includes(copy));
+  assert.match(workflow("pr-run-activity-read.yml").jobs.run.outputs["patch-sha256"], /inputs\.issue-number == '' && steps\.leak-scan\.outputs\.patch-sha256/);
+  const { outputs, temp } = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "changed\n"));
+  const original = readFileSync(join(temp, "patch", "patch.diff"));
+  // A process left behind rewrites what it knows; the copies keep the scanned bytes.
+  writeFileSync(join(temp, "patch", "patch.diff"), `${KEY}\n`);
+  writeFileSync(join(temp, "skill-reply", "reply.txt"), `${KEY}\n`);
+  assert.deepEqual(readFileSync(join(outputs.dir, "patch.diff")), original);
+  assert.equal(readFileSync(join(outputs.dir, "reply.txt"), "utf8"), "lint-shell: fixed\n");
+  const { createHash } = await import("node:crypto");
+  assert.equal(outputs["patch-sha256"], createHash("sha256").update(original).digest("hex"));
+  rmSync(outputs.dir, { recursive: true, force: true });
 });
