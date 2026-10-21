@@ -331,12 +331,20 @@ class ReadConfigAt(unittest.TestCase):
                 )
 
     def test_a_flow_mapping_max_verify_fails_turns_the_lane_off(self) -> None:
-        config_fake(
-            self,
-            PIPELINE.replace("merge:\n", "merge:\n  max-verify-fails: {a: 1}\n"),
-        )
-        config = policy.read_config_at(REPO, SHA)
-        self.assertEqual((config.rung, config.error), ("off", "config-parse-error"))
+        # The shared reader's subset rejects any flow mapping, empty or not,
+        # so the whole config is unread and the lane is off.
+        for value in ("{}", "{a: 1}"):
+            with self.subTest(value=value):
+                config_fake(
+                    self,
+                    PIPELINE.replace(
+                        "merge:\n", f"merge:\n  max-verify-fails: {value}\n"
+                    ),
+                )
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(
+                    (config.rung, config.error), ("off", "config-parse-error")
+                )
 
     def test_risk_escalation_minutes_defaults_to_sixty_and_reads_minutes(
         self,

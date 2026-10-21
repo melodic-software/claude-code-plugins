@@ -1033,7 +1033,10 @@ head:
   requests refuses the same way. This cap is what bounds pushing until the verifier passes once:
   the carry-forward below stops only a head that changes nothing of its own, and a one-line edit
   gives a new change. A pull request that names the issue without closing it, or whose closing
-  reference was removed, is not counted;
+  reference was removed, is not counted. Closing a newly filed duplicate issue instead starts the
+  count of other pull requests again; a pass then needs that issue written by a trusted human
+  other than the author, as below. More than 50 pull requests that claim to close one issue make
+  every pull request for that issue refuse `verify:unreadable`: a hold, not a way past the cap;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch) refuses (`verify:earlier-fail`). The refusal stands while a
   `fail` artifact cannot be read (next item). Otherwise counted `pass` or `pass-notes` verdicts at
