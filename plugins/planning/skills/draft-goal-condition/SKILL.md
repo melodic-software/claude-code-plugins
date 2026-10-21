@@ -225,7 +225,10 @@ paste-ready line in its output instead of asking.
 
 **Mutation gate.** Only the person's approval arms a goal: their `/goal` run or their keypress on
 a `ProposeGoal` dialog. This skill never sets `ask_user` false, and never sets, replaces, or
-clears a goal on the person's behalf.
+clears a goal on the person's behalf. One exception covers this gate and the Boundary's
+reserved-for-the-person line: when the person, shown a condition, explicitly asks
+`/session-flow:continue-in-background` to launch with it, that request is their approval, and that
+skill passes the condition as the launched session's `/goal`.
 
 **Availability is never assumed.** This section says what to do when the person can run `/goal`
 or `ProposeGoal` resolves, never that either is present in their host. The four-part records live

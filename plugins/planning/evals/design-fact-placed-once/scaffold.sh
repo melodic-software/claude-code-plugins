@@ -95,7 +95,7 @@ No single uploaded file may exceed 25 MB.
 
 ### Captured assumptions
 - Quality bar: internal
-- Intent: second variant = speculative; existing structure: the API, the form template and the CLI each state their own upload limits; upstream: none
+- Variation intent: second variant = speculative; existing structure: the API, the form template and the CLI each state their own upload limits; upstream: none
 MD
 
 git add .

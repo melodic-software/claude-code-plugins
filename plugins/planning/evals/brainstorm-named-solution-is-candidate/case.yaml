@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: brainstorm-named-solution-is-candidate
+description: An idea-stage brainstorm whose user names a solution lists that solution as one candidate among others, not as the accepted approach
+tags: [brainstorm, problem-framing, idea-stage, scaffold]
+expected_outcome: The candidate list includes the user's bigger-warehouse idea as one numbered candidate, marked as the user's, beside at least two other candidates grounded in the ETL repository, and ends by asking what resonates.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/planning:brainstorm nightly ETL finishes after 9am, so the morning dashboards show yesterday's numbers. Yes, that is the problem. Why: the sales team plans its day from those dashboards. Where this heads: fresh numbers by 7am without anyone watching the job. The idea isn't settled; my own idea is a bigger warehouse. Go ahead with candidates."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?brainstorm"'
+    arm: with-only
+  - name: user-idea-is-one-candidate
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer lists several numbered candidate approaches AND one of them is the user's own idea, a bigger warehouse, shown as a candidate in the list like the others AND at least two other candidates are different kinds of fix. FAIL if the bigger warehouse is adopted as the approach with the others framed as add-ons, if it is left out of the list or dismissed without being listed, or if the answer picks one candidate for the user instead of asking what resonates."
+  - name: no-unilateral-pick
+    type: regex
+    pattern: '\bI(?: have|[''’]ve)? (?:chose|chosen|picked|selected)\b|\bI(?: will|[''’]ll|[''’]m| am)(?: going to)? (?:go(?:ing)? with|proceed(?:ing)? with|start(?:ing)? implementing)\b'
+    match: not_contains
+    flags: i
+    arm: both

@@ -51,16 +51,19 @@ if [[ "$triggers" == *"workflows: [$full_name, $canary_name]"* && "$triggers" ==
 else
   fail "workflow_run does not name both workflows: '$triggers'"
 fi
-if grep -q '^permissions: {}$' "$WORKFLOW" &&
-  [[ "$(grep -oE '^ +[a-z-]+: (read|write)( |$)' "$WORKFLOW" | sed 's/^ *//; s/ *$//' | sort | paste -sd ' ')" == 'actions: write checks: read contents: read issues: write pull-requests: read' ]]; then
-  ok "the token holds issues: write, actions: write and checks, contents and pull-requests read, nothing else"
+# The alert job alone; the report-red-main job after it has its own tests
+# (.github/scripts/post-merge-demotion-alert/workflow.test.mjs).
+alert_job="$(awk '/^  alert:$/ { on = 1 } on && /^  [a-z-]+:$/ && !/^  alert:$/ { exit } on' "$WORKFLOW")"
+if [[ -n "$alert_job" ]] && grep -q '^permissions: {}$' "$WORKFLOW" &&
+  [[ "$(grep -oE '^ +[a-z-]+: (read|write)( |$)' <<<"$alert_job" | sed 's/^ *//; s/ *$//' | sort | paste -sd ' ')" == 'actions: write checks: read contents: read issues: write pull-requests: read' ]]; then
+  ok "the alert token holds issues: write, actions: write and checks, contents and pull-requests read, nothing else"
 else
-  fail "permissions are not exactly issues: write, actions: write, checks: read, contents: read, pull-requests: read"
+  fail "the alert job's permissions are not exactly issues: write, actions: write, checks: read, contents: read, pull-requests: read"
 fi
-if grep -qE '^[[:space:]]*-?[[:space:]]*uses:' "$WORKFLOW"; then
-  fail "the workflow runs an action; it must check out and run nothing"
+if grep -qE '^[[:space:]]*-?[[:space:]]*uses:' <<<"$alert_job"; then
+  fail "the alert job runs an action; it must check out and run nothing"
 else
-  ok "no action and no checkout"
+  ok "no action and no checkout in the alert job"
 fi
 if grep -qF "\${{" "$TMP_ROOT/body.sh"; then
   fail "the step body interpolates an expression; pass it through env"

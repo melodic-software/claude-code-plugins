@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.14] - 2026-10-20
+
+### Changed
+
+- **Bump hono from 4.13.7 to 4.13.13 in /plugins/miro/server** (#8671).
+
 ## [0.6.13] - 2026-10-20
 
 ### Changed

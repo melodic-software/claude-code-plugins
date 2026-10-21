@@ -71,8 +71,10 @@ The `css` keys are read by `/user-interface:write-css`; its
 [`configuration.md`](skills/write-css/reference/configuration.md) says what each one changes. The
 `animation` keys are taste defaults that apply only where the project has no motion tokens of its
 own; `/user-interface:write-animation` reads them all, and write-css reads the curves and durations.
-`routing` is validated and shown by `/user-interface:setup check`, but `/user-interface:design`
-does not apply it yet: it routes from the bundled rows only.
+`routing` is validated and shown by `/user-interface:setup check`, and `/user-interface:design`
+routes from the bundled rows with it applied: a row with a bundled concern and id overrides that
+row key by key, a new row adds a route, and `disable` and `deny` skip routes (a `deny` skip names
+the team file). A team file that cannot be read leaves the bundled routes, with a disclosure.
 
 **Provenance.** `scripts/detect.mjs --config` prints every resolved value with the layer that
 supplied it, and `/user-interface:setup check` shows them as a table. A `css_*` option counts only once you store a

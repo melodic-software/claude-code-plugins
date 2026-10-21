@@ -97,7 +97,8 @@ boundary.
    the spawn brief is orchestrate's to own, and this router suggests without ever launching, so
    `continue-in-background`'s explicit-intent launch gate is untouched by a yes here.* (Absent
    that skill: say that the work looks delegable and what a brief would have to carry, meaning
-   scope, turn and budget caps, and the return contract, then leave the spawn decision with the user.)
+   scope, turn and budget caps, a checkable completion condition (`/goal` or a Stop-hook check),
+   and the return contract, then leave the spawn decision with the user.)
 3. **Is there enough smart zone left, or is the remaining work simple enough for a degraded
    context, and does neither question 4 nor question 5 apply?** → continue in session.
    *Questions 4 and 5 do not depend on the zone, so their cases route there whatever the zone

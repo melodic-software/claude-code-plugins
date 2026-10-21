@@ -38,9 +38,9 @@ round that re-asks a captured answer spends the user's turn on a settled questio
 
 The reuse line in
 [`<plugin-root>/reference/design-principles.md`](../../../reference/design-principles.md) makes this
-a per-task question. The Brief's `Intent:` line answers it and is never re-asked: `known` or
+a per-task question. The Brief's `Variation intent:` line answers it and is never re-asked: `known` or
 `category` generalizes up front and isolates what varies; `speculative` waits for the third
-occurrence; `not applicable (confirmed)` raises no question. With no `Intent:` line, ask it once,
+occurrence; `not applicable (confirmed)` raises no question. With no `Variation intent:` line, ask it once,
 recommending from the existing structure, upstream context and the reuse default.
 
 Unattended (declared by the caller, never sniffed), follow the interview's rule:
@@ -48,18 +48,18 @@ Unattended (declared by the caller, never sniffed), follow the interview's rule:
 - Only the user's own words settle it: text the user wrote, or a Brief or PRD the user confirmed.
   Text a bot or a teammate wrote informs the recommendation and never settles it; sources that
   conflict count as unstated.
-- Unstated, or an `Intent:` line that reads `blocked`: record the thread `blocked`, a deferred
+- Unstated, or a `Variation intent:` line that reads `blocked`: record the thread `blocked`, a deferred
   thread tagged **arbiter: USER-RESERVED**, design on the specific shape (it holds either way, since
   generalizing later is a code-only refactor when the variation stays contained), and escalate it
   once, as one blocker line in the run's output.
 
-Stumble: `variation-points.md` and this question read an intent answer no interview asked for.
+Stumble: `variation-points.md` and this question read a variation-intent answer no interview asked for.
 
 ## Principles thread
 
 Write a `Principles` thread in `design-threads.md`: the principles and `Overrides bundled default`
 lines that shaped the design, and how generalize-now-or-wait was settled, citing the Brief's
-`Intent:` line counts; the user's answer settles it, never this skill. At `prototype`, record
+`Variation intent:` line counts; the user's answer settles it, never this skill. At `prototype`, record
 `Principles: deferred (prototype) [RESEARCH: name the principles if it heads for production]`.
 Stumble: no step recorded which principles shaped the design or how generalize-now-or-wait was
 settled.

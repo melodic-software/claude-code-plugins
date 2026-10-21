@@ -5,7 +5,7 @@ runs: 3
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
-expected_outcome: ".work/address-validation/PLAN.md is written; its Captured assumptions carry Intent: second variant = blocked, its Deferred questions carry a Q<N> entry on whether a second provider is coming tagged USER-RESERVED, no Intent line settles known, category or speculative, and the reply names the blocker"
+expected_outcome: ".work/address-validation/PLAN.md is written; its Captured assumptions carry Variation intent: second variant = blocked, its Deferred questions carry a Q<N> entry on whether a second provider is coming tagged USER-RESERVED, no Variation intent line settles known, category or speculative, and the reply names the blocker"
 ---
 
 /planning:interview lock
