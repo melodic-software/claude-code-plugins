@@ -550,8 +550,16 @@ test("skill-quality's checks get wrapper rules, and check-skill runs a skill's t
   writeFileSync(path.join(skill, "SKILL.md"), "---\ndescription: Demo skill. Use when 'demo'.\n---\n\n# Demo\n");
   writeFileSync(path.join(skill, "scripts", "token.test.sh"), 'echo "seen=${GH_TOKEN-unset},${GITHUB_TOKEN-unset}"\nexit 1\n');
   // Like a lane run: the workspace is a checkout, and the test the lane wrote
-  // is not committed yet, beside a skills root that holds a tracked file.
-  const git = (...args) => spawnSync("git", ["-C", workspace, ...args], { encoding: "utf8" });
+  // is not committed yet, beside a skills root that holds a tracked file. A
+  // failing fixture call fails here, never reads as a skipped test.
+  const git = (...args) => {
+    const result = spawnSync(
+      "git",
+      ["-C", workspace, "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", ...args],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, `git ${args.join(" ")}: ${result.stderr}`);
+  };
   git("init", "-q");
   git("config", "user.name", "test");
   git("config", "user.email", "test@example.com");
