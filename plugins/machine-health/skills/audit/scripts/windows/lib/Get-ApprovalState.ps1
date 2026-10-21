@@ -118,7 +118,15 @@ function Get-ApprovalState {
 
     if (Test-Path -LiteralPath $approvalsPath) {
         try {
-            $raw = Get-Content -LiteralPath $approvalsPath -Raw -ErrorAction Stop
+            # Share Delete as well as ReadWrite so a writer replacing the file never blocks the read.
+            $stream = [System.IO.File]::Open(
+                $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($approvalsPath),
+                'Open', 'Read', [System.IO.FileShare]'ReadWrite, Delete')
+            try {
+                $raw = [System.IO.StreamReader]::new($stream).ReadToEnd()
+            } finally {
+                $stream.Dispose()
+            }
             if ([string]::IsNullOrWhiteSpace($raw)) {
                 return (New-DefaultApprovalState)
             }

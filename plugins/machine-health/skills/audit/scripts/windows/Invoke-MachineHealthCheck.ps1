@@ -79,6 +79,7 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Merge-CatalogOverlay.ps1')
 . (Join-Path $libRoot 'Get-CheckSelection.ps1')
 . (Join-Path $libRoot 'Get-CheckArgument.ps1')
+. (Join-Path $libRoot 'Get-MutedFindingKey.ps1')
 . (Join-Path $libRoot 'Invoke-CheckWithTimeout.ps1')
 
 $runStart = Get-Date
@@ -356,6 +357,8 @@ $checkResults = [System.Collections.Generic.List[object]]::new()
 # Surface Assert-CatalogEntry failures through the normal reporting path first
 # so a registered-but-invalid check cannot silently vanish from the report.
 $checkResults.AddRange($invalidCatalogResults)
+# Mutes reach checks only as an argument; checks never read mutes.json.
+$muteState = Get-MuteState -StateDir $stateDir
 foreach ($entry in $windowsChecks) {
     $scriptPath = Join-Path $skillRoot $entry.script
     if (-not (Test-Path -LiteralPath $scriptPath)) {
@@ -372,7 +375,9 @@ foreach ($entry in $windowsChecks) {
         continue
     }
 
-    $checkArgs = Get-CheckArgument -CheckId $entry.id -RunLog $runLog -BatteryReportPath $batteryReportPath
+    $muted = Get-MutedFindingKey -State $muteState -CheckId $entry.id
+    $checkArgs = Get-CheckArgument -CheckId $entry.id -RunLog $runLog `
+        -BatteryReportPath $batteryReportPath -MutedKeys $muted
     Write-MachineHealthLog "check_dispatch id=$($entry.id) script=$($entry.script)"
     $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec 90 -Arguments $checkArgs
 

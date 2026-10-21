@@ -28,4 +28,29 @@ Describe 'Get-CheckArgument' -Tag 'lib' {
         $splat | Should -BeOfType [hashtable]
         $splat.Count | Should -Be 0
     }
+
+    Context 'muted finding keys' {
+        It 'gives <_> its muted keys as a string[]' -ForEach @(
+            'top-processes', 'startup-items', 'storage-top-n', 'app-last-use',
+            'browser-extensions', 'network-listeners', 'backup-status', 'firewall-rules'
+        ) {
+            $splat = Get-CheckArgument -CheckId $_ -RunLog 'C:\logs\run.log' -BatteryReportPath 'C:\logs\battery.html' `
+                -MutedKeys @('startup:7eef5f7d094fe8c0', 'ext:dfe36cc7950bcbf3')
+            @($splat.Keys) | Should -Be @('MutedKeys')
+            , $splat['MutedKeys'] | Should -BeOfType [string[]]
+            $splat['MutedKeys'] | Should -Be @('startup:7eef5f7d094fe8c0', 'ext:dfe36cc7950bcbf3')
+        }
+
+        It 'gives a listed check an empty string[] when nothing is muted' {
+            $splat = Get-CheckArgument -CheckId 'startup-items' -RunLog 'C:\logs\run.log' -MutedKeys $null
+            , $splat['MutedKeys'] | Should -BeOfType [string[]]
+            $splat['MutedKeys'].Count | Should -Be 0
+        }
+
+        It 'never gives MutedKeys to <_>, which does not declare it' -ForEach @('disk-space', 'battery', 'winget-upgrades', 'defender') {
+            $splat = Get-CheckArgument -CheckId $_ -RunLog 'C:\logs\run.log' -BatteryReportPath 'C:\logs\battery.html' `
+                -MutedKeys @('startup:7eef5f7d094fe8c0')
+            $splat.ContainsKey('MutedKeys') | Should -BeFalse
+        }
+    }
 }

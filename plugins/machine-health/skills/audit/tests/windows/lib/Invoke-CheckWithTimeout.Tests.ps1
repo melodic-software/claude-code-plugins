@@ -12,7 +12,8 @@ real $TestDrive path.
 #>
 
 BeforeAll {
-    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Invoke-CheckWithTimeout.ps1'
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript @(
+        'Invoke-CheckWithTimeout.ps1', 'Get-MutedFindingKey.ps1', 'Get-CheckArgument.ps1')
 
     function Write-FixtureCheck {
         param([Parameter(Mandatory)] [string] $Name, [Parameter(Mandatory)] [string] $Body)
@@ -83,6 +84,69 @@ ConvertTo-Json -Compress -InputObject @{ count = $Names.Count; names = @($Names)
             $dispatch.ok | Should -BeFalse
             $dispatch.reason | Should -Be 'invalid_json'
             $dispatch.raw_output | Should -Be 'not json'
+        }
+    }
+
+    Context 'end to end: a mute in mutes.json reaches a check through the job path' {
+        BeforeAll {
+            # The fixture check lists two startup items: Updater (WARN) and Notes (INFO).
+            $libPath = (Join-Path $script:LibRoot 'New-FindingItem.ps1') -replace "'", "''"
+            $script:fixturePath = Write-FixtureCheck -Name 'startup-fixture' -Body @"
+param([string[]] `$MutedKeys = @('unset'))
+. '$libPath'
+`$items = @(
+    New-FindingItem -Kind 'startup' -Identity @('hkcu', 'Updater') -MutedKeys `$MutedKeys -Severity 'WARN' -Title 'Updater'
+    New-FindingItem -Kind 'startup' -Identity @('hkcu', 'Notes') -MutedKeys `$MutedKeys -Severity 'INFO' -Title 'Notes'
+)
+ConvertTo-Json -Depth 10 -Compress -InputObject ([ordered]@{
+    id       = 'startup-items'
+    severity = Get-UnmutedSeverity -Items `$items
+    detail   = [ordered]@{
+        items_count = `$items.Count
+        muted_count = @(`$items | Where-Object muted).Count
+        items       = `$items
+    }
+})
+"@
+
+            # Updater is muted under startup-items. Notes's key sits under another
+            # check id, so it must not mute Notes here.
+            $stateDir = Join-Path $TestDrive 'e2e\state'
+            New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+            Set-Content -LiteralPath (Join-Path $stateDir 'mutes.json') -Encoding utf8 -Value @'
+{
+  "schema_version": "1.0",
+  "checks": {
+    "startup-items": {
+      "muted_findings": [ { "key": "startup:7eef5f7d094fe8c0", "label": "Updater", "added_at": "2026-10-21T12:00:00Z" } ]
+    },
+    "browser-extensions": {
+      "muted_findings": [ { "key": "startup:e32b6b01e9fa05ca", "added_at": "2026-10-21T12:00:00Z" } ]
+    }
+  }
+}
+'@
+
+            $muteState = Get-MuteState -StateDir $stateDir
+            $muted = Get-MutedFindingKey -State $muteState -CheckId 'startup-items'
+            $checkArgs = Get-CheckArgument -CheckId 'startup-items' -RunLog (Join-Path $TestDrive 'run.log') `
+                -BatteryReportPath (Join-Path $TestDrive 'battery.html') -MutedKeys $muted
+            $script:dispatch = Invoke-CheckWithTimeout -ScriptPath $script:fixturePath -TimeoutSec 60 -Arguments $checkArgs
+        }
+
+        It 'returns the muted item with muted: true and the other with muted: false' {
+            $script:dispatch.ok | Should -BeTrue
+            $items = @($script:dispatch.result.detail.items)
+            $items.Count | Should -Be 2
+            ($items | Where-Object title -EQ 'Updater').muted | Should -BeTrue
+            ($items | Where-Object title -EQ 'Updater').key | Should -BeExactly 'startup:7eef5f7d094fe8c0'
+            ($items | Where-Object title -EQ 'Notes').muted | Should -BeFalse
+        }
+
+        It 'keeps the muted item listed but leaves it out of the check severity' {
+            $script:dispatch.result.severity | Should -BeExactly 'INFO'
+            $script:dispatch.result.detail.items_count | Should -Be 2
+            $script:dispatch.result.detail.muted_count | Should -Be 1
         }
     }
 }
