@@ -219,7 +219,8 @@ run_step() {
   local graphql="${GRAPHQL:-}"
   printf '%s\n' "${graphql:-null}" >"$TMP_ROOT/stub/graphql.json"
   : >"$TMP_ROOT/stub/log"
-  OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
+  : >"$TMP_ROOT/stub/output"
+  OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
@@ -1054,6 +1055,35 @@ if [[ "$RC" -eq 0 && "$confirm_wait" =~ ^[0-9]+$ &&
 else
   fail "dispatched run wait: confirm-wait=$confirm_wait rc=$RC polls=$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG") out='$OUT'"
 fi
+# No re-run within the wait: a newer pr-require-checks run on main that
+# passed means main already recovered, so nothing is filed or reported.
+# newer_run <id> <created_at> [branch] [head-repo] -> one successful run
+newer_run() {
+  jq -n --argjson id "$1" --arg t "$2" --arg b "${3:-main}" --arg r "${4:-o/r}" \
+    '{id: $id, event: "workflow_dispatch", conclusion: "success", head_branch: $b,
+      head_repository: {full_name: $r}, head_sha: "fedcba9876543210fedcba9876543210fedcba98", created_at: $t}'
+}
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" VIA=workflow_dispatch STARTER='github-actions[bot]' \
+  ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$OUT" == *"main already recovered: run 4300"*"nothing filed"* ]] &&
+  ! grep -qv '^GET ' <<<"$LOG" && grep -qx 'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=20' <<<"$LOG" &&
+  grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then
+  ok "a dispatched run with no re-run files nothing when a newer run on main passed"
+else
+  fail "dispatched run, main recovered: rc=$RC log='$LOG' out='$OUT' output='$(cat "$TMP_ROOT/stub/output")'"
+fi
+
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z feat/x), $(newer_run 4301 2026-10-17T16:51:00Z main x/fork)" \
+  VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never \
+  run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)$(dispatches)" == 11 && "$OUT" != *"already recovered"* ]] &&
+  grep -qx 'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=20' <<<"$LOG" &&
+  ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+  ok "a dispatched run with no re-run still files when no newer run on this repository's main passed"
+else
+  fail "dispatched run, main still red: rc=$RC log='$LOG' out='$OUT'"
+fi
+
 timeout_expr="$(sed -n 's/^    timeout-minutes: //p' <<<"$alert_job")"
 if [[ "$timeout_expr" =~ workflow_dispatch\'\ \&\&\ ([0-9]+)\ \|\|\ 30 ]] && ((BASH_REMATCH[1] >= confirm_wait + 10)); then
   ok "the alert job's dispatch timeout leaves room past the confirm wait"

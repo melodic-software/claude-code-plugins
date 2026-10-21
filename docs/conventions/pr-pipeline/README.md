@@ -1435,8 +1435,11 @@ the alert workflow through `workflow_dispatch`. The alert accepts the id only fr
 and only for attempt 1 of a failed `pr-require-checks.yml` run on this repository's `main` that
 `github-actions[bot]` dispatched. Both jobs then wait for pr-merge's re-run for up to
 `confirm-wait-minutes`, so the record, its fix issues and this report follow the merge instead of
-the next scheduled run. Records, fix issues and report comments dedupe as they do for any run:
-records by signal and SHA or by failing run, fix issues by check, and reports by run and attempt.
+the next scheduled run. When no re-run finishes within that wait and a newer `pr-require-checks`
+run on this repository's `main` has passed by its end, `main` already recovered: the alert logs
+so and files no record, fix issue or report. A failed lookup files as before. Records, fix issues
+and report comments dedupe as they do for any run: records by signal and SHA or by failing run,
+fix issues by check, and reports by run and attempt.
 
 1. **Confirmed red.** Attempt 1 concluded `failure`, the one re-run of its failed jobs finished
    and concluded `failure`, and one check failed in both, a check being a job that concluded

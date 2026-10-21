@@ -46,6 +46,13 @@ test("the report reads the run from the alert job's outputs, never the event, so
   }
 });
 
+test("no report runs when the alert found main already recovered", () => {
+  assert.match(job, /needs\.alert\.outputs\.recovered != 'true'/);
+  const alert = text.slice(text.indexOf("\n  alert:\n"), text.indexOf("\n  report-red-main:\n"));
+  assert.match(alert, /\n {6}recovered: \$\{\{ steps\.file\.outputs\.recovered \}\}\n/);
+  assert.match(alert, /\n {8}id: file\n/);
+});
+
 test("an event the lanes App sent is skipped", () => {
   assert.match(job, /format\('\{0\}', github\.event\.sender\.id\) != vars\.AUTOMATION_LANES_APP_SENDER_ID/);
 });

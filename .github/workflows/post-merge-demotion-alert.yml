@@ -41,7 +41,9 @@ name: post-merge-demotion-alert
 # run on this repository's main that github-actions[bot] dispatched. Its
 # re-run comes from pr-merge's next scheduled run, so the alert waits for it
 # as long as the report job does (red-main.confirm-wait-minutes) and starts
-# none itself.
+# none itself. When no re-run finishes in that wait and a newer
+# pr-require-checks run on this repository's main has passed, main already
+# recovered: no record, fix issue or report is filed.
 #
 # After a failed scheduled or dispatched full run, the report-red-main job
 # applies the red-main rule (docs/conventions/pr-pipeline/README.md, "Red
@@ -105,6 +107,8 @@ jobs:
       id: ${{ steps.run.outputs.id }}
       workflow-id: ${{ steps.run.outputs.workflow-id }}
       created: ${{ steps.run.outputs.created }}
+      # 'true' when a dispatched run got no re-run and main recovered since.
+      recovered: ${{ steps.file.outputs.recovered }}
     steps:
       # A workflow_run event's fields pass through as they are. A dispatch's
       # run id is read back from the API, as attempt 1 of the run: accepted
@@ -201,6 +205,7 @@ jobs:
           } >>"$GITHUB_OUTPUT"
 
       - name: File or comment on the demotion issue
+        id: file
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
@@ -290,6 +295,22 @@ jobs:
                 fi
               done
               if [[ "$RUN_ATTEMPT" -eq 1 ]]; then
+                # A dispatched run with no re-run files nothing, and the report
+                # job skips it, when a newer run on this repository's main has
+                # passed by now: main already recovered. A failed lookup files.
+                if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+                  newer="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&per_page=20" \
+                    --jq '[.workflow_runs[] | select(.conclusion == "success" and .head_branch == "main"
+                      and (.head_repository.full_name // "") == env.GITHUB_REPOSITORY
+                      and (.id > (env.RUN_ID | tonumber) or .created_at > env.RUN_CREATED))]
+                      | max_by(.created_at) // empty | [.id, .head_sha] | @tsv')" || newer=''
+                  if [[ -n "$newer" ]]; then
+                    IFS=$'\t' read -r newer_id newer_sha <<<"$newer"
+                    echo "::notice::the re-run of $RUN_URL did not finish within $polls minutes, but main already recovered: run $newer_id at ${newer_sha:0:12} passed on main after it, so nothing filed"
+                    echo 'recovered=true' >>"$GITHUB_OUTPUT"
+                    exit 0
+                  fi
+                fi
                 echo "::warning::the re-run of $RUN_URL did not finish within $polls minutes: judging attempt 1"
               fi
             fi
@@ -730,7 +751,8 @@ jobs:
   # canary, never trigger it. It holds the job's own GITHUB_TOKEN, never a
   # lanes App token, writes only its log issue, and skips an event the lanes
   # App sent. It reads the run from the alert job's outputs, which a refused
-  # dispatch leaves empty.
+  # dispatch leaves empty, and skips a dispatched run the alert found main
+  # already recovered from.
   report-red-main:
     name: Report the red-main culprit
     needs: [alert]
@@ -741,6 +763,7 @@ jobs:
       && needs.alert.outputs.conclusion == 'failure'
       && needs.alert.outputs.branch == 'main'
       && needs.alert.outputs.repo == github.repository
+      && needs.alert.outputs.recovered != 'true'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
     runs-on: ubuntu-24.04
     # Up to red-main.confirm-wait-minutes (at most 45) waiting on the re-run.

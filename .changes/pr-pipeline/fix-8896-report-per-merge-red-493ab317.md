@@ -11,4 +11,6 @@ bump: patch
   from `github-actions[bot]` or a listed human, never the lanes App, and only for attempt 1 of a
   failed `pr-require-checks.yml` run on this repository's `main` that `github-actions[bot]`
   dispatched. It then waits up to `red-main.confirm-wait-minutes` for pr-merge's re-run and starts
-  none of its own.
+  none of its own. When no re-run finishes in that wait and a newer `pr-require-checks` run on
+  this repository's `main` has passed, `main` already recovered: it logs so and files no record,
+  fix issue or report.
