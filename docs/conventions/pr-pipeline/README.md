@@ -1362,7 +1362,7 @@ with defaults.
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
-the WIP cap check fails open and starts the run. This repository's values are in
+the WIP cap check keeps the last known pause ([WIP cap](#wip-cap)). This repository's values are in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`limits` and `wip`).
 
 `node .github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are
@@ -1395,9 +1395,12 @@ the admission share, or with a held PR past the alarm age, the check writes a wa
 Over the WIP cap or the held cap on or after `pause-from` it pauses the lane: work-resolve-issue
 starts no run, work-unblock re-fires none, and the log and step summary carry one line
 `admission paused: reason=<wip|held-cap|wip,held-cap> countable=<n> wip_cap=<n> held=<n> held_cap=<n>`
-(a `::notice` annotation titled `admission paused`). A read that fails
-never caps; without a merged count the cap is `limits.wip-cap`. A held PR's age runs from when it
-opened.
+(a `::notice` annotation titled `admission paused`). When the open listing or the base config
+cannot be read, the lane keeps the last known pause: the status the last run whose reads succeeded
+saved to the Actions cache (key prefix `check-wip-cap-state-`). A kept pause logs
+`admission paused: reason=<reason> (read-error, kept last state)`; with no saved state (none yet,
+or the cache evicted it), the check fails open and the run starts. Without a merged count the
+cap is `limits.wip-cap`. A held PR's age runs from when it opened.
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
 and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane pauses.
@@ -1418,6 +1421,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane
 | `alert` | Any of the four. |
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |
 | `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
+| `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
 
 ## Red main
 
