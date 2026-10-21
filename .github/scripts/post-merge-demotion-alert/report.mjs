@@ -262,7 +262,7 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
       platformFault: canary ? `canary record #${canary.number} is open on a merge in the range` : null,
       revertApplies: revertApplies(culprit.sha),
     });
-    revert = plannedRevert(culprit, decision.decision, runUrl);
+    revert = config.remedy === "rollback" ? plannedRevert(culprit, decision.decision, runUrl) : null;
   }
 
   const body = renderReport({
