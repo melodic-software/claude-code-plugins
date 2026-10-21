@@ -401,8 +401,8 @@
 .app .vf-scroll > * { max-inline-size: 720px; margin-inline: auto; }
 .app .vf-qmeta { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 12px; margin-block-end: 10px; }
 .app .vf-qfrom { color: var(--accent-text); }
-.app .vf-qtools { display: contents; } /* a group on a phone only (the 720 px query) */
-.app .vf-qtools[hidden] { display: none; }
+.app .vf-qgroup { display: contents; } /* a group on a phone only (the 720 px query) */
+.app .vf-qgroup[hidden] { display: none; }
 .app .vf-qtext { font-size: clamp(22px, 2.3vw, 29px); line-height: 1.22; font-weight: 650; letter-spacing: -0.022em; text-wrap: balance; overflow-wrap: anywhere; }
 .app .vf-qtext:focus { outline: none; }
 .app .vf-qctx { margin-block: 8px 4px; color: var(--muted); font-size: 14px; line-height: 1.5; }
@@ -2180,14 +2180,14 @@
   .app .vf-scroll { padding-block-start: 10px; }
   .app .vf-qmeta { gap: 8px; margin-block-end: 6px; }
   .app .vf-qmeta > span:first-child { flex: 1 1 0; min-width: 7.5em; } /* the position takes two lines before a chip wraps */
-  .app .vf-qmeta :is(.vf-qtools, .vf-chip) { order: 1; } /* the purpose, who it asks and the chips wrap to their own row under the position and the arrows */
+  .app .vf-qmeta :is(.vf-qgroup, .vf-chip) { order: 1; } /* the purpose, who it asks and the chips wrap to their own row under the position and the arrows */
   .app .vf-qmeta { flex-wrap: wrap; row-gap: 6px; }
   /* the purpose and the host's Ask someone stay together: the group moves to a row as a whole, and wraps inside only
      when it is wider than the row; a long label wraps inside its own 44 px button */
-  .app .vf-qtools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-inline-size: 0; max-inline-size: 100%; }
-  .app .vf-qtools .vf-select { block-size: 44px; }
-  .app .vf-qtools .vf-forbtn { block-size: auto; min-block-size: 44px; max-inline-size: 100%; white-space: normal; text-align: start; }
-  .app .vf-qtools .vf-forchip { order: 1; white-space: normal; overflow-wrap: anywhere; } /* who it asks follows the button, so a long list never splits the purpose from it */
+  .app .vf-qgroup { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-inline-size: 0; max-inline-size: 100%; }
+  .app .vf-qgroup .vf-select { block-size: 44px; }
+  .app .vf-qgroup .vf-forbtn { block-size: auto; min-block-size: 44px; max-inline-size: 100%; white-space: normal; text-align: start; }
+  .app .vf-qgroup .vf-forchip { order: 1; white-space: normal; overflow-wrap: anywhere; } /* who it asks follows the button, so a long list never splits the purpose from it */
   .app .vf-qnav { display: flex; gap: 0; margin-inline-start: auto; flex: none; }
   /* who else is on the question: up to 3 avatars in a slot this row keeps empty or not, so presence never moves the page */
   .app .vf-onit { display: none; }

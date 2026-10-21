@@ -1091,8 +1091,8 @@
     const forLegend = E("legend", null, "Who must answer (no one ticked asks everyone)"), forList = E("div", "vf-forlist");
     forBox.append(forLegend, forList);
     forBtn.onclick = () => { ui.forOpen = ui.forOpen === ui.cur ? "" : ui.cur; render(); };
-    // the purpose and who it asks, one group: on a phone it wraps to its own row as a whole (app.css .vf-qtools)
-    const qTools = E("span", "vf-qtools"); qTools.append(qPurpose, purposeSel.w, qFor, forBtn);
+    // the purpose and who it asks, one group: on a phone it wraps to its own row as a whole (app.css .vf-qgroup)
+    const qTools = E("span", "vf-qgroup"); qTools.append(qPurpose, purposeSel.w, qFor, forBtn);
     qMeta.append(qPos, qTools, qFrom, qDeps, qSug, qHost);
     const qText = E("h1", "vf-qtext"); qText.tabIndex = -1;
     // F:30: the background Claude wrote for the question (its stored `context`), under the question, clamped like any long text
