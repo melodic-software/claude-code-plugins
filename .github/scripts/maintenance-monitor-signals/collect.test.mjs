@@ -63,6 +63,16 @@ const status = {
   },
 };
 
+const laneComment = (id, body, extra = {}) => ({
+  id,
+  body,
+  user: { login: "melodic-automation-lanes[bot]" },
+  created_at: "2026-10-19T16:10:00Z",
+  issue_url: "https://api.github.com/repos/o/r/issues/7677",
+  html_url: `https://github.com/o/r/issues/7677#issuecomment-${id}`,
+  ...extra,
+});
+
 const routes = () => [
   [/workflows\/pr-merge\.yml\/runs/, { workflow_runs: [run(10)] }],
   [/runs\/10\/jobs/, { jobs: [{ id: 100, name: "merge", conclusion: "success" }, { id: 101, name: "post-merge-dispatch" }] }],
@@ -109,6 +119,16 @@ const routes = () => [
   [/maintenance-audit-test-selection\.yml\/runs/, { workflow_runs: [run(60, { conclusion: "failure", created_at: "2026-10-19T10:43:00Z" })] }],
   [/runs\/60\/jobs/, { jobs: [{ id: 600, name: "audit-test-selection", conclusion: "failure" }] }],
   [/maintenance-check-upstream-drift\.yml\/runs/, { workflow_runs: [] }],
+  [
+    /\/issues\/comments\?since=/,
+    [
+      laneComment(901, "<!-- work-resolve-issue outcome=limited resets=2026-10-19T20:00:00Z run=5 -->\nStopped on the usage limit."),
+      laneComment(902, "<!-- work-resolve-issue outcome=done run=6 -->"),
+      laneComment(903, "<!-- work-resolve-issue outcome=funding run=7 -->", { user: { login: "someone" } }),
+      laneComment(904, "<!-- work-resolve-issue outcome=turn-cap cap=75 run=8 -->", { created_at: "2026-10-19T15:00:00Z" }),
+      laneComment(905, "Quoting <!-- work-resolve-issue outcome=funding run=9 -->"),
+    ],
+  ],
 ];
 
 const input = (api, extra = {}) => ({
@@ -156,6 +176,14 @@ test("collect reads every source into the signals' data shape", async () => {
     data.status.incidents.map((i) => [i.id, i.components]),
     [["8tzbpcnl75jp", ["Actions", "Webhooks"]]],
   );
+  // Only the lanes App's markers created in the window, at the comment's start.
+  assert.deepEqual(
+    data.laneStops.map((s) => [s.id, s.outcome, s.issue]),
+    [
+      [901, "limited", 7677],
+      [902, "done", 7677],
+    ],
+  );
 });
 
 test("a replay (no own rate reading) skips the live-only Actions sample", async () => {
@@ -167,6 +195,18 @@ test("a replay (no own rate reading) skips the live-only Actions sample", async 
     data.budgetReadings.map((r) => r.name),
     ["lane"],
   );
+});
+
+test("lane stops: full pages inside the window are a gap; a page reaching before it stops the paging", async () => {
+  const page = (createdAt) => Array.from({ length: 100 }, (_, i) => laneComment(1000 + i, "", { created_at: createdAt }));
+  const full = fakeApi([[/\/issues\/comments\?since=/, page("2026-10-19T16:00:00Z")], ...routes()]);
+  const data = await collect(input(full));
+  assert.equal(full.calls.filter((p) => p.includes("/issues/comments?")).length, 5);
+  assert.ok(data.gaps.some((g) => g.startsWith("lane stops: over 500 comments")));
+  const older = fakeApi([[/\/issues\/comments\?since=/, page("2026-10-19T15:00:00Z")], ...routes()]);
+  const quiet = await collect(input(older));
+  assert.equal(older.calls.filter((p) => p.includes("/issues/comments?")).length, 1);
+  assert.ok(!quiet.gaps.some((g) => g.startsWith("lane stops")));
 });
 
 test("a failed source is a gap; the rest still read", async () => {
