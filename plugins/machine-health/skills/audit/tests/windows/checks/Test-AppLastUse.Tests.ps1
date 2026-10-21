@@ -152,6 +152,24 @@ Describe 'Test-AppLastUse' -Tag 'check' {
         $result.detail.PSObject.Properties['admin_fields'] | Should -BeNullOrEmpty
     }
 
+    It 'credits no Prefetch launch to apps whose executables share a file name' {
+        Set-Host -ElevatedState 'ok' -Prefetch @(
+            [pscustomobject]@{ ExeName = 'unins000.exe'; LastRun = [datetime]::new(2026, 10, 1, 0, 0, 0, [DateTimeKind]::Utc) }
+        )
+        Mock Get-InstalledApp {
+            [pscustomobject]@{ ReadState = 'ok'; Apps = @(
+                    New-App -Key 'First' -ExePath 'X:\Apps\First\unins000.exe'
+                    New-App -Key 'Second' -ExePath 'X:\Apps\Second\unins000.exe'
+                )
+            }
+        }
+
+        $result = Invoke-AppLastUse
+
+        (Get-AppItem $result 'First').verdict | Should -Be 'no-launch-recorded'
+        (Get-AppItem $result 'Second').verdict | Should -Be 'no-launch-recorded'
+    }
+
     It 'lists installs that share an Uninstall subkey name once, crediting a launch from either path' {
         Set-Host
         Mock Get-InstalledApp {

@@ -104,6 +104,13 @@ $CheckBody = {
     $bam = $elevated | Where-Object Source -EQ 'bam'
 
     $uaEntries = $userAssist.ReadState -eq 'ok' ? @($userAssist.Entries) : @()
+    # Prefetch names only the executable file, so a hit counts only for a file
+    # name that exactly one installed app's DisplayIcon executable carries.
+    $soleExeNames = @($installed.Apps | Where-Object ExePath |
+            Group-Object { [System.IO.Path]::GetFileName($_.ExePath) } |
+            Where-Object { @($_.Group.Key | Sort-Object -Unique).Count -eq 1 } |
+            ForEach-Object Name)
+    $prefetchEntries = @($prefetch.Entries | Where-Object { $_ -and $_.ExeName -in $soleExeNames })
     $since = $window.Start ? $window.Start.ToString('yyyy-MM-dd') : $null
     $noLaunchText = $since ? "no launch recorded since $since" : 'no launch recorded'
 
@@ -113,7 +120,7 @@ $CheckBody = {
     foreach ($group in @($installed.Apps | Sort-Object Name | Group-Object Key)) {
         $app = $group.Group[0]
         $launches = @(foreach ($install in $group.Group) {
-                Get-AppLaunch -App $install -UserAssist $uaEntries -Prefetch @($prefetch.Entries) -Bam @($bam.Entries)
+                Get-AppLaunch -App $install -UserAssist $uaEntries -Prefetch $prefetchEntries -Bam @($bam.Entries)
             })
         $latest = $launches | Where-Object LastRun | Sort-Object LastRun -Descending | Select-Object -First 1
         $launch = [pscustomobject]@{
