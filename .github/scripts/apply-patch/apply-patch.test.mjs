@@ -19,10 +19,12 @@ const entry = (path, oldMode = "100644", newMode = "100644") => ({ path, oldMode
 // Credential shapes built at run time, so no literal token sits in this file.
 const ANTHROPIC_KEY = ["sk", "ant", "api03", "A1b2".repeat(20)].join("-");
 const OAUTH_TOKEN = ["sk", "ant", "oat01", "Z9y8".repeat(20)].join("-");
-// The stateless installation token is ghs_APPID_JWT, about 520 characters: a numeric app id
-// and three base64url segments joined by '.', each segment obviously fake.
-const STATELESS_TOKEN = `${"ghs"}_123456_${Array(3).fill("FAKE-not_a_token".repeat(10)).join(".")}`;
-const GITHUB_TOKENS = [`${"ghp"}_${"a1".repeat(18)}`, `${"ghs"}_${"B2".repeat(18)}`, `${"github"}_pat_${"c3".repeat(41)}`, STATELESS_TOKEN];
+// The stateless installation token is ghs_ then a JWT of about 520 characters: three
+// base64url segments joined by '.', each segment obviously fake. The first carries an
+// app-id-like prefix; the second has none, so no numeric app id is assumed.
+const JWT = Array(3).fill("FAKE-not_a_token".repeat(10)).join(".");
+const STATELESS_TOKEN = `${"ghs"}_123456_${JWT}`;
+const GITHUB_TOKENS = [`${"ghp"}_${"a1".repeat(18)}`, `${"ghs"}_${"B2".repeat(18)}`, `${"github"}_pat_${"c3".repeat(41)}`, STATELESS_TOKEN, `${"ghs"}_${JWT}`];
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), "apply-patch-"));

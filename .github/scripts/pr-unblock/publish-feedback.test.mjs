@@ -342,6 +342,7 @@ const INVALID = [
   ["a note closing an HTML comment", lines(reply({ note: "a --> b" }))],
   ["a note carrying a token", lines(reply({ note: `token ghs_${"A".repeat(36)}` }))],
   ["a note carrying a stateless installation token", lines(reply({ note: `token ${"ghs"}_123456_${Array(3).fill("FAKE-not_a_token".repeat(10)).join(".")}` }))],
+  ["a note carrying a JWT-shaped installation token", lines(reply({ note: `token ${"ghs"}_${Array(3).fill("eyJGAKEnotAtoken".repeat(10)).join(".")}` }))],
   ["a note carrying a control character", lines(reply({ note: "bell \u0007" }))],
   ["a note carrying a direction override", lines(reply({ note: "safe‮evil" }))],
   ["a note carrying a zero-width space", lines(reply({ note: "a​b" }))],
