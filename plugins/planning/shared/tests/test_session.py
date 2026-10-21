@@ -2130,7 +2130,7 @@ class TestHiddenCharacters(SessionCase):
         self.assertEqual(self.s.state["chat"][-1]["text"], f"a\ufe00 b\u200d c d\u200d {heart_on_fire}")
 
     def test_every_format_character_but_the_joiners_and_blank_rendering_ones_are_dropped(self):
-        blank = [0x00AD, 0x034F, 0x180E, 0x1D173, 0x1D17A, 0x3164, 0xFFA0, 0x115F, 0x2800, 0x0600, 0x2061, 0xFFF9]
+        blank = [0x00AD, 0x034F, 0x180E, 0x1D173, 0x1D17A, 0x3164, 0xFFA0, 0x115F, 0x2800, 0x0600, 0x2061, 0xFFF9, 0x17B4, 0x17B5, 0x180B, 0x180F]
         self.act("chat", self.ann, {"text": "a" + "".join(chr(c) + "b" for c in blank)})
         self.assertEqual(self.s.state["chat"][-1]["text"], "a" + "b" * len(blank))
 
@@ -2142,6 +2142,15 @@ class TestHiddenCharacters(SessionCase):
         fullwidth = self.s.join(None, {"name": "\U0000ff21nn", "device": "computer"})["name"]
         self.assertEqual(fullwidth, "\U0000ff21nn 3")
 
+    def test_invisible_marks_and_lookalike_letters_do_not_make_another_claude(self):
+        for name in ("CLAUDE\U0000200d", "Clau\U000017b4de", "Clau\U0000180bde", "\U00000421l\U00000430ud\U00000435", "C\U000013deaude"):
+            with self.subTest(name=name.encode("unicode_escape").decode()):
+                self.refused("reserved-name", "join", None, {"name": name, "device": "computer"})
+
+    def test_a_joiner_does_not_make_a_name_unique_but_a_lookalike_letter_does(self):
+        self.assertEqual(self.s.join(None, {"name": "Ann\U0000200d", "device": "computer"})["name"], "Ann\U0000200d 2")
+        self.assertEqual(self.s.join(None, {"name": "\U00000410nn", "device": "computer"})["name"], "\U00000410nn")  # confusables are for "Claude" only
+
     def test_a_field_of_only_hidden_characters_is_refused_as_empty(self):
         self.refused("empty", "chat", self.ann, {"text": "\u202e\u200b\x00 \u2066"}, http=400)
         self.refused("empty", "request", self.ann, {"qid": "Q1", "kind": "ask", "text": "\U000e0041\ufeff"}, http=400)
@@ -2150,10 +2159,11 @@ class TestHiddenCharacters(SessionCase):
 class TestSourceText(unittest.TestCase):
     def test_no_source_file_holds_an_invisible_or_reordering_character(self):
         """Trojan Source (CVE-2021-42574): a bidi control, zero-width or private-use character in the code makes it
-        read differently than it runs, so the shared code writes every such character as an escape."""
+        read differently than it runs, so the shared code (Python and the page's scripts) and its tests write every
+        such character as an escape."""
         here = Path(__file__).resolve().parent
         found = []
-        for path in sorted([*here.parent.glob("*.py"), *here.glob("*.py")]):
+        for path in sorted([*here.parent.glob("*.py"), *here.glob("*.py"), *(here.parent / "web").glob("*.js"), *here.glob("*.js")]):
             for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                 found += [f"{path.name}:{n} U+{ord(c):04X}" for c in line if unicodedata.category(c) in ("Cc", "Cf", "Co", "Cs", "Zl", "Zp") and c != "\t"]
         self.assertEqual(found, [])

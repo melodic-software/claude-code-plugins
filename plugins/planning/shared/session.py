@@ -610,7 +610,7 @@ def _body(body):
 def _person_name(body, *, empty_ok=False):
     """A person's name; "Claude" (any case) is refused, since "@Claude" asks Claude and must never name a person."""
     name = _text(body, "name", limit=MAX_NAME, empty_ok=empty_ok)
-    if _name_key(name) == "claude":
+    if _looks_like_claude(name):
         raise DomainError(400, "reserved-name", "Claude is the AI's name in this session; pick another name.", field="name")
     return name
 
@@ -626,7 +626,7 @@ _RGI_FLAGS = re.compile(
     "(" + "|".join("\U0001f3f4" + "".join(chr(0xE0000 + ord(c)) for c in code) + "\U000e007f" for code in ("gbeng", "gbsct", "gbwls")) + ")"
 )
 _JOINERS = "\U0000200c\U0000200d"
-_BLANK = frozenset(chr(c) for c in (0x034F, 0x115F, 0x1160, 0x2800, 0x3164, 0xFFA0))  # graphic or Mn, yet nothing shows
+_BLANK = frozenset(chr(c) for c in (0x034F, 0x115F, 0x1160, 0x17B4, 0x17B5, *range(0x180B, 0x1810), 0x2800, 0x3164, 0xFFA0))  # nothing shows
 _DROPPED_KINDS = ("Cc", "Cf", "Co", "Cs")
 
 
@@ -668,8 +668,79 @@ def _visible(v):
 
 
 def _name_key(name):
-    """What two names are compared by: NFKC then casefold, so a fullwidth or compatibility form of a name is that name."""
-    return unicodedata.normalize("NFKC", name).casefold()
+    """What two names are compared by: the name less its joiners, selectors and blank marks (a text field keeps one of
+    each after a visible character), then NFKC and casefold, so a fullwidth or compatibility form of a name is that
+    name."""
+    return _bare(name).casefold()
+
+
+def _bare(name):
+    """name less its joiners, VS1-VS16 and blank marks, in NFKC."""
+    return unicodedata.normalize("NFKC", "".join(c for c in name if c not in _JOINERS and not "\U0000fe00" <= c <= "\U0000fe0f" and c not in _BLANK))
+
+
+# UTS #39 confusables.txt (18.0.0): every single character whose prototype is one of the letters of "claude", either
+# case. Only the reserved-name check reads this, so a name that looks like "Claude" in another script is refused.
+_CLAUDE_LOOKALIKES = {
+    "c": (
+        "\u03f2\u03f9\u0421\u0441\u1004\u105a\u13df\u1c83\u1d04\u2102\u212d\u216d\u217d\u2ca4\u2ca5\ua4da"
+        "\uabaf\uff23\uff43\U000102a2\U00010302\U00010415\U0001043d\U0001051b\U000118e9\U000118f2"
+        "\U0001ccd8\U0001d134\U0001d402\U0001d41c\U0001d436\U0001d450\U0001d46a\U0001d484\U0001d49e"
+        "\U0001d4b8\U0001d4d2\U0001d4ec\U0001d520\U0001d554\U0001d56e\U0001d588\U0001d5a2\U0001d5bc"
+        "\U0001d5d6\U0001d5f0\U0001d60a\U0001d624\U0001d63e\U0001d658\U0001d672\U0001d68c\U0001f74c"
+    ),
+    "l": (
+        "1I|\u0196\u01c0\u0399\u0406\u04c0\u04cf\u05c0\u05d5\u05df\u0627\u0661\u06f1\u07ca\u0964\u104a"
+        "\u13de\u14aa\u16c1\u16d0\u2110\u2111\u2112\u2113\u2160\u216c\u217c\u21bf\u2223\u23fd\u2502\u2503"
+        "\u2c92\u2cd0\u2d4a\u2d4f\ua4e1\ua4f2\ua56f\ua781\ua7ae\ua7fe\ua830\ua8ce\uaa5d\ufe31\ufe8d\ufe8e"
+        "\uff11\uff29\uff2c\uff4c\uff5c\uffe8\U0001028a\U00010309\U00010320\U0001041b\U0001050e\U00010526"
+        "\U00010926\U00010c3e\U00010ca5\U00010cfa\U00011047\U000110c0\U00011141\U000111c5\U000113d4"
+        "\U0001144b\U000115c5\U00011641\U000118a3\U000118b2\U00011c41\U00011dda\U00011de1\U00016d63"
+        "\U00016eaa\U00016f16\U00016f28\U0001ccde\U0001cce1\U0001ccf1\U0001d100\U0001d22a\U0001d377"
+        "\U0001d408\U0001d40b\U0001d425\U0001d43c\U0001d43f\U0001d459\U0001d470\U0001d473\U0001d48d"
+        "\U0001d4c1\U0001d4d8\U0001d4db\U0001d4f5\U0001d50f\U0001d529\U0001d540\U0001d543\U0001d55d"
+        "\U0001d574\U0001d577\U0001d591\U0001d5a8\U0001d5ab\U0001d5c5\U0001d5dc\U0001d5df\U0001d5f9"
+        "\U0001d610\U0001d613\U0001d62d\U0001d644\U0001d647\U0001d661\U0001d678\U0001d67b\U0001d695"
+        "\U0001d6b0\U0001d6ea\U0001d724\U0001d75e\U0001d798\U0001d7cf\U0001d7d9\U0001d7e3\U0001d7ed"
+        "\U0001d7f7\U0001e141\U0001e8c7\U0001ed01\U0001ee00\U0001ee80\U0001fbf1"
+    ),
+    "a": (
+        "\u0251\u0391\u03b1\u0410\u0430\u13aa\u15c5\u237a\ua4ee\uab64\uff21\uff41\U000102a0\U00016f40"
+        "\U0001ccd6\U0001d400\U0001d41a\U0001d434\U0001d44e\U0001d468\U0001d482\U0001d49c\U0001d4b6"
+        "\U0001d4d0\U0001d4ea\U0001d504\U0001d51e\U0001d538\U0001d552\U0001d56c\U0001d586\U0001d5a0"
+        "\U0001d5ba\U0001d5d4\U0001d5ee\U0001d608\U0001d622\U0001d63c\U0001d656\U0001d670\U0001d68a"
+        "\U0001d6a8\U0001d6c2\U0001d6e2\U0001d6fc\U0001d71c\U0001d736\U0001d756\U0001d770\U0001d790"
+        "\U0001d7aa\U0001df5a\U0001df6a"
+    ),
+    "u": (
+        "\u028b\u03c5\u054d\u057d\u1200\u144c\u1d1c\u222a\u22c3\ua4f4\ua79f\uab4e\uab52\uff35\uff55"
+        "\U000104ce\U000104f6\U000118b8\U000118d8\U00016f42\U0001ccea\U0001d414\U0001d42e\U0001d448"
+        "\U0001d462\U0001d47c\U0001d496\U0001d4b0\U0001d4ca\U0001d4e4\U0001d4fe\U0001d518\U0001d532"
+        "\U0001d54c\U0001d566\U0001d580\U0001d59a\U0001d5b4\U0001d5ce\U0001d5e8\U0001d602\U0001d61c"
+        "\U0001d636\U0001d650\U0001d66a\U0001d684\U0001d69e\U0001d6d6\U0001d710\U0001d74a\U0001d784"
+        "\U0001d7be"
+    ),
+    "d": (
+        "\u0501\u13a0\u13e7\u146f\u15de\u15ea\u2145\u2146\u216e\u217e\ua4d2\ua4d3\uff24\uff44\U0001018b"
+        "\U0001ccd9\U0001d403\U0001d41d\U0001d437\U0001d451\U0001d46b\U0001d485\U0001d49f\U0001d4b9"
+        "\U0001d4d3\U0001d4ed\U0001d507\U0001d521\U0001d53b\U0001d555\U0001d56f\U0001d589\U0001d5a3"
+        "\U0001d5bd\U0001d5d7\U0001d5f1\U0001d60b\U0001d625\U0001d63f\U0001d659\U0001d673\U0001d68d"
+    ),
+    "e": (
+        "\u0395\u0415\u0435\u04bd\u13ac\u212e\u212f\u2130\u2147\u22ff\u2d39\ua4f0\ua5cb\uab32\uff25\uff45"
+        "\U00010286\U000118a6\U000118ae\U0001ccda\U0001d404\U0001d41e\U0001d438\U0001d452\U0001d46c"
+        "\U0001d486\U0001d4d4\U0001d4ee\U0001d508\U0001d522\U0001d53c\U0001d556\U0001d570\U0001d58a"
+        "\U0001d5a4\U0001d5be\U0001d5d8\U0001d5f2\U0001d60c\U0001d626\U0001d640\U0001d65a\U0001d674"
+        "\U0001d68e\U0001d6ac\U0001d6e6\U0001d720\U0001d75a\U0001d794\U0001df81"
+    ),
+}
+_LOOKALIKE = {c: letter for letter, chars in _CLAUDE_LOOKALIKES.items() for c in chars}
+
+
+def _looks_like_claude(name):
+    """Whether name, keyed as _name_key and with each confusable letter read as its Latin prototype, is "claude"."""
+    latin = lambda text: "".join(_LOOKALIKE.get(c, c) for c in text)  # noqa: E731
+    return latin(latin(_bare(name)).casefold()) == "claude"
 
 
 def _text(body, field, *, limit=MAX_TEXT, empty_ok=False, optional=False):
