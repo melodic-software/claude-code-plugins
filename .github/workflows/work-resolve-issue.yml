@@ -191,13 +191,13 @@ jobs:
       role: issue-lane
       activity: resolve-issue
       issue-number: ${{ format('{0}', github.event.issue.number) }}
-      output-mode: patch
       trusted-base: default-tip
       app-label: agent-ready
       timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
     secrets:
       claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # An issue its Size, Complexity and Uncertainty fields skip (pick-slot's
   # resolve) takes no model turn, so the run leaves no outcome and every job

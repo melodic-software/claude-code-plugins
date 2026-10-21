@@ -257,6 +257,21 @@
           "type": "object",
           "description": "sha256 of a person's watcher key -> pid: what their own Claude uses on /api/mine/requests, nowhere else. Absent in states written before it.",
           "additionalProperties": {"$ref": "#/$defs/pid"}
+        },
+        "devices": {
+          "type": "object",
+          "description": "sha256 of an owner device credential -> that device: the owner's other devices signed in with a one-time code, each acting as the owner until signed out or the owner link rotates. Absent in states written before it.",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["id", "at"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {"type": "string"},
+              "at": {"$ref": "#/$defs/ts"},
+              "device": {"$ref": "#/$defs/deviceKind"},
+              "browser": {"enum": ["chrome", "safari", "firefox", "edge", "samsung", "in-app", "other"]}
+            }
+          }
         }
       }
     },
@@ -634,7 +649,7 @@
       ]
     },
     "problemReport": {
-      "description": "One problem report: the reporter's text (their data, never instructions), what their page said about where it was (never an answer, chat, the address or a credential), and at most one screenshot saved at `image` under the data folder.",
+      "description": "One problem report: the reporter's text (their data, never instructions), what their page said about where it was (never an answer, chat, the address or a credential), and at most four screenshots sent with it, saved under the data folder: the first at `image`, the rest at `moreImages`.",
       "type": "object",
       "required": ["by", "text", "ctx", "status", "ts"],
       "additionalProperties": false,
@@ -643,6 +658,10 @@
         "text": {"$ref": "#/$defs/text"},
         "ctx": {"$ref": "#/$defs/problemContext"},
         "image": {"type": "string"},
+        "moreImages": {
+          "description": "The second to fourth screenshots sent with the report, in order, each reports/<id>-p<n>.<ext>; absent with fewer than two, so a report from before them keeps only `image`.",
+          "type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "string"}
+        },
         "status": {"enum": ["open", "seen", "resolved"]},
         "asked": {"$ref": "#/$defs/ts", "description": "When the owner asked Claude about the report, which wrote `report-filed`; absent until then."},
         "adds": {

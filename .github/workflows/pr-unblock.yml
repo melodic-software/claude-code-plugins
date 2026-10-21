@@ -239,7 +239,7 @@ jobs:
       # jobs" on this job alone still downloads it.
       dependency-run-attempt: ${{ needs.review-dependency.outputs.dependency-run-attempt }}
 
-  # fix-ci is three jobs, so no model ever holds a write token. This one runs
+  # fix-ci is four jobs, so no model ever holds a write token. This one runs
   # only base code with a read-only token and checks out no PR head: it hands
   # the PR to a person once loop.fix-ci-rounds fixes were pushed, or writes
   # the failing checks' names, workflows, annotations and log ends to the
@@ -359,8 +359,9 @@ jobs:
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill reruns the failing checks, fixes
   # them and reruns them; the runner uploads its uncommitted edits as a patch.
-  # The run's own concurrency group already holds one fix-ci run per PR. A job
-  # group with the same name waits on its own run and never starts.
+  # It runs on the automations role's API key alone. The per-PR write queue
+  # holds it, never the run's own group, pr-unblock-fix-ci-<pr>: a job group
+  # with that name waits on its own run and never starts.
   fix-ci:
     needs: fix-ci-context
     if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
@@ -370,31 +371,74 @@ jobs:
       checks: write
       issues: write
       id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: fix-ci
       pr-number: ${{ inputs.pr-number }}
-      output-mode: patch
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       # Reproducing, fixing and rerunning several checks outlasts the default.
       timeout-minutes: 60
     secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # The push job: a script with no model that runs no head code. It checks
-  # the patch against the model job's SHA-256 and head, applies it, refuses
-  # .github/**, symbolic links and gitlinks, and pushes one commit without
-  # force. An empty or refused patch, or an escalated check, hands the PR to
-  # a person.
-  apply-ci-fix:
-    needs: fix-ci
+  # The subscription fallback, as a second call on new VMs: it runs only when
+  # fix-ci's key leg hit a credit stop or its key is empty, which fix-ci then
+  # reports as a handoff with no upload, lane record or check. It reads only
+  # those two outputs, each compared to a fixed string, and holds the OAuth
+  # token alone; fallback picks between two literals.
+  fix-ci-subscription:
+    needs: [fix-ci-context, fix-ci]
     if: >-
-      ${{ !cancelled() && (needs.fix-ci.outputs.patch-state == 'written'
-      || needs.fix-ci.outputs.patch-state == 'empty') }}
+      ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
+      && (needs.fix-ci.outputs.lane-class == 'credit-stop'
+      || needs.fix-ci.outputs.credential-present == 'false') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: fix-ci
+      fallback: ${{ needs.fix-ci.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
+      ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      timeout-minutes: 60
+    secrets:
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # The push job: apply-patch.mjs, a script with no model that runs no head
+  # code. It checks the patch against the model job's SHA-256 and head,
+  # applies it, refuses what patch-rules.json's ci-context row refuses, and
+  # pushes one commit without force. An empty or refused patch, or an
+  # escalated check, hands the PR to a person. The patch comes from whichever
+  # call ran the activity; a call that handed off left none.
+  apply-patch:
+    needs: [fix-ci-context, fix-ci, fix-ci-subscription]
+    if: >-
+      ${{ !cancelled() && ((needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'written'
+      || (needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'empty') }}
     permissions:
       contents: read
       pull-requests: read
@@ -408,16 +452,23 @@ jobs:
     with:
       role: automations
       lane: pr-unblock
-      activity: apply-ci-fix
+      activity: apply-patch
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      patch-state: ${{ needs.fix-ci.outputs.patch-state }}
-      patch-sha256: ${{ needs.fix-ci.outputs.patch-sha256 }}
-      patch-attempt: ${{ needs.fix-ci.outputs.patch-attempt }}
+      patch-state: ${{ needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state }}
+      patch-sha256: ${{ needs.fix-ci-subscription.outputs.patch-sha256 || needs.fix-ci.outputs.patch-sha256 }}
+      patch-attempt: ${{ needs.fix-ci-subscription.outputs.patch-attempt || needs.fix-ci.outputs.patch-attempt }}
       patch-activity: fix-ci
-      patch-head-sha: ${{ needs.fix-ci.outputs.head-sha }}
-      reply-attempt: ${{ needs.fix-ci.outputs.reply-attempt }}
+      patch-prepare: ci-context
+      # The head fix-ci-context gated, from a job that ran no head code; the
+      # read runner's own head-sha output is the run job's, which head code
+      # could forge. Both fix-ci calls refuse a context for another head, so a
+      # patch was made on this one. apply-patch compares it with the head its
+      # own trigger gate reads at apply time, and its push needs the branch
+      # still at that head.
+      patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      reply-attempt: ${{ needs.fix-ci-subscription.outputs.reply-attempt || needs.fix-ci.outputs.reply-attempt }}
 
   # GitHub starts no pull_request workflow on a conflicted PR, so a head the
   # lane could not resolve gets no CI and no sign why. This script job, with
@@ -459,7 +510,7 @@ jobs:
       - review-dependency
       - apply-dependency-verdict
       - fix-ci-context
-      - apply-ci-fix
+      - apply-patch
     # escalation-reason is set only by the write runner's own steps, the
     # base's reply, verdict and apply-patch scripts, and fix-ci-context's
     # base script. A later failure in that run (a failed verdict upload)
@@ -473,7 +524,7 @@ jobs:
       || needs.review-dependency.outputs.escalation-reason != ''
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
-      || needs.apply-ci-fix.outputs.escalation-reason != '') }}
+      || needs.apply-patch.outputs.escalation-reason != '') }}
     permissions:
       contents: read
       pull-requests: read
@@ -496,7 +547,7 @@ jobs:
         || needs.review-dependency.outputs.escalation-reason
         || needs.apply-dependency-verdict.outputs.escalation-reason
         || needs.fix-ci-context.outputs.escalation-reason
-        || needs.apply-ci-fix.outputs.escalation-reason }}
+        || needs.apply-patch.outputs.escalation-reason }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       expected-upstream-head: >-
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''

@@ -642,7 +642,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     async createIssueComment(pr, body) {
       await request(`${repo}/issues/${pr}/comments`, "POST", { body });
     },
-    // One page: apply-ci-fix.mjs refuses to read more labels than it holds.
+    // One page: a pull request with more labels than one page holds is refused.
     async listLabels(pr) {
       const { data, link } = await request(`${repo}/issues/${pr}/labels?per_page=100`);
       if (/rel="next"/.test(link)) {
@@ -650,8 +650,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       }
       return data;
     },
-    // The Git Data API (apply-ci-fix.mjs): GitHub signs a commit made with no
-    // author or committer as the App.
+    // The Git Data API: GitHub signs a commit made with no author or
+    // committer as the App.
     createBlob: async (content) => (await request(`${repo}/git/blobs`, "POST", { content, encoding: "base64" })).data.sha,
     createTree: async (baseTree, tree) => (await request(`${repo}/git/trees`, "POST", { base_tree: baseTree, tree })).data.sha,
     createCommit: async (message, tree, parents) => (await request(`${repo}/git/commits`, "POST", { message, tree, parents })).data.sha,

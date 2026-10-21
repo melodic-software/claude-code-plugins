@@ -118,7 +118,7 @@ activities:
     # Fixes the failing CI checks on a lanes App pull request: reproduces each
     # with the repository's own command, fixes the cause and reruns it. It
     # holds no write token: the runner turns its uncommitted edits into a
-    # patch that apply-ci-fix pushes. pr-unblock-dispatch.yml starts it; a
+    # patch that apply-patch pushes. pr-unblock-dispatch.yml starts it; a
     # trusted person may also dispatch it by hand.
     skill: source-control:pull-request
     # The skill's CI mode for failing checks: never weakens a check, never
@@ -131,6 +131,8 @@ activities:
     prepare: ci-context
     # Runs head code, so no write token: the change leaves as a patch.
     effect: read
+    applied-by:
+      patch: apply-patch
     # ci-status judges the pushed fix.
     gating: advisory
     # Reads check annotations and logs, which print head text.
@@ -139,17 +141,13 @@ activities:
     applies-when:
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
-  apply-ci-fix:
+  apply-patch:
     # Applies fix-ci's patch to the head fix-ci worked on and pushes it as one
-    # commit, without force. A script, no model, and it runs no head code.
-    script: .github/scripts/pr-unblock/apply-ci-fix.mjs
-    # Before the mint the runner checks the patch artifact and the head;
-    # the script refuses the whole patch when any change is under .github/,
-    # an agent instruction path (CLAUDE.md, AGENTS.md, .claude/ or
-    # .claude-plugin/, a plugin's hooks/, monitors/ or bin/, .mcp.json,
-    # .lsp.json, .gitmodules, CODEOWNERS), a
-    # symbolic link or a gitlink, and hands an empty, invalid or unappliable
-    # patch to a person.
+    # commit, without force. A script, no model, and it runs no head code;
+    # patch-rules.json's ci-context row holds what it admits. Before the mint
+    # the runner checks the patch artifact and the head, and an empty,
+    # invalid or unappliable patch goes to a person.
+    script: .github/scripts/apply-patch/apply-patch.mjs
     prepare: apply-patch
     # Pushes the fix to the pull request's branch, nothing else.
     effect: mutate-branch
@@ -356,11 +354,11 @@ lanes:
       # failed.
       - activity: fix-ci
       # Runs after fix-ci, in its own job with its own token.
-      - activity: apply-ci-fix
+      - activity: apply-patch
         needs: [fix-ci]
       # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
-        needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-ci-fix]
+        needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch]
   pr-merge:
     stage: merge
     slots:
