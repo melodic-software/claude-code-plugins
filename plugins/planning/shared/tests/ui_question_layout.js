@@ -167,7 +167,7 @@ async function main() {
       });
       ok(`${w}x${h}: scrolled to the bottom, the chat button covers no control in the Claude section`, hit.length === 0, JSON.stringify(hit));
     }
-    // ---------- the disabled composer's placeholder fits a phone's one line ----------
+    // ---------- the composer's placeholder before a pick fits a phone's one line (it works before a pick: the owner's call) ----------
     const cy = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
     await joinAs(cy, "Cy");
     await until(cy, t => document.querySelector(".vf-qtext")?.textContent === t, CHOICE);
@@ -176,7 +176,7 @@ async function main() {
       cx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
       return { text: ta.placeholder, need: Math.ceil(cx.measureText(ta.placeholder).width), room: Math.floor(ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)), disabled: ta.disabled };
     });
-    ok("390: the disabled composer's placeholder fits its line", fit.disabled && fit.need <= fit.room, JSON.stringify(fit));
+    ok("390: the composer's placeholder before a pick fits its line", !fit.disabled && fit.need <= fit.room, JSON.stringify(fit));
 
     // ---------- a lock and a last suggestion that go clear on another page without a reload ----------
     await ann.setViewportSize({ width: 1440, height: 900 });

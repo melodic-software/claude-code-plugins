@@ -485,7 +485,9 @@
       return rec.pick ? { option: rec.pick } : null;
     }
     /** Follow-up 26: a poll or pick-many question takes its comment before the pick, and the comment goes in with it. */
-    const commentFirst = q => q?.purpose === "poll" || q?.format === "multi";
+    /** A question that takes a pick first: polls, multi, scale and rank, and a choice with "Something else" (writing
+     *  your own option goes there). Its comment box works before the pick, and the comment goes in with it. */
+    const commentFirst = q => q?.purpose === "poll" || isFormat(q) || (q?.format === "choice" && !!otherOf(q));
     const pickLabel = (q, id) => optionsOf(q).find(o => o.id === id)?.label || id;
     /** What a person card picked, in words: "Picked: Card", "Picked: A, B", "Chose 4 of 5", "Ranked: A > B > C". */
     function pickedText(q, a) {
@@ -5351,12 +5353,11 @@
     function renderComposer() {
       const qid = ui.cur, q = qById(qid), mine = Core.myAnswer(qid), S = Core.state;
       const rec = myRec(qid), picked = !!savedPick(q, rec);
-      // A pick comes first where the question takes one: polls, multi, scale and rank, and a choice with "Something else…"
-      // (writing your own option goes there). My own option is my card's text, so it takes no comment.
-      const pickFirst = q?.purpose === "poll" || isFormat(q) || (q?.format === "choice" && !!otherOf(q));
+      // Where a pick comes first, the comment box works before it (the owner's call, every format), and the comment goes
+      // in with the pick. My own option is my card's text, so it takes no comment.
       const lockedQ = !!Core.lockOf(qid), ro = readOnly(q), ownOpt = !!rec?.other;
-      const early = pickFirst && !picked && commentFirst(q), pollWait = pickFirst && !picked && !early;
-      const locked = lockedQ || ro || pollWait || ownOpt;
+      const early = commentFirst(q) && !picked;
+      const locked = lockedQ || ro || ownOpt;
       ta.disabled = !qid || locked;
       if (ta.disabled) closeSheet();
       // a phone's composer is one line between the paperclip and send, so every placeholder there fits it whole (sweep S24)
@@ -5367,9 +5368,6 @@
         : ro ? (phone.matches ? "Read-only: sent to Claude" : `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Use Suggest a change." : ""}`)
         : lockedQ ? (phone.matches ? "Locked" : Core.canModerate() ? "This question is locked. Use Edit or Unlock." : "This question is locked. Use Suggest a change.")
         : ownOpt ? (phone.matches ? "Your own option is your answer" : "Your own option is your answer here. Change it above.")
-        // A phone's composer is one line: the first half alone, so it is never cut mid-word.
-        : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option first" : q?.format === "rank" ? "Save your ranking first" : "Pick first")
-          + (phone.matches ? "" : ", then add a comment if you like.")
         : early ? "Add a comment (optional)…" + (phone.matches ? "" : " It goes in with your pick.")
         : q?.format === "choice" ? (picked ? "Add a comment (optional)…" : phone.matches ? "Or answer in your own words…" : "Pick an option, or answer in your own words…")
         : isFormat(q) ? "Add a comment (optional)…"
@@ -6016,7 +6014,8 @@
       const q = qById(qid);
       if (!q || readOnly(q) || Core.lockOf(qid) || !otherOf(q)) return;
       ui.otherOpen[qid] = true;
-      ui.otherText[qid] = ownText(q);
+      // On a choice my own option takes no comment, so a comment typed before the pick becomes the option's first draft.
+      ui.otherText[qid] = ownText(q) || (q.format === "choice" && earlyOf(q, myRec(qid))?.comment) || "";
       if (q.format === "multi" && !draftOf(q).includes("other")) ui.fdraft[qid] = { options: [...draftOf(q), "other"] };
       otherBox._q = null;
       render();
@@ -6047,9 +6046,11 @@
         announce("Your own option is in your ranking. Move it where it belongs, then save your ranking.");
         return fmtSave.focus({ preventScroll: true });
       }
-      // It shows in Answers at once; a refusal reopens the box with the text.
+      // It shows in Answers at once; a refusal reopens the box with the text. A comment typed before it was its first
+      // draft (openOther), and an own option takes none, so it leaves the comment box.
+      const early = earlyOf(q, myRec(qid));
       delete ui.otherText[qid]; ui.otherOpen[qid] = false;
-      Core.pick(qid, "other", "", { other: text }).then(() => flash("Your own option is in Answers, where others can back it."))
+      Core.pick(qid, "other", "", { other: text }).then(() => { if (early?.comment) sentEarly(qid, { comment: early.comment }); flash("Your own option is in Answers, where others can back it."); })
         .catch(e => { if (ui.otherText[qid] == null) { ui.otherText[qid] = text; ui.otherOpen[qid] = true; } fail(e); render(); });
     };
     /** Follow-up 29: the asker of an ask on a choice, pick-many or ranking question may make Claude's answer their own
