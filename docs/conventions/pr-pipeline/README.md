@@ -635,7 +635,31 @@ and its queued entries leave; two different identities, or an unreadable head co
   `merge.diff-check.denied-paths` and, while `high-path-floor` is true, `floor-paths`,
   `floor-script-scopes` and the capability check (see the pr-merge lane), matched
   case-insensitively. A diff that touches any of them
-  scores HIGH and is never merged unattended. A file whose every path is a test (a `*.test.mjs`,
+  scores HIGH and is never merged unattended. Two changes are exempt, as `babysit_risk.py`'s
+  docstring states: adding only the line `disable-model-invocation: true` to a
+  `plugins/<plugin>/skills/<skill>/SKILL.md` frontmatter that no agent's `skills` list could
+  preload takes no capability hold, and a non-script file under `plugins/<plugin>/evals/` takes no
+  capability hold and none from the `plugins/review/**`, `plugins/guardrails/**`,
+  `plugins/work-items/**` or `plugins/**/scripts/**` entries; a manifest, a named file such as
+  `CLAUDE.md`, a declared path and `denied-paths` still hold it. Any changed file in an eval case
+  directory whose `case.yaml` could name a `context.scaffold_script`, or could not be read, scores
+  HIGH as `eval-scaffold-review-required`, since `--scaffold` runs that script outside the
+  sandbox; so does any `*.sh`, `*.bash`, `*.py`, `*.mjs`, `*.js`, `*.cjs`, `*.ps1` or mode 100755
+  file under `plugins/*/evals/**`, whatever the floor says, since a scaffold may source it. A
+  `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
+  `.claude-plugin/marketplace.json` leaves the floor: its parsed base and head are compared against
+  allow-lists, and any difference outside them scores HIGH as `manifest-review-required`. In
+  `plugin.json` only `version`, `description`, `keywords`, `author`, `homepage`, `repository`,
+  and `license` may differ, and `version` may not be removed; an existing `userConfig` entry may
+  change only its `title` or `description`, and an added or removed entry or a `defaultEnabled`
+  change holds. In `marketplace.json` only `plugins` and
+  `metadata.description` or `metadata.version` may differ; an existing plugin entry may change only
+  `version`, `description`, `keywords`, `author`, `homepage`, `repository`, `license`, `category`
+  and `tags`, and an added, removed or renamed entry holds. A side that cannot be read, does not
+  parse or repeats a key holds, and so does a new `plugin.json`. Values are compared as sorted
+  JSON, so `false` and `0` differ, and a listed key clears only with the expected type: a string, a
+  list of strings for `keywords` and `tags`, and a string or an object of strings for `author`.
+  That reason waits for a human like any other HIGH one. A file whose every path is a test (a `*.test.mjs`,
   `*.test.sh`, `*.test.js` or `test_*.py` name, matched case-sensitively; a `tests/` or
   `fixtures/` directory alone is not one),
   safe, under no path a plugin declares as run, and named by no other changed file in the diff,

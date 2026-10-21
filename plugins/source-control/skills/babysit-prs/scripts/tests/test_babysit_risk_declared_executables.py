@@ -11,6 +11,7 @@ cannot read rates HIGH as `high-path:**`.
 from __future__ import annotations
 
 import base64
+import dataclasses
 import json
 import os
 import pathlib
@@ -448,6 +449,148 @@ class DeclarationsAtTests(unittest.TestCase):
 
     def test_declared_executable_reader_no_base_sha_is_none(self):
         self.assertIsNone(self._read(_fake_get(), pr={"number": 7, "head": {}}))
+
+
+SKILL_PATH = "plugins/example-plugin/skills/s/SKILL.md"
+SKILL_BASE = "---\nname: s\ndescription: d\n---\n\nBody.\n"
+SKILL_DMI = SKILL_BASE.replace("d\n", "d\ndisable-model-invocation: true\n", 1)
+AGENT_PATH = "plugins/example-plugin/agents/a.md"
+CASE_DIR = "plugins/example-plugin/evals/c"
+CASE_PATH = f"{CASE_DIR}/case.yaml"
+PLAIN_CASE = 'schema_version: "1.1"\nname: c\n'
+MANIFEST_PATH = "plugins/example-plugin/.claude-plugin/plugin.json"
+MANIFEST_BASE = '{"name": "example-plugin", "version": "1.0.0"}'
+NO_SHA = {"number": 7, "base": {"sha": "main"}, "head": {"sha": HEAD}}
+
+
+def _any_ref(get):
+    """`get` answering for the ref `main` as for the base SHA, so only the
+    SHA check refuses a branch name."""
+    return lambda endpoint: get(
+        endpoint.replace("/trees/main?", f"/trees/{BASE}?").replace(
+            "?ref=main", f"?ref={BASE}"
+        )
+    )
+
+
+def _scored(files, **kw):
+    return score(
+        RiskInput(
+            work_class="C2",
+            rung=Rung.C2,
+            files=files,
+            files_complete=True,
+            max_changed_lines=200,
+            high_paths=(),
+            lanes=LANES,
+            blast_radius=None,
+            declarations=(),
+            **kw,
+        )
+    )
+
+
+class BaseReadersKeepTheHoldTests(unittest.TestCase):
+    """Each base reader that cannot read, or is handed no base SHA, keeps the
+    hold its scorer input guards; the first case of each test is the control."""
+
+    def _call(self, get, reader, *args):
+        a, b, c = _api_only(get)
+        with a, b, c:
+            return reader(REPO, *args)
+
+    def test_agents_at_failures_keep_the_capability_hold(self):
+        skill = dataclasses.replace(
+            _changed(SKILL_PATH), contents=(SKILL_BASE, SKILL_DMI)
+        )
+        files = {AGENT_PATH: "---\nname: a\n---\n"}
+        for label, get, pr, held in (
+            ("readable", _fake_get(files=files), PR, False),
+            (
+                "contents unreadable",
+                _fake_get(contents_status=500, files=files),
+                PR,
+                True,
+            ),
+            ("tree unreadable", _fake_get(tree_status=500, files=files), PR, True),
+            ("no base SHA", _any_ref(_fake_get(files=files)), NO_SHA, True),
+        ):
+            with self.subTest(label):
+                agents = self._call(get, policy.agents_at, pr)
+                codes = _codes(_scored((skill,), agents=agents))
+                self.assertEqual("high-capability" in codes, held, codes)
+
+    def test_eval_cases_at_failures_keep_the_scaffold_hold(self):
+        changed = [f"{CASE_DIR}/setup.txt", None]
+        files = {CASE_PATH: PLAIN_CASE}
+        for label, get, pr, held in (
+            ("readable", _fake_get(files=files), PR, False),
+            (
+                "contents unreadable",
+                _fake_get(contents_status=500, files=files),
+                PR,
+                True,
+            ),
+            ("tree unreadable", _fake_get(tree_status=500, files=files), PR, True),
+            ("no base SHA", _any_ref(_fake_get(files=files)), NO_SHA, True),
+        ):
+            with self.subTest(label):
+                cases = self._call(get, policy.eval_cases_at, pr, changed)
+                result = _scored((_changed(changed[0]),), eval_cases=cases)
+                codes = _codes(result)
+                self.assertEqual("eval-scaffold-review-required" in codes, held, codes)
+
+    def test_eval_cases_at_reads_any_spelling_of_the_case_file(self):
+        case = "plugins/example-plugin/EVALS/c/CASE.YAML"
+        scaffolded = PLAIN_CASE + "context:\n  scaffold_script: fixture\n"
+        changed = ["plugins/example-plugin/Evals/c/fixture", None]
+        cases = self._call(
+            _fake_get(files={case: scaffolded}), policy.eval_cases_at, PR, changed
+        )
+        self.assertEqual(cases, ((case, scaffolded),))
+        codes = _codes(_scored((_changed(changed[0]),), eval_cases=cases))
+        self.assertIn("eval-scaffold-review-required", codes)
+
+    def test_with_capability_contents_reads_any_spelling_of_the_case_file(self):
+        case = "plugins/example-plugin/evals/c/Case.Yaml"
+        with (
+            mock.patch.object(policy, "_file_at", return_value="x: 1\n") as file_at,
+            mock.patch.dict(policy._TEXT_AT, clear=True),
+        ):
+            files = policy.with_capability_contents(REPO, PR, (_changed(case),))
+        self.assertEqual(files[0].contents, ("x: 1\n", "x: 1\n"))
+        self.assertEqual(file_at.call_count, 2)
+
+    def test_unreadable_contents_keep_the_manifest_and_scaffold_holds(self):
+        bumped = MANIFEST_BASE.replace("1.0.0", "1.1.0")
+
+        def readable(owner, name, path, sha):
+            if path == MANIFEST_PATH:
+                return MANIFEST_BASE if sha == BASE else bumped
+            return PLAIN_CASE
+
+        def failing(owner, name, path, sha):
+            raise policy.PolicyReadError("status 502")
+
+        for label, file_at, pr, held in (
+            ("readable", readable, PR, False),
+            ("contents unreadable", failing, PR, True),
+            ("no base SHA", readable, NO_SHA, True),
+        ):
+            for path, code in (
+                (MANIFEST_PATH, "manifest-review-required"),
+                (CASE_PATH, "eval-scaffold-review-required"),
+            ):
+                with self.subTest(label, path=path):
+                    with (
+                        mock.patch.object(policy, "_file_at", side_effect=file_at),
+                        mock.patch.dict(policy._TEXT_AT, clear=True),
+                    ):
+                        files = policy.with_capability_contents(
+                            REPO, pr, (_changed(path),)
+                        )
+                    codes = _codes(_scored(files, eval_cases=()))
+                    self.assertEqual(code in codes, held, codes)
 
 
 def _git(cwd, *args):

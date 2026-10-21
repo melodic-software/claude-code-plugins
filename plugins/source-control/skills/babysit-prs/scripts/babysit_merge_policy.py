@@ -57,11 +57,16 @@ from babysit_gh import (
     record_pull_request_total,
 )
 from babysit_risk import (
+    AGENT_FILES,
     DECLARATION_FILES,
     ChangedFile,
     declaration_pointers,
+    case_dir,
+    eval_case_dirs,
     glob_match,
     is_capability_path,
+    is_case_file,
+    is_manifest_path,
 )
 from babysit_util import (
     is_json_array,
@@ -2922,19 +2927,28 @@ def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
 def with_capability_contents(
     repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
 ) -> tuple[ChangedFile, ...]:
-    """Each changed capability file (not removed) with its base text at the
-    base SHA, from its previous path on a rename or copy, and its head text
+    """Each changed capability file, manifest or eval case.yaml (not removed) with its base
+    text at the base SHA, from its previous path on a rename or copy, and its head text
     at the head SHA, or the reason either could not be read."""
     owner, name = _split_repo(repo)
     base = json_object(pr.get("base")).get("sha")
     head = json_object(pr.get("head")).get("sha")
     read = []
     for changed in files:
-        if changed.status == "removed" or not is_capability_path(changed.path):
+        if changed.status == "removed" or not (
+            is_capability_path(changed.path)
+            or is_manifest_path(changed.path)
+            or is_case_file(changed.path)
+        ):
             read.append(changed)
             continue
         try:
-            if not (isinstance(base, str) and base and isinstance(head, str) and head):
+            if not (
+                isinstance(base, str)
+                and SHA_RE.fullmatch(base)
+                and isinstance(head, str)
+                and SHA_RE.fullmatch(head)
+            ):
                 raise PolicyReadError(
                     "the pull request record names no base or head SHA"
                 )
@@ -2957,6 +2971,79 @@ def with_capability_contents(
 
 
 _TREE_MODE = "040000"
+
+
+def _base_text(
+    owner: str,
+    name: str,
+    root: Path | None,
+    modes: Mapping[str, str],
+    path: str,
+    base: str,
+) -> str | None:
+    """A file's text at the base SHA, from the clone at `root` when there is
+    one, else the contents API; None when absent, a tree, or unreadable."""
+    if modes.get(path) in (None, _TREE_MODE):
+        return None
+    try:
+        if root is not None:
+            return _git_file_at(root, path, base)
+        return _text_at(owner, name, path, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"base file {path!r}: {type(exc).__name__}", file=sys.stderr)
+        return None
+
+
+def agents_at(
+    repo: str, pr: Mapping[str, Any]
+) -> tuple[tuple[str, str | None], ...] | None:
+    """`babysit_risk.RiskInput.agents`: every `AGENT_FILES` file at the base
+    SHA as (path, text), None for a file that could not be read; None when the
+    base tree cannot be listed."""
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        root = next(_clones_holding(base), None)
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"agents at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return None
+    if modes is None:
+        return None
+    return tuple(
+        (path, _base_text(owner, name, root, modes, path, base))
+        for path in sorted(modes)
+        if modes[path] != _TREE_MODE and glob_match(AGENT_FILES, path)
+    )
+
+
+def eval_cases_at(
+    repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
+) -> tuple[tuple[str, str | None], ...] | None:
+    """`babysit_risk.RiskInput.eval_cases`: each case file (`is_case_file`) at the base SHA in
+    a directory `eval_case_dirs` names for a changed path, as (path, text),
+    None for a file that could not be read; None when the base tree cannot be
+    listed."""
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    wanted = {d for path in changed if path for d in eval_case_dirs(path)}
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        root = next(_clones_holding(base), None)
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"eval cases at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return None
+    if modes is None:
+        return None
+    return tuple(
+        (path, _base_text(owner, name, root, modes, path, base))
+        for path in sorted(modes)
+        if modes[path] != _TREE_MODE and is_case_file(path) and case_dir(path) in wanted
+    )
 
 
 def declarations_at(
@@ -2994,15 +3081,7 @@ def declarations_at(
         return None
 
     def read(path: str) -> str | None:
-        if modes.get(path) in (None, _TREE_MODE):
-            return None
-        try:
-            if root is not None:
-                return _git_file_at(root, path, base)
-            return _text_at(owner, name, path, base)
-        except (PolicyReadError, ValueError) as exc:
-            print(f"declaration {path!r}: {type(exc).__name__}", file=sys.stderr)
-            return None
+        return _base_text(owner, name, root, modes, path, base)
 
     found = [
         (path, read(path))
