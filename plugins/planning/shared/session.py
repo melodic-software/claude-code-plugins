@@ -610,44 +610,66 @@ def _body(body):
 def _person_name(body, *, empty_ok=False):
     """A person's name; "Claude" (any case) is refused, since "@Claude" asks Claude and must never name a person."""
     name = _text(body, "name", limit=MAX_NAME, empty_ok=empty_ok)
-    if name.casefold() == "claude":
+    if _name_key(name) == "claude":
         raise DomainError(400, "reserved-name", "Claude is the AI's name in this session; pick another name.", field="name")
     return name
 
 
-# Characters dropped from every text field: controls but tab and newline, surrogates, private use, the bidi controls
-# (Trojan Source), invisible spaces and operators, and tag characters outside an emoji flag (hidden text for Claude).
-# ZWJ, ZWNJ and variation selectors VS1-VS16 stay, one at a time (_no_runs): emoji sequences and some scripts need
-# them; VS17-VS256 never take part in an emoji and are dropped. Unassigned (Cn) stays too:
-# the interpreter's Unicode tables trail new emoji, which read as unassigned until they catch up.
-# The only tag sequences kept are the three RGI subdivision flags (England, Scotland, Wales); any other run of tag
-# characters, even one shaped like a flag, can spell hidden words.
-_RGI_FLAGS = "|".join("\U0001f3f4" + "".join(chr(0xE0000 + ord(c)) for c in code) + "\U000e007f" for code in ("gbeng", "gbsct", "gbwls"))
-_HIDDEN = re.compile(
-    f"({_RGI_FLAGS})"
-    "|[\x00-\x08\x0b-\x1f\x7f-\x9f\u061c\u200b\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb"
-    "\ud800-\udfff\ue000-\uf8ff\U000e0000-\U000e007f\U000e0100-\U000e01ef\U000f0000-\U0010ffff]"
+# What every text field drops: controls but tab and newline, every format character (Cf: the bidi controls of Trojan
+# Source, zero-width spaces, invisible operators, the soft hyphen, tags) but ZWJ and ZWNJ, surrogates, private use,
+# characters that render blank (_BLANK), and VS17-VS256. Tag characters stay only in the three RGI subdivision flags
+# (_RGI_FLAGS); any other run of them can spell hidden words for Claude. ZWJ, ZWNJ and VS1-VS16 stay one at a time
+# (emoji sequences and some scripts need them): a selector after a selector or a joiner, or a joiner after a joiner,
+# is dropped, so no run of them hides bytes after a visible character. Unassigned (Cn) stays: the interpreter's
+# Unicode tables trail new emoji, which read as unassigned until they catch up.
+_RGI_FLAGS = re.compile(
+    "(" + "|".join("\U0001f3f4" + "".join(chr(0xE0000 + ord(c)) for c in code) + "\U000e007f" for code in ("gbeng", "gbsct", "gbwls")) + ")"
 )
-_JOINERS = "\u200c\u200d"
+_JOINERS = "\U0000200c\U0000200d"
+_BLANK = frozenset(chr(c) for c in (0x034F, 0x115F, 0x1160, 0x2800, 0x3164, 0xFFA0))  # graphic or Mn, yet nothing shows
+_DROPPED_KINDS = ("Cc", "Cf", "Co", "Cs")
 
 
-def _no_runs(v):
-    """v with no variation selector after another selector or a joiner, and no joiner after a joiner: one selector
-    after a base (VS16) and a joiner between two emoji stay, but a run that hides bytes after one visible
-    character does not."""
-    out, last = [], ""
-    for c in v:
-        kind = "vs" if "\ufe00" <= c <= "\ufe0f" else "j" if c in _JOINERS else ""
-        if (kind == "vs" and last) or (kind == "j" and last == "j"):
-            continue
-        out.append(c)
-        last = kind
-    return "".join(out)
+def _hidden(c):
+    o = ord(c)
+    return (
+        unicodedata.category(c) in _DROPPED_KINDS
+        or c in _BLANK
+        or 0xE0000 <= o <= 0xE007F  # tags, the unassigned ones too
+        or 0xE0100 <= o <= 0xE01EF  # VS17-VS256
+        or o >= 0xF0000  # private use planes, their noncharacters too
+    )
 
 
 def _visible(v):
-    """v with line breaks as \\n, every _HIDDEN character dropped, and no selector or joiner run (_no_runs)."""
-    return _no_runs(_HIDDEN.sub(lambda m: m.group(1) or "", v.replace("\r\n", "\n").replace("\r", "\n")))
+    """v with line breaks as \\n and every hidden character dropped (see above)."""
+    out, last = [], ""
+    for i, part in enumerate(_RGI_FLAGS.split(v.replace("\r\n", "\n").replace("\r", "\n"))):
+        if i % 2:  # one of the RGI subdivision flags, kept whole
+            out.append(part)
+            last = ""
+            continue
+        for c in part:
+            if c in "\t\n":
+                kind = ""
+            elif c in _JOINERS:
+                kind = "j"
+            elif "\U0000fe00" <= c <= "\U0000fe0f":
+                kind = "vs"
+            elif _hidden(c):
+                continue
+            else:
+                kind = ""
+            if (kind == "vs" and last) or (kind == "j" and last == "j"):
+                continue
+            out.append(c)
+            last = kind
+    return "".join(out)
+
+
+def _name_key(name):
+    """What two names are compared by: NFKC then casefold, so a fullwidth or compatibility form of a name is that name."""
+    return unicodedata.normalize("NFKC", name).casefold()
 
 
 def _text(body, field, *, limit=MAX_TEXT, empty_ok=False, optional=False):
@@ -1383,7 +1405,7 @@ class Session:
                     (
                         {"pid": p, "name": v["name"]}
                         for p, v in st["people"].items()
-                        if p != HOST and p not in here and v["status"]["kind"] == "active" and v["name"].casefold() == name.casefold()
+                        if p != HOST and p not in here and v["status"]["kind"] == "active" and _name_key(v["name"]) == _name_key(name)
                     ),
                     None,
                 )
@@ -1451,9 +1473,9 @@ class Session:
         suffix would tell them the name is taken. Only the owner sees their own, so it keeps the suffix."""
         if self.state["session"]["settings"]["names"] != "full" and pid != HOST:
             return name
-        taken = {v["name"].casefold() for p, v in self.state["people"].items() if p != pid}
+        taken = {_name_key(v["name"]) for p, v in self.state["people"].items() if p != pid}
         out, n = name, 2
-        while out.casefold() in taken:
+        while _name_key(out) in taken:
             suffix = f" {n}"
             out, n = name[: MAX_NAME - len(suffix)] + suffix, n + 1
         return out
@@ -1464,7 +1486,7 @@ class Session:
         n = sum(1 for p in self.state["people"] if p != HOST) + 1
         if self.state["session"]["settings"]["names"] != "full":
             return f"Guest {n}"
-        taken = {v["name"].casefold() for v in self.state["people"].values()}
+        taken = {_name_key(v["name"]) for v in self.state["people"].values()}
         while f"guest {n}" in taken:
             n += 1
         return f"Guest {n}"

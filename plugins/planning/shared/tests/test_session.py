@@ -2125,6 +2125,19 @@ class TestHiddenCharacters(SessionCase):
         self.act("chat", self.ann, {"text": text})
         self.assertEqual(self.s.state["chat"][-1]["text"], f"a\ufe00 b\u200d c d\u200d {heart_on_fire}")
 
+    def test_every_format_character_but_the_joiners_and_blank_rendering_ones_are_dropped(self):
+        blank = [0x00AD, 0x034F, 0x180E, 0x1D173, 0x1D17A, 0x3164, 0xFFA0, 0x115F, 0x2800, 0x0600, 0x2061, 0xFFF9]
+        self.act("chat", self.ann, {"text": "a" + "".join(chr(c) + "b" for c in blank)})
+        self.assertEqual(self.s.state["chat"][-1]["text"], "a" + "b" * len(blank))
+
+    def test_names_compare_by_their_compatibility_form_but_keep_their_letters(self):
+        for name in ("Clau\U000000adde", "\U0000ff23laude", "\U0000ff23\U0000ff2c\U0000ff21\U0000ff35\U0000ff24\U0000ff25"):
+            with self.subTest(name=name):
+                self.refused("reserved-name", "join", None, {"name": name, "device": "computer"})
+        self.assertEqual(self.s.join(None, {"name": "An\U000000adn", "device": "computer"})["name"], "Ann 2")
+        fullwidth = self.s.join(None, {"name": "\U0000ff21nn", "device": "computer"})["name"]
+        self.assertEqual(fullwidth, "\U0000ff21nn 3")
+
     def test_a_field_of_only_hidden_characters_is_refused_as_empty(self):
         self.refused("empty", "chat", self.ann, {"text": "\u202e\u200b\x00 \u2066"}, http=400)
         self.refused("empty", "request", self.ann, {"qid": "Q1", "kind": "ask", "text": "\U000e0041\ufeff"}, http=400)
