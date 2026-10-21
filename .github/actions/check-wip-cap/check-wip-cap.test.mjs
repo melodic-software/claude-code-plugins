@@ -8,9 +8,11 @@
 // wip.opened-to-merged-ratio times those merged in it. Over a cap the check alerts; it
 // pauses the lane over the WIP cap or the held cap, on or after wip.pause-from,
 // and logs one `admission paused: reason=...` line (owner decision
-// 2026-10-21). A read that fails never caps.
+// 2026-10-21). A read that fails keeps the last known pause, or with none
+// fails open (owner decision 2026-10-21, #8804).
 import assert from "node:assert/strict";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -235,7 +237,7 @@ test("over both caps the lane pauses for both reasons", async () => {
   assert.equal(result.pause_reason, "wip,held-cap");
 });
 
-test("reads that fail never cap or pause", async () => {
+test("reads that fail never cap or pause on their own", async () => {
   const failed = new Error("GET /search/issues failed with status 502");
   const result = status(await read({ open: failed, merged: failed, admitted: failed }), { "pause-from": "2026-10-01" });
   assert.equal(result.countable_lane_prs, null);
@@ -339,6 +341,124 @@ test("main pauses at this repository's held cap of 10, past pause-from, and logs
   assert.ok(held.logs.includes("::notice title=admission paused::admission paused: reason=held-cap countable=0 wip_cap=12 held=10 held_cap=10"));
   const nine = await runMain({ open: Array.from({ length: 9 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, {}, config);
   assert.equal(nine.capped, "false");
+});
+
+// The last known state is the previous run's published status, in the file
+// WIP_STATE names (owner decision 2026-10-21, #8804).
+const pastConfig = () =>
+  readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8").replace(/^( +pause-from: ).*$/m, '$1"2026-10-01"');
+function stateFile(prior) {
+  const path = join(mkdtempSync(join(tmpdir(), "check-wip-cap-state-")), "state.json");
+  if (prior !== undefined) {
+    writeFileSync(path, JSON.stringify(prior));
+  }
+  return path;
+}
+const failed = new Error("GET /search/issues failed with status 502");
+
+test("a read that fails keeps a last known pause, and logs it as kept", async () => {
+  const prior = { paused: true, pause_reason: "held-cap" };
+  for (const [answers, config] of [
+    [{ open: failed, merged: 24 }, pastConfig()],
+    [{ open: [pr()], merged: 24 }, undefined],
+  ]) {
+    const path = stateFile(prior);
+    const kept = await runMain(answers, { WIP_STATE: path }, config);
+    assert.equal(kept.capped, "true");
+    assert.equal(kept.wip.paused, true);
+    assert.equal(kept.wip.pause_reason, "held-cap");
+    assert.equal(kept.wip.pause_basis, "last-state");
+    const line = "admission paused: reason=held-cap (read-error, kept last state)";
+    assert.ok(kept.logs.includes(`::notice title=admission paused::${line}`), kept.logs.join("\n"));
+    assert.ok(kept.summary.includes(`\n${line}\n`));
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), prior);
+  }
+});
+
+test("a kept pause ends when a readable config no longer pauses", async () => {
+  const path = stateFile({ paused: true, pause_reason: "wip" });
+  for (const from of ['""', '"2026-10-19"']) {
+    const config = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8").replace(/^( +pause-from: ).*$/m, `$1${from}`);
+    const open = await runMain({ open: failed, merged: 24 }, { WIP_STATE: path }, config);
+    assert.equal(open.capped, "false");
+    assert.equal(open.wip.pause_basis, "last-state");
+    assert.ok(!open.summary.includes("admission paused"));
+  }
+});
+
+test("a last known pause reason outside wip, held-cap and wip,held-cap is no prior state", async () => {
+  for (const reason of ["wip\n::error::injected", "other", null]) {
+    const path = stateFile({ paused: true, pause_reason: reason });
+    const open = await runMain({ open: failed, merged: 24 }, { WIP_STATE: path }, pastConfig());
+    assert.equal(open.capped, "false");
+    assert.equal(open.wip.pause_basis, "fail-open");
+    assert.ok(!open.summary.includes("admission paused"));
+  }
+  const kept = await runMain({ open: failed, merged: 24 }, { WIP_STATE: stateFile({ paused: true, pause_reason: "wip,held-cap" }) }, pastConfig());
+  assert.equal(kept.capped, "true");
+});
+
+// Issue-event runs cannot save a default-branch cache (low-trust trigger), so
+// only work-unblock's hourly schedule saves the state; pick-slot only reads.
+const { parse } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("yaml");
+const yamlAt = (path) => parse(readFileSync(new URL(`../../../${path}`, import.meta.url), "utf8"));
+const usesWip = (step) => String(step?.uses ?? "").endsWith("/.github/actions/check-wip-cap");
+
+test("the state is saved only from work-unblock's schedule, and pick-slot only reads it", () => {
+  const action = yamlAt(".github/actions/check-wip-cap/action.yml");
+  assert.equal(action.inputs["save-state"].default, "false");
+  const saves = action.runs.steps.filter((step) => String(step.uses ?? "").startsWith("actions/cache/save@"));
+  assert.equal(saves.length, 1);
+  assert.match(saves[0].if, /inputs\.save-state == 'true'/);
+  const savers = [];
+  for (const file of readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f))) {
+    for (const [name, job] of Object.entries(yamlAt(`.github/workflows/${file}`).jobs ?? {})) {
+      for (const step of (job.steps ?? []).filter(usesWip)) {
+        if (String(step.with?.["save-state"] ?? "false") === "true") {
+          savers.push({ file, name, step });
+        }
+      }
+    }
+  }
+  // Its own job: a restored cache must never reach a job that can mint
+  // through the token broker (id-token) or holds a secret.
+  assert.deepEqual(savers.map(({ file, name }) => `${file}:${name}`), ["work-unblock.yml:wip-state"]);
+  const saver = yamlAt(".github/workflows/work-unblock.yml").jobs["wip-state"];
+  assert.match(saver.if, /github\.event_name == 'schedule'/);
+  assert.deepEqual(saver.permissions, { contents: "read", "pull-requests": "read" });
+  assert.ok(!JSON.stringify(saver).includes("secrets."));
+  const pickSlot = yamlAt(".github/workflows/work-resolve-issue.yml").jobs["pick-slot"];
+  assert.equal(pickSlot["cache-mode"], "read");
+  assert.equal(pickSlot.steps.filter(usesWip).length, 1);
+});
+
+test("a read that fails keeps a last known open lane open", async () => {
+  const prior = { paused: false, pause_reason: null };
+  const path = stateFile(prior);
+  const kept = await runMain({ open: failed, merged: 24 }, { WIP_STATE: path }, pastConfig());
+  assert.equal(kept.capped, "false");
+  assert.equal(kept.wip.paused, false);
+  assert.equal(kept.wip.pause_basis, "last-state");
+  assert.ok(!kept.summary.includes("admission paused"));
+  assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), prior);
+});
+
+test("a read that fails with no last known state fails open", async () => {
+  for (const prior of [undefined, { paused: "yes" }]) {
+    const path = stateFile(prior);
+    const open = await runMain({ open: failed, merged: 24 }, { WIP_STATE: path }, pastConfig());
+    assert.equal(open.capped, "false");
+    assert.equal(open.wip.pause_basis, "fail-open");
+    assert.ok(!open.summary.includes("admission paused"));
+  }
+});
+
+test("a read that succeeds saves its status as the last known state", async () => {
+  const path = stateFile();
+  const paused = await runMain({ open: Array.from({ length: 13 }, () => pr()), merged: 24 }, { WIP_STATE: path }, pastConfig());
+  assert.equal(paused.capped, "true");
+  assert.equal(paused.wip.pause_basis, "read");
+  assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), paused.wip);
 });
 
 test("main's warning before pause-from says the pause date is not reached", async () => {

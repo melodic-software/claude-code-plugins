@@ -50,7 +50,6 @@ Describe 'Test-Services -- healthy baseline' -Tag 'check' {
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith {
             @(New-MockCimService -Name 'W32Time' -StartMode 'Auto')
         }
-        Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }
         Mock Get-Service {
             @(
                 New-MockService -Name 'W32Time' -Status 'Running' -StartType 'Automatic'
@@ -70,6 +69,13 @@ Describe 'Test-Services -- healthy baseline' -Tag 'check' {
         $result = Invoke-ServicesAsObject
         $result.severity | Should -Be 'OK'
     }
+
+    It 'leaves the startup inventory to startup-items' {
+        Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }
+        $result = Invoke-ServicesAsObject
+        Should -Invoke Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -Times 0 -Exactly
+        $result.commands -join "`n" | Should -Not -Match 'Win32_StartupCommand'
+    }
 }
 
 Describe 'Test-Services -- trigger-start services' -Tag 'check' {
@@ -78,7 +84,6 @@ Describe 'Test-Services -- trigger-start services' -Tag 'check' {
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith {
             @(New-MockCimService -Name 'dnscache' -StartMode 'Auto')
         }
-        Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }
         Mock Get-Service {
             @(New-MockService -Name 'dnscache' -Status 'Stopped' -StartType 'Automatic')
         }
@@ -98,7 +103,6 @@ Describe 'Test-Services -- trigger-start services' -Tag 'check' {
                 New-MockCimService -Name 'Spooler' -StartMode 'Auto'
             )
         }
-        Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }
         Mock Get-Service {
             @(
                 New-MockService -Name 'dnscache' -Status 'Stopped' -StartType 'Automatic'
@@ -124,7 +128,6 @@ Describe 'Test-Services -- delayed auto-start' -Tag 'check' {
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith {
             @(New-MockCimService -Name 'Sense' -StartMode 'Auto' -DelayedAutoStart $true)
         }
-        Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }
         Mock Get-Service {
             @(New-MockService -Name 'Sense' -Status 'Stopped' -StartType 'Automatic')
         }
@@ -139,7 +142,6 @@ Describe 'Test-Services -- delayed auto-start' -Tag 'check' {
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith {
             @(New-MockCimService -Name 'Sense' -StartMode 'Auto' -DelayedAutoStart $true)
         }
-        Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }
         Mock Get-Service {
             @(New-MockService -Name 'Sense' -Status 'Stopped' -StartType 'Automatic')
         }
@@ -158,7 +160,6 @@ Describe 'Test-Services -- delayed auto-start' -Tag 'check' {
                 New-MockCimService -Name 'Spooler' -StartMode 'Auto' -DelayedAutoStart $false
             )
         }
-        Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }
         Mock Get-Service {
             @(
                 New-MockService -Name 'Sense' -Status 'Stopped' -StartType 'Automatic'
@@ -178,7 +179,6 @@ Describe 'Test-Services -- failure modes' -Tag 'check' {
     It 'emits UNKNOWN when Get-Service fails' {
         Set-UptimeMock -Minutes 120
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith { @() }
-        Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }
         Mock Get-Service { throw 'SCM unavailable' }
         Mock Test-ServiceTriggerStart { $false }
 
@@ -193,7 +193,6 @@ Describe 'Test-Services -- failure modes' -Tag 'check' {
         # signal; this fires if the count-zero check reverts to bare SilentlyContinue.
         Set-UptimeMock -Minutes 120
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith { @() }
-        Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }
         Mock Get-Service { @() }
         Mock Test-ServiceTriggerStart { $false }
 
@@ -208,7 +207,6 @@ Describe 'Test-Services -- failure modes' -Tag 'check' {
         # populated but partial result must still produce WARN/OK, not UNKNOWN.
         Set-UptimeMock -Minutes 120
         Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_Service' } -MockWith { @() }
-        Mock Get-CimInstance -ParameterFilter { $ClassName -eq 'Win32_StartupCommand' } -MockWith { @() }
         Mock Get-Service { @(New-MockService -Name 'Spooler' -Status 'Stopped' -StartType 'Automatic') }
         Mock Test-ServiceTriggerStart { $false }
 

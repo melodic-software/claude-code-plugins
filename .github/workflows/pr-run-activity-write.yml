@@ -69,6 +69,15 @@ on:
         required: false
         type: string
         default: ""
+      dimension-skip:
+        description: >-
+          Issue mode, report-outcome: the issue-dimension skip reason
+          (split-required, research-first, probe-first or not-assessed) that
+          kept the run from starting; report-outcome hands the issue to a
+          person with the next step. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       timeout-minutes:
         description: The run job's timeout in minutes.
         required: false
@@ -181,6 +190,13 @@ on:
         default: ""
       patch-activity:
         description: The activity that wrote the patch and the report, which names both artifacts.
+        required: false
+        type: string
+        default: ""
+      patch-prepare:
+        description: >-
+          The patch-activity's prepare mode in the base config (ci-context for
+          fix-ci), which picks its patch-rules.json row; empty for none.
         required: false
         type: string
         default: ""
@@ -397,6 +413,7 @@ jobs:
           REUSE_BRANCH: ${{ inputs.reuse-branch }}
           PATCH_BASE_SHA: ${{ inputs.patch-base-sha }}
           PATCH_RESUME_TIP: ${{ inputs.patch-resume-tip }}
+          DIMENSION_SKIP: ${{ inputs.dimension-skip }}
         run: |
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs.
@@ -418,6 +435,12 @@ jobs:
           if [ -n "$PATCH_BASE_SHA$PATCH_RESUME_TIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
             ! [[ $PATCH_BASE_SHA =~ ^[0-9a-f]{40}$ ]] || ! [[ $PATCH_RESUME_TIP =~ ^([0-9a-f]{40})?$ ]]; }; then
             echo "::error::patch-base-sha and patch-resume-tip are an issue patch's commit ids"
+            exit 1
+          fi
+          # A dimension skip is one of the four issue-dimension reasons, only in issue mode.
+          if [ -n "$DIMENSION_SKIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
+            ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first|not-assessed)$ ]]; }; then
+            echo "::error::dimension-skip must be an issue-dimension skip reason, in issue mode"
             exit 1
           fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
@@ -654,8 +677,9 @@ jobs:
 
       # apply-patch, before the mint and the head checkout, with no token:
       # the activity's script, from the base, checks the patch artifact
-      # against the model job's SHA-256 and head, and reads its report. A
-      # moved head skips superseded-sha; an empty or invalid patch escalates
+      # against the model job's SHA-256 and head, and reads its report. Under
+      # a skip-moved-head row (ci-context) a moved head skips superseded-sha,
+      # and the script takes it with --3way otherwise; an empty or invalid patch escalates
       # with nothing minted; an escalated check in the report escalates after
       # the push. An issue patch's head is its start commit.
       - name: Select the patch
@@ -665,6 +689,7 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           BASE_DIR: .base
           PATCH_TARGET: ${{ inputs.issue-number != '' && 'issue' || 'pr' }}
+          PATCH_PREPARE: ${{ inputs.patch-prepare }}
           PATCH_STATE: ${{ inputs.patch-state }}
           PATCH_SHA256: ${{ inputs.patch-sha256 }}
           PATCH_HEAD_SHA: ${{ inputs.issue-number != '' && steps.issue-start.outputs.sha || inputs.patch-head-sha }}
@@ -1986,6 +2011,8 @@ jobs:
           REUSE_SUMMARY_DIR: ${{ inputs.reuse-branch != '' && format('{0}/reuse-summary', runner.temp) || '' }}
           # Parsed and checked against the lane branch by report-outcome.
           RUNNER_CHECKS: ${{ inputs.runner-checks }}
+          # Checked against the four reasons by the job's first step.
+          DIMENSION_SKIP: ${{ inputs.dimension-skip }}
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
@@ -2013,6 +2040,7 @@ jobs:
           # names the commit; the issue target's required labels.
           BASE_DIR: ${{ steps.apply-base.outputs.dir }}
           PATCH_TARGET: ${{ inputs.issue-number != '' && 'issue' || 'pr' }}
+          PATCH_PREPARE: ${{ inputs.patch-prepare }}
           PATCH_HEAD_SHA: ${{ inputs.issue-number != '' && steps.issue-start.outputs.sha || inputs.patch-head-sha }}
           # Issue mode: the default-branch commit the issue-start step checked;
           # the refusals cover everything the new branch adds since it.
@@ -2229,9 +2257,12 @@ jobs:
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # issues: write lets check-signed-commits add its label and comment. Every
+    # caller job grants it; no job that runs the model holds it.
     permissions:
       checks: write
       contents: read
+      issues: write
       pull-requests: read
     steps:
       # The default branch tip, then the run job's base SHA only when the
@@ -2350,6 +2381,7 @@ jobs:
           pr-head-sha: ${{ steps.pr-head.outputs.sha }}
           can-commit: ${{ needs.run.outputs.can-commit }}
           all-verified: ${{ steps.signed.outputs.all-verified }}
+          unverified: ${{ steps.signed.outputs.unverified }}
           lane-class: ${{ needs.run.outputs.lane-class }}
           lane-resets: ${{ needs.run.outputs.lane-resets }}
           lane-turns: ${{ needs.run.outputs.lane-turns }}

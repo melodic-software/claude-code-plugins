@@ -2809,6 +2809,7 @@ STOP_REFUSALS = (
     "post-merge:",
     "rung-off:",
     merge_policy.DEFAULT_BRANCH_UNREADABLE,
+    merge_policy.AUTHORITY_DIFFERS,
 )
 # The run-cache section of queued entries a gate process judged and kept.
 SWEEP = "queue-sweep"
@@ -3017,7 +3018,9 @@ def score_unattended(
         inputs.get("authority") == merge_policy.PR_MERGE
         and config.require_verifier_verdict
     ):
-        reader = verify_evidence.Reader(repo, str(inputs["branch"]))
+        reader = verify_evidence.Reader(
+            repo, str(inputs["branch"]), max_fails=config.max_verify_fails
+        )
         verdict = reader.evidence(number, str(details["headSha"]), pr)
         details["verify"] = verdict.report()
         inputs["verify_reader"] = reader
@@ -3075,6 +3078,24 @@ def score_unattended(
         if lane_switches.get("high_floor", True)
         else ()
     )
+    # Agents at the base, read only for a skill change that could skip its
+    # capability hold; None (unknown) holds it.
+    agents = (
+        merge_policy.agents_at(repo, pr)
+        if config.high_path_floor
+        and any(
+            f.status == "modified" and babysit_risk.is_skill_path(f.path) for f in files
+        )
+        else None
+    )
+    # Case files at the base, read only when an eval case directory changed;
+    # None (unknown) holds every such change.
+    eval_cases = (
+        merge_policy.eval_cases_at(repo, pr, changed)
+        if lane_switches.get("high_floor", True)
+        and any(p and babysit_risk.eval_case_dirs(p) for p in changed)
+        else None
+    )
     risk = babysit_risk.score(
         babysit_risk.RiskInput(
             work_class=eligible.work_class,
@@ -3088,6 +3109,8 @@ def score_unattended(
             # The floor additions follow the switch in every lane.
             floor_extensions=config.high_path_floor,
             declarations=declarations,
+            agents=agents,
+            eval_cases=eval_cases,
             lanes=lanes,
             blast_radius=None,
             **lane_switches,
@@ -3416,17 +3439,19 @@ def escalate_verify(
     inputs: Mapping[str, Any],
     summary: str | None = None,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal. A `verify:fail` or
-    `verify:earlier-fail` with no `summary` (unreadable, or a fail at an
-    earlier head) quotes the last fail summary its comment carried, so an
-    unreadable artifact rewrites nothing and the reason outlives the head.
-    An earlier-fail whose carried quote is a fail at this head is that fail
-    read as unreadable this run: it stays `verify:fail`."""
+    """`escalate` for a needs-human verifier refusal. A `verify:fail`,
+    `verify:earlier-fail` or `verify:repeated-fail` with no `summary`
+    (unreadable, or a fail at an earlier head) quotes the last fail summary
+    its comment carried, so an unreadable artifact rewrites nothing and the
+    reason outlives the head. Either of the last two whose carried quote is a
+    fail at this head is that fail read as unreadable this run: it stays
+    `verify:fail`."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
     carried = None
     if summary is None and refusal in (
         verify_evidence.FAIL,
         verify_evidence.EARLIER_FAIL,
+        verify_evidence.REPEATED_FAIL,
     ):
         comments = inputs.get("comments")
         if comments is None:
@@ -3617,7 +3642,7 @@ def unattended_writes(
             # passing verifier verdict at its head now.
             config = inputs.get("config")
             verifier = inputs.get("verify_reader") or (
-                verify_evidence.Reader(repo, branch)
+                verify_evidence.Reader(repo, branch, max_fails=config.max_verify_fails)
                 if inputs.get("authority") == merge_policy.PR_MERGE
                 and config is not None
                 and config.require_verifier_verdict
@@ -4008,8 +4033,24 @@ def unattended_enqueue(
     if opt_in:
         return hold(f"ineligible:{opt_in}")
     # An enqueue never rests on a read shared within the run: a default
-    # branch or base rules the gate took from the run cache are read again,
-    # and any change holds.
+    # branch, its head's merge config or base rules the gate took from the
+    # run cache are read again, and any change holds.
+    if (cached_head := merge_policy.SHARED_HEAD_CONFIGS.get(repo)) is not None:
+        try:
+            _, head = merge_policy._default_branch_head(repo, branch)
+            if head != cached_head:
+                config = inputs["config"]
+                main = merge_policy.read_config_at(repo, head)
+                if main.error:
+                    raise merge_policy.PolicyReadError(main.error)
+                fresh = merge_policy.stricter_config(config, main)
+                if replace(fresh, notes=()) != replace(config, notes=()):
+                    return hold(
+                        "the default branch's merge config changed since the "
+                        "gate read it"
+                    )
+        except merge_policy.PolicyReadError as exc:
+            return hold(f"the default branch's merge config is unreadable: {exc}")
     if repo in merge_policy.SHARED_DEFAULT_BRANCHES:
         try:
             default = merge_policy._default_branch(repo)
@@ -4031,7 +4072,10 @@ def unattended_enqueue(
     # update with no answer (a timeout, no status, a server error) may have
     # landed, so the old head is held rather than pinned.
     inputs_read = check_inputs.changed_since_merge_base(
-        inputs["config"].check_inputs, pin, branch
+        inputs["config"].check_inputs,
+        pin,
+        branch,
+        extra=inputs["config"].head_check_inputs,
     )
     step["checkInputs"] = inputs_read
     # Updating merges the base's canonical but not the copies the pull request
@@ -4055,7 +4099,22 @@ def unattended_enqueue(
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             step["escalationError"] = str(exc)
         return hold(reason)
-    if inputs_read["state"] == "stale" and eligible_dependabot is None:
+    # A standards-sync head is not written either: the sync App is its only
+    # writer, and a merge commit fails its managed-files guard. An unreadable
+    # label holds, since the stale head would fail the queue's merge.
+    stale_update = inputs_read["state"] == "stale" and eligible_dependabot is None
+    skip = None
+    if stale_update:
+        owner, name = repo.split("/", 1)
+        try:
+            skip = postmerge.standards_sync_skip(
+                owner, name, inputs["pr"].get("labels")
+            )
+        except postmerge.PostMergeReadError as exc:
+            return hold(f"the standards-sync role label is unreadable ({exc})")
+    if skip:
+        inputs_read.update(updated=False, updateSkipped=skip)
+    elif stale_update:
         stale = (
             f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
             f"{branch} since merge base {inputs_read['mergeBase']}"
@@ -4190,6 +4249,7 @@ def _main() -> int:
     global SHARE_BASE_READS
     SHARED_RULES.clear()
     merge_policy.SHARED_DEFAULT_BRANCHES.clear()
+    merge_policy.SHARED_HEAD_CONFIGS.clear()
     # allow_abbrev=False: the permission grants covering this gate state their
     # conditions as the literal presence or absence of a flag in the command
     # text -- above all "no --merge means check-only". Prefix abbreviation
@@ -4360,7 +4420,8 @@ def _main() -> int:
         default=None,
         help=(
             "with --unattended, the merge authority this run is (default "
-            "local-babysit); merge.authority at the base must name it. "
+            "local-babysit); merge.authority at the base and at the default "
+            "branch head must name it. "
             "pr-merge is the CI lane: a CI-labeled C2 pull request off the "
             "denied paths, or a mergeable Dependabot pull request on a green "
             "ci-status, no promotion read, and nothing written while "
@@ -4643,7 +4704,17 @@ def _main() -> int:
                 actingLogin=None,
                 agentIdentity=identity,
             )
-        if not acting or acting.casefold() == identity.strip().casefold():
+        # Each identity the base or the default branch head sets: a rotation
+        # leaves both able to bypass the unattended checks until it lands.
+        named = [
+            str(i)
+            for i in (unattended.details or {}).get("agentIdentities") or [identity]
+        ]
+        matched = next(
+            (i for i in named if acting.casefold() == i.strip().casefold()), None
+        )
+        if not acting or matched:
+            identity = matched or identity
             return _refuse(
                 f"the token acts as {acting or 'an unknown login'!r}, the configured "
                 f"merge.agent-identity {identity!r}; it merges only through "

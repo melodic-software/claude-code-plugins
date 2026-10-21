@@ -65,6 +65,96 @@ async function main() {
     await own.waitForTimeout(1500);
     ok("a link holding the browser's own secret asks nothing", !(await own.evaluate(() => !!document.querySelector("dialog.core-switch"))) && (await stored(own)) === annSecret);
 
+    // ---------- the host signs in on another device with a one-time code; the owner link stays where it was ----------
+    const ownerTok = new URL(A.ownerUrl).hash.slice("#owner=".length);
+    const host = await rec.open(A.ownerUrl);
+    await until(host, () => window.Core.snapshot()?.me?.role === "owner", null, 10000);
+    await host.click(".vf-person-me");
+    await until(host, () => !!document.querySelector('.vf-pcard [data-k="pair"]'));
+    ok("the host's menu offers Sign in on another device in place of a personal link", (await host.textContent('.vf-pcard [data-k="pair"]')).trim() === "Sign in on another device"
+      && !(await host.evaluate(() => !!document.querySelector('.vf-pcard [data-k="device"]'))));
+    await host.click('.vf-pcard [data-k="pair"]');
+    const shownCode = () => host.evaluate(() => document.querySelector(".vf-pair-code")?.textContent || "");
+    ok("  it shows a QR code and a code of 8 characters", await until(host, () => /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(document.querySelector(".vf-pair-code")?.textContent || "")
+      && !!document.querySelector(".vf-pairpop .vf-qr svg")), await shownCode());
+    ok("  and nothing on it holds the owner link's token", !(await host.evaluate(t => document.querySelector(".vf-pairpop").outerHTML.includes(t), ownerTok)));
+    const code1 = (await shownCode()).replace("-", "");
+    const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
+    const phone = await rec.open(`${A.localUrl}#join=${A.guestKey}&pair=${code1}`, { context: PHONE });
+    ok("the code in the QR code's link signs a fresh phone in as the host", await until(phone, () => window.Core.snapshot()?.me?.role === "owner", null, 10000));
+    const phoneCred = await phone.evaluate(() => localStorage.getItem("ownerDevice"));
+    ok("  with its own credential, not the owner link's token, and no code left in the address", !!phoneCred && phoneCred !== ownerTok && !(await phone.evaluate(() => location.hash.includes("pair"))));
+    ok("  the host's list shows the phone", await until(host, () => [...document.querySelectorAll(".vf-pairlist .vf-pair-dev")].map(li => li.textContent).join().startsWith("Phone")));
+
+    await host.waitForTimeout(1100); // the server makes one code a second
+    await host.click(".vf-pairpop button:text-is('New code')");
+    ok("New code makes another", await until(host, c => /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(document.querySelector(".vf-pair-code")?.textContent || "") && document.querySelector(".vf-pair-code").textContent.replace("-", "") !== c, code1));
+    const code2 = (await shownCode()).replace("-", "");
+    const laptop = await rec.open(A.localUrl);
+    await until(laptop, () => !!document.querySelector("dialog.core-name[open] .core-host-code"));
+    await laptop.click("dialog.core-name .core-host-code");
+    await laptop.waitForTimeout(1100); // one try a second from one address, and every page here is the same address
+    await laptop.fill("#core-code", "2222-2222");
+    await laptop.click("dialog.core-name button:text-is('Sign in')");
+    ok("the join dialog's code entry says when a code is wrong", await until(laptop, () => /wrong or has expired/.test(document.getElementById("core-code-err")?.textContent || "")));
+    await laptop.waitForTimeout(1100);
+    await laptop.fill("#core-code", code2.toLowerCase());
+    await laptop.click("dialog.core-name button:text-is('Sign in')");
+    ok("  and the right one, typed in lower case, signs this browser in as the host", await until(laptop, () => window.Core.snapshot()?.me?.role === "owner", null, 10000));
+    ok("  where the settings offer no New owner link: it would hand over the owner link", await laptop.evaluate(() => { const b = [...document.querySelectorAll(".vf-menu-item")].filter(x => x.textContent === "New owner link"); return b.length === 1 && b[0].hidden; }));
+
+    await until(host, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 2);
+    await host.locator(".vf-pairlist .vf-pair-dev", { hasText: "Phone" }).locator("button").click();
+    ok("signing the phone out turns its page into a guest's join dialog, which says why", await until(phone, () => /signed out as the host/.test(document.querySelector("dialog.core-name[open]")?.textContent || "")
+      && !localStorage.getItem("ownerDevice"), null, 10000));
+    ok("  and the other device stays the host", await until(laptop, () => window.Core.snapshot()?.me?.role === "owner") && await until(host, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 1));
+
+    // ---------- a browser that keeps no site data, and a device holding a signed-out credential (review findings) ----------
+    const C = await s.start("pair-edges");
+    const hostC = await rec.open(C.ownerUrl);
+    await until(hostC, () => window.Core.snapshot()?.me?.role === "owner", null, 10000);
+    await hostC.click(".vf-person-me");
+    await until(hostC, () => !!document.querySelector('.vf-pcard [data-k="pair"]'));
+    await hostC.click('.vf-pcard [data-k="pair"]');
+    const codeC = () => until(hostC, () => /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(document.querySelector(".vf-pair-code")?.textContent || ""))
+      .then(() => hostC.evaluate(() => document.querySelector(".vf-pair-code").textContent.replace("-", "")));
+    const code3 = await codeC();
+    // every storage write throws, as in a browser that blocks site data: core.js falls back to a map in the page
+    const BLOCKED = { fn: () => { Storage.prototype.setItem = () => { throw new DOMException("blocked", "QuotaExceededError"); }; } };
+    const noStore = await rec.open(`${C.localUrl}#join=${C.guestKey}&pair=${code3}`, { init: BLOCKED });
+    ok("a browser that keeps no site data is told it cannot stay signed in as the host", await until(noStore, () => /site data/.test(document.querySelector("dialog.core-name[open]")?.textContent || ""), null, 10000),
+      await noStore.evaluate(() => document.querySelector("dialog.core-name[open]")?.textContent || "(no dialog)"));
+    await noStore.waitForTimeout(1100); // one try a second from one address
+    const kept = await rec.open(`${C.localUrl}#join=${C.guestKey}&pair=${code3}`);
+    ok("  and its code is not spent: a browser that keeps data signs in with it", await until(kept, () => window.Core.snapshot()?.me?.role === "owner", null, 10000));
+    ok("  and the host's list shows only that one device", await until(hostC, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 1));
+
+    // The kept device is signed out while closed, so its stored credential is stale; then it scans a new code. The
+    // redeem's answer is held until the stale credential's poll has had its 401, the order that lost the new one.
+    const stale = await kept.evaluate(() => ({ token: localStorage.getItem("ownerDevice"), id: localStorage.getItem("ownerDeviceId") }));
+    await kept.close();
+    await hostC.locator(".vf-pairlist .vf-pair-dev button").click();
+    await until(hostC, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 0);
+    await hostC.waitForTimeout(1100); // the server makes one code a second
+    await hostC.click(".vf-pairpop button:text-is('New code')");
+    const code4 = await until(hostC, c => (document.querySelector(".vf-pair-code")?.textContent || "").replace("-", "") !== c, code3).then(codeC);
+    const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, storageState: { cookies: [], origins: [{ origin: new URL(C.localUrl).origin,
+      localStorage: [{ name: "ownerDevice", value: stale.token }, { name: "ownerDeviceId", value: stale.id }] }] } });
+    let saw401;
+    const had401 = new Promise(r => { saw401 = r; });
+    ctx.on("response", r => { if (new URL(r.url()).pathname === "/api/state" && r.status() === 401) saw401(); });
+    await ctx.route("**/api/owner/pair/redeem", async route => {
+      const answer = await route.fetch();
+      await had401;
+      await new Promise(r => setTimeout(r, 500)); // the page handles the 401
+      try { await route.fulfill({ response: answer }); } catch { /* the page reloaded away from it */ }
+    });
+    const rescan = await rec.openIn(ctx, `${C.localUrl}#join=${C.guestKey}&pair=${code4}`);
+    ok("a device whose old credential was signed out signs in with a new code", await until(rescan, () => window.Core.snapshot()?.me?.role === "owner", null, 10000),
+      await rescan.evaluate(() => document.querySelector("dialog.core-name[open]")?.textContent || "(no dialog)"));
+    const fresh2 = await rescan.evaluate(() => localStorage.getItem("ownerDevice"));
+    ok("  and keeps the new credential, not the old one", !!fresh2 && fresh2 !== stale.token);
+
     // ---------- names hidden: two guests share a name, and only the moderator's people list tells them apart ----------
     const B = await s.start("shared-name");
     s.apply(B.dir, [{ op: "set-title", title: "Names" }, { op: "open-round", questions: [q("Q1", "Where should we go?")] }]);

@@ -19,6 +19,12 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 HEAD=$(printf 'a%.0s' {1..40})
 FIX=$(printf 'f%.0s' {1..40})
 TOKEN=ghs_secretlanetoken1234567890
+# The stateless installation token is ghs_ then a JWT of about 520 characters: three
+# base64url segments joined by '.', each segment obviously fake. Built at run time.
+SEG=$(printf 'FAKE-not_a_token%.0s' {1..10})
+STATELESS="ghs""_123456_$SEG.$SEG.$SEG"
+JSEG=$(printf 'eyJGAKEnotAtoken%.0s' {1..10})
+JWT_TOKEN="ghs""_$JSEG.$JSEG.$JSEG"
 
 mkdir -p "$TEST_TMPDIR/bin"
 cat >"$TEST_TMPDIR/bin/gh" <<'STUB_EOF'
@@ -168,6 +174,13 @@ assert_exit "an UNCERTAIN record with no evidence succeeds" 0 "$?"
 assert_eq "both are recorded in order" "INCORRECT UNCERTAIN" "$(jq -rs 'map(.disposition) | join(" ")' "$STUB/replies.jsonl")"
 assert_eq "INCORRECT and UNCERTAIN make no API call" 0 "$(wc -l <"$STUB/calls")"
 
+# a note naming a token placeholder and a commit sha is recorded, still with no API call
+setup
+disposition "{\"disposition\":\"UNCERTAIN\",\"note\":\"The fixture uses ghs_job; see $FIX.\"}"
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a note naming a token placeholder and a commit sha is recorded" 0 "$?"
+assert_eq "the placeholder note record makes no API call" 0 "$(wc -l <"$STUB/calls")"
+
 # the note limit counts code points, as the reply job does: 2000 emoji pass,
 # 2001 are refused
 setup
@@ -216,6 +229,8 @@ for bad in \
   '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"bell \u0007 here"}' \
   '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"safe‮evil"}' \
   "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"token $TOKEN\"}" \
+  "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"token $STATELESS\"}" \
+  "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"token $JWT_TOKEN\"}" \
   'not json'; do
   setup
   disposition "$bad"

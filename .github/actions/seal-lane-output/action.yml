@@ -1,0 +1,59 @@
+name: Seal lane output
+description: >
+  Seal named payload files to a committed X25519 public key (ephemeral X25519,
+  HKDF-SHA256, AES-256-GCM, bound to the payload name, the run id and the
+  producing job's key) as one bundle, cut into base64 chunks that each fit one
+  environment variable. Open it in a later job with open-lane-output. A missing
+  file or a symbolic link is an absent payload; a placeholder or malformed key
+  fails the step. Needs node 18 or later on PATH.
+
+inputs:
+  public-key-file:
+    description: "The public key file, relative to the workspace or absolute: one line, `x25519 <key id> <base64 raw key>`."
+    required: true
+  payloads:
+    description: "One `name=path` line per payload. The name is a lower-case file name and becomes the file open-lane-output writes."
+    required: true
+  job-id:
+    description: The producing job's key, a fixed string the opening job passes as its job-id too.
+    required: true
+  max-chunks:
+    description: How many chunk outputs the caller maps, 1 to 6; a bundle needing more fails the step.
+    required: false
+    default: "6"
+
+outputs:
+  sealed-length:
+    description: The bundle's base64 length; empty when no payload was present.
+    value: ${{ steps.seal.outputs.sealed-length }}
+  sealed-1:
+    description: Base64 characters 1 to 98304 of the bundle.
+    value: ${{ steps.seal.outputs.sealed-1 }}
+  sealed-2:
+    description: The next 98304 characters, when the bundle reaches them.
+    value: ${{ steps.seal.outputs.sealed-2 }}
+  sealed-3:
+    description: The next 98304 characters, when the bundle reaches them.
+    value: ${{ steps.seal.outputs.sealed-3 }}
+  sealed-4:
+    description: The next 98304 characters, when the bundle reaches them.
+    value: ${{ steps.seal.outputs.sealed-4 }}
+  sealed-5:
+    description: The next 98304 characters, when the bundle reaches them.
+    value: ${{ steps.seal.outputs.sealed-5 }}
+  sealed-6:
+    description: The last 98304 characters, when the bundle reaches them.
+    value: ${{ steps.seal.outputs.sealed-6 }}
+
+runs:
+  using: composite
+  steps:
+    - name: Seal the payloads
+      id: seal
+      shell: bash
+      env:
+        PUBLIC_KEY_FILE: ${{ inputs.public-key-file }}
+        PAYLOADS: ${{ inputs.payloads }}
+        JOB_ID: ${{ inputs.job-id }}
+        MAX_CHUNKS: ${{ inputs.max-chunks }}
+      run: node "$GITHUB_ACTION_PATH/seal.mjs"

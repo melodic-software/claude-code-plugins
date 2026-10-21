@@ -20,7 +20,8 @@
 //           off, and refuses the whole patch when any change matches a
 //           refusal, exceeds max-files, or fails an allow predicate, or a new
 //           blob carries a credential shape. On a PR, a head that moved since
-//           the model job takes the patch with --3way only when the moved
+//           the model job skips superseded-sha under a skip-moved-head row,
+//           and otherwise takes the patch with --3way only when the moved
 //           commits touch no patched path, else it skips superseded-sha; an
 //           issue patch applies only to the commit it was made on. It then
 //           re-reads the holds (a PR's labels and draft state, or an issue's
@@ -46,6 +47,7 @@ import { appendFileSync, existsSync, lstatSync, readdirSync, readFileSync, write
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { isInstructionPath } from "../pr-unblock/thread-scope.mjs";
 import { PREDICATES } from "./predicates.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
@@ -86,9 +88,11 @@ const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
 const pathRefused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path))) || path.includes("\\");
 
 // The refusal table. Every row must name every refusal but those in ALWAYS,
-// which apply to every row unnamed; any match refuses the whole patch, and
-// `kind` picks the row's escalation reason.
+// which apply to every row unnamed, and those in OPTIONAL, which apply only to
+// a row that names them; any match refuses the whole patch, and `kind` picks
+// the row's escalation reason.
 export const ALWAYS = ["backslash"];
+export const OPTIONAL = ["instruction-path"];
 export const REFUSALS = {
   // A backslash reads as a directory separator on Windows checkouts.
   backslash: { kind: "protected-path", test: (entry) => entry.path.includes("\\") },
@@ -101,16 +105,28 @@ export const REFUSALS = {
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
   "new-executable": { kind: "protected-path", test: (entry) => entry.newMode === EXECUTABLE && entry.oldMode !== EXECUTABLE },
   "rename-into-refused": { kind: "protected-path", test: (entry) => entry.renamedFrom !== undefined && pathRefused(entry.path) },
+  // A path the harness, git or GitHub runs or loads as instructions
+  // (thread-scope.mjs): agent rules, MCP and language-server config, code
+  // owners, .claude and .claude-plugin directories, a plugin's hooks,
+  // monitors and bin.
+  "instruction-path": { kind: "protected-path", test: (entry) => isInstructionPath(entry.path) },
 };
 
-// The names of the refusals that match one changed entry.
-export const refusalsOf = (entry, names = Object.keys(REFUSALS)) => names.filter((name) => REFUSALS[name].test(entry));
+// The names of the refusals that match one changed entry; by default those
+// every row names.
+export const refusalsOf = (entry, names = Object.keys(REFUSALS).filter((name) => !OPTIONAL.includes(name))) =>
+  names.filter((name) => REFUSALS[name].test(entry));
 
 // Credential shapes: any match in the patch or a patched blob refuses it all.
+// GitHub prefixes from
+// https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+// and the ghs_ regex GitHub recommends for current and stateless installation tokens from
+// https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+// (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
 export const CREDENTIALS = [
   { name: "Anthropic API key", pattern: /sk-ant-(?:api|admin)\d{2}-[A-Za-z0-9_-]{20,}/ },
   { name: "Anthropic OAuth token", pattern: /sk-ant-oat\d{2}-[A-Za-z0-9_-]{20,}/ },
-  { name: "GitHub token", pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})/ },
+  { name: "GitHub token", pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|ghs_[A-Za-z0-9._-]{36,}|github_pat_[A-Za-z0-9_]{22,})/ },
 ];
 export const credentialIn = (text) => CREDENTIALS.find((credential) => credential.pattern.test(text))?.name ?? "";
 
@@ -219,14 +235,18 @@ export function checkRow(row) {
   const fail = (message) => {
     throw new Error(`patch-rules.json row \`${row.name}\` ${message}`);
   };
-  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !row.refuse?.includes(name));
+  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !OPTIONAL.includes(name) && !row.refuse?.includes(name));
   if (missing.length > 0) {
     fail(`does not refuse ${missing.join(", ")}`);
+  }
+  // push reads every requirement before anything applies.
+  if (!Array.isArray(row.requires)) {
+    fail("has no requires list");
   }
   for (const [what, names, known] of [
     ["refusal", row.refuse, REFUSALS],
     ["predicate", row.allow ?? [], PREDICATES],
-    ["requirement", row.requires ?? [], REQUIREMENTS],
+    ["requirement", row.requires, REQUIREMENTS],
   ]) {
     const bad = unknown(names, known);
     if (bad.length > 0) {
@@ -257,6 +277,11 @@ export function checkRow(row) {
 // The row's reason for a kind of outcome, else its -invalid reason.
 export const reasonFor = (row, kind) =>
   row.escalations.find((reason) => reason.endsWith(`-${kind}`)) ?? row.escalations.find((reason) => reason.endsWith("-invalid"));
+
+// The reason the push writes to the escalation file for a kind: a patch that
+// applies but changes nothing is the row's empty-at-push kind (ci-context:
+// invalid, since the producer said it wrote a change), else its empty reason.
+export const pushReason = (row, kind) => reasonFor(row, kind === "empty" ? (row["empty-at-push"] ?? "empty") : kind);
 
 // The commit message with the row's placeholders filled; a placeholder with no
 // value throws.
@@ -298,7 +323,7 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
   if (patchState !== "written" && patchState !== "empty") {
     return decide(false, "awaiting-human", reasonFor(row, "invalid"));
   }
-  if (!SHA.test(String(patchHeadSha)) || !SHA.test(String(headSha))) {
+  if (!SHA.test(String(patchHeadSha)) || !SHA.test(String(headSha)) || (row["skip-moved-head"] === true && patchHeadSha !== headSha)) {
     return decide(false, "superseded-sha", "");
   }
   if (patchState === "empty") {
@@ -411,7 +436,7 @@ export async function push({
   const message = commitMessage(row, { ref: headRef, base: baseRef, lane, activity, [target.number]: String(number) });
   const escalate = (kind, why) => {
     log(why);
-    return { outcome: "escalate", escalationReason: reasonFor(row, kind) };
+    return { outcome: "escalate", escalationReason: pushReason(row, kind) };
   };
   const unmet = row.requires.find((requirement) => !REQUIREMENTS[requirement](context));
   if (unmet) {
@@ -423,6 +448,10 @@ export async function push({
   }
   const git = gitRunner(cwd, gitBin);
   const moved = patchHeadSha !== headSha;
+  if (moved && row["skip-moved-head"] === true) {
+    log("the head moved since the model's run; the row takes no moved head");
+    return { outcome: "superseded" };
+  }
   if (moved && !target.movedHead) {
     return escalate("invalid", `the patch was made on ${patchHeadSha}, not the start commit ${headSha}`);
   }

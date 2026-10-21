@@ -94,6 +94,12 @@ value and its unset fallback.
   (An external-fork head outside `<watched-owners>` remains the read-only stop-and-ask case below.)
 - Honor `mutation_policy.branch_write_allowed`: never push, and never create a write-capable
   worker or refresh a PR head, when it is false.
+- Never update the branch of a PR carrying the tracker's standards-sync role label
+  (`standards-sync` unless `.work-item-tracker.json` `config.role_labels` maps it): the sync App
+  is its only writer, and a merge commit from the base fails its managed-files guard, so the sync
+  cannot re-arm. `refresh_pr_branch.py` refuses it, and the unattended enqueue skips its update
+  from the base (`checkInputs.updateSkipped`) and enqueues as after a refused update. An
+  unreadable label refuses the refresh and holds the enqueue.
 - Head-ref uniqueness guard: two open PRs sharing one head repository/branch is a stop-and-ask.
   Escalate, never guess which PR a push would update.
 - Lease-protected removal: never remove a worktree without holding that PR's worker lease
@@ -976,8 +982,14 @@ announced operator step.
 ## Unattended Merge Path
 
 `--unattended` on the merge gate runs it under the unattended merge policy. It stays off unless
-the repository's `docs/conventions/pr-pipeline.yaml`, read at the pull request's base SHA, sets
-`merge.authority: local-babysit` and a `merge.agent-identity`. The gate decides in this order, and
+the repository's `docs/conventions/pr-pipeline.yaml`, read at the pull request's base SHA and at
+the default branch head, sets `merge.authority: local-babysit` and a `merge.agent-identity`. Each
+setting takes the stricter of the two values, except `merge.risk-escalation-minutes`, which keeps
+the base's, and `merge.max-in-flight`, read at the head alone so a raised cap applies at once. A
+different authority, or an identity set on one side only, is the stop `authority-differs`; two
+different identities refuse. During an authority switch, the old lane's runs on pull requests whose
+base predates the switch stop with `authority-differs` and dequeue the identity's entries, the new
+lane's included, until those bases move past the switch. The gate decides in this order, and
 any refusal is the blocker `unattended merge refused: <reason>`:
 
 1. Identity: the token acts as `merge.agent-identity`. Then the credential chokepoint:
@@ -1011,7 +1023,21 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
-   Only LOW merges. A C3 pull request also needs a LOW blast-radius rating, which nothing supplies
+   Only LOW merges. Adding only `disable-model-invocation: true` to a plugin skill no agent
+   preloads, and a non-script file under `plugins/<plugin>/evals/`, take no hold from the floor
+   entries `babysit_risk.py`'s docstring names, unless the file sits in an eval case whose
+   `case.yaml` could name a `scaffold_script` (HIGH as `eval-scaffold-review-required`). A script
+   or mode 100755 file anywhere under `plugins/<plugin>/evals/` takes that hold too, floor or not,
+   since a scaffold may source it. A plugin
+   or marketplace manifest takes no floor hold; its parsed change clears only when every key that
+   differs is on that docstring's allow-lists (version, description and other metadata, or a
+   title or description edit on an existing `userConfig` key), and anything else, an added
+   `userConfig` key or a `defaultEnabled` change included, scores HIGH as
+   `manifest-review-required`, as does a listed key whose value has the wrong type. A test file
+   under a plugin `scripts/` directory, a `floor-paths` glob ending in a `scripts` directory or a
+   `floor-script-scopes` glob, named by no other changed file, takes no HIGH path floor hold for
+   that reason alone; the rule is in `babysit_risk.py`'s docstring. A C3 pull request also needs a
+   LOW blast-radius rating, which nothing supplies
    yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
@@ -1080,8 +1106,10 @@ Named residuals:
 - `merge.max-in-flight` is read at the default branch head once per cache window
   (`run_cache.MAX_AGE`), shared by the run's gate processes in that window, so a changed cap
   applies to every candidate, whatever its base, once the window ends. The room check after an
-  enqueue reads it again, uncached. When a read fails, the candidate's base commit's value
-  applies; in the room check, the lower of that and the cap the gate applied.
+  enqueue reads it again, uncached. When the gate cannot read the head's config at all, it
+  refuses, since that config also tightens every other setting. When only the cap's own read
+  fails, the lower of the base commit's cap and the head's applies; in the room check, the lower
+  of that and the cap the gate applied.
 
 Operator runbook: the refusal `in-flight:merged-history-truncated` (or an unreadable post-merge
 verdict naming the read limit) means more merges landed since the floor than the history read

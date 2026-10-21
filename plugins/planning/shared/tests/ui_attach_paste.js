@@ -31,7 +31,11 @@ const openChat = async page => { if (await page.evaluate(() => document.querySel
 const openDisc = async page => { if ((await page.getAttribute(".vf-disc-head", "aria-expanded")) !== "true") await page.click(".vf-disc-head"); return until(page, () => !document.querySelector(".vf-disc-body").hidden); };
 const opens = {
   answer: async () => true,
-  ask: async page => { if (await page.evaluate(() => document.querySelector(".vf-apform")?.offsetParent === null)) await page.click(".vf-asktop"); return until(page, () => !!document.querySelector("#vf-ap-ta")?.offsetParent); },
+  ask: async page => {
+    if (await page.evaluate(() => document.querySelector(".vf-apform")?.offsetParent === null)) await page.click(".vf-asktop");
+    await page.selectOption(".vf-apq select", { index: 1 }); // a question: the whole session offers no own Claude
+    return until(page, () => !!document.querySelector("#vf-ap-ta")?.offsetParent);
+  },
   chat: openChat,
   discussion: openDisc,
   propose: async page => { await page.click(".vf-propose"); return until(page, () => !!document.querySelector(".vf-proposepop:not([hidden])")); },

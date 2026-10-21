@@ -58,10 +58,10 @@ code=$?
 if [[ $code == 0 ]]; then ok "ensure-running exits 0"; else bad "ensure-running exited $code: $out"; fi
 guest_url=$(printf '%s' "$out" | jget 'j["guestUrl"]')
 local_url=$(printf '%s' "$out" | jget 'j["localUrl"]')
-if [[ "$guest_url" =~ ^https://[a-z0-9-]+\.trycloudflare\.com/$ ]]; then ok "the guest link is a quick-tunnel address"; else bad "guest link: $guest_url"; fi
+if [[ "$guest_url" =~ ^https://[a-z0-9-]+\.trycloudflare\.com/#join=[A-Za-z0-9_-]+$ ]]; then ok "the guest link is a quick-tunnel address"; else bad "guest link: $guest_url"; fi
 
 for who in ann bo; do
-  j=$(post /api/join "{\"name\": \"$who\", \"device\": \"computer\"}" "")
+  j=$(post /api/join "{\"name\": \"$who\", \"device\": \"computer\", \"key\": \"${guest_url#*#join=}\"}" "")
   secret=$(printf '%s' "$j" | jget 'j["secret"]')
   header "$tmp/$who.h" X-Session-Secret "$secret"
 done
