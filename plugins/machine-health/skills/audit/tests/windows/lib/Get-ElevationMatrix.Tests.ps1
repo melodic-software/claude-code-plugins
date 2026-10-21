@@ -32,4 +32,10 @@ Describe 'Get-ElevationMatrix' -Tag 'lib' {
         $entry.AdminRequired | Should -BeTrue
         $entry.Fields | Should -Contain 'unexpected_path_count'
     }
+
+    It 'includes backup-status with the fields the check leaves null unelevated' {
+        $entry = Get-ElevationMatrix | Where-Object { $_.CheckId -eq 'backup-status' }
+        $entry | Should -Not -BeNullOrEmpty
+        $entry.Fields | Should -Be @('restore_points', 'system_image')
+    }
 }

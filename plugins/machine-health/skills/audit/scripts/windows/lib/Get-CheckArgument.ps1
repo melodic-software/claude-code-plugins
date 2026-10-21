@@ -15,12 +15,15 @@ dispatcher must inject:
    to the run log the orchestrator reads into urls_called.
  - any check that declares -MutedKeys: a string[] of the owner's muted
    FindingKeys for that check, since checks never read mutes.json.
+ - any check that declares -SampleSeconds: the run's sampling window, offered
+   only when the orchestrator passes one so the script's own default stands
+   otherwise.
 
 The candidates are filtered against the parameters the check script declares
 (read from its metadata, without running it), because splatting a parameter a
 script does not declare fails the check. A new check that declares -MutedKeys,
-or any later run-scoped argument offered here such as -SampleSeconds, receives
-it with no per-id edit in this file.
+-SampleSeconds, or any later run-scoped argument offered here, receives it with
+no per-id edit in this file.
 
 The orchestrator computes the run-scoped paths and muted keys and passes them
 in. Neutrally named: cross-OS algorithm.
@@ -34,10 +37,12 @@ function Get-CheckArgument {
         [Parameter(Mandatory = $true)] [string] $ScriptPath,
         [string] $RunLog,
         [string] $BatteryReportPath,
-        [AllowNull()] [AllowEmptyCollection()] [string[]] $MutedKeys = @()
+        [AllowNull()] [AllowEmptyCollection()] [string[]] $MutedKeys = @(),
+        [int] $SampleSeconds
     )
 
     $candidates = @{ MutedKeys = [string[]]@($MutedKeys | Where-Object { $null -ne $_ }) }
+    if ($PSBoundParameters.ContainsKey('SampleSeconds')) { $candidates['SampleSeconds'] = $SampleSeconds }
     switch ($CheckId) {
         'battery' { $candidates['ReportPath'] = $BatteryReportPath }
         'winget-upgrades' { $candidates['LogPath'] = $RunLog }

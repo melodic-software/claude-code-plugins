@@ -42,6 +42,9 @@ Skip all remediations; still produce a full report.
 
 .PARAMETER Human
 Print a human-readable summary instead of emitting the run snapshot JSON.
+
+.PARAMETER SampleSeconds
+Sampling window, in seconds, for checks that sample over time (top-processes).
 #>
 [CmdletBinding()]
 param(
@@ -51,7 +54,8 @@ param(
     [switch] $DryRun,
     [switch] $Human,
     [switch] $Force,
-    [switch] $SkipBanner
+    [switch] $SkipBanner,
+    [ValidateRange(5, 60)] [int] $SampleSeconds = 15
 )
 
 Set-StrictMode -Version 3.0
@@ -457,7 +461,7 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
 
         $muted = Get-MutedFindingKey -State $muteState -CheckId $entry.id
         $checkArgs = Get-CheckArgument -CheckId $entry.id -ScriptPath $scriptPath -RunLog $runLog `
-            -BatteryReportPath $batteryReportPath -MutedKeys $muted
+            -BatteryReportPath $batteryReportPath -MutedKeys $muted -SampleSeconds $SampleSeconds
         Write-MachineHealthLog "check_dispatch id=$($entry.id) script=$($entry.script)"
         $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec 90 -Arguments $checkArgs
 

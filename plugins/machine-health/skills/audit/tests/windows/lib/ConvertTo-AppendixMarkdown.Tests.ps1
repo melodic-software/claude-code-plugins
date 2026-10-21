@@ -133,4 +133,45 @@ Describe 'ConvertTo-AppendixMarkdown' -Tag 'lib' {
         $md | Should -Match '\| 3004 \| file x\.sys \\\| hash missing \|'
         $md | Should -Not -Match 'oldest drivers'
     }
+
+    Context 'generic arm over items[]' {
+        It 'renders any other check''s items as title, severity and muted' {
+            $check = [pscustomobject]@{
+                id     = 'startup-items'
+                detail = [pscustomobject]@{
+                    items = @(
+                        [pscustomobject]@{ key = 'startup:7eef5f7d094fe8c0'; severity = 'INFO'; muted = $false; title = 'Updater | beta' }
+                        [pscustomobject]@{ key = 'startup:dfe36cc7950bcbf3'; severity = 'WARN'; muted = $true; title = 'Helper' }
+                    )
+                }
+            }
+            $md = ConvertTo-AppendixMarkdown -CheckResults @($check)
+            $md | Should -Match 'startup-items items \(2\)'
+            $md | Should -Match '\| Updater \\\| beta \| INFO \| no \|'
+            $md | Should -Match '\| Helper \| WARN \| yes \|'
+        }
+
+        It 'an exclusion item through the generic arm emits neither its title nor its value' {
+            $check = [pscustomobject]@{
+                id     = 'defender-exclusions'
+                detail = [pscustomobject]@{
+                    items = @(
+                        [pscustomobject]@{
+                            key = 'exclusion:3f9a0c1d2e4b5a67'; severity = 'INFO'; muted = $false
+                            title = 'TITLE-MARKER-71'; value = 'VALUE-MARKER-42'
+                        }
+                    )
+                }
+            }
+            $md = ConvertTo-AppendixMarkdown -CheckResults @($check)
+            $md | Should -Match 'defender-exclusions items \(1\)'
+            $md | Should -Not -Match 'TITLE-MARKER-71'
+            $md | Should -Not -Match 'VALUE-MARKER-42'
+        }
+
+        It 'adds nothing for a check without items' {
+            $check = [pscustomobject]@{ id = 'disk-space'; detail = [pscustomobject]@{ used_pct = 50 } }
+            ConvertTo-AppendixMarkdown -CheckResults @($check) | Should -Match 'No inventories'
+        }
+    }
 }

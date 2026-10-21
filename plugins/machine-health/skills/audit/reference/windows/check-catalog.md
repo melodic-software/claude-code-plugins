@@ -21,6 +21,8 @@
 - [17. Claude Code temp root](#17-claude-code-temp-root)
 - [18. Environment and PATH health](#18-environment-and-path-health)
 - [19. Drive-root litter](#19-drive-root-litter)
+- [26. Top processes](#26-top-processes)
+- [27. Backup status](#27-backup-status)
 
 Per-check rubrics for Windows. Section numbers follow the order of `catalog/checks.jsonc`. Each
 number is the anchor a catalog entry's `severity_rules` points at, so renumbering breaks those
@@ -856,3 +858,74 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   `inaccessible_count`, `skipped_reparse_dirs`, `skipped_sync_roots`, `items_count`,
   `muted_count`. `detail.roots[]` gives each root's `status` (`scanned`, `absent`,
   `inaccessible`, `reparse` or `cloud-sync-root`), totals and `reclaim_hint`.
+
+---
+
+## 26. Top processes
+
+- **Script:** `scripts/windows/checks/Test-TopProcesses.ps1`, sampling through
+  `scripts/windows/lib/Get-ProcessSample.ps1`
+- **Category:** `reliability`
+- **Needs admin:** no. A process that denies its processor time or path read is listed with
+  `cpu_pct` or `path` null and `path_state` `denied`; that never changes severity.
+- **Remediation:** none. The check reports what is using the machine; it never stops a process.
+- **What it detects:** what is slowing the machine down over one sampling window. The window is
+  the check's `-SampleSeconds`, which the orchestrator passes from its own `-SampleSeconds`
+  (default and range in `Invoke-MachineHealthCheck.ps1`). CPU share per process is the
+  processor-time delta between two `Get-Process` snapshots over (measured interval x logical
+  CPUs) x 100. System counters (CPU total, processor queue length, committed memory, available
+  memory, disk latency) are read with `Get-Counter` during that same window, so the check takes
+  about one window. `detail.items[]` lists the top processes by CPU share plus the top by private
+  bytes, once each; items carry no `key` and cannot be muted.
+- **Severity rubric:** the bands are Microsoft Learn's, published for Windows Server, and
+  `detail.thresholds_label` says so on every result. Values live in the script's `$band` table.
+  - Learn's Critical band reads `WARN`; its Warning band reads `INFO`. CPU in the Warning band
+    reads `WARN` when the processor queue is at or above Learn's per-CPU level, the
+    "queue with high CPU" signal.
+  - Disk latency is graded only when the window is at least the script's sustained window,
+    because Learn tolerates short spikes and asks for latency sustained over about a minute.
+    Shorter windows set `disk_latency_sustained` false and the summary reads "not
+    sustained-tested".
+  - No `CRIT`: a window of seconds on a client is evidence to look at, not the imminent failure
+    `reference/shared/severity-rubric.md` keeps `CRIT` for.
+  - `UNKNOWN` when a counter could not be read and no other reading raised the severity
+    (`detail.counters_state`). Counter paths are English, so another display language reads
+    `UNKNOWN`.
+- **Basis:** [Troubleshoot performance problems in Windows](https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/troubleshoot-performance-problems-in-windows),
+  [Troubleshoot issues with Performance Monitor](https://learn.microsoft.com/en-us/troubleshoot/windows-server/support-tools/troubleshoot-issues-performance-monitor).
+  - As of: 2026-10-21.
+  - Recheck trigger: either page changes a band, or Microsoft publishes client-scoped bands.
+
+---
+
+## 27. Backup status
+
+- **Script:** `scripts/windows/checks/Test-BackupStatus.ps1`, reading through
+  `scripts/windows/lib/Get-BackupSignal.ps1`
+- **Category:** `reliability`
+- **Needs admin:** partly. Restore points and the wbadmin version count are read elevated only;
+  unelevated, their sources read `needs-admin` and `detail.admin_fields` names `restore_points`
+  and `system_image` (`Get-ElevationMatrix.ps1`).
+- **Remediation:** none. The check never starts or configures a backup.
+- **What it detects:** whether anything backs the machine up. One `detail.sources[]` row per
+  signal, each `present`, `absent`, `needs-admin` or `unknown`, with the signal and a one-line
+  basis:
+  - `system-image`: the `Microsoft-Windows-Backup` channel by numeric event id, never message
+    text. No events reads `unknown`, never `absent`: whether a Windows 11 client job logs there
+    is unverified. Elevated, wbadmin's exit code and its count of version-identifier-shaped
+    lines; a zero count settles nothing. The summary always carries the deprecation sentence
+    the script holds.
+  - `restore-points`: the SystemRestore CIM class.
+  - `file-history`: a File History configuration file for the user.
+  - `windows-backup`: the record count of the Windows Backup app's own log, an undocumented
+    signal labeled as such.
+  - `onedrive-kfm`: Known Folder Move opt-in values under the OneDrive policy keys.
+- **Severity rubric:**
+  - `UNKNOWN`: any source reads `needs-admin`, or a source state outside the closed set.
+  - `WARN`: no source is `present`.
+  - `OK`: at least one source is `present`.
+- **Basis:** [Deprecated features for Windows client](https://learn.microsoft.com/en-us/windows/whats-new/deprecated-features),
+  [wbadmin get versions](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/wbadmin-get-versions).
+  - As of: 2026-10-21.
+  - Recheck trigger: System Image Backup is removed, wbadmin stops needing elevation, or a host
+    with a known system image shows no Backup channel events.

@@ -84,4 +84,24 @@ param([switch] $Human)
             $splat['MutedKeys'] | Should -Be @('startup:7eef5f7d094fe8c0')
         }
     }
+
+    Context 'the run''s sampling window' {
+        It 'gives top-processes the run''s -SampleSeconds' {
+            $splat = Get-CheckArgument -CheckId 'top-processes' `
+                -ScriptPath (Join-Path $script:ChecksRoot 'Test-TopProcesses.ps1') -SampleSeconds 60
+            $splat['SampleSeconds'] | Should -Be 60
+        }
+
+        It 'leaves -SampleSeconds out when the orchestrator passes none, so the script default stands' {
+            $splat = Get-CheckArgument -CheckId 'top-processes' `
+                -ScriptPath (Join-Path $script:ChecksRoot 'Test-TopProcesses.ps1')
+            $splat.ContainsKey('SampleSeconds') | Should -BeFalse
+        }
+
+        It 'never gives -SampleSeconds to a check that does not declare it' {
+            $splat = Get-CheckArgument -CheckId 'disk-health' `
+                -ScriptPath (Join-Path $script:ChecksRoot 'Test-DiskHealth.ps1') -SampleSeconds 60
+            $splat.ContainsKey('SampleSeconds') | Should -BeFalse
+        }
+    }
 }

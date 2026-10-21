@@ -71,5 +71,12 @@ function Get-ElevationMatrix {
             )
             Reason        = 'Get-MpPreference returns a placeholder string for exclusion fields when non-elevated.'
         }
+        [pscustomobject]@{
+            Feature       = 'Restore points and system image versions'
+            CheckId       = 'backup-status'
+            AdminRequired = $true
+            Fields        = @('restore_points', 'system_image')
+            Reason        = 'The SystemRestore CIM class and wbadmin get versions refuse a non-elevated caller.'
+        }
     )
 }
