@@ -64,6 +64,26 @@ Emitted by `scripts/<os>/checks/Test-*.ps1`. Exactly one JSON object per invocat
 }
 ```
 
+### `detail` of a list-style check: FindingItems
+
+A check that lists items the owner can mute puts each one in `detail.items[]` as a FindingItem,
+built by `scripts/windows/lib/New-FindingItem.ps1`:
+
+| Field | Type | Notes |
+|---|---|---|
+| `key` | string, `^[a-z-]{1,16}:[0-9a-f]{16}$` | FindingKey: `<kind>:<first 16 hex of SHA-256(lower(kind + "\|" + identity fields joined by "\|"))>`; stable across runs |
+| `severity` | `OK`\|`INFO`\|`WARN`\|`CRIT`\|`UNKNOWN` | the item's own reading |
+| `muted` | bool | true when `key` was passed in the check's `-MutedKeys` |
+| `title` | string | display text |
+
+Check-specific fields sit beside these. The check also emits the scalars `items_count` and
+`muted_count`. A muted item stays in `detail.items[]`.
+
+Severity: the check's severity is the worst severity over items with `muted: false`
+(`Get-UnmutedSeverity`), combined with the check's system-level rules. A source read records a
+ReadState (`ok`, `absent`, `masked`, `denied`, `false-zero` or `error`); a field fed by a state
+other than `ok` or `absent` cannot make the check OK.
+
 ## 2. Run snapshot (`state/latest.json`)
 
 Emitted by the orchestrator at the end of every run. Overwrites the previous snapshot.
