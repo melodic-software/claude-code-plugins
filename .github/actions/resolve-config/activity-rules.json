@@ -26,7 +26,7 @@
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],
     "never": "Holds a write token: it runs head code, and its change leaves only as a patch"
   },
-  "apply-ci-fix": {
+  "apply-patch": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
     "never": "Runs a model or head code, force-pushes, or pushes under .github/"
   },

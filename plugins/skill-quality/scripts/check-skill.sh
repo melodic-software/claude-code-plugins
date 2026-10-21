@@ -104,7 +104,7 @@
 #      cited path with a backslash separator FAILs (rejected at plugin load on
 #      macOS and Linux)
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
-#   7. scripts/*.test.sh pass where present
+#   7. scripts/*.test.sh pass where present and inside the current repository
 #   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
 #      bump (a legitimate maintainer-run sync) (vendor-backed skills only); a
 #      pure rename inside vendor/ keeps the bytes and passes
@@ -232,6 +232,16 @@ HAVE_GIT=0
 if [[ -n "$REPO_ROOT" && -d "$REPO_ROOT" ]]; then
   HAVE_GIT=1
 fi
+
+# Check 7 runs a skill's script tests only when the skill sits in the invoking
+# shell's repository, so checking an installed plugin copy never executes its
+# code. Root mode runs each child at its dispatched root, so the parent hands
+# its own answer down; empty means the invoker is in no repository. These
+# probes ignore an exported GIT_DIR or GIT_WORK_TREE, which could name any repo.
+GIT_UNSET=(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX)
+INVOKING_TOPLEVEL="$("${GIT_UNSET[@]}" git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+[[ -n "$INVOKING_TOPLEVEL" ]] && INVOKING_TOPLEVEL="$(cd -- "$INVOKING_TOPLEVEL" && pwd -P)"
+INVOKING_TOPLEVEL="${CHECK_SKILL_INVOKING_TOPLEVEL-$INVOKING_TOPLEVEL}"
 
 # shellcheck source=./skill-frontmatter.sh
 source "$SCRIPT_DIR/skill-frontmatter.sh"
@@ -391,6 +401,7 @@ if ((${#DISPATCH_ROOTS[@]} > 0)); then
         CDPATH='' cd -- "$dispatch_root" || exit 2
         CHECK_SKILL_SKILLS_ROOT="$dispatch_root" \
           CHECK_SKILL_REQUIRE_EVALS="$REQUIRE_EVALS" \
+          CHECK_SKILL_INVOKING_TOPLEVEL="$INVOKING_TOPLEVEL" \
           exec bash "$SCRIPT_PATH" -- "$dispatch_leaf"
       )
       case $? in
@@ -1305,8 +1316,40 @@ fi
 # --- Check 7: scripts/*.test.sh pass where present -------------------------
 
 if [[ -d "$SKILL_DIR/scripts" ]]; then
+  SKILL_TOPLEVEL="$("${GIT_UNSET[@]}" git -C "$SKILL_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  [[ -n "$SKILL_TOPLEVEL" ]] && SKILL_TOPLEVEL="$(cd -- "$SKILL_TOPLEVEL" && pwd -P)"
   while IFS= read -r test_sh; do
     [[ -z "$test_sh" ]] && continue
+    if [[ -z "$INVOKING_TOPLEVEL" || "$SKILL_TOPLEVEL" != "$INVOKING_TOPLEVEL" ]]; then
+      note "script tests skipped: the skill is outside the current repository"
+      break
+    fi
+    # Sharing a toplevel is not being part of the repo: a plugin copy git
+    # never tracked can sit under a home-directory work tree, and a nested
+    # repo would vouch for itself. Only the invoking repo answers: a test runs
+    # when its index tracks it, or when it is untracked, not ignored, and its
+    # skills root already holds a tracked file (a new skill not committed yet).
+    test_real="$(cd -- "${test_sh%/*}" && pwd -P)/${test_sh##*/}"
+    test_rel="${test_real#"$INVOKING_TOPLEVEL"/}"
+    if [[ "$test_real" != "$INVOKING_TOPLEVEL"/* ]]; then
+      note "script test skipped: ${test_sh#"$SKILL_DIR"/} is not tracked in the current repository"
+      continue
+    fi
+    if ! "${GIT_UNSET[@]}" git -C "$INVOKING_TOPLEVEL" --literal-pathspecs \
+      ls-files --error-unmatch -- "$test_rel" >/dev/null 2>&1; then
+      if ! "${GIT_UNSET[@]}" git -C "$INVOKING_TOPLEVEL" --literal-pathspecs \
+        ls-files --others --exclude-standard --error-unmatch -- "$test_rel" >/dev/null 2>&1; then
+        note "script test skipped: ${test_sh#"$SKILL_DIR"/} is not tracked in the current repository"
+        continue
+      fi
+      skills_real="$(cd -- "$SKILL_DIR/.." && pwd -P)/"
+      if [[ "$skills_real" != "$INVOKING_TOPLEVEL"/* ]] ||
+        [[ -z "$("${GIT_UNSET[@]}" git -C "$INVOKING_TOPLEVEL" --literal-pathspecs \
+          ls-files -- "./${skills_real#"$INVOKING_TOPLEVEL"/}" 2>/dev/null | head -n 1)" ]]; then
+        note "script test skipped: ${test_sh#"$SKILL_DIR"/} is not committed in the current repository yet"
+        continue
+      fi
+    fi
     # env -u: this gate may run inside git-hook chains where git exports
     # GIT_DIR/GIT_INDEX_FILE — a fixture `git init` in a test would then mutate
     # the real repo. Strip before exec.
@@ -1317,8 +1360,7 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
     # broke. Success stays silent: the reason to suppress was log noise, and that
     # reason does not apply to the run that just went red.
     test_out=""
-    if test_out="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX \
-      bash "$test_sh" 2>&1 </dev/null)"; then
+    if test_out="$("${GIT_UNSET[@]}" -u CHECK_SKILL_INVOKING_TOPLEVEL bash "$test_sh" 2>&1 </dev/null)"; then
       note "script test passed: ${test_sh#"$SKILL_DIR"/}"
     else
       err "script test failed: ${test_sh#"$SKILL_DIR"/}"
