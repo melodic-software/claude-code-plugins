@@ -181,6 +181,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
@@ -212,6 +213,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: work-resolve-issue-write-${{ github.event.issue.number }}
@@ -445,6 +447,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:

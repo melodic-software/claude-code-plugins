@@ -37,14 +37,19 @@ instantiation of it. The playbook names the obligation, and this contract suppli
 ### Columns
 
 - **Min isolation (unattended)**: the isolation-ladder level (`L0`–`L3`) that is the floor
-  for running the class unattended.
+  for running the class unattended. On the ladder's
+  [CI-lane surface](guardrails/isolation-ladder.md#ci-lanes-on-provider-hosted-runners), its
+  five conditions stand in for `L2` while they all hold; `C5` keeps `L3`.
 - **Verification**: the gate layers a change must pass, with per-layer blocking knobs bound
   on the governance surface.
 - **Verification topology**: the floor for how many DISTINCT checker slots verify the class
   and whether they must be vendor-disjoint; roles, relational constraints, and predicates are
   contract vocabulary, instances org-bound. The leaf owns these floor values; the cells above
   are their glance restatement.
-- **Merge policy**: who lands the change; promotion-gated where the cell says so.
+- **Merge policy**: who lands the change; promotion-gated where the cell says so. A merge
+  authority that reads no class merges on its verifier verdict instead
+  ([work classes](guardrails/work-classes.md#merge-authorities-that-read-no-class)), and still
+  never merges `C5`.
 - **Cost tier**: contract vocabulary (`economy` | `standard` | `premium`); the org binds
   tiers to model instances. Policy vocabulary only. Cost enforcement is out of scope.
 - **Escalation**: when a run must summon a human; event classes and routing below.

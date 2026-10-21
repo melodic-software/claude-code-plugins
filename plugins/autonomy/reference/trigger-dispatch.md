@@ -197,11 +197,13 @@ owned by the admission policy on the security surface.
 ## Executor surface classes
 
 Two classes, imported unchanged from the runner charter: **self-operated** CLI/SDK
-executors, including SDK-embedded pull/drain daemons, and **vendor-hosted** executors,
-whose merge policy caps at human-gated. The executor-class determination that gates merge
-policy is security-surface data (the security binding's `executor_class`), never a
-repo-local value. Other executor hosting configuration is deployment-owned per the hosting
-stance: this contract fixes only the isolation floor (L2+ for unattended execution),
+executors, including SDK-embedded pull/drain daemons, and **vendor-hosted** executors. The
+class caps no merge policy: merge authority comes from the work class, the evidence gates and
+the repository's configured rung, not from where the executor runs. The security binding's
+`executor_class` is deprecated and ignored, still accepted so existing bindings stay valid.
+Other executor hosting configuration is deployment-owned per the hosting
+stance: this contract fixes only the isolation floor (the
+[unattended floor](guardrails/isolation-ladder.md#unattended-floor)),
 credential scoping, and the queue contract.
 
 Which host runs each local-lane stage (this machine, a local background session, or a cloud

@@ -67,8 +67,9 @@ A lane job that uses this check:
 - Mints the App token only after both gates.
 
 The check itself runs in the scripted `report` job, with that job's `GITHUB_TOKEN`. The label
-and comment writes need `issues: write` on that job and never on the model job; until the report
-job holds it, an escalation fails with 403 and the step exits 1 with its outputs written.
+and comment writes need `issues: write` on that job and never on the model job. A called job holds
+no more than its caller grants, so every job that calls `pr-run-activity-write.yml` or
+`pr-run-activity-read.yml` grants `issues: write` too.
 
 ## Tests
 

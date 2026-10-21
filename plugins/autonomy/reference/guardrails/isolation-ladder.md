@@ -18,7 +18,8 @@ document names substrate classes as marked examples only, never an instance list
   removed).
 - **`L2`: whole-process OS-enforced boundary with default-deny egress, credential
   protection, contained workspace host-writes, and policy nothing the run can install may
-  widen.** The minimum for any unattended run.
+  widen.** The minimum for any unattended run, except on the
+  [CI-lane surface](#ci-lanes-on-provider-hosted-runners).
   Free-path substrate classes (marked examples, not an instance list): a whole-process
   OS-sandbox wrap; a container with a default-deny egress firewall.
 
@@ -66,15 +67,36 @@ trigger source cannot lower the required isolation level.
 
 ## Unattended floor
 
-`L2` is the uniform floor for any unattended run, regardless of work class; the matrix's
+`L2` is the uniform floor for any unattended run, regardless of work class, on every surface
+except the [CI-lane surface](#ci-lanes-on-provider-hosted-runners); the matrix's
 min-isolation column sets per-class floors at or above it. Per-command sandboxing (`L1`) is
 not sufficient for unattended runs. It is an attended ergonomics tier, and treating it as an
 autonomy tier is non-conforming.
 
+## CI lanes on provider-hosted runners
+
+A CI lane on a runner the CI provider hosts may run unattended without default-deny egress while
+all five of these conditions hold (this marketplace records the decision as ADR 0049):
+
+1. **Trusted actors only.** Only text from the operator and trusted bots reaches the lane prompt,
+   checked per item against one centrally managed trusted-actor list.
+2. **Same-repository change requests only.** No lane acts on a change request from a fork.
+3. **Short-lived, scoped credentials.** Each job mints its own token, valid for at most one hour,
+   scoped to what that job needs and revoked when the job ends. No long-lived write token reaches a
+   model step, and no model step can write the required status check or change a workflow.
+4. **A kill switch.** One org-level switch stops every lane without a code change; a switch the
+   lane cannot read counts as off.
+5. **Fresh runner per job.** No state carries from one job to the next.
+
+A lane that fails any one condition is held to `L2`. A self-operated runner, a local lane and
+every other surface keep `L2`, and `C5` work keeps `L3` on every surface.
+
 ## Fail-closed where L2 is unavailable
 
 Where no `L2`-capable substrate exists on an execution surface, autonomous dispatch is
-blocked for that surface and guided setup names the compliant paths. This rule is
+blocked for that surface and guided setup names the compliant paths. The
+[CI-lane surface](#ci-lanes-on-provider-hosted-runners) is exempt only while all five of its
+conditions hold. This rule is
 fail-closed: silently degrading to a lower level is never conforming, because a silent degrade
 leaks the trust loop the ladder exists to protect.
 
