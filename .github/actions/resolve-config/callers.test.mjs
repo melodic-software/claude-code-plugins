@@ -842,7 +842,7 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
     assert.deepEqual(stepSecrets(launch), [secret], id);
     assert.equal(launch.with[input], `\${{ secrets.${secret} }}`, id);
     assert.equal(launch.with[input === "api-key" ? "subscription-token" : "api-key"], undefined, id);
-    assert.equal(launch.with["permission-mode"], "dontAsk", id);
+    assert.equal(launch.with["permission-mode"], "${{ steps.config.outputs.permission-mode }}", id);
     assert.equal(launch["continue-on-error"], true, id);
     assert.equal(launch["timeout-minutes"], 50, id);
     assert.equal(launch.with["leg-timeout-minutes"], "45", id);
@@ -882,6 +882,46 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
     }
   }
   assert.ok(launchers.includes("pr-run-activity-read.yml run act-key") && launchers.includes("pr-run-activity-read.yml run act-token"), launchers.join(", "));
+});
+
+// Each launcher leg is followed by a check that the CLI's init message
+// reports the permission mode the base config asked for; a mismatch, a
+// missing init message or an empty mode fails it. The key leg's credit stop
+// hands off unchecked.
+test("pr-run-activity-read.yml: each launcher leg is followed by a check of the CLI's reported permission mode", (t) => {
+  const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
+  const at = (id) => steps.findIndex((s) => s.id === id);
+  const dir = mkdtempSync(join(tmpdir(), "mode-check-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = (name, messages) => {
+    const path = join(dir, name);
+    writeFileSync(path, typeof messages === "string" ? messages : JSON.stringify(messages));
+    return path;
+  };
+  const init = (mode) => [{ type: "system", subtype: "init", permissionMode: mode }, { type: "result", subtype: "success" }];
+  for (const [leg, check] of [["act-key", "mode-key"], ["act-token", "mode-token"]]) {
+    const step = steps[at(check)];
+    assert.equal(at(check), at(leg) + 1, `${check} follows ${leg}`);
+    assert.equal(step.env.EXECUTION_FILE, `\${{ steps.${leg}.outputs.execution-file }}`);
+    assert.equal(step.env.MODE, "${{ steps.config.outputs.permission-mode }}");
+    assert.ok(!writesSummary(step), `${check} writes no summary`);
+    const runs = (mode, execution) =>
+      spawnSync("bash", ["-e", "-c", step.run], { env: { PATH: process.env.PATH, MODE: mode, EXECUTION_FILE: execution } }).status;
+    assert.equal(runs("auto", file(`${check}-auto.json`, init("auto"))), 0);
+    assert.equal(runs("dontAsk", file(`${check}-dontask.json`, init("dontAsk"))), 0);
+    assert.equal(runs("auto", file(`${check}-other.json`, init("dontAsk"))), 1, "another mode");
+    assert.equal(runs("auto", file(`${check}-none.json`, [{ type: "result", subtype: "success" }])), 1, "no init message");
+    assert.equal(runs("auto", join(dir, "missing.json")), 1, "no execution file");
+    assert.equal(runs("auto", file(`${check}-bad.json`, "{not json")), 1, "an unreadable file");
+    assert.equal(runs("", file(`${check}-empty.json`, init(""))), 1, "an empty mode");
+  }
+  const ran = { "steps.act-key.outcome": "failure", "steps.act-key.outputs.lane-class": "max-turns" };
+  assert.equal(atStep(steps[at("mode-key")].if, ran), true);
+  assert.equal(atStep(steps[at("mode-key")].if, { ...ran, "steps.act-key.outputs.lane-class": "credit-stop" }), false, "a credit stop hands off");
+  assert.equal(atStep(steps[at("mode-key")].if, { "steps.act-key.outcome": "skipped", "steps.act-key.outputs.lane-class": "" }), false);
+  // A failed check fails the job before the patch is collected.
+  assert.ok(at("mode-token") < at("patch"));
+  assert.match(steps[at("patch")].if, /job\.status == 'success'/);
 });
 
 // A call that handed off (its key empty, or a credit stop on its key leg)

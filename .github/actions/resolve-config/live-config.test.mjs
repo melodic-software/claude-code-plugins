@@ -439,6 +439,16 @@ test("live config: fix-docs holds no write token and its push job in pr-refine m
   assert.equal(apply.prepare, "apply-patch");
 });
 
+// Auto mode is decided per activity: fix-docs alone runs in it.
+test("live config: only fix-docs sets permission-mode, to auto", () => {
+  assert.equal(selected("pr-refine", "fix-docs")["permission-mode"], "auto");
+  const { activities } = parse(FILES.config);
+  assert.deepEqual(
+    Object.entries(activities).filter(([, a]) => Object.hasOwn(a, "permission-mode")).map(([name, a]) => [name, a["permission-mode"]]),
+    [["fix-docs", "auto"]],
+  );
+});
+
 // fix-docs hands on a patch, so its targets leave out instruction surfaces
 // and CODEOWNERS paths, as a write activity's do.
 test("live config: fix-docs is not asked to fix an instruction surface", () => {

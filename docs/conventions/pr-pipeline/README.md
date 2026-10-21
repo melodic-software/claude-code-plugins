@@ -356,6 +356,11 @@ Each leaf declares:
   those domains, and run the research skills, wherever the runner gives it its edit tools
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). An activity that turns it on must
   set `reads-untrusted: true`.
+- `permission-mode` (optional, `skill` only): `dontAsk` (the default) or `auto`, the Claude Code
+  permission mode of a PR-mode skill on the read runner's launcher; other runners run `dontAsk`.
+  The run job fails red unless the CLI reports the mode asked for
+  ([`pr-run-activity.md`](pr-run-activity.md#two-calls-on-one-credential-each);
+  [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md)).
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a

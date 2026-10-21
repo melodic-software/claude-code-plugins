@@ -219,6 +219,36 @@ test("a mutate-branch activity can commit; args stay in the file only", async ()
   assert.equal(Object.hasOwn(outputs, "args"), false);
 });
 
+// A skill's launcher permission mode: dontAsk unless the leaf sets auto; a
+// script has none; any other value fails the schema.
+const withPermissionMode = (mode) => {
+  const { env } = workspace();
+  env.LANE = "pr-refine";
+  env.ACTIVITY = "fix-prose";
+  const path = join(env.BASE_PATH, CONFIG_PATH);
+  if (mode !== undefined) {
+    const config = readFileSync(path, "utf8");
+    const set = config.replace("    reads-untrusted: false\nlanes:", `    reads-untrusted: false\n    permission-mode: ${mode}\nlanes:`);
+    assert.notEqual(set, config);
+    writeFileSync(path, set);
+  }
+  return env;
+};
+
+test("a skill's permission-mode output is dontAsk unless the leaf sets auto", async () => {
+  for (const [mode, expected] of [[undefined, "dontAsk"], ["dontAsk", "dontAsk"], ["auto", "auto"]]) {
+    const env = withPermissionMode(mode);
+    assert.equal(await main({ env, github: noApi }), 0, String(mode));
+    assert.equal(readOutputs(env.GITHUB_OUTPUT)["permission-mode"], expected, String(mode));
+  }
+});
+
+for (const mode of ["bypassPermissions", "acceptEdits", "default", "plan"]) {
+  test(`permission-mode ${mode} fails the schema`, async (t) => {
+    await assertFailsRed(t, withPermissionMode(mode), /permission-mode/);
+  });
+}
+
 test("without an activity only enabled and slots are output", async () => {
   const { env } = workspace();
   env.ACTIVITY = "";

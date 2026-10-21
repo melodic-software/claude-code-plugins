@@ -21,6 +21,10 @@ activities:
     # Head markdown can quote issue, PR or web text.
     reads-untrusted: true
     inputs: [changed-paths]
+    # The auto-mode classifier approves tool calls no rule allows, so the
+    # skill's own scripts run without a Bash rule per command; the run fails
+    # red unless the CLI reports the mode (ADR 0049).
+    permission-mode: auto
     applies-when:
       paths: ["**/*.md"]
       labels-absent: [do-not-merge, needs-human]

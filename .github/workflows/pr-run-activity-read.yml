@@ -881,12 +881,32 @@ jobs:
           model: ${{ steps.config.outputs.model }}
           effort: ${{ steps.config.outputs.effort }}
           max-turns: ${{ steps.config.outputs.max-turns }}
-          permission-mode: dontAsk
+          # dontAsk unless the activity sets permission-mode: auto.
+          permission-mode: ${{ steps.config.outputs.permission-mode }}
           tools: ${{ steps.stage.outputs.tools }}
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
           disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
           plugin-dirs: ${{ steps.stage.outputs.plugin-dirs }}
           leg-timeout-minutes: "45"
+
+      # The CLI's init message reports the permission mode the leg ran in. A
+      # leg in another mode, or with no init message, fails the job, so no
+      # patch is collected; a credit stop hands off unchecked. It reads only
+      # that field and writes no summary.
+      - name: Check the API key leg's permission mode
+        id: mode-key
+        if: >-
+          always() && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
+          && steps.act-key.outputs.lane-class != 'credit-stop'
+        env:
+          EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file }}
+          MODE: ${{ steps.config.outputs.permission-mode }}
+        run: |
+          mode=$(jq -r 'if type == "array" then ([.[] | select(.type? == "system" and .subtype? == "init")] | first | .permissionMode // "") else "" end' "$EXECUTION_FILE" 2>/dev/null) || mode=""
+          if [ -z "$MODE" ] || [ "$mode" != "$MODE" ]; then
+            echo "::error::permission-mode: the leg's init message does not report the mode asked for ($MODE)"
+            exit 1
+          fi
 
       - name: Run the skill on the OAuth token
         id: act-token
@@ -909,12 +929,25 @@ jobs:
           model: ${{ steps.config.outputs.model }}
           effort: ${{ steps.config.outputs.effort }}
           max-turns: ${{ steps.config.outputs.max-turns }}
-          permission-mode: dontAsk
+          permission-mode: ${{ steps.config.outputs.permission-mode }}
           tools: ${{ steps.stage.outputs.tools }}
           allowed-tools: ${{ steps.stage.outputs.allowed-tools }}
           disallowed-tools: ${{ steps.stage.outputs.disallowed-tools }}
           plugin-dirs: ${{ steps.stage.outputs.plugin-dirs }}
           leg-timeout-minutes: "45"
+
+      - name: Check the OAuth token leg's permission mode
+        id: mode-token
+        if: always() && (steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+        env:
+          EXECUTION_FILE: ${{ steps.act-token.outputs.execution-file }}
+          MODE: ${{ steps.config.outputs.permission-mode }}
+        run: |
+          mode=$(jq -r 'if type == "array" then ([.[] | select(.type? == "system" and .subtype? == "init")] | first | .permissionMode // "") else "" end' "$EXECUTION_FILE" 2>/dev/null) || mode=""
+          if [ -z "$MODE" ] || [ "$mode" != "$MODE" ]; then
+            echo "::error::permission-mode: the leg's init message does not report the mode asked for ($MODE)"
+            exit 1
+          fi
 
       # Issue mode, on claude-code-action until the issue lane moves to the
       # launcher. A failure does not stop the job here: the next step fails

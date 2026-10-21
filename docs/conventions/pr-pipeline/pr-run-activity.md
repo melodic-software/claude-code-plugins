@@ -602,7 +602,7 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    `.lane/`, failing red when the head already holds `.lane`, makes the plugin and the context
    read-only and has git ignore the directory. `--restricted` reads nothing outside the checkout,
    so `plugin-dirs` is `.lane/plugins/<plugin>`, never `$RUNNER_TEMP`. The tools, allow and deny
-   rules come from the stage, with `permission-mode: dontAsk`; the preamble stands in for the
+   rules come from the stage, with the activity's `permission-mode`; the preamble stands in for the
    system prompt, and the prompt asks for the Skill tool. The launcher takes a read skill, either
    `prepare: ci-context` or one with no prepare mode that hands on a patch (`fix-docs`), and fails
    red on any other prepare mode with a patch and on `checks`, `self-checks` or `verify-scripts`,
@@ -619,7 +619,10 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
 3. One step checks the call's secret is set (only that leaves it), and one launcher step per
    secret runs the skill: `act-key` on the first call, `act-token` on the fallback call, with
    `continue-on-error`, a 50-minute step timeout and a 45-minute leg. setup-python's
-   `LD_LIBRARY_PATH` is cleared for the launcher, which refuses a loader variable.
+   `LD_LIBRARY_PATH` is cleared for the launcher, which refuses a loader variable. Each leg runs
+   in `resolve-config`'s `permission-mode` output, `dontAsk` unless the activity sets `auto`, and
+   a step after it fails the job, so no patch is collected, unless the CLI's init message in the
+   leg's execution file reports that mode; a credit stop hands off unchecked.
 4. The first call hands off (`handed-off: true`) when its key is empty or its key leg ends in a
    credit stop. It then uploads no reply, patch or verdict, records no lane outcome, collects no
    patch and posts no check, so the fallback call's artifacts and check are the run's. Otherwise
