@@ -464,6 +464,9 @@ limits:
   # Share of the lane's hourly merge rate admitted per hour; the release point
   # is this factor times hourly merges times admission-window-hours.
   admission-factor: 0.8
+  # Admissions per hour the release point never falls below, so a day with
+  # no lane merges cannot hold admissions shut (owner decision 2026-10-21).
+  admission-min-per-hour: 1
 
 wip:
   # Cap = lane PRs merged per hour over the window times this target.
