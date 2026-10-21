@@ -656,6 +656,19 @@ unresolvable "command word glued to an expansion, with a backtick" 'gh${IFS}pr m
 unresolvable "two spaces between gh and pr, with a backtick" 'gh  pr merge 5`echo 0` -R acme/widgets'
 unresolvable "tab and space between gh and pr, with a backtick" $'gh\t pr merge 5`echo 0` -R acme/widgets'
 quiet "prose with two spaces before PR Merge, with a backtick" 'echo "Gated  PR Merge `x`"'
+# Words bash drops before argv (empty quotes, a backslash, redirections) do not
+# hide gh from the word before `pr`.
+unresolvable "empty quotes glued to pr, with a backtick" "gh ''pr merge 5\`echo 0\` -R acme/widgets"
+unresolvable "backslash glued to pr, with a backtick" 'gh \pr merge 5`echo 0` -R acme/widgets'
+unresolvable "2>&1 between gh and pr, with a backtick" 'gh 2>&1 pr merge 5`echo 0` -R acme/widgets'
+unresolvable "> /dev/null between gh and pr, with a backtick" 'gh > /dev/null pr merge 5`echo 0` -R acme/widgets'
+unresolvable "2>&1 between gh and pr, PR from backticks" 'gh 2>&1 pr merge `cat n` -R acme/widgets'
+unresolvable "redirect glued to gh before pr, with a backtick" 'gh</dev/null pr merge 5`echo 0` -R acme/widgets'
+quiet "grep for pr merge piped to grep with a backtick" "grep -n 'pr merge' file | grep \`x\`"
+quiet "echo naming an issue before pr merge, with a backtick" 'echo "Issue #8657: pr merge `x`"'
+scenario unresolved none green green
+run "gh pr merge inside \$(...) is checked" 'echo $(gh pr merge 42 -R acme/widgets)' 2
+quiet "heredoc commit naming the PR merge gate with a backtick" $'git commit -F - <<\'EOF\'\nfix(guardrails): note the gate\n\n1. PR merge gate uses `jq`\nEOF'
 quiet "--disable-auto, then gh pr view" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr view 42'
 scenario none none green green
 run "--disable-auto, then one merge" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr merge 42 -R acme/widgets --squash' 0

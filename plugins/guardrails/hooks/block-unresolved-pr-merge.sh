@@ -79,8 +79,9 @@
 # KNOWN GAPS (stated, not chased): a merge from a script (Python, Node) or the
 # web UI; a merge command whose command word comes from expansion
 # (`$GH pr merge`), `eval`, a wrapper such as
-# `sudo`, `env` or `xargs`, or a child shell (`bash -c '...'`), or sitting
-# inside `$(...)`; a GraphQL mutation read from a file (`--input`), whose name
+# `sudo`, `env`, `nice`, `timeout` or `xargs`, a child shell (`bash -c '...'`),
+# a gh alias, brace expansion (`{gh,} pr merge`), a glob (`g? pr merge`) or
+# `gh.cmd`; a GraphQL mutation read from a file (`--input`), whose name
 # never appears in the command; past 100 reviews or check runs the rest are
 # not read; more than 100 review threads with none unresolved in the first 100
 # is reported as unchecked; the backtick refusal keys on merge-shaped text, so
@@ -441,7 +442,7 @@ else
   # so the command word cannot be read (`$GH`, `gh${IFS}pr`). Prose such as
   # "Gated PR Merge" is not (#8657).
   _bupm_gh_pr_shaped() {
-    local text="$_bupm_joined" seen="" m lead before word w1 w2
+    local text="$_bupm_joined" seen="" m lead before word w1 w2 w3 t i toks
     while [[ "$text" =~ $_bupm_pr_re ]]; do
       m="${BASH_REMATCH[0]}"
       lead="${BASH_REMATCH[1]}"
@@ -456,18 +457,39 @@ else
       word="$seen$before"
       seen+="$before$m"
       [[ "$lead" =~ [[:space:]] ]] || word+="$lead"
-      # Trailing blanks first, so `gh  pr` (two spaces) still reads gh.
-      word="${word%"${word##*[![:space:]]}"}"
-      word="${word##*[[:space:]]}"
-      [[ "$word" == *[\$\`]* ]] && return 0
-      # `pr` glued to punctuation is its own word (`(pr`, `;pr`), never gh's.
-      [[ "$lead" =~ [[:space:]] ]] || continue
+      toks=()
+      read -rd '' -a toks <<<"$word"
+      i=$((${#toks[@]} - 1))
+      ((i >= 0)) && [[ "${toks[i]}" == *[\$\`]* ]] && return 0
+      # `pr` glued to an operator is its own command word, never gh's.
+      [[ "$lead" == [\;\|\&\(\)\<\>\{\}!] ]] && continue
+      # A lone opening quote: `pr ...` is a quoted argument of the word before.
+      ((i >= 0)) && [[ "${toks[i]}" == [\"\'] ]] && continue
+      # Step back over what bash drops before argv: empty quotes and a bare
+      # backslash (`''pr`, `\pr`) and redirections (`2>&1`, `> /dev/null`).
+      while ((i >= 0)); do
+        t="${toks[i]}"
+        [[ "$t" == *[\$\`]* ]] && return 0
+        if [[ "$t" =~ ^[\"\'\\]+$ || "$t" =~ ^[0-9]*\&?[\<\>]+\&?[^[:space:]]+$ ]]; then
+          ((i -= 1))
+        elif ((i > 0)) && [[ "${toks[i - 1]}" =~ ^[0-9]*\&?[\<\>]+\&?$ ]]; then
+          ((i -= 2))
+        else
+          break
+        fi
+      done
+      ((i >= 0)) || continue
+      word="${toks[i]}"
       w1="${word//[\"\']/}"
       w1="${w1##*[/;|&()\{\}<>=!]}"
       w1="${w1##*\\}"
       w2="${word//[\"\'\\]/}"
       w2="${w2##*[/;|&()\{\}<>=!]}"
-      [[ "${w1%.exe}" == gh || "${w2%.exe}" == gh ]] && return 0
+      # A redirect glued to the word ends it: `gh</dev/null` runs gh.
+      w3="${word//[\"\'\\]/}"
+      w3="${w3%%[<>]*}"
+      w3="${w3##*[/;|&()\{\}=!]}"
+      [[ "${w1%.exe}" == gh || "${w2%.exe}" == gh || "${w3%.exe}" == gh ]] && return 0
     done
     return 1
   }
