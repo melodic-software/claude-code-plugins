@@ -4,7 +4,7 @@ The page (`web/app.js`) reads the prototype's state names. `web/core.js` is the 
 to the server: it reads the contract snapshot (`GET /api/state?since=<rev>`) and builds the
 prototype-shaped view in `toView()`, which is the complete mapping. Each row below is one name the
 page reads, the contract field it comes from, and how. `tests/test_server.py`
-`TestSnapshotContract` pins the contract side of these rows against `tests/fixtures/state-v1.json`.
+`TestSnapshotContract` pins the contract side of these rows against `tests/fixtures/state-sample.json`.
 
 Views: G = every person, M = owner and leaders, O = owner only.
 
