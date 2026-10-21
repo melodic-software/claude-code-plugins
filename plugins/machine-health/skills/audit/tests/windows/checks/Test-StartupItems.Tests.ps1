@@ -129,7 +129,7 @@ Describe 'Test-StartupItems' -Tag 'check' {
 
         It 'reads UNKNOWN beside listed items when a location cannot be read' {
             Mock Get-RunKeyEntry -ParameterFilter { $Scope -eq 'hklm' -and $Key -eq 'Run' } { New-Read -State 'denied' }
-            $key = Get-FindingKey -Kind 'startup' -Identity @('hkcu', 'Odd')
+            $key = Get-FindingKey -Kind 'startup' -Identity @('hkcu', 'run', 'Odd')
 
             $result = Invoke-StartupCheck -MutedKeys @($key)
 
@@ -139,7 +139,7 @@ Describe 'Test-StartupItems' -Tag 'check' {
         }
 
         It 'drops to INFO once that item is muted, keeping it listed' {
-            $key = Get-FindingKey -Kind 'startup' -Identity @('hkcu', 'Odd')
+            $key = Get-FindingKey -Kind 'startup' -Identity @('hkcu', 'run', 'Odd')
 
             $result = Invoke-StartupCheck -MutedKeys @($key)
 
@@ -147,6 +147,24 @@ Describe 'Test-StartupItems' -Tag 'check' {
             $result.detail.muted_count | Should -Be 1
             ($result.detail.items | Where-Object name -EQ 'Odd').muted | Should -BeTrue
         }
+    }
+
+    It 'keys a Run and a RunOnce value of the same name apart, so muting one leaves the other' {
+        Set-EmptyHost
+        Mock Get-RunKeyEntry -ParameterFilter { $Scope -eq 'hkcu' -and $Key -eq 'Run' } {
+            New-Read -Entries @(New-Entry -Kind 'run' -Scope 'hkcu' -Name 'Setup')
+        }
+        Mock Get-RunKeyEntry -ParameterFilter { $Scope -eq 'hkcu' -and $Key -eq 'RunOnce' } {
+            New-Read -Entries @(New-Entry -Kind 'runonce' -Scope 'hkcu' -Name 'Setup')
+        }
+        $runKey = Get-FindingKey -Kind 'startup' -Identity @('hkcu', 'run', 'Setup')
+
+        $items = @((Invoke-StartupCheck -MutedKeys @($runKey)).detail.items)
+
+        $items.Count | Should -Be 2
+        ($items | Where-Object kind -EQ 'run').key | Should -Not -Be ($items | Where-Object kind -EQ 'runonce').key
+        ($items | Where-Object kind -EQ 'run').muted | Should -BeTrue
+        ($items | Where-Object kind -EQ 'runonce').muted | Should -BeFalse
     }
 
     It 'never reads OK when a location cannot be read' {

@@ -108,10 +108,19 @@ $CheckBody = {
     $noLaunchText = $since ? "no launch recorded since $since" : 'no launch recorded'
 
     $items = [System.Collections.Generic.List[pscustomobject]]::new()
-    $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    foreach ($app in @($installed.Apps | Sort-Object Name)) {
-        if (-not $seen.Add($app.Key)) { continue }
-        $launch = Get-AppLaunch -App $app -UserAssist $uaEntries -Prefetch @($prefetch.Entries) -Bam @($bam.Entries)
+    # One item per key: installs sharing an Uninstall subkey name (per-user and
+    # machine-wide) are one app, and a launch from any of their paths counts.
+    foreach ($group in @($installed.Apps | Sort-Object Name | Group-Object Key)) {
+        $app = $group.Group[0]
+        $launches = @(foreach ($install in $group.Group) {
+                Get-AppLaunch -App $install -UserAssist $uaEntries -Prefetch @($prefetch.Entries) -Bam @($bam.Entries)
+            })
+        $latest = $launches | Where-Object LastRun | Sort-Object LastRun -Descending | Select-Object -First 1
+        $launch = [pscustomobject]@{
+            HasRecord = [bool]($launches | Where-Object HasRecord)
+            LastRun   = $latest ? $latest.LastRun : $null
+            Source    = $latest ? $latest.Source : $null
+        }
 
         # Without a readable UserAssist, or with nothing that could name the app
         # in it, a missing launch is no evidence either way.

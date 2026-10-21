@@ -902,8 +902,8 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   - `INFO`: any unmuted item otherwise.
   - `OK`: nothing starts at logon, or every item is muted.
   - Startup entries are inventory, never `WARN` or `CRIT`.
-- **Notes:** each item's key is `startup:` over scope and name, or `task:` over task path and
-  name, so muting one survives reordering. `enabled_count` counts what starts at logon: entries
+- **Notes:** each item's key is `startup:` over scope, kind and name, or `task:` over task path
+  and name, so muting one survives reordering. `enabled_count` counts what starts at logon: entries
   `enabled` or `none`.
 
 ---

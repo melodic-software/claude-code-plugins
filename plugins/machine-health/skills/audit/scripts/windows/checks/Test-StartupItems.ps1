@@ -68,7 +68,7 @@ $CheckBody = {
         foreach ($entry in $read.Entries) {
             $state = $approved[$entry.Name]
             $approvedState = $state ? $state.State : 'none'
-            $items.Add((New-FindingItem -Kind 'startup' -Identity @($entry.Scope, $entry.Name) -MutedKeys $MutedKeys `
+            $items.Add((New-FindingItem -Kind 'startup' -Identity @($entry.Scope, $entry.Kind, $entry.Name) -MutedKeys $MutedKeys `
                         -Severity ($approvedState -eq 'unknown' ? 'UNKNOWN' : 'INFO') -Title $entry.Name -Fields @{
                         kind              = $entry.Kind
                         scope             = $entry.Scope

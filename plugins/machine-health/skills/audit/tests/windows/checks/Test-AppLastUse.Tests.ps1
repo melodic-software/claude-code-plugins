@@ -152,6 +152,23 @@ Describe 'Test-AppLastUse' -Tag 'check' {
         $result.detail.PSObject.Properties['admin_fields'] | Should -BeNullOrEmpty
     }
 
+    It 'lists installs that share an Uninstall subkey name once, crediting a launch from either path' {
+        Set-Host
+        Mock Get-InstalledApp {
+            [pscustomobject]@{ ReadState = 'ok'; Apps = @(
+                    New-App -Key 'Tool' -InstallDir 'X:\Apps\Tool' -ExePath 'X:\Apps\Tool\tool.exe'
+                    New-App -Key 'Tool' -InstallDir 'X:\Apps\Other' -ExePath 'X:\Apps\Other\other.exe'
+                )
+            }
+        }
+
+        $result = Invoke-AppLastUse
+
+        @($result.detail.items).Count | Should -Be 1
+        $result.detail.items[0].key | Should -Be (Get-FindingKey -Kind 'app' -Identity @('Tool'))
+        $result.detail.items[0].verdict | Should -Be 'launched'
+    }
+
     It 'takes a launch from Prefetch by executable name and from BAM by volume path when elevated' {
         Set-Host -ElevatedState 'ok' -Prefetch @(
             [pscustomobject]@{ ExeName = 'editor.exe'; LastRun = [datetime]::new(2026, 10, 1, 0, 0, 0, [DateTimeKind]::Utc) }
