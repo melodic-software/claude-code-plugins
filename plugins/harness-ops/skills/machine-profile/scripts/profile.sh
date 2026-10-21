@@ -30,11 +30,16 @@ command -v jq >/dev/null 2>&1 || die "jq is required"
 CRED_RE='token|secret|passw(?:or)?d|credential|api.?key|private.?key'
 # Value shapes the validator refuses in any string of a record: GitHub, AWS, Slack and
 # sk- API tokens, JWTs, private-key blocks, and a password embedded in a URL.
-# jq's regex engine backtracks, so each JWT rule tries once per token run: the ghs_
-# header is bounded, the generic JWT may start only where a run starts, and segments
-# are spelled out (a counted group is far slower). Otherwise a repeated `ghs_1_eyJ-`
-# takes quadratic time.
-VAL_RE='ghs_[0-9]+_eyJ[A-Za-z0-9_-]{0,512}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|(?<![A-Za-z0-9])(AKIA|ASIA)[0-9A-Z]{16}(?![A-Za-z0-9])|(?<![A-Za-z0-9])xox[abprs]-[A-Za-z0-9-]{10,}|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|://[^/[:space:]:@]+:[^/[:space:]@]+@'
+# GitHub prefixes from
+# https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+# and the ghs_ regex GitHub recommends for current and stateless installation tokens from
+# https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+# (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
+# jq's regex engine backtracks. The ghs_ rule is one greedy run of one class with
+# nothing after it, so it matches or fails within 36 characters; the generic JWT may
+# start only where a run starts, and its segments are spelled out (a counted group is
+# far slower). Otherwise a repeated `ghs_1_eyJ-` takes quadratic time.
+VAL_RE='ghs_[A-Za-z0-9._-]{36,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|(?<![A-Za-z0-9])(AKIA|ASIA)[0-9A-Z]{16}(?![A-Za-z0-9])|(?<![A-Za-z0-9])xox[abprs]-[A-Za-z0-9-]{10,}|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|://[^/[:space:]:@]+:[^/[:space:]@]+@'
 
 # Every record in a document is checked here. Prints one line per problem.
 # shellcheck disable=SC2016  # jq source, not shell expansion

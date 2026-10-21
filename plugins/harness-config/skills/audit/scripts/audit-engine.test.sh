@@ -668,6 +668,24 @@ for tok in "${ghs_prefix}1234567_eyJFAKE.FAKEpayload$(printf 'A%.0s' {1..450}).F
   out=$(run "$m" --json --docs-dir "$m/docs" 2>&1) || true
   assert_eq "case 11: ${tok:0:12}... is a secret-shaped error" "error" "$(jq -r '.findings[] | select(.identity.claim=="secret-shaped-value") | .severity' <<<"$out")"
 done
+# A stateless installation token is ghs_ then a JWT of about 520 characters, with no
+# app id. The RS256 header encodes to exactly 36 alphanumerics; the kid header carries
+# a '-' 16 characters in, before any alphanumeric minimum is met. Payload and signature
+# are fake, and every token is built at run time.
+b64url() { printf '%s' "$1" | base64 | tr -d '\n=' | tr '+/' '-_'; }
+jwt_tail=".$(b64url '{"sub":"FAKE-not-a-real-token","iat":0}').$(b64url "$(printf 'FAKE signature, not a real token?>%.0s' {1..10})")"
+for header in "$(b64url '{"alg":"RS256","typ":"JWT"}')" "$(b64url '{"kid":"k?~>","alg":"RS256","typ":"JWT"}')"; do
+  for tok in "${ghs_prefix}$header$jwt_tail" "${ghs_prefix}123456_$header$jwt_tail"; do
+    printf '%s\n' "$CLEAN_SETTINGS" | jq --arg t "$tok" '. + {env:{GH:$t}}' >"$m/project/.claude/settings.json"
+    out=$(run "$m" --json --docs-dir "$m/docs" 2>&1) || true
+    assert_eq "case 11: stateless ${tok:0:20}... is a secret-shaped error" "error" "$(jq -r '.findings[] | select(.identity.claim=="secret-shaped-value") | .severity' <<<"$out")"
+  done
+done
+for placeholder in ghs_job ghs_lane 3e7fef0587433cfb07332dbeabf0d79fc0baadf3; do
+  printf '%s\n' "$CLEAN_SETTINGS" | jq --arg t "$placeholder" '. + {env:{GH:$t}}' >"$m/project/.claude/settings.json"
+  out=$(run "$m" --json --docs-dir "$m/docs" 2>&1) || true
+  assert_eq "case 11: the placeholder $placeholder is not secret-shaped" "0" "$(jq '[.findings[] | select(.identity.claim=="secret-shaped-value")] | length' <<<"$out")"
+done
 # Values that once took GNU grep 25-60 s against SECRET_RE in a UTF-8 locale.
 # `timeout 30` is the backstop: a slow scan reads as rc 124.
 for shape in "${ghs_prefix}1_-:50000" "${ghs_prefix}1_eyJ:30000" "${ghs_prefix}1_eyJa.:30000" "${ghs_prefix}1_eyJ-:30000"; do
