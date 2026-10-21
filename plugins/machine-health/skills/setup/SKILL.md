@@ -119,11 +119,9 @@ remediation, so no interview is needed):
 - `unmute=<key>`. Remove the muted finding with that FindingKey (`<kind>:<16 hex>`) under every
   check id in `<StateBase>/state/mutes.json` (`Set-ApprovalState -Action unmute -FindingKey <key>`).
 
-**Approvals and mutes are written only through `Set-ApprovalState`**, never by editing
-`approvals.json` or `mutes.json` directly. It validates the arguments, holds
-`<StateBase>/state/approvals.lock` across the read, the change and the atomic replace, checks the
-result against the file's schema before writing it, and refuses a `<StateBase>` under a cloud sync
-root. Run it as one command, substituting the resolved `<StateBase>`:
+Approvals and mutes are written only through `Set-ApprovalState`, under the rule in
+`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/approvals.md`, "Writing approvals and mutes".
+Run it as one command, substituting the resolved `<StateBase>`:
 
 ```text
 pwsh -NoProfile -Command ". '${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/windows/lib/Set-ApprovalState.ps1'; Set-ApprovalState -StateBase '<StateBase>' -Action <action> <arguments>"

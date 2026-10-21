@@ -25,11 +25,18 @@ checkbox that drives behavior. Runtime proposals accumulate in `<StateBase>/TODO
 
 ## Writing approvals and mutes
 
-`/machine-health:setup apply` writes both files through `scripts/windows/lib/Set-ApprovalState.ps1`
-(`approve=`, `revoke=`, `unmute=`), the only writer. It holds `<StateBase>/state/approvals.lock`
-across its read, change and replace, validates the result against the schema, and replaces the file
-atomically through `Write-StateFile.ps1` (a temp file in the same folder, then `File.Replace`). It
-refuses to write when `<StateBase>` is under a cloud sync root.
+`approvals.json` and `mutes.json` have one writer, `Set-ApprovalState`, which
+`/machine-health:setup apply` runs (`approve=`, `revoke=`, `unmute=`). The one-time TODO.md migration below is the only other path that writes `approvals.json`,
+and it never overwrites an existing file. Both go through the same atomic replace.
+
+What a write guarantees:
+
+- A reader sees the old file or the new one, never a partial write, and a reader never blocks it.
+- Concurrent writers are serialized by `<StateBase>/state/approvals.lock`: a second writer waits and
+  applies its change to the file the first one wrote.
+- The result is validated against the file's schema before it replaces anything; an invalid result
+  leaves the file as it was.
+- Nothing is written when a OneDrive variable names `<StateBase>` or a folder above it.
 
 Hand edits of `approvals.json` or `mutes.json` are unsupported while an audit or setup session
 runs: the lock covers the plugin's writers, not an editor, so a hand edit can be overwritten or can
