@@ -74,3 +74,10 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 
 # Runner-IP throttling: 429 or timeout on GitHub runners in 3 of the last 11 online runs (38155110861, 38161413154, 38392690745) despite per-host pacing; the GNU standards page is live.
 ^https://www\.gnu\.org/prep/standards/html_node/Command_002dLine-Interfaces\.html$
+
+# Host unreachable from the runner: the same URL failed both online runs of 2026-10-21 (39616513990, 39618097885) with the status or timeout named below, and absent from the scheduled runs on main 38392690745 and earlier. wstomv.win.tue.nl answers 503 from a workstation too (2026-10-21); archive.org and mycourses.aalto.fi time out from a workstation (2026-10-21); rosenfeldmedia.com answers 522 on the runner and 200 from a workstation.
+^https://wstomv\.win\.tue\.nl/edu/2ip30/references/criteria_for_modularization\.pdf$
+^https://rosenfeldmedia\.com/books/search-analytics-for-your-site-frequently-asked-questions/$
+^https://archive\.org/details/practiceofprogra0000kern$
+^https://archive\.org/stream/pixel-logic-a-guide-to-pixel-art-michael-azzi/Pixel%20logic%20a%20guide%20to%20pixel%20art%20-%20Michael%20Azzi_djvu\.txt$
+^https://mycourses\.aalto\.fi/pluginfile\.php/2272345/mod_folder/content/0/Bitner%20et%20al\.%202008\.pdf\?forcedownload=1$
