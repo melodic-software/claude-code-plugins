@@ -120,10 +120,13 @@ function fakeApi(repo, head, overrides = {}) {
     calls,
     getPull: async () => (record("getPull"), overrides.pull ?? { draft: false, head: { repo: { full_name: "o/r" } } }),
     listLabels: async () => (record("listLabels"), overrides.labels ?? []),
-    readBranch: async () => (record("readBranch"), tip),
+    readBranch: async () => (record("readBranch"), overrides.branch ?? tip),
     createBlob: async (content) => (record("createBlob"), git(repo, ["hash-object", "-w", "--stdin"], Buffer.from(content, "base64"))),
     createTree: async (baseTree, entries) => {
       record("createTree");
+      if (overrides.tree) {
+        return overrides.tree;
+      }
       const index = join(mkdtempSync(join(tmpdir(), "apply-patch-index-")), "index");
       const env = { ...process.env, GIT_INDEX_FILE: index };
       execFileSync("git", ["read-tree", baseTree], { cwd: repo, env });
@@ -496,6 +499,79 @@ test("only the ci-context row skips a moved head; the other PR rows keep the mov
   }
   assert.deepEqual(select({ row: row("default"), ...moved }), { proceed: true, skipReason: "", escalationReason: "" });
   assert.deepEqual(select({ row: row("review-threads"), ...moved }), { proceed: true, skipReason: "", escalationReason: "" });
+});
+
+// --- fix-ci's refusals, one test each ---
+
+const ciPush = (fix, api, extra = {}) => pushWith(fix, api, { row: row("ci-context"), ...extra });
+const patchDirOf = (t, text) => {
+  const dir = scratch(t);
+  writeFileSync(join(dir, "patch.diff"), text);
+  return { dir, sum: sha256(text) };
+};
+const selectCi = (dir, sum, extra = {}) =>
+  select({ row: row("ci-context"), patchState: "written", patchSha256: sum, patchHeadSha: "a".repeat(40), headSha: "a".repeat(40), patchDir: dir, ...extra });
+const INVALID = { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-invalid" };
+
+test("a draft set during the run drops the fix uncommitted", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const api = fakeApi(fix.repo, fix.head, { pull: { draft: true, head: { repo: { full_name: "o/r" } } } });
+  assert.deepEqual(await ciPush(fix, api), { outcome: "held" });
+  assert.deepEqual(writes(api), []);
+});
+
+test("a PR branch that moved before the write is not updated", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const api = fakeApi(fix.repo, fix.head, { branch: "e".repeat(40) });
+  await assert.rejects(ciPush(fix, api), /moved/);
+  assert.equal(api.calls.some((call) => call.updateRef), false);
+});
+
+test("a tree GitHub builds differently from the applied one is not committed", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const api = fakeApi(fix.repo, fix.head, { tree: "d".repeat(40) });
+  await assert.rejects(ciPush(fix, api), /tree/);
+  assert.equal(api.calls.some((call) => call.createCommit), false);
+});
+
+test("select: an extra file beside the patch, or a linked patch, is invalid", (t) => {
+  const extra = patchDirOf(t, "diff --git a/x b/x\n");
+  writeFileSync(join(extra.dir, "other"), "x");
+  assert.deepEqual(selectCi(extra.dir, extra.sum), INVALID);
+  const target = patchDirOf(t, "diff --git a/x b/x\n");
+  const linked = scratch(t);
+  symlinkSync(join(target.dir, "patch.diff"), join(linked, "patch.diff"));
+  assert.deepEqual(selectCi(linked, target.sum), INVALID);
+  assert.deepEqual(selectCi(target.dir, target.sum), { proceed: true, skipReason: "", escalationReason: "" });
+});
+
+test("a patch over 1 MiB is invalid in select and in the push", async (t) => {
+  const text = `diff --git a/x b/x\n${"x".repeat(1024 * 1024)}`;
+  const big = patchDirOf(t, text);
+  assert.deepEqual(selectCi(big.dir, big.sum), INVALID);
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await ciPush(fix, api, { patchFile: join(big.dir, "patch.diff"), patchSha256: big.sum }), {
+    outcome: "escalate",
+    escalationReason: "ci-fix-invalid",
+  });
+  assert.deepEqual(api.calls, []);
+});
+
+test("a patch that does not apply to the gated head is not applied", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\necho ok\n"));
+  writeFileSync(join(fix.repo, "scripts/x.sh"), "#!/bin/sh\nchanged=1\n");
+  const moved = commitAll(fix.repo, "moved on");
+  const api = fakeApi(fix.repo, moved);
+  assert.deepEqual(await ciPush(fix, api, { headSha: moved, patchHeadSha: moved }), { outcome: "escalate", escalationReason: "ci-fix-not-applied" });
+  assert.deepEqual(api.calls, []);
+});
+
+test("a patch file whose SHA-256 changed since the select step is invalid at push time", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await ciPush(fix, api, { patchSha256: "0".repeat(64) }), { outcome: "escalate", escalationReason: "ci-fix-invalid" });
+  assert.deepEqual(api.calls, []);
 });
 
 // --- select and main ---

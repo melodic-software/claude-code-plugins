@@ -1295,7 +1295,8 @@ jobs:
       # are readable by anyone who can read the repository; masking covers
       # logs and summaries only. Before any upload or summary, this scans
       # what leaves the job (the reply, the run fields, the patch and every
-      # changed or untracked file's bytes, which cover a binary hunk) and the
+      # changed or untracked file's bytes, listed through a scratch index and
+      # covering a binary hunk) and the
       # execution file, which the launcher never scans, with the publish
       # gate's findSecret. The model could edit the checkout and its .git, so
       # lib/publish-gate.mjs comes from the API at the trusted base SHA, with
@@ -1323,10 +1324,13 @@ jobs:
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
             const { BASE_SHA, HEAD_SHA, EXECUTION_FILE, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
+            // A scratch index, as collect-patch.sh uses: the checkout's own index
+            // is the model's to write (assume-unchanged, skip-worktree).
+            const index = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-index-')), 'index');
             const git = (...args) =>
-              execFileSync('/usr/bin/git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', ...args], {
+              execFileSync('/usr/bin/git', ['-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', '-c', 'core.hooksPath=/dev/null', ...args], {
                 cwd: GITHUB_WORKSPACE,
-                env: { PATH: '/usr/bin:/bin', HOME: process.env.HOME ?? '/tmp', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' },
+                env: { PATH: '/usr/bin:/bin', HOME: process.env.HOME ?? '/tmp', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_INDEX_FILE: index },
                 maxBuffer: 1 << 30,
                 stdio: ['ignore', 'pipe', 'ignore'],
               });
@@ -1351,10 +1355,10 @@ jobs:
               const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
               fs.writeFileSync(path.join(dir, 'publish-gate.mjs'), source);
               const { findSecret } = await import(pathToFileURL(path.join(dir, 'publish-gate.mjs')).href);
-              const names = [
-                ...git('diff', '--name-only', '--no-renames', '-z', HEAD_SHA).toString('latin1').split('\0'),
-                ...git('ls-files', '--others', '--exclude-standard', '-z').toString('latin1').split('\0'),
-              ].filter(Boolean);
+              const paths = ['--', ':(top)', ':(top,exclude).lane'];
+              git('read-tree', HEAD_SHA);
+              git('add', '-A', ...paths);
+              const names = git('diff', '--cached', '--name-only', '--no-renames', '-z', HEAD_SHA, ...paths).toString('latin1').split('\0').filter(Boolean);
               const files = [`${REPLY_DIR}/reply.txt`, `${REPLY_DIR}/act-turns.json`, PATCH_FILE, EXECUTION_FILE, ...names.map((name) => path.join(GITHUB_WORKSPACE, name))];
               for (const file of files) {
                 const bytes = read(file);
@@ -1541,7 +1545,9 @@ jobs:
             }' >"$VERDICT_DIR/verdict.json"
 
       - name: Upload the verdict
-        if: always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
+        if: >-
+          always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
+          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
