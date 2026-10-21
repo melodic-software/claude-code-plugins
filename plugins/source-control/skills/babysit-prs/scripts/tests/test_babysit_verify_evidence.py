@@ -160,16 +160,19 @@ def named(sha: str, verdict: str, number: int = PR) -> str:
     return f"pr-verify-{number}-{sha}-{verdict}"
 
 
-def change(added: str, at: int = 1) -> str:
-    """A unified diff adding line `added` to notes.txt at line `at`, in the
-    form GitHub's compare diff and `git diff` write."""
+def change(
+    added: str, at: int = 1, before: str = "one", path: str = "notes.txt"
+) -> str:
+    """A unified diff adding line `added` to `path` at line `at` after the
+    context line `before`, in the form GitHub's compare diff and `git diff`
+    write."""
     return (
-        "diff --git a/notes.txt b/notes.txt\n"
+        f"diff --git a/{path} b/{path}\n"
         "index 1111111..2222222 100644\n"
-        "--- a/notes.txt\n"
-        "+++ b/notes.txt\n"
+        f"--- a/{path}\n"
+        f"+++ b/{path}\n"
         f"@@ -{at},2 +{at},3 @@\n"
-        " one\n"
+        f" {before}\n"
         f"+{added}\n"
         " two\n"
     )
@@ -663,6 +666,37 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertTrue(evidence.needs_human)
 
+    def test_a_base_merge_that_edits_a_line_beside_the_fix_still_refuses(
+        self,
+    ) -> None:
+        # Main changed the context line next to the fix; the fix is the same.
+        fake = self.earlier_fail()
+        fake.diffs[EARLIER] = change("fix", before="one")
+        fake.diffs[HEAD] = change("fix", at=40, before="one, edited on main")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_whitespace_only_difference_still_refuses(self) -> None:
+        fake = self.earlier_fail()
+        fake.diffs[EARLIER] = change("x = f(a, b)")
+        fake.diffs[HEAD] = change("x  =  f(a,b) ")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_the_same_lines_in_another_file_allow(self) -> None:
+        fake = self.earlier_fail()
+        fake.diffs[EARLIER] = change("fix")
+        fake.diffs[HEAD] = change("fix", path="other.txt")
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_binary_change_allows(self) -> None:
+        fake = self.earlier_fail()
+        fake.diffs[EARLIER] = change("fix")
+        fake.diffs[HEAD] = change("fix") + (
+            "diff --git a/logo.png b/logo.png\n"
+            "index 3333333..4444444 100644\n"
+            "Binary files a/logo.png and b/logo.png differ\n"
+        )
+        self.assertIsNone(read(fake).refusal)
+
     def test_a_head_with_a_real_change_allows(self) -> None:
         fake = self.earlier_fail()
         fake.diffs[EARLIER] = change("fix", at=1)
@@ -691,19 +725,94 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
                         fake.diffs[sha] = ""
                     self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
-    def test_no_patch_id_refuses(self) -> None:
-        for failure in (OSError("no git"), subprocess.TimeoutExpired("git", 1)):
-            with self.subTest(failure=failure):
-                with mock.patch.object(ve.subprocess, "run", side_effect=failure):
-                    self.assertEqual(
-                        read(self.earlier_fail()).refusal, "verify:earlier-fail"
-                    )
-        with mock.patch.object(
-            ve.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 128, "", "fatal"),
-        ):
-            self.assertEqual(read(self.earlier_fail()).refusal, "verify:earlier-fail")
+    def test_a_response_that_is_not_a_diff_refuses(self) -> None:
+        fake = self.earlier_fail()
+        fake.diffs[HEAD] = "<html>rate limited</html>\n"
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+
+def rename(old: str, new: str) -> str:
+    """A pure rename as GitHub's compare diff shows it: no hunk."""
+    return (
+        f"diff --git a/{old} b/{new}\n"
+        "similarity index 100%\n"
+        f"rename from {old}\n"
+        f"rename to {new}\n"
+    )
+
+
+class TheChangeDigestKeysOnChangedLines(unittest.TestCase):
+    """`change_digest` hashes what the pull request changed, not where: the
+    expected equalities come from the review's rules (owner decision
+    2026-10-21): context, line numbers, hunk and file order and whitespace
+    leave it alone; a marker, a line, a path, a rename, a mode or a binary
+    change moves it."""
+
+    def digest(self, diff: str) -> str | None:
+        return ve.change_digest(diff)
+
+    def test_context_lines_and_line_numbers_do_not_count(self) -> None:
+        self.assertEqual(
+            self.digest(change("fix", at=1, before="one")),
+            self.digest(change("fix", at=90, before="edited on main")),
+        )
+
+    def test_hunk_and_file_order_do_not_count(self) -> None:
+        a, b = change("fix", path="a.txt"), change("other", path="b.txt")
+        self.assertEqual(self.digest(a + b), self.digest(b + a))
+        hunks = (
+            "diff --git a/n.txt b/n.txt\n--- a/n.txt\n+++ b/n.txt\n"
+            "@@ -1,1 +1,2 @@\n one\n+first\n"
+            "@@ -9,1 +10,2 @@\n nine\n+second\n"
+        )
+        swapped = (
+            "diff --git a/n.txt b/n.txt\n--- a/n.txt\n+++ b/n.txt\n"
+            "@@ -1,1 +1,2 @@\n one\n+second\n"
+            "@@ -9,1 +10,2 @@\n nine\n+first\n"
+        )
+        self.assertEqual(self.digest(hunks), self.digest(swapped))
+
+    def test_a_removal_swapped_for_an_addition_counts(self) -> None:
+        added = change("line")
+        removed = added.replace("+line", "-line")
+        self.assertNotEqual(self.digest(added), self.digest(removed))
+
+    def test_a_pure_rename_counts_and_names_its_paths(self) -> None:
+        first = self.digest(rename("old.txt", "new.txt"))
+        self.assertIsNotNone(first)
+        self.assertNotEqual(first, self.digest(rename("old.txt", "other.txt")))
+        self.assertNotEqual(first, self.digest(rename("was.txt", "new.txt")))
+
+    def test_a_binary_change_carries_its_path(self) -> None:
+        def binary(path: str) -> str:
+            return (
+                f"diff --git a/{path} b/{path}\n"
+                f"Binary files a/{path} and b/{path} differ\n"
+            )
+
+        self.assertIsNotNone(self.digest(binary("a.png")))
+        self.assertNotEqual(self.digest(binary("a.png")), self.digest(binary("b.png")))
+
+    def test_a_mode_change_counts(self) -> None:
+        def mode(old: str, new: str) -> str:
+            return f"diff --git a/run.sh b/run.sh\nold mode {old}\nnew mode {new}\n"
+
+        self.assertIsNotNone(self.digest(mode("100644", "100755")))
+        self.assertNotEqual(
+            self.digest(mode("100644", "100755")), self.digest(mode("100755", "100644"))
+        )
+        content = change("x", path="run.sh")
+        self.assertNotEqual(
+            self.digest(content),
+            self.digest(
+                content.replace("index", "old mode 100644\nnew mode 100755\nindex")
+            ),
+        )
+
+    def test_no_change_has_no_digest(self) -> None:
+        for diff in ("", "\n", "diff --git a/n.txt b/n.txt\nindex 1..2 100644\n"):
+            with self.subTest(diff=diff):
+                self.assertIsNone(self.digest(diff))
 
 
 SIBLING = 40  # another pull request, closed, that closes issue 7 too

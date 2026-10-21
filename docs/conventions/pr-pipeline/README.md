@@ -1045,10 +1045,14 @@ head:
   `created_at` and moves `run_started_at` later, so a re-run of an earlier pass never clears a
   later `fail`), when the pull request's own change at the head
   differs from its change at every `fail`ed head, and those passes decide as below. A change is
-  the stable patch id (`git patch-id --stable`) of the compare diff from its merge base with the
-  branch, so a head that only merges the branch or adds an empty commit keeps the refusal, as
-  does a diff that cannot be read or yields no patch id. A pass judged before a later `fail` never
-  clears it;
+  a sha256 digest of the changed lines in the compare diff from its merge base with the branch:
+  per file its path, a rename's old and new paths, mode lines, the binary-change line and the `-`
+  and `+` lines with whitespace removed and the marker kept, lines and files sorted. Context lines,
+  line numbers and hunk order do not count, so a head that only merges the branch, even one that
+  edits a line next to the fix, or adds an empty commit keeps the refusal, as does a diff that
+  cannot be read or holds no change. Removing whitespace also keeps the refusal for a change that
+  only re-indents, which can matter in Python: it holds more than it must, never less. A pass
+  judged before a later `fail` never clears it;
 - a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
   untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
   downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run

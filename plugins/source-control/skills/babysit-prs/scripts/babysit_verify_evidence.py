@@ -31,8 +31,8 @@ from a completed, successful one. Any other artifact is ignored.
   creation time read fresh from GitHub, which a re-attempt keeps; a missing
   one keeps the refusal) clear it when the
   pull request's own change at the head differs from its change at every
-  FAILed head (`_patch_id`: a head that only merges the branch or adds an
-  empty commit carries the FAIL forward, and a patch id that cannot be
+  FAILed head (`change_digest`: a head that only merges the branch or adds
+  an empty commit carries the FAIL forward, and a digest that cannot be
   computed keeps the refusal), and those passes decide, as below;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
@@ -76,10 +76,10 @@ whole queue rather than merging blind.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import re
-import subprocess
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -278,6 +278,48 @@ class Evidence:
         }
 
 
+DIFF_HEADER = re.compile(r"diff --git a/(.*) b/(.*)")
+MODE_LINES = ("old mode ", "new mode ", "new file mode ", "deleted file mode ")
+
+
+def change_digest(diff: str) -> str | None:
+    """A sha256 digest of the changed lines a unified diff holds, so context
+    and line numbers (which a base merge moves or edits) leave it alone.
+    Each file contributes its path, the old to new path of a rename, its
+    mode lines, its binary-change line, and its `-` and `+` lines with all
+    whitespace removed and the marker kept. Lines within a file and files by
+    path are sorted, so reordering hunks or files changes nothing. None for
+    a diff with no change, or one that is not a git diff."""
+    files: dict[str, list[str]] = {}
+    lines: list[str] | None = None
+    in_hunk = False
+    for line in diff.split("\n"):
+        header = DIFF_HEADER.fullmatch(line)
+        if header:
+            lines = files.setdefault(header[2], [])
+            in_hunk = False
+        elif lines is None:
+            if line.strip():
+                return None
+        elif line.startswith("@@"):
+            in_hunk = True
+        elif in_hunk:
+            if line[:1] in ("-", "+"):
+                lines.append(line[0] + "".join(line[1:].split()))
+        elif line.startswith("rename from "):
+            lines.append("rename " + line.removeprefix("rename from "))
+        elif line.startswith("rename to "):
+            lines.append("rename to " + line.removeprefix("rename to "))
+        elif line.startswith(MODE_LINES) or (
+            line.startswith("Binary files ") and line.endswith(" differ")
+        ):
+            lines.append(line)
+    changed = sorted((path, sorted(found)) for path, found in files.items() if found)
+    if not changed:
+        return None
+    return hashlib.sha256(json.dumps(changed).encode("utf-8")).hexdigest()
+
+
 def _is_id(value: Any, run_id: int) -> bool:
     """`value` is the integer `run_id`; `True` equals 1 but is no id."""
     return type(value) is int and value == run_id
@@ -315,7 +357,7 @@ class Reader:
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
-    _patch_ids: dict[str, str | None] = field(default_factory=dict)
+    _digests: dict[str, str | None] = field(default_factory=dict)
     # Runs whose standing came from the run cache (`_run_state`).
     _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
@@ -946,14 +988,13 @@ class Reader:
             return False
         return max(s for s in starts if s) < min(b for b in begun if b)
 
-    def _patch_id(self, sha: str) -> str | None:
-        """The stable patch id of the pull request's own change at `sha`: the
+    def _digest(self, sha: str) -> str | None:
+        """`change_digest` of the pull request's own change at `sha`: the
         diff from its merge base with the branch to `sha` (compare
-        `branch...sha`, read once) through `git patch-id --stable`, so a
-        merge of the branch that changes nothing of its own keeps the id.
-        None when the diff cannot be read, is empty, or yields no id."""
-        if sha not in self._patch_ids:
-            self._patch_ids[sha] = None
+        `branch...sha`, read once). None when it cannot be read or holds no
+        change."""
+        if sha not in self._digests:
+            self._digests[sha] = None
             try:
                 diff = postmerge.gh_capture(
                     [
@@ -964,31 +1005,19 @@ class Reader:
                     ],
                     env_overrides=self._env(),
                 )
-                if diff.returncode != 0 or not diff.stdout.strip():
-                    return None
-                proc = subprocess.run(
-                    ["git", "patch-id", "--stable"],
-                    input=diff.stdout,
-                    capture_output=True,
-                    text=True,
-                    timeout=gh_timeout_seconds(),
-                    check=False,
-                )
-            except (RuntimeError, ValueError, OSError, subprocess.SubprocessError):
+            except (RuntimeError, ValueError, OSError):
                 return None
-            ids = proc.stdout.split()
-            if proc.returncode == 0 and len(ids) == 2:
-                self._patch_ids[sha] = ids[0]
-        return self._patch_ids[sha]
+            if diff.returncode == 0:
+                self._digests[sha] = change_digest(diff.stdout)
+        return self._digests[sha]
 
     def _change_differs(self, head: str, failed: set[str]) -> bool:
         """The pull request's change at the head differs from its change at
-        every FAILed head, so its pass judged a change no FAIL did. A patch
-        id that cannot be computed differs from nothing."""
-        own = self._patch_id(head)
+        every FAILed head, so its pass judged a change no FAIL did. A digest
+        that cannot be computed differs from nothing."""
+        own = self._digest(head)
         return own is not None and all(
-            (other := self._patch_id(sha)) is not None and other != own
-            for sha in failed
+            (other := self._digest(sha)) is not None and other != own for sha in failed
         )
 
     def fail_summary(
