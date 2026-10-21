@@ -1171,14 +1171,15 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   `baseline_hosts` counts the fleet hosts on which the SystemDefaults baseline has been confirmed
   (the value is set in the check script).
 - **Evidence:**
-  - Built-in rules: two fleet hosts hold the same SystemDefaults rule names, and neither host's
-    candidate names intersect the other host's SystemDefaults names (Phase 7 A8 captures,
-    `feat-machine-health-intruder-inventories-a8-hostA.json` and its second-host counterpart,
-    2026-10-21). Recheck when a host's run lists a built-in Windows rule as a candidate or its
-    SystemDefaults names differ from another host's.
-  - Missing programs: on the Phase 7 host run every `not-found` program also failed `Get-Item`
-    with item-not-found, not access-denied (PLAN.md assumption A9, 2026-10-21). Recheck when a
-    host run shows `not-found` for a program that exists.
+  - Built-in rules: a rule whose `Name` is in SystemDefaults is treated as built in. Two fleet
+    hosts checked on 2026-10-21 hold identical SystemDefaults rule names, and neither host's
+    candidate names intersect the other host's SystemDefaults names. As of 2026-10-21. Recheck
+    when a host's run lists a built-in Windows rule as a candidate or its SystemDefaults names
+    differ from another host's.
+  - Missing programs: `not-found` is trusted only when `Test-Path` wrote no error record. On a
+    fleet host checked on 2026-10-21, every `not-found` program also failed `Get-Item` with
+    item-not-found, not access-denied. As of 2026-10-21. Recheck when a host run shows
+    `not-found` for a program that exists.
 - **Pointers:**
   [Get-NetFirewallRule, -PolicyStore](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule#-policystore),
   [Get-NetFirewallPortFilter, -All](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallportfilter#-all).
