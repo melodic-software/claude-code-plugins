@@ -651,6 +651,47 @@ test("main refuses a human-gated label that is agent-ready and writes no label",
   }
 });
 
+// A run its issue dimensions skipped took no model turn, so it left no
+// outcome: report-outcome hands the issue to a person with the next step.
+for (const [reason, step] of [
+  ["split-required", "/work-items:decompose"],
+  ["research-first", "research"],
+  ["probe-first", "probe"],
+  ["not-assessed", "Size, Complexity and Uncertainty"],
+]) {
+  test(`main on a ${reason} dimension skip hands the issue back naming the next step`, async () => {
+    await withDir({}, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: reason }, fetch }), 0);
+      assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
+      assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.match(comment, new RegExp(`^<!-- work-resolve-issue outcome=${reason} run=123 -->`));
+      assert.equal(parseOutcomeMarker(comment).outcome, reason);
+      assert.ok(comment.includes(step), comment);
+      assert.ok(comment.includes("https://example/o/r/actions/runs/123"), comment);
+      assert.ok(!calls.some((c) => c.path.endsWith("/pulls") || c.path.includes("/compare/")));
+    });
+  });
+}
+
+test("main refuses a dimension skip it does not know and writes nothing", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "awaiting-human" }, fetch }), 1);
+    assert.ok(!calls.some((c) => c.method !== "GET"));
+  });
+});
+
 test("main on done opens a ready PR from the branch and adds no label to it", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
