@@ -158,17 +158,50 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 - **Script:** `scripts/windows/checks/Test-Defender.ps1`
 - **Category:** `security`
 - **Needs admin:** no for `Get-MpComputerStatus` (most fields); some fields blanked non-elevated.
+  The Defender Operational event log is readable unelevated.
 - **Commands:**
 
   ```powershell
   Get-MpComputerStatus
-  Get-MpThreatDetection
+  Get-WinEvent -FilterHashtable @{ LogName = 'Microsoft-Windows-Windows Defender/Operational'; Id = 1116, 1117, 5007 }
   ```
 
+  The event read lives in `scripts/windows/lib/Get-DefenderEventHistory.ps1`.
+
 - **Severity rubric:**
-  - `CRIT`: `RealTimeProtectionEnabled -eq $false` OR `IsTamperProtected -eq $false` OR any active threat detected in last 30 days OR `AntivirusSignatureAge` >7 days.
-  - `WARN`: `AntivirusSignatureAge` in (3, 7] days.
-  - `OK`: signatures ≤3 days old, RTP on, tamper protection on, no recent threats.
+  - `CRIT`: `RealTimeProtectionEnabled -eq $false` (Normal mode) OR `AMServiceEnabled -eq $false` OR
+    `AntivirusSignatureAge` >7 days OR an unmuted detection inside the recent window (`$recentDays`
+    in the script) with no remediating action recorded.
+  - `WARN`: `AntivirusSignatureAge` in (3, 7] days OR `IsTamperProtected -eq $false` OR an unmuted
+    detection inside the recent window whose recorded action remediated it.
+  - `INFO`: passive mode, an unmuted detection older than the window, or an unmuted exclusion
+    change from event 5007.
+  - `UNKNOWN`: the event history could not be read (`events_read_state` other than `ok` or
+    `absent`) and nothing else raised the level.
+  - `OK`: signatures ≤3 days old, RTP on, tamper protection on, no unmuted items.
+
+- **Detections and exclusion history:** detection history comes from events 1116 (detected) and
+  1117 (action taken), not Defender's threat-detection cmdlets, which forget detections after the
+  scan-history purge delay. Each detection item is one threat id and resource at its latest 1116;
+  a 1117 for the same threat id and resource, no older than that 1116, pairs with it.
+  `action_succeeded` is true when that 1117's action id is one of the remediating actions (Clean,
+  Quarantine, Remove, Block), false for any other action, and null with no paired 1117. Event 5007
+  exclusion adds and removes become `exclusion` items labeled as history within log retention since
+  `log_oldest_record`; an exclusion set before the oldest retained record is invisible here. A
+  query that finds no matching event is `absent` (zero), never an error. Exclusion values are shown
+  to the local user only: they stay in `latest.json` and out of the summary, notes and markdown
+  report, which carry counts (`exclusion_change_count`). An `exclusion` mute uses the same key as
+  `defender-exclusions`, so one mute covers both.
+  - Pointers: action ids, the
+    [Set-MpPreference threat action table](https://learn.microsoft.com/en-us/powershell/module/defender/set-mppreference#-highthreatdefaultaction);
+    event ids and fields, the
+    [Defender Antivirus event reference](https://learn.microsoft.com/en-us/defender-endpoint/troubleshoot-microsoft-defender-antivirus#event-id-1116)
+    (and its Event ID 1117 and 5007 sections);
+    the purge delay, the
+    [`-ScanPurgeItemsAfterDelay` parameter](https://learn.microsoft.com/en-us/powershell/module/defender/set-mppreference#-scanpurgeitemsafterdelay).
+  - As of: 2026-10-21.
+  - Recheck trigger: a Defender platform release that renames these EventData fields, adds a
+    remediating action, or makes the threat-detection cmdlets keep history past the purge.
 
 - **Notes:** When a third-party AV is the active protection, Defender reports `AMRunningMode` as `Passive Mode` or `SxS Passive Mode`. Record that in `detail` and apply the passive re-bucketing: passive mode itself is `INFO`; a signature age over 3 days drops to `INFO` (the other product owns detection); real-time protection being off is not a finding at all. Tamper protection and any recorded detection keep their normal severity. Do not report CRIT for a system intentionally running, say, CrowdStrike. This is a check-local rule, independent of the ±1 trend adjustment in `reference/shared/severity-rubric.md`.
 
@@ -360,24 +393,41 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 
 - **Script:** `scripts/windows/checks/Test-DefenderExclusions.ps1`
 - **Category:** `security`
-- **Needs admin:** yes. Non-elevated, `Get-MpPreference` returns a literal `N/A: Must be
-  administrator...` string in the exclusion fields, so the check gates on elevation first.
+- **Needs admin:** yes. Defender masks the exclusion lists from a standard user, answering with a
+  placeholder instead of the entries, so an unelevated reading is `list_state = masked`: unknown,
+  never "no exclusions". The masked decision lives in
+  `scripts/windows/lib/Get-DefenderExclusionState.ps1`.
+  - Pointer: the
+    [Defender CSP `HideExclusionsFromLocalUsers` setting](https://learn.microsoft.com/en-us/windows/client-management/mdm/defender-csp#configurationhideexclusionsfromlocalusers).
+  - As of: 2026-10-21.
+  - Recheck trigger: a Defender release that changes who may read exclusions or how a masked read
+    answers.
 - **Commands:**
 
   ```powershell
-  Get-MpPreference | Select-Object ExclusionPath, ExclusionExtension, ExclusionProcess
+  Get-CimInstance -Namespace root/Microsoft/Windows/Defender -ClassName MSFT_MpPreference |
+      Select-Object ExclusionPath, ExclusionExtension, ExclusionProcess
   ```
 
+  The native CIM class is read directly; the Defender module would load through Windows PowerShell
+  compatibility.
+
 - **Severity rubric:**
-  - `WARN`: at least one path exclusion matches none of the known-safe patterns.
-  - `INFO`: exclusions exist and every path exclusion matches a known-safe pattern. Extension and
-    process exclusions never raise the level above `INFO`.
-  - `OK`: no path, extension or process exclusions.
-  - `UNKNOWN`: not elevated (`needs_admin`), or `Get-MpPreference` fails, as with a third-party
-    antivirus. `ran_successfully` is false and the admin-gated fields (`exclusion_path_count`,
-    `exclusion_extension_count`, `exclusion_process_count`, `unexpected_path_count`) are
-    withheld.
+  - `WARN`: at least one unmuted path exclusion matches none of the known-safe patterns.
+  - `INFO`: unmuted exclusions exist and every unmuted path exclusion matches a known-safe pattern.
+    Extension and process exclusions never raise the level above `INFO`.
+  - `OK`: no unmuted path, extension or process exclusions.
+  - `UNKNOWN`: `list_state` is `masked` (`needs_admin`), or the read fails (`denied` or `error`),
+    as with a third-party antivirus. `ran_successfully` is false, no items are listed, and the
+    admin-gated fields (`exclusion_path_count`, `exclusion_extension_count`,
+    `exclusion_process_count`, `unexpected_path_count`) are withheld.
   - Never `CRIT`.
+
+- **Items:** when `list_state` is `ok`, each exclusion is an `exclusion` item with
+  `exclusion_type` (`path`, `extension` or `process`), `value` and `expected` (matches a
+  known-safe pattern). A muted item counts as expected: it stays listed and leaves
+  `unexpected_path_count`. The item key matches the one `defender` gives the same value from its
+  5007 history, so one mute covers both checks.
 
 - **Known-safe path patterns:** matched with PowerShell `-like`: `*\NuGetScratch*`,
   `*\node_modules*`, `*\.dotnet*`, `*\dotnet-install*`, `*\.cache*`,

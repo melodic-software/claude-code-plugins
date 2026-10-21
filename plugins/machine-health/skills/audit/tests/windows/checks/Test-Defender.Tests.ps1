@@ -25,24 +25,66 @@ Pins these rubric fixes:
 4. Null-comparison ordering (PSSA rule PSPossibleIncorrectComparisonWithNull).
    Previous code used `$x -ne $null`; new code uses `$null -ne $x`.
 
-5. Get-MpThreatDetection failures are noted, not silently swallowed. The
-   threat-history query can fail on machines with cleared event logs; the
-   current state should be visible.
+5. Detection history comes from the Defender event log (Get-DefenderEventHistory),
+   because Get-MpThreatDetection forgets detections after the scan-history
+   purge. A failed history read is noted and can never leave the check OK.
+
+6. Detection severity: a detection in the recent window with no successful
+   remediation is CRIT, one whose remediation succeeded is WARN, an older one
+   is INFO. A muted item never raises the check's severity.
+
+7. Exclusion changes (event 5007) are listed as items, but their values stay
+   out of the summary and notes.
 #>
 
 BeforeAll {
-    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-Defender' -AsObject 'Invoke-DefenderAsObject' -MockHelpers
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-Defender' -AsObject 'Invoke-DefenderAsObject' `
+        -LibScript 'Get-DefenderEventHistory.ps1', 'New-FindingItem.ps1' -MockHelpers
 
     if (-not (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue)) {
         throw ('Get-MpComputerStatus is not available on this host. ' +
             'Defender module required for Test-Defender.Tests.ps1.')
+    }
+
+    function New-EventHistory {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Test fixture constructor: builds an object, changes no system state.')]
+        param(
+            [string] $ReadState = 'absent',
+            [object[]] $Detections = @(),
+            [object[]] $ExclusionChanges = @()
+        )
+        [pscustomobject]@{
+            ReadState        = $ReadState
+            LogOldestRecord  = (Get-Date).AddDays(-90)
+            Detections       = $Detections
+            ExclusionChanges = $ExclusionChanges
+        }
+    }
+
+    function New-Detection {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Test fixture constructor: builds an object, changes no system state.')]
+        param([int] $DaysAgo, [AllowNull()] $ActionSucceeded, [string] $Resource = 'file:_<drive>:\Profile\sample.exe')
+        [pscustomobject]@{
+            ThreatId        = '2147000001'
+            ThreatName      = 'Placeholder:Win32/Sample'
+            Resource        = $Resource
+            DetectedAt      = (Get-Date).AddDays(-$DaysAgo)
+            ActionSucceeded = $ActionSucceeded
+        }
+    }
+
+    function Invoke-DefenderWithMuteList {
+        param([string[]] $MutedKeys)
+        ConvertFrom-CheckOutput (& $script:ScriptPath -MutedKeys $MutedKeys)
     }
 }
 
 Describe 'Test-Defender -- healthy baseline' -Tag 'check' {
     BeforeAll {
         Mock Get-MpComputerStatus { New-MockDefenderComputerStatus }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
     }
 
     It 'emits a schema-valid CheckResult' {
@@ -68,7 +110,7 @@ Describe 'Test-Defender -- healthy baseline' -Tag 'check' {
 Describe 'Test-Defender -- signature age' -Tag 'check' {
     It 'WARNs when signature age is between 4 and 7 days' {
         Mock Get-MpComputerStatus { New-MockDefenderComputerStatus -AntivirusSignatureAge 5 }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
         $result.severity | Should -Be 'WARN'
@@ -76,7 +118,7 @@ Describe 'Test-Defender -- signature age' -Tag 'check' {
 
     It 'CRITs when signature age exceeds 7 days' {
         Mock Get-MpComputerStatus { New-MockDefenderComputerStatus -AntivirusSignatureAge 10 }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
         $result.severity | Should -Be 'CRIT'
@@ -89,7 +131,7 @@ Describe 'Test-Defender -- signature age' -Tag 'check' {
                 -AMRunningMode 'Passive Mode' `
                 -RealTimeProtectionEnabled $false
         }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
         # Third-party AV handles detection; Defender signatures going stale is expected.
@@ -105,7 +147,7 @@ Describe 'Test-Defender -- signature age' -Tag 'check' {
                 -AMRunningMode 'Passive Mode' `
                 -RealTimeProtectionEnabled $false
         }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
         $result.severity | Should -Be 'INFO'
@@ -117,7 +159,7 @@ Describe 'Test-Defender -- real-time protection' -Tag 'check' {
         Mock Get-MpComputerStatus {
             New-MockDefenderComputerStatus -RealTimeProtectionEnabled $false -AMRunningMode 'Normal'
         }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
         $result.severity | Should -Be 'CRIT'
@@ -127,7 +169,7 @@ Describe 'Test-Defender -- real-time protection' -Tag 'check' {
         Mock Get-MpComputerStatus {
             New-MockDefenderComputerStatus -RealTimeProtectionEnabled $false -AMRunningMode 'Passive Mode'
         }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
         # RTP=off in passive mode is normal -- third-party AV is the active protection.
@@ -139,7 +181,7 @@ Describe 'Test-Defender -- real-time protection' -Tag 'check' {
         Mock Get-MpComputerStatus {
             New-MockDefenderComputerStatus -RealTimeProtectionEnabled $false -AMRunningMode 'SxS Passive Mode'
         }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
         $result.severity | Should -Be 'INFO'
@@ -151,7 +193,7 @@ Describe 'Test-Defender -- tamper protection' -Tag 'check' {
         Mock Get-MpComputerStatus {
             New-MockDefenderComputerStatus -IsTamperProtected $false
         }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
         $result.severity | Should -Be 'WARN'
@@ -164,7 +206,7 @@ Describe 'Test-Defender -- tamper protection' -Tag 'check' {
                 -IsTamperProtected $false `
                 -AMRunningMode 'Passive Mode'
         }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
         # Passive mode with RTP off must not collapse severity to INFO and mask a concurrent
@@ -178,7 +220,7 @@ Describe 'Test-Defender -- AM service disabled' -Tag 'check' {
         Mock Get-MpComputerStatus {
             New-MockDefenderComputerStatus -AMServiceEnabled $false
         }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
         # AM service off means Defender is not loaded -- different from passive
@@ -187,65 +229,150 @@ Describe 'Test-Defender -- AM service disabled' -Tag 'check' {
     }
 }
 
-Describe 'Test-Defender -- threat detections' -Tag 'check' {
-    It 'CRITs when Get-MpThreatDetection returns recent threats' {
-        $recent = [pscustomobject]@{
-            InitialDetectionTime = (Get-Date).AddDays(-1)
-            ThreatName           = 'Mock.Threat'
-        }
+Describe 'Test-Defender -- detections from events' -Tag 'check' {
+    BeforeEach {
         Mock Get-MpComputerStatus { New-MockDefenderComputerStatus }
-        Mock Get-MpThreatDetection { @($recent) }
-
-        $result = Invoke-DefenderAsObject
-        $result.severity | Should -Be 'CRIT'
-        $result.detail.recent_threat_count | Should -Be 1
     }
 
-    It 'CRITs on recent threats even when Defender is in passive mode' {
-        $recent = [pscustomobject]@{
-            InitialDetectionTime = (Get-Date).AddDays(-1)
-            ThreatName           = 'Mock.Threat'
+    It 'CRITs on a recent detection with no remediation recorded' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'ok' -Detections @(New-Detection -DaysAgo 1 -ActionSucceeded $null) }
+
+        $result = Invoke-DefenderAsObject
+        { Assert-CheckResult $result } | Should -Not -Throw
+        $result.severity | Should -Be 'CRIT'
+        $result.detail.recent_threat_count | Should -Be 1
+        $item = @($result.detail.items)[0]
+        $item.severity | Should -Be 'CRIT'
+        $item.key | Should -Be (Get-FindingKey -Kind 'detection' -Identity '2147000001', 'file:_<drive>:\Profile\sample.exe')
+        $item.threat_name | Should -Be 'Placeholder:Win32/Sample'
+        $item.action_succeeded | Should -BeNullOrEmpty
+    }
+
+    It 'CRITs on a recent detection whose recorded action did not remediate' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'ok' -Detections @(New-Detection -DaysAgo 1 -ActionSucceeded $false) }
+
+        (Invoke-DefenderAsObject).severity | Should -Be 'CRIT'
+    }
+
+    It 'WARNs when every recent detection was remediated' {
+        Mock Get-DefenderEventHistory {
+            New-EventHistory -ReadState 'ok' -Detections @(
+                New-Detection -DaysAgo 1 -ActionSucceeded $true
+                New-Detection -DaysAgo 2 -ActionSucceeded $true -Resource 'file:_<drive>:\Profile\other.exe'
+            )
         }
+
+        $result = Invoke-DefenderAsObject
+        $result.severity | Should -Be 'WARN'
+        $result.detail.recent_threat_count | Should -Be 2
+    }
+
+    It 'lists a detection older than 30 days as INFO history' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'ok' -Detections @(New-Detection -DaysAgo 31 -ActionSucceeded $null) }
+
+        $result = Invoke-DefenderAsObject
+        $result.severity | Should -Be 'INFO'
+        $result.detail.recent_threat_count | Should -Be 0
+        @($result.detail.items)[0].severity | Should -Be 'INFO'
+    }
+
+    It 'CRITs on recent unremediated detections even when Defender is in passive mode' {
         Mock Get-MpComputerStatus {
             New-MockDefenderComputerStatus -AMRunningMode 'Passive Mode' -RealTimeProtectionEnabled $false
         }
-        Mock Get-MpThreatDetection { @($recent) }
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'ok' -Detections @(New-Detection -DaysAgo 1 -ActionSucceeded $null) }
 
-        $result = Invoke-DefenderAsObject
-        # Even when Defender isn't the active AV, if it logged detections
-        # those are real events the user should see.
-        $result.severity | Should -Be 'CRIT'
+        (Invoke-DefenderAsObject).severity | Should -Be 'CRIT'
     }
 
-    It 'ignores threats older than the 30-day cutoff' {
-        $old = [pscustomobject]@{
-            InitialDetectionTime = (Get-Date).AddDays(-40)
-            ThreatName           = 'Old.Threat'
-        }
-        Mock Get-MpComputerStatus { New-MockDefenderComputerStatus }
-        Mock Get-MpThreatDetection { @($old) }
+    It 'keeps a muted detection listed without raising severity' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'ok' -Detections @(New-Detection -DaysAgo 1 -ActionSucceeded $null) }
+        $key = Get-FindingKey -Kind 'detection' -Identity '2147000001', 'file:_<drive>:\Profile\sample.exe'
 
-        $result = Invoke-DefenderAsObject
-        $result.detail.recent_threat_count | Should -Be 0
+        $result = Invoke-DefenderWithMuteList -MutedKeys @($key)
         $result.severity | Should -Be 'OK'
+        $result.detail.items_count | Should -Be 1
+        $result.detail.muted_count | Should -Be 1
+        @($result.detail.items)[0].muted | Should -BeTrue
     }
 
-    It 'records a note when Get-MpThreatDetection fails' {
-        Mock Get-MpComputerStatus { New-MockDefenderComputerStatus }
-        Mock Get-MpThreatDetection { throw 'WMI query failed' }
+    It 'reports OK with zero counts when the log holds no matching events' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'absent' }
 
         $result = Invoke-DefenderAsObject
-        # The Defender-status check should still succeed overall -- threat
-        # history is supplementary. But the failure must be visible.
-        $result.notes | Should -Match 'threat history'
+        $result.severity | Should -Be 'OK'
+        $result.detail.events_read_state | Should -Be 'absent'
         $result.detail.recent_threat_count | Should -Be 0
+        $result.detail.items_count | Should -Be 0
+        $result.detail.muted_count | Should -Be 0
+        $result.detail.exclusion_change_count | Should -Be 0
+        $result.detail.log_oldest_record | Should -Not -BeNullOrEmpty
+    }
+
+    It 'never reports OK when the event history could not be read, and says so' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'error' }
+
+        $result = Invoke-DefenderAsObject
+        $result.severity | Should -Be 'UNKNOWN'
+        $result.notes | Should -Match 'threat history'
+        $result.detail.events_read_state | Should -Be 'error'
+        $result.detail.threat_query_error | Should -Not -BeNullOrEmpty
+    }
+
+    It 'keeps a system CRIT when the event history could not be read' {
+        Mock Get-MpComputerStatus { New-MockDefenderComputerStatus -RealTimeProtectionEnabled $false }
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'denied' }
+
+        (Invoke-DefenderAsObject).severity | Should -Be 'CRIT'
+    }
+}
+
+Describe 'Test-Defender -- exclusion change history (5007)' -Tag 'check' {
+    BeforeAll {
+        $script:Sentinel = '<drive>:\Sentinel-5007-value'
+    }
+
+    BeforeEach {
+        Mock Get-MpComputerStatus { New-MockDefenderComputerStatus }
+        # Mock bodies do not reliably see $script: variables, so the sentinel is repeated here.
+        Mock Get-DefenderEventHistory {
+            New-EventHistory -ReadState 'ok' -ExclusionChanges @(
+                [pscustomobject]@{ Type = 'path'; Value = '<drive>:\Sentinel-5007-value'; Change = 'added'; ChangedAt = (Get-Date).AddDays(-3) }
+            )
+        }
+    }
+
+    It 'lists the change as an INFO exclusion item labeled as history within retention' {
+        $result = Invoke-DefenderAsObject
+        { Assert-CheckResult $result } | Should -Not -Throw
+        $result.severity | Should -Be 'INFO'
+        $result.detail.exclusion_change_count | Should -Be 1
+        $item = @($result.detail.items)[0]
+        $item.key | Should -Be (Get-FindingKey -Kind 'exclusion' -Identity 'path', $script:Sentinel)
+        $item.severity | Should -Be 'INFO'
+        $item.exclusion_type | Should -Be 'path'
+        $item.change | Should -Be 'added'
+        $item.value | Should -Be $script:Sentinel
+        $item.label | Should -Match 'history within log retention since'
+    }
+
+    It 'keeps the exclusion value out of the summary and notes' {
+        $result = Invoke-DefenderAsObject
+        $result.summary | Should -Not -Match ([regex]::Escape($script:Sentinel))
+        "$($result.notes)" | Should -Not -Match ([regex]::Escape($script:Sentinel))
+    }
+
+    It 'does not raise severity for a muted exclusion change' {
+        $result = Invoke-DefenderWithMuteList -MutedKeys @(Get-FindingKey -Kind 'exclusion' -Identity 'path', $script:Sentinel)
+        $result.severity | Should -Be 'OK'
+        $result.detail.muted_count | Should -Be 1
     }
 }
 
 Describe 'Test-Defender -- failure modes' -Tag 'check' {
     It 'emits UNKNOWN when Get-MpComputerStatus throws' {
         Mock Get-MpComputerStatus { throw 'Access denied' }
-        Mock Get-MpThreatDetection { @() }
+        Mock Get-DefenderEventHistory { New-EventHistory }
 
         $result = Invoke-DefenderAsObject
         { Assert-CheckResult $result } | Should -Not -Throw
