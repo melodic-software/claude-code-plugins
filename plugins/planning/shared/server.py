@@ -778,6 +778,12 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.upload_chunk()
         if path not in ROUTES and path != CLIENT_LOG:
             return self.fail(DomainError(404, "not-found", "Nothing here."))
+        if path != CLIENT_LOG:  # who sends it is settled from headers before any of the body is read
+            auth, method = ROUTES[path]
+            try:
+                pid = self.authorize(auth)
+            except DomainError as exc:
+                return self.fail(exc)
         if not self.headers.get("Content-Type", "").lower().startswith("application/json"):
             return self.fail(DomainError(415, "json-required", "Send JSON with Content-Type: application/json."))
         cap = BODY_CAPS.get(path, session.BODY_MAX)
@@ -804,10 +810,8 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(400, "bad-json", "The body must be a JSON object."))
         if path == CLIENT_LOG:
             return self.client_log(body)
-        auth, method = ROUTES[path]
         app = self.app
         try:
-            pid = self.authorize(auth)
             fn = getattr(app.session, method)
             out = fn(pid, body, address=self.address()) if method == "join" else fn(pid, body)
         except DomainError as exc:

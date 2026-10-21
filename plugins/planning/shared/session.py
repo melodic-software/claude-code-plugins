@@ -3999,7 +3999,7 @@ class Session:
 
     @staticmethod
     def _discard(path):
-        """Delete one file of ours; a failure (Windows holds open files) leaves it for the next start's sweep."""
+        """Delete one file of ours; a failure (Windows holds open files) leaves it on disk, unreferenced and never served."""
         with contextlib.suppress(OSError):
             Path(path).unlink(missing_ok=True)
 

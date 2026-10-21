@@ -419,9 +419,10 @@ class TestRawRequests(ServerCase):
         self.assertLess(took, 4.0)
 
     def test_a_problem_report_has_its_own_longer_deadline_for_its_pictures(self):
+        _, ann = self.join("Ann")  # only a joined person's report waits for its body
         with mock.patch.object(session, "BODY_SECONDS", 30.0), mock.patch.object(session, "REPORT_SECONDS", 1.0):
             t0 = time.monotonic()
-            got, closed = self.request("POST /api/report HTTP/1.1", "Content-Type: application/json", "Content-Length: 100", body=b'{"text"')
+            got, closed = self.request("POST /api/report HTTP/1.1", "Content-Type: application/json", "Content-Length: 100", *(f"{k}: {v}" for k, v in ann.items()), body=b'{"text"')
             took = time.monotonic() - t0
         self.assertEqual(status_and_headers(got)[0], 408)
         self.assertTrue(closed)
@@ -1762,6 +1763,11 @@ class TestReports(ServerCase):
                 code, _, out = call(self.port, "POST", route, raw=b"{}", headers={"Content-Type": "application/json", "Content-Length": str(cap + 1), **self.ann})
                 self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", cap))
 
+    def test_a_stranger_is_refused_a_report_before_its_body_is_read(self):
+        """No secret, no wait: the 401 comes from the headers, while the claimed 2.8 MB body never arrives."""
+        code, _, out = call(self.port, "POST", "/api/report", raw=b"{}", headers={"Content-Type": "application/json", "Content-Length": str(session.REPORT_SEND_MAX)})
+        self.assertEqual((code, out["error"]), (401, "unknown-session"))
+
     def test_four_512_kb_screenshots_go_in_one_report_and_the_owner_reads_each_back(self):
         """The owner's ask (2026-10-21): up to four pictures in the first send, each within the 512 KB cap."""
         shots = [b"\xff\xd8\xff" + bytes([n]) * (512 * 1024 - 3) for n in range(4)]
@@ -2019,7 +2025,7 @@ class TestUploads(ServerCase):
                 got, _ = raw_exchange(self.port, f"POST /api/upload/chunk HTTP/1.1\r\n{head}\r\n".encode(), wait=3.0)
                 self.assertEqual(status_and_headers(got)[0], want)
                 self.assertLess(time.monotonic() - t0, 2.5)  # answered without waiting for a body that never comes
-        code, _, out = self.post("/api/upload/offer", {"file": "a.pdf", "size": 1, "type": "", "pad": "x" * session.OFFER_MAX})
+        code, _, out = self.post("/api/upload/offer", {"file": "a.pdf", "size": 1, "type": "", "pad": "x" * session.OFFER_MAX}, self.ann)
         self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", 96 * 1024))
 
     def test_one_piece_per_person_is_read_at_a_time(self):
