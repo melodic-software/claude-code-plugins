@@ -1852,11 +1852,16 @@ assert_contains "fail closed: an activity event with an empty operation is UNREA
   "UNREADABLE Azure activity, last 24h: could not parse the activity response"
 
 # az truly absent from PATH: every Azure line is UNREADABLE and names the fix,
-# with or without --subscription.
-NO_AZ_PATH=""
+# with or without --subscription. az can share a directory with bash and jq
+# (/usr/bin on a CI runner), so the PATH is one directory linking every
+# executable on PATH except az, the first of each name winning as PATH would.
+NO_AZ_PATH="$TMP/no-az-bin"
+mkdir -p "$NO_AZ_PATH"
 IFS=: read -ra _path_dirs <<<"$PATH"
 for _d in "${_path_dirs[@]}"; do
-  [[ -x "$_d/az" ]] || NO_AZ_PATH+="${NO_AZ_PATH:+:}$_d"
+  for _f in "$_d"/*; do
+    [[ "${_f##*/}" != az && -x "$_f" && ! -e "$NO_AZ_PATH/${_f##*/}" ]] && ln -s "$_f" "$NO_AZ_PATH/${_f##*/}"
+  done
 done
 if PATH="$NO_AZ_PATH" command -v az >/dev/null 2>&1; then
   fail "no az: a PATH without az could be built" "az absent" "$(PATH="$NO_AZ_PATH" command -v az)"
@@ -2116,6 +2121,11 @@ EOF
     "morning_brief.required_budgets has an invalid value"
   assert_contains "settings: --config-home names the home" "$(section "$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$CFG/docs/conventions" 2>&1)" "== Cost")" \
     "settings: org=team-org (harness-ops.yaml)"
+  # Run by bare filename from its own directory, the parser is still found.
+  OUT_BARE="$(cd "${BRIEF%/*}" && bash "${BRIEF##*/}" "${CFG_BRIEF[@]}" --config-home "$CFG/docs/conventions" 2>&1)"
+  assert_contains "settings: a bare-filename run reads the team file" "$(section "$OUT_BARE" "== Cost")" \
+    "settings: org=team-org (harness-ops.yaml)"
+  assert_not_contains "settings: a bare-filename run parses the team file" "$OUT_BARE" "could not be parsed"
   assert_contains "settings: outside a checkout no file is read" "$(section "$(bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)" "== Cost")" \
     "settings: defaults (no harness-ops.yaml read)"
   # A settings file never turns a fixture run live: no gh or az call is made.

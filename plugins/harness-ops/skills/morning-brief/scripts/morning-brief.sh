@@ -546,6 +546,10 @@ have jq || {
 # The convention home is --config-home, else docs/conventions in the checkout's
 # git root; a root that is $HOME, or no git root, has no home.
 CONFIG_SOURCES=()
+# Run by bare filename (`bash morning-brief.sh`), the strip is a no-op: the
+# script's directory is then the current one.
+SCRIPT_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$SCRIPT_DIR" == "${BASH_SOURCE[0]}" ]] && SCRIPT_DIR=.
 config_home() {
   local root
   if [[ -n "$CONFIG_HOME_ARG" ]]; then
@@ -566,7 +570,7 @@ config_layer() {
     printf 'morning-brief: %s is a symlink; that layer is skipped\n' "$file" >&2
     return 0
   fi
-  if ! out="$(awk -f "${BASH_SOURCE[0]%/*}/lib/yaml-subset.awk" "$file" 2>/dev/null)"; then
+  if ! out="$(awk -f "$SCRIPT_DIR/lib/yaml-subset.awk" "$file" 2>/dev/null)"; then
     # The message can quote a key from the file: control characters in it are escaped.
     msg="$(cut -f2- <<<"$out" | tr '\t' ' ')"
     [[ "$msg" == *[[:cntrl:]]* ]] && printf -v msg '%q' "$msg"
