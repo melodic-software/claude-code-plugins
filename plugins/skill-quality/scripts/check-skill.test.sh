@@ -5040,8 +5040,8 @@ scope_case "skips a repo's test from a cwd in no repo (single mode)" "$SCOPE_TMP
 scope_case "skips a repo's test from a cwd in no repo (root mode)" "$SCOPE_TMP/plaincwd" \
   "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" root skip
 # A plugin copy git never tracked, under a directory that is itself a work
-# tree (a home-directory repo), shares the invoker's toplevel but is no part of
-# its repository: skipped. A tracked test beside an untracked one still runs.
+# tree (a home-directory repo), shares the invoker's toplevel, but its skills
+# root holds no tracked file: skipped with a note.
 mkdir -p "$SCOPE_TMP/home/cache/skills/good-skill/scripts"
 git -C "$SCOPE_TMP/home" init -q
 printf '%s' "$good_body" >"$SCOPE_TMP/home/cache/skills/good-skill/SKILL.md"
@@ -5049,23 +5049,10 @@ printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/home.ran" \
   >"$SCOPE_TMP/home/cache/skills/good-skill/scripts/x.test.sh"
 scope_case "skips an untracked test under the invoking work tree (single mode)" "$SCOPE_TMP/home" \
   "$SCOPE_TMP/home/cache/skills" "$SCOPE_TMP/home.ran" single skip \
-  'script test skipped: scripts/x.test.sh is not tracked in the current repository'
+  'script test skipped: scripts/x.test.sh is not committed in the current repository yet'
 scope_case "skips an untracked test under the invoking work tree (root mode)" "$SCOPE_TMP/home" \
   "$SCOPE_TMP/home/cache/skills" "$SCOPE_TMP/home.ran" root skip \
-  'script test skipped: scripts/x.test.sh is not tracked in the current repository'
-printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/home-tracked.ran" \
-  >"$SCOPE_TMP/home/cache/skills/good-skill/scripts/y.test.sh"
-git -C "$SCOPE_TMP/home" add cache/skills/good-skill/scripts/y.test.sh
-rm -f "$SCOPE_TMP/home.ran" "$SCOPE_TMP/home-tracked.ran"
-out="$(cd "$SCOPE_TMP/home" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING_TOPLEVEL \
-  CHECK_SKILL_SKILLS_ROOT="$SCOPE_TMP/home/cache/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
-  bash "$SUT" good-skill 2>&1)"
-if [[ ! -f "$SCOPE_TMP/home.ran" && -f "$SCOPE_TMP/home-tracked.ran" ]] &&
-  grep -q 'script test skipped: scripts/x.test.sh is not tracked in the current repository' <<<"$out"; then
-  pass "check 7 runs a tracked test and skips an untracked one beside it"
-else
-  fail "check 7 should run only the tracked test: $out"
-fi
+  'script test skipped: scripts/x.test.sh is not committed in the current repository yet'
 
 # Only the invoking repository's index vouches for a test: a nested repo under
 # a skill's scripts/ that commits its own test is not part of it.
@@ -5088,6 +5075,46 @@ if [[ ! -f "$SCOPE_TMP/nested.ran" ]] &&
 else
   fail "check 7 should skip a test a nested repository vouches for: $out"
 fi
+
+# An untracked, not-ignored test runs when its skills root already holds a
+# tracked file (a lane writes a new skill before it commits); one in a
+# brand-new skills root, or an ignored one, is skipped with a note.
+# scope_file SKILLS-ROOT SKILL MARKER: a skill whose test touches MARKER.
+scope_file() {
+  mkdir -p "$1/$2/scripts"
+  printf '%s' "$good_body" >"$1/$2/SKILL.md"
+  printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$3" >"$1/$2/scripts/x.test.sh"
+}
+# scope_single LABEL SKILLS-ROOT SKILL MARKER run|skip [NOTE]
+scope_single() {
+  rm -f "$4"
+  local out
+  out="$(cd "$SCOPE_TMP/other" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING_TOPLEVEL \
+    CHECK_SKILL_SKILLS_ROOT="$2" CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" "$3" 2>&1)"
+  if [[ "$5" == run ]]; then
+    if [[ -f "$4" ]] && grep -q 'script test failed: scripts/x.test.sh' <<<"$out"; then
+      pass "check 7 $1"
+    else
+      fail "check 7 $1: the test should run: $out"
+    fi
+  elif [[ ! -f "$4" ]] && grep -q "$6" <<<"$out"; then
+    pass "check 7 $1"
+  else
+    fail "check 7 $1: the test should be skipped with the note: $out"
+  fi
+}
+scope_file "$SCOPE_TMP/other/skills" lane-skill "$SCOPE_TMP/lane.ran"
+scope_single "runs an untracked test in a skills root with tracked files" \
+  "$SCOPE_TMP/other/skills" lane-skill "$SCOPE_TMP/lane.ran" run
+scope_file "$SCOPE_TMP/other/fresh/skills" fresh-skill "$SCOPE_TMP/fresh.ran"
+scope_single "skips an untracked test in a brand-new skills root" \
+  "$SCOPE_TMP/other/fresh/skills" fresh-skill "$SCOPE_TMP/fresh.ran" skip \
+  'script test skipped: scripts/x.test.sh is not committed in the current repository yet'
+scope_file "$SCOPE_TMP/other/skills" ignored-skill "$SCOPE_TMP/ignored.ran"
+printf 'skills/ignored-skill/scripts/\n' >"$SCOPE_TMP/other/.gitignore"
+scope_single "skips an ignored test" \
+  "$SCOPE_TMP/other/skills" ignored-skill "$SCOPE_TMP/ignored.ran" skip \
+  'script test skipped: scripts/x.test.sh is not tracked in the current repository'
 
 # An exported GIT_DIR and GIT_WORK_TREE naming the skill's repo must not make
 # it the invoking repo: both toplevel probes ignore them.

@@ -1326,13 +1326,29 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
     fi
     # Sharing a toplevel is not being part of the repo: a plugin copy git
     # never tracked can sit under a home-directory work tree, and a nested
-    # repo would vouch for itself. Only the invoking repo's index answers.
+    # repo would vouch for itself. Only the invoking repo answers: a test runs
+    # when its index tracks it, or when it is untracked, not ignored, and its
+    # skills root already holds a tracked file (a new skill not committed yet).
     test_real="$(cd -- "${test_sh%/*}" && pwd -P)/${test_sh##*/}"
-    if [[ "$test_real" != "$INVOKING_TOPLEVEL"/* ]] ||
-      ! "${GIT_UNSET[@]}" git -C "$INVOKING_TOPLEVEL" --literal-pathspecs \
-        ls-files --error-unmatch -- "${test_real#"$INVOKING_TOPLEVEL"/}" >/dev/null 2>&1; then
+    test_rel="${test_real#"$INVOKING_TOPLEVEL"/}"
+    if [[ "$test_real" != "$INVOKING_TOPLEVEL"/* ]]; then
       note "script test skipped: ${test_sh#"$SKILL_DIR"/} is not tracked in the current repository"
       continue
+    fi
+    if ! "${GIT_UNSET[@]}" git -C "$INVOKING_TOPLEVEL" --literal-pathspecs \
+      ls-files --error-unmatch -- "$test_rel" >/dev/null 2>&1; then
+      if ! "${GIT_UNSET[@]}" git -C "$INVOKING_TOPLEVEL" --literal-pathspecs \
+        ls-files --others --exclude-standard --error-unmatch -- "$test_rel" >/dev/null 2>&1; then
+        note "script test skipped: ${test_sh#"$SKILL_DIR"/} is not tracked in the current repository"
+        continue
+      fi
+      skills_real="$(cd -- "$SKILL_DIR/.." && pwd -P)/"
+      if [[ "$skills_real" != "$INVOKING_TOPLEVEL"/* ]] ||
+        [[ -z "$("${GIT_UNSET[@]}" git -C "$INVOKING_TOPLEVEL" --literal-pathspecs \
+          ls-files -- "./${skills_real#"$INVOKING_TOPLEVEL"/}" 2>/dev/null | head -n 1)" ]]; then
+        note "script test skipped: ${test_sh#"$SKILL_DIR"/} is not committed in the current repository yet"
+        continue
+      fi
     fi
     # env -u: this gate may run inside git-hook chains where git exports
     # GIT_DIR/GIT_INDEX_FILE — a fixture `git init` in a test would then mutate
