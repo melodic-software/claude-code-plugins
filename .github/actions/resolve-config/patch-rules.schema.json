@@ -95,6 +95,11 @@
           "default": false,
           "description": "true: a PR head that moved since the producer's run skips superseded-sha, before the mint and again before the push; false: the patch takes the moved tip with --3way when the moved commits touch no patched path."
         },
+        "empty-at-push": {
+          "enum": ["empty", "invalid"],
+          "default": "empty",
+          "description": "The escalation kind for a patch that applies but changes nothing at push time: empty gives the row's empty reason, invalid its invalid reason (ci-context, since the producer said it wrote a change)."
+        },
         "escalations": {
           "type": "array",
           "minItems": 1,

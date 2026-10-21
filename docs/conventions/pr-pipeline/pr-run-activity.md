@@ -991,7 +991,8 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
    `instruction-path` refusal (`CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`, `.gitmodules`
    or `CODEOWNERS` at any depth, a `.claude` or `.claude-plugin` directory, a plugin's `hooks/`,
    `monitors/` or `bin/`), escalating `ci-fix-protected-path`; more than the row's `max-files`
-   (300) paths, a credential shape or an oversized blob escalates `ci-fix-invalid`. It then
+   (300) paths, a credential shape, an oversized blob or a patch that changes nothing (the row's
+   `empty-at-push`) escalates `ci-fix-invalid`. It then
    re-reads the pull request and its labels, throws unless the head is this repository's, stops
    uncommitted (`awaiting-human`) on a draft or a hold label, fails when
    `git/ref heads/<head ref>` is no longer the gated head, uploads the changed blobs, creates the

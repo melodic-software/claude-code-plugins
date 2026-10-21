@@ -273,6 +273,11 @@ export function checkRow(row) {
 export const reasonFor = (row, kind) =>
   row.escalations.find((reason) => reason.endsWith(`-${kind}`)) ?? row.escalations.find((reason) => reason.endsWith("-invalid"));
 
+// The reason the push writes to the escalation file for a kind: a patch that
+// applies but changes nothing is the row's empty-at-push kind (ci-context:
+// invalid, since the producer said it wrote a change), else its empty reason.
+export const pushReason = (row, kind) => reasonFor(row, kind === "empty" ? (row["empty-at-push"] ?? "empty") : kind);
+
 // The commit message with the row's placeholders filled; a placeholder with no
 // value throws.
 export function commitMessage(row, values) {
@@ -426,7 +431,7 @@ export async function push({
   const message = commitMessage(row, { ref: headRef, base: baseRef, lane, activity, [target.number]: String(number) });
   const escalate = (kind, why) => {
     log(why);
-    return { outcome: "escalate", escalationReason: reasonFor(row, kind) };
+    return { outcome: "escalate", escalationReason: pushReason(row, kind) };
   };
   const unmet = row.requires.find((requirement) => !REQUIREMENTS[requirement](context));
   if (unmet) {
