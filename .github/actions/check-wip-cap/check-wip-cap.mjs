@@ -182,16 +182,18 @@ function lastState(path) {
 }
 
 // The status with `pause_basis`: `read`, or on a failed read the last known
-// pause (`last-state`), or with none the open lane (`fail-open`).
-export function keepLastState(status, { readError, prior }) {
+// pause (`last-state`), or with none the open lane (`fail-open`). A config
+// that was read and no longer pauses (`pausing` false) ends a kept pause.
+export function keepLastState(status, { readError, prior, pausing = true }) {
   if (!readError) {
     return { ...status, pause_basis: "read" };
   }
   if (prior === null) {
     return { ...status, pause_basis: "fail-open" };
   }
-  const reason = prior.paused ? String(prior.pause_reason ?? "unknown") : null;
-  return { ...status, paused: prior.paused, pause_reason: reason, pause_basis: "last-state" };
+  const paused = prior.paused && pausing;
+  const reason = paused ? String(prior.pause_reason ?? "unknown") : null;
+  return { ...status, paused, pause_reason: reason, pause_basis: "last-state" };
 }
 
 const escape = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
@@ -226,7 +228,8 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
     ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining })
     : wipStatus({ open: null, merged: null, admitted: null }, { limits, wip, now });
   const readError = configError || read.countable_lane_prs === null;
-  const status = keepLastState(read, { readError, prior: readError && env.WIP_STATE ? lastState(env.WIP_STATE) : null });
+  const pausing = configError || (wip["pause-from"] !== "" && now >= Date.parse(wip["pause-from"]));
+  const status = keepLastState(read, { readError, prior: readError && env.WIP_STATE ? lastState(env.WIP_STATE) : null, pausing });
   const json = JSON.stringify(status);
   const saved = !readError && Boolean(env.WIP_STATE);
   if (saved) {

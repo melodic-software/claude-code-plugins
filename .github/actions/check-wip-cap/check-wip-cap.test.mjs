@@ -374,6 +374,17 @@ test("a read that fails keeps a last known pause, and logs it as kept", async ()
   }
 });
 
+test("a kept pause ends when a readable config no longer pauses", async () => {
+  const path = stateFile({ paused: true, pause_reason: "wip" });
+  for (const from of ['""', '"2026-10-19"']) {
+    const config = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8").replace(/^( +pause-from: ).*$/m, `$1${from}`);
+    const open = await runMain({ open: failed, merged: 24 }, { WIP_STATE: path }, config);
+    assert.equal(open.capped, "false");
+    assert.equal(open.wip.pause_basis, "last-state");
+    assert.ok(!open.summary.includes("admission paused"));
+  }
+});
+
 test("a read that fails keeps a last known open lane open", async () => {
   const prior = { paused: false, pause_reason: null };
   const path = stateFile(prior);

@@ -1398,7 +1398,8 @@ starts no run, work-unblock re-fires none, and the log and step summary carry on
 (a `::notice` annotation titled `admission paused`). When the open listing or the base config
 cannot be read, the lane keeps the last known pause: the status the last run whose reads succeeded
 saved to the Actions cache (key prefix `check-wip-cap-state-`). A kept pause logs
-`admission paused: reason=<reason> (read-error, kept last state)`; with no saved state (none yet,
+`admission paused: reason=<reason> (read-error, kept last state)`, unless a config that was read no
+longer pauses (`pause-from` cleared or in the future); with no saved state (none yet,
 or the cache evicted it), the check fails open and the run starts. Without a merged count the
 cap is `limits.wip-cap`. A held PR's age runs from when it opened.
 
