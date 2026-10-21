@@ -720,6 +720,12 @@
       ]
     },
     {
+      "name": "corrections",
+      "source": "./plugins/corrections",
+      "category": "quality",
+      "tags": ["corrections", "codify", "check", "fail-then-pass", "proof", "worktree", "recurring-findings"]
+    },
+    {
       "name": "writing",
       "source": "./plugins/writing",
       "category": "presentation",
