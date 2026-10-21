@@ -107,6 +107,8 @@ $CheckBody = {
     $mutedCount = @($items | Where-Object { $_.muted }).Count
 
     $severity = Get-UnmutedSeverity -Items $items.ToArray() -ReadState $readStates.ToArray()
+    # A location that did not read can hide anything, so the list is incomplete.
+    if ($unreadable.Count -gt 0) { $severity = 'UNKNOWN' }
     $summary = ("$($items.Count) startup item(s): $enabledCount start at logon, $disabledCount disabled, " +
         "$unknownCount in an unrecognized state; $taskCount logon task(s).")
     if (-not $tasks.Complete) { $summary += ' Logon tasks are partial without elevation.' }

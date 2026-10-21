@@ -127,6 +127,17 @@ Describe 'Test-StartupItems' -Tag 'check' {
             (Invoke-StartupCheck).severity | Should -Be 'UNKNOWN'
         }
 
+        It 'reads UNKNOWN beside listed items when a location cannot be read' {
+            Mock Get-RunKeyEntry -ParameterFilter { $Scope -eq 'hklm' -and $Key -eq 'Run' } { New-Read -State 'denied' }
+            $key = Get-FindingKey -Kind 'startup' -Identity @('hkcu', 'Odd')
+
+            $result = Invoke-StartupCheck -MutedKeys @($key)
+
+            $result.severity | Should -Be 'UNKNOWN'
+            $result.detail.items_count | Should -Be 8
+            $result.detail.unreadable_sources | Should -Be @('hklm Run: denied')
+        }
+
         It 'drops to INFO once that item is muted, keeping it listed' {
             $key = Get-FindingKey -Kind 'startup' -Identity @('hkcu', 'Odd')
 
