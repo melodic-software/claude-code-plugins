@@ -21,6 +21,7 @@
   --ok: oklch(0.77 0.15 155);
   --away: oklch(0.80 0.15 75); /* presence: Away (amber); never --brass, which means decided */
   --warn: oklch(0.69 0.19 25);
+  --on-warn: oklch(0.2 0.04 25); /* text on --warn: 4.5:1 (ui_contrast.js) */
   --shadow-pop: 0 1px 0 oklch(1 0 none / 0.05) inset, 0 16px 40px oklch(0 0 none / 0.5);
   --r-sm: 6px;
   --r-md: 9px;
@@ -59,7 +60,7 @@
     --text: oklch(0.22 0.02 250);
     --muted: oklch(0.44 0.02 250);
     --faint: oklch(0.50 0.015 250);
-    --accent: oklch(0.55 0.11 210);
+    --accent: oklch(0.53 0.11 210); /* --on-accent on it: 4.5:1 (ui_contrast.js) */
     --accent-text: oklch(0.48 0.11 210);
     --accent-soft: color-mix(in oklch, var(--accent) 11%, transparent);
     --on-accent: oklch(0.99 0 none);
@@ -70,6 +71,7 @@
     --ok: oklch(0.58 0.15 155);
     --away: oklch(0.62 0.15 65);
     --warn: oklch(0.57 0.2 25);
+    --on-warn: oklch(0.99 0 none);
     --shadow-pop: 0 1px 2px oklch(0.2 0.02 250 / 0.08), 0 16px 40px oklch(0.2 0.02 250 / 0.14);
     --sb: oklch(0.25 0.02 250 / 0.18);
     --sb-hover: oklch(0.25 0.02 250 / 0.38);
@@ -560,7 +562,7 @@
 }
 .app .vf-fab-badge {
   position: absolute; inset-block-start: -2px; inset-inline-end: -2px; min-inline-size: 20px; block-size: 20px; padding-inline: 5px;
-  border-radius: 10px; background: var(--warn); color: oklch(0.99 0 none); font-size: 11px; font-weight: 700;
+  border-radius: 10px; background: var(--warn); color: var(--on-warn); font-size: 11px; font-weight: 700;
   display: grid; place-items: center; box-shadow: 0 0 0 2px var(--bg);
 }
 .app .vf-fab-badge:empty { display: none; }
@@ -1204,6 +1206,7 @@
 .app .vf-fchip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app .vf-fchip[aria-pressed="true"] { color: var(--text); background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 55%, transparent); }
 .app .vf-fchip-n { color: var(--faint); font-variant-numeric: tabular-nums; }
+.app .vf-fchip[aria-pressed="true"] .vf-fchip-n { color: inherit; } /* --faint on the pressed fill is under 4.5:1 */
 .app .vf-fchip-n:empty { display: none; }
 .app .vf-expand { flex: none; margin-inline-start: auto; }
 @media (hover: hover) and (pointer: fine) {

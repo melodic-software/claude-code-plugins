@@ -14,3 +14,4 @@ bump: minor
 - A chat reaction chip keeps one label whether or not you reacted; its pressed state says which, as the WAI-ARIA toggle-button pattern asks.
 - The shared interview page's header count says "Only you here" when no one else has the page open, instead of a bare "1 here" that read as someone else.
 - On a phone, the host's Who must answer button wraps below the question's position with the chips, so the previous and next arrows stay on the position's row.
+- Text on the shared interview page meets WCAG 2.2 AA contrast in dark and light on its main states: the light theme's accent is a shade darker so white text on it (primary buttons, badges, your own chat bubbles) reaches 4.5:1, the dark theme's chat badge uses dark text on its red, and a pressed people chip's count no longer uses the faint color.
