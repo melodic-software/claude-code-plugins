@@ -367,6 +367,32 @@ test("signal 8: a stall keeps its fingerprint until a merge lands", () => {
   assert.equal(at("2026-10-19T14:41:00Z"), at("2026-10-19T18:41:00Z"));
 });
 
+const stop = (id, outcome, issue = 7677) => ({
+  id,
+  outcome,
+  issue,
+  url: `https://github.com/o/r/issues/${issue}#issuecomment-${id}`,
+  createdAt: "2026-10-19T16:00:00Z",
+});
+
+test("signal 9: funding, limited and turn-cap stops fire one key each", () => {
+  const found = detect({ ...base, laneStops: [stop(1, "funding"), stop(2, "limited"), stop(3, "turn-cap", 42), stop(4, "turn-cap")] });
+  assert.deepEqual(found.map((f) => f.key).sort(), ["lane-stop:funding", "lane-stop:limited", "lane-stop:turn-cap"]);
+  assert.deepEqual(found.find((f) => f.key === "lane-stop:turn-cap").facts.length, 2);
+});
+
+test("signal 9: done, pushback and stopped outcomes stay quiet", () => {
+  assert.deepEqual(detect({ ...base, laneStops: [stop(1, "done"), stop(2, "pushback"), stop(3, "stopped")] }), []);
+});
+
+test("signal 9: the fingerprint holds for the same stops and changes on a new one", () => {
+  const fp = (stops) => detect({ ...base, laneStops: stops })[0].fingerprint;
+  assert.equal(fp([stop(1, "limited"), stop(2, "limited")]), fp([stop(2, "limited"), stop(1, "limited")]));
+  assert.notEqual(fp([stop(1, "limited")]), fp([stop(1, "limited"), stop(2, "limited")]));
+  // A stop seen again in the next run's window overlap keeps the fingerprint.
+  assert.equal(fp([stop(1, "limited"), stop(2, "limited")]), fp([stop(2, "limited")]));
+});
+
 test("detect runs every signal, and empty data files nothing", () => {
   assert.deepEqual(detect({ ...base }), []);
   const keys = detect({
