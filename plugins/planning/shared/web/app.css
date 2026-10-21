@@ -255,6 +255,8 @@
   background: var(--brass-soft); color: var(--brass-text);
 }
 .app .vf-rcheck .vf-i { inline-size: 11px; block-size: 11px; stroke-width: 2.6; }
+.app .vf-rcheck-none { background: none; box-shadow: inset 0 0 0 1.5px var(--faint); }
+.app .vf-rcheck-none .vf-i { display: none; }
 .app .vf-rlabel { flex: 1; }
 .app .vf-chev { color: var(--faint); inline-size: 14px; block-size: 14px; }
 .app .vf-rtoggle[aria-expanded="true"] .vf-chev { rotate: 90deg; }
@@ -347,6 +349,9 @@
 .app .vf-pp-head .vf-pop-title { margin: 0; flex: 1; }
 .app .vf-pp-tools { display: flex; align-items: center; gap: 8px; }
 .app .vf-panel > .vf-pop-note { margin: 4px 16px 10px; }
+.app .vf-pp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 16px 10px; }
+.app .vf-pp-actions > .vf-prop-all-why { flex: 1 1 12em; margin: 0; }
+.app .vf-pp-actions[hidden] { display: none; }
 .app .vf-pitem-parked { opacity: 0.75; }
 .app .vf-pscroll { overflow: auto; min-height: 0; padding: 0 10px 12px; overscroll-behavior: contain; }
 .app .vf-confirm { inline-size: 260px; }
@@ -401,6 +406,8 @@
 .app .vf-scroll > * { max-inline-size: 720px; margin-inline: auto; }
 .app .vf-qmeta { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 12px; margin-block-end: 10px; }
 .app .vf-qfrom { color: var(--accent-text); }
+.app .vf-qgroup { display: contents; } /* a group on a phone only (the 720 px query) */
+.app .vf-qgroup[hidden] { display: none; }
 .app .vf-qtext { font-size: clamp(22px, 2.3vw, 29px); line-height: 1.22; font-weight: 650; letter-spacing: -0.022em; text-wrap: balance; overflow-wrap: anywhere; }
 .app .vf-qtext:focus { outline: none; }
 .app .vf-qctx { margin-block: 8px 4px; color: var(--muted); font-size: 14px; line-height: 1.5; }
@@ -1050,6 +1057,8 @@
 .app .vf-rep-shotrow { justify-content: flex-start; margin-block-start: 0; }
 .app .vf-rep-shotrow:has(> [hidden]:only-child) { display: none; }
 .app .vf-rep-shot { display: block; max-inline-size: 100%; max-block-size: 140px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+.app .vf-rep-pics { display: grid; gap: 6px; justify-items: start; }
+.app .vf-rep-pics[hidden] { display: none; }
 .app .vf-rep-sent { margin: 0; display: grid; gap: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .app .vf-rep-sent li::before { content: "· "; }
 .app .vf-rep-err { margin: 0; font-size: 13px; color: var(--warn); }
@@ -1739,6 +1748,10 @@
 .app .vf-qr { justify-self: center; inline-size: 200px; padding: 0; border-radius: var(--r-md); overflow: hidden; background: oklch(1 0 none); box-shadow: 0 0 0 1px var(--line-strong); }
 .app .vf-qr svg { display: block; inline-size: 100%; block-size: auto; }
 .app .vf-devicepop .vf-crow { margin: 0; }
+.app .vf-pair-code { margin: 0; text-align: center; font: 600 24px/1.2 ui-monospace, monospace; letter-spacing: 0.12em; }
+.app .vf-pair-code:empty { display: none; }
+.app .vf-pairlist { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.app .vf-pair-dev { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .app .vf-devwarn {
   display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: var(--r-sm);
   background: var(--review-soft); color: var(--text); font-size: 12px; font-weight: 600;
@@ -2177,8 +2190,14 @@
   .app .vf-scroll { padding-block-start: 10px; }
   .app .vf-qmeta { gap: 8px; margin-block-end: 6px; }
   .app .vf-qmeta > span:first-child { flex: 1 1 0; min-width: 7.5em; } /* the position takes two lines before a chip wraps */
-  .app .vf-qmeta :is(.vf-purpose, .vf-purposesel, .vf-chip, .vf-forbtn) { order: 1; } /* chips and the host's Who must answer wrap to their own row under the position and the arrows */
+  .app .vf-qmeta :is(.vf-qgroup, .vf-chip) { order: 1; } /* the purpose, who it asks and the chips wrap to their own row under the position and the arrows */
   .app .vf-qmeta { flex-wrap: wrap; row-gap: 6px; }
+  /* the purpose and the host's Ask someone stay together: the group moves to a row as a whole, and wraps inside only
+     when it is wider than the row; a long label wraps inside its own 44 px button */
+  .app .vf-qgroup { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-inline-size: 0; max-inline-size: 100%; }
+  .app .vf-qgroup .vf-select { block-size: 44px; }
+  .app .vf-qgroup .vf-forbtn { block-size: auto; min-block-size: 44px; max-inline-size: 100%; white-space: normal; text-align: start; }
+  .app .vf-qgroup .vf-forchip { order: 1; white-space: normal; overflow-wrap: anywhere; } /* who it asks follows the button, so a long list never splits the purpose from it */
   .app .vf-qnav { display: flex; gap: 0; margin-inline-start: auto; flex: none; }
   /* who else is on the question: up to 3 avatars in a slot this row keeps empty or not, so presence never moves the page */
   .app .vf-onit { display: none; }

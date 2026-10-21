@@ -41,28 +41,60 @@ function Get-FindingKey {
     return $Kind + ':' + [System.Convert]::ToHexString($hash, 0, 8).ToLowerInvariant()
 }
 
-function New-FindingItem {
+# Machine-derived text (names, paths, event text) is untrusted display data:
+# capped at this length, with control, escape and bidi-override characters
+# replaced so it cannot add lines or reorder what a reader sees.
+$script:MachineTextMaxLength = 300
+$script:MachineTextUnsafe = '[\x00-\x1F\x7F-\x9F\u061C\u200E\u200F\u2028\u2029\u202A-\u202E\u2066-\u2069]'
+
+function Format-MachineText {
     [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Position = 0)] [AllowNull()] [object] $Text)
+
+    if ($null -eq $Text) { return $null }
+    $clean = [regex]::Replace([string]$Text, $script:MachineTextUnsafe, ' ')
+    if ($clean.Length -gt $script:MachineTextMaxLength) {
+        $clean = $clean.Substring(0, $script:MachineTextMaxLength - 3) + '...'
+    }
+    return $clean
+}
+
+function New-FindingItem {
+    <#
+    .SYNOPSIS
+    Builds one FindingItem. The title passes through Format-MachineText.
+
+    .DESCRIPTION
+    -NoKey builds an item with no stable identity: key is $null, the item can
+    never be muted, and -NoKeyReason is recorded as unkeyed_reason. A check
+    uses it when the identity fields could not be read, so no key is ever
+    computed from missing data.
+    #>
+    [CmdletBinding(DefaultParameterSetName = 'Keyed')]
     [OutputType([pscustomobject])]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Pure constructor: builds and returns an object, changes no system state.')]
     param(
-        [Parameter(Mandatory = $true)] [string] $Kind,
-        [Parameter(Mandatory = $true)] [string[]] $Identity,
+        [Parameter(Mandatory = $true, ParameterSetName = 'Keyed')] [string] $Kind,
+        [Parameter(Mandatory = $true, ParameterSetName = 'Keyed')] [string[]] $Identity,
+        [Parameter(Mandatory = $true, ParameterSetName = 'Unkeyed')] [switch] $NoKey,
+        [Parameter(Mandatory = $true, ParameterSetName = 'Unkeyed')] [ValidateNotNullOrEmpty()] [string] $NoKeyReason,
         [Parameter(Mandatory = $true)] [ValidateSet('OK', 'INFO', 'WARN', 'CRIT', 'UNKNOWN')] [string] $Severity,
         [Parameter(Mandatory = $true)] [string] $Title,
-        [AllowNull()] [AllowEmptyCollection()] [string[]] $MutedKeys = @(),
+        [Parameter(ParameterSetName = 'Keyed')] [AllowNull()] [AllowEmptyCollection()] [string[]] $MutedKeys = @(),
         [hashtable] $Fields = @{}
     )
 
-    $key = Get-FindingKey -Kind $Kind -Identity $Identity
+    $key = if ($NoKey) { $null } else { Get-FindingKey -Kind $Kind -Identity $Identity }
     $item = [ordered]@{
         key      = $key
         severity = $Severity
-        muted    = [bool]($key -cin $MutedKeys)
-        title    = $Title
+        muted    = $null -ne $key -and [bool]($key -cin $MutedKeys)
+        title    = Format-MachineText $Title
     }
+    if ($NoKey) { $item['unkeyed_reason'] = $NoKeyReason }
     foreach ($name in $Fields.Keys) {
         if ($item.Contains($name)) { throw "New-FindingItem: field '$name' is set by the item itself." }
         $item[$name] = $Fields[$name]

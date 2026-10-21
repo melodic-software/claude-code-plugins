@@ -124,19 +124,20 @@ class TestAuthClasses(ServerCase):
         self.leader(lead_pid)
 
     def test_person_routes_refuse_a_request_with_no_identity(self):
-        # Join is the one route a newcomer reaches before holding a secret; any other public route goes unchecked here.
-        self.assertEqual(["/api/join"], sorted(p for p, (a, _) in server.ROUTES.items() if a == "public"))
+        # Join and a device's sign-in code are the routes a newcomer reaches before holding a credential; any other
+        # public route goes unchecked here.
+        self.assertEqual(["/api/join", "/api/owner/pair/redeem"], sorted(p for p, (a, _) in server.ROUTES.items() if a == "public"))
         for path, (auth, _) in server.ROUTES.items():
             if auth == "public":
                 continue
             with self.subTest(path=path):
                 code, _, out = self.post(path, {})
-                want = (403, "owner-only") if auth == "owner" else (401, "unknown-session")
+                want = (403, "owner-only") if auth in ("owner", "host") else (401, "unknown-session")
                 self.assertEqual((code, out["error"]), want)
 
     def test_owner_routes_refuse_a_leader(self):
         for path, (auth, _) in server.ROUTES.items():
-            if auth == "owner":
+            if auth in ("owner", "host"):
                 with self.subTest(path=path):
                     code, _, out = self.post(path, {}, self.lead)
                     self.assertEqual((code, out["error"]), (403, "owner-only"))
@@ -187,6 +188,84 @@ class TestAuthClasses(ServerCase):
         code, _, out = self.post("/api/join", {"name": "Cy", "device": "phone", "key": self.app.session.state["session"]["guestKey"]})
         self.assertEqual(code, 200)
         self.assertEqual(sorted(out), ["name", "ok", "pid", "secret"])
+
+
+class TestOwnerDevices(ServerCase):
+    """Signing the owner in on another device over HTTP. Expected values come from the owner's decision: the code is
+    made only where the owner link was opened, the device gets its own credential and owner rights, the owner link's
+    token never reaches it, and signing it out ends it at once, its asset cookie included."""
+
+    def setUp(self):
+        super().setUp()
+        self.guest_pid, self.guest = self.join("Ann")
+
+    def pair(self, ip="203.0.113.5"):
+        code, _, out = self.post("/api/owner/pair", {}, self.owner)
+        self.assertEqual(code, 200, out)
+        code, _, dev = self.post("/api/owner/pair/redeem", {"code": out["code"], "device": "phone"}, {"CF-Connecting-IP": ip})
+        self.assertEqual(code, 200, dev)
+        return out["code"], dev
+
+    def test_a_device_signs_in_once_and_acts_as_the_owner(self):
+        code, dev = self.pair()
+        mine = {"X-Owner-Token": dev["token"]}
+        status, _, out = self.get("/api/state", mine)
+        self.assertEqual((status, out["me"]["role"]), (200, "owner"))
+        self.assertEqual([d["id"] for d in out["ownerDevices"]], [dev["id"]])
+        status, _, out = self.post("/api/session/title", {"title": "From my phone"}, mine)
+        self.assertEqual((status, out["title"]), (200, "From my phone"))
+        status, _, out = self.post("/api/owner/pair/redeem", {"code": code}, {"CF-Connecting-IP": "198.51.100.7"})
+        self.assertEqual((status, out["error"]), (403, "bad-pair-code"))
+
+    def test_only_the_owner_links_device_makes_codes_or_a_new_owner_link(self):
+        _, dev = self.pair()
+        before = (self.d / server.SECRETS).read_text(encoding="utf-8")
+        for path in ("/api/owner/pair", "/api/link/owner"):
+            with self.subTest(path=path):
+                status, _, out = self.post(path, {}, {"X-Owner-Token": dev["token"]})
+                self.assertEqual((status, out["error"]), (403, "host-device-only"))
+                self.assertNotIn(self.app.secrets["owner"], json.dumps(out))
+                status, _, out = self.post(path, {}, self.guest)
+                self.assertEqual((status, out["error"]), (403, "owner-only"))
+        self.assertEqual((self.d / server.SECRETS).read_text(encoding="utf-8"), before)
+
+    def test_signing_a_device_out_ends_it_and_its_asset_cookie_at_once(self):
+        (self.d / "assets").mkdir()
+        (self.d / "assets" / "0123456789abcdef.png").write_bytes(PNG)
+        _, dev = self.pair()
+        mine = {"X-Owner-Token": dev["token"]}
+        cookie = {"Cookie": self.get("/api/state", mine)[1]["Set-Cookie"].split("; ")[0]}
+        self.assertEqual(self.get("/assets/0123456789abcdef.png", cookie)[0], 200)
+        status, _, out = self.post("/api/owner/devices/revoke", {"id": dev["id"]}, self.owner)
+        self.assertEqual(status, 200, out)
+        self.assertEqual(self.get("/api/state", mine)[0], 401)
+        self.assertEqual(self.get("/assets/0123456789abcdef.png", cookie)[0], 401)
+        self.assertEqual(self.get("/api/state", self.owner)[0], 200)
+
+    def test_a_new_owner_link_signs_out_every_device(self):
+        devs = [self.pair()[1]]
+        time.sleep(session.WRITE_INTERVAL)  # one code a second
+        devs.append(self.pair("198.51.100.7")[1])
+        status, _, out = self.post("/api/link/owner", {}, self.owner)
+        self.assertEqual(status, 200, out)
+        for dev in devs:
+            self.assertEqual(self.get("/api/state", {"X-Owner-Token": dev["token"]})[0], 401)
+
+    def test_closing_the_session_signs_out_every_device(self):
+        _, dev = self.pair()
+        status, _, out = self.post("/api/session/end", {"on": True}, self.owner)
+        self.assertEqual(status, 200, out)
+        status, _, out = self.get("/api/state", {"X-Owner-Token": dev["token"]})
+        self.assertEqual((status, out["error"]), (401, "unknown-session"))
+        self.assertEqual(self.get("/api/state", self.owner)[0], 200)
+
+    def test_the_log_never_holds_a_code_or_a_credential(self):
+        code, dev = self.pair()
+        self.post("/api/owner/pair/redeem", {"code": code}, {"CF-Connecting-IP": "198.51.100.7"})
+        log = (self.d / "server.log").read_text(encoding="utf-8")
+        self.assertIn("route=/api/owner/pair/redeem", log)
+        for secret in (code, dev["token"]):
+            self.assertNotIn(secret, log)
 
 
 class TestHostAndOrigin(ServerCase):
@@ -616,6 +695,16 @@ class TestRawRequests(ServerCase):
         self.assertEqual(status_and_headers(got)[0], 408)
         self.assertTrue(closed)
         self.assertLess(took, 4.0)
+
+    def test_a_problem_report_has_its_own_longer_deadline_for_its_pictures(self):
+        _, ann = self.join("Ann")  # only a joined person's report waits for its body
+        with mock.patch.object(session, "BODY_SECONDS", 30.0), mock.patch.object(session, "REPORT_SECONDS", 1.0):
+            t0 = time.monotonic()
+            got, closed = self.request("POST /api/report HTTP/1.1", "Content-Type: application/json", "Content-Length: 100", *(f"{k}: {v}" for k, v in ann.items()), body=b'{"text"')
+            took = time.monotonic() - t0
+        self.assertEqual(status_and_headers(got)[0], 408)
+        self.assertTrue(closed)
+        self.assertLess(took, 4.0)  # REPORT_SECONDS applied, not the 30 s every other route waits
 
     def test_http_servers_own_refusals_carry_the_security_headers(self):
         cases = {501: "BREW /api/state HTTP/1.1", 414: "GET /" + "a" * 70000 + " HTTP/1.1"}
@@ -1955,8 +2044,34 @@ class TestReports(ServerCase):
         self.assertEqual((code, out["error"]), (403, "uploads-off"))
 
     def test_a_body_past_the_report_cap_is_refused_before_it_is_read(self):
-        code, _, out = call(self.port, "POST", "/api/report", raw=b"{}", headers={"Content-Type": "application/json", "Content-Length": str(session.REPORT_MAX + 1), **self.ann})
-        self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", session.REPORT_MAX))
+        for route, cap in (("/api/report", session.REPORT_SEND_MAX), ("/api/report/add", session.REPORT_MAX)):
+            with self.subTest(route=route):
+                code, _, out = call(self.port, "POST", route, raw=b"{}", headers={"Content-Type": "application/json", "Content-Length": str(cap + 1), **self.ann})
+                self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", cap))
+
+    def test_a_stranger_is_refused_a_report_before_its_body_is_read(self):
+        """No secret, no wait: the 401 comes from the headers, while the claimed 2.8 MB body never arrives."""
+        code, _, out = call(self.port, "POST", "/api/report", raw=b"{}", headers={"Content-Type": "application/json", "Content-Length": str(session.REPORT_SEND_MAX)})
+        self.assertEqual((code, out["error"]), (401, "unknown-session"))
+
+    def test_four_512_kb_screenshots_go_in_one_report_and_the_owner_reads_each_back(self):
+        """The owner's ask (2026-10-21): up to four pictures in the first send, each within the 512 KB cap."""
+        shots = [b"\xff\xd8\xff" + bytes([n]) * (512 * 1024 - 3) for n in range(4)]
+        code, _, out = self.post("/api/report", {"text": "Send does nothing", "ctx": {**self.CTX, "qid": "Q1"}, "images": [self.data_url("jpeg", b) for b in shots]}, self.ann)
+        self.assertEqual((code, out.get("id")), (200, "F1"), out)
+        self.assertEqual([(self.d / "reports" / f).read_bytes() for f in ("F1.jpg", "F1-p2.jpg", "F1-p3.jpg", "F1-p4.jpg")], shots)
+        mine = self.get("/api/state", self.owner)[2]["reports"]
+        self.assertEqual([(r["id"], r["image"], r["images"]) for r in mine], [("F1", True, 4)])
+        self.assertNotIn("reports/F1", json.dumps(mine))
+        self.assertEqual([self.get(f"/api/report/image?id=F1{q}", self.owner)[2]["image"] for q in ("", "&pic=2", "&pic=3", "&pic=4")], [self.data_url("jpeg", b) for b in shots])
+        code, _, out = self.get("/api/report/image?id=F1&pic=2", self.ann)
+        self.assertEqual((code, out["error"]), (403, "owner-only"))
+        for q, want in (("&pic=5", (400, "bad-field")), ("&pic=2&add=1", (400, "bad-field"))):
+            code, _, out = self.get(f"/api/report/image?id=F1{q}", self.owner)
+            self.assertEqual((code, out["error"]), want, q)
+        code, _, out = self.post("/api/report", {"text": "Five", "ctx": {**self.CTX, "qid": "Q1"}, "images": [self.data_url("png", PNG)] * 5}, self.ann)
+        self.assertEqual((code, out["error"], out.get("field")), (400, "bad-field", "images"))
+        self.assertEqual(sorted(self.app.session.state["reports"]), ["F1"])
 
     def test_a_picture_one_byte_past_512_kb_or_of_another_kind_is_refused(self):
         code, _, out = self.report(self.ann, self.data_url("png", PNG + b"\x00" * (512 * 1024 + 1 - len(PNG))))
@@ -2196,7 +2311,7 @@ class TestUploads(ServerCase):
                 got, _ = raw_exchange(self.port, f"POST /api/upload/chunk HTTP/1.1\r\n{head}\r\n".encode(), wait=3.0)
                 self.assertEqual(status_and_headers(got)[0], want)
                 self.assertLess(time.monotonic() - t0, 2.5)  # answered without waiting for a body that never comes
-        code, _, out = self.post("/api/upload/offer", {"file": "a.pdf", "size": 1, "type": "", "pad": "x" * session.OFFER_MAX})
+        code, _, out = self.post("/api/upload/offer", {"file": "a.pdf", "size": 1, "type": "", "pad": "x" * session.OFFER_MAX}, self.ann)
         self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", 96 * 1024))
 
     def test_one_piece_per_person_is_read_at_a_time(self):

@@ -1,0 +1,7 @@
+{
+  "name": "seal-lane-output",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

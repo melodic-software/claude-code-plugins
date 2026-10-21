@@ -246,7 +246,7 @@
     cdYes.onclick = () => cdDone?.(true);
     cdNo.onclick = () => cdDone?.(false);
     cdlg.addEventListener("close", () => cdDone?.(false)); // Escape
-    const REPORT_ASK = { title: "Ask Claude about this report?", body: "Claude reads the report and its screenshot as the reporter's words, works out what likely went wrong and proposes a fix to you in the terminal. It never acts on the report itself.", ok: "Ask Claude" };
+    const REPORT_ASK = { title: "Ask Claude about this report?", body: "Claude reads the report and its screenshots as the reporter's words, works out what likely went wrong and proposes a fix to you in the terminal. It never acts on the report itself.", ok: "Ask Claude" };
     const removeAsk = name => ({ title: `Remove ${disp(name)}?`, ok: "Remove", body: `${disp(name)}'s link stops working and their answers, votes, chat and suggestions are hidden from everyone. You can restore them from Settings.` });
     const PARK_ASK = { title: "Park this proposal?", ok: "Park", body: "It stays out of the round, so Claude does not see it when the round is sent. You can restore it from Parked." };
     const LATER_ASK = { title: "Move this proposal to Later?", ok: "Move to Later", body: "It leaves this round and becomes a tracker item when the session ends. You can restore it before then." };
@@ -949,6 +949,7 @@
     const myRepList = E("ul", "vf-plist vf-myrep-list"); myRepList.setAttribute("role", "list");
     myRepPop.append(E("h2", "vf-pop-title", "Your reports"), E("p", "vf-pop-note", "Only you and the host see these."), myRepList);
     const REP_WORD = { open: "Sent", seen: "Seen by the host", resolved: "Fixed" };
+    const MAX_REPORT_IMAGES = 4; // screenshots a report takes when it is sent (session.py MAX_REPORT_IMAGES); an addition takes one
 
     // Wide panels: beside the rail when there is room, over the center pane when not, a bottom sheet on phones.
     function panel(title, label) {
@@ -972,6 +973,25 @@
     PP.tools.append(propSeg);
     const propMore = showMore("proposals", 20);
     PP.list.after(propMore.foot);
+    // X42: the owner's Approve all makes every new proposal a question at once, behind a confirm that counts them; the
+    // server places only the ones counted, so one that arrives meanwhile waits. All or none: while they do not all fit
+    // in the next round, it is off and says how many do.
+    const MAX_ROUND = 8; // questions a round holds (session.py MAX_ROUND)
+    const nextRoom = () => { const n = Core.state.rounds.length + 1; return Math.max(0, MAX_ROUND - Core.state.questions.filter(q => q.round === n).length); };
+    const propAllRow = E("div", "vf-pp-actions"), propAll = btn("vf-btn vf-btn-primary vf-btn-sm vf-prop-all"), propAllWhy = E("p", "vf-pop-note vf-prop-all-why");
+    propAllRow.append(propAll, propAllWhy); PP.note.after(propAllRow);
+    let propAllIds = [];
+    propAll.onclick = guarded(() => {
+      propAllIds = Core.state.ideas.filter(i => i.status === "new").map(i => i.id);
+      const n = propAllIds.length;
+      if (n > nextRoom()) { propAllIds = []; render(); return null; }
+      return n && { title: `Approve all ${n} proposal${n === 1 ? "" : "s"}?`, ok: `Approve ${n}`,
+        body: "Each becomes a question in the next round, as Make it a question does, and its author hears so. Claude does not place them.", danger: false };
+    }, () => {
+      if (!propAllIds.length) return;
+      propAll.disabled = true;
+      Core.approveProposals(propAllIds).then(r => flash(`Added ${r.questions.length} question${r.questions.length === 1 ? "" : "s"} to round ${r.round}.`)).catch(fail).finally(() => { propAll.disabled = false; });
+    });
     propNewBtn.onclick = () => { ui.propFilter = "new"; render(); };
     propNotBtn.onclick = () => { ui.propFilter = "notplaced"; render(); };
     propParkBtn.onclick = () => { ui.propFilter = "parked"; render(); };
@@ -1075,7 +1095,9 @@
     const forLegend = E("legend", null, "Who must answer (no one ticked asks everyone)"), forList = E("div", "vf-forlist");
     forBox.append(forLegend, forList);
     forBtn.onclick = () => { ui.forOpen = ui.forOpen === ui.cur ? "" : ui.cur; render(); };
-    qMeta.append(qPos, qPurpose, purposeSel.w, qFor, forBtn, qFrom, qDeps, qSug, qHost);
+    // the purpose and who it asks, one group: on a phone it wraps to its own row as a whole (app.css .vf-qgroup)
+    const qTools = E("span", "vf-qgroup"); qTools.append(qPurpose, purposeSel.w, qFor, forBtn);
+    qMeta.append(qPos, qTools, qFrom, qDeps, qSug, qHost);
     const qText = E("h1", "vf-qtext"); qText.tabIndex = -1;
     // F:30: the background Claude wrote for the question (its stored `context`), under the question, clamped like any long text
     const qCtx = clampBox("vf-qctx"); qCtx.hidden = true;
@@ -2187,12 +2209,20 @@
     const devWarn = E("p", "vf-devwarn");
     devicePop.append(E("h2", "vf-pop-title", "Use on another device"), E("p", "vf-pop-note", "Scan this on your phone, or open the link in another browser. You stay the same person there, with your answers and votes."), qrBox, devField, devRow, devWarn);
 
+    // Sign in on another device (the owner): a one-time code, its QR code, and the devices signed in so far.
+    const pairPop = E("div", "vf-pop vf-devicepop vf-pairpop"); pairPop.setAttribute("role", "dialog"); pairPop.setAttribute("aria-label", "Sign in on another device"); pairPop.hidden = true;
+    const pairNote = E("p", "vf-pop-note"), pairQr = E("div", "vf-qr"), pairCode = E("p", "vf-pair-code"), pairWhen = E("p", "vf-pop-note");
+    const pairRow = E("div", "vf-crow"), pairNew = btn("vf-btn vf-btn-ghost vf-btn-sm", "New code");
+    pairRow.append(E("span", "vf-spacer"), pairNew);
+    const pairList = E("ul", "vf-pairlist"); pairList.setAttribute("aria-label", "Signed-in devices");
+    pairPop.append(E("h2", "vf-pop-title", "Sign in on another device"), pairNote, pairQr, pairCode, pairWhen, pairRow, E("h3", "vf-pop-sub", "Signed-in devices"), pairList);
+
     keysBtn.before(introBtn);
     root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, tiePop, proposePop, reportPop, myRepPop, citePop, msgMenu, askPanel, devicePop,
-      bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
+      pairPop, bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
     // F11: the surfaces made without a close control get the one x, named for what it closes; the forms keep Cancel too.
     for (const [pop, name, ph] of [[settingsPop, "Session settings"], [sharePop, "Invite people"], [keysPop, "Help"], [introPop, "Why you're here"],
-      [citePop, "Cite a result"], [tiePop, "Tied on votes"], [devicePop, "Use on another device"], [editPop, "Edit this answer"],
+      [citePop, "Cite a result"], [tiePop, "Tied on votes"], [devicePop, "Use on another device"], [pairPop, "Sign in on another device"], [editPop, "Edit this answer"],
       [proposePop, "Propose a question", "sheet"], [reportPop, "Report a problem", "sheet"], [myRepPop, "Your reports", "sheet"]]) {
       pop.dataset.kind = "pop"; pop.dataset.phone = ph || "pop";
       pop.prepend(ibtn("vf-tbtn vf-icon-btn vf-popx", "x", `Close ${name}`));
@@ -3953,10 +3983,10 @@
       apply(best); fmt(best);
       return M;
     }
-    function qrSvg(text) {
+    function qrSvg(text, label = "QR code of your personal link") {
       const M = qrMatrix(text); if (!M) return E("p", "vf-pop-note", "The link is too long for a QR code. Copy it instead.");
       const n = M.length + 8, s = document.createElementNS(SVG, "svg");
-      s.setAttribute("viewBox", `0 0 ${n} ${n}`); s.setAttribute("role", "img"); s.setAttribute("aria-label", "QR code of your personal link");
+      s.setAttribute("viewBox", `0 0 ${n} ${n}`); s.setAttribute("role", "img"); s.setAttribute("aria-label", label);
       s.setAttribute("shape-rendering", "crispEdges");
       const bg = document.createElementNS(SVG, "rect"); bg.setAttribute("width", n); bg.setAttribute("height", n); bg.setAttribute("fill", "#fff");
       let d = ""; M.forEach((row, y) => row.forEach((on2, x) => { if (on2) d += `M${x + 4} ${y + 4}h1v1h-1z`; }));
@@ -3969,14 +3999,50 @@
       if (!link) return flash("Join first, then you can take this to another device.");
       devField.value = link;
       qrBox.replaceChildren(qrSvg(link));
-      devWarn.replaceChildren(icon("alert"), E("span", null, Core.me.isOwner
-        ? "Keep this private: this is your owner link, and anyone with it can run this session."
-        : "Keep this private: anyone with this link can answer, vote and chat as you."));
-      const anchor = people.querySelector(".vf-person-me") || (gear.offsetParent ? gear : askTop);
-      openSurface(devicePop, anchor);
+      devWarn.replaceChildren(icon("alert"), E("span", null, "Keep this private: anyone with this link can answer, vote and chat as you."));
+      openSurface(devicePop, people.querySelector(".vf-person-me") || (gear.offsetParent ? gear : askTop));
       devCopy.focus({ preventScroll: true });
     }
     devCopy.onclick = () => copyOut(devField.value, "Link copied. Open it on your other device.", "Your link", devCopy, devField);
+    let pairT = 0;
+    /** A fresh one-time code: the QR code opens the session's link with it, or the other device types it. */
+    function newPairCode() {
+      clearTimeout(pairT);
+      pairQr.replaceChildren(); pairCode.textContent = ""; pairWhen.textContent = "Making a code…"; pairNew.disabled = true;
+      return Core.pairDevice().then(j => {
+        const link = `${Core.guestLink()}${Core.state.guestKey ? "&" : "#"}pair=${j.code}`;
+        pairQr.replaceChildren(Core.state.shareUrl ? qrSvg(link, "QR code that signs a device in as the host")
+          : E("p", "vf-pop-note", "Share the session first: the other device opens its link, which this one does not have yet."));
+        pairCode.textContent = `${j.code.slice(0, 4)}-${j.code.slice(4)}`;
+        pairWhen.textContent = `Scan it with the other device's camera, or open the session's link there and choose Sign in with a code. It works once, for ${Math.round(j.expiresIn / 60)} minutes.`;
+        pairT = setTimeout(() => { pairQr.replaceChildren(); pairCode.textContent = ""; pairWhen.textContent = "That code expired. Make a new one."; }, j.expiresIn * 1000);
+      }).catch(e => { pairWhen.textContent = Core.errorText(e); }).finally(() => { pairNew.disabled = false; });
+    }
+    pairNew.onclick = newPairCode;
+    function fillPairList() {
+      const mine = Core.ownerDevice(), devs = Core.state.ownerDevices || [], sig = JSON.stringify(devs);
+      if (pairList.dataset.sig === sig) return; // a repaint mid-click would drop the click
+      pairList.dataset.sig = sig;
+      pairList.replaceChildren(...devs.map(d => {
+        const name = `${d.device ? d.device[0].toUpperCase() + d.device.slice(1) : "Device"}${d.browser ? ` (${d.browser})` : ""}${d.id === mine ? ", this one" : ""}`;
+        const li = E("li", "vf-pair-dev"), out = btn("vf-btn vf-btn-ghost vf-btn-sm", "Sign out");
+        out.setAttribute("aria-label", `Sign out ${name}`);
+        out.onclick = () => { out.disabled = true; Core.revokeDevice(d.id).then(() => flash(`${name} is signed out.`)).catch(e => { out.disabled = false; fail(e); }); };
+        li.append(E("span", null, `${name}, signed in ${since(d.at)}`), out);
+        return li;
+      }));
+      if (!devs.length) pairList.append(E("li", "vf-pop-note", "None yet."));
+    }
+    function openPair() {
+      const dev = Core.ownerDevice() != null;
+      pairNote.textContent = dev ? "This device is signed in as the host. Make codes on the device where you opened your owner link."
+        : "Be the host on your phone or another computer too. Each device gets its own sign-in, which you can sign out here; a new owner link signs out all of them.";
+      for (const el of [pairQr, pairCode, pairWhen, pairRow]) el.hidden = dev;
+      delete pairList.dataset.sig;
+      fillPairList();
+      openSurface(pairPop, people.querySelector(".vf-person-me") || (gear.offsetParent ? gear : askTop));
+      if (!dev) newPairCode();
+    }
 
     // ---------- uploads: the file waits in this browser until the host accepts ----------
     const CHUNK_MAX = 8 * 1024 * 1024, GUEST_MAX = 100 * 1024 * 1024; // the server names its chunk size on each upload
@@ -4388,6 +4454,7 @@
     hSettings.onclick = () => openSurface(settingsPop, hSettings);
     hNewGuest.onclick = () => newGuestBtn.click();
     hNewOwner.onclick = () => newOwnerBtn.click();
+    newOwnerBtn.hidden = Core.ownerDevice() != null; // only where the owner link was opened (server.py "host")
     hEnd.onclick = () => endBtn.click();
     follow.onclick = () => setFollow(!following());
     prevQ.onclick = () => step(-1);
@@ -4521,13 +4588,13 @@
         .catch(fail).finally(() => { propSend.disabled = false; });
     };
     // ---------- Report a problem ----------
-    const REP = { ctx: null, image: "", size: null };
+    const REP = { ctx: null };
     function paintSent() {
       const c = REP.ctx;
       if (!c) return; // the form has not opened yet: a screenshot picked or cleared before it has nothing to list (sweep S30)
       const rows = [...ctxLines(c),
         c.errors.length ? `Recent errors: ${c.errors.join("; ")}` : "Recent errors: none",
-        ...(REP.image ? [`Your screenshot, ${REP.size.w} × ${REP.size.h}`] : []),
+        ...repShot.shots.map((x, i, all) => `Your screenshot${all.length > 1 ? ` ${i + 1} of ${all.length}` : ""}, ${x.w} × ${x.h}`),
         "Not sent: your answers, the chat, this page's address or your sign-in"];
       repSent.replaceChildren(...rows.map(t => E("li", null, t)));
     }
@@ -4549,58 +4616,72 @@
       }
       throw new Error("too large");
     }
-    /** F3: a report's one screenshot, picked or pasted into its field, shown as an attachment chip (attSlot's look)
-     *  and sent as a data: URL (shrinkShot), so it works while Uploads is off. changed(error) runs after each change. */
-    function shotSlot(field, changed) {
-      const input = E("input", "vf-rep-file"); input.type = "file"; input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true;
-      const b = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-rep-attach", "clip", "Add a screenshot");
-      const chips = E("ul", "vf-reflist vf-attlist vf-attdraft"); chips.setAttribute("aria-label", "Screenshot, not sent yet"); chips.hidden = true;
-      const sl = { btn: b, chips, input, image: "", size: null, gen: 0 };
+    /** F3: a report's screenshots, at most `max`, picked (several at once) or pasted into its field, each shown as an
+     *  attachment chip (attSlot's look) and sent as a data: URL (shrinkShot), so they work while Uploads is off. `shots`
+     *  holds {url, w, h} in the order they came; with max 1 a new one replaces the old. changed(error) runs after each change. */
+    function shotSlot(field, changed, max = 1) {
+      const input = E("input", "vf-rep-file"); input.type = "file"; input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true; input.multiple = max > 1;
+      const b = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-rep-attach", "clip", max > 1 ? "Add screenshots" : "Add a screenshot");
+      const chips = E("ul", "vf-reflist vf-attlist vf-attdraft"); chips.setAttribute("aria-label", max > 1 ? "Screenshots, not sent yet" : "Screenshot, not sent yet"); chips.hidden = true;
+      const sl = { btn: b, chips, input, shots: [], gen: 0, get image() { return sl.shots[0]?.url || ""; } };
       const paint = () => {
-        chips.hidden = !sl.image; b.hidden = !!sl.image; // one screenshot: its chip's x takes it off
-        if (!sl.image) return chips.replaceChildren();
-        const li = E("li", "vf-ref"), v = btn("vf-ref-img vf-uppic"), thumb = E("span", "vf-ref-thumb"), img = E("img");
-        const cap = `Screenshot, ${sl.size.w} × ${sl.size.h}`;
-        li.dataset.kind = "image"; img.src = sl.image; img.alt = "";
-        thumb.append(img, zoomTag()); v.append(thumb, E("span", "vf-ref-cap", cap));
-        v.setAttribute("aria-label", `View larger: ${cap}`);
-        v.onclick = () => openLb("att", null, 0, v, [{ src: sl.image, title: cap }], "Not sent yet");
-        const x = ibtn("vf-tbtn vf-icon-btn vf-ref-x", "x", "Remove the screenshot");
-        x.onclick = () => { sl.clear(); changed(); b.focus(); };
-        li.append(v, x); chips.replaceChildren(li);
+        chips.hidden = !sl.shots.length; b.hidden = sl.shots.length >= max; // full: each chip's x takes one off
+        const all = sl.shots.map(x => ({ src: x.url, title: "" }));
+        chips.replaceChildren(...sl.shots.map((x, i) => {
+          const li = E("li", "vf-ref"), v = btn("vf-ref-img vf-uppic"), thumb = E("span", "vf-ref-thumb"), img = E("img");
+          const cap = `Screenshot${sl.shots.length > 1 ? ` ${i + 1}` : ""}, ${x.w} × ${x.h}`;
+          all[i].title = cap;
+          li.dataset.kind = "image"; img.src = x.url; img.alt = "";
+          thumb.append(img, zoomTag()); v.append(thumb, E("span", "vf-ref-cap", cap));
+          v.setAttribute("aria-label", `View larger: ${cap}`);
+          v.onclick = () => openLb("att", null, i, v, all, "Not sent yet");
+          const rm = ibtn("vf-tbtn vf-icon-btn vf-ref-x", "x", sl.shots.length > 1 ? `Remove screenshot ${i + 1}` : "Remove the screenshot");
+          rm.onclick = () => {
+            sl.shots.splice(i, 1); paint(); changed();
+            (b.hidden ? chips.querySelectorAll(".vf-ref-img")[Math.max(0, i - 1)] : b)?.focus();
+          };
+          li.append(v, rm); return li;
+        }));
       };
-      // gen: a clear (the form sent or the chip's x) or a newer pick makes a screenshot still shrinking stale
-      sl.clear = () => { sl.gen++; sl.image = ""; sl.size = null; input.value = ""; paint(); };
-      const take = async f => {
-        const gen = ++sl.gen;
-        try {
-          if (!["image/png", "image/jpeg", "image/webp"].includes(f.type)) throw new Error("type");
-          const s = await shrinkShot(f);
-          if (gen !== sl.gen) return;
-          const moved = document.activeElement === b; // the button hides once its chip shows: focus goes to the chip
-          Object.assign(sl, { image: s.url, size: { w: s.w, h: s.h } }); paint(); changed();
-          if (moved) chips.querySelector(".vf-ref-img")?.focus();
-        } catch { if (gen === sl.gen) { sl.clear(); changed("That picture could not be added. Use a PNG, JPEG or WebP screenshot."); } }
-      };
+      // gen, read when the pictures come: a clear (the form sent) makes those still shrinking or waiting their turn
+      // stale; takes run one after another, so the chips keep the order the pictures came in
+      sl.clear = () => { sl.gen++; sl.shots = []; input.value = ""; paint(); };
+      let line = Promise.resolve();
+      const take = files => { const gen = sl.gen; return (line = line.then(async () => {
+        if (gen !== sl.gen) return; // picked for a report sent since
+        const moved = document.activeElement === b;
+        let err = "";
+        for (const f of files) {
+          if (max > 1 && sl.shots.length >= max) { err = `A report takes at most ${max} screenshots.`; break; }
+          try {
+            if (!["image/png", "image/jpeg", "image/webp"].includes(f.type)) throw new Error("type");
+            const x = await shrinkShot(f);
+            if (gen !== sl.gen) return;
+            sl.shots = max > 1 ? [...sl.shots, { url: x.url, w: x.w, h: x.h }] : [{ url: x.url, w: x.w, h: x.h }];
+          } catch { if (gen !== sl.gen) return; err = "That picture could not be added. Use a PNG, JPEG or WebP screenshot."; }
+        }
+        input.value = ""; paint(); changed(err);
+        if (moved && b.hidden) chips.querySelector(".vf-ref:last-child .vf-ref-img")?.focus(); // the button hid once full: focus goes to the last chip
+      })); };
       b.onclick = () => input.click();
-      on(input, "change", () => { if (input.files?.[0]) take(input.files[0]); });
+      on(input, "change", () => { if (input.files?.length) take([...input.files]); });
       on(field, "paste", e => {
-        const f = [...(e.clipboardData?.files || [])].find(x => /^image\//.test(x.type));
-        if (f) { e.preventDefault(); take(f); }
+        const fs = [...(e.clipboardData?.files || [])].filter(x => /^image\//.test(x.type));
+        if (fs.length) { e.preventDefault(); take(fs); }
       });
       return sl;
     }
-    const repShot = shotSlot(repTa, err => { REP.image = repShot.image; REP.size = repShot.size; repErr.textContent = err || ""; paintSent(); });
+    const repShot = shotSlot(repTa, err => { repErr.textContent = err || ""; paintSent(); }, MAX_REPORT_IMAGES);
     const repShotRow = E("div", "vf-crow vf-rep-shotrow"); repShotRow.append(repShot.btn);
     repTa.after(repShot.chips, repShotRow); reportPop.append(repShot.input);
-    const dropShot = () => { repShot.clear(); REP.image = ""; REP.size = null; paintSent(); };
+    const dropShot = () => { repShot.clear(); paintSent(); };
     const repBack = () => { const r = reportPop._return || reportPop._anchor; closePop(); if (r?.isConnected && r.offsetParent) r.focus({ preventScroll: true }); };
     repCancel.onclick = repBack;
     reportPop.onsubmit = e => {
       e.preventDefault();
       const text = repTa.value.trim(); if (!text) return repTa.focus();
       repSend.disabled = true; repErr.textContent = "";
-      Core.report(text, REP.ctx, REP.image).then(() => { repTa.value = ""; kitPaint(repK); dropShot(); repBack(); flash("Report sent. The host and Claude will look at it."); })
+      Core.report(text, REP.ctx, repShot.shots.map(x => x.url)).then(() => { repTa.value = ""; kitPaint(repK); dropShot(); repBack(); flash("Report sent. The host and Claude will look at it."); })
         .catch(x => { repErr.textContent = `Not sent: ${x?.message || Core.errorText(x)}`; }).finally(() => { repSend.disabled = false; });
     };
     function makeMyRep() {
@@ -4649,7 +4730,7 @@
     }
     newGuestBtn.onclick = guarded({ title: "Make a new guest link?", body: "The guest link you shared stops working: nobody new can join with it. People already here stay. You share the new link again.", ok: "Make new guest link" },
       () => Core.newGuestLink().then(() => { openSurface(sharePop, shareBtn.offsetParent ? shareBtn : gear); flash("New guest link made. Share it again."); }).catch(fail));
-    newOwnerBtn.onclick = guarded({ title: "Make a new owner link?", body: "Your current owner link stops working everywhere, including other devices and tabs that use it. This page reloads with the new one: save it, or you lose host access.", ok: "Make new owner link" },
+    newOwnerBtn.onclick = guarded({ title: "Make a new owner link?", body: "Your current owner link stops working everywhere, including other tabs that use it, and every device you signed in with a code is signed out. This page reloads with the new one: save it, or you lose host access.", ok: "Make new owner link" },
       () => Core.newOwnerLink().catch(fail));
     const laterItems = () => Core.state.ideas.filter(i => i.status === "later");
     const laterLine = n => `${n} Later item${n === 1 ? "" : "s"} will become tracker item${n === 1 ? "" : "s"}`;
@@ -4884,8 +4965,8 @@
           awayB.setAttribute("aria-pressed", String(Core.isAway()));
           // Pressed means this click is the input that ended Away (core.js clears it on pointerdown or keydown).
           awayB.onclick = () => { if (awayB.getAttribute("aria-pressed") === "true" || Core.isAway()) return; Core.setAway(true); flash("You show as Away until you next type, click or tap."); fillPcard(); };
-          const dev = k(lbtn("vf-menu-item vf-menu-plain", "device", "Use on another device"), "device");
-          dev.onclick = openDevice;
+          const dev = k(lbtn("vf-menu-item vf-menu-plain", "device", owner ? "Sign in on another device" : "Use on another device"), owner ? "pair" : "device");
+          dev.onclick = owner ? openPair : openDevice;
           parts.push(awayB, dev);
         }
         if (ui.renaming) {
@@ -6563,13 +6644,11 @@
       li._k = { chip, who, qref, text, att, extra, acts, sig: "" };
       if (it.t === "upload") { const row = makeUpRow(true); row.classList.add("vf-uprow-q"); extra.append(row); li._k.up = row; }
       if (it.t === "report") {
-        // The reporter's words and context are their data. The picture loads only when the owner asks for it.
-        const ctx = E("ul", "vf-rep-sent"), show = btn("vf-btn vf-btn-ghost vf-btn-sm", "Show screenshot"), img = E("img", "vf-rep-shot");
-        img.alt = "The reporter's screenshot"; img.hidden = true;
-        show.onclick = () => { show.disabled = true; Core.reportImage(li._it.f.id).then(src => { img.src = src; img.hidden = false; show.hidden = true; }).catch(e => { show.disabled = false; fail(e); }); };
+        // The reporter's words and context are their data. Each picture loads only when the owner asks for it.
+        const ctx = E("ul", "vf-rep-sent"), pics = E("div", "vf-rep-pics");
         const adds = E("ul", "vf-myrep-adds vf-rep-adds"); adds.setAttribute("aria-label", "Added by the reporter");
-        extra.append(ctx, show, img, adds);
-        li._k.rep = { ctx, show, adds };
+        extra.append(ctx, pics, adds);
+        li._k.rep = { ctx, pics, adds };
       }
       return li;
     }
@@ -6600,7 +6679,19 @@
       if (k.rep) {
         const c = it.f.ctx;
         k.rep.ctx.replaceChildren(...[...ctxLines(c), ...c.errors.map(e => `Error: ${e}`)].map(t => E("li", null, t)));
-        k.rep.show.hidden = !it.f.image || !!k.rep.show.nextSibling.getAttribute("src");
+        // one Show screenshot per picture sent with the report, numbered when there are several; built once per count
+        const nPics = it.f.images || (it.f.image ? 1 : 0);
+        if (k.rep.pics._n !== nPics) {
+          k.rep.pics._n = nPics;
+          k.rep.pics.replaceChildren(...Array.from({ length: nPics }, (_, i) => {
+            const of = nPics > 1 ? ` ${i + 1} of ${nPics}` : "";
+            const w = E("div", "vf-rep-pic"), show = btn("vf-btn vf-btn-ghost vf-btn-sm", `Show screenshot${of}`), img = E("img", "vf-rep-shot");
+            img.alt = `The reporter's screenshot${of}`; img.hidden = true;
+            show.onclick = () => { show.disabled = true; Core.reportImage(li._it.f.id, null, i ? i + 1 : null).then(src => { img.src = src; img.hidden = false; show.hidden = true; }).catch(e => { show.disabled = false; fail(e); }); };
+            w.append(show, img); return w;
+          }));
+        }
+        k.rep.pics.hidden = !nPics;
         // What the reporter added since: each line, and a screenshot that loads only when the owner asks.
         const sig = JSON.stringify(it.f.adds);
         if (k.rep.adds._sig !== sig) {
@@ -6787,6 +6878,7 @@
       hPeople._m.textContent = `${S.presence.length} here${nAway ? ` (${nAway} away)` : ""}, ${ppl.filter(p => !gone.has(p.pid)).length} joined`;
       // links and settings
       hNewGuest.hidden = hNewOwner.hidden = hSettings.hidden = hEnd.hidden = !owner;
+      hNewOwner.hidden ||= Core.ownerDevice() != null; // only where the owner link was opened (server.py "host")
       const nl = laterItems().length;
       hEnd.textContent = S.ended ? "Reopen session" : "End session";
       hEndNote.textContent = owner && !S.ended ? (nl ? `Ending makes the page read-only for guests. ${laterLine(nl)}.` : "Ending makes the page read-only for guests, with the final tree.") : "";
@@ -6863,6 +6955,7 @@
         }
       }
       notices(S);
+      if (!pairPop.hidden) fillPairList();
       pumpUploads(); prunePics();
       // New answers from others on the question I am on: one polite summary, never the list itself.
       const heardQ = ui.cur, others0 = Core.answersFor(heardQ).filter(a => !isMe(a.cid)).length;
@@ -6991,7 +7084,9 @@
         const head = E("div", "vf-rhead");
         const toggle = btn("vf-rtoggle");
         const tLabel = E("span", "vf-rlabel");
-        const check = E("span", "vf-rcheck"); check.append(icon("check"));
+        // the slot always shows, so every round's label starts at one x: a check once any is done, else an empty ring; the
+        // label says the count, so the slot is aria-hidden in both
+        const check = E("span", "vf-rcheck"); check.setAttribute("aria-hidden", "true"); check.append(icon("check"));
         toggle.append(check, tLabel, icon("chevR", "vf-i vf-chev"));
         toggle.onclick = () => { const o = openRounds(); o.has(n) ? o.delete(n) : o.add(n); setOpenRounds(o); };
         const curHead = E("div", "vf-rcur");
@@ -7022,7 +7117,7 @@
         // ux-review-2 #7: guests count what they answered; "decided" is the moderators' word.
         const done = mod ? decided : inRound.filter(mineDone).length, word = mod ? "decided" : "answered";
         k.tLabel.textContent = n > cur ? `Round ${n}, opens after round ${cur}` : `Round ${n}, ${done} of ${inRound.length} ${word}`;
-        k.check.hidden = !done;
+        k.check.classList.toggle("vf-rcheck-none", !done);
         k.name.textContent = `Round ${n}`;
         k.meta.textContent = list.length < inRound.length ? `${list.length} of ${inRound.length} shown` : `${done} of ${inRound.length} ${word}`;
         k.prog.firstChild.style.transform = `scaleX(${inRound.length ? done / inRound.length : 0})`;
@@ -7067,6 +7162,12 @@
       propNewBtn.setAttribute("aria-pressed", String(ui.propFilter === "new"));
       propNotBtn.setAttribute("aria-pressed", String(ui.propFilter === "notplaced"));
       propParkBtn.setAttribute("aria-pressed", String(ui.propFilter === "parked"));
+      propAllRow.hidden = !me.isOwner || ui.propFilter !== "new" || !props.length;
+      propAll.textContent = `Approve all ${props.length}`;
+      const room = nextRoom();
+      propAll.disabled = props.length > room;
+      propAllWhy.hidden = !propAll.disabled;
+      propAllWhy.textContent = room ? `Round ${S.rounds.length + 1} has room for ${room} more, not all ${props.length}. Park some or make them questions one by one.` : `Round ${S.rounds.length + 1} is full.`;
       const joins = v8() ? nextN : preparing ? nextN : cur;
       PP.note.textContent = ui.propFilter === "new"
         ? `These go to Claude with round ${cur}${preparing ? " (already sent; they wait for the next send)" : ""}. Claude places each one. A question you make now joins round ${joins}.`
@@ -7248,6 +7349,7 @@
         forBtn.textContent = asked.length ? "Change who" : "Ask someone";
         forBtn.setAttribute("aria-expanded", String(ui.forOpen === q.id));
         forBox.hidden = forBtn.hidden || ui.forOpen !== q.id;
+        qTools.hidden = qPurpose.hidden && purposeSel.w.hidden && qFor.hidden && forBtn.hidden;
         if (!forBox.hidden) {
           const people = Object.keys(S.people).filter(p => !(S.removed || []).includes(p));
           sync(forList, people, p => p, p => {
@@ -7432,7 +7534,7 @@
         agreeTxt.classList.toggle("vf-agree-all", !!topA && agreeN === here.length);
       } else {
         qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = qCtx.hidden = true; qText.textContent = "No questions yet";
-        qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
+        qTools.hidden = qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
         onItTxt.textContent = ""; ansCount.textContent = ""; aEmpty.hidden = true; lockBox.hidden = true; lockBtn.hidden = true;
         reviewRow.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;
       }
