@@ -25,6 +25,8 @@ exist but none has the record length, which means the layout this adapter
 decodes no longer holds. Microsoft does not document the layout.
 #>
 
+. (Join-Path $PSScriptRoot 'ConvertFrom-FileTimeBytes.ps1')
+
 $script:UserAssistRoot = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist'
 $script:UserAssistRecordLength = 72
 $script:UserAssistLastRunOffset = 60
@@ -71,7 +73,7 @@ function Read-UserAssist {
                 $entries.Add([pscustomobject]@{
                         Name    = $name
                         Path    = Resolve-UserAssistPath -Name $name
-                        LastRun = ConvertFrom-UserAssistTime -Record $property.Value
+                        LastRun = ConvertFrom-FileTimeBytes -Bytes $property.Value -Offset $script:UserAssistLastRunOffset
                     })
             }
         }
@@ -100,16 +102,6 @@ function ConvertFrom-Rot13 {
         if ($base) { $chars[$i] = [char]((($code - $base + 13) % 26) + $base) }
     }
     return [string]::new($chars)
-}
-
-function ConvertFrom-UserAssistTime {
-    [CmdletBinding()]
-    [OutputType([datetime])]
-    param([Parameter(Mandatory = $true)] [byte[]] $Record)
-
-    $fileTime = [BitConverter]::ToInt64($Record, $script:UserAssistLastRunOffset)
-    if ($fileTime -le 0) { return $null }
-    try { return [datetime]::FromFileTimeUtc($fileTime) } catch { return $null }
 }
 
 function Resolve-UserAssistPath {

@@ -20,6 +20,8 @@ Returns two records, { Source, ReadState, Entries }:
 Without elevation both reads are refused and report denied.
 #>
 
+. (Join-Path $PSScriptRoot 'ConvertFrom-FileTimeBytes.ps1')
+
 $script:BamUserSettings = 'HKLM:\SYSTEM\CurrentControlSet\Services\bam\State\UserSettings'
 $script:BamDevicePrefix = '^\\Device\\HarddiskVolume\d+'
 
@@ -83,14 +85,14 @@ function Read-BamEvidence {
 
     $entries = foreach ($property in @($values | ForEach-Object { $_.PSObject.Properties })) {
         if ($property.Name -notmatch $script:BamDevicePrefix) { continue }
-        if ($property.Value -isnot [byte[]] -or $property.Value.Length -lt 8) { continue }
-        $fileTime = [BitConverter]::ToInt64($property.Value, 0)
-        if ($fileTime -le 0) { continue }
+        if ($property.Value -isnot [byte[]]) { continue }
+        $lastRun = ConvertFrom-FileTimeBytes -Bytes $property.Value -Offset 0
+        if (-not $lastRun) { continue }
         $path = $property.Name -replace $script:BamDevicePrefix, ''
         [pscustomobject]@{
             ExeName = [System.IO.Path]::GetFileName($path).ToLowerInvariant()
             Path    = $path
-            LastRun = [datetime]::FromFileTimeUtc($fileTime)
+            LastRun = $lastRun
         }
     }
     $entries = @($entries)

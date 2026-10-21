@@ -20,6 +20,8 @@ unknown with its raw value, so a newly understood byte is one table edit here.
 A RunOnce key has no StartupApproved counterpart, so no scope maps to it.
 #>
 
+. (Join-Path $PSScriptRoot 'ConvertFrom-FileTimeBytes.ps1')
+
 $script:StartupApprovedRoot = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved'
 
 # Startup scope -> the hive and StartupApproved subkey that hold its entries' state.
@@ -83,11 +85,8 @@ function ConvertFrom-StartupApprovedValue {
     }
 
     $disabledAt = $null
-    if ($state -eq 'disabled' -and $Bytes.Length -ge $script:StartupApprovedTimeOffset + 8) {
-        $fileTime = [BitConverter]::ToInt64($Bytes, $script:StartupApprovedTimeOffset)
-        if ($fileTime -gt 0) {
-            try { $disabledAt = [datetime]::FromFileTimeUtc($fileTime) } catch { $disabledAt = $null }
-        }
+    if ($state -eq 'disabled') {
+        $disabledAt = ConvertFrom-FileTimeBytes -Bytes $Bytes -Offset $script:StartupApprovedTimeOffset
     }
     return [pscustomobject]@{ State = $state; RawByte = $null; DisabledAt = $disabledAt }
 }
