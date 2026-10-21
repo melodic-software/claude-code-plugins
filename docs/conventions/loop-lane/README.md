@@ -99,8 +99,8 @@ raise, then the C4/C5 ceiling.
 
 **The paired raise never widens an unattended merge.** The unattended merge path
 (`/source-control:babysit-prs`, the merge gate's `--unattended`) takes its rung only from tracked
-files read at the pull request's base SHA, `merge.rung` in `docs/conventions/pr-pipeline.yaml` and
-the tracked merge rung, lowered by the human-set rung cap and any demotion record. No invocation
+files read at the pull request's base SHA and at the default branch head, the lower of each,
+`merge.rung` in `docs/conventions/pr-pipeline.yaml` and the tracked merge rung, lowered by the human-set rung cap and any demotion record. No invocation
 argument reaches it, so `autopilot --merge c3-this-run` widens a worker-tier run and never an
 unattended merge.
 
