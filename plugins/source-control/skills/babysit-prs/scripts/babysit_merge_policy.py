@@ -181,12 +181,13 @@ def resolve(repo: str, number: int | None = None) -> UnattendedPolicy:
     number). It never permits a merge. Raises `PolicyReadError` when a
     pipeline config cannot be read or parsed, or the identities differ."""
     if number is None:
-        config = _default_branch_config(repo)
+        _, sha = _default_branch_head(repo)
     else:
         sha = str(json_object(pull_request(repo, number).get("base")).get("sha"))
-        config = read_config_at(repo, sha)
-        if config.error:
-            raise PolicyReadError(f"{CONFIG_PATH} at {sha}: {config.error}")
+    config = read_config_at(repo, sha)
+    if config.error:
+        raise PolicyReadError(f"{CONFIG_PATH} at {sha}: {config.error}")
+    if number is not None:
         config = with_default_branch(repo, config)
     reason = NOT_ASSESSED if enabled_authority(config) else AUTHORITY_UNCONFIGURED
     return UnattendedPolicy(reason, config.agent_identity, enabled=False)

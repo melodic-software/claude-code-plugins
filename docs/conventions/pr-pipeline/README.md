@@ -656,7 +656,8 @@ admin permission on the repository.
 ### The pr-merge lane
 
 The same wrapper run with `--unattended --authority pr-merge` is the pr-merge lane's gate. It needs
-`merge.authority: pr-merge` and `merge.agent-identity` at the base, and keeps every read above
+`merge.authority: pr-merge` and `merge.agent-identity` at the base and at the default branch
+head, and keeps every read above
 except six:
 
 - **Eligibility.** Not a fork or a dependency manager's pull request, opened by
