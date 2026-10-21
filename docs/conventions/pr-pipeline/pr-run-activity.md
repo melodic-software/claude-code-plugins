@@ -614,8 +614,13 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    a scratch directory and the prompt file; after the head checkout the run job copies them to
    `.lane/`, failing red when the head already holds `.lane`, makes the plugin and the context
    read-only and has git ignore the directory. `--restricted` reads nothing outside the checkout,
-   so `plugin-dirs` is `.lane/plugins/<plugin>`, never `$RUNNER_TEMP`. The tools, allow and deny
-   rules come from the stage, with `permission-mode: dontAsk`; the preamble stands in for the
+   so `plugin-dirs` is `.lane/plugins/<plugin>`, never `$RUNNER_TEMP`. It also ignores the
+   head's user, project and local settings files, so a head `.claude/settings.json` sets no
+   hook, permission or env; `--strict-mcp-config` ignores the head's `.mcp.json`; and the managed
+   settings pin `apiKeyHelper` and `ANTHROPIC_BASE_URL` and allow managed hooks only, which
+   run-claude-cli checks before every leg. This is why PR mode needs no swap of the head's config
+   paths for the base's. A head `CLAUDE.md` is still read, as untrusted text. The tools, allow
+   and deny rules come from the stage, with `permission-mode: dontAsk`; the preamble stands in for the
    system prompt, and the prompt asks for the Skill tool.
 3. One step checks the call's secret is set (only that leaves it), and one launcher step per
    secret runs the skill: `act-key` on the first call, `act-token` on the fallback call, with
@@ -1122,8 +1127,8 @@ Recorded, not fixed:
 - The verdict's step outcomes, `act-outcome` among them, come from the run job, which a hostile
   run can forge, so the check-run conclusion this workflow posts is not evidence. No PR-mode gate
   skill runs on it, and no consumer treats that conclusion as merge or apply evidence: not a
-  required check, ci-status, pr-merge's verify evidence or risk score, apply-ci-fix, apply-patch,
-  or a `workflow_run` trigger keyed on it.
+  required check, ci-status, pr-merge's verify evidence or risk score, apply-patch, or a
+  `workflow_run` trigger keyed on it.
 
 ## The summary job
 
