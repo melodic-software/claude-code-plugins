@@ -50,3 +50,24 @@ Runs come newest first. The script takes the first with `status` `completed` and
 other than `skipped` (a draft, or an actor the lane does not admit) and `cancelled` (a newer push
 superseded it), then compares its `created_at` with the window. A usage-limit stop exits the lane
 job non-zero, so its run concludes `failure`.
+
+A run that did not succeed gets two more reads before it counts:
+
+```bash
+gh api "repos/{owner}/{repo}/actions/runs/<run_id>/jobs?per_page=100"
+gh api "repos/{owner}/{repo}/check-runs/<job_id>/annotations?per_page=100"
+```
+
+A job's `id` is its check run's id. When every failed or timed-out job carries a `failure`
+annotation whose message starts `failure-class=skipped-validation`, the pull request edited the
+caller workflow, claude-code-action skipped itself, and the run is passed over like a skipped one.
+Any other class, `rate-limit` included, or a failed run with no failed job, keeps its verdict.
+After 10 such runs in a row the lane reads `local stale`. Pointer: the annotation is the reusable
+workflow's last step, `echo "::error title=$LANE failed::failure-class=..."`, in
+[ci-workflows `pr-review.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review.yml)
+and `pr-review-security.yml`; the reads are at
+[REST API: list jobs for a workflow run](https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run)
+and [REST API: list check run annotations](https://docs.github.com/en/rest/checks/runs#list-check-run-annotations).
+As of: 2026-10-21, read from runs 39610040287 and 39610040502. Recheck trigger: the reusable
+workflows rename `failure-class` or `skipped-validation`, or stop writing the class as an
+annotation.
