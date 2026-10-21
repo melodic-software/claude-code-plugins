@@ -332,20 +332,18 @@ jobs:
       lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
       credential-present: ${{ steps.key-present.outputs.present || steps.token-present.outputs.present }}
       handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.lane-class == 'credit-stop' }}
-      # PR mode, set after head code ran, for the scan job alone: the
-      # carry step's payloads, never a workflow_call output.
+      # PR mode, set after head code ran, for the scan job alone: each
+      # payload's byte count and the sealed bundle, never a workflow_call
+      # output.
       carry-reply-bytes: ${{ steps.carry.outputs.reply-bytes }}
-      carry-reply-sha256: ${{ steps.carry.outputs.reply-sha256 }}
-      carry-reply-b64-1: ${{ steps.carry.outputs.reply-b64-1 }}
       carry-act-turns-bytes: ${{ steps.carry.outputs.act-turns-bytes }}
-      carry-act-turns-sha256: ${{ steps.carry.outputs.act-turns-sha256 }}
-      carry-act-turns-b64-1: ${{ steps.carry.outputs.act-turns-b64-1 }}
       carry-patch-bytes: ${{ steps.carry.outputs.patch-bytes }}
-      carry-patch-sha256: ${{ steps.carry.outputs.patch-sha256 }}
-      carry-patch-b64-1: ${{ steps.carry.outputs.patch-b64-1 }}
-      carry-patch-b64-2: ${{ steps.carry.outputs.patch-b64-2 }}
-      carry-patch-b64-3: ${{ steps.carry.outputs.patch-b64-3 }}
-      carry-patch-b64-4: ${{ steps.carry.outputs.patch-b64-4 }}
+      carry-sealed-length: ${{ steps.seal.outputs.sealed-length }}
+      carry-sealed-1: ${{ steps.seal.outputs.sealed-1 }}
+      carry-sealed-2: ${{ steps.seal.outputs.sealed-2 }}
+      carry-sealed-3: ${{ steps.seal.outputs.sealed-3 }}
+      carry-sealed-4: ${{ steps.seal.outputs.sealed-4 }}
+      carry-sealed-5: ${{ steps.seal.outputs.sealed-5 }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
       # silently let the App's own events through. An empty default branch
@@ -751,14 +749,20 @@ jobs:
           echo "ready=true" >>"$GITHUB_OUTPUT"
 
       # The collector writes the patch in patch mode and checks the tree is
-      # clean otherwise.
-      - name: Copy the patch collector from the base
+      # clean otherwise. The sealer and its public key go with it: the head
+      # checkout replaces .base, and the head's own key file is the PR's.
+      # Head code can rewrite either copy, as it can the collector's; a
+      # forged sealer gains nothing the model job does not already hold.
+      - name: Copy the patch collector and the output sealer from the base
         if: steps.go.outputs.run == 'true'
         env:
           DEST: ${{ runner.temp }}/read-patch
+          SEAL_DIR: ${{ runner.temp }}/seal-lane-output
         run: |
-          mkdir -p "$DEST"
+          mkdir -p "$DEST" "$SEAL_DIR"
           cp .base/.github/scripts/read-patch/collect-patch.sh "$DEST/"
+          cp .base/.github/actions/seal-lane-output/action.yml .base/.github/actions/seal-lane-output/seal.mjs \
+            .base/.github/lane-keys/scan-carrier.pub "$SEAL_DIR/"
 
       # Issue mode checks out the trusted base, the default branch tip, or on
       # a resume the tip of the earlier run's lane branch that issue-prior
@@ -1341,41 +1345,56 @@ jobs:
         run: rm -rf "${GITHUB_WORKSPACE:?}/.git" "${GITHUB_WORKSPACE:?}/.base/.git"
 
       # PR mode: the reply, the run fields and the patch leave this job only
-      # as job outputs to the scan job, never as an artifact: each in base64,
-      # cut into chunks of 98304 characters so each fits one environment
-      # variable, with its SHA-256 and byte count. An absent payload sets
-      # none of its outputs; one over its cap sets only its byte count, which
-      # the scan job refuses as too large. Every output here is set after
-      # head code ran, so the scan job checks each against its hash and size.
-      - name: Hand the reply, run fields and patch to the scan job
+      # as job outputs to the scan job, never as an artifact, and only
+      # sealed to the committed scan-carrier public key: the scan job alone
+      # holds the private key. This step stages each payload within its cap
+      # and sets its byte count; an absent payload sets nothing, and one
+      # over its cap sets only its byte count, which the scan job refuses as
+      # too large. The seal step then seals the staged copies (the sealer
+      # copied from the base, placed where a uses: can reach it) into at
+      # most five chunks of 98304 characters, each fitting one environment
+      # variable, bound to this run and the run job. Every output here is
+      # set after head code ran, so the scan job checks each.
+      - name: Stage the reply, run fields and patch for the scan job
         id: carry
         if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
         env:
           REPLY_DIR: ${{ runner.temp }}/skill-reply
           PATCH_FILE: ${{ runner.temp }}/patch/patch.diff
+          CARRY_DIR: ${{ runner.temp }}/carry
+          SEAL_DIR: ${{ runner.temp }}/seal-lane-output
         run: |
-          copy=$(mktemp -d)
+          rm -rf "$CARRY_DIR"
+          mkdir -p "$CARRY_DIR"
           carry() {
-            local name=$1 file=$2 cap=$3 chunks=$4 bytes sum b64 i
+            local name=$1 file=$2 copy=$CARRY_DIR/$3 cap=$4 bytes
             if [ -L "$file" ] || [ ! -f "$file" ]; then return 0; fi
-            cp -- "$file" "$copy/$name"
-            bytes=$(stat -c %s "$copy/$name")
+            cp -- "$file" "$copy"
+            bytes=$(stat -c %s "$copy")
             echo "$name-bytes=$bytes" >>"$GITHUB_OUTPUT"
             if [ "$bytes" -gt "$cap" ]; then
+              rm -f "$copy"
               echo "::error::too-large: the $name is $bytes bytes, over its $cap-byte cap, so nothing is published"
-              return 0
             fi
-            sum=$(sha256sum <"$copy/$name")
-            b64=$(base64 -w0 <"$copy/$name")
-            echo "$name-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
-            for ((i = 0; i < chunks; i++)); do
-              echo "$name-b64-$((i + 1))=${b64:i*98304:98304}" >>"$GITHUB_OUTPUT"
-            done
           }
-          carry reply "$REPLY_DIR/reply.txt" 16384 1
-          carry act-turns "$REPLY_DIR/act-turns.json" 32768 1
-          carry patch "$PATCH_FILE" 262144 4
-          rm -rf "$copy"
+          carry reply "$REPLY_DIR/reply.txt" reply.txt 16384
+          carry act-turns "$REPLY_DIR/act-turns.json" act-turns.json 32768
+          carry patch "$PATCH_FILE" patch.diff 262144
+          rm -rf "${GITHUB_WORKSPACE:?}/.lane-seal"
+          cp -R "$SEAL_DIR" "$GITHUB_WORKSPACE/.lane-seal"
+
+      - name: Seal the reply, run fields and patch for the scan job
+        id: seal
+        if: always() && steps.carry.outcome == 'success'
+        uses: ./.lane-seal # zizmor: ignore[self-repository]
+        with:
+          public-key-file: .lane-seal/scan-carrier.pub
+          payloads: |
+            reply.txt=${{ runner.temp }}/carry/reply.txt
+            act-turns.json=${{ runner.temp }}/carry/act-turns.json
+            patch.diff=${{ runner.temp }}/carry/patch.diff
+          job-id: run
+          max-chunks: 5
 
       # Issue mode: model text and run fields, as data. PR mode shows them
       # from the scan job, after its scan.
@@ -1497,15 +1516,19 @@ jobs:
           exit 1
 
   # Everything the run job hands on leaves here, on a fresh VM that ran no
-  # model or head code, with no secret, no id-token, no cache and nothing
-  # from the run job but its outputs: the run-claude-cli contract puts the
-  # reporting and uploads of a lane that grants unrestricted Bash in a
-  # downstream job that validates its inputs. In PR mode it decodes and
-  # checks the run job's payloads, scans what leaves against a fresh fetch
-  # of the gated head, writes the summary, and is the only job that uploads
-  # the reply, patch and verdict artifacts. In issue mode it writes only the
-  # verdict. A handoff skips it: the fallback call's artifacts take the same
-  # names.
+  # model or head code, with no id-token, no cache and nothing from the run
+  # job but its outputs: the run-claude-cli contract puts the reporting and
+  # uploads of a lane that grants unrestricted Bash in a downstream job that
+  # validates its inputs. Its one secret is the scan-carrier private key,
+  # in the pr-pipeline-scan-carrier environment, read by the open step
+  # alone. In PR mode it opens and checks the run job's sealed payloads,
+  # scans what leaves against a fresh fetch of the gated head, writes the
+  # summary, and is the only job that uploads the reply, patch and verdict
+  # artifacts. In issue mode it writes only the verdict. A handoff skips it:
+  # the fallback call's artifacts take the same names. The key pair's
+  # generation and rotation: .github/actions/open-lane-output/README.md; the
+  # owner's line, offline from the repository root:
+  #   { node .github/actions/open-lane-output/keygen.mjs --private-key-fd 3 >.github/lane-keys/scan-carrier.pub; } 3>&1 | gh secret set SCAN_CARRIER_PRIVATE_KEY --env pr-pipeline-scan-carrier
   scan:
     needs: run
     if: >-
@@ -1513,6 +1536,7 @@ jobs:
       && needs.run.outputs.handed-off != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    environment: pr-pipeline-scan-carrier
     permissions:
       contents: read
     outputs:
@@ -1524,14 +1548,61 @@ jobs:
       patch-attempt: ${{ steps.patch-upload.outcome == 'success' && github.run_attempt || '' }}
       reply-attempt: ${{ steps.reply-upload.outcome == 'success' && github.run_attempt || '' }}
     steps:
-      # Each payload through env, never inlined into a script. Every output
-      # the run job set after head code ran must be in its closed set. A
-      # payload's byte count over its cap is too-large; a chunk the runner
-      # left empty, as it does for an output that may hold a secret, is
-      # output-withheld and asks for rotation; any other hash, length or
-      # base64 mismatch fails too. Nothing is written unless every check
-      # passed.
-      - name: Decode and check the run job's outputs
+      # The opener and the public key, from the run job's base, which its
+      # trusted-base step chose before any head code. The gated head's
+      # checkout below replaces this one.
+      - name: Check out the run job's base
+        id: base
+        if: inputs.issue-number == '' && needs.run.outputs.go == 'true' && needs.run.outputs.carry-sealed-length != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.run.outputs.base-sha }}
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/open-lane-output
+            .github/lane-keys
+
+      - name: Read the scan-carrier key id
+        id: key
+        if: steps.base.outcome == 'success'
+        run: |
+          read -r _ id _ <.base/.github/lane-keys/scan-carrier.pub || true
+          echo "id=$id" >>"$GITHUB_OUTPUT"
+
+      # The one step that reads the scan-carrier private key. It opens the
+      # sealed bundle into a fresh directory under runner.temp and writes
+      # the plaintext nowhere else; a withheld chunk is output-withheld and
+      # asks for rotation, and a wrong key, a failed tag, a record from
+      # another run, job or payload name, or a payload over its cap fails
+      # without rotation, writing nothing.
+      - name: Decode the run job's sealed payloads
+        id: open
+        if: steps.base.outcome == 'success'
+        uses: ./.base/.github/actions/open-lane-output # zizmor: ignore[self-repository]
+        with:
+          private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+          expected-key-ids: ${{ steps.key.outputs.id }}
+          job-id: run
+          max-bytes: |
+            reply.txt=16384
+            act-turns.json=32768
+            patch.diff=262144
+          directory: ${{ runner.temp }}/scan-in
+          sealed-length: ${{ needs.run.outputs.carry-sealed-length }}
+          sealed-1: ${{ needs.run.outputs.carry-sealed-1 }}
+          sealed-2: ${{ needs.run.outputs.carry-sealed-2 }}
+          sealed-3: ${{ needs.run.outputs.carry-sealed-3 }}
+          sealed-4: ${{ needs.run.outputs.carry-sealed-4 }}
+          sealed-5: ${{ needs.run.outputs.carry-sealed-5 }}
+
+      # Every output the run job set after head code ran must be in its
+      # closed set, each through env, never inlined into a script. A
+      # payload's byte count over its cap is too-large; a byte count with
+      # no opened payload, an opened payload with none, or a size that
+      # differs fails too. The opened files stay where they are; the scan
+      # reads them.
+      - name: Check the run job's outputs and opened payloads
         id: decode
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
@@ -1551,24 +1622,14 @@ jobs:
           PATCH_COLLECTED: ${{ needs.run.outputs.patch-collected }}
           LANE_CLASS: ${{ needs.run.outputs.lane-class }}
           REPLY_BYTES: ${{ needs.run.outputs.carry-reply-bytes }}
-          REPLY_SHA256: ${{ needs.run.outputs.carry-reply-sha256 }}
-          REPLY_B64_1: ${{ needs.run.outputs.carry-reply-b64-1 }}
           ACT_TURNS_BYTES: ${{ needs.run.outputs.carry-act-turns-bytes }}
-          ACT_TURNS_SHA256: ${{ needs.run.outputs.carry-act-turns-sha256 }}
-          ACT_TURNS_B64_1: ${{ needs.run.outputs.carry-act-turns-b64-1 }}
           PATCH_BYTES: ${{ needs.run.outputs.carry-patch-bytes }}
-          PATCH_SHA256: ${{ needs.run.outputs.carry-patch-sha256 }}
-          PATCH_B64_1: ${{ needs.run.outputs.carry-patch-b64-1 }}
-          PATCH_B64_2: ${{ needs.run.outputs.carry-patch-b64-2 }}
-          PATCH_B64_3: ${{ needs.run.outputs.carry-patch-b64-3 }}
-          PATCH_B64_4: ${{ needs.run.outputs.carry-patch-b64-4 }}
+          OPEN_DIR: ${{ steps.open.outcome == 'success' && format('{0}/scan-in', runner.temp) || '' }}
         with:
           retries: 0
           script: |
             const fs = require('fs');
-            const os = require('os');
             const path = require('path');
-            const crypto = require('crypto');
             const env = process.env;
             const NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
             const SHA = /^[0-9a-f]{40}$/;
@@ -1589,13 +1650,12 @@ jobs:
               BASE_SHA: SHA,
               HEAD_SHA: SHA,
             };
-            // The carry step's caps and chunk counts; a chunk is 98304 characters.
+            // The carry step's payloads and caps.
             const PAYLOADS = [
-              ['reply', 'reply.txt', 16384, 1],
-              ['act-turns', 'act-turns.json', 32768, 1],
-              ['patch', 'patch.diff', 262144, 4],
+              ['reply', 'reply.txt', 16384],
+              ['act-turns', 'act-turns.json', 32768],
+              ['patch', 'patch.diff', 262144],
             ];
-            const CHUNK = 98304;
             class Refused extends Error {}
             const refuse = (message) => {
               throw new Refused(message);
@@ -1607,38 +1667,32 @@ jobs:
                   refuse(`bad-output: the run job's ${key.toLowerCase().replaceAll('_', '-')} output is not one the runner sets; nothing is published`);
                 }
               }
+              // A regular file the open step wrote, by size; none without an open.
+              const opened = (file) => {
+                if (!env.OPEN_DIR) return null;
+                try {
+                  const stat = fs.lstatSync(path.join(env.OPEN_DIR, file));
+                  return stat.isFile() ? stat.size : null;
+                } catch {
+                  return null;
+                }
+              };
               const present = {};
-              for (const [name, file, cap, chunks] of PAYLOADS) {
-                const prefix = name.toUpperCase().replaceAll('-', '_');
-                const bytesText = env[`${prefix}_BYTES`] ?? '';
-                const sha = env[`${prefix}_SHA256`] ?? '';
-                const parts = Array.from({ length: chunks }, (_, i) => env[`${prefix}_B64_${i + 1}`] ?? '');
-                if (bytesText === '' && sha === '' && parts.every((part) => part === '')) continue;
+              for (const [name, file, cap] of PAYLOADS) {
+                const bytesText = env[`${name.toUpperCase().replaceAll('-', '_')}_BYTES`] ?? '';
+                const size = opened(file);
+                if (bytesText === '' && size === null) continue;
                 if (!/^[0-9]+$/.test(bytesText)) refuse(`payload-mismatch: the ${name} has no byte count; nothing is published`);
                 const bytes = Number(bytesText);
                 if (bytes > cap) refuse(`too-large: the ${name} is ${bytes} bytes, over its ${cap}-byte cap; nothing is published`);
-                const length = 4 * Math.ceil(bytes / 3);
-                if (parts.some((part, i) => part === '' && length > i * CHUNK)) {
-                  refuse(`output-withheld: the runner withheld the run job's ${name} output as one that may hold a secret; nothing is published\nrotate this credential`);
-                }
-                const b64 = parts.join('');
-                const data = Buffer.from(b64, 'base64');
-                if (
-                  !/^[0-9a-f]{64}$/.test(sha) || b64.length !== length || !/^[A-Za-z0-9+/]*={0,2}$/.test(b64)
-                  || data.length !== bytes || crypto.createHash('sha256').update(data).digest('hex') !== sha
-                ) {
-                  refuse(`payload-mismatch: the ${name} does not match its SHA-256 and byte count; nothing is published`);
-                }
-                present[name] = [file, data];
+                if (size !== bytes) refuse(`payload-mismatch: the ${name} does not match its byte count; nothing is published`);
+                present[name] = true;
               }
               // PR mode: the patch the run collected, and only that, arrives.
               if (env.ISSUE_NUMBER === '' && Boolean(present.patch) !== (env.PATCH_COLLECTED === 'written')) {
                 refuse('payload-mismatch: the patch does not match the state its collector reported; nothing is published');
               }
-              // Written only once every check passed.
-              const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-in-'));
-              for (const [file, data] of Object.values(present)) fs.writeFileSync(path.join(dir, file), data, { flag: 'wx', mode: 0o444 });
-              core.setOutput('dir', dir);
+              core.setOutput('dir', env.OPEN_DIR);
               core.setOutput('reply', present.reply || present['act-turns'] ? 'true' : 'false');
               core.setOutput('patch', present.patch ? 'true' : 'false');
               core.setOutput('patch-state', env.PATCH_COLLECTED === 'empty' ? 'empty' : '');

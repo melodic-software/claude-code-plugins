@@ -19,6 +19,7 @@ import { parse } from "yaml";
 
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -1121,17 +1122,22 @@ test("pr-run-activity-read.yml: in PR mode the model job uploads nothing and wri
   }
 });
 
-test("pr-run-activity-read.yml: the scan job holds no secret, no id-token, no cache and no artifact from the run job", () => {
+test("pr-run-activity-read.yml: the scan job holds only the scan-carrier key, in its decode step, under its environment, with no id-token, no cache and no artifact from the run job", () => {
   const { jobs } = workflow("pr-run-activity-read.yml");
   const scan = jobs.scan;
   assert.equal(scan["runs-on"], "ubuntu-24.04");
   assert.equal(scan.needs, "run");
   assert.deepEqual(scan.permissions, { contents: "read" });
-  assert.deepEqual(stepSecrets(scan), [], "no secret anywhere in the job");
+  assert.equal(scan.environment, "pr-pipeline-scan-carrier");
+  assert.deepEqual(stepSecrets(scan), ["SCAN_CARRIER_PRIVATE_KEY"], "the one secret in the job");
+  assert.deepEqual(scan.steps.filter((step) => stepSecrets(step).length > 0).map((step) => step.id), ["open"], "read in the decode step alone");
   assert.doesNotMatch(JSON.stringify(scan), /id-token|ACTIONS_ID_TOKEN/);
+  // The one action from a checkout is the opener, from the run job's base SHA.
+  const base = scan.steps.find((step) => step.id === "base");
+  assert.deepEqual([base.with.ref, base.with.path, base.with["persist-credentials"]], ["${{ needs.run.outputs.base-sha }}", ".base", false]);
   for (const step of scan.steps) {
     assert.doesNotMatch(String(step.uses ?? ""), /^actions\/(cache|download-artifact)@/, step.name);
-    assert.doesNotMatch(String(step.uses ?? ""), /^\.\//, `${step.name}: no action from a checkout`);
+    if (step.id !== "open") assert.doesNotMatch(String(step.uses ?? ""), /^\.\//, `${step.name}: no other action from a checkout`);
   }
   // Payloads reach a script only through env, never inlined.
   for (const step of scan.steps) {
@@ -1152,7 +1158,8 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
   const steps = scanSteps();
   const at = (id) => steps.findIndex((step) => step.id === id);
   const scan = at("leak-scan");
-  assert.ok(at("decode") === 0 && at("decode") < scan);
+  assert.deepEqual(["base", "key", "open", "decode"].map(at), [0, 1, 2, 3]);
+  assert.ok(at("decode") < scan);
   const outputs = steps.filter((step) => (isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step));
   assert.equal(outputs.length, 3);
   const context = (clean) => ({ "steps.leak-scan.outputs.clean": clean, "steps.decode.outputs.reply": "true", "steps.decode.outputs.patch": "true" });
@@ -1200,6 +1207,12 @@ test("pr-run-activity-read.yml: a PR run that stops before head code still uploa
     assert.equal(atStep(step(name).if, stopped), false, `${name} has nothing to upload`);
   }
   assert.equal(step("Check out the gated head").if, "steps.decode.outputs.patch == 'true'");
+  // Nothing sealed: no base checkout, no key read and no open.
+  const base = steps.find((s) => s.id === "base");
+  assert.equal(atStep(base.if, { ...stopped, "needs.run.outputs.carry-sealed-length": "" }), false);
+  assert.equal(atStep(base.if, { ...stopped, "needs.run.outputs.go": "true", "needs.run.outputs.carry-sealed-length": "" }), false);
+  assert.equal(atStep(base.if, { ...stopped, "needs.run.outputs.go": "true", "needs.run.outputs.carry-sealed-length": "100" }), true);
+  for (const id of ["key", "open"]) assert.equal(steps.find((s) => s.id === id).if, "steps.base.outcome == 'success'", id);
 });
 
 test("pr-run-activity-read.yml: the leak scan loads the publish gate from the API at the base SHA, never from the checkout", () => {
@@ -1560,7 +1573,7 @@ const runStep = (step, cwd, env) =>
 test("pr-run-activity-read.yml: the dirty-tree check runs no git config the model planted and prints no path", (t) => {
   const steps = runSteps();
   const tree = steps.find((s) => s.id === "tree");
-  const copy = steps.find((s) => s.name === "Copy the patch collector from the base");
+  const copy = steps.find((s) => s.name === "Copy the patch collector and the output sealer from the base");
   // The collector is copied for every activity that runs, not only patch mode.
   assert.equal(evaluate(copy.if, { "steps.go.outputs.run": "true" }), true);
   assert.ok(steps.indexOf(copy) < steps.findIndex((s) => s.name === "Check out the PR head"), "copied before head code");
@@ -1639,61 +1652,125 @@ test("pr-run-activity-read.yml: after the collector, no checkout's post step fin
   assert.equal(runStep(remove, state.temp, {}).status, 1, "an unset workspace removes nothing");
 });
 
-// --- the model job's payloads to the scan job ---
+// --- the model job's payloads to the scan job, sealed ---
 
-// name=value lines from a GITHUB_OUTPUT file; the carry step writes no heredoc.
+// name=value lines from a GITHUB_OUTPUT file; the carry and seal steps write no heredoc.
 const outputLines = (file) => Object.fromEntries(readFileSync(file, "utf8").split("\n").filter(Boolean).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]));
 // The kernel refuses one environment string over 131072 bytes (MAX_ARG_STRLEN).
 const ENV_STRING_MAX = 131072;
+const CARRY_RUN_ID = "77";
+const CARRIER_SECRET = "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}";
+// A test key pair, generated in-process; the committed key file is a placeholder.
+const CARRIER = (() => {
+  const { publicLine, privateText } = generateCarrierKey();
+  return { publicLine, privateText, keyId: publicLine.split(" ")[1] };
+})();
+const ACTIONS = new URL("../", import.meta.url);
 
-// Runs the carry step on the given files; returns its outputs and log.
-function carry(t, files) {
+// A composite action's one step env, each `NAME: ${{ inputs.x }}` given input x
+// (or its default), as the runner builds it.
+function compositeEnv(action, inputs) {
+  const text = readFileSync(new URL(`${action}/action.yml`, ACTIONS), "utf8");
+  const { inputs: declared, runs } = parse(text);
+  const env = {};
+  for (const [name, expression] of Object.entries(runs.steps[0].env)) {
+    const input = /^\$\{\{ inputs\.([\w-]+) \}\}$/.exec(expression)[1];
+    env[name] = inputs[input] ?? declared[input].default ?? "";
+  }
+  return env;
+}
+
+// A step's `with:` values, each `${{ ... }}` replaced from the given values.
+function withInputs(step, values) {
+  return Object.fromEntries(
+    Object.entries(step.with).map(([name, value]) => [
+      name,
+      String(value).replace(/\$\{\{ ([^}]+) \}\}/g, (_, expression) => {
+        assert.ok(Object.hasOwn(values, expression), `${name}: ${expression}`);
+        return values[expression];
+      }),
+    ]),
+  );
+}
+
+// Runs the carry step, then the seal step as the composite runs it, on the
+// given files; returns the two steps' outputs and their log.
+function carry(t, files, { publicLine = CARRIER.publicLine } = {}) {
   const root = mkdtempSync(join(tmpdir(), "carry-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  mkdirSync(join(root, "skill-reply"));
-  mkdirSync(join(root, "patch"));
+  const temp = join(root, "temp");
+  const workspace = join(root, "workspace");
+  for (const dir of ["skill-reply", "patch", "seal-lane-output"]) mkdirSync(join(temp, dir), { recursive: true });
+  mkdirSync(workspace);
+  // The copy step's sealer and key, from the base.
+  for (const file of ["action.yml", "seal.mjs"]) writeFileSync(join(temp, "seal-lane-output", file), readFileSync(new URL(`seal-lane-output/${file}`, ACTIONS)));
+  writeFileSync(join(temp, "seal-lane-output", "scan-carrier.pub"), publicLine);
   for (const [name, bytes] of Object.entries(files)) {
-    const file = join(root, name);
+    const file = join(temp, name);
     if (bytes === "symlink") symlinkSync("/etc/hostname", file);
     else writeFileSync(file, bytes);
   }
-  const output = join(root, "github-output");
+  const output = join(root, "carry-output");
   writeFileSync(output, "");
-  const step = runSteps().find((s) => s.id === "carry");
-  const result = runStep(step, root, { REPLY_DIR: join(root, "skill-reply"), PATCH_FILE: join(root, "patch", "patch.diff"), GITHUB_OUTPUT: output });
+  const steps = runSteps();
+  const step = steps.find((s) => s.id === "carry");
+  const result = runStep(step, workspace, {
+    REPLY_DIR: join(temp, "skill-reply"),
+    PATCH_FILE: join(temp, "patch", "patch.diff"),
+    CARRY_DIR: join(temp, "carry"),
+    SEAL_DIR: join(temp, "seal-lane-output"),
+    GITHUB_WORKSPACE: workspace,
+    GITHUB_OUTPUT: output,
+  });
   assert.equal(result.status, 0, result.stderr);
-  return { outputs: outputLines(output), log: result.stdout };
+  const seal = steps.find((s) => s.id === "seal");
+  assert.equal(seal.uses.split(" ")[0], "./.lane-seal");
+  const sealOutput = join(root, "seal-output");
+  writeFileSync(sealOutput, "");
+  const sealed = spawnSync(process.execPath, [join(workspace, ".lane-seal", "seal.mjs")], {
+    cwd: workspace,
+    env: { PATH: process.env.PATH, GITHUB_WORKSPACE: workspace, GITHUB_RUN_ID: CARRY_RUN_ID, GITHUB_OUTPUT: sealOutput, ...compositeEnv("seal-lane-output", withInputs(seal, { "runner.temp": temp })) },
+    encoding: "utf8",
+  });
+  return { outputs: outputLines(output), seal: { status: sealed.status, outputs: outputLines(sealOutput) }, log: result.stdout + sealed.stdout + sealed.stderr };
 }
 
-test("pr-run-activity-read.yml: the carry step encodes each payload with its SHA-256 and byte count, in chunks one environment variable holds", async (t) => {
-  const { createHash, randomBytes } = await import("node:crypto");
+test("pr-run-activity-read.yml: the carry step stages each payload within its cap, and the seal step seals them in chunks one environment variable holds", async (t) => {
+  const { randomBytes } = await import("node:crypto");
   const patch = randomBytes(262144);
   const reply = Buffer.from("lint-shell: fixed\n");
-  const { outputs, log } = carry(t, { "skill-reply/reply.txt": reply, "skill-reply/act-turns.json": "", "patch/patch.diff": patch });
-  const joined = (name, chunks) => Array.from({ length: chunks }, (_, i) => outputs[`${name}-b64-${i + 1}`]).join("");
-  assert.deepEqual(Buffer.from(joined("patch", 4), "base64"), patch, "the patch at its cap");
-  assert.equal(outputs["patch-sha256"], createHash("sha256").update(patch).digest("hex"));
-  assert.equal(outputs["patch-bytes"], "262144");
-  assert.equal(Buffer.from(joined("reply", 1), "base64").toString(), "lint-shell: fixed\n");
-  assert.equal(outputs["reply-bytes"], String(reply.length));
-  // An empty payload is zero bytes with the empty input's hash, not an absent one.
-  assert.deepEqual([outputs["act-turns-bytes"], outputs["act-turns-b64-1"]], ["0", ""]);
-  assert.equal(outputs["act-turns-sha256"], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-  for (const [name, value] of Object.entries(outputs)) assert.ok(`CARRY_${name}=${value}`.length < ENV_STRING_MAX, name);
+  const { outputs, seal, log } = carry(t, { "skill-reply/reply.txt": reply, "skill-reply/act-turns.json": "", "patch/patch.diff": patch });
+  assert.deepEqual(outputs, { "reply-bytes": String(reply.length), "act-turns-bytes": "0", "patch-bytes": "262144" });
+  assert.equal(seal.status, 0, log);
+  // All three at their caps fit the five chunks the run job maps.
+  const all = carry(t, { "skill-reply/reply.txt": randomBytes(16384), "skill-reply/act-turns.json": randomBytes(32768), "patch/patch.diff": patch });
+  assert.equal(all.seal.status, 0, all.log);
+  assert.ok(Number(all.seal.outputs["sealed-length"]) <= 5 * 98304);
+  for (const [name, value] of Object.entries({ ...seal.outputs, ...all.seal.outputs })) assert.ok(`CARRY_${name}=${value}`.length < ENV_STRING_MAX, name);
+  // Ciphertext only: no payload's bytes, and nothing at all, reach an output in the clear or the log.
+  assert.doesNotMatch(Object.values(seal.outputs).join(""), new RegExp(reply.toString("base64").slice(0, 16).replace(/[+/]/g, "\\$&")));
   assert.equal(log, "", "no payload reaches the log");
-  // Every output the step sets is a run job output; none is a workflow_call output.
+  // Every output the two steps set is a run job output; none is a workflow_call output.
   const { jobs, on } = workflow("pr-run-activity-read.yml");
   for (const name of Object.keys(outputs)) assert.equal(jobs.run.outputs[`carry-${name}`], `\${{ steps.carry.outputs.${name} }}`, name);
+  for (const name of Object.keys(all.seal.outputs)) assert.equal(jobs.run.outputs[`carry-${name}`], `\${{ steps.seal.outputs.${name} }}`, name);
   assert.doesNotMatch(JSON.stringify(on.workflow_call.outputs), /carry-/);
 });
 
-test("pr-run-activity-read.yml: a payload over its cap carries only its byte count, and an absent one nothing", (t) => {
+test("pr-run-activity-read.yml: a payload over its cap carries only its byte count, an absent one nothing, and the placeholder key seals nothing", (t) => {
   const over = carry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61), "skill-reply/reply.txt": Buffer.alloc(16385, 0x61) });
-  assert.deepEqual(over.outputs, { "reply-bytes": "16385", "patch-bytes": "262145" }, "no hash and no base64");
+  assert.deepEqual(over.outputs, { "reply-bytes": "16385", "patch-bytes": "262145" });
+  assert.deepEqual(over.seal.outputs, {}, "nothing over a cap is sealed");
   assert.match(over.log, /^::error::too-large: the reply is 16385 bytes, over its 16384-byte cap/m);
   assert.match(over.log, /^::error::too-large: the patch is 262145 bytes, over its 262144-byte cap/m);
   assert.deepEqual(carry(t, {}).outputs, {});
+  assert.deepEqual(carry(t, {}).seal.outputs, {});
   assert.deepEqual(carry(t, { "patch/patch.diff": "symlink" }).outputs, {}, "a link is no payload");
+  // The committed key file, until the owner runs keygen: the seal step fails and carries nothing.
+  const placeholder = carry(t, { "skill-reply/reply.txt": "x\n" }, { publicLine: read("../../lane-keys/scan-carrier.pub") });
+  assert.equal(placeholder.seal.status, 1);
+  assert.match(placeholder.log, /^::error::seal-lane-output: the public key file holds no x25519 key line/m);
+  assert.deepEqual(placeholder.seal.outputs, {});
 });
 
 test("pr-run-activity-read.yml: the run fields keep at most four local-command stderr entries", async (t) => {
@@ -1710,48 +1787,86 @@ test("pr-run-activity-read.yml: the run fields keep at most four local-command s
   assert.deepEqual(kept, [1, 2, 3, 4].map((n) => `<local-command-stderr>failure ${n}</local-command-stderr>`));
 });
 
-// --- the scan job's decode, from the run job's outputs ---
+// --- the scan job's open and check, from the run job's outputs ---
 
-// The env the decode step reads, built from the run job's outputs as the
-// runner would pass them: each `${{ needs.run.outputs.<name> }}` replaced by
-// the value of that output.
-function decodeEnv(runOutputs, inputs = { "issue-number": "" }) {
+const OUTPUT_EXPRESSION = /^\$\{\{ needs\.run\.outputs\.([\w-]+) \}\}$/;
+
+// Runs the open step, as the scan job runs it, on the run job's outputs:
+// skipped (no file, no failure) when its if is false. Returns its exit, log,
+// output and env files, and the directory the check step then reads.
+function openStep(t, runOutputs, { privateText = CARRIER.privateText, runId = CARRY_RUN_ID, runAttempt = "1" } = {}) {
+  const steps = scanSteps();
+  const step = steps.find((s) => s.id === "open");
+  const context = { "inputs.issue-number": "", "needs.run.outputs.go": "", "needs.run.outputs.carry-sealed-length": "" };
+  for (const [name, value] of Object.entries(runOutputs)) context[`needs.run.outputs.${name}`] = value;
+  const base = steps.find((s) => s.id === "base");
+  const ran = atStep(base.if, prRun(base.if, context, {}));
+  if (!ran) return { ran, status: 0, log: "", output: "", env: "", dir: "" };
+  const temp = mkdtempSync(join(tmpdir(), "open-"));
+  t.after(() => rmSync(temp, { recursive: true, force: true }));
+  const values = { "runner.temp": temp, "steps.key.outputs.id": CARRIER.keyId, "secrets.SCAN_CARRIER_PRIVATE_KEY": privateText };
+  for (const [name, expression] of Object.entries(step.with)) {
+    const output = OUTPUT_EXPRESSION.exec(String(expression));
+    if (output) values[`needs.run.outputs.${output[1]}`] = runOutputs[output[1]] ?? "";
+  }
+  const output = join(temp, "github-output");
+  const envFile = join(temp, "github-env");
+  writeFileSync(output, "");
+  writeFileSync(envFile, "");
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL("open-lane-output/open.mjs", ACTIONS))], {
+    env: { PATH: process.env.PATH, GITHUB_RUN_ID: runId, GITHUB_RUN_ATTEMPT: runAttempt, GITHUB_OUTPUT: output, GITHUB_ENV: envFile, ...compositeEnv("open-lane-output", withInputs(step, values)) },
+    encoding: "utf8",
+  });
+  return { ran, status: result.status, log: result.stdout + result.stderr, output: readFileSync(output, "utf8"), env: readFileSync(envFile, "utf8"), dir: result.status === 0 ? join(temp, "scan-in") : "" };
+}
+
+// The env the check step reads, built from the run job's outputs as the
+// runner would pass them, and OPEN_DIR from the open step's outcome.
+function decodeEnv(runOutputs, inputs = { "issue-number": "" }, open = { status: 1, ran: false }) {
   const step = scanSteps().find((s) => s.id === "decode");
   const env = {};
   for (const [name, expression] of Object.entries(step.env)) {
-    const output = /^\$\{\{ needs\.run\.outputs\.([\w-]+) \}\}$/.exec(expression);
+    const output = OUTPUT_EXPRESSION.exec(expression);
     const input = /^\$\{\{ inputs\.([\w-]+) \}\}$/.exec(expression);
+    if (name === "OPEN_DIR") {
+      const temp = open.dir ? open.dir.slice(0, -"/scan-in".length) : "/unused";
+      env[name] = evaluate(expression.replace("format('{0}/scan-in', runner.temp)", JSON.stringify(`${temp}/scan-in`)), { "steps.open.outcome": open.ran ? (open.status === 0 ? "success" : "failure") : "skipped" });
+      continue;
+    }
     assert.ok(output || input, `${name}: ${expression}`);
     env[name] = output ? (runOutputs[output[1]] ?? "") : (inputs[input[1]] ?? "");
   }
   return env;
 }
 
-// Runs the decode step; returns its outputs, failure and the files it wrote.
+// Runs the check step; returns its outputs and failure.
 async function decode(t, env) {
-  const tmp = mkdtempSync(join(tmpdir(), "decode-"));
-  t.after(() => rmSync(tmp, { recursive: true, force: true }));
   const outputs = {};
   let failed = null;
   const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) };
   const { createRequire } = await import("node:module");
-  const require = createRequire(import.meta.url);
-  const os = { ...require("node:os"), tmpdir: () => tmp };
   const script = scanSteps().find((s) => s.id === "decode").with.script;
-  await new AsyncFunction("require", "core", "process", script)((name) => (name === "os" ? os : require(name)), core, { env });
+  await new AsyncFunction("require", "core", "process", script)(createRequire(import.meta.url), core, { env });
   const files = outputs.dir ? Object.fromEntries(readdirSync(outputs.dir).map((name) => [name, readFileSync(join(outputs.dir, name))])) : {};
-  return { outputs, failed, files, written: readdirSync(tmp).flatMap((dir) => readdirSync(join(tmp, dir))) };
+  return { outputs, failed, files };
 }
 
-// The run job's outputs after a PR-mode skill run that collected a patch,
-// from the real carry step and the run job's output map.
+// The open step, then the check step, on the run job's outputs.
+async function scanIn(t, runOutputs, options) {
+  const open = openStep(t, runOutputs, options);
+  if (open.status !== 0) return { open, failed: null, outputs: {}, files: {} };
+  return { open, ...(await decode(t, decodeEnv(runOutputs, undefined, open))) };
+}
+
+// The run job's outputs after a PR-mode skill run, from the real carry and
+// seal steps and the run job's output map.
 function runOutputsAfterCarry(t, files) {
-  const { outputs } = carry(t, files);
+  const { outputs, seal } = carry(t, files);
   const { jobs } = workflow("pr-run-activity-read.yml");
   const mapped = {};
   for (const [name, expression] of Object.entries(jobs.run.outputs)) {
-    const step = /^\$\{\{ steps\.carry\.outputs\.([\w-]+) \}\}$/.exec(expression);
-    if (step) mapped[name] = outputs[step[1]] ?? "";
+    const step = /^\$\{\{ steps\.(carry|seal)\.outputs\.([\w-]+) \}\}$/.exec(expression);
+    if (step) mapped[name] = (step[1] === "carry" ? outputs : seal.outputs)[step[2]] ?? "";
   }
   return {
     ...mapped,
@@ -1766,75 +1881,94 @@ function runOutputsAfterCarry(t, files) {
   };
 }
 
-test("scan job: the reply, run fields and patch round-trip from the carry step through the run job's outputs to the decode step", async (t) => {
+test("scan job: the reply, run fields and patch round-trip sealed from the run job through its outputs to the open and check steps", async (t) => {
   const { randomBytes } = await import("node:crypto");
   const files = {
     "skill-reply/reply.txt": Buffer.from("lint-shell: fixed\nnon-ASCII: é中\n"),
     "skill-reply/act-turns.json": Buffer.from('{"num_turns": 3}\n'),
     "patch/patch.diff": randomBytes(262144),
   };
-  const { outputs, failed, files: decoded } = await decode(t, decodeEnv(runOutputsAfterCarry(t, files)));
+  const runOutputs = runOutputsAfterCarry(t, files);
+  const { open, outputs, failed, files: decoded } = await scanIn(t, runOutputs);
+  assert.equal(open.status, 0, open.log);
   assert.equal(failed, null);
   assert.deepEqual(decoded, { "act-turns.json": files["skill-reply/act-turns.json"], "patch.diff": files["patch/patch.diff"], "reply.txt": files["skill-reply/reply.txt"] });
   assert.deepEqual({ reply: outputs.reply, patch: outputs.patch, state: outputs["patch-state"] }, { reply: "true", patch: "true", state: "" });
+  // The plaintext reaches neither the open step's log, its outputs nor GITHUB_ENV.
+  for (const text of [open.log, open.output, open.env]) assert.doesNotMatch(text, /lint-shell|num_turns/);
+  assert.equal(open.output, "opened=reply.txt act-turns.json patch.diff\n");
   // Each env value fits one environment string.
-  for (const [name, value] of Object.entries(decodeEnv(runOutputsAfterCarry(t, files)))) assert.ok(`${name}=${value}`.length < ENV_STRING_MAX, name);
+  for (const [name, value] of Object.entries(decodeEnv(runOutputs, undefined, open))) assert.ok(`${name}=${value}`.length < ENV_STRING_MAX, name);
   // No patch collected: no patch file, and the state the apply job reads is `empty`.
-  const empty = await decode(t, decodeEnv(runOutputsAfterCarry(t, { "skill-reply/reply.txt": "ok\n" })));
+  const empty = await scanIn(t, runOutputsAfterCarry(t, { "skill-reply/reply.txt": "ok\n" }));
   assert.equal(empty.failed, null);
   assert.deepEqual(Object.keys(empty.files), ["reply.txt"]);
   assert.deepEqual([empty.outputs.patch, empty.outputs["patch-state"]], ["false", "empty"]);
-  // A run that stopped before head code hands on nothing.
-  const stopped = await decode(t, decodeEnv({ go: "false", "kill-proceed": "true", "trigger-proceed": "false", "trigger-reason": "untrusted-actor" }));
+  // A run that stopped before head code hands on nothing, and the open step never runs.
+  const stopped = await scanIn(t, { go: "false", "kill-proceed": "true", "trigger-proceed": "false", "trigger-reason": "untrusted-actor" });
+  assert.equal(stopped.open.ran, false);
   assert.deepEqual([stopped.failed, stopped.outputs.reply, stopped.outputs.patch], [null, "false", "false"]);
 });
 
-test("scan job: an output the runner withheld fails closed with the rotation signal, and nothing is written", async (t) => {
-  const { randomBytes } = await import("node:crypto");
-  const outputs = runOutputsAfterCarry(t, { "skill-reply/reply.txt": "done\n", "patch/patch.diff": randomBytes(200000) });
-  // The runner skips an output it judges may hold a secret: the payload goes, its byte count stays.
-  for (const withheld of ["carry-reply-b64-1", "carry-patch-b64-1", "carry-patch-b64-3"]) {
-    const { failed, written } = await decode(t, decodeEnv({ ...outputs, [withheld]: "" }));
-    assert.match(failed ?? "", /^output-withheld: .*\nrotate this credential$/, withheld);
-    assert.deepEqual(written, [], `${withheld}: no file is written`);
+test("scan job: a re-run at another attempt of the same run opens; a bundle from another run, or opened with another key, fails closed without rotation", async (t) => {
+  const outputs = runOutputsAfterCarry(t, { "skill-reply/reply.txt": "done\n" });
+  const rerun = await scanIn(t, outputs, { runAttempt: "2" });
+  assert.equal(rerun.open.status, 0, rerun.open.log);
+  assert.deepEqual(rerun.files, { "reply.txt": Buffer.from("done\n") });
+  for (const [name, options] of Object.entries({ "another run": { runId: "78" }, "another key": { privateText: generateCarrierKey().privateText }, "no key": { privateText: "" } })) {
+    const { open } = await scanIn(t, outputs, options);
+    assert.equal(open.status, 1, name);
+    assert.match(open.log, /^::error::(sealed-mismatch|no-key): /m, name);
+    assert.doesNotMatch(open.log, /rotate/, name);
+    assert.equal(open.dir, "", name);
   }
-  // A 200000-byte patch fills three chunks: the fourth is empty by design, not withheld.
-  assert.equal(outputs["carry-patch-b64-4"], "");
-  assert.equal((await decode(t, decodeEnv(outputs))).failed, null);
 });
 
-test("scan job: a payload over its cap, or one that does not match its hash and size, fails closed without rotation", async (t) => {
-  const over = await decode(t, decodeEnv(runOutputsAfterCarry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61) })));
+test("scan job: an output the runner withheld fails closed with the rotation signal, and nothing is opened", async (t) => {
+  const { randomBytes } = await import("node:crypto");
+  const outputs = runOutputsAfterCarry(t, { "skill-reply/reply.txt": "done\n", "patch/patch.diff": randomBytes(200000) });
+  // The runner skips an output it judges may hold a secret: the chunk goes, the length stays.
+  for (const withheld of ["carry-sealed-1", "carry-sealed-3"]) {
+    const { open } = await scanIn(t, { ...outputs, [withheld]: "" });
+    assert.equal(open.status, 1, withheld);
+    assert.match(open.log, /^::error::output-withheld: .*%0Arotate this credential$/m, withheld);
+    assert.equal(open.dir, "", withheld);
+  }
+  // A bundle of three chunks leaves the fourth and fifth empty by design, not withheld.
+  assert.deepEqual([outputs["carry-sealed-4"], outputs["carry-sealed-5"]], ["", ""]);
+  assert.equal((await scanIn(t, outputs)).failed, null);
+});
+
+test("scan job: a payload over its cap, or one that does not match its byte count, fails closed without rotation", async (t) => {
+  const over = await scanIn(t, runOutputsAfterCarry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61) }));
   assert.equal(over.failed, "too-large: the patch is 262145 bytes, over its 262144-byte cap; nothing is published");
-  assert.deepEqual(over.written, []);
-  const at = await decode(t, decodeEnv(runOutputsAfterCarry(t, { "patch/patch.diff": Buffer.alloc(262144, 0x61) })));
+  const at = await scanIn(t, runOutputsAfterCarry(t, { "patch/patch.diff": Buffer.alloc(262144, 0x61) }));
   assert.equal(at.failed, null, "the cap itself passes");
-  // A forged byte count over the cap is refused before the payload is read.
-  const forged = await decode(t, decodeEnv({ ...runOutputsAfterCarry(t, { "patch/patch.diff": "x\n" }), "carry-patch-bytes": "999999" }));
+  // A forged byte count over the cap is refused.
+  const forged = await scanIn(t, { ...runOutputsAfterCarry(t, { "patch/patch.diff": "x\n" }), "carry-patch-bytes": "999999" });
   assert.match(forged.failed, /^too-large: /);
   const good = runOutputsAfterCarry(t, { "skill-reply/reply.txt": "fixed\n", "patch/patch.diff": "diff\n" });
   const tampered = {
-    "another payload": { "carry-reply-b64-1": Buffer.from("fixes\n").toString("base64") },
-    "a wrong hash": { "carry-reply-sha256": "0".repeat(64) },
     "a wrong byte count": { "carry-reply-bytes": "7" },
-    // 5 and 6 bytes both take eight base64 characters.
-    "a byte count one short, with the same base64 length": { "carry-reply-bytes": "5" },
+    "a byte count one short": { "carry-reply-bytes": "5" },
     "a byte count that is no number": { "carry-reply-bytes": "6 " },
-    "no hash": { "carry-reply-sha256": "" },
+    "an opened payload with no byte count": { "carry-reply-bytes": "" },
+    "a byte count with no sealed bundle": { "carry-sealed-length": "", "carry-sealed-1": "" },
     "a patch the collector never reported": { "patch-collected": "empty" },
-    "a collected patch that never arrived": { "carry-patch-bytes": "", "carry-patch-sha256": "", "carry-patch-b64-1": "" },
   };
   for (const [name, change] of Object.entries(tampered)) {
-    const { failed, written } = await decode(t, decodeEnv({ ...good, ...change }));
+    const { failed } = await scanIn(t, { ...good, ...change });
     assert.match(failed ?? "", /^payload-mismatch: .*nothing is published$/, name);
     assert.doesNotMatch(failed, /rotate/, name);
-    assert.deepEqual(written, [], name);
   }
+  // A collected patch that never arrived.
+  const noPatch = runOutputsAfterCarry(t, { "skill-reply/reply.txt": "fixed\n" });
+  assert.match((await scanIn(t, { ...noPatch, "patch-collected": "written" })).failed ?? "", /^payload-mismatch: the patch does not match the state its collector reported/);
 });
 
 test("scan job: every run job output set after head code must be in its closed set", async (t) => {
   const good = runOutputsAfterCarry(t, { "skill-reply/reply.txt": "fixed\n" });
-  assert.equal((await decode(t, decodeEnv({ ...good, "dirty-tree": "false", "skip-reason": "no-ci-failure", "lane-class": "max-turns" }))).failed, null);
+  assert.equal((await scanIn(t, { ...good, "dirty-tree": "false", "skip-reason": "no-ci-failure", "lane-class": "max-turns" })).failed, null);
   const forged = {
     "dirty-tree": "maybe",
     "act-outcome": "passed",
@@ -1847,6 +1981,29 @@ test("scan job: every run job output set after head code must be in its closed s
   for (const [name, value] of Object.entries(forged)) {
     const { failed } = await decode(t, decodeEnv({ ...good, [name]: value }));
     assert.match(failed ?? "", new RegExp(`^bad-output: the run job's ${name} output is not one the runner sets`), name);
+  }
+});
+
+test("pr-run-activity-read.yml: the scan-carrier key is named once in the repository's workflows, as the scan job's open step's private-key, and its environment on that job alone", () => {
+  const files = workflowFiles();
+  const named = files.filter((file) => read(`../../workflows/${file}`).includes("SCAN_CARRIER_PRIVATE_KEY"));
+  assert.deepEqual(named, ["pr-run-activity-read.yml"]);
+  assert.equal(read("../../workflows/pr-run-activity-read.yml").split("SCAN_CARRIER_PRIVATE_KEY").length - 1, 2, "the step and the keygen line in the scan job's header comment");
+  const { jobs } = workflow("pr-run-activity-read.yml");
+  for (const [id, job] of Object.entries(jobs)) {
+    const steps = (job.steps ?? []).filter((step) => JSON.stringify(step).includes("SCAN_CARRIER_PRIVATE_KEY"));
+    assert.equal(steps.length, id === "scan" ? 1 : 0, id);
+  }
+  const open = jobs.scan.steps.find((s) => s.id === "open");
+  assert.deepEqual(stepSecrets(open), ["SCAN_CARRIER_PRIVATE_KEY"]);
+  assert.equal(open.with["private-key"], CARRIER_SECRET);
+  assert.equal(open.env, undefined);
+  assert.equal(open.uses, "./.base/.github/actions/open-lane-output");
+  for (const file of files) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (file === "pr-run-activity-read.yml" && id === "scan") assert.equal(job.environment, "pr-pipeline-scan-carrier");
+      else assert.doesNotMatch(JSON.stringify(job.environment ?? ""), /pr-pipeline-scan-carrier/, `${file} ${id}`);
+    }
   }
 });
 

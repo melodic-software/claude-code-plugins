@@ -38,6 +38,14 @@ const ALLOWED_SECRETS = new Set([
   "github_token",
 ]);
 const KEY = "references the App key";
+// The one other secret a read run may name: the scan-carrier private key,
+// only as the private-key input of the read workflow's scan-job step that
+// uses open-lane-output, and the one environment, only on that job.
+const CARRIER_JOB = "scan";
+const CARRIER_SECRET = "scan_carrier_private_key";
+const CARRIER_VALUE = "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}";
+const CARRIER_ACTION = "./.base/.github/actions/open-lane-output";
+const CARRIER_ENVIRONMENT = "pr-pipeline-scan-carrier";
 
 const root = path.resolve(import.meta.dirname, "..");
 
@@ -157,7 +165,8 @@ function expressions(text) {
 }
 
 // What an expression does with the secrets context that a read run may not.
-function secretFindings(expression) {
+// carrier: the expression is the scan-carrier input's whole value.
+function secretFindings(expression, carrier = false) {
   const code = expression.replace(/'(?:[^']|'')*'/g, "''");
   const findings = [];
   for (const match of code.matchAll(/(?<![\w.-])secrets\b/gi)) {
@@ -168,6 +177,12 @@ function secretFindings(expression) {
       const name = named[1];
       if (APP_KEY.test(name)) {
         findings.push(KEY);
+      } else if (name.toLowerCase().replaceAll("-", "_") === CARRIER_SECRET) {
+        if (!carrier) {
+          findings.push(
+            `reads secrets.${name} outside the read workflow's ${CARRIER_JOB}-job open-lane-output private-key input`,
+          );
+        }
       } else if (
         !ALLOWED_SECRETS.has(name.toLowerCase().replaceAll("-", "_"))
       ) {
@@ -194,6 +209,36 @@ function checkJobOf(file, doc) {
   }
   const node = doc.getIn(["jobs", CHECK_JOB], true);
   return yaml.isMap(node) ? node : null;
+}
+
+// The read workflow's scan-job open step's private-key pair, when there is
+// exactly one such step and its value is exactly the carrier secret.
+function carrierPairOf(file, doc) {
+  if (file !== READ_WORKFLOW) {
+    return null;
+  }
+  const steps = doc.getIn(["jobs", CARRIER_JOB, "steps"], true);
+  const pairs = [];
+  for (const step of yaml.isSeq(steps) ? steps.items : []) {
+    if (
+      !yaml.isMap(step) ||
+      String(step.get("uses") ?? "").trim() !== CARRIER_ACTION
+    ) {
+      continue;
+    }
+    const inputs = step.get("with", true);
+    for (const pair of yaml.isMap(inputs) ? inputs.items : []) {
+      if (
+        yaml.isScalar(pair.key) &&
+        pair.key.value === "private-key" &&
+        yaml.isScalar(pair.value) &&
+        pair.value.value === CARRIER_VALUE
+      ) {
+        pairs.push(pair);
+      }
+    }
+  }
+  return pairs.length === 1 ? pairs[0] : null;
 }
 
 const CHECKOUT_WITH = new Set(["ref", "path", "persist-credentials"]);
@@ -254,6 +299,11 @@ function checkReadShape(file, doc, lineCounter) {
 function check(file) {
   const { doc, lineCounter } = files.get(file);
   const checkJob = checkJobOf(file, doc);
+  const carrierPair = carrierPairOf(file, doc);
+  const carrierEnvironment =
+    file === READ_WORKFLOW
+      ? doc.getIn(["jobs", CARRIER_JOB], true)?.get?.("environment", true)
+      : null;
   if (file === READ_WORKFLOW) {
     checkReadShape(file, doc, lineCounter);
   }
@@ -281,8 +331,21 @@ function check(file) {
       const keyLine = pair.key?.range
         ? lineCounter.linePos(pair.key.range[0]).line
         : 0;
-      if (APP_KEY_INPUTS.has(key.toLowerCase())) {
+      if (APP_KEY_INPUTS.has(key.toLowerCase()) && pair !== carrierPair) {
         report(keyLine, KEY);
+      }
+      if (
+        key === "environment" &&
+        !(
+          pair.value === carrierEnvironment &&
+          yaml.isScalar(pair.value) &&
+          pair.value.value === CARRIER_ENVIRONMENT
+        )
+      ) {
+        report(
+          keyLine,
+          `names an environment other than ${CARRIER_ENVIRONMENT} on the read workflow's ${CARRIER_JOB} job`,
+        );
       }
       if (
         key === "secrets" &&
@@ -322,7 +385,8 @@ function check(file) {
         report(lineAt(node, text, keyHit.index), KEY);
       }
       for (const [at, expression] of expressions(text)) {
-        for (const what of secretFindings(expression)) {
+        const carrier = node === carrierPair?.value && text === CARRIER_VALUE;
+        for (const what of secretFindings(expression, carrier)) {
           report(lineAt(node, text, at), what);
         }
       }

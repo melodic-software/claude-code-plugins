@@ -623,8 +623,8 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
 5. The run job's last step fails it when the launcher left no success and the call did not hand
    off, an empty token on the fallback call included.
 6. The run job uploads nothing and writes no step summary. It hands the reply, the run fields and
-   the patch to the [scan job](#the-scan-job) as job outputs, which the scan job scans before
-   anything is published.
+   the patch to the [scan job](#the-scan-job) as sealed job outputs, which the scan job opens and
+   scans before anything is published.
 
 The issue lane's skill stays on claude-code-action.
 
@@ -1039,32 +1039,41 @@ refusal, such as `ci-context`'s `instruction-path`.
 ## The scan job
 
 Read file: runs after the run job when it succeeded or failed, unless the run was cancelled or the
-call handed off, on a fresh `ubuntu-24.04` VM. It holds `contents: read` and nothing else: no
-secret, no `id-token`, no cache, and nothing from the run job but its outputs. run-claude-cli's
+call handed off, on a fresh `ubuntu-24.04` VM, in the `pr-pipeline-scan-carrier` environment. It
+holds `contents: read`, one secret (`SCAN_CARRIER_PRIVATE_KEY`, that environment's, read by its
+open step alone), no `id-token`, no cache, and nothing from the run job but its outputs. run-claude-cli's
 contract puts the reporting and uploads of a lane that grants unrestricted Bash in a downstream
 job that validates its inputs
 ([`action.yml`](https://github.com/melodic-software/ci-workflows/blob/7b362428c76085a160e28656cd2c75c3147a69ff/.github/actions/run-claude-cli/action.yml)).
 
-The carrier. After the collector, a PR-mode run job writes each of `reply.txt`, `act-turns.json`
-and `patch.diff` as `carry-<name>-b64-<n>` job outputs, base64 in chunks of 98304 characters so
-each fits one environment variable, with `carry-<name>-sha256` and `carry-<name>-bytes`. The caps
-are 16 KiB for the reply, 32 KiB for the run fields (at most four `<local-command-stderr>`
-entries) and 256 KiB for the patch; a payload over its cap carries only its byte count. None is a
-`workflow_call` output, so no caller can echo one. In order:
+The carrier. After the collector, a PR-mode run job stages each of `reply.txt`, `act-turns.json`
+and `patch.diff` within its cap and sets `carry-<name>-bytes`; the caps are 16 KiB for the reply,
+32 KiB for the run fields (at most four `<local-command-stderr>` entries) and 256 KiB for the
+patch, and a payload over its cap carries only its byte count. It then seals the staged copies
+with [`seal-lane-output`](../../../.github/actions/seal-lane-output/README.md), copied from the
+base before the head checkout, to the base's `.github/lane-keys/scan-carrier.pub`, bound to the run
+id and the `run` job, as `carry-sealed-length` and `carry-sealed-<n>` job outputs (at most five
+chunks of 98304 characters, each fitting one environment variable). None is a `workflow_call`
+output, so no caller can echo one. In order:
 
-1. Decodes each payload from `env`, never inlined into a script, and fails closed, publishing
+1. Checks out the run job's base SHA (sparse: the opener and the key file), reads the key id, and
+   opens the bundle with [`open-lane-output`](../../../.github/actions/open-lane-output/README.md)
+   into a fresh directory under `runner.temp`, the one step that reads the private key. It fails
+   closed, writing nothing, on `output-withheld` (a chunk the runner left empty, as it does for an
+   output that may hold a secret
+   ([`jobs.<job_id>.outputs`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs));
+   it asks for rotation), and without rotation on `sealed-mismatch` (a wrong key, a failed tag,
+   truncation, an unknown key id, a bad version, or a record from another run, job or payload
+   name) or `too-large`.
+2. Checks every output from `env`, never inlined into a script, and fails closed, publishing
    nothing, on:
    - `too-large`: a byte count over the cap;
-   - `output-withheld`: a chunk the runner left empty, as it does for an output that may hold a
-     secret
-     ([`jobs.<job_id>.outputs`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs));
-     it asks for rotation;
-   - `payload-mismatch`: any other hash, byte count or base64 mismatch, or a patch that does not
-     match the state its collector reported;
+   - `payload-mismatch`: a byte count with no opened payload, an opened payload with none or of
+     another size, or a patch that does not match the state its collector reported;
    - `bad-output`: a run job output set after head code (`skip-reason`, `dirty-tree`,
      `patch-collected`, `act-outcome`, `lane-class`) or a gate field outside its closed set.
-2. Checks out the gated `head-sha` with `persist-credentials: false` when a patch arrived.
-3. `leak-scan` runs the base's `findSecret` (`lib/publish-gate.mjs`, read through the API at the
+3. Checks out the gated `head-sha` with `persist-credentials: false` when a patch arrived.
+4. `leak-scan` runs the base's `findSecret` (`lib/publish-gate.mjs`, read through the API at the
    base SHA, never from a checkout) over the reply, the run fields and the patch. It applies the
    patch as apply-patch does, onto the gated head's objects copied through `git index-pack`, and
    scans every file the patch makes, by name and bytes. It scans copies, which the uploads and the
@@ -1074,9 +1083,9 @@ entries) and 256 KiB for the patch; a payload over its cap carries only its byte
    the step's timeout, fails it without the rotation line. A `password or secret assignment` on a
    plain line only warns, naming the kind of source, never its path; beside markup or escapes the
    gate folds it blocks as `assignment hidden by markup or escapes`, without the rotation line.
-4. After a clean scan, writes the step summary and uploads `skill-reply-*` and `patch-*`, with
+5. After a clean scan, writes the step summary and uploads `skill-reply-*` and `patch-*`, with
    `overwrite: false`.
-5. Builds `verdict.json` from the run job's checked outputs and its own patch upload, and uploads
+6. Builds `verdict.json` from the run job's checked outputs and its own patch upload, and uploads
    `verdict-*` (`overwrite: false`) once every step before it succeeded. A run that stopped
    before head code skips the scan and still posts its skip; a scan hit leaves no verdict.
 
@@ -1216,7 +1225,9 @@ token), `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
 job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
 is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
 other than `${{ github.event.repository.default_branch }}` or a `with` key other than `ref`,
-`path` and `persist-credentials`.
+`path` and `persist-credentials`. One exception: the read file's `scan` job may hold one step that
+uses `./.base/.github/actions/open-lane-output` with `private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}`
+exactly, and only that job may name an `environment`, `pr-pipeline-scan-carrier`.
 
 The read file stays alongside the broker: its guarantee, no key and no OIDC token in a job that
 runs head code, is structural, while the write file's comes from the broker.
