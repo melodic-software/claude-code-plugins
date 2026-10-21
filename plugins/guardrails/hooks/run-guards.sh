@@ -938,6 +938,7 @@ run_guards::run_from() {
     esac
     if [[ ! -f "$__rg_path" ]]; then
       echo "run-guards: guard not found: $__rg_path" >&2
+      # Under exec-bash --fail-closed this 1 denies the call.
       ((RC < 1)) && RC=1
       continue
     fi
@@ -1113,9 +1114,10 @@ run_guards::finish() {
       fi
     fi
   fi
-  # The aggregated status is the dispatcher's deliberate answer, whatever number
-  # it is (a guard-not-found 1 is already loud on stderr above; a stub's 3 is the
-  # contract test's). Release the boundary so it is not reported as an abort.
+  # The aggregated status is the dispatcher's answer. Under exec-bash's
+  # --fail-closed, which every hooks.json row passes, any non-zero status other
+  # than 2 (a guard-not-found 1, a stub's 3) denies the call. Release the
+  # boundary so it is not reported as an abort.
   guard::abort_boundary_release
   builtin exit "$RC"
 }

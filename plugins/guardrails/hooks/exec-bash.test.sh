@@ -82,14 +82,16 @@ node "$ENTRY" "$TEST_TMPDIR/exit.sh" >/dev/null 2>&1 || rc=$?
 [[ "$rc" -eq 3 ]] || fail "exit 3 without --fail-closed should pass through (got $rc)"
 
 # Windows Git Bash reports a SIGSEGV death as exit 2816 (seen on the Windows CI
-# runner); only that shape on win32 decodes to a signal.
+# runner); only that shape on win32 under --fail-closed decodes to a signal.
+# 0xC0000100 has a zero low byte but is an NTSTATUS code, not signal 0xC00001.
 decoded=$(node --input-type=module -e '
 import { pathToFileURL } from "node:url";
 const { msysSignal } = await import(pathToFileURL(process.argv[2]).href);
-console.log([[2816, "win32"], [2816, "linux"], [3, "win32"], [0, "win32"], [0xc0000005, "win32"]]
-  .map(([code, platform]) => String(msysSignal(code, platform))).join(" "));
+console.log([[2816, "win32", true], [2816, "win32", false], [2816, "linux", true], [3, "win32", true],
+  [0, "win32", true], [0xc0000005, "win32", true], [0xc0000100, "win32", true]]
+  .map(([code, platform, failClosed]) => String(msysSignal(code, platform, failClosed))).join(" "));
 ' decode "$ENTRY")
-[[ "$decoded" == "SIGSEGV null null null null" ]] || fail "msysSignal decoded wrongly: $decoded"
+[[ "$decoded" == "SIGSEGV null null null null null null" ]] || fail "msysSignal decoded wrongly: $decoded"
 
 # A closed option gate still exits 0 without running anything.
 rc=0
