@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+import babysit_postmerge as postmerge
 import babysit_repo_config as repo_policy
 from babysit_classify import is_dependency_author
 from babysit_delta import compute_branch_freshness, head_repository_scope
@@ -70,6 +71,7 @@ def validate_current_candidate(
             f"PR is authored by dependency manager {author}; refusing branch refresh "
             "(an extra commit stops its own rebases: ask it to rebase instead)"
         )
+    refuse_standards_sync(repo, number)
     current_policy = head_repository_scope(current, allowed_owners)
     if (
         not current_policy["head_metadata_complete"]
@@ -98,6 +100,20 @@ def validate_current_candidate(
             "head branch is shared or its uniqueness could not be verified"
         )
     return current
+
+
+def refuse_standards_sync(repo: str, number: int) -> None:
+    """Refuse a PR carrying the standards-sync role label: a merge commit from
+    the base fails its managed-files guard, so the sync cannot re-arm. An
+    unreadable label refuses too."""
+    owner, name = repo.split("/", 1)
+    pull = json_object(gh_json(["api", f"repos/{repo}/pulls/{number}"]))
+    try:
+        skip = postmerge.standards_sync_skip(owner, name, pull.get("labels"))
+    except postmerge.PostMergeReadError as exc:
+        skip = f"the standards-sync role label is unreadable ({exc})"
+    if skip:
+        raise RuntimeError(f"{skip}; refusing branch refresh")
 
 
 def disarm_auto_merge(repo: str, number: int) -> None:
