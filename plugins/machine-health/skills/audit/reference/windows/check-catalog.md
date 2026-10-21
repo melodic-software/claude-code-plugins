@@ -26,6 +26,7 @@
 - [22. App last-use](#22-app-last-use)
 - [23. Browser extensions](#23-browser-extensions)
 - [24. Network listeners](#24-network-listeners)
+- [25. Firewall rules](#25-firewall-rules)
 
 Per-check rubrics for Windows. Section numbers follow the order of `catalog/checks.jsonc`. Each
 number is the anchor a catalog entry's `severity_rules` points at, so renumbering breaks those
@@ -1129,3 +1130,55 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   [Get-AuthenticodeSignature](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/get-authenticodesignature).
   As of 2026-10-21. Recheck when an unelevated run starts resolving every listener, or the
   signature status values change.
+
+---
+
+## 25. Firewall rules
+
+- **Script:** `scripts/windows/checks/Test-FirewallRules.ps1`
+- **Category:** `security`
+- **Needs admin:** no. The rule stores, application filters and most port filters read
+  unelevated; see the port-filter note below.
+- **Commands:**
+
+  ```powershell
+  Get-NetFirewallRule -PolicyStore ActiveStore -TracePolicyStore
+  Get-NetFirewallRule -PolicyStore SystemDefaults | Select-Object Name
+  Get-NetFirewallApplicationFilter -PolicyStore ActiveStore -All
+  Get-NetFirewallPortFilter -PolicyStore ActiveStore -All
+  ```
+
+- **What it lists:** inbound allow rules that did not ship with Windows and are bound to a
+  program. A rule is built in when its `Name` is in the read-only `SystemDefaults` store; `Group`,
+  `DisplayGroup`, `Owner` and `PrimaryStatus` never decide it. Group Policy, MDM and dynamic rules
+  are dropped: an administrator or the OS put them there. A candidate is foreign, enabled,
+  inbound, allow, and bound to a program other than `Any` or `System`. Every read is a bulk read
+  joined on the filter's `InstanceID` = the rule's `Name`, contained in
+  `Get-FirewallRuleInventory.ps1`.
+- **Items:** one per candidate (FindingKey kind `firewall`, identity the rule `Name`), except that
+  rules whose program paths differ only in a dotted-version folder (per-version runtime rules)
+  become one item with `rule_count`, keyed by the path with that folder as `*`, direction,
+  protocol and local port, so an update keeps the mute. `program_state` is `exists`, `not-found`
+  or `unknown`: `Test-Path` returns False for an existing file under a folder the caller cannot
+  traverse but then writes an access-denied record, so False with that record is `unknown` and
+  only False without one is `not-found`. A group is `exists` when any version's program exists,
+  `not-found` only when every one is missing, otherwise `unknown`. `not_found_count` and
+  `unknown_program_count` count items; `grouped_rule_count` counts the rules inside groups.
+- **Port filters:** unelevated, the bulk port-filter read stops at the first filter it may not open
+  and returns the rest (`port_read_state` `denied`). A per-version rule the bulk read missed gets
+  its own port-filter read, within the call cap and time budget held in
+  `Get-FirewallRuleInventory.ps1` (`port_fallback_reads`). A per-version rule whose protocol and
+  port stay unread is listed with `unkeyed_reason` and no key, so it cannot be muted: no key is
+  ever computed from missing data (`unkeyed_count`). Other rules keep their `Name` key, with
+  `protocol` and `local_port` null when unread.
+- **Severity rubric:** `INFO` always, for the check and every item, including when the inventory
+  cannot be read (`read_state` records it and the summary says so) and when the program is
+  missing. The check never fails a run and never changes a rule. `baseline_hosts` is 1: the
+  SystemDefaults baseline is confirmed on one host until a second host's candidates show no
+  built-in rule.
+- **Notes:** Per-version runtime rules are the main noise source this grouping removes. Pointers:
+  [Get-NetFirewallRule](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule),
+  [Get-NetFirewallPortFilter](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallportfilter).
+  As of 2026-10-21. Recheck when the unelevated bulk port-filter read returns every filter, a
+  second host's run lists a built-in Windows rule as a candidate, or a host run shows `not-found`
+  for a program that exists.
