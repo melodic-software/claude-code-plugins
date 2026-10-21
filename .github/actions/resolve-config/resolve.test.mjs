@@ -1492,7 +1492,7 @@ function resolveEveryExampleSlot(vocabulary) {
 
 test("the README example validates and resolves for each of its lanes", () => {
   const results = resolveEveryExampleSlot(VOCABULARY);
-  assert.equal(Object.keys(results).length, 14);
+  assert.equal(Object.keys(results).length, 15);
   // The example's models block routes claude to review and leaves the rest
   // on default-profile standard.
   assert.deepEqual(results["pr-review / claude"].models, {
@@ -1541,7 +1541,7 @@ test("integration: the README example resolves against the synced standards voca
   const results = resolveEveryExampleSlot(
     JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")),
   );
-  assert.equal(Object.keys(results).length, 14);
+  assert.equal(Object.keys(results).length, 15);
 });
 
 // applied-by: a read skill names the script activity that applies each thing

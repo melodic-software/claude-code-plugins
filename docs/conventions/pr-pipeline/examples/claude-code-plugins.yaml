@@ -11,12 +11,21 @@ activities:
   fix-docs:
     skill: ai-slop:audit
     args: fix
-    effect: mutate-branch
+    effect: read                  # no write token: its change leaves as a patch
+    applied-by:
+      patch: apply-patch
     gating: advisory
     reads-untrusted: true
     inputs: [changed-paths]
     applies-when:
       paths: ["**/*.md"]
+  apply-patch:                    # pushes a producer's patch as one commit
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: true
+    inputs: [pr, head-sha]
   run-tests:
     skill: toolchain:check
     effect: read
@@ -103,6 +112,8 @@ lanes:
     slots:
       - activity: simplify
       - activity: fix-docs
+      - activity: apply-patch
+        needs: [fix-docs]
   pr-run-checks:
     stage: verify
     slots:
