@@ -45,14 +45,14 @@ BeforeAll {
 
 Describe 'Test-CloudSyncRoot' -Tag 'lib' {
     It 'matches a path equal to or under a OneDrive prefix, case-insensitively' {
-        Test-CloudSyncRoot -Path 'C:\Users\Example\OneDrive' -Attributes 'Directory' -Prefix @('c:\users\example\onedrive') |
+        Test-CloudSyncRoot -Path 'X:\Profile\OneDrive' -Attributes 'Directory' -Prefix @('x:\profile\onedrive') |
             Should -BeTrue
-        Test-CloudSyncRoot -Path 'C:\Users\Example\OneDrive\Docs\' -Attributes 'Directory' -Prefix @('C:\Users\Example\OneDrive') |
+        Test-CloudSyncRoot -Path 'X:\Profile\OneDrive\Docs\' -Attributes 'Directory' -Prefix @('X:\Profile\OneDrive') |
             Should -BeTrue
     }
 
     It 'does not match a sibling that only shares the prefix text' {
-        Test-CloudSyncRoot -Path 'C:\Users\Example\OneDriveX' -Attributes 'Directory' -Prefix @('C:\Users\Example\OneDrive') |
+        Test-CloudSyncRoot -Path 'X:\Profile\OneDriveX' -Attributes 'Directory' -Prefix @('X:\Profile\OneDrive') |
             Should -BeFalse
     }
 
@@ -155,6 +155,45 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
         $r.skipped_reparse_dirs | Should -Be 0
         $r.roots[0].logical_bytes | Should -Be 20
         @($r.folders | Where-Object { $_.path -eq $cloud -and $null -eq $_.skip_reason }).Count | Should -Be 0
+    }
+
+    It 'reports an Offline directory as skipped instead of dropping it unseen' {
+        Write-SizedFile -Path (Join-Path $script:root 'Offline\doc.bin') -Bytes 500
+        Write-SizedFile -Path (Join-Path $script:root 'Local\a.bin') -Bytes 20
+        (Get-Item -LiteralPath (Join-Path $script:root 'Offline') -Force).Attributes = 'Directory, Offline'
+
+        $r = Measure-TestRoot -Root $script:root
+
+        $r.skipped_reparse_dirs | Should -Be 1
+        $r.roots[0].logical_bytes | Should -Be 20
+        @($r.folders | Where-Object { $_.path -like '*\Offline' }).Count | Should -Be 0
+    }
+
+    It 'neither counts nor sizes an Offline file' {
+        Write-SizedFile -Path (Join-Path $script:root 'mixed\local.bin') -Bytes 100
+        Write-SizedFile -Path (Join-Path $script:root 'mixed\cloud.bin') -Bytes 900
+        (Get-Item -LiteralPath (Join-Path $script:root 'mixed\cloud.bin') -Force).Attributes = 'Archive, Offline'
+        $script:sizedPaths = [System.Collections.Generic.List[string]]::new()
+        Mock Get-AllocatedSize { $script:sizedPaths.Add($Path); return [long]4096 }
+
+        $r = Measure-TestRoot -Root $script:root
+
+        $r.folders[0].logical_bytes | Should -Be 100
+        $r.folders[0].file_count | Should -Be 1
+        $r.folders[0].allocated_bytes | Should -Be 4096
+        @($script:sizedPaths | Where-Object { $_ -like '*cloud.bin' }).Count | Should -Be 0
+    }
+
+    It 'returns no folder entries for a root that holds only files' {
+        Write-SizedFile -Path (Join-Path $script:root 'a.bin') -Bytes 30
+        Write-SizedFile -Path (Join-Path $script:root 'b.bin') -Bytes 12
+
+        $r = Measure-TestRoot -Root $script:root
+
+        @($r.folders).Count | Should -Be 0
+        $r.roots[0].logical_bytes | Should -Be 42
+        $r.allocated_complete | Should -BeTrue
+        $r.scan_complete | Should -BeTrue
     }
 
     It 'does not walk a root that is itself a junction' {

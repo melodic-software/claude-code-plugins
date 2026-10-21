@@ -800,7 +800,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   $opts = [System.IO.EnumerationOptions]::new()
   $opts.RecurseSubdirectories = $false
   $opts.IgnoreInaccessible = $false
-  $opts.AttributesToSkip = $PlaceholderSkipMask  # Measure-FolderSize.ps1
+  $opts.AttributesToSkip = [System.IO.FileAttributes]::None  # placeholders are filtered per entry
   [System.IO.DirectoryInfo]::new($env:USERPROFILE).EnumerateFileSystemInfos('*', $opts)
   ```
 
@@ -822,9 +822,10 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   RECALL_ON_DATA_ACCESS. Each skipped sync root is one item with
   `skip_reason` `cloud-sync-root` and no size, shown as "skipped: cloud sync root"; the scalar
   `detail.skipped_sync_roots` counts them. Every other reparse directory (junction, directory
-  symlink) is not descended and is counted in `detail.skipped_reparse_dirs`. `AttributesToSkip` is
-  Offline | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS, so a placeholder outside a sync root is never
-  seen; Hidden and System are not skipped, so `AppData` is counted.
+  symlink) is not descended and is counted in `detail.skipped_reparse_dirs`, as is a directory
+  carrying Offline, RECALL_ON_OPEN or RECALL_ON_DATA_ACCESS. A file carrying one of those three is
+  a placeholder: it is neither counted nor opened. The enumeration itself skips nothing, so such a
+  directory is still seen and reported; Hidden and System entries are counted, so `AppData` is too.
   - **Pointer**: when deciding which attribute bits mark a file or directory that is not fully
     local, fetch
     [File Attribute Constants](https://learn.microsoft.com/en-us/windows/win32/fileio/file-attribute-constants)

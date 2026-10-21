@@ -22,8 +22,10 @@ public static extern uint GetCompressedFileSizeW(string lpFileName, out uint lpF
 '@
 }
 
-# Offline | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS: entries the enumeration
-# skips, so a placeholder is never seen. Hidden and System stay visible. The
+# Offline | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS: a file carrying any of
+# these is a placeholder and is skipped unread and uncounted; a directory
+# carrying any is never descended (Test-FolderDescent). The enumeration itself
+# skips nothing, so such a directory is still seen and reported. The
 # two RECALL bits are not named FileAttributes members and PowerShell refuses a
 # cast to undefined flag bits, so the value is built with ToObject.
 $script:PlaceholderSkipMask = [System.Enum]::ToObject([System.IO.FileAttributes], 0x441000)
@@ -148,8 +150,9 @@ function Test-FolderDescent {
     <#
     .SYNOPSIS
     The never-descend rule for one directory: $false for a cloud sync root
-    (recorded once against the current root) or any other reparse directory
-    (counted), $true otherwise. Recording is off for the allocated re-walk.
+    (recorded once against the current root) or any other reparse or
+    $script:PlaceholderSkipMask directory (counted in SkippedReparse), $true
+    otherwise. Recording is off for the allocated re-walk.
     #>
     [CmdletBinding()]
     [OutputType([bool])]
@@ -166,7 +169,8 @@ function Test-FolderDescent {
         }
         return $false
     }
-    if (($attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+    if ((($attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) -or
+        (($attributes -band $script:PlaceholderSkipMask) -ne 0)) {
         if ($Record) { $Context.SkippedReparse++ }
         return $false
     }
@@ -213,6 +217,7 @@ function Invoke-FolderWalk {
                     if (Test-FolderDescent -Entry $entry -Context $Context -Record $logical) { $stack.Push($entry) }
                     continue
                 }
+                if (($entry.Attributes -band $script:PlaceholderSkipMask) -ne 0) { continue }
                 $files++
                 if ($logical) {
                     $bytes += $entry.Length
@@ -259,7 +264,7 @@ function Measure-FolderSize {
     $options.RecurseSubdirectories = $false
     $options.IgnoreInaccessible = $false
     $options.ReturnSpecialDirectories = $false
-    $options.AttributesToSkip = $script:PlaceholderSkipMask
+    $options.AttributesToSkip = [System.IO.FileAttributes]::None
 
     $context = [pscustomobject]@{
         Options        = $options
@@ -323,14 +328,13 @@ function Measure-FolderSize {
             Children = [System.Collections.Generic.List[System.IO.DirectoryInfo]]::new()
         }
         try {
-            if (Test-ScanBudgetSpent $context) { $listed.Complete = $false; $listing = @() }
-            else { $listing = $info.EnumerateFileSystemInfos('*', $options) }
-            foreach ($entry in $listing) {
+            foreach ($entry in $info.EnumerateFileSystemInfos('*', $options)) {
                 if (Test-ScanBudgetSpent $context) { $listed.Complete = $false; break }
                 if ($entry -is [System.IO.DirectoryInfo]) {
                     if (Test-FolderDescent -Entry $entry -Context $context) { $listed.Children.Add($entry) }
                     continue
                 }
+                if (($entry.Attributes -band $script:PlaceholderSkipMask) -ne 0) { continue }
                 $listed.Bytes += $entry.Length
                 $listed.Files++
             }
@@ -348,7 +352,7 @@ function Measure-FolderSize {
         $elapsed = $Budget.Clock.ElapsedMilliseconds
         $context.DeadlineMs = $elapsed + [math]::Max(0, ($Budget.LimitMs - $elapsed)) / ($pending.Count - $i + 1)
         $context.CurrentRoot = $p.Record
-        $sized = foreach ($child in $p.Children) {
+        $sized = @(foreach ($child in $p.Children) {
             $walk = Invoke-FolderWalk -Directory $child -Context $context
             $p.Bytes += $walk.Bytes
             $p.Files += $walk.FileCount
@@ -363,7 +367,7 @@ function Measure-FolderSize {
                 complete        = $walk.Complete
                 skip_reason     = $null
             }
-        }
+        })
         $ranked = @($sized | Sort-Object -Property @{ Expression = 'logical_bytes'; Descending = $true }, path)
         foreach ($f in @($ranked | Select-Object -First $Top)) { $folders.Add($f) }
 

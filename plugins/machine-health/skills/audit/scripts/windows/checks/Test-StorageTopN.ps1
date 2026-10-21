@@ -74,7 +74,7 @@ $topN = 15
 $allocatedFileCap = 10000
 $commands = @(
     ("[System.IO.DirectoryInfo]::new(`$env:USERPROFILE).EnumerateFileSystemInfos('*', `$opts)" +
-        "  # manual stack, AttributesToSkip 0x{0:X}, top {1} per root" -f [long]$script:PlaceholderSkipMask, $topN)
+        "  # manual stack, placeholder files (0x{0:X}) skipped, top {1} per root" -f [long]$script:PlaceholderSkipMask, $topN)
     "GetCompressedFileSizeW(<file>)  # allocated pass, listed folders of at most $allocatedFileCap files"
 )
 

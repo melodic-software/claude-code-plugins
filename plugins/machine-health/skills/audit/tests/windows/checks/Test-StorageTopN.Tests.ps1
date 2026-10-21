@@ -78,9 +78,9 @@ BeforeAll {
             'PSUseShouldProcessForStateChangingFunctions', '',
             Justification = 'Pure constructor: builds and returns an object, changes no system state.')]
         param([bool] $Complete)
-        return New-ScanRecord -ScanComplete $Complete -Roots @(New-RootRecord -Path 'C:\Users\Example' -Bytes 300) -Folders @(
-            New-Folder -Root 'C:\Users\Example' -Path 'C:\Users\Example\A' -Bytes 200
-            New-Folder -Root 'C:\Users\Example' -Path 'C:\Users\Example\B' -Bytes 100
+        return New-ScanRecord -ScanComplete $Complete -Roots @(New-RootRecord -Path 'X:\Profile' -Bytes 300) -Folders @(
+            New-Folder -Root 'X:\Profile' -Path 'X:\Profile\A' -Bytes 200
+            New-Folder -Root 'X:\Profile' -Path 'X:\Profile\B' -Bytes 100
         )
     }
 }
@@ -88,9 +88,9 @@ BeforeAll {
 Describe 'Test-StorageTopN' -Tag 'check' {
     It 'emits a schema-valid INFO result with one folder item per listed folder' {
         Mock Measure-FolderSize {
-            New-ScanRecord -Roots @(New-RootRecord -Path 'C:\Users\Example' -Bytes 5000) -Folders @(
-                New-Folder -Root 'C:\Users\Example' -Path 'C:\Users\Example\AppData' -Bytes 3000 -Allocated 3072
-                New-Folder -Root 'C:\Users\Example' -Path 'C:\Users\Example\Downloads' -Bytes 1500
+            New-ScanRecord -Roots @(New-RootRecord -Path 'X:\Profile' -Bytes 5000) -Folders @(
+                New-Folder -Root 'X:\Profile' -Path 'X:\Profile\AppData' -Bytes 3000 -Allocated 3072
+                New-Folder -Root 'X:\Profile' -Path 'X:\Profile\Downloads' -Bytes 1500
             )
         }
 
@@ -110,11 +110,11 @@ Describe 'Test-StorageTopN' -Tag 'check' {
         $first = $result.detail.items[0]
         $first.key | Should -MatchExactly '^folder:[0-9a-f]{16}$'
         $first.severity | Should -Be 'INFO'
-        $first.path | Should -Be 'C:\Users\Example\AppData'
+        $first.path | Should -Be 'X:\Profile\AppData'
         $first.logical_bytes | Should -Be 3000
         $first.allocated_bytes | Should -Be 3072
         $result.detail.items[1].allocated_bytes | Should -BeNullOrEmpty
-        $result.summary | Should -Match ([regex]::Escape('C:\Users\Example\AppData'))
+        $result.summary | Should -Match ([regex]::Escape('X:\Profile\AppData'))
     }
 
     It 'sizes the profile and the reclaim locations with the catalog limits' {
@@ -149,8 +149,8 @@ Describe 'Test-StorageTopN' -Tag 'check' {
 
     It 'lists a skipped sync root as a size-less item titled "skipped: cloud sync root"' {
         Mock Measure-FolderSize {
-            New-ScanRecord -SyncRoots 1 -Roots @(New-RootRecord -Path 'C:\Users\Example' -Bytes 10) -Folders @(
-                New-SyncRootFolder -Root 'C:\Users\Example' -Path 'C:\Users\Example\OneDrive'
+            New-ScanRecord -SyncRoots 1 -Roots @(New-RootRecord -Path 'X:\Profile' -Bytes 10) -Folders @(
+                New-SyncRootFolder -Root 'X:\Profile' -Path 'X:\Profile\OneDrive'
             )
         }
 
@@ -160,7 +160,7 @@ Describe 'Test-StorageTopN' -Tag 'check' {
         $result.detail.skipped_sync_roots | Should -Be 1
         $item = $result.detail.items[0]
         $item.skip_reason | Should -Be 'cloud-sync-root'
-        $item.title | Should -Be 'C:\Users\Example\OneDrive (skipped: cloud sync root)'
+        $item.title | Should -Be 'X:\Profile\OneDrive (skipped: cloud sync root)'
         $item.logical_bytes | Should -BeNullOrEmpty
         $item.severity | Should -Be 'INFO'
     }
@@ -168,10 +168,10 @@ Describe 'Test-StorageTopN' -Tag 'check' {
     It 'counts a nested root once in scanned_bytes' {
         Mock Measure-FolderSize {
             New-ScanRecord -Roots @(
-                New-RootRecord -Path 'C:\Users\Example\AppData\Local\Temp' -Bytes 300
+                New-RootRecord -Path 'X:\Profile\AppData\Local\Temp' -Bytes 300
                 New-RootRecord -Path 'C:\Windows.old' -Bytes 50
                 New-RootRecord -Path 'C:\$Recycle.Bin\S-1-5-21-0' -Bytes 0 -Status 'absent'
-                New-RootRecord -Path 'C:\Users\Example' -Bytes 1000
+                New-RootRecord -Path 'X:\Profile' -Bytes 1000
             )
         }
 
@@ -183,8 +183,8 @@ Describe 'Test-StorageTopN' -Tag 'check' {
 
     Context 'mutes' {
         BeforeEach {
-            $script:keyA = Get-FindingKey -Kind 'folder' -Identity @('C:\Users\Example\A')
-            $script:keyB = Get-FindingKey -Kind 'folder' -Identity @('C:\Users\Example\B')
+            $script:keyA = Get-FindingKey -Kind 'folder' -Identity @('X:\Profile\A')
+            $script:keyB = Get-FindingKey -Kind 'folder' -Identity @('X:\Profile\B')
         }
 
         It 'marks a muted item and keeps it in items' {
@@ -239,6 +239,20 @@ Describe 'Test-StorageTopN' -Tag 'check' {
         $result.detail.items[0].reclaim_hint | Should -BeNullOrEmpty
         $result.detail.items[0].allocated_bytes | Should -BeGreaterThan 0
         $result.detail.roots[0].status | Should -Be 'scanned'
+    }
+
+    It 'reports OK, not a failure, for a real root that holds only files' {
+        $tree = Join-Path $TestDrive ('files-' + [guid]::NewGuid().ToString('n'))
+        New-Item -ItemType Directory -Path $tree -Force | Out-Null
+        [System.IO.File]::WriteAllBytes((Join-Path $tree 'a.bin'), [byte[]]::new(50))
+
+        $result = ConvertFrom-CheckOutput (& $script:ScriptPath -RootPath $tree)
+
+        { Assert-CheckResult $result } | Should -Not -Throw
+        $result.ran_successfully | Should -BeTrue
+        $result.severity | Should -Be 'OK'
+        $result.detail.items_count | Should -Be 0
+        $result.detail.scanned_bytes | Should -Be 50
     }
 
     It 'reports a failed UNKNOWN result when the adapter throws' {
