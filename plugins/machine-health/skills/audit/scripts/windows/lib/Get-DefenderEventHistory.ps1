@@ -15,12 +15,14 @@ Returns { ReadState, LogOldestRecord, Detections, ExclusionChanges }:
  - ReadState: ok | absent | denied | error. A query that finds no matching
    event is absent (zero), not an error; a missing log is an error.
  - Detections: one per (threat id, resource), at its latest 1116. A 1117 pairs
-   with it when it carries the same threat id and resource and is no older.
-   ActionSucceeded is true when that 1117's action remediates (Clean,
-   Quarantine, Remove, Block), false for any other action, and $null when no
-   1117 paired.
- - ExclusionChanges: 5007 changes under the Defender Exclusions registry keys,
-   with Type path | extension | process and Change added | removed.
+   with it when it carries that 1116's threat id and detection id; the 1117's
+   Path can differ from the 1116's, so the resource is not part of the pair.
+   ActionSucceeded is true when a paired 1117's action remediates, false for
+   any other action, and $null when no 1117 paired. An empty threat id or path
+   reads as a fixed marker.
+ - ExclusionChanges: the latest 5007 change per (type, value) under the
+   Defender Exclusions registry keys, with Type path | extension | process and
+   Change added | removed.
 
 EventData is read by field name from ToXml(); localized message and action text
 never leaves this file.
@@ -32,7 +34,10 @@ $script:DefenderEventIds = @(1116, 1117, 5007)
 # Remediating action ids: the Set-MpPreference threat action table.
 $script:DefenderRemediatingActionIds = @(1, 2, 3, 10)
 
-$script:DefenderExclusionTypes = @{ Paths = 'path'; Extensions = 'extension'; Processes = 'process' }
+# Stands in for an empty Threat ID or Path, so a sparse event still yields a usable item key.
+$script:DefenderMissingField = '(not recorded)'
+
+$script:DefenderExclusionTypes =@{ Paths = 'path'; Extensions = 'extension'; Processes = 'process' }
 
 function Get-DefenderEventData {
     param([Parameter(Mandatory)] $Record)
@@ -76,35 +81,39 @@ function Get-DefenderEventHistory {
 
     $detected = @{}
     $actions = [System.Collections.Generic.List[object]]::new()
-    $changes = [System.Collections.Generic.List[object]]::new()
+    $changes = @{}
     foreach ($record in $records) {
         $data = Get-DefenderEventData -Record $record
         switch ($record.Id) {
             1116 {
-                $pairKey = "$($data['Threat ID'])|$($data['Path'])"
-                $prior = $detected[$pairKey]
+                $threatId = $data['Threat ID'] ? $data['Threat ID'] : $script:DefenderMissingField
+                $resource = $data['Path'] ? $data['Path'] : $script:DefenderMissingField
+                $groupKey = "$threatId|$resource"
+                $prior = $detected[$groupKey]
                 if ($null -eq $prior -or $record.TimeCreated -gt $prior.DetectedAt) {
-                    $detected[$pairKey] = [pscustomobject]@{
-                        ThreatId   = $data['Threat ID']
-                        ThreatName = $data['Threat Name']
-                        Resource   = $data['Path']
-                        DetectedAt = $record.TimeCreated
+                    $detected[$groupKey] = [pscustomobject]@{
+                        ThreatId    = $threatId
+                        ThreatName  = $data['Threat Name']
+                        Resource    = $resource
+                        DetectedAt  = $record.TimeCreated
+                        DetectionId = $data['Detection ID']
                     }
                 }
             }
             1117 {
                 $actions.Add([pscustomobject]@{
-                        PairKey   = "$($data['Threat ID'])|$($data['Path'])"
-                        At        = $record.TimeCreated
-                        Succeeded = [int]$data['Action ID'] -in $script:DefenderRemediatingActionIds
+                        ThreatId    = $data['Threat ID']
+                        DetectionId = $data['Detection ID']
+                        Succeeded   = [int]$data['Action ID'] -in $script:DefenderRemediatingActionIds
                     })
             }
             5007 {
                 $added = ConvertFrom-DefenderExclusionValue -Text $data['New Value']
                 $removed = ConvertFrom-DefenderExclusionValue -Text $data['Old Value']
                 $entry = $added ?? $removed
-                if ($entry) {
-                    $changes.Add([pscustomobject]@{
+                $changeKey = $entry ? "$($entry.Type)|$($entry.Value)".ToLowerInvariant() : $null
+                if ($entry -and ($null -eq $changes[$changeKey] -or $record.TimeCreated -gt $changes[$changeKey].ChangedAt)) {
+                    $changes[$changeKey] = ([pscustomobject]@{
                             Type      = $entry.Type
                             Value     = $entry.Value
                             Change    = $added ? 'added' : 'removed'
@@ -115,9 +124,11 @@ function Get-DefenderEventHistory {
         }
     }
 
-    $detections = foreach ($pairKey in $detected.Keys) {
-        $detection = $detected[$pairKey]
-        $paired = @($actions | Where-Object { $_.PairKey -eq $pairKey -and $_.At -ge $detection.DetectedAt })
+    $detections = foreach ($groupKey in $detected.Keys) {
+        $detection = $detected[$groupKey]
+        $paired = @($actions | Where-Object {
+                $_.DetectionId -and $_.DetectionId -eq $detection.DetectionId -and $_.ThreatId -eq $detection.ThreatId
+            })
         $succeeded = if ($paired.Count -eq 0) { $null } else { [bool]($paired | Where-Object Succeeded) }
         [pscustomobject]@{
             ThreatId        = $detection.ThreatId
@@ -132,6 +143,6 @@ function Get-DefenderEventHistory {
         ReadState        = $readState
         LogOldestRecord  = $oldest
         Detections       = @($detections | Sort-Object DetectedAt -Descending)
-        ExclusionChanges = @($changes | Sort-Object ChangedAt -Descending)
+        ExclusionChanges = @($changes.Values | Sort-Object ChangedAt -Descending)
     }
 }

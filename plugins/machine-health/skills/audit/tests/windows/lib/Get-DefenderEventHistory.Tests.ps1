@@ -36,12 +36,17 @@ BeforeAll {
     function New-Detection {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
             Justification = 'Test fixture constructor: builds an object, changes no system state.')]
-        param([int] $Id, [datetime] $At, [string] $ThreatId = '2147000001', [string] $Resource = 'file:_<drive>:\Profile\Downloads\sample.exe', [int] $ActionId = 9)
+        param(
+            [int] $Id, [datetime] $At, [string] $ThreatId = '2147000001',
+            [string] $Resource = 'file:_<drive>:\Profile\Downloads\sample.exe', [int] $ActionId = 9,
+            [string] $DetectionId = '{00000000-0000-0000-0000-000000000001}'
+        )
         New-DefenderEvent -Id $Id -TimeCreated $At -Data @{
-            'Threat ID'   = $ThreatId
-            'Threat Name' = 'Placeholder:Win32/Sample'
-            'Path'        = $Resource
-            'Action ID'   = $ActionId
+            'Threat ID'    = $ThreatId
+            'Threat Name'  = 'Placeholder:Win32/Sample'
+            'Path'         = $Resource
+            'Action ID'    = $ActionId
+            'Detection ID' = $DetectionId
         }
     }
 
@@ -103,7 +108,7 @@ Describe 'Get-DefenderEventHistory -- detections' -Tag 'lib' {
         Mock Get-WinEvent { [pscustomobject]@{ TimeCreated = $script:Oldest } } -ParameterFilter { $Oldest }
     }
 
-    It 'marks a 1116 followed by a Quarantine 1117 for the same threat and resource as succeeded' {
+    It 'marks a 1116 followed by a Quarantine 1117 for the same threat and detection id as succeeded' {
         $at = $script:Now.AddDays(-2)
         Mock Get-WinEvent {
             @(
@@ -146,7 +151,7 @@ Describe 'Get-DefenderEventHistory -- detections' -Tag 'lib' {
         Mock Get-WinEvent {
             @(
                 New-Detection -Id 1116 -At $at -Resource 'file:_<drive>:\a.exe'
-                New-Detection -Id 1116 -At $at -Resource 'file:_<drive>:\b.exe'
+                New-Detection -Id 1116 -At $at -Resource 'file:_<drive>:\b.exe' -DetectionId '{00000000-0000-0000-0000-000000000002}'
                 New-Detection -Id 1117 -At $at.AddSeconds(5) -Resource 'file:_<drive>:\a.exe' -ActionId 2
             )
         } -ParameterFilter { $FilterHashtable }
@@ -162,7 +167,7 @@ Describe 'Get-DefenderEventHistory -- detections' -Tag 'lib' {
         $latest = $script:Now.AddDays(-1)
         Mock Get-WinEvent {
             @(
-                New-Detection -Id 1116 -At $latest
+                New-Detection -Id 1116 -At $latest -DetectionId '{00000000-0000-0000-0000-000000000002}'
                 New-Detection -Id 1117 -At $first.AddSeconds(5) -ActionId 2
                 New-Detection -Id 1116 -At $first
                 New-Detection -Id 1116 -At $first
@@ -172,8 +177,32 @@ Describe 'Get-DefenderEventHistory -- detections' -Tag 'lib' {
         $d = @((Get-DefenderEventHistory).Detections)
         $d.Count | Should -Be 1
         $d[0].DetectedAt | Should -Be $latest
-        # The only 1117 predates the latest 1116: the threat came back and nothing acted on it.
+        # The only 1117 answers the earlier detection: the threat came back and nothing acted on it.
         $d[0].ActionSucceeded | Should -BeNullOrEmpty
+    }
+
+    It 'pairs a 1117 whose Path differs from its 1116 by detection id' {
+        $at = $script:Now.AddDays(-1)
+        Mock Get-WinEvent {
+            @(
+                New-Detection -Id 1116 -At $at -Resource 'file:_<drive>:\a.exe'
+                New-Detection -Id 1117 -At $at.AddSeconds(5) -Resource 'file:_<drive>:\a.exe; process:_pid:1' -ActionId 2
+            )
+        } -ParameterFilter { $FilterHashtable }
+
+        $d = @((Get-DefenderEventHistory).Detections)
+        $d.Count | Should -Be 1
+        $d[0].ActionSucceeded | Should -BeTrue
+    }
+
+    It 'gives a 1116 with no Path a fixed resource marker instead of an empty identity' {
+        Mock Get-WinEvent {
+            @(New-DefenderEvent -Id 1116 -TimeCreated $script:Now.AddDays(-1) -Data @{ 'Threat ID' = '2147000001'; 'Detection ID' = '{x}' })
+        } -ParameterFilter { $FilterHashtable }
+
+        $d = @((Get-DefenderEventHistory).Detections)
+        $d.Count | Should -Be 1
+        $d[0].Resource | Should -Be '(not recorded)'
     }
 }
 
@@ -204,6 +233,19 @@ Describe 'Get-DefenderEventHistory -- exclusion changes (5007)' -Tag 'lib' {
         $proc.Value | Should -Be 'tool.exe'
         $proc.Change | Should -Be 'removed'
         ($changes | Where-Object Type -EQ 'extension').Value | Should -Be '.tmp'
+    }
+
+    It 'keeps only the latest change for one exclusion value' {
+        Mock Get-WinEvent {
+            @(
+                New-ConfigChange -At $script:Now.AddDays(-1) -Old "$script:ExclusionRoot\Paths\<drive>:\build = 0x0"
+                New-ConfigChange -At $script:Now.AddDays(-5) -New "$script:ExclusionRoot\Paths\<drive>:\build = 0x0"
+            )
+        } -ParameterFilter { $FilterHashtable }
+
+        $changes = @((Get-DefenderEventHistory).ExclusionChanges)
+        $changes.Count | Should -Be 1
+        $changes[0].Change | Should -Be 'removed'
     }
 
     It 'keeps an exclusion value that itself contains " = "' {

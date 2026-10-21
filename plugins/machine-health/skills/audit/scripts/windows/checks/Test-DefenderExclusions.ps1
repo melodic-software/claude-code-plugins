@@ -8,6 +8,8 @@ See reference/windows/check-catalog.md#11-defender-exclusions for rubric.
 [CmdletBinding()]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'MutedKeys',
     Justification = 'Read inside $CheckBody, which Invoke-HealthCheckEnvelope invokes.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', 'result',
+    Justification = 'Set inside $CheckBody and read by Invoke-HealthCheckEnvelope.')]
 param(
     [switch]$Human,
     [string[]]$MutedKeys = @()

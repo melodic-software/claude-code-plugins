@@ -183,17 +183,18 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 - **Detections and exclusion history:** detection history comes from events 1116 (detected) and
   1117 (action taken), not Defender's threat-detection cmdlets, which forget detections after the
   scan-history purge delay. Each detection item is one threat id and resource at its latest 1116;
-  a 1117 for the same threat id and resource, no older than that 1116, pairs with it.
-  `action_succeeded` is true when that 1117's action id is one of the remediating actions (Clean,
-  Quarantine, Remove, Block), false for any other action, and null with no paired 1117. Event 5007
-  exclusion adds and removes become `exclusion` items labeled as history within log retention since
-  `log_oldest_record`; an exclusion set before the oldest retained record is invisible here. A
+  a 1117 pairs with it when it carries that 1116's threat id and detection id (a 1117's `Path` can
+  differ from its 1116's). `action_succeeded` is true when a paired 1117's action id is one of the
+  remediating actions in the threat action table, false for any other action, and null with no
+  paired 1117. Event 5007 exclusion adds and removes become `exclusion` items, one per value at its
+  latest change, labeled as history within log retention since `log_oldest_record`; an exclusion
+  set before the oldest retained record is invisible here. A
   query that finds no matching event is `absent` (zero), never an error. Exclusion values are shown
   to the local user only: they stay in `latest.json` and out of the summary, notes and markdown
   report, which carry counts (`exclusion_change_count`). An `exclusion` mute uses the same key as
   `defender-exclusions`, so one mute covers both.
   - Pointers: action ids, the
-    [Set-MpPreference threat action table](https://learn.microsoft.com/en-us/powershell/module/defender/set-mppreference#-highthreatdefaultaction);
+    [Set-MpPreference threat action table](https://learn.microsoft.com/en-us/powershell/module/defender/set-mppreference#description);
     event ids and fields, the
     [Defender Antivirus event reference](https://learn.microsoft.com/en-us/defender-endpoint/troubleshoot-microsoft-defender-antivirus#event-id-1116)
     (and its Event ID 1117 and 5007 sections);
