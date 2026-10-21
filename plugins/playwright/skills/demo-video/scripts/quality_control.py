@@ -36,6 +36,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
+from frame_seek import check_frame, seek_time
 from demo_common import SMOOTH_10_90, SMOOTH_PEAK_A, SMOOTH_PEAK_V, Ink, anchor_box, edge_ink, font, load_config, page_change
 
 AW, AH = 240, 135   # registration resolution
@@ -419,9 +420,9 @@ def main(argv=None):
     # ---- report and contact sheets ----------------------------------------------------------------
     @lru_cache(maxsize=64)
     def rgb(fi):
-        raw = subprocess.run(['ffmpeg', '-v', 'error', '-ss', f'{fi / fps:.4f}', '-i', str(a.video), '-frames:v', '1',
+        raw = subprocess.run(['ffmpeg', '-v', 'error', '-ss', seek_time(fi, fps), '-i', str(a.video), '-frames:v', '1',
                               '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], capture_output=True, check=True).stdout
-        return Image.frombytes('RGB', (W, H), raw)
+        return Image.frombytes('RGB', (W, H), check_frame(raw, fi, fps, W, H))
     peaks = sorted(runtime, key=lambda i: -zf[pos[i]])[:3]
     items = [(i, f'cut {i / fps:.2f}s') for i in cuts[:6]] + [(i, f'zoom {zf[pos[i]]:.2f}x {i / fps:.2f}s') for i in peaks]
     if worst:

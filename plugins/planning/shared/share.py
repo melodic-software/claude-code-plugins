@@ -27,6 +27,7 @@ import contextlib
 import datetime
 import html
 import http.client
+import io
 import json
 import math
 import os
@@ -730,6 +731,10 @@ def parser():
 
 
 def main(argv=None):
+    # A Windows pipe takes the ANSI code page, which has no room for an emoji or an arrow in a name or a log line (#8239).
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8", errors=stream.errors)  # encoding alone would reset errors to strict
     p = parser()
     a = p.parse_args(argv)
     if a.cmd == "list":
