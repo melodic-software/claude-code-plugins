@@ -1269,6 +1269,15 @@ Each profile under `models.profiles` names:
   definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
 
+A role profile names a multi-agent role in place of `model`, and never both: `role`, `workload`
+and `effort-role`, plus `max-turns`. It has no `model` or `effort` key, so it can name neither
+`default` nor a model ID. `resolve-config` reads its model and effort from the role map,
+`plugins/multi-agent/reference/defaults.yaml` in the base checkout. The model is `opus` when the
+role map gives `inherit`, no alias, or an alias other than `haiku`, `sonnet` or `opus`, and when
+the role map is absent or unreadable, so a route never resolves to an empty model, `default`, a
+model ID or the frontier tier. `resolve-config` also writes an `applied-by-patch` output, set
+only when the selected activity sets `applied-by.patch`.
+
 `models.routes` maps a run to a profile: a skill activity by its name, and a run that is no
 activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `review-code` and
 `review-security` for the code and security review lanes, `triage-issue` for intake triage, and
