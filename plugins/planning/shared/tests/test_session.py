@@ -2054,6 +2054,47 @@ class TestChatWindow(SessionCase):
         self.assertNotIn(first, [m["id"] for m in self.s.snapshot(self.bo)["chat"]])
 
 
+class TestHiddenCharacters(SessionCase):
+    """Every text field drops the characters that hide or reorder text (bidi controls, invisible spaces, tag
+    characters, other controls, surrogates, private use) and keeps emoji sequences, tabs and line breaks."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann = self.join("Ann")[0]
+        self.open_round(text_q("Q1"))
+
+    def test_bidi_overrides_are_dropped_from_an_answer_a_chat_message_a_request_and_a_comment(self):
+        spoof = "Pay ‮redro‬ ⁦now⁩‏"
+        self.act("answer", self.ann, {"qid": "Q1", "text": spoof, "view": "focus"})
+        self.act("chat", self.ann, {"text": spoof})
+        rid = self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": spoof})["id"]
+        self.act("comment", self.ann, {"qid": "Q1", "text": spoof})
+        st = self.s.state
+        (card,) = [c for c in st["cards"]["Q1"] if c["kind"] == "person"]
+        request = next(r for r in st["requests"] if r["id"] == rid)
+        got = [card["text"], st["chat"][-1]["text"], request["text"], st["discussions"]["Q1"][-1]["text"]]
+        self.assertEqual(got, ["Pay redro now"] * 4)
+
+    def test_emoji_sequences_tabs_and_line_breaks_survive(self):
+        family = "\U0001f468‍\U0001f469‍\U0001f467"  # ZWJ sequence
+        england = "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"  # emoji tag sequence
+        text = f"Us: {family} {england} ❤️\nCol\tumn"
+        self.act("chat", self.ann, {"text": text})
+        self.assertEqual(self.s.state["chat"][-1]["text"], text)
+
+    def test_carriage_returns_become_line_breaks(self):
+        self.act("chat", self.ann, {"text": "one\r\ntwo\rthree"})
+        self.assertEqual(self.s.state["chat"][-1]["text"], "one\ntwo\nthree")
+
+    def test_invisible_text_tag_smuggling_controls_and_lone_surrogates_are_dropped(self):
+        self.act("chat", self.ann, {"text": "o​k\U000e0069\U000e0067\U000e006e \x07﻿\ud800fine\x00"})
+        self.assertEqual(self.s.state["chat"][-1]["text"], "ok fine")
+
+    def test_a_field_of_only_hidden_characters_is_refused_as_empty(self):
+        self.refused("empty", "chat", self.ann, {"text": "‮​\x00 ⁦"}, http=400)
+        self.refused("empty", "request", self.ann, {"qid": "Q1", "kind": "ask", "text": "\U000e0041﻿"}, http=400)
+
+
 class TestWriteLimits(SessionCase):
     """Every route a person can write through is held to one write a second (Contracts, "Body caps
     and limits"), the heartbeat to about one a second, and stored chat, notes and suggestions are

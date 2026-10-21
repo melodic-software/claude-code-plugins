@@ -615,8 +615,25 @@ def _person_name(body, *, empty_ok=False):
     return name
 
 
+# Characters dropped from every text field: controls but tab and newline, surrogates, private use, the bidi controls
+# (Trojan Source), invisible spaces and operators, and tag characters outside an emoji flag (hidden text for Claude).
+# ZWJ, ZWNJ and variation selectors stay: emoji sequences and some scripts need them. Unassigned (Cn) stays too:
+# the interpreter's Unicode tables trail new emoji, which read as unassigned until they catch up.
+_HIDDEN = re.compile(
+    "(\U0001f3f4[\U000e0020-\U000e007e]+\U000e007f)"
+    "|[\x00-\x08\x0b-\x1f\x7f-\x9f؜​‎‏‪-‮⁠-⁤⁦-⁯﻿￹-￻"
+    "\ud800-\udfff-\U000e0000-\U000e007f\U000f0000-\U0010ffff]"
+)
+
+
+def _visible(v):
+    """v with line breaks as \\n and every _HIDDEN character dropped."""
+    return _HIDDEN.sub(lambda m: m.group(1) or "", v.replace("\r\n", "\n").replace("\r", "\n"))
+
+
 def _text(body, field, *, limit=MAX_TEXT, empty_ok=False, optional=False):
-    """A trimmed string of 1..limit characters (0.. with empty_ok); refused when longer, never cut."""
+    """A trimmed string of 1..limit characters (0.. with empty_ok), hidden characters dropped first (_visible);
+    refused when longer, never cut."""
     v = _body(body).get(field)
     if v is None:
         if optional:
@@ -626,7 +643,7 @@ def _text(body, field, *, limit=MAX_TEXT, empty_ok=False, optional=False):
         raise DomainError(400, "empty", f"{field} is empty.", field=field)
     if not isinstance(v, str):
         raise _bad(field, f"{field} must be a string.")
-    v = v.strip()
+    v = _visible(v).strip()
     if not v and not empty_ok:
         raise DomainError(400, "empty", f"{field} is empty.", field=field)
     if len(v) > limit:
