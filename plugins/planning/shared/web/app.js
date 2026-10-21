@@ -6772,6 +6772,8 @@
       const qs = S.questions, owner = Core.owner(), here = S.presence;
       // ux-review-2 #7: the viewer counts as here from the moment the page loads, before their first heartbeat lands.
       const hereN = here.length + (here.some(p => isMe(p.cid)) ? 0 : 1);
+      // D5: "1 here" read as a count of others (who had not joined yet); with no one else, it says who it counts.
+      const hereTxt = hereN === 1 ? "only you here" : `${hereN} here`;
       migratePrefs(); follow.setAttribute("aria-pressed", String(following()));
       if (following() && owner && !isMe(owner.cid) && owner.q && owner.q !== ui.cur && S.questions.some(q => q.id === owner.q)) { select(owner.q); return; }
       const R = curRound(), cur = R.current;
@@ -6847,7 +6849,7 @@
         if (a.textContent !== Core.initials(p.name) || a.dataset.name !== p.name) b.replaceChildren(av(p.cid, p.name, AV.l));
         presDot(b.firstChild, p);
       });
-      hereCount.textContent = here.length > 7 ? `+${here.length - 7}` : `${hereN} here`;
+      hereCount.textContent = here.length > 7 ? `+${here.length - 7}` : hereTxt[0].toUpperCase() + hereTxt.slice(1);
       follow.hidden = me.isOwner || !s.follow;
       followTxt.textContent = owner ? `Follow ${disp(owner.name)}` : "Follow host";
       follow.classList.toggle("vf-dim", !owner);
@@ -7335,7 +7337,7 @@
         // Answered counts everyone who joined (Claude's cards are not people); who is here is a separate number.
         const joinedN = Math.max(Object.keys(S.people || {}).filter(p => !(S.removed || []).includes(p)).length, here.length);
         const answeredN = all.filter(a => !a.claude).length;
-        ansCount.textContent = `${answeredN} of ${joinedN} answered, ${hereN} here`;
+        ansCount.textContent = `${answeredN} of ${joinedN} answered, ${hereTxt}`;
         // Suggestions an unlock closed, shown while the question is open again.
         const closed = lk ? [] : Core.suggestionsFor(q.id).filter(x => x.status === "closed");
         closedBox.hidden = !closed.length;
