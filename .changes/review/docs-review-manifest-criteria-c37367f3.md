@@ -10,6 +10,7 @@ bump: minor
   marketplace entry match what ships.
 - `/review:security-review` flags a `userConfig` default change that widens what a guard allows
   (judged by the code that reads the key), and flags every other changed manifest field outside a
-  small inert set (description, keywords, author, homepage, repository, license), naming what runs
+  small inert set (description, keywords, author, homepage, repository, license, and a changed
+  version), naming what runs
   and where it comes from.
 - Both lanes write one `manifest <field>: pass` or `flag` line per manifest item in the summary.

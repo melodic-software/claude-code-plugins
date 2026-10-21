@@ -143,7 +143,8 @@ eligible for skip 2. Compare the base and head manifests:
   unchecked. A change that lowers a value's protection is a finding too.
 - Default deny. Every other field added, changed, or removed is a `manifest <field>: flag`,
   whatever the lane believes about it, unless it is in this repository's inert set:
-  `description`, `keywords`, `author`, `homepage`, `repository`, `license`. On each such flag,
+  `description`, `keywords`, `author`, `homepage`, `repository`, `license`, and a changed (not
+  added or removed) `version`. On each such flag,
   name in the summary what runs and where it comes from (the command, server, or script, and the
   path, package, or URL with its pin), or what installed users get on update. A source outside
   the repository with no pin, a command fed consumer-controlled input, or a tool grant wider than
