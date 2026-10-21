@@ -203,15 +203,19 @@ and never merges; the pr-merge lane merges on its `verdict=merge` marker at the 
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
 [ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
-`pr-unblock`'s `fix-ci` runs in three jobs of `pr-unblock.yml`, so no model holds a write token:
+`pr-unblock`'s `fix-ci` runs in four jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
 the pull request to a person once `loop.fix-ci-rounds` fixes were pushed; `fix-ci` (a `read`
-skill in [patch output mode](pr-run-activity.md#patch-output-mode)) runs
-`source-control:pull-request ci --ci`, which reruns, fixes and reruns the checks; and
-`apply-ci-fix` (a `mutate-branch` script, no model, no head code) pushes the patch as one commit
-without force, refusing the whole patch on any change to `.github/**`, an agent instruction path
-(`CLAUDE.md`, `AGENTS.md`, `.claude/` or `.claude-plugin/`, a plugin's `hooks/`, `monitors/` or
-`bin/`, `.mcp.json`, `.lsp.json`, `.gitmodules`, `CODEOWNERS`), a symbolic link or a gitlink
+skill in [patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
+automations role's API key) runs `source-control:pull-request ci --ci`, which reruns, fixes and
+reruns the checks; `fix-ci-subscription` runs the same on the role's OAuth token, only after a
+credit stop or with the key empty
+([two calls](pr-run-activity.md#two-calls-on-one-credential-each)); and `apply-patch` (a
+`mutate-branch` script, no model, no head code) pushes the patch as one commit without force,
+refusing the whole patch on any change `patch-rules.json`'s `ci-context` row refuses: the
+universal set, an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` or
+`.claude-plugin/`, a plugin's `hooks/`, `monitors/` or `bin/`, `.mcp.json`, `.lsp.json`,
+`.gitmodules`, `CODEOWNERS`), or more than 300 paths
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
 unappliable patch, or a check the model escalated, goes to `report-escalation`. The same
@@ -308,8 +312,8 @@ Each leaf declares:
   `applied-by-supported` to `resolve-config` (`pr-run-activity-read.yml` passes `patch`); an
   applying leaf with any other key fails red before the head checkout. A skill that hands on a
   patch gets the same edit tools as a write skill and commits nothing. The read runner collects
-  its uncommitted change as a patch only when the caller passes `output-mode: patch`; no activity
-  sets `applied-by` today. Those edit tools and the `changed-paths` filter key on "an effect other than
+  its uncommitted change as a patch when `applied-by.patch` names its applier (`fix-ci` and
+  `resolve-issue`). Those edit tools and the `changed-paths` filter key on "an effect other than
   `read`, or `applied-by.patch`"; the effect half goes once the last skill leaves
   `pr-run-activity-write.yml`.
 - `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
@@ -347,9 +351,8 @@ Each leaf declares:
   `read` activity that leaves the working tree dirty unless it hands its change on as a patch. An
   activity that runs head code (tests, linters, builds) takes effect `read`, because a
   write-effect activity must not execute head code. To change the branch it hands its change on
-  to a `prepare: apply-patch` script with no model and no head code: today fix-ci does this
-  through its caller's `output-mode: patch` and `apply-ci-fix`; the target state names the script
-  in the skill's `applied-by.patch`.
+  to a `prepare: apply-patch` script with no model and no head code, named in its
+  `applied-by.patch`, as fix-ci does with `apply-patch`.
 - `gating`: `gate` feeds `ci-status`; `advisory` is reported only. `ci-status` stays the only
   required check. A `gate` skill activity must not execute head code, since its verdict is read
   in the same job after the skill ran; tests, linters and builds that gate run as a `script`
@@ -422,10 +425,9 @@ label back.
 of what one `prepare: apply-patch` script is to admit from a producer's patch, read from the
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
 `review-threads`, `dependency-review`, `merge-base`), `default` for one with no prepare mode, and
-`issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip. No
-apply step reads it yet; that script lands later, and until then fix-ci's patch goes through
-`apply-ci-fix` with its own fixed refusal
-([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
+`issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
+[`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's
+and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
 [`patch-rules.schema.json`](../../../.github/actions/resolve-config/patch-rules.schema.json) closes
 each row to these keys:
 
@@ -437,6 +439,8 @@ each row to these keys:
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`. |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
+| `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default) or `invalid` (`ci-context`, as the producer said it wrote a change). |
+| `skip-moved-head` | Optional; `true` (`ci-context`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
 Every row refuses `.github/**` in any case and through any `..` segment, `.claude/**` at any depth,
@@ -444,6 +448,8 @@ the root `.mcp.json`, `.gitmodules`, `**/settings*.json`, a symbolic link, a git
 executable bit on a file not already executable, and a rename into any of those. Plugin hooks,
 `.claude-plugin/`, `lib/`, `scripts/`, `CLAUDE.md` and `AGENTS.md` are admitted: the
 [HIGH path floor](#merge-authority) holds a pull request that touches them for a human merge.
+The `ci-context` row also names the optional `instruction-path` refusal, so fix-ci still pushes
+none of them.
 `checkPatchRules` in
 [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name
@@ -653,7 +659,14 @@ and its queued entries leave; two different identities, or an unreadable head co
   parse or repeats a key holds, and so does a new `plugin.json`. Values are compared as sorted
   JSON, so `false` and `0` differ, and a listed key clears only with the expected type: a string, a
   list of strings for `keywords` and `tags`, and a string or an object of strings for `author`.
-  That reason waits for a human like any other HIGH one.
+  That reason waits for a human like any other HIGH one. A file whose every path is a test (a `*.test.mjs`,
+  `*.test.sh`, `*.test.js` or `test_*.py` name, matched case-sensitively; a `tests/` or
+  `fixtures/` directory alone is not one),
+  safe, under no path a plugin declares as run, and named by no other changed file in the diff,
+  does not take the floor's `plugins/*/scripts/**`, `plugins/*/skills/*/scripts/**` and
+  `plugins/**/scripts/**` entries, `floor-paths` globs that end in a `scripts` directory (such as
+  `plugins/x/scripts/**`), or `floor-script-scopes`; every other floor entry, every other
+  `floor-paths` glob and `denied-paths` still hold it.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.
@@ -728,8 +741,8 @@ except six:
   changes a line inside a ```` ```! ```` block, has changed frontmatter the strict reader cannot
   follow, or cannot be read, and a rename or copy into such a path), `floor-paths` (globs joined to
   that floor while it applies; a HIGH pull request waits for a human), `floor-script-scopes`
-  (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file scores HIGH with
-  the floor), `c2-contradictions` (true
+  (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file other than a test
+  file scores HIGH with the floor), `c2-contradictions` (true
   scores a removed, renamed or copied file, a schema change or more than one plugin MED),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository lists
   `floor-paths` and `floor-script-scopes` and sets `high-path-floor: true` (owner decision
@@ -1325,6 +1338,15 @@ Each profile under `models.profiles` names:
   through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
   definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
+
+A role profile names a multi-agent role in place of `model`, and never both: `role`, `workload`
+and `effort-role`, plus `max-turns`. It has no `model` or `effort` key, so it can name neither
+`default` nor a model ID. `resolve-config` reads its model and effort from the role map,
+`plugins/multi-agent/reference/defaults.yaml` in the base checkout. The model is `opus` when the
+role map gives `inherit`, no alias, or an alias other than `haiku`, `sonnet` or `opus`, and when
+the role map is absent or unreadable, so a route never resolves to an empty model, `default`, a
+model ID or the frontier tier. `resolve-config` also writes an `applied-by-patch` output, set
+only when the selected activity sets `applied-by.patch`.
 
 `models.routes` maps a run to a profile: a skill activity by its name, and a run that is no
 activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `review-code` and

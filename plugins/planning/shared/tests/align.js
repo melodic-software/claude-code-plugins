@@ -192,7 +192,7 @@ async function crowd(s, C) {
   s.apply(C.dir, [{ op: "open-round", questions: [q("Q1", "Which loot rule should the first playable use?")] }]);
   const base = C.localUrl.replace(/\/$/, "");
   for (let i = 1; i <= 13; i++) {
-    const r = await fetch(base + "/api/join", { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": `198.51.100.${i}` }, body: JSON.stringify({ name: `Guest ${i}`, device: "computer" }) });
+    const r = await fetch(base + "/api/join", { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": `198.51.100.${i}` }, body: JSON.stringify({ name: `Guest ${i}`, device: "computer", key: C.guestKey }) });
     if (!r.ok) throw new Error(`join Guest ${i} -> ${r.status}`);
   }
 }
@@ -315,7 +315,7 @@ function views(page, CFG) {
       return page.evaluate(() => !!document.querySelector(".vf-opt[data-state='mine']"));
     },
     "claude-hidden": () => gotoQ("Q3"),
-    "device": async () => { await clickIn(".vf-person-me"); await W(150); return clickIn(".vf-pcard .vf-menu-item", "another device"); },
+    "device": async () => { await clickIn(".vf-person-me"); await W(150); return clickIn(".vf-pcard .vf-menu-item", "Sign in on another device"); }, // the owner's pairing popup
     "msg-menu": async () => { await clickIn(".vf-fab"); await W(150); return clickIn(".vf-msgmore"); },
     "compare-formats": async () => { await mode("compare"); return page.evaluate(() => { const b = document.querySelector(".vf-board"); if (!b) return false; b.scrollLeft = b.scrollWidth; return true; }); },
     // the Inbox remembers its tab on the device, and "review" leaves it on Needs you: these start on Notifications

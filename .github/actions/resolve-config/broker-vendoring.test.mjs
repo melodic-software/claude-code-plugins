@@ -93,7 +93,7 @@ test("every package resolve.mjs loads installs from the vendored package files",
 test("the broker's calls resolve this tree's config from the TRUST_FILES it reads, and nothing more", () => {
   const files = brokerFiles();
   const doc = loadConfig(files, { configPath: LISTS.binding.config });
-  assert.deepEqual(resolveGrant(files, { lane: "pr-unblock", activity: "apply-ci-fix", configPath: LISTS.binding.config }).effect, "mutate-branch");
+  assert.deepEqual(resolveGrant(files, { lane: "pr-unblock", activity: "apply-patch", configPath: LISTS.binding.config }).effect, "mutate-branch");
   assert.ok(Object.keys(doc.lanes).length > 0);
 });
 

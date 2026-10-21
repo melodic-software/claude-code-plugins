@@ -103,6 +103,7 @@ REGISTRY=(
   "check-purged-em-dashes.sh|jq|-|-"
   "check-queue-front-matter.sh|-|-|queue_front_matter"
   "check-read-caller-keys.sh|node|-|-"
+  "check-scan-carrier-secret-shadow.sh|gh|o/r|-"
   "check-shell-portability.sh|-|-|-"
   "check-silent-revert.sh|git|--verify-known-incidents|-"
   "check-silent-skips.sh|-|-|-"

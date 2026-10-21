@@ -22,6 +22,12 @@ commands/**/*.md file whose head text gains or changes a capability frontmatter
 key, adds a `!` command, or changes a line inside a ```! block, compared with
 its base text, or whose text could not be read, rates HIGH as
 `high-capability`.
+A safe file whose every path is a test (a `*.test.mjs`, `*.test.sh`,
+`*.test.js` or `test_*.py` name, matched case-sensitively; a `tests` or
+`fixtures` directory alone is not one), under no declared path and named by no other changed file
+(every other file readable), is left out of the floor's script-directory
+entries, `floor-paths` globs whose last segment other than `**` is `scripts`
+(unless spelled like another fixed entry), and the script scopes; every other entry and every denied path still holds it.
 `floor_extensions` gates FLOOR_ADDITIONS, `floor-paths`, the script scopes and
 the capability check in every lane. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Claude.md` as
@@ -659,8 +665,65 @@ def _declared_paths(value: Any, unsafe: list[str]) -> tuple[str, ...]:
 _SCRIPT_SUFFIXES = (".ps1", ".cjs")
 _EXECUTABLE_MODE = "100755"
 
+# The floor's script-directory entries, which a test-only file does not hold.
+_SCRIPT_FLOOR = frozenset(
+    {"plugins/*/scripts/**", "plugins/*/skills/*/scripts/**", "plugins/**/scripts/**"}
+)
+_TEST_NAMES = ("*.test.mjs", "*.test.sh", "*.test.js", "test_*.py")
 
-def _script_reasons(files: list[_File], raw_files: list[Any], scopes) -> list[Reason]:
+
+def _ends_in_scripts(glob: str) -> bool:
+    """Whether the last segment of a glob other than `**` is `scripts`."""
+    segments = [s for s in glob.split("/") if s not in ("", "**")]
+    return bool(segments) and segments[-1] == "scripts"
+
+
+def _test_path(path: str) -> bool:
+    """A test file name, matched case-sensitively. A tests or fixtures
+    directory alone is no test: an unchanged shipped file the scorer cannot
+    read may source, glob or copy what it holds."""
+    name = path.rsplit("/", 1)[-1]
+    return any(_segment_match(g, name) for g in _TEST_NAMES)
+
+
+def _named(f: _File, files: list[_File], raw_files: list[Any]) -> bool:
+    """Whether another changed file's patch or text names one of this file's
+    names, or one of them cannot be read (fail closed)."""
+    names = {path.rsplit("/", 1)[-1].casefold() for path in f.paths}
+    for other, raw in zip(files, raw_files):
+        if other is f:
+            continue
+        patch = getattr(raw, "patch", None)
+        contents = getattr(raw, "contents", None)
+        texts = [patch] if isinstance(patch, str) else []
+        if isinstance(contents, tuple):
+            texts += [c for c in contents if isinstance(c, str)]
+        if not texts:
+            return True
+        if any(name in text.casefold() for text in texts for name in names):
+            return True
+    return False
+
+
+def _test_only(
+    f: _File,
+    files: list[_File],
+    raw_files: list[Any],
+    declared: tuple[str, ...],
+) -> bool:
+    """Every path of a safe file is a test (`_test_path`), under no declared
+    path, and no other changed file names it."""
+    if f.unsafe or not f.paths:
+        return False
+    for path in f.paths:
+        if not _test_path(path) or any(glob_match(d, path) for d in declared):
+            return False
+    return not _named(f, files, raw_files)
+
+
+def _script_reasons(
+    files: list[_File], raw_files: list[Any], scopes, tests: set[str]
+) -> list[Reason]:
     hits = []
     for f, raw in zip(files, raw_files):
         modes = (getattr(raw, "mode", None), getattr(raw, "previous_mode", None))
@@ -668,6 +731,8 @@ def _script_reasons(files: list[_File], raw_files: list[Any], scopes) -> list[Re
             # The top level is always in scope (owner decision Q646).
             top = "/" not in path
             if not path or not (top or any(glob_match(g, path) for g in scopes)):
+                continue
+            if not top and path in tests:
                 continue
             if path.casefold().endswith(_SCRIPT_SUFFIXES) or _EXECUTABLE_MODE in modes:
                 hits.append(path)
@@ -1288,11 +1353,8 @@ def _high_path_reasons(
     configured = _readable_globs(inp.high_paths, unsafe)
     on = inp.high_floor is not False
     extended = on and inp.floor_extensions is not False
-    added = (
-        (*FLOOR_ADDITIONS, *_readable_globs(inp.floor_paths, unsafe))
-        if extended
-        else ()
-    )
+    floor_globs = _readable_globs(inp.floor_paths, unsafe) if extended else ()
+    added = (*FLOOR_ADDITIONS, *floor_globs) if extended else ()
     declared = _declared_paths(inp.declarations, unsafe) if on else ()
     floor = (*HIGH_FLOOR, *added, *declared) if on else ()
     scopes = _readable_globs(inp.floor_script_scopes, unsafe) if extended else ()
@@ -1312,6 +1374,15 @@ def _high_path_reasons(
         for f in files
         if on and _MANIFEST_FLOOR not in configured and is_manifest_path(f.path)
     }
+    tests = {
+        p for f in files if _test_only(f, files, raw_files, declared) for p in f.paths
+    }
+    # The floor's script entries and floor-paths globs ending in a scripts
+    # directory exempt tests; a denied path never does, and neither does a
+    # floor-paths glob spelled like another fixed entry, which keeps holding.
+    fixed = {*HIGH_FLOOR, *FLOOR_ADDITIONS}
+    scripted = {g for g in floor_globs if _ends_in_scripts(g) and g not in fixed}
+    exempt = _SCRIPT_FLOOR.union(scripted).difference(configured) if on else ()
     for pattern in dict.fromkeys((*floor, *configured)):
         hits = [
             path
@@ -1319,6 +1390,7 @@ def _high_path_reasons(
             if glob_match(pattern, path)
             and not (pattern in eval_exempt and path in evals)
             and not (pattern == _MANIFEST_FLOOR and path in manifests)
+            and not (pattern in exempt and path in tests)
         ]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
@@ -1339,7 +1411,7 @@ def _high_path_reasons(
         reasons.append(Reason(_EVAL_SCAFFOLD_CODE, Risk.HIGH, ", ".join(scaffolded)))
     if extended:
         reasons.extend(_capability_reasons(files, raw_files, inp.agents, evals))
-        reasons.extend(_script_reasons(files, raw_files, scopes))
+        reasons.extend(_script_reasons(files, raw_files, scopes, tests))
     return reasons
 
 

@@ -1759,6 +1759,46 @@ class TestProposals(SessionCase):
         self.open_round(text_q("Q10"))
         self.assert_gathers(qid)
 
+    def test_the_owners_approve_all_makes_each_counted_proposal_a_question_in_the_next_round(self):
+        """The owner's ask (S1:19, OQ2 approved 2026-10-21): Approve All, the same outcome as Make it a question on each."""
+        self.open_round(text_q("Q1"))
+        counted = [self.propose(self.bo, "Ask about refunds"), self.propose(self.ann, "Ask about delivery"), self.propose(self.bo, "Ask about gift cards")]
+        late = self.propose(self.ann, "Arrived after the confirm")
+        out = self.act("approve_proposals", HOST, {"ids": counted})
+        self.assertEqual((out["round"], len(out["questions"])), (2, 3))
+        made = [self.question(q) for q in out["questions"]]
+        self.assertEqual([(q["text"], q["round"], q["purpose"], q["origin"]) for q in made],
+                         [(t, 2, "gather", {"kind": "host", "proposal": pid, "by": HOST}) for t, pid in
+                          zip(("Ask about refunds", "Ask about delivery", "Ask about gift cards"), counted)])
+        status = {x["id"]: x["status"] for x in self.s.state["proposals"]}
+        self.assertEqual([status[i] for i in counted], [{"kind": "question", "question": q} for q in out["questions"]])
+        self.assertEqual(status[late], {"kind": "new"})  # never placed unseen
+        self.assertEqual((len(self.notes(self.bo, "proposal")), len(self.notes(self.ann, "proposal"))), (2, 1))
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_proposals_approved_after_the_send_need_no_placement_from_claude(self):
+        props = self.to_working_round()  # six proposals in the sent digest
+        self.act("approve_proposals", HOST, {"ids": props})
+        out = self.open_round(text_q("Q20"))["results"][0]  # no placements: none is new any more
+        self.assertEqual(out["placed"], [])
+        self.assertEqual(sorted(q["round"] for q in self.s.state["questions"] if q["origin"].get("proposal") in props), [2] * 6)
+
+    def test_approve_all_is_the_owners_alone_and_refuses_the_lot_on_any_problem(self):
+        self.open_round(text_q("Q1"))
+        a, b, c = (self.propose(self.bo, f"Idea {i}") for i in range(3))
+        self.act("act_on_proposal", HOST, {"id": c, "action": "park"})
+        self.refused("owner-only", "approve_proposals", self.ann, {"ids": [a, b]}, http=403)  # a leader places one at a time
+        self.refused("wrong-status", "approve_proposals", HOST, {"ids": [a, c]}, http=409)
+        self.refused("no-such-proposal", "approve_proposals", HOST, {"ids": [a, "P99"]}, http=404)
+        for ids in ([], [a, a], "P1", [1]):
+            with self.subTest(ids=ids):
+                self.refused("bad-field", "approve_proposals", HOST, {"ids": ids}, http=400)
+        with mock.patch.object(session, "MAX_ROUND", 1):
+            err = self.refused("round-full", "approve_proposals", HOST, {"ids": [a, b]}, http=409)
+            self.assertEqual(err.details["room"], 1)
+        self.assertEqual([x["status"]["kind"] for x in self.s.state["proposals"]], ["new", "new", "parked"])
+        self.assertEqual(len(self.s.state["questions"]), 1)
+
     def test_a_proposal_claude_places_as_a_question_without_a_body_gathers_answers(self):
         p = self.to_working_round()
         placements = [{"proposal": p[0], "as": "question"}, *({"proposal": x, "as": "later", "reason": "Later"} for x in p[1:])]
@@ -4998,6 +5038,130 @@ class TestWatcherKey(SessionCase):
         self.assertEqual(self.s.state["credentials"].get("watchers", {}), {})
 
 
+class TestOwnerDevices(SessionCase):
+    """Signing the owner in on another device. Expected values come from the owner's decision: a single-use code that
+    lasts about 2 minutes with throttled tries, traded for the device's own owner credential, stored hashed, revocable
+    on its own, all of them ended by rotating the owner link; and from a guest's limits, which it must never pass."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.ann_secret = self.join("Ann")
+
+    def redeem(self, code, address="203.0.113.5", **body):
+        self.clock.tick()
+        return self.s.redeem_pairing(None, {"code": code, **body}, address=address)
+
+    def refused_redeem(self, code, want, address="203.0.113.5"):
+        with self.assertRaises(session.DomainError) as ctx:
+            self.redeem(code, address)
+        self.assertEqual(ctx.exception.code, want, ctx.exception.message)
+
+    def device(self, **body):
+        return self.redeem(self.act("pair_device", HOST, {})["code"], **body)
+
+    def test_only_the_owner_makes_a_code_and_it_is_short_enough_to_type(self):
+        self.refused("owner-only", "pair_device", self.ann, {}, http=403)
+        code = self.act("pair_device", HOST, {})["code"]
+        self.assertRegex(code, r"^[0-9A-Z]{8}$")
+        self.assertNotIn(code, self.path.read_text(encoding="utf-8"))
+
+    def test_a_code_signs_in_one_device_once_with_a_credential_of_its_own(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        out = self.redeem(f"{code[:4].lower()}-{code[4:]}", device="phone", browser="safari")
+        self.assertNotEqual(out["token"], self.owner_token)
+        self.assertEqual(self.s.resolve(owner_token=out["token"]), HOST)
+        self.assertEqual(self.s.resolve(owner_token=self.owner_token), HOST)
+        self.assertNotIn(out["token"], self.path.read_text(encoding="utf-8"))
+        self.assertEqual(self.disk()["credentials"]["devices"], {session.sha256(out["token"]): {"id": out["id"], "at": self.clock.t, "device": "phone", "browser": "safari"}})
+        self.refused_redeem(code, "bad-pair-code", address="198.51.100.7")
+        self.assertEqual(len(self.disk()["credentials"]["devices"]), 1)
+
+    def test_a_code_works_for_about_two_minutes(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        self.clock.tick(60)
+        self.assertEqual(self.s.resolve(owner_token=self.redeem(code)["token"]), HOST)
+        code = self.act("pair_device", HOST, {})["code"]
+        self.clock.tick(180)
+        self.refused_redeem(code, "bad-pair-code")
+
+    def test_a_new_code_replaces_the_last(self):
+        old = self.act("pair_device", HOST, {})["code"]
+        new = self.act("pair_device", HOST, {})["code"]
+        self.refused_redeem(old, "bad-pair-code")
+        self.redeem(new, address="198.51.100.7")
+
+    def test_tries_are_throttled_per_address_and_five_misses_shut_out_only_that_address(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        wrong = "22222222" if code != "22222222" else "33333333"
+        self.refused_redeem(wrong, "bad-pair-code", address="203.0.113.5")
+        with self.assertRaises(session.DomainError) as ctx:  # the same second, the same address
+            self.s.redeem_pairing(None, {"code": code}, address="203.0.113.5")
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+        for _ in range(4):  # five wrong tries in all from this address
+            self.refused_redeem(wrong, "bad-pair-code", address="203.0.113.5")
+        self.refused_redeem(code, "bad-pair-code", address="203.0.113.5")  # shut out, even with the right code
+        self.assertNotIn("devices", self.disk()["credentials"])
+
+    def test_a_strangers_misses_never_stop_the_host_signing_in(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        wrong = "22222222" if code != "22222222" else "33333333"
+        for n in range(5):
+            for _ in range(5):
+                self.refused_redeem(wrong, "bad-pair-code", address=f"198.51.100.{n}")
+        self.assertEqual(self.s.resolve(owner_token=self.redeem(code, address="203.0.113.5")["token"]), HOST)
+
+    def test_signing_out_one_device_ends_it_at_once_and_leaves_the_others(self):
+        phone, laptop = self.device(device="phone"), self.device(address="198.51.100.7", device="computer")
+        self.assertEqual([d["id"] for d in self.s.snapshot(HOST)["ownerDevices"]], [phone["id"], laptop["id"]])
+        self.assertNotIn("ownerDevices", self.s.snapshot(self.ann))
+        self.act("revoke_device", HOST, {"id": phone["id"]})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(owner_token=phone["token"])
+        self.assertEqual(ctx.exception.http, 401)
+        self.assertEqual(self.s.resolve(owner_token=laptop["token"]), HOST)
+        self.refused("not-found", "revoke_device", HOST, {"id": phone["id"]}, http=404)
+        self.refused("owner-only", "revoke_device", self.ann, {"id": laptop["id"]}, http=403)
+
+    def test_rotating_the_owner_link_signs_out_every_device(self):
+        tokens = [self.device()["token"], self.device(address="198.51.100.7")["token"]]
+        self.act("rotate_owner_link", HOST, {})
+        for token in tokens:
+            with self.assertRaises(session.DomainError) as ctx:
+                self.s.resolve(owner_token=token)
+            self.assertEqual(ctx.exception.http, 401)
+        self.assertNotIn("devices", self.disk()["credentials"])
+
+    def test_closing_the_session_signs_out_every_device_and_reopening_brings_none_back(self):
+        token = self.device()["token"]
+        self.act("end_session", HOST, {"on": True})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(owner_token=token)
+        self.assertEqual(ctx.exception.http, 401)
+        self.assertNotIn("devices", self.disk()["credentials"])
+        self.act("end_session", HOST, {"on": False})
+        with self.assertRaises(session.DomainError):
+            self.s.resolve(owner_token=token)
+        self.assertEqual(self.s.resolve(owner_token=self.owner_token), HOST)
+
+    def test_a_new_owner_link_at_start_signs_out_every_device(self):
+        token = self.device()["token"]
+        self.assertTrue(self.s.reset_owner_token("tok-newer", self.clock.t + 1))
+        with self.assertRaises(session.DomainError):
+            self.s.resolve(owner_token=token)
+
+    def test_a_guest_cannot_make_a_code_or_use_its_secret_as_one(self):
+        self.refused("owner-only", "pair_device", self.ann, {}, http=403)
+        self.refused_redeem(self.ann_secret, "bad-pair-code")
+        self.act("pair_device", HOST, {})
+        self.refused_redeem(self.ann_secret, "bad-pair-code", address="198.51.100.7")
+        self.assertNotIn("devices", self.disk()["credentials"])
+
+    def test_devices_have_a_cap(self):
+        for n in range(session.MAX_DEVICES):
+            self.device(address=f"198.51.100.{n}")
+        self.refused("devices-full", "pair_device", HOST, {}, http=409)
+
+
 # ---------------------------------------------------------------------------------------------
 # Phase 9: uploads. Expected values come from the Design's Upload contract and rules (offer, accept, decline,
 # withdraw, chunk, done, failed; caps 100 MB per guest, 5 GB per session, 10 open per person; chunks in order with
@@ -6029,6 +6193,51 @@ class TestReports(SessionCase):
                 self.refused(code, "report", self.ann, {"text": "x", "ctx": CTX, "image": image}, http=http)
         self.assertEqual((self.s.state.get("reports", {}), (self.tmp / "reports").exists()), ({}, False))
         self.file(self.ann, image=data_url("jpeg", b"\xff\xd8\xff" + b"\x00" * (512 * 1024 - 3)))  # exactly 512 KB
+
+    def test_up_to_four_pictures_go_with_one_report_in_order_and_the_owner_reads_each(self):
+        """The owner's ask (2026-10-21): several screenshots in the first send, at most four, each a checked picture."""
+        webp = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 16
+        jpeg = b"\xff\xd8\xff" + b"\x01" * 20
+        pics = [("png", PNG_BYTES), ("webp", webp), ("jpeg", jpeg), ("png", PNG_BYTES + b"\x02")]
+        fid = self.file(self.ann, images=[data_url(k, b) for k, b in pics])
+        rec = self.s.state["reports"][fid]
+        self.assertEqual((rec["image"], rec["moreImages"]), ("reports/F1.png", ["reports/F1-p2.webp", "reports/F1-p3.jpg", "reports/F1-p4.png"]))
+        self.assertEqual([(self.tmp / n).read_bytes() for n in [rec["image"], *rec["moreImages"]]], [b for _, b in pics])
+        self.assertEqual([(r["image"], r["images"]) for r in self.s.snapshot(HOST)["reports"]], [(True, 4)])
+        self.assertEqual([(r["image"], r["images"]) for r in self.s.snapshot(self.ann)["myReports"]], [(True, 4)])
+        self.assertNotIn("moreImages", json.dumps(self.s.snapshot(HOST)["reports"]))
+        got = [self.s.report_image(HOST, {"id": fid, **({"pic": str(n)} if n else {})})["image"] for n in (None, 2, 3, 4)]
+        self.assertEqual(got, [data_url(k, b) for k, b in pics])
+        self.refused("not-found", "report_image", HOST, {"id": fid, "add": "1"}, http=404)  # pictures sent with it are no additions
+        self.act("act_on_report", HOST, {"id": fid, "action": "ask"})
+        ev = self.events("report-filed")[0]
+        self.assertEqual((ev["images"], ev["addImages"]), (4, 0))
+        self.assertIsNone(support_event_error(ev))
+        self.assertIsNone(session.document_error(self.disk()))
+        session.Session.load(self.s.path, validate_writes=True)
+
+    def test_a_fifth_picture_a_bad_one_or_image_beside_images_refuses_the_report_and_keeps_no_file(self):
+        good = data_url("png", PNG_BYTES)
+        for body, code in (({"images": [good] * 5}, "bad-field"), ({"images": [good, data_url("png", b"GIF89a" + b"\x00" * 30)]}, "file-type"),
+                           ({"images": [good, ""]}, "bad-field"), ({"images": good}, "bad-field"), ({"image": good, "images": [good]}, "bad-field")):
+            with self.subTest(code=code, keys=sorted(body)):
+                self.clock.tick(session.REPORT_INTERVAL)
+                self.refused(code, "report", self.ann, {"text": "x", "ctx": CTX, **body})
+        self.assertEqual((self.s.state.get("reports", {}), (self.tmp / "reports").exists()), ({}, False))
+
+    def test_a_report_from_before_keeps_its_one_picture_and_a_name_the_server_never_makes_does_not_load(self):
+        fid = self.file(self.ann, image=data_url("png", PNG_BYTES))
+        self.assertNotIn("moreImages", self.s.state["reports"][fid])  # one picture: the shape a report always had
+        self.assertEqual(self.s.snapshot(HOST)["reports"][0]["images"], 1)
+        for more in (["reports/F1-p3.png"], ["reports/F1-2.png"], ["../x.png"], [], ["reports/F1-p2.png"] * 4):
+            with self.subTest(more=more):
+                doc = self.disk()
+                doc["reports"][fid]["moreImages"] = more
+                self.assertIsNotNone(session.document_error(doc))
+        doc = self.disk()
+        del doc["reports"][fid]["image"]
+        doc["reports"][fid]["moreImages"] = ["reports/F1-p2.png"]
+        self.assertIsNotNone(session.document_error(doc))
 
     def test_text_is_required_and_the_context_takes_only_the_listed_fields(self):
         self.refused("empty", "report", self.ann, {"text": " ", "ctx": CTX})

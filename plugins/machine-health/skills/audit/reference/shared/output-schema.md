@@ -71,10 +71,16 @@ built by `scripts/windows/lib/New-FindingItem.ps1`:
 
 | Field | Type | Notes |
 |---|---|---|
-| `key` | string, `^[a-z-]{1,16}:[0-9a-f]{16}$` | FindingKey: `<kind>:<first 16 hex of SHA-256(lower(kind + "\|" + identity fields joined by "\|"))>`; stable across runs |
+| `key` | string, `^[a-z-]{1,16}:[0-9a-f]{16}$`, or null | FindingKey: `<kind>:<first 16 hex of SHA-256(lower(kind + "\|" + identity fields joined by "\|"))>`; stable across runs. Null for an unkeyed item |
 | `severity` | `OK`\|`INFO`\|`WARN`\|`CRIT`\|`UNKNOWN` | the item's own reading |
-| `muted` | bool | true when `key` was passed in the check's `-MutedKeys` |
-| `title` | string | display text |
+| `muted` | bool | true when `key` was passed in the check's `-MutedKeys`; always false for an unkeyed item |
+| `title` | string | display text, sanitized machine text |
+
+An item is unkeyed when its identity fields could not be read (a listener whose program could not
+be resolved, a per-version firewall rule whose protocol and port stayed unread): no key is ever
+computed from missing data, so the item is listed but cannot be muted, and `unkeyed_reason` says
+why. Machine-derived text in `title` and in check-specific fields is capped and has control,
+escape and bidi-override characters replaced (`Format-MachineText`).
 
 Check-specific fields sit beside these. The check also emits the scalars `items_count` and
 `muted_count`. A muted item stays in `detail.items[]`.
