@@ -1837,7 +1837,7 @@ test("scan job: every run job output set after head code must be in its closed s
   assert.equal((await decode(t, decodeEnv({ ...good, "dirty-tree": "false", "skip-reason": "no-ci-failure", "lane-class": "max-turns" }))).failed, null);
   const forged = {
     "dirty-tree": "maybe",
-    "act-outcome": "succes",
+    "act-outcome": "passed",
     "skip-reason": "Skip\nreason",
     "patch-collected": "written ",
     "lane-class": "credit stop",
