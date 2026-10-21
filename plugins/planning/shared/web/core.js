@@ -823,18 +823,22 @@
     });
   }
   function forget() { secret = ""; drop("secret"); drop("pid"); Core.me.cid = ""; }
+  let redeeming = false; // a code being traded: an old credential's 401 meanwhile must not drop the new one
   /** Trade the host's one-time code for this device's own host credential, then reload as the host. */
   async function redeemPair(code) {
     // A browser that keeps no site data would lose the credential on the reload below, after the code was spent.
     if (!local) throw { error: "no-site-data" };
-    const r = await fetch("/api/owner/pair/redeem", json({ code, device: deviceKind(), browser: browserKind() }));
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw { status: r.status, ...j };
-    put("ownerDevice", j.token); put("ownerDeviceId", j.id); drop("signedOut");
+    redeeming = true;
+    try {
+      const r = await fetch("/api/owner/pair/redeem", json({ code, device: deviceKind(), browser: browserKind() }));
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw { status: r.status, ...j };
+      put("ownerDevice", j.token); put("ownerDeviceId", j.id); drop("signedOut");
+    } catch (x) { redeeming = false; throw x; }
     location.reload();
   }
   /** This device's host credential is gone: forget it, and the reloaded page asks to join, saying why. */
-  function signedOut() { drop("ownerDevice"); drop("ownerDeviceId"); put("signedOut", "1"); location.reload(); }
+  function signedOut() { if (redeeming) return; drop("ownerDevice"); drop("ownerDeviceId"); put("signedOut", "1"); location.reload(); }
   /** A merge into the owner ended this browser's guest identity: forget it and say so, never joining again (owner
    *  rights come only with the owner link). Kept across reloads; the owner link clears it. */
   let merged = !ownerToken && get("merged") === "1";

@@ -129,6 +129,31 @@ async function main() {
     ok("  and its code is not spent: a browser that keeps data signs in with it", await until(kept, () => window.Core.snapshot()?.me?.role === "owner", null, 10000));
     ok("  and the host's list shows only that one device", await until(hostC, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 1));
 
+    // The kept device is signed out while closed, so its stored credential is stale; then it scans a new code. The
+    // redeem's answer is held until the stale credential's poll has had its 401, the order that lost the new one.
+    const stale = await kept.evaluate(() => ({ token: localStorage.getItem("ownerDevice"), id: localStorage.getItem("ownerDeviceId") }));
+    await kept.close();
+    await hostC.locator(".vf-pairlist .vf-pair-dev button").click();
+    await until(hostC, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 0);
+    await hostC.waitForTimeout(1100); // the server makes one code a second
+    await hostC.click(".vf-pairpop button:text-is('New code')");
+    const code4 = await until(hostC, c => (document.querySelector(".vf-pair-code")?.textContent || "").replace("-", "") !== c, code3).then(codeC);
+    const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, storageState: { cookies: [], origins: [{ origin: new URL(C.localUrl).origin,
+      localStorage: [{ name: "ownerDevice", value: stale.token }, { name: "ownerDeviceId", value: stale.id }] }] } });
+    let saw401;
+    const had401 = new Promise(r => { saw401 = r; });
+    ctx.on("response", r => { if (new URL(r.url()).pathname === "/api/state" && r.status() === 401) saw401(); });
+    await ctx.route("**/api/owner/pair/redeem", async route => {
+      const answer = await route.fetch();
+      await had401;
+      await new Promise(r => setTimeout(r, 500)); // the page handles the 401
+      try { await route.fulfill({ response: answer }); } catch { /* the page reloaded away from it */ }
+    });
+    const rescan = await rec.openIn(ctx, `${C.localUrl}#join=${C.guestKey}&pair=${code4}`);
+    ok("a device whose old credential was signed out signs in with a new code", await until(rescan, () => window.Core.snapshot()?.me?.role === "owner", null, 10000),
+      await rescan.evaluate(() => document.querySelector("dialog.core-name[open]")?.textContent || "(no dialog)"));
+    const fresh2 = await rescan.evaluate(() => localStorage.getItem("ownerDevice"));
+    ok("  and keeps the new credential, not the old one", !!fresh2 && fresh2 !== stale.token);
 
     // ---------- names hidden: two guests share a name, and only the moderator's people list tells them apart ----------
     const B = await s.start("shared-name");
