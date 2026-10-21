@@ -1141,8 +1141,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 
 - **Script:** `scripts/windows/checks/Test-FirewallRules.ps1`
 - **Category:** `security`
-- **Needs admin:** no. The rule stores, application filters and most port filters read
-  unelevated; see the port-filter note below.
+- **Needs admin:** no.
 - **Commands:**
 
   ```powershell
@@ -1153,39 +1152,34 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   ```
 
 - **What it lists:** inbound allow rules that did not ship with Windows and are bound to a
-  program. A rule is built in when its `Name` is in the read-only `SystemDefaults` store; `Group`,
-  `DisplayGroup`, `Owner` and `PrimaryStatus` never decide it. Group Policy, MDM and dynamic rules
-  are dropped: an administrator or the OS put them there. A candidate is foreign, enabled,
-  inbound, allow, and bound to a program other than `Any` or `System`. Every read is a bulk read
-  joined on the filter's `InstanceID` = the rule's `Name`, contained in
-  `Get-FirewallRuleInventory.ps1`.
+  program. Which rules count as candidates, how built-in rules are recognized, how the reads are
+  joined, the per-rule port-filter fallback and its cap and budget, and how `program_state` is
+  decided are documented in `Get-FirewallRuleInventory.ps1`.
 - **Items:** one per candidate (FindingKey kind `firewall`, identity the rule `Name`), except that
   rules whose program paths differ only in a dotted-version folder (per-version runtime rules)
   become one item with `rule_count`, keyed by the path with that folder as `*`, direction,
-  protocol and local port, so an update keeps the mute. `program_state` is `exists`, `not-found`
-  or `unknown`: `Test-Path` returns False for an existing file under a folder the caller cannot
-  traverse but then writes an access-denied record, so False with that record is `unknown` and
-  only False without one is `not-found`. A group is `exists` when any version's program exists,
-  `not-found` only when every one is missing, otherwise `unknown`. `not_found_count` and
-  `unknown_program_count` count items; `grouped_rule_count` counts the rules inside groups.
-- **Port filters:** unelevated, the bulk port-filter read stops at the first filter it may not open
-  and returns the rest (`port_read_state` `denied`). A per-version rule the bulk read missed gets
-  its own port-filter read, within the call cap and time budget held in
-  `Get-FirewallRuleInventory.ps1` (`port_fallback_reads`). A per-version rule whose protocol and
-  port stay unread is listed with `unkeyed_reason` and no key, so it cannot be muted: no key is
-  ever computed from missing data (`unkeyed_count`). Other rules keep their `Name` key, with
-  `protocol` and `local_port` null when unread.
+  protocol and local port, so an update keeps the mute. A group is `exists` when any version's
+  program exists, `not-found` only when every one is missing, otherwise `unknown`.
+  `not_found_count` and `unknown_program_count` count items; `grouped_rule_count` counts the rules
+  inside groups. A per-version rule whose protocol and port stayed unread is listed with no key
+  and `unkeyed_reason` (`unkeyed_count`), so no key is computed from missing data; other rules
+  keep their `Name` key with `protocol` and `local_port` null when unread. `port_read_state` and
+  `port_fallback_reads` record the port-filter reads.
 - **Severity rubric:** `INFO` always, for the check and every item, including when the inventory
   cannot be read (`read_state` records it and the summary says so) and when the program is
-  missing. The check never fails a run and never changes a rule. `baseline_hosts` counts the
-  fleet hosts on which the SystemDefaults baseline has been confirmed (the value is set in the
-  check script).
-- **Baseline confirmation:** two fleet hosts on Windows build 26300 hold the same SystemDefaults
-  rule names, and neither host's candidate names intersect the other host's SystemDefaults names.
-  As of 2026-10-21. Recheck when a host's run lists a built-in Windows rule as a candidate or its
-  SystemDefaults names differ from another host's.
-- **Notes:** Per-version runtime rules are the main noise source this grouping removes. Pointers:
-  [Get-NetFirewallRule](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule),
-  [Get-NetFirewallPortFilter](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallportfilter).
-  As of 2026-10-21. Recheck when the unelevated bulk port-filter read returns every filter, or a
-  host run shows `not-found` for a program that exists.
+  missing. The check never fails a run and never changes a rule. The summary carries counts only.
+  `baseline_hosts` counts the fleet hosts on which the SystemDefaults baseline has been confirmed
+  (the value is set in the check script).
+- **Evidence:**
+  - Built-in rules: two fleet hosts hold the same SystemDefaults rule names, and neither host's
+    candidate names intersect the other host's SystemDefaults names (Phase 7 A8 captures,
+    `feat-machine-health-intruder-inventories-a8-hostA.json` and its second-host counterpart,
+    2026-10-21). Recheck when a host's run lists a built-in Windows rule as a candidate or its
+    SystemDefaults names differ from another host's.
+  - Missing programs: on the Phase 7 host run every `not-found` program also failed `Get-Item`
+    with item-not-found, not access-denied (PLAN.md assumption A9, 2026-10-21). Recheck when a
+    host run shows `not-found` for a program that exists.
+- **Pointers:**
+  [Get-NetFirewallRule, -PolicyStore](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule#-policystore),
+  [Get-NetFirewallPortFilter, -All](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallportfilter#-all).
+  As of 2026-10-21. Recheck when the unelevated bulk port-filter read returns every filter.

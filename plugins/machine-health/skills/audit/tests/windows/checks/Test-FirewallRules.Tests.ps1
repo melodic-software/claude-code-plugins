@@ -61,13 +61,13 @@ Describe 'Test-FirewallRules' -Tag 'check' {
         $r.detail.items_count | Should -Be 0
     }
 
-    It 'stays INFO when a rule points at a program that no longer exists, and names it' {
+    It 'stays INFO when a rule points at a program that no longer exists, counting it but keeping its name out of the summary' {
         Register-FakeInventory -Rules @(Get-TestRecord -Name 'old' -Program (Join-Path $script:Root 'old.exe') -State 'not-found')
         $r = Invoke-FirewallRulesAsObject
         $r.severity | Should -Be 'INFO'
         $r.detail.not_found_count | Should -Be 1
         $r.detail.items[0].severity | Should -Be 'INFO'
-        $r.summary | Should -Match 'Display old'
+        $r.summary | Should -Not -Match 'Display old'
     }
 
     It 'stays INFO, with ran_successfully true and read_state set, when the inventory read fails' {

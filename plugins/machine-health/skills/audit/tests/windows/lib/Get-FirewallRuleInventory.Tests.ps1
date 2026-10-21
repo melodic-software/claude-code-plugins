@@ -192,6 +192,25 @@ Describe 'Get-FirewallRuleInventory' -Tag 'lib' {
         }
     }
 
+    It 'never probes a UNC program path, reporting it unknown' {
+        Register-Fake -Rules @(Get-TestRule 'unc') -Programs @{ 'unc' = '\\fileserver\share\agent.exe' }
+        $r = Get-FirewallRuleInventory
+        $r.Rules[0].ProgramState | Should -Be 'unknown'
+        Should -Invoke Test-Path -Times 0
+    }
+
+    It 'reports a program unknown without probing it once the time budget is spent' {
+        $saved = $script:PortFallbackBudgetMs
+        try {
+            $script:PortFallbackBudgetMs = 0
+            Register-Fake -Rules @(Get-TestRule 'late') -Programs @{ 'late' = (Join-Path $script:Root 'late.exe') }
+            (Get-FirewallRuleInventory).Rules[0].ProgramState | Should -Be 'unknown'
+            Should -Invoke Test-Path -Times 0
+        } finally {
+            $script:PortFallbackBudgetMs = $saved
+        }
+    }
+
     It 'returns a non-ok ReadState and no rules when a required read fails' {
         Mock Get-NetFirewallApplicationFilter { throw [System.UnauthorizedAccessException]::new('denied') }
         Register-Fake -Rules @(Get-TestRule 'r1')

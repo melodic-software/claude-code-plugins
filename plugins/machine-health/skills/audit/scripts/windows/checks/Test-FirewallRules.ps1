@@ -47,8 +47,8 @@ $baselineHosts = 2
 function Get-GroupProgramState {
     <#
     .SYNOPSIS
-    One state for a group of per-version rules: exists when any version's
-    program exists, not-found only when every one is missing, else unknown.
+    One program state for a group of per-version rules; the rule is in
+    check-catalog.md section 25, "Items".
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -59,129 +59,105 @@ function Get-GroupProgramState {
     return 'unknown'
 }
 
+function Get-RuleField {
+    <#
+    .SYNOPSIS
+    The item fields for one rule, or for a group of per-version rules.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory = $true)] [object[]] $Rules,
+        [switch] $Grouped
+    )
+
+    $first = $Rules[0]
+    $fields = [ordered]@{
+        rule_name           = if ($Grouped) { $null } else { Format-MachineText $first.Name }
+        display_name        = Format-MachineText $first.DisplayName
+        program             = Format-MachineText ($Grouped ? $first.ProgramPattern : $first.Program)
+        program_state       = $Grouped ? (Get-GroupProgramState -States @($Rules | ForEach-Object { $_.ProgramState })) : $first.ProgramState
+        rule_count          = $Rules.Count
+        direction           = 'inbound'
+        action              = 'allow'
+        protocol            = $first.Protocol
+        local_port          = Format-MachineText $first.LocalPort
+        profile             = $first.Profile
+        policy_store_source = $first.Origin
+        display_group       = Format-MachineText $first.DisplayGroup
+    }
+    if ($Grouped) { $fields['rule_names'] = @($Rules | ForEach-Object { Format-MachineText $_.Name } | Sort-Object) }
+    return [hashtable]$fields
+}
+
 $FailureSummary = 'Firewall rule inventory failed.'
 $PassThru = $false
-$InventoryBody = {
-    $inventory = $null
-    $readError = $null
-    try {
-        $inventory = Get-FirewallRuleInventory
-    } catch {
-        $readError = $_.Exception.Message
-    }
-    $readState = if ($inventory) { $inventory.ReadState } else { 'error' }
-    $portReadState = if ($inventory) { $inventory.PortReadState } else { 'error' }
-    $rules = @(if ($inventory) { $inventory.Rules })
-
-    $groups = [ordered]@{}
-    $items = [System.Collections.Generic.List[object]]::new()
-    foreach ($r in $rules) {
-        $fields = [ordered]@{
-            rule_name           = $r.Name
-            display_name        = $r.DisplayName
-            program             = $r.Program
-            program_state       = $r.ProgramState
-            rule_count          = 1
-            direction           = 'inbound'
-            action              = 'allow'
-            protocol            = $r.Protocol
-            local_port          = $r.LocalPort
-            profile             = $r.Profile
-            policy_store_source = $r.Origin
-            display_group       = $r.DisplayGroup
-        }
-        if (-not $r.ProgramPattern) {
-            $items.Add((New-FindingItem -Kind 'firewall' -Identity @($r.Name) -MutedKeys $MutedKeys `
-                        -Severity $infoLevel -Title "$($r.DisplayName) ($($r.Program))" -Fields $fields))
-            continue
-        }
-        if (-not $r.PortRead) {
-            # A grouped key needs the protocol and port; with them unread there is
-            # no stable identity, so the item is listed but cannot be muted.
-            $item = [ordered]@{ key = $null; severity = $infoLevel; muted = $false; title = "$($r.DisplayName) ($($r.Program))" }
-            foreach ($k in $fields.Keys) { $item[$k] = $fields[$k] }
-            $item['unkeyed_reason'] = 'protocol and local port unread without elevation'
-            $items.Add([pscustomobject]$item)
-            continue
-        }
-        $groupKey = "$($r.ProgramPattern.ToLowerInvariant())|$($r.Protocol)|$($r.LocalPort)"
-        if (-not $groups.Contains($groupKey)) { $groups[$groupKey] = [System.Collections.Generic.List[object]]::new() }
-        $groups[$groupKey].Add($r)
-    }
-
-    foreach ($members in $groups.Values) {
-        $first = $members[0]
-        $state = Get-GroupProgramState -States @($members | ForEach-Object { $_.ProgramState })
-        $fields = [ordered]@{
-            rule_name           = $null
-            display_name        = $first.DisplayName
-            program             = $first.ProgramPattern
-            program_state       = $state
-            rule_count          = $members.Count
-            direction           = 'inbound'
-            action              = 'allow'
-            protocol            = $first.Protocol
-            local_port          = $first.LocalPort
-            profile             = $first.Profile
-            policy_store_source = $first.Origin
-            display_group       = $first.DisplayGroup
-            rule_names          = @($members | ForEach-Object { $_.Name } | Sort-Object)
-        }
-        $items.Add((New-FindingItem -Kind 'firewall' `
-                    -Identity @($first.ProgramPattern, 'inbound', $first.Protocol, $first.LocalPort) -MutedKeys $MutedKeys `
-                    -Severity $infoLevel -Title "$($first.DisplayName) ($($members.Count) rules, $($first.ProgramPattern))" -Fields $fields))
-    }
-    $items = @($items | Sort-Object { $_.program }, { $_.title })
-
-    $notFound = @($items | Where-Object { $_.program_state -eq 'not-found' })
-    $unknownProgram = @($items | Where-Object { $_.program_state -eq 'unknown' }).Count
-    $unkeyed = @($items | Where-Object { $null -eq $_.key }).Count
-    $groupedRules = 0
-    foreach ($i in $items) { if ($null -eq $i.rule_name) { $groupedRules += $i.rule_count } }
-
-    $summary = switch ($readState) {
-        'ok' {
-            $text = "$($items.Count) foreign inbound allow rule item(s), $($notFound.Count) for a program that no longer exists."
-            if ($notFound.Count -gt 0) {
-                $text += ' Missing: ' + (@($notFound | Select-Object -First 3 | ForEach-Object { $_.display_name }) -join ', ')
-            }
-            $text
-        }
-        default { "Firewall rule inventory could not be read ($readState); informational check, nothing judged." }
-    }
-    if ($summary.Length -gt 240) { $summary = $summary.Substring(0, 237) + '...' }
-
-    $detail = @{
-        rule_count            = if ($inventory) { $inventory.RuleCount } else { 0 }
-        foreign_count         = if ($inventory) { $inventory.ForeignCount } else { 0 }
-        candidate_count       = $rules.Count
-        not_found_count       = $notFound.Count
-        unknown_program_count = $unknownProgram
-        grouped_rule_count    = $groupedRules
-        unkeyed_count         = $unkeyed
-        port_read_state       = $portReadState
-        port_fallback_reads   = if ($inventory) { $inventory.PortFallbackReads } else { 0 }
-        read_state            = $readState
-        baseline_hosts        = $baselineHosts
-        items_count           = $items.Count
-        muted_count           = @($items | Where-Object muted).Count
-        items                 = $items
-    }
-
-    $result = New-HealthResult -Id $id -Category $category -Os 'windows' -Severity $infoLevel `
-        -Summary $summary -Commands $commands -Detail $detail -NeedsAdmin $false `
-        -Notes $readError
-}
-# The envelope turns a throw into a failed result, which this check never
-# reports: any failure becomes the same informational result with read_state error.
+# The envelope turns a throw into a failed UNKNOWN result, which this check
+# never reports: any failure becomes the informational result with read_state error.
 $CheckBody = {
     try {
-        . $InventoryBody
+        $inventory = Get-FirewallRuleInventory
+        $rules = @($inventory.Rules)
+
+        $groups = [ordered]@{}
+        $items = [System.Collections.Generic.List[object]]::new()
+        foreach ($r in $rules) {
+            $title = "$($r.DisplayName) ($($r.Program))"
+            if (-not $r.ProgramPattern) {
+                $items.Add((New-FindingItem -Kind 'firewall' -Identity @($r.Name) -MutedKeys $MutedKeys `
+                            -Severity $infoLevel -Title $title -Fields (Get-RuleField -Rules @($r))))
+            } elseif (-not $r.PortRead) {
+                # A grouped key needs the protocol and port; no key is computed from missing data.
+                $items.Add((New-FindingItem -NoKey -NoKeyReason 'protocol and local port unread without elevation' `
+                            -Severity $infoLevel -Title $title -Fields (Get-RuleField -Rules @($r))))
+            } else {
+                $groupKey = "$($r.ProgramPattern.ToLowerInvariant())|$($r.Protocol)|$($r.LocalPort)"
+                if (-not $groups.Contains($groupKey)) { $groups[$groupKey] = [System.Collections.Generic.List[object]]::new() }
+                $groups[$groupKey].Add($r)
+            }
+        }
+        foreach ($members in $groups.Values) {
+            $first = $members[0]
+            $items.Add((New-FindingItem -Kind 'firewall' `
+                        -Identity @($first.ProgramPattern, 'inbound', $first.Protocol, $first.LocalPort) -MutedKeys $MutedKeys `
+                        -Severity $infoLevel -Title "$($first.DisplayName) ($($members.Count) rules, $($first.ProgramPattern))" `
+                        -Fields (Get-RuleField -Rules @($members) -Grouped)))
+        }
+        $items = @($items | Sort-Object { $_.program }, { $_.title })
+
+        $notFound = @($items | Where-Object { $_.program_state -eq 'not-found' }).Count
+        $groupedRules = 0
+        foreach ($i in $items) { if ($null -eq $i.rule_name) { $groupedRules += $i.rule_count } }
+        $summary = if ($inventory.ReadState -eq 'ok') {
+            "$($items.Count) foreign inbound allow rule item(s), $notFound for a program that no longer exists."
+        } else {
+            "Firewall rule inventory could not be read ($($inventory.ReadState)); informational check, nothing judged."
+        }
+
+        $detail = @{
+            rule_count            = $inventory.RuleCount
+            foreign_count         = $inventory.ForeignCount
+            candidate_count       = $rules.Count
+            not_found_count       = $notFound
+            unknown_program_count = @($items | Where-Object { $_.program_state -eq 'unknown' }).Count
+            grouped_rule_count    = $groupedRules
+            unkeyed_count         = @($items | Where-Object { $null -eq $_.key }).Count
+            port_read_state       = $inventory.PortReadState
+            port_fallback_reads   = $inventory.PortFallbackReads
+            read_state            = $inventory.ReadState
+            baseline_hosts        = $baselineHosts
+            items_count           = $items.Count
+            muted_count           = @($items | Where-Object muted).Count
+            items                 = $items
+        }
+        $result = New-HealthResult -Id $id -Category $category -Os 'windows' -Severity $infoLevel `
+            -Summary $summary -Commands $commands -Detail $detail -NeedsAdmin $false
     } catch {
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' -Severity $infoLevel `
-            -Summary 'Firewall rule inventory could not be built (error); informational check, nothing judged.' `
-            -Commands $commands -NeedsAdmin $false -Notes $_.Exception.Message `
+            -Summary 'Firewall rule inventory could not be read (error); informational check, nothing judged.' `
+            -Commands $commands -NeedsAdmin $false -Notes (Format-MachineText $_.Exception.Message) `
             -Detail @{ read_state = 'error'; baseline_hosts = $baselineHosts; items_count = 0; muted_count = 0; items = @() }
     }
 }
 . (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')
+

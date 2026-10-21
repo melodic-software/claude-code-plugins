@@ -28,12 +28,15 @@ $null and PortRead $false.
 ProgramState is three-valued: Test-Path returns False for an existing file
 under a folder the caller cannot traverse, but then also writes an
 access-denied error record. False with an error record is 'unknown'; False
-with none is 'not-found'.
+with none is 'not-found'. A UNC path or a path on a network drive is never
+probed (a probe would reach another machine) and is 'unknown', as is any
+program left unprobed once the time budget is spent.
 
 Read-only, unelevated.
 #>
 
 $script:PortFallbackMaxCalls = 20
+# One budget for the per-rule port reads and the program probes.
 $script:PortFallbackBudgetMs = 15000
 $script:VersionSegment = '^\d+(\.\d+)+$'
 
@@ -65,11 +68,30 @@ function Get-VersionedProgramPattern {
     return $versioned ? ($pattern -join '\') : $null
 }
 
+function Test-RemotePath {
+    <#
+    .SYNOPSIS
+    True for a UNC path or a path on a network drive.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)] [string] $Path)
+
+    if ($Path.StartsWith('\\') -or $Path.StartsWith('//')) { return $true }
+    if ($Path -notmatch '^[A-Za-z]:') { return $false }
+    try {
+        return [System.IO.DriveInfo]::new($Path.Substring(0, 2)).DriveType -eq [System.IO.DriveType]::Network
+    } catch {
+        return $true
+    }
+}
+
 function Get-ProgramState {
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory = $true)] [string] $Path)
 
+    if (Test-RemotePath -Path $Path) { return 'unknown' }
     $probeErrors = $null
     $exists = Test-Path -LiteralPath $Path -ErrorAction SilentlyContinue -ErrorVariable probeErrors
     if ($exists) { return 'exists' }
@@ -151,7 +173,9 @@ function Get-FirewallRuleInventory {
         }
 
         $stateKey = $expanded.ToLowerInvariant()
-        if (-not $states.ContainsKey($stateKey)) { $states[$stateKey] = Get-ProgramState -Path $expanded }
+        if (-not $states.ContainsKey($stateKey)) {
+            $states[$stateKey] = if ($budget.ElapsedMilliseconds -lt $script:PortFallbackBudgetMs) { Get-ProgramState -Path $expanded } else { 'unknown' }
+        }
 
         [pscustomobject]@{
             Name           = [string]$r.Name

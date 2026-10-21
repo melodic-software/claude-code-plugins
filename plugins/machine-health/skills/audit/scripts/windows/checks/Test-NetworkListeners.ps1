@@ -37,8 +37,7 @@ $commands = @(
     '& "$env:SystemRoot\System32\netsh.exe" http show servicestate view=requestq'
 )
 
-# Binding order, widest first: a program listening on several addresses is as
-# exposed as its widest bind.
+# Bind scopes ranked widest first (merge rule: check-catalog.md section 24).
 $scopeRank = @{ any = 2; specific = 1; loopback = 0 }
 
 $FailureSummary = 'Network listener check failed.'
