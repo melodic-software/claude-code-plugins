@@ -1758,6 +1758,13 @@ class TestProposals(SessionCase):
         self.assertEqual((len(self.notes(self.bo, "proposal")), len(self.notes(self.ann, "proposal"))), (2, 1))
         self.assertIsNone(session.document_error(self.disk()))
 
+    def test_proposals_approved_after_the_send_need_no_placement_from_claude(self):
+        props = self.to_working_round()  # six proposals in the sent digest
+        self.act("approve_proposals", HOST, {"ids": props})
+        out = self.open_round(text_q("Q20"))["results"][0]  # no placements: none is new any more
+        self.assertEqual(out["placed"], [])
+        self.assertEqual(sorted(q["round"] for q in self.s.state["questions"] if q["origin"].get("proposal") in props), [2] * 6)
+
     def test_approve_all_is_the_owners_alone_and_refuses_the_lot_on_any_problem(self):
         self.open_round(text_q("Q1"))
         a, b, c = (self.propose(self.bo, f"Idea {i}") for i in range(3))
