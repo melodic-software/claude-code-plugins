@@ -131,17 +131,19 @@ syntax.
   reaches every user who never set the value. No stated reason is a finding. A guard turned off
   by default is the security lane's.
 - A `userConfig` field gains or changes `options`: the PR names the client version floor that
-  raises.
+  raises. No named floor is a finding.
 - A new `userConfig` field has a default a user who never opens settings should get, and code in
   the plugin reads the key. A key nothing reads is a finding.
 - The version bump level matches the change under
   [Semantic Versioning](https://semver.org/#summary). Where the repository releases from
-  changelog fragments, judge the fragment's `bump:` instead of `version`.
+  changelog fragments, judge the fragment's `bump:` instead of `version`. A level below the
+  change's is a finding.
 - The `description`, `keywords`, and marketplace entry describe what ships after this change: a
   capability they name that the diff removes, or one the diff adds that they omit, is a finding.
 
 For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
-`manifest <field>: flag, <reason>`, so the outcome reads without the inline comments.
+`manifest <field>: flag, <reason>`, so the outcome reads without the inline comments. Every
+`flag` line is a finding: it counts in the review's findings total, which is what holds the merge.
 
 Pointer: field semantics, the `options` floor, and how a saved value is read are at
 [plugin manifest reference: User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration);

@@ -144,7 +144,8 @@ eligible for skip 2. Compare the base and head manifests:
   consumer-controlled input, is a finding with its exploit path.
 
 For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
-`manifest <field>: flag, <reason>`, so the outcome reads without the inline comments.
+`manifest <field>: flag, <reason>`, so the outcome reads without the inline comments. Every
+`flag` line is a finding: it counts in the review's findings total, which is what holds the merge.
 
 Pointer: which fields run code is read at
 [plugin manifest reference: Component path forms](https://code.claude.com/docs/en/plugins-reference#component-path-forms)
