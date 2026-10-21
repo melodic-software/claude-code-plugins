@@ -28,7 +28,7 @@ BeforeAll {
             Justification = 'Pure constructor: builds and returns an object, changes no system state.')]
         param([string] $Root, [string] $Path, [long] $Bytes, [Nullable[long]] $Allocated = $null)
         return [pscustomobject]@{
-            root = $Root; path = $Path; logical_bytes = $Bytes; allocated_bytes = $Allocated
+            input = $Root; root = $Root; path = $Path; logical_bytes = $Bytes; allocated_bytes = $Allocated
             file_count = 3; complete = $true; skip_reason = $null
         }
     }
@@ -39,7 +39,7 @@ BeforeAll {
             Justification = 'Pure constructor: builds and returns an object, changes no system state.')]
         param([string] $Root, [string] $Path)
         return [pscustomobject]@{
-            root = $Root; path = $Path; logical_bytes = $null; allocated_bytes = $null
+            input = $Root; root = $Root; path = $Path; logical_bytes = $null; allocated_bytes = $null
             file_count = $null; complete = $null; skip_reason = 'cloud-sync-root'
         }
     }
@@ -70,7 +70,7 @@ BeforeAll {
             'PSUseShouldProcessForStateChangingFunctions', '',
             Justification = 'Pure constructor: builds and returns an object, changes no system state.')]
         param([string] $Path, [long] $Bytes, [string] $Status = 'scanned')
-        return [pscustomobject]@{ path = $Path; status = $Status; logical_bytes = $Bytes; file_count = 10; complete = $true }
+        return [pscustomobject]@{ input = $Path; path = $Path; status = $Status; logical_bytes = $Bytes; file_count = 10; complete = $true }
     }
 
     function New-MutesScan {
@@ -117,37 +117,34 @@ Describe 'Test-StorageTopN' -Tag 'check' {
         $result.summary | Should -Match ([regex]::Escape('C:\Users\Example\AppData'))
     }
 
-    It 'sizes the profile and the reclaim locations' {
+    It 'sizes the profile and the reclaim locations with the catalog limits' {
         Mock Measure-FolderSize { New-ScanRecord }
 
         $null = Invoke-StorageTopNAsObject
 
-        $profileFull = [System.IO.Path]::GetFullPath($env:USERPROFILE).TrimEnd('\')
-        $tempFull = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
+        # 15 per root, 10,000 files and 60 s: check-catalog.md section 20.
         Should -Invoke Measure-FolderSize -Times 1 -Exactly -ParameterFilter {
-            ($Root -contains $profileFull) -and ($Root -contains $tempFull) -and
+            ($Root -contains $env:USERPROFILE) -and ($Root -contains $env:TEMP) -and
             (@($Root | Where-Object { $_ -like '*\Windows.old' }).Count -eq 1) -and
             (@($Root | Where-Object { $_ -like '*\Package Cache' }).Count -eq 1) -and
-            (@($Root | Where-Object { $_ -like '*\$Recycle.Bin\S-1-*' }).Count -eq 1)
+            (@($Root | Where-Object { $_ -like '*\$Recycle.Bin\S-1-*' }).Count -eq 1) -and
+            $Top -eq 15 -and $AllocatedFileCap -eq 10000 -and $Budget.LimitMs -eq 60000
         }
     }
 
     It 'tags a folder under the temp root with reclaim_hint temp and a profile folder with none' {
         Mock Measure-FolderSize {
-            $temp = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
-            $userProfile = [System.IO.Path]::GetFullPath($env:USERPROFILE).TrimEnd('\')
-            New-ScanRecord -Roots @(New-RootRecord -Path $temp -Bytes 100) -Folders @(
-                New-Folder -Root $temp -Path "$temp\setup-cache" -Bytes 100
-                New-Folder -Root $userProfile -Path "$userProfile\Videos" -Bytes 50
+            New-ScanRecord -Roots @(New-RootRecord -Path $env:TEMP -Bytes 100) -Folders @(
+                New-Folder -Root $env:TEMP -Path 'C:\Example\Temp\setup-cache' -Bytes 100
+                New-Folder -Root $env:USERPROFILE -Path 'C:\Example\Profile\Videos' -Bytes 50
             )
         }
-        $tempFull = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
-        $profileFull = [System.IO.Path]::GetFullPath($env:USERPROFILE).TrimEnd('\')
 
         $result = Invoke-StorageTopNAsObject
 
-        ($result.detail.items | Where-Object { $_.path -eq "$tempFull\setup-cache" }).reclaim_hint | Should -Be 'temp'
-        ($result.detail.items | Where-Object { $_.path -eq "$profileFull\Videos" }).reclaim_hint | Should -BeNullOrEmpty
+        ($result.detail.items | Where-Object { $_.path -eq 'C:\Example\Temp\setup-cache' }).reclaim_hint | Should -Be 'temp'
+        ($result.detail.items | Where-Object { $_.path -eq 'C:\Example\Profile\Videos' }).reclaim_hint | Should -BeNullOrEmpty
+        $result.detail.roots[0].reclaim_hint | Should -Be 'temp'
     }
 
     It 'lists a skipped sync root as a size-less item titled "skipped: cloud sync root"' {
@@ -219,6 +216,29 @@ Describe 'Test-StorageTopN' -Tag 'check' {
             $result.severity | Should -Be 'UNKNOWN'
             $result.detail.scan_complete | Should -BeFalse
         }
+    }
+
+    It 'sizes a real tree end to end through the test-only -RootPath override' {
+        $tree = Join-Path $TestDrive ('tree-' + [guid]::NewGuid().ToString('n'))
+        New-Item -ItemType Directory -Path (Join-Path $tree 'big') -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $tree 'small') -Force | Out-Null
+        [System.IO.File]::WriteAllBytes((Join-Path $tree 'big\a.bin'), [byte[]]::new(3000))
+        [System.IO.File]::WriteAllBytes((Join-Path $tree 'small\a.bin'), [byte[]]::new(100))
+        $long = (Get-Item -LiteralPath $tree -Force).FullName.TrimEnd('\')
+
+        $result = ConvertFrom-CheckOutput (& $script:ScriptPath -RootPath $tree)
+
+        { Assert-CheckResult $result } | Should -Not -Throw
+        $result.severity | Should -Be 'INFO'
+        $result.detail.scan_complete | Should -BeTrue
+        $result.detail.allocated_complete | Should -BeTrue
+        $result.detail.scanned_bytes | Should -Be 3100
+        $result.detail.items_count | Should -Be 2
+        $result.detail.items[0].path | Should -Be (Join-Path $long 'big')
+        $result.detail.items[0].logical_bytes | Should -Be 3000
+        $result.detail.items[0].reclaim_hint | Should -BeNullOrEmpty
+        $result.detail.items[0].allocated_bytes | Should -BeGreaterThan 0
+        $result.detail.roots[0].status | Should -Be 'scanned'
     }
 
     It 'reports a failed UNKNOWN result when the adapter throws' {

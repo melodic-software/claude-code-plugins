@@ -3,30 +3,16 @@
 <#
 .SYNOPSIS
 Folder-size adapter for storage-top-n: sizes the folders directly under each
-root without hydrating a cloud file, and returns the top N per root.
+root without hydrating a cloud file.
 
 .DESCRIPTION
-The walk is a manual directory stack over DirectoryInfo.EnumerateFileSystemInfos
-with RecurseSubdirectories off, so every descent is decided here:
-
- - A directory at or under a cloud sync root (Test-CloudSyncRoot) is never
-   descended. It comes back as one folder entry with skip_reason
-   'cloud-sync-root' and no size.
- - Any other reparse directory (junction, directory symlink) is never descended
-   and is counted in skipped_reparse_dirs. No link is resolved.
- - AttributesToSkip is Offline | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS
-   (0x441000), set explicitly so Hidden and System entries (AppData) are
-   counted and placeholder entries are never seen.
- - A directory that cannot be listed is counted in inaccessible_count.
- - No enumerated file is opened. The one exception is the allocated-size pass,
-   whose GetCompressedFileSizeW call opens a handle; it sees only files the skip
-   let through, and never a file that is itself a reparse point, since opening
-   a file symlink would reach its target.
-
-One budget covers the scan and the allocated pass. The scan tests it before
-each directory and each entry, the allocated pass before each file. A folder
-the budget cuts keeps allocated_bytes $null, as does a folder over the
-allocated file cap.
+The rules this walk holds (the never-descend rule, the skipped attributes, the
+budget and its split across roots, the allocated pass) are stated in
+reference/windows/check-catalog.md#20-storage-top-n. The walk is a manual
+directory stack over DirectoryInfo.EnumerateFileSystemInfos with
+RecurseSubdirectories off, so every descent is decided by Test-FolderDescent.
+No link is resolved and no enumerated file is opened, except by
+GetCompressedFileSizeW in the allocated pass.
 #>
 
 if (-not ('MachineHealth.FolderSizeNative' -as [type])) {
@@ -35,6 +21,16 @@ if (-not ('MachineHealth.FolderSizeNative' -as [type])) {
 public static extern uint GetCompressedFileSizeW(string lpFileName, out uint lpFileSizeHigh);
 '@
 }
+
+# Offline | RECALL_ON_OPEN | RECALL_ON_DATA_ACCESS: entries the enumeration
+# skips, so a placeholder is never seen. Hidden and System stay visible. The
+# two RECALL bits are not named FileAttributes members and PowerShell refuses a
+# cast to undefined flag bits, so the value is built with ToObject.
+$script:PlaceholderSkipMask = [System.Enum]::ToObject([System.IO.FileAttributes], 0x441000)
+
+# RECALL_ON_OPEN | PINNED | UNPINNED | RECALL_ON_DATA_ACCESS: with ReparsePoint,
+# any of these marks a directory as under a cloud sync root.
+$script:CloudAttributeMask = [System.Enum]::ToObject([System.IO.FileAttributes], 0x5C0000)
 
 function New-ScanBudget {
     [CmdletBinding()]
@@ -52,11 +48,40 @@ function New-ScanBudget {
     }
 }
 
+function Test-ScanBudgetSpent {
+    <#
+    .SYNOPSIS
+    True once the budget's limit or the current root's deadline has passed.
+    Plain function: it runs once per enumerated entry.
+    #>
+    [OutputType([bool])]
+    param([Parameter(Mandatory = $true)] [pscustomobject] $Context)
+    $elapsed = $Context.Budget.Clock.ElapsedMilliseconds
+    return ($elapsed -ge $Context.Budget.LimitMs) -or ($elapsed -ge $Context.DeadlineMs)
+}
+
+function Test-PathUnder {
+    <#
+    .SYNOPSIS
+    True when Path equals Parent or lies below it, case-insensitively, with
+    trailing separators ignored on both.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)] [string] $Path,
+        [Parameter(Mandatory = $true)] [string] $Parent
+    )
+    $p = $Path.TrimEnd('\', '/')
+    $q = $Parent.TrimEnd('\', '/')
+    return $p.Equals($q, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $p.StartsWith($q + '\', [System.StringComparison]::OrdinalIgnoreCase)
+}
+
 function Get-CloudSyncPrefix {
     <#
     .SYNOPSIS
-    The set OneDrive variables, read at call time, as full paths without a
-    trailing separator.
+    The set OneDrive variables, read at call time, as full paths.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]
@@ -65,7 +90,7 @@ function Get-CloudSyncPrefix {
     $prefixes = foreach ($name in @('OneDrive', 'OneDriveConsumer', 'OneDriveCommercial')) {
         $value = [System.Environment]::GetEnvironmentVariable($name)
         if ([string]::IsNullOrWhiteSpace($value)) { continue }
-        [System.IO.Path]::GetFullPath($value).TrimEnd('\', '/')
+        [System.IO.Path]::GetFullPath($value)
     }
     return [string[]]@($prefixes | Select-Object -Unique)
 }
@@ -74,33 +99,28 @@ function Test-CloudSyncRoot {
     <#
     .SYNOPSIS
     True when a directory is at or under a cloud sync root: a set OneDrive
-    variable prefixes its path, or it carries ReparsePoint plus a cloud bit
-    (RECALL_ON_OPEN 0x40000, PINNED 0x80000, UNPINNED 0x100000,
-    RECALL_ON_DATA_ACCESS 0x400000).
+    variable prefixes its path, or it carries ReparsePoint plus a bit of
+    $script:CloudAttributeMask.
 
     .DESCRIPTION
-    Pure: the caller passes the attributes it already holds from enumeration,
-    and the ancestors of a starting root are tested by calling this once per
-    ancestor. A walk never reaches below a sync root, so a directory found by
-    the walk needs only its own test.
+    Pure: the caller passes the attributes it already holds and the prefixes
+    from Get-CloudSyncPrefix. Ancestors of a starting root are tested by
+    calling this once per ancestor; a walk never reaches below a sync root, so
+    a directory found by the walk needs only its own test.
     #>
     [CmdletBinding()]
     [OutputType([bool])]
     param(
         [Parameter(Mandatory = $true)] [string] $Path,
         [Parameter(Mandatory = $true)] [System.IO.FileAttributes] $Attributes,
-        [AllowEmptyCollection()] [string[]] $Prefix = (Get-CloudSyncPrefix)
+        [Parameter(Mandatory = $true)] [AllowEmptyCollection()] [string[]] $Prefix
     )
 
-    $full = $Path.TrimEnd('\', '/')
     foreach ($p in $Prefix) {
-        if ($full.Equals($p, [System.StringComparison]::OrdinalIgnoreCase) -or
-            $full.StartsWith($p + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
-            return $true
-        }
+        if (Test-PathUnder -Path $Path -Parent $p) { return $true }
     }
-    $bits = [long]$Attributes
-    return (($bits -band 0x400) -ne 0) -and (($bits -band 0x5C0000) -ne 0)
+    return (($Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) -and
+        (($Attributes -band $script:CloudAttributeMask) -ne 0)
 }
 
 function Get-AllocatedSize {
@@ -124,18 +144,11 @@ function Get-AllocatedSize {
     return ([long]$high -shl 32) -bor [long]$low
 }
 
-function Test-ScanBudgetSpent {
-    [CmdletBinding()]
-    [OutputType([bool])]
-    param([Parameter(Mandatory = $true)] [pscustomobject] $Budget)
-    return $Budget.Clock.ElapsedMilliseconds -ge $Budget.LimitMs
-}
-
 function Test-FolderDescent {
     <#
     .SYNOPSIS
-    The never-descend rule for one enumerated directory: $false for a cloud
-    sync root (recorded once with its root) or any other reparse directory
+    The never-descend rule for one directory: $false for a cloud sync root
+    (recorded once against the current root) or any other reparse directory
     (counted), $true otherwise. Recording is off for the allocated re-walk.
     #>
     [CmdletBinding()]
@@ -169,8 +182,10 @@ function Invoke-FolderWalk {
     .DESCRIPTION
     Logical mode records skipped sync roots, skipped reparse directories and
     unlistable directories on $Context. Allocated mode re-walks a folder the
-    logical pass already counted, records nothing, and reports Bytes = $null
-    when the budget cuts it or any file's size cannot be read.
+    logical pass already counted, records nothing, skips a file that is itself
+    a reparse point (opening a file symlink would reach its target), and
+    reports Bytes = $null when the budget cuts it or any file's size cannot be
+    read.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -180,9 +195,6 @@ function Invoke-FolderWalk {
         [ValidateSet('Logical', 'Allocated')] [string] $Mode = 'Logical'
     )
 
-    # The budget test is inlined in the per-entry loop: it runs once per file.
-    # The walk stops at the budget's limit or at this root's share of it.
-    $budget = $Context.Budget
     $logical = $Mode -eq 'Logical'
     $bytes = [long]0
     $files = 0
@@ -192,11 +204,11 @@ function Invoke-FolderWalk {
     $stack.Push($Directory)
 
     while ($stack.Count -gt 0) {
-        if ($budget.Clock.ElapsedMilliseconds -ge [math]::Min($budget.LimitMs, $Context.DeadlineMs)) { $complete = $false; break }
+        if (Test-ScanBudgetSpent $Context) { $complete = $false; break }
         $dir = $stack.Pop()
         try {
             foreach ($entry in $dir.EnumerateFileSystemInfos('*', $Context.Options)) {
-                if ($budget.Clock.ElapsedMilliseconds -ge [math]::Min($budget.LimitMs, $Context.DeadlineMs)) { $complete = $false; break }
+                if (Test-ScanBudgetSpent $Context) { $complete = $false; break }
                 if ($entry -is [System.IO.DirectoryInfo]) {
                     if (Test-FolderDescent -Entry $entry -Context $Context -Record $logical) { $stack.Push($entry) }
                     continue
@@ -225,36 +237,36 @@ function Measure-FolderSize {
     <#
     .SYNOPSIS
     Sizes the folders directly under each root and returns the top N per root,
-    with the skipped cloud sync roots as size-less entries.
+    with each skipped cloud sync root as a size-less entry.
 
     .OUTPUTS
     One record: roots[], folders[], scan_complete, allocated_complete,
-    inaccessible_count, skipped_reparse_dirs, skipped_sync_roots. A root's
-    status is scanned, absent, inaccessible, reparse or cloud-sync-root.
+    inaccessible_count, skipped_reparse_dirs, skipped_sync_roots. Each root
+    record and folder entry carries `input`, the -Root string the caller
+    passed, so the caller joins its own data without re-normalizing a path. A
+    root's status is scanned, absent, inaccessible, reparse or cloud-sync-root.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory = $true)] [AllowEmptyString()] [string[]] $Root,
-        [ValidateRange(1, 1000)] [int] $Top = 15,
-        [ValidateRange('NonNegative')] [int] $AllocatedFileCap = 10000,
-        [pscustomobject] $Budget = (New-ScanBudget -Milliseconds 60000)
+        [Parameter(Mandatory = $true)] [ValidateRange(1, 1000)] [int] $Top,
+        [Parameter(Mandatory = $true)] [ValidateRange('NonNegative')] [int] $AllocatedFileCap,
+        [Parameter(Mandatory = $true)] [pscustomobject] $Budget
     )
 
     $options = [System.IO.EnumerationOptions]::new()
     $options.RecurseSubdirectories = $false
     $options.IgnoreInaccessible = $false
     $options.ReturnSpecialDirectories = $false
-    # PowerShell refuses a cast to undefined flag bits; the two RECALL bits are
-    # not named FileAttributes members, so the value is built with ToObject.
-    $options.AttributesToSkip = [System.Enum]::ToObject([System.IO.FileAttributes], 0x441000)
+    $options.AttributesToSkip = $script:PlaceholderSkipMask
 
     $context = [pscustomobject]@{
         Options        = $options
         Budget         = $Budget
-        Prefix         = Get-CloudSyncPrefix
-        CurrentRoot    = $null
         DeadlineMs     = [long]::MaxValue
+        Prefix         = [string[]]@(Get-CloudSyncPrefix)
+        CurrentRoot    = $null
         SyncRoots      = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
         SkippedReparse = 0
         Inaccessible   = 0
@@ -269,34 +281,33 @@ function Measure-FolderSize {
     foreach ($raw in $Root) {
         if ([string]::IsNullOrWhiteSpace($raw)) { continue }
         # GetFullPath also expands an 8.3 short name, so a root reached through
-        # %TEMP% keys and compares the same as its long form.
+        # %TEMP% compares the same as its long form.
         $path = [System.IO.Path]::GetFullPath($raw)
         if ($path.Length -gt 3) { $path = $path.TrimEnd('\', '/') }
-        $info = [System.IO.DirectoryInfo]::new($path)
         if (-not $seen.Add($path)) { continue }
-        $context.CurrentRoot = $path
-        $record = [ordered]@{ path = $path; status = 'scanned'; logical_bytes = $null; file_count = $null; complete = $true }
-        $roots.Add([pscustomobject]$record)
+        $info = [System.IO.DirectoryInfo]::new($path)
+        $record = [pscustomobject]@{ input = $raw; path = $path; status = 'scanned'; logical_bytes = $null; file_count = $null; complete = $true }
+        $roots.Add($record)
+        $context.CurrentRoot = $record
 
         if (-not $info.Exists) {
-            $roots[-1].status = 'absent'
+            $record.status = 'absent'
             continue
         }
         $underSyncRoot = $false
-        for ($a = $info; $null -ne $a; $a = $a.Parent) {
+        for ($a = $info.Parent; $null -ne $a; $a = $a.Parent) {
             if (Test-CloudSyncRoot -Path $a.FullName -Attributes $a.Attributes -Prefix $context.Prefix) {
                 $underSyncRoot = $true
                 break
             }
         }
         if ($underSyncRoot) {
-            if (-not $context.SyncRoots.Contains($path)) { $context.SyncRoots[$path] = $path }
-            $roots[-1].status = 'cloud-sync-root'
+            if (-not $context.SyncRoots.Contains($path)) { $context.SyncRoots[$path] = $record }
+            $record.status = 'cloud-sync-root'
             continue
         }
-        if (($info.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-            $context.SkippedReparse++
-            $roots[-1].status = 'reparse'
+        if (-not (Test-FolderDescent -Entry $info -Context $context)) {
+            $record.status = $context.SyncRoots.Contains($path) ? 'cloud-sync-root' : 'reparse'
             continue
         }
 
@@ -305,17 +316,17 @@ function Measure-FolderSize {
         # and a sync root directly under a root is recorded whatever the budget
         # does later.
         $listed = [pscustomobject]@{
-            Record   = $roots[-1]
+            Record   = $record
             Bytes    = [long]0
             Files    = 0
             Complete = $true
             Children = [System.Collections.Generic.List[System.IO.DirectoryInfo]]::new()
         }
         try {
-            if (Test-ScanBudgetSpent $Budget) { $listed.Complete = $false; $listing = @() }
+            if (Test-ScanBudgetSpent $context) { $listed.Complete = $false; $listing = @() }
             else { $listing = $info.EnumerateFileSystemInfos('*', $options) }
             foreach ($entry in $listing) {
-                if (Test-ScanBudgetSpent $Budget) { $listed.Complete = $false; break }
+                if (Test-ScanBudgetSpent $context) { $listed.Complete = $false; break }
                 if ($entry -is [System.IO.DirectoryInfo]) {
                     if (Test-FolderDescent -Entry $entry -Context $context) { $listed.Children.Add($entry) }
                     continue
@@ -325,7 +336,7 @@ function Measure-FolderSize {
             }
         } catch [System.UnauthorizedAccessException], [System.IO.IOException], [System.Security.SecurityException] {
             $context.Inaccessible++
-            $listed.Record.status = 'inaccessible'
+            $record.status = 'inaccessible'
         }
         $pending.Add($listed)
     }
@@ -336,13 +347,14 @@ function Measure-FolderSize {
         $p = $pending[$i]
         $elapsed = $Budget.Clock.ElapsedMilliseconds
         $context.DeadlineMs = $elapsed + [math]::Max(0, ($Budget.LimitMs - $elapsed)) / ($pending.Count - $i + 1)
-        $context.CurrentRoot = $p.Record.path
+        $context.CurrentRoot = $p.Record
         $sized = foreach ($child in $p.Children) {
             $walk = Invoke-FolderWalk -Directory $child -Context $context
             $p.Bytes += $walk.Bytes
             $p.Files += $walk.FileCount
             if (-not $walk.Complete) { $p.Complete = $false }
             [pscustomobject]@{
+                input           = $p.Record.input
                 root            = $p.Record.path
                 path            = $child.FullName
                 logical_bytes   = $walk.Bytes
@@ -365,7 +377,7 @@ function Measure-FolderSize {
     $context.DeadlineMs = [long]::MaxValue
     $allocatedComplete = $true
     foreach ($f in $folders) {
-        if ((Test-ScanBudgetSpent $Budget) -or -not $f.complete -or $f.file_count -gt $AllocatedFileCap) {
+        if ((Test-ScanBudgetSpent $context) -or -not $f.complete -or $f.file_count -gt $AllocatedFileCap) {
             $allocatedComplete = $false
             continue
         }
@@ -375,8 +387,10 @@ function Measure-FolderSize {
     }
 
     foreach ($syncPath in @($context.SyncRoots.Keys)) {
+        $owner = $context.SyncRoots[$syncPath]
         $folders.Add([pscustomobject]@{
-                root            = $context.SyncRoots[$syncPath]
+                input           = $owner.input
+                root            = $owner.path
                 path            = $syncPath
                 logical_bytes   = $null
                 allocated_bytes = $null

@@ -8,11 +8,8 @@ See reference/windows/check-catalog.md#20-storage-top-n for rubric.
 
 .DESCRIPTION
 Sizes the folders directly under each root through Measure-FolderSize and
-lists the top 15 per root as FindingItems of kind 'folder'. Roots: the reclaim
-locations (%TEMP%, the current user's Recycle Bin, %ProgramData%\Package
-Cache, %SystemDrive%\Windows.old), then %USERPROFILE%. A cloud sync root is
-never descended; each one is listed as "skipped: cloud sync root" with no
-size. Read-only: nothing is opened for content, moved or deleted.
+lists the largest per root as FindingItems of kind 'folder'. The roots, the
+never-descend rule and the budget are stated in that catalog section.
 #>
 [CmdletBinding()]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
@@ -23,7 +20,10 @@ size. Read-only: nothing is opened for content, moved or deleted.
     Justification = '-Human is read by the dot-sourced envelope and -MutedKeys inside $CheckBody, which the analyzer does not follow.')]
 param(
     [switch]$Human,
-    [AllowNull()] [AllowEmptyCollection()] [string[]]$MutedKeys = @()
+    [AllowNull()] [AllowEmptyCollection()] [string[]]$MutedKeys = @(),
+    # Test-only: replaces the default roots, which then carry no reclaim hint.
+    # The orchestrator never passes it (Get-CheckArgument does not offer it).
+    [string[]]$RootPath
 )
 
 Set-StrictMode -Version 3.0
@@ -35,7 +35,8 @@ $ErrorActionPreference = 'Continue'
 function Get-StorageRoot {
     <#
     .SYNOPSIS
-    The roots to size, in scan order, each with its reclaim hint.
+    The roots to size, in scan order, each with its reclaim hint. Path is the
+    exact string passed to Measure-FolderSize, which hands it back as `input`.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -52,9 +53,7 @@ function Get-StorageRoot {
     foreach ($c in $candidates) {
         if ([string]::IsNullOrWhiteSpace($c.Base)) { continue }
         $base = $c.Base.EndsWith(':') ? "$($c.Base)\" : $c.Base
-        $path = $c.Child ? (Join-Path $base $c.Child) : $base
-        $full = [System.IO.Path]::GetFullPath($path)
-        [pscustomobject]@{ Path = ($full.Length -gt 3 ? $full.TrimEnd('\') : $full); Hint = $c.Hint }
+        [pscustomobject]@{ Path = ($c.Child ? (Join-Path $base $c.Child) : $base); Hint = $c.Hint }
     }
 }
 
@@ -67,35 +66,35 @@ function Format-ByteSize {
     return '{0:N0} KB' -f [math]::Ceiling($Bytes / 1KB)
 }
 
-function Test-PathUnder {
-    [CmdletBinding()]
-    [OutputType([bool])]
-    param(
-        [Parameter(Mandatory = $true)] [string] $Path,
-        [Parameter(Mandatory = $true)] [string] $Parent
-    )
-    $p = $Parent.TrimEnd('\')
-    return $Path.StartsWith($p + '\', [System.StringComparison]::OrdinalIgnoreCase)
-}
-
 $id = 'storage-top-n'
 $category = 'storage'
+# The scan's three limits, held here once and passed to Measure-FolderSize.
+$budgetMs = 60000
+$topN = 15
+$allocatedFileCap = 10000
 $commands = @(
-    "[System.IO.DirectoryInfo]::new(`$env:USERPROFILE).EnumerateFileSystemInfos('*', `$opts)  # manual stack, AttributesToSkip 0x441000"
-    'GetCompressedFileSizeW(<file>)  # allocated pass, top folders of at most 10,000 files'
+    ("[System.IO.DirectoryInfo]::new(`$env:USERPROFILE).EnumerateFileSystemInfos('*', `$opts)" +
+        "  # manual stack, AttributesToSkip 0x{0:X}, top {1} per root" -f [long]$script:PlaceholderSkipMask, $topN)
+    "GetCompressedFileSizeW(<file>)  # allocated pass, listed folders of at most $allocatedFileCap files"
 )
 
 $FailureSummary = 'Storage top-N check failed.'
 $PassThru = $false
 $CheckBody = {
-    $rootList = @(Get-StorageRoot)
-    $hintByRoot = @{}
-    foreach ($r in $rootList) { if (-not $hintByRoot.ContainsKey($r.Path)) { $hintByRoot[$r.Path] = $r.Hint } }
+    $rootList = if ($RootPath) {
+        @($RootPath | ForEach-Object { [pscustomobject]@{ Path = $_; Hint = $null } })
+    } else {
+        @(Get-StorageRoot)
+    }
+    # Keyed by the exact string passed in, which every record returns as `input`.
+    $hintByInput = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
+    foreach ($r in $rootList) { $hintByInput[$r.Path] = $r.Hint }
 
-    $scan = Measure-FolderSize -Root @($rootList.Path)
+    $scan = Measure-FolderSize -Root @($rootList.Path) -Top $topN -AllocatedFileCap $allocatedFileCap `
+        -Budget (New-ScanBudget -Milliseconds $budgetMs)
 
     $items = foreach ($f in $scan.folders) {
-        $hint = $f.root -and $hintByRoot.ContainsKey($f.root) ? $hintByRoot[$f.root] : $null
+        $hint = $hintByInput.ContainsKey($f.input) ? $hintByInput[$f.input] : $null
         $title = $f.skip_reason ? "$($f.path) (skipped: cloud sync root)" : "$($f.path) ($(Format-ByteSize $f.logical_bytes))"
         New-FindingItem -Kind 'folder' -Identity @($f.path) -Severity 'INFO' -Title $title -MutedKeys $MutedKeys -Fields @{
             path            = $f.path
@@ -138,7 +137,7 @@ $CheckBody = {
                     logical_bytes = $_.logical_bytes
                     file_count    = $_.file_count
                     complete      = $_.complete
-                    reclaim_hint  = $hintByRoot[$_.path]
+                    reclaim_hint  = $hintByInput.ContainsKey($_.input) ? $hintByInput[$_.input] : $null
                 }
             })
         items                = $items
@@ -149,7 +148,7 @@ $CheckBody = {
     $severity = Get-UnmutedSeverity -Items $items
     if ($severity -eq 'OK' -and -not $scan.scan_complete) { $severity = 'UNKNOWN' }
 
-    $state = $scan.scan_complete ? 'scan complete' : 'scan cut at the 60 s budget'
+    $state = $scan.scan_complete ? 'scan complete' : "scan cut at the $($budgetMs / 1000) s budget"
     $summary = if ($top1) {
         $lead = "Largest folder $(Format-ByteSize $top1.logical_bytes): "
         $tail = "; $($items.Count) item(s) listed, $state."

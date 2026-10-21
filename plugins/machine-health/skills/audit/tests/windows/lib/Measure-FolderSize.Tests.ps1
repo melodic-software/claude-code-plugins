@@ -28,6 +28,18 @@ BeforeAll {
         return (Get-Item -LiteralPath $Path -Force).FullName.TrimEnd('\')
     }
 
+    # The check holds the real limits; tests pass their own, with a budget
+    # no test tree reaches unless the test sets it.
+    function Measure-TestRoot {
+        param(
+            [Parameter(Mandatory)] [string[]] $Root,
+            [int] $Top = 15,
+            [int] $AllocatedFileCap = 10000,
+            [pscustomobject] $Budget = (New-ScanBudget -Milliseconds 600000)
+        )
+        return Measure-FolderSize -Root $Root -Top $Top -AllocatedFileCap $AllocatedFileCap -Budget $Budget
+    }
+
     $script:OneDriveNames = @('OneDrive', 'OneDriveConsumer', 'OneDriveCommercial')
 }
 
@@ -87,7 +99,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
         Write-SizedFile -Path (Join-Path $script:root 'big\deep\b.bin') -Bytes 100
         Write-SizedFile -Path (Join-Path $script:root 'mid\a.bin') -Bytes 250
 
-        $r = Measure-FolderSize -Root $script:root -Top 2
+        $r = Measure-TestRoot -Root $script:root -Top 2
 
         $r.scan_complete | Should -BeTrue
         $r.roots[0].status | Should -Be 'scanned'
@@ -105,7 +117,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
         Write-SizedFile -Path (Join-Path $script:root 'AppData\x.bin') -Bytes 300
         (Get-Item -LiteralPath (Join-Path $script:root 'AppData') -Force).Attributes = 'Directory, Hidden'
 
-        $r = Measure-FolderSize -Root $script:root
+        $r = Measure-TestRoot -Root $script:root
 
         $r.folders[0].path | Should -Be (Join-Path $script:rootLong 'AppData')
         $r.folders[0].logical_bytes | Should -Be 300
@@ -116,7 +128,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
         Write-SizedFile -Path (Join-Path $script:root 'real\a.bin') -Bytes 10
         New-Item -ItemType Junction -Path (Join-Path $script:root 'real\link') -Target (Join-Path $TestDrive 'outside') | Out-Null
 
-        $r = Measure-FolderSize -Root $script:root
+        $r = Measure-TestRoot -Root $script:root
 
         $r.skipped_reparse_dirs | Should -Be 1
         $r.roots[0].logical_bytes | Should -Be 10
@@ -130,7 +142,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
         $cloud = Get-LongName (Join-Path $script:root 'Cloud')
         $env:OneDrive = $cloud
 
-        $r = Measure-FolderSize -Root $script:root
+        $r = Measure-TestRoot -Root $script:root
 
         $skipped = @($r.folders | Where-Object { $_.skip_reason -eq 'cloud-sync-root' })
         $skipped.Count | Should -Be 1
@@ -145,6 +157,30 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
         @($r.folders | Where-Object { $_.path -eq $cloud -and $null -eq $_.skip_reason }).Count | Should -Be 0
     }
 
+    It 'does not walk a root that is itself a junction' {
+        Write-SizedFile -Path (Join-Path $TestDrive 'outside-root\sub\target.bin') -Bytes 1000
+        $link = Join-Path $script:root 'linked-root'
+        New-Item -ItemType Junction -Path $link -Target (Join-Path $TestDrive 'outside-root') | Out-Null
+
+        $r = Measure-TestRoot -Root $link
+
+        $r.roots[0].status | Should -Be 'reparse'
+        $r.roots[0].input | Should -Be $link
+        $r.roots[0].logical_bytes | Should -BeNullOrEmpty
+        $r.skipped_reparse_dirs | Should -Be 1
+        @($r.folders).Count | Should -Be 0
+    }
+
+    It 'returns the caller''s root string as input on each root and folder' {
+        Write-SizedFile -Path (Join-Path $script:root 'a\a.bin') -Bytes 10
+        $given = $script:root + '\'
+
+        $r = Measure-TestRoot -Root $given
+
+        $r.roots[0].input | Should -BeExactly $given
+        $r.folders[0].input | Should -BeExactly $given
+    }
+
     It 'records a sync root under a later root even when an earlier walk spends the budget' {
         Write-SizedFile -Path (Join-Path $script:root 'first\big\a.bin') -Bytes 10
         Write-SizedFile -Path (Join-Path $script:root 'second\Cloud\doc.bin') -Bytes 10
@@ -155,7 +191,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
             return [pscustomobject]@{ Bytes = [long]0; FileCount = 0; Complete = $false }
         }
 
-        $r = Measure-FolderSize -Root (Join-Path $script:root 'first'), (Join-Path $script:root 'second') -Budget $script:budget
+        $r = Measure-TestRoot -Root (Join-Path $script:root 'first'), (Join-Path $script:root 'second') -Budget $script:budget
 
         $r.scan_complete | Should -BeFalse
         $r.skipped_sync_roots | Should -Be 1
@@ -166,7 +202,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
         Write-SizedFile -Path (Join-Path $script:root 'inner\a.bin') -Bytes 40
         $env:OneDriveCommercial = $script:rootLong
 
-        $r = Measure-FolderSize -Root (Join-Path $script:root 'inner')
+        $r = Measure-TestRoot -Root (Join-Path $script:root 'inner')
 
         $r.roots[0].status | Should -Be 'cloud-sync-root'
         $r.roots[0].logical_bytes | Should -BeNullOrEmpty
@@ -197,7 +233,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
         }
 
         It 'counts an unlistable directory in inaccessible_count and keeps scanning' {
-            $r = Measure-FolderSize -Root $script:root
+            $r = Measure-TestRoot -Root $script:root
 
             $r.inaccessible_count | Should -Be 1
             $r.scan_complete | Should -BeTrue
@@ -208,7 +244,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
     It 'reports scan_complete = false on a zero budget' {
         Write-SizedFile -Path (Join-Path $script:root 'a\a.bin') -Bytes 10
 
-        $r = Measure-FolderSize -Root $script:root -Budget (New-ScanBudget -Milliseconds 0)
+        $r = Measure-TestRoot -Root $script:root -Budget (New-ScanBudget -Milliseconds 0)
 
         $r.scan_complete | Should -BeFalse
         $r.roots[0].complete | Should -BeFalse
@@ -228,7 +264,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
             return [long]4096
         }
 
-        $r = Measure-FolderSize -Root $script:root -Budget $script:budget
+        $r = Measure-TestRoot -Root $script:root -Budget $script:budget
 
         $r.scan_complete | Should -BeTrue
         $r.folders[0].path | Should -Be (Join-Path $script:rootLong 'first')
@@ -245,7 +281,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
         Write-SizedFile -Path (Join-Path $script:root 'few\a.bin') -Bytes 10
         Mock Get-AllocatedSize { return [long]4096 }
 
-        $r = Measure-FolderSize -Root $script:root -AllocatedFileCap 2
+        $r = Measure-TestRoot -Root $script:root -AllocatedFileCap 2
 
         $many = $r.folders | Where-Object { $_.path -eq (Join-Path $script:rootLong 'many') }
         $few = $r.folders | Where-Object { $_.path -eq (Join-Path $script:rootLong 'few') }
@@ -257,7 +293,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
     It 'reads allocated bytes through GetCompressedFileSizeW for a folder under the cap' {
         Write-SizedFile -Path (Join-Path $script:root 'real\a.bin') -Bytes 5000
 
-        $r = Measure-FolderSize -Root $script:root
+        $r = Measure-TestRoot -Root $script:root
 
         $r.allocated_complete | Should -BeTrue
         $r.folders[0].allocated_bytes | Should -BeOfType [long]
@@ -265,7 +301,7 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
     }
 
     It 'reports a missing root as absent without failing the scan' {
-        $r = Measure-FolderSize -Root (Join-Path $script:root 'nope')
+        $r = Measure-TestRoot -Root (Join-Path $script:root 'nope')
 
         $r.roots[0].status | Should -Be 'absent'
         $r.scan_complete | Should -BeTrue

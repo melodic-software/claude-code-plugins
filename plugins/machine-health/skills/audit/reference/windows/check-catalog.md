@@ -800,7 +800,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   $opts = [System.IO.EnumerationOptions]::new()
   $opts.RecurseSubdirectories = $false
   $opts.IgnoreInaccessible = $false
-  $opts.AttributesToSkip = [System.Enum]::ToObject([System.IO.FileAttributes], 0x441000)
+  $opts.AttributesToSkip = $PlaceholderSkipMask  # Measure-FolderSize.ps1
   [System.IO.DirectoryInfo]::new($env:USERPROFILE).EnumerateFileSystemInfos('*', $opts)
   ```
 
@@ -808,8 +808,9 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   `%SystemDrive%\$Recycle.Bin\<SID>` (`recycle-bin`), `%ProgramData%\Package Cache`
   (`package-cache`) and `%SystemDrive%\Windows.old` (`windows-old`), then `%USERPROFILE%`. Every
   root's own level is listed before any folder is walked, so a sync root directly under a root is
-  always recorded. A missing root is reported with `status` `absent`. `%TEMP%` lies under the profile, so it is walked twice;
-  `detail.scanned_bytes` counts a root nested in another scanned root only once.
+  always recorded. A missing root is reported with `status` `absent`. `%TEMP%` lies under the
+  profile, so it is walked twice; `detail.scanned_bytes` counts a root nested in another scanned
+  root only once.
 - **What it lists:** each folder directly under a root is sized by its own walk (logical `Length`
   of every file below it), and the 15 largest per root become FindingItems of kind `folder`,
   identity the full path, severity `INFO`, with `logical_bytes`, `allocated_bytes`, `file_count`,
@@ -817,8 +818,8 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 - **Cloud files are never hydrated.** Decision: the walk never descends a directory at or under a
   cloud sync root and never opens an enumerated file. A directory is under a sync root when
   `%OneDrive%`, `%OneDriveConsumer%` or `%OneDriveCommercial%` prefixes its path, or when it or an
-  ancestor carries ReparsePoint plus a cloud bit (RECALL_ON_OPEN `0x40000`, PINNED `0x80000`,
-  UNPINNED `0x100000`, RECALL_ON_DATA_ACCESS `0x400000`). Each skipped sync root is one item with
+  ancestor carries ReparsePoint plus one of RECALL_ON_OPEN, PINNED, UNPINNED or
+  RECALL_ON_DATA_ACCESS. Each skipped sync root is one item with
   `skip_reason` `cloud-sync-root` and no size, shown as "skipped: cloud sync root"; the scalar
   `detail.skipped_sync_roots` counts them. Every other reparse directory (junction, directory
   symlink) is not descended and is counted in `detail.skipped_reparse_dirs`. `AttributesToSkip` is
@@ -830,10 +831,11 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
     live. **As of**: 2026-10-21. **Recheck trigger**: that page changes the meaning or value of
     RECALL_ON_OPEN, RECALL_ON_DATA_ACCESS, PINNED or UNPINNED, or a OneDrive host shows a sync
     root that carries none of those bits and is not named by a OneDrive variable.
-- **Budget:** one 60-second budget, held in `Measure-FolderSize.ps1`, covers the scan (tested
-  before each directory and each entry) and the allocated-size pass (tested before each file).
-  The orchestrator kills a check at 90 seconds, so the walk stops early and keeps its partial
-  figures. Each root's walk gets an equal share of the budget left, with the allocated pass
+- **Budget:** one 60-second budget, set in `Test-StorageTopN.ps1` with the top-15 and 10,000-file
+  limits and enforced in `Measure-FolderSize.ps1`, covers the scan (tested before each directory
+  and each entry) and the allocated-size pass (tested before each file). It sits under the
+  per-check timeout in [`SKILL.md` "Guardrails"](../../SKILL.md#guardrails), so the walk stops
+  first and keeps its partial figures. Each root's walk gets an equal share of the budget left, with the allocated pass
   counted as one more claimant, and time a root leaves unused passes on; one large `%TEMP%`
   cannot starve the profile. Within a root, folders are walked in listing order, so one very large
   folder can still leave its later siblings unsized. A cut scan sets `detail.scan_complete = false`.
