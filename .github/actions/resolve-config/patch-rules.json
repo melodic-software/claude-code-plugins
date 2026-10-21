@@ -1,11 +1,13 @@
 {
   "ci-context": {
-    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"],
+    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused", "instruction-path"],
     "allow": ["any"],
-    "max-files": null,
+    "max-files": 300,
     "requires": [],
     "commit": { "parents": ["head"], "message": "Fix failing CI checks on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": "ci-escalations",
+    "skip-moved-head": true,
+    "empty-at-push": "invalid",
     "escalations": ["ci-fix-empty", "ci-fix-escalated", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-protected-path"]
   },
   "review-threads": {
