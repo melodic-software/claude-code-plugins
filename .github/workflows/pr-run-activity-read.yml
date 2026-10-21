@@ -1929,17 +1929,19 @@ jobs:
               //   a pattern neither line matches alone, so a token cut across
               //   two lines is caught and nothing a single line holds is
               //   judged twice. The OpenAI key pattern (any sk- and 20 token
-              //   characters) is left out of this pass: joining a line that
-              //   ends in an sk- word to the next line's first word matches
-              //   it, and a false block fails fix-ci closed and asks for a
-              //   rotation. In the patch the pair is hunk
+              //   characters) and the R2 key pair pattern (a 32-hex and a
+              //   64-hex token on one line) are left out of this pass: joining
+              //   a line that ends in an sk- word to the next line's first
+              //   word matches the first, adjacent md5 and sha256 lines match
+              //   the second, and a false block fails fix-ci closed and asks
+              //   for a rotation. In the patch the pair is hunk
               //   lines with their +, - or space prefix removed and the file
               //   headers dropped, or a token split inside an added hunk
               //   would join as "...ab+cd..." and never match.
               const straddles = (left, right) => {
                 const joined = left + right;
                 for (const [label, re] of blocking) {
-                  if (label === 'OpenAI key' || re.test(left) || re.test(right)) continue;
+                  if (label === 'OpenAI key' || label === 'R2 key pair' || re.test(left) || re.test(right)) continue;
                   for (const match of joined.matchAll(new RegExp(re.source, `${re.flags.replace('g', '')}g`))) {
                     if (match.index < left.length && match.index + match[0].length > left.length) return label;
                   }

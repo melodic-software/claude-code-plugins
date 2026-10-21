@@ -2628,3 +2628,15 @@ test("leak scan: the split-line pass leaves out the OpenAI pattern, so an sk- wo
   }
 });
 
+test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adjacent md5 and sha256 lines stay clean, and a pair on one line still blocks", async (t) => {
+  const checksums = `  md5: ${"a".repeat(32)}\n  sha256: ${"b".repeat(64)}\n`;
+  for (const plant of [inReply(Buffer.from(checksums)), inPatch(Buffer.from(checksums))]) {
+    const { clean, failed, outputs } = await scanWith(t, plant);
+    assert.deepEqual({ clean, failed }, { clean: "true", failed: null });
+    if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
+  }
+  const { failed, outputs } = await scanWith(t, inReply(Buffer.from(`${"a".repeat(32)} ${"b".repeat(64)}\n`)));
+  assert.equal(failed, "leak-scan: R2 key pair; nothing is uploaded or summarized\nrotate this credential");
+  if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
+});
+
