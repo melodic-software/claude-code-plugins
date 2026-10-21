@@ -163,15 +163,19 @@ there are.
      `edit-by-hand` and say that no tool fit.
    - **A migration** is a change that moves many sites from one established
      way to another (an API replaced across its callers, a framework version
-     bump, a deprecated call shape retired). Under either `lever_scope`
-     value, reach for tools in this order: an established codemod or
-     structural-rewrite tool for the language (the ecosystem's codemod
-     runner, a structural search-and-replace tool, a language-server
-     refactoring) first; a written script only when no such tool covers the
-     change; hand edits only when neither fits. A migration piloted this way
-     still takes the pilot step below, on one site. `lever_scope` keeps its
-     default `deterministic`; this row changes the order of tools, not the
-     scope.
+     bump, a deprecated call shape retired). This row applies only after the
+     two bullets above have answered `build-a-lever` for the change; it never
+     turns an `edit-by-hand` answer into `build-a-lever`, and it adds no
+     exception to the bullets' own rules. Where it applies, reach for tools
+     in this order: an established codemod or structural-rewrite tool for the
+     language (the ecosystem's codemod runner, a structural search-and-replace
+     tool, a language-server refactoring) first; a written script only when no
+     such tool covers the change and the bullet that answered
+     `build-a-lever` allows one (a mechanical change under either value). A
+     migration that needs judgment under `non-trivial` with no covering tool
+     is `edit-by-hand`, as above. A migration piloted this way still takes
+     the pilot step below, on one site. `lever_scope` keeps its default
+     `deterministic`; this row changes the order of tools, not the scope.
 4. **Pilot before the rest.** With `build-a-lever`, under either value, the
    caller edits the first site by hand, runs the lever on a clean copy of
    that site, and diffs the two results. A difference means the lever is
