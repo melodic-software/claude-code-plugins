@@ -17,13 +17,18 @@ from a completed, successful one. Any other artifact is ignored.
 - the pull request was created more than `TOO_OLD_DAYS` ago:
   `verify:too-old`, since a verdict may already have expired;
 - a counted FAIL at the head, under any pull request number: `verify:fail`;
+- counted FAILs at `max_fails` or more distinct heads of this pull request
+  (tied as in the next item): `verify:repeated-fail`, whatever a pass says;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch:
   `verify:earlier-fail`. It stands while a FAIL-named artifact cannot be
   read (next item); otherwise counted PASS or PASS-NOTES verdicts at the
   head whose runs all started after every such FAIL's run (each start read
-  fresh from GitHub; a missing one keeps the refusal) clear it, and those
-  passes decide, as below;
+  fresh from GitHub; a missing one keeps the refusal) clear it when the
+  pull request's own change at the head differs from its change at every
+  FAILed head (`_patch_id`: a head that only merges the branch or adds an
+  empty commit carries the FAIL forward, and a patch id that cannot be
+  computed keeps the refusal), and those passes decide, as below;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
   is ignored; an untied FAIL whose run is readable and of verifier origin but
@@ -41,9 +46,9 @@ from a completed, successful one. Any other artifact is ignored.
   other than the pull request's author, else `verify:untrusted-spec`;
 - otherwise `verify:missing`.
 
-`verify:fail`, `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed`
-and `verify:untrusted-spec` need a human, who merges in person; a
-`verify:fail` escalation quotes the newest head FAIL's summary
+`verify:fail`, `verify:too-old`, `verify:repeated-fail`, `verify:earlier-fail`,
+`verify:spec-changed` and `verify:untrusted-spec` need a human, who merges in
+person; a `verify:fail` escalation quotes the newest head FAIL's summary
 (`Reader.fail_summary`). Any read that fails refuses
 (`verify:unreadable`). The repository's artifacts are listed once per
 `Reader`, every page, and filtered on the name here: the API's name filter
@@ -69,6 +74,7 @@ import contextlib
 import json
 import os
 import re
+import subprocess
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -116,12 +122,20 @@ NETWORK_ERRORS = (
 )
 FAIL = "verify:fail"
 EARLIER_FAIL = "verify:earlier-fail"
+REPEATED_FAIL = "verify:repeated-fail"
 MISSING = "verify:missing"
 UNREADABLE = "verify:unreadable"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
 SPEC_CHANGED = "verify:spec-changed"
-NEEDS_HUMAN = (FAIL, EARLIER_FAIL, TOO_OLD, UNTRUSTED_SPEC, SPEC_CHANGED)
+NEEDS_HUMAN = (
+    FAIL,
+    EARLIER_FAIL,
+    REPEATED_FAIL,
+    TOO_OLD,
+    UNTRUSTED_SPEC,
+    SPEC_CHANGED,
+)
 CLOSING_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){closingIssuesReferences(first:10){totalCount "
@@ -279,6 +293,8 @@ class Reader:
     listing_path: str | None = field(
         default_factory=lambda: os.environ.get(LISTING_ENV) or None
     )
+    # `merge.max-verify-fails`: FAILed heads at which a pass no longer clears.
+    max_fails: int = merge_policy.MAX_VERIFY_FAILS
     _artifacts: list[dict[str, Any]] | None = None
     _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
@@ -286,6 +302,7 @@ class Reader:
     _listing_error: str | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
+    _patch_ids: dict[str, str | None] = field(default_factory=dict)
     # Runs whose standing came from the run cache (`_run_state`).
     _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
@@ -803,11 +820,19 @@ class Reader:
             if sha == head and verdict == "fail":
                 head_fails.append((run_id, name))
         fails = [v for v in verdicts if v.verdict == "fail"]
+        failed = {v.sha for v in fails}
         refusal: str | None
         detail = unreadable
-        if any(v.sha == head for v in fails):
+        if head in failed:
             refusal = FAIL
-        elif fails and (unreadable or not self._passes_follow(fails, passes)):
+        elif len(failed) >= self.max_fails:
+            refusal = REPEATED_FAIL
+            detail = f"fails at {len(failed)} heads, the cap is {self.max_fails}"
+        elif fails and (
+            unreadable
+            or not self._passes_follow(fails, passes)
+            or not self._change_differs(head, failed)
+        ):
             refusal = EARLIER_FAIL
         elif unreadable:
             refusal = UNREADABLE
@@ -869,6 +894,51 @@ class Reader:
         if None in starts or None in begun:
             return False
         return max(s for s in starts if s) < min(b for b in begun if b)
+
+    def _patch_id(self, sha: str) -> str | None:
+        """The stable patch id of the pull request's own change at `sha`: the
+        diff from its merge base with the branch to `sha` (compare
+        `branch...sha`, read once) through `git patch-id --stable`, so a
+        merge of the branch that changes nothing of its own keeps the id.
+        None when the diff cannot be read, is empty, or yields no id."""
+        if sha not in self._patch_ids:
+            self._patch_ids[sha] = None
+            try:
+                diff = postmerge.gh_capture(
+                    [
+                        "api",
+                        "-H",
+                        "Accept: application/vnd.github.diff",
+                        f"repos/{self.repo}/compare/{self.branch}...{sha}",
+                    ],
+                    env_overrides=self._env(),
+                )
+                if diff.returncode != 0 or not diff.stdout.strip():
+                    return None
+                proc = subprocess.run(
+                    ["git", "patch-id", "--stable"],
+                    input=diff.stdout,
+                    capture_output=True,
+                    text=True,
+                    timeout=gh_timeout_seconds(),
+                    check=False,
+                )
+            except (RuntimeError, ValueError, OSError, subprocess.SubprocessError):
+                return None
+            ids = proc.stdout.split()
+            if proc.returncode == 0 and len(ids) == 2:
+                self._patch_ids[sha] = ids[0]
+        return self._patch_ids[sha]
+
+    def _change_differs(self, head: str, failed: set[str]) -> bool:
+        """The pull request's change at the head differs from its change at
+        every FAILed head, so its pass judged a change no FAIL did. A patch
+        id that cannot be computed differs from nothing."""
+        own = self._patch_id(head)
+        return own is not None and all(
+            (other := self._patch_id(sha)) is not None and other != own
+            for sha in failed
+        )
 
     def fail_summary(
         self, run_id: int, name: str, number: int, head: str

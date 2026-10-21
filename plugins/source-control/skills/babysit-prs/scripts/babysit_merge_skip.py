@@ -78,6 +78,7 @@ SKIPPABLE = frozenset(
         "risk:HIGH",
         verify_evidence.FAIL,
         verify_evidence.EARLIER_FAIL,
+        verify_evidence.REPEATED_FAIL,
         verify_evidence.MISSING,
         verify_evidence.TOO_OLD,
         verify_evidence.SPEC_CHANGED,

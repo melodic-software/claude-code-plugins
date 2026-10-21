@@ -562,6 +562,10 @@ merge:
   skip-unchanged:
     max-minutes: 60
     max-skips: 3
+  # pr-verify FAILs at this many distinct heads of one PR hold it for a human
+  # whatever a later pass says, so pushing until the verifier passes once
+  # does not merge it (owner decision 2026-10-21).
+  max-verify-fails: 3
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane
