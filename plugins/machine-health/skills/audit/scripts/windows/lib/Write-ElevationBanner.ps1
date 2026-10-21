@@ -26,7 +26,7 @@ Banner structure:
     Running as <user> without admin.
 
     Covered non-elevated:
-      - <list of non-admin checks by category>
+      - <labels from Get-NonElevatedCoverage>
 
     Admin-only (will emit UNKNOWN with needs_admin: true):
       - <Feature> [<CheckId>]
