@@ -600,6 +600,13 @@ that fails counts as a refusal.
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
   also `needs-human`. That record does not hold the rung off.
+  With a new record of either kind, the alert files one fix issue per newly failing check, at
+  most 5 per run (an overflow line on the record says when more failed), first line
+  `<!-- post-merge-fix check=<name> -->`, in fixed text only (check name, SHA, run link, merge
+  range, the record's number), with no label, and dispatches intake triage for each. A check
+  whose fix issue was closed reopens that issue with a comment naming the new range; one closed
+  as not planned or duplicate stays closed and mutes the check. Closing a fix issue releases
+  nothing on the record.
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
