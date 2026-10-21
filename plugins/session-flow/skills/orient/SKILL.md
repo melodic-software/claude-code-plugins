@@ -53,8 +53,8 @@ now" matters, not just "what did we just say." The verification records
    off this thread. Background tasks, monitors, subagents, and the other
    off-thread kinds
    ([`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)).
-   Report the off-thread work at a glance. Do **not** inspect or recover
-   it; that is `/session-flow:keep-going`.
+   Report the off-thread work at a glance. In the four-part briefing, do
+   **not** inspect or recover it; that is `/session-flow:keep-going`.
 
 ## The briefing. Four parts
 
@@ -93,7 +93,9 @@ name each pull request, branch or agent as the user would know it, not by an int
 messages from others in the chat. Re-check the current state of each pull request, CI run and
 agent the chat touched, rather than repeating what the chat last said; say which are still
 running and which could not be checked. This is a status read only; recovering or resuming
-an agent stays `/session-flow:keep-going`. Change nothing to gather.
+an agent stays `/session-flow:keep-going`. Change nothing to gather. This is the one scope of
+this skill that re-checks live state; every "does not inspect", "does not verify" and "reports
+at a glance" limit below and above applies to the four-part briefing only.
 
 **Action items.** An action item is a decision or step only the user can take: a product
 choice, an approval, an irreversible action, or access the session lacks. Include any still
@@ -155,10 +157,12 @@ when the person can run it, never that it is present. The four-part records live
 
 - **Writes nothing**, no files, no memory, no `/clear`. It is a read-only
   briefing that leaves state untouched.
-- **Does not verify freshness**. It reports what the durable state says;
+- **Does not verify freshness** (in the four-part briefing; `catch-up` re-checks
+  live status, see its scope). It reports what the durable state says;
   confirming those claims still hold is `/session-flow:reanchor`.
 - **Does not recover off-thread work**. It names what is in flight;
-  inspecting and resuming it is `/session-flow:keep-going`.
+  inspecting (beyond the `catch-up` status read) and resuming it is
+  `/session-flow:keep-going`.
 - **Does not prescribe the next stage**; that is `/session-flow:workflow`.
 - **Does not score or codify**; that is `/session-flow:retro`.
 - **Does not invoke the built-in `/recap`**. Built-ins are not
