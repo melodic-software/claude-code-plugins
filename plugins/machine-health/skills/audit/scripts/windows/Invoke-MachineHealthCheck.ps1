@@ -13,7 +13,7 @@ Responsibilities (per SKILL.md High-level procedure):
  1. Verify preconditions (PS version, output writable, elevation recorded).
  2. Load catalog; filter to enabled, non-deprecated entries with os: ["windows"].
  3. Load trend context from state/history.jsonl (last 8 weeks).
- 4. Dispatch each check with a 90s timeout (Start-Job).
+ 4. Dispatch each check (Start-Job) under the timeout Get-CheckTimeoutSec gives it.
  5. Adjust severities based on trend when a threshold was just crossed.
  6. On non-dry runs: dispatch authorized remediations (TODO.md approvals + user-load heuristic).
  7. Write state/latest.json; append one compact line to state/history.jsonl.
