@@ -226,6 +226,11 @@ runs:
           rm -rf "$STAGE"
           mkdir -p "$STAGE/plugins" "$STAGE/scratch"
           cp -R "$BASE_PATH/plugins/$plugin" "$STAGE/plugins/"
+          # The CLI's Bash sandbox, under run-claude-cli's environment scrub,
+          # holds its write denial on .mcp.json in each --add-dir by creating
+          # an empty one, which fails once the copy is read-only.
+          mcp=$STAGE/plugins/$plugin/.mcp.json
+          [ -e "$mcp" ] || [ -L "$mcp" ] || printf '{"mcpServers":{}}\n' >"$mcp"
           # The runner makes the copy read-only, and chmod does not follow a link.
           [ -z "$(find "$STAGE/plugins" -type l -print -quit)" ] || fail "the skill's plugin holds a symbolic link"
           lane=$WORKSPACE/.lane

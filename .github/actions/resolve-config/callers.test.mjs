@@ -1727,6 +1727,8 @@ test("pr-run-activity-read.yml: the dirty-tree check runs no git config the mode
     "dirty-tree=false\n",
     "the staged .lane/ is no change",
   );
+  assert.equal(check(({ work }) => writeFileSync(join(work, ".npmrc"), "")), "dirty-tree=false\n", "an empty CLI scrub stub is no change");
+  assert.equal(check(({ work }) => writeFileSync(join(work, ".env"), "TOKEN=x\n")), "dirty-tree=true\n", "a scrub stub name with content, the collector's exit 3");
   // A collector that fails fails the step.
   const broken = plantedCheckout(t);
   writeFileSync(join(broken.temp, "read-patch", "collect-patch.sh"), "exit 1\n");

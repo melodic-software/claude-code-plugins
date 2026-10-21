@@ -1317,6 +1317,21 @@ test("run-claude-cli refuses an issue lane, a writing skill, a patch-producing r
   }
 });
 
+test("run-claude-cli: a staged plugin with no .mcp.json gets an empty server list, and one that ships its own keeps it", () => {
+  const run = launch({ SKILL: "source-control:pull-request" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(readFileSync(path.join(run.stageDir, "plugins", "source-control", ".mcp.json"), "utf8"), '{"mcpServers":{}}\n');
+  const own = mkdtempSync(path.join(root, "base-mcp-"));
+  mkdirSync(path.join(own, "plugins", "source-control"), { recursive: true });
+  mkdirSync(path.join(own, ".claude-plugin"));
+  writeFileSync(path.join(own, ".claude-plugin", "marketplace.json"), JSON.stringify({ name: "melodic-software" }));
+  const shipped = Buffer.from('{ "mcpServers": { "x": { "command": "y" } } }\r\nÿ');
+  writeFileSync(path.join(own, "plugins", "source-control", ".mcp.json"), shipped);
+  const kept = launch({ BASE_PATH: own, SKILL: "source-control:pull-request" });
+  assert.equal(kept.status, 0, kept.stdout);
+  assert.deepEqual(readFileSync(path.join(kept.stageDir, "plugins", "source-control", ".mcp.json")), shipped);
+});
+
 test("run-claude-cli: a skill plugin holding a symbolic link fails red", () => {
   const linked = mkdtempSync(path.join(root, "base-link-"));
   mkdirSync(path.join(linked, "plugins", "source-control"), { recursive: true });

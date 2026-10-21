@@ -197,6 +197,63 @@ tg config core.fsmonitor "$R/.git/monitor"
 put edit.txt 'on disk\n'
 planted 'a core.fsmonitor command'
 
+echo '# CLI scrub stubs'
+# The empty files the CLI's Bash leaves at the top of the checkout under
+# its environment scrub are not the activity's change.
+STUBS=(bunfig.toml package.json .npmrc .yarnrc .yarnrc.yml .gitmodules package-lock.json yarn.lock
+  pnpm-lock.yaml .env .env.local .env.development .env.development.local .env.test .env.test.local
+  .env.production .env.production.local)
+stubs() { for name in "${STUBS[@]}"; do : >"$R/$name"; done; }
+in_patch() { grep -c "^diff --git a/$1 " "$PATCH" || true; }
+new_repo
+stubs
+run_collect
+check 'stubs: exit 0' 0 "$RC"
+check 'stubs: state is empty' empty "$(field state)"
+check 'stubs: no patch file' no "$([[ -e $PATCH ]] && echo yes || echo no)"
+new_repo
+stubs
+put edit.txt 'one\nTWO\n'
+run_collect
+check 'stubs and an edit: state is written' written "$(field state)"
+check 'stubs and an edit: the edit is in the patch' 1 "$(in_patch edit.txt)"
+check 'stubs and an edit: only the edit is in the patch' 1 "$(grep -c '^diff --git ' "$PATCH")"
+refused() {
+  run_collect
+  check "$1: exit 3" 3 "$RC"
+  check "$1: nothing on stdout" '' "$OUT"
+  check "$1: no patch file" no "$([[ -e $PATCH ]] && echo yes || echo no)"
+}
+new_repo
+stubs
+put .env 'TOKEN=x\n'
+refused 'a new .env with content'
+new_repo
+ln -s keep.txt "$R/.npmrc"
+refused 'a new .npmrc that is a symbolic link'
+new_repo
+mkdir "$R/.yarnrc"
+refused 'a new .yarnrc that is a directory'
+new_repo
+put package.json '{}\n'
+put .env ''
+tg add -A
+tg commit -q -m 'tracked stub names'
+HEAD_SHA=$(tg rev-parse HEAD)
+run_collect
+check 'a tracked empty .env, unchanged: state is empty' empty "$(field state)"
+: >"$R/package.json"
+run_collect
+check 'a tracked package.json truncated: state is written' written "$(field state)"
+check 'a tracked package.json truncated: it is in the patch' 1 "$(in_patch package.json)"
+new_repo
+put sub/.npmrc ''
+put .ENV ''
+run_collect
+check 'a nested or differently cased name: state is written' written "$(field state)"
+check 'a nested sub/.npmrc is in the patch' 1 "$(in_patch sub/.npmrc)"
+check 'a new empty .ENV is in the patch' 1 "$(in_patch .ENV)"
+
 echo '# unsafe input'
 new_repo
 put edit.txt 'changed\n'

@@ -1323,8 +1323,15 @@ jobs:
           TREE_DIFF: ${{ runner.temp }}/tree-check/tree.diff
         run: |
           mkdir -p "${TREE_DIFF%/*}"
-          out=$(bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$TREE_DIFF")
+          rc=0
+          out=$(bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$TREE_DIFF") || rc=$?
           rm -f "$TREE_DIFF"
+          # 3: a CLI scrub stub name holds more than an empty file, a change.
+          if [ "$rc" = 3 ]; then
+            echo "dirty-tree=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$rc" = 0 ] || exit "$rc"
           case "$(sed -n 's/^state=//p' <<<"$out")" in
             written) echo "dirty-tree=true" >>"$GITHUB_OUTPUT" ;;
             empty) echo "dirty-tree=false" >>"$GITHUB_OUTPUT" ;;

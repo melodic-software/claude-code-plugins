@@ -560,7 +560,12 @@ set `applied-by`, and an issue-mode activity must set it. The steps:
    every diff option that changes the patch's form passed explicitly. Its git runs against a fresh
    repository that borrows only the checkout's objects, with no global or system config, so no
    filter, hook, fsmonitor or include the activity wrote into `.git` runs. A failed, cancelled or
-   turnless act step collects nothing and the check fails as usual.
+   turnless act step collects nothing and the check fails as usual. The collector also leaves out
+   the empty files the CLI's Bash leaves at the top of the checkout under its environment scrub,
+   a fixed set of names (`package.json`, `.env` and others) that the gated head does not track. A
+   name from that set the head does not track that holds anything other than an empty regular
+   file makes the collector exit 3 with no patch written: the collect step fails, nothing is
+   collected and `patch-state` stays empty, and the dirty-tree check counts it as dirty.
 3. A non-empty patch is uploaded as the artifact `patch-<lane>-<activity>-<run attempt>`, holding
    one file, `patch.diff` (7-day retention): in PR mode by the [scan job](#the-scan-job), after
    its scan, in issue mode by the run job. The run's `patch-state` output is then `written`,

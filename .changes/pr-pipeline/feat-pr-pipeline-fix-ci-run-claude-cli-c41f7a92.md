@@ -14,7 +14,9 @@ bump: minor
   ([pr-run-activity.md, Two calls on one credential each](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#two-calls-on-one-credential-each)).
 - The read runner stages a PR-mode skill's plugin, CI context, scratch directory and prompt
   under `.lane/` in the checkout, which `--restricted` can read, and leaves `.lane/` out of the
-  patch. A head that already holds `.lane` fails red.
+  patch. A head that already holds `.lane` fails red. A staged plugin with no `.mcp.json` gets
+  an empty server list, and the patch leaves out the CLI's empty scrub stubs; a stub name the
+  head does not track that holds anything else fails the collector, so nothing is collected.
 - fix-ci's patch goes through
   [`apply-patch.mjs`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/apply-patch/apply-patch.mjs)
   as the `apply-patch` activity, named in fix-ci's `applied-by`. The `ci-context` row of
