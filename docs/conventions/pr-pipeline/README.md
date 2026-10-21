@@ -608,6 +608,17 @@ and its queued entries leave; two different identities, or an unreadable head co
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
   also `needs-human`. That record does not hold the rung off.
+  With a new record of either kind, the alert files one fix issue per newly failing check, at
+  most 5 per run (an overflow line on the record says when more failed), first line
+  `<!-- post-merge-fix check=<name> -->`, in fixed text only (the failing job's name, the SHA, the run
+  link, the merge range and the record's number, never an annotation title), with no label, locks it,
+  and dispatches intake triage for each; a fix issue that could not be filed, locked, reopened
+  or sent is named in a comment on the record. A check
+  whose fix issue was closed reopens that issue with a comment naming the new range, keeping
+  `agent-ready` and sending it to intake triage no second time, so a repeat goes straight back to
+  agents (a first failure still waits for the owner's ratification); one closed
+  as not planned or duplicate stays closed and mutes the check. Closing a fix issue releases
+  nothing on the record.
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
@@ -986,7 +997,7 @@ uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holdin
 (`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
 account type, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one `pr-require-checks`
 ran on, never the pull request's live head. A model error, an output that fails the schema, a
-summary or note shaped like an Anthropic key or OAuth token, or a run with any permission denial
+summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
 uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again. Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
