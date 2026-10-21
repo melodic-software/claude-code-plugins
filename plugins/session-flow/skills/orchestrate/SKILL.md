@@ -31,7 +31,7 @@ Pointers behind each imperative: `context/sources.md`; observed failure modes:
 | *(default. Optional `<task>`)* | **Prime THIS session.** The standing instructions below are now active for the upcoming task; respond with a terse acknowledgment and, if `<task>` is given, one line orienting to it. Do NOT re-emit the imperatives. Loading them IS the priming. |
 | `handoff [compact]` | **Export** the imperatives as a paste-ready dashed-rail brief framed for a fresh session. `compact` = headlines only. |
 | `worker [compact]` | **Export** framed for a spawned worker (prepends the did-not-inherit-context line). `compact` = headlines only. |
-| `coordinator [<area>]` | **Arm THIS session as the one coordinator for `<area>`** to delegate that area's work to workers. The coordinator keeps no store of its own: state lives in the tracker and the repository's durable files, so it creates no store file. It runs on whatever surface the user chooses, a plain CLI session included, because a Claude Project is tied to one account and account rotation must not strand it. Respond with a terse acknowledgment that names the area and where state lives. |
+| `coordinator [<area>]` | **Arm THIS session as the one coordinator for `<area>`** to delegate that area's work to workers. The coordinator keeps no store of its own: state lives in the tracker and the repository's durable files, so it creates no store file. It runs on whatever surface the user chooses, a plain CLI session included, so account rotation never strands it. Respond with a terse acknowledgment that names the area and where state lives. |
 
 ## Orchestration imperatives. Standing instructions
 
