@@ -2,30 +2,30 @@
 <#
 .SYNOPSIS
 Check: Windows Defender exclusion audit. Emits a CheckResult JSON on stdout.
+
+See reference/windows/check-catalog.md#11-defender-exclusions for rubric.
 #>
 [CmdletBinding()]
-param([switch]$Human)
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'MutedKeys',
+    Justification = 'Read inside $CheckBody, which Invoke-HealthCheckEnvelope invokes.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', 'result',
+    Justification = 'Set inside $CheckBody and read by Invoke-HealthCheckEnvelope.')]
+param(
+    [switch]$Human,
+    [string[]]$MutedKeys = @()
+)
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Test-IsElevated.ps1')
+. (Join-Path $PSScriptRoot '..\lib\New-DefenderExclusionItem.ps1')
+. (Join-Path $PSScriptRoot '..\lib\Get-DefenderExclusionState.ps1')
 
 $id = 'defender-exclusions'
 $category = 'security'
 $commands = @(
-    'Get-MpPreference | Select-Object ExclusionPath, ExclusionExtension, ExclusionProcess'
-)
-
-# Well-known benign exclusions common on dev machines (.NET, Node, Python
-# test runners, build caches). The aim is to WARN only on unexpected entries.
-$knownSafePaths = @(
-    '*\NuGetScratch*'
-    '*\node_modules*'
-    '*\.dotnet*'
-    '*\dotnet-install*'
-    '*\.cache*'
-    '*\Visual Studio\Packages*'
+    "Get-CimInstance -Namespace $script:DefenderPreferenceNamespace -ClassName $script:DefenderPreferenceClass | Select-Object ExclusionPath, ExclusionExtension, ExclusionProcess"
 )
 
 $adminFieldList = @(
@@ -42,66 +42,67 @@ $PassThru = $false
 $FailureNeedsAdmin = $true
 $FailureAdminFields = $adminFieldList
 $CheckBody = {
-    # Non-elevated Get-MpPreference returns "N/A: Must be administrator..." as
-    # a literal string for the exclusion fields -- gate stops it being counted.
-    if (-not (Test-IsElevated)) {
-        $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-            -Severity 'UNKNOWN' `
-            -Summary 'Defender exclusions require admin (re-run elevated).' `
-            -Detail @{ elevated = $false } `
-            -Commands $commands `
-            -NeedsAdmin $true -RanSuccessfully $false `
-            -ErrorMessage 'needs_admin' `
-            -AdminFields $adminFieldList
-    } else {
-        $pref = $null
-        try { $pref = Get-MpPreference -ErrorAction Stop } catch {
-            Write-Verbose "Test-DefenderExclusions: Get-MpPreference failed ($($_.Exception.Message))."
-        }
+    $state = Get-DefenderExclusionState
+    $emptyList = @{ list_state = $state.ReadState; items_count = 0; muted_count = 0; items = @() }
 
-        if ($null -eq $pref) {
-            $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-                -Severity 'UNKNOWN' -Summary 'Get-MpPreference unavailable (third-party AV?).' `
-                -Commands $commands -RanSuccessfully $false `
-                -NeedsAdmin $true `
-                -ErrorMessage 'Defender preference API not accessible.' `
-                -AdminFields $adminFieldList
-        } else {
-            # With no exclusions, Get-MpPreference returns $null (not @()) per
-            # property, and @($null) is a one-element array that would count
-            # as one "unexpected" path. Blanks go the same way.
-            $paths = @($pref.ExclusionPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-            $exts = @($pref.ExclusionExtension | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-            $procs = @($pref.ExclusionProcess | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    switch ($state.ReadState) {
+        'ok' {
+            $items = [System.Collections.Generic.List[object]]::new()
+            foreach ($listName in $script:DefenderExclusionTypes.Keys) {
+                $type = $script:DefenderExclusionTypes[$listName]
+                foreach ($value in $state.$listName) {
+                    # Extension and process exclusions have no known-safe list and stay INFO.
+                    $expected = $type -eq 'path' -and (Test-DefenderKnownSafePath -Path $value)
+                    $itemSeverity = $type -eq 'path' -and -not $expected ? 'WARN' : 'INFO'
+                    $items.Add((New-DefenderExclusionItem -Type $type -Value $value -MutedKeys $MutedKeys `
+                                -Severity $itemSeverity -Title "$type exclusion: $value" -Fields @{ expected = $expected }))
+                }
+            }
 
-            $unexpectedPaths = @($paths | Where-Object {
-                    $p = $_
-                    $matched = $false
-                    foreach ($pattern in $knownSafePaths) {
-                        if ($p -like $pattern) { $matched = $true; break }
-                    }
-                    -not $matched
-                })
-
-            $severity = 'OK'
-            $summary = "$($paths.Count) path exclusion(s), $($exts.Count) extension(s), $($procs.Count) process(es)."
+            # A muted item counts as expected.
+            $unexpectedPaths = @($items | Where-Object { $_.exclusion_type -eq 'path' -and -not $_.expected -and -not $_.muted } |
+                    ForEach-Object { $_.value })
+            $severity = Get-UnmutedSeverity -Items $items.ToArray()
+            $summary = "$(@($state.Paths).Count) path exclusion(s), $(@($state.Extensions).Count) extension(s), $(@($state.Processes).Count) process(es)."
             if ($unexpectedPaths.Count -gt 0) {
-                $severity = 'WARN'
                 $summary = "$($unexpectedPaths.Count) unexpected Defender path exclusion(s)."
-            } elseif ($paths.Count -gt 0 -or $exts.Count -gt 0 -or $procs.Count -gt 0) {
-                $severity = 'INFO'
             }
 
             $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
                 -Severity $severity -Summary $summary -Commands $commands `
                 -Detail @{
-                exclusion_path_count      = $paths.Count
-                exclusion_extension_count = $exts.Count
-                exclusion_process_count   = $procs.Count
+                exclusion_path_count      = @($state.Paths).Count
+                exclusion_extension_count = @($state.Extensions).Count
+                exclusion_process_count   = @($state.Processes).Count
                 unexpected_path_count     = $unexpectedPaths.Count
-                unexpected_paths          = @($unexpectedPaths | Select-Object -First 20)
+                # Objects, not strings, so the markdown report shows a count, never a value.
+                unexpected_paths          = @($unexpectedPaths | Select-Object -First 20 | ForEach-Object { [pscustomobject]@{ path = $_ } })
+                list_state                = $state.ReadState
+                items_count               = $items.Count
+                muted_count               = @($items | Where-Object muted).Count
+                items                     = $items.ToArray()
             } `
                 -NeedsAdmin $true -RanSuccessfully $true
+        }
+        'masked' {
+            # Unknown, never "no exclusions" (see Get-DefenderExclusionState.ps1).
+            $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
+                -Severity 'UNKNOWN' `
+                -Summary 'Defender exclusion lists are masked (re-run elevated).' `
+                -Detail (@{ elevated = [bool](Test-IsElevated) } + $emptyList) `
+                -Commands $commands `
+                -NeedsAdmin $true -RanSuccessfully $false `
+                -ErrorMessage 'needs_admin' `
+                -AdminFields $adminFieldList
+        }
+        default {
+            $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
+                -Severity 'UNKNOWN' -Summary 'Defender exclusion lists unavailable (third-party AV?).' `
+                -Detail $emptyList `
+                -Commands $commands -RanSuccessfully $false `
+                -NeedsAdmin $true `
+                -ErrorMessage "Defender preference read state '$($state.ReadState)'." `
+                -AdminFields $adminFieldList
         }
     }
 }
