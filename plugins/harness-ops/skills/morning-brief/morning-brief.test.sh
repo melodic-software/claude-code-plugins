@@ -743,6 +743,7 @@ run_stuck() {
     --decisions-json "$TMP/decisions.json" \
     --telemetry-json "$TMP/telemetry.json" \
     --merged-json "$TMP/merged-clean.json" \
+    --lane-runs-json "$TMP/lanes-empty.json" "${CLEAR_COST_ARGS[@]}" \
     --stuck-json "$TMP/stuck.json" "$@" 2>&1
 }
 stuck_order() { printf '%s\n' "$1" | grep -oE '^  #[0-9]+' | tr -d ' \n'; }
@@ -1943,7 +1944,7 @@ OUT_429="$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ_FIXTURE="$TMP/azur
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_contains "defender: a throttled cost query is UNREADABLE with the error" "$(section "$OUT_429" "== Cost")" \
   "UNREADABLE Azure Defender charges, month to date: Too Many Requests(Too many requests. Please retry.)"
-assert_contains "defender: a throttled query counts the cost section as lost" "$OUT_429" "2 of 8 sections unreadable: stranded cost"
+assert_contains "defender: a throttled query counts the cost section as lost" "$OUT_429" "3 of 8 sections unreadable: stuck stranded cost"
 jq '.defenderCost = {"properties": {"columns": [{"name": "ServiceName"}], "rows": []}}' "$TMP/azure-clear.json" >"$TMP/azure-cost-bad.json"
 assert_contains "defender: a cost response without its columns is UNREADABLE" "$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" \
   --billing-budgets-json "$TMP/billing-budgets-clear.json" --azure-json "$TMP/azure-cost-bad.json")" "== Cost")" \
