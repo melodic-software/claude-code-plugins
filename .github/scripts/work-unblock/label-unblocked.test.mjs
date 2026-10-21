@@ -5,14 +5,23 @@
 // read from the API when the run starts, never from the event payload. The kill switch and
 // a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { refsHoldComment } from "../work-resolve-issue/report-outcome.mjs";
-import { checkCloser, escalationComment, main, refireComment, refsClosedComment, refsMergedComment } from "./label-unblocked.mjs";
+import {
+  checkCloser,
+  escalationComment,
+  main,
+  RECURRENCE_PREFIX,
+  recurrenceComment,
+  refireComment,
+  refsClosedComment,
+  refsMergedComment,
+} from "./label-unblocked.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TRUSTED = join(HERE, "fixtures/trusted-actors.json");
@@ -106,6 +115,10 @@ function world({
     }
     if (route === `/repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs` && method === "GET") {
       const params = new URL(path, "https://x").searchParams;
+      // The in-flight read asks by status alone.
+      if (params.has("status")) {
+        return { workflow_runs: listed(runs.filter((run) => run.status === params.get("status"))) };
+      }
       assert.equal(params.get("event"), "issues");
       const [from, to] = params.get("created").split("..").map(Date.parse);
       const inRange = runs.filter((run) => Date.parse(run.created_at) >= from && Date.parse(run.created_at) <= to);
@@ -1692,4 +1705,126 @@ test("a run in the label's window whose title names no issue makes the sweep say
   const plain = failedRun({ runs: [laneRun({ number: 300 })] });
   assert.equal(await sweep({ github: plain.github, actions: plain.actions }), 0);
   assert.ok(other.mock.calls.some((call) => String(call.arguments[0]).includes("#30 not restarted: no lane run since agent-ready was added")));
+});
+
+// A red-main fix issue post-merge-demotion-alert.yml reopens on a repeat
+// failure keeps agent-ready, but the reopen ran on that workflow's
+// GITHUB_TOKEN, which starts no lane run. The sweep finds it by the issue's
+// first body line and the workflow's recurrence comment, both
+// github-actions[bot]'s, and has the App remove and re-add agent-ready, once
+// per recurrence comment, after a record naming that comment.
+const ALERT = { id: 41898282, login: "github-actions[bot]", type: "Bot" };
+const fixIssue = (n, { labels = [], user = ALERT, body = "<!-- post-merge-fix check=Lint / markdown -->\n\nThe check `Lint / markdown` started failing on main." } = {}) => ({
+  ...ready(n, labels),
+  user,
+  body,
+});
+const recurrenceNote = ({ id = 801, at = "2026-10-16T11:00:00Z", user = ALERT, body } = {}) => ({
+  id,
+  body: body ?? `${RECURRENCE_PREFIX}${"b".repeat(40)}\`. Merge range: unknown. Run: https://github.com/${REPO}/actions/runs/9/attempts/1`,
+  user,
+  created_at: at,
+});
+// The lane PR that closed the issue the first time: merged with Closes.
+const closingPull = () =>
+  lanePull({ body: "Closes #30\n", created: "2026-10-10T09:20:00Z", closed: "2026-10-10T10:00:00Z" });
+function reopened({ issues = [fixIssue(30)], comments = [note(), recurrenceNote()], events = [added("2026-10-10T09:00:00Z", OWNER)], pulls = [closingPull()], runs = [] } = {}) {
+  const fake = world({
+    openReady: issues,
+    comments: Object.fromEntries(issues.map((item) => [item.number, comments])),
+    events: Object.fromEntries(issues.map((item) => [item.number, events])),
+    timeline: Object.fromEntries(issues.map((item) => [item.number, pulls.map((pull) => crossRef(pull))])),
+    pulls: Object.fromEntries(pulls.map((pull) => [pull.number, pull])),
+    runs,
+  });
+  return { ...fake, actions: fake.github };
+}
+const relabeled = (n, id = 801) => [
+  `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: recurrenceComment(id) })}`,
+  ...restarted(n),
+];
+
+test("post-merge-demotion-alert still posts the recurrence comment and the fix-issue marker this sweep matches", () => {
+  const alert = readFileSync(join(HERE, "../../workflows/post-merge-demotion-alert.yml"), "utf8");
+  assert.ok(alert.includes(`note="${RECURRENCE_PREFIX.replace("`", "\\`")}`), "the recurrence comment's opening words changed");
+  assert.ok(alert.includes('fix_marker="<!-- post-merge-fix check=$check -->"'), "the fix issue's first line changed");
+});
+
+test("a fix issue a repeat failure reopened is relabeled: the record, then remove and re-add, with the count logged first", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github, actions, calls } = reopened();
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), relabeled(30));
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  const count = lines.findIndex((line) => line.includes("1 reopened fix issue(s) to relabel"));
+  const done = lines.findIndex((line) => line.includes("#30 relabeled after its reopen on a repeat failure"));
+  assert.ok(count >= 0 && done > count, lines.join("\n"));
+});
+
+test("only github-actions[bot]'s fix issue and recurrence comment match", async () => {
+  for (const [name, issue, comment] of [
+    ["a lookalike comment by a person", fixIssue(30), recurrenceNote({ user: OWNER })],
+    ["a lookalike comment by the App", fixIssue(30), recurrenceNote({ user: LANES_BOT })],
+    ["another comment by the workflow", fixIssue(30), recurrenceNote({ body: "Fix main first." })],
+    ["an issue without the fix marker", fixIssue(30, { body: "The check lint fails.\n<!-- post-merge-fix check=lint -->" }), recurrenceNote()],
+    ["a fix marker on a person's issue", fixIssue(30, { user: OWNER }), recurrenceNote()],
+  ]) {
+    const { github, actions, calls } = reopened({ issues: [issue], comments: [note(), comment] });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), [], name);
+  }
+});
+
+test("a reopened fix issue with an open lane PR, a lane run in flight, a hold, or no Actions token is not relabeled", async () => {
+  const openPull = lanePull({ pr: 7900, state: "open", body: "Closes #30\n", created: "2026-10-16T08:00:00Z" });
+  for (const [name, setup, withActions = true] of [
+    ["an open lane PR from before the reopen", { pulls: [closingPull(), openPull] }],
+    ["a run in progress", { runs: [laneRun({ status: "in_progress", conclusion: null })] }],
+    ["a queued run", { runs: [laneRun({ status: "queued", conclusion: null })] }],
+    ["an in-flight run naming no issue", { runs: [{ ...laneRun({ status: "in_progress", conclusion: null }), display_title: "Fix the thing" }] }],
+    ["a hold label", { issues: [fixIssue(30, { labels: ["needs-human"] })] }],
+    ["no Actions token", {}, false],
+  ]) {
+    const { github, actions, calls } = reopened(setup);
+    assert.equal(await sweep({ github, actions: withActions ? actions : undefined }), 0, name);
+    assert.deepEqual(writes(calls), [], name);
+  }
+  // Another issue's run in flight, or this issue's finished run, does not hold it.
+  for (const runs of [[laneRun({ number: 31, status: "in_progress", conclusion: null })], [laneRun()]]) {
+    const { github, actions, calls } = reopened({ runs });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), relabeled(30));
+  }
+});
+
+test("each recurrence comment relabels once; a newer one relabels again", async () => {
+  const record = { id: 61, body: recurrenceComment(801), user: LANES_BOT, created_at: "2026-10-16T11:47:00Z" };
+  const after = [added("2026-10-10T09:00:00Z", OWNER), { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T11:47:01Z" }, added("2026-10-16T11:47:02Z")];
+  // Relabeled already: the next sweep leaves it to the restart and re-fire rules.
+  const again = reopened({ comments: [note(), recurrenceNote(), record], events: after });
+  assert.equal(await sweep({ github: again.github, actions: again.actions }), 0);
+  assert.deepEqual(writes(again.calls), []);
+  // A person adding agent-ready since the reopen started a run: nothing to do.
+  const person = reopened({ events: [added("2026-10-10T09:00:00Z", OWNER), added("2026-10-16T11:10:00Z", OWNER)] });
+  assert.equal(await sweep({ github: person.github, actions: person.actions }), 0);
+  assert.ok(!writes(person.calls).some((call) => call.includes(recurrenceComment(801))));
+  // The record went out but the labels did not move: only the labels move.
+  const retry = reopened({ comments: [note(), recurrenceNote(), record] });
+  assert.equal(await sweep({ github: retry.github, actions: retry.actions }), 0);
+  assert.deepEqual(writes(retry.calls), restarted(30));
+  // A second reopen after the relabel relabels again, keyed on the new comment.
+  const second = reopened({ comments: [note(), recurrenceNote(), record, recurrenceNote({ id: 802, at: "2026-10-16T11:50:00Z" })], events: after });
+  assert.equal(await sweep({ github: second.github, actions: second.actions }), 0);
+  assert.deepEqual(writes(second.calls), relabeled(30, 802));
+});
+
+test("relabels share the restarts-per-run cap, the longest-waiting first", async () => {
+  const numbers = [30, 31, 32, 33, 34, 35];
+  const fake = world({
+    openReady: numbers.map((n) => fixIssue(n)),
+    comments: Object.fromEntries(numbers.map((n) => [n, [recurrenceNote({ at: `2026-10-16T11:${String(n).padStart(2, "0")}:00Z` })]])),
+    events: Object.fromEntries(numbers.map((n) => [n, [added("2026-10-10T09:00:00Z", OWNER)]])),
+  });
+  assert.equal(await sweep({ github: fake.github, actions: fake.github }), 0);
+  assert.deepEqual(writes(fake.calls), numbers.slice(0, 5).flatMap((n) => relabeled(n)));
 });

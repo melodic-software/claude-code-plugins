@@ -616,7 +616,9 @@ and its queued entries leave; two different identities, or an unreadable head co
   or sent is named in a comment on the record. A check
   whose fix issue was closed reopens that issue with a comment naming the new range, keeping
   `agent-ready` and sending it to intake triage no second time, so a repeat goes straight back to
-  agents (a first failure still waits for the owner's ratification); one closed
+  agents (a first failure still waits for the owner's ratification). That reopen starts no run, so
+  work-unblock's hourly sweep removes and re-adds `agent-ready` with the lanes App token, once per
+  recurrence comment, unless the issue is held or has an open lane PR or a lane run in flight; one closed
   as not planned or duplicate stays closed and mutes the check. Closing a fix issue releases
   nothing on the record.
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
