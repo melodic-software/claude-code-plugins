@@ -1094,6 +1094,19 @@ Its `patch-state`, `patch-sha256`, `patch-attempt` and `reply-attempt` outputs a
 file's in PR mode; in issue mode the run job's, which still uploads its own reply, patch and
 outcome. The issue lane's run job holds the OAuth token alone and runs no scan.
 
+### Leak-scan limits
+
+Recorded, not fixed:
+
+- The scan blocks credential formats only (owner ruling Q37). A credential written as UTF-16LE,
+  wrapped in base64 or split across lines passes. Whether to catch UTF-16LE (N16) is an open owner
+  question.
+- Issue mode still publishes from the run job, unscanned: its `Show the skill's run in the step
+  summary`, `Upload the skill's final reply` and `Upload the patch` steps, and the gate verdict's
+  step summary (`Check the gate skill's verdict`). That predates the scan job and is slated for 6b.
+- A leaked scan-carrier private key also opens the payloads the scan blocked, which stay in the
+  run's job outputs as ciphertext. Rotate the key on a block, as the rotation line says.
+
 ## The summary job
 
 Read file, issue mode only: runs after the run job, unless the run was cancelled, when the run
