@@ -55,9 +55,9 @@ Default merge mode is squash: one squashed commit per PR onto the default branch
 Merge with the forge's plain merge command, with the PR number and repository written literally
 and the flags the repository needs ([GitHub](../../../reference/providers/github/pull-request/merge.md#merge-command)).
 Pinning it to the `HEAD_SHA` captured in 4.1 step 2 (`--match-head-commit`) is optional for an
-immediate merge and required with `--auto`: where the AI review checks are not required checks, an
-armed auto-merge would otherwise merge a later push. A pinned merge fails when a push lands after
-approval. The repository's rules, required checks and the merge guard hook are the
+immediate merge and required with `--auto`; an armed auto-merge is always reported. What the pin
+covers, and what it does not after arming:
+[GitHub](../../../reference/providers/github/pull-request/merge.md#merge-command). The repository's rules, required checks and the merge guard hook are the
 gate: a merge the forge or the permission layer refuses is reported with its error text and the
 session moves on to other work, never handed to the user as a command to run and never retried in
 another shape. Before any merge call, poll the PR's merge state at

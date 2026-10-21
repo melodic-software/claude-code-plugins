@@ -103,8 +103,10 @@ merge for that repository. Write the PR number and `-R <owner>/<repo>` literally
 variable, command substitution or loop: the guardrails merge guard reads the target from them and
 blocks a merge whose target it cannot resolve. `--match-head-commit <sha>`, with the sha written
 literally, makes GitHub refuse the merge if the head moved. It is optional for an immediate merge
-and required with `--auto`, pinning the head the session reviewed: where the AI review checks are
-not required checks, an armed auto-merge would otherwise merge a later push.
+and required with `--auto`, so auto-merge is armed only on the head the session reviewed. The pin
+does not hold after arming: a push by anyone with write access keeps auto-merge armed, and where the
+AI review checks are not required checks the new head can merge on `ci-status` alone. An armed
+auto-merge is therefore reported, as [confirm queue entry](#confirm-queue-entry) does.
 
 GitHub's rulesets and required checks, and the guardrails merge guard, are the merge gate. A merge
 that GitHub or the permission layer refuses is reported with its error text, and the session moves
@@ -229,7 +231,9 @@ done
 ```
 
 - **Pointer**: how `gh pr merge` behaves on a merge-queue base and what `--match-head-commit` does:
-  [gh pr merge](https://cli.github.com/manual/gh_pr_merge); `isInMergeQueue`:
+  [gh pr merge](https://cli.github.com/manual/gh_pr_merge); who keeps auto-merge armed by pushing:
+  [About auto-merge](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request#about-auto-merge)
+  (read 2026-10-21); `isInMergeQueue`:
   [GraphQL PullRequest object](https://docs.github.com/graphql/reference/objects#pullrequest).
   The queue events: `GET repos/{owner}/{repo}/issues/{n}/events` returned `added_to_merge_queue`
   and `removed_from_merge_queue` for a queue-merged PR (melodic-software/claude-code-plugins#7771,
