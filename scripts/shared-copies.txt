@@ -119,6 +119,7 @@ lib/yaml-subset.awk plugins/docs-hygiene/skills/audit-noise/scripts/lib/yaml-sub
 lib/yaml-subset.awk plugins/multi-agent/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/work-items/skills/triage/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/harness-ops/skills/lanes/scripts/lib/yaml-subset.awk
+lib/yaml-subset.awk plugins/harness-ops/skills/morning-brief/scripts/lib/yaml-subset.awk
 lib/yaml-subset.awk plugins/education/skills/explain/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/docs-hygiene/lib/yaml-subset.awk
 lib/parse-concern-value.sh plugins/review/lib/parse-concern-value.sh
@@ -464,6 +465,13 @@ lib/setup-apply.mjs plugins/planning/lib/setup-apply.mjs
 lib/setup-apply.mjs plugins/review/lib/setup-apply.mjs
 lib/setup-apply.mjs plugins/session-flow/lib/setup-apply.mjs
 lib/setup-apply.mjs plugins/verification/lib/setup-apply.mjs
+lib/resolve-convention-home.sh plugins/discipline/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/discovery/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/docs-hygiene/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/education/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/review/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/session-flow/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/verification/lib/resolve-convention-home.sh
 lib/yaml-subset.mjs plugins/user-experience/scripts/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/user-interface/scripts/lib/yaml-subset.mjs
 lib/config-cascade.mjs plugins/user-experience/scripts/lib/config-cascade.mjs

@@ -89,6 +89,26 @@
       "check": "/harness-ops:prerequisites"
     },
     {
+      "id": "az",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:morning-brief"
+      ],
+      "detect": {
+        "any": [
+          "az"
+        ]
+      },
+      "degrade": "Without az, every Azure line in the morning brief's Cost section prints UNREADABLE and says to install az; with az logged out, each prints UNREADABLE and says to run az login. The GitHub lines and every other section still render, and the brief exits 6.",
+      "install": {
+        "docs": "https://learn.microsoft.com/en-us/cli/azure/install-azure-cli#install",
+        "brew": "azure-cli",
+        "winget": "Microsoft.AzureCLI"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "claude",
       "kind": "cli",
       "need": "required",

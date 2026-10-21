@@ -209,28 +209,35 @@ fragment_hint() {
 }
 
 check_bump() {
-  local base="$1" src copy rest plugin manifest base_version head_version stale=0 changed=0 src_changed rc
+  local base="$1" src copy rest plugin manifest base_version head_version stale=0 changed=0 src_changed rc mb
   local -a stale_plugins=() stale_srcs=()
   local -A stale_seen=() src_seen=()
   gate_entry::require_base "$base" "error: base ref $base does not resolve to a commit."
+  # What this change set changed is what differs from the fork point, not from the
+  # tip of the base: a branch behind its base would otherwise count the base's own
+  # later syncs as its changes. $base stays the name the messages print.
+  if ! mb="$(git merge-base "$base" HEAD)"; then
+    echo "error: 'git merge-base $base HEAD' failed (no common ancestor, or history not fetched deeply enough); refusing to pass without checking." >&2
+    exit 2
+  fi
   for src in "${srcs[@]}"; do
     src_changed=0
     while IFS= read -r copy; do
       [[ -n "$copy" ]] || continue
       # A copy can change with its canonical untouched: a new header, or a new registry entry.
-      git diff --quiet "$base" -- "$src" "$copy" && continue
+      git diff --quiet "$mb" -- "$src" "$copy" && continue
       src_changed=1
       rest="${copy#plugins/}"
       manifest="plugins/${rest%%/*}/.claude-plugin/plugin.json"
       # A plugin absent at the base ref is new in this change set; its initial
       # release already carries the new canonical content.
-      base_version=$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
+      base_version=$(git show "$mb:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
       [[ -n "$base_version" ]] || continue
       head_version=$(jq -r '.version // empty' "$manifest")
       plugin="${rest%%/*}"
       rc=0
       # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits below
-      changelog_fragments::bump_delivered "$base" "$plugin" "$base_version" "$head_version" || rc=$?
+      changelog_fragments::bump_delivered "$mb" "$plugin" "$base_version" "$head_version" || rc=$?
       ((rc < 2)) || exit 2
       if ((rc == 1)); then
         rest="${rest#*/}"

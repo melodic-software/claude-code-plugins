@@ -143,6 +143,19 @@ leaving.
 We route by task: same phase or task compacts with a focus, unrelated work hands off when
 anything carries over and clears when nothing does, work that leaves the session hands off.
 
+- Mid-phase, hand bulk work to subagents before compacting, so the window fills with their short
+  returns instead of the raw material.
+- A cleared conversation stays resumable, so `/clear` loses nothing durable.
+- Handoff and questionnaire files stay where they are in the memory dir (handoffs in
+  `<memory_dir>/handoffs/`, questionnaires in
+  `<memory_dir>/<topic-slug>/questionnaire-<recipient-role-slug>.md`); none of the above moves them.
+
+- **Pointer**: for clearing a conversation and resuming it, see
+  <https://code.claude.com/docs/en/sessions#manage-context-within-a-session>
+- **As of**: 2026-10-20
+- **Recheck trigger**: the sessions page stops saying a cleared session is saved and resumable
+  with /resume
+
 - **Pointer**: for when context fills up, see
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>; for managing
   context, see <https://code.claude.com/docs/en/best-practices#manage-context-aggressively>; for
