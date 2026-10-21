@@ -122,6 +122,22 @@ Describe 'Test-TopProcesses' -Tag 'check' {
         }
     }
 
+    Context 'summary length' {
+        It 'keeps the bands label whole and stays within 240 characters with long process names' {
+            $long = foreach ($i in 1..3) {
+                [pscustomobject]@{
+                    Name = ('process-with-a-very-long-image-name-' * 3) + $i; Id = $i; CpuPct = [double](10 * $i)
+                    WorkingSetBytes = 1MB; PrivateBytes = 1MB; Path = $null; PathState = 'denied'
+                }
+            }
+            Mock Get-ProcessSample { New-Sample -Cpu 85 -Committed 85 -Processes $long }
+            $summary = (Invoke-TopProcessCheck).summary
+            $summary.Length | Should -BeLessOrEqual 240
+            $summary | Should -BeLike '*bands: Windows Server guidance (Microsoft Learn).'
+            $summary | Should -Match 'CPU 85%'
+        }
+    }
+
     Context 'counter read failure' {
         It 'is UNKNOWN, never OK, when the counters could not be read' {
             Mock Get-ProcessSample { New-Sample -Cpu $null -Queue $null -Committed $null -Available $null -Disk $null -ReadState 'error' }

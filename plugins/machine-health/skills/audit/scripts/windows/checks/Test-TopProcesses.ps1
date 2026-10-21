@@ -127,10 +127,21 @@ $CheckBody = {
     $unread = $sample.ReadState -ne 'ok' ? 'system counters unreadable' : $null
     $top = @($byCpu | Select-Object -First 3 | ForEach-Object { "$($_.Name) $($_.CpuPct)%" }) -join ', '
     $flagged = @($signals | Where-Object severity -NE 'OK' | ForEach-Object text) -join '; '
-    $parts = @($lead, $unread, ($top ? "top: $top" : $null), ($flagged ? $flagged : $null), $diskNote,
-        "bands: $thresholdsLabel") | Where-Object { $_ }
-    $summary = ($parts -join '. ') + '.'
-    if ($summary.Length -gt 240) { $summary = $summary.Substring(0, 237) + '...' }
+    # The bands label always survives the summary cap; the process list goes first, then the
+    # rest of the body is cut.
+    $summaryMax = 240
+    $label = "bands: $thresholdsLabel."
+    $body = @($lead, $unread, ($top ? "top: $top" : $null), ($flagged ? $flagged : $null), $diskNote) |
+        Where-Object { $_ }
+    $summary = "$($body -join '. '). $label"
+    if ($summary.Length -gt $summaryMax) {
+        $body = @($body | Where-Object { $_ -ne "top: $top" })
+        $summary = "$($body -join '. '). $label"
+    }
+    if ($summary.Length -gt $summaryMax) {
+        $room = $summaryMax - $label.Length - '... '.Length
+        $summary = ($body -join '. ').Substring(0, $room) + '... ' + $label
+    }
 
     $detail = @{
         logical_cpus            = $sample.LogicalCpus
