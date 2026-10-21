@@ -40,15 +40,9 @@ it for the work the trigger admits. Backend classes are cited from the
   value asserted here.
 - **Paid and cloud backends: advisory, explicit opt-in.** No paid or cloud backend is a
   default; each is advisory with its cost surfaced first and reached only by explicit opt-in.
-  Whether a cloud backend caps the merge rows follows the executor surface class, never the
-  hosting alone: an org-operated cloud substrate running the self-operated runner stays
-  `executor_class: self-operated`, since hosting configuration is deployment-owned per the
-  [executor surface classes](../trigger-dispatch.md#executor-surface-classes), while a
-  vendor-MANAGED backend, where the vendor operates the executor itself, is a vendor-hosted
-  executor and forces the security binding's `executor_class: vendor-hosted`, capping every
-  merge row at human-gated. That is the same cap [the lifecycle leaf](lifecycle.md#disposition)
-  restates on the disposition path. A vendor-managed backend buys isolation, never an
-  auto-merge it cannot own.
+  A cloud backend caps no merge row, whether the org operates it or the vendor manages it:
+  hosting configuration is deployment-owned and the executor class caps nothing, per the
+  [executor surface classes](../trigger-dispatch.md#executor-surface-classes).
 
 ## Birth-time decisions: USER-RESERVED
 

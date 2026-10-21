@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Constraint ledger\n- C1 | confirmed | internal tool only | user, round 1\n\n## Open-question register\n",
+      "why": "no constraint row for the scanner assumption"
+    },
+    {
+      "answer": "## Constraint ledger\nNone.\n\n## Self-answered facts\n- F1 | answered-from-repo | Do scanners have a browser? | PRD assumes so | .work/pick-list-reprint/PRD.md\n",
+      "why": "the assumption appears outside the constraint ledger"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Constraint ledger\n- C1 | inherited | every handheld scanner has a browser | .work/pick-list-reprint/PRD.md\n",
+      "why": "the PRD assumption recorded as an inherited constraint"
+    },
+    {
+      "answer": "## Constraint ledger\n- C1 | confirmed | internal tool only | user, round 1\n- C2 | inherited | floor scanners run a browser | PRD Assumptions\n",
+      "why": "a second row turns the assumption into a constraint"
+    }
+  ]
+}

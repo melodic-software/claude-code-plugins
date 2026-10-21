@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "### Captured assumptions\n- Quality bar: production\n- Intent: second variant = speculative; existing structure: payments sit behind a gateway port; upstream: none\n- Overrides bundled default Reuse first per docs/standards/integrations.md\n",
+      "answer": "### Captured assumptions\n- Quality bar: production\n- Variation intent: second variant = speculative; existing structure: payments sit behind a gateway port; upstream: none\n- Overrides bundled default Reuse first per docs/standards/integrations.md\n",
       "why": "the exact line"
     },
     {

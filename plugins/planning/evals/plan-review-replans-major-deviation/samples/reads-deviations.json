@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": ".work/photo-backup/PLAN.md"}},
+        {"tool": "Read", "input": {"file_path": ".work/photo-backup/DEVIATIONS.md"}}
+      ],
+      "why": "read the log beside the plan"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": ".work/photo-backup/PLAN.md"}}
+      ],
+      "why": "read only the plan"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}

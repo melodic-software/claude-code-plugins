@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/run/home/cwd/logs/checkout.log\"}}]}}",
+      "why": "reads the raw log"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"scripts/errors_by.sh tenant\"}}]}}",
+      "why": "runs the count script over the raw log"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/run/home/cwd/logs/summary.txt\"}}]}}",
+      "why": "reads only the digest"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/run/home/cwd/scripts/errors_by.sh\"}}]}}",
+      "why": "reads the script source, which never touches the log"
+    }
+  ]
+}

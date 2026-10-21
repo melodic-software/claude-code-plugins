@@ -8,7 +8,7 @@ two surfaces:
   path relative to `.claude/`, `testing/e2e.md`, so its layers are `~/.claude/testing/e2e.md`
   (user-global), `${CLAUDE_PROJECT_DIR}/.claude/testing/e2e.md` (team), and
   `${CLAUDE_PROJECT_DIR}/.claude/testing/e2e.local.md` (local overlay).
-- `e2e_driver` and `reuse_running_instance` are top-level keys of the testing plugin's YAML config,
+- `e2e_driver`, `reuse_running_instance` and `browser_driver` are top-level keys of the testing plugin's YAML config,
   the file the scan settings share: team `docs/conventions/testing.yaml` (schema
   [`schemas/testing.schema.json`](../../../schemas/testing.schema.json)), user-global
   `~/.claude/testing.yaml`, and local overlay `.claude/testing.local.yaml`; per user, the plugin
@@ -32,6 +32,7 @@ The two compose: this doc declares the keys and points there for layer mechanics
 | `e2e_driver` | `auto` \| `harness` \| `run` \| `playwright` \| `chrome` | `auto` | per-key override |
 | `reuse_running_instance` | `auto` \| `true` \| `false` | `auto` | per-key override |
 | `feature_map_dir` | a relative directory path | `.claude/skills/feature-map` | per-key override |
+| `browser_driver` | a command name (`A-Z a-z 0-9 . _ -`) | `playwright-cli` | per-key override |
 
 Both surfaces merge by **per-key override**: a later layer replaces an earlier layer's value key by
 key, and a key absent from a later layer keeps the earlier value. The values are closed scalars, so
@@ -87,6 +88,17 @@ each worktree its own instance through `up` and `info`.
 
 The decision table is in SKILL.md's Native step, under Already running.
 
+### `browser_driver`
+
+The command name of the one browser tool a `playwright` drive uses. It is a repository-scope key
+with a `userConfig` option of the same name. When the driver chosen for the run is `playwright`,
+whether `e2e_driver` pins it or `auto` picks it, `scripts/check-browser-driver.sh` checks before the
+first drive that the command is on PATH. When it is not, the run stops before driving anything with
+a message naming the setting, the value, the layer that supplied it, and the two ways forward:
+install that tool, or set `browser_driver` to a browser tool you have. No other browser tool is a
+silent substitute, and a run never switches tools partway through. Any value outside the command-name
+characters is named on stderr and the key takes its default.
+
 ### `feature_map_dir`
 
 The directory of one feature map, relative to the repository root: `/testing:map-features` writes
@@ -121,14 +133,14 @@ any file layer, and "drive it with playwright" overrides `e2e_driver`.
 4. User-global (`~/.claude/testing/e2e.md`)
 5. Bundled default (`recording: off`, `browser_mode: headless`)
 
-`e2e_driver` and `reuse_running_instance`, highest authority first:
+`e2e_driver`, `reuse_running_instance` and `browser_driver`, highest authority first:
 
 1. Explicit session prompt
 2. Local overlay (`.claude/testing.local.yaml`)
 3. Team (`docs/conventions/testing.yaml`)
 4. User-global (`~/.claude/testing.yaml`)
 5. The plugin `userConfig` option of the same name
-6. Bundled default (`auto` for both)
+6. Bundled default (`auto` for the first two, `playwright-cli` for `browser_driver`)
 
 `feature_map_dir`, highest authority first:
 
@@ -154,4 +166,5 @@ are never read from the `docs/conventions/testing.md` config block or `.claude/t
 team files an older teammate's release reads. Set them in `docs/conventions/testing.yaml`; set them
 in `~/.claude/testing.yaml` or `.claude/testing.local.yaml` only on a machine that runs this release
 or later. `feature_map_dir` follows the same rule: a release older than it refuses it as an unknown
-key, so set it only once every member runs a release that knows it.
+key, so set it only once every member runs a release that knows it. `browser_driver` follows the same
+rule.

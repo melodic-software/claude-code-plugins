@@ -1,6 +1,6 @@
 // Identity, polling, heartbeat and actions: the only code that talks to the server. The page (app.js)
 // reads the prototype's state names; toView() builds them from the contract snapshot, and each action
-// below sends the contract route's body. The map: .work/shared-interview-ui/snapshot-map.md.
+// below sends the contract route's body. The map: plugins/planning/shared/snapshot-map.md.
 (() => {
   const memory = new Map();
   const store = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })()
@@ -654,6 +654,8 @@
     /** Owner: a round stuck with Claude working goes back to open; Claude's late preparation is refused. */
     resetRound: () => act("/api/round/reset", {}),
     rename: name => act("/api/rename", { name }).then(j => { Core.me.name = j.name; put("name", j.name); emit(); return j; }),
+    /** Owner: give another person a new name; resolves to {pid, name}, the name made unique as a self-rename is. */
+    renamePerson: (pid, name) => act("/api/rename", { pid, name }),
     removePerson: (pid, on) => act("/api/person/remove", { pid, on }),
     newGuestLink: () => act("/api/link/guest", {}),
     /** Owner: a new owner token; this page reloads on the new owner link. */

@@ -2124,6 +2124,19 @@ for mp in ${MPS[@]+"${MPS[@]}"}; do
   run_marketplace "$mp"
 done
 
+# Each marketplace skips the ids that are not its own, so an id no marketplace in
+# the run claims would vanish from the report. Name it once the whole run has been
+# considered.
+if ((ONLY_INSTALL_MODE == 1)); then
+  for id in ${ONLY_INSTALL//,/ }; do
+    claimed=0
+    for mp in ${MPS[@]+"${MPS[@]}"}; do
+      [[ "$id" == *"@$mp" ]] && claimed=1
+    done
+    ((claimed == 1)) || run_error "--only-install id matches no marketplace in this run: $id"
+  done
+fi
+
 BLOCKS='[]'
 [[ -s "$RUN_DIR/.blocks.jsonl" ]] && jq_to BLOCKS -c -s '.' "$RUN_DIR/.blocks.jsonl"
 

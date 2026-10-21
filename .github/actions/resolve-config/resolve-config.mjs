@@ -366,6 +366,17 @@ export function loopFromBase(env) {
   return resolveLoop(filesUnderBase(basePath, configPath), { configPath });
 }
 
+// The base config's `red-main` leaf as set and `merge.agent-identity`, after
+// the same file checks as resolve(), for the post-merge red-main report. The
+// leaf's defaults have one copy, in
+// .github/scripts/post-merge-demotion-alert/red-main.mjs, which applies them.
+export function redMainFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  const doc = loadConfig(filesUnderBase(basePath, configPath), { configPath });
+  return { redMain: doc["red-main"] ?? {}, agentIdentity: doc.merge?.["agent-identity"] ?? "" };
+}
+
 // A run that is no lane activity resolves only its model route.
 function resolveRouteFromBase(env) {
   if (env.LANE) {

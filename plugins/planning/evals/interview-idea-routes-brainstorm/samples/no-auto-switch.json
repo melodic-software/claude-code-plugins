@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview"}}], "why": "only the interview fires; brainstorm is recommended, not invoked"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:brainstorm"}}], "why": "switched to brainstorm without the user's go-ahead"}
+  ]
+}

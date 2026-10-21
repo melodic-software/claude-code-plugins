@@ -30,9 +30,9 @@ outcomes, or whether a new structured event is needed].
 
 Principles applied: DIP puts the domain in charge of the `IPaymentGateway` port; information
 hiding keeps provider refund semantics inside each adapter.
-Generalize now or wait: the Brief's `Intent: second variant = known` line (a third provider is
+Generalize now or wait: the Brief's `Variation intent: second variant = known` line (a third provider is
 contracted) settles it: generalize now, isolating what varies behind the port.
-Rationale: the Intent line is the user's answer, so the port is built now rather than on the
+Rationale: the Variation intent line is the user's answer, so the port is built now rather than on the
 third occurrence.
 
 ## Thread 6: Lifecycle and reversibility. RESOLVED

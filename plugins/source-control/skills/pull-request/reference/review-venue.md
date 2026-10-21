@@ -20,8 +20,10 @@ Refuse a `--repo` value holding a character outside `A-Za-z0-9._/-`. It prints o
 `code-review` first, then `security-review`:
 
 - **`<lane> ci healthy: <detail>`**: the lane's workflow is enabled and its newest pull request
-  run that reached a verdict (finished, and neither skipped nor cancelled) succeeded within the
-  window. CI covers this lane.
+  run that reached a verdict succeeded within the window. CI covers this lane. A run reaches no
+  verdict when it was skipped, cancelled, or failed only because its pull request edits the
+  lane's caller workflow (`skipped-validation`): that red says something about one pull request,
+  not the lane.
 - **`<lane> local absent: <detail>`**: no recent pull request run in the repository calls the
   lane, or the caller workflow is disabled.
 - **`<lane> local failing: <detail>`**: that newest run failed, timed out or did not start. A

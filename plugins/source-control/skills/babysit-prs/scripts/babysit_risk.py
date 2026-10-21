@@ -179,6 +179,11 @@ HIGH_FLOOR: tuple[str, ...] = (
     # Scripts skills run through `!` lines, and agents and workflows by path.
     "plugins/*/scripts/**",
     "plugins/*/skills/*/scripts/**",
+    "plugins/**/scripts/**",  # any deeper scripts/ directory
+    "plugins/*/git-hooks/**",  # installed as git hooks in consumer repos
+    # Run by a skill, not under a scripts/ directory.
+    "plugins/harness-ops/skills/observability/otel/net-probe.sh",
+    "plugins/knowledge/skills/video-digest/extraction/preflight.mjs",
     # Hook-run scripts outside hooks/.
     "plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py",
     "plugins/disk-hygiene/skills/clean/scripts/engine_context.py",

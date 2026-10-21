@@ -27,7 +27,7 @@ const APP_KEY_INPUTS = new Set(["app-private-key", "private-key"]);
 // automations_claude_code_oauth_token is the lanes' Claude Code OAuth token,
 // the same kind of credential as claude_code_oauth_token under the automation
 // account's name; pr-unblock.yml's fix-ci read job runs on it.
-const ALLOWED_SECRETS = new Set(["claude_code_oauth_token", "automations_claude_code_oauth_token", "github_token"]);
+const ALLOWED_SECRETS = new Set(["claude_code_oauth_token", "automations_claude_code_oauth_token", "issue_lane_claude_code_oauth_token", "github_token"]);
 const KEY = "references the App key";
 
 const root = path.resolve(import.meta.dirname, "..");

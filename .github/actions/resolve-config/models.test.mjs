@@ -687,6 +687,8 @@ async function mainOnIssue(events) {
     ACTIVITY: "resolve-issue",
     EVENT_NAME: "issues",
     REPOSITORY: "o/r",
+    // What the read runner hands on for resolve-issue.
+    APPLIED_BY_SUPPORTED: "patch work-outcome",
   });
   writeFileSync(join(env.BASE_PATH, CONFIG_PATH), TUNED.config);
   const issue = { number: 7, updated_at: "2026-10-18T00:00:00Z", labels: [] };

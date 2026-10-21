@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: interview-idea-routes-brainstorm
+description: A half-formed idea with no problem or direction gets a recommendation to run /planning:brainstorm first, not a spec interview or a Brief
+tags: [interview, intake, idea-stage, brainstorm, scaffold]
+expected_outcome: The reply recommends /planning:brainstorm as the next step for the idea (it may also ask what problem the idea solves or why the user wants it); it does not auto-invoke brainstorm, does not ask scoping or acceptance-criteria questions as if the idea were settled, and no Write or Edit touches PLAN.md.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the interview skill from the planning plugin. I just had this thought: maybe our app could help neighbors swap houseplants? I don't really know what I want yet. I'm here and will answer."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+  - name: recommends-brainstorm
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply recommends running /planning:brainstorm (or the planning plugin's brainstorm skill by name) as the next step for this idea, before any Brief is written. A reply that also asks what problem the idea solves, or why the user wants it, still passes. FAIL if the reply never names brainstorm, or if it treats the idea as settled and asks scoping, feature or acceptance-criteria questions without recommending brainstorm first."
+  - name: no-auto-switch
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?brainstorm"'
+    min: 0
+    max: 0
+    arm: with-only
+  - name: no-plan-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*PLAN\.md"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-plan-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*PLAN\.md"'
+    min: 0
+    max: 0
+    arm: both

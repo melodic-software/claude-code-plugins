@@ -9,7 +9,7 @@
 // work-resolve-issue.yml caps its concurrent runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
+import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -425,7 +426,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
   assert.equal(slotOf("7 + 1"), null, "an issue number that is not digits picks no slot");
 
   assert.equal(pick.outputs.slot, `\${{ steps.${step.id}.outputs.slot }}`);
-  assert.equal(resolve.needs, "pick-slot");
+  assert.deepEqual(resolve.needs, ["admit", "pick-slot"]);
   assert.equal(resolve.concurrency.queue, "max");
   assert.notEqual(resolve.concurrency["cancel-in-progress"], true, "GitHub rejects queue: max with cancel-in-progress");
   const groups = new Set(
@@ -437,7 +438,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
 
   // A label other than agent-ready starts neither job, so it holds no runner.
   for (const [label, runs] of [["agent-ready", true], ["bug", false]]) {
-    const context = { "github.event.label.name": label, "needs.pick-slot.outputs.capped": "false" };
+    const context = { "github.event.label.name": label, "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": "false" };
     assert.equal(evaluate(pick.if, context), runs, label);
     assert.equal(evaluate(resolve.if, context), runs, label);
   }
@@ -445,7 +446,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
   // set nothing starts it.
   assert.equal(pick.outputs.capped, "${{ steps.wip.outputs.capped }}");
   for (const [capped, runs] of [["true", false], ["false", true], ["", true]]) {
-    const context = { "github.event.label.name": "agent-ready", "needs.pick-slot.outputs.capped": capped };
+    const context = { "github.event.label.name": "agent-ready", "needs.admit.outputs.proceed": "true", "needs.pick-slot.outputs.capped": capped };
     assert.equal(evaluate(resolve.if, context), runs, `capped ${JSON.stringify(capped)}`);
   }
   const wip = pick.steps.find((item) => item.id === "wip");
@@ -473,31 +474,32 @@ test("work-resolve-issue.yml: resolve-issue's timeout is the resolved issue dime
   // The run takes the dimensions whose timeout it got, not fields set while it waited.
   assert.equal(jobs["pick-slot"].outputs["issue-dimensions"], "${{ steps.dimensions.outputs.issue-dimensions }}");
   assert.equal(jobs["resolve-issue"].with["issue-dimensions"], "${{ needs.pick-slot.outputs.issue-dimensions }}");
-  const write = workflow("pr-run-activity-write.yml");
-  const config = write.jobs.run.steps.find((s) => s.id === "config");
+  const read = workflow("pr-run-activity-read.yml");
+  const config = read.jobs.run.steps.find((s) => s.id === "config");
   assert.equal(config.with["issue-dimensions"], "${{ inputs.issue-dimensions }}");
 });
 
-// A queued resolve-issue run starts on the workflow files of its label event.
-// The broker refuses its mint as workflow-modified when either file's blob at
-// the run's commit differs from main's tip (azure-iac binding.mjs), so the
-// run job checks the same rule first and fails red with no token request;
-// work-unblock's sweep re-fires a failed run that left no outcome marker.
-test("pr-run-activity-write.yml: an issue run on stale workflow files fails before the token request", () => {
-  const { jobs } = workflow("pr-run-activity-write.yml");
+// A queued resolve-issue run starts on the workflow files of its label event,
+// and its apply job mints from them. The broker refuses that mint as
+// workflow-modified when the caller's or the write runner's blob at the run's
+// commit differs from main's tip (azure-iac binding.mjs), so the read runner's run job checks the same
+// rule before any model turn and fails red; work-unblock's sweep re-fires a
+// failed run that left no outcome marker.
+test("pr-run-activity-read.yml: an issue run on stale workflow files fails before any model turn", () => {
+  const { jobs } = workflow("pr-run-activity-read.yml");
   const steps = jobs.run.steps;
   const index = (id) => steps.findIndex((step) => step.id === id);
   const check = steps[index("workflow-current")];
   assert.ok(check, "the run job has a workflow-current step");
   assert.ok(index("base") < index("workflow-current"), "it reads the default branch checkout");
   assert.ok(index("workflow-current") < index("issue-prior"));
-  assert.ok(index("workflow-current") < index("lane-token"));
-  // Every step from the check to the mint runs only while no step failed.
-  for (const step of steps.slice(index("workflow-current") + 1, index("lane-token") + 1)) {
+  assert.ok(index("workflow-current") < index("go"), "it runs before the run decides to start");
+  assert.ok(index("go") < index("act-skill"));
+  // Every step from the check to the decision runs only while no step failed.
+  for (const step of steps.slice(index("workflow-current") + 1, index("go") + 1)) {
     assert.doesNotMatch(String(step.if ?? ""), /always\(\)|failure\(\)|!cancelled\(\)/, step.name);
   }
-  // A skill run in issue mode only: report-outcome is a script, and the
-  // broker lets a report job's file differ.
+  // A skill run in issue mode only.
   for (const [issue, kind, runs] of [["7", "skill", true], ["7", "script", false], ["", "skill", false]]) {
     const context = {
       "inputs.issue-number": issue,
@@ -548,8 +550,222 @@ test("pr-run-activity-write.yml: an issue run on stale workflow files fails befo
   const reusableStale = runCheck(fresh);
   assert.equal(reusableStale.status, 1, "the write runner changed on main");
   assert.match(reusableStale.stdout, /::error::workflow-stale: \.github\/workflows\/pr-run-activity-write\.yml /);
+
   // A commit or caller this checkout cannot read is left to the broker.
   assert.equal(runCheck("0".repeat(40)).status, 0);
   assert.equal(runCheck("").status, 0);
   assert.equal(runCheck(run, "").status, 0);
+});
+
+// The issue lane's model job holds no write token. resolve-issue
+// runs on the read runner, whose run job (the one that runs the model) gets
+// only the job's read-only GITHUB_TOKEN; the App token is minted only by the
+// apply job that commits the patch.
+test("work-resolve-issue.yml: the resolve-issue model job receives no App token and no write permission", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const resolve = jobs["resolve-issue"];
+  assert.equal(resolve.uses, "./.github/workflows/pr-run-activity-read.yml");
+  assert.equal(resolve.with.activity, "resolve-issue");
+  assert.equal(resolve.with["output-mode"], "patch");
+  assert.deepEqual(Object.keys(resolve.secrets), ["claude-code-oauth-token"], "only the issue lane's Claude credential");
+  assert.equal(resolve.secrets["claude-code-oauth-token"], "${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}");
+
+  const read = workflow("pr-run-activity-read.yml");
+  const run = read.jobs.run;
+  assert.deepEqual(run.permissions, { contents: "read", "pull-requests": "read" }, "read-only, no id-token");
+  const text = JSON.stringify(run);
+  assert.doesNotMatch(text, /request-lane-token|lane-token|id-token|private-key/i, "no App token is minted in the model job");
+  assert.doesNotMatch(text, /gh auth|hosts\.yml/, "no cached gh login");
+  for (const step of run.steps.filter((s) => String(s.uses ?? "").startsWith("actions/checkout@"))) {
+    assert.equal(step.with["persist-credentials"], false, `${step.name} leaves no git credential`);
+    assert.equal(step.with.token, undefined, `${step.name} takes no token`);
+  }
+  const secrets = [...text.matchAll(/secrets\.([\w-]+)/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(secrets)], ["claude-code-oauth-token"]);
+  const skill = run.steps.find((s) => s.id === "act-skill");
+  assert.equal(skill.with.github_token, "${{ github.token }}", "the action gets the job's read-only token only");
+  // No job of the read runner holds a write permission but the report job's
+  // checks and issues and the broker-check job's id-token, none of which runs
+  // the model.
+  for (const [name, job] of Object.entries(read.jobs)) {
+    for (const [scope, level] of Object.entries(job.permissions ?? {})) {
+      if (level === "write") {
+        assert.ok((name === "report" && (scope === "checks" || scope === "issues")) || (name === "broker-check" && scope === "id-token"), `${name} ${scope}`);
+      }
+    }
+  }
+});
+
+test("work-resolve-issue.yml: apply-issue-patch commits the written patch from the write runner, one per issue at a time", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const apply = jobs["apply-issue-patch"];
+  assert.equal(apply.uses, "./.github/workflows/pr-run-activity-write.yml");
+  assert.equal(apply.needs, "resolve-issue");
+  assert.equal(apply.with.activity, "apply-issue-patch");
+  assert.equal(apply.with["patch-activity"], "resolve-issue");
+  assert.equal(apply.secrets, undefined, "the apply job gets no Claude credential");
+  for (const [input, output] of [
+    ["patch-state", "patch-state"],
+    ["patch-sha256", "patch-sha256"],
+    ["patch-attempt", "patch-attempt"],
+    ["patch-base-sha", "base-sha"],
+    ["patch-resume-tip", "resume-tip"],
+  ]) {
+    assert.equal(apply.with[input], `\${{ needs.resolve-issue.outputs.${output} }}`, input);
+  }
+  assert.equal(apply.concurrency.group, "work-resolve-issue-write-${{ github.event.issue.number }}");
+  assert.equal(apply.concurrency.queue, "max");
+  const runs = (started, state) =>
+    evaluate(apply.if, { "needs.resolve-issue.outputs.issue-run-started": started, "needs.resolve-issue.outputs.patch-state": state });
+  assert.equal(runs("true", "written"), true);
+  assert.equal(runs("true", "empty"), false, "an empty patch makes no branch");
+  assert.equal(runs("true", ""), false);
+  assert.equal(runs("false", "written"), false);
+  for (const job of ["run-checks", "report-outcome"]) {
+    assert.ok(jobs[job].needs.includes("apply-issue-patch"), `${job} waits for the branch`);
+  }
+});
+
+test("no job using pr-run-activity-write.yml runs the resolve-issue model step, and the write runner refuses an issue skill", () => {
+  const dir = new URL("../../workflows/", import.meta.url);
+  for (const name of readdirSync(dir).filter((file) => /\.ya?ml$/.test(file))) {
+    const { jobs = {} } = parse(readFileSync(new URL(name, dir), "utf8")) ?? {};
+    for (const [id, job] of Object.entries(jobs)) {
+      if (String(job?.uses ?? "").endsWith("pr-run-activity-write.yml")) {
+        assert.notEqual(job.with?.activity, "resolve-issue", `${name} ${id}`);
+      }
+    }
+  }
+  const { jobs } = workflow("pr-run-activity-write.yml");
+  const refuse = jobs.run.steps.find((s) => s.name === "Assert an issue skill runs in the read runner");
+  assert.ok(refuse);
+  const context = (issue, kind) => ({ "inputs.issue-number": issue, "steps.config.outcome": "success", "steps.config.outputs.kind": kind });
+  assert.equal(evaluate(refuse.if, context("7", "skill")), true);
+  assert.equal(evaluate(refuse.if, context("7", "script")), false);
+  assert.equal(evaluate(refuse.if, context("", "skill")), false);
+  assert.equal(spawnSync("bash", ["-c", refuse.run]).status, 1);
+});
+
+// The admission gate: on an issue anyone can open, only a listed human's
+// agent-ready label (or the lanes App's own) may start a job that gets the
+// issue lane's Claude credential or runs the read runner.
+const ISSUE_SECRET = "${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}";
+const ADMITTED = "needs.admit.outputs.proceed == 'true'";
+
+function needsOf(jobs, id, seen = new Set()) {
+  for (const need of [jobs[id].needs ?? []].flat()) {
+    if (!seen.has(need)) {
+      seen.add(need);
+      needsOf(jobs, need, seen);
+    }
+  }
+  return seen;
+}
+
+test("work-resolve-issue.yml: every job that gets the issue lane's credential or runs the read runner needs the admission gate's proceed", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const admit = jobs.admit;
+  assert.deepEqual(admit.permissions, { contents: "read" }, "the gate holds a read-only token");
+  assert.equal(admit.secrets, undefined);
+  assert.doesNotMatch(JSON.stringify(admit), /secrets\./, "the gate names no secret");
+  assert.equal(admit.outputs.proceed, "${{ steps.gate.outputs.proceed }}");
+  const checkout = admit.steps.find((s) => String(s.uses ?? "").startsWith("actions/checkout@"));
+  assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
+  assert.equal(checkout.with["persist-credentials"], false);
+  const gate = admit.steps.find((s) => s.id === "gate");
+  assert.equal(gate.uses, "./.base/.github/actions/check-trusted-trigger");
+  assert.deepEqual(
+    [gate.with["require-pr"], gate.with["require-kind"], gate.with["app-label"], gate.with["lanes-app-id"]],
+    ["false", "human", "agent-ready", "${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}"],
+  );
+  const guarded = Object.entries(jobs).filter(
+    ([, job]) => JSON.stringify(job).includes(ISSUE_SECRET) || job.uses === "./.github/workflows/pr-run-activity-read.yml",
+  );
+  assert.deepEqual(guarded.map(([id]) => id), ["resolve-issue"]);
+  for (const [id, job] of [...guarded, ["pick-slot", jobs["pick-slot"]]]) {
+    assert.ok(needsOf(jobs, id).has("admit"), `${id} needs admit`);
+    assert.ok(String(job.if).includes(ADMITTED), `${id} requires the gate's proceed`);
+    const context = {
+      "github.event.label.name": "agent-ready",
+      "needs.admit.outputs.proceed": "true",
+      "needs.pick-slot.outputs.capped": "false",
+    };
+    assert.equal(evaluate(job.if, context), true, `${id} runs once admitted`);
+    for (const proceed of ["false", ""]) {
+      assert.equal(evaluate(job.if, { ...context, "needs.admit.outputs.proceed": proceed }), false, `${id} with proceed ${JSON.stringify(proceed)}`);
+    }
+  }
+});
+
+// Drives the gate step's inputs through check-trusted-trigger's own main, as
+// the action's env map passes them, on an agent-ready label event. The gate
+// reads the run attempt's re-runner by id from the run's own record; the stub
+// answers that read alone, with `rerunner` (the labeler by default).
+const RUN_ID = "39500000001";
+async function admitOn(sender, rerunner = sender) {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const gate = jobs.admit.steps.find((s) => s.id === "gate");
+  const action = parse(read("../check-trusted-trigger/action.yml"));
+  const dir = mkdtempSync(join(tmpdir(), "admit-"));
+  try {
+    const eventPath = join(dir, "event.json");
+    const output = join(dir, "output");
+    writeFileSync(eventPath, JSON.stringify({ action: "labeled", label: { name: "agent-ready" }, issue: { number: 7 }, sender, repository: { full_name: "o/r" } }));
+    writeFileSync(output, "");
+    const values = {
+      "vars.AUTOMATION_LANES_APP_SENDER_ID": "337595936",
+      "github.triggering_actor": rerunner.login,
+    };
+    // The event and run the runner would pass through the action's defaults.
+    const env = {
+      GITHUB_OUTPUT: output,
+      REPOSITORY: "o/r",
+      EVENT_NAME: "issues",
+      EVENT_PATH: eventPath,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_RUN_ATTEMPT: "1",
+    };
+    for (const [name, value] of Object.entries(action.runs.steps[0].env)) {
+      const input = value.match(/^\$\{\{ inputs\.([\w-]+) \}\}$/)?.[1];
+      if (!input || !Object.hasOwn(gate.with, input)) continue;
+      const given = String(gate.with[input]);
+      env[name] = /^\$\{\{/.test(given) ? evaluate(given, values) : given;
+    }
+    env.TRUSTED_ACTORS_PATH = fileURLToPath(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url));
+    const reads = [];
+    const github = async (method, path) => {
+      reads.push(`${method} ${path}`);
+      if (method === "GET" && path === `/repos/o/r/actions/runs/${RUN_ID}`) {
+        return { id: Number(RUN_ID), run_attempt: 1, triggering_actor: { login: rerunner.login, id: rerunner.id } };
+      }
+      throw new Error(`the actor-only gate reads only its own run record, not ${method} ${path}`);
+    };
+    await checkTrustedTrigger({ env, github: Object.assign(github, { graphql: github }) });
+    // GITHUB_OUTPUT's delimited form, as writeOutputs writes it.
+    const proceed = /^proceed<<(\S+)\n(.*)\n\1$/m.exec(readFileSync(output, "utf8"))?.[2] ?? "";
+    const resolve = jobs["resolve-issue"];
+    assert.ok(reads.every((call) => call === `GET /repos/o/r/actions/runs/${RUN_ID}`), reads.join(", "));
+    return {
+      proceed,
+      runs: evaluate(resolve.if, {
+        "github.event.label.name": "agent-ready",
+        "needs.admit.outputs.proceed": proceed,
+        "needs.pick-slot.outputs.capped": "false",
+      }),
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("work-resolve-issue.yml: an unlisted labeler's agent-ready is refused at the gate and the credentialed job is skipped", async () => {
+  const stranger = { login: "stranger", id: 9999001, type: "User" };
+  assert.deepEqual(await admitOn(stranger), { proceed: "false", runs: false });
+  const listedBot = { login: "claude[bot]", id: 209825114, type: "Bot" };
+  assert.deepEqual(await admitOn(listedBot), { proceed: "false", runs: false }, "a listed bot is not a human");
+  const human = { login: "kyle-sexton", id: 153232337, type: "User" };
+  assert.deepEqual(await admitOn(human), { proceed: "true", runs: true }, "a listed human's label is admitted");
+  assert.deepEqual(await admitOn(human, stranger), { proceed: "false", runs: false }, "an unlisted re-runner of a listed human's run is refused");
+  const app = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
+  assert.deepEqual(await admitOn(app), { proceed: "true", runs: true }, "the lanes App's own agent-ready is admitted");
 });

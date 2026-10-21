@@ -2,6 +2,7 @@
 description: "Read-only orientation from durable state: where the session stands and why, from ledgers, handoff save-points, workflow checklists, running-retro ledgers, open PRs and work items, and git, which the built-in /recap never sees. Use when: 'where were we', 'catch me up', 'orient me', 'get my bearings', 'what's the state', 'brief me', 'situation report', 'where do we stand', 'lay of the land'. Writes nothing; freshness checks, recovery, and the next stage belong to sibling skills. Skip: what past sessions tried on a topic is /session-flow:recall."
 user-invocable: true
 disable-model-invocation: false
+argument-hint: "[catch-up]"
 metadata:
   workflow-stage: session
   summary: Read-only situation report from durable and off-thread state
@@ -52,8 +53,8 @@ now" matters, not just "what did we just say." The verification records
    off this thread. Background tasks, monitors, subagents, and the other
    off-thread kinds
    ([`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)).
-   Report the off-thread work at a glance. Do **not** inspect or recover
-   it; that is `/session-flow:keep-going`.
+   Report the off-thread work at a glance. In the four-part briefing, do
+   **not** inspect or recover it; that is `/session-flow:keep-going`.
 
 ## The briefing. Four parts
 
@@ -73,6 +74,45 @@ Synthesize the reads into a short, current-state briefing:
 Ground every claim in a read this turn. Where the durable state and the
 conversation disagree, surface the discrepancy rather than picking one,
 and point at `/session-flow:reanchor` to verify which still holds.
+
+## Catch-up scope. `/session-flow:orient catch-up`
+
+The four-part briefing above stays the default. This scope runs **only** on the explicit
+argument `catch-up`; a bare "catch me up" keeps the four-part briefing. It answers "what
+happened since my last message, and what needs me", still read-only.
+
+**Word cap.** The whole reply stays within `${user_config.orient_catch_up_word_cap}` words,
+visuals excluded. A value still reading `${user_config.…}`, or empty, is unset: the cap is 250.
+A value below 150 is treated as 150.
+
+**Anchor.** The user's last message they wrote themselves. Notifications and subagent results
+are not the user's messages. Assume the user remembers that message and nothing after it, so
+name each pull request, branch or agent as the user would know it, not by an internal id.
+
+**Gather, read-only.** Read the session's own work since the anchor, subagent reports, and
+messages from others in the chat. Re-check the current state of each pull request, CI run and
+agent the chat touched, rather than repeating what the chat last said; say which are still
+running and which could not be checked. This is a status read only; recovering or resuming
+an agent stays `/session-flow:keep-going`. Change nothing to gather. This is the one scope of
+this skill that re-checks live state; every "does not inspect", "does not verify" and "reports
+at a glance" limit below and above applies to the four-part briefing only.
+
+**Action items.** An action item is a decision or step only the user can take: a product
+choice, an approval, an irreversible action, or access the session lacks. Include any still
+waiting from before the anchor. Work the session can still do itself is not an action item.
+
+**Order of the reply.**
+
+1. **Needs you**, first. It opens with the number of action items, or says there are none
+   and stops when nothing happened since the anchor.
+2. **What happened**, most important first, each result with what it means for the user. Skip
+   steps that changed nothing. Give one line for work left that the session can do itself.
+3. **Each action item**: the decision, why it matters now, the options and what each costs,
+   the recommendation, what happens if the user does not answer, and any part not known, said
+   as unknown.
+
+Add a visual (table, diagram) only when one exists or can be built from what is in hand; never
+invent a number or picture.
 
 ## Boundaries. Pick the right sibling
 
@@ -117,10 +157,12 @@ when the person can run it, never that it is present. The four-part records live
 
 - **Writes nothing**, no files, no memory, no `/clear`. It is a read-only
   briefing that leaves state untouched.
-- **Does not verify freshness**. It reports what the durable state says;
+- **Does not verify freshness** (in the four-part briefing; `catch-up` re-checks
+  live status, see its scope). It reports what the durable state says;
   confirming those claims still hold is `/session-flow:reanchor`.
 - **Does not recover off-thread work**. It names what is in flight;
-  inspecting and resuming it is `/session-flow:keep-going`.
+  inspecting (beyond the `catch-up` status read) and resuming it is
+  `/session-flow:keep-going`.
 - **Does not prescribe the next stage**; that is `/session-flow:workflow`.
 - **Does not score or codify**; that is `/session-flow:retro`.
 - **Does not invoke the built-in `/recap`**. Built-ins are not

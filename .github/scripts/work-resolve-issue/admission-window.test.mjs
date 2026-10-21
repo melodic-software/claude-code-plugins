@@ -2,7 +2,9 @@
 // 2026-10-19): hourly = lane merges in the last 24 h / 24, release point =
 // admission-factor x hourly x admission-window-hours (0.8 and 24 here unless a
 // test sets them), admissions open while the agent-ready backlog is under the
-// release point; exit 0 open, 1 held, 2 on error.
+// release point; exit 0 open, 1 held, 2 on error. The owner's floor
+// (2026-10-21): the allowed rate is never under admission-min-per-hour (1 here
+// unless a test sets it), so the release point is at least 1 x the window.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -30,11 +32,11 @@ function stubGh({ merged, admitted, repoView = REPO }) {
   return { run, calls };
 }
 
-async function report({ merged, admitted, windowHours = 24, factor = 0.8, argv = ["--repo", REPO], repoView }) {
+async function report({ merged, admitted, windowHours = 24, factor = 0.8, minPerHour = 1, argv = ["--repo", REPO], repoView }) {
   const { run, calls } = stubGh({ merged, admitted, repoView });
   const lines = [];
   const errors = [];
-  const code = await main({ argv, run, loadLimits: async () => ({ windowHours, factor }), now: NOW, out: (l) => lines.push(l), err: (l) => errors.push(l) });
+  const code = await main({ argv, run, loadLimits: async () => ({ windowHours, factor, minPerHour }), now: NOW, out: (l) => lines.push(l), err: (l) => errors.push(l) });
   return { code, lines, errors, calls };
 }
 
@@ -55,7 +57,7 @@ test("at or over the release point admissions are held and exit 1", async () => 
 
 test("a release point that is whole by hand holds at that count", async () => {
   // 25 merges: 0.8 x 25/24 x 24 = 20, which a naive float product makes 20.000000000000004.
-  const { code, lines } = await report({ merged: 25, admitted: 20 });
+  const { code, lines } = await report({ merged: 25, admitted: 20, minPerHour: 0 });
   assert.equal(code, 1);
   assert.deepEqual(lines, ["merged24h=25 hourly=1.04 admitted=20 release_point=20 admissions=held allowed_per_hour=0.83"]);
 });
@@ -68,14 +70,27 @@ test("the window scales the release point", async () => {
 
 test("the factor scales the release point and the allowed rate", async () => {
   // 36 merges, factor 0.5: 0.5 x 1.5 x 24 = 18; 18 admitted holds, 17 opens.
-  const held = await report({ merged: 36, admitted: 18, factor: 0.5 });
+  const held = await report({ merged: 36, admitted: 18, factor: 0.5, minPerHour: 0 });
   assert.equal(held.code, 1);
   assert.deepEqual(held.lines, ["merged24h=36 hourly=1.5 admitted=18 release_point=18 admissions=held allowed_per_hour=0.75"]);
-  assert.equal((await report({ merged: 36, admitted: 17, factor: 0.5 })).code, 0);
+  assert.equal((await report({ merged: 36, admitted: 17, factor: 0.5, minPerHour: 0 })).code, 0);
 });
 
-test("no merges in 24 h holds admissions even with an empty backlog", async () => {
-  const { code, lines } = await report({ merged: 0, admitted: 0 });
+test("no merges in 24 h leaves the floor open: 1/h x 24 h", async () => {
+  const open = await report({ merged: 0, admitted: 23 });
+  assert.equal(open.code, 0);
+  assert.deepEqual(open.lines, ["merged24h=0 hourly=0 admitted=23 release_point=24 admissions=open allowed_per_hour=1"]);
+  assert.equal((await report({ merged: 0, admitted: 24 })).code, 1);
+});
+
+test("the floor binds only while the merge rate is under it", async () => {
+  // 12 merges: 0.8 x 0.5 = 0.4/h, under the 1/h floor, so 24; 2/h floor gives 48.
+  assert.match((await report({ merged: 12, admitted: 0 })).lines[0], / release_point=24 admissions=open allowed_per_hour=1$/);
+  assert.match((await report({ merged: 12, admitted: 0, minPerHour: 2 })).lines[0], / release_point=48 /);
+});
+
+test("a floor of 0 holds admissions with no merges, as before the floor", async () => {
+  const { code, lines } = await report({ merged: 0, admitted: 0, minPerHour: 0 });
   assert.equal(code, 1);
   assert.match(lines[0], / release_point=0 admissions=held allowed_per_hour=0$/);
 });

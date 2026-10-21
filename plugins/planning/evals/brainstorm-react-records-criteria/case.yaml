@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: brainstorm-react-records-criteria
+description: At the reaction step, a brainstorm records the reason a candidate resonates as a criterion and asks why when the user gave none
+tags: [brainstorm, react, criteria]
+expected_outcome: The reply records "no new service to run" as a criterion for candidate 2, asks why candidate 5 resonates, and does not pick a candidate for the user.
+execution:
+  prompt: "/planning:brainstorm topic report-speed. Intake is done: the reports page takes 40 seconds for large accounts, and I want it under 5 because account managers open it in client calls. Your candidates were: 1. add an index on report_rows.account_id; 2. cache the rendered report for an hour; 3. paginate the table; 4. precompute daily aggregates; 5. move reports to a separate read replica; 6. rewrite reports on a columnar store. 2 and 5 resonate. 2 because we can't run another service."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?brainstorm"'
+    arm: with-only
+  - name: criteria-recorded
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply records the user's reason for candidate 2 (no new service to run, or that they cannot run another service) as a criterion or requirement the scope must meet, AND asks the user why candidate 5 resonates or what it offers them, since the user gave no reason for it. FAIL if the reply ignores the stated reason, if it invents a reason for candidate 5 without asking, or if it chooses one candidate for the user."
