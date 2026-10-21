@@ -534,6 +534,23 @@ class TestAssetAccess(ServerCase):
         self.assertEqual(code, 200, out)
         self.assertEqual(self.png(cookie), (403, "removed"))
 
+    def test_the_asset_cookie_is_secure_on_the_tunnel_host(self):
+        self.app.tunnel_host = "fake-0123456789ab.trycloudflare.com"
+        _, attrs = self.cookie({**self.guest, "Host": self.app.tunnel_host})
+        self.assertIn("Secure", attrs)
+
+    def test_the_asset_cookie_is_secure_on_the_retired_host(self):
+        self.app.tunnel_host = "new.example.com"
+        self.app.retired_host = "fake-0123456789ab.trycloudflare.com"
+        _, attrs = self.cookie({**self.guest, "Host": self.app.retired_host})
+        self.assertIn("Secure", attrs)
+
+    def test_the_asset_cookie_is_not_secure_on_the_local_address(self):
+        self.app.tunnel_host = "new.example.com"
+        self.app.retired_host = "fake-0123456789ab.trycloudflare.com"
+        _, attrs = self.cookie(self.guest)
+        self.assertNotIn("Secure", attrs)
+
     def test_an_anonymous_state_read_sets_no_cookie(self):
         self.assertNotIn("Set-Cookie", self.get("/api/state")[1])
 
