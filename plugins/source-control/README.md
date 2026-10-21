@@ -66,8 +66,10 @@ research-gated:
   react → reply → fix → verify-on-GitHub treatment.
 - **merge**. 6-Gate readiness re-verification, squash merge, worktree
   reuse/cleanup, post-merge CI health check. Merges or enqueues without
-  asking only once the AI review checks pass on the pinned head commit; otherwise
-  merges on approval. Never arms auto-merge.
+  asking only once the AI review checks pass on the reviewed head commit;
+  otherwise merges on approval. Merges with plain `gh pr merge` and the flags
+  the repository needs, `--auto` only pinned to the reviewed head; a refused merge is reported, never handed to the user
+  or retried in another shape.
 - **fetch-logs**. Tiered CI-log retrieval (annotations → full untruncated
   ZIP via the REST API → per-job text).
 - **view / list**. Read-only PR reads for other skills: one PR's facts
@@ -97,7 +99,9 @@ Tiered, self-pacing fleet loop over your own open PRs (designed for
   addressed, merges through the same gate, escalates only what it genuinely
   cannot solve. Requires Python 3.
 
-Cross-tier invariants: never an unprotected force-push, never `--admin`,
+Cross-tier invariants of the babysit tiers (an interactive
+`/source-control:pull-request merge` follows its own merge phase): never an
+unprotected force-push, never `--admin`,
 never GitHub settings or branch-protection changes, never a repository
 outside the watched owners, and dependency-manager-authored PRs
 (Dependabot/Renovate-class) are never merged autonomously in any tier. A
