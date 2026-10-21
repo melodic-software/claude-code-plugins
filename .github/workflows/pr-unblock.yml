@@ -62,6 +62,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     # One per-PR queue shared by every write lane: it queues, never cancels.
     concurrency:
@@ -86,6 +87,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -113,6 +115,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -194,6 +197,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -216,6 +220,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -363,6 +368,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
@@ -393,6 +399,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -471,6 +478,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
