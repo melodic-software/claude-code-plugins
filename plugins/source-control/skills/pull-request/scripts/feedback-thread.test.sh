@@ -172,11 +172,14 @@ disposition '{"disposition":"UNCERTAIN","note":"Needs the vendor docs to settle.
 run record PRRT_b "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "an UNCERTAIN record with no evidence succeeds" 0 "$?"
 assert_eq "both are recorded in order" "INCORRECT UNCERTAIN" "$(jq -rs 'map(.disposition) | join(" ")' "$STUB/replies.jsonl")"
+assert_eq "INCORRECT and UNCERTAIN make no API call" 0 "$(wc -l <"$STUB/calls")"
+
+# a note naming a token placeholder and a commit sha is recorded, still with no API call
 setup
 disposition "{\"disposition\":\"UNCERTAIN\",\"note\":\"The fixture uses ghs_job; see $FIX.\"}"
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a note naming a token placeholder and a commit sha is recorded" 0 "$?"
-assert_eq "INCORRECT and UNCERTAIN make no API call" 0 "$(wc -l <"$STUB/calls")"
+assert_eq "the placeholder note record makes no API call" 0 "$(wc -l <"$STUB/calls")"
 
 # the note limit counts code points, as the reply job does: 2000 emoji pass,
 # 2001 are refused
