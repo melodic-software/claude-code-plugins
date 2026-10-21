@@ -7,10 +7,12 @@
 # RECOMMENDED lines, loop-lane telemetry freshness (last-cycle age + flags),
 # review findings stranded on already-merged PRs, and per lane workflow the last
 # 7 days of runs: failures by class, limit stops, restarts and turn headroom,
-# then model usage per activity and profile.
+# then model usage per activity and profile; last, what on GitHub or Azure is
+# charging or could start charging.
 #
-# Read-only and gh-based: it never mutates labels, comments, issues, or PRs.
-# It runs `gh` read queries only. The authoritative merge gate lives in the
+# Read-only: it never mutates labels, comments, issues, PRs, or any GitHub or
+# Azure setting. It runs `gh` read queries, plus `az` reads for the Azure cost
+# lines when az is installed and logged in. The authoritative merge gate lives in the
 # source-control:babysit-prs skill; the merge-ready list here is a lighter
 # gh-native signal (mergeStateStatus CLEAN + non-draft) meant for a 5-second
 # glance, not a substitute for that skill's classification. A clean PR whose
@@ -27,7 +29,10 @@
 # line, never with empty-state wording. A response the script cannot parse is
 # a failed source too. The header counts the unreadable sections. The exit code
 # tells "nothing to report" from "could not read": 5 when every section was
-# unreadable, 6 when some were, 0 when none was.
+# unreadable, 6 when some were, 0 when none was. The cost section is one section
+# of separate reads: a failed read is an UNREADABLE line beside the lines that
+# did read, and the section counts as unreadable when any line is; it counts
+# toward exit 5 only when none of its lines read anything.
 #
 # Caps. Every list read that carries a result cap prints a PARTIAL line when
 # the result reaches the cap, so a truncated list never reads as the whole set.
@@ -63,6 +68,38 @@
 #   morning-brief.sh --lane-read-limit N      cap on lane runs whose job annotations are read (default 200)
 #   morning-brief.sh --max-turns-hits N       max-turns hits per activity and profile above which
 #                                             the lanes model-usage table prints RECOMMENDED (default: unset)
+#   morning-brief.sh --org ORG                GitHub org whose billing the cost section reads
+#                                             (default: the repo's owner)
+#   morning-brief.sh --subscription ID        Azure subscription the cost section reads
+#                                             (default: az's current one)
+#   morning-brief.sh --actions-included-minutes N
+#                                             Actions minutes the org's plan includes (default: unset)
+#   morning-brief.sh --actions-included-storage-gb N
+#                                             artifact storage the plan includes, in GB (default: unset)
+#   morning-brief.sh --usage-alert-percent N  share of an included amount that is an ALERT (default 50)
+#   morning-brief.sh --log-cap-alert-percent N
+#                                             share of a workspace's daily cap that is an ALERT (default 50)
+#   morning-brief.sh --forecast-alert N       budget forecast above which a budget is an ALERT
+#                                             (default: the budget's own amount)
+#   morning-brief.sh --required-budgets A,B   Azure budgets that must exist (default: none named)
+#   morning-brief.sh --anomaly-alert NAME     the cost anomaly alert that must exist (default: any)
+#   morning-brief.sh --expiry-days N          days before a budget or alert ends that are an ALERT
+#                                             (default 30)
+#   morning-brief.sh --allowed-collaborators A,B
+#                                             direct collaborators besides org admins (default: none)
+#   morning-brief.sh --workflow-read-limit N  cap on workflow files read for secret triggers (default 300)
+#   morning-brief.sh --config-home DIR        convention home holding harness-ops.yaml (default: the
+#                                             checkout's docs/conventions)
+#
+# Cost settings. Each cost flag above is also a key under `morning_brief:` in
+# <home>/harness-ops.yaml (team, tracked) and <home>/harness-ops.local.yaml
+# (personal, gitignored): org, subscription, actions_included_minutes,
+# actions_included_storage_gb, usage_alert_percent, log_cap_alert_percent,
+# forecast_alert, required_budgets and allowed_collaborators (lists),
+# anomaly_alert, expiry_days, workflow_read_limit. A flag beats the personal
+# file, which beats the team file, which beats the default. An invalid value is
+# named on stderr and its key takes the default, never a lower layer's value
+# (docs/conventions/config-cascade/README.md).
 #   morning-brief.sh --help
 #
 # Fixture flags (skip the network; used by the test suite and for reuse):
@@ -90,6 +127,20 @@
 #                             messages of its jobs, plus an activity=<name>
 #                             line per reusable-workflow job with annotations;
 #                             a run absent from it was not read
+#   --billing-usage-json FILE the org billing usage response ({usageItems})
+#   --billing-budgets-json FILE
+#                             the org billing budgets response ({budgets})
+#   --azure-json FILE         object mapping each Azure read to its az output:
+#                             account, budgets, pricings, defenderCost, activity,
+#                             secureScores, advisorSecurity, advisorCost; no
+#                             account means az is not logged in, and another
+#                             absent key is a read that failed; also budgets
+#                             and scheduledActions (the REST list responses),
+#                             workspaces, and laUsage (workspace id -> query rows);
+#                             defenderCost_<n> is the cost query's page n
+#   --org-scan-json FILE      the org scan: {admins:[login], repos:[{name,
+#                             visibility, archived, collaborators:[login],
+#                             workflows:[{path, text}]}], partial: N}
 #
 # Exit codes:
 #   0  brief rendered, every section read
@@ -159,6 +210,26 @@ LANE_READ_LIMIT=200
 # Max-turns hits per activity and profile above which the model-usage table
 # prints a RECOMMENDED line. Unset by default: no evidence yet sets a number.
 MAX_TURNS_HITS=""
+ORG_ARG=""
+# Set only by --org and --subscription: a settings file never turns a fixture run live.
+ORG_FLAG=0
+SUBSCRIPTION_FLAG=0
+ORG_SCAN_JSON=""
+ACTIONS_INCLUDED_MINUTES=""
+ACTIONS_INCLUDED_STORAGE_GB=""
+USAGE_ALERT_PERCENT=""
+LOG_CAP_ALERT_PERCENT=""
+FORECAST_ALERT=""
+REQUIRED_BUDGETS_ARG=""
+ANOMALY_ALERT=""
+EXPIRY_DAYS=""
+ALLOWED_COLLABORATORS_ARG=""
+WORKFLOW_READ_LIMIT=""
+CONFIG_HOME_ARG=""
+SUBSCRIPTION_ARG=""
+BILLING_USAGE_JSON=""
+BILLING_BUDGETS_JSON=""
+AZURE_JSON=""
 
 # Result caps on the gh list reads. A result that reaches its cap prints PARTIAL.
 LABEL_LIMIT=500
@@ -203,12 +274,32 @@ require_file() {
 # Same shape as require_value above, for the numeric flags. Callers then
 # assign with `$((10#$2))`, which forces base-10 so a leading-zero value is not
 # misread as octal (08 errors outright, 010 would evaluate as 8).
+# A money or size amount: digits with an optional decimal part.
+require_amount() {
+  [[ "$2" =~ ^[0-9]+(\.[0-9]+)?$ ]] || {
+    printf 'morning-brief: %s requires a non-negative number\n' "$1" >&2
+    exit 3
+  }
+}
+
 require_uint() {
   [[ "$2" =~ ^[0-9]+$ ]] || {
     printf 'morning-brief: %s requires a non-negative integer\n' "$1" >&2
     exit 3
   }
 }
+
+# A share of an amount: an integer from 0 to 100.
+is_percent() { [[ "$1" =~ ^[0-9]+$ ]] && ((10#$1 <= 100)); }
+require_percent() {
+  is_percent "$2" || {
+    printf 'morning-brief: %s requires an integer from 0 to 100\n' "$1" >&2
+    exit 3
+  }
+}
+
+# A GitHub owner name: letters, digits and inner hyphens, at most 39 characters.
+is_owner() { [[ "$1" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$ ]]; }
 
 while (($# > 0)); do
   case "$1" in
@@ -317,6 +408,108 @@ while (($# > 0)); do
     LANE_ANNOTATIONS_JSON="$2"
     shift 2
     ;;
+  --org)
+    require_value "$1" "${2:-}"
+    is_owner "$2" || {
+      printf 'morning-brief: --org requires a GitHub owner name (letters, digits, inner hyphens)\n' >&2
+      exit 3
+    }
+    ORG_ARG="$2"
+    ORG_FLAG=1
+    shift 2
+    ;;
+  --subscription)
+    require_value "$1" "${2:-}"
+    SUBSCRIPTION_ARG="$2"
+    SUBSCRIPTION_FLAG=1
+    shift 2
+    ;;
+  --billing-usage-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    BILLING_USAGE_JSON="$2"
+    shift 2
+    ;;
+  --billing-budgets-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    BILLING_BUDGETS_JSON="$2"
+    shift 2
+    ;;
+  --config-home)
+    require_value "$1" "${2:-}"
+    CONFIG_HOME_ARG="$2"
+    shift 2
+    ;;
+  --org-scan-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    ORG_SCAN_JSON="$2"
+    shift 2
+    ;;
+  --actions-included-minutes)
+    require_value "$1" "${2:-}"
+    require_amount "$1" "$2"
+    ACTIONS_INCLUDED_MINUTES="$2"
+    shift 2
+    ;;
+  --actions-included-storage-gb)
+    require_value "$1" "${2:-}"
+    require_amount "$1" "$2"
+    ACTIONS_INCLUDED_STORAGE_GB="$2"
+    shift 2
+    ;;
+  --usage-alert-percent)
+    require_value "$1" "${2:-}"
+    require_percent "$1" "$2"
+    USAGE_ALERT_PERCENT="$((10#$2))"
+    shift 2
+    ;;
+  --log-cap-alert-percent)
+    require_value "$1" "${2:-}"
+    require_percent "$1" "$2"
+    LOG_CAP_ALERT_PERCENT="$((10#$2))"
+    shift 2
+    ;;
+  --forecast-alert)
+    require_value "$1" "${2:-}"
+    require_amount "$1" "$2"
+    FORECAST_ALERT="$2"
+    shift 2
+    ;;
+  --required-budgets)
+    require_value "$1" "${2:-}"
+    REQUIRED_BUDGETS_ARG="$2"
+    shift 2
+    ;;
+  --anomaly-alert)
+    require_value "$1" "${2:-}"
+    ANOMALY_ALERT="$2"
+    shift 2
+    ;;
+  --expiry-days)
+    require_value "$1" "${2:-}"
+    require_uint "$1" "$2"
+    EXPIRY_DAYS="$((10#$2))"
+    shift 2
+    ;;
+  --allowed-collaborators)
+    require_value "$1" "${2:-}"
+    ALLOWED_COLLABORATORS_ARG="$2"
+    shift 2
+    ;;
+  --workflow-read-limit)
+    require_value "$1" "${2:-}"
+    require_uint "$1" "$2"
+    WORKFLOW_READ_LIMIT="$((10#$2))"
+    shift 2
+    ;;
+  --azure-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    AZURE_JSON="$2"
+    shift 2
+    ;;
   --now)
     require_value "$1" "${2:-}"
     NOW_ISO="$2"
@@ -380,6 +573,104 @@ have jq || {
   printf 'morning-brief: jq required\n' >&2
   exit 4
 }
+
+# --- Cost settings: flag, then personal file, then team file, then default ---
+# The convention home is --config-home, else docs/conventions in the checkout's
+# git root; a root that is $HOME, or no git root, has no home.
+CONFIG_SOURCES=()
+# Run by bare filename (`bash morning-brief.sh`), the strip is a no-op: the
+# script's directory is then the current one.
+SCRIPT_DIR="${BASH_SOURCE[0]%/*}"
+[[ "$SCRIPT_DIR" == "${BASH_SOURCE[0]}" ]] && SCRIPT_DIR=.
+config_home() {
+  local root
+  if [[ -n "$CONFIG_HOME_ARG" ]]; then
+    printf '%s' "$CONFIG_HOME_ARG"
+    return
+  fi
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [[ -n "$root" && "$root" != "$HOME" ]] || return 1
+  printf '%s/docs/conventions' "$root"
+}
+# config_layer FILE: the file's morning_brief keys as `key<TAB>value` lines, or
+# nothing (and a stderr note) when it cannot be parsed. A symlinked layer is
+# skipped, so a link cannot point the brief at a file outside the home.
+config_layer() {
+  local file="$1" out msg
+  [[ -f "$file" ]] || return 0
+  if [[ -L "$file" ]]; then
+    printf 'morning-brief: %s is a symlink; that layer is skipped\n' "$file" >&2
+    return 0
+  fi
+  if ! out="$(awk -f "$SCRIPT_DIR/lib/yaml-subset.awk" "$file" 2>/dev/null)"; then
+    # The message can quote a key from the file: control characters in it are escaped.
+    msg="$(cut -f2- <<<"$out" | tr '\t' ' ')"
+    [[ "$msg" == *[[:cntrl:]]* ]] && printf -v msg '%q' "$msg"
+    printf 'morning-brief: %s could not be parsed (%s); that layer is skipped\n' "$file" "$msg" >&2
+    return 0
+  fi
+  CONFIG_SOURCES+=("${file##*/}")
+  awk -F'\t' '$1 ~ /^morning_brief\./ { sub(/^morning_brief\./, "", $1); print $1 "\t" $2 }' <<<"$out"
+}
+CONFIG_TEAM=""
+CONFIG_LOCAL=""
+if CONFIG_HOME="$(config_home)"; then
+  CONFIG_TEAM="$(config_layer "$CONFIG_HOME/harness-ops.yaml")"
+  CONFIG_LOCAL="$(config_layer "$CONFIG_HOME/harness-ops.local.yaml")"
+fi
+COST_SETTING_LAYERS=()
+# config_value VAR KEY KIND DEFAULT: sets VAR to the value KEY resolves to. KIND
+# is text, owner, uint, percent, amount or list. VAR already holds the flag's
+# value, if any; a list is read from KEY.0, KEY.1 and so on and comma-joined.
+# Each value set by a flag or a file is recorded as `key=value (layer)`.
+config_value() {
+  local var="$1" key="$2" kind="$3" default="$4" layer value file
+  if [[ -n "${!var}" ]]; then
+    COST_SETTING_LAYERS+=("$key=${!var} (flag)")
+    return
+  fi
+  for layer in local team; do
+    if [[ "$layer" == local ]]; then value="$CONFIG_LOCAL" file="harness-ops.local.yaml"; else value="$CONFIG_TEAM" file="harness-ops.yaml"; fi
+    if [[ "$kind" == list ]]; then
+      value="$(awk -F'\t' -v k="$key" '
+        index($1, k ".") == 1 && substr($1, length(k) + 2) ~ /^[0-9]+$/ { printf "%s%s", (n++ ? "," : ""), $2 }
+        $1 == k || (index($1, k ".") == 1 && substr($1, length(k) + 2) !~ /^[0-9]+$/) { bad = 1 }
+        END { if (bad) printf "\001" }' <<<"$value")"
+    else
+      value="$(awk -F'\t' -v k="$key" '$1 == k { print $2; found = 1 } index($1, k ".") == 1 { print "\001"; found = 1 } END { if (!found) exit 1 }' <<<"$value")" || continue
+    fi
+    [[ -n "$value" ]] || continue
+    case "$kind" in
+    uint) [[ "$value" =~ ^[0-9]+$ ]] ;;
+    percent) is_percent "$value" ;;
+    owner) is_owner "$value" ;;
+    amount) [[ "$value" =~ ^[0-9]+(\.[0-9]+)?$ ]] ;;
+    *) [[ "$value" != *[[:cntrl:]]* ]] ;;
+    esac || {
+      printf 'morning-brief: %s: morning_brief.%s has an invalid value (%q); the default is used\n' "$file" "$key" "${value//$'\001'/}" >&2
+      COST_SETTING_LAYERS+=("$key=default (invalid in $file)")
+      printf -v "$var" '%s' "$default"
+      return
+    }
+    [[ "$kind" == uint || "$kind" == percent ]] && value="$((10#$value))"
+    COST_SETTING_LAYERS+=("$key=$value ($file)")
+    printf -v "$var" '%s' "$value"
+    return
+  done
+  printf -v "$var" '%s' "$default"
+}
+config_value ORG_ARG org owner ""
+config_value SUBSCRIPTION_ARG subscription text ""
+config_value ACTIONS_INCLUDED_MINUTES actions_included_minutes amount ""
+config_value ACTIONS_INCLUDED_STORAGE_GB actions_included_storage_gb amount ""
+config_value USAGE_ALERT_PERCENT usage_alert_percent percent 50
+config_value LOG_CAP_ALERT_PERCENT log_cap_alert_percent percent 50
+config_value FORECAST_ALERT forecast_alert amount ""
+config_value REQUIRED_BUDGETS_ARG required_budgets list ""
+config_value ANOMALY_ALERT anomaly_alert text ""
+config_value EXPIRY_DAYS expiry_days uint 30
+config_value ALLOWED_COLLABORATORS_ARG allowed_collaborators list ""
+config_value WORKFLOW_READ_LIMIT workflow_read_limit uint 300
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -711,7 +1002,7 @@ STUCK_LABELS=("${QUEUE_LABELS[@]}")
 # --- Section state ---------------------------------------------------------
 # Sections render into files so the header, printed first, can carry the
 # unreadable count.
-SECTIONS_TOTAL=7
+SECTIONS_TOTAL=8
 UNREADABLE=0
 UNREADABLE_NAMES=()
 
@@ -1851,6 +2142,622 @@ print_lanes() {
 }
 
 # =============================================================================
+# Section 7 — cost: what on GitHub or Azure is charging or could start charging
+# =============================================================================
+# One line per check: a status (OK, ALERT, INFO or UNREADABLE), its source, a
+# label and the detail. ALERT is the line to act on. A read that failed or was
+# not made (no org admin, az absent or logged out, a fixture run) prints each of
+# its lines UNREADABLE with the reason and the fix, beside the lines that read.
+#
+# Every Azure read is a GET, except the Cost Management query, a POST that
+# reads. Never `--refresh`, never `az graph`, never a plan or setting write
+# (SKILL.md points at the upstream pages that say why). Dynamic extension
+# install is off, so a command that would need one fails instead of installing.
+COST_ROWS=()
+COST_PARTIAL=()
+COST_HAS_DATA=0
+COST_LOST=0
+AZ_SUB_ARGS=()
+[[ -n "$SUBSCRIPTION_ARG" ]] && AZ_SUB_ARGS=(--subscription "$SUBSCRIPTION_ARG")
+# Month-to-date actual cost by day, service and meter category; the day column
+# gives the latest usage date, the budget lines' data date.
+COST_QUERY_BODY='{"type":"ActualCost","timeframe":"MonthToDate","dataset":{"granularity":"Daily","aggregation":{"cost":{"name":"Cost","function":"Sum"}},"grouping":[{"type":"Dimension","name":"ServiceName"},{"type":"Dimension","name":"MeterCategory"}]}}'
+# Activity-log events read per run; a read that reaches it prints PARTIAL.
+AZ_ACTIVITY_LIMIT=1000
+# Cost query pages read per run; a read that reaches it prints PARTIAL.
+AZ_QUERY_PAGE_LIMIT=20
+# Control-plane writes that can start a charge or widen access.
+COST_WRITE_OPS='["microsoft.security/pricings/write","microsoft.authorization/policyassignments/write","microsoft.authorization/roleassignments/write"]'
+COST_MONTH="$(from_epoch "$NOW_EPOCH")"
+COST_MONTH="${COST_MONTH:0:7}"
+COST_ORG="${ORG_ARG:-${REPO%%/*}}"
+COST_ORG_ERR=""
+if [[ -n "$COST_ORG" ]] && ! is_owner "$COST_ORG"; then
+  COST_ORG_ERR="${COST_ORG//[[:cntrl:]]/ } is not a GitHub owner name"
+  COST_ORG=""
+fi
+# A fixture run never reaches for the network: the cost reads go live with the
+# rest of the brief, or when the --org or --subscription flag asks for them. A
+# settings file never does.
+GH_COST_LIVE=$(((ANY_LIVE || ORG_FLAG) && ${#COST_ORG} > 0))
+AZ_COST_LIVE=$((ANY_LIVE || ORG_FLAG || SUBSCRIPTION_FLAG))
+COST_DATA_DATE="usage data date unread"
+# Hours in this month, the period an included storage amount covers.
+COST_YEAR=$((10#${COST_MONTH:0:4}))
+COST_MON=$((10#${COST_MONTH:5:2}))
+COST_NEXT="$((COST_YEAR + COST_MON / 12))-$(printf '%02d' $((COST_MON % 12 + 1)))"
+COST_HOURS=$((($(to_epoch "${COST_NEXT}-01T00:00Z") - $(to_epoch "${COST_MONTH}-01T00:00Z")) / 3600))
+# Comma lists become JSON arrays for the jq programs.
+csv_json() { jq -cn --arg s "$1" '$s | split(",") | map(gsub("^[[:space:]]+|[[:space:]]+$"; "")) | map(select(length > 0))'; }
+REQUIRED_BUDGETS_JSON="$(csv_json "$REQUIRED_BUDGETS_ARG")"
+ALLOWED_COLLABORATORS_JSON="$(csv_json "$ALLOWED_COLLABORATORS_ARG")"
+# The GitHub billing usage lines, and the Azure lines, so a read that fails
+# before any of them renders each of them UNREADABLE.
+USAGE_LABELS=("usage $COST_MONTH" "Actions minutes $COST_MONTH, private repos" "Actions storage $COST_MONTH, private repos")
+SCAN_LABELS=("collaborators" "fork-triggered workflows")
+ADMIN_FIX="org admin needed: run gh auth login with an org admin account"
+AZ_LABELS=("budgets" "budget and anomaly alerts" "Defender plans" "Defender charges, month to date"
+  "Log Analytics" "activity, last 24h" "secure score" "Advisor security" "Advisor cost")
+# The Log Analytics query: the peak day of billable ingestion over 31 days.
+LA_PEAK_QUERY='Usage | where TimeGenerated > ago(31d) | where IsBillable == true | summarize GB = sum(Quantity) / 1000.0 by Day = bin(TimeGenerated, 1d) | top 1 by GB desc'
+
+# Each program turns one response into rows of [status, source, label, detail];
+# a response of the wrong shape is an error, so the read renders UNREADABLE.
+# shellcheck disable=SC2016  # $month, $ops and $label are jq variables bound by cost_jq
+COST_DEFS='
+  def money: (. * 100 | round) / 100 | tostring;
+  def num: if type == "string" then tonumber elif type == "number" then . else error("not a number") end;
+  def list: if type == "array" then . else error("not a list") end;
+  def str: if type == "string" then . else error("not a string") end;
+  def bool: if type == "boolean" then . else error("not a boolean") end;
+'
+# shellcheck disable=SC2016  # jq variables, as above
+USAGE_JQ='
+  .usageItems | list
+  | map(select(.date | str | startswith($month))) | group_by(.product)
+  | if length == 0 then ["OK", "GitHub", "usage \($month)", "no metered usage"]
+    else .[] | (map(.netAmount | num) | add) as $net
+      | [(if $net > 0 then "ALERT" else "OK" end), "GitHub", "usage \($month) \(.[0].product)", "net \($net | money)"]
+    end'
+# Private-repo Actions minutes and artifact storage this month against the
+# plan's included amounts. A repo the org scan did not list counts as private.
+# shellcheck disable=SC2016  # jq variables, as above
+INCLUDED_JQ='
+  (if .repos == null then {} else (.repos | list | map({key: (.name | str), value: (.visibility | str)}) | from_entries) end) as $vis
+  | (if .repos == null then "; repo visibility unread, every repo counted as private" else "" end) as $note
+  | [.usage.usageItems | list | .[]
+      | select(.date | str | startswith($month)) | select((.product | str) == "actions")
+      | select(($vis[.repositoryName // ""] // "private") != "public")] as $private
+  | ($private | map(select((.unitType | str) == "Minutes") | .quantity | num) | add // 0) as $minutes
+  | ($private | map(select((.unitType | str) == "GigabyteHours") | .quantity | num) | add // 0) as $gb_hours
+  | def against($used; $included; $unit; $label; $flag):
+      if $included == null
+      then ["INFO", "GitHub", $label, "\($used | money) \($unit) used; included amount not configured (pass \($flag))\($note)"]
+      else (if $included > 0 then $used * 100 / $included else 100 end) as $pct
+        | [(if $pct >= $pct_alert then "ALERT" else "OK" end), "GitHub", $label,
+           "\($used | money) of \($included | money) \($unit) included (\($pct | round)%)\($note)"]
+      end;
+    against($minutes; $inc_minutes; "minutes"; "Actions minutes \($month), private repos"; "--actions-included-minutes"),
+    against($gb_hours; (if $inc_gb == null then null else $inc_gb * $hours end); "GB-hours"; "Actions storage \($month), private repos";
+      "--actions-included-storage-gb")'
+# The org scan: direct collaborators besides org admins, and workflows on a
+# fork-triggered event that reference a secret whose name contains _CLAUDE_, or
+# pass every secret (secrets: inherit, toJSON(secrets), a computed index). An
+# event key may be quoted or sit in a flow sequence or mapping. A scan that
+# listed no repo, or reached its workflow-file cap, is UNREADABLE with counts.
+# shellcheck disable=SC2016  # jq variables, as above
+SCAN_JQ='
+  (.admins | list | map(.login? // . | str)) as $admins
+  | (.repos | list) as $all_repos
+  | [$all_repos[] | select(.archived != true)] as $repos
+  | (.partial // 0 | num) as $partial
+  | ([$repos[].workflows | list | length] | add // 0) as $files
+  | [$repos[] | .name as $r | .collaborators | list | .[] | (.login? // . | str)
+      | . as $who | select(($admins + $allowed) | index($who) | not) | {r: $r, who: $who}] as $extra
+  | [$repos[] | (.name | str) as $r | .workflows | list | .[]
+      | (.path | str) as $path
+      | (.text | str | split("\n") | map(select(test("^[[:space:]]*#") | not))) as $lines
+      | ([$lines[] | select(test("(^|[[:space:],\\[{\"\u0027])(pull_request_target|workflow_run)[\"\u0027]?([[:space:]]*:|[[:space:]]*[\\]},]|[[:space:]]*$|[[:space:]]+#)"))
+          | match("pull_request_target|workflow_run").string] | unique) as $events
+      | ([$lines[] | match("secrets\\.([A-Za-z0-9_]*_CLAUDE_[A-Za-z0-9_]*)|secrets\\[[[:space:]]*.([A-Za-z0-9_]*_CLAUDE_[A-Za-z0-9_]*).[[:space:]]*\\]"; "gi")
+          | .captures[] | .string // empty] | unique) as $named
+      | ([$lines[]
+          | (if test("(^|[[:space:],{])secrets[[:space:]]*:[[:space:]]*[\"\u0027]?inherit[\"\u0027]?([[:space:],}#]|$)"; "i") then "every secret (secrets: inherit)" else empty end),
+            (if test("tojson[[:space:]]*\\([[:space:]]*secrets[[:space:]]*\\)"; "i") then "every secret (toJSON(secrets))" else empty end),
+            (if test("secrets[[:space:]]*\\[[[:space:]]*[^[:space:]\\]\"\u0027]"; "i") then "a secret by computed name (secrets[...])" else empty end)]
+          | unique) as $every
+      | ($named + $every) as $secrets
+      | select(($events | length) > 0 and ($secrets | length) > 0)
+      | {r: $r, path: $path, events: $events, secrets: $secrets}] as $hits
+  | if ($all_repos | length) == 0
+    then (["collaborators", "fork-triggered workflows"][] as $l
+          | ["UNREADABLE", "GitHub", $l, "the org scan listed 0 repos; check that gh auth status can read the org\u0027s repos"])
+    else
+      (if ($extra | length) == 0
+       then [["OK", "GitHub", "collaborators", "no direct collaborator besides org admins on \($repos | length) repos"]]
+       else [$extra[] | ["ALERT", "GitHub", "collaborators", "\(.r): direct collaborator \(.who)"]] end)
+      + [$hits[] | ["ALERT", "GitHub", "fork-triggered workflows", "\(.r) \(.path): \(.events | join(", ")) reads \(.secrets | join(", "))"]]
+      + (if $partial > 0
+         then [["UNREADABLE", "GitHub", "fork-triggered workflows", "read \($files) workflow files on \($repos | length) repos; \($partial) more not read (raise --workflow-read-limit)"]]
+         elif ($hits | length) == 0
+         then [["OK", "GitHub", "fork-triggered workflows", "none reads a _CLAUDE_ secret or passes every secret (\($files) files on \($repos | length) repos)"]]
+         else [] end)
+      | .[]
+    end'
+# shellcheck disable=SC2016  # jq variables, as above
+BUDGETS_JQ='
+  .budgets | list
+  | if length == 0 then ["INFO", "GitHub", "budgets", "none set"]
+    else .[] | (.budget_amount | num) as $amount | (.prevent_further_usage | bool) as $stop
+      | [(if $amount > 0 or ($stop | not) then "ALERT" else "OK" end), "GitHub",
+         "budget \(.budget_product_sku // .budget_type // .id)",
+         "amount \($amount | money), stop at limit \(if $stop then "on" else "off" end)"]
+    end'
+# A budget is an ALERT when its spend reached its amount, or its forecast is
+# above --forecast-alert (else above the budget's own amount).
+# shellcheck disable=SC2016  # jq variables, as above
+AZ_BUDGETS_JQ='
+  .value | list
+  | if length == 0 then ["INFO", "Azure", "budgets", "none on this subscription"]
+    else .[] | .name as $name | .properties
+      | (.currentSpend.amount | num) as $spent | (.amount | num) as $cap
+      | (.forecastSpend.amount | num) as $forecast | ($forecast_alert // $cap) as $limit
+      | [(if $spent >= $cap or $forecast > $limit then "ALERT" else "OK" end), "Azure", "budget \($name)",
+         "spent \($spent | money), forecast \($forecast | money) (alert above \($limit | money)), of \($cap | money) \(.currentSpend.unit | str); \($data_date); read \($read_at)"]
+    end'
+# The budgets and the anomaly alert that must exist, and when each ends.
+# shellcheck disable=SC2016  # jq variables, as above
+ALERTS_JQ='
+  ((.budgets.value | list | map({key: (.name | str), value: .properties})) | from_entries) as $budgets
+  | (.actions.value | list) as $actions
+  | ($now + $days * 86400) as $horizon
+  | def ends($end; $what):
+      ($end | str | sub("\\.[0-9]+"; "") | fromdateiso8601) as $e
+      | if $e <= $horizon then ["ALERT", "Azure", "budget and anomaly alerts", "\($what) ends \($end[0:10]), within \($days) days"]
+        else ["OK", "Azure", "budget and anomaly alerts", "\($what) ends \($end[0:10])"] end;
+    (if ($required | length) == 0 then ["INFO", "Azure", "budget and anomaly alerts", "no required budgets named (pass --required-budgets)"]
+     else $required[] as $b
+       | if $budgets[$b] == null then ["ALERT", "Azure", "budget and anomaly alerts", "budget \($b) is missing"]
+         else ends($budgets[$b].timePeriod.endDate; "budget \($b)") end
+     end),
+    ([$actions[] | select(if $anomaly != null then .name == $anomaly else (.kind | str) == "InsightAlert" end)] as $found
+     | if ($found | length) == 0
+       then ["ALERT", "Azure", "budget and anomaly alerts", "anomaly alert \($anomaly // "(any)") is missing"]
+       else $found[] | .name as $n
+         | if (.properties.status | str) != "Enabled"
+           then ["ALERT", "Azure", "budget and anomaly alerts", "anomaly alert \($n) is \(.properties.status)"]
+           else ends(.properties.schedule.endDate; "anomaly alert \($n)") end
+       end)'
+# One workspace: its peak billable day over 31 days against its daily cap; a cap
+# of -1 (none) is an ALERT, since nothing stops ingestion.
+# shellcheck disable=SC2016  # jq variables, as above
+LA_JQ='
+  .ws as $ws | ($ws.workspaceCapping.dailyQuotaGb | num) as $cap
+  | (.rows | list | map(.GB | num) | max // 0) as $peak
+  | (.rows | list | map(.Day | str) | first // "none") as $day
+  | if $cap < 0 then ["ALERT", "Azure", "Log Analytics \($ws.name | str)", "no daily cap; peak \($peak | money) GB on \($day[0:10])"]
+    else ($peak * 100 / $cap) as $pct
+      | [(if $pct >= $log_pct_alert then "ALERT" else "OK" end), "Azure", "Log Analytics \($ws.name | str)",
+         "peak \($peak | money) GB on \($day[0:10]) of a \($cap | money) GB daily cap (\($pct | round)%)"]
+    end'
+# shellcheck disable=SC2016  # jq variables, as above
+PRICINGS_JQ='
+  (if type == "object" then .value else . end) | list
+  | map(select((.pricingTier // "") != "Free")) as $paid
+  | if ($paid | length) > 0
+    then ["INFO", "Azure", "Defender plans", "not Free: " + ($paid | map("\(.name) (\(.pricingTier // "no tier"))") | join(", "))]
+    else ["INFO", "Azure", "Defender plans", "\(length) plans, all Free"] end'
+# A cost row is a Defender charge when its service or meter category names
+# Defender or its former name; the columns are found by name, not position.
+# shellcheck disable=SC2016  # jq variables, as above
+CHARGES_JQ='
+  .properties as $p
+  | ($p.columns | list | map(.name | ascii_downcase)) as $c
+  | ($c | index("cost")) as $ic | ($c | index("servicename")) as $is
+  | ($c | index("metercategory")) as $im | ($c | index("currency")) as $iu
+  | if $ic == null or $is == null or $im == null then error("missing columns") else . end
+  | [ $p.rows | list | .[]
+      | ([.[$is], .[$im]] | map(if . == null or type == "string" then . // "" else error("a service or meter category is not a string") end)) as $names
+      | if ($names | all(. == "")) then error("a cost row names no service or meter category") else . end
+      | select($names | join(" ") | ascii_downcase | test("defender|security center")) ]
+  | (map(.[$ic] | num) | add // 0) as $cost
+  | [(if $cost > 0 then "ALERT" else "OK" end), "Azure", $label,
+     (if length == 0 then "no Defender cost rows"
+      else ("\($cost | money) \(if $iu != null then .[0][$iu] // "" else "" end)" | rtrimstr(" ")) end)]'
+# shellcheck disable=SC2016  # jq variables, as above
+ACTIVITY_JQ='
+  list
+  | map(select((.operationName.value | str | if . == "" then error("an event names no operation") else ascii_downcase end) as $op | $ops | index($op)))
+  | if length == 0 then ["OK", "Azure", "activity, last 24h", "no Defender plan, policy assignment or role assignment writes"]
+    else group_by(.operationName.value | ascii_downcase)[] | max_by(.eventTimestamp // "") as $last
+      | ["ALERT", "Azure", "activity, last 24h",
+         "\($last.operationName.value): \(length) event(s), latest \(($last.eventTimestamp // "")[0:16])Z UTC by \($last.caller // "unknown")"]
+    end'
+SCORES_JQ='
+  list
+  | if length == 0 then ["INFO", "Azure", "secure score", "none reported"]
+    else .[] | ["INFO", "Azure", "secure score", "\(.displayName // .name) \(.current | num | money)/\(.max | num | money)"] end'
+# shellcheck disable=SC2016  # jq variables, as above
+ADVISOR_JQ='list | ["INFO", "Azure", $label, "\(length) recommendation(s)"]'
+
+# cost_row STATUS SOURCE LABEL DETAIL. Control characters in a field (escapes
+# in an error message or a subscription name) become spaces, as in cost_jq.
+cost_row() {
+  local f row=""
+  for f in "$1" "$2" "$3" "$4"; do
+    row+="${row:+$'\x1f'}${f//[[:cntrl:]]/ }"
+  done
+  COST_ROWS+=("$row")
+}
+
+# cost_jq FILE PROGRAM LABEL: appends the rows PROGRAM derives from FILE, or 1.
+# Control characters in a field (newlines, escapes in a budget or caller name)
+# become spaces, so one row stays one line.
+cost_jq() {
+  local rows
+  rows="$(jq -r --arg month "$COST_MONTH" --argjson ops "$COST_WRITE_OPS" --arg label "$3" \
+    --argjson pct_alert "$USAGE_ALERT_PERCENT" --argjson log_pct_alert "$LOG_CAP_ALERT_PERCENT" \
+    --argjson inc_minutes "${ACTIONS_INCLUDED_MINUTES:-null}" --argjson inc_gb "${ACTIONS_INCLUDED_STORAGE_GB:-null}" \
+    --argjson hours "$COST_HOURS" --argjson forecast_alert "${FORECAST_ALERT:-null}" \
+    --arg read_at "$(utc_stamp "$NOW_EPOCH")" --argjson now "$NOW_EPOCH" --argjson days "$EXPIRY_DAYS" \
+    --argjson required "$REQUIRED_BUDGETS_JSON" --argjson anomaly "$(jq -cn --arg a "$ANOMALY_ALERT" 'if $a == "" then null else $a end')" \
+    --argjson allowed "$ALLOWED_COLLABORATORS_JSON" --arg data_date "$COST_DATA_DATE" \
+    "$COST_DEFS $2"' | map(tostring | gsub("[[:cntrl:]]"; " ")) | join("\u001f")' "$1" 2>/dev/null)" || return 1
+  [[ -n "$rows" ]] || return 1
+  mapfile -t -O "${#COST_ROWS[@]}" COST_ROWS <<<"$rows"
+}
+
+# billing_read OUTFILE FIXTURE API-PATH: 0 read; 1 failed, with LAST_ERR set;
+# 2 refused for want of an org admin; 3 not read (no org in a fixture run).
+# GitHub documents no message text for that refusal, so only a 403 whose
+# message names admin rights, a billing manager or an owner counts as one; any
+# other 403 (a rate limit, SAML enforcement) is a failed read.
+billing_read() {
+  local out="$1" fixture="$2"
+  LAST_ERR=""
+  if [[ -n "$fixture" ]]; then
+    cp "$fixture" "$out"
+    LAST_ERR="$(body_error "$out")"
+  elif ((!GH_COST_LIVE)); then
+    return 3
+  elif ! have gh; then
+    LAST_ERR="gh not installed"
+    return 1
+  else
+    gh_read "$out" api "$3"
+  fi
+  [[ -n "$LAST_ERR" ]] || return 0
+  # The cloud proxy's GraphQL refusal is a 403 too, and says nothing about
+  # the operator's role.
+  if ! graphql_blocked "$LAST_ERR" &&
+    { [[ "$LAST_ERR" == *"HTTP 403"* ]] || jq -e '.status == "403"' "$out" >/dev/null 2>&1; } &&
+    grep -qiE 'admin|billing manager|organization owner' <<<"$LAST_ERR"; then
+    return 2
+  fi
+  return 1
+}
+
+# fetch_org_scan OUTFILE: the org's repos (listed once), its admins, and for
+# each live repo its direct collaborators and default-branch workflow files, up
+# to WORKFLOW_READ_LIMIT files. Returns 1 with LAST_ERR set on a failed read; a
+# repo with no .github/workflows directory has no workflows.
+fetch_org_scan() {
+  local out="$1" repo branch archived name files=0 skipped=0
+  rest_paginate_array "$WORK/org-repos" "orgs/$COST_ORG/repos?per_page=100&type=all" || return 1
+  rest_paginate_array "$WORK/org-admins" "orgs/$COST_ORG/members?role=admin&per_page=100" || return 1
+  : >"$WORK/scan-repos"
+  while IFS=$'\t' read -r repo branch archived; do
+    jq -n --slurpfile repos "$WORK/org-repos" --arg r "$repo" \
+      '$repos[0][] | select(.name == $r) | {name, visibility, archived, collaborators: [], workflows: []}' >"$WORK/scan-repo"
+    if [[ "$archived" != true ]]; then
+      rest_paginate_array "$WORK/collab" "repos/$COST_ORG/$repo/collaborators?affiliation=direct&per_page=100" || {
+        LAST_ERR="$repo collaborators: $LAST_ERR"
+        return 1
+      }
+      jq --slurpfile c "$WORK/collab" '.collaborators = [$c[0][].login]' "$WORK/scan-repo" >"$WORK/scan-repo.next" &&
+        mv "$WORK/scan-repo.next" "$WORK/scan-repo"
+      if gh_read "$WORK/wf-list" api "repos/$COST_ORG/$repo/contents/.github/workflows?ref=$(urlencode "$branch")"; then
+        while IFS= read -r name; do
+          if ((files >= WORKFLOW_READ_LIMIT)); then
+            skipped=$((skipped + 1))
+            continue
+          fi
+          gh_read "$WORK/wf" api -H "Accept: application/vnd.github.raw" \
+            "repos/$COST_ORG/$repo/contents/.github/workflows/$(urlencode "$name")?ref=$(urlencode "$branch")" || {
+            LAST_ERR="$repo $name: $LAST_ERR"
+            return 1
+          }
+          files=$((files + 1))
+          jq --arg p ".github/workflows/$name" --rawfile t "$WORK/wf" '.workflows += [{path: $p, text: $t}]' "$WORK/scan-repo" \
+            >"$WORK/scan-repo.next" && mv "$WORK/scan-repo.next" "$WORK/scan-repo"
+        done < <(jq -r '.[]? | select(.type == "file" and (.name | test("\\.ya?ml$"))) | .name' "$WORK/wf-list")
+      elif [[ "$LAST_ERR" != *"HTTP 404"* ]]; then
+        LAST_ERR="$repo workflows: $LAST_ERR"
+        return 1
+      fi
+    fi
+    cat "$WORK/scan-repo" >>"$WORK/scan-repos"
+  done < <(jq -r '.[] | [.name, (.default_branch // "main"), (.archived | tostring)] | @tsv' "$WORK/org-repos")
+  jq -n --slurpfile admins "$WORK/org-admins" --slurpfile repos "$WORK/scan-repos" --argjson partial "$skipped" \
+    '{admins: [$admins[0][].login], repos: $repos, partial: $partial}' >"$out"
+}
+
+# cost_unreadable SOURCE REASON LABEL...: one UNREADABLE line per label.
+cost_unreadable() {
+  local source="$1" reason="$2" label
+  shift 2
+  for label in "$@"; do
+    cost_row UNREADABLE "$source" "$label" "$reason"
+  done
+}
+
+# Why the GitHub reads were not made live, and the fix.
+cost_gh_unread_reason() {
+  if [[ -n "$COST_ORG_ERR" ]]; then
+    printf '%s; pass --org' "$COST_ORG_ERR"
+  elif [[ -z "$COST_ORG" ]]; then
+    printf 'no org resolved; pass --org'
+  else
+    printf 'not read live in a fixture run; pass --org or the billing and org-scan fixtures'
+  fi
+}
+
+cost_github() {
+  local usage="$WORK/billing-usage.json" budgets="$WORK/billing-budgets.json" scan="$WORK/org-scan.json" rc scanned=0
+  if [[ -z "$BILLING_USAGE_JSON$BILLING_BUDGETS_JSON$ORG_SCAN_JSON" ]] && ((!GH_COST_LIVE)); then
+    cost_unreadable GitHub "$(cost_gh_unread_reason)" "${USAGE_LABELS[@]}" budgets "${SCAN_LABELS[@]}"
+    return
+  fi
+  # The org scan first: the usage lines need each repo's visibility.
+  if [[ -n "$ORG_SCAN_JSON" ]]; then
+    cp "$ORG_SCAN_JSON" "$scan" && scanned=1
+  elif ((GH_COST_LIVE)) && have gh; then
+    fetch_org_scan "$scan" && scanned=1
+  elif ((GH_COST_LIVE)); then
+    LAST_ERR="gh not installed; install gh"
+  else
+    LAST_ERR="$(cost_gh_unread_reason)"
+  fi
+  local scan_err="$LAST_ERR"
+  billing_read "$usage" "$BILLING_USAGE_JSON" "orgs/$COST_ORG/settings/billing/usage?year=${COST_MONTH:0:4}&month=$((10#${COST_MONTH:5:2}))"
+  rc=$?
+  case $rc in
+  0)
+    cost_jq "$usage" "$USAGE_JQ" "" || cost_row UNREADABLE GitHub "usage $COST_MONTH" "could not parse the billing usage"
+    if ((scanned)); then
+      jq -n --slurpfile u "$usage" --slurpfile s "$scan" '{usage: $u[0], repos: $s[0].repos}' >"$WORK/included.json"
+    else
+      jq -n --slurpfile u "$usage" '{usage: $u[0], repos: null}' >"$WORK/included.json"
+    fi
+    cost_jq "$WORK/included.json" "$INCLUDED_JQ" "" ||
+      cost_unreadable GitHub "could not parse the billing usage" "${USAGE_LABELS[@]:1}"
+    ;;
+  1) cost_unreadable GitHub "$LAST_ERR" "${USAGE_LABELS[@]}" ;;
+  2) cost_unreadable GitHub "$ADMIN_FIX" "${USAGE_LABELS[@]}" ;;
+  *) cost_unreadable GitHub "$(cost_gh_unread_reason)" "${USAGE_LABELS[@]}" ;;
+  esac
+  billing_read "$budgets" "$BILLING_BUDGETS_JSON" "orgs/$COST_ORG/settings/billing/budgets?per_page=100"
+  rc=$?
+  case $rc in
+  0)
+    cost_jq "$budgets" "$BUDGETS_JQ" "" || cost_row UNREADABLE GitHub "budgets" "could not parse the billing budgets"
+    jq -e '.has_next_page == true' "$budgets" >/dev/null 2>&1 &&
+      COST_PARTIAL+=("GitHub budgets: more than one page; the rest were not read")
+    ;;
+  1) cost_row UNREADABLE GitHub "budgets" "$LAST_ERR" ;;
+  2) cost_row UNREADABLE GitHub "budgets" "$ADMIN_FIX" ;;
+  *) cost_row UNREADABLE GitHub "budgets" "$(cost_gh_unread_reason)" ;;
+  esac
+  if ! { ((scanned)) && cost_jq "$scan" "$SCAN_JQ" ""; }; then
+    ((scanned)) && scan_err="could not parse the org scan"
+    cost_unreadable GitHub "$scan_err" "${SCAN_LABELS[@]}"
+  fi
+}
+
+# az_read OUTFILE KEY az-args...: one az read, or its KEY in --azure-json.
+# Returns 1 with LAST_ERR set when the read failed.
+az_read() {
+  local out="$1" key="$2" rc
+  shift 2
+  LAST_ERR=""
+  if [[ -n "$AZURE_JSON" ]]; then
+    # A KEY of a/b reads a nested value; an absent or null value is a failed read.
+    jq -e --arg k "$key" 'type == "object" and getpath($k | split("/")) != null' "$AZURE_JSON" >/dev/null 2>&1 || {
+      LAST_ERR="no $key in --azure-json"
+      return 1
+    }
+    jq --arg k "$key" 'getpath($k | split("/"))' "$AZURE_JSON" >"$out"
+    return 0
+  fi
+  have az || {
+    LAST_ERR="az not installed"
+    return 1
+  }
+  : >"$ERR_FILE"
+  # WSLENV carries the setting to a Windows az run from WSL; elsewhere it is inert.
+  # az reads its stdin, so it gets none: a caller's loop input stays the loop's.
+  WSLENV="${WSLENV:+$WSLENV:}AZURE_EXTENSION_USE_DYNAMIC_INSTALL" AZURE_EXTENSION_USE_DYNAMIC_INSTALL=no az "$@" "${AZ_SUB_ARGS[@]}" --only-show-errors -o json >"$out" 2>"$ERR_FILE" </dev/null
+  rc=$?
+  if ((rc != 0)); then
+    LAST_ERR="$(grep -m1 -v '^[[:space:]]*$' "$ERR_FILE" 2>/dev/null)"
+    LAST_ERR="${LAST_ERR#ERROR: }"
+    [[ -n "$LAST_ERR" ]] || LAST_ERR="az exited $rc"
+    return 1
+  fi
+}
+
+# az_check KEY LABEL PROGRAM az-args...: one read rendered into rows; a failed
+# read or a response PROGRAM cannot parse is an UNREADABLE row.
+az_check() {
+  local key="$1" label="$2" prog="$3" out="$WORK/az-$1.json"
+  shift 3
+  if az_read "$out" "$key" "$@"; then
+    cost_jq "$out" "$prog" "$label" && return
+    LAST_ERR="could not parse the $key response"
+  fi
+  cost_row UNREADABLE Azure "$label" "$LAST_ERR"
+}
+
+# Every Azure line UNREADABLE with REASON.
+az_unreadable() {
+  cost_unreadable Azure "$1" "subscription${SUBSCRIPTION_ARG:+ $SUBSCRIPTION_ARG}" "${AZ_LABELS[@]}"
+}
+
+# cost_query URL: the month-to-date cost query, every page up to
+# AZ_QUERY_PAGE_LIMIT, merged into az-defenderCost.json; 1 with
+# COST_QUERY_ERR set when a page failed. A next page is POSTed only when it is
+# the same query endpoint: URL up to and including `?`, compared without case
+# (the Query - Usage reference's nextLink examples spell the path `Query`, its
+# request `query`); its path holds no `..`, `//`, encoded `.` or `/`, and the
+# whole link no backslash, control character or non-ASCII byte (so the case
+# fold is the same in every locale). The query string is not path-checked: a
+# $skiptoken is opaque and may encode `/`. Any other URL could name an ARM
+# action, and the POST would run it with the operator's token.
+cost_query() {
+  local out="$WORK/az-defenderCost.json" page=1 next prefix="${1%%\?*}?" lower path
+  COST_QUERY_ERR=""
+  az_read "$out" defenderCost rest --method post --url "$1" --body "$COST_QUERY_BODY" || {
+    COST_QUERY_ERR="$LAST_ERR"
+    return 1
+  }
+  cp "$out" "$WORK/az-cq-1.json"
+  while next="$(jq -r '.properties.nextLink // empty' "$WORK/az-cq-$page.json" 2>/dev/null)" && [[ -n "$next" ]]; do
+    lower="${next,,}"
+    path="${lower%%\?*}"
+    if [[ "$next" == *[![:ascii:]]* || "$lower" != "${prefix,,}"* || "${path#https://}" == *//* || "$path" == *..* ||
+      "$lower" == *\\* || "$path" == *%2e* || "$path" == *%2f* || "$lower" == *[[:cntrl:]]* ]]; then
+      COST_QUERY_ERR="the cost query's next page is not the query endpoint; it was not read"
+      return 1
+    fi
+    if ((page >= AZ_QUERY_PAGE_LIMIT)); then
+      COST_PARTIAL+=("Azure cost query: the read reached its $AZ_QUERY_PAGE_LIMIT-page cap; the rest were not read")
+      return 0
+    fi
+    page=$((page + 1))
+    az_read "$WORK/az-cq-$page.json" "defenderCost_$page" rest --method post --url "$next" --body "$COST_QUERY_BODY" || {
+      COST_QUERY_ERR="page $page: $LAST_ERR"
+      return 1
+    }
+    if ! jq -s '.[1].properties.rows as $r | if ($r | type) != "array" then error("rows") else .[0] | .properties.rows += $r end' \
+      "$out" "$WORK/az-cq-$page.json" >"$out.next" 2>/dev/null; then
+      COST_QUERY_ERR="could not parse the defenderCost response"
+      return 1
+    fi
+    mv "$out.next" "$out"
+  done
+}
+
+cost_azure() {
+  local acct="$WORK/az-account.json" sub arm ws_file id
+  if [[ -z "$AZURE_JSON" ]] && ((!AZ_COST_LIVE)); then
+    az_unreadable "not read live in a fixture run; pass --subscription or --azure-json"
+    return
+  fi
+  if [[ -z "$AZURE_JSON" ]] && ! have az; then
+    az_unreadable "az not installed; install az"
+    return
+  fi
+  if ! az_read "$acct" account account show || ! sub="$(jq -r '.id // empty' "$acct" 2>/dev/null)" || [[ -z "$sub" ]]; then
+    # az is installed but no account reads: every Azure line is a read that failed.
+    LAST_ERR="${LAST_ERR:-account show named no subscription id}"
+    [[ "$LAST_ERR" == *"az login"* ]] || LAST_ERR="$LAST_ERR; run az login"
+    az_unreadable "$LAST_ERR"
+    return
+  fi
+  # Every later read names the subscription account show resolved.
+  AZ_SUB_ARGS=(--subscription "$sub")
+  arm="https://management.azure.com/subscriptions/$sub/providers"
+  cost_row INFO Azure "subscription" "$(jq -r '"\(.name // .id) (\(.state // "state unknown"))"' "$acct")"
+  # The cost query first: its latest usage date is the budget lines' data date.
+  # A query that failed leaves the budget lines readable, with the date unread.
+  if cost_query "$arm/Microsoft.CostManagement/query?api-version=2023-11-01"; then
+    COST_DATA_DATE="$(jq -r '
+      (.properties.columns | map(.name | ascii_downcase) | index("usagedate")) as $i
+      | if $i == null then "usage data date unread"
+        elif (.properties.rows | length) == 0 then "no usage rows this month"
+        else ([.properties.rows[] | .[$i] | numbers] | max) as $d
+          | if $d == null then "usage data date unread"
+            else ($d | tostring) as $s | "usage data through \($s[0:4])-\($s[4:6])-\($s[6:8])" end
+        end' "$WORK/az-defenderCost.json" 2>/dev/null)" || COST_DATA_DATE="usage data date unread"
+  fi
+  az_check budgets "budgets" "$AZ_BUDGETS_JQ" rest --method get --url "$arm/Microsoft.Consumption/budgets?api-version=2024-08-01"
+  if az_read "$WORK/az-actions.json" scheduledActions rest --method get \
+    --url "$arm/Microsoft.CostManagement/scheduledActions?api-version=2023-11-01"; then
+    if jq -n --slurpfile b "$WORK/az-budgets.json" --slurpfile a "$WORK/az-actions.json" '{budgets: $b[0], actions: $a[0]}' \
+      >"$WORK/az-alerts.json" 2>/dev/null && cost_jq "$WORK/az-alerts.json" "$ALERTS_JQ" ""; then
+      :
+    else
+      cost_row UNREADABLE Azure "budget and anomaly alerts" "could not parse the budgets or scheduled actions"
+    fi
+  else
+    cost_row UNREADABLE Azure "budget and anomaly alerts" "$LAST_ERR"
+  fi
+  az_check pricings "Defender plans" "$PRICINGS_JQ" security pricing list
+  # A plan's tier is not a charge: the month's actual cost is. The query is a
+  # POST that reads only, and the only `az rest` POST the script makes.
+  if [[ -n "$COST_QUERY_ERR" ]]; then
+    cost_row UNREADABLE Azure "Defender charges, month to date" "$COST_QUERY_ERR"
+  elif ! cost_jq "$WORK/az-defenderCost.json" "$CHARGES_JQ" "Defender charges, month to date"; then
+    cost_row UNREADABLE Azure "Defender charges, month to date" "could not parse the defenderCost response"
+  fi
+  ws_file="$WORK/az-workspaces.json"
+  if ! az_read "$ws_file" workspaces monitor log-analytics workspace list; then
+    cost_row UNREADABLE Azure "Log Analytics" "$LAST_ERR"
+  elif ! jq -e 'type == "array"' "$ws_file" >/dev/null 2>&1; then
+    cost_row UNREADABLE Azure "Log Analytics" "could not parse the workspaces response"
+  elif jq -e 'length == 0' "$ws_file" >/dev/null; then
+    cost_row INFO Azure "Log Analytics" "no workspaces on this subscription"
+  else
+    while IFS= read -r id; do
+      if az_read "$WORK/az-la.json" "laUsage/$id" monitor log-analytics query --workspace "$id" --analytics-query "$LA_PEAK_QUERY" &&
+        jq -n --slurpfile w "$ws_file" --slurpfile r "$WORK/az-la.json" --arg id "$id" \
+          '{ws: ($w[0][] | select(.customerId == $id)), rows: $r[0]}' >"$WORK/az-la-one.json" 2>/dev/null &&
+        cost_jq "$WORK/az-la-one.json" "$LA_JQ" ""; then
+        :
+      else
+        [[ -n "$LAST_ERR" ]] || LAST_ERR="could not parse the Log Analytics response"
+        cost_row UNREADABLE Azure "Log Analytics $(jq -r --arg id "$id" '.[] | select(.customerId == $id) | .name' "$ws_file")" "$LAST_ERR"
+      fi
+    done < <(jq -r '.[] | .customerId // "missing-id"' "$ws_file")
+  fi
+  az_check activity "activity, last 24h" "$ACTIVITY_JQ" monitor activity-log list --offset 1d --max-events "$AZ_ACTIVITY_LIMIT"
+  jq -e --argjson n "$AZ_ACTIVITY_LIMIT" 'type == "array" and length >= $n' "$WORK/az-activity.json" >/dev/null 2>&1 &&
+    COST_PARTIAL+=("Azure activity: the read reached its $AZ_ACTIVITY_LIMIT-event cap; a write past it is not shown")
+  az_check secureScores "secure score" "$SCORES_JQ" security secure-scores list
+  az_check advisorSecurity "Advisor security" "$ADVISOR_JQ" advisor recommendation list --category Security
+  az_check advisorCost "Advisor cost" "$ADVISOR_JQ" advisor recommendation list --category Cost
+}
+
+print_cost() {
+  local row status source label detail unread=0 line
+  echo "== Cost (GitHub and Azure: charges, included usage, budgets and alerts, secret triggers, posture) =="
+  # Which layer set each cost setting that is not a default.
+  if ((${#COST_SETTING_LAYERS[@]})); then
+    line="${COST_SETTING_LAYERS[*]}"
+    echo "  settings: ${line//[[:cntrl:]]/ }"
+  else
+    echo "  settings: defaults (no harness-ops.yaml read)"
+  fi
+  cost_github
+  cost_azure
+  for row in "${COST_ROWS[@]}"; do
+    IFS=$'\x1f' read -r status source label detail <<<"$row"
+    if [[ "$status" == UNREADABLE ]]; then unread=$((unread + 1)); else COST_HAS_DATA=1; fi
+    line="$source${label:+ $label}: $detail"
+    printf '  %-10s %s\n' "$status" "$line"
+  done
+  for line in "${COST_PARTIAL[@]}"; do
+    echo "  PARTIAL: $line"
+  done
+  if ((unread > 0)); then
+    UNREADABLE=$((UNREADABLE + 1))
+    UNREADABLE_NAMES+=("cost")
+    COST_LOST=1
+  fi
+  echo
+}
+
+# =============================================================================
 # Render
 # =============================================================================
 # Each section renders into its own file first so the header can state how
@@ -1862,6 +2769,7 @@ print_decisions >"$WORK/s3"
 print_telemetry >"$WORK/s4"
 print_stranded >"$WORK/s5"
 print_lanes >"$WORK/s6"
+print_cost >"$WORK/s7"
 
 printf 'Morning brief — %s — %s\n' "${REPO:-<fixtures>}" "$(utc_stamp "$NOW_EPOCH")"
 [[ "$REPO_SOURCE" == "git remote" ]] && echo "  repo resolved from the git origin remote (gh repo view unavailable)"
@@ -1870,11 +2778,13 @@ if ((UNREADABLE > 0)); then
   echo "  $UNREADABLE of $SECTIONS_TOTAL sections unreadable: ${UNREADABLE_NAMES[*]}"
 fi
 echo
-cat "$WORK/s1" "$WORK/s1b" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s6"
+cat "$WORK/s1" "$WORK/s1b" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s6" "$WORK/s7"
 
 # Exit 5 when the brief carries no data at all; 6 when some sections rendered
 # beside unreadable ones, so a caller never takes a partial brief for a full one.
-if ((UNREADABLE >= SECTIONS_TOTAL)); then
+# When every other section is lost, the brief carries data only if a cost line
+# is OK, ALERT or INFO; a cost section of UNREADABLE lines carries none.
+if ((UNREADABLE - COST_LOST >= SECTIONS_TOTAL - 1 && !COST_HAS_DATA)); then
   exit 5
 elif ((UNREADABLE > 0)); then
   exit 6

@@ -33,6 +33,10 @@ fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+# The brief reads cost settings from the checkout it runs in. The suite runs
+# outside any checkout, so no repository's own settings reach a case; the
+# settings cases build their own.
+cd "$TMP" || exit 1
 
 FAILED=0
 CASE_NUM=0
@@ -294,6 +298,71 @@ EOF
 # A repo with no labels at all (successful empty lookup, not a failed one).
 printf '[]\n' >"$TMP/repo-labels-empty.json"
 
+# Cost fixtures with nothing charging, all values synthetic. The billing usage
+# (a June item beside July's) and budgets fixtures follow the response schemas
+# at https://docs.github.com/en/rest/billing/usage and
+# https://docs.github.com/en/rest/billing/budgets. The Azure fixtures follow no
+# published schema: they carry only the fields the script reads, except the
+# cost query's UsageDate column, a YYYYMMDD number per the Cost Management
+# Query - Usage reference's Daily example; its latest date here is 2026-07-19.
+# Every fixture run feeds these, so a run reads the cost section in full.
+# July 2026 has 744 hours, so 2 GB included is 1488 GB-hours. app-private uses
+# 300 + 100 minutes of 3000 (13%) and 100 GB-hours of 1488 (7%); lib-public's
+# 9000 minutes are free and never counted.
+cat >"$TMP/billing-usage-clear.json" <<'EOF'
+{"usageItems": [
+  {"date": "2026-06-01T00:00:00Z", "product": "actions", "sku": "Actions Linux", "unitType": "Minutes", "quantity": 2000, "repositoryName": "app-private", "grossAmount": 15, "discountAmount": 2.66, "netAmount": 12.34},
+  {"date": "2026-07-01T00:00:00Z", "product": "actions", "sku": "Actions Linux", "unitType": "Minutes", "quantity": 300, "repositoryName": "app-private", "grossAmount": 3.5, "discountAmount": 3.5, "netAmount": 0},
+  {"date": "2026-07-01T00:00:00Z", "product": "actions", "sku": "Actions Windows", "unitType": "Minutes", "quantity": 100, "repositoryName": "app-private", "grossAmount": 1.2, "discountAmount": 1.2, "netAmount": 0},
+  {"date": "2026-07-01T00:00:00Z", "product": "actions", "sku": "Actions Linux", "unitType": "Minutes", "quantity": 9000, "repositoryName": "lib-public", "grossAmount": 54, "discountAmount": 54, "netAmount": 0},
+  {"date": "2026-07-01T00:00:00Z", "product": "actions", "sku": "Actions storage", "unitType": "GigabyteHours", "quantity": 100, "repositoryName": "app-private", "grossAmount": 0.5, "discountAmount": 0.5, "netAmount": 0},
+  {"date": "2026-07-01T00:00:00Z", "product": "git_lfs", "sku": "Git LFS Storage", "unitType": "GigabyteHours", "quantity": 4, "repositoryName": "app-private", "grossAmount": 0.2, "discountAmount": 0.2, "netAmount": 0}
+]}
+EOF
+# The org scan: one org admin, no other direct collaborator, a pull_request
+# workflow that reads a _CLAUDE_ secret (not fork-triggered), a workflow_run
+# workflow that reads none, and an archived repo whose state is never judged.
+cat >"$TMP/org-scan-clear.json" <<'EOF'
+{"admins": ["owner-example"], "partial": 0, "repos": [
+  {"name": "app-private", "visibility": "private", "archived": false, "collaborators": ["owner-example"],
+   "workflows": [{"path": ".github/workflows/ci.yml", "text": "on:\n  pull_request:\njobs:\n  t:\n    steps:\n      - env:\n          K: ${{ secrets.EXAMPLE_CLAUDE_KEY }}\n"},
+                 {"path": ".github/workflows/after.yml", "text": "on:\n  workflow_run:\n    workflows: [ci]\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets.OTHER_TOKEN }}\n"}]},
+  {"name": "lib-public", "visibility": "public", "archived": false, "collaborators": [], "workflows": []},
+  {"name": "old-archived", "visibility": "private", "archived": true, "collaborators": ["someone-else"],
+   "workflows": [{"path": ".github/workflows/x.yml", "text": "on: pull_request_target\njobs: {t: {steps: [{run: \"${{ secrets.OLD_CLAUDE_KEY }}\"}]}}\n"}]}
+]}
+EOF
+cat >"$TMP/billing-budgets-clear.json" <<'EOF'
+{"budgets": [
+  {"id": "b1", "budget_type": "ProductPricing", "budget_product_sku": "actions", "budget_amount": 0, "prevent_further_usage": true},
+  {"id": "b2", "budget_type": "BundlePricing", "budget_product_sku": "ai_credits", "budget_amount": 0, "prevent_further_usage": true}
+], "has_next_page": false, "total_count": 2}
+EOF
+cat >"$TMP/azure-clear.json" <<'EOF'
+{
+  "account": {"id": "00000000-0000-0000-0000-000000000001", "name": "sub-example", "state": "Enabled"},
+  "budgets": {"value": [
+    {"name": "budget-example", "properties": {"amount": 100.0, "category": "Cost", "timeGrain": "Monthly",
+     "currentSpend": {"amount": 1.5, "unit": "USD"}, "forecastSpend": {"amount": 3.25, "unit": "USD"},
+     "timePeriod": {"startDate": "2026-07-01T00:00:00Z", "endDate": "2030-01-01T00:00:00Z"}}}]},
+  "scheduledActions": {"value": [{"name": "anomaly-example", "kind": "InsightAlert",
+    "properties": {"status": "Enabled", "schedule": {"frequency": "Daily", "endDate": "2030-01-01T00:00:00Z"}}}]},
+  "workspaces": [{"name": "log-example", "customerId": "11111111-1111-1111-1111-111111111111", "workspaceCapping": {"dailyQuotaGb": 1.0}}],
+  "laUsage": {"11111111-1111-1111-1111-111111111111": [{"Day": "2026-07-10T00:00:00Z", "GB": "0.2", "TableName": "PrimaryResult"}]},
+  "pricings": {"value": [{"name": "VirtualMachines", "pricingTier": "Free"}, {"name": "StorageAccounts", "pricingTier": "Free"}, {"name": "Arm", "pricingTier": "Free"}]},
+  "defenderCost": {"properties": {"nextLink": null,
+    "columns": [{"name": "Cost", "type": "Number"}, {"name": "ServiceName", "type": "String"}, {"name": "MeterCategory", "type": "String"}, {"name": "Currency", "type": "String"}, {"name": "UsageDate", "type": "Number"}],
+    "rows": [[2.5, "Storage", "Storage", "USD", 20260719], [0, "Microsoft Defender for Cloud", "Microsoft Defender for Cloud", "USD", 20260718]]}},
+  "activity": [{"operationName": {"value": "Microsoft.Storage/storageAccounts/write"}, "status": {"value": "Succeeded"}, "caller": "someone@example.invalid", "eventTimestamp": "2000-01-01T00:00:00Z"}],
+  "secureScores": [{"name": "ascScore", "displayName": "ASC score", "current": 30.0, "max": 60, "percentage": 0.5}],
+  "advisorSecurity": [],
+  "advisorCost": []
+}
+EOF
+CLEAR_COST_ARGS=(--billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json"
+  --org-scan-json "$TMP/org-scan-clear.json" --azure-json "$TMP/azure-clear.json"
+  --actions-included-minutes 3000 --actions-included-storage-gb 2 --required-budgets budget-example --anomaly-alert anomaly-example)
+
 # --- Full render --------------------------------------------------------------
 OUT="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
@@ -301,7 +370,7 @@ OUT="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --behind-json "$TMP/behind.json" \
   --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json" \
-  --merged-json "$TMP/merged.json" 2>&1)"
+  --merged-json "$TMP/merged.json" "${CLEAR_COST_ARGS[@]}" 2>&1)"
 RC=$?
 
 assert_exit "renders successfully" 0 "$RC"
@@ -575,7 +644,7 @@ STUB
     --counts-json "$TMP/counts.json" \
     --pr-json "$TMP/pr.json" \
     --decisions-json "$TMP/decisions.json" \
-    --telemetry-json "$TMP/telemetry.json" 2>&1)"
+    --telemetry-json "$TMP/telemetry.json" "${CLEAR_COST_ARGS[@]}" 2>&1)"
   RC_BSD=$?
   assert_exit "BSD fallback: renders successfully" 0 "$RC_BSD"
   assert_contains "BSD fallback: fresh age computed via date -j -f" "$OUT_BSD" "age=1h 30m"
@@ -622,11 +691,11 @@ OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --pr-json "$TMP/pr.json" \
   --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json" \
-  --merged-json "$TMP/merged-apierror.json" 2>&1)"
+  --merged-json "$TMP/merged-apierror.json" "${CLEAR_COST_ARGS[@]}" 2>&1)"
 assert_not_contains "stranded: an API error is NEVER reported as clear" "$OUT_ERR" "every merged PR in the window is clear"
 assert_contains "stranded: an API error renders the section UNREADABLE" "$OUT_ERR" "UNREADABLE: API rate limit"
 assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
-assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "1 of 7 sections unreadable: stranded"
+assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "1 of 8 sections unreadable: stranded"
 
 # --- Severity classification and ranking -------------------------------------
 OUT_SEV="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
@@ -719,7 +788,7 @@ OUT_STUCK_ERR="$(run_stuck --stuck-json "$TMP/stuck-error.json")"
 RC_STUCK_ERR=$?
 assert_exit "stuck: an error document exits 6" 6 "$RC_STUCK_ERR"
 assert_contains "stuck: an error document is UNREADABLE" "$(section "$OUT_STUCK_ERR" "== Stuck")" "UNREADABLE: boom stuck"
-assert_contains "stuck: the header counts the unreadable section" "$OUT_STUCK_ERR" "1 of 7 sections unreadable: stuck"
+assert_contains "stuck: the header counts the unreadable section" "$OUT_STUCK_ERR" "1 of 8 sections unreadable: stuck"
 printf '[]\n' >"$TMP/stuck-array.json"
 assert_contains "stuck: a fixture that is not a label map is UNREADABLE" "$(section "$(run_stuck --stuck-json "$TMP/stuck-array.json")" "== Stuck")" \
   "UNREADABLE: --stuck-json is not an object"
@@ -739,9 +808,12 @@ assert_exit "non-numeric --stuck-limit exits 3" 3 "$?"
 #   blocked  every call is refused with the proxy's GraphQL 403 shape (body on
 #            stdout, message on stderr, exit 1) — the cloud-session shape
 #   fail     every call fails with an unrelated error
+#   forbidden
+#            every call is refused with GitHub's REST 403 for a caller who is
+#            not an org admin
 #   rest     GraphQL-backed subcommands are refused as in `blocked`; `gh api
-#            repos/...` is served from MB_GH_FIXTURES/<sanitized path>.json,
-#            a missing fixture answering 404
+#            repos/...` and `gh api orgs/...` are served from
+#            MB_GH_FIXTURES/<sanitized path>.json, a missing fixture answering 404
 #   gql      the gh subcommands are served from MB_GH_FIXTURES/<key>.json, as gh
 #            would: a list read keeps its first --limit items (gh's default
 #            limit of 30 when none is given) and -q applies as a jq filter.
@@ -767,12 +839,17 @@ case "$mode" in
     printf 'gh: boom, the upstream fell over (HTTP 500)\n' >&2
     exit 1
     ;;
+  forbidden)
+    printf '{"message":"Must have admin rights to the organization.","documentation_url":"https://example.invalid/docs","status":"403"}\n'
+    printf 'gh: Must have admin rights to the organization. (HTTP 403)\n' >&2
+    exit 1
+    ;;
   rest)
     [[ "${1:-}" == "api" ]] || blocked
     shift
     path=""
     for a in "$@"; do
-      [[ "$a" == repos/* ]] && path="$a"
+      [[ "$a" == repos/* || "$a" == orgs/* ]] && path="$a"
     done
     [[ -n "$path" ]] || blocked
     key="$(printf '%s' "$path" | sed -E 's/[^A-Za-z0-9._-]/_/g')"
@@ -858,8 +935,66 @@ esac
 STUB
 chmod +x "$GH_STUB_DIR/gh"
 
+# An `az` double beside it, so no live run reaches the real Azure CLI. By
+# default it answers as a logged-out az. MB_AZ_MODE=serve answers each read
+# from the matching key of MB_AZ_FIXTURE, an --azure-json-shaped object, a
+# missing key failing the call; a key holding {"__error": MSG} fails it with
+# MSG. Every call's arguments go to MB_AZ_LOG when set.
+cat >"$GH_STUB_DIR/az" <<'STUB'
+#!/usr/bin/env bash
+# The real az reads whatever its stdin holds; drain what is waiting, as it does.
+while IFS= read -r -t 0.05 _; do :; done
+[[ -n "${MB_AZ_LOG:-}" ]] && printf '%s\n' "$*" >>"$MB_AZ_LOG"
+if [[ "${MB_AZ_MODE:-logged-out}" != serve ]]; then
+  printf "ERROR: Please run 'az login' to setup account.\n" >&2
+  exit 1
+fi
+case "$1 $2 $3" in
+  "account show"*) key=account ;;
+  "rest --method get")
+    key=""
+    [[ "$*" == *"/Microsoft.Consumption/budgets?"* ]] && key=budgets
+    [[ "$*" == *"/Microsoft.CostManagement/scheduledActions?"* ]] && key=scheduledActions
+    ;;
+  "security pricing list") key=pricings ;;
+  "rest --method post")
+    # A next page of the cost query names its page in $skiptoken: key defenderCost_<n>.
+    key=defenderCost
+    if [[ "$*" == *'$skiptoken='* ]]; then
+      token="$*"
+      token="${token##*\$skiptoken=}"
+      key="defenderCost_${token%% *}"
+    fi
+    ;;
+  "monitor log-analytics workspace") key=workspaces ;;
+  "monitor log-analytics query") key="laUsage/$5" ;;
+  "monitor activity-log list") key=activity ;;
+  "security secure-scores list") key=secureScores ;;
+  "advisor recommendation list")
+    key=""
+    [[ " $* " == *" --category Security "* ]] && key=advisorSecurity
+    [[ " $* " == *" --category Cost "* ]] && key=advisorCost
+    ;;
+  *) key="" ;;
+esac
+if [[ -z "$key" ]] || ! jq -e --arg k "$key" 'getpath($k | split("/")) != null' "${MB_AZ_FIXTURE:?MB_AZ_FIXTURE not set}" >/dev/null; then
+  printf 'ERROR: (NotFound) az stub has no answer for: %s\n' "$*" >&2
+  exit 1
+fi
+if jq -e --arg k "$key" 'getpath($k | split("/")) | objects | has("__error")' "$MB_AZ_FIXTURE" >/dev/null; then
+  printf 'ERROR: %s\n' "$(jq -r --arg k "$key" 'getpath($k | split("/")).__error' "$MB_AZ_FIXTURE")" >&2
+  exit 1
+fi
+jq --arg k "$key" 'getpath($k | split("/"))' "$MB_AZ_FIXTURE"
+STUB
+chmod +x "$GH_STUB_DIR/az"
+
+# The cost reads run_stub feeds by default; a case that drives the cost reads
+# live sets COST_ARGS to fewer fixtures, then restores it.
+COST_ARGS=("${CLEAR_COST_ARGS[@]}")
+
 run_stub() {
-  # run_stub MODE args... — runs the brief with the gh double on PATH.
+  # run_stub MODE args... — runs the brief with the gh and az doubles on PATH.
   # The gql double serves the stranded fixtures by cursor alone, so a gql run
   # takes its stuck read from an empty fixture unless MB_STUCK_LIVE is set; a
   # later --stuck-json in "$@" wins.
@@ -868,16 +1003,27 @@ run_stub() {
   [[ "$mode" == gql && -z "${MB_STUCK_LIVE:-}" ]] && stuck=(--stuck-json "$TMP/stuck-empty.json")
   PATH="$GH_STUB_DIR:$PATH" MB_GH_MODE="$mode" MB_GH_FIXTURES="${MB_GH_FIXTURES:-$TMP/rest}" \
     bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" --data-dir "${MB_DATA_DIR:-$TMP/data}" \
-    ${stuck[@]+"${stuck[@]}"} "$@" 2>&1
+    "${COST_ARGS[@]}" ${stuck[@]+"${stuck[@]}"} "$@" 2>&1
 }
 
 # Every section live, every call refused: nothing may read as clear or absent.
+# The cost reads go live too, against a logged-out az.
+COST_ARGS=()
 OUT_BLOCKED="$(run_stub blocked)"
 RC_BLOCKED=$?
+OUT_FAIL="$(run_stub fail)"
+RC_FAIL=$?
+COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_exit "blocked: every live section unreadable exits 5" 5 "$RC_BLOCKED"
-assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "7 of 7 sections unreadable"
+assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "8 of 8 sections unreadable"
 assert_contains "blocked: stuck is UNREADABLE" "$(section "$OUT_BLOCKED" "== Stuck")" "UNREADABLE:"
 assert_not_contains "blocked: stuck never renders an all-clear" "$OUT_BLOCKED" "no open item has held a queue label"
+COST_BLOCKED="$(section "$OUT_BLOCKED" "== Cost")"
+assert_contains "blocked: the billing usage read is UNREADABLE" "$COST_BLOCKED" "UNREADABLE GitHub usage 2026-07: GitHub GraphQL is not available"
+assert_contains "blocked: the billing budgets read is UNREADABLE" "$COST_BLOCKED" "UNREADABLE GitHub budgets: GitHub GraphQL is not available"
+assert_not_contains "blocked: the proxy's 403 is never read as a missing org admin" "$COST_BLOCKED" "org admin needed"
+assert_contains "blocked: a logged-out az makes the Azure lines UNREADABLE, naming az login" "$COST_BLOCKED" \
+  "UNREADABLE Azure budgets: Please run 'az login' to setup account."
 assert_contains "blocked: lanes are UNREADABLE" "$(section "$OUT_BLOCKED" "== Lanes")" "UNREADABLE:"
 assert_contains "blocked: queues are UNREADABLE" "$(section "$OUT_BLOCKED" "== Queues")" "UNREADABLE:"
 assert_contains "blocked: merge-ready is UNREADABLE" "$(section "$OUT_BLOCKED" "== Merge-ready")" "UNREADABLE:"
@@ -893,8 +1039,6 @@ assert_contains "blocked: the refusal is surfaced verbatim" "$OUT_BLOCKED" "Grap
 
 # An unrelated failure degrades the same way; the shape of the error does not
 # decide whether a section is readable.
-OUT_FAIL="$(run_stub fail)"
-RC_FAIL=$?
 assert_exit "fail: every live section unreadable exits 5" 5 "$RC_FAIL"
 assert_contains "fail: the error is surfaced" "$OUT_FAIL" "UNREADABLE: boom, the upstream fell over"
 assert_not_contains "fail: no REST transport claimed for an unrelated error" "$OUT_FAIL" "transport: REST"
@@ -911,7 +1055,7 @@ OUT_ONE="$(run_stub blocked \
   --lane-runs-json "$TMP/lanes-empty.json")"
 RC_ONE=$?
 assert_exit "partial: one unreadable section among fixtures exits 6" 6 "$RC_ONE"
-assert_contains "partial: header names the lost section" "$OUT_ONE" "1 of 7 sections unreadable: stranded"
+assert_contains "partial: header names the lost section" "$OUT_ONE" "1 of 8 sections unreadable: stranded"
 assert_contains "partial: the fixture sections still render" "$OUT_ONE" "#10 clean pr"
 
 # A `message`-shaped error body (the REST/403 shape, no `errors` key) fed as a
@@ -941,10 +1085,10 @@ if have git; then
     --decisions-json "$TMP/decisions.json" \
     --stuck-json "$TMP/stuck-empty.json" 2>&1)"
   RC_REMOTE=$?
-  assert_exit "git remote fallback: renders (exit 6, three of seven unreadable)" 6 "$RC_REMOTE"
+  assert_exit "git remote fallback: renders (exit 6, four of eight unreadable)" 6 "$RC_REMOTE"
   assert_contains "git remote fallback: owner/repo taken from origin" "$OUT_REMOTE" "Morning brief — $FIXTURE_REPO —"
   assert_contains "git remote fallback: the header names the source" "$OUT_REMOTE" "repo resolved from the git origin remote"
-  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "3 of 7 sections unreadable: telemetry stranded lanes"
+  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "4 of 8 sections unreadable: telemetry stranded lanes cost"
 fi
 
 # --- REST fallback: sections 1-4 from repository-scoped endpoints -------------
@@ -1047,7 +1191,7 @@ assert_contains "rest: telemetry issue found by title" "$OUT_REST" "source: issu
 assert_contains "rest: telemetry lane age computed" "$OUT_REST" "babysit    last-cycle=2026-07-20T06:30Z UTC  age=1h 30m"
 assert_contains "rest: stranded is UNREADABLE, never clear" "$(section "$OUT_REST" "== Findings stranded")" "UNREADABLE: review threads need GraphQL"
 assert_contains "rest: stuck is UNREADABLE, never empty" "$(section "$OUT_REST" "== Stuck")" "UNREADABLE: label events need GraphQL"
-assert_contains "rest: header counts the two lost sections" "$OUT_REST" "2 of 7 sections unreadable: stuck stranded"
+assert_contains "rest: header counts the two lost sections" "$OUT_REST" "2 of 8 sections unreadable: stuck stranded"
 
 # The same data through the gh-shaped fixtures.
 cat >"$TMP/same-counts.json" <<'EOF'
@@ -1135,10 +1279,10 @@ assert_exit "non-numeric --pr-limit exits 3" 3 "$?"
 printf 'not json\n' >"$TMP/garbage.json"
 OUT_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/garbage.json" --decisions-json "$TMP/garbage.json" \
-  --telemetry-json "$TMP/garbage.json" --merged-json "$TMP/garbage.json" 2>&1)"
+  --telemetry-json "$TMP/garbage.json" --merged-json "$TMP/garbage.json" "${CLEAR_COST_ARGS[@]}" 2>&1)"
 RC_BAD=$?
 assert_exit "unparsable: a brief with unreadable sections exits 6" 6 "$RC_BAD"
-assert_contains "unparsable: the header counts the four lost sections" "$OUT_BAD" "4 of 7 sections unreadable: merge-ready decisions telemetry stranded"
+assert_contains "unparsable: the header counts the four lost sections" "$OUT_BAD" "4 of 8 sections unreadable: merge-ready decisions telemetry stranded"
 assert_contains "unparsable: merge-ready is UNREADABLE" "$(section "$OUT_BAD" "== Merge-ready")" "UNREADABLE: could not parse the PR list"
 assert_not_contains "unparsable: merge-ready never renders as none clean" "$OUT_BAD" "(none clean right now)"
 assert_contains "unparsable: decisions are UNREADABLE" "$(section "$OUT_BAD" "== Parked")" "UNREADABLE: could not parse the decision issues"
@@ -1394,7 +1538,7 @@ cat >"$TMP/lane-annotations.json" <<'EOF'
 EOF
 OUT_LANES="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
   --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
-  --lane-runs-json "$TMP/lane-runs.json" --lane-annotations-json "$TMP/lane-annotations.json" 2>&1)"
+  --lane-runs-json "$TMP/lane-runs.json" --lane-annotations-json "$TMP/lane-annotations.json" "${CLEAR_COST_ARGS[@]}" 2>&1)"
 LANES="$(section "$OUT_LANES" "== Lanes")"
 assert_contains "lanes: a turn-cap stop that classify called other counts as max-turns" "$LANES" \
   "intake-triage.yml  runs=3  failed=1 [rate-limit 0, max-turns 1, auth 0, other 0]  limit-stops=0  restarts=0"
@@ -1413,7 +1557,7 @@ assert_contains "lanes: restarts on a pull request head" "$LANES" "pr-verify.yml
 assert_exit "lanes: a fully read brief with lanes exits 0" 0 "$(
   bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --decisions-json "$TMP/decisions.json" \
     --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
-    --lane-runs-json "$TMP/lane-runs.json" --lane-annotations-json "$TMP/lane-annotations.json" >/dev/null 2>&1
+    --lane-runs-json "$TMP/lane-runs.json" --lane-annotations-json "$TMP/lane-annotations.json" "${CLEAR_COST_ARGS[@]}" >/dev/null 2>&1
   echo $?
 )"
 printf '[1,2]\n' >"$TMP/lane-runs-bad.json"
@@ -1490,6 +1634,695 @@ assert_exit "models: a non-numeric threshold is an invalid argument" 3 "$(
   models_brief --max-turns-hits many >/dev/null
   echo $?
 )"
+
+# --- Cost: what on GitHub or Azure is charging or could start charging ---------
+# NOW is 2026-07-20, so the billing month is 2026-07. The rules under test, from
+# the plan's acceptance criteria: a product whose month net is above 0, a budget
+# whose amount is above 0 or whose stop at limit is off, an Azure budget whose
+# spend reached its amount, a month-to-date Defender charge above 0, and any
+# Defender plan, policy assignment or role assignment write in the last day are
+# each an ALERT. A Defender plan off the Free tier is INFO.
+cost_brief() {
+  bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --behind-json "$TMP/behind.json" \
+    --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+    --lane-runs-json "$TMP/lanes-empty.json" "$@" 2>&1
+}
+
+OUT_COST_CLEAR="$(cost_brief "${CLEAR_COST_ARGS[@]}")"
+RC_COST_CLEAR=$?
+COST_CLEAR="$(section "$OUT_COST_CLEAR" "== Cost")"
+assert_exit "cost: an all-clear brief exits 0" 0 "$RC_COST_CLEAR"
+assert_contains "cost: a product's month net sums its SKUs" "$COST_CLEAR" "OK         GitHub usage 2026-07 actions: net 0"
+assert_contains "cost: every product used this month gets a line" "$COST_CLEAR" "OK         GitHub usage 2026-07 git_lfs: net 0"
+assert_not_contains "cost: an earlier month's charge is not this month's" "$COST_CLEAR" "12.34"
+assert_contains "cost: a zero budget that stops at its limit is OK" "$COST_CLEAR" "OK         GitHub budget ai_credits: amount 0, stop at limit on"
+assert_contains "cost: the subscription read is named" "$COST_CLEAR" "INFO       Azure subscription: sub-example (Enabled)"
+assert_contains "cost: an Azure budget under its amount and forecast is OK, with the data date and the read time" "$COST_CLEAR" \
+  "OK         Azure budget budget-example: spent 1.5, forecast 3.25 (alert above 100), of 100 USD; usage data through 2026-07-19; read 2026-07-20T08:00Z UTC"
+assert_contains "cost: private minutes against the included minutes, public repos left out" "$COST_CLEAR" \
+  "OK         GitHub Actions minutes 2026-07, private repos: 400 of 3000 minutes included (13%)"
+assert_contains "cost: private artifact storage against the month's included GB-hours" "$COST_CLEAR" \
+  "OK         GitHub Actions storage 2026-07, private repos: 100 of 1488 GB-hours included (7%)"
+assert_contains "cost: org admins are not reported as collaborators; archived repos are not judged" "$COST_CLEAR" \
+  "OK         GitHub collaborators: no direct collaborator besides org admins on 2 repos"
+assert_contains "cost: a Claude secret on pull_request and a workflow_run without one are clear" "$COST_CLEAR" \
+  "OK         GitHub fork-triggered workflows: none reads a _CLAUDE_ secret or passes every secret (2 files on 2 repos)"
+assert_contains "cost: a required budget far from its end is OK" "$COST_CLEAR" \
+  "OK         Azure budget and anomaly alerts: budget budget-example ends 2030-01-01"
+assert_contains "cost: an enabled anomaly alert far from its end is OK" "$COST_CLEAR" \
+  "OK         Azure budget and anomaly alerts: anomaly alert anomaly-example ends 2030-01-01"
+assert_contains "cost: a workspace's peak day under half its cap is OK" "$COST_CLEAR" \
+  "OK         Azure Log Analytics log-example: peak 0.2 GB on 2026-07-10 of a 1 GB daily cap (20%)"
+assert_contains "cost: all-Free Defender plans are informational" "$COST_CLEAR" "INFO       Azure Defender plans: 3 plans, all Free"
+assert_contains "cost: a Defender cost row at 0 beside another service's charge is OK" "$COST_CLEAR" \
+  "OK         Azure Defender charges, month to date: 0 USD"
+assert_contains "cost: an unrelated write in the activity log is not an alert" "$COST_CLEAR" \
+  "OK         Azure activity, last 24h: no Defender plan, policy assignment or role assignment writes"
+assert_contains "cost: the secure score is informational" "$COST_CLEAR" "INFO       Azure secure score: ASC score 30/60"
+assert_contains "cost: Advisor security counts are informational" "$COST_CLEAR" "INFO       Azure Advisor security: 0 recommendation(s)"
+assert_contains "cost: Advisor cost counts are informational" "$COST_CLEAR" "INFO       Azure Advisor cost: 0 recommendation(s)"
+assert_not_contains "cost: an all-clear section carries no ALERT" "$COST_CLEAR" "ALERT"
+assert_not_contains "cost: an all-clear brief counts no lost section" "$OUT_COST_CLEAR" "sections unreadable"
+
+# Alerts: private minutes 1600 of 3000 (53%) and storage 800 of 1488 GB-hours
+# (54%) reach the 50% flag. A direct collaborator who is not an org admin, a
+# pull_request_target workflow and a workflow_run workflow that read _CLAUDE_
+# secrets (the second in index form) are each an ALERT. Budget forecast-high
+# forecasts 60 against --forecast-alert 50; ending-soon ends within 30 days;
+# missing-budget does not exist; the anomaly alert is disabled; one workspace
+# peaked at 60% of its cap and another has no cap.
+ALERT_CONFIG=(--actions-included-minutes 3000 --actions-included-storage-gb 2 --forecast-alert 50
+  --required-budgets "under-cap, missing-budget,ending-soon" --anomaly-alert anomaly-example)
+cat >"$TMP/billing-usage-alert.json" <<'EOF'
+{"usageItems": [
+  {"date": "2026-07-01T00:00:00Z", "product": "actions", "sku": "Actions Linux", "unitType": "Minutes", "quantity": 1600, "repositoryName": "app-private", "grossAmount": 5, "discountAmount": 1.544, "netAmount": 3.456},
+  {"date": "2026-07-01T00:00:00Z", "product": "actions", "sku": "Actions storage", "unitType": "GigabyteHours", "quantity": 800, "repositoryName": "app-private", "grossAmount": 1, "discountAmount": 1, "netAmount": 0},
+  {"date": "2026-07-01T00:00:00Z", "product": "git_lfs", "sku": "Git LFS Storage", "unitType": "GigabyteHours", "quantity": 4, "repositoryName": "app-private", "grossAmount": 0.2, "discountAmount": 0.2, "netAmount": 0}
+]}
+EOF
+cat >"$TMP/billing-budgets-alert.json" <<'EOF'
+{"budgets": [
+  {"id": "b1", "budget_product_sku": "actions", "budget_amount": 25, "prevent_further_usage": true},
+  {"id": "b2", "budget_product_sku": "codespaces", "budget_amount": 0, "prevent_further_usage": false},
+  {"id": "b3", "budget_product_sku": "packages", "budget_amount": 0, "prevent_further_usage": true}
+], "has_next_page": true}
+EOF
+cat >"$TMP/org-scan-alert.json" <<'EOF'
+{"admins": ["owner-example"], "partial": 0, "repos": [
+  {"name": "app-private", "visibility": "private", "archived": false, "collaborators": ["owner-example", "contractor-example"],
+   "workflows": [{"path": ".github/workflows/merge.yml", "text": "on:\n  pull_request_target: # reviewed\njobs:\n  t:\n    steps:\n      - env:\n          K: ${{ secrets.EXAMPLE_CLAUDE_KEY }}\n"},
+                 {"path": ".github/workflows/after.yml", "text": "on: [workflow_run]\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets['OTHER_CLAUDE_TOKEN'] }}\n"},
+                 {"path": ".github/workflows/commented.yml", "text": "on:\n  push:\n# on: pull_request_target\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets.THIRD_CLAUDE_KEY }} ${{ github.event.workflow_run.id }}\n"}]}
+]}
+EOF
+jq '.budgets.value = [
+      {"name": "at-cap", "properties": {"amount": 50, "currentSpend": {"amount": 50, "unit": "USD"}, "forecastSpend": {"amount": 50, "unit": "USD"},
+       "timePeriod": {"endDate": "2030-01-01T00:00:00Z"}}},
+      {"name": "under-cap", "properties": {"amount": 50, "currentSpend": {"amount": 49.99, "unit": "USD"}, "forecastSpend": {"amount": 49.99, "unit": "USD"},
+       "timePeriod": {"endDate": "2030-01-01T00:00:00Z"}}},
+      {"name": "forecast-high", "properties": {"amount": 200, "currentSpend": {"amount": 10, "unit": "USD"}, "forecastSpend": {"amount": 60, "unit": "USD"},
+       "timePeriod": {"endDate": "2030-01-01T00:00:00Z"}}},
+      {"name": "ending-soon", "properties": {"amount": 200, "currentSpend": {"amount": 1, "unit": "USD"}, "forecastSpend": {"amount": 2, "unit": "USD"},
+       "timePeriod": {"endDate": "2026-08-01T00:00:00Z"}}}]
+  | .scheduledActions.value[0].properties.status = "Disabled"
+  | .workspaces = [{"name": "log-busy", "customerId": "22222222-2222-2222-2222-222222222222", "workspaceCapping": {"dailyQuotaGb": 1.0}},
+                   {"name": "log-uncapped", "customerId": "33333333-3333-3333-3333-333333333333", "workspaceCapping": {"dailyQuotaGb": -1}}]
+  | .laUsage = {"22222222-2222-2222-2222-222222222222": [{"Day": "2026-07-12T00:00:00Z", "GB": "0.6"}],
+                "33333333-3333-3333-3333-333333333333": [{"Day": "2026-07-13T00:00:00Z", "GB": "0.1"}]}
+  | .pricings.value[0].pricingTier = "Standard"
+  | .defenderCost.properties.rows += [[4.2, "Microsoft Defender for Cloud", "Microsoft Defender for Servers", "USD"],
+                                       [1.3, "Other", "Security Center", "USD"]]
+  | .activity += [
+      {"operationName": {"value": "Microsoft.Authorization/roleAssignments/write"}, "caller": "a@example.invalid", "eventTimestamp": "2026-07-20T01:00:00Z"},
+      {"operationName": {"value": "Microsoft.Authorization/roleAssignments/write"}, "caller": "b@example.invalid", "eventTimestamp": "2026-07-20T03:05:00Z"},
+      {"operationName": {"value": "microsoft.security/pricings/write"}, "caller": "c@example.invalid", "eventTimestamp": "2026-07-19T23:00:00Z"},
+      {"operationName": {"value": "Microsoft.Authorization/policyAssignments/write"}, "caller": "d@example.invalid", "eventTimestamp": "2026-07-19T22:00:00Z"}]' \
+  "$TMP/azure-clear.json" >"$TMP/azure-alert.json"
+OUT_COST_ALERT="$(cost_brief --billing-usage-json "$TMP/billing-usage-alert.json" --billing-budgets-json "$TMP/billing-budgets-alert.json" \
+  --org-scan-json "$TMP/org-scan-alert.json" --azure-json "$TMP/azure-alert.json" "${ALERT_CONFIG[@]}")"
+RC_COST_ALERT=$?
+COST_ALERT="$(section "$OUT_COST_ALERT" "== Cost")"
+assert_exit "cost: an ALERT is data, not a lost section (exit 0)" 0 "$RC_COST_ALERT"
+assert_contains "cost: a product charging this month is an ALERT" "$COST_ALERT" "ALERT      GitHub usage 2026-07 actions: net 3.46"
+assert_contains "cost: a product at net 0 beside it stays OK" "$COST_ALERT" "OK         GitHub usage 2026-07 git_lfs: net 0"
+assert_contains "cost: a budget above 0 is an ALERT" "$COST_ALERT" "ALERT      GitHub budget actions: amount 25, stop at limit on"
+assert_contains "cost: a budget that does not stop at its limit is an ALERT" "$COST_ALERT" "ALERT      GitHub budget codespaces: amount 0, stop at limit off"
+assert_contains "cost: a zero budget that stops is OK beside them" "$COST_ALERT" "OK         GitHub budget packages: amount 0, stop at limit on"
+assert_contains "cost: a budget page that says more follow is PARTIAL" "$COST_ALERT" "PARTIAL: GitHub budgets: more than one page; the rest were not read"
+assert_contains "cost: an Azure budget whose spend reached its amount is an ALERT" "$COST_ALERT" \
+  "ALERT      Azure budget at-cap: spent 50, forecast 50 (alert above 50), of 50 USD"
+assert_contains "cost: an Azure budget a cent under its amount and its forecast threshold is OK" "$COST_ALERT" \
+  "OK         Azure budget under-cap: spent 49.99, forecast 49.99 (alert above 50), of 50 USD"
+assert_contains "cost: a forecast above --forecast-alert is an ALERT" "$COST_ALERT" \
+  "ALERT      Azure budget forecast-high: spent 10, forecast 60 (alert above 50), of 200 USD"
+assert_contains "cost: private minutes at half the included amount are an ALERT" "$COST_ALERT" \
+  "ALERT      GitHub Actions minutes 2026-07, private repos: 1600 of 3000 minutes included (53%)"
+assert_contains "cost: private storage at half the included amount is an ALERT" "$COST_ALERT" \
+  "ALERT      GitHub Actions storage 2026-07, private repos: 800 of 1488 GB-hours included (54%)"
+assert_contains "cost: a direct collaborator who is not an org admin is an ALERT" "$COST_ALERT" \
+  "ALERT      GitHub collaborators: app-private: direct collaborator contractor-example"
+assert_contains "cost: a pull_request_target workflow reading a _CLAUDE_ secret is an ALERT" "$COST_ALERT" \
+  "ALERT      GitHub fork-triggered workflows: app-private .github/workflows/merge.yml: pull_request_target reads EXAMPLE_CLAUDE_KEY"
+assert_contains "cost: a workflow_run workflow reading one by index is an ALERT" "$COST_ALERT" \
+  "ALERT      GitHub fork-triggered workflows: app-private .github/workflows/after.yml: workflow_run reads OTHER_CLAUDE_TOKEN"
+assert_not_contains "cost: a commented-out trigger or an event expression is not a fork trigger" "$COST_ALERT" "commented.yml"
+assert_contains "cost: a required budget that does not exist is an ALERT" "$COST_ALERT" \
+  "ALERT      Azure budget and anomaly alerts: budget missing-budget is missing"
+assert_contains "cost: a required budget ending within 30 days is an ALERT" "$COST_ALERT" \
+  "ALERT      Azure budget and anomaly alerts: budget ending-soon ends 2026-08-01, within 30 days"
+assert_contains "cost: a disabled anomaly alert is an ALERT" "$COST_ALERT" \
+  "ALERT      Azure budget and anomaly alerts: anomaly alert anomaly-example is Disabled"
+assert_contains "cost: a workspace peak at half its cap is an ALERT" "$COST_ALERT" \
+  "ALERT      Azure Log Analytics log-busy: peak 0.6 GB on 2026-07-12 of a 1 GB daily cap (60%)"
+assert_contains "cost: a workspace with no daily cap is an ALERT" "$COST_ALERT" \
+  "ALERT      Azure Log Analytics log-uncapped: no daily cap; peak 0.1 GB on 2026-07-13"
+assert_contains "cost: a Defender plan off the Free tier is listed, never an ALERT" "$COST_ALERT" "INFO       Azure Defender plans: not Free: VirtualMachines (Standard)"
+assert_contains "cost: Defender and Security Center charges this month are an ALERT" "$COST_ALERT" \
+  "ALERT      Azure Defender charges, month to date: 5.5 USD"
+assert_contains "cost: role assignment writes are an ALERT with the latest event" "$COST_ALERT" \
+  "ALERT      Azure activity, last 24h: Microsoft.Authorization/roleAssignments/write: 2 event(s), latest 2026-07-20T03:05Z UTC by b@example.invalid"
+assert_contains "cost: a Defender plan write is matched whatever its case" "$COST_ALERT" \
+  "ALERT      Azure activity, last 24h: microsoft.security/pricings/write: 1 event(s)"
+assert_contains "cost: a policy assignment write is an ALERT" "$COST_ALERT" \
+  "ALERT      Azure activity, last 24h: Microsoft.Authorization/policyAssignments/write: 1 event(s)"
+assert_not_contains "cost: an unrelated write stays out of the alerts" "$COST_ALERT" "storageAccounts/write"
+
+# GitHub billing needs an org admin. A refusal for want of one prints each
+# billing line UNREADABLE with the fix, and counts the section as lost.
+cat >"$TMP/billing-403.json" <<'EOF'
+{"message": "Must have admin rights to the organization.", "documentation_url": "https://example.invalid/docs", "status": "403"}
+EOF
+OUT_COST_403="$(cost_brief --billing-usage-json "$TMP/billing-403.json" --billing-budgets-json "$TMP/billing-403.json" \
+  --org-scan-json "$TMP/org-scan-clear.json" --azure-json "$TMP/azure-clear.json")"
+RC_COST_403=$?
+COST_403="$(section "$OUT_COST_403" "== Cost")"
+assert_exit "cost 403: a billing read refused for want of an org admin counts the section as lost" 6 "$RC_COST_403"
+assert_contains "cost 403: the header counts the cost section" "$OUT_COST_403" "1 of 8 sections unreadable: cost"
+assert_contains "cost 403: the usage line is UNREADABLE with the fix" "$COST_403" \
+  "UNREADABLE GitHub usage 2026-07: org admin needed: run gh auth login with an org admin account"
+assert_contains "cost 403: the minutes line is UNREADABLE too" "$COST_403" \
+  "UNREADABLE GitHub Actions minutes 2026-07, private repos: org admin needed: run gh auth login with an org admin account"
+assert_contains "cost 403: the storage line is UNREADABLE too" "$COST_403" \
+  "UNREADABLE GitHub Actions storage 2026-07, private repos: org admin needed: run gh auth login with an org admin account"
+assert_contains "cost 403: the budgets line is UNREADABLE with the fix" "$COST_403" \
+  "UNREADABLE GitHub budgets: org admin needed: run gh auth login with an org admin account"
+assert_eq "cost 403: no line is SKIPPED" "0" "$(grep -c SKIPPED <<<"$COST_403")"
+COST_ARGS=(--azure-json "$TMP/azure-clear.json" --org-scan-json "$TMP/org-scan-clear.json")
+OUT_COST_403_LIVE="$(run_stub forbidden --org example --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --behind-json "$TMP/behind.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/lanes-empty.json")"
+RC_COST_403_LIVE=$?
+COST_ARGS=("${CLEAR_COST_ARGS[@]}")
+assert_exit "cost 403 live: a gh 403 on billing counts the cost section as lost" 6 "$RC_COST_403_LIVE"
+assert_contains "cost 403 live: the live refusal reads as a missing org admin" "$(section "$OUT_COST_403_LIVE" "== Cost")" \
+  "UNREADABLE GitHub usage 2026-07: org admin needed: run gh auth login with an org admin account"
+
+# az logged out: every Azure line is UNREADABLE and names az login; the
+# GitHub lines still print.
+jq 'del(.account)' "$TMP/azure-clear.json" >"$TMP/azure-no-account.json"
+OUT_COST_NOAZ="$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" \
+  --azure-json "$TMP/azure-no-account.json")"
+RC_COST_NOAZ=$?
+COST_NOAZ="$(section "$OUT_COST_NOAZ" "== Cost")"
+assert_exit "logged out: the cost section counts as lost" 6 "$RC_COST_NOAZ"
+assert_eq "logged out: all ten Azure lines are UNREADABLE and name az login" "10" "$(grep -c "^  UNREADABLE Azure .*run az login$" <<<"$COST_NOAZ")"
+assert_eq "logged out: no other Azure line prints" "10" "$(grep -c "^  [A-Z]* *Azure" <<<"$COST_NOAZ")"
+assert_contains "logged out: the Log Analytics line names az login" "$COST_NOAZ" \
+  "UNREADABLE Azure Log Analytics: no account in --azure-json; run az login"
+assert_contains "logged out: the GitHub lines still print" "$COST_NOAZ" "OK         GitHub usage 2026-07 actions: net 0"
+
+# One read that failed is an UNREADABLE line beside the lines that read; the
+# section counts as lost (exit 6), never as all-clear.
+jq 'del(.pricings)' "$TMP/azure-clear.json" >"$TMP/azure-no-pricings.json"
+OUT_COST_ONE="$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" \
+  --azure-json "$TMP/azure-no-pricings.json")"
+RC_COST_ONE=$?
+COST_ONE="$(section "$OUT_COST_ONE" "== Cost")"
+assert_exit "cost one unreadable: the brief exits 6" 6 "$RC_COST_ONE"
+assert_contains "cost one unreadable: the header names the cost section" "$OUT_COST_ONE" "1 of 8 sections unreadable: cost"
+assert_contains "cost one unreadable: the failed read is its own UNREADABLE line" "$COST_ONE" "UNREADABLE Azure Defender plans: no pricings in --azure-json"
+assert_contains "cost one unreadable: the reads beside it still print" "$COST_ONE" "OK         Azure budget budget-example: spent 1.5, forecast 3.25"
+printf '{"usageItems": "not a list"}\n' >"$TMP/billing-usage-bad.json"
+COST_BAD="$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-bad.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" \
+  --azure-json "$TMP/azure-clear.json")" "== Cost")"
+assert_contains "cost unparsable: a usage response of the wrong shape is UNREADABLE" "$COST_BAD" \
+  "UNREADABLE GitHub usage 2026-07: could not parse the billing usage"
+
+# Every other section lost while the cost section read: the brief still carries
+# data, so it exits 6, not 5.
+OUT_COST_ONLY="$(run_stub blocked)"
+RC_COST_ONLY=$?
+assert_exit "cost only: a brief whose cost lines read is never exit 5" 6 "$RC_COST_ONLY"
+assert_contains "cost only: the header counts the seven lost sections" "$OUT_COST_ONLY" \
+  "7 of 8 sections unreadable: queues stuck merge-ready decisions telemetry stranded lanes"
+
+# A fixture run with no cost fixtures reads nothing live: every cost line is
+# UNREADABLE with the fix, six GitHub lines and ten Azure lines.
+OUT_FIXTURE_RUN="$(cost_brief)"
+RC_FIXTURE_RUN=$?
+COST_FIXTURE_RUN="$(section "$OUT_FIXTURE_RUN" "== Cost")"
+assert_exit "cost fixture run: an unread cost section exits non-zero" 6 "$RC_FIXTURE_RUN"
+assert_contains "cost fixture run: no org is resolved for GitHub billing" "$COST_FIXTURE_RUN" \
+  "UNREADABLE GitHub usage 2026-07: no org resolved; pass --org"
+assert_eq "cost fixture run: every GitHub line is UNREADABLE" "6" "$(grep -c "^  UNREADABLE GitHub .*: no org resolved; pass --org$" <<<"$COST_FIXTURE_RUN")"
+assert_eq "cost fixture run: every Azure line is UNREADABLE" "10" \
+  "$(grep -c "^  UNREADABLE Azure .*: not read live in a fixture run; pass --subscription or --azure-json$" <<<"$COST_FIXTURE_RUN")"
+assert_eq "cost fixture run: no line is SKIPPED" "0" "$(grep -c SKIPPED <<<"$COST_FIXTURE_RUN")"
+
+# Live reads: gh billing endpoints for the repo owner's org and this month, and
+# az reads that render as the --azure-json fixture does. Every az call is a read
+# that names the subscription account show resolved, and none refreshes.
+COST_LIVE="$TMP/rest-cost"
+mkdir -p "$COST_LIVE"
+cp "$REST/"*.json "$COST_LIVE/"
+cp "$TMP/billing-usage-alert.json" "$COST_LIVE/$(rest_key "orgs/example/settings/billing/usage?year=2026&month=7").json"
+cp "$TMP/billing-budgets-alert.json" "$COST_LIVE/$(rest_key "orgs/example/settings/billing/budgets?per_page=100").json"
+# The org scan's REST reads, built from the same org scan the fixture run reads.
+jq '[.repos[] | {name, visibility, archived, default_branch: "main"}]' "$TMP/org-scan-alert.json" \
+  >"$COST_LIVE/$(rest_key "orgs/example/repos?per_page=100&type=all").json"
+jq '[.admins[] | {login: .}]' "$TMP/org-scan-alert.json" >"$COST_LIVE/$(rest_key "orgs/example/members?role=admin&per_page=100").json"
+while IFS= read -r scan_repo; do
+  jq --arg r "$scan_repo" '[.repos[] | select(.name == $r) | .collaborators[] | {login: .}]' "$TMP/org-scan-alert.json" \
+    >"$COST_LIVE/$(rest_key "repos/example/$scan_repo/collaborators?affiliation=direct&per_page=100").json"
+  jq --arg r "$scan_repo" '[.repos[] | select(.name == $r) | .workflows[] | {name: (.path | sub(".*/"; "")), type: "file"}]' \
+    "$TMP/org-scan-alert.json" >"$COST_LIVE/$(rest_key "repos/example/$scan_repo/contents/.github/workflows?ref=main").json"
+  while IFS= read -r scan_file; do
+    jq -j --arg r "$scan_repo" --arg f "$scan_file" '.repos[] | select(.name == $r) | .workflows[] | select(.path | endswith("/" + $f)) | .text' \
+      "$TMP/org-scan-alert.json" >"$COST_LIVE/$(rest_key "repos/example/$scan_repo/contents/.github/workflows/$scan_file?ref=main").json"
+  done < <(jq -r --arg r "$scan_repo" '.repos[] | select(.name == $r) | .workflows[].path | sub(".*/"; "")' "$TMP/org-scan-alert.json")
+done < <(jq -r '.repos[].name' "$TMP/org-scan-alert.json")
+COST_ARGS=("${ALERT_CONFIG[@]}")
+OUT_COST_LIVE="$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ_FIXTURE="$TMP/azure-alert.json" MB_AZ_LOG="$TMP/az-log" run_stub rest)"
+COST_ARGS=("${CLEAR_COST_ARGS[@]}")
+if [[ "$(section "$OUT_COST_LIVE" "== Cost")" == "$COST_ALERT" ]]; then
+  pass "cost live: gh and az reads render the cost section as the fixtures do"
+else
+  fail "cost live: gh and az reads render the cost section as the fixtures do" "$COST_ALERT" "$(section "$OUT_COST_LIVE" "== Cost")"
+fi
+AZ_LOG="$(cat "$TMP/az-log")"
+assert_eq "cost live: one account read and eleven subscription reads" "12" "$(grep -c . <<<"$AZ_LOG")"
+assert_eq "cost live: the one POST is the Cost Management query" \
+  "rest --method post --url https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.CostManagement/query?api-version=2023-11-01" \
+  "$(grep -- "--method post" <<<"$AZ_LOG" | sed 's/ --body .*//')"
+assert_contains "cost live: the query sums month-to-date actual cost by service and meter category" "$AZ_LOG" \
+  '--body {"type":"ActualCost","timeframe":"MonthToDate","dataset":{"granularity":"Daily","aggregation":{"cost":{"name":"Cost","function":"Sum"}},"grouping":[{"type":"Dimension","name":"ServiceName"},{"type":"Dimension","name":"MeterCategory"}]}}'
+assert_eq "cost live: every read after account show names its subscription" "11" \
+  "$(grep -c -- "--subscription 00000000-0000-0000-0000-000000000001 --only-show-errors -o json" <<<"$AZ_LOG")"
+assert_contains "cost live: the activity log is read for the last day" "$AZ_LOG" "monitor activity-log list --offset 1d --max-events 1000"
+assert_not_contains "cost live: Advisor is never refreshed" "$AZ_LOG" "--refresh"
+assert_not_contains "cost live: Resource Graph is never called" "$AZ_LOG" "graph"
+assert_contains "cost live: budgets with their forecast are read with a GET" "$AZ_LOG" \
+  "rest --method get --url https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.Consumption/budgets?api-version=2024-08-01"
+assert_contains "cost live: each workspace's Usage table is queried for its peak day" "$AZ_LOG" \
+  "monitor log-analytics query --workspace 22222222-2222-2222-2222-222222222222 --analytics-query Usage | where TimeGenerated > ago(31d)"
+
+# The Defender charge rule: a plan off Free with no charge is INFO only; no
+# Defender cost rows is OK; a failed or throttled query is UNREADABLE.
+jq '.pricings.value[0].pricingTier = "Standard" | .defenderCost.properties.rows = [[7, "Storage", "Storage", "USD"]]' \
+  "$TMP/azure-clear.json" >"$TMP/azure-plan-no-charge.json"
+OUT_PLAN="$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" \
+  --azure-json "$TMP/azure-plan-no-charge.json")"
+COST_PLAN="$(section "$OUT_PLAN" "== Cost")"
+assert_exit "defender: a plan off Free with no charge fails nothing" 0 "$(
+  cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" \
+    --org-scan-json "$TMP/org-scan-clear.json" --azure-json "$TMP/azure-plan-no-charge.json" >/dev/null
+  echo $?
+)"
+assert_contains "defender: the plan off Free is listed as INFO" "$COST_PLAN" "INFO       Azure Defender plans: not Free: VirtualMachines (Standard)"
+assert_contains "defender: no Defender cost rows is OK" "$COST_PLAN" "OK         Azure Defender charges, month to date: no Defender cost rows"
+assert_not_contains "defender: a plan off Free with no charge raises no ALERT" "$COST_PLAN" "ALERT"
+assert_contains "data date: rows with no usage date never read as no usage rows" "$COST_PLAN" \
+  "of 100 USD; usage data date unread; read 2026-07-20T08:00Z UTC"
+jq '.defenderCost.properties.rows = []' "$TMP/azure-clear.json" >"$TMP/azure-no-rows.json"
+assert_contains "data date: a query with no rows says so" "$(section "$(cost_brief --azure-json "$TMP/azure-no-rows.json")" "== Cost")" \
+  "of 100 USD; no usage rows this month; read 2026-07-20T08:00Z UTC"
+
+jq '.defenderCost = {"__error": "Too Many Requests(Too many requests. Please retry.)"}' "$TMP/azure-clear.json" >"$TMP/azure-429.json"
+COST_ARGS=(--billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json")
+OUT_429="$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ_FIXTURE="$TMP/azure-429.json" run_stub rest)"
+COST_ARGS=("${CLEAR_COST_ARGS[@]}")
+assert_contains "defender: a throttled cost query is UNREADABLE with the error" "$(section "$OUT_429" "== Cost")" \
+  "UNREADABLE Azure Defender charges, month to date: Too Many Requests(Too many requests. Please retry.)"
+assert_contains "defender: a throttled query counts the cost section as lost" "$OUT_429" "2 of 8 sections unreadable: stranded cost"
+jq '.defenderCost = {"properties": {"columns": [{"name": "ServiceName"}], "rows": []}}' "$TMP/azure-clear.json" >"$TMP/azure-cost-bad.json"
+assert_contains "defender: a cost response without its columns is UNREADABLE" "$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" \
+  --billing-budgets-json "$TMP/billing-budgets-clear.json" --azure-json "$TMP/azure-cost-bad.json")" "== Cost")" \
+  "UNREADABLE Azure Defender charges, month to date: could not parse the defenderCost response"
+
+# Fail closed: a missing amount is a line that could not be read, never OK.
+jq '.usageItems[1] |= del(.netAmount)' "$TMP/billing-usage-clear.json" >"$TMP/billing-usage-no-net.json"
+jq '.budgets.value[0].properties |= del(.currentSpend)' "$TMP/azure-clear.json" >"$TMP/azure-no-spend.json"
+COST_MISSING="$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-no-net.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" \
+  --azure-json "$TMP/azure-no-spend.json")" "== Cost")"
+assert_contains "fail closed: a usage item with no netAmount is UNREADABLE" "$COST_MISSING" \
+  "UNREADABLE GitHub usage 2026-07: could not parse the billing usage"
+assert_contains "fail closed: an Azure budget with no currentSpend is UNREADABLE" "$COST_MISSING" \
+  "UNREADABLE Azure budgets: could not parse the budgets response"
+
+# A 403 is a missing org admin only when its message says so; a rate limit or
+# SAML enforcement is a failed read.
+printf '{"message": "Resource protected by organization SAML enforcement. You must grant your Personal Access token access to this organization.", "documentation_url": "https://example.invalid/docs", "status": "403"}\n' >"$TMP/billing-403-sso.json"
+printf '{"message": "API rate limit exceeded for user ID 1.", "documentation_url": "https://example.invalid/docs", "status": "403"}\n' >"$TMP/billing-403-rate.json"
+COST_403_OTHER="$(section "$(cost_brief --billing-usage-json "$TMP/billing-403-sso.json" --billing-budgets-json "$TMP/billing-403-rate.json" \
+  --azure-json "$TMP/azure-clear.json")" "== Cost")"
+assert_contains "403: SAML enforcement is UNREADABLE" "$COST_403_OTHER" \
+  "UNREADABLE GitHub usage 2026-07: Resource protected by organization SAML enforcement."
+assert_contains "403: a rate limit is UNREADABLE" "$COST_403_OTHER" "UNREADABLE GitHub budgets: API rate limit exceeded for user ID 1."
+assert_not_contains "403: neither reads as a missing org admin" "$COST_403_OTHER" "org admin needed"
+
+# A named subscription that az cannot read is a failed read, not a skip.
+COST_SUB_FAIL="$(section "$(PATH="$GH_STUB_DIR:$PATH" cost_brief --subscription 00000000-0000-0000-0000-000000000009 \
+  --billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json")" "== Cost")"
+assert_contains "subscription: a named subscription az cannot read is UNREADABLE" "$COST_SUB_FAIL" \
+  "UNREADABLE Azure subscription 00000000-0000-0000-0000-000000000009: Please run 'az login' to setup account."
+assert_not_contains "subscription: a named subscription is never skipped" "$COST_SUB_FAIL" "SKIPPED    Azure"
+
+# Every other section lost and every cost line UNREADABLE: the brief carries
+# no data, so it exits 5.
+jq 'del(.account)' "$TMP/azure-clear.json" >"$TMP/azure-skip.json"
+COST_ARGS=(--billing-usage-json "$TMP/billing-403.json" --billing-budgets-json "$TMP/billing-403.json" --azure-json "$TMP/azure-skip.json")
+OUT_ALL_SKIP="$(run_stub blocked)"
+RC_ALL_SKIP=$?
+COST_ARGS=("${CLEAR_COST_ARGS[@]}")
+assert_exit "no data: seven lost sections beside a cost section of UNREADABLE lines exit 5" 5 "$RC_ALL_SKIP"
+assert_contains "no data: the refused billing lines carry no data" "$(section "$OUT_ALL_SKIP" "== Cost")" \
+  "UNREADABLE GitHub usage 2026-07: org admin needed"
+
+# Fail closed on the fields that classify a line: a budget with no
+# prevent_further_usage, an activity event with no operation, and a cost row
+# naming neither service nor meter category are each an UNREADABLE line.
+jq '.budgets[1] |= del(.prevent_further_usage)' "$TMP/billing-budgets-clear.json" >"$TMP/billing-budgets-no-stop.json"
+jq '.activity += [{"caller": "x@example.invalid", "eventTimestamp": "2000-01-01T00:00:00Z"}]
+  | .defenderCost.properties.rows += [[9, null, null, "USD"]]' "$TMP/azure-clear.json" >"$TMP/azure-unclassified.json"
+COST_UNCLASSIFIED="$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" \
+  --billing-budgets-json "$TMP/billing-budgets-no-stop.json" --azure-json "$TMP/azure-unclassified.json")" "== Cost")"
+assert_contains "fail closed: a budget with no prevent_further_usage is UNREADABLE" "$COST_UNCLASSIFIED" \
+  "UNREADABLE GitHub budgets: could not parse the billing budgets"
+assert_not_contains "fail closed: a missing stop flag never reads as off" "$COST_UNCLASSIFIED" "stop at limit off"
+assert_contains "fail closed: an activity event with no operation is UNREADABLE" "$COST_UNCLASSIFIED" \
+  "UNREADABLE Azure activity, last 24h: could not parse the activity response"
+assert_contains "fail closed: a cost row naming no service or meter category is UNREADABLE" "$COST_UNCLASSIFIED" \
+  "UNREADABLE Azure Defender charges, month to date: could not parse the defenderCost response"
+
+# A cost row whose service and meter category are not strings, and an activity
+# event whose operation is an empty string, are UNREADABLE too.
+jq '.activity += [{"operationName": {"value": ""}, "caller": "x@example.invalid", "eventTimestamp": "2000-01-01T00:00:00Z"}]
+  | .defenderCost.properties.rows += [[9, [3, 5, 7], 4, "USD"]]' "$TMP/azure-clear.json" >"$TMP/azure-wrong-types.json"
+COST_WRONG_TYPES="$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-clear.json" \
+  --billing-budgets-json "$TMP/billing-budgets-clear.json" --azure-json "$TMP/azure-wrong-types.json")" "== Cost")"
+assert_contains "fail closed: a cost row whose names are not strings is UNREADABLE" "$COST_WRONG_TYPES" \
+  "UNREADABLE Azure Defender charges, month to date: could not parse the defenderCost response"
+assert_not_contains "fail closed: such a row never reads as no Defender cost rows" "$COST_WRONG_TYPES" "no Defender cost rows"
+assert_contains "fail closed: an activity event with an empty operation is UNREADABLE" "$COST_WRONG_TYPES" \
+  "UNREADABLE Azure activity, last 24h: could not parse the activity response"
+
+# az truly absent from PATH: every Azure line is UNREADABLE and names the fix,
+# with or without --subscription. az can share a directory with bash and jq
+# (/usr/bin on a CI runner), so the PATH is one directory linking every
+# executable on PATH except az, the first of each name winning as PATH would.
+NO_AZ_PATH="$TMP/no-az-bin"
+mkdir -p "$NO_AZ_PATH"
+IFS=: read -ra _path_dirs <<<"$PATH"
+for _d in "${_path_dirs[@]}"; do
+  for _f in "$_d"/*; do
+    [[ "${_f##*/}" != az && -x "$_f" && ! -e "$NO_AZ_PATH/${_f##*/}" ]] && ln -s "$_f" "$NO_AZ_PATH/${_f##*/}"
+  done
+done
+if PATH="$NO_AZ_PATH" command -v az >/dev/null 2>&1; then
+  fail "no az: a PATH without az could be built" "az absent" "$(PATH="$NO_AZ_PATH" command -v az)"
+else
+  COST_NO_AZ_BIN="$(section "$(PATH="$NO_AZ_PATH" cost_brief --org example --org-scan-json "$TMP/org-scan-clear.json" \
+    --billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json")" "== Cost")"
+  assert_eq "no az: without --subscription every Azure line is UNREADABLE" "10" \
+    "$(grep -c "^  UNREADABLE Azure .*: az not installed; install az$" <<<"$COST_NO_AZ_BIN")"
+  assert_eq "no az: no Azure line is SKIPPED" "0" "$(grep -c SKIPPED <<<"$COST_NO_AZ_BIN")"
+  COST_NO_AZ_SUB="$(section "$(PATH="$NO_AZ_PATH" cost_brief --subscription 00000000-0000-0000-0000-000000000009 \
+    --billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json")" "== Cost")"
+  assert_contains "no az: with --subscription Azure is UNREADABLE" "$COST_NO_AZ_SUB" \
+    "UNREADABLE Azure subscription 00000000-0000-0000-0000-000000000009: az not installed; install az"
+  assert_eq "no az: with --subscription every Azure line is UNREADABLE" "10" "$(grep -c "^  UNREADABLE Azure " <<<"$COST_NO_AZ_SUB")"
+fi
+
+# Control characters in an error message or a subscription name never reach
+# the terminal.
+jq '.account.name = "sub\u001b]0;title\u0007-example\u001b[31m" | .pricings = {"__error": "boom\u001b[2Jcleared"}' \
+  "$TMP/azure-clear.json" >"$TMP/azure-escapes.json"
+COST_ARGS=(--billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json")
+COST_ESC="$(section "$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ_FIXTURE="$TMP/azure-escapes.json" run_stub rest)" "== Cost")"
+COST_ARGS=("${CLEAR_COST_ARGS[@]}")
+assert_contains "escapes: the subscription name prints without its control characters" "$COST_ESC" \
+  "INFO       Azure subscription: sub ]0;title -example [31m (Enabled)"
+assert_contains "escapes: an error message prints without its control characters" "$COST_ESC" \
+  "UNREADABLE Azure Defender plans: boom [2Jcleared"
+assert_eq "escapes: no ESC or BEL reaches the cost section" "0" "$(grep -c $'[\x1b\x07]' <<<"$COST_ESC")"
+
+# Each new line is UNREADABLE when its read fails or its response is the wrong
+# shape: an Actions item with no unit, a budget with no forecast, no scheduled
+# actions, no workspace list, and one workspace whose query failed.
+jq '.usageItems[1] |= del(.unitType)' "$TMP/billing-usage-clear.json" >"$TMP/billing-usage-no-unit.json"
+jq '.budgets.value[0].properties |= del(.forecastSpend) | del(.scheduledActions)
+  | .laUsage = {}' "$TMP/azure-clear.json" >"$TMP/azure-new-reads-fail.json"
+COST_NEW_FAIL="$(section "$(cost_brief --billing-usage-json "$TMP/billing-usage-no-unit.json" \
+  --billing-budgets-json "$TMP/billing-budgets-clear.json" --org-scan-json "$TMP/org-scan-clear.json" \
+  --azure-json "$TMP/azure-new-reads-fail.json" --actions-included-minutes 3000)" "== Cost")"
+assert_contains "unreadable: an Actions item with no unit makes the minutes line UNREADABLE" "$COST_NEW_FAIL" \
+  "UNREADABLE GitHub Actions minutes 2026-07, private repos: could not parse the billing usage"
+assert_contains "unreadable: and the storage line" "$COST_NEW_FAIL" \
+  "UNREADABLE GitHub Actions storage 2026-07, private repos: could not parse the billing usage"
+assert_contains "unreadable: a budget with no forecast is UNREADABLE" "$COST_NEW_FAIL" \
+  "UNREADABLE Azure budgets: could not parse the budgets response"
+assert_contains "unreadable: no scheduled actions read is UNREADABLE" "$COST_NEW_FAIL" \
+  "UNREADABLE Azure budget and anomaly alerts: no scheduledActions in --azure-json"
+assert_contains "unreadable: a workspace whose query failed is UNREADABLE by name" "$COST_NEW_FAIL" \
+  "UNREADABLE Azure Log Analytics log-example: no laUsage/11111111-1111-1111-1111-111111111111 in --azure-json"
+jq 'del(.workspaces)' "$TMP/azure-clear.json" >"$TMP/azure-no-workspaces.json"
+assert_contains "unreadable: no workspace list is UNREADABLE" "$(section "$(cost_brief --azure-json "$TMP/azure-no-workspaces.json")" "== Cost")" \
+  "UNREADABLE Azure Log Analytics: no workspaces in --azure-json"
+printf '{"admins": "owner-example", "repos": []}\n' >"$TMP/org-scan-bad.json"
+COST_SCAN_BAD="$(section "$(cost_brief --org-scan-json "$TMP/org-scan-bad.json")" "== Cost")"
+assert_contains "unreadable: an org scan of the wrong shape makes both scan lines UNREADABLE" "$COST_SCAN_BAD" \
+  "UNREADABLE GitHub collaborators: could not parse the org scan"
+assert_contains "unreadable: the workflow line too" "$COST_SCAN_BAD" \
+  "UNREADABLE GitHub fork-triggered workflows: could not parse the org scan"
+SCAN_FAIL="$TMP/rest-scan-fail"
+mkdir -p "$SCAN_FAIL"
+cp "$COST_LIVE/"*.json "$SCAN_FAIL/"
+rm "$SCAN_FAIL/$(rest_key "repos/example/app-private/collaborators?affiliation=direct&per_page=100").json"
+COST_ARGS=(--azure-json "$TMP/azure-clear.json")
+COST_SCAN_FAIL="$(section "$(MB_GH_FIXTURES="$SCAN_FAIL" run_stub rest)" "== Cost")"
+COST_ARGS=("${CLEAR_COST_ARGS[@]}")
+assert_contains "unreadable: a failed collaborator read names the repo" "$COST_SCAN_FAIL" \
+  "UNREADABLE GitHub collaborators: app-private collaborators: Not Found (HTTP 404)"
+assert_contains "unreadable: the live usage lines still print beside it" "$COST_SCAN_FAIL" \
+  "ALERT      GitHub usage 2026-07 actions: net 3.46"
+
+# --- Cost: fork-triggered forms, scan counts, and the cost query's pages ------
+# Each workflow below is fork-triggered in a form the YAML spec allows (a quoted
+# event in a flow sequence, a flow mapping, a quoted block key) and reads a
+# _CLAUDE_ secret, or passes every secret to a reusable workflow or a step.
+# Two near misses stay clear: secrets: inherit on pull_request, and a literal
+# index whose name has no _CLAUDE_.
+jq -n '{admins: ["owner-example"], partial: 0, repos: [{name: "app-forms", visibility: "private", archived: false, collaborators: [],
+  workflows: [
+    {path: ".github/workflows/flow-seq.yml", text: "on: [\"pull_request_target\"]\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets.SEQ_CLAUDE_KEY }}\n"},
+    {path: ".github/workflows/flow-map.yml", text: "on: {pull_request_target: {}}\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets.MAP_CLAUDE_KEY }}\n"},
+    {path: ".github/workflows/quoted-key.yml", text: "on:\n  \"pull_request_target\":\n    types: [opened]\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets.QUOTED_CLAUDE_KEY }}\n"},
+    {path: ".github/workflows/inherit.yml", text: "on: pull_request_target\njobs:\n  call:\n    uses: example/shared/.github/workflows/review.yml@main\n    secrets: inherit\n"},
+    {path: ".github/workflows/tojson.yml", text: "on:\n  workflow_run:\n    workflows: [ci]\njobs:\n  t:\n    steps:\n      - run: echo \u0027${{ toJSON(secrets) }}\u0027\n"},
+    {path: ".github/workflows/computed.yml", text: "on: pull_request_target\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets[format(\u0027{0}_KEY\u0027, matrix.p)] }}\n"},
+    {path: ".github/workflows/inherit-dq.yml", text: "on: pull_request_target\njobs:\n  call:\n    uses: example/shared/.github/workflows/review.yml@main\n    secrets: \"inherit\"\n"},
+    {path: ".github/workflows/inherit-sq.yml", text: "on: pull_request_target\njobs:\n  call:\n    uses: example/shared/.github/workflows/review.yml@main\n    secrets: \u0027inherit\u0027 # all of them\n"},
+    {path: ".github/workflows/comment-scalar.yml", text: "on: pull_request_target # forks\njobs:\n  call:\n    uses: example/shared/.github/workflows/review.yml@main\n    secrets: inherit # all of them\n"},
+    {path: ".github/workflows/comment-list.yml", text: "on:\n  - pull_request_target   # forks\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets.LIST_CLAUDE_KEY }} # note\n"},
+    {path: ".github/workflows/inherit-pr.yml", text: "on: pull_request\njobs:\n  call:\n    uses: example/shared/.github/workflows/review.yml@main\n    secrets: inherit\n"},
+    {path: ".github/workflows/plain-index.yml", text: "on: pull_request_target\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets[\u0027PLAIN_TOKEN\u0027] }}\n"}]}]}' >"$TMP/org-scan-forms.json"
+COST_FORMS="$(section "$(cost_brief --org-scan-json "$TMP/org-scan-forms.json" --azure-json "$TMP/azure-clear.json")" "== Cost")"
+assert_contains "fork forms: a quoted event in a flow sequence is a fork trigger" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/flow-seq.yml: pull_request_target reads SEQ_CLAUDE_KEY"
+assert_contains "fork forms: an event key in a flow mapping is a fork trigger" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/flow-map.yml: pull_request_target reads MAP_CLAUDE_KEY"
+assert_contains "fork forms: a quoted block key is a fork trigger" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/quoted-key.yml: pull_request_target reads QUOTED_CLAUDE_KEY"
+assert_contains "fork forms: a reusable-workflow call with secrets: inherit passes every secret" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/inherit.yml: pull_request_target reads every secret (secrets: inherit)"
+assert_contains "fork forms: a double-quoted inherit passes every secret" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/inherit-dq.yml: pull_request_target reads every secret (secrets: inherit)"
+assert_contains "fork forms: a single-quoted inherit with a comment passes every secret" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/inherit-sq.yml: pull_request_target reads every secret (secrets: inherit)"
+assert_contains "fork forms: a scalar event with a trailing comment is a fork trigger" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/comment-scalar.yml: pull_request_target reads every secret (secrets: inherit)"
+assert_contains "fork forms: a list event with a trailing comment is a fork trigger" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/comment-list.yml: pull_request_target reads LIST_CLAUDE_KEY"
+assert_contains "fork forms: toJSON(secrets) passes every secret" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/tojson.yml: workflow_run reads every secret (toJSON(secrets))"
+assert_contains "fork forms: a computed secrets index can read any secret" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/computed.yml: pull_request_target reads a secret by computed name (secrets[...])"
+assert_not_contains "fork forms: secrets: inherit on pull_request is not a fork trigger" "$COST_FORMS" "inherit-pr.yml"
+assert_not_contains "fork forms: a literal index without _CLAUDE_ keeps the name filter" "$COST_FORMS" "plain-index.yml"
+assert_not_contains "fork forms: no OK line beside the alerts" "$COST_FORMS" "OK         GitHub fork-triggered workflows"
+
+# A scan that listed no repo, or stopped at its workflow-file cap, never reads
+# as clear: each prints UNREADABLE with its counts.
+printf '{"admins": ["owner-example"], "partial": 0, "repos": []}\n' >"$TMP/org-scan-empty.json"
+COST_SCAN_EMPTY="$(section "$(cost_brief --org-scan-json "$TMP/org-scan-empty.json" --azure-json "$TMP/azure-clear.json")" "== Cost")"
+assert_contains "scan counts: no repo listed makes the collaborators line UNREADABLE" "$COST_SCAN_EMPTY" \
+  "UNREADABLE GitHub collaborators: the org scan listed 0 repos; check that gh auth status can read the org's repos"
+assert_contains "scan counts: and the workflows line" "$COST_SCAN_EMPTY" \
+  "UNREADABLE GitHub fork-triggered workflows: the org scan listed 0 repos; check that gh auth status can read the org's repos"
+assert_not_contains "scan counts: no repo listed is never OK" "$COST_SCAN_EMPTY" "OK         GitHub collaborators"
+jq '.partial = 4' "$TMP/org-scan-clear.json" >"$TMP/org-scan-capped.json"
+COST_SCAN_CAPPED="$(section "$(cost_brief --org-scan-json "$TMP/org-scan-capped.json" --azure-json "$TMP/azure-clear.json")" "== Cost")"
+assert_contains "scan counts: a capped workflow read is UNREADABLE with its counts" "$COST_SCAN_CAPPED" \
+  "UNREADABLE GitHub fork-triggered workflows: read 2 workflow files on 2 repos; 4 more not read (raise --workflow-read-limit)"
+assert_not_contains "scan counts: a capped workflow read is never OK" "$COST_SCAN_CAPPED" "OK         GitHub fork-triggered workflows"
+
+# The cost query's next page is read and merged: page 2 holds a Defender charge
+# and the month's latest usage date, 2026-07-20. The nextLink spells the path
+# `Query`, as the Query - Usage reference's examples do
+# (https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage).
+jq '.defenderCost.properties.nextLink = "https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.CostManagement/Query?api-version=2023-11-01&$skiptoken=2"
+  | .defenderCost_2 = {properties: {nextLink: null, columns: .defenderCost.properties.columns,
+      rows: [[3, "Microsoft Defender for Cloud", "Microsoft Defender for Servers", "USD", 20260720]]}}' \
+  "$TMP/azure-clear.json" >"$TMP/azure-paged.json"
+COST_PAGED="$(section "$(cost_brief --azure-json "$TMP/azure-paged.json")" "== Cost")"
+assert_contains "pages: a charge on the cost query's second page is read" "$COST_PAGED" \
+  "ALERT      Azure Defender charges, month to date: 3 USD"
+assert_contains "pages: the data date comes from every page" "$COST_PAGED" "; usage data through 2026-07-20; read 2026-07-20T08:00Z UTC"
+COST_ARGS=(--billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" --org-scan-json "$TMP/org-scan-clear.json")
+: >"$TMP/az-log-paged"
+COST_PAGED_LIVE="$(section "$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ_FIXTURE="$TMP/azure-paged.json" MB_AZ_LOG="$TMP/az-log-paged" run_stub rest)" "== Cost")"
+COST_ARGS=("${CLEAR_COST_ARGS[@]}")
+assert_contains "pages live: the next page is read with az" "$COST_PAGED_LIVE" "ALERT      Azure Defender charges, month to date: 3 USD"
+assert_eq "pages live: one POST per page" "2" "$(grep -c -- "rest --method post" "$TMP/az-log-paged")"
+# A next page that is not the query endpoint is never POSTed: another ARM
+# action; a traversal, a doubled slash, or an encoded dot or slash in the path;
+# a backslash; an embedded newline; or another host. Page 2 would read as a charge.
+Q_URL="https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.CostManagement/query?api-version=2023-11-01"
+BAD_NEXT=(
+  "vm-start=https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.Compute/virtualMachines/vm/start?api-version=2024-07-01&\$skiptoken=2"
+  "traversal=${Q_URL/query\?/query/../../Microsoft.Compute/virtualMachines/vm/start?}&\$skiptoken=2"
+  "double-slash=${Q_URL/providers\//providers//}&\$skiptoken=2"
+  "backslash=$Q_URL&x=\\evil&\$skiptoken=2"
+  "encoded-dot=${Q_URL/query\?/query%2F%2E%2E%2fstart?}&\$skiptoken=2"
+  "newline=$Q_URL&x=1"$'\n'"https://management.azure.com/start&\$skiptoken=2"
+  "other-host=https://attacker.example.invalid/query?\$skiptoken=2"
+)
+for _bad in "${BAD_NEXT[@]}"; do
+  jq --arg n "${_bad#*=}" '.defenderCost.properties.nextLink = $n' "$TMP/azure-paged.json" >"$TMP/azure-paged-bad.json"
+  COST_BAD_NEXT="$(section "$(cost_brief --azure-json "$TMP/azure-paged-bad.json")" "== Cost")"
+  assert_contains "pages: a next page that is not the query endpoint is never read (${_bad%%=*})" "$COST_BAD_NEXT" \
+    "UNREADABLE Azure Defender charges, month to date: the cost query's next page is not the query endpoint; it was not read"
+done
+assert_contains "pages: the budget line still prints, its data date unread" "$COST_BAD_NEXT" \
+  "of 100 USD; usage data date unread; read 2026-07-20T08:00Z UTC"
+# A $skiptoken is opaque and may hold an encoded `/`, `+` or `=`: after the `?`
+# that next page is still the query endpoint, and it is POSTed.
+jq --arg n "$Q_URL&\$skiptoken=AB%2FC%2BD%3D" \
+  '.defenderCost.properties.nextLink = $n | .["defenderCost_AB%2FC%2BD%3D"] = .defenderCost_2' \
+  "$TMP/azure-paged.json" >"$TMP/azure-paged-token.json"
+COST_ARGS=(--billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" --org-scan-json "$TMP/org-scan-clear.json")
+: >"$TMP/az-log-token"
+COST_TOKEN_LIVE="$(section "$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ_FIXTURE="$TMP/azure-paged-token.json" MB_AZ_LOG="$TMP/az-log-token" run_stub rest)" "== Cost")"
+COST_ARGS=("${CLEAR_COST_ARGS[@]}")
+assert_contains "pages live: a skiptoken with encoded / + = is followed" "$COST_TOKEN_LIVE" "ALERT      Azure Defender charges, month to date: 3 USD"
+assert_eq "pages live: a skiptoken with encoded / + = gets one POST per page" "2" "$(grep -c -- "rest --method post" "$TMP/az-log-token")"
+# A non-ASCII byte is rejected in every locale: U+0130 folds to `i` under a
+# UTF-8 locale, which would make subscr<U+0130>ptions match the prefix.
+jq --arg n "${Q_URL/subscriptions/subscr$'\xc4\xb0'ptions}&\$skiptoken=2" '.defenderCost.properties.nextLink = $n' \
+  "$TMP/azure-paged.json" >"$TMP/azure-paged-nonascii.json"
+COST_NONASCII="$(section "$(LC_ALL=C.UTF-8 cost_brief --azure-json "$TMP/azure-paged-nonascii.json")" "== Cost")"
+assert_contains "pages: a next page with a non-ASCII byte is never read" "$COST_NONASCII" \
+  "UNREADABLE Azure Defender charges, month to date: the cost query's next page is not the query endpoint; it was not read"
+
+# The org and the alert percents are validated.
+cost_brief --org 'bad/org' >/dev/null
+assert_exit "validation: an --org that is not a GitHub owner name exits 3" 3 "$?"
+cost_brief --usage-alert-percent 150 >/dev/null
+assert_exit "validation: a --usage-alert-percent above 100 exits 3" 3 "$?"
+cost_brief --log-cap-alert-percent 101 >/dev/null
+assert_exit "validation: a --log-cap-alert-percent above 100 exits 3" 3 "$?"
+cost_brief --usage-alert-percent 100 "${CLEAR_COST_ARGS[@]}" >/dev/null
+assert_exit "validation: a percent of 100 is accepted" 0 "$?"
+
+# --- Cost settings: flag, personal file, team file, default ----------------------
+# A checkout whose team file sets every key, a personal file that overrides two
+# and holds one invalid value, and a flag that overrides one.
+if have git; then
+  CFG="$TMP/cfg-repo"
+  mkdir -p "$CFG/docs/conventions"
+  git -C "$CFG" init -q 2>/dev/null
+  cat >"$CFG/docs/conventions/harness-ops.yaml" <<'EOF'
+morning_brief:
+  org: team-org
+  actions_included_minutes: 3000
+  actions_included_storage_gb: 2
+  usage_alert_percent: 10
+  forecast_alert: 50
+  required_budgets:
+    - budget-example
+  anomaly_alert: anomaly-example
+  expiry_days: 30
+EOF
+  CFG_BRIEF=(--now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --behind-json "$TMP/behind.json"
+    --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json"
+    --lane-runs-json "$TMP/lanes-empty.json" --billing-usage-json "$TMP/billing-usage-clear.json"
+    --billing-budgets-json "$TMP/billing-budgets-clear.json" --org-scan-json "$TMP/org-scan-clear.json" --azure-json "$TMP/azure-clear.json")
+  COST_TEAM="$(section "$(cd "$CFG" && bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)" "== Cost")"
+  assert_contains "settings: the team file's values apply" "$COST_TEAM" \
+    "ALERT      GitHub Actions minutes 2026-07, private repos: 400 of 3000 minutes included (13%)"
+  assert_contains "settings: a team list applies" "$COST_TEAM" \
+    "OK         Azure budget and anomaly alerts: budget budget-example ends 2030-01-01"
+  assert_contains "settings: the layer of each value is reported" "$COST_TEAM" \
+    "settings: org=team-org (harness-ops.yaml) actions_included_minutes=3000 (harness-ops.yaml)"
+  cat >"$CFG/docs/conventions/harness-ops.local.yaml" <<'EOF'
+morning_brief:
+  usage_alert_percent: 90
+  actions_included_minutes: lots
+EOF
+  OUT_LOCAL="$(cd "$CFG" && bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)"
+  COST_LOCAL="$(section "$OUT_LOCAL" "== Cost")"
+  assert_contains "settings: the personal file beats the team file" "$COST_LOCAL" \
+    "OK         GitHub Actions storage 2026-07, private repos: 100 of 1488 GB-hours included (7%)"
+  assert_contains "settings: an invalid personal value is named" "$OUT_LOCAL" \
+    "morning-brief: harness-ops.local.yaml: morning_brief.actions_included_minutes has an invalid value (lots); the default is used"
+  assert_contains "settings: an invalid value takes the default, never the team file's" "$COST_LOCAL" \
+    "INFO       GitHub Actions minutes 2026-07, private repos: 400 minutes used; included amount not configured"
+  COST_FLAG="$(section "$(cd "$CFG" && bash "$BRIEF" "${CFG_BRIEF[@]}" --usage-alert-percent 5 --actions-included-minutes 4000 2>&1)" "== Cost")"
+  assert_contains "settings: a flag beats both files" "$COST_FLAG" \
+    "ALERT      GitHub Actions minutes 2026-07, private repos: 400 of 4000 minutes included (10%)"
+  assert_contains "settings: a flag is reported with its value as the flag" "$COST_FLAG" "usage_alert_percent=5 (flag)"
+  printf 'morning_brief:\n  org: [unclosed\n' >"$CFG/docs/conventions/harness-ops.local.yaml"
+  OUT_BROKEN="$(cd "$CFG" && bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)"
+  assert_contains "settings: a file that cannot be parsed is named and skipped" "$OUT_BROKEN" \
+    "harness-ops.local.yaml could not be parsed"
+  assert_contains "settings: the team file still applies beside it" "$(section "$OUT_BROKEN" "== Cost")" \
+    "of 3000 minutes included"
+  rm "$CFG/docs/conventions/harness-ops.local.yaml"
+  printf 'morning_brief:\n  required_budgets: budget-example\n' >"$TMP/cfg-scalar.yaml"
+  mkdir -p "$TMP/cfg-home"
+  cp "$TMP/cfg-scalar.yaml" "$TMP/cfg-home/harness-ops.yaml"
+  OUT_SCALAR="$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-home" 2>&1)"
+  assert_contains "settings: a list key given a scalar is invalid" "$OUT_SCALAR" \
+    "morning_brief.required_budgets has an invalid value"
+  assert_contains "settings: --config-home names the home" "$(section "$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$CFG/docs/conventions" 2>&1)" "== Cost")" \
+    "settings: org=team-org (harness-ops.yaml)"
+  # Run by bare filename from its own directory, the parser is still found.
+  OUT_BARE="$(cd "${BRIEF%/*}" && bash "${BRIEF##*/}" "${CFG_BRIEF[@]}" --config-home "$CFG/docs/conventions" 2>&1)"
+  assert_contains "settings: a bare-filename run reads the team file" "$(section "$OUT_BARE" "== Cost")" \
+    "settings: org=team-org (harness-ops.yaml)"
+  assert_not_contains "settings: a bare-filename run parses the team file" "$OUT_BARE" "could not be parsed"
+  assert_contains "settings: outside a checkout no file is read" "$(section "$(bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)" "== Cost")" \
+    "settings: defaults (no harness-ops.yaml read)"
+  # A settings file never turns a fixture run live: no gh or az call is made.
+  NET_BIN="$TMP/net-bin"
+  mkdir -p "$NET_BIN"
+  for _tool in gh az; do
+    printf '#!/usr/bin/env bash\nprintf "%%s %%s\\n" "%s" "$*" >>"%s"\nexit 1\n' "$_tool" "$TMP/net-log" >"$NET_BIN/$_tool"
+    chmod +x "$NET_BIN/$_tool"
+  done
+  printf 'morning_brief:\n  org: team-org\n  subscription: 00000000-0000-0000-0000-000000000009\n' >"$TMP/cfg-net.yaml"
+  mkdir -p "$TMP/cfg-net"
+  cp "$TMP/cfg-net.yaml" "$TMP/cfg-net/harness-ops.yaml"
+  : >"$TMP/net-log"
+  OUT_NET="$(PATH="$NET_BIN:$PATH" bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --behind-json "$TMP/behind.json" \
+    --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+    --lane-runs-json "$TMP/lanes-empty.json" --config-home "$TMP/cfg-net" 2>&1)"
+  assert_eq "settings: a team-file org and subscription make no gh or az call in a fixture run" "" "$(cat "$TMP/net-log")"
+  assert_contains "settings: the GitHub lines say the run was not live" "$(section "$OUT_NET" "== Cost")" \
+    "UNREADABLE GitHub usage 2026-07: not read live in a fixture run; pass --org or the billing and org-scan fixtures"
+  # An org setting that is not a GitHub owner name, and a percent above 100, take the default.
+  printf 'morning_brief:\n  org: "bad org;x"\n  log_cap_alert_percent: 101\n' >"$TMP/cfg-net/harness-ops.yaml"
+  OUT_BAD_VALUES="$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-net" 2>&1)"
+  assert_contains "settings: an org that is not a GitHub owner name is invalid" "$OUT_BAD_VALUES" \
+    "morning_brief.org has an invalid value"
+  assert_contains "settings: a percent above 100 is invalid" "$OUT_BAD_VALUES" \
+    "morning_brief.log_cap_alert_percent has an invalid value"
+  # A parse error quoting a key with control characters prints them escaped.
+  printf 'morning_brief:\n  "org\033[2J":1\n' >"$TMP/cfg-net/harness-ops.yaml"
+  OUT_ESC_KEY="$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-net" 2>&1)"
+  assert_contains "settings: a parse error quoting a key is reported" "$OUT_ESC_KEY" "harness-ops.yaml could not be parsed"
+  assert_eq "settings: no ESC from a key reaches the terminal" "0" "$(grep -c $'\x1b' <<<"$OUT_ESC_KEY")"
+fi
 
 # --- Summary ------------------------------------------------------------------
 echo
