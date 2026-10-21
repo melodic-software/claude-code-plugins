@@ -289,10 +289,6 @@ jobs:
     # code) is forgeable: the scan job takes those only through checks.
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
-      # The default branch tip this run checked out before any head code: the
-      # commit default-tip mode trusts, whatever mode the caller passed. The
-      # scan job reads the leak-scan gate at it, never at an older base.
-      default-tip-sha: ${{ steps.base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
       pr-number: ${{ steps.gate.outputs.pr-number }}
       gate-reason: >-
@@ -1744,10 +1740,10 @@ jobs:
       # info files (a fresh repository borrows only its objects, and the
       # patch applies onto a copy of the head's objects each named by its
       # own hash), and lib/publish-gate.mjs comes from the API at the default
-      # branch tip the run job checked out (default-tip-sha; a missing or
-      # malformed one fails the scan closed), never an older PR base, with
-      # the job's read-only token, into a fresh directory, and must import
-      # only node: builtins. A credential format fails the
+      # branch's tip, which this step resolves itself with the job's read-only
+      # token (getBranch; a failed call or a malformed SHA fails the scan
+      # closed with no fetch), never from a run job output or an older PR
+      # base, into a fresh directory, and must import only node: builtins. A credential format fails the
       # step naming the pattern, never the value, and says to rotate it; a
       # patch that does not apply, or a scan that does not finish (the
       # timeout included), fails it with no rotation; every upload and
@@ -1760,7 +1756,6 @@ jobs:
         timeout-minutes: 10
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          GATE_SHA: ${{ needs.run.outputs.default-tip-sha }}
           HEAD_SHA: ${{ needs.run.outputs.head-sha }}
           REPLY_DIR: ${{ steps.decode.outputs.dir }}
           PATCH_FILE: ${{ steps.decode.outputs.dir }}/patch.diff
@@ -1773,7 +1768,7 @@ jobs:
             const crypto = require('crypto');
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
-            const { GATE_SHA, HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
+            const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
             // The one findSecret label that warns instead of blocking.
             const WARN_ONLY = 'password or secret assignment';
             // A regular file's bytes, a link's target text; anything else holds none.
@@ -1789,9 +1784,16 @@ jobs:
             };
             let hit = null;
             try {
-              if (!/^[0-9a-f]{40}$/.test(GATE_SHA ?? '') || !/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no default branch tip or head');
+              if (!/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no head');
               const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
-              const { data } = await github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: GATE_SHA });
+              // The gate's commit, from this job's own token: the default
+              // branch's tip now, never a run job output, which head code with
+              // sudo on that runner could have forged.
+              const branch = context.payload.repository?.default_branch;
+              if (typeof branch !== 'string' || branch === '') throw new Error('no default branch');
+              const tip = (await github.rest.repos.getBranch({ ...context.repo, branch })).data?.commit?.sha;
+              if (typeof tip !== 'string' || !/^[0-9a-f]{40}$/.test(tip)) throw new Error('no default branch tip');
+              const { data } = await github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: tip });
               const source = Buffer.from(data.content, 'base64').toString('utf8');
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
               if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');

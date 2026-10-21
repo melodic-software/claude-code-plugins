@@ -1074,8 +1074,9 @@ output, so no caller can echo one. In order:
      `patch-collected`, `act-outcome`, `lane-class`) or a gate field outside its closed set.
 3. Checks out the gated `head-sha` with `persist-credentials: false` when a patch arrived.
 4. `leak-scan` runs the default branch's `findSecret` (`lib/publish-gate.mjs`, read through the API
-   at the run job's `default-tip-sha`, the tip it checked out before any head code, never at an
-   older PR base and never from a checkout; a missing tip fails the scan closed) over the reply, the run fields and the patch. It applies the
+   at the default branch's tip, which the step resolves itself with the scan job's read token
+   (`getBranch`), never from a run job output, an older PR base or a checkout; a failed call or a
+   malformed SHA fails the scan closed with no fetch) over the reply, the run fields and the patch. It applies the
    patch as apply-patch does, onto the gated head's objects copied through `git index-pack`, and
    scans every file the patch makes, by name and bytes. It scans copies, which the uploads and the
    summary then read, and the run's `patch-sha256` is the scanned copy's. A credential format
