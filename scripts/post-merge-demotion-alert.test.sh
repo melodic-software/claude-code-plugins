@@ -1022,8 +1022,9 @@ fi
 # --- A per-merge full run sent by workflow_dispatch (#8896) -------------------
 # pr-merge.yml starts a full run after each merge with GITHUB_TOKEN, so its
 # completion raises no workflow_run event; pr-merge sends a red one's id here.
-# The re-run comes from pr-merge's next scheduled run, so the step waits for it
-# as long as red-main.confirm-wait-minutes and starts none of its own.
+# pr-merge re-runs it only inside a lane merge's attribution window, so the
+# step waits for a re-run as long as red-main.confirm-wait-minutes and starts
+# none of its own.
 confirm_wait="$(sed -n 's/^  confirm-wait-minutes: \([0-9]*\).*/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
 
 VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=failure \
@@ -1036,6 +1037,24 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)$(dispatches)" == 11 ]] &&
   ok "a dispatched red per-merge run waits for pr-merge's re-run, then files the record and a fix issue"
 else
   fail "dispatched red run: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+# Every red conclusion babysit_postmerge.py counts files when it arrives by
+# dispatch; the workflow_run path keeps its own set, without action_required.
+for conclusion in timed_out cancelled action_required; do
+  VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=failure \
+    run_step "$FULL" workflow_dispatch "$conclusion" main o/r "$SHA" '[]'
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)$(dispatches)" == 11 ]]; then
+    ok "a dispatched $conclusion per-merge run files the record and a fix issue"
+  else
+    fail "dispatched $conclusion run: rc=$RC log='$LOG' out='$OUT'"
+  fi
+done
+ATTEMPT=2 run_step "$FULL" workflow_dispatch action_required main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"concluded action_required: nothing to file"* ]]; then
+  ok "an action_required run from a workflow_run event still files nothing"
+else
+  fail "workflow_run action_required: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=success \
@@ -1221,8 +1240,19 @@ refused "a run on another branch is refused" workflow_dispatch 4242 41898282 'gi
   "$(attempt_run '.head_branch = "feature"')"
 refused "a run of another repository's head is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
   "$(attempt_run '.head_repository.full_name = "fork/r"')"
-refused "a green run is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
-  "$(attempt_run '.conclusion = "success"')"
+for conclusion in success skipped neutral; do
+  refused "a $conclusion run is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
+    "$(attempt_run ".conclusion = \"$conclusion\"")"
+done
+# babysit_postmerge.py's FAILED_CONCLUSIONS: every one is a red to read.
+for conclusion in timed_out cancelled startup_failure action_required; do
+  run_read workflow_dispatch 4242 41898282 'github-actions[bot]' "$(attempt_run ".conclusion = \"$conclusion\"")"
+  if [[ "$RC" -eq 0 && "$(output conclusion)|$(output id)" == "$conclusion|4242" ]]; then
+    ok "a dispatched $conclusion run is read as red"
+  else
+    fail "dispatched $conclusion run refused: rc=$RC output='$OUTPUT' out='$OUT'"
+  fi
+done
 refused "a run still in progress is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
   "$(attempt_run '.status = "in_progress" | .conclusion = null')"
 refused "a scheduled run, which raises its own workflow_run event, is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \

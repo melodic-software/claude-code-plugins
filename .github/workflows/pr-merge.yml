@@ -38,11 +38,13 @@ name: pr-merge
 # whoever enqueued it, the push starts a full CI run of main (the
 # dispatch-full-run job), even while the switch or report-only is on, since it
 # merges nothing. That run raises no workflow_run event (GITHUB_TOKEN started
-# it), so when it fails the same job sends its run id to
+# it), so when it ends red the same job sends its run id to
 # post-merge-demotion-alert.yml through workflow_dispatch, which files the
 # post-merge record and fix issues and reports the red-main culprit once the
-# re-run fails too. A red attempt 1 gets its one re-run from the
-# post-merge-dispatch job, which records it; for a lane merge the merge job's
+# re-run fails too. A red run inside a lane merge's attribution window gets
+# its one re-run from the post-merge-dispatch job, which records it; a red
+# run with no lane merge to charge gets none, and the alert judges attempt 1
+# after red-main.confirm-wait-minutes. For a lane merge the merge job's
 # post-merge check also files the demotion record once it reads the run red,
 # and either filer's record is found by the other through its failing run.
 #
@@ -1143,10 +1145,12 @@ jobs:
       # Holds the push group until the run finishes, so a burst of merges
       # waits here as one pending job. One REST read a minute; the run's
       # result is the merge job's post-merge check's to judge, not this job's.
-      # A run that failed raises no workflow_run event (this token started
-      # it), so this step sends its id to post-merge-demotion-alert.yml, which
-      # waits for its one re-run before it files or reports anything. Every
-      # merge is a push to main, so every merge's run passes here.
+      # A red run raises no workflow_run event (this token started it), so
+      # this step sends its id to post-merge-demotion-alert.yml, which waits
+      # for a re-run before it files or reports anything. Red is any
+      # conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS: a cancel on
+      # a time-budget overrun is red too. Every merge is a push to main, so
+      # every merge's run passes here.
       - name: Wait for the full run to finish
         if: github.event_name == 'push'
         env:
@@ -1160,7 +1164,7 @@ jobs:
             state=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.status + " " + (.conclusion // "")') || continue
             if [ "${state% *}" = completed ]; then
               echo "run $RUN_ID completed: ${state#* }"
-              if [ "${state#* }" = failure ] &&
+              if [[ "${state#* }" =~ ^(failure|timed_out|cancelled|startup_failure|action_required)$ ]] &&
                 ! gh api -X POST "repos/$REPO/actions/workflows/post-merge-demotion-alert.yml/dispatches" \
                   -f ref=main -f "inputs[run-id]=$RUN_ID" >/dev/null; then
                 echo "::error::could not send run $RUN_ID to post-merge-demotion-alert.yml; the next scheduled full run reports a red that lasts"

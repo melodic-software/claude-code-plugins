@@ -105,8 +105,22 @@ test("a red full run is sent to post-merge-demotion-alert.yml by its run id", ()
   ]);
 });
 
-test("a green, cancelled or timed-out full run is sent nowhere", () => {
-  for (const conclusion of ["success", "cancelled", "timed_out"]) {
+// babysit_postmerge.py's FAILED_CONCLUSIONS, the conclusions post-merge
+// demotion counts as red: a cancel on a time-budget overrun is red too.
+test("every red conclusion of a full run is sent to post-merge-demotion-alert.yml", () => {
+  for (const conclusion of ["failure", "timed_out", "cancelled", "startup_failure", "action_required"]) {
+    const { status, writes } = runWait(conclusion);
+    assert.equal(status, 0, conclusion);
+    assert.deepEqual(
+      writes,
+      ["api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=4242"],
+      conclusion,
+    );
+  }
+});
+
+test("a green, skipped or neutral full run is sent nowhere", () => {
+  for (const conclusion of ["success", "skipped", "neutral"]) {
     const { status, writes } = runWait(conclusion);
     assert.equal(status, 0, conclusion);
     assert.deepEqual(writes, [], conclusion);

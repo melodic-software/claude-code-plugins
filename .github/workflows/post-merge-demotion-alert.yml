@@ -38,10 +38,12 @@ name: post-merge-demotion-alert
 # completion raises no workflow_run event. pr-merge's dispatch-full-run job
 # sends a red one here through workflow_dispatch with its run id instead; the
 # first step reads that run and refuses anything but a red pr-require-checks
-# run on this repository's main that github-actions[bot] dispatched. Its
-# re-run comes from pr-merge's next scheduled run, so the alert waits for it
-# as long as the report job does (red-main.confirm-wait-minutes) and starts
-# none itself. When no re-run finishes in that wait and a newer
+# run on this repository's main that github-actions[bot] dispatched. Red is
+# any conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS. A red run
+# inside a lane merge's attribution window gets its one re-run from pr-merge's
+# post-merge-dispatch job, and one with no lane merge to charge gets none, so
+# the alert waits for a re-run as long as the report job does
+# (red-main.confirm-wait-minutes) and starts none itself. When no re-run finishes in that wait and a newer
 # pr-require-checks run on this repository's main has passed, main already
 # recovered: no record, fix issue or report is filed.
 #
@@ -71,7 +73,7 @@ on:
   workflow_dispatch:
     inputs:
       run-id:
-        description: Id of a failed pr-require-checks run on main that github-actions[bot] dispatched
+        description: Id of a red pr-require-checks run on main that github-actions[bot] dispatched
         required: true
         type: string
 
@@ -115,7 +117,9 @@ jobs:
       # only from github-actions[bot] (actor id 41898282) or a listed human,
       # never the lanes App, and only for attempt 1 of a pr-require-checks.yml
       # run on this repository's main that github-actions[bot] dispatched and
-      # that concluded failure. Anything else writes no output and fails.
+      # that concluded red: failure, timed_out, cancelled, startup_failure or
+      # action_required, babysit_postmerge.py's FAILED_CONCLUSIONS. Anything
+      # else writes no output and fails.
       - name: Read the failed run
         id: run
         env:
@@ -174,9 +178,10 @@ jobs:
                 and .event == "workflow_dispatch" and .actor.login == "github-actions[bot]"
                 and .head_branch == "main"
                 and .repository.full_name == $repo and .head_repository.full_name == $repo
-                and .status == "completed" and .conclusion == "failure"
+                and .status == "completed"
+                and (.conclusion | IN("failure", "timed_out", "cancelled", "startup_failure", "action_required"))
               ' <<<"$run" >/dev/null; then
-              echo "::error::run $INPUT_RUN_ID is not a failed pr-require-checks.yml run on main of $GITHUB_REPOSITORY that github-actions[bot] dispatched"
+              echo "::error::run $INPUT_RUN_ID is not a red pr-require-checks.yml run on main of $GITHUB_REPOSITORY that github-actions[bot] dispatched"
               exit 1
             fi
             IFS=$'\t' read -r RUN_WORKFLOW RUN_EVENT RUN_CONCLUSION RUN_BRANCH RUN_REPO RUN_SHA RUN_URL RUN_ID \
@@ -235,8 +240,17 @@ jobs:
           # Neither signal's runs are cancelled by concurrency, so a cancel
           # comes from an actor with actions: write and counts as a failure.
           # A re-run that passes is recorded on the record; it clears nothing.
+          # A dispatched run also files on action_required, as the Read step
+          # accepts every conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS.
           case "$RUN_CONCLUSION" in
             failure | timed_out | startup_failure | cancelled) passed='' ;;
+            action_required)
+              if [[ "$EVENT_NAME" != workflow_dispatch ]]; then
+                echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION: nothing to file"
+                exit 0
+              fi
+              passed=''
+              ;;
             success)
               if [[ ! "$RUN_ATTEMPT" =~ ^[0-9]+$ || "$RUN_ATTEMPT" -lt 2 ]]; then
                 echo "$RUN_WORKFLOW passed on attempt $RUN_ATTEMPT: nothing to file"
@@ -271,7 +285,8 @@ jobs:
             # the POST fails and the wait reads its attempt instead. A re-run
             # that does not finish within 20 minutes leaves attempt 1 judged.
             # A bot-started run sent by workflow_dispatch starts no re-run
-            # here either; its wait for pr-merge's re-run is
+            # here either: pr-merge re-runs it only inside a lane merge's
+            # attribution window, so the wait for a re-run is
             # red-main.confirm-wait-minutes (40), as the report job's.
             if [[ "$RUN_ATTEMPT" -eq 1 && ("$RUN_TRIGGERING_ACTOR" != 'github-actions[bot]' || "$EVENT_NAME" == workflow_dispatch) ]]; then
               polls=20
