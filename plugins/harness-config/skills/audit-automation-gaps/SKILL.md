@@ -37,6 +37,9 @@ is the strongest rung that covers the concern. A consuming repo that documents i
 any `AGENTS.md` the session reads natively, whether in place of a `CLAUDE.md` or alongside one, or in rules files overrides this default
 ordering, so read and use theirs.
 
+A proposed deterministic check meets the "Guardrail criterion" section of that same file before it
+earns a PASS verdict.
+
 ## Boundary: no machine-readable hook enumerator
 
 This skill ships no hook-enumeration mode, and the absence is a decision rather than a gap. The

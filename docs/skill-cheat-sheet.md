@@ -136,6 +136,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/app-control:drive`](../plugins/app-control/skills/drive/SKILL.md) | `app-control` | Run the app, drive it, record evidence, never judge |
 | [`/evals:design`](../plugins/evals/skills/design/SKILL.md) | `evals` | Interview for success criteria and scaffold an eval suite in the consumer repo |
 | [`/evals:methodology`](../plugins/evals/skills/methodology/SKILL.md) | `evals` | Answer LLM-evaluation design questions from Anthropic's official guidance |
 | [`/evals:plugin-eval`](../plugins/evals/skills/plugin-eval/SKILL.md) | `evals` | Preflight, price, run, and read a plugin eval suite around the CLI |

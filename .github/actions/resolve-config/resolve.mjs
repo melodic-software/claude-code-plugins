@@ -936,6 +936,7 @@ const limitsOf = (limits = {}) => ({
   "fix-ci-restarts": limits["fix-ci-restarts"] ?? 1,
   "admission-window-hours": limits["admission-window-hours"] ?? 24,
   "admission-factor": limits["admission-factor"] ?? 0.8,
+  "admission-min-per-hour": limits["admission-min-per-hour"] ?? 1,
 });
 
 const loopOf = (loop = {}) => ({
