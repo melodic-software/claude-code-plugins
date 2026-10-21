@@ -666,8 +666,9 @@ page keeps the rest of its last snapshot.
   bits, shown typed as `XXXX-XXXX` and as a QR code of the guest link plus `#pair=<code>`, drawn
   in the page by its own encoder. Only its hash is kept, in memory; it works once, for 2 minutes,
   and a new code replaces it. `POST /api/owner/pair/redeem` (public) trades it for the device's own
-  credential: one try a second per address, and 5 wrong codes from any address end the live code,
-  so a guesser gets at most 5 tries. The join dialog's "Are you the host? Sign in with a code" takes
+  credential: one try a second per address, and an address with 5 wrong codes is refused the live
+  code while every other address keeps it, so a stranger cannot burn it and a guesser gets 5 tries
+  per address it holds (an IPv6 address counts by its /64) against 31^8. The join dialog's "Are you the host? Sign in with a code" takes
   a typed code. The device sends its credential as `X-Owner-Token` and acts as the owner; it keeps
   it in `localStorage` (`ownerDevice`) until signed out. `state.json` keeps its hash under
   `credentials.devices`, at most 10. Making a code and New owner link (`/api/link/owner`, which
@@ -697,7 +698,7 @@ page keeps the rest of its last snapshot.
   |---|---|
   | Requests per address (`CF-Connecting-IP` only, never `X-Forwarded-For`; an IPv6 address counts by its /64) | 100 a second, bursts of 200; the 10000 most recently seen addresses are remembered |
   | Joins | 30 a minute per address and guest key; 60 per 10 minutes per guest key across all addresses (rotating the guest link starts a new count) |
-  | Host sign-in codes | one made a second; one try a second per address; 5 wrong tries end the live code; 10 signed-in devices |
+  | Host sign-in codes | one made a second; one try a second per address; 5 wrong tries shut that address out of the live code; 10 signed-in devices |
   | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request, report/add) |
   | Heartbeat | 1 a second per person and tab (429 otherwise), except a beat that changes `visible` or `away` |
   | Stored chat, notes, suggestions | the newest 2000 messages (a snapshot carries the newest 50, `GET /api/chat` at most 100 at a time); 2000 notes, then a new one is refused (409 `notes-full`); 200 suggestions per question, with votes on a dropped one dropped too |

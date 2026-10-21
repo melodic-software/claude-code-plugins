@@ -302,7 +302,7 @@
     "bad-guest-key": "This invite link is no longer valid. Ask the host for the new one.",
     "bad-pair-code": "That code is wrong or has expired. Make a new one on your first device.",
     "host-device-only": "Do that on the device where you opened your owner link.",
-    "devices-full": "Ten other devices are signed in. Sign one out first.",
+    "devices-full": "As many other devices as a session takes are signed in. Sign one out first.",
     "owner-only": "Only the host can do that.",
     "moderator-only": "Only the host or a leader can do that.",
     "uploads-off": "Uploads are off in this session.",
@@ -1505,7 +1505,7 @@
   window.addEventListener("DOMContentLoaded", () => {
     const wasSignedOut = get("signedOut") === "1";
     drop("signedOut");
-    if (pairCode && !ownerToken) {
+    if (pairCode && (!ownerToken || ownerDevice)) { // a device signed in before takes the new code, replacing its own
       redeemPair(pairCode).catch(x => { askName("", errorText(x)); if (secret) beat(); });
     } else if (!ownerToken && secret && (adopt || !Core.me.name || !Core.me.cid)) {
       adoptIdentity().then(beat).catch(status => {

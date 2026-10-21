@@ -116,8 +116,8 @@ JOINS_PER_WINDOW = 30
 JOIN_KEY_WINDOW = 600.0
 JOINS_PER_KEY = 60  # judgment: per guest key across all addresses, above JOINS_PER_WINDOW so one office NAT joins at once
 # Signing the owner in on another device: a code typed or scanned once. Its 8 characters from PAIR_ALPHABET (31, no
-# 0/O, 1/I/L) hold about 39.6 bits; PAIR_MISSES wrong tries from anywhere burn it, so a guesser gets at most that
-# many tries at 31**8.
+# 0/O, 1/I/L) hold about 39.6 bits; after PAIR_MISSES wrong tries an address is refused that code, while other
+# addresses keep it, so a guesser gets PAIR_MISSES tries at 31**8 per address it holds.
 PAIR_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 PAIR_LENGTH = 8
 PAIR_SECONDS = 120.0  # judgment: long enough to pick up a phone and scan
@@ -1042,7 +1042,7 @@ class Session:
         self.uploads_dir = self.path.parent / "uploads"  # in the private data folder; never under web/ or assets/
         self._sending = set()  # upload ids whose chunk is being written outside the lock
         self.on_owner_token = None  # called with (token, rotatedAt) inside the rotation, before it commits
-        self._pairing = None  # the one live sign-in code: {"hash", "until", "misses"}; never persisted
+        self._pairing = None  # the one live sign-in code: {"hash", "until", "misses": {address: count}}; never persisted
 
     # -- construction and persistence ---------------------------------------------------------
 
@@ -4524,13 +4524,14 @@ class Session:
             if len(self.state["credentials"].get("devices", {})) >= MAX_DEVICES:
                 raise DomainError(409, "devices-full", f"{MAX_DEVICES} other devices are signed in. Sign one out first.", max=MAX_DEVICES)
             code = "".join(secrets.choice(PAIR_ALPHABET) for _ in range(PAIR_LENGTH))
-            self._pairing = {"hash": sha256(code), "until": now + PAIR_SECONDS, "misses": 0}
+            self._pairing = {"hash": sha256(code), "until": now + PAIR_SECONDS, "misses": {}}
         self._wrote(pid, "pair", now)
         return {"code": code, "expiresIn": PAIR_SECONDS}
 
     def redeem_pairing(self, pid, body, *, address=""):
         """POST /api/owner/pair/redeem: trade the live sign-in code for this device's own owner credential. One try a
-        second per address; PAIR_MISSES wrong codes from anywhere end the live one."""
+        second per address, and an address with PAIR_MISSES wrong codes is refused the live one, which stays good for
+        everyone else, so a stranger cannot burn it."""
         body = _body(body)
         code = re.sub(r"[^0-9A-Z]", "", body["code"].upper()) if isinstance(body.get("code"), str) else ""
         device = _choice(body, "device", DEVICES, optional=True)
@@ -4541,11 +4542,11 @@ class Session:
             self._throttle(address, "pair-redeem", now)
             self._wrote(address, "pair-redeem", now)
             p = self._pairing
-            if p is None or now >= p["until"] or not hmac.compare_digest(sha256(code), p["hash"]):
-                if p is not None:
-                    p["misses"] += 1
-                    if p["misses"] >= PAIR_MISSES or now >= p["until"]:
-                        self._pairing = None
+            if p is not None and now >= p["until"]:
+                p = self._pairing = None
+            if p is None or p["misses"].get(address, 0) >= PAIR_MISSES or not hmac.compare_digest(sha256(code), p["hash"]):
+                if p is not None and p["misses"].get(address, 0) < PAIR_MISSES:
+                    p["misses"][address] = p["misses"].get(address, 0) + 1
                 raise DomainError(403, "bad-pair-code", "That code is wrong or has expired. Ask the host for a new one.")
             self._pairing = None
             token, did = self.ids.token(32), self.ids.token(6)

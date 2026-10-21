@@ -4913,17 +4913,25 @@ class TestOwnerDevices(SessionCase):
         self.refused_redeem(old, "bad-pair-code")
         self.redeem(new, address="198.51.100.7")
 
-    def test_tries_are_throttled_per_address_and_wrong_ones_burn_the_code(self):
+    def test_tries_are_throttled_per_address_and_five_misses_shut_out_only_that_address(self):
         code = self.act("pair_device", HOST, {})["code"]
         wrong = "22222222" if code != "22222222" else "33333333"
         self.refused_redeem(wrong, "bad-pair-code", address="203.0.113.5")
         with self.assertRaises(session.DomainError) as ctx:  # the same second, the same address
             self.s.redeem_pairing(None, {"code": code}, address="203.0.113.5")
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
-        for n in range(4):  # five wrong tries in all, each from its own address
-            self.refused_redeem(wrong, "bad-pair-code", address=f"198.51.100.{n}")
-        self.refused_redeem(code, "bad-pair-code", address="192.0.2.1")
+        for _ in range(4):  # five wrong tries in all from this address
+            self.refused_redeem(wrong, "bad-pair-code", address="203.0.113.5")
+        self.refused_redeem(code, "bad-pair-code", address="203.0.113.5")  # shut out, even with the right code
         self.assertNotIn("devices", self.disk()["credentials"])
+
+    def test_a_strangers_misses_never_stop_the_host_signing_in(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        wrong = "22222222" if code != "22222222" else "33333333"
+        for n in range(5):
+            for _ in range(5):
+                self.refused_redeem(wrong, "bad-pair-code", address=f"198.51.100.{n}")
+        self.assertEqual(self.s.resolve(owner_token=self.redeem(code, address="203.0.113.5")["token"]), HOST)
 
     def test_signing_out_one_device_ends_it_at_once_and_leaves_the_others(self):
         phone, laptop = self.device(device="phone"), self.device(address="198.51.100.7", device="computer")
