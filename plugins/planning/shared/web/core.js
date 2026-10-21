@@ -21,10 +21,14 @@
     history.replaceState(null, "", location.pathname + location.search + (hashParams.toString() ? "#" + hashParams : ""));
   };
   const joinKey = hashParams.get("join") || "";
+  // The host's one-time code for signing this device in as the host ("Sign in on another device"), from its QR code.
+  const pairCode = hashParams.get("pair") || "";
+  if (pairCode) unhash("pair");
   // A personal link ("Use on another device") carries the person's secret in the fragment.
   let adopt = hashParams.get("me") || "";
   // The owner link carries the owner token in the fragment. This tab keeps it in sessionStorage and takes it out of
   // the address bar, so a reload or Back in this tab finds it again; a page opened fresh without it is a guest's.
+  // A device the host signed in with a code keeps its own credential in localStorage ("ownerDevice") until signed out.
   const ownerToken = (() => {
     const tab = (() => { try { return window.sessionStorage; } catch { return null; } })();
     const fromHash = hashParams.get("owner") || "";
@@ -32,9 +36,11 @@
       try { tab.setItem("owner", fromHash); if (tab.getItem("owner") === fromHash) unhash("owner"); } catch { /* no storage: it stays in the address */ }
       return fromHash;
     }
+    if (adopt) return "";
     const nav = performance.getEntriesByType?.("navigation")?.[0]?.type;
-    if (adopt || (nav !== "reload" && nav !== "back_forward")) return "";
-    try { return tab.getItem("owner") || ""; } catch { return ""; }
+    let kept = "";
+    if (nav === "reload" || nav === "back_forward") try { kept = tab.getItem("owner") || ""; } catch { /* no storage */ }
+    return kept || get("ownerDevice") || "";
   })();
   // A personal link for someone else never replaces who this browser already is without a yes (askSwitch): a link
   // handed over must not sign this device in as its sender. With no secret stored, the link is adopted at once.
@@ -45,6 +51,7 @@
     unhash("me");
   }
   if (ownerToken) secret = ""; // the owner link is the owner's only credential
+  const ownerDevice = !!ownerToken && ownerToken === get("ownerDevice");
 
   const listeners = new Set(), reloadHooks = new Set();
   let focusQ = "", typingUntil = 0, chatTypingUntil = 0, lastOk = 0, shownAt = null, joining = null;
@@ -121,7 +128,7 @@
       round: last ? { current: last.n, status: last.status.kind, sentAt: last.status.sentAt, ackAt: last.status.ackAt,
         ...(last.status.ready ? { ready: { by: nameOf(last.status.ready.by), cid: last.status.ready.by, ts: last.status.ready.at } } : {}) } : { current: 1, status: "open" },
       requestCounts: s.requestCounts || DEFAULTS.requestCounts, behind: s.behind || {}, aboutYou: s.aboutYou || {}, myAbout: s.me?.aboutYou || null,
-      shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, guestKey: s.guestKey || "",
+      shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, guestKey: s.guestKey || "", ownerDevices: s.ownerDevices || [],
     };
     const proposals = s.proposals || [];
     const reqText = new Map([...(s.requests || []), ...(s.myRequests || [])].map(r => [r.id, r]));
@@ -293,6 +300,9 @@
     "notes-full": "This session holds as many notes as it takes, so this one was not pinned.",
     ended: "This session has ended.",
     "bad-guest-key": "This invite link is no longer valid. Ask the host for the new one.",
+    "bad-pair-code": "That code is wrong or has expired. Make a new one on your first device.",
+    "host-device-only": "Do that on the device where you opened your owner link.",
+    "devices-full": "Ten other devices are signed in. Sign one out first.",
     "owner-only": "Only the host can do that.",
     "moderator-only": "Only the host or a leader can do that.",
     "uploads-off": "Uploads are off in this session.",
@@ -658,6 +668,12 @@
     newGuestLink: () => act("/api/link/guest", {}),
     /** Owner: a new owner token; this page reloads on the new owner link. */
     newOwnerLink: () => act("/api/link/owner", {}).then(j => { location.hash = "owner=" + j.token; location.reload(); return j; }),
+    /** Owner, on the device that opened the owner link: a one-time code another device signs in with; {code, expiresIn}. */
+    pairDevice: () => act("/api/owner/pair", {}),
+    /** Owner: sign one device out; signing out this one makes this page a guest's. */
+    revokeDevice: id => act("/api/owner/devices/revoke", { id }).then(j => { if (id === get("ownerDeviceId")) signedOut(); return j; }),
+    /** This device is one the host signed in with a code, and its id. */
+    ownerDevice: () => (ownerDevice ? get("ownerDeviceId") || "" : null),
     endSession: on => act("/api/session/end", { on }),
     setGoal: goal => act("/api/session/goal", { goal }),
     /** My own view settings ({key: value}, null clears one); resolves to {prefs, ts}. */
@@ -680,11 +696,9 @@
       if (!r.ok) throw { status: r.status, ...j };
       return j;
     }).then(async j => { await poll(); return j; }),
-    /** A link that signs this person in on another device. It carries their secret: keep it private. */
-    personalLink: () => {
-      const base = `${(Core.state.shareUrl || location.origin).replace(/\/$/, "")}/`;
-      return ownerToken ? `${base}#owner=${ownerToken}` : secret ? `${base}#me=${secret}` : "";
-    },
+    /** A guest's link that signs them in on another device. It carries their secret: keep it private. The host signs
+     *  in elsewhere with a one-time code instead, so the owner link stays where it was opened. */
+    personalLink: () => (secret && !ownerToken ? `${(Core.state.shareUrl || location.origin).replace(/\/$/, "")}/#me=${secret}` : ""),
     /** Q98: a note pinned to an element of one prototype variant. anchor is {selector, rect} from the pin helper. */
     annotate: (qid, variant, anchor, text) => act("/api/annotate", { qid, variant, anchor, text }),
     /** A page of this session, `params` in the fragment. It never holds a credential: a guest's secret stays in this
@@ -726,7 +740,7 @@
   // link) is left alone.
   const SESSION_PAGE = /^\/(?:proto\/Q[1-9][0-9]{0,5})?$/;
   function followAsOwner(e) {
-    if (!ownerToken || e.defaultPrevented || e.button !== (e.type === "auxclick" ? 1 : 0)) return;
+    if (!ownerToken || ownerDevice || e.defaultPrevented || e.button !== (e.type === "auxclick" ? 1 : 0)) return;
     const a = e.target.closest?.("a[href]"), u = a && new URL(a.href);
     if (!u || u.origin !== location.origin || !SESSION_PAGE.test(u.pathname) || (u.pathname === location.pathname && a.target !== "_blank")) return;
     e.preventDefault();
@@ -803,6 +817,16 @@
     });
   }
   function forget() { secret = ""; drop("secret"); drop("pid"); Core.me.cid = ""; }
+  /** Trade the host's one-time code for this device's own host credential, then reload as the host. */
+  async function redeemPair(code) {
+    const r = await fetch("/api/owner/pair/redeem", json({ code, device: deviceKind(), browser: browserKind() }));
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw { status: r.status, ...j };
+    put("ownerDevice", j.token); put("ownerDeviceId", j.id); drop("signedOut");
+    location.reload();
+  }
+  /** This device's host credential is gone: forget it, and the reloaded page asks to join, saying why. */
+  function signedOut() { drop("ownerDevice"); drop("ownerDeviceId"); put("signedOut", "1"); location.reload(); }
   /** A merge into the owner ended this browser's guest identity: forget it and say so, never joining again (owner
    *  rights come only with the owner link). Kept across reloads; the owner link clears it. */
   let merged = !ownerToken && get("merged") === "1";
@@ -1227,6 +1251,7 @@
       if (r.status === 403 && s.error === "waiting") { Core.state = { ...structuredClone(DEFAULTS), title: s.title ?? Core.state.title, intro: s.intro || "", youWaiting: true }; good(); return; }
       if (r.status === 401 && !ownerToken && s.error === "merged-into-owner") { etag = ""; markMerged(); return; }
       if (r.status === 401 && !ownerToken) { forget(); etag = ""; askName(errorText(s)); return; }
+      if (r.status === 401 && ownerDevice) return signedOut();
       if (!r.ok) return;
       if (s.build) { if (build && s.build !== build) return reload("build"); build = s.build; }
       etag = r.headers.get("ETag") || "";
@@ -1336,8 +1361,9 @@
     keep.focus();
   }
 
-  // Name prompt. It stays open until the join succeeds; Escape does not close it.
-  function askName(notice = "") {
+  // Name prompt. It stays open until the join succeeds; Escape does not close it. `codeErr`, when given, opens it on
+  // the host's code entry with that error.
+  function askName(notice = "", codeErr = null) {
     if (document.querySelector("dialog.core-name")) return;
     const dlg = Core.el("dialog", "core-name");
     dlg.setAttribute("aria-labelledby", "core-name-h");
@@ -1352,7 +1378,9 @@
     input.setAttribute("aria-describedby", "core-n-err");
     const err = Core.el("p", "core-err", notice); err.id = "core-n-err"; err.setAttribute("role", "alert");
     const go = Core.el("button", null, "Join");
-    form.append(h, sub, label, input, err, go); dlg.append(form);
+    const host = Core.el("button", "core-btn-quiet core-host-code", "Are you the host? Sign in with a code"); host.type = "button";
+    host.onclick = () => askCode("");
+    form.append(h, sub, label, input, err, go, host); dlg.append(form);
     document.body.append(dlg);
     if (Core.state.joinNeedsKey && !joinKey) err.textContent = "This session needs the host's newest invite link. Ask them for it.";
     dlg.addEventListener("cancel", e => e.preventDefault());
@@ -1365,6 +1393,24 @@
       f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
     });
     const done = () => { unsub(); dlg.close(); dlg.remove(); beat(); poll(); };
+    /** The host's code entry: the code from "Sign in on another device" signs this device in as the host. */
+    function askCode(msg) {
+      const f = Core.el("form"), h2 = Core.el("h2", null, "Sign in as the host"); h2.id = "core-name-h";
+      const p = Core.el("p", "core-note", "On the device where you opened your owner link, open your menu and choose Sign in on another device. Type the code it shows.");
+      const l = Core.el("label", null, "Code"); l.htmlFor = "core-code";
+      const code = Core.el("input"); Object.assign(code, { id: "core-code", required: true, maxLength: 12, autocomplete: "one-time-code", autocapitalize: "characters", spellcheck: false });
+      const e2 = Core.el("p", "core-err", msg); e2.id = "core-code-err"; e2.setAttribute("role", "alert"); code.setAttribute("aria-describedby", e2.id);
+      const row = Core.el("div", "core-row"), back = Core.el("button", "core-btn-quiet", "Back"), ok = Core.el("button", null, "Sign in");
+      back.type = "button"; back.onclick = () => { f.replaceWith(form); input.focus(); };
+      row.append(back, ok); f.append(h2, p, l, code, e2, row);
+      f.addEventListener("submit", ev => {
+        ev.preventDefault();
+        ok.disabled = true; ok.textContent = "Signing in…"; e2.textContent = "";
+        redeemPair(code.value.trim()).catch(x => { e2.textContent = errorText(x); ok.disabled = false; ok.textContent = "Sign in"; code.focus(); });
+      });
+      form.replaceWith(f);
+      code.focus();
+    }
     /** "Were you here before as <name>?" Yes asks the host to merge; either way the person continues now. */
     function askWas(was) {
       form.replaceChildren();
@@ -1399,6 +1445,7 @@
       }
     });
     dlg.showModal();
+    if (codeErr != null) askCode(codeErr);
   }
 
   window.Core = Core;
@@ -1456,13 +1503,17 @@
     } finally { HB.busy = false; }
   }
   window.addEventListener("DOMContentLoaded", () => {
-    if (!ownerToken && secret && (adopt || !Core.me.name || !Core.me.cid)) {
+    const wasSignedOut = get("signedOut") === "1";
+    drop("signedOut");
+    if (pairCode && !ownerToken) {
+      redeemPair(pairCode).catch(x => { askName("", errorText(x)); if (secret) beat(); });
+    } else if (!ownerToken && secret && (adopt || !Core.me.name || !Core.me.cid)) {
       adoptIdentity().then(beat).catch(status => {
         if (status !== 401) return; // removed: the state poll shows it, and the owner can restore the same secret
         forget(); drop("name"); Core.me.name = "";
         askName(adopt ? "That personal link no longer works. Join with your name; the host can merge you with your earlier self." : "");
       });
-    } else if (!ownerToken && !secret && !merged) askName();
+    } else if (!ownerToken && !secret && !merged) askName(wasSignedOut ? "This device was signed out as the host. Join as a guest, or sign in again with a new code." : "");
     else beat();
     if (switchTo) askSwitch(switchTo);
     poll();

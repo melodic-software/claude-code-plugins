@@ -115,6 +115,14 @@ JOIN_WINDOW = 60.0
 JOINS_PER_WINDOW = 30
 JOIN_KEY_WINDOW = 600.0
 JOINS_PER_KEY = 60  # judgment: per guest key across all addresses, above JOINS_PER_WINDOW so one office NAT joins at once
+# Signing the owner in on another device: a code typed or scanned once. Its 8 characters from PAIR_ALPHABET (31, no
+# 0/O, 1/I/L) hold about 39.6 bits; PAIR_MISSES wrong tries from anywhere burn it, so a guesser gets at most that
+# many tries at 31**8.
+PAIR_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+PAIR_LENGTH = 8
+PAIR_SECONDS = 120.0  # judgment: long enough to pick up a phone and scan
+PAIR_MISSES = 5  # judgment: a few typos; the host makes a new code after
+MAX_DEVICES = 10  # judgment: the owner's other signed-in devices; one more needs one signed out first
 MAX_CHAT = 2000  # the newest messages kept, so chat cannot grow state.json without bound
 CHAT_WINDOW = 50  # judgment: the newest messages a snapshot carries; GET /api/chat pages through the rest
 CHAT_PAGE_MAX = 100  # judgment: the most messages one GET /api/chat returns
@@ -1034,6 +1042,7 @@ class Session:
         self.uploads_dir = self.path.parent / "uploads"  # in the private data folder; never under web/ or assets/
         self._sending = set()  # upload ids whose chunk is being written outside the lock
         self.on_owner_token = None  # called with (token, rotatedAt) inside the rotation, before it commits
+        self._pairing = None  # the one live sign-in code: {"hash", "until", "misses"}; never persisted
 
     # -- construction and persistence ---------------------------------------------------------
 
@@ -1202,7 +1211,8 @@ class Session:
                 self._person(pid)
                 return pid
             if owner_token:
-                if hmac.compare_digest(sha256(owner_token), creds["owner"]["tokenHash"]):
+                h = sha256(owner_token)
+                if hmac.compare_digest(h, creds["owner"]["tokenHash"]) or h in creds.get("devices", {}):
                     return HOST
                 raise DomainError(401, "unknown-session", "This owner link is no longer valid.")
             if secret:
@@ -4490,7 +4500,7 @@ class Session:
             return {"guestKey": st["session"]["guestKey"]}
 
     def rotate_owner_link(self, pid, body):
-        """POST /api/link/owner: a new owner token; the old owner link stops working."""
+        """POST /api/link/owner: a new owner token; the old owner link and every other signed-in device stop working."""
         _body(body)
         with self._tx() as st:
             self._owner(pid)
@@ -4499,7 +4509,60 @@ class Session:
             if self.on_owner_token is not None:  # the secrets file holds the token before the hash commits
                 self.on_owner_token(token, at)
             st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": at}
+            st["credentials"].pop("devices", None)
+            self._pairing = None
             return {"token": token}
+
+    def pair_device(self, pid, body):
+        """POST /api/owner/pair: a sign-in code for another device of the owner's, replacing any earlier one. It works
+        once, for PAIR_SECONDS; only its hash is kept, in memory."""
+        _body(body)
+        now = self.now()
+        with self._lock:
+            self._owner(pid)
+            self._throttle(pid, "pair", now)
+            if len(self.state["credentials"].get("devices", {})) >= MAX_DEVICES:
+                raise DomainError(409, "devices-full", f"{MAX_DEVICES} other devices are signed in. Sign one out first.", max=MAX_DEVICES)
+            code = "".join(secrets.choice(PAIR_ALPHABET) for _ in range(PAIR_LENGTH))
+            self._pairing = {"hash": sha256(code), "until": now + PAIR_SECONDS, "misses": 0}
+        self._wrote(pid, "pair", now)
+        return {"code": code, "expiresIn": PAIR_SECONDS}
+
+    def redeem_pairing(self, pid, body, *, address=""):
+        """POST /api/owner/pair/redeem: trade the live sign-in code for this device's own owner credential. One try a
+        second per address; PAIR_MISSES wrong codes from anywhere end the live one."""
+        body = _body(body)
+        code = re.sub(r"[^0-9A-Z]", "", body["code"].upper()) if isinstance(body.get("code"), str) else ""
+        device = _choice(body, "device", DEVICES, optional=True)
+        browser = body.get("browser")
+        browser = None if browser is None else browser if browser in BROWSERS else "other"
+        now = self.now()
+        with self._tx() as st:
+            self._throttle(address, "pair-redeem", now)
+            self._wrote(address, "pair-redeem", now)
+            p = self._pairing
+            if p is None or now >= p["until"] or not hmac.compare_digest(sha256(code), p["hash"]):
+                if p is not None:
+                    p["misses"] += 1
+                    if p["misses"] >= PAIR_MISSES or now >= p["until"]:
+                        self._pairing = None
+                raise DomainError(403, "bad-pair-code", "That code is wrong or has expired. Ask the host for a new one.")
+            self._pairing = None
+            token, did = self.ids.token(32), self.ids.token(6)
+            hint = {k: v for k, v in (("device", device), ("browser", browser)) if v}
+            st["credentials"].setdefault("devices", {})[sha256(token)] = {"id": did, "at": now, **hint}
+            return {"token": token, "id": did}
+
+    def revoke_device(self, pid, body):
+        """POST /api/owner/devices/revoke: one of the owner's other devices is signed out at once."""
+        did = _body(body).get("id")
+        with self._write_as(pid, "device-revoke", check=self._owner) as st:
+            devices = st["credentials"].get("devices", {})
+            h = next((h for h, d in devices.items() if d["id"] == did), None)
+            if h is None:
+                raise DomainError(404, "not-found", "That device is not signed in.")
+            devices.pop(h)
+            return {"id": did}
 
     # -- notifications -----------------------------------------------------------------------
 
@@ -5254,6 +5317,7 @@ class Session:
                 )
             with self._tx() as st:
                 st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": issued_at}
+                st["credentials"].pop("devices", None)  # a new owner link, as a rotation makes
             return True
 
     def is_owner_token(self, token):
@@ -5626,6 +5690,7 @@ class Session:
                 snap["reports"] = [self._report_view(f, r) for f, r in st.get("reports", {}).items() if r["status"] != "resolved"]
                 snap["passes"] = {q: {p: dict(r) for p, r in by.items() if self._active(p)} for q, by in st.get("passes", {}).items()}
                 snap["aboutYou"] = copy.deepcopy(st["aboutYou"])
+                snap["ownerDevices"] = sorted((dict(d) for d in st["credentials"].get("devices", {}).values()), key=lambda d: d["at"])
                 snap["removed"] = [
                     {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")} for v in st["people"].values() if v["status"]["kind"] == "removed"
                 ]

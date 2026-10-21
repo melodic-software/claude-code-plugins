@@ -65,6 +65,50 @@ async function main() {
     await own.waitForTimeout(1500);
     ok("a link holding the browser's own secret asks nothing", !(await own.evaluate(() => !!document.querySelector("dialog.core-switch"))) && (await stored(own)) === annSecret);
 
+    // ---------- the host signs in on another device with a one-time code; the owner link stays where it was ----------
+    const ownerTok = new URL(A.ownerUrl).hash.slice("#owner=".length);
+    const host = await rec.open(A.ownerUrl);
+    await until(host, () => window.Core.snapshot()?.me?.role === "owner", null, 10000);
+    await host.click(".vf-person-me");
+    await until(host, () => !!document.querySelector('.vf-pcard [data-k="pair"]'));
+    ok("the host's menu offers Sign in on another device in place of a personal link", (await host.textContent('.vf-pcard [data-k="pair"]')).trim() === "Sign in on another device"
+      && !(await host.evaluate(() => !!document.querySelector('.vf-pcard [data-k="device"]'))));
+    await host.click('.vf-pcard [data-k="pair"]');
+    const shownCode = () => host.evaluate(() => document.querySelector(".vf-pair-code")?.textContent || "");
+    ok("  it shows a QR code and a code of 8 characters", await until(host, () => /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(document.querySelector(".vf-pair-code")?.textContent || "")
+      && !!document.querySelector(".vf-pairpop .vf-qr svg")), await shownCode());
+    ok("  and nothing on it holds the owner link's token", !(await host.evaluate(t => document.querySelector(".vf-pairpop").outerHTML.includes(t), ownerTok)));
+    const code1 = (await shownCode()).replace("-", "");
+    const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
+    const phone = await rec.open(`${A.localUrl}#join=${A.guestKey}&pair=${code1}`, { context: PHONE });
+    ok("the code in the QR code's link signs a fresh phone in as the host", await until(phone, () => window.Core.snapshot()?.me?.role === "owner", null, 10000));
+    const phoneCred = await phone.evaluate(() => localStorage.getItem("ownerDevice"));
+    ok("  with its own credential, not the owner link's token, and no code left in the address", !!phoneCred && phoneCred !== ownerTok && !(await phone.evaluate(() => location.hash.includes("pair"))));
+    ok("  the host's list shows the phone", await until(host, () => [...document.querySelectorAll(".vf-pairlist .vf-pair-dev")].map(li => li.textContent).join().startsWith("Phone")));
+
+    await host.waitForTimeout(1100); // the server makes one code a second
+    await host.click(".vf-pairpop button:text-is('New code')");
+    ok("New code makes another", await until(host, c => /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(document.querySelector(".vf-pair-code")?.textContent || "") && document.querySelector(".vf-pair-code").textContent.replace("-", "") !== c, code1));
+    const code2 = (await shownCode()).replace("-", "");
+    const laptop = await rec.open(A.localUrl);
+    await until(laptop, () => !!document.querySelector("dialog.core-name[open] .core-host-code"));
+    await laptop.click("dialog.core-name .core-host-code");
+    await laptop.waitForTimeout(1100); // one try a second from one address, and every page here is the same address
+    await laptop.fill("#core-code", "2222-2222");
+    await laptop.click("dialog.core-name button:text-is('Sign in')");
+    ok("the join dialog's code entry says when a code is wrong", await until(laptop, () => /wrong or has expired/.test(document.getElementById("core-code-err")?.textContent || "")));
+    await laptop.waitForTimeout(1100);
+    await laptop.fill("#core-code", code2.toLowerCase());
+    await laptop.click("dialog.core-name button:text-is('Sign in')");
+    ok("  and the right one, typed in lower case, signs this browser in as the host", await until(laptop, () => window.Core.snapshot()?.me?.role === "owner", null, 10000));
+    ok("  where the settings offer no New owner link: it would hand over the owner link", await laptop.evaluate(() => { const b = [...document.querySelectorAll(".vf-menu-item")].filter(x => x.textContent === "New owner link"); return b.length === 1 && b[0].hidden; }));
+
+    await until(host, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 2);
+    await host.locator(".vf-pairlist .vf-pair-dev", { hasText: "Phone" }).locator("button").click();
+    ok("signing the phone out turns its page into a guest's join dialog, which says why", await until(phone, () => /signed out as the host/.test(document.querySelector("dialog.core-name[open]")?.textContent || "")
+      && !localStorage.getItem("ownerDevice"), null, 10000));
+    ok("  and the other device stays the host", await until(laptop, () => window.Core.snapshot()?.me?.role === "owner") && await until(host, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 1));
+
     // ---------- names hidden: two guests share a name, and only the moderator's people list tells them apart ----------
     const B = await s.start("shared-name");
     s.apply(B.dir, [{ op: "set-title", title: "Names" }, { op: "open-round", questions: [q("Q1", "Where should we go?")] }]);

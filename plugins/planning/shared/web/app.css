@@ -1732,6 +1732,10 @@
 .app .vf-qr { justify-self: center; inline-size: 200px; padding: 0; border-radius: var(--r-md); overflow: hidden; background: oklch(1 0 none); box-shadow: 0 0 0 1px var(--line-strong); }
 .app .vf-qr svg { display: block; inline-size: 100%; block-size: auto; }
 .app .vf-devicepop .vf-crow { margin: 0; }
+.app .vf-pair-code { margin: 0; text-align: center; font: 600 24px/1.2 ui-monospace, monospace; letter-spacing: 0.12em; }
+.app .vf-pair-code:empty { display: none; }
+.app .vf-pairlist { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.app .vf-pair-dev { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .app .vf-devwarn {
   display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: var(--r-sm);
   background: var(--review-soft); color: var(--text); font-size: 12px; font-weight: 600;

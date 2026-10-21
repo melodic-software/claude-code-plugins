@@ -2174,12 +2174,20 @@
     const devWarn = E("p", "vf-devwarn");
     devicePop.append(E("h2", "vf-pop-title", "Use on another device"), E("p", "vf-pop-note", "Scan this on your phone, or open the link in another browser. You stay the same person there, with your answers and votes."), qrBox, devField, devRow, devWarn);
 
+    // Sign in on another device (the owner): a one-time code, its QR code, and the devices signed in so far.
+    const pairPop = E("div", "vf-pop vf-devicepop vf-pairpop"); pairPop.setAttribute("role", "dialog"); pairPop.setAttribute("aria-label", "Sign in on another device"); pairPop.hidden = true;
+    const pairNote = E("p", "vf-pop-note"), pairQr = E("div", "vf-qr"), pairCode = E("p", "vf-pair-code"), pairWhen = E("p", "vf-pop-note");
+    const pairRow = E("div", "vf-crow"), pairNew = btn("vf-btn vf-btn-ghost vf-btn-sm", "New code");
+    pairRow.append(E("span", "vf-spacer"), pairNew);
+    const pairList = E("ul", "vf-pairlist"); pairList.setAttribute("aria-label", "Signed-in devices");
+    pairPop.append(E("h2", "vf-pop-title", "Sign in on another device"), pairNote, pairQr, pairCode, pairWhen, pairRow, E("h3", "vf-pop-sub", "Signed-in devices"), pairList);
+
     keysBtn.before(introBtn);
     root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, tiePop, proposePop, reportPop, myRepPop, citePop, msgMenu, askPanel, devicePop,
-      bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
+      pairPop, bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
     // F11: the surfaces made without a close control get the one x, named for what it closes; the forms keep Cancel too.
     for (const [pop, name, ph] of [[settingsPop, "Session settings"], [sharePop, "Invite people"], [keysPop, "Help"], [introPop, "Why you're here"],
-      [citePop, "Cite a result"], [tiePop, "Tied on votes"], [devicePop, "Use on another device"], [editPop, "Edit this answer"],
+      [citePop, "Cite a result"], [tiePop, "Tied on votes"], [devicePop, "Use on another device"], [pairPop, "Sign in on another device"], [editPop, "Edit this answer"],
       [proposePop, "Propose a question", "sheet"], [reportPop, "Report a problem", "sheet"], [myRepPop, "Your reports", "sheet"]]) {
       pop.dataset.kind = "pop"; pop.dataset.phone = ph || "pop";
       pop.prepend(ibtn("vf-tbtn vf-icon-btn vf-popx", "x", `Close ${name}`));
@@ -3934,10 +3942,10 @@
       apply(best); fmt(best);
       return M;
     }
-    function qrSvg(text) {
+    function qrSvg(text, label = "QR code of your personal link") {
       const M = qrMatrix(text); if (!M) return E("p", "vf-pop-note", "The link is too long for a QR code. Copy it instead.");
       const n = M.length + 8, s = document.createElementNS(SVG, "svg");
-      s.setAttribute("viewBox", `0 0 ${n} ${n}`); s.setAttribute("role", "img"); s.setAttribute("aria-label", "QR code of your personal link");
+      s.setAttribute("viewBox", `0 0 ${n} ${n}`); s.setAttribute("role", "img"); s.setAttribute("aria-label", label);
       s.setAttribute("shape-rendering", "crispEdges");
       const bg = document.createElementNS(SVG, "rect"); bg.setAttribute("width", n); bg.setAttribute("height", n); bg.setAttribute("fill", "#fff");
       let d = ""; M.forEach((row, y) => row.forEach((on2, x) => { if (on2) d += `M${x + 4} ${y + 4}h1v1h-1z`; }));
@@ -3950,14 +3958,50 @@
       if (!link) return flash("Join first, then you can take this to another device.");
       devField.value = link;
       qrBox.replaceChildren(qrSvg(link));
-      devWarn.replaceChildren(icon("alert"), E("span", null, Core.me.isOwner
-        ? "Keep this private: this is your owner link, and anyone with it can run this session."
-        : "Keep this private: anyone with this link can answer, vote and chat as you."));
-      const anchor = people.querySelector(".vf-person-me") || (gear.offsetParent ? gear : askTop);
-      openSurface(devicePop, anchor);
+      devWarn.replaceChildren(icon("alert"), E("span", null, "Keep this private: anyone with this link can answer, vote and chat as you."));
+      openSurface(devicePop, people.querySelector(".vf-person-me") || (gear.offsetParent ? gear : askTop));
       devCopy.focus({ preventScroll: true });
     }
     devCopy.onclick = () => copyOut(devField.value, "Link copied. Open it on your other device.", "Your link", devCopy, devField);
+    let pairT = 0;
+    /** A fresh one-time code: the QR code opens the session's link with it, or the other device types it. */
+    function newPairCode() {
+      clearTimeout(pairT);
+      pairQr.replaceChildren(); pairCode.textContent = ""; pairWhen.textContent = "Making a code…"; pairNew.disabled = true;
+      return Core.pairDevice().then(j => {
+        const link = `${Core.guestLink()}${Core.state.guestKey ? "&" : "#"}pair=${j.code}`;
+        pairQr.replaceChildren(Core.state.shareUrl ? qrSvg(link, "QR code that signs a device in as the host")
+          : E("p", "vf-pop-note", "Share the session first: the other device opens its link, which this one does not have yet."));
+        pairCode.textContent = `${j.code.slice(0, 4)}-${j.code.slice(4)}`;
+        pairWhen.textContent = `Scan it with the other device's camera, or open the session's link there and choose Sign in with a code. It works once, for ${Math.round(j.expiresIn / 60)} minutes.`;
+        pairT = setTimeout(() => { pairQr.replaceChildren(); pairCode.textContent = ""; pairWhen.textContent = "That code expired. Make a new one."; }, j.expiresIn * 1000);
+      }).catch(e => { pairWhen.textContent = Core.errorText(e); }).finally(() => { pairNew.disabled = false; });
+    }
+    pairNew.onclick = newPairCode;
+    function fillPairList() {
+      const mine = Core.ownerDevice(), devs = Core.state.ownerDevices || [], sig = JSON.stringify(devs);
+      if (pairList.dataset.sig === sig) return; // a repaint mid-click would drop the click
+      pairList.dataset.sig = sig;
+      pairList.replaceChildren(...devs.map(d => {
+        const name = `${d.device ? d.device[0].toUpperCase() + d.device.slice(1) : "Device"}${d.browser ? ` (${d.browser})` : ""}${d.id === mine ? ", this one" : ""}`;
+        const li = E("li", "vf-pair-dev"), out = btn("vf-btn vf-btn-ghost vf-btn-sm", "Sign out");
+        out.setAttribute("aria-label", `Sign out ${name}`);
+        out.onclick = () => { out.disabled = true; Core.revokeDevice(d.id).then(() => flash(`${name} is signed out.`)).catch(e => { out.disabled = false; fail(e); }); };
+        li.append(E("span", null, `${name}, signed in ${since(d.at)}`), out);
+        return li;
+      }));
+      if (!devs.length) pairList.append(E("li", "vf-pop-note", "None yet."));
+    }
+    function openPair() {
+      const dev = Core.ownerDevice() != null;
+      pairNote.textContent = dev ? "This device is signed in as the host. Make codes on the device where you opened your owner link."
+        : "Be the host on your phone or another computer too. Each device gets its own sign-in, which you can sign out here; a new owner link signs out all of them.";
+      for (const el of [pairQr, pairCode, pairWhen, pairRow]) el.hidden = dev;
+      delete pairList.dataset.sig;
+      fillPairList();
+      openSurface(pairPop, people.querySelector(".vf-person-me") || (gear.offsetParent ? gear : askTop));
+      if (!dev) newPairCode();
+    }
 
     // ---------- uploads: the file waits in this browser until the host accepts ----------
     const CHUNK_MAX = 8 * 1024 * 1024, GUEST_MAX = 100 * 1024 * 1024; // the server names its chunk size on each upload
@@ -4369,6 +4413,7 @@
     hSettings.onclick = () => openSurface(settingsPop, hSettings);
     hNewGuest.onclick = () => newGuestBtn.click();
     hNewOwner.onclick = () => newOwnerBtn.click();
+    newOwnerBtn.hidden = Core.ownerDevice() != null; // only where the owner link was opened (server.py "host")
     hEnd.onclick = () => endBtn.click();
     follow.onclick = () => setFollow(!following());
     prevQ.onclick = () => step(-1);
@@ -4625,7 +4670,7 @@
     }
     newGuestBtn.onclick = guarded({ title: "Make a new guest link?", body: "The guest link you shared stops working: nobody new can join with it. People already here stay. You share the new link again.", ok: "Make new guest link" },
       () => Core.newGuestLink().then(() => { openSurface(sharePop, shareBtn.offsetParent ? shareBtn : gear); flash("New guest link made. Share it again."); }).catch(fail));
-    newOwnerBtn.onclick = guarded({ title: "Make a new owner link?", body: "Your current owner link stops working everywhere, including other devices and tabs that use it. This page reloads with the new one: save it, or you lose host access.", ok: "Make new owner link" },
+    newOwnerBtn.onclick = guarded({ title: "Make a new owner link?", body: "Your current owner link stops working everywhere, including other tabs that use it, and every device you signed in with a code is signed out. This page reloads with the new one: save it, or you lose host access.", ok: "Make new owner link" },
       () => Core.newOwnerLink().catch(fail));
     const laterItems = () => Core.state.ideas.filter(i => i.status === "later");
     const laterLine = n => `${n} Later item${n === 1 ? "" : "s"} will become tracker item${n === 1 ? "" : "s"}`;
@@ -4857,8 +4902,8 @@
           awayB.setAttribute("aria-pressed", String(Core.isAway()));
           // Pressed means this click is the input that ended Away (core.js clears it on pointerdown or keydown).
           awayB.onclick = () => { if (awayB.getAttribute("aria-pressed") === "true" || Core.isAway()) return; Core.setAway(true); flash("You show as Away until you next type, click or tap."); fillPcard(); };
-          const dev = k(lbtn("vf-menu-item vf-menu-plain", "device", "Use on another device"), "device");
-          dev.onclick = openDevice;
+          const dev = k(lbtn("vf-menu-item vf-menu-plain", "device", owner ? "Sign in on another device" : "Use on another device"), owner ? "pair" : "device");
+          dev.onclick = owner ? openPair : openDevice;
           parts.push(awayB, dev);
         }
         if (ui.renaming) {
@@ -6686,6 +6731,7 @@
       hPeople._m.textContent = `${S.presence.length} here${nAway ? ` (${nAway} away)` : ""}, ${ppl.filter(p => !gone.has(p.pid)).length} joined`;
       // links and settings
       hNewGuest.hidden = hNewOwner.hidden = hSettings.hidden = hEnd.hidden = !owner;
+      hNewOwner.hidden ||= Core.ownerDevice() != null; // only where the owner link was opened (server.py "host")
       const nl = laterItems().length;
       hEnd.textContent = S.ended ? "Reopen session" : "End session";
       hEndNote.textContent = owner && !S.ended ? (nl ? `Ending makes the page read-only for guests. ${laterLine(nl)}.` : "Ending makes the page read-only for guests, with the final tree.") : "";
@@ -6760,6 +6806,7 @@
         }
       }
       notices(S);
+      if (!pairPop.hidden) fillPairList();
       pumpUploads(); prunePics();
       // New answers from others on the question I am on: one polite summary, never the list itself.
       const heardQ = ui.cur, others0 = Core.answersFor(heardQ).filter(a => !isMe(a.cid)).length;

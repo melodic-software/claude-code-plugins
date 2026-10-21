@@ -4861,6 +4861,110 @@ class TestWatcherKey(SessionCase):
         self.assertEqual(self.s.state["credentials"].get("watchers", {}), {})
 
 
+class TestOwnerDevices(SessionCase):
+    """Signing the owner in on another device. Expected values come from the owner's decision: a single-use code that
+    lasts about 2 minutes with throttled tries, traded for the device's own owner credential, stored hashed, revocable
+    on its own, all of them ended by rotating the owner link; and from a guest's limits, which it must never pass."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.ann_secret = self.join("Ann")
+
+    def redeem(self, code, address="203.0.113.5", **body):
+        self.clock.tick()
+        return self.s.redeem_pairing(None, {"code": code, **body}, address=address)
+
+    def refused_redeem(self, code, want, address="203.0.113.5"):
+        with self.assertRaises(session.DomainError) as ctx:
+            self.redeem(code, address)
+        self.assertEqual(ctx.exception.code, want, ctx.exception.message)
+
+    def device(self, **body):
+        return self.redeem(self.act("pair_device", HOST, {})["code"], **body)
+
+    def test_only_the_owner_makes_a_code_and_it_is_short_enough_to_type(self):
+        self.refused("owner-only", "pair_device", self.ann, {}, http=403)
+        code = self.act("pair_device", HOST, {})["code"]
+        self.assertRegex(code, r"^[0-9A-Z]{8}$")
+        self.assertNotIn(code, self.path.read_text(encoding="utf-8"))
+
+    def test_a_code_signs_in_one_device_once_with_a_credential_of_its_own(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        out = self.redeem(f"{code[:4].lower()}-{code[4:]}", device="phone", browser="safari")
+        self.assertNotEqual(out["token"], self.owner_token)
+        self.assertEqual(self.s.resolve(owner_token=out["token"]), HOST)
+        self.assertEqual(self.s.resolve(owner_token=self.owner_token), HOST)
+        self.assertNotIn(out["token"], self.path.read_text(encoding="utf-8"))
+        self.assertEqual(self.disk()["credentials"]["devices"], {session.sha256(out["token"]): {"id": out["id"], "at": self.clock.t, "device": "phone", "browser": "safari"}})
+        self.refused_redeem(code, "bad-pair-code", address="198.51.100.7")
+        self.assertEqual(len(self.disk()["credentials"]["devices"]), 1)
+
+    def test_a_code_works_for_about_two_minutes(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        self.clock.tick(60)
+        self.assertEqual(self.s.resolve(owner_token=self.redeem(code)["token"]), HOST)
+        code = self.act("pair_device", HOST, {})["code"]
+        self.clock.tick(180)
+        self.refused_redeem(code, "bad-pair-code")
+
+    def test_a_new_code_replaces_the_last(self):
+        old = self.act("pair_device", HOST, {})["code"]
+        new = self.act("pair_device", HOST, {})["code"]
+        self.refused_redeem(old, "bad-pair-code")
+        self.redeem(new, address="198.51.100.7")
+
+    def test_tries_are_throttled_per_address_and_wrong_ones_burn_the_code(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        wrong = "22222222" if code != "22222222" else "33333333"
+        self.refused_redeem(wrong, "bad-pair-code", address="203.0.113.5")
+        with self.assertRaises(session.DomainError) as ctx:  # the same second, the same address
+            self.s.redeem_pairing(None, {"code": code}, address="203.0.113.5")
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+        for n in range(4):  # five wrong tries in all, each from its own address
+            self.refused_redeem(wrong, "bad-pair-code", address=f"198.51.100.{n}")
+        self.refused_redeem(code, "bad-pair-code", address="192.0.2.1")
+        self.assertNotIn("devices", self.disk()["credentials"])
+
+    def test_signing_out_one_device_ends_it_at_once_and_leaves_the_others(self):
+        phone, laptop = self.device(device="phone"), self.device(address="198.51.100.7", device="computer")
+        self.assertEqual([d["id"] for d in self.s.snapshot(HOST)["ownerDevices"]], [phone["id"], laptop["id"]])
+        self.assertNotIn("ownerDevices", self.s.snapshot(self.ann))
+        self.act("revoke_device", HOST, {"id": phone["id"]})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(owner_token=phone["token"])
+        self.assertEqual(ctx.exception.http, 401)
+        self.assertEqual(self.s.resolve(owner_token=laptop["token"]), HOST)
+        self.refused("not-found", "revoke_device", HOST, {"id": phone["id"]}, http=404)
+        self.refused("owner-only", "revoke_device", self.ann, {"id": laptop["id"]}, http=403)
+
+    def test_rotating_the_owner_link_signs_out_every_device(self):
+        tokens = [self.device()["token"], self.device(address="198.51.100.7")["token"]]
+        self.act("rotate_owner_link", HOST, {})
+        for token in tokens:
+            with self.assertRaises(session.DomainError) as ctx:
+                self.s.resolve(owner_token=token)
+            self.assertEqual(ctx.exception.http, 401)
+        self.assertNotIn("devices", self.disk()["credentials"])
+
+    def test_a_new_owner_link_at_start_signs_out_every_device(self):
+        token = self.device()["token"]
+        self.assertTrue(self.s.reset_owner_token("tok-newer", self.clock.t + 1))
+        with self.assertRaises(session.DomainError):
+            self.s.resolve(owner_token=token)
+
+    def test_a_guest_cannot_make_a_code_or_use_its_secret_as_one(self):
+        self.refused("owner-only", "pair_device", self.ann, {}, http=403)
+        self.refused_redeem(self.ann_secret, "bad-pair-code")
+        self.act("pair_device", HOST, {})
+        self.refused_redeem(self.ann_secret, "bad-pair-code", address="198.51.100.7")
+        self.assertNotIn("devices", self.disk()["credentials"])
+
+    def test_devices_have_a_cap(self):
+        for n in range(session.MAX_DEVICES):
+            self.device(address=f"198.51.100.{n}")
+        self.refused("devices-full", "pair_device", HOST, {}, http=409)
+
+
 # ---------------------------------------------------------------------------------------------
 # Phase 9: uploads. Expected values come from the Design's Upload contract and rules (offer, accept, decline,
 # withdraw, chunk, done, failed; caps 100 MB per guest, 5 GB per session, 10 open per person; chunks in order with

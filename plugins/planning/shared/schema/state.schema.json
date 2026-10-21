@@ -257,6 +257,21 @@
           "type": "object",
           "description": "sha256 of a person's watcher key -> pid: what their own Claude uses on /api/mine/requests, nowhere else. Absent in states written before it.",
           "additionalProperties": {"$ref": "#/$defs/pid"}
+        },
+        "devices": {
+          "type": "object",
+          "description": "sha256 of an owner device credential -> that device: the owner's other devices signed in with a one-time code, each acting as the owner until signed out or the owner link rotates. Absent in states written before it.",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["id", "at"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {"type": "string"},
+              "at": {"$ref": "#/$defs/ts"},
+              "device": {"$ref": "#/$defs/deviceKind"},
+              "browser": {"enum": ["chrome", "safari", "firefox", "edge", "samsung", "in-app", "other"]}
+            }
+          }
         }
       }
     },
