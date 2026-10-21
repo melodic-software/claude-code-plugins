@@ -42,7 +42,7 @@
 #      missing.
 # Anything else, or a login outside [A-Za-z0-9_-] plus an optional [bot], exits 4
 # before anything is written: creating a comment because the existing one could
-# not be recognised is the duplicate this script exists to prevent. A primary-tier
+# not be recognized is the duplicate this script exists to prevent. A primary-tier
 # sentinel hit needs no identity and never resolves one.
 #
 # Usage:

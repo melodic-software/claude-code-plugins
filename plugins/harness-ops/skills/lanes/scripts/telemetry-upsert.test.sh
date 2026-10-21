@@ -350,7 +350,7 @@ for bad_slug in 'Bad Slug' 'lanes-app[bot]' '-lanes' 'a/b'; do
 done
 
 # No identity resolves: nothing is written (no create either — that would
-# duplicate the comment the fallback could not recognise) and the message names
+# duplicate the comment the fallback could not recognize) and the message names
 # the flag that fixes it.
 : >"$LOG"
 out="$(STUB_USER_FAIL=1 run "$TMP/two-authors.json" 2>&1)"
