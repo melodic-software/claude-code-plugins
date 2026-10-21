@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.2.1] - 2026-10-21
+
+Patch. Tightens an existing rule; no topology, escalation-contract, capability-tier or §4
+invariant changed.
+
+- **Unattended merge rung.** The rung comes from the tracked files read at the pull request's base
+  SHA and at the default branch head, the lower of each, so a lowered rung on the default branch
+  reaches pull requests opened before it.
+
 ## [12.2.0] - 2026-10-18
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
