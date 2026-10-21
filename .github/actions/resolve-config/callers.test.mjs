@@ -1134,9 +1134,19 @@ test("pr-run-activity-read.yml: the scan job holds only the scan-carrier key, in
   assert.deepEqual(stepSecrets(scan), ["scan-carrier-private-key"], "the one secret in the job");
   assert.deepEqual(scan.steps.filter((step) => stepSecrets(step).length > 0).map((step) => step.id), ["open"], "read in the decode step alone");
   assert.doesNotMatch(JSON.stringify(scan), /id-token|ACTIONS_ID_TOKEN/);
-  // The one action from a checkout is the opener, from the run job's base SHA.
+  // The one action from a checkout is the opener, from the default branch tip
+  // the event names: no run job output chooses the code that holds the key.
   const base = scan.steps.find((step) => step.id === "base");
-  assert.deepEqual([base.with.ref, base.with.path, base.with["persist-credentials"]], ["${{ needs.run.outputs.base-sha }}", ".base", false]);
+  assert.deepEqual([base.with.ref, base.with.path, base.with["persist-credentials"]], ["${{ github.event.repository.default_branch }}", ".base", false]);
+  for (const id of ["base", "key", "open"]) {
+    const step = scan.steps.find((s) => s.id === id);
+    assert.doesNotMatch(JSON.stringify({ with: step.with, run: step.run, uses: step.uses }), /base-sha|head-sha|default-tip/, `${id}: no run job output names a commit or path`);
+  }
+  // The AAD's job id is a literal on both sides, and the run id is each job's own.
+  const seal = jobs.run.steps.find((step) => step.id === "seal");
+  assert.equal(seal.with["job-id"], "run");
+  assert.equal(scan.steps.find((step) => step.id === "open").with["job-id"], "run");
+  for (const action of ["seal-lane-output/seal.mjs", "open-lane-output/open.mjs"]) assert.match(read(`../${action}`), /env\.GITHUB_RUN_ID/, action);
   for (const step of scan.steps) {
     assert.doesNotMatch(String(step.uses ?? ""), /^actions\/(cache|download-artifact)@/, step.name);
     if (step.id !== "open") assert.doesNotMatch(String(step.uses ?? ""), /^\.\//, `${step.name}: no other action from a checkout`);

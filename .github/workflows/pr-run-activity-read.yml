@@ -1567,15 +1567,17 @@ jobs:
       patch-attempt: ${{ steps.patch-upload.outcome == 'success' && github.run_attempt || '' }}
       reply-attempt: ${{ steps.reply-upload.outcome == 'success' && github.run_attempt || '' }}
     steps:
-      # The opener and the public key, from the run job's base, which its
-      # trusted-base step chose before any head code. The gated head's
-      # checkout below replaces this one.
-      - name: Check out the run job's base
+      # The opener and the public key, from the default branch's tip, named
+      # by the event, never by a run job output: this code runs with the
+      # private key, and head code with sudo on the run job's runner could
+      # forge any output, base-sha included, to name a commit of its own.
+      # The gated head's checkout below replaces this one.
+      - name: Check out the default branch tip
         id: base
         if: inputs.issue-number == '' && needs.run.outputs.go == 'true' && needs.run.outputs.carry-sealed-length != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.run.outputs.base-sha }}
+          ref: ${{ github.event.repository.default_branch }}
           path: .base
           persist-credentials: false
           sparse-checkout: |

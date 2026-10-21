@@ -1056,7 +1056,8 @@ id and the `run` job, as `carry-sealed-length` and `carry-sealed-<n>` job output
 chunks of 98304 characters, each fitting one environment variable). None is a `workflow_call`
 output, so no caller can echo one. In order:
 
-1. Checks out the run job's base SHA (sparse: the opener and the key file), reads the key id, and
+1. Checks out the default branch tip the event names, never a run job output (sparse: the opener
+   and the key file), reads the key id, and
    opens the bundle with [`open-lane-output`](../../../.github/actions/open-lane-output/README.md)
    into a fresh directory under `runner.temp`, the one step that reads the private key. It fails
    closed, writing nothing, on `output-withheld` (a chunk the runner left empty, as it does for an
