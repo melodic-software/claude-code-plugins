@@ -4360,7 +4360,8 @@ def _main() -> int:
         default=None,
         help=(
             "with --unattended, the merge authority this run is (default "
-            "local-babysit); merge.authority at the base must name it. "
+            "local-babysit); merge.authority at the base and at the default "
+            "branch head must name it. "
             "pr-merge is the CI lane: a CI-labeled C2 pull request off the "
             "denied paths, or a mergeable Dependabot pull request on a green "
             "ci-status, no promotion read, and nothing written while "

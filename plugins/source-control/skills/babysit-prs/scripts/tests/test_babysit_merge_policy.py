@@ -3355,7 +3355,8 @@ NEWEST_CONFIG = (
 class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
     """`merge.max-in-flight` caps the one merge queue, so every candidate of
     a run reads it at the default branch head, not at its own base; a failed
-    head read falls back to the base's and is never shared."""
+    head read refuses, since the head's config tightens every other setting
+    (`TheStricterOfBaseAndMainGoverns`), and is never shared."""
 
     readable = LaneAssess.readable
     fake = Assess.fake
@@ -3370,6 +3371,9 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
         gh = self.readable()
         gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
         gh.rest[self.HEAD_CONFIG] = head_config
+        gh.rest[
+            f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={MAIN_SHA}"
+        ] = file_payload(SOURCE_CONTROL)
         return gh
 
     def cap(self) -> tuple[int, dict[str, Any]]:
@@ -3399,9 +3403,7 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
                 self.assertEqual(details["cap"], 5)
                 self.assertEqual(details["capSource"], "default-branch")
 
-    def test_an_unreadable_head_config_falls_back_to_the_bases_cap(self) -> None:
-        """Pins the fallback only: the base's cap is what the gate read before
-        this change, so this guards no regression from it."""
+    def test_an_unreadable_head_config_refuses(self) -> None:
         for answer in (502, file_payload("merge: [unclosed\n")):
             with self.subTest(answer=answer):
                 gh = self.moved(answer)
@@ -3412,9 +3414,8 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
                         )
                     )
                 )
-                cap, details = self.cap()
-                self.assertEqual(cap, 3)
-                self.assertEqual(details["capSource"], "base")
+                with self.assertRaises(policy.PolicyReadError):
+                    self.cap()
 
     def test_the_heads_cap_is_shared_per_cache_window_and_a_failure_never(
         self,
@@ -3428,7 +3429,8 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
         gh = self.moved(502)
         for _ in range(2):
             self.lane_clear()
-            self.lane_assess(post_merge=lambda floor, who: gate())
+            with self.assertRaises(policy.PolicyReadError):
+                self.lane_assess(post_merge=lambda floor, who: gate())
         self.assertEqual(gh.calls.count(["api", self.HEAD_CONFIG]), 2)
         gh.rest[self.HEAD_CONFIG] = file_payload(
             LANE_PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 5\n")
@@ -3436,6 +3438,238 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
         for _ in range(2):
             self.assertEqual(self.cap()[0], 5)
         self.assertEqual(gh.calls.count(["api", self.HEAD_CONFIG]), 3)
+
+
+# Two lane pipelines differing in every merge setting: LOOSE allows more on
+# each, STRICT less.
+LOOSE_PIPELINE = """\
+merge:
+  rung: C3
+  authority: pr-merge
+  agent-identity: agent-lanes[bot]
+  report-only: false
+  require-verifier-verdict: false
+  max-queue-ejections: 5
+  risk-escalation-minutes: 90
+  check-inputs: ["x/**"]
+  dependabot:
+    mode: enforce
+    majors: review
+  diff-check:
+    denied-paths: [".github/**"]
+    floor-paths: ["a/**"]
+    floor-script-scopes: ["s/**"]
+    high-path-floor: false
+    c2-contradictions: false
+    max-changed-lines: 500
+"""
+STRICT_PIPELINE = """\
+merge:
+  rung: C2
+  authority: pr-merge
+  agent-identity: agent-lanes[bot]
+  report-only: true
+  require-verifier-verdict: true
+  max-queue-ejections: 1
+  risk-escalation-minutes: 10
+  check-inputs: ["y/**"]
+  dependabot:
+    mode: report
+    majors: hold
+  diff-check:
+    denied-paths: [".github/**", "docs/**"]
+    floor-paths: ["b/**"]
+    floor-script-scopes: ["t/**"]
+    high-path-floor: true
+    c2-contradictions: true
+    max-changed-lines: 100
+    max-changed-files: 0
+"""
+LOOSE_SOURCE = "## babysit_loop_merge\n\nc3-autonomous\n"
+
+
+class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
+    """GitHub never moves a pull request's base SHA as the default branch
+    advances, so the gate combines the merge config at the base with the one
+    at the default branch head, taking the stricter value of each setting: a
+    tightening on main reaches pull requests opened before it, and a pull
+    request still cannot drop its own base's declaration. Expected values are
+    the per-setting rules the owner decided."""
+
+    readable = LaneAssess.readable
+    fake = Assess.fake
+    assess = Assess.assess
+    lane_assess = LaneAssess.lane_assess
+    lane_clear = LaneAssess.lane_clear
+    MAIN_CONFIG = f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={MAIN_SHA}"
+
+    def moved(
+        self,
+        base: str,
+        main: Any,
+        *,
+        base_source: str = SOURCE_CONTROL,
+        main_source: str = SOURCE_CONTROL,
+    ) -> GhFake:
+        """The base's pipeline is `base`; main has moved to MAIN_SHA, whose
+        pipeline read answers `main` (text, an HTTP status, or None for an
+        absent file)."""
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = file_payload(
+            base
+        )
+        gh.rest[f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={SHA}"] = (
+            file_payload(base_source)
+        )
+        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+        gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
+        gh.rest[self.MAIN_CONFIG] = (
+            404
+            if main is None
+            else (main if isinstance(main, int) else file_payload(main))
+        )
+        gh.rest[
+            f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={MAIN_SHA}"
+        ] = file_payload(main_source)
+        return gh
+
+    def config(self) -> Any:
+        self.lane_clear()
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        return result.inputs["config"]
+
+    def assert_strict(self, config: Any, escalation_minutes: int) -> None:
+        expected = {
+            "rung": "C2",
+            "loop_merge": "c2-mechanical",
+            "report_only": True,
+            "require_verifier_verdict": True,
+            "high_path_floor": True,
+            "c2_contradictions": True,
+            "max_changed_lines": 100,
+            "max_changed_files": 0,
+            "dependabot_mode": "report",
+            "dependabot_majors": "hold",
+            "max_queue_ejections": 1,
+            "agent_identity": IDENTITY,
+            # Timing only: the base's, whichever side is stricter.
+            "risk_escalation_minutes": escalation_minutes,
+        }
+        for name, value in expected.items():
+            with self.subTest(setting=name):
+                self.assertEqual(getattr(config, name), value)
+        unions = {
+            "denied_paths": {".github/**", "docs/**"},
+            "floor_paths": {"a/**", "b/**"},
+            "floor_script_scopes": {"s/**", "t/**"},
+            "check_inputs": {"x/**", "y/**"},
+        }
+        for name, value in unions.items():
+            with self.subTest(setting=name):
+                self.assertEqual(set(getattr(config, name)), value)
+
+    def test_a_stricter_main_tightens_every_setting(self) -> None:
+        self.moved(
+            LOOSE_PIPELINE,
+            STRICT_PIPELINE,
+            base_source=LOOSE_SOURCE,
+            main_source=SOURCE_CONTROL,
+        )
+        self.assert_strict(self.config(), 90)
+
+    def test_a_stricter_base_is_never_loosened_by_main(self) -> None:
+        self.moved(
+            STRICT_PIPELINE,
+            LOOSE_PIPELINE,
+            base_source=SOURCE_CONTROL,
+            main_source=LOOSE_SOURCE,
+        )
+        self.assert_strict(self.config(), 10)
+
+    def test_main_turning_report_only_on_reports_the_base_pull_request(
+        self,
+    ) -> None:
+        self.moved(LOOSE_PIPELINE, STRICT_PIPELINE)
+        self.lane_clear()
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertIs(result.details["reportOnly"], True)
+
+    def test_main_turning_the_rung_off_refuses(self) -> None:
+        self.moved(LOOSE_PIPELINE, LOOSE_PIPELINE.replace("rung: C3", "rung: off"))
+        self.lane_clear()
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertEqual(result.reason, "rung-off:merge.rung")
+
+    def test_main_dropping_the_pipeline_or_identity_refuses(self) -> None:
+        # Either leaves main's identity unset, which differs from the base's.
+        for main in (
+            None,
+            LOOSE_PIPELINE.replace("  agent-identity: agent-lanes[bot]\n", ""),
+        ):
+            with self.subTest(main=main):
+                self.moved(LOOSE_PIPELINE, main)
+                self.lane_clear()
+                with self.assertRaises(policy.PolicyReadError):
+                    self.lane_assess(post_merge=lambda floor, who: gate())
+
+    def test_main_enabling_another_authority_disables_the_lane(self) -> None:
+        self.moved(LOOSE_PIPELINE, LOOSE_PIPELINE.replace("pr-merge", "local-babysit"))
+        self.lane_clear()
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertEqual(result.reason, policy.AUTHORITY_UNCONFIGURED)
+        self.assertIs(result.enabled, False)
+
+    def test_an_unreadable_main_config_refuses(self) -> None:
+        for main in (502, "merge: [unclosed\n"):
+            with self.subTest(main=main):
+                self.moved(LOOSE_PIPELINE, main)
+                self.lane_clear()
+                with self.assertRaises(policy.PolicyReadError):
+                    self.lane_assess(post_merge=lambda floor, who: gate())
+
+    def test_an_unreadable_main_head_refuses(self) -> None:
+        gh = self.moved(LOOSE_PIPELINE, LOOSE_PIPELINE)
+        gh.rest[f"repos/{REPO}/commits/trunk"] = 502
+        self.lane_clear()
+        with self.assertRaises(policy.PolicyReadError):
+            self.lane_assess(post_merge=lambda floor, who: gate())
+
+    def test_a_different_identity_on_main_refuses(self) -> None:
+        self.moved(
+            LOOSE_PIPELINE, LOOSE_PIPELINE.replace("agent-lanes[bot]", "other[bot]")
+        )
+        self.lane_clear()
+        with self.assertRaises(policy.PolicyReadError):
+            self.lane_assess(post_merge=lambda floor, who: gate())
+
+    def test_the_plain_merge_identity_read_refuses_a_different_identity_on_main(
+        self,
+    ) -> None:
+        self.moved(
+            LOOSE_PIPELINE, LOOSE_PIPELINE.replace("agent-lanes[bot]", "other[bot]")
+        )
+        with self.assertRaises(policy.PolicyReadError):
+            policy.resolve(REPO, 1)
+
+    def test_main_is_read_once_per_cache_window_and_a_failure_never_saved(
+        self,
+    ) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {"BABYSIT_RUN_CACHE": str(pathlib.Path(tmp.name, "run.json"))}
+        patcher = mock.patch.dict("os.environ", env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        gh = self.moved(LOOSE_PIPELINE, 502)
+        for _ in range(2):
+            self.lane_clear()
+            with self.assertRaises(policy.PolicyReadError):
+                self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertEqual(gh.calls.count(["api", self.MAIN_CONFIG]), 2)
+        gh.rest[self.MAIN_CONFIG] = file_payload(STRICT_PIPELINE)
+        for _ in range(3):
+            self.assertEqual(self.config().rung, "C2")
+        self.assertEqual(gh.calls.count(["api", self.MAIN_CONFIG]), 3)
 
 
 class SharedPostMergeAnswer(unittest.TestCase):
@@ -3453,10 +3687,13 @@ class SharedPostMergeAnswer(unittest.TestCase):
     def bound(self) -> GhFake:
         gh = self.readable()
         gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
-        # The in-flight cap's read at the head this class moves main to.
+        # The merge config at the head this class moves main to: the base's.
         for sha in (MAIN_SHA, "f" * 40):
             gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={sha}"] = (
                 file_payload(LANE_PIPELINE)
+            )
+            gh.rest[f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={sha}"] = (
+                file_payload(SOURCE_CONTROL)
             )
         gh.rest[NEWEST_CONFIG] = [{"sha": CONFIG_SHA}]
         self.computed_at = policy.datetime.now(policy.UTC)
@@ -3560,21 +3797,21 @@ class SharedPostMergeAnswer(unittest.TestCase):
                 ]
             ]
         )
-        for head in ({"sha": "f" * 40}, 502):
-            with self.subTest(head=head):
-                self.moved(merges)
-                self.flight()
-                fresh = self.lane_assess(post_merge=lambda floor, who: counted)
-                gh = self.moved(merges)
-                gh.rest[f"repos/{REPO}/commits/trunk"] = head
-                self.flight()
-                never = mock.Mock(side_effect=AssertionError("read fresh"))
-                with mock.patch.object(policy, "read_demotion", never):
-                    reused = self.lane_assess(
-                        post_merge=never, shared=self.shared(counted)
-                    )
-                self.assertEqual(reused.details["postMergeShared"], "used")
-                self.assertEqual(self.decided(reused), self.decided(fresh))
+        self.moved(merges)
+        self.flight()
+        fresh = self.lane_assess(post_merge=lambda floor, who: counted)
+        gh = self.moved(merges)
+        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": "f" * 40}
+        self.flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        with mock.patch.object(policy, "read_demotion", never):
+            reused = self.lane_assess(post_merge=never, shared=self.shared(counted))
+        self.assertEqual(reused.details["postMergeShared"], "used")
+        self.assertEqual(self.decided(reused), self.decided(fresh))
+        # An unreadable head leaves its config unread, which refuses.
+        gh.rest[f"repos/{REPO}/commits/trunk"] = 502
+        with self.assertRaises(policy.PolicyReadError):
+            self.lane_assess(post_merge=never, shared=self.shared(counted))
 
     def test_a_base_behind_with_the_same_floor_decides_as_the_fresh_reads_do(
         self,
@@ -4098,7 +4335,9 @@ class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
         import babysit_merge as merge
 
         gh = config_fake(self, PIPELINE.replace("local-babysit", "pr-merge"))
-        # The config is read at the pull request's base SHA (S4), not main's head.
+        gh.rest[f"repos/{REPO}"] = {"default_branch": "main"}
+        gh.rest[f"repos/{REPO}/commits/main"] = {"sha": SHA}
+        # The config is read at the pull request's base SHA (S4), and at main's head.
         gh.rest[f"repos/{REPO}/pulls/1"] = {
             "number": 1,
             "base": {"ref": "main", "sha": SHA},

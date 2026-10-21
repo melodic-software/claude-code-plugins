@@ -557,7 +557,8 @@ class Unattended(unittest.TestCase):
         # the cap is `self.config`'s.
         self.main_head = BASE
         # Reads of the pipeline config at `main_head` when it is not the
-        # base, in order: a config, or an exception to raise. Empty reads
+        # base, in order (the merge config's, the in-flight cap's, the room
+        # check's): a config, or an exception to raise. Empty reads
         # `self.config`.
         self.head_configs: list[Any] = []
 
@@ -1931,7 +1932,7 @@ class OneUnattendedMergeInFlight(Unattended):
                 self.log.clear()
                 self.config = dataclasses.replace(self.config, max_in_flight=base_cap)
                 head = dataclasses.replace(self.config, max_in_flight=head_cap)
-                self.head_configs = [head, head]
+                self.head_configs = [head, head, head]
                 self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
                 code, out = self.run_main()
                 self.assertEqual(out["unattended"]["inFlight"]["cap"], head_cap)
@@ -1946,6 +1947,7 @@ class OneUnattendedMergeInFlight(Unattended):
         self.main_head = "d" * 40
         self.config = dataclasses.replace(self.config, max_in_flight=5)
         self.head_configs = [
+            dataclasses.replace(self.config, max_in_flight=1),
             dataclasses.replace(self.config, max_in_flight=1),
             policy.PolicyReadError("HTTP 502"),
         ]

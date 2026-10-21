@@ -33,7 +33,7 @@ import sys
 import tempfile
 import urllib.request
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -176,16 +176,18 @@ class UnattendedPolicy:
 
 def resolve(repo: str, number: int | None = None) -> UnattendedPolicy:
     """The configured agent identity, for the plain `--merge` refusal: the
-    pipeline config at the pull request's base SHA (the default branch head
-    without a number). It never permits a merge. Raises `PolicyReadError`
-    when the pipeline config cannot be read or parsed."""
+    pipeline config at the pull request's base SHA combined with the default
+    branch head's (`with_default_branch`; the head's alone without a
+    number). It never permits a merge. Raises `PolicyReadError` when a
+    pipeline config cannot be read or parsed, or the identities differ."""
     if number is None:
-        _, sha = _default_branch_head(repo)
+        config = _default_branch_config(repo)
     else:
         sha = str(json_object(pull_request(repo, number).get("base")).get("sha"))
-    config = read_config_at(repo, sha)
-    if config.error:
-        raise PolicyReadError(f"{CONFIG_PATH} at {sha}: {config.error}")
+        config = read_config_at(repo, sha)
+        if config.error:
+            raise PolicyReadError(f"{CONFIG_PATH} at {sha}: {config.error}")
+        config = with_default_branch(repo, config)
     reason = NOT_ASSESSED if enabled_authority(config) else AUTHORITY_UNCONFIGURED
     return UnattendedPolicy(reason, config.agent_identity, enabled=False)
 
@@ -404,7 +406,7 @@ def _rest_actor(actor: Any) -> dict[str, Any] | None:
     return {"__typename": actor.get("type"), "login": actor.get("login")}
 
 
-# --- Config at the base SHA -----------------------------------------------------
+# --- Config at the base SHA and the default branch head -----------------------------------------------------
 
 # The default `merge.risk-escalation-minutes`: longer than a review lane's
 # run, so a review still running at the head (scored MED, evidence unbound)
@@ -414,8 +416,10 @@ RISK_ESCALATION_MINUTES = 60
 
 @dataclass(frozen=True)
 class PipelineConfig:
-    """The merge config at one base SHA. `rung` is "off" on any doubt; `error`
-    names a pipeline-file parse error, which leaves every other key unread."""
+    """The merge config at one commit, `base_sha`. `rung` is "off" on any
+    doubt; `error` names a pipeline-file parse error, which leaves every other
+    key unread. The gate combines the base's with the default branch head's
+    (`stricter_config`)."""
 
     base_sha: str
     rung: str
@@ -463,7 +467,7 @@ class PipelineConfig:
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
     # Absent, or anything but a whole number of at least 1, is 1. The gate
-    # reads it at the default branch head instead (`_run_max_in_flight`).
+    # reads it at the default branch head alone (`_run_max_in_flight`).
     max_in_flight: int = 1
     # `merge.max-queue-ejections`: failed-check merge-queue removals since
     # the head last changed at which the gate stops enqueuing that head.
@@ -719,6 +723,110 @@ def read_config_at(
         else RISK_ESCALATION_MINUTES,
         check_inputs=tuple(values["merge.check-inputs"]),
     )
+
+
+# An authority value that enables neither lane (`enabled_authority`): the
+# combined config's when base and main enable different ones.
+AUTHORITY_CONFLICT = "base-and-default-branch-differ"
+
+
+def _cap(a: int | None, b: int | None) -> int | None:
+    """The smaller cap, None being no cap."""
+    return b if a is None else a if b is None else min(a, b)
+
+
+def _union(a: tuple[str, ...], b: tuple[str, ...]) -> tuple[str, ...]:
+    return a + tuple(x for x in b if x not in a)
+
+
+def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfig:
+    """The stricter of the config at the pull request's base and at the
+    default branch head, per setting. GitHub never moves a base SHA as the
+    default branch advances, so a tightening on main reaches open pull
+    requests here, and a pull request still cannot drop its base's
+    declaration. Timing-only settings (`risk_escalation_minutes`) and
+    `max_in_flight` (read at the head on its own, `_run_max_in_flight`) keep
+    the base's. Raises `PolicyReadError` when the agent identities differ."""
+    if (base.agent_identity or "").strip().casefold() != (
+        main.agent_identity or ""
+    ).strip().casefold():
+        raise PolicyReadError(
+            f"merge.agent-identity is {base.agent_identity!r} at the base "
+            f"{base.base_sha} and {main.agent_identity!r} at the default branch "
+            f"head {main.base_sha}"
+        )
+
+    def loop_rank(value: str | None) -> int:
+        return RUNG_RANK[LOOP_MERGE_RUNG.get(value or "", "off")]
+
+    return replace(
+        base,
+        rung=min(base.rung, main.rung, key=RUNG_RANK.__getitem__),
+        authority=base.authority
+        if enabled_authority(base) == enabled_authority(main)
+        else AUTHORITY_CONFLICT,
+        max_changed_lines=_cap(base.max_changed_lines, main.max_changed_lines),
+        denied_paths=_union(base.denied_paths, main.denied_paths),
+        loop_merge=min(base.loop_merge, main.loop_merge, key=loop_rank),
+        notes=base.notes + tuple(f"default branch head: {n}" for n in main.notes),
+        report_only=base.report_only or main.report_only,
+        require_verifier_verdict=base.require_verifier_verdict
+        or main.require_verifier_verdict,
+        dependabot_mode=min(
+            base.dependabot_mode, main.dependabot_mode, key=DEPENDABOT_MODES.index
+        ),
+        dependabot_majors="hold"
+        if "hold" in (base.dependabot_majors, main.dependabot_majors)
+        else base.dependabot_majors,
+        high_path_floor=base.high_path_floor or main.high_path_floor,
+        floor_paths=_union(base.floor_paths, main.floor_paths),
+        floor_script_scopes=_union(base.floor_script_scopes, main.floor_script_scopes),
+        c2_contradictions=base.c2_contradictions or main.c2_contradictions,
+        max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
+        max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
+        check_inputs=_union(base.check_inputs, main.check_inputs),
+    )
+
+
+DEFAULT_BRANCH_CONFIG_SECTION = "default-branch-config"
+
+
+def _default_branch_config(repo: str, branch: str | None = None) -> PipelineConfig:
+    """The config at the default branch head, saved once per cache window
+    (`run_cache.MAX_AGE`) for the run's gate processes, never saving a failed
+    read; saving it saves its `merge.max-in-flight` for `_run_max_in_flight`
+    too. Raises `PolicyReadError` when the head or its config cannot be read
+    or parsed."""
+    cached = run_cache.get(DEFAULT_BRANCH_CONFIG_SECTION, repo, run_cache.MAX_AGE)
+    if isinstance(cached, dict):
+        try:
+            config = PipelineConfig(
+                **{k: tuple(v) if isinstance(v, list) else v for k, v in cached.items()}
+            )
+            if SHA_RE.fullmatch(config.base_sha) and config.error is None:
+                return config
+        except TypeError:
+            pass
+    _, head = _default_branch_head(repo, branch)
+    config = read_config_at(repo, head)
+    if config.error:
+        raise PolicyReadError(
+            f"{CONFIG_PATH} at the default branch head {head}: {config.error}"
+        )
+    run_cache.put(DEFAULT_BRANCH_CONFIG_SECTION, repo, asdict(config))
+    run_cache.put(MAX_IN_FLIGHT_SECTION, repo, config.max_in_flight)
+    return config
+
+
+def with_default_branch(
+    repo: str, base: PipelineConfig, branch: str | None = None
+) -> PipelineConfig:
+    """The config a merge answers to: `stricter_config` of `base` and the
+    config at the head of the default branch (`branch` when already read).
+    Raises `PolicyReadError` when the head's cannot be read or parsed, or the
+    agent identities differ."""
+    main = _default_branch_config(repo, branch)
+    return base if main.base_sha == base.base_sha else stricter_config(base, main)
 
 
 # --- Effective rung ---------------------------------------------------------------
@@ -2307,10 +2415,11 @@ def _default_branch(repo: str, *, shared: bool = False) -> str:
     return branch
 
 
-def _default_branch_head(repo: str) -> tuple[str, str]:
-    """The default branch's name and its head SHA."""
+def _default_branch_head(repo: str, branch: str | None = None) -> tuple[str, str]:
+    """The default branch's name (`branch` when already read) and its head
+    SHA."""
     owner, name = _split_repo(repo)
-    branch = _default_branch(repo)
+    branch = branch or _default_branch(repo)
     status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
     sha = payload.get("sha") if status == 200 and is_json_object(payload) else None
     if not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
@@ -3167,10 +3276,11 @@ def assess(
     merges in flight. The
     config at the base must enable that authority (`enabled_authority`).
 
-    Config at the pull request's base SHA (`merge.max-in-flight` alone at
-    the default branch head, `_run_max_in_flight`), then authority, identity, the
+    Config at the pull request's base SHA, then authority, identity, the
     credential chokepoint, the kill switch, a base that is the default
-    branch, and the post-merge check: any
+    branch, the config tightened by the default branch head's
+    (`with_default_branch`; `merge.max-in-flight` the head's alone,
+    `_run_max_in_flight`) and its authority, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
     in-flight rule, the promotion evidence and the pull request's
@@ -3188,9 +3298,9 @@ def assess(
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
     promoted. `self_logins` names only lane or bot self identities (see
-    `is_human`). Raises `PolicyReadError` when the pull request or the
+    `is_human`). Raises `PolicyReadError` when the pull request or either
     pipeline config cannot be read, because the agent identity is then
-    unknown.
+    unknown, or the two configs name different identities.
     """
     pr = pull_request(repo, number)
     base_ref = str(json_object(pr.get("base")).get("ref"))
@@ -3264,6 +3374,15 @@ def assess(
         # own entry, queued on that base, leaves.
         inputs["own_refusal"] = f"base-not-default:{base_ref}"
         return replace(stopped, reason=inputs["own_refusal"])
+    # The base's config, tightened by the default branch head's: from here
+    # every setting is the stricter of the two.
+    config = inputs["config"] = with_default_branch(repo, config, default)
+    report_only = (
+        config.dependabot_mode != "enforce" if dependabot_pr else config.report_only
+    )
+    details["reportOnly"] = report_only
+    if enabled_authority(config) != authority:
+        return stopped
 
     permission = permission_reader(repo)
     readers = {
@@ -3356,7 +3475,7 @@ def assess(
         cap=cap.value,
         demoted=demotion.active,
     )
-    # The one setting not bound to the base; the post-enqueue room check
+    # Read at the default branch head alone; the post-enqueue room check
     # reads it again, uncached.
     flight_cap, cap_source = _run_max_in_flight(
         repo, default, head if isinstance(head, str) else None, config

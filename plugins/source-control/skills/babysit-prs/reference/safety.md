@@ -976,7 +976,8 @@ announced operator step.
 ## Unattended Merge Path
 
 `--unattended` on the merge gate runs it under the unattended merge policy. It stays off unless
-the repository's `docs/conventions/pr-pipeline.yaml`, read at the pull request's base SHA, sets
+the repository's `docs/conventions/pr-pipeline.yaml`, read at the pull request's base SHA and at
+the default branch head (each setting the stricter of the two, the identity the same at both), sets
 `merge.authority: local-babysit` and a `merge.agent-identity`. The gate decides in this order, and
 any refusal is the blocker `unattended merge refused: <reason>`:
 
@@ -1080,8 +1081,9 @@ Named residuals:
 - `merge.max-in-flight` is read at the default branch head once per cache window
   (`run_cache.MAX_AGE`), shared by the run's gate processes in that window, so a changed cap
   applies to every candidate, whatever its base, once the window ends. The room check after an
-  enqueue reads it again, uncached. When a read fails, the candidate's base commit's value
-  applies; in the room check, the lower of that and the cap the gate applied.
+  enqueue reads it again, uncached. A failed read in the gate refuses, since the head's config
+  also tightens every other setting; in the room check, the lower of the base commit's value and
+  the cap the gate applied holds.
 
 Operator runbook: the refusal `in-flight:merged-history-truncated` (or an unreadable post-merge
 verdict naming the read limit) means more merges landed since the floor than the history read
