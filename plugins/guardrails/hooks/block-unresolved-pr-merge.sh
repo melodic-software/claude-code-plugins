@@ -443,6 +443,7 @@ else
   # "Gated PR Merge" is not (#8657).
   _bupm_gh_pr_shaped() {
     local text="$_bupm_joined" seen="" m lead before word w1 w2 w3 t i toks
+    local redir_re='^[0-9]*&?[<>]+&?[^[:space:]]+$' redir_op_re='^[0-9]*&?[<>]+&?$'
     while [[ "$text" =~ $_bupm_pr_re ]]; do
       m="${BASH_REMATCH[0]}"
       lead="${BASH_REMATCH[1]}"
@@ -462,7 +463,7 @@ else
       i=$((${#toks[@]} - 1))
       ((i >= 0)) && [[ "${toks[i]}" == *[\$\`]* ]] && return 0
       # `pr` glued to an operator is its own command word, never gh's.
-      [[ "$lead" == [\;\|\&\(\)\<\>\{\}!] ]] && continue
+      [[ "$lead" == [';|&(){}<>!'] ]] && continue
       # A lone opening quote: `pr ...` is a quoted argument of the word before.
       ((i >= 0)) && [[ "${toks[i]}" == [\"\'] ]] && continue
       # Step back over what bash drops before argv: empty quotes and a bare
@@ -470,9 +471,9 @@ else
       while ((i >= 0)); do
         t="${toks[i]}"
         [[ "$t" == *[\$\`]* ]] && return 0
-        if [[ "$t" =~ ^[\"\'\\]+$ || "$t" =~ ^[0-9]*\&?[\<\>]+\&?[^[:space:]]+$ ]]; then
+        if [[ "$t" =~ ^[\"\'\\]+$ || "$t" =~ $redir_re ]]; then
           ((i -= 1))
-        elif ((i > 0)) && [[ "${toks[i - 1]}" =~ ^[0-9]*\&?[\<\>]+\&?$ ]]; then
+        elif ((i > 0)) && [[ "${toks[i - 1]}" =~ $redir_op_re ]]; then
           ((i -= 2))
         else
           break
