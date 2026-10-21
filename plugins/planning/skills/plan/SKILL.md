@@ -80,7 +80,7 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" <PLAN.md>` and r
 
 Checked by reading, or by their own script:
 
-- **Every brief acceptance criterion maps to a phase, and no phase does Out-of-scope work**. Walk the Brief's Acceptance criteria and Out-of-scope sections: each criterion lands in at least one phase, and no phase does work the Brief lists as Out-of-scope.
+- **Every brief acceptance criterion maps to a phase, and every phase traces to one**. Walk the Brief's Acceptance criteria and Out-of-scope sections: each criterion lands in at least one phase, no phase does work the Brief lists as Out-of-scope, and every phase and work item serves a criterion or something a criterion needs (a test, a migration, a dead-code removal the `phase_order` step calls for). Cut anything else, or surface it as an Open Decision for the user to keep. Evidence: an agent-built change shipped about 1,900 production lines, about 380 of them beyond the legacy behavior and the ticket's criteria, caught only in review.
 - **Each tag has its own row**. Every tagged decision appears in that table with its what-it-changes column filled; below-bar decisions were interviewed, not decided. The script maps only tags that carry an id; a bare tag passes with a `warning=bare-tag` line, so map those by reading.
 - **Displaced answers are listed at Step 5**. When an interview ledger exists, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>`. It passes when the verdict reports `open=0` and `superseded=N` (exit 1 is expected when N > 0) and every id on the ledger's `| superseded-by-plan |` rows (the verdict prints only the count) appears in the Step 5 "Displaced answers and new external effects" block.
 
