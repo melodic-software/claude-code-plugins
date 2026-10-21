@@ -984,7 +984,7 @@
 
     // ---------- center ----------
     const center = E("section", "vf-center");
-    // Session-wide notice: ended, removed, or (owner) a new guest link to share.
+    // Session-wide notice: moved, ended, removed, or (owner) a new guest link to share.
     const banner = E("div", "vf-banner"); banner.setAttribute("role", "status"); banner.hidden = true;
     const bannerTxt = E("span", "vf-banner-txt"), bannerAct = btn("vf-btn vf-btn-ghost vf-btn-sm");
     banner.append(icon("alert"), bannerTxt, bannerAct);
@@ -1700,8 +1700,10 @@
     const nativeShare = btn("vf-btn vf-btn-ghost", "Share…");
     shareRow.append(nativeShare, copyBtn);
     const shareNew = E("p", "vf-share-new"); shareNew.hidden = true;
-    sharePop.append(E("h2", "vf-pop-title", "Invite people"), shareNew, shareField, shareRow,
-      E("p", "vf-pop-note", "Anyone with this link can join. The link changes if the tunnel restarts."));
+    // A named tunnel keeps its address across restarts; a quick tunnel gets a new one (share.tunnel, owners and leaders).
+    const linkKeeps = () => Core.state.shareTunnel === "named";
+    const linkNote = E("p", "vf-pop-note");
+    sharePop.append(E("h2", "vf-pop-title", "Invite people"), shareNew, shareField, shareRow, linkNote);
 
     const keysPop = E("div", "vf-pop vf-keys"); keysPop.setAttribute("role", "dialog"); keysPop.setAttribute("aria-label", "Help"); keysPop.hidden = true;
     keysPop.tabIndex = -1;
@@ -2043,7 +2045,7 @@
         at: () => fab },
       { h: "Your Inbox", t: "Claude's answers to your requests, mentions and replies wait here, with what needs you first.", who: "guest",
         at: () => bellBtn },
-      { h: "Share the link", t: "Invite people with the guest link. It changes if the tunnel restarts.", who: "host",
+      { h: "Share the link", get t() { return `Invite people with the guest link. ${linkKeeps() ? "It stays the same when the tunnel restarts." : "It can change after the tunnel restarts."}`; }, who: "host",
         at: () => shareBtn },
       { h: "Needs you", t: "The Inbox lists what waits on you: requests to Claude to Run, and joins, files and merges to Approve.", who: "host",
         at: () => bellBtn },
@@ -6864,6 +6866,7 @@
       ownerTheme._paint();
       const url = Core.guestLink();
       if (shareField.value !== url) shareField.value = url;
+      linkNote.textContent = `Anyone with this link can join. ${linkKeeps() ? "The link stays the same when the tunnel restarts." : "The link can change after the tunnel restarts."}`;
       nativeShare.hidden = !(navigator.share && phone.matches);
       // A new tunnel address since the last start: the old guest link is dead until shared again.
       const reshare = mod && !!S.shareChanged && store.get("vf-share-ack", "") !== url;
@@ -6882,12 +6885,14 @@
         return li;
       }, (li, p) => { li._p = p; li.firstChild.textContent = disp(nameOf(p)); paintPersonActs(li._k, p, "removed"); });
 
-      // session banner: removed, ended, a link to share again, or (follow-up 45) a social app's browser, which never
-      // blocks the page (a waiting person's card says it all: no banner)
+      // session banner: moved, removed, ended, a link to share again, or (follow-up 45) a social app's browser, which
+      // never blocks the page (a waiting person's card says it all: no banner)
       const inApp = Core.inApp();
       root.toggleAttribute("data-waiting", !!S.youWaiting);
       if (S.youWaiting && (ui.mode !== "focus" || (phone.matches && ui.tab !== "answer"))) { if (phone.matches) setTab("answer"); else setMode("focus"); return; }
-      const bn = S.youMerged ? ["This browser was merged into the owner. Open your owner link here.", null]
+      const bn = Core.movedTo ? ["This session moved to a new address. Send or copy what you are writing first: unsent text does not move with you, and this address stops working in about 10 minutes.",
+        ["Go to the new address", () => Core.moveNow()]]
+        : S.youMerged ? ["This browser was merged into the owner. Open your owner link here.", null]
         : S.youWaiting ? null
         : S.youRemoved ? ["The host removed you from this session. You can still read it.", null]
         : S.ended ? [me.isOwner ? "You ended this session. Guests see it read-only, with the final tree." : "This session has ended. Here is what it decided.",
@@ -7581,6 +7586,9 @@
     };
     on(window, "pagehide", saveUnsent);
     Core.onReload(() => { saveUnsent(); markSeen(ui.cur); sendPrefsNow(); });
+    // A move to the session's new address (core.js moveTo) waits while any of that text is unsent: the banner offers it.
+    Core.keepUnsent(() => !!unsent || (!!ui.cur && !!ta.value && ta.value !== Core.myAnswer(ui.cur))
+      || Object.entries(ui.drafts).some(([q, t]) => q !== ui.cur && t && t !== Core.myAnswer(q)) || Object.values(kitStore()).some(Boolean));
     kitBooted = true;
     kitSwap();
     Core.subscribe(() => render());

@@ -65,6 +65,8 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Invoke-AllowlistedWeb.ps1')
 . (Join-Path $libRoot 'Get-ElevationMatrix.ps1')
 . (Join-Path $libRoot 'Write-ElevationBanner.ps1')
+. (Join-Path $libRoot 'Format-CheckLabel.ps1')
+. (Join-Path $libRoot 'Get-NonElevatedCoverage.ps1')
 . (Join-Path $libRoot 'ConvertTo-TopMetrics.ps1')
 . (Join-Path $libRoot 'Invoke-TrendAnalysis.ps1')
 . (Join-Path $libRoot 'Get-RunDelta.ps1')
@@ -77,6 +79,8 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Merge-CatalogOverlay.ps1')
 . (Join-Path $libRoot 'Get-CheckSelection.ps1')
 . (Join-Path $libRoot 'Get-CheckArgument.ps1')
+. (Join-Path $libRoot 'Get-MutedFindingKey.ps1')
+. (Join-Path $libRoot 'Invoke-CheckWithTimeout.ps1')
 
 $runStart = Get-Date
 $runId = $runStart.ToString('o')
@@ -164,36 +168,6 @@ if ($effectiveDry -and -not $DryRun.IsPresent) {
 }
 
 $elevated = Test-IsElevated
-
-# Pre-run elevation banner (stderr only; stdout remains clean JSON).
-# Non-elevated + no -SkipBanner => print the coverage matrix so the user
-# knows up-front what will be degraded and how to re-run with admin.
-try {
-    $matrix = @(Get-ElevationMatrix)
-    $nonElevatedCoverage = @(
-        'disk space (used %, free GB, volume health)'
-        'services state (Automatic services stopped)'
-        'event log errors (BugCheck, Kernel-Power 41, WUClient, disk)'
-        'Windows Update pending-reboot signals'
-        'Defender status (signatures, RTP, tamper protection)'
-        'winget upgrades (CISA KEV correlation)'
-        'battery health (laptop only)'
-        'driver inventory + signing + CodeIntegrity rejections'
-        'reliability monitor score'
-    )
-    Write-ElevationBanner `
-        -Elevated $elevated `
-        -HostName $hostname `
-        -UserName ("$env:USERDOMAIN\$env:USERNAME") `
-        -OutputBase $OutputBase `
-        -StateBase $StateBase `
-        -SkillRoot $skillRoot `
-        -Matrix $matrix `
-        -NonElevatedCoverage $nonElevatedCoverage `
-        -Quiet:$SkipBanner
-} catch {
-    Write-MachineHealthLog "banner_render_failed $($_.Exception.Message)"
-}
 
 # User-load heuristic: last input <60s. LASTINPUTINFO is user32 interop --
 # if unavailable, default to "not loaded."
@@ -300,6 +274,26 @@ $windowsChecks = @($validatedChecks | Where-Object {
         ($_.os -contains 'windows') -and ($_.enabled) -and (-not $_.deprecated)
     })
 
+# Pre-run elevation banner (stderr only; stdout remains clean JSON).
+# Non-elevated + no -SkipBanner => print the coverage matrix so the user
+# knows up-front what will be degraded and how to re-run with admin. The
+# covered list comes from the loaded catalog, so it runs after the load; a
+# failed load leaves it empty and the banner omits that section.
+try {
+    Write-ElevationBanner `
+        -Elevated $elevated `
+        -HostName $hostname `
+        -UserName ("$env:USERDOMAIN\$env:USERNAME") `
+        -OutputBase $OutputBase `
+        -StateBase $StateBase `
+        -SkillRoot $skillRoot `
+        -Matrix @(Get-ElevationMatrix) `
+        -NonElevatedCoverage @(Get-NonElevatedCoverage -Catalog $windowsChecks -CustomIds $customIds) `
+        -Quiet:$SkipBanner
+} catch {
+    Write-MachineHealthLog "banner_render_failed $($_.Exception.Message)"
+}
+
 # Load history tail. Depth 100 (not 8) so cadence selection can still find a
 # monthly check's last run when many weekly reruns / on-demand runs fall inside
 # the ~27-day interval -- an 8-line tail would push the last actual run off the
@@ -321,51 +315,6 @@ foreach ($sk in @($selection.skipped)) {
         "last_run=$($sk.last_run) elapsed_days=$($sk.elapsed_days)")
 }
 $windowsChecks = @($selection.due)
-
-function Invoke-CheckWithTimeout {
-    [CmdletBinding()]
-    [OutputType([hashtable])]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSUseUsingScopeModifierInNewRunspaces', '',
-        Justification = 'Parameter passed via -ArgumentList is bound via param block.')]
-    param(
-        [Parameter(Mandatory = $true)] [string] $ScriptPath,
-        [int] $TimeoutSec = 90,
-        [hashtable] $Arguments = @{}
-    )
-    $jobSw = [System.Diagnostics.Stopwatch]::StartNew()
-    # Splat per-check arguments across the job boundary. -ArgumentList serializes
-    # the hashtable; @ArgMap binds it to the check's named params. An empty map
-    # (the common case) runs the check argument-less.
-    $job = Start-Job -ScriptBlock {
-        param($ScriptToRun, $ArgMap) & $ScriptToRun @ArgMap
-    } -ArgumentList $ScriptPath, $Arguments
-    $completed = Wait-Job -Job $job -Timeout $TimeoutSec
-    $jobSw.Stop()
-    if (-not $completed) {
-        Stop-Job -Job $job -ErrorAction SilentlyContinue | Out-Null
-        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue | Out-Null
-        return @{ ok = $false; reason = 'timeout'; elapsed_ms = [int]$jobSw.ElapsedMilliseconds }
-    }
-    $outputLines = Receive-Job -Job $job -ErrorAction SilentlyContinue
-    Remove-Job -Job $job -Force -ErrorAction SilentlyContinue | Out-Null
-    $joined = ($outputLines | Where-Object { $_ }) -join "`n"
-    if ([string]::IsNullOrWhiteSpace($joined)) {
-        return @{ ok = $false; reason = 'no_output'; elapsed_ms = [int]$jobSw.ElapsedMilliseconds }
-    }
-    try {
-        $parsed = $joined | ConvertFrom-Json -ErrorAction Stop
-        return @{ ok = $true; result = $parsed; elapsed_ms = [int]$jobSw.ElapsedMilliseconds }
-    } catch {
-        return @{
-            ok         = $false
-            reason     = 'invalid_json'
-            raw_output = $joined
-            error      = $_.Exception.Message
-            elapsed_ms = [int]$jobSw.ElapsedMilliseconds
-        }
-    }
-}
 
 function New-UnknownCheckResult {
     [CmdletBinding()]
@@ -408,6 +357,8 @@ $checkResults = [System.Collections.Generic.List[object]]::new()
 # Surface Assert-CatalogEntry failures through the normal reporting path first
 # so a registered-but-invalid check cannot silently vanish from the report.
 $checkResults.AddRange($invalidCatalogResults)
+# Mutes reach checks only as an argument; checks never read mutes.json.
+$muteState = Get-MuteState -StateDir $stateDir
 foreach ($entry in $windowsChecks) {
     $scriptPath = Join-Path $skillRoot $entry.script
     if (-not (Test-Path -LiteralPath $scriptPath)) {
@@ -424,7 +375,9 @@ foreach ($entry in $windowsChecks) {
         continue
     }
 
-    $checkArgs = Get-CheckArgument -CheckId $entry.id -RunLog $runLog -BatteryReportPath $batteryReportPath
+    $muted = Get-MutedFindingKey -State $muteState -CheckId $entry.id
+    $checkArgs = Get-CheckArgument -CheckId $entry.id -ScriptPath $scriptPath -RunLog $runLog `
+        -BatteryReportPath $batteryReportPath -MutedKeys $muted
     Write-MachineHealthLog "check_dispatch id=$($entry.id) script=$($entry.script)"
     $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec 90 -Arguments $checkArgs
 
@@ -685,20 +638,13 @@ $oneLine = ("$($totalBySeverity.CRIT) CRIT, $($totalBySeverity.WARN) WARN, " +
     "$($totalBySeverity.INFO) INFO, $($totalBySeverity.OK) OK, " +
     "$($totalBySeverity.UNKNOWN) UNKNOWN")
 
-function Format-CheckLabel {
-    [CmdletBinding()]
-    [OutputType([string])]
-    param([Parameter(Mandatory = $true)] [string] $Id)
-    return ($customIds -contains $Id) ? "$Id [custom]" : $Id
-}
-
 function Format-Finding {
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory = $true)] $Result)
 
     $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add("#### $(Format-CheckLabel -Id $Result.id) - $($Result.summary)")
+    $lines.Add("#### $(Format-CheckLabel -Id $Result.id -CustomIds $customIds) - $($Result.summary)")
     $lines.Add('')
     $lines.Add("**Severity:** $($Result.severity)")
     $lines.Add('')
@@ -739,11 +685,11 @@ function Format-Section {
 
 $okList = @($checkResults |
         Where-Object { $_.severity -eq 'OK' } |
-        ForEach-Object { "- **$(Format-CheckLabel -Id $_.id)** - $($_.summary)" }) -join "`n"
+        ForEach-Object { "- **$(Format-CheckLabel -Id $_.id -CustomIds $customIds)** - $($_.summary)" }) -join "`n"
 if (-not $okList) { $okList = '_none_' }
 
 $glanceRows = @($checkResults | ForEach-Object {
-        "| $($_.category) | $(Format-CheckLabel -Id $_.id) | **$($_.severity)** | $($_.summary) | $(Format-TrendCell -Result $_) |"
+        "| $($_.category) | $(Format-CheckLabel -Id $_.id -CustomIds $customIds) | **$($_.severity)** | $($_.summary) | $(Format-TrendCell -Result $_) |"
     }) -join "`n"
 $glanceTable = @"
 | Category | Check | Severity | Summary | Trend |

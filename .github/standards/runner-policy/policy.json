@@ -203,6 +203,32 @@
         "issues": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "role": "automations",
+      "allowedInputs": [
+        "runner",
+        "allowed-labels",
+        "escalation-label",
+        "floor-label",
+        "instructions",
+        "cli-version",
+        "claude-args",
+        "issue-number",
+        "allowed-author-ids",
+        "allowed-bot-sender-ids",
+        "role"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_API_KEY": "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-review.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -557,6 +583,15 @@
         "issues": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "label", "label-prefix", "human-label"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "issues": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-scan-dependencies.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -776,6 +811,23 @@
       }
     },
     "melodic-software/ci-workflows/.github/workflows/maintenance-check-links-online.yml@3a2c748fdef9cfb9ceec5a66289e21842189689f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "timeout-minutes",
+        "opt-in-property",
+        "config",
+        "extra-args",
+        "globs",
+        "lychee-version"
+      ],
+      "allowedSecrets": {},
+      "minimumCallerPermissions": {
+        "contents": "read"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/maintenance-check-links-online.yml@4aff99320ef484a7beac35ee3a7b7b854ec1e33f": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": [
