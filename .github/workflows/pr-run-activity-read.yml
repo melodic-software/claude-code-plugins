@@ -320,6 +320,20 @@ jobs:
       lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
       credential-present: ${{ steps.key-present.outputs.present || steps.token-present.outputs.present }}
       handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.lane-class == 'credit-stop' }}
+      # PR mode, set after head code ran, for the scan job alone: the
+      # carry step's payloads, never a workflow_call output.
+      carry-reply-bytes: ${{ steps.carry.outputs.reply-bytes }}
+      carry-reply-sha256: ${{ steps.carry.outputs.reply-sha256 }}
+      carry-reply-b64-1: ${{ steps.carry.outputs.reply-b64-1 }}
+      carry-act-turns-bytes: ${{ steps.carry.outputs.act-turns-bytes }}
+      carry-act-turns-sha256: ${{ steps.carry.outputs.act-turns-sha256 }}
+      carry-act-turns-b64-1: ${{ steps.carry.outputs.act-turns-b64-1 }}
+      carry-patch-bytes: ${{ steps.carry.outputs.patch-bytes }}
+      carry-patch-sha256: ${{ steps.carry.outputs.patch-sha256 }}
+      carry-patch-b64-1: ${{ steps.carry.outputs.patch-b64-1 }}
+      carry-patch-b64-2: ${{ steps.carry.outputs.patch-b64-2 }}
+      carry-patch-b64-3: ${{ steps.carry.outputs.patch-b64-3 }}
+      carry-patch-b64-4: ${{ steps.carry.outputs.patch-b64-4 }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
       # silently let the App's own events through. An empty default branch
@@ -1102,7 +1116,8 @@ jobs:
                 .filter((m) => m.type === 'user')
                 .map((m) => textOf(m.message?.content))
                 .filter((text) => text.includes('<local-command-stderr>'))
-                .map((text) => text.slice(0, 2000)),
+                .map((text) => text.slice(0, 2000))
+                .slice(0, 4),
             };
             fs.mkdirSync(REPLY_DIR, { recursive: true });
             // The summary step shows it after the leak scan.
@@ -1303,6 +1318,43 @@ jobs:
           rm -rf "$PATCH_DIR"
           mkdir -p "$PATCH_DIR"
           bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$PATCH_DIR/patch.diff" >>"$GITHUB_OUTPUT"
+
+      # PR mode: the reply, the run fields and the patch leave this job only
+      # as job outputs to the scan job, never as an artifact: each in base64,
+      # cut into chunks of 98304 characters so each fits one environment
+      # variable, with its SHA-256 and byte count. An absent payload sets
+      # none of its outputs; one over its cap sets only its byte count, which
+      # the scan job refuses as too large. Every output here is set after
+      # head code ran, so the scan job checks each against its hash and size.
+      - name: Hand the reply, run fields and patch to the scan job
+        id: carry
+        if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
+        env:
+          REPLY_DIR: ${{ runner.temp }}/skill-reply
+          PATCH_FILE: ${{ runner.temp }}/patch/patch.diff
+        run: |
+          copy=$(mktemp -d)
+          carry() {
+            local name=$1 file=$2 cap=$3 chunks=$4 bytes sum b64 i
+            if [ -L "$file" ] || [ ! -f "$file" ]; then return 0; fi
+            cp -- "$file" "$copy/$name"
+            bytes=$(stat -c %s "$copy/$name")
+            echo "$name-bytes=$bytes" >>"$GITHUB_OUTPUT"
+            if [ "$bytes" -gt "$cap" ]; then
+              echo "::error::too-large: the $name is $bytes bytes, over its $cap-byte cap, so nothing is published"
+              return 0
+            fi
+            sum=$(sha256sum <"$copy/$name")
+            b64=$(base64 -w0 <"$copy/$name")
+            echo "$name-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+            for ((i = 0; i < chunks; i++)); do
+              echo "$name-b64-$((i + 1))=${b64:i*98304:98304}" >>"$GITHUB_OUTPUT"
+            done
+          }
+          carry reply "$REPLY_DIR/reply.txt" 16384 1
+          carry act-turns "$REPLY_DIR/act-turns.json" 32768 1
+          carry patch "$PATCH_FILE" 262144 4
+          rm -rf "$copy"
 
       # PR mode: the skill ran Bash with the API key in reach, and artifacts
       # are readable by anyone who can read the repository; masking covers

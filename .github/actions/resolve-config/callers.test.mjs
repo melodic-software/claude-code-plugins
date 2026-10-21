@@ -9,7 +9,7 @@
 // work-resolve-issue.yml caps its concurrent runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -1618,4 +1618,75 @@ test("pr-run-activity-read.yml: after the collector, no checkout's post step fin
   assert.equal(existsSync(join(state.work, ".base", ".git", "config")), false);
   assert.equal(readFileSync(join(state.work, "tracked.txt"), "utf8"), "unchanged\n", "the work tree stays");
   assert.equal(runStep(remove, state.temp, {}).status, 1, "an unset workspace removes nothing");
+});
+
+// --- the model job's payloads to the scan job ---
+
+// name=value lines from a GITHUB_OUTPUT file; the carry step writes no heredoc.
+const outputLines = (file) => Object.fromEntries(readFileSync(file, "utf8").split("\n").filter(Boolean).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]));
+// The kernel refuses one environment string over 131072 bytes (MAX_ARG_STRLEN).
+const ENV_STRING_MAX = 131072;
+
+// Runs the carry step on the given files; returns its outputs and log.
+function carry(t, files) {
+  const root = mkdtempSync(join(tmpdir(), "carry-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "skill-reply"));
+  mkdirSync(join(root, "patch"));
+  for (const [name, bytes] of Object.entries(files)) {
+    const file = join(root, name);
+    if (bytes === "symlink") symlinkSync("/etc/hostname", file);
+    else writeFileSync(file, bytes);
+  }
+  const output = join(root, "github-output");
+  writeFileSync(output, "");
+  const step = runSteps().find((s) => s.id === "carry");
+  const result = runStep(step, root, { REPLY_DIR: join(root, "skill-reply"), PATCH_FILE: join(root, "patch", "patch.diff"), GITHUB_OUTPUT: output });
+  assert.equal(result.status, 0, result.stderr);
+  return { outputs: outputLines(output), log: result.stdout };
+}
+
+test("pr-run-activity-read.yml: the carry step encodes each payload with its SHA-256 and byte count, in chunks one environment variable holds", async (t) => {
+  const { createHash, randomBytes } = await import("node:crypto");
+  const patch = randomBytes(262144);
+  const reply = Buffer.from("lint-shell: fixed\n");
+  const { outputs, log } = carry(t, { "skill-reply/reply.txt": reply, "skill-reply/act-turns.json": "", "patch/patch.diff": patch });
+  const joined = (name, chunks) => Array.from({ length: chunks }, (_, i) => outputs[`${name}-b64-${i + 1}`]).join("");
+  assert.deepEqual(Buffer.from(joined("patch", 4), "base64"), patch, "the patch at its cap");
+  assert.equal(outputs["patch-sha256"], createHash("sha256").update(patch).digest("hex"));
+  assert.equal(outputs["patch-bytes"], "262144");
+  assert.equal(Buffer.from(joined("reply", 1), "base64").toString(), "lint-shell: fixed\n");
+  assert.equal(outputs["reply-bytes"], String(reply.length));
+  // An empty payload is zero bytes with the empty input's hash, not an absent one.
+  assert.deepEqual([outputs["act-turns-bytes"], outputs["act-turns-b64-1"]], ["0", ""]);
+  assert.equal(outputs["act-turns-sha256"], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+  for (const [name, value] of Object.entries(outputs)) assert.ok(`CARRY_${name}=${value}`.length < ENV_STRING_MAX, name);
+  assert.equal(log, "", "no payload reaches the log");
+  // Every output the step sets is a run job output; none is a workflow_call output.
+  const { jobs, on } = workflow("pr-run-activity-read.yml");
+  for (const name of Object.keys(outputs)) assert.equal(jobs.run.outputs[`carry-${name}`], `\${{ steps.carry.outputs.${name} }}`, name);
+  assert.doesNotMatch(JSON.stringify(on.workflow_call.outputs), /carry-/);
+});
+
+test("pr-run-activity-read.yml: a payload over its cap carries only its byte count, and an absent one nothing", (t) => {
+  const over = carry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61), "skill-reply/reply.txt": Buffer.alloc(16385, 0x61) });
+  assert.deepEqual(over.outputs, { "reply-bytes": "16385", "patch-bytes": "262145" }, "no hash and no base64");
+  assert.match(over.log, /^::error::too-large: the reply is 16385 bytes, over its 16384-byte cap/m);
+  assert.match(over.log, /^::error::too-large: the patch is 262145 bytes, over its 262144-byte cap/m);
+  assert.deepEqual(carry(t, {}).outputs, {});
+  assert.deepEqual(carry(t, { "patch/patch.diff": "symlink" }).outputs, {}, "a link is no payload");
+});
+
+test("pr-run-activity-read.yml: the run fields keep at most four local-command stderr entries", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "act-turns-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const stderr = (n) => ({ type: "user", message: { content: `<local-command-stderr>failure ${n}</local-command-stderr>` } });
+  const messages = [1, 2, 3, 4, 5, 6].map(stderr).concat({ type: "result", subtype: "success", num_turns: 2, modelUsage: { m: {} } });
+  writeFileSync(join(root, "execution.json"), JSON.stringify(messages));
+  const script = runSteps().find((s) => s.id === "act-turns").with.script;
+  const { createRequire } = await import("node:module");
+  const core = { setFailed: (message) => assert.fail(message), info: () => {} };
+  await new AsyncFunction("require", "core", "process", script)(createRequire(import.meta.url), core, { env: { EXECUTION_FILE: join(root, "execution.json"), REPLY_DIR: root } });
+  const { local_command_stderr: kept } = JSON.parse(readFileSync(join(root, "act-turns.json"), "utf8"));
+  assert.deepEqual(kept, [1, 2, 3, 4].map((n) => `<local-command-stderr>failure ${n}</local-command-stderr>`));
 });
