@@ -2005,15 +2005,15 @@ COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_contains "pages live: the next page is read with az" "$COST_PAGED_LIVE" "ALERT      Azure Defender charges, month to date: 3 USD"
 assert_eq "pages live: one POST per page" "2" "$(grep -c -- "rest --method post" "$TMP/az-log-paged")"
 # A next page that is not the query endpoint is never POSTed: another ARM
-# action, a path traversal, a doubled slash, a backslash, an encoded dot or
-# slash, an embedded newline, or another host. Page 2 would read as a charge.
+# action; a traversal, a doubled slash, or an encoded dot or slash in the path;
+# a backslash; an embedded newline; or another host. Page 2 would read as a charge.
 Q_URL="https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.CostManagement/query?api-version=2023-11-01"
 BAD_NEXT=(
   "vm-start=https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.Compute/virtualMachines/vm/start?api-version=2024-07-01&\$skiptoken=2"
-  "traversal=$Q_URL&x=/../../Microsoft.Compute/virtualMachines/vm/start&\$skiptoken=2"
-  "double-slash=$Q_URL&x=//evil.example.invalid/&\$skiptoken=2"
+  "traversal=${Q_URL/query\?/query/../../Microsoft.Compute/virtualMachines/vm/start?}&\$skiptoken=2"
+  "double-slash=${Q_URL/providers\//providers//}&\$skiptoken=2"
   "backslash=$Q_URL&x=\\evil&\$skiptoken=2"
-  "encoded-dot=$Q_URL&x=%2E%2E%2fstart&\$skiptoken=2"
+  "encoded-dot=${Q_URL/query\?/query%2F%2E%2E%2fstart?}&\$skiptoken=2"
   "newline=$Q_URL&x=1"$'\n'"https://management.azure.com/start&\$skiptoken=2"
   "other-host=https://attacker.example.invalid/query?\$skiptoken=2"
 )
@@ -2025,6 +2025,24 @@ for _bad in "${BAD_NEXT[@]}"; do
 done
 assert_contains "pages: the budget line still prints, its data date unread" "$COST_BAD_NEXT" \
   "of 100 USD; usage data date unread; read 2026-07-20T08:00Z UTC"
+# A $skiptoken is opaque and may hold an encoded `/`, `+` or `=`: after the `?`
+# that next page is still the query endpoint, and it is POSTed.
+jq --arg n "$Q_URL&\$skiptoken=AB%2FC%2BD%3D" \
+  '.defenderCost.properties.nextLink = $n | .["defenderCost_AB%2FC%2BD%3D"] = .defenderCost_2' \
+  "$TMP/azure-paged.json" >"$TMP/azure-paged-token.json"
+COST_ARGS=(--billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json" --org-scan-json "$TMP/org-scan-clear.json")
+: >"$TMP/az-log-token"
+COST_TOKEN_LIVE="$(section "$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ_FIXTURE="$TMP/azure-paged-token.json" MB_AZ_LOG="$TMP/az-log-token" run_stub rest)" "== Cost")"
+COST_ARGS=("${CLEAR_COST_ARGS[@]}")
+assert_contains "pages live: a skiptoken with encoded / + = is followed" "$COST_TOKEN_LIVE" "ALERT      Azure Defender charges, month to date: 3 USD"
+assert_eq "pages live: a skiptoken with encoded / + = gets one POST per page" "2" "$(grep -c -- "rest --method post" "$TMP/az-log-token")"
+# A non-ASCII byte is rejected in every locale: U+0130 folds to `i` under a
+# UTF-8 locale, which would make subscr<U+0130>ptions match the prefix.
+jq --arg n "${Q_URL/subscriptions/subscr$'\xc4\xb0'ptions}&\$skiptoken=2" '.defenderCost.properties.nextLink = $n' \
+  "$TMP/azure-paged.json" >"$TMP/azure-paged-nonascii.json"
+COST_NONASCII="$(section "$(LC_ALL=C.UTF-8 cost_brief --azure-json "$TMP/azure-paged-nonascii.json")" "== Cost")"
+assert_contains "pages: a next page with a non-ASCII byte is never read" "$COST_NONASCII" \
+  "UNREADABLE Azure Defender charges, month to date: the cost query's next page is not the query endpoint; it was not read"
 
 # The org and the alert percents are validated.
 cost_brief --org 'bad/org' >/dev/null

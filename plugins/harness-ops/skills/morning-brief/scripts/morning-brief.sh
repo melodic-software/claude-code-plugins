@@ -2389,11 +2389,13 @@ az_unreadable() {
 # COST_QUERY_ERR set when a page failed. A next page is POSTed only when it is
 # the same query endpoint: URL up to and including `?`, compared without case
 # (the Query - Usage reference's nextLink examples spell the path `Query`, its
-# request `query`), and its query string holds no `..`, `//`, backslash,
-# encoded `.` or `/`, or control character. Any other URL could name an ARM
+# request `query`); its path holds no `..`, `//`, encoded `.` or `/`, and the
+# whole link no backslash, control character or non-ASCII byte (so the case
+# fold is the same in every locale). The query string is not path-checked: a
+# $skiptoken is opaque and may encode `/`. Any other URL could name an ARM
 # action, and the POST would run it with the operator's token.
 cost_query() {
-  local out="$WORK/az-defenderCost.json" page=1 next prefix="${1%%\?*}?" lower
+  local out="$WORK/az-defenderCost.json" page=1 next prefix="${1%%\?*}?" lower path
   COST_QUERY_ERR=""
   az_read "$out" defenderCost rest --method post --url "$1" --body "$COST_QUERY_BODY" || {
     COST_QUERY_ERR="$LAST_ERR"
@@ -2402,8 +2404,9 @@ cost_query() {
   cp "$out" "$WORK/az-cq-1.json"
   while next="$(jq -r '.properties.nextLink // empty' "$WORK/az-cq-$page.json" 2>/dev/null)" && [[ -n "$next" ]]; do
     lower="${next,,}"
-    if [[ "$lower" != "${prefix,,}"* || "${lower#https://}" == *//* || "$lower" == *..* || "$lower" == *\\* ||
-      "$lower" == *%2e* || "$lower" == *%2f* || "$lower" == *[[:cntrl:]]* ]]; then
+    path="${lower%%\?*}"
+    if [[ "$next" == *[![:ascii:]]* || "$lower" != "${prefix,,}"* || "${path#https://}" == *//* || "$path" == *..* ||
+      "$lower" == *\\* || "$path" == *%2e* || "$path" == *%2f* || "$lower" == *[[:cntrl:]]* ]]; then
       COST_QUERY_ERR="the cost query's next page is not the query endpoint; it was not read"
       return 1
     fi
