@@ -10,9 +10,10 @@
 // against wip.held-cap instead, and one older than wip.held-alarm-hours
 // raises the alarm. PRs opened in the window may be at most
 // wip.opened-to-merged-ratio times those merged in it. Over a cap, or on the alarm,
-// the check alerts; it pauses the lane (work-resolve-issue starts no run,
-// work-unblock re-fires none) only over the WIP cap, on or after
-// wip.pause-from. The held cap only alerts. A read that fails never caps.
+// the check alerts; over the WIP cap or the held cap, on or after
+// wip.pause-from, it pauses the lane (work-resolve-issue starts no run,
+// work-unblock re-fires none) and logs one `admission paused: reason=...`
+// line. A read that fails never caps.
 //
 // As the action's step it writes `capped` (the pause) and `wip` (the status
 // as one flat JSON object), and the same object to the step summary and log.
@@ -113,6 +114,8 @@ export function wipStatus({ open, merged, admitted }, { limits, wip, now }) {
   const admissionOver = admitted !== null && admissionCap !== null && admitted > admissionCap;
   const heldAlarm = heldOverAlarm !== null && heldOverAlarm > 0;
   const pauseFrom = wip["pause-from"];
+  const pausing = pauseFrom !== "" && now >= Date.parse(pauseFrom);
+  const reasons = [wipOver && "wip", heldOver && "held-cap"].filter(Boolean);
   return {
     countable_lane_prs: countable,
     held_lane_prs: heldCount,
@@ -136,7 +139,8 @@ export function wipStatus({ open, merged, admitted }, { limits, wip, now }) {
     held_alarm: heldAlarm,
     alert: wipOver || heldOver || admissionOver || heldAlarm,
     pause_from: pauseFrom,
-    paused: wipOver && pauseFrom !== "" && now >= Date.parse(pauseFrom),
+    paused: pausing && reasons.length > 0,
+    pause_reason: pausing && reasons.length > 0 ? reasons.join(",") : null,
   };
 }
 
@@ -203,8 +207,15 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   }
   if (status.alert) {
     log(
-      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under the WIP cap" : `the lane keeps running (${status.wip_over ? "pause-from not reached" : "only the WIP cap pauses it"})`}`,
+      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under both caps" : `the lane keeps running (${status.wip_over || status.held_over ? "pause-from not reached" : "only the WIP and held caps pause it"})`}`,
     );
+  }
+  if (status.paused) {
+    const line = `admission paused: reason=${status.pause_reason} countable=${status.countable_lane_prs} wip_cap=${status.wip_cap} held=${status.held_lane_prs} held_cap=${status.held_cap}`;
+    log(`::notice title=admission paused::${escape(line)}`);
+    if (env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(env.GITHUB_STEP_SUMMARY, `\n${line}\n`);
+    }
   }
   log(`check-wip-cap: ${json}`);
   return 0;

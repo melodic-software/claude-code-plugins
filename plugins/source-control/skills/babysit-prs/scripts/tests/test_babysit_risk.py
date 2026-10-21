@@ -1295,6 +1295,12 @@ class LanePathFloorTests(unittest.TestCase):
         self.assertEqual(result.score, Risk.HIGH, _codes(result))
         self.assertIn("high-path:**/bin/**", _codes(result))
 
+    def test_an_adr_waits_for_a_human(self):
+        # Owner decision 2026-10-21: docs/adr/** joins the floor.
+        result = score(_lane_input((_file("docs/adr/0099-x.md"),)))
+        self.assertEqual(result.score, Risk.HIGH, _codes(result))
+        self.assertIn("high-path:docs/adr/**", _codes(result))
+
     def test_the_switch_off_gives_mains_pr_merge_scoring(self):
         skill = FRONT.replace("y\n", "y\nallowed-tools: Bash\n", 1)
         for changed in (

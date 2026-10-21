@@ -475,10 +475,11 @@ wip:
   # in it (not limits.admission-factor, which sizes the agent-ready backlog).
   opened-to-merged-ratio: 0.8
   # Held lane PRs (needs-human, do-not-merge, or a "Hold: a human merges
-  # this" body line) count here, not against the cap. Step down to 30 later.
-  held-cap: 60
+  # this" body line) count here, not against the cap; at this many the lane
+  # pauses (owner decision 2026-10-21).
+  held-cap: 10
   held-alarm-hours: 24
-  # Over the WIP cap the lane pauses from this date; the held cap only alerts.
+  # Over the WIP cap or the held cap the lane pauses from this date.
   # The owner clears it to only alert. Empty: over a cap the lane alerts and
   # keeps starting runs.
   pause-from: "2026-10-18"
@@ -597,6 +598,7 @@ merge:
     denied-paths: []
     high-path-floor: true
     floor-paths:
+      - "docs/adr/**"
       - "**/bin/**"
       - "**/.lsp.json"
       - "**/settings*.json"
