@@ -593,11 +593,12 @@ test("work-resolve-issue.yml: the resolve-issue model job receives no App token 
   assert.deepEqual(stepSecrets(skill), ["claude-code-oauth-token"]);
   assert.equal(skill.with.github_token, "${{ github.token }}", "the action gets the job's read-only token only");
   // No job of the read runner holds a write permission but the report job's
-  // checks and the broker-check job's id-token, neither of which runs the model.
+  // checks and issues and the broker-check job's id-token, none of which runs
+  // the model.
   for (const [name, job] of Object.entries(read.jobs)) {
     for (const [scope, level] of Object.entries(job.permissions ?? {})) {
       if (level === "write") {
-        assert.ok((name === "report" && scope === "checks") || (name === "broker-check" && scope === "id-token"), `${name} ${scope}`);
+        assert.ok((name === "report" && (scope === "checks" || scope === "issues")) || (name === "broker-check" && scope === "id-token"), `${name} ${scope}`);
       }
     }
   }

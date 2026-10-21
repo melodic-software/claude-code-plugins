@@ -2289,9 +2289,12 @@ jobs:
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # issues: write lets check-signed-commits add its label and comment. Every
+    # caller job grants it; no job that runs the model holds it.
     permissions:
       checks: write
       contents: read
+      issues: write
       pull-requests: read
     steps:
       # The default branch tip, never the run job's base-sha or the event's
