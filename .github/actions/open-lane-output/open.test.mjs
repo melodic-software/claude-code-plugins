@@ -198,7 +198,7 @@ test("nothing sealed opens to an empty directory; a bad expected key id fails", 
   assert.equal(runOpen(t, { "private-key": privateText, "expected-key-ids": "PLACEHOLDER:" }).status, 1);
 });
 
-test("oversize ciphertext is refused on its size alone, before any base64 decode or key use", (t) => {
+test("oversize ciphertext is refused on its size alone, after the key check and before any base64 decode", (t) => {
   const { privateText, keyId } = keyPair();
   const open = (inputs) => runOpen(t, { ...inputs, "private-key": privateText, "expected-key-ids": keyId });
   const cases = {
