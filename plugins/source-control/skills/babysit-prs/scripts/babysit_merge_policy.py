@@ -317,6 +317,31 @@ def _concern_values(
     return values
 
 
+def _merge_names(text: str, key: str) -> bool:
+    """Whether the top-level `merge` mapping holds `key` at all. The shared
+    reader prints nothing for an empty or non-scalar value, as for an absent
+    key; the document already parsed as the block-style subset."""
+    lines = [
+        line
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    base = len(lines[0]) - len(lines[0].lstrip(" ")) if lines else 0
+    entry = re.compile(r"""(\s*)(["']?)([^"':]+)\2\s*:(\s|$)""")
+    inside, child = False, None
+    for line in lines:
+        found = entry.match(line)
+        indent = len(line) - len(line.lstrip(" "))
+        if indent <= base:
+            inside = indent == base and found is not None and found[3] == "merge"
+            child = None
+        elif inside and found is not None:
+            child = indent if child is None else child
+            if indent == child and found[3] == key:
+                return True
+    return False
+
+
 # --- The gh seam ----------------------------------------------------------------
 
 
@@ -425,6 +450,10 @@ def _rest_actor(actor: Any) -> dict[str, Any] | None:
 # run, so a review still running at the head (scored MED, evidence unbound)
 # finishes before its refusal is labeled (judgment).
 RISK_ESCALATION_MINUTES = 60
+# The default `merge.max-verify-fails`: three heads' FAILs is a pull request
+# the verifier keeps refusing, not one noisy verdict (owner decision
+# 2026-10-21).
+MAX_VERIFY_FAILS = 3
 
 
 @dataclass(frozen=True)
@@ -492,6 +521,11 @@ class PipelineConfig:
     # human-gated label; 0 is no minimum. Absent, or anything but a whole
     # number, is `RISK_ESCALATION_MINUTES`.
     risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
+    # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
+    # one pull request at which it holds for a human whatever a later pass
+    # says (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything
+    # but a whole number of at least 1 is 1, so any earlier FAIL holds.
+    max_verify_fails: int = MAX_VERIFY_FAILS
     # `merge.check-inputs`: git pathspecs of what the pull request checks
     # read. When the base changed one since a pull request's merge base, the
     # pr-merge lane updates its branch from the base instead of enqueuing it
@@ -637,6 +671,7 @@ def read_config_at(
             ("merge.max-in-flight", False),
             ("merge.max-queue-ejections", False),
             ("merge.risk-escalation-minutes", False),
+            ("merge.max-verify-fails", False),
             ("merge.check-inputs", True),
         ],
     )
@@ -714,6 +749,14 @@ def read_config_at(
             "number of minutes"
         )
         escalation_minutes = None
+    verify_fails = scalar("merge.max-verify-fails")
+    if verify_fails is None and _merge_names(text, "max-verify-fails"):
+        verify_fails = ""
+    if verify_fails is not None and not re.fullmatch(r"[1-9][0-9]*", verify_fails):
+        notes.append(
+            f"merge.max-verify-fails {verify_fails!r} is not a count of 1 or more"
+        )
+        verify_fails = "1"
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -737,6 +780,7 @@ def read_config_at(
         risk_escalation_minutes=int(escalation_minutes)
         if escalation_minutes is not None
         else RISK_ESCALATION_MINUTES,
+        max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
         check_inputs=tuple(values["merge.check-inputs"]),
     )
 
@@ -801,6 +845,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         c2_contradictions=base.c2_contradictions or main.c2_contradictions,
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
+        max_verify_fails=min(base.max_verify_fails, main.max_verify_fails),
         # Main's own list, read in a `git diff` of its own, so an exclude or a
         # bad entry on either side cannot cancel the other's paths.
         head_check_inputs=tuple(
@@ -873,6 +918,7 @@ def _cached_config(value: Any) -> PipelineConfig | None:
             and count(c.max_in_flight, 1)
             and count(c.max_queue_ejections, 1)
             and count(c.risk_escalation_minutes, 0)
+            and count(c.max_verify_fails, 1)
         )
     except (TypeError, ValueError):
         return None

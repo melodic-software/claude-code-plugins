@@ -287,6 +287,65 @@ class ReadConfigAt(unittest.TestCase):
                     any("max-queue-ejections" in n for n in config.notes), noted
                 )
 
+    def test_max_verify_fails_defaults_to_three_and_a_bad_value_is_one(
+        self,
+    ) -> None:
+        # Owner decision 2026-10-21: 3 by default; a value that is not a
+        # count of at least 1 fails closed, so any earlier FAIL holds.
+        def with_cap(value: str) -> str:
+            return PIPELINE.replace(
+                "merge:\n", f"merge:\n  max-verify-fails: {value}\n"
+            )
+
+        for text, expected, noted in (
+            (PIPELINE, 3, False),
+            (with_cap("1"), 1, False),
+            (with_cap("5"), 5, False),
+            (with_cap("0"), 1, True),
+            (with_cap("-3"), 1, True),
+            (with_cap("three"), 1, True),
+            # Present but empty or not a scalar: the shared reader prints
+            # nothing for these, as for an absent key.
+            (with_cap("''"), 1, True),
+            (with_cap("[]"), 1, True),
+            (with_cap("[3]"), 1, True),
+            (with_cap(""), 1, True),
+            (with_cap("\n    a: 1"), 1, True),
+            (with_cap("\n    - 3"), 1, True),
+            # A key of that name in another mapping is not the setting.
+            (
+                PIPELINE.replace(
+                    "diff-check:\n", "diff-check:\n    max-verify-fails:\n"
+                ),
+                3,
+                False,
+            ),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.max_verify_fails, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(
+                    any("max-verify-fails" in n for n in config.notes), noted
+                )
+
+    def test_a_flow_mapping_max_verify_fails_turns_the_lane_off(self) -> None:
+        # The shared reader's subset rejects any flow mapping, empty or not,
+        # so the whole config is unread and the lane is off.
+        for value in ("{}", "{a: 1}"):
+            with self.subTest(value=value):
+                config_fake(
+                    self,
+                    PIPELINE.replace(
+                        "merge:\n", f"merge:\n  max-verify-fails: {value}\n"
+                    ),
+                )
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(
+                    (config.rung, config.error), ("off", "config-parse-error")
+                )
+
     def test_risk_escalation_minutes_defaults_to_sixty_and_reads_minutes(
         self,
     ) -> None:
@@ -3451,6 +3510,7 @@ merge:
   report-only: false
   require-verifier-verdict: false
   max-queue-ejections: 5
+  max-verify-fails: 4
   risk-escalation-minutes: 90
   check-inputs: ["x/**"]
   dependabot:
@@ -3472,6 +3532,7 @@ merge:
   report-only: true
   require-verifier-verdict: true
   max-queue-ejections: 1
+  max-verify-fails: 2
   risk-escalation-minutes: 10
   check-inputs: ["y/**"]
   dependabot:
@@ -3552,6 +3613,7 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             "dependabot_mode": "report",
             "dependabot_majors": "hold",
             "max_queue_ejections": 1,
+            "max_verify_fails": 2,
             "agent_identity": IDENTITY,
             # Timing only: the base's, whichever side is stricter.
             "risk_escalation_minutes": escalation_minutes,
