@@ -285,8 +285,9 @@ def _wait_url(proc, log, seconds, pattern=BANNER):
     return None
 
 
-def _start(data_dir, port, hostname="", token_file="", retired_entry=None):
-    """Start cloudflared and write its record, with `retired_entry` (a tunnel left running) as its retired."""
+def _start(data_dir, port, hostname="", token_file="", retired_entry=None, verify=None):
+    """Start cloudflared and write its record, with `retired_entry` (a tunnel left running) as its retired. `verify(url)`,
+    when given, says why the new address does not reach this session (else None); then nothing is recorded."""
     problem = hostname and (hostname_problem(hostname) or token_file_problem(token_file))
     if problem:
         raise TunnelDown(problem)
@@ -302,10 +303,18 @@ def _start(data_dir, port, hostname="", token_file="", retired_entry=None):
     seconds = float(os.environ.get("SHARED_TUNNEL_SECONDS") or START_SECONDS)
     url = (f"https://{hostname}" if _wait_url(proc, log, seconds, READY) else None) if hostname else _wait_url(proc, log, seconds)
     start = detached.started(proc.pid) if url else None
-    if start is None:
+    problem = None
+    if start is not None and verify:
+        try:
+            problem = verify(url)
+        except Exception as exc:  # a check that could not run is no proof: never switch on it
+            problem = f"the tunnel check did not run: {exc}"
+    if start is None or problem:
         if proc.poll() is None:
             proc.kill()
             proc.wait()
+        if problem:
+            raise TunnelDown(f"not switching: {problem}; the current tunnel keeps running")
         if url is None:
             what = f"no connection for {hostname}" if hostname else "no trycloudflare.com address"
             raise TunnelDown(f"cloudflared printed {what} in time (log: {log})")
@@ -327,9 +336,11 @@ def _retire_seconds():
     return float(os.environ.get("SHARED_RETIRE_SECONDS") or RETIRE_SECONDS)
 
 
-def ensure(data_dir, port, hostname="", token_file=""):
+def ensure(data_dir, port, hostname="", token_file="", verify=None):
     """The running tunnel to `port` with this hostname and token file ("" for a quick tunnel), reattached or started;
-    raises TunnelDown. A running tunnel to the same port at another address stays up as the record's `retired`."""
+    raises TunnelDown. A switch from a running tunnel to the same port at another address happens only once
+    `verify(new url)` returns None (server.py's probe); the old tunnel then stays up as the record's `retired`. With no
+    `verify` the old tunnel is ended instead, so no page is ever sent to an address nothing checked."""
     d = Path(data_dir)
     with detached.locked(d / LOCK):
         rec = alive(d, held=True)
@@ -346,8 +357,11 @@ def ensure(data_dir, port, hostname="", token_file=""):
             return _start(d, port, hostname, token_file, retired_entry=old)
         if old and detached.alive(*_identity(old)):
             _end(old)  # one retired tunnel at a time
+        if verify is None:
+            _end(keep)
+            return _start(d, port, hostname, token_file)
         entry = {k: keep[k] for k in ("pid", "url", "marker", "processStart", "adopted") if k in keep} | {"until": time.time() + _retire_seconds()}
-        return _start(d, port, hostname, token_file, retired_entry=entry)
+        return _start(d, port, hostname, token_file, retired_entry=entry, verify=verify)
 
 
 def retired(data_dir):

@@ -685,7 +685,12 @@ class TestNamedTunnel(ShareCase):
 
     def ensure(self, *extra, hostname=HOST, token=None, port=None):
         args = ["ensure-running", "--guest-port", str(port or self.port), "--tunnel-hostname", hostname, "--tunnel-token-file", str(token or self.token)]
-        return share(self.d, *args, *extra, environ=env(FAKE_CF_ARGS=str(self.args), TUNNEL_TOKEN="inherited"))
+        return share(self.d, *args, *extra, environ=self.env())
+
+    def env(self, probe_port=None):
+        """The fake cloudflared, and the server's tunnel probe sent to `probe_port` (default its own guest port)."""
+        probe = f"http://127.0.0.1:{probe_port or self.port}"
+        return env(FAKE_CF_ARGS=str(self.args), TUNNEL_TOKEN="inherited", SHARED_PROBE_ORIGIN=probe, SHARED_PROBE_SECONDS="3")
 
     def test_it_serves_the_hostname_and_says_named(self):
         code, out, err = self.ensure()
@@ -727,12 +732,12 @@ class TestNamedTunnel(ShareCase):
     def test_an_explicit_empty_hostname_switches_back_to_the_quick_tunnel(self):
         code, _, err = self.ensure()
         self.assertEqual(code, 0, err)
-        code, out, err = share(self.d, "ensure-running", "--tunnel-hostname", "", environ=env(FAKE_CF_ARGS=str(self.args)))
+        code, out, err = share(self.d, "ensure-running", "--tunnel-hostname", "", environ=self.env())
         self.assertEqual((code, out["tunnel"], out["shareChanged"]), (0, "quick", True), err)
         self.assertEqual(tunnel.retired(self.d)["url"], f"https://{self.HOST}")
 
     def test_a_quick_session_switched_to_named_moves_its_guests(self):
-        code, first, err = share(self.d, "ensure-running", "--guest-port", str(self.port))
+        code, first, err = share(self.d, "ensure-running", "--guest-port", str(self.port), environ=self.env())  # the server probes with its start environment
         self.assertEqual(code, 0, err)
         _, _, joined = call(self.port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
         code, out, err = self.ensure()
@@ -742,6 +747,16 @@ class TestNamedTunnel(ShareCase):
         self.assertEqual(moved, f"https://{self.HOST}")
         _, _, snap = call(self.port, "GET", "/api/state", headers={"Host": self.HOST, "X-Session-Secret": joined["secret"]})
         self.assertEqual(snap["me"]["pid"], joined["pid"])
+
+    def test_a_hostname_that_does_not_reach_this_server_is_refused_and_the_quick_link_kept(self):
+        code, first, err = share(self.d, "ensure-running", "--guest-port", str(self.port), environ=self.env(probe_port=free_port()))  # nothing answers there
+        self.assertEqual(code, 0, err)
+        code, out, err = share(self.d, *["ensure-running", "--tunnel-hostname", self.HOST, "--tunnel-token-file", str(self.token)], environ=self.env())
+        self.assertEqual((code, out["guestUrl"], out["tunnel"]), (1, first["guestUrl"], "quick"), err)
+        self.assertIn("does not reach this server", err)
+        self.assertIsNone(tunnel.retired(self.d))
+        old = tunnel.host(first["guestUrl"].split("#")[0])
+        self.assertNotIn("moved", call(self.port, "GET", "/api/state", headers={"Host": old})[2])
 
     def test_a_named_tunnel_that_cannot_run_is_refused_with_exit_1(self):
         cases = {"no token file": {"token": self.root / "missing.token"}, "a URL for a hostname": {"hostname": f"https://{self.HOST}"}}

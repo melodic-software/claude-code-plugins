@@ -110,7 +110,11 @@ named start.
 
 **Switching.** Setting, changing or clearing `tunnel_hostname` on a running session switches its
 tunnel at the next `ensure-running`; the session keeps its guest port, so switch to a named tunnel
-only a session whose port the ingress rule names (the reminder names the port). The old tunnel keeps running for ten minutes; in that time a
+only a session whose port the ingress rule names (the reminder names the port). The switch happens only
+once the new address proves it reaches this server: the server fetches
+`<new address>/api/tunnel-probe/<nonce>` and expects an answer only it knows, retrying for up to 30
+seconds. A hostname that is mistyped, or routes to another machine, is refused (exit 1) with the
+old tunnel and its link still running, so no page is ever sent where its guest's secret would leak. The old tunnel keeps running for ten minutes; in that time a
 page open on the old address asks the server, learns the new one, and moves there, carrying a
 guest's identity as a personal link (`#me=`), so the same browser keeps its name and answers. A
 quick tunnel that restarts after a reboot leaves no old page to ask: those guests open the new link

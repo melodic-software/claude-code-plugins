@@ -230,6 +230,14 @@ def report(d, s, rec, resumed, *, opened=None):
     return out
 
 
+def tunnel_check(s, url):
+    """Why the server says `url` does not reach it (its probe), or None when it does."""
+    code, body = call(s, "POST", "/api/tunnel-check", {"url": url}, timeout=float(os.environ.get("SHARED_PROBE_SECONDS") or 30) + 30)
+    if code != 200:
+        return f"the tunnel check was refused: HTTP {code} {body.get('error', '')}"
+    return None if body.get("ok") else body.get("error") or "the tunnel check failed"
+
+
 def kind(rec):
     """named or quick: which tunnel a record runs."""
     return "named" if tunnel.config(rec)[0] else "quick"
@@ -327,11 +335,12 @@ def bring_up(d, a):
         port = (bridge.ping(s["port"]) or {}).get("guestPort")
         if type(port) is not int:  # a tunnel to no port would replace one that works
             raise Refused(2, "the server did not name its guest port; run ensure-running again")
-        rec, down = None, None
+        rec, down, kept = None, None, None
         try:
-            rec = tunnel.ensure(d, port, hostname, token_file)
+            rec = tunnel.ensure(d, port, hostname, token_file, verify=lambda url: tunnel_check(s, url))
         except (tunnel.TunnelDown, TimeoutError) as exc:
             down = str(exc)
+            rec = kept = tunnel.alive(d)  # a refused switch leaves the running tunnel, and its link, in place
         if hostname:
             print(
                 f"named tunnel {hostname}: its ingress rule must name http://127.0.0.1:{port}. Run it on this machine only:"
@@ -346,6 +355,8 @@ def bring_up(d, a):
             link = (d / OWNER_LINK).read_text(encoding="utf-8").strip()
             opened = open_link(d, link)
         out = report(d, s, rec, resumed, opened=opened)
+    if kept:
+        raise Refused(1, f"refused: {down}", out)
     if down:
         raise Refused(3, f"no tunnel: {down}", out)
     return out

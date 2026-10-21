@@ -490,10 +490,15 @@ class TestSwitch(TunnelCase):
     def setUp(self):
         super().setUp()
         self.token = token_file(self)
+        self.checked = []
+
+    def reaches(self, url):
+        """A verify that passes every address, as server.py's probe does for one that reaches it."""
+        self.checked.append(url)
 
     def test_quick_to_named_keeps_the_quick_tunnel_as_retired(self):
-        quick = tunnel.ensure(self.d, 4321)
-        named = tunnel.ensure(self.d, 4321, HOST, self.token)
+        quick = tunnel.ensure(self.d, 4321, verify=self.reaches)
+        named = tunnel.ensure(self.d, 4321, HOST, self.token, verify=self.reaches)
         self.assertEqual(named["retired"]["url"], quick["url"])
         self.assertEqual(tunnel.retired(self.d)["pid"], quick["pid"])
         self.assertTrue(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
@@ -501,23 +506,23 @@ class TestSwitch(TunnelCase):
         self.assertTrue(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
 
     def test_a_restart_at_the_same_address_keeps_the_retired_tunnel_and_its_grace_time(self):
-        quick = tunnel.ensure(self.d, 4321)
-        named = tunnel.ensure(self.d, 4321, HOST, self.token)
+        quick = tunnel.ensure(self.d, 4321, verify=self.reaches)
+        named = tunnel.ensure(self.d, 4321, HOST, self.token, verify=self.reaches)
         detached.stop(named["pid"], named["marker"], named["processStart"])
-        again = tunnel.ensure(self.d, 4321, HOST, self.token)
+        again = tunnel.ensure(self.d, 4321, HOST, self.token, verify=self.reaches)
         self.assertEqual((again["retired"]["pid"], again["retired"]["until"]), (quick["pid"], named["retired"]["until"]))
         self.assertTrue(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
 
     def test_named_back_to_quick_retires_the_named_one(self):
-        named = tunnel.ensure(self.d, 4321, HOST, self.token)
-        quick = tunnel.ensure(self.d, 4321)
+        named = tunnel.ensure(self.d, 4321, HOST, self.token, verify=self.reaches)
+        quick = tunnel.ensure(self.d, 4321, verify=self.reaches)
         self.assertRegex(quick["url"], ADDRESS)
         self.assertEqual(tunnel.retired(self.d)["url"], named["url"])
 
     def test_a_retired_tunnel_is_stopped_once_its_grace_time_is_up(self):
         with mock.patch.dict(os.environ, {"SHARED_RETIRE_SECONDS": "0"}):
-            quick = tunnel.ensure(self.d, 4321)
-            tunnel.ensure(self.d, 4321, HOST, self.token)
+            quick = tunnel.ensure(self.d, 4321, verify=self.reaches)
+            tunnel.ensure(self.d, 4321, HOST, self.token, verify=self.reaches)
         self.assertIsNone(tunnel.retired(self.d))
         self.assertTrue(tunnel.sweep(self.d))
         self.assertFalse(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
@@ -525,31 +530,61 @@ class TestSwitch(TunnelCase):
         self.assertIsNotNone(tunnel.alive(self.d))
 
     def test_stop_ends_the_retired_tunnel_too(self):
-        quick = tunnel.ensure(self.d, 4321)
-        named = tunnel.ensure(self.d, 4321, HOST, self.token)
+        quick = tunnel.ensure(self.d, 4321, verify=self.reaches)
+        named = tunnel.ensure(self.d, 4321, HOST, self.token, verify=self.reaches)
         self.assertTrue(tunnel.stop(self.d))
         for rec in (quick, named):
             self.assertFalse(detached.alive(rec["pid"], rec["marker"], rec["processStart"]))
 
     def test_a_second_switch_ends_the_tunnel_retired_by_the_first(self):
-        quick = tunnel.ensure(self.d, 4321)
-        named = tunnel.ensure(self.d, 4321, HOST, self.token)
-        tunnel.ensure(self.d, 4321, "other.example.com", self.token)
+        quick = tunnel.ensure(self.d, 4321, verify=self.reaches)
+        named = tunnel.ensure(self.d, 4321, HOST, self.token, verify=self.reaches)
+        tunnel.ensure(self.d, 4321, "other.example.com", self.token, verify=self.reaches)
         self.assertFalse(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
         self.assertEqual(tunnel.retired(self.d)["url"], named["url"])
 
     def test_another_token_file_at_the_same_address_retires_nothing(self):
-        first = tunnel.ensure(self.d, 4321, HOST, self.token)
-        second = tunnel.ensure(self.d, 4321, HOST, token_file(self))
+        first = tunnel.ensure(self.d, 4321, HOST, self.token, verify=self.reaches)
+        second = tunnel.ensure(self.d, 4321, HOST, token_file(self), verify=self.reaches)
         self.assertNotIn("retired", second)
         self.assertFalse(detached.alive(first["pid"], first["marker"], first["processStart"]))
 
     def test_a_tunnel_to_another_port_is_ended_not_retired(self):
-        quick = tunnel.ensure(self.d, 4321)
-        named = tunnel.ensure(self.d, 4322, HOST, self.token)
+        quick = tunnel.ensure(self.d, 4321, verify=self.reaches)
+        named = tunnel.ensure(self.d, 4322, HOST, self.token, verify=self.reaches)
         self.assertNotIn("retired", named)
         self.assertFalse(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
 
+
+    def test_a_switch_the_check_refuses_keeps_the_old_tunnel_and_records_nothing(self):
+        quick = tunnel.ensure(self.d, 4321)
+        before = (self.d / tunnel.RECORD).read_text(encoding="utf-8")
+        with self.assertRaisesRegex(tunnel.TunnelDown, "not switching: elsewhere; the current tunnel keeps running"):
+            tunnel.ensure(self.d, 4321, HOST, self.token, verify=lambda url: "elsewhere")
+        self.assertEqual((self.d / tunnel.RECORD).read_text(encoding="utf-8"), before)
+        self.assertTrue(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
+        self.assertEqual(len(self.runs()), 2)
+        self.assertIsNone(tunnel.retired(self.d))
+
+    def test_a_check_that_raises_is_no_proof(self):
+        def broken(url):
+            raise OSError("the server did not answer")
+
+        tunnel.ensure(self.d, 4321)
+        with self.assertRaisesRegex(tunnel.TunnelDown, "did not run"):
+            tunnel.ensure(self.d, 4321, HOST, self.token, verify=broken)
+        self.assertNotIn("hostname", tunnel.read(self.d))
+
+    def test_a_switch_with_no_check_retires_nothing(self):
+        quick = tunnel.ensure(self.d, 4321)
+        named = tunnel.ensure(self.d, 4321, HOST, self.token)
+        self.assertNotIn("retired", named)
+        self.assertFalse(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
+
+    def test_the_check_is_asked_about_the_new_address(self):
+        tunnel.ensure(self.d, 4321)
+        tunnel.ensure(self.d, 4321, HOST, self.token, verify=self.reaches)
+        self.assertEqual(self.checked, [f"https://{HOST}"])
 
 if __name__ == "__main__":
     unittest.main()

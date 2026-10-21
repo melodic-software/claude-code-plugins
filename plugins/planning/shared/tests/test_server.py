@@ -246,7 +246,9 @@ class TestTunnelSwitch(ServerCase):
 
     def setUp(self):
         super().setUp()
-        patcher = mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": FAKE, "SHARED_TUNNEL_SECONDS": "10"})
+        # The probe goes to this server's guest port with the new hostname as Host, as Cloudflare's edge would send it.
+        probe = {"SHARED_PROBE_ORIGIN": f"http://127.0.0.1:{self.port}", "SHARED_PROBE_SECONDS": "2"}
+        patcher = mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": FAKE, "SHARED_TUNNEL_SECONDS": "10", **probe})
         patcher.start()
         self.addCleanup(patcher.stop)
         self.addCleanup(tunnel.stop, self.d)
@@ -261,8 +263,35 @@ class TestTunnelSwitch(ServerCase):
         return self.get("/api/state", {"Host": host, "Origin": f"https://{host}", **(headers or {})})
 
     def switch(self):
-        tunnel.ensure(self.d, self.port, self.NAMED, str(self.token))
+        tunnel.ensure(self.d, self.port, self.NAMED, str(self.token), verify=self.app.probe_tunnel)
         self.app.sync_tunnel(restart=False)
+
+    def test_a_hostname_that_reaches_another_server_is_not_switched_to(self):
+        """A typo'd or foreign hostname: whatever answers there cannot give this server's probe answer, so no page is
+        ever sent there with its secret."""
+        other = server.App(tmpdir(self), watch_tunnel=False)
+        other.serve()
+        self.addCleanup(other.shutdown)
+        with mock.patch.dict(os.environ, {"SHARED_PROBE_ORIGIN": f"http://127.0.0.1:{other.guest_port}"}):
+            with self.assertRaisesRegex(tunnel.TunnelDown, "does not reach this server"):
+                tunnel.ensure(self.d, self.port, self.NAMED, str(self.token), verify=self.app.probe_tunnel)
+        self.app.sync_tunnel(restart=False)
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out["me"]["pid"]), (200, self.pid))
+        self.assertNotIn("moved", out)
+        self.assertIsNone(tunnel.retired(self.d))
+
+    def test_a_probe_nonce_is_answered_once_and_only_when_pending(self):
+        nonce = "ab" * 16
+        code, _, _ = self.get(f"/api/tunnel-probe/{nonce}", {"Host": "anything.example"})
+        self.assertEqual(code, 404)
+        self.app._probes[nonce] = ("cd" * 16, time.monotonic() + 30)
+        code, _, out = self.get(f"/api/tunnel-probe/{nonce}", {"Host": self.NAMED})
+        self.assertEqual((code, out), (200, {"probe": "cd" * 16}))
+        self.assertEqual(self.get(f"/api/tunnel-probe/{nonce}", {"Host": self.NAMED})[0], 404)
+
+    def test_only_an_https_address_is_probed(self):
+        self.assertIn("not an https address", self.app.probe_tunnel(f"http://{self.NAMED}"))
 
     def test_a_guest_secret_from_the_old_host_is_the_same_person_on_the_new_one(self):
         code, _, before = self.state(self.quick, self.guest)
