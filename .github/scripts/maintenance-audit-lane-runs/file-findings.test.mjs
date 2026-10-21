@@ -115,15 +115,52 @@ test("a reopen comments with the checked claims, then sets the state open as reo
     return {};
   };
   const plan = { file: [], comment: [], reopen: [{ number: 12, fingerprint: "cccc", finding: finding() }] };
-  const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", wait: async () => {} });
+  const labels = ["needs-triage", "source: lane-sweep"];
+  let waits = 0;
+  const result = await writeAll({ plan, call, repo: "o/r", labels, runUrl: "https://run/1", wait: async () => waits++ });
   assert.deepEqual(result, { filed: [], commented: [], reopened: [12], failed: [] });
   assert.deepEqual(
     calls.map(([method, path]) => `${method} ${path}`),
-    ["POST /repos/o/r/issues/12/comments", "PATCH /repos/o/r/issues/12"],
+    [
+      "POST /repos/o/r/issues/12/comments",
+      "PATCH /repos/o/r/issues/12",
+      "POST /repos/o/r/issues/12/labels",
+      "DELETE /repos/o/r/issues/12/labels/agent-ready",
+    ],
   );
+  assert.equal(waits, 4);
   assert.match(calls[0][2].body, /https:\/\/run\/1/);
   assert.match(calls[0][2].body, /```text\na\.yml:1: if: true\n```/);
   assert.deepEqual(calls[1][2], { state: "open", state_reason: "reopened" });
+  assert.deepEqual(calls[2][2], { labels });
+});
+
+test("a reopen with no filing labels skips the label POST, and a 404 on agent-ready is not a failure", async () => {
+  const calls = [];
+  const call = async (method, path) => {
+    calls.push(`${method} ${path}`);
+    if (method === "DELETE") throw Object.assign(new Error(`${method} ${path}: HTTP 404`), { status: 404 });
+    return {};
+  };
+  const plan = { file: [], comment: [], reopen: [{ number: 12, fingerprint: "cccc", finding: finding() }] };
+  const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
+  assert.deepEqual(result, { filed: [], commented: [], reopened: [12], failed: [] });
+  assert.deepEqual(calls, [
+    "POST /repos/o/r/issues/12/comments",
+    "PATCH /repos/o/r/issues/12",
+    "DELETE /repos/o/r/issues/12/labels/agent-ready",
+  ]);
+});
+
+test("a failed label removal other than 404 is recorded", async () => {
+  const call = async (method, path) => {
+    if (method === "DELETE") throw Object.assign(new Error(`${method} ${path}: HTTP 500`), { status: 500 });
+    return {};
+  };
+  const plan = { file: [], comment: [], reopen: [{ number: 12, fingerprint: "cccc", finding: finding() }] };
+  const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
+  assert.deepEqual(result.reopened, []);
+  assert.deepEqual(result.failed, [{ target: "#12", error: "DELETE /repos/o/r/issues/12/labels/agent-ready: HTTP 500" }]);
 });
 
 test("a failed reopen comment skips its PATCH and is recorded", async () => {

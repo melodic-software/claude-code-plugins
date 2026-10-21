@@ -20,6 +20,19 @@ import { detect } from "./signals.mjs";
 
 const LABELS = ["needs-triage", "source: factory-monitor"];
 
+// A reopened issue goes back to triage: the filing labels that exist return,
+// and agent-ready comes off; a 404 means it was not on the issue.
+async function retriage({ call, repo, number, labels, wait }) {
+  if (labels.length > 0) {
+    await wait();
+    await call("POST", `/repos/${repo}/issues/${number}/labels`, { labels });
+  }
+  await wait();
+  await call("DELETE", `/repos/${repo}/issues/${number}/labels/agent-ready`).catch((error) => {
+    if (error.status !== 404) throw error;
+  });
+}
+
 export async function writePlan({ plan, existing, call, repo, labels, runUrl, wait = () => delay(1000) }) {
   const done = { filed: [], updated: [], reopened: [], failed: [] };
   for (const { finding } of plan.file) {
@@ -37,20 +50,22 @@ export async function writePlan({ plan, existing, call, repo, labels, runUrl, wa
   }
   // The comment carries the new evidence; the marker then records its
   // fingerprint, so a failed comment is retried on the next run. A reopen
-  // sets the state in the same PATCH.
+  // sets the state in the same PATCH, then sends the issue back to triage.
   const writes = [
-    ...plan.update.map((u) => ({ ...u, state: {}, into: done.updated })),
-    ...plan.reopen.map((r) => ({ ...r, state: { state: "open", state_reason: "reopened" }, into: done.reopened })),
+    ...plan.update.map((u) => ({ ...u, reopen: false, into: done.updated })),
+    ...plan.reopen.map((r) => ({ ...r, reopen: true, into: done.reopened })),
   ];
-  for (const { number, finding, state, into } of writes) {
+  for (const { number, finding, reopen, into } of writes) {
     const body = existing.find((i) => i.number === number).body;
     const [, ...rest] = body.split("\n");
     const marker = renderBody(finding, runUrl).split("\n", 1)[0];
+    const state = reopen ? { state: "open", state_reason: "reopened" } : {};
     try {
       await wait();
       await call("POST", `/repos/${repo}/issues/${number}/comments`, { body: renderComment(finding, runUrl) });
       await wait();
       await call("PATCH", `/repos/${repo}/issues/${number}`, { ...state, body: [marker, ...rest].join("\n") });
+      if (reopen) await retriage({ call, repo, number, labels, wait });
       into.push(number);
     } catch (error) {
       done.failed.push({ target: `#${number}`, error: error.message });
@@ -76,7 +91,9 @@ function client(env) {
       body: body ? JSON.stringify(body) : undefined,
     });
     if (response.status === 404 && method === "GET") return null;
-    if (!response.ok) throw new Error(`${method} ${path.split("?")[0]}: HTTP ${response.status}`);
+    if (!response.ok) {
+      throw Object.assign(new Error(`${method} ${path.split("?")[0]}: HTTP ${response.status}`), { status: response.status });
+    }
     return path.endsWith("/zip") ? Buffer.from(await response.arrayBuffer()) : response.json();
   };
   return { call, used: () => used };

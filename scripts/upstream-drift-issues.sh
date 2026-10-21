@@ -156,13 +156,19 @@ failed=0
 # Every issue the workflow's own bot opened, open and closed, read once through
 # the REST list (page by page) rather than search, which is rate-limited and
 # can return incomplete results. Anyone can open an issue with the same title,
-# so the author is checked in jq as well as by the creator filter.
+# so the author is checked in jq as well as by the creator filter. The same bot
+# files the monitoring lane's issues (a `factory-monitor` marker on the first
+# body line) and the lane sweep's (a `lane-sweep` marker on the last), so an
+# issue carrying either is never this script's, whatever its title.
 BOT='github-actions[bot]'
 if ! listed="$(gh api --paginate "repos/{owner}/{repo}/issues?creator=$BOT&state=all&per_page=100")"; then
   printf '%s: issue list failed\n' "$SELF" >&2
   exit 1
 fi
-ISSUES="$(jq -s --arg bot "$BOT" 'add // [] | map(select(.pull_request == null and .user.login == $bot))' <<<"$listed")" || {
+ISSUES="$(jq -s --arg bot "$BOT" 'add // [] | map(select(.pull_request == null and .user.login == $bot)
+  | select(((.body // "") | split("\n")) as $l
+    | ($l[0] // "" | startswith("<!-- factory-monitor key=")) or ($l | map(select(test("\\S"))) | last // "" | test("^<!-- lane-sweep:fp=[0-9a-f]{16} -->\\s*$"))
+    | not))' <<<"$listed")" || {
   printf '%s: unreadable issue list\n' "$SELF" >&2
   exit 1
 }

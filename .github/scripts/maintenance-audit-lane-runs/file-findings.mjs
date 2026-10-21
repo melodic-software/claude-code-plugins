@@ -99,13 +99,23 @@ export async function writeAll({ plan, call, repo, labels, runUrl, wait = () => 
     }
   }
   // The marker is the fingerprint, which a reopen leaves unchanged, so the
-  // PATCH sets the state only and keeps any rewrite a person made.
+  // PATCH sets the state only and keeps any rewrite a person made. The issue
+  // then goes back to triage: the filing labels that exist return, and
+  // agent-ready comes off; a 404 means it was not on the issue.
   for (const { number, finding } of plan.reopen) {
     try {
       await wait();
       await call("POST", `/repos/${repo}/issues/${number}/comments`, { body: renderReopenComment(finding, runUrl) });
       await wait();
       await call("PATCH", `/repos/${repo}/issues/${number}`, { state: "open", state_reason: "reopened" });
+      if (labels.length > 0) {
+        await wait();
+        await call("POST", `/repos/${repo}/issues/${number}/labels`, { labels });
+      }
+      await wait();
+      await call("DELETE", `/repos/${repo}/issues/${number}/labels/agent-ready`).catch((error) => {
+        if (error.status !== 404) throw error;
+      });
       reopened.push(number);
     } catch (error) {
       failed.push({ target: `#${number}`, error: error.message });
@@ -131,7 +141,7 @@ async function main() {
       body: body ? JSON.stringify(body) : undefined,
     });
     if (response.status === 404 && method === "GET") return null;
-    if (!response.ok) throw new Error(`${method} ${path}: HTTP ${response.status}`);
+    if (!response.ok) throw Object.assign(new Error(`${method} ${path}: HTTP ${response.status}`), { status: response.status });
     return response.json();
   };
 

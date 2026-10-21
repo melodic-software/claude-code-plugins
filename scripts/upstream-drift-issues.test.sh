@@ -279,6 +279,33 @@ c="$(calls)"
 expect_lacks "spoof closed: never reopens the user's issue 9" "$c" 'issue reopen'
 expect_has "spoof closed: creates its own issue" "$c" 'issue create'
 
+# --- the same bot's issues from another filer are never touched -------------
+# The monitoring lane marks its body's first line, the lane sweep its last.
+MONITOR_BODY='"body":"<!-- factory-monitor key=x fp=0123456789abcdef -->\n**Signal:** 1 main red"'
+SWEEP_BODY='"body":"Filed by the lane sweep.\n\n<!-- lane-sweep:fp=0123456789abcdef -->\n"'
+LIST_OTHERS="$TMP/list-others.json"
+printf '[{"number":40,"title":"Upstream drift: acme/widgets",%s,%s,%s},{"number":41,"title":"Upstream drift: acme/widgets",%s,%s,%s},{"number":42,"title":"Upstream drift: acme/gone",%s,%s,%s},{"number":43,"title":"Upstream drift: acme/gone-too",%s,%s,%s}]\n' \
+  "$OPEN" "$MONITOR_BODY" "$BOT_AUTHOR" "$COMPLETED" "$SWEEP_BODY" "$BOT_AUTHOR" \
+  "$OPEN" "$MONITOR_BODY" "$BOT_AUTHOR" "$OPEN" "$SWEEP_BODY" "$BOT_AUTHOR" >"$LIST_OTHERS"
+GH_STUB_LIST="$LIST_OTHERS"
+run_sut "$DRIFT"
+expect_code "other filers: exit 0" 0
+c="$(calls)"
+expect_lacks "other filers: never edits the monitoring lane's issue 40" "$c" 'issue edit 40'
+expect_lacks "other filers: never reopens the lane sweep's issue 41" "$c" 'issue reopen'
+expect_has "other filers: creates its own issue" "$c" 'issue create --title Upstream drift: acme/widgets'
+expect_lacks "other filers: the sweep never closes the monitoring lane's issue 42" "$c" 'issue close 42'
+expect_lacks "other filers: the sweep never closes the lane sweep's issue 43" "$c" 'issue close 43'
+expect_lacks "other filers: no close-unreported line" "$OUT" 'close-unreported'
+run_sut "$CLEAN"
+expect_lacks "other filers, clean: never closes the monitoring lane's issue 40" "$(calls)" 'issue close'
+LIST_MARKER_MID="$TMP/list-marker-mid.json"
+printf '[{"number":44,"title":"Upstream drift: acme/widgets","body":"Upstream text\\n<!-- lane-sweep:fp=0123456789abcdef -->\\nRe-audit the rows.",%s,%s}]\n' \
+  "$OPEN" "$BOT_AUTHOR" >"$LIST_MARKER_MID"
+GH_STUB_LIST="$LIST_MARKER_MID"
+run_sut "$DRIFT"
+expect_has "marker text mid-body: still this script's issue 44, edited" "$(calls)" 'issue edit 44 --body-file'
+
 # --- untracked page touches nothing -----------------------------------------
 UNTRACKED="$TMP/untracked.txt"
 printf '%s\n' "page repo=acme/plans pin=$PIN head=$HEAD status=untracked path=docs/upstream/plans.md" >"$UNTRACKED"

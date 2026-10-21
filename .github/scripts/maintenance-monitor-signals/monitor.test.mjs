@@ -84,7 +84,15 @@ function store() {
       return issue;
     }
     const number = Number(/issues\/(\d+)/.exec(path)[1]);
-    if (method === "PATCH") Object.assign(issues.find((i) => i.number === number), body);
+    const issue = issues.find((i) => i.number === number);
+    if (method === "PATCH") Object.assign(issue, body);
+    if (method === "POST" && path.endsWith("/labels")) issue.labels = [...new Set([...issue.labels, ...body.labels])];
+    if (method === "DELETE") {
+      const name = decodeURIComponent(path.split("/labels/")[1]);
+      // GitHub answers 404 when the label is not on the issue.
+      if (!issue.labels.includes(name)) throw Object.assign(new Error(`DELETE ${path}: HTTP 404`), { status: 404 });
+      issue.labels = issue.labels.filter((l) => l !== name);
+    }
     return {};
   };
   return { issues, calls, call };
@@ -131,16 +139,27 @@ test("4 merge-queue ejections: the oldest group leaving the 24-hour window write
 });
 
 for (const [signal, first, changed] of CASES) {
-  test(`${signal}: new evidence on a completed key comments on and reopens its issue`, async () => {
+  test(`${signal}: new evidence on a completed key comments on, reopens and re-triages its issue`, async () => {
     const s = store();
     await runOnce(s, first);
-    Object.assign(s.issues[0], { state: "closed", state_reason: "completed", closed_at: "2026-10-19T16:00:00Z" });
+    Object.assign(s.issues[0], {
+      state: "closed",
+      state_reason: "completed",
+      closed_at: "2026-10-19T16:00:00Z",
+      labels: ["agent-ready"],
+    });
     const before = s.issues[0].body.split("\n").slice(1);
 
     const again = await runOnce(s, changed);
     assert.deepEqual(again, { filed: [], updated: [], reopened: [100], failed: [] });
     assert.equal(s.issues.length, 1);
-    assert.deepEqual(s.calls.slice(-2), ["POST /repos/o/r/issues/100/comments", "PATCH /repos/o/r/issues/100"]);
+    assert.deepEqual(s.calls.slice(-4), [
+      "POST /repos/o/r/issues/100/comments",
+      "PATCH /repos/o/r/issues/100",
+      "POST /repos/o/r/issues/100/labels",
+      "DELETE /repos/o/r/issues/100/labels/agent-ready",
+    ]);
+    assert.deepEqual(s.issues[0].labels, ["needs-triage"]);
     assert.equal(s.issues[0].state, "open");
     assert.equal(s.issues[0].state_reason, "reopened");
     assert.deepEqual(s.issues[0].body.split("\n").slice(1), before);
@@ -149,6 +168,48 @@ for (const [signal, first, changed] of CASES) {
     assert.deepEqual(quiet, { filed: [], updated: [], reopened: [], failed: [] });
   });
 }
+
+test("a reopen of an issue without agent-ready takes the 404 as done, and a 500 is recorded", async () => {
+  const s = store();
+  await runOnce(s, CASES[2][1]);
+  Object.assign(s.issues[0], { state: "closed", state_reason: "completed", labels: [] });
+  const order = [];
+  const reopened = await writePlan({
+    plan: planIssues({ findings: detect({ now, windowStart, ...CASES[2][2] }), existing: [...s.issues] }),
+    existing: [...s.issues],
+    call: async (method, path, body) => {
+      order.push("call");
+      return s.call(method, path, body);
+    },
+    repo: "o/r",
+    labels: ["needs-triage"],
+    runUrl: url(900),
+    wait: async () => order.push("wait"),
+  });
+  assert.deepEqual(reopened, { filed: [], updated: [], reopened: [100], failed: [] });
+  assert.deepEqual(s.issues[0].labels, ["needs-triage"]);
+  assert.deepEqual(order, ["wait", "call", "wait", "call", "wait", "call", "wait", "call"]);
+
+  const t = store();
+  await runOnce(t, CASES[2][1]);
+  Object.assign(t.issues[0], { state: "closed", state_reason: "completed" });
+  const failing = async (method, path, body) => {
+    if (method === "DELETE") throw Object.assign(new Error(`DELETE ${path}: HTTP 500`), { status: 500 });
+    return t.call(method, path, body);
+  };
+  const done = await writePlan({
+    plan: planIssues({ findings: detect({ now, windowStart, ...CASES[2][2] }), existing: [...t.issues] }),
+    existing: [...t.issues],
+    call: failing,
+    repo: "o/r",
+    labels: [],
+    runUrl: url(900),
+    wait: async () => {},
+  });
+  assert.deepEqual(done.reopened, []);
+  assert.deepEqual(done.failed, [{ target: "#100", error: "DELETE /repos/o/r/issues/100/labels/agent-ready: HTTP 500" }]);
+  assert.ok(!t.calls.includes("POST /repos/o/r/issues/100/labels"));
+});
 
 test("a key closed as not planned or duplicate writes nothing on new evidence", async () => {
   for (const reason of ["not_planned", "duplicate"]) {
