@@ -95,7 +95,7 @@ named with it and keeps the post as a correlate):
   before the fast phase; the `review` plugin's CI lanes are its local counterpart, with no custody
   record against it. A summary-level fetch on 2026-09-29 confirmed its topic: the launch of Claude
   Code's Code Review. Pointer: when a digest needs whether Code Review findings gate a merge, fetch
-  <https://code.claude.com/docs/en/code-review#check-run-output> live, the post as correlate.
+  <https://code.claude.com/docs/en/code-review-pull-requests#check-run-output> live, the post as correlate.
   As of: 2026-10-02. Recheck trigger: that section leaves the page.
 - <https://claude.com/blog/agentic-coding-is-straining-ci-heres-how-we-scaled-test-impact-analysis-at-anthropic> (correlate only)
   The basis the claude.ai performance post cites for wins decaying in a fast-moving codebase,

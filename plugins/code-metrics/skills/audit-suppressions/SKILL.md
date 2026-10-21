@@ -136,13 +136,13 @@ no `--exclude` the count is unchanged and includes any path `scope.exclude` woul
 
 The marker catalog follows each tool's own directive syntax, read from these pages:
 
-- **Pointer:** [ESLint, disabling rules](https://eslint.org/docs/latest/use/configure/rules#disabling-rules);
+- **Pointer:** [ESLint, disabling rules](https://eslint.org/docs/latest/use/configure/rules#disable-rules);
   [TypeScript 3.9, `@ts-expect-error`](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-9.html);
   [flake8, in-line ignoring](https://flake8.pycqa.org/en/latest/user/violations.html);
   [Ruff, error suppression](https://docs.astral.sh/ruff/linter/#error-suppression);
   [mypy, silencing the checker](https://mypy.readthedocs.io/en/stable/common_issues.html);
   [pylint, message control](https://pylint.readthedocs.io/en/stable/user_guide/messages/message_control.html);
-  [Pyright, comments](https://microsoft.github.io/pyright/#/comments);
+  [Pyright, comments](https://github.com/microsoft/pyright/blob/main/docs/comments.md);
   [ShellCheck, directives](https://www.shellcheck.net/wiki/Directive);
   [C# `#pragma warning`](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/preprocessor-directives);
   [.NET, suppressing code analysis warnings](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/suppress-warnings);

@@ -5,7 +5,7 @@ Load this page when the artifact is a JSON object with `nodes`, `samples` and us
 DevTools and the inspector protocol save the same shape.
 
 Format pointer: the `Profile` type in the DevTools protocol Profiler domain,
-<https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#type-Profile>. As of 2026-10-04.
+<https://chromedevtools.github.io/devtools-protocol/tot/Profiler/>. As of 2026-10-04.
 Recheck when the converter exits 2 on a profile a current Node.js or Chrome wrote.
 
 ## What the converter stores

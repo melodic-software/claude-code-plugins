@@ -29,7 +29,7 @@ and its availability (plans, preview status, excluded configurations) in the not
 [the page](https://code.claude.com/docs/en/code-review), above its first section; its triggers at
 [code-review: manually trigger reviews](https://code.claude.com/docs/en/code-review#manually-trigger-reviews),
 its check-run behavior at
-[code-review: check run output](https://code.claude.com/docs/en/code-review#check-run-output); the
+[code-review: check run output](https://code.claude.com/docs/en/code-review-pull-requests#check-run-output); the
 bundled command's arguments and what each mutates at
 [code-review: review a diff locally](https://code.claude.com/docs/en/code-review#review-a-diff-locally);
 its status as a bundled skill at

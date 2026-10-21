@@ -55,3 +55,19 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://jackrighteous\.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-prompt-too-complicated-clean-workflow$
 ^https://testing\.googleblog\.com/2017/07/code-health-to-comment-or-not-to-comment\.html$
 ^https://testing\.googleblog\.com/2016/05/flaky-tests-at-google-and-how-we\.html$
+
+# Fictional course and video in knowledge eval prompts: the YouTube id answers 404 by design, and the Udemy course page answers 403 to the runner and to a browser User-Agent; test data, not an external dependency (verified 2026-10-21).
+^https://www\.udemy\.com/course/clean-architecture-in-dotnet/$
+^https://www\.youtube\.com/watch\?v=Ab3dE5fGh7I$
+
+# Fictional repository in the map-corpus eval prompt: answers 404 by design; test data, not an external dependency (verified 2026-10-21).
+^https://raw\.githubusercontent\.com/example-org/retry-spec/main/README\.md$
+^https://raw\.githubusercontent\.com/example-org/retry-spec/main/SPEC\.md$
+
+# Publisher bot block: 403 to the runner, 200 to a browser User-Agent for O'Reilly (verified 2026-10-21); sec.gov and iso.org answer 403 to a browser User-Agent too, and each cited page is the stable canonical source.
+^https://www\.oreilly\.com/library/view/learning-domain-driven-design/9781098100124/$
+^https://www\.sec\.gov/Archives/edgar/data/1018724/000119312516530910/d168744dex991\.htm$
+^https://www\.iso\.org/standard/78176\.html$
+
+# x.com status in a vendored upstream snapshot we cannot edit: 503 on the runner (online run 39417117475), 200 to a browser User-Agent from a workstation (verified 2026-10-21).
+^https://x\.com/bcherny/status/2063792263067754658$
