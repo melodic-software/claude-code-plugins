@@ -181,3 +181,64 @@ Describe 'Test-ReadStateUsable' -Tag 'lib' {
         { Test-ReadStateUsable -ReadState 'partial' } | Should -Throw
     }
 }
+
+Describe 'New-FindingItem -NoKey' -Tag 'lib' {
+    It 'builds an item with no key that can never be muted, recording why' {
+        $item = New-FindingItem -NoKey -NoKeyReason 'owner unresolved' -Severity 'UNKNOWN' -Title 't' `
+            -Fields @{ port = 80 }
+        $item.key | Should -BeNullOrEmpty
+        $item.muted | Should -BeFalse
+        $item.unkeyed_reason | Should -Be 'owner unresolved'
+        $item.port | Should -Be 80
+    }
+
+    It 'requires a reason' {
+        { New-FindingItem -NoKey -NoKeyReason '' -Severity 'INFO' -Title 't' } | Should -Throw
+    }
+
+    It 'refuses a field named unkeyed_reason' {
+        { New-FindingItem -NoKey -NoKeyReason 'r' -Severity 'INFO' -Title 't' -Fields @{ unkeyed_reason = 'x' } } |
+            Should -Throw
+    }
+}
+
+Describe 'Format-MachineText' -Tag 'lib' {
+    It 'replaces <Name> with a space' -ForEach @(
+        @{ Name = 'a line feed'; Char = [char]0x0A }
+        @{ Name = 'ESC'; Char = [char]0x1B }
+        @{ Name = 'DEL'; Char = [char]0x7F }
+        @{ Name = 'a C1 control'; Char = [char]0x85 }
+        @{ Name = 'a right-to-left override'; Char = [char]0x202E }
+        @{ Name = 'a first-strong isolate'; Char = [char]0x2068 }
+        @{ Name = 'a line separator'; Char = [char]0x2028 }
+        @{ Name = 'a paragraph separator'; Char = [char]0x2029 }
+    ) {
+        Format-MachineText "a$($Char)b" | Should -Be 'a b'
+    }
+
+    It 'keeps ordinary text, including non-ASCII letters, unchanged' {
+        $text = "$([char]0x03A9)mega $([char]0x00DC)ber 2.0 tab-free"
+        Format-MachineText $text | Should -Be $text
+    }
+
+    It 'caps text at 300 characters, ending it with an ellipsis' {
+        # 300 is the judgment cap the New-FindingItem.ps1 header comment for
+        # machine text documents; this literal is that decision, not a read of the code.
+        $out = Format-MachineText ('x' * 350)
+        $out.Length | Should -Be 300
+        $out | Should -Be (('x' * 297) + '...')
+    }
+
+    It 'leaves text of exactly 300 characters whole' {
+        Format-MachineText ('y' * 300) | Should -Be ('y' * 300)
+    }
+
+    It 'passes $null through' {
+        Format-MachineText $null | Should -BeNullOrEmpty
+    }
+
+    It 'is applied to every item title' {
+        $item = New-FindingItem -Kind 'ext' -Identity @('x') -Severity 'INFO' -Title "evil`r`nline"
+        $item.title | Should -Be 'evil  line'
+    }
+}

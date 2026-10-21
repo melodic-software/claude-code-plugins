@@ -24,6 +24,9 @@
 - [20. Storage top-N](#20-storage-top-n)
 - [21. Startup items](#21-startup-items)
 - [22. App last-use](#22-app-last-use)
+- [23. Browser extensions](#23-browser-extensions)
+- [24. Network listeners](#24-network-listeners)
+- [25. Firewall rules](#25-firewall-rules)
 
 Per-check rubrics for Windows. Section numbers follow the order of `catalog/checks.jsonc`. Each
 number is the anchor a catalog entry's `severity_rules` points at, so renumbering breaks those
@@ -1028,3 +1031,169 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   - App use is inventory, never `WARN` or `CRIT`.
 - **Notes:** items are keyed `app:` over the Uninstall subkey name or the package family name.
   `launched_count` and `userassist_state` show whether the decode works on this host.
+
+---
+
+## 23. Browser extensions
+
+- **Script:** `scripts/windows/checks/Test-BrowserExtensions.ps1`
+- **Category:** `security`
+- **Needs admin:** no.
+- **Commands:**
+
+  ```powershell
+  Get-Content "$env:LOCALAPPDATA\<browser>\User Data\<profile>\Secure Preferences" | ConvertFrom-Json
+  Get-Content "$env:APPDATA\Mozilla\Firefox\Profiles\<profile>\extensions.json" | ConvertFrom-Json
+  Get-ItemProperty HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist
+  ```
+
+- **What it lists:** every extension installed in each Chrome, Edge and Firefox profile, one
+  mutable item per extension (FindingKey kind `ext`: browser, profile folder, extension id), plus
+  the Edge and Chrome forcelist and ExtensionSettings policies in both HKLM and HKCU, each row
+  labeled with its hive; which hive wins is not resolved. How each source is read (profile
+  discovery, the Preferences merge and stub drop, location mapping, the size cap) is documented in
+  `Get-ChromiumExtension.ps1`, `Get-FirefoxExtension.ps1`, `Get-ExtensionPolicy.ps1` and
+  `New-ExtensionRecord.ps1`.
+
+- **Severity rubric** (owner-approved judgment rules):
+  - `WARN`: an unmuted extension that is any of: loaded unpacked or from the command line;
+    installed at the store location but not from the web store; a Chromium store, external or
+    policy extension whose install path is absolute (the browser keeps those relative to the
+    profile); a Chromium policy extension that no forcelist or ExtensionSettings entry names; a
+    Chromium component whose path is not inside the browser's own install folder, or whose install
+    folder could not be read; a Firefox add-on that is unsigned or was installed by another
+    program; or an extension other than a verified component holding a high-attention permission
+    (access to all sites, `debugger`, `nativeMessaging`, `proxy`, `management`). The item's
+    `reasons` says which.
+  - `INFO`: extensions are listed and none of the above holds. Policy entries are always `INFO`.
+  - `OK`: no extensions and every source read.
+  - `UNKNOWN`: any browser, profile file or policy key could not be read, even when items are
+    listed: an unread source can hide anything. The check still ran: `ran_successfully` stays
+    true, every readable profile's items stay listed, `detail.unreadable_sources` names what
+    could not be read (`<browser>`, `<browser>/<profile folder>` or `policy`), and the summary
+    counts them.
+  - A muted item stays in `detail.items[]` and does not raise the level. Never `CRIT`.
+
+- **Policy entries:** `detail.policy_entries` lists every forcelist entry and every
+  ExtensionSettings id whose installation mode installs it, each with its `source` (`forcelist`
+  or `extension-settings`), hive, extension id, update URL without its query string and, for
+  ExtensionSettings, its `install_mode`. `install_state` is `listed-off-store` for an entry whose
+  update URL is off that browser's own store, on a machine not joined to a domain, when no
+  installed extension in this run has that id; otherwise `listed`. `blocked_marker_count` counts
+  the entries in that state. The browser marks such entries rather than dropping
+  them, and Learn limits forced installs off a domain to its store; the check does not claim the
+  entry was blocked. When domain membership cannot be read, no entry is off-store and
+  `domain_read_state` says so.
+
+- **Pointers:** Microsoft Learn,
+  [ExtensionInstallForcelist, Description](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/extensioninstallforcelist#description)
+  and [Registry settings](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/extensioninstallforcelist#registry-settings);
+  Chromium
+  [`policy_loader_common.cc`, `FilterSensitiveExtensionsInstallForcelist`](https://chromium.googlesource.com/chromium/src/+/681d1503162defa0f779565615b64173cda5cc04/components/policy/core/common/policy_loader_common.cc#50)
+  and
+  [`manifest.mojom`, `ManifestLocation`](https://chromium.googlesource.com/chromium/src/+/681d1503162defa0f779565615b64173cda5cc04/extensions/common/mojom/manifest.mojom#18);
+  Mozilla
+  [`AddonManager.sys.mjs`, `SIGNEDSTATE_*`](https://github.com/mozilla-firefox/firefox/blob/034cd8a8207e38b04afec5e6f75e5161f75a112f/toolkit/mozapps/extensions/AddonManager.sys.mjs#L4305)
+  and
+  [`XPIProvider.sys.mjs`, `KEY_APP_*` install locations](https://github.com/mozilla-firefox/firefox/blob/034cd8a8207e38b04afec5e6f75e5161f75a112f/toolkit/mozapps/extensions/internal/XPIProvider.sys.mjs#L100).
+  Which `location_kind` each browser location maps to is our judgment, held in the adapters.
+  As of 2026-10-21. Recheck when the Learn page changes the policy path or the off-domain rule, a
+  host shows a forced extension under another key, or Chromium changes its location enum or how it
+  marks off-store entries.
+
+---
+
+## 24. Network listeners
+
+- **Script:** `scripts/windows/checks/Test-NetworkListeners.ps1`
+- **Category:** `security`
+- **Needs admin:** no, but an unelevated run cannot open other accounts' processes, so a listener
+  whose program neither the process nor its service resolves stays unresolved and the check reads
+  `UNKNOWN`. The elevated pass decides how that changes.
+- **Commands:**
+
+  ```powershell
+  Get-NetTCPConnection -State Listen | Select-Object LocalAddress, LocalPort, OwningProcess
+  Get-NetUDPEndpoint | Select-Object LocalAddress, LocalPort, OwningProcess
+  Get-CimInstance Win32_Service | Select-Object Name, ProcessId, PathName
+  & "$env:SystemRoot\System32\netsh.exe" http show servicestate view=requestq
+  ```
+
+- **What it lists:** one item per listening program, protocol and port (FindingKey kind
+  `listener`: executable path, protocol, port). One program bound to several addresses on a port is
+  one item at its widest bind (`any`, then `specific`, then `loopback`). A kernel-owned listener
+  (process id 4 with no request-queue owner, such as SMB or NetBIOS) has no executable path, so
+  its key uses the fixed identity `system` in place of the path. How a port's owner is
+  resolved, in which order, and how http.sys ports are traced to their request queue owner is
+  documented in `Get-ListenerOwner.ps1`; `path_source` and `via_http_sys` say which step answered.
+
+- **Severity rubric** (owner-approved judgment rules):
+  - `WARN`: an unmuted listener bound beyond loopback whose binary's signature is not `Valid`, or
+    whose binary sits under `%LOCALAPPDATA%`, `%APPDATA%`, `%TEMP%` or the profile's `Downloads`
+    (`user_writable_path`).
+  - `INFO`: every other resolved listener, loopback-only ones included, and kernel listeners with
+    no request queue.
+  - `OK`: no listeners and every source read.
+  - `UNKNOWN`: an unresolved listener (listed with no key and `unkeyed_reason`, so it cannot be
+    muted: its identity differs by elevation and a process name can be spoofed), or the socket
+    table or the service list could not be read (`read_state`, `service_read_state`), even when
+    items are listed. A failed socket read sets `ran_successfully` false.
+  - A muted item stays in `detail.items[]` and does not raise the level. Never `CRIT`.
+
+- **Notes:** `established_count` counts established TCP connections for context only. UDP
+  endpoints include ephemeral ports, which can change between runs. Pointers:
+  [QueryFullProcessImageNameW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-queryfullprocessimagenamew#parameters),
+  [netsh http, `show servicestate` in Syntax](https://learn.microsoft.com/windows-server/administration/windows-commands/netsh-http#syntax),
+  [Get-AuthenticodeSignature](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/get-authenticodesignature#outputs).
+  As of 2026-10-21. Recheck when an unelevated run starts resolving every listener, the netsh
+  request-queue view changes shape, or the signature status values change.
+
+---
+
+## 25. Firewall rules
+
+- **Script:** `scripts/windows/checks/Test-FirewallRules.ps1`
+- **Category:** `security`
+- **Needs admin:** no.
+- **Commands:**
+
+  ```powershell
+  Get-NetFirewallRule -PolicyStore ActiveStore -TracePolicyStore
+  Get-NetFirewallRule -PolicyStore SystemDefaults | Select-Object Name
+  Get-NetFirewallApplicationFilter -PolicyStore ActiveStore -All
+  Get-NetFirewallPortFilter -PolicyStore ActiveStore -All
+  ```
+
+- **What it lists:** inbound allow rules that did not ship with Windows and are bound to a
+  program. Which rules count as candidates, how built-in rules are recognized, how the reads are
+  joined, the per-rule port-filter fallback and its cap and budget, and how `program_state` is
+  decided are documented in `Get-FirewallRuleInventory.ps1`.
+- **Items:** one per candidate (FindingKey kind `firewall`, identity the rule `Name`), except that
+  rules whose program paths differ only in a dotted-version folder (per-version runtime rules)
+  become one item with `rule_count`, keyed by the path with that folder as `*`, direction,
+  protocol and local port, so an update keeps the mute. A group is `exists` when any version's
+  program exists, `not-found` only when every one is missing, otherwise `unknown`.
+  `not_found_count` and `unknown_program_count` count items; `grouped_rule_count` counts the rules
+  inside groups. A per-version rule whose protocol and port stayed unread is listed with no key
+  and `unkeyed_reason` (`unkeyed_count`), so no key is computed from missing data; other rules
+  keep their `Name` key with `protocol` and `local_port` null when unread. `port_read_state` and
+  `port_fallback_reads` record the port-filter reads.
+- **Severity rubric:** `INFO` always, for the check and every item, including when the inventory
+  cannot be read (`read_state` records it and the summary says so) and when the program is
+  missing. The check never fails a run and never changes a rule. The summary carries counts only.
+  `baseline_hosts` counts the fleet hosts on which the SystemDefaults baseline has been confirmed
+  (the value is set in the check script).
+- **Evidence:**
+  - Built-in rules: a rule whose `Name` is in SystemDefaults is treated as built in. Two fleet
+    hosts checked on 2026-10-21 hold identical SystemDefaults rule names, and neither host's
+    candidate names intersect the other host's SystemDefaults names. As of 2026-10-21. Recheck
+    when a host's run lists a built-in Windows rule as a candidate or its SystemDefaults names
+    differ from another host's.
+  - Missing programs: `not-found` is trusted only when `Test-Path` wrote no error record. On a
+    fleet host checked on 2026-10-21, every `not-found` program also failed `Get-Item` with
+    item-not-found, not access-denied. As of 2026-10-21. Recheck when a host run shows
+    `not-found` for a program that exists.
+- **Pointers:**
+  [Get-NetFirewallRule, -PolicyStore](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule#-policystore),
+  [Get-NetFirewallPortFilter, -All](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallportfilter#-all).
+  As of 2026-10-21. Recheck when the unelevated bulk port-filter read returns every filter.
