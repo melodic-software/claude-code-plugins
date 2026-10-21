@@ -1190,8 +1190,8 @@ test("pr-run-activity-read.yml: with output-mode gone, issue mode still refuses 
 
 const runSteps = () => workflow("pr-run-activity-read.yml").jobs.run.steps;
 const CLEAN_GATE = "(inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')";
-// Issue-mode steps, and the verdict, which holds step outputs only.
-const UNSCANNED = new Set(["Upload the issue outcome", "Check the gate skill's verdict", "Upload the verdict"]);
+// Issue-mode steps.
+const UNSCANNED = new Set(["Upload the issue outcome", "Check the gate skill's verdict"]);
 const writesSummary = (step) => /GITHUB_STEP_SUMMARY|core\.summary/.test(`${step.run ?? ""}${step.with?.script ?? ""}`);
 
 test("pr-run-activity-read.yml: the leak scan runs after the act and collect steps and gates every later upload and summary", () => {
@@ -1228,7 +1228,7 @@ test("pr-run-activity-read.yml: the leak scan loads the publish gate from the AP
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 const KEY = ["sk", "ant", "api03", "x".repeat(40)].join("-");
 
-async function scanWith(t, plant) {
+async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs")) {
   const root = mkdtempSync(join(tmpdir(), "leak-scan-test-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const work = join(root, "work");
@@ -1252,7 +1252,7 @@ async function scanWith(t, plant) {
   let failed = null;
   const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) };
   const github = {
-    rest: { repos: { getContent: async ({ path: file, ref }) => ({ data: { content: Buffer.from(read(`../../../${file}`)).toString("base64"), ref } }) } },
+    rest: { repos: { getContent: async ({ ref }) => ({ data: { content: Buffer.from(gate).toString("base64"), ref } }) } },
   };
   const env = {
     BASE_SHA: "b".repeat(40),
@@ -1283,6 +1283,11 @@ test("leak scan: a key in the reply, in a binary changed file, in an untracked f
   const plants = {
     reply: ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `done ${KEY}\n`),
     "binary changed file": ({ work }) => writeFileSync(join(work, "tracked.txt"), Buffer.concat([Buffer.from([0, 255, 0]), Buffer.from(KEY)])),
+    "binary file the index marks assume-unchanged": ({ work }) => {
+      writeFileSync(join(work, "tracked.txt"), Buffer.concat([Buffer.from([0, 255, 0]), Buffer.from(KEY)]));
+      spawnSync("git", ["update-index", "--assume-unchanged", "tracked.txt"], { cwd: work });
+      assert.equal(spawnSync("git", ["diff", "--name-only"], { cwd: work, encoding: "utf8" }).stdout, "", "the real index hides it");
+    },
     "untracked file": ({ work }) => writeFileSync(join(work, "new.bin"), Buffer.concat([Buffer.from([0, 1]), Buffer.from(KEY)])),
     "execution file": ({ temp }) => writeFileSync(join(temp, "execution.json"), JSON.stringify([{ type: "user", text: KEY }])),
   };
@@ -1295,12 +1300,10 @@ test("leak scan: a key in the reply, in a binary changed file, in an untracked f
 });
 
 test("leak scan: a missing base or head, or a gate that imports beyond node builtins, fails closed", async (t) => {
-  const steps = runSteps();
-  const script = steps.find((s) => s.id === "leak-scan").with.script;
-  assert.match(script, /startsWith\('node:'\)/);
   const outputs = {};
   let failed = null;
   const { createRequire } = await import("node:module");
+  const script = runSteps().find((s) => s.id === "leak-scan").with.script;
   await new AsyncFunction("require", "core", "github", "context", "process", script)(
     createRequire(import.meta.url),
     { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) },
@@ -1310,4 +1313,9 @@ test("leak scan: a missing base or head, or a gate that imports beyond node buil
   );
   assert.equal(outputs.clean, "false");
   assert.match(failed, /no finished scan/);
+  // A gate that loads and passes everything, but imports beyond node builtins, is refused.
+  const evil = 'import "data:text/javascript,export default 1";\nexport const findSecret = () => null;\n';
+  const refused = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), "clean\n"), evil);
+  assert.equal(refused.clean, "false");
+  assert.match(refused.failed, /^leak-scan: no finished scan \(Error\)/);
 });
