@@ -81,6 +81,47 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Get-CheckArgument.ps1')
 . (Join-Path $libRoot 'Get-MutedFindingKey.ps1')
 . (Join-Path $libRoot 'Invoke-CheckWithTimeout.ps1')
+. (Join-Path $libRoot 'Enter-RunLock.ps1')
+. (Join-Path $libRoot 'Assert-StateBaseLocation.ps1')
+
+# stderr keeps stdout clean for the JSON snapshot.
+function Write-StderrBanner {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)] [string[]] $Line)
+
+    [Console]::Error.WriteLine('')
+    foreach ($l in $Line) { [Console]::Error.WriteLine($l) }
+    [Console]::Error.WriteLine('')
+}
+
+function New-UnknownCheckResult {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory result object; changes no system state.')]
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)] $Entry,
+        [Parameter(Mandatory)] [string] $Summary,
+        [Parameter(Mandatory)] [string] $ErrorReason,
+        [int] $DurationMs = 0
+    )
+    return [pscustomobject]@{
+        id               = $Entry.id
+        category         = $Entry.category
+        os               = 'windows'
+        ran_at           = (Get-Date).ToString('o')
+        severity         = 'UNKNOWN'
+        summary          = $Summary
+        detail           = @{}
+        commands         = @()
+        needs_admin      = [bool]$Entry.needs_admin
+        ran_successfully = $false
+        duration_ms      = $DurationMs
+        trend            = $null
+        notes            = $null
+        error            = $ErrorReason
+    }
+}
 
 $runStart = Get-Date
 $runId = $runStart.ToString('o')
@@ -106,30 +147,76 @@ $StateBase = [System.IO.Path]::GetFullPath($StateBase)
 $reportsDir = Join-Path $OutputBase 'reports'
 $stateDir = Join-Path $StateBase 'state'
 $logsDir = Join-Path $StateBase 'logs'
-foreach ($d in @($OutputBase, $StateBase, $reportsDir, $stateDir, $logsDir)) {
+
+# Plugin state never goes into a cloud-synced folder. A synced StateBase still
+# gets the checks and the report, but nothing is created or written under it:
+# no lock, run log, approvals read, latest.json, history or battery report.
+$guardWarnings = @()
+$stateLocation = Assert-StateBaseLocation -Path $StateBase -WarningVariable +guardWarnings -WarningAction SilentlyContinue
+$outputLocation = Assert-StateBaseLocation -Path $OutputBase -WarningVariable +guardWarnings -WarningAction SilentlyContinue
+$stateWritable = -not $stateLocation.Synced
+foreach ($w in $guardWarnings) { [Console]::Error.WriteLine("[machine-health] WARNING: $w") }
+if (-not $stateWritable) {
+    Write-StderrBanner -Line ("[machine-health] WARNING: the state folder '$StateBase' is under a cloud sync root " +
+        "($($stateLocation.Rule): '$($stateLocation.Folder)'). Running the checks and the report only; " +
+        'nothing is written under it. Move the plugin data folder out of the synced folder.')
+}
+if ($outputLocation.Synced) {
+    Write-StderrBanner -Line ("[machine-health] WARNING: the report folder '$OutputBase' is under a cloud sync root " +
+        "($($outputLocation.Rule): '$($outputLocation.Folder)'); reports will sync.")
+}
+
+$neededDirs = if ($stateWritable) { @($OutputBase, $StateBase, $reportsDir, $stateDir, $logsDir) } else { @($OutputBase, $reportsDir) }
+foreach ($d in $neededDirs) {
     if (-not (Test-Path -LiteralPath $d)) {
         New-Item -ItemType Directory -Path $d -Force | Out-Null
     }
 }
 
-$runLog = Join-Path $logsDir "run-$runDate.log"
-$remedLog = Join-Path $logsDir "remediation-$runDate.log"
+# One run at a time per state folder: a second run reports the held lock and
+# writes nothing.
+$runLock = $null
+if ($stateWritable) {
+    $runLock = Enter-RunLock -StateDir $stateDir -Name 'run'
+    if ($null -eq $runLock) {
+        $lockPath = Join-Path $stateDir 'run.lock'
+        $lockResult = New-UnknownCheckResult -Entry ([pscustomobject]@{ id = 'run-lock'; category = 'config'; needs_admin = $false }) `
+            -Summary "Another machine-health run holds '$lockPath'; this run did nothing." -ErrorReason 'run_locked'
+        [Console]::Error.WriteLine("[machine-health] $($lockResult.summary)")
+        if ($Human) {
+            Write-Output "machine-health: UNKNOWN run-lock - $($lockResult.summary)"
+        } else {
+            [ordered]@{
+                run_id   = $runId
+                hostname = $hostname
+                os       = 'windows'
+                run_mode = $RunMode
+                dry_run  = $DryRun.IsPresent -or ($RunMode -eq 'first-run')
+                checks   = @($lockResult)
+            } | ConvertTo-Json -Depth 10
+        }
+        exit 0
+    }
+}
 
-# Bind LogPath once for the 30+ orchestrator-local Write-MachineHealthLog calls below.
-$PSDefaultParameterValues['Write-MachineHealthLog:LogPath'] = $runLog
+if ($stateWritable) {
+    $runLog = Join-Path $logsDir "run-$runDate.log"
+    $remedLog = Join-Path $logsDir "remediation-$runDate.log"
+    # Bind LogPath once for the 30+ orchestrator-local Write-MachineHealthLog calls below.
+    $PSDefaultParameterValues['Write-MachineHealthLog:LogPath'] = $runLog
+} else {
+    $runLog = $null
+    $remedLog = $null
+    # Nothing is written under a synced StateBase, so run log lines go to stderr.
+    function Write-MachineHealthLog {
+        [CmdletBinding()]
+        param([Parameter(Mandatory = $true)] [string] $Message)
+        [Console]::Error.WriteLine("$((Get-Date).ToString('o')) $Message")
+    }
+}
 
 Write-MachineHealthLog ("run_start run_id=$runId mode=$RunMode dry_run=$($DryRun.IsPresent) " +
-    "output_base=$OutputBase state_base=$StateBase")
-
-# stderr keeps stdout clean for the JSON snapshot.
-function Write-StderrBanner {
-    [CmdletBinding()]
-    param([Parameter(Mandatory = $true)] [string[]] $Line)
-
-    [Console]::Error.WriteLine('')
-    foreach ($l in $Line) { [Console]::Error.WriteLine($l) }
-    [Console]::Error.WriteLine('')
-}
+    "output_base=$OutputBase state_base=$StateBase state_writable=$stateWritable")
 
 # Guard: the checked-in catalog/cisa-kev.json is a seed STUB only. If the file
 # on disk is larger than the stub (which would mean machine-refreshed live data
@@ -154,6 +241,7 @@ if (Test-Path -LiteralPath $seedKevPath) {
                 Write-Output ('[machine-health] FATAL: catalog/cisa-kev.json ' +
                     "is $seedSize bytes (the shipped stub should be <1KB). Restore " +
                     'the stub from source control, or reinstall/update the plugin.')
+                if ($runLock) { $runLock.Dispose() }
                 exit 2
             }
         }
@@ -316,36 +404,9 @@ foreach ($sk in @($selection.skipped)) {
 }
 $windowsChecks = @($selection.due)
 
-function New-UnknownCheckResult {
-    [CmdletBinding()]
-    [OutputType([pscustomobject])]
-    param(
-        [Parameter(Mandatory)] $Entry,
-        [Parameter(Mandatory)] [string] $Summary,
-        [Parameter(Mandatory)] [string] $ErrorReason,
-        [int] $DurationMs = 0
-    )
-    return [pscustomobject]@{
-        id               = $Entry.id
-        category         = $Entry.category
-        os               = 'windows'
-        ran_at           = (Get-Date).ToString('o')
-        severity         = 'UNKNOWN'
-        summary          = $Summary
-        detail           = @{}
-        commands         = @()
-        needs_admin      = [bool]$Entry.needs_admin
-        ran_successfully = $false
-        duration_ms      = $DurationMs
-        trend            = $null
-        notes            = $null
-        error            = $ErrorReason
-    }
-}
-
 # Per-run battery report path -- a run-scoped file the battery check writes and
 # reads for wear/capacity analysis. runStamp keeps same-day reruns distinct.
-$batteryReportPath = Join-Path $logsDir "battery-report-$runStamp.html"
+$batteryReportPath = if ($stateWritable) { Join-Path $logsDir "battery-report-$runStamp.html" } else { $null }
 
 # Ids of checks that produced a usable result this run (not cadence-skipped,
 # not script-missing, not a failed dispatch). Recorded to history.jsonl
@@ -357,6 +418,13 @@ $checkResults = [System.Collections.Generic.List[object]]::new()
 # Surface Assert-CatalogEntry failures through the normal reporting path first
 # so a registered-but-invalid check cannot silently vanish from the report.
 $checkResults.AddRange($invalidCatalogResults)
+if (-not $stateWritable) {
+    $checkResults.Add((New-UnknownCheckResult `
+                -Entry ([pscustomobject]@{ id = 'state-location'; category = 'config'; needs_admin = $false }) `
+                -Summary ("State folder '$StateBase' is under a cloud sync root ($($stateLocation.Rule): " +
+                    "'$($stateLocation.Folder)'); no state was written and no remediation ran.") `
+                -ErrorReason 'state_under_sync_root'))
+}
 # Mutes reach checks only as an argument; checks never read mutes.json.
 $muteState = Get-MuteState -StateDir $stateDir
 foreach ($entry in $windowsChecks) {
@@ -431,11 +499,16 @@ try {
 
 # Remediation dispatch (dry-run-aware, user-load-aware, approval-gated via approvals.json)
 $remediationAttempts = [System.Collections.Generic.List[object]]::new()
-$remediationsEnabled = (-not $effectiveDry) -and (-not $userLoaded)
+$remediationsEnabled = (-not $effectiveDry) -and (-not $userLoaded) -and $stateWritable
 
 $todoPath = Get-TodoPath -StateBase $StateBase
 $queuedTodoTitles = [System.Collections.Generic.List[string]]::new()
-$approvalState = Get-ApprovalState -StateDir $stateDir -TodoPath $todoPath -LogPath $runLog
+# Get-ApprovalState creates the state folder and may migrate TODO.md, so a synced StateBase skips it.
+$approvalState = if ($stateWritable) {
+    Get-ApprovalState -StateDir $stateDir -TodoPath $todoPath -LogPath $runLog
+} else {
+    New-DefaultApprovalState
+}
 
 function Invoke-Remediation {
     [CmdletBinding()]
@@ -487,7 +560,15 @@ if ($remediationsEnabled) {
         }
     }
 } else {
-    $reason = if ($effectiveDry) { 'dry_run' } elseif ($userLoaded) { 'user_load' } else { 'disabled' }
+    $reason = if ($effectiveDry) {
+        'dry_run'
+    } elseif ($userLoaded) {
+        'user_load'
+    } elseif (-not $stateWritable) {
+        'state_location'
+    } else {
+        'disabled'
+    }
     Write-MachineHealthLog "remediations_skipped reason=$reason"
 }
 
@@ -504,7 +585,7 @@ try {
 # install per SKILL.md. The proposal is machine-specific state: queue it in the
 # state-root proposals file (Get-TodoPath), print a loud banner to stderr, and
 # append a log line. Never write to the repo.
-if ($RunMode -eq 'first-run') {
+if ($RunMode -eq 'first-run' -and $stateWritable) {
     try {
         $hasWingetModule = $null -ne (Get-Module -ListAvailable Microsoft.WinGet.Client -ErrorAction SilentlyContinue)
         if (-not $hasWingetModule) {
@@ -559,27 +640,29 @@ $durationSeconds = [math]::Round(($runEnd - $runStart).TotalSeconds, 1)
 $osVersion = try { (Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).Version } catch { 'unknown' }
 
 $urlsCalled = @()
-try {
-    # Scope to current run only -- the log file is day-scoped (run-YYYY-MM-DD.log)
-    # so a second run on the same day would otherwise inherit earlier runs'
-    # URLs. Compare as DateTimeOffset so mixed offsets (e.g., DST fall-back)
-    # order chronologically, not lexicographically. Lines whose timestamp
-    # fails to parse are dropped with a log note rather than included.
-    $runStartOffset = [DateTimeOffset]::Parse($runId)
-    $urlsCalled = @(Read-EgressLog -LogPath $runLog |
-            Where-Object {
-                $parsed = [DateTimeOffset]::MinValue
-                if ([DateTimeOffset]::TryParse($_.timestamp, [ref]$parsed)) {
-                    $parsed -ge $runStartOffset
-                } else {
-                    Write-MachineHealthLog "urls_called_unparsable_timestamp $($_.timestamp)"
-                    $false
-                }
-            } |
-            ForEach-Object { $_.uri } |
-            Sort-Object -Unique)
-} catch {
-    Write-MachineHealthLog "urls_called_parse_failed $($_.Exception.Message)"
+if ($runLog) {
+    try {
+        # Scope to current run only -- the log file is day-scoped (run-YYYY-MM-DD.log)
+        # so a second run on the same day would otherwise inherit earlier runs'
+        # URLs. Compare as DateTimeOffset so mixed offsets (e.g., DST fall-back)
+        # order chronologically, not lexicographically. Lines whose timestamp
+        # fails to parse are dropped with a log note rather than included.
+        $runStartOffset = [DateTimeOffset]::Parse($runId)
+        $urlsCalled = @(Read-EgressLog -LogPath $runLog |
+                Where-Object {
+                    $parsed = [DateTimeOffset]::MinValue
+                    if ([DateTimeOffset]::TryParse($_.timestamp, [ref]$parsed)) {
+                        $parsed -ge $runStartOffset
+                    } else {
+                        Write-MachineHealthLog "urls_called_unparsable_timestamp $($_.timestamp)"
+                        $false
+                    }
+                } |
+                ForEach-Object { $_.uri } |
+                Sort-Object -Unique)
+    } catch {
+        Write-MachineHealthLog "urls_called_parse_failed $($_.Exception.Message)"
+    }
 }
 
 $snapshot = [ordered]@{
@@ -599,8 +682,10 @@ $snapshot = [ordered]@{
 }
 
 $latestPath = Join-Path $stateDir 'latest.json'
-$snapshot | ConvertTo-Json -Depth 20 | Out-File -LiteralPath $latestPath -Encoding utf8 -Force
-Write-MachineHealthLog "wrote_latest_json path=$latestPath"
+if ($stateWritable) {
+    $snapshot | ConvertTo-Json -Depth 20 | Out-File -LiteralPath $latestPath -Encoding utf8 -Force
+    Write-MachineHealthLog "wrote_latest_json path=$latestPath"
+}
 
 # Compact history line -- extract scalar detail properties per check into
 # top_metrics so subsequent runs can detect trend context. Keys use the
@@ -626,8 +711,10 @@ $historyLine = [ordered]@{
     top_metrics        = $topMetrics
 }
 $historyJson = $historyLine | ConvertTo-Json -Depth 10 -Compress
-Add-Content -LiteralPath $historyPath -Value $historyJson -Encoding utf8
-Write-MachineHealthLog "appended_history path=$historyPath"
+if ($stateWritable) {
+    Add-Content -LiteralPath $historyPath -Value $historyJson -Encoding utf8
+    Write-MachineHealthLog "appended_history path=$historyPath"
+}
 
 $templatePath = Join-Path $skillRoot 'reference\shared\report-template.md'
 # Per-run (not per-day) filename: a same-day rerun must not overwrite the
@@ -703,6 +790,8 @@ $remediationsSection = if ($remediationAttempts.Count -eq 0) {
             'dry-run mode'
         } elseif ($userLoaded) {
             'user load detected'
+        } elseif (-not $stateWritable) {
+            'state folder under a cloud sync root'
         } else {
             'no approvals in approvals.json'
         }
@@ -816,12 +905,13 @@ foreach ($k in $replacements.Keys) {
 $report | Out-File -LiteralPath $reportPath -Encoding utf8 -Force
 Write-MachineHealthLog "wrote_report path=$reportPath"
 Write-MachineHealthLog "run_end run_id=$runId duration_seconds=$durationSeconds"
+if ($runLock) { $runLock.Dispose() }
 
 if ($Human) {
     Write-Output "machine-health report: $reportPath"
     Write-Output "  severity: $oneLine"
     Write-Output "  duration: $durationHuman"
-    Write-Output "  snapshot: $latestPath"
+    Write-Output ($stateWritable ? "  snapshot: $latestPath" : '  snapshot: not written (state folder under a cloud sync root)')
 } else {
     $snapshot | ConvertTo-Json -Depth 20
 }

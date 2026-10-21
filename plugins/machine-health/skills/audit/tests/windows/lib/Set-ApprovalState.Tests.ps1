@@ -214,10 +214,12 @@ Describe 'Set-ApprovalState' -Tag 'lib' {
             New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
             $lock = Enter-RunLock -StateDir $script:stateDir -Name 'approvals'
             try {
-                $job = Start-ThreadJob -ArgumentList $script:LibFile, $script:base, $script:keyA -ScriptBlock {
-                    param($LibFile, $Base, $Key)
-                    . $LibFile
-                    Set-ApprovalState -StateBase $Base -Action mute -CheckId 'services' -FindingKey $Key -LockTimeoutSeconds 30
+                $libFile = $script:LibFile
+                $base = $script:base
+                $key = $script:keyA
+                $job = Start-ThreadJob -ScriptBlock {
+                    . $using:libFile
+                    Set-ApprovalState -StateBase $using:base -Action mute -CheckId 'services' -FindingKey $using:key -LockTimeoutSeconds 30
                 }
                 Start-Sleep -Milliseconds 700
                 $job.State | Should -Be 'Running'

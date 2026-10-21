@@ -48,6 +48,10 @@ function Set-ApprovalState {
         [ValidateRange(0, 600)] [int] $LockTimeoutSeconds = 30
     )
 
+    $request = @{
+        CheckId = $CheckId; FindingKey = $FindingKey; RemediationId = $RemediationId
+        Label = $Label; Notes = $Notes; RunId = $RunId
+    }
     $catalogRoot = Join-Path $PSScriptRoot '..\..\..\catalog'
     $remediationIds = @('restart-stopped-service', 'clear-temp-files')
     $keyPattern = '^[a-z-]{1,16}:[0-9a-f]{16}$'
@@ -55,13 +59,13 @@ function Set-ApprovalState {
     $orNull = { param($Value) if ([string]::IsNullOrEmpty($Value)) { $null } else { [System.Text.Json.Nodes.JsonValue]::Create([string]$Value) } }
 
     $assertKey = {
-        if ($FindingKey -cnotmatch $keyPattern) {
-            throw "Set-ApprovalState: finding key '$FindingKey' does not match <kind>:<16 hex>."
+        if ($request.FindingKey -cnotmatch $keyPattern) {
+            throw "Set-ApprovalState: finding key '$($request.FindingKey)' does not match <kind>:<16 hex>."
         }
     }
     $assertRemediation = {
-        if ($RemediationId -notin $remediationIds) {
-            throw "Set-ApprovalState: '$RemediationId' is not a shipped remediation ($($remediationIds -join ', '))."
+        if ($request.RemediationId -notin $remediationIds) {
+            throw "Set-ApprovalState: '$($request.RemediationId)' is not a shipped remediation ($($remediationIds -join ', '))."
         }
     }
     $remediationsOf = {
@@ -78,26 +82,26 @@ function Set-ApprovalState {
             Validate = {
                 $shipped = @((Get-Content -LiteralPath (Join-Path $catalogRoot 'checks.jsonc') -Raw |
                             ConvertFrom-Jsonc).checks | ForEach-Object { [string]$_.id })
-                if ($CheckId -notin $shipped) { throw "Set-ApprovalState: '$CheckId' is not a shipped check id." }
+                if ($request.CheckId -notin $shipped) { throw "Set-ApprovalState: '$($request.CheckId)' is not a shipped check id." }
                 & $assertKey
             }
             Apply    = {
                 param($Doc)
                 $checks = $Doc['checks']
-                if ($null -eq $checks[$CheckId]) {
-                    $checks[$CheckId] = [System.Text.Json.Nodes.JsonObject]::new()
-                    $checks[$CheckId]['muted_findings'] = [System.Text.Json.Nodes.JsonArray]::new()
+                if ($null -eq $checks[$request.CheckId]) {
+                    $checks[$request.CheckId] = [System.Text.Json.Nodes.JsonObject]::new()
+                    $checks[$request.CheckId]['muted_findings'] = [System.Text.Json.Nodes.JsonArray]::new()
                 }
-                $list = $checks[$CheckId]['muted_findings']
+                $list = $checks[$request.CheckId]['muted_findings']
                 foreach ($item in $list) {
-                    if ($item['key'].GetValue[string]() -ceq $FindingKey) { return $false }
+                    if ($item['key'].GetValue[string]() -ceq $request.FindingKey) { return $false }
                 }
                 $entry = [System.Text.Json.Nodes.JsonObject]::new()
-                $entry['key'] = $FindingKey
-                $entry['label'] = & $orNull $Label
-                $entry['reason'] = & $orNull $Notes
+                $entry['key'] = $request.FindingKey
+                $entry['label'] = & $orNull $request.Label
+                $entry['reason'] = & $orNull $request.Notes
                 $entry['added_at'] = $now
-                $entry['run_id'] = & $orNull $RunId
+                $entry['run_id'] = & $orNull $request.RunId
                 $list.Add($entry)
                 return $true
             }
@@ -111,10 +115,10 @@ function Set-ApprovalState {
                 foreach ($pair in $Doc['checks']) {
                     $list = $pair.Value['muted_findings']
                     for ($i = $list.Count - 1; $i -ge 0; $i--) {
-                        if ($list[$i]['key'].GetValue[string]() -ceq $FindingKey) { $list.RemoveAt($i); $removed++ }
+                        if ($list[$i]['key'].GetValue[string]() -ceq $request.FindingKey) { $list.RemoveAt($i); $removed++ }
                     }
                 }
-                if ($removed -eq 0) { throw "Set-ApprovalState: '$FindingKey' is not muted under any check." }
+                if ($removed -eq 0) { throw "Set-ApprovalState: '$($request.FindingKey)' is not muted under any check." }
                 return $true
             }
         }
@@ -126,9 +130,9 @@ function Set-ApprovalState {
                 $entry = [System.Text.Json.Nodes.JsonObject]::new()
                 $entry['approved'] = $true
                 $entry['approved_at'] = $now
-                $entry['approved_by'] = if ($RunId) { "setup picks $RunId" } else { 'setup apply' }
-                $entry['notes'] = & $orNull $Notes
-                (& $remediationsOf $Doc)[$RemediationId] = $entry
+                $entry['approved_by'] = if ($request.RunId) { "setup picks $($request.RunId)" } else { 'setup apply' }
+                $entry['notes'] = & $orNull $request.Notes
+                (& $remediationsOf $Doc)[$request.RemediationId] = $entry
                 return $true
             }
         }
@@ -138,11 +142,10 @@ function Set-ApprovalState {
             Apply    = {
                 param($Doc)
                 $remediations = & $remediationsOf $Doc
-                if ($null -eq $remediations[$RemediationId]) {
-                    $remediations[$RemediationId] = [System.Text.Json.Nodes.JsonObject]::new()
-                }
-                $remediations[$RemediationId]['approved'] = $false
-                $remediations[$RemediationId]['approved_at'] = $now
+                $id = $request.RemediationId
+                if ($null -eq $remediations[$id]) { $remediations[$id] = [System.Text.Json.Nodes.JsonObject]::new() }
+                $remediations[$id]['approved'] = $false
+                $remediations[$id]['approved_at'] = $now
                 return $true
             }
         }

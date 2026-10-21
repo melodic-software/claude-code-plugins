@@ -1,25 +1,26 @@
 ---
-description: "Configure the machine-health plugin for this machine. check (read-only): report the effective catalog overlay, remediation approvals, and pending proposals against the shipped catalog. apply: write the machine-local overlay (disable/deprecate/demote checks, register custom ones) and seed remediation approvals. Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Actions: check (read-only verification, default) | apply (write the machine-local overlay and approvals). Re-runnable and safe."
-argument-hint: "[check|apply] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>]"
+description: "Configure the machine-health plugin for this machine. check (read-only): report the effective catalog overlay, remediation approvals, and pending proposals against the shipped catalog. apply: write the machine-local overlay (disable/deprecate/demote checks, register custom ones), approve or revoke remediations (approve=, revoke=), and unmute findings (unmute=). Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'revoke a remediation', 'unmute a finding', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Actions: check (read-only verification, default) | apply (write the machine-local overlay, approvals and mutes). Re-runnable and safe."
+argument-hint: "[check|apply] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
-**Arguments.** `[check|apply] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>]`.
+**Arguments.** `[check|apply] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>]`.
 
 ## Purpose
 
 Inspect and customize `/machine-health:audit` on this host per the uniform setup contract
 (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace repository):
 `check` reads the effective configuration and reports, `apply` writes it. The machine-local
-surface is the catalog overlay at `<StateBase>/catalog/checks.local.jsonc` and the remediation
-approvals at `<StateBase>/state/approvals.json`. Configuration here is machine-local by design.
+surface is the catalog overlay at `<StateBase>/catalog/checks.local.jsonc`, the remediation
+approvals at `<StateBase>/state/approvals.json` and the finding mutes at
+`<StateBase>/state/mutes.json`. Configuration here is machine-local by design.
 A workstation's check tuning does not belong in any repository. Idempotent: re-running reads the
 existing files and offers updates rather than overwriting blind.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then applies
 the requested changes. When `apply` is given complete write arguments (`disable=`, `deprecate=`, `demote=`,
-`approve=`) it applies them non-interactively; with no arguments in an interactive session it runs
+`approve=`, `revoke=`, `unmute=`) it applies them non-interactively; with no arguments in an interactive session it runs
 the full interview below. Custom-check registration is inherently interactive (it authors a script)
 and always interviews.
 
@@ -110,12 +111,29 @@ remediation, so no interview is needed):
 - `deprecate=<check-id>`. Write `"deprecated": true` plus a `deprecation_reason` (from a
   `reason=<text>` argument when supplied, else a short default) to the overlay.
 - `demote=<check-id>`. Write `"cadence": "monthly"` for that check to the overlay.
-- `approve=<remediation-id>`. Write the approval to `<StateBase>/state/approvals.json` per
-  `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/approvals.md`. A supplied `approve=` argument IS the explicit user decision;
-  never approve a remediation not named in the arguments or the interview.
+- `approve=<remediation-id>`. Approve the remediation in `<StateBase>/state/approvals.json`
+  (`Set-ApprovalState -Action approve -RemediationId <id>`). A supplied `approve=` argument IS the
+  explicit user decision; never approve a remediation not named in the arguments or the interview.
+- `revoke=<remediation-id>`. Set the remediation back to not approved
+  (`Set-ApprovalState -Action revoke -RemediationId <id>`).
+- `unmute=<key>`. Remove the muted finding with that FindingKey (`<kind>:<16 hex>`) under every
+  check id in `<StateBase>/state/mutes.json` (`Set-ApprovalState -Action unmute -FindingKey <key>`).
 
-Reject an argument targeting an unknown check id or remediation with the same message `check` would
-give, rather than writing a dangling entry.
+**Approvals and mutes are written only through `Set-ApprovalState`**, never by editing
+`approvals.json` or `mutes.json` directly. It validates the arguments, holds
+`<StateBase>/state/approvals.lock` across the read, the change and the atomic replace, checks the
+result against the file's schema before writing it, and refuses a `<StateBase>` under a cloud sync
+root. Run it as one command, substituting the resolved `<StateBase>`:
+
+```text
+pwsh -NoProfile -Command ". '${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/windows/lib/Set-ApprovalState.ps1'; Set-ApprovalState -StateBase '<StateBase>' -Action <action> <arguments>"
+```
+
+A thrown error means nothing was written: report its message as the FAIL, never retry by editing
+the file. The re-read after the write confirms the entry landed.
+
+Reject an argument targeting an unknown check id, remediation or muted key with the same message
+`check` would give, rather than writing a dangling entry.
 
 **Interview** (no write arguments AND an interactive session), one decision at a time:
 
@@ -133,8 +151,8 @@ give, rather than writing a dangling entry.
    semantics: `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/catalog-overlay.md`.
 5. **Offer remediation approvals.** The two shipped remediations (`restart-stopped-service`,
    `clear-temp-files`) default to not approved. Present each with its risk posture from
-   `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/windows/remediation-policy.md`; on an explicit yes, write the approval per
-   `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/shared/approvals.md`. Never enable a remediation the user did not explicitly approve.
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/windows/remediation-policy.md`; on an explicit yes, write the approval through
+   `Set-ApprovalState -Action approve` (above). Never enable a remediation the user did not explicitly approve.
 6. **Confirm the report directory.** Show where reports land (the `report_dir` plugin option when
    set, else `$env:USERPROFILE\Documents\MachineHealth`). The option is stored in plugin config,
    not the overlay; reconfigure through Claude Code's native flow, per the marketplace's
@@ -158,7 +176,8 @@ Re-running `apply` after everything is already set changes nothing and reports "
 
 ## Output
 
-An updated `<StateBase>/catalog/checks.local.jsonc` (and `approvals.json` when approvals changed),
+An updated `<StateBase>/catalog/checks.local.jsonc` (and `approvals.json` or `mutes.json` when
+approvals or mutes changed),
 plus a one-paragraph summary of what changed and how to re-run this setup to reconfigure. `check`
 alone reports the effective configuration and changes nothing.
 

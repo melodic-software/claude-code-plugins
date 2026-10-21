@@ -14,11 +14,14 @@ BeforeAll {
     foreach ($v in $script:vars) { $script:saved[$v] = [Environment]::GetEnvironmentVariable($v) }
 
     function New-Junction {
+        [CmdletBinding(SupportsShouldProcess = $true)]
         param([string] $Name)
-        $target = Join-Path $TestDrive "$Name-target"
-        New-Item -ItemType Directory -Path $target -Force | Out-Null
         $link = Join-Path $TestDrive $Name
-        New-Item -ItemType Junction -Path $link -Target $target | Out-Null
+        if ($PSCmdlet.ShouldProcess($link, 'Create junction')) {
+            $target = Join-Path $TestDrive "$Name-target"
+            New-Item -ItemType Directory -Path $target -Force | Out-Null
+            New-Item -ItemType Junction -Path $link -Target $target | Out-Null
+        }
         return $link
     }
 }

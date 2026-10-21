@@ -50,7 +50,7 @@ Describe 'Write-StateFile' -Tag 'lib' {
     It 'leaves the file untouched when -Update returns $null' {
         [System.IO.File]::WriteAllText($script:path, 'old')
 
-        $written = Write-StateFile -Path $script:path -Update { param($current) $null }
+        $written = Write-StateFile -Path $script:path -Update { $null }
 
         $written | Should -BeFalse
         [System.IO.File]::ReadAllText($script:path) | Should -Be 'old'
@@ -61,7 +61,7 @@ Describe 'Write-StateFile' -Tag 'lib' {
         [System.IO.File]::WriteAllText($script:path, 'old')
         $reader = [System.IO.File]::Open($script:path, 'Open', 'Read', [System.IO.FileShare]'ReadWrite, Delete')
         try {
-            $null = Write-StateFile -Path $script:path -Update { param($current) 'new' }
+            $null = Write-StateFile -Path $script:path -Update { 'new' }
             # The open handle still reads the file it opened: the swap never exposes a partial write.
             [System.IO.StreamReader]::new($reader).ReadToEnd() | Should -Be 'old'
         } finally {
@@ -83,7 +83,7 @@ Describe 'Write-StateFile' -Tag 'lib' {
         }
 
         It 'retries 5 times at 100 ms doubling, then throws naming the file and leaves the temp file' {
-            { Write-StateFile -Path $script:path -Update { param($current) 'new' } } |
+            { Write-StateFile -Path $script:path -Update { 'new' } } |
                 Should -Throw -ExpectedMessage "*$($script:path)*"
 
             $script:delays | Should -Be @(100, 200, 400, 800, 1600)
@@ -122,7 +122,7 @@ Describe 'Write-StateFile' -Tag 'lib' {
     It 'propagates an -Update failure without creating a temp file' {
         [System.IO.File]::WriteAllText($script:path, 'old')
 
-        { Write-StateFile -Path $script:path -Update { param($current) throw 'invalid document' } } |
+        { Write-StateFile -Path $script:path -Update { throw 'invalid document' } } |
             Should -Throw -ExpectedMessage '*invalid document*'
 
         [System.IO.File]::ReadAllText($script:path) | Should -Be 'old'
