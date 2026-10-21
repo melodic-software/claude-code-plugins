@@ -145,7 +145,7 @@ $CheckBody = {
 
     $severity = Get-UnmutedSeverity -Items $items.ToArray() -ReadState $readStates
     # Every verdict rests on UserAssist; an unreadable one leaves the list unjudged.
-    if ($userAssist.ReadState -notin 'ok', 'absent') { $severity = 'UNKNOWN' }
+    if (-not (Test-ReadStateUsable $userAssist.ReadState)) { $severity = 'UNKNOWN' }
     $summary = ("$noLaunchCount of $($items.Count) installed app(s): $noLaunchText. " +
         "$launchedCount launched; $noEvidenceCount without launch evidence.")
     if ($userAssist.ReadState -ne 'ok') { $summary += " UserAssist launch records: $($userAssist.ReadState)." }

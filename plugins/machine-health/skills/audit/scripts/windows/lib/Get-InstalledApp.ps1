@@ -24,6 +24,8 @@ ReadState is ok when every source read; otherwise the first failing source's
 state, with the apps the other sources returned.
 #>
 
+. (Join-Path $PSScriptRoot 'New-FindingItem.ps1')
+
 $script:UninstallKey = @(
     'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
     'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
@@ -77,7 +79,7 @@ function Get-InstalledApp {
         $states.Add('error')
     }
 
-    $failed = @($states | Where-Object { $_ -notin 'ok', 'absent' })
+    $failed = @($states | Where-Object { -not (Test-ReadStateUsable $_) })
     $state = if ($failed.Count -gt 0) { $failed[0] } else { 'ok' }
     return [pscustomobject]@{ ReadState = $state; Apps = $apps.ToArray() }
 }

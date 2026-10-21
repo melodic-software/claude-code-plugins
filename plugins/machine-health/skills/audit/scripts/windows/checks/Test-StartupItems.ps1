@@ -52,14 +52,14 @@ $CheckBody = {
         if ($location.ContainsKey('Key')) { $source['Key'] = $location.Key }
         $read = Get-RunKeyEntry @source
         $readStates.Add($read.ReadState)
-        if ($read.ReadState -notin 'ok', 'absent') { $unreadable.Add("$($source.Values -join ' '): $($read.ReadState)") }
+        if (-not (Test-ReadStateUsable $read.ReadState)) { $unreadable.Add("$($source.Values -join ' '): $($read.ReadState)") }
         if (@($read.Entries).Count -eq 0) { continue }
 
         $approved = @{}
         if ($location.Approved) {
             $approvedRead = Read-StartupApproved -Scope $location.Scope
             $readStates.Add($approvedRead.ReadState)
-            if ($approvedRead.ReadState -notin 'ok', 'absent') {
+            if (-not (Test-ReadStateUsable $approvedRead.ReadState)) {
                 $unreadable.Add("$($location.Scope) StartupApproved: $($approvedRead.ReadState)")
             }
             $approved = $approvedRead.Entries
@@ -84,7 +84,7 @@ $CheckBody = {
 
     $tasks = Get-LogonTaskInventory
     $readStates.Add($tasks.ReadState)
-    if ($tasks.ReadState -notin 'ok', 'absent') { $unreadable.Add("logon tasks: $($tasks.ReadState)") }
+    if (-not (Test-ReadStateUsable $tasks.ReadState)) { $unreadable.Add("logon tasks: $($tasks.ReadState)") }
     foreach ($task in $tasks.Tasks) {
         $items.Add((New-FindingItem -Kind 'task' -Identity @($task.TaskPath, $task.TaskName) -MutedKeys $MutedKeys `
                     -Severity 'INFO' -Title "$($task.TaskPath)$($task.TaskName)" -Fields @{
