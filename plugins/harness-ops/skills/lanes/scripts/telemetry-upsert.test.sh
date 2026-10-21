@@ -9,6 +9,11 @@
 #   - pagination: a sentinel comment on a second page is found (no duplicate POST)
 #   - argument validation: bad marker (incl. `>` injection), non-numeric issue,
 #     missing body-file
+#   - write identity (#7999): User login; Bot report + --app-slug; failed user call
+#     + --app-slug; Bot report without a slug; a refused slug (exit 3); an
+#     unresolved identity (exit 4, nothing written, even with a sentinel present);
+#     another author's sentinel comment is ignored
+#   - a comment list that does not parse exits 5 with nothing written
 #   - --dry-run resolves the action but performs no write
 #   - `-` reads the body from stdin
 #   - missing jq BINARY (not just the in-script wrapper function) exits 4
@@ -53,6 +58,10 @@ LOG="$TMP/gh.log"
 # PATCH/POST mutations (echoing a synthetic response so the script can extract
 # .id / .html_url).
 #
+# Identity knobs (`api user`): STUB_ME (login, default octocat), STUB_ME_TYPE
+# (User|Bot, default User), STUB_USER_FAIL (non-empty: the call fails, as under an
+# App installation token).
+#
 # Read-back knobs (all default to a body that verifies):
 #   STUB_READBACK_BODY  exact body the read-back GET returns (emitted CRLF)
 #   STUB_READBACK_FAIL  non-empty: the read-back GET fails with a 403 rate limit
@@ -79,7 +88,12 @@ if [[ "${args[0]}" == "repo" && "${args[1]}" == "view" ]]; then
   exit 0
 fi
 if [[ "$url" == "user" ]]; then
-  echo "${STUB_ME:-octocat}"
+  [[ -n "${STUB_USER_FAIL:-}" ]] && exit 1
+  if [[ "$jq_query" == *".type"* ]]; then
+    printf '%s %s\n' "${STUB_ME:-octocat}" "${STUB_ME_TYPE:-User}"
+  else
+    echo "${STUB_ME:-octocat}"
+  fi
   exit 0
 fi
 if [[ -n "$method" ]]; then
@@ -291,6 +305,121 @@ assert_not_contains "never PATCHes the longer instance's comment" "$log" "method
 out="$(STUB_SENTINEL="$INST_SENT" run "$TMP/empty.json" --marker "lane:triage@a" --dry-run 2>&1)"
 rc=$?
 assert_eq "instance-suffixed marker is a valid --marker" 0 "$rc"
+
+# ============================================================================
+# write identity (#7999) — the fallback reads comments written by the lanes' write
+# identity: a User login; else SLUG[bot] from --app-slug; else the reported Bot
+# login plus [bot]. Two marker-only comments, one per author, so each case shows
+# which one was adopted.
+# ============================================================================
+cat >"$TMP/two-authors.json" <<'JSON'
+[
+  { "id": 701, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"},
+    "body": "telemetry for lane:triage\nhand-authored" },
+  { "id": 702, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "lanes-app[bot]"},
+    "body": "telemetry for lane:triage\nhand-authored" },
+  { "id": 703, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "other-app[bot]"},
+    "body": "telemetry for lane:triage\nhand-authored" }
+]
+JSON
+
+out="$(run "$TMP/two-authors.json" --dry-run 2>&1)"
+assert_contains "a User login adopts only that user's comment" "$out" "would update comment 701"
+
+out="$(STUB_ME="other-app[bot]" STUB_ME_TYPE=Bot run "$TMP/two-authors.json" --app-slug lanes-app --dry-run 2>&1)"
+assert_contains "a Bot report with --app-slug adopts only SLUG[bot]'s comment" "$out" "would update comment 702"
+
+out="$(STUB_USER_FAIL=1 run "$TMP/two-authors.json" --app-slug lanes-app --dry-run 2>&1)"
+assert_contains "a failed user call with --app-slug adopts only SLUG[bot]'s comment" "$out" "would update comment 702"
+
+out="$(STUB_USER_FAIL=1 run "$TMP/two-authors.json" --app-slug=lanes-app --dry-run 2>&1)"
+assert_contains "--app-slug=SLUG is accepted" "$out" "would update comment 702"
+
+out="$(STUB_ME="other-app" STUB_ME_TYPE=Bot run "$TMP/two-authors.json" --dry-run 2>&1)"
+assert_contains "a Bot report without --app-slug reads the login plus [bot]" "$out" "would update comment 703"
+
+out="$(STUB_ME="octocat" run "$TMP/two-authors.json" --app-slug lanes-app --dry-run 2>&1)"
+assert_contains "a User login wins over --app-slug" "$out" "would update comment 701"
+
+# A refused slug writes nothing: exit 3 before any API call.
+for bad_slug in 'Bad Slug' 'lanes-app[bot]' '-lanes' 'a/b'; do
+  : >"$LOG"
+  out="$(STUB_USER_FAIL=1 run "$TMP/two-authors.json" --app-slug "$bad_slug" 2>&1)"
+  rc=$?
+  assert_eq "slug '$bad_slug' refused exit 3" 3 "$rc"
+  assert_contains "slug '$bad_slug' refusal names --app-slug" "$out" "--app-slug must be a GitHub App slug"
+  assert_eq "slug '$bad_slug' refusal reaches no API call" "" "$(cat "$LOG")"
+done
+
+# No identity resolves: nothing is written (no create either — that would
+# duplicate the comment the fallback could not recognize) and the message names
+# the flag that fixes it.
+: >"$LOG"
+out="$(STUB_USER_FAIL=1 run "$TMP/two-authors.json" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "an unresolved write identity exits 4" 4 "$rc"
+assert_contains "an unresolved write identity names --app-slug" "$out" "pass --app-slug"
+assert_not_contains "an unresolved identity does not POST" "$log" "method=POST"
+assert_not_contains "an unresolved identity does not PATCH" "$log" "method=PATCH"
+
+# Detection needs the identity even when a sentinel is present: without it the
+# script cannot tell its own sentinel comment from anyone else's.
+: >"$LOG"
+out="$(STUB_USER_FAIL=1 run "$TMP/has-sentinel.json" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "a sentinel present with no write identity exits 4" 4 "$rc"
+assert_not_contains "a sentinel present with no write identity does not PATCH" "$log" "method=PATCH"
+assert_not_contains "a sentinel present with no write identity does not POST" "$log" "method=POST"
+
+# The issue is public: an outsider can post the exact sentinel. Their comment is
+# newer than mine, so a match on the sentinel alone would PATCH it (or exit 5 on
+# the 403); the writer's own sentinel comment is the one updated.
+cat >"$TMP/outsider-sentinel.json" <<JSON
+[
+  { "id": 801, "created_at": "2026-07-20T00:00:00Z", "user": {"login": "octocat"},
+    "body": "$SENT\nlane: triage" },
+  { "id": 802, "created_at": "2026-07-21T00:00:00Z", "user": {"login": "mallory"},
+    "body": "$SENT\nforged" }
+]
+JSON
+: >"$LOG"
+out="$(run "$TMP/outsider-sentinel.json" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "an outsider's newer sentinel comment: exits 0" 0 "$rc"
+assert_contains "an outsider's newer sentinel comment: my own comment is updated" "$log" "method=PATCH url=repos/$REPO/issues/comments/801"
+assert_not_contains "an outsider's newer sentinel comment is never patched" "$log" "comments/802"
+
+# Only an outsider carries the sentinel: it is ignored and a new comment created.
+cat >"$TMP/outsider-only.json" <<JSON
+[
+  { "id": 803, "created_at": "2026-07-21T00:00:00Z", "user": {"login": "mallory"},
+    "body": "$SENT\nforged" }
+]
+JSON
+: >"$LOG"
+out="$(run "$TMP/outsider-only.json" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "only an outsider's sentinel comment: exits 0" 0 "$rc"
+assert_contains "only an outsider's sentinel comment: a new comment is created" "$log" "method=POST url=repos/$REPO/issues/502/comments"
+assert_not_contains "only an outsider's sentinel comment: it is never patched" "$log" "method=PATCH"
+
+# A comment list that does not parse is not an empty list: creating a comment
+# then would duplicate the one the list failed to show.
+for bad_list in 'not json' '{"message":"Bad credentials"}'; do
+  printf '%s\n' "$bad_list" >"$TMP/bad-list.json"
+  : >"$LOG"
+  out="$(run "$TMP/bad-list.json" 2>&1)"
+  rc=$?
+  log="$(cat "$LOG")"
+  assert_eq "list '$bad_list' exits 5" 5 "$rc"
+  assert_contains "list '$bad_list' reports the parse failure" "$out" "did not parse"
+  assert_not_contains "list '$bad_list' does not POST" "$log" "method=POST"
+  assert_not_contains "list '$bad_list' does not PATCH" "$log" "method=PATCH"
+done
 
 # ============================================================================
 # pagination — sentinel comment on a SECOND page is still found (no duplicate)
