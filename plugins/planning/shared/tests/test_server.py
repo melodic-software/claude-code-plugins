@@ -437,6 +437,9 @@ class TestAssetAccess(ServerCase):
             "another pid": f"{name}=host.{exp}.{sig}",
             "a later expiry": f"{name}={pid}.{int(exp) + 1}.{sig}",
             "another port's name": f"shared-assets-1={value}",
+            "a superscript digit expiry": f"{name}={pid}.².{sig}",
+            "a huge expiry": f"{name}={pid}.{'9' * 5000}.{sig}",
+            "a non-ASCII signature": f"{name}={pid}.{exp}.é{sig[1:]}",
         }
         for what, c in forged.items():
             with self.subTest(what):

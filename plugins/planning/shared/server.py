@@ -759,7 +759,8 @@ class GuestHandler(BaseHTTPRequestHandler):
                 name, _, value = part.strip().partition("=")
                 who, _, rest = value.partition(".")
                 exp, _, sig = rest.partition(".")
-                if name == self.app.asset_cookie and exp.isdigit() and int(exp) >= time.time() and hmac.compare_digest(sig, self.app.asset_sign(who, int(exp))):
+                ok_exp = exp.isascii() and exp.isdigit() and len(exp) <= 12
+                if name == self.app.asset_cookie and ok_exp and int(exp) >= time.time() and hmac.compare_digest(sig.encode(), self.app.asset_sign(who, int(exp)).encode()):
                     pid = self.app.session.check(who)
                     break
         if pid is None:
