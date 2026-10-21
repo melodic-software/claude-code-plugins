@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Validate every tracked <home>/<concern>.yaml against its JSON Schema
 # (ADR 0064 Decisions 6 and 7). <home> is the convention home the repository
-# binds in the pointer region of AGENTS.md or CLAUDE.md, read with
-# lib/resolve-convention-home.sh (ADR 0075 fix 3); docs/conventions when the
+# binds in the pointer region of AGENTS.md or CLAUDE.md as committed at the
+# merge base with the base branch, read with lib/resolve-convention-home.sh
+# (ADR 0075 fix 3); docs/conventions when the
 # repository binds none or declined a home.
 #
 #   scripts/check-convention-yaml.sh          validate; list every finding
@@ -73,15 +74,30 @@ if [[ ! -f "$resolver" ]]; then
   printf 'check-convention-yaml: %s is required to find the convention home\n' "$resolver" >&2
   exit 2
 fi
+# The pointer is read as committed at the merge base with the base branch, not
+# from this checkout: a pull request that edits the region would otherwise move
+# the directory this gate checks. The base branch is origin/$GITHUB_BASE_REF on
+# a pull request, else origin's default branch (origin/HEAD, then origin/main).
+# Where none of those resolves (a clone with no origin, a fixture repository),
+# the working tree's pointer is read, as before.
+base_args=()
+base_branch="origin/${GITHUB_BASE_REF:-}"
+if [[ -z "${GITHUB_BASE_REF:-}" ]]; then
+  base_branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" || base_branch=origin/main
+fi
+if git rev-parse --verify --quiet --end-of-options "$base_branch^{commit}" >/dev/null 2>&1 &&
+  merge_base="$(git merge-base HEAD "$base_branch" 2>/dev/null)"; then
+  base_args=(--ref "$merge_base")
+fi
 home=docs/conventions
 resolved_rc=0
-resolved="$(bash "$resolver" --root . 2>/dev/null)" || resolved_rc=$?
+resolved="$(bash "$resolver" --root . ${base_args+"${base_args[@]}"} 2>/dev/null)" || resolved_rc=$?
 case "$resolved_rc" in
 0) home="$resolved" ;;
 1 | 4 | 5) ;;
 3)
   # The resolver's own message says which region is broken.
-  bash "$resolver" --root . 2>&1 >/dev/null | sed 's/^/check-convention-yaml: /' >&2 || true
+  bash "$resolver" --root . ${base_args+"${base_args[@]}"} 2>&1 >/dev/null | sed 's/^/check-convention-yaml: /' >&2 || true
   exit 1
   ;;
 *)

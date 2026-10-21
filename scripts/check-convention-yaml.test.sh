@@ -293,6 +293,23 @@ if [[ $RC -eq 1 && "$ERR" == *"pointer target directory missing: Documentation"*
 else
   fail "$label: $(state)"
 fi
+# 11c. The home is read from the merge base with the base branch, not from the
+#      head: a head commit that moves the pointer away from a rejected file
+#      still has that file checked, on a pull request (GITHUB_BASE_REF) and
+#      locally (origin's default branch).
+for base_env in GITHUB_BASE_REF=main GITHUB_BASE_REF=; do
+  label="a head-only pointer change does not move the checked home ($base_env)"
+  new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put docs/conventions/alpha.yaml 'reject: true'
+  git_test_config "$repo" update-ref refs/remotes/origin/main HEAD
+  put Documentation/keep.md '# prose' && put AGENTS.md "$(region_for Documentation)"
+  run_sut "$base_env"
+  if [[ $RC -eq 1 && "$ERR" == *"docs/conventions/alpha.yaml: does not validate"* &&
+    "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- docs/conventions/alpha.yaml" ]]; then
+    ok "$label"
+  else
+    fail "$label: $(state)"
+  fi
+done
 label="a missing lib/resolve-convention-home.sh exits 2"
 new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/schemas/alpha.schema.json '{}'
 rm "$repo/lib/resolve-convention-home.sh"
