@@ -33,8 +33,9 @@ PLANNED = {"type": "CNAME", "name": HOST, "content": f"{TUNNEL}.cfargotunnel.com
 class FakeApi:
     """A Cloudflare API stand-in on 127.0.0.1: zone records in pages of the requested size, record creation, connections."""
 
-    def __init__(self, records=(), connectors=()):
+    def __init__(self, records=(), connectors=(), zone_name="example.com", echo_token=False):
         self.records, self.connectors, self.calls = list(records), list(connectors), []
+        self.zone_name, self.echo_token = zone_name, echo_token
         api = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -53,8 +54,12 @@ class FakeApi:
                 url = urlsplit(self.path)
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"null")
                 api.calls.append((method, url.path, body))
+                if api.echo_token:  # an error that quotes the request's own credential back
+                    return self.answer(400, {"success": False, "errors": [{"code": 6003, "message": f"Invalid header {self.headers.get('Authorization')}"}], "result": None})
                 if self.headers.get("Authorization") != f"Bearer {TOKEN}":
                     return self.answer(403, {"success": False, "errors": [{"code": 10000, "message": "Authentication error"}], "result": None})
+                if url.path == f"/zones/{ZONE}" and method == "GET":
+                    return self.answer(200, {"success": True, "errors": [], "result": {"id": ZONE, "name": api.zone_name}})
                 if url.path == f"/zones/{ZONE}/dns_records" and method == "GET":
                     q = {k: int(v[0]) for k, v in parse_qs(url.query).items()}
                     per, page = q["per_page"], q["page"]
@@ -142,21 +147,46 @@ class TestPlan(CfdnsCase):
         self.assertEqual((code, out), (1, None))
         self.assertIn("Authentication error", err)
 
-    def test_no_token_is_refused_before_any_request(self):
+    def test_the_token_comes_only_from_the_token_file(self):
+        """A CLOUDFLARE_API_TOKEN in the environment is never read: the token reaches cfdns.py only through --api-token-file."""
         fake = self.api()
         out, err = io.StringIO(), io.StringIO()
-        with mock.patch.dict(os.environ, {"SHARED_CF_API": fake.url, "CLOUDFLARE_API_TOKEN": ""}), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        with mock.patch.dict(os.environ, {"SHARED_CF_API": fake.url, "CLOUDFLARE_API_TOKEN": TOKEN}), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = cfdns.main(["plan", "--zone-id", ZONE, "--hostname", HOST, "--tunnel-id", TUNNEL])
         self.assertEqual(code, 1)
-        self.assertIn("no API token", err.getvalue())
+        self.assertIn("--api-token-file", err.getvalue())
         self.assertEqual(fake.calls, [])
 
-    def test_the_token_may_come_from_cloudflare_api_token(self):
+    def test_an_api_error_that_quotes_the_token_prints_it_redacted(self):
+        code, out, err = self.plan(self.api(echo_token=True))  # run_cli asserts the token is in neither stream
+        self.assertEqual((code, out), (1, None))
+        self.assertIn("Invalid header Bearer [token]", err)
+
+    def test_an_unreadable_token_file_is_refused_without_a_request(self):
         fake = self.api()
-        out = io.StringIO()
-        with mock.patch.dict(os.environ, {"SHARED_CF_API": fake.url, "CLOUDFLARE_API_TOKEN": TOKEN}), contextlib.redirect_stdout(out):
-            self.assertEqual(cfdns.main(["plan", "--zone-id", ZONE, "--hostname", HOST, "--tunnel-id", TUNNEL]), 0)
-        self.assertNotIn(TOKEN, out.getvalue())
+        code, _, err = self.run_cli(fake, "plan", "--zone-id", ZONE, "--hostname", HOST, "--tunnel-id", TUNNEL, token_file=tmpdir(self) / "missing.token")
+        self.assertEqual(code, 1)
+        self.assertIn("cannot be read", err)
+        self.assertEqual(fake.calls, [])
+
+    def test_a_hostname_outside_the_zone_is_refused_before_listing_or_writing(self):
+        for host in ("interview.example.org", "badexample.com"):
+            fake = self.api()
+            with self.subTest(host=host):
+                for cmd in (["plan"], ["write", "--confirm", host]):
+                    code, _, err = self.run_cli(fake, *cmd, "--zone-id", ZONE, "--hostname", host, "--tunnel-id", TUNNEL)
+                    self.assertEqual(code, 1, err)
+                    self.assertIn("not in the zone example.com", err)
+                self.assertEqual([c[1] for c in fake.calls], [f"/zones/{ZONE}"] * 2)
+
+    def test_the_api_base_must_be_https_or_loopback(self):
+        for base in ("http://192.0.2.1:8080", "ftp://127.0.0.1"):
+            with self.subTest(base=base), mock.patch.dict(os.environ, {"SHARED_CF_API": base}):
+                with self.assertRaisesRegex(cfdns.Refused, "SHARED_CF_API"):
+                    cfdns.api_base()
+        for base in ("https://api.example.test/client/v4", "http://127.0.0.1:9", "http://localhost:9", "http://[::1]:9"):
+            with self.subTest(base=base), mock.patch.dict(os.environ, {"SHARED_CF_API": base}):
+                self.assertEqual(cfdns.api_base(), base)
 
     def test_bad_ids_and_hostnames_are_refused_before_any_request(self):
         fake = self.api()

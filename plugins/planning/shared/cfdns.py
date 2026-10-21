@@ -4,18 +4,19 @@
   python cfdns.py write --zone-id Z --hostname H --tunnel-id T --confirm H
   python cfdns.py connectors --account-id A --tunnel-id T
 
-`plan` lists the zone's DNS records (read only) and prints the one record the tunnel needs, a proxied
+Both first check that H is the zone's name or under it (GET /zones/Z). `plan` lists the zone's DNS records (read only) and prints the one record the tunnel needs, a proxied
 CNAME from H to <T>.cfargotunnel.com, with every record already named H: none means no clash.
 `write` lists again and creates that record, only when --confirm repeats H and nothing is named H.
 `connectors` lists the machines running the tunnel: Cloudflare sends each guest to the nearest one,
 so more than one means guests can reach another machine's session.
 
-The API token is read from --api-token-file, else the CLOUDFLARE_API_TOKEN variable, and goes only
-into the Authorization header: never on a command line, in output or in an error. Each command
+The API token is read only from --api-token-file and goes only into the Authorization header: never on
+a command line, in output or in an error (an API message quoting it prints it as [token]). Each command
 prints one JSON line on stdout. Exit codes: 0 done; 1 refused (bad arguments, no token, an API
 error); 4 a clash: a record already named H, or more than one connector.
 
 Endpoints, bodies and the permissions each accepts, as of 2026-10-21:
+https://developers.cloudflare.com/api/resources/zones/methods/get/ (DNS Read or Write among others),
 https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/list/ (DNS Read or Write),
 https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/create/ (DNS Write),
 https://developers.cloudflare.com/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/subresources/connections/methods/get/
@@ -56,22 +57,32 @@ class Refused(Exception):
 
 
 def api_token(path):
-    """The API token from the file at `path`, else from CLOUDFLARE_API_TOKEN; refuses when neither holds one."""
-    if path:
-        try:
-            token = Path(path).read_text(encoding="utf-8").strip()
-        except OSError as exc:
-            raise Refused(1, f"the API token file {path} cannot be read: {exc.strerror}") from None
-    else:
-        token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+    """The API token from the file at `path`; refuses when there is none."""
+    if not path:
+        raise Refused(1, "no API token: pass --api-token-file, a file holding it")
+    try:
+        token = Path(path).read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise Refused(1, f"the API token file {path} cannot be read: {exc.strerror}") from None
     if not token or any(c.isspace() for c in token):
-        raise Refused(1, "no API token: pass --api-token-file, or set CLOUDFLARE_API_TOKEN")
+        raise Refused(1, f"the API token file {path} holds no token")
     return token
 
 
+def api_base():
+    """The API base URL: SHARED_CF_API (tests) when it is https or loopback http, else Cloudflare's."""
+    base = os.environ.get("SHARED_CF_API")
+    if not base:
+        return API
+    u = urllib.parse.urlsplit(base)
+    if u.scheme == "https" or (u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost", "::1")):
+        return base
+    raise Refused(1, f"SHARED_CF_API must be an https or loopback http URL, got {base!r}")
+
+
 def request(token, method, path, query=None, body=None):
-    """One API call; the parsed `result` and `result_info`. SHARED_CF_API replaces the base URL (tests)."""
-    url = (os.environ.get("SHARED_CF_API") or API) + path + ("?" + urllib.parse.urlencode(query) if query else "")
+    """One API call; the parsed `result` and `result_info`. Any API message quoting the token prints it as [token]."""
+    url = api_base() + path + ("?" + urllib.parse.urlencode(query) if query else "")
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(url, data=data, method=method, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
     try:
@@ -82,11 +93,11 @@ def request(token, method, path, query=None, body=None):
             doc = json.loads(exc.read())
         except ValueError:
             doc = {}
-        raise Refused(1, f"{method} {path}: HTTP {exc.code} {errors(doc)}") from None
+        raise Refused(1, f"{method} {path}: HTTP {exc.code} {errors(doc)}".replace(token, "[token]")) from None
     except (OSError, ValueError) as exc:
-        raise Refused(1, f"{method} {path}: {exc}") from None
+        raise Refused(1, f"{method} {path}: {exc}".replace(token, "[token]")) from None
     if not doc.get("success"):
-        raise Refused(1, f"{method} {path}: {errors(doc)}")
+        raise Refused(1, f"{method} {path}: {errors(doc)}".replace(token, "[token]"))
     return doc.get("result"), doc.get("result_info") or {}
 
 
@@ -115,8 +126,16 @@ def same(record, want):
     return all(str(record.get(k)).lower() == str(want[k]).lower() for k in ("type", "name", "content")) and record.get("proxied") is True
 
 
+def in_zone(token, zone, hostname):
+    """Refuse a hostname that is not the zone's name or under it."""
+    name = str((request(token, "GET", f"/zones/{zone}")[0] or {}).get("name", "")).lower()
+    if not name or not (hostname == name or hostname.endswith("." + name)):
+        raise Refused(1, f"{hostname} is not in the zone {name or zone}")
+
+
 def plan(token, zone, hostname, tunnel_id):
     """(the answer, its exit code): the planned record, the records already named hostname, whether it is in place."""
+    in_zone(token, zone, hostname)
     want = planned(hostname, tunnel_id)
     records = zone_records(token, zone)
     named = [{k: r.get(k) for k in ("id", "type", "name", "content", "proxied")} for r in records if str(r.get("name", "")).lower() == hostname]
@@ -171,7 +190,7 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
     for name, fn in (("plan", cmd_plan), ("write", cmd_write), ("connectors", cmd_connectors)):
         s = sub.add_parser(name)
-        s.add_argument("--api-token-file", help="a file holding the API token (else CLOUDFLARE_API_TOKEN)")
+        s.add_argument("--api-token-file", help="a file holding the API token")
         s.add_argument("--tunnel-id", required=True)
         if name == "connectors":
             s.add_argument("--account-id", required=True)

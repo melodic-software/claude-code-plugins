@@ -120,7 +120,7 @@ as new people, and the owner can merge each with their earlier self.
 1. **API token.** In the Cloudflare dashboard, create an API token with two permissions,
    Account > Cloudflare Tunnel > Edit and Zone > DNS > Edit, limited to your account and the one
    zone ([Create an API token](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel-api/)).
-   Keep it in your secret store; `cfdns.py` reads it from `--api-token-file` or `CLOUDFLARE_API_TOKEN`.
+   Keep it in your secret store; `cfdns.py` reads it only from the file `--api-token-file` names.
 2. **Tunnel.** Create a remotely-managed tunnel (Networking > Tunnels > Create a tunnel, or the API
    steps on the same page), save its token to the file `tunnel_token_file` names, and note its id.
 3. **Route.** Publish an application on the tunnel: hostname `tunnel_hostname`, service
@@ -135,7 +135,7 @@ as new people, and the owner can merge each with their earlier self.
    python cfdns.py write --zone-id <zone id> --hostname <tunnel_hostname> --tunnel-id <tunnel id> --confirm <tunnel_hostname>
    ```
 
-   `plan` only reads: it lists the zone's records and prints the one record the tunnel needs, a
+   Both refuse a hostname that is not the zone's name or under it. `plan` only reads: it lists the zone's records and prints the one record the tunnel needs, a
    proxied CNAME to `<tunnel id>.cfargotunnel.com`, with every record already at that name (none
    means no clash; exit 4 on a clash). `write` lists again and creates exactly that record, only
    when `--confirm` repeats the hostname and nothing is at that name. Taking the zone id as an
