@@ -65,7 +65,9 @@ designer session and a product owner session), each with its own data dir and li
 
    Drop `--open` when `shared_session_open_browser` resolves false, and drop both `--tunnel-*`
    flags only when the `tunnel_hostname` token is unexpanded: an empty value is the quick tunnel,
-   and a left-out flag keeps whatever tunnel the session already runs. The output carries `guestUrl`
+   and a left-out flag keeps whatever tunnel the session already runs. SKILL.md's lane table does
+   not show these two keys, so their tokens arrive unexpanded unless the owner gives the hostname
+   and token file path in the session; then pass those values. The output carries `guestUrl`
    (give it to the owner to share), `localUrl`, `ownerLinkFile`, `resumed`, `shareChanged`,
    `tunnel` (`quick`, `named` or `down`) and `watch`, the command that arms the watcher. A named
    start also prints, on stderr, that only this machine may run the tunnel: pass that line on once. `--open` opens the
