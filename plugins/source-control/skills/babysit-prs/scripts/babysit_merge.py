@@ -2511,7 +2511,9 @@ def update_pending(path: Path, key: str, entry: dict[str, Any] | None) -> None:
         write_state(path, {"schema_version": 1, "requests": requests})
 
 
-def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] | None:
+def check_pending_request(
+    repo: str, number: int, path: Path, *, write: bool = True
+) -> dict[str, Any] | None:
     """The PR's recorded async merge request as GitHub reports it now.
 
     A request left pending stays live on GitHub: it can still merge after a
@@ -2524,6 +2526,9 @@ def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] 
     A merged request is checked against every head the gate evaluated
     (`verification`), since its `sha` pinned only this PR. A check that cannot
     read the heads back keeps the record for the next run.
+
+    With `write` False (a report-only run) the report is the same and the
+    record is left as it was.
     """
     key = f"{repo}#{number}"
     with state_lock(path):
@@ -2531,7 +2536,7 @@ def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] 
     if not is_json_object(entry):
         return None
     if entry.get("queued"):
-        return check_queued_entry(repo, number, path, entry)
+        return check_queued_entry(repo, number, path, entry, write=write)
     current = read_async_merge(repo, number, str(entry.get("uuid") or ""))
     report = {
         **entry,
@@ -2546,13 +2551,13 @@ def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] 
         report["verification"] = verify_request_landed(repo, number, entry)
         if report["verification"]["verified"] is None:
             return report
-    if current["expired"] or current["status"] in ASYNC_TERMINAL_STATUSES:
+    if write and (current["expired"] or current["status"] in ASYNC_TERMINAL_STATUSES):
         update_pending(path, key, None)
     return report
 
 
 def check_queued_entry(
-    repo: str, number: int, path: Path, entry: dict[str, Any]
+    repo: str, number: int, path: Path, entry: dict[str, Any], *, write: bool = True
 ) -> dict[str, Any]:
     """A recorded merge-queue entry as GitHub reports it now.
 
@@ -2586,7 +2591,7 @@ def check_queued_entry(
                 "position": None,
                 "entersWhenReady": True,
             }
-        if entry.get("unconfirmed"):
+        if write and entry.get("unconfirmed"):
             confirmed = {
                 field: value
                 for field, value in entry.items()
@@ -2609,13 +2614,15 @@ def check_queued_entry(
                 "position": None,
                 "unconfirmed": True,
             }
-            update_pending(path, key, {**entry, "unseenReads": unseen})
+            if write:
+                update_pending(path, key, {**entry, "unseenReads": unseen})
             return report
         report["status"] = "dequeued"
     else:
         report["status"] = "dequeued"
         report["removalReason"] = queue.get("lastRemovalReason")
-    update_pending(path, key, None)
+    if write:
+        update_pending(path, key, None)
     return report
 
 
@@ -4564,6 +4571,7 @@ def _main() -> int:
     # Any policy failure refuses: this decides who may merge, and an
     # unreadable answer is not a permissive one.
     unattended: merge_policy.UnattendedPolicy | None = None
+    report_only = False
     if args.unattended:
         # Only lane or bot self logins reach the policy's human test: the
         # operator's own login there would make the operator non-human.
@@ -4607,7 +4615,8 @@ def _main() -> int:
             )
         # Report-only: the decision is reported and nothing is written, so
         # `--merge` runs as a check.
-        if (unattended.details or {}).get("reportOnly"):
+        report_only = bool((unattended.details or {}).get("reportOnly"))
+        if report_only:
             args.merge = False
         if args.merge:
             writes = unattended_writes(repo, number, unattended)
@@ -4704,7 +4713,9 @@ def _main() -> int:
     prior: dict[str, Any] | None = None
     if pending_path is not None:
         try:
-            prior = check_pending_request(repo, number, pending_path)
+            prior = check_pending_request(
+                repo, number, pending_path, write=not report_only
+            )
         except (RuntimeError, OSError) as exc:
             return _refuse(f"pending merge record unreadable: {exc}", 2)
 
