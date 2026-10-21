@@ -1103,7 +1103,11 @@ Recorded, not fixed:
 - The scan blocks credential formats only (owner ruling Q37). Beside the per-line scan it reads
   each text with its NUL bytes removed, so a UTF-16LE credential is caught, and each pair of
   adjacent lines joined (in the patch, hunk lines without their `+`, `-` or space prefix), so a
-  credential split across two lines is caught (N16). A credential wrapped in base64 still passes.
+  credential split across two lines is caught (N16). The split-line pass leaves out the OpenAI key
+  pattern (`sk-` and 20 token characters): it is too loose to join safely, since a line ending in
+  an `sk-` word joined to the next line's first word matches it, and a false block fails fix-ci
+  closed and asks for a rotation. A split OpenAI key and a credential wrapped in base64 still
+  pass.
 - Issue mode still publishes from the run job, unscanned: its `Show the skill's run in the step
   summary`, `Upload the skill's final reply` and `Upload the patch` steps, and the gate verdict's
   step summary (`Check the gate skill's verdict`). That predates the scan job and is slated for 6b.
@@ -1171,10 +1175,17 @@ outputs are sent), so the report job differs:
 - It posts on the run job's `head-sha` only when that equals the gated head: the caller's
   `head-sha` input (pr-unblock passes `fix-ci-context`'s) or the event's PR head. The PR head it
   reads counts only when neither is set, since a head that moved mid-run was never gated. Any
-  other value, an empty one when the caller named a head, or a mismatched PR number posts failure
-  on the trusted head and never on the run's SHA. With no trusted head it posts nothing and fails.
-  An empty run head with no caller head keeps the old rule: the event's head on `pull_request`,
-  otherwise no check. A handoff skips the report job; the fallback call posts that check.
+  other value or a mismatched PR number posts failure on the trusted head and never on the run's
+  SHA. With no trusted head it posts nothing and fails. A handoff skips the report job; the fallback
+  call posts that check.
+- An empty run head (the run stopped before its trigger gate passed) never posts failure, which
+  babysit reads as a merge blocker. After the kill switch, which the report job reads from its
+  variables, or the broker-check job's refusal, it posts what it did before (the event's head on
+  `pull_request`, otherwise nothing), so the owner's switch blocks no merge and the head is
+  dispatched again once the switch is off. Otherwise it posts neutral `not-assessed` on the
+  caller's or the event's head: babysit counts a neutral check as passing, and fix-ci-dispatch
+  reads it as that head's run and dispatches it no more, without counting a restart. A trigger
+  decline cannot be told from a forged empty head in the report job, so both take this neutral.
 - pr-unblock passes `fix-ci-context`'s head, not the read runner's `head-sha` output, as
   apply-patch's `patch-head-sha`; apply-patch compares it with the head its own trigger gate reads
   at apply time and pushes only while the branch is still there.

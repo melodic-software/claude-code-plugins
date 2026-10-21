@@ -2225,7 +2225,7 @@ test("pr-run-activity-read.yml: the report needs the scan job, and a failed scan
   assert.deepEqual(report.needs, ["broker-check", "run", "scan"]);
   const post = report.steps.find((s) => s.name === "Post the check run");
   const result = (broker, run, scan) =>
-    evaluate(post.with["run-result"], { "steps.head.outputs.forged": "false", "needs.broker-check.result": broker, "needs.run.result": run, "needs.scan.result": scan });
+    evaluate(post.with["run-result"], { "steps.head.outputs.forged": "false", "steps.head.outputs.not-run-reason": "", "needs.broker-check.result": broker, "needs.run.result": run, "needs.scan.result": scan });
   assert.equal(result("success", "success", "success"), "success");
   assert.equal(result("success", "success", "failure"), "failure", "a credential, a withheld or an oversize payload");
   assert.equal(result("success", "failure", "success"), "failure");
@@ -2313,7 +2313,7 @@ function chooseHead(t, env) {
   const output = join(root, "github-output");
   writeFileSync(output, "");
   const step = reportSteps().find((s) => s.id === "head");
-  const result = runStep(step, root, { RUN_HEAD: "", CALLER_HEAD: "", EVENT_HEAD: "", API_HEAD: "", PR_MISMATCH: "", ...env, GITHUB_OUTPUT: output });
+  const result = runStep(step, root, { RUN_HEAD: "", CALLER_HEAD: "", EVENT_HEAD: "", API_HEAD: "", PR_MISMATCH: "", TRUSTED_SKIP: "false", ...env, GITHUB_OUTPUT: output });
   return { status: result.status, log: result.stdout, outputs: outputLines(output) };
 }
 
@@ -2324,6 +2324,7 @@ function posted(head, { verdictHead = head.outputs.sha, runResult = "success", g
     "steps.head.outputs.post": head.outputs.post ?? "",
     "steps.head.outputs.sha": head.outputs.sha ?? "",
     "steps.head.outputs.forged": head.outputs.forged ?? "",
+    "steps.head.outputs.not-run-reason": head.outputs["not-run-reason"] ?? "",
     "github.event_name": event,
     "needs.broker-check.result": "success",
     "needs.run.result": runResult,
@@ -2340,6 +2341,7 @@ function posted(head, { verdictHead = head.outputs.sha, runResult = "success", g
     lane: "pr-unblock",
     activity: "fix-ci",
     runResult: evaluate(post.with["run-result"], context),
+    notRunReason: evaluate(post.with["not-run-reason"], context),
     actOutcome: "success",
     signedCommits: null,
     gateReason: evaluate(post.with["gate-reason"], context),
@@ -2347,7 +2349,7 @@ function posted(head, { verdictHead = head.outputs.sha, runResult = "success", g
     headShaFallback: "",
     prHeadSha: TRUSTED,
     gateSkipReasons: {},
-    skipReasons: [],
+    skipReasons: JSON.parse(read("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json")).$defs["skip-reason"].enum,
   });
   return decision.report;
 }
@@ -2377,16 +2379,40 @@ test("report job: a run head equal to a PR head that moved mid-run, never gated,
   assert.equal(signed.with["since-sha"], "${{ steps.head.outputs.sha }}");
 });
 
-test("report job: an empty run head when the caller gated a head posts failure on that head", (t) => {
-  const head = chooseHead(t, { RUN_HEAD: "", CALLER_HEAD: TRUSTED, API_HEAD: OTHER });
-  assert.deepEqual(head.outputs, { post: "true", sha: TRUSTED, forged: "true" });
-  for (const options of [{ verdictHead: null }, { verdictHead: null, gateReason: "untrusted-actor" }, { verdictHead: null, runResult: "cancelled" }]) {
-    const report = posted(head, options);
-    assert.deepEqual([report.head_sha, report.conclusion], [TRUSTED, "failure"], JSON.stringify(options));
+test("report job: an empty run head after the kill switch or a broker refusal posts nothing, so the owner's switch is never a merge blocker", (t) => {
+  const steps = reportSteps();
+  const kill = steps.find((s) => s.id === "kill");
+  assert.equal(kill.uses, "./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]".split(" ")[0]);
+  assert.deepEqual(kill.with, { value: "${{ vars.CLAUDE_LANES_DISABLED }}", "repo-value": "${{ vars.CLAUDE_LANES_REPO_DISABLED }}" });
+  const head = steps.find((s) => s.id === "head");
+  assert.ok(steps.indexOf(kill) < steps.indexOf(head));
+  // Read from the variables and the broker-check job, never from a run job output.
+  assert.equal(head.env.TRUSTED_SKIP, "${{ steps.kill.outputs.proceed != 'true' || needs.broker-check.outputs.allowed != 'true' }}");
+  for (const [proceed, allowed] of [["false", "false"], ["true", "false"], ["false", ""]]) {
+    const trusted = evaluate(head.env.TRUSTED_SKIP, { "steps.kill.outputs.proceed": proceed, "needs.broker-check.outputs.allowed": allowed });
+    assert.equal(String(trusted), "true", `${proceed} ${allowed}`);
+    const chosen = chooseHead(t, { RUN_HEAD: "", CALLER_HEAD: TRUSTED, TRUSTED_SKIP: String(trusted) });
+    assert.deepEqual(chosen.outputs, { post: "true", sha: "", forged: "false" });
+    // Off pull_request, nothing is posted, so no failing check can block a merge.
+    assert.equal(posted(chosen), null);
   }
+  assert.equal(String(evaluate(head.env.TRUSTED_SKIP, { "steps.kill.outputs.proceed": "true", "needs.broker-check.outputs.allowed": "true" })), "false");
+});
+
+test("report job: an empty run head with no trusted skip posts neutral not-assessed on the gated head, never failure or success", (t) => {
+  for (const env of [{ CALLER_HEAD: TRUSTED, API_HEAD: OTHER }, { EVENT_HEAD: TRUSTED }]) {
+    const head = chooseHead(t, { RUN_HEAD: "", ...env });
+    assert.deepEqual(head.outputs, { post: "true", sha: TRUSTED, forged: "false", "not-run-reason": "not-assessed" }, JSON.stringify(env));
+    // Whatever verdict, gate skip or outcome the run claims.
+    for (const options of [{ verdictHead: null }, { verdictHead: null, gateReason: "untrusted-actor" }, { verdictHead: TRUSTED, runResult: "success" }]) {
+      const report = posted(head, options);
+      assert.deepEqual([report.head_sha, report.conclusion, report.output.title], [TRUSTED, "neutral", "Skipped: not-assessed"], JSON.stringify(options));
+    }
+  }
+  // No gated head: nothing.
+  assert.deepEqual(chooseHead(t, { RUN_HEAD: "", API_HEAD: TRUSTED }).outputs, { post: "true", sha: "", forged: "false" });
   // A handoff never reaches the report job: the fallback call posts that check.
-  const report = workflow("pr-run-activity-read.yml").jobs.report;
-  assert.match(report.if, /needs\.run\.outputs\.handed-off != 'true'/);
+  assert.match(workflow("pr-run-activity-read.yml").jobs.report.if, /needs\.run\.outputs\.handed-off != 'true'/);
 });
 
 test("report job: a forged run head-sha naming another commit posts failure on the trusted head, never on the forged SHA", (t) => {
@@ -2545,5 +2571,59 @@ test("leak scan: the split-line pass joins patch hunk lines without their prefix
   // A match wholly inside one line is the per-line scan's, never this pass's.
   assert.equal(deeper(`${GHS}\nnext line\n`, false), null);
   assert.equal(deeper(utf16(`x ${GHS}`).toString("latin1"), false), "GitHub token");
+});
+
+test("report job: fix-ci-dispatch reads the neutral not-assessed post as the head's run, and no post as none, so neither counts toward the restart cap", () => {
+  const head = TRUSTED;
+  const node = (runs) => ({
+    number: 9001,
+    isDraft: false,
+    isCrossRepository: false,
+    baseRefName: "main",
+    headRefOid: head,
+    author: { databaseId: 7 },
+    labels: { nodes: [] },
+    commits: {
+      nodes: [
+        {
+          commit: {
+            oid: head,
+            statusCheckRollup: {
+              contexts: {
+                nodes: [{ name: "ci-status", status: "COMPLETED", conclusion: "FAILURE" }, ...runs].map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run })),
+                pageInfo: { hasNextPage: false },
+              },
+            },
+          },
+        },
+      ],
+    },
+  });
+  const options = { ...CI_FIX_DEFAULTS, appSenderId: 7, restarts: 1 };
+  const neutral = { name: "pr-unblock / fix-ci", status: "COMPLETED", conclusion: "NEUTRAL", title: "Skipped: not-assessed" };
+  assert.equal(skipReason(node([neutral]), options), "head already has a pr-unblock / fix-ci check run", "not re-dispatched on that head");
+  assert.equal(skipReason(node([]), options), "", "after the kill switch, nothing posted: dispatchable again once it is off");
+});
+
+test("leak scan: the split-line pass leaves out the OpenAI pattern, so an sk- word ending a line stays clean, and a split Anthropic key still blocks", async (t) => {
+  // The test-scan.test.sh:503-504 shape: an identifier that ends a line, then a word.
+  const shape = 'run Write "$DEF_TMP/def.test.ts" stskip "" sk-def-control\nassert_contains "control: a /tmp copy records" "$(rec stskip sk-def-control)" sk-def-control\n';
+  for (const plant of [inReply(Buffer.from(shape)), inPatch(Buffer.from(shape))]) {
+    const { clean, failed, outputs } = await scanWith(t, plant);
+    assert.deepEqual({ clean, failed }, { clean: "true", failed: null });
+    if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
+  }
+  for (const plant of [inReply(Buffer.from(split(SK))), inPatch(Buffer.from(split(SK)))]) {
+    const { failed, outputs } = await scanWith(t, plant);
+    assert.equal(failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+    if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
+  }
+  // The OpenAI pattern stays in the per-line and UTF-16LE passes.
+  const openai = ["sk", "proj", "x".repeat(30)].join("-");
+  for (const bytes of [Buffer.from(`key ${openai}\n`), utf16(`key ${openai}\n`)]) {
+    const { failed, outputs } = await scanWith(t, inReply(bytes));
+    assert.equal(failed, "leak-scan: OpenAI key; nothing is uploaded or summarized\nrotate this credential");
+    if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
+  }
 });
 

@@ -1921,14 +1921,18 @@ jobs:
               //   separator, counting only a match that straddles the join of
               //   a pattern neither line matches alone, so a token cut across
               //   two lines is caught and nothing a single line holds is
-              //   judged twice. In the patch the pair is hunk
+              //   judged twice. The OpenAI key pattern (any sk- and 20 token
+              //   characters) is left out of this pass: joining a line that
+              //   ends in an sk- word to the next line's first word matches
+              //   it, and a false block fails fix-ci closed and asks for a
+              //   rotation. In the patch the pair is hunk
               //   lines with their +, - or space prefix removed and the file
               //   headers dropped, or a token split inside an added hunk
               //   would join as "...ab+cd..." and never match.
               const straddles = (left, right) => {
                 const joined = left + right;
                 for (const [label, re] of blocking) {
-                  if (re.test(left) || re.test(right)) continue;
+                  if (label === 'OpenAI key' || re.test(left) || re.test(right)) continue;
                   for (const match of joined.matchAll(new RegExp(re.source, `${re.flags.replace('g', '')}g`))) {
                     if (match.index < left.length && match.index + match[0].length > left.length) return label;
                   }
@@ -2414,22 +2418,34 @@ jobs:
             echo "pr-mismatch=true" >>"$GITHUB_OUTPUT"
           fi
 
-      # The commit the check is posted on. The run job's head-sha counts only
-      # when it equals a trusted head: the caller's gated head, the event's PR
-      # head, or the PR head just read. Any other value posts failure on the
-      # trusted head, never on the run's SHA; with no trusted head nothing is
-      # posted and the step fails. An empty run head keeps the old rule: on
-      # pull_request the event's head, otherwise no post.
+      # The kill switch, read here from its variables, and the broker-check
+      # job's allow: the trusted gate decisions that stop a run before its
+      # trigger gate, which no run job output can write.
+      - name: Check the kill switch
+        id: kill
+        if: always()
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
       # The commit the check is posted on. The run job's head-sha counts only
       # when it equals the gated head: the caller's head-sha input or the
       # event's PR head, and the PR head just read only when the caller and
       # the event name none (a head that moved mid-run was never gated). Any
-      # other value, an empty one when the caller named a head, or a
-      # mismatched PR number posts failure on the trusted head, never on the
-      # run's SHA. With no trusted head nothing is posted and the step fails.
-      # An empty run head with no caller head keeps the old rule: on
-      # pull_request the event's head, otherwise no post. A handoff never
-      # reaches this job: the fallback call posts that check.
+      # other value or a mismatched PR number posts failure on the trusted
+      # head, never on the run's SHA. With no trusted head nothing is posted
+      # and the step fails. An empty run head (the run stopped before its
+      # trigger gate passed) never posts failure, which babysit would read as
+      # a merge blocker: after the kill switch or a broker refusal, read
+      # above (no head code ran, so the run's outputs are its own), it keeps
+      # the old rule (on pull_request the event's head, otherwise no post);
+      # with no caller or event head it posts nothing; otherwise it posts
+      # neutral not-assessed on that gated head, which babysit passes and
+      # fix-ci-dispatch reads as the head's run, so it is not re-dispatched
+      # there. A trigger decline cannot be told from a forged empty head
+      # here, so both take that neutral. A handoff never reaches this job:
+      # the fallback call posts that check.
       - name: Choose the head the check is posted on
         id: head
         if: always()
@@ -2439,11 +2455,19 @@ jobs:
           EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
           API_HEAD: ${{ steps.pr-head.outputs.sha }}
           PR_MISMATCH: ${{ steps.pr-head.outputs.pr-mismatch }}
+          TRUSTED_SKIP: ${{ steps.kill.outputs.proceed != 'true' || needs.broker-check.outputs.allowed != 'true' }}
         run: |
           out() { printf 'post=true\nsha=%s\nforged=%s\n' "$1" "$2" >>"$GITHUB_OUTPUT"; }
           valid() { [[ $1 =~ ^[0-9a-f]{40}$ ]]; }
-          if [ -z "$RUN_HEAD" ] && [ "$PR_MISMATCH" != true ] && ! valid "$CALLER_HEAD"; then
-            out "" false
+          if [ -z "$RUN_HEAD" ] && [ "$PR_MISMATCH" != true ]; then
+            gated=$CALLER_HEAD
+            valid "$gated" || gated=$EVENT_HEAD
+            if [ "$TRUSTED_SKIP" = true ] || ! valid "$gated"; then
+              out "" false
+            else
+              out "$gated" false
+              echo "not-run-reason=not-assessed" >>"$GITHUB_OUTPUT"
+            fi
             exit 0
           fi
           gated=()
@@ -2507,9 +2531,11 @@ jobs:
           # payload) fails the check after a run job that succeeded.
           run-result: >-
             ${{ steps.head.outputs.forged == 'true' && 'failure'
+            || steps.head.outputs.not-run-reason != '' && 'skipped'
             || needs.broker-check.result != 'success' && needs.broker-check.result
             || needs.run.result != 'success' && needs.run.result
             || needs.scan.result }}
+          not-run-reason: ${{ steps.head.outputs.not-run-reason }}
           act-outcome: ${{ needs.run.outputs.act-outcome }}
           gate-reason: ${{ steps.head.outputs.forged != 'true' && needs.run.outputs.gate-reason || '' }}
           head-sha: ${{ steps.head.outputs.sha }}
