@@ -65,7 +65,9 @@ LANE_SOURCE_NAME = ".mcp.json"
 # `docs-only-paths` default (ci-workflows pr-review-security.yml at v0.48.0)
 # minus the agent instruction paths it never counts as documentation. Fixed in
 # code, like `LANES`. The lane applies the rule to the files since its last
-# review, so its skip alone says nothing about the whole pull request.
+# review, so its skip alone says nothing about the whole pull request, and it
+# binds only when the lane never reviewed the pull request: an earlier
+# review's findings are never dropped.
 DOCS_ONLY_LANE = "claude-security-review"
 DOCS_ONLY_GLOBS = ("docs/**/*.md", "**/README.md", "**/CHANGELOG.md")
 INSTRUCTIONS_RE = re.compile(
@@ -207,13 +209,16 @@ def _glob_re(glob: str) -> re.Pattern[str]:
 
 
 DOCS_ONLY_RES = tuple(map(_glob_re, DOCS_ONLY_GLOBS))
+LINE_BREAK_RE = re.compile("[\r\n\u2028\u2029]")
 
 
 def is_docs(path: Any) -> bool:
     """Whether a changed path is documentation by the security lane's
     docs-only rule; a path that is not a string is not."""
+    # The lane's JavaScript `.` stops at these; Python's matches three of them.
     return (
         isinstance(path, str)
+        and not LINE_BREAK_RE.search(path)
         and not INSTRUCTIONS_RE.search(path)
         and any(pattern.fullmatch(path) for pattern in DOCS_ONLY_RES)
     )
@@ -272,11 +277,17 @@ def _resolve(
     review needs every earlier link bound, back to a whole review. Each link
     is the newest run's latest attempt at its head (`_bound_record`). The
     security lane's docs-only skip at `head` is a chain of its own when the
-    whole pull request is documentation (`docs_only`, `DOCS_ONLY_LANE`).
+    whole pull request is documentation (`docs_only`, `DOCS_ONLY_LANE`) and
+    every record the lane left on it is that skip.
     """
     rec = _bound_record(lane, head, lane_runs)
     seen = {head}
-    if rec.skip == "docs-only" and docs_only and lane == DOCS_ONLY_LANE:
+    if (
+        rec.skip == "docs-only"
+        and docs_only
+        and lane == DOCS_ONLY_LANE
+        and _only_docs_skips(lane, lane_runs)
+    ):
         return head, [rec]
     if rec.skip is not None:
         raise Unbound("skip-not-no-change")
@@ -294,6 +305,21 @@ def _resolve(
             rec = _skip_target(lane, rec.through, lane_runs, seen)
         chain.append(rec)
     raise Unbound("incremental-gap")
+
+
+def _only_docs_skips(lane: str, lane_runs: list[Mapping[str, Any]]) -> bool:
+    """Whether every record of every completed attempt is a docs-only skip."""
+    for item in lane_runs:
+        for attempt in _attempts(item).values():
+            if (
+                attempt.get("status") != "completed"
+                or attempt.get("conclusion") == "skipped"
+            ):
+                continue
+            rec = _record(lane, item["head_sha"], _lane_job(lane, item["id"], attempt))
+            if rec is not None and rec.skip != "docs-only":
+                return False
+    return True
 
 
 def _skip_target(

@@ -689,11 +689,48 @@ class SecurityDocsOnlyTests(Base):
         self.assertEqual(item.open_findings, 1)
         self.assertFalse(item.whole_review_clears)
 
+    def test_an_earlier_security_review_keeps_its_findings(self) -> None:
+        # S1 reviewed code and README (2 summary findings), S0 reverted the
+        # code (clean incremental), S is a docs push the lane skipped.
+        runs = [
+            whole("claude-review", S),
+            run("claude-security-review", S1, "findings=2 inline=0 scope=whole"),
+            run(
+                "claude-security-review",
+                S0,
+                f"findings=0 inline=0 scope=incremental since={S1}",
+            ),
+            run("claude-security-review", S, "skip=docs-only"),
+        ]
+        result = self.bind(runs, changed_paths=["README.md"])
+        self.assertUnbound(result["claude-security-review"], "skip-not-no-change")
+
+    def test_earlier_docs_only_skips_still_bind(self) -> None:
+        runs = [
+            whole("claude-review", S),
+            run("claude-security-review", S0, "skip=docs-only"),
+            run("claude-security-review", S, "skip=docs-only"),
+        ]
+        result = self.bind(runs, changed_paths=["README.md"])
+        self.assertTrue(result["claude-security-review"].bound)
+
     def test_glob_grammar(self) -> None:
         self.assertTrue(ev.is_docs("docs/a/b/c.md"))
         self.assertTrue(ev.is_docs("CHANGELOG.md"))
         self.assertFalse(ev.is_docs("docs/a/b.MD"))
         self.assertFalse(ev.is_docs(None))
+
+    def test_globs_are_anchored_at_both_ends(self) -> None:
+        # The lane builds `^...$`.
+        for path in ("docs/evil.md.py", "src/docs/a.md", "xREADME.md"):
+            with self.subTest(path=path):
+                self.assertFalse(ev.is_docs(path))
+
+    def test_a_line_break_is_never_docs(self) -> None:
+        # Python's `.` matches \r, U+2028 and U+2029; the lane's JavaScript `.` does not.
+        for ch in ("\r", "\n", "\u2028", "\u2029"):
+            with self.subTest(ch=repr(ch)):
+                self.assertFalse(ev.is_docs(f"docs/a{ch}b/c.md"))
 
 
 class IncrementalTests(Base):
