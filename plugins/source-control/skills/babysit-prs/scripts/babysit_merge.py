@@ -4076,11 +4076,19 @@ def unattended_enqueue(
             step["escalationError"] = str(exc)
         return hold(reason)
     # A standards-sync head is not written either: the sync App is its only
-    # writer, and a merge commit fails its managed-files guard.
+    # writer, and a merge commit fails its managed-files guard. An unreadable
+    # label holds, since the stale head would fail the queue's merge.
     stale_update = inputs_read["state"] == "stale" and eligible_dependabot is None
-    owner, name = repo.split("/", 1)
-    labels = inputs["pr"].get("labels")
-    if stale_update and (skip := postmerge.standards_sync_skip(owner, name, labels)):
+    skip = None
+    if stale_update:
+        owner, name = repo.split("/", 1)
+        try:
+            skip = postmerge.standards_sync_skip(
+                owner, name, inputs["pr"].get("labels")
+            )
+        except postmerge.PostMergeReadError as exc:
+            return hold(f"the standards-sync role label is unreadable ({exc})")
+    if skip:
         inputs_read.update(updated=False, updateSkipped=skip)
     elif stale_update:
         stale = (

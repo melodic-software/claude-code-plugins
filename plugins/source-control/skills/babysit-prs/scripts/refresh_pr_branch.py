@@ -104,10 +104,15 @@ def validate_current_candidate(
 
 def refuse_standards_sync(repo: str, number: int) -> None:
     """Refuse a PR carrying the standards-sync role label: a merge commit from
-    the base fails its managed-files guard, so the sync cannot re-arm."""
+    the base fails its managed-files guard, so the sync cannot re-arm. An
+    unreadable label refuses too."""
     owner, name = repo.split("/", 1)
     pull = json_object(gh_json(["api", f"repos/{repo}/pulls/{number}"]))
-    if skip := postmerge.standards_sync_skip(owner, name, pull.get("labels")):
+    try:
+        skip = postmerge.standards_sync_skip(owner, name, pull.get("labels"))
+    except postmerge.PostMergeReadError as exc:
+        skip = f"the standards-sync role label is unreadable ({exc})"
+    if skip:
         raise RuntimeError(f"{skip}; refusing branch refresh")
 
 

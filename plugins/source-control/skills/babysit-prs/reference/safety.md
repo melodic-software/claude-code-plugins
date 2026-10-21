@@ -99,7 +99,7 @@ value and its unset fallback.
   is its only writer, and a merge commit from the base fails its managed-files guard, so the sync
   cannot re-arm. `refresh_pr_branch.py` refuses it, and the unattended enqueue skips its update
   from the base (`checkInputs.updateSkipped`) and enqueues as after a refused update. An
-  unreadable label refuses or skips the same way.
+  unreadable label refuses the refresh and holds the enqueue.
 - Head-ref uniqueness guard: two open PRs sharing one head repository/branch is a stop-and-ask.
   Escalate, never guess which PR a push would update.
 - Lease-protected removal: never remove a worktree without holding that PR's worker lease

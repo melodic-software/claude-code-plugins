@@ -1829,7 +1829,8 @@ class RefreshRefusesStandardsSyncPrs(unittest.TestCase):
     REPO = "owner/repo"
 
     def _run(self, labels: list[str], *, apply: bool = True) -> list[list[str]]:
-        writes: list[list[str]] = []
+        self.writes: list[list[str]] = []
+        writes = self.writes
         pr = {
             "state": "OPEN",
             "author": {"login": "melodic-standards-sync[bot]"},
@@ -1895,12 +1896,11 @@ class RefreshRefusesStandardsSyncPrs(unittest.TestCase):
     def test_a_standards_sync_pr_is_refused_and_never_updated(self) -> None:
         for label in ("standards-sync", "Standards-Sync"):
             with self.subTest(label=label):
-                writes: list[list[str]] = []
                 with self.assertRaisesRegex(
                     RuntimeError, "standards-sync.*refusing branch refresh"
                 ):
-                    writes = self._run([label])
-                self.assertEqual(writes, [])
+                    self._run([label])
+                self.assertEqual(self.writes, [])
 
     def test_an_unlabeled_pr_is_still_updated(self) -> None:
         [update] = self._run(["enhancement"])
@@ -1915,6 +1915,7 @@ class RefreshRefusesStandardsSyncPrs(unittest.TestCase):
         with mock.patch.object(postmerge, "_role_label", side_effect=read):
             with self.assertRaisesRegex(RuntimeError, "'sync-managed'"):
                 self._run(["sync-managed"])
+            self.assertEqual(self.writes, [])
             self.assertEqual(len(self._run(["standards-sync"])), 1)
 
     def test_an_unreadable_label_config_refuses(self) -> None:
@@ -1924,6 +1925,7 @@ class RefreshRefusesStandardsSyncPrs(unittest.TestCase):
             self.assertRaisesRegex(RuntimeError, "unreadable.*refusing branch refresh"),
         ):
             self._run([])
+        self.assertEqual(self.writes, [])
 
     def test_the_bundled_default_is_standards_sync(self) -> None:
         # No tracker config (404): the real resolver falls back to the default.

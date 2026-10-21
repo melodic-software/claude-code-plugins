@@ -1205,12 +1205,9 @@ def standards_sync_label(owner: str, name: str) -> str:
 def standards_sync_skip(owner: str, name: str, labels: Any) -> str | None:
     """Why no branch refresh may update a pull request carrying the REST
     `labels`, or None: it carries the standards-sync role label (matched
-    case-insensitively), whose only writer is the sync App, or that label is
-    unreadable, so the write fails closed."""
-    try:
-        label = standards_sync_label(owner, name)
-    except PostMergeReadError as exc:
-        return f"the standards-sync role label is unreadable ({exc})"
+    case-insensitively), whose only writer is the sync App. An unreadable
+    label raises `PostMergeReadError`."""
+    label = standards_sync_label(owner, name)
     if is_json_array(labels) and any(
         str(json_object(item).get("name") or "").casefold() == label.casefold()
         for item in labels

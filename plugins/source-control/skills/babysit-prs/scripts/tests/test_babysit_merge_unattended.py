@@ -1854,7 +1854,8 @@ class CheckInputsChangedOnTheBase(Unattended):
             self.run_main()
             self.assertEqual(self.log, [f"update-branch:expected_head_sha={HEAD}"])
 
-    def test_an_unreadable_standards_sync_label_skips_the_update(self) -> None:
+    def test_an_unreadable_standards_sync_label_holds(self) -> None:
+        # Neither updated nor enqueued: a stale head fails the queue's merge.
         def read(owner: str, name: str, **kwargs: Any) -> str:
             if kwargs.get("role") == "standards-sync":
                 raise postmerge.PostMergeReadError("tracker: HTTP 502")
@@ -1862,11 +1863,14 @@ class CheckInputsChangedOnTheBase(Unattended):
 
         with mock.patch.object(postmerge, "_role_label", side_effect=read):
             code, out = self.run_main()
-        self.assertEqual(code, 0, out["blockers"])
-        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
-        read_ = out["unattended"]["enqueue"]["checkInputs"]
-        self.assertIs(read_["updated"], False)
-        self.assertIn("unreadable", read_["updateSkipped"])
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+        self.assertTrue(
+            any(
+                "standards-sync role label is unreadable" in b for b in out["blockers"]
+            ),
+            out["blockers"],
+        )
 
     SHARED_COPY_LABEL = (
         f"write:api -X POST repos/owner/repo/issues/{PR}/labels -f labels[]=needs-human"
