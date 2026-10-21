@@ -124,19 +124,20 @@ class TestAuthClasses(ServerCase):
         self.leader(lead_pid)
 
     def test_person_routes_refuse_a_request_with_no_identity(self):
-        # Join is the one route a newcomer reaches before holding a secret; any other public route goes unchecked here.
-        self.assertEqual(["/api/join"], sorted(p for p, (a, _) in server.ROUTES.items() if a == "public"))
+        # Join and a device's sign-in code are the routes a newcomer reaches before holding a credential; any other
+        # public route goes unchecked here.
+        self.assertEqual(["/api/join", "/api/owner/pair/redeem"], sorted(p for p, (a, _) in server.ROUTES.items() if a == "public"))
         for path, (auth, _) in server.ROUTES.items():
             if auth == "public":
                 continue
             with self.subTest(path=path):
                 code, _, out = self.post(path, {})
-                want = (403, "owner-only") if auth == "owner" else (401, "unknown-session")
+                want = (403, "owner-only") if auth in ("owner", "host") else (401, "unknown-session")
                 self.assertEqual((code, out["error"]), want)
 
     def test_owner_routes_refuse_a_leader(self):
         for path, (auth, _) in server.ROUTES.items():
-            if auth == "owner":
+            if auth in ("owner", "host"):
                 with self.subTest(path=path):
                     code, _, out = self.post(path, {}, self.lead)
                     self.assertEqual((code, out["error"]), (403, "owner-only"))
@@ -187,6 +188,84 @@ class TestAuthClasses(ServerCase):
         code, _, out = self.post("/api/join", {"name": "Cy", "device": "phone", "key": self.app.session.state["session"]["guestKey"]})
         self.assertEqual(code, 200)
         self.assertEqual(sorted(out), ["name", "ok", "pid", "secret"])
+
+
+class TestOwnerDevices(ServerCase):
+    """Signing the owner in on another device over HTTP. Expected values come from the owner's decision: the code is
+    made only where the owner link was opened, the device gets its own credential and owner rights, the owner link's
+    token never reaches it, and signing it out ends it at once, its asset cookie included."""
+
+    def setUp(self):
+        super().setUp()
+        self.guest_pid, self.guest = self.join("Ann")
+
+    def pair(self, ip="203.0.113.5"):
+        code, _, out = self.post("/api/owner/pair", {}, self.owner)
+        self.assertEqual(code, 200, out)
+        code, _, dev = self.post("/api/owner/pair/redeem", {"code": out["code"], "device": "phone"}, {"CF-Connecting-IP": ip})
+        self.assertEqual(code, 200, dev)
+        return out["code"], dev
+
+    def test_a_device_signs_in_once_and_acts_as_the_owner(self):
+        code, dev = self.pair()
+        mine = {"X-Owner-Token": dev["token"]}
+        status, _, out = self.get("/api/state", mine)
+        self.assertEqual((status, out["me"]["role"]), (200, "owner"))
+        self.assertEqual([d["id"] for d in out["ownerDevices"]], [dev["id"]])
+        status, _, out = self.post("/api/session/title", {"title": "From my phone"}, mine)
+        self.assertEqual((status, out["title"]), (200, "From my phone"))
+        status, _, out = self.post("/api/owner/pair/redeem", {"code": code}, {"CF-Connecting-IP": "198.51.100.7"})
+        self.assertEqual((status, out["error"]), (403, "bad-pair-code"))
+
+    def test_only_the_owner_links_device_makes_codes_or_a_new_owner_link(self):
+        _, dev = self.pair()
+        before = (self.d / server.SECRETS).read_text(encoding="utf-8")
+        for path in ("/api/owner/pair", "/api/link/owner"):
+            with self.subTest(path=path):
+                status, _, out = self.post(path, {}, {"X-Owner-Token": dev["token"]})
+                self.assertEqual((status, out["error"]), (403, "host-device-only"))
+                self.assertNotIn(self.app.secrets["owner"], json.dumps(out))
+                status, _, out = self.post(path, {}, self.guest)
+                self.assertEqual((status, out["error"]), (403, "owner-only"))
+        self.assertEqual((self.d / server.SECRETS).read_text(encoding="utf-8"), before)
+
+    def test_signing_a_device_out_ends_it_and_its_asset_cookie_at_once(self):
+        (self.d / "assets").mkdir()
+        (self.d / "assets" / "0123456789abcdef.png").write_bytes(PNG)
+        _, dev = self.pair()
+        mine = {"X-Owner-Token": dev["token"]}
+        cookie = {"Cookie": self.get("/api/state", mine)[1]["Set-Cookie"].split("; ")[0]}
+        self.assertEqual(self.get("/assets/0123456789abcdef.png", cookie)[0], 200)
+        status, _, out = self.post("/api/owner/devices/revoke", {"id": dev["id"]}, self.owner)
+        self.assertEqual(status, 200, out)
+        self.assertEqual(self.get("/api/state", mine)[0], 401)
+        self.assertEqual(self.get("/assets/0123456789abcdef.png", cookie)[0], 401)
+        self.assertEqual(self.get("/api/state", self.owner)[0], 200)
+
+    def test_a_new_owner_link_signs_out_every_device(self):
+        devs = [self.pair()[1]]
+        time.sleep(session.WRITE_INTERVAL)  # one code a second
+        devs.append(self.pair("198.51.100.7")[1])
+        status, _, out = self.post("/api/link/owner", {}, self.owner)
+        self.assertEqual(status, 200, out)
+        for dev in devs:
+            self.assertEqual(self.get("/api/state", {"X-Owner-Token": dev["token"]})[0], 401)
+
+    def test_closing_the_session_signs_out_every_device(self):
+        _, dev = self.pair()
+        status, _, out = self.post("/api/session/end", {"on": True}, self.owner)
+        self.assertEqual(status, 200, out)
+        status, _, out = self.get("/api/state", {"X-Owner-Token": dev["token"]})
+        self.assertEqual((status, out["error"]), (401, "unknown-session"))
+        self.assertEqual(self.get("/api/state", self.owner)[0], 200)
+
+    def test_the_log_never_holds_a_code_or_a_credential(self):
+        code, dev = self.pair()
+        self.post("/api/owner/pair/redeem", {"code": code}, {"CF-Connecting-IP": "198.51.100.7"})
+        log = (self.d / "server.log").read_text(encoding="utf-8")
+        self.assertIn("route=/api/owner/pair/redeem", log)
+        for secret in (code, dev["token"]):
+            self.assertNotIn(secret, log)
 
 
 class TestHostAndOrigin(ServerCase):

@@ -160,7 +160,8 @@ ASSET_COOKIE_SECONDS = 900  # judgment: an asset cookie's life; every /api/state
 
 # The guest routes: path -> (auth class, session method). Classes (Contracts, "Auth classes"):
 # public needs no identity; person needs a secret or the owner token; moderator is a person whose
-# role session.py checks; owner needs the X-Owner-Token header itself. The upload chunk route takes raw bytes,
+# role session.py checks; owner needs the X-Owner-Token header itself, the owner link's token or a signed-in device's
+# credential; host needs the owner link's token, never a device's. The upload chunk route takes raw bytes,
 # not JSON, so GuestHandler.upload_chunk serves it (UPLOAD_CHUNK).
 ROUTES = {
     "/api/join": ("public", "join"),
@@ -221,7 +222,10 @@ ROUTES = {
     "/api/session/goal": ("owner", "set_goal"),
     "/api/session/end": ("owner", "end_session"),
     "/api/link/guest": ("owner", "rotate_guest_link"),
-    "/api/link/owner": ("owner", "rotate_owner_link"),
+    "/api/link/owner": ("host", "rotate_owner_link"),  # it answers the new owner token, which no other device holds
+    "/api/owner/pair": ("host", "pair_device"),
+    "/api/owner/pair/redeem": ("public", "redeem_pairing"),
+    "/api/owner/devices/revoke": ("owner", "revoke_device"),
     "/api/mine/requests/claim": ("person", "claim_my_request"),
     "/api/mine/requests/result": ("person", "post_my_result"),
     "/api/mine/requests/fail": ("person", "fail_my_request"),
@@ -734,8 +738,11 @@ class GuestHandler(BaseHTTPRequestHandler):
     def authorize(self, auth):
         if auth == "public":
             return self.identity() if self.headers.get("X-Owner-Token") else None
-        if auth == "owner" and not self.headers.get("X-Owner-Token"):
+        if auth in ("owner", "host") and not self.headers.get("X-Owner-Token"):
             raise DomainError(403, "owner-only", "Only the owner can do that.")
+        if auth == "host" and not self.app.session.is_owner_token(self.headers["X-Owner-Token"]):
+            self.identity()  # a stale credential answers 401 as anywhere else
+            raise DomainError(403, "host-device-only", "Do that on the device that opened your owner link.")
         pid = self.identity()
         if pid is None:
             raise DomainError(401, "unknown-session", "Join the session first.")
@@ -876,13 +883,15 @@ class GuestHandler(BaseHTTPRequestHandler):
         try:
             pid = self.authorize(auth)
             fn = getattr(app.session, method)
-            out = fn(pid, body, address=self.address()) if method == "join" else fn(pid, body)
+            out = fn(pid, body, address=self.address()) if method in ("join", "redeem_pairing") else fn(pid, body)
         except DomainError as exc:
             return self.fail(exc)
         except Exception:  # a bug: the transaction rolled back, so nothing was written
             return self.crash()
         if method == "rotate_owner_link":
             app.write_owner_link()
+        if method in ("rotate_owner_link", "revoke_device", "end_session"):
+            app._asset_key = secrets.token_bytes(32)  # an asset cookie names the host, not the device: every one ends
         app.changed()
         return self.send(200, {"ok": True, **out})
 

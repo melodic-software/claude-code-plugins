@@ -757,6 +757,24 @@ page keeps the rest of its last snapshot.
   body field or a URL query; a pid in a body is ignored. Owner routes need `X-Owner-Token`
   itself. `state.json` keeps only sha256 hashes. Custom headers force a CORS preflight that is
   never answered.
+- **The host's other devices.** The owner's menu item Sign in on another device (`POST
+  /api/owner/pair`) makes a one-time code: 8 characters from 31 (no 0, O, 1, I or L), about 39.6
+  bits, shown typed as `XXXX-XXXX` and as a QR code of the guest link plus `#pair=<code>`, drawn
+  in the page by its own encoder. Only its hash is kept, in memory; it works once, for 2 minutes,
+  and a new code replaces it. `POST /api/owner/pair/redeem` (public) trades it for the device's own
+  credential: one try a second per address, and an address with 5 wrong codes is refused the live
+  code while every other address keeps it, so a stranger cannot burn it and a guesser gets 5 tries
+  per address it holds (an IPv6 address counts by its /64) against 31^8. The join dialog's "Are you the host? Sign in with a code" link, under Join, takes
+  a typed code. The device sends its credential as `X-Owner-Token` and acts as the owner; it keeps
+  it in `localStorage` (`ownerDevice`) until signed out. `state.json` keeps its hash under
+  `credentials.devices`, at most 10. Making a code and New owner link (`/api/link/owner`, which
+  answers the new owner token) work only with the owner link's own token (403
+  `host-device-only`), so the owner link never reaches another device. The owner's Signed-in
+  devices list signs one out (`POST /api/owner/devices/revoke`) and the next request with its
+  credential gets 401; signing out, closing the session or a new owner link also renews the asset-cookie key, so no
+  cookie outlives it (every open page gets a new one on its next poll). A new owner link,
+  including one issued at start, and closing the session sign out every device; reopening the
+  session brings none back.
 - **Joining.** A new session issues a guest key, so its first guest link already ends in
   `#join=<key>` and a join without the key gets 403 `bad-guest-key`. A session saved before
   sessions had one keeps an empty key, and with it a link that needs none, until the owner presses
@@ -777,6 +795,7 @@ page keeps the rest of its last snapshot.
   |---|---|
   | Requests per address (`CF-Connecting-IP` only, never `X-Forwarded-For`; an IPv6 address counts by its /64) | 100 a second, bursts of 200; the 10000 most recently seen addresses are remembered |
   | Joins | 30 a minute per address and guest key; 60 per 10 minutes per guest key across all addresses (rotating the guest link starts a new count) |
+  | Host sign-in codes | one made a second; one try a second per address; 5 wrong tries shut that address out of the live code; 10 signed-in devices |
   | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request, report/add) |
   | Heartbeat | 1 a second per person and tab (429 otherwise), except a beat that changes `visible` or `away` |
   | Stored chat, notes, suggestions | the newest 2000 messages (a snapshot carries the newest 50, `GET /api/chat` at most 100 at a time); 2000 notes, then a new one is refused (409 `notes-full`); 200 suggestions per question, with votes on a dropped one dropped too |
@@ -828,6 +847,8 @@ Where each token can be seen:
 | Token | Exposure paths |
 |---|---|
 | Owner token | `.shared-secrets.json` and `.owner-link` (0600); for 30 s after `--open`, the `.owner-open-<hex>.html` page (0600) the browser is handed, whose path, not the token, is on the opener's command line; the owner's browser (the link's fragment, never sent to the server, and its history; the tab's `sessionStorage` once a page took it out of the address bar); the transcript when the owner asks for `url --owner` |
+| Sign-in code | The owner's screen while it lasts (2 minutes, once), the QR code's link fragment on the device that scans it, taken out of the address bar at once; the request body of `/api/owner/pair/redeem`, which Cloudflare's edge sees |
+| Device credential | That device's `localStorage` (`ownerDevice`); the `X-Owner-Token` header it sends, which Cloudflare's edge sees. It acts as the owner, except for making codes and a new owner link |
 | Guest secret | The guest's browser storage and personal link (`#me=` fragment, also the one a page opens when a tunnel switch moves it); the `X-Session-Secret` header, which Cloudflare's edge sees because the tunnel terminates TLS there |
 | Tunnel token (named tunnel) | The file `tunnel_token_file` names, which only cloudflared reads (`--token-file`); its path, not the token, is on cloudflared's command line and in `.shared-tunnel.json` |
 | Cloudflare API token | The owner's secret store, and `cfdns.py`'s `Authorization` header to Cloudflare's API; never on a command line or in its output |
