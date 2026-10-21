@@ -1049,12 +1049,16 @@ test("pr-run-activity-write.yml passes the producer's prepare mode to both apply
 test("pr-unblock.yml: apply-patch takes the patch from whichever fix-ci call ran the activity", () => {
   const { jobs } = workflow("pr-unblock.yml");
   const apply = jobs["apply-patch"];
-  assert.deepEqual(apply.needs, ["fix-ci", "fix-ci-subscription"]);
+  assert.deepEqual(apply.needs, ["fix-ci-context", "fix-ci", "fix-ci-subscription"]);
+  // The patch's head is the one fix-ci-context gated, never a read-runner
+  // output, which a hostile run job could forge; apply-patch holds it against
+  // the head its own gate reads at apply time.
+  assert.equal(apply.with["patch-head-sha"], "${{ needs.fix-ci-context.outputs.head-sha }}");
   assert.equal(apply.uses, "./.github/workflows/pr-run-activity-write.yml");
   assert.equal(apply.with.activity, "apply-patch");
   assert.equal(apply.with["patch-activity"], "fix-ci");
   assert.equal(apply.secrets, undefined, "the push job gets no Claude credential");
-  const outputs = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt", "patch-head-sha": "head-sha" };
+  const outputs = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt" };
   const context = (from) => {
     const values = {};
     for (const job of ["fix-ci-subscription", "fix-ci"]) {
@@ -2347,14 +2351,41 @@ function posted(head, { verdictHead = head.outputs.sha, runResult = "success", g
   return decision.report;
 }
 
-test("report job: a run head that is the gated head posts normally on it", (t) => {
-  for (const env of [{ CALLER_HEAD: TRUSTED }, { EVENT_HEAD: TRUSTED }, { API_HEAD: TRUSTED }, { CALLER_HEAD: OTHER.replace(/f/g, "e"), API_HEAD: TRUSTED }]) {
+test("report job: a run head that is the gated head posts normally on it; the PR head read counts only when nothing gated one", (t) => {
+  for (const env of [{ CALLER_HEAD: TRUSTED }, { CALLER_HEAD: TRUSTED, API_HEAD: OTHER }, { EVENT_HEAD: TRUSTED }, { API_HEAD: TRUSTED }]) {
     const head = chooseHead(t, { RUN_HEAD: TRUSTED, ...env });
     assert.equal(head.status, 0, head.log);
     assert.deepEqual(head.outputs, { post: "true", sha: TRUSTED, forged: "false" }, JSON.stringify(env));
     const report = posted(head);
     assert.deepEqual([report.head_sha, report.conclusion], [TRUSTED, "success"], JSON.stringify(env));
   }
+});
+
+test("report job: a run head equal to a PR head that moved mid-run, never gated, posts failure on the gated head, not success there", (t) => {
+  const gated = TRUSTED;
+  const moved = "b".repeat(40);
+  for (const env of [{ CALLER_HEAD: gated, API_HEAD: moved }, { EVENT_HEAD: gated, API_HEAD: moved }]) {
+    const head = chooseHead(t, { RUN_HEAD: moved, ...env });
+    assert.deepEqual(head.outputs, { post: "true", sha: gated, forged: "true" }, JSON.stringify(env));
+    const report = posted(head, { verdictHead: moved });
+    assert.deepEqual([report.head_sha, report.conclusion], [gated, "failure"], JSON.stringify(env));
+  }
+  // The signed-commit check never runs from the moved head either.
+  const signed = reportSteps().find((s) => s.id === "signed");
+  assert.match(signed.if, /steps\.head\.outputs\.forged == 'false'/);
+  assert.equal(signed.with["since-sha"], "${{ steps.head.outputs.sha }}");
+});
+
+test("report job: an empty run head when the caller gated a head posts failure on that head", (t) => {
+  const head = chooseHead(t, { RUN_HEAD: "", CALLER_HEAD: TRUSTED, API_HEAD: OTHER });
+  assert.deepEqual(head.outputs, { post: "true", sha: TRUSTED, forged: "true" });
+  for (const options of [{ verdictHead: null }, { verdictHead: null, gateReason: "untrusted-actor" }, { verdictHead: null, runResult: "cancelled" }]) {
+    const report = posted(head, options);
+    assert.deepEqual([report.head_sha, report.conclusion], [TRUSTED, "failure"], JSON.stringify(options));
+  }
+  // A handoff never reaches the report job: the fallback call posts that check.
+  const report = workflow("pr-run-activity-read.yml").jobs.report;
+  assert.match(report.if, /needs\.run\.outputs\.handed-off != 'true'/);
 });
 
 test("report job: a forged run head-sha naming another commit posts failure on the trusted head, never on the forged SHA", (t) => {

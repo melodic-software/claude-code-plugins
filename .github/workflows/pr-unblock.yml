@@ -428,7 +428,7 @@ jobs:
   # escalated check, hands the PR to a person. The patch comes from whichever
   # call ran the activity; a call that handed off left none.
   apply-patch:
-    needs: [fix-ci, fix-ci-subscription]
+    needs: [fix-ci-context, fix-ci, fix-ci-subscription]
     if: >-
       ${{ !cancelled() && ((needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'written'
       || (needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'empty') }}
@@ -453,7 +453,13 @@ jobs:
       patch-attempt: ${{ needs.fix-ci-subscription.outputs.patch-attempt || needs.fix-ci.outputs.patch-attempt }}
       patch-activity: fix-ci
       patch-prepare: ci-context
-      patch-head-sha: ${{ needs.fix-ci-subscription.outputs.head-sha || needs.fix-ci.outputs.head-sha }}
+      # The head fix-ci-context gated, from a job that ran no head code; the
+      # read runner's own head-sha output is the run job's, which head code
+      # could forge. Both fix-ci calls refuse a context for another head, so a
+      # patch was made on this one. apply-patch compares it with the head its
+      # own trigger gate reads at apply time, and its push needs the branch
+      # still at that head.
+      patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       reply-attempt: ${{ needs.fix-ci-subscription.outputs.reply-attempt || needs.fix-ci.outputs.reply-attempt }}
 
   # GitHub starts no pull_request workflow on a conflicted PR, so a head the
