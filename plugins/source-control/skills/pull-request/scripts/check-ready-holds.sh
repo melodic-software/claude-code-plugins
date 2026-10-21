@@ -68,12 +68,14 @@ facts=$(gh pr view "$PR" ${repo_args[@]+"${repo_args[@]}"} --json title,body,lab
 
 # The body pattern is the do-not-merge alternative of babysit-prs'
 # BODY_MERGE_HOLD_RE (babysit_merge.py); its `Hold:` line alternative holds the
-# merge only, so it is left out here. The hyphenated label name is not matched,
-# so a body that only names the label holds nothing.
+# merge only, so it is left out here, and a "do not merge" on a Hold: line (any
+# case, after optional spaces or a quote marker) is not read as a flip hold. The
+# hyphenated label name is not matched, so a body that only names the label
+# holds nothing.
 reasons=$(jq -r --argjson unattended "$UNATTENDED" '
   (if $unattended then (.body // "" | [scan("(?mi)^[ \\t>]*Draft:[ \\t]*[^\\r\\n]*")] | first // empty | "draft: a person asked for this draft (\(gsub("[[:cntrl:]]"; ""))); only a person flips it") else empty end),
   ([.labels[]?.name | select(ascii_downcase == "do-not-merge")] | if length > 0 then "label: the pull request carries do-not-merge" else empty end),
-  (.body // "" | if test("\\bdo(?:n['"'"'\u2019]?t| not)\\s+merge\\b"; "i") then "body: it says do not merge" else empty end),
+  (.body // "" | gsub("(?mi)^[ \\t>]*Hold:[^\\r\\n]*"; "") | if test("\\bdo(?:n['"'"'\u2019]?t| not)\\s+merge\\b"; "i") then "body: it says do not merge" else empty end),
   (.title // "" | if test("\\bwip\\b"; "i") then "title: a WIP marker in \"\(gsub("[[:cntrl:]]"; ""))\"" else empty end)
 ' <<<"$facts") || die 2 "cannot parse the pull request facts"
 
