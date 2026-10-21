@@ -12,7 +12,7 @@ const { execFileSync, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { upOnSparePort } = require("./browser_harness");
+const { upOnSparePort, guestKey } = require("./browser_harness");
 
 const here = __dirname, shared = path.resolve(here, "..");
 const results = [];
@@ -88,7 +88,7 @@ async function main() {
     ok("the owner is not asked to join", !(await owner.$("dialog.core-name[open]")));
     ok("the title shows", (await owner.textContent(".vf-title")) === "Checkout", await owner.textContent(".vf-title"));
 
-    const guest = await openPage(up.localUrl);
+    const guest = await openPage(`${up.localUrl}#join=${guestKey(dA)}`);
     ok("a new guest gets the join dialog", await until(guest, () => !!document.querySelector("dialog.core-name[open]")));
     await guest.fill("#core-n", "Gus");
     await guest.click("dialog.core-name button");

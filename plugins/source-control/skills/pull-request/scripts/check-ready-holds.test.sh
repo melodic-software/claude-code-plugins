@@ -113,6 +113,21 @@ pr "fix(cache): wipe stale entries" ""
 run 7 >/dev/null
 assert_exit "a title word that only starts with wip is not a hold" 0 "$?"
 
+pr "feat(pr-pipeline): derive the issue-lane WIP cap from the merge rate" ""
+out=$(run 7)
+assert_exit "a WIP mid-title is not a hold" 0 "$?"
+assert_silent "a WIP mid-title reports nothing" "$out"
+
+pr "docs: explain wip limits (WIP cap)" ""
+run 7 >/dev/null
+assert_exit "WIP inside parentheses with other words is not a hold" 0 "$?"
+
+for title in "WIP thing" "wip: thing" "[WIP] thing" "(WIP) thing" "feat: WIP thing" "feat(x)!: wip: thing" "feat(x): [wip] thing" "feat(x): thing (WIP)"; do
+  pr "$title" ""
+  run 7 >/dev/null
+  assert_exit "the WIP marker in '$title' holds the flip" 3 "$?"
+done
+
 pr "feat(x): add a thing" "Closes #10, closes #11" "[]" "[$(ref 10),$(ref 11)]"
 echo open >"$TEST_TMPDIR/issue-10"
 echo closed >"$TEST_TMPDIR/issue-11"

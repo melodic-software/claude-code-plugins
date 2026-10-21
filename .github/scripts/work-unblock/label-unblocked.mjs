@@ -55,8 +55,19 @@
 // only while its refs-hold marker and the App's needs-human label are the
 // newest. Each hand-off also counts against limits.restarts-per-run.
 //
+// It relabels a red-main fix issue post-merge-demotion-alert.yml reopened on
+// a repeat failure: the reopen keeps agent-ready but ran on that workflow's
+// GITHUB_TOKEN, which starts no run. An open agent-ready issue filed by
+// github-actions[bot] with a `<!-- post-merge-fix check=... -->` first line
+// and a newest github-actions[bot] recurrence comment, with no agent-ready
+// added since that comment, its newest agent-ready added by a listed human
+// or the App, no hold, no open lane PR and no lane run in
+// flight, gets a record naming that comment and agent-ready removed and added
+// by the App. Relabels share limits.restarts-per-run, and the count is logged
+// before any of them.
+//
 // Environment:
-//   GH_TOKEN               the lane App token (issues: write)
+//   GH_TOKEN              the lane App token (issues: write)
 //   GITHUB_REPOSITORY      owner/repo
 //   GITHUB_EVENT_NAME      `issues` (a close) or `schedule` (the sweep)
 //   GITHUB_EVENT_PATH      the event payload; on `issues` only its action,
@@ -107,6 +118,14 @@ const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "needs-human"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+// post-merge-demotion-alert.yml's fix issue and the comment it posts when it
+// reopens one, both under that workflow's GITHUB_TOKEN.
+const ALERT_BOT = "github-actions[bot]";
+const FIX_ISSUE = /^<!-- post-merge-fix check=[^\r\n]+ -->/;
+export const RECURRENCE_PREFIX = "This check failed on main again at `";
+const RELABELED = /^<!-- work-unblock recurrence ([1-9][0-9]{0,15}) -->/;
+// A work-resolve-issue run in any of these has not finished.
+const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
 // The sweep's window: three hourly runs overlap, so a missed run loses nothing.
 export const LOOKBACK_HOURS = 3;
 
@@ -331,6 +350,11 @@ export const escalationComment = (stops) =>
 export const refireComment = (key) =>
   `<!-- work-unblock refired ${key} -->\nThe work-resolve-issue run that \`${LABEL}\` started failed before it reported, or the token broker refused it because its workflow files differ from main's. work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. It does this once per version of those files, so if this run fails the same way, a person looks at it.`;
 
+// The relabel's record, posted before the label moves: one per recurrence
+// comment.
+export const recurrenceComment = (id) =>
+  `<!-- work-unblock recurrence ${id} -->\nThis check failed on main again, and post-merge-demotion-alert reopened this issue, which starts no work-resolve-issue run. work-unblock removed and added \`${LABEL}\` back to start one. It does this once per reopen.`;
+
 // The hand-offs to triage once the lane PR ended, each posted once per pull
 // request before its labels move.
 export const refsMergedComment = (pr) =>
@@ -400,10 +424,10 @@ async function didNoWork(actions, repo, runs) {
 
 const sameRepo = (side, repo) => String(side?.repo?.full_name ?? "").toLowerCase() === repo.toLowerCase();
 
-// The newest pull request the lanes App opened for issue `number` at or after
-// `addedAt`: cross-referenced on the issue, from the issue's lane branch, with
-// head and base in this repository. Null when there is none.
-async function lastLanePull({ github, repo, number, addedAt, bot }) {
+// The pull requests the lanes App opened for issue `number`: cross-referenced
+// on the issue, from the issue's lane branch, with head and base in this
+// repository.
+async function lanePulls({ github, repo, number, bot }) {
   const here = `/repos/${repo}`.toLowerCase();
   const numbers = new Set(
     (await paginate(github, `/repos/${repo}/issues/${number}/timeline`))
@@ -417,22 +441,93 @@ async function lastLanePull({ github, repo, number, addedAt, bot }) {
       )
       .map((source) => Number(source.number)),
   );
-  let last = null;
+  const pulls = [];
   for (const pr of numbers) {
     const pull = await github("GET", `/repos/${repo}/pulls/${pr}`);
-    const created = Date.parse(pull?.created_at);
-    if (
-      pull?.user?.login === bot &&
-      sameRepo(pull.head, repo) &&
-      sameRepo(pull.base, repo) &&
-      isLaneBranch(pull.head?.ref, number) &&
-      created >= addedAt &&
-      (last === null || created > Date.parse(last.created_at))
-    ) {
+    if (pull?.user?.login === bot && sameRepo(pull.head, repo) && sameRepo(pull.base, repo) && isLaneBranch(pull.head?.ref, number)) {
+      pulls.push(pull);
+    }
+  }
+  return pulls;
+}
+
+// The newest of those opened at or after `addedAt`, or null.
+async function lastLanePull({ github, repo, number, addedAt, bot }) {
+  let last = null;
+  for (const pull of await lanePulls({ github, repo, number, bot })) {
+    const created = Date.parse(pull.created_at);
+    if (created >= addedAt && (last === null || created > Date.parse(last.created_at))) {
       last = pull;
     }
   }
   return last;
+}
+
+// The titles of every work-resolve-issue run that has not finished.
+async function runsInFlight(actions, repo) {
+  const titles = [];
+  for (const status of IN_FLIGHT) {
+    const batch = (await actions("GET", `/repos/${repo}/actions/workflows/work-resolve-issue.yml/runs?status=${status}&per_page=100`))
+      ?.workflow_runs;
+    if (!Array.isArray(batch) || batch.length >= 100) {
+      throw new Error(`the ${status} work-resolve-issue run listing has an unexpected shape or 100 runs`);
+    }
+    titles.push(...batch.map((run) => String(run.display_title ?? "")));
+  }
+  return titles;
+}
+
+// For a fix issue post-merge-demotion-alert reopened on a repeat failure: why
+// it is not relabeled now, or null with what to do. Null for any other issue,
+// and for one agent-ready was added to since the reopen, which the restart
+// and re-fire rules then take.
+async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight }) {
+  if (issue.user?.login !== ALERT_BOT || !FIX_ISSUE.test(String(issue.body ?? ""))) {
+    return null;
+  }
+  const base = `/repos/${repo}/issues/${issue.number}`;
+  const comments = await paginate(github, `${base}/comments`);
+  const recurrence = comments
+    .filter((comment) => comment.user?.login === ALERT_BOT && String(comment.body ?? "").startsWith(RECURRENCE_PREFIX))
+    .at(-1);
+  if (recurrence === undefined) {
+    return null;
+  }
+  const at = Date.parse(recurrence.created_at);
+  if (!RUN_ID.test(String(recurrence.id)) || !Number.isFinite(at)) {
+    throw new Error("its recurrence comment has no readable id or time");
+  }
+  const events = await paginate(github, `${base}/events`);
+  if (events.some((event) => isLabel(event, "labeled") && Date.parse(event.created_at) >= at)) {
+    return null;
+  }
+  // The App's re-add admits on its own, so it may only repeat a label that
+  // admission would take: a listed human's or the App's own.
+  const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
+  if (lastAdd === undefined || (lastAdd.actor?.login !== bot && !humans.has(lastAdd.actor?.id))) {
+    return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
+  }
+  const held = (issue.labels ?? []).map((label) => String(typeof label === "string" ? label : label.name).toLowerCase()).find((label) => HOLDS.has(label));
+  if (held) {
+    return { reason: `held by ${held}` };
+  }
+  const open = (await lanePulls({ github, repo, number: issue.number, bot })).find((pull) => pull.state === "open");
+  if (open) {
+    return { reason: `its lane PR #${open.number} is open` };
+  }
+  const titles = await inFlight();
+  if (titles === null) {
+    return { reason: "no Actions token to read its lane runs" };
+  }
+  if (titles.some((title) => title.endsWith(` #${issue.number}`))) {
+    return { reason: "a lane run for it is in flight" };
+  }
+  const untitled = titles.filter((title) => !/ #[1-9][0-9]*$/.test(title)).length;
+  if (untitled > 0) {
+    return { reason: `cannot tell whether a lane run for it is in flight: ${untitled} unfinished run(s) name no issue in their title` };
+  }
+  const recorded = comments.some((comment) => comment.user?.login === bot && RELABELED.exec(String(comment.body ?? ""))?.[1] === String(recurrence.id));
+  return { reason: null, resets: at, recurrence: recurrence.id, recorded };
 }
 
 // What the lane PR the newest agent-ready label's run opened asks for: a
@@ -648,6 +743,10 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   // The issue lane's pause, read once per run; a read that fails never pauses.
   let capped;
   const wipCapped = () => (capped ??= checkWip(github, { repo, bot, now, limits, wip, remaining }).then((status) => status.paused));
+  // The unfinished lane runs, read once per run and only for a reopened fix
+  // issue; null with no Actions token.
+  let flight;
+  const inFlight = () => (flight ??= actions ? runsInFlight(actions, repo) : Promise.resolve(null));
   let open;
   try {
     open = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${LABEL}`)).filter(
@@ -659,18 +758,20 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   }
   for (const issue of open) {
     try {
-      const verdict = await restartRefusal({
-        github,
-        actions,
-        repo,
-        issue,
-        bot,
-        humans,
-        now,
-        workflowKey,
-        limits,
-        wipCapped,
-      });
+      const verdict =
+        (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight })) ??
+        (await restartRefusal({
+          github,
+          actions,
+          repo,
+          issue,
+          bot,
+          humans,
+          now,
+          workflowKey,
+          limits,
+          wipCapped,
+        }));
       const { reason, escalate, explained } = verdict;
       if (escalate) {
         // The comment first and the label last: the label is a hold, so a
@@ -696,10 +797,11 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
     }
   }
   ready.sort((a, b) => a.resets - b.resets || a.number - b.number);
+  console.log(`label-unblocked: ${ready.filter((item) => item.recurrence).length} reopened fix issue(s) to relabel`);
   for (const { number } of ready.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, recorded, handOff, pr, explained, release } of ready.slice(0, cap)) {
+  for (const { number, refire, recurrence, recorded, handOff, pr, explained, release } of ready.slice(0, cap)) {
     const base = `/repos/${repo}/issues/${number}`;
     if (handOff) {
       // The comment first, then the labels; agent-ready comes off last, so a
@@ -726,6 +828,13 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
       if (refire && !recorded) {
         await github("POST", `${base}/comments`, { body: refireComment(refire) });
       }
+      // The labels, not the record, bound a relabel, so a failed record (the
+      // alert locks every fix issue) is named and the relabel goes ahead.
+      if (recurrence && !recorded) {
+        await github("POST", `${base}/comments`, { body: recurrenceComment(recurrence) }).catch((error) =>
+          console.log(`::warning title=label-unblocked::#${number}: the relabel record was not posted: ${escapeCommand(error?.message ?? error)}`),
+        );
+      }
       await github("DELETE", `${base}/labels/${LABEL}`);
     } catch (error) {
       failed += 1;
@@ -737,7 +846,8 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
     const add = () => github("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [LABEL] });
     try {
       await add().catch(add);
-      console.log(`label-unblocked: #${number} ${refire ? "re-fired after its failed run" : "restarted after its limit stop"}`);
+      const why = refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
+      console.log(`label-unblocked: #${number} ${why}`);
     } catch (error) {
       failed += 1;
       reportError(number, new Error(`${LABEL} was removed for a restart but not added back: ${error?.message ?? error}`));

@@ -487,6 +487,19 @@
         "Output routes the missing verdict back to /planning:design rather than choosing one in the plan",
         "Output does not flag the search index, which already has a verdict"
       ]
+    },
+    {
+      "id": 38,
+      "name": "flags-phase-serving-no-criterion",
+      "prompt": "/planning:plan review. The Brief has two acceptance criteria: (1) `GET /orders/{id}` returns 404 for an unknown id, (2) the 404 body names the id. Out-of-scope lists only pagination. PLAN.md has Phase 1 (404 handler and tests, covers both criteria) and Phase 2 (add a response-caching layer for order lookups). Caching is not in the Out-of-scope list.",
+      "expected_output": "The coverage check runs both ways. Both criteria map to Phase 1, but Phase 2 serves neither criterion and nothing a criterion needs, and its absence from the Out-of-scope list does not clear it. It is flagged and the action is to cut it or surface it as an Open Decision for the user to keep.",
+      "files": [],
+      "expectations": [
+        "Output flags Phase 2 (the caching layer) as serving no acceptance criterion",
+        "Output notes that Phase 2 passing the Out-of-scope check does not clear it",
+        "Output's action is to cut Phase 2 or surface it as an Open Decision for the user",
+        "Output does not flag Phase 1, which covers both criteria"
+      ]
     }
   ]
 }

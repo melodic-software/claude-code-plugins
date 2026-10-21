@@ -90,7 +90,7 @@ Invoke via `@review:<agent>` or let Claude delegate.
 - **`/review:audit-enforceability <findings-file>`**. Read-only enforcement audit over ONE
   operator-named findings file: derives a class per finding, maps it to the cheapest deterministic
   rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture
-  test, hook, or llm-only), and writes one proposal stub per finding naming that rung and its
+  test, action-guard, or automated-review), and writes one proposal stub per finding naming that rung and its
   owner. It proposes a rung and never implements one.
 - **`/review:ratchet [<counter, rule or claim>]`**. Holds a count with a checked-in CI ceiling: a
   lint rule's violations, a suppression count, a verified performance counter, or a telemetry

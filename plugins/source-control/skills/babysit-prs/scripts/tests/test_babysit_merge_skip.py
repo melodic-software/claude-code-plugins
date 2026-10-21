@@ -364,6 +364,10 @@ class ASkipRepeatsOnlyAnUnchangedAllowedRefusal(unittest.TestCase):
                 {"7": _stored(key, reason="verify:missing")},
                 {"pass_at_head": True},
             ),
+            "earlier-fail with a PASS at the head": (
+                {"7": _stored(key, reason="verify:earlier-fail")},
+                {"pass_at_head": True},
+            ),
             "no record": ({}, {}),
             "a malformed record": ({"7": {"at": "yesterday", "value": []}}, {}),
         }

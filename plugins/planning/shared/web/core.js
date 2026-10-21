@@ -52,7 +52,7 @@
   const DEFAULTS = {
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
-    myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
+    myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "", shareTunnel: "",
     goal: "", intro: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
@@ -121,7 +121,7 @@
       round: last ? { current: last.n, status: last.status.kind, sentAt: last.status.sentAt, ackAt: last.status.ackAt,
         ...(last.status.ready ? { ready: { by: nameOf(last.status.ready.by), cid: last.status.ready.by, ts: last.status.ready.at } } : {}) } : { current: 1, status: "open" },
       requestCounts: s.requestCounts || DEFAULTS.requestCounts, behind: s.behind || {}, aboutYou: s.aboutYou || {}, myAbout: s.me?.aboutYou || null,
-      shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, guestKey: s.guestKey || "",
+      shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, shareTunnel: s.share?.tunnel || "", guestKey: s.guestKey || "",
     };
     const proposals = s.proposals || [];
     const reqText = new Map([...(s.requests || []), ...(s.myRequests || [])].map(r => [r.id, r]));
@@ -639,6 +639,8 @@
     /** Owner: edit | decline | fail | rerun one request, publish | discard | takedown a result; runRequests runs the given ids still pending. */
     requestAct: (id, action, text) => (action === "run" ? Core.runRequests([id])
       : act("/api/request/act", { id, action, ...(text != null ? { text } : {}) })),
+    /** My own request, or as the owner any: it and its answer move to question `to`, or Core.GENERAL for the whole session. */
+    moveRequest: (id, to) => act("/api/request/act", { id, action: "move", ...(to === Core.GENERAL ? { scope: to } : { qid: to }) }),
     /** The given ids still waiting show as running at once; a refusal puts them back. */
     runRequests: ids => act("/api/request/act", { action: "run", ids }, { key: "run:" + ids.join(), patch: s => {
       for (const r of [...(s.requests || []), ...(s.myRequests || [])]) {
@@ -670,8 +672,9 @@
     /** Offer a file ({file, size, type, qid?, thumb?}); resolves to {id, status, chunks, chunkSize}. The bytes wait
      *  in this browser until the owner accepts (the owner's own are accepted at once). */
     uploadOffer: body => act("/api/upload/offer", body),
-    /** Owner: accept or decline; the uploader: withdraw. */
-    uploadAct: (id, action) => act("/api/upload/act", { id, action }),
+    /** Owner: accept or decline; the uploader: withdraw. `draftOnly` (an attachment chip's x): refused once something
+     *  sent carries the file. */
+    uploadAct: (id, action, draftOnly) => act("/api/upload/act", { id, action, ...(draftOnly ? { draftOnly: true } : {}) }),
     /** One piece of an accepted upload, as raw bytes; `whole` is the whole file's sha256, sent with the last piece.
      *  Resolves to {received}; rejects with {status, error, received?} (409 chunk-gap names the next piece). */
     uploadChunk: (id, index, total, bytes, sha, whole) => spaced("/api/upload/chunk", async () => {
@@ -1217,6 +1220,23 @@
     lastOk = Date.now();
     if (shownAt != null) { tel.gaps.push(Math.round(performance.now() - shownAt)); tel.gaps.splice(0, tel.gaps.length - 20); shownAt = null; }
   }
+  /** The session answers at another address now (the host switched tunnels): go there, taking this browser's identity
+   *  as a personal link, or the invite key of someone who has not joined. The owner's tab stays: its token never
+   *  travels in a link. Only an https address on another origin is followed, once. While the page holds unsent text
+   *  (sessionStorage keeps it per origin) it stays, with Core.movedTo set for its notice, until Core.moveNow() or the
+   *  first poll after that text is sent or cleared. */
+  let moving = false, holdsUnsent = () => false;
+  Core.movedTo = "";
+  Core.keepUnsent = fn => { holdsUnsent = fn; };
+  Core.moveNow = () => moveTo(Core.movedTo, true);
+  function moveTo(url, now) {
+    let to;
+    try { to = new URL(url); } catch { return; }
+    if (moving || ownerToken || to.protocol !== "https:" || to.origin === location.origin) return;
+    if (!now && holdsUnsent()) { Core.movedTo = to.origin; return; }
+    moving = true;
+    location.replace(`${to.origin}/${secret ? "#me=" + secret : joinKey ? "#join=" + joinKey : ""}`);
+  }
   async function pollOnce() {
     const seq = ++polls;
     try {
@@ -1224,6 +1244,7 @@
       const r = await fetch(`/api/state?since=${rev}`, { headers });
       if (r.status === 304) { good(); if (settle(seq) && snap) Core.state = view(); return; }
       const s = await r.json().catch(() => ({}));
+      if (r.ok && s.moved) { good(); moveTo(s.moved); return; }
       if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true, youWaiting: false }; good(); return; }
       // Approve new joins: the person waits until the owner lets them in; the poll keeps asking.
       if (r.status === 403 && s.error === "waiting") { Core.state = { ...structuredClone(DEFAULTS), title: s.title ?? Core.state.title, intro: s.intro || "", youWaiting: true }; good(); return; }

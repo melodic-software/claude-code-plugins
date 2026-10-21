@@ -11,10 +11,46 @@ const job = text.slice(text.indexOf("\n  report-red-main:\n"));
 
 test("the report job runs only after the alert, for a failed full run on main", () => {
   assert.match(job, /\n {4}needs: \[alert\]\n/);
-  assert.match(job, /github\.event\.workflow_run\.name == 'pr-require-checks'/);
-  assert.match(job, /contains\(fromJSON\('\["schedule", "workflow_dispatch"\]'\), github\.event\.workflow_run\.event\)/);
-  assert.match(job, /github\.event\.workflow_run\.conclusion == 'failure'/);
-  assert.match(job, /github\.event\.workflow_run\.head_branch == 'main'/);
+  assert.match(job, /needs\.alert\.outputs\.name == 'pr-require-checks'/);
+  assert.match(job, /contains\(fromJSON\('\["schedule", "workflow_dispatch"\]'\), needs\.alert\.outputs\.event\)/);
+  assert.match(job, /needs\.alert\.outputs\.conclusion == 'failure'/);
+  assert.match(job, /needs\.alert\.outputs\.branch == 'main'/);
+  assert.match(job, /needs\.alert\.outputs\.repo == github\.repository/);
+});
+
+test("the report reads the run from the alert job's outputs, never the event, so a dispatch reaches it", () => {
+  assert.doesNotMatch(job, /github\.event\.workflow_run/);
+  for (const [env, output] of [
+    ["RUN_ID", "id"],
+    ["RUN_SHA", "sha"],
+    ["RUN_URL", "url"],
+    ["RUN_WORKFLOW_ID", "workflow-id"],
+    ["RUN_CREATED", "created"],
+  ]) {
+    assert.match(job, new RegExp(`\\n {10}${env}: \\$\\{\\{ needs\\.alert\\.outputs\\.${output} \\}\\}\\n`));
+  }
+  const alert = text.slice(text.indexOf("\n  alert:\n"), text.indexOf("\n  report-red-main:\n"));
+  for (const output of [
+    "name",
+    "event",
+    "conclusion",
+    "branch",
+    "repo",
+    "sha",
+    "url",
+    "id",
+    "workflow-id",
+    "created",
+  ]) {
+    assert.match(alert, new RegExp(`\\n {6}${output}: \\$\\{\\{ steps\\.run\\.outputs\\.${output} \\}\\}\\n`));
+  }
+});
+
+test("no report runs when the alert found main already recovered", () => {
+  assert.match(job, /needs\.alert\.outputs\.recovered != 'true'/);
+  const alert = text.slice(text.indexOf("\n  alert:\n"), text.indexOf("\n  report-red-main:\n"));
+  assert.match(alert, /\n {6}recovered: \$\{\{ steps\.file\.outputs\.recovered \}\}\n/);
+  assert.match(alert, /\n {8}id: file\n/);
 });
 
 test("an event the lanes App sent is skipped", () => {
@@ -55,6 +91,32 @@ test("main's tip is checked out without credentials, and every action is pinned"
 test("the run step takes every event field through env", () => {
   const run = /\n {8}run: (.*)\n?$/.exec(job)[1];
   assert.doesNotMatch(run, /\$\{\{/);
+});
+
+// Records are one per signal and SHA, found by a read before a create, so
+// every sighting of one signal and SHA must wait on the others: a dispatch
+// and a workflow_run event of the same run, and two runs of one SHA.
+test("the alert's group keys on signal and head SHA, the same for a dispatch and a workflow_run event", () => {
+  const alert = text.slice(text.indexOf("\n  alert:\n"), text.indexOf("\n  report-red-main:\n"));
+  const block = /\n {4}concurrency:\n {6}group: (.*)\n {6}cancel-in-progress: false\n/.exec(alert);
+  assert.ok(block, "a job-level concurrency block that cancels nothing");
+  assert.doesNotMatch(block[1], /workflow_run\.id|run-id/);
+  const group = (ctx) =>
+    block[1].replace(/\$\{\{ (.*?) \}\}/g, (_, expr) => {
+      for (const alt of expr.split(" || ")) {
+        const value = /^'(.*)'$/.exec(alt)?.[1] ?? ctx[alt];
+        if (value) return value;
+      }
+      return "";
+    });
+  const sha = "0123456789abcdef0123456789abcdef01234567";
+  const sighting = group({
+    "github.event.workflow_run.name": "pr-require-checks",
+    "github.event.workflow_run.event": "workflow_dispatch",
+    "github.event.workflow_run.head_sha": sha,
+  });
+  assert.equal(sighting, `post-merge-demotion-alert-pr-require-checks-workflow_dispatch-${sha}`);
+  assert.equal(group({ "inputs['head-sha']": sha }), sighting);
 });
 
 test("reports run one at a time across the repository, so two cannot both read the log before writing", () => {
