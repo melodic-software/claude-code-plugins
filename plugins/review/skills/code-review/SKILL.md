@@ -128,9 +128,10 @@ syntax.
 `.claude-plugin/marketplace.json`, compare the base and head manifests:
 
 - A `userConfig` field's `default` changed, or a field removed: the PR says why, since the change
-  reaches every user who never set the value. No stated reason is a finding. A default change
-  that widens what a guard allows (one whose reading code gates, caps, confirms, limits, or costs
-  something) is a finding whatever the PR says: a stated reason may explain it, never clear it.
+  reaches every user who never set the value. No stated reason is a finding. Where no security
+  lane runs, a default change that widens what a guard allows (one whose reading code gates,
+  caps, confirms, limits, or costs something) is a finding whatever the PR says; where one runs,
+  that judgment is the security lane's alone.
 - A `userConfig` field gains or changes `options`: the PR names the client version floor that
   raises. No named floor is a finding.
 - A new `userConfig` field has a default a user who never opens settings should get, and code in
@@ -175,12 +176,16 @@ caller, or command that produces the wrong result). Exclude:
 - Generic advice, style nits, and "consider adding tests" without a concrete gap
 - Security findings that belong on the security lane (see "Gotchas" above)
 
+A `manifest <field>: flag` line is exempt from this bar: it counts as a finding as written.
+
 ## Adversarial validation
 
 When you fan out subagents for candidate findings, dispatch each hunter and
 verifier as the `review:lane-verifier` agent, never a general-purpose
 subagent, so no subagent can re-invoke this skill and fan out. The producer of a
-finding must not be the verifier. Drop candidates the verifier rejects. Committable
+finding must not be the verifier. Drop candidates the verifier rejects, except a
+`manifest <field>: flag` line, which a verifier never drops: the diff hitting the item is the
+evidence. Committable
 suggestion fences (GitHub `suggestion` code blocks) are allowed only when the
 suggestion alone fully fixes the finding on the anchored lines.
 

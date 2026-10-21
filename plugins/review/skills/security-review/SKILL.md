@@ -140,31 +140,28 @@ eligible for skip 2. Compare the base and head manifests:
   the direction that widens unchecked action (a gate turned off, an autonomy tier or unlimited
   mode turned on, a cap or budget raised), or that is removed, is a finding: every user who never
   set it gets the wider action on update. Name the control and the action that now reaches it
-  unchecked. So is a `sensitive` option going from true to false, which moves a secret out of
-  secure storage.
-- Anything added or changed that runs, fetches, or widens what code may do: `hooks`,
-  `mcpServers` (an `https://` bundle URL included), `lspServers`, `monitors` and
-  `experimental.monitors`, `channels` (whose `userConfig` values reach an MCP server's `env`),
-  `workflows` scripts, a command's `allowedTools`, `settings.agent` or
-  `settings.subagentStatusLine`, `dependencies`, or a marketplace entry's `source`. Name in the
-  summary what runs and where it comes from (the command, server, or script, and the path,
-  package, or URL with its pin), even when nothing is wrong. A source outside the repository with
-  no pin, a command fed consumer-controlled input, or a tool grant wider than the command needs is
-  a finding with its exploit path.
-- A changed `name`, a removed `version`, or a changed `defaultEnabled`: say what installed users
-  get on update, since each changes which code they load or when.
+  unchecked. A change that lowers a value's protection is a finding too.
+- Any field added or changed that the manifest reference sections below mark as running code,
+  fetching code, granting tools, or moving a value out of secure storage, read through those
+  pointers at review time: name in the summary what runs and where it comes from (the command,
+  server, or script, and the path, package, or URL with its pin), even when nothing is wrong. A
+  source outside the repository with no pin, a command fed consumer-controlled input, or a tool
+  grant wider than the command needs is a finding with its exploit path. When the pointers
+  cannot be read (this skill grants no WebFetch), flag each changed field the lane cannot
+  classify rather than pass it.
+- A change to the plugin's identity, version pin, or default enablement: say what installed users
+  get on update.
 
 For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
 `manifest <field>: flag, <reason>`, so the outcome reads without the inline comments. Every
 `flag` line is a finding: it counts in the review's findings total, which is what holds the merge.
 
-Pointer: what each field loads or runs is read at
+Pointer: what each field loads, runs, grants, or stores is read at
 [plugin manifest reference: Fields](https://code.claude.com/docs/en/plugins-reference#fields),
 [Component path forms](https://code.claude.com/docs/en/plugins-reference#component-path-forms),
 [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration), and
 [Channels](https://code.claude.com/docs/en/plugins-reference#channels). As of: 2026-10-21.
-Recheck trigger: that page adds or renames a field that runs, fetches, or grants tools, moves
-`monitors` out of `experimental`, or changes how a `userConfig` default or `sensitive` applies.
+Recheck trigger: any of those sections changes.
 
 ## High-signal bar
 
