@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import dataclasses
 import difflib
-import json
 import functools
 import json
 import pathlib
