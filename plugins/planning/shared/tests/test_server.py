@@ -418,6 +418,15 @@ class TestRawRequests(ServerCase):
         self.assertTrue(closed)
         self.assertLess(took, 4.0)
 
+    def test_a_problem_report_has_its_own_longer_deadline_for_its_pictures(self):
+        with mock.patch.object(session, "BODY_SECONDS", 30.0), mock.patch.object(session, "REPORT_SECONDS", 1.0):
+            t0 = time.monotonic()
+            got, closed = self.request("POST /api/report HTTP/1.1", "Content-Type: application/json", "Content-Length: 100", body=b'{"text"')
+            took = time.monotonic() - t0
+        self.assertEqual(status_and_headers(got)[0], 408)
+        self.assertTrue(closed)
+        self.assertLess(took, 4.0)  # REPORT_SECONDS applied, not the 30 s every other route waits
+
     def test_http_servers_own_refusals_carry_the_security_headers(self):
         cases = {501: "BREW /api/state HTTP/1.1", 414: "GET /" + "a" * 70000 + " HTTP/1.1"}
         for code, line in cases.items():

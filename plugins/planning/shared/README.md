@@ -668,7 +668,7 @@ page keeps the rest of its last snapshot.
   itself. `state.json` keeps only sha256 hashes. Custom headers force a CORS preflight that is
   never answered.
 - **Requests.** JSON POSTs only (415), the 32 KB body cap checked before reading (413), and the
-  whole body within 10 s (408). A request other than a POST that carries a body
+  whole body within 10 s (408; a problem report's, up to four pictures, within 60 s). A request other than a POST that carries a body
   (`Content-Length` above 0 or any `Transfer-Encoding`) gets 400 and its connection closes. A
   refused request (bad host, rate limit, body) answers once and runs nothing.
 - **Limits.** All are constants at the top of `session.py`:

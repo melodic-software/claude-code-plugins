@@ -789,10 +789,11 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(400, "bad-json", "The request needs a Content-Length."))
         if length > cap:
             return self.fail(DomainError(413, "body-too-large", f"The body allows at most {cap} bytes.", max=cap))
+        seconds = session.REPORT_SECONDS if path == "/api/report" else session.BODY_SECONDS  # up to four pictures take longer
         try:
-            raw = self.read_body(length)
+            raw = self.read_body(length, seconds)
         except TimeoutError:
-            return self.fail(DomainError(408, "body-timeout", f"The body must arrive within {session.BODY_SECONDS:.0f} s."))
+            return self.fail(DomainError(408, "body-timeout", f"The body must arrive within {seconds:.0f} s."))
         if raw is None:
             return None
         try:

@@ -151,6 +151,7 @@ SHOWN_IMAGE_MAX = REPORT_IMAGE_MAX  # bytes of a received picture GET /api/uploa
 MAX_REPORT_IMAGES = 4  # judgment (the owner, 2026-10-21): screenshots one report takes when it is sent; an addition takes one
 REPORT_MAX = BODY_MAX + -(-REPORT_IMAGE_MAX // 3) * 4 + 32  # an addition's body: one picture as a data: URL, plus its text
 REPORT_SEND_MAX = BODY_MAX + MAX_REPORT_IMAGES * (-(-REPORT_IMAGE_MAX // 3) * 4 + 32)  # a report's body: up to MAX_REPORT_IMAGES of them
+REPORT_SECONDS = 60.0  # judgment: a report's whole body, REPORT_SEND_MAX (about 2.8 MB), arrives within this on a 0.25 MB/s phone link (about 11 s)
 REPORT_INTERVAL = 10.0  # judgment: seconds between one person's reports
 MAX_OPEN_REPORTS = 5  # judgment: reports one person has waiting for the owner
 MAX_REPORTS = 500  # judgment: reports across the session; at the cap a new one is refused, none dropped
