@@ -343,12 +343,12 @@ function teamSettings(doc, warn, from) {
     at("jtbd_school")(`jtbd_school ${quote(school)} is not one of ${props.jtbd_school.enum.join(", ")}; unset used`);
     school = DEFAULTS.jtbd_school;
   }
-  // A project path whose first segment is not a dotfile or dot-directory: a deliverable under
-  // .claude would become a standing project rule, and research read from .claude, .git, .env or
-  // .aws is configuration or secrets, not research. The project root (".") counts too, since a
-  // research path there reads every dot location under it and an output home there writes beside
-  // tool config at the root.
-  const reserved = (rel) => rel.split(/[\\/]/)[0].startsWith(".");
+  // A project path with no segment that is a dotfile or dot-directory, at any depth: a deliverable
+  // under .claude would become a standing project rule, and research read from .claude, .git, .env
+  // or .aws (docs/.env and a/b/.git included) is configuration or secrets, not research. The
+  // project root (".") counts too, since a research path there reads every dot location under it
+  // and an output home there writes beside tool config at the root.
+  const reserved = (rel) => rel.split(/[\\/]/).some((s) => s.startsWith("."));
   // Checked as written and as resolved, so a symlink inside the project that points at a dot
   // location cannot carry a path there.
   const resolved = (rel) => {
