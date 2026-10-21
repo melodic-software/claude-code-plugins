@@ -1458,7 +1458,15 @@ jobs:
             const escape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const reply = text('reply.txt');
             if (reply !== null) core.summary.addHeading('Skill reply', 3).addCodeBlock(escape(reply), 'text');
-            const turns = text('act-turns.json');
+            let turns = text('act-turns.json');
+            // Each denial shows as `tool: input`.
+            try {
+              const diag = JSON.parse(turns);
+              if (Array.isArray(diag?.denied)) {
+                diag.denied = diag.denied.map((d) => (d?.input == null ? String(d?.tool_name ?? '') : `${d.tool_name}: ${d.input}`));
+                turns = `${JSON.stringify(diag, null, 2)}\n`;
+              }
+            } catch {}
             if (turns !== null) core.summary.addHeading('Skill run', 3).addCodeBlock(escape(turns), 'json');
             await core.summary.write();
 
@@ -1475,7 +1483,7 @@ jobs:
           path: |
             ${{ runner.temp }}/skill-reply/reply.txt
             ${{ runner.temp }}/skill-reply/act-turns.json
-          retention-days: 3
+          retention-days: 7
           if-no-files-found: error
 
       - name: Upload the patch
@@ -2054,7 +2062,15 @@ jobs:
             const escape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const reply = text('reply.txt');
             if (reply !== null) core.summary.addHeading('Skill reply', 3).addCodeBlock(escape(reply), 'text');
-            const turns = text('act-turns.json');
+            let turns = text('act-turns.json');
+            // Each denial shows as `tool: input`.
+            try {
+              const diag = JSON.parse(turns);
+              if (Array.isArray(diag?.denied)) {
+                diag.denied = diag.denied.map((d) => (d?.input == null ? String(d?.tool_name ?? '') : `${d.tool_name}: ${d.input}`));
+                turns = `${JSON.stringify(diag, null, 2)}\n`;
+              }
+            } catch {}
             if (turns !== null) core.summary.addHeading('Skill run', 3).addCodeBlock(escape(turns), 'json');
             await core.summary.write();
 
@@ -2069,7 +2085,7 @@ jobs:
           path: |
             ${{ steps.leak-scan.outputs.dir }}/reply.txt
             ${{ steps.leak-scan.outputs.dir }}/act-turns.json
-          retention-days: 3
+          retention-days: 7
           if-no-files-found: error
           overwrite: false
 

@@ -506,7 +506,7 @@ or under a separate design that judges their result in a job head code never tou
 
 The step summary (in a PR-mode read run, the scan job's) shows the skill's final reply (at most 4000 characters, backticks
 neutralized) for audit. It is model output, printed as data. The same text is uploaded as the
-artifact `skill-reply-<lane>-<activity>-<run_attempt>` (3-day retention) whenever the skill step
+artifact `skill-reply-<lane>-<activity>-<run_attempt>` (7-day retention) whenever the skill step
 ran, as audit evidence, because the REST API cannot read step summaries. Nothing in the workflow
 reads that artifact.
 
@@ -517,9 +517,11 @@ skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` i
 `subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, any `<local-command-stderr>`
 text, and `denied`, one `{tool_name, input}` per call the permission mode denied, where `input` is
 the call's `command`, else `file_path`, else `path`, else `pattern` (null when it has none), cut to
-300 characters. It writes them to `act-turns.json` in the same artifact and to the step summary,
-where each denial shows as `tool: input`; in the write file the lane token is cut out of both. The
-full execution file is not uploaded: it holds head text and tool output.
+300 characters. It writes them to `act-turns.json`, which goes into the same artifact and onto the
+step summary, where each denial shows as `tool: input`; in the write file the lane token is cut out
+of both. In a PR-mode read run, `act-turns.json` is sealed with the reply for the scan job, which
+shows and uploads it only after a clean leak scan. The full execution file is not uploaded: it
+holds head text and tool output.
 
 ### Script activities
 

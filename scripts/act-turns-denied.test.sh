@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Behavior test: the "Check the skill took a model turn" step in both
 # pr-run-activity files records each permission_denials entry as
-# {tool_name, input} in act-turns.json and as `tool: input` in the step
-# summary. Runs the step's github-script body against a canned execution file
-# with a stub `core` whose summary records its code block.
+# {tool_name, input} in act-turns.json, and the step summary shows each as
+# `tool: input`. The write file's step writes the summary itself; the read
+# file's writes none, and its summary steps (the scan job's, after the leak
+# scan, and issue mode's) render the act-turns.json it wrote. Runs each step's
+# github-script body against a canned execution file with a stub `core` whose
+# summary records its code blocks.
 # test-scope: .github/workflows/pr-run-activity-write.yml .github/workflows/pr-run-activity-read.yml .github/standards/runner-policy/package.json
 set -uo pipefail
 
@@ -77,16 +80,34 @@ for (const lane of ["write", "read"]) {
   } catch {}
   say(JSON.stringify(recorded) === JSON.stringify(expected),
     `${lane}: act-turns.json denied holds {tool_name, input}: command, file_path, path, pattern, null, cut to 300`);
+  const views = [];
+  if (lane === "write") {
+    views.push(["the act-turns step", blocks.join("\n")]);
+  } else {
+    say(blocks.length === 0, "read: the act-turns step writes no step summary; it shows only after the leak scan");
+    for (const [job, steps] of [["scan", wf.jobs.scan.steps], ["run (issue mode)", wf.jobs.run.steps]]) {
+      const show = steps.find((s) => s.name === "Show the skill's run in the step summary");
+      if (!show?.with?.script) {
+        say(false, `read: the ${job} job has a summary step with a script`);
+        continue;
+      }
+      blocks.length = 0;
+      process.env.REPLY_DIR = join(dir, "reply");
+      await new AsyncFunction("require", "core", show.with.script)(require, core);
+      views.push([`the ${job} summary step`, blocks.join("\n")]);
+    }
+  }
   rmSync(dir, { recursive: true, force: true });
-  const shown = blocks.join("\n");
-  for (const line of [
-    '"Bash: git push origin HEAD"',
-    '"Read: /etc/&lt;shadow&gt;"',
-    '"Grep: a&amp;b"',
-    '"Glob: /src"',
-    '"WebSearch"',
-  ]) {
-    say(shown.includes(line), `${lane}: the step summary shows ${line} HTML-escaped`);
+  for (const [where, shown] of views) {
+    for (const line of [
+      '"Bash: git push origin HEAD"',
+      '"Read: /etc/&lt;shadow&gt;"',
+      '"Grep: a&amp;b"',
+      '"Glob: /src"',
+      '"WebSearch"',
+    ]) {
+      say(shown.includes(line), `${lane}: ${where} shows ${line} HTML-escaped`);
+    }
   }
 }
 EOF
