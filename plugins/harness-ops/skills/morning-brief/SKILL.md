@@ -18,7 +18,7 @@ metadata:
 Repo: !`gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || git remote get-url origin 2>/dev/null | sed -E 's#\.git$##; s#.*github\.com[:/]##' | grep -E '^[^/]+/[^/]+$' || echo "unknown (run inside a checkout with a GitHub origin remote, or pass --repo)"`
 gh: !`command -v gh >/dev/null 2>&1 && echo "present" || echo "MISSING (required)"`
 jq: !`command -v jq >/dev/null 2>&1 && echo "present" || echo "MISSING (required)"`
-az: !`command -v az >/dev/null 2>&1 && echo "present" || echo "absent (optional: the Azure cost lines are skipped)"`
+az: !`command -v az >/dev/null 2>&1 && echo "present" || echo "absent (optional: the Azure cost lines print UNREADABLE)"`
 
 ## Variables
 
@@ -65,10 +65,9 @@ limit or a 5xx wants a re-run after the window the error names. Never rebuild a
 section from other tools.
 
 In the Cost section, an `ALERT` line is the one to act on: say what it shows is charging or
-could start charging. A `SKIPPED` line is a read this login cannot make, not a failure: a GitHub
-billing line is `SKIPPED` when GitHub refused the read with a 403 whose message names admin rights
-(who may call it: the usage pointer below), and "Azure: not checked (az not installed)" wants az
-installed. An Azure line `UNREADABLE` with "run az login" wants `az login`.
+could start charging. An `UNREADABLE` line names its fix: "org admin needed" wants `gh auth login`
+with an org admin account (who may call the billing endpoints: the usage pointer below), "install
+az" wants az installed, and "run az login" wants `az login`.
 
 ## Untrusted content and the lethal trifecta
 
@@ -129,13 +128,15 @@ or "clear"; so does a response the script cannot parse. The header counts the
 unreadable sections. Exit 5: every section unreadable, no data; 6: rendered with at
 least one section unreadable; 0: every section read.
 
-The Cost section is one section of separate reads, each its own line. A read that failed is an
-`UNREADABLE` line beside the lines that read, and makes the section count as unreadable (exit 6);
-the section counts toward exit 5 only when none of its lines read anything. A `SKIPPED` line (a
-billing 403 naming admin rights, az absent with no `--subscription`, or a fixture run) and an `ALERT` line fail
-nothing. With az installed but logged out, every Azure line is `UNREADABLE` and names `az login`;
-the GitHub lines still print. The activity-log read, the GitHub budget list and the workflow-file
-read print `PARTIAL` when they reach their cap or page.
+The Cost section is one section of separate reads, each its own line. A read that failed or was
+not made prints each line it feeds as `UNREADABLE` with the reason and the fix, beside the lines
+that read, and makes the section count as unreadable (exit 6); the section counts toward exit 5
+only when none of its lines read anything. That covers a billing 403 naming admin rights (`org
+admin needed: run gh auth login with an org admin account`, on the usage, minutes, storage and
+budget lines), az absent (`install az`) or logged out (`run az login`, on every Azure line), and a
+fixture run with no cost fixtures. An `ALERT` line fails nothing. An org scan that listed no repo,
+or stopped at `--workflow-read-limit`, is `UNREADABLE` with its counts. The activity-log read, the
+GitHub budget list and the cost query print `PARTIAL` when they reach their cap or page limit.
 
 A list read that reaches its result cap prints a `PARTIAL` line in its section: the
 label inventory (and then the queue rows are not filtered to labels that exist), a
@@ -195,7 +196,7 @@ Upstream facts the script restates, each with its verification record:
 | Lane telemetry | the loop-lane telemetry issue's per-lane comments | Each lane's `last-cycle` age (marked `STALE` past `--stale-hours`, default 6) and any `flags:` |
 | Stranded findings | merged PRs whose unresolved review threads were **created after the merge** | One line per PR at its worst severity, with a finding count. The header prints the window: merges since the older of `--stranded-days` ago (default 3) and the repo's bookmark. Paging stops at that cutoff |
 | Lanes | the last 7 days of runs of each lane workflow, and the check-run annotations of their jobs | One row per lane: runs, failures by class (rate-limit, max-turns, auth, other), limit stops, restarts (a run on an item whose previous run was a limit stop), and items with 3+ limit stops. Then turns used (max, p90) against the cap, with `CHECK` and run links when a run hit max-turns or the p90 is at or above 80% of the cap. Class, turns and cap come from the lane record when it carries them, else from the SDK result and the action's turn-cap annotation; a turn-cap stop counts as max-turns whatever class the record gives. Lanes default to the Claude workflows the repo has; `--lane-workflows` pins them. Annotations are read for `--lane-read-limit` runs (default 200), failed first; past it the row says `unread` and the section `PARTIAL`. Then a model-usage table, the baseline before model routing changes anything: one row per activity and profile over the runs whose annotations carry a lane record, with runs, passes (run conclusion success), median turns, max-turns hits and the models the records name, never sizes or costs. The activity is a pipeline lane's activity (`<lane> / <activity>`), else the lane; the profile is the record's `profile=`, else `unknown`. A row whose max-turns hits exceed `--max-turns-hits` gets a `RECOMMENDED` line; with the flag unset (the default) the table says no threshold is set |
-| Cost | GitHub: `gh api` org billing usage (this month) and budgets; the org's repos and admins, and per live repo its direct collaborators and default-branch workflow files. Azure, when `az account show` succeeds: budgets with their forecast and the Cost Management scheduled actions (`az rest` GETs), `az security pricing list`, a month-to-date Cost Management query (`az rest` POST), `az monitor log-analytics workspace list` and one Usage-table query per workspace, `az monitor activity-log list --offset 1d`, `az security secure-scores list`, and `az advisor recommendation list --category Security` and `--category Cost` | One line per check, each `OK`, `ALERT`, `INFO`, `UNREADABLE` or `SKIPPED`. `ALERT`: a product whose net this month is above 0; private-repo Actions minutes or artifact storage at `--usage-alert-percent` (default 50) of `--actions-included-minutes` or `--actions-included-storage-gb` (unset: the line is `INFO` with the amount used); a GitHub budget above 0 or not stopping at its limit; a direct collaborator who is not an org admin or in `--allowed-collaborators`; a workflow on `pull_request_target` or `workflow_run` that references a secret whose name contains `_CLAUDE_`; an Azure budget whose spend reached its amount or whose forecast is above `--forecast-alert` (default: the budget's amount); a `--required-budgets` budget that is missing, or the `--anomaly-alert` alert (default: any cost anomaly alert) missing or disabled, or either ending within `--expiry-days` (default 30); a workspace whose peak billable day over 31 days is at `--log-cap-alert-percent` (default 50) of its daily cap, or that has no cap; a month-to-date actual cost above 0 on any cost row whose service or meter category names Defender or Security Center; a Defender plan, policy assignment or role assignment write in the last day. A repo's Actions usage counts as private unless the org's repo list says it is public; with no repo list read, the line says every repo was counted as private. Budget lines print the read time: the budget response carries no data timestamp. The Defender plans line lists any plan not on Free as `INFO`, never `ALERT`. The secure score and Advisor counts are `INFO`. The org is `--org`, else the repo's owner; the subscription is `--subscription`, else az's current one. A fixture run reads neither live |
+| Cost | GitHub: `gh api` org billing usage (this month) and budgets; the org's repos and admins, and per live repo its direct collaborators and default-branch workflow files. Azure, when `az account show` succeeds: budgets with their forecast and the Cost Management scheduled actions (`az rest` GETs), `az security pricing list`, a month-to-date Cost Management query (`az rest` POST), `az monitor log-analytics workspace list` and one Usage-table query per workspace, `az monitor activity-log list --offset 1d`, `az security secure-scores list`, and `az advisor recommendation list --category Security` and `--category Cost` | One line per check, each `OK`, `ALERT`, `INFO` or `UNREADABLE`. `ALERT`: a product whose net this month is above 0; private-repo Actions minutes or artifact storage at `--usage-alert-percent` (default 50) of `--actions-included-minutes` or `--actions-included-storage-gb` (unset: the line is `INFO` with the amount used); a GitHub budget above 0 or not stopping at its limit; a direct collaborator who is not an org admin or in `--allowed-collaborators`; a workflow on `pull_request_target` or `workflow_run` (the event key bare, quoted, or in a flow sequence or mapping) that references a secret whose name contains `_CLAUDE_`, or passes every secret (`secrets: inherit`, `toJSON(secrets)`, a computed `secrets[...]` index); an Azure budget whose spend reached its amount or whose forecast is above `--forecast-alert` (default: the budget's amount); a `--required-budgets` budget that is missing, or the `--anomaly-alert` alert (default: any cost anomaly alert) missing or disabled, or either ending within `--expiry-days` (default 30); a workspace whose peak billable day over 31 days is at `--log-cap-alert-percent` (default 50) of its daily cap, or that has no cap; a month-to-date actual cost above 0 on any cost row whose service or meter category names Defender or Security Center; a Defender plan, policy assignment or role assignment write in the last day. A repo's Actions usage counts as private unless the org's repo list says it is public; with no repo list read, the line says every repo was counted as private. Budget lines print the latest usage date in the month-to-date cost query (its daily `UsageDate` column) as the data date, beside the read time; with the query unread they say the data date is unread. The Defender plans line lists any plan not on Free as `INFO`, never `ALERT`. The secure score and Advisor counts are `INFO`. The org is `--org`, else the repo's owner, and must be a GitHub owner name; the subscription is `--subscription`, else az's current one. A fixture run reads neither live unless `--org` or `--subscription` is passed as a flag; a settings file never makes it live |
 
 The Lanes section parses text two upstream components write. When a row's classes or turns look
 wrong, read the current shapes live:
@@ -227,7 +228,8 @@ convention home (`--config-home`, else the checkout's `docs/conventions`), the t
 `harness-ops.local.yaml` beside it, the gitignored personal layer. A flag beats the personal file,
 which beats the team file, which beats the default; an invalid value is named on stderr and its key
 takes the default, never a lower layer's value; a file that cannot be parsed is named and skipped.
-The section's `settings:` line names the layer that set each value. The keys and their meaning are
+The section's `settings:` line prints each value a flag or a file set, with its layer. The org must
+be a GitHub owner name and each alert percent an integer from 0 to 100. The keys and their meaning are
 in the plugin's `schemas/harness-ops.schema.json`; the layering is the config-cascade contract
 (`docs/conventions/config-cascade/README.md` in the marketplace repository). Keep the subscription out of
 a public repository's team file: pass `--subscription` or set it in the personal file.
@@ -238,16 +240,17 @@ Defender plan, policy assignment and role assignment writes; the Defender charge
 month's Defender cost. Two Azure reads are POSTs that read only: the Cost Management query
 (`az rest --method post`) and the Log Analytics Usage-table query (`az monitor log-analytics
 query`); every other Azure read is a GET. A throttled or failed query is `UNREADABLE` and is not
-retried; the brief makes one Cost Management query per run. The Log Analytics query reads the
-Usage table, which is on the Analytics plan; the pointers below give what Microsoft charges for that.
+retried; the brief makes one Cost Management query per run and reads its next pages, up to 20,
+only from `management.azure.com`. What a Log Analytics query of the Usage table costs: the table
+plans pointer below.
 The GitHub org scan lists the org's repos and admins once, then per live repo reads its direct
 collaborators and the workflow files in `.github/workflows` at its default branch, at most
 `--workflow-read-limit` files per run.
 The script never passes `--refresh` to `az advisor recommendation list`, never calls `az graph`,
 and runs az with dynamic extension install set to `no`, carried through `WSLENV` to a Windows az
 under WSL. A GitHub billing 403 whose message names admin rights, a billing manager or an
-organization owner is `SKIPPED`; any other 403 is `UNREADABLE` (who may call these endpoints: the
-GitHub pointers below).
+organization owner is `UNREADABLE` with the org-admin fix; any other 403 is `UNREADABLE` with its
+message (who may call these endpoints: the GitHub pointers below).
 
 Each pointer below is as of 2026-10-21; its recheck trigger follows it.
 
@@ -270,16 +273,22 @@ Each pointer below is as of 2026-10-21; its recheck trigger follows it.
   Recheck: the parameter's description changes.
 - `az graph` and its extension: <https://learn.microsoft.com/en-us/cli/azure/graph#az-graph-query>.
   Recheck: the command moves into the core CLI.
-- Advisor's price: <https://azure.microsoft.com/en-us/products/advisor>. Recheck: the page names a
-  charge.
+- Advisor's price: <https://azure.microsoft.com/en-us/products/advisor#Pricing>. Recheck: that
+  section names a charge.
 - Budgets and their current spend:
   <https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/tutorial-acm-create-budgets#costs-in-budget-evaluations>.
   Recheck: that section changes what current spend counts.
 - The dynamic-install setting and its environment variable:
   <https://learn.microsoft.com/en-us/cli/azure/azure-cli-configuration#cli-configuration-values-and-environment-variables>.
   Recheck: `extension.use_dynamic_install` or the `AZURE_{section}_{name}` rule changes.
-- Cost Management's price: <https://azure.microsoft.com/en-us/pricing/details/cost-management/>.
-  Recheck: the page names a charge for Azure.
+- Cost Management's price: <https://azure.microsoft.com/en-us/pricing/details/cost-management/>
+  (the page has no section anchor). Recheck: the page names a charge for Azure.
+- The cost query's `UsageDate` column and `nextLink`:
+  <https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage#examples>. Recheck: the
+  Daily example drops `UsageDate` or changes its format.
+- What a query of a Log Analytics table costs, by table plan:
+  <https://learn.microsoft.com/en-us/azure/azure-monitor/logs/cost-logs#table-plans>. Recheck: that
+  section changes what a query charges.
 - The query's rate limits and how often to query:
   <https://learn.microsoft.com/en-us/azure/cost-management-billing/costs/manage-automation#data-latency-and-rate-limits>.
   Recheck: that section changes its limits or its query frequency.

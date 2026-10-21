@@ -100,7 +100,7 @@
           "az"
         ]
       },
-      "degrade": "Without az, or with az logged out, the morning brief's Cost section prints one line saying Azure was not checked; its GitHub lines and every other section still render.",
+      "degrade": "Without az, every Azure line in the morning brief's Cost section prints UNREADABLE and says to install az; with az logged out, each prints UNREADABLE and says to run az login. The GitHub lines and every other section still render, and the brief exits 6.",
       "install": {
         "docs": "https://learn.microsoft.com/en-us/cli/azure/install-azure-cli#install",
         "brew": "azure-cli",
