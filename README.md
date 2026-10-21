@@ -168,8 +168,8 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 - **Basis:** the #3522 owner decision (document running the composite's script from a
   `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
   `EXCLUDE`.
-- **As of:** `ci-workflows` v0.39.8 (`594987abe8657a40bccc13d301f1f0d5cccb5348`), the pin in
-  `.github/workflows/pr-require-checks.yml`, re-verified by hand on 2026-10-10: the `contract-only` default is unchanged.
+- **As of:** `ci-workflows` v0.56.0 (`1bb8953644d16f21d10718962c6702f01ea3308a`), the pin in
+  `.github/workflows/pr-require-checks.yml`, re-verified by hand on 2026-10-20: the `contract-only` default is unchanged.
 - **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
   contract.
 

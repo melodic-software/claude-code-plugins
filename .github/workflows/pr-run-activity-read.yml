@@ -965,7 +965,7 @@ jobs:
         if: >-
           always() && inputs.issue-number != ''
           && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@64fd515245f2bdeea8dedca1a3cea9ca39804bec # v0.43.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@1bb8953644d16f21d10718962c6702f01ea3308a # v0.56.0
         with:
           outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
           execution-file: >-
