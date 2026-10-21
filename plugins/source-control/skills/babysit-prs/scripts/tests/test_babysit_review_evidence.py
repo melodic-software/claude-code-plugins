@@ -617,9 +617,83 @@ class SkipTests(Base):
         result = self.bind([run("claude-review", S, f"skip=no-change through={S0}")])
         self.assertUnbound(result["claude-review"], "incremental-gap")
 
-    def test_docs_only_skip_never_binds(self) -> None:
-        result = self.bind([run("claude-review", S, "skip=docs-only")])
+    def test_review_lane_docs_only_skip_never_binds(self) -> None:
+        result = self.bind(
+            [run("claude-review", S, "skip=docs-only")], changed_paths=["README.md"]
+        )
         self.assertUnbound(result["claude-review"], "skip-not-no-change")
+
+
+class SecurityDocsOnlyTests(Base):
+    """The security lane's docs-only skip is its review of a pull request
+    whose every changed path is documentation by the lane's rule
+    (ci-workflows pr-review-security.yml `docs-only-paths` at v0.48.0)."""
+
+    def skip(self, *paths: Any, threads: Any = ()) -> Any:
+        runs = [
+            whole("claude-review", S),
+            run("claude-security-review", S, "skip=docs-only"),
+        ]
+        return self.bind(runs, threads=threads, changed_paths=list(paths))[
+            "claude-security-review"
+        ]
+
+    def test_binds_with_no_findings_when_every_path_is_docs(self) -> None:
+        item = self.skip("docs/adr/0001-x.md", "README.md", "plugins/a/CHANGELOG.md")
+        self.assertTrue(item.bound)
+        self.assertEqual(item.open_findings, 0)
+        self.assertFalse(item.whole_review_clears)
+
+    def test_one_code_path_unbinds(self) -> None:
+        self.assertUnbound(self.skip("README.md", "app.py"), "skip-not-no-change")
+
+    def test_paths_outside_the_globs_unbind(self) -> None:
+        for path in ("docs/a.txt", "notes.md", "readme.md", "docsx/a.md"):
+            with self.subTest(path=path):
+                self.assertUnbound(self.skip(path), "skip-not-no-change")
+
+    def test_instruction_paths_are_never_docs(self) -> None:
+        for path in (
+            "plugins/a/skills/b/README.md",
+            "docs/agents/x.md",
+            "docs/SKILL.md",
+            "AGENTS.md",
+            "docs/rules/README.md",
+        ):
+            with self.subTest(path=path):
+                self.assertUnbound(self.skip(path), "skip-not-no-change")
+
+    def test_a_rename_from_code_unbinds(self) -> None:
+        # changed_paths carries both sides of a rename.
+        self.assertUnbound(
+            self.skip("docs/moved.md", "src/moved.py"), "skip-not-no-change"
+        )
+
+    def test_no_changed_paths_unbinds(self) -> None:
+        self.assertUnbound(self.skip(), "skip-not-no-change")
+
+    def test_an_unresolved_security_thread_still_counts(self) -> None:
+        item = self.skip(
+            "README.md", threads=[thread("x\n\n`claude-lane: claude-security-review`")]
+        )
+        self.assertTrue(item.bound)
+        self.assertEqual(item.open_findings, 1)
+        self.assertFalse(item.whole_review_clears)
+
+    def test_the_skip_closes_no_agent_resolved_thread(self) -> None:
+        security = "x\n\n`claude-lane: claude-security-review`"
+        item = self.skip(
+            "README.md", threads=[thread(security, resolved=True, resolved_by=None)]
+        )
+        self.assertTrue(item.bound)
+        self.assertEqual(item.open_findings, 1)
+        self.assertFalse(item.whole_review_clears)
+
+    def test_glob_grammar(self) -> None:
+        self.assertTrue(ev.is_docs("docs/a/b/c.md"))
+        self.assertTrue(ev.is_docs("CHANGELOG.md"))
+        self.assertFalse(ev.is_docs("docs/a/b.MD"))
+        self.assertFalse(ev.is_docs(None))
 
 
 class IncrementalTests(Base):

@@ -5,7 +5,8 @@ A green review check alone proves nothing: a lane has concluded success
 with no review done. `bind()` counts a lane as reviewed only when its newest
 workflow run on the pinned head succeeded on an allowed attempt, the lane
 job left exactly one completion record for that head, an incremental or
-no-change record leads back to a whole review, and the lane's
+no-change record leads back to a whole review (or the security lane skipped a
+pull request that is all documentation), and the lane's
 reviewed-head marker names the head. Anything doubtful is unbound; the
 function never raises.
 
@@ -58,6 +59,19 @@ LANES: dict[str, tuple[str, str]] = {
 LANE_SOURCE_PREFIXES = (".github/", "plugins/review/")
 LANE_SOURCE_SEGMENT = ".claude"
 LANE_SOURCE_NAME = ".mcp.json"
+
+# The security lane's `skip=docs-only` counts as its review only when every
+# path the pull request changes is documentation by the lane's own rule: its
+# `docs-only-paths` default (ci-workflows pr-review-security.yml at v0.48.0)
+# minus the agent instruction paths it never counts as documentation. Fixed in
+# code, like `LANES`. The lane applies the rule to the files since its last
+# review, so its skip alone says nothing about the whole pull request.
+DOCS_ONLY_LANE = "claude-security-review"
+DOCS_ONLY_GLOBS = ("docs/**/*.md", "**/README.md", "**/CHANGELOG.md")
+INSTRUCTIONS_RE = re.compile(
+    r"(?:^|/)(?:(?:CLAUDE|CLAUDE\.local|AGENTS|GEMINI|SKILL|copilot-instructions)\.md$"
+    r"|(?:\.claude|skills|agents|commands|rules|hooks|instructions|prompts)/)"
+)
 
 RECORD_TITLE = "claude-lane-review-complete"
 _SHA = r"[0-9a-f]{40}"
@@ -140,13 +154,22 @@ def bind(
             raise Unbound("changed-files-unread")
         if any(lane_source(path) for path in changed_paths):
             raise Unbound("lane-source-changed")
+        docs_only = bool(changed_paths) and all(map(is_docs, changed_paths))
         # Thread ids already standing for a recorded finding in some lane.
         # LANES order matters: claude-review claims first, so a doubtful
         # untagged thread leaves the count on the security lane.
         claimed: set[str] = set()
         return tuple(
             _bind_lane(
-                lane, head_sha, runs, comments, threads, is_human, claimed, head_file
+                lane,
+                head_sha,
+                runs,
+                comments,
+                threads,
+                is_human,
+                claimed,
+                head_file,
+                docs_only,
             )
             for lane in LANES
         )
@@ -168,6 +191,34 @@ def lane_source(path: Any) -> bool:
     )
 
 
+def _glob_re(glob: str) -> re.Pattern[str]:
+    """The lane's glob grammar: `**/` any leading directories, `**` anything,
+    `*` and `?` within one path segment."""
+    out, i = "", 0
+    while i < len(glob):
+        if glob.startswith("**/", i):
+            out, i = out + "(?:.*/)?", i + 3
+        elif glob.startswith("**", i):
+            out, i = out + ".*", i + 2
+        else:
+            out += {"*": "[^/]*", "?": "[^/]"}.get(glob[i], re.escape(glob[i]))
+            i += 1
+    return re.compile(out)
+
+
+DOCS_ONLY_RES = tuple(map(_glob_re, DOCS_ONLY_GLOBS))
+
+
+def is_docs(path: Any) -> bool:
+    """Whether a changed path is documentation by the security lane's
+    docs-only rule; a path that is not a string is not."""
+    return (
+        isinstance(path, str)
+        and not INSTRUCTIONS_RE.search(path)
+        and any(pattern.fullmatch(path) for pattern in DOCS_ONLY_RES)
+    )
+
+
 def _bind_lane(
     lane: str,
     head: str,
@@ -177,10 +228,11 @@ def _bind_lane(
     is_human: Callable[[Any], bool],
     claimed: set[str],
     head_file: Callable[[str, str], str | None] | None,
+    docs_only: bool = False,
 ) -> LaneEvidence:
     try:
         lane_runs = _lane_runs(lane, runs)
-        reviewed, chain = _resolve(lane, head, lane_runs)
+        reviewed, chain = _resolve(lane, head, lane_runs, docs_only)
         _require_marker(lane, head, comments)
         _require_marked_runs(lane, lane_runs, comments)
         count, clears = _open_findings(
@@ -210,7 +262,7 @@ def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str
 
 
 def _resolve(
-    lane: str, head: str, lane_runs: list[Mapping[str, Any]]
+    lane: str, head: str, lane_runs: list[Mapping[str, Any]], docs_only: bool = False
 ) -> tuple[str, list[_Record]]:
     """Require a bound run at `head` whose record leads back to a whole review,
     and return the head of the review that covers `head` with the chain of
@@ -218,10 +270,14 @@ def _resolve(
 
     A no-change skip binds to the review it names, one hop; an incremental
     review needs every earlier link bound, back to a whole review. Each link
-    is the newest run's latest attempt at its head (`_bound_record`).
+    is the newest run's latest attempt at its head (`_bound_record`). The
+    security lane's docs-only skip at `head` is a chain of its own when the
+    whole pull request is documentation (`docs_only`, `DOCS_ONLY_LANE`).
     """
     rec = _bound_record(lane, head, lane_runs)
     seen = {head}
+    if rec.skip == "docs-only" and docs_only and lane == DOCS_ONLY_LANE:
+        return head, [rec]
     if rec.skip is not None:
         raise Unbound("skip-not-no-change")
     if rec.through is not None:
@@ -573,7 +629,9 @@ def _open_findings(
         for rec in chain
     )
     count = summary + unresolved + held + missing
-    return count, count > 0 and not unresolved and not head_spent
+    # A whole review of an all-docs pull request skips again, clearing nothing.
+    skipped = chain[0].skip is not None
+    return count, count > 0 and not unresolved and not head_spent and not skipped
 
 
 def _line_changed(
