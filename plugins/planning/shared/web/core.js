@@ -1380,8 +1380,8 @@
     input.setAttribute("aria-describedby", "core-n-err");
     const err = Core.el("p", "core-err", notice); err.id = "core-n-err"; err.setAttribute("role", "alert");
     const go = Core.el("button", null, "Join");
-    const host = Core.el("button", "core-btn-quiet core-host-code", "Are you the host? Sign in with a code"); host.type = "button";
-    host.onclick = () => askCode("");
+    const host = Core.el("a", "core-host-code", "Are you the host? Sign in with a code"); host.href = "#";
+    host.onclick = e => { e.preventDefault(); askCode(""); };
     form.append(h, sub, label, input, err, go, host); dlg.append(form);
     document.body.append(dlg);
     if (Core.state.joinNeedsKey && !joinKey) err.textContent = "This session needs the host's newest invite link. Ask them for it.";

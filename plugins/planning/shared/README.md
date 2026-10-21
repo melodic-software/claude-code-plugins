@@ -668,7 +668,7 @@ page keeps the rest of its last snapshot.
   and a new code replaces it. `POST /api/owner/pair/redeem` (public) trades it for the device's own
   credential: one try a second per address, and an address with 5 wrong codes is refused the live
   code while every other address keeps it, so a stranger cannot burn it and a guesser gets 5 tries
-  per address it holds (an IPv6 address counts by its /64) against 31^8. The join dialog's "Are you the host? Sign in with a code" takes
+  per address it holds (an IPv6 address counts by its /64) against 31^8. The join dialog's "Are you the host? Sign in with a code" link, under Join, takes
   a typed code. The device sends its credential as `X-Owner-Token` and acts as the owner; it keeps
   it in `localStorage` (`ownerDevice`) until signed out. `state.json` keeps its hash under
   `credentials.devices`, at most 10. Making a code and New owner link (`/api/link/owner`, which
