@@ -2154,19 +2154,19 @@ class TestHiddenCharacters(SessionCase):
     def test_names_compare_by_their_compatibility_form_but_keep_their_letters(self):
         for name in ("Clau\U000000adde", "\U0000ff23laude", "\U0000ff23\U0000ff2c\U0000ff21\U0000ff35\U0000ff24\U0000ff25"):
             with self.subTest(name=name):
-                self.refused("reserved-name", "join", None, {"name": name, "device": "computer"})
-        self.assertEqual(self.s.join(None, {"name": "An\U000000adn", "device": "computer"})["name"], "Ann 2")
-        fullwidth = self.s.join(None, {"name": "\U0000ff21nn", "device": "computer"})["name"]
+                self.refused("reserved-name", "join", None, {"key": self.key(), "name": name, "device": "computer"})
+        self.assertEqual(self.s.join(None, {"key": self.key(), "name": "An\U000000adn", "device": "computer"})["name"], "Ann 2")
+        fullwidth = self.s.join(None, {"key": self.key(), "name": "\U0000ff21nn", "device": "computer"})["name"]
         self.assertEqual(fullwidth, "\U0000ff21nn 3")
 
     def test_invisible_marks_and_lookalike_letters_do_not_make_another_claude(self):
         for name in ("CLAUDE\U0000200d", "Clau\U000017b4de", "Clau\U0000180bde", "\U00000421l\U00000430ud\U00000435", "C\U000013deaude"):
             with self.subTest(name=name.encode("unicode_escape").decode()):
-                self.refused("reserved-name", "join", None, {"name": name, "device": "computer"})
+                self.refused("reserved-name", "join", None, {"key": self.key(), "name": name, "device": "computer"})
 
     def test_a_joiner_does_not_make_a_name_unique_but_a_lookalike_letter_does(self):
-        self.assertEqual(self.s.join(None, {"name": "Ann\U0000200d", "device": "computer"})["name"], "Ann\U0000200d 2")
-        self.assertEqual(self.s.join(None, {"name": "\U00000410nn", "device": "computer"})["name"], "\U00000410nn")  # confusables are for "Claude" only
+        self.assertEqual(self.s.join(None, {"key": self.key(), "name": "Ann\U0000200d", "device": "computer"})["name"], "Ann\U0000200d 2")
+        self.assertEqual(self.s.join(None, {"key": self.key(), "name": "\U00000410nn", "device": "computer"})["name"], "\U00000410nn")  # confusables are for "Claude" only
 
     def test_a_field_of_only_hidden_characters_is_refused_as_empty(self):
         self.refused("empty", "chat", self.ann, {"text": "\u202e\u200b\x00 \u2066"}, http=400)
