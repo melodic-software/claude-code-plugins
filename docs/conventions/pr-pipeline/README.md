@@ -229,6 +229,17 @@ and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
 concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
+`pr-refine`'s `fix-docs` runs the same way in three jobs of `pr-refine.yml`: `fix-docs` (a `read`
+skill in patch output mode with no prepare mode, on run-claude-cli with the automations role's
+API key) runs `ai-slop:audit fix` on the PR's changed Markdown files; `fix-docs-subscription`
+runs the same on the role's OAuth token, only after a credit stop or with the key empty; and
+`apply-patch` pushes a `written` patch as one commit under `patch-rules.json`'s `default` row,
+which refuses the universal set, every agent instruction path and more than 300 paths. No change
+is the common case, so an `empty` patch runs no push job. `pr-refine` has no `report-escalation`:
+a refused or unappliable patch posts the `pr-refine / apply-patch` check neutral
+`awaiting-human` and labels nothing. Every job trusts the default branch tip (`trusted-base:
+default-tip`). `fix-docs` routes to the `docs-fix` profile ([Models](#models)).
+
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
 Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
@@ -312,8 +323,8 @@ Each leaf declares:
   `applied-by-supported` to `resolve-config` (`pr-run-activity-read.yml` passes `patch`); an
   applying leaf with any other key fails red before the head checkout. A skill that hands on a
   patch gets the same edit tools as a write skill and commits nothing. The read runner collects
-  its uncommitted change as a patch when `applied-by.patch` names its applier (`fix-ci` and
-  `resolve-issue`). Those edit tools and the `changed-paths` filter key on "an effect other than
+  its uncommitted change as a patch when `applied-by.patch` names its applier (`fix-docs`,
+  `fix-ci` and `resolve-issue`). Those edit tools and the `changed-paths` filter key on "an effect other than
   `read`, or `applied-by.patch`"; the effect half goes once the last skill leaves
   `pr-run-activity-write.yml`.
 - `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
@@ -352,7 +363,7 @@ Each leaf declares:
   activity that runs head code (tests, linters, builds) takes effect `read`, because a
   write-effect activity must not execute head code. To change the branch it hands its change on
   to a `prepare: apply-patch` script with no model and no head code, named in its
-  `applied-by.patch`, as fix-ci does with `apply-patch`.
+  `applied-by.patch`, as fix-docs and fix-ci do with `apply-patch`.
 - `gating`: `gate` feeds `ci-status`; `advisory` is reported only. `ci-status` stays the only
   required check. A `gate` skill activity must not execute head code, since its verdict is read
   in the same job after the skill ran; tests, linters and builds that gate run as a `script`
@@ -426,8 +437,8 @@ of what one `prepare: apply-patch` script is to admit from a producer's patch, r
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
 `review-threads`, `dependency-review`, `merge-base`), `default` for one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
-[`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's
-and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
+[`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's,
+fix-docs's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
 [`patch-rules.schema.json`](../../../.github/actions/resolve-config/patch-rules.schema.json) closes
 each row to these keys:
 
@@ -439,7 +450,7 @@ each row to these keys:
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`. |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
-| `skip-moved-head` | Optional; `true` (`ci-context`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. |
+| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: `pr-refine` has no `synchronize` trigger, so a skipped fix-docs patch would never run again. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
 Every row refuses `.github/**` in any case and through any `..` segment, `.claude/**` at any depth,
@@ -447,8 +458,8 @@ the root `.mcp.json`, `.gitmodules`, `**/settings*.json`, a symbolic link, a git
 executable bit on a file not already executable, and a rename into any of those. Plugin hooks,
 `.claude-plugin/`, `lib/`, `scripts/`, `CLAUDE.md` and `AGENTS.md` are admitted: the
 [HIGH path floor](#merge-authority) holds a pull request that touches them for a human merge.
-The `ci-context` row also names the optional `instruction-path` refusal, so fix-ci still pushes
-none of them.
+The `ci-context` and `default` rows also name the optional `instruction-path` refusal, so fix-ci
+and fix-docs push none of them, and both cap a patch at 300 paths.
 `checkPatchRules` in
 [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name
@@ -1137,9 +1148,10 @@ before it reaches the default branch. Residuals, accepted by the owner:
   branch is the list above and whoever merges it;
 - the model can read its token (`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until the job revokes
   it;
-- a skill's `Bash` grant can be wider than its job: `ai-slop:audit`, which `fix-docs` runs,
-  allows `Bash(git:*)` with no subcommand bound, and claude-code-action puts the token in the
-  origin URL. A run, including one steered by untrusted text it reads, can then push to any branch
+- a skill's `Bash` grant can be wider than its job: a skill that allows `Bash(git:*)` with no
+  subcommand bound (`ai-slop:audit` does; `fix-docs` now runs it on the read runner, with no write
+  token), in a write lane, where claude-code-action puts the token in the origin URL. A run,
+  including one steered by untrusted text it reads, can then push to any branch
   no ruleset protects (the token is scoped to the repository, not the PR branch; rulesets cover
   the default branch and `release/plugins`), run any shell command through `git -c
   core.hooksPath=<dir>` or `git -c alias.<name>='!<command>'`, and push unsigned commits that skip
@@ -1266,11 +1278,12 @@ profile: model `default` and 75 turns. `resolve-config` turns the run's profile 
 which that action cannot pass, so such a run fails. The values come only from this file on the
 base, never from text the run reads.
 
-This repository's block has five profiles: `standard` (model `default`, 75 turns, no effort),
-every skill activity's; `review` (`opus`, 60 turns, no effort), the verifier's; `pr-review`
+This repository's block has seven profiles: `standard` (model `default`, 75 turns, no effort),
+every unrouted skill activity's; `review` (`opus`, 60 turns, no effort), the verifier's; `pr-review`
 (`sonnet`, effort `high`, 75 turns), both review lanes'; `triage` (`sonnet`, effort `medium`,
-30 turns), intake triage's and the [lane sweep](#the-lane-sweep)'s; and `summary` (`sonnet`, effort `medium`, 10 turns), the reuse
-summary pass's.
+30 turns), intake triage's and the [lane sweep](#the-lane-sweep)'s; `summary` (`sonnet`, effort `medium`, 10 turns), the reuse
+summary pass's; `code-fix` (role `worker` on `code`, the verifier's effort, 75 turns), fix-ci's;
+and `docs-fix` (role `worker` on `mechanical`, 75 turns), fix-docs's.
 
 `models.issue-dimensions` budgets a skill activity with input `issue` from its issue's Size,
 Complexity and Uncertainty org issue fields. `fields` maps each field id and its single-select

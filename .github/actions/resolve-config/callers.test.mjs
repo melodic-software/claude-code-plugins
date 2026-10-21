@@ -800,7 +800,13 @@ test("every read-runner caller job passes exactly one Claude secret, named for i
       assert.equal(job.with["output-mode"], undefined, `${file} ${id}: patch mode comes from the activity's applied-by`);
     }
   }
-  assert.deepEqual(callers.sort(), ["pr-unblock.yml fix-ci", "pr-unblock.yml fix-ci-subscription", "work-resolve-issue.yml resolve-issue"]);
+  assert.deepEqual(callers.sort(), [
+    "pr-refine.yml fix-docs",
+    "pr-refine.yml fix-docs-subscription",
+    "pr-unblock.yml fix-ci",
+    "pr-unblock.yml fix-ci-subscription",
+    "work-resolve-issue.yml resolve-issue",
+  ]);
 });
 
 test("no workflow step references both Claude secrets or sets CLAUDE_CODE_ENTRYPOINT, and claude-code-action gets no API key", () => {
@@ -976,52 +982,119 @@ test("pr-run-activity-read.yml: the fallback call's lane record names why it ran
   assert.equal(record.with["step-timeout-minutes"], 50, "the launcher step's timeout");
 });
 
-test("pr-unblock.yml: fix-ci-subscription runs only on fix-ci's credit stop or empty key and reads only those two outputs", () => {
-  const { jobs } = workflow("pr-unblock.yml");
-  const first = jobs["fix-ci"];
-  const sub = jobs["fix-ci-subscription"];
-  assert.deepEqual(sub.needs, ["fix-ci-context", "fix-ci"]);
-  assert.equal(sub.uses, READ_RUNNER);
-  assert.deepEqual(first.secrets, { "claude-api-key": "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}" });
-  assert.deepEqual(sub.secrets, { "claude-code-oauth-token": "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" });
-  assert.equal(first.with.role, "automations");
-  assert.equal(first.with.fallback, undefined);
-  const { fallback, ...same } = sub.with;
-  assert.deepEqual(same, first.with, "the fallback call runs the same activity on the same inputs");
-  // fix-ci's outputs reach the fallback call only through two exact compares.
-  const text = JSON.stringify(sub);
-  const compares = [...text.matchAll(/needs\.fix-ci\.outputs\.([\w-]+) == '([^']*)'/g)].map((m) => `${m[1]} == ${m[2]}`);
-  assert.deepEqual([...new Set(compares)].sort(), ["credential-present == false", "lane-class == credit-stop"]);
-  assert.doesNotMatch(text.replace(/needs\.fix-ci\.outputs\.(lane-class == 'credit-stop'|credential-present == 'false')/g, ""), /needs\.fix-ci\.outputs\./);
-  const runs = (proceed, laneClass, present) =>
-    evaluate(sub.if, {
-      "needs.fix-ci-context.outputs.proceed": proceed,
-      "needs.fix-ci.outputs.lane-class": laneClass,
-      "needs.fix-ci.outputs.credential-present": present,
-    });
-  assert.equal(runs("true", "credit-stop", "true"), true);
-  assert.equal(runs("true", "", "false"), true);
-  for (const laneClass of ["", "rate-limit", "max-turns", "timeout", "other", "credit-stop "]) {
-    assert.equal(runs("true", laneClass, "true"), false, JSON.stringify(laneClass));
-  }
-  assert.equal(runs("true", "", ""), false, "a fix-ci that stopped before its credential step");
-  assert.equal(runs("false", "credit-stop", "true"), false);
-  assert.equal(evaluate(fallback, { "needs.fix-ci.outputs.lane-class": "credit-stop" }), "credit-stop");
-  assert.equal(evaluate(fallback, { "needs.fix-ci.outputs.lane-class": "" }), "no-key");
-  // No run: script in the lane reads fix-ci's outputs.
-  for (const [id, job] of Object.entries(jobs)) {
-    for (const step of job.steps ?? []) {
-      assert.doesNotMatch(String(step.run ?? ""), /needs\.fix-ci\.outputs\./, `${id} ${step.name}`);
-    }
-  }
-  // Both calls and the push job queue in the per-PR write group, never cancelled.
-  for (const id of ["fix-ci", "fix-ci-subscription", "apply-patch"]) {
-    assert.deepEqual(jobs[id].concurrency, { group: "pr-pipeline-write-${{ inputs.pr-number }}", queue: "max" }, id);
-  }
-  assert.equal(first.with["timeout-minutes"], 60, "the run job holds the 50-minute launcher step");
-});
+// Each lane that runs a patch producer on run-claude-cli, as [file, first
+// job, subscription job, the subscription job's other needs, the outputs of
+// those needs it must also see]. The subscription job holds only the OAuth
+// token and reads the first job's outputs only through two exact compares;
+// the push job holds no Claude credential and takes the patch from
+// whichever call ran the activity.
+const PATCH_LANES = [
+  ["pr-unblock.yml", "fix-ci", "fix-ci-subscription", ["fix-ci-context"], { "needs.fix-ci-context.outputs.proceed": "true" }],
+  ["pr-refine.yml", "fix-docs", "fix-docs-subscription", [], {}],
+];
+// Whether an empty patch still runs the push job, which hands the PR to a
+// person: pr-unblock escalates it; pr-refine has no escalation job, and no
+// change is fix-docs's common case.
+const EMPTY_RUNS_APPLY = { "pr-unblock.yml": true, "pr-refine.yml": false };
+const PATCH_OUTPUTS = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt", "patch-head-sha": "head-sha" };
+const WRITE_RUNNER = "./.github/workflows/pr-run-activity-write.yml";
 
-test("pr-run-activity-write.yml passes the producer's prepare mode to both apply-patch steps, and pr-unblock names fix-ci's", () => {
+for (const [file, firstId, subId, extraNeeds, extraProceed] of PATCH_LANES) {
+  test(`${file}: ${subId} runs only on ${firstId}'s credit stop or empty key and reads only those two outputs`, () => {
+    const { jobs } = workflow(file);
+    const first = jobs[firstId];
+    const sub = jobs[subId];
+    assert.equal(first.uses, READ_RUNNER);
+    assert.equal(sub.uses, READ_RUNNER);
+    assert.deepEqual([sub.needs].flat(), [...extraNeeds, firstId]);
+    assert.deepEqual(first.secrets, { "claude-api-key": "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}" });
+    assert.deepEqual(sub.secrets, { "claude-code-oauth-token": "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" });
+    assert.equal(first.with.role, "automations");
+    assert.equal(first.with.fallback, undefined);
+    const { fallback, ...same } = sub.with;
+    assert.deepEqual(same, first.with, "the fallback call runs the same activity on the same inputs");
+    // The first call's outputs reach the fallback call only through two exact compares.
+    const outputsOf = new RegExp(`needs\\.${firstId}\\.outputs\\.`);
+    const text = JSON.stringify(sub);
+    const compares = [...text.matchAll(new RegExp(`needs\\.${firstId}\\.outputs\\.([\\w-]+) == '([^']*)'`, "g"))].map((m) => `${m[1]} == ${m[2]}`);
+    assert.deepEqual([...new Set(compares)].sort(), ["credential-present == false", "lane-class == credit-stop"]);
+    assert.doesNotMatch(
+      text.replace(new RegExp(`needs\\.${firstId}\\.outputs\\.(lane-class == 'credit-stop'|credential-present == 'false')`, "g"), ""),
+      outputsOf,
+    );
+    const runs = (laneClass, present, proceed = extraProceed) =>
+      evaluate(sub.if, {
+        ...proceed,
+        [`needs.${firstId}.outputs.lane-class`]: laneClass,
+        [`needs.${firstId}.outputs.credential-present`]: present,
+      });
+    assert.equal(runs("credit-stop", "true"), true);
+    assert.equal(runs("", "false"), true);
+    for (const laneClass of ["", "rate-limit", "max-turns", "timeout", "other", "credit-stop "]) {
+      assert.equal(runs(laneClass, "true"), false, JSON.stringify(laneClass));
+    }
+    assert.equal(runs("", ""), false, `a ${firstId} that stopped before its credential step`);
+    for (const name of Object.keys(extraProceed)) {
+      assert.equal(runs("credit-stop", "true", { ...extraProceed, [name]: "false" }), false, `${name} false`);
+    }
+    assert.equal(evaluate(fallback, { [`needs.${firstId}.outputs.lane-class`]: "credit-stop" }), "credit-stop");
+    assert.equal(evaluate(fallback, { [`needs.${firstId}.outputs.lane-class`]: "" }), "no-key");
+    // No run: script in the lane reads the first call's outputs.
+    for (const [id, job] of Object.entries(jobs)) {
+      for (const step of job.steps ?? []) {
+        assert.doesNotMatch(String(step.run ?? ""), outputsOf, `${id} ${step.name}`);
+      }
+    }
+    // Both calls and the push job queue in one per-PR write group, never cancelled.
+    assert.match(first.concurrency.group, /^pr-pipeline-write-\$\{\{ (github\.event\.pull_request\.number \|\| )?inputs\.pr-number \}\}$/);
+    for (const id of [firstId, subId, "apply-patch"]) {
+      assert.deepEqual(jobs[id].concurrency, { group: first.concurrency.group, queue: "max" }, id);
+    }
+    assert.equal(first.with["timeout-minutes"], 60, "the run job holds the 50-minute launcher step");
+  });
+
+  test(`${file}: apply-patch takes the patch from whichever ${firstId} call ran the activity, under ${firstId}'s prepare-mode row`, () => {
+    const { jobs } = workflow(file);
+    const apply = jobs["apply-patch"];
+    assert.deepEqual(apply.needs, [firstId, subId]);
+    assert.equal(apply.uses, WRITE_RUNNER);
+    assert.equal(apply.with.activity, "apply-patch");
+    assert.equal(apply.with["patch-activity"], firstId);
+    assert.equal(apply.with["trusted-base"], jobs[firstId].with["trusted-base"]);
+    assert.equal(apply.secrets, undefined, "the push job gets no Claude credential");
+    const config = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
+    assert.equal(apply.with["patch-prepare"] ?? "", config.activities[firstId].prepare ?? "", "the row of the producer's prepare mode");
+    const context = (from) => {
+      const values = {};
+      for (const job of [subId, firstId]) {
+        for (const output of Object.values(PATCH_OUTPUTS)) {
+          values[`needs.${job}.outputs.${output}`] = job === from ? `${job}:${output}` : "";
+        }
+      }
+      return values;
+    };
+    for (const from of [firstId, subId]) {
+      for (const [input, output] of Object.entries(PATCH_OUTPUTS)) {
+        assert.equal(evaluate(apply.with[input], context(from)), `${from}:${output}`, `${input} after ${from}`);
+      }
+    }
+    const runs = (firstState, subState) =>
+      evaluate(apply.if, { [`needs.${subId}.outputs.patch-state`]: subState, [`needs.${firstId}.outputs.patch-state`]: firstState });
+    assert.equal(runs("written", ""), true);
+    assert.equal(runs("", "written"), true);
+    assert.equal(runs("", "empty"), EMPTY_RUNS_APPLY[file], "an empty patch");
+    assert.equal(runs("empty", ""), EMPTY_RUNS_APPLY[file], "an empty patch");
+    assert.equal(runs("", ""), false, "a handoff whose fallback call left no patch");
+    if (EMPTY_RUNS_APPLY[file]) {
+      assert.ok(jobs["report-escalation"].needs.includes("apply-patch"));
+      for (const need of jobs["report-escalation"].needs) assert.ok(Object.hasOwn(jobs, need), `report-escalation needs ${need}, a job of the file`);
+    } else {
+      assert.equal(jobs["report-escalation"], undefined, "a refused patch posts its check neutral and labels nothing");
+    }
+  });
+}
+
+test("pr-run-activity-write.yml passes the producer's prepare mode to both apply-patch steps", () => {
   const { jobs } = workflow("pr-run-activity-write.yml");
   const steps = Object.values(jobs).flatMap((job) => job.steps ?? []);
   for (const name of ["Select the patch", "Run the script activity"]) {
@@ -1029,43 +1102,31 @@ test("pr-run-activity-write.yml passes the producer's prepare mode to both apply
     assert.ok(step, name);
     assert.equal(step.env.PATCH_PREPARE, "${{ inputs.patch-prepare }}", `${name} sets PATCH_PREPARE, or apply-patch.mjs uses the default row`);
   }
-  const config = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
-  const prepare = config.activities["fix-ci"].prepare;
-  assert.equal(prepare, "ci-context");
-  assert.equal(workflow("pr-unblock.yml").jobs["apply-patch"].with["patch-prepare"], prepare);
 });
 
-test("pr-unblock.yml: apply-patch takes the patch from whichever fix-ci call ran the activity", () => {
-  const { jobs } = workflow("pr-unblock.yml");
-  const apply = jobs["apply-patch"];
-  assert.deepEqual(apply.needs, ["fix-ci", "fix-ci-subscription"]);
-  assert.equal(apply.uses, "./.github/workflows/pr-run-activity-write.yml");
-  assert.equal(apply.with.activity, "apply-patch");
-  assert.equal(apply.with["patch-activity"], "fix-ci");
-  assert.equal(apply.secrets, undefined, "the push job gets no Claude credential");
-  const outputs = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt", "patch-head-sha": "head-sha" };
-  const context = (from) => {
-    const values = {};
-    for (const job of ["fix-ci-subscription", "fix-ci"]) {
-      for (const output of Object.values(outputs)) {
-        values[`needs.${job}.outputs.${output}`] = job === from ? `${job}:${output}` : "";
-      }
-    }
-    return values;
-  };
-  for (const from of ["fix-ci", "fix-ci-subscription"]) {
-    for (const [input, output] of Object.entries(outputs)) {
-      assert.equal(evaluate(apply.with[input], context(from)), `${from}:${output}`, `${input} after ${from}`);
-    }
+// pr-refine runs on every author's PRs: every job trusts the default branch
+// tip, since a PR based before fix-docs moved would run the old runner and
+// config, and the model job keeps the draft and bot guard.
+test("pr-refine.yml: every job trusts the default branch tip, and fix-docs skips drafts and bot events", () => {
+  const { jobs } = workflow("pr-refine.yml");
+  assert.deepEqual(Object.keys(jobs).sort(), ["apply-patch", "fix-docs", "fix-docs-subscription"]);
+  for (const [id, job] of Object.entries(jobs)) {
+    assert.equal(job.with["trusted-base"], "default-tip", id);
+    assert.deepEqual(job.permissions, { contents: "read", "pull-requests": "read", checks: "write", "id-token": "write" }, id);
   }
-  const runs = (first, second) =>
-    evaluate(apply.if, { "needs.fix-ci-subscription.outputs.patch-state": second, "needs.fix-ci.outputs.patch-state": first });
-  assert.equal(runs("written", ""), true);
-  assert.equal(runs("", "written"), true);
-  assert.equal(runs("", "empty"), true, "an empty patch hands the PR to a person");
-  assert.equal(runs("", ""), false, "a handoff whose fallback call left no patch");
-  assert.ok(jobs["report-escalation"].needs.includes("apply-patch"));
-  for (const need of jobs["report-escalation"].needs) assert.ok(Object.hasOwn(jobs, need), `report-escalation needs ${need}, a job of the file`);
+  const starts = (event) =>
+    evaluate(jobs["fix-docs"].if, {
+      "github.event_name": event.name ?? "pull_request",
+      "github.event.pull_request.draft": event.draft ?? false,
+      "format('{0}', github.event.sender.id)": event.sender ?? "1",
+      "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
+      "github.event.sender.type": event.type ?? "User",
+    });
+  assert.equal(starts({}), true);
+  assert.equal(starts({ draft: true }), false);
+  assert.equal(starts({ sender: "2" }), false, "the lanes App's own event");
+  assert.equal(starts({ type: "Bot" }), false);
+  assert.equal(starts({ name: "workflow_dispatch", draft: true, type: "Bot" }), true);
 });
 
 test("pr-run-activity-read.yml: with output-mode gone, issue mode still refuses an activity that hands on no patch", () => {

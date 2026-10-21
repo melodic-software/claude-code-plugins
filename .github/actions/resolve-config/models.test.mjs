@@ -88,7 +88,6 @@ const DEFAULT_RUN = {
 };
 
 for (const [lane, activity] of [
-  ["pr-refine", "fix-docs"],
   ["pr-unblock", "resolve-conflicts"],
   ["pr-unblock", "address-feedback"],
   ["pr-unblock", "review-dependency"],
@@ -323,6 +322,22 @@ test("live config: fix-ci runs as a worker on code, opus at the verifier's effor
     "max-turns": 75,
   });
   assert.equal(modelArgs(slot.models), "--model opus --max-turns 75 --effort high");
+});
+
+// The role map's worker runs mechanical work on sonnet at its own effort,
+// medium; the profile keeps standard's 75 turns.
+test("live config: fix-docs runs as a mechanical worker, sonnet at the worker's effort, 75 turns", () => {
+  const slot = liveSlot("pr-refine", "fix-docs");
+  assert.deepEqual(slot.models, {
+    profile: "docs-fix",
+    role: "worker",
+    workload: "mechanical",
+    model: "sonnet",
+    effort: "medium",
+    "subagent-model": "inherit",
+    "max-turns": 75,
+  });
+  assert.equal(modelArgs(slot.models), "--model sonnet --max-turns 75 --effort medium");
 });
 
 // Every route the live config names runs on a routed alias: never empty,

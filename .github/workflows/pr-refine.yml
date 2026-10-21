@@ -1,8 +1,8 @@
 name: pr-refine
 
 # Lane caller for pr-refine: its file stem is the lane, so the lanes token
-# broker accepts its write activities. No App key; the run job's OIDC token is
-# exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.
+# broker accepts its write activities. No App key; the push job's OIDC token
+# is exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
 
 # No synchronize: fix-docs runs once when a PR opens ready or turns ready, not
@@ -20,11 +20,16 @@ on:
 permissions: {}
 
 jobs:
+  # The model job: a read activity with no write token and no OIDC token in
+  # the job that runs head code. The skill fixes the changed Markdown files;
+  # the runner uploads its uncommitted edits as a patch. It runs on the
+  # automations role's API key alone. Every job trusts the default branch
+  # tip: a PR whose base predates this lane's move would run an older runner.
   fix-docs:
     # Pipeline lanes skip draft PRs (docs/conventions/pr-pipeline/README.md).
     # The lanes App's own pull_request events never start a lane: tested here
     # too, so a lane push never waits in the per-PR write queue. Nor does any
-    # other bot's event (standards sync), which claude-code-action refuses.
+    # other bot's event (standards sync).
     if: >-
       (github.event_name != 'pull_request' || !github.event.pull_request.draft)
       && !(github.event_name == 'pull_request'
@@ -39,11 +44,76 @@ jobs:
     concurrency:
       group: pr-pipeline-write-${{ github.event.pull_request.number || inputs.pr-number }}
       queue: max
-    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
       role: automations
       lane: pr-refine
       activity: fix-docs
       pr-number: ${{ inputs.pr-number }}
+      trusted-base: default-tip
+      timeout-minutes: 60
+    secrets:
+      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+
+  # The subscription fallback, as a second call on new VMs: it runs only when
+  # fix-docs's key leg hit a credit stop or its key is empty, which fix-docs
+  # then reports as a handoff with no upload, lane record or check. It reads
+  # only those two outputs, each compared to a fixed string, and holds the
+  # OAuth token alone; fallback picks between two literals.
+  fix-docs-subscription:
+    needs: fix-docs
+    if: >-
+      ${{ !cancelled() && (needs.fix-docs.outputs.lane-class == 'credit-stop'
+      || needs.fix-docs.outputs.credential-present == 'false') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ github.event.pull_request.number || inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-refine
+      activity: fix-docs
+      fallback: ${{ needs.fix-docs.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      pr-number: ${{ inputs.pr-number }}
+      trusted-base: default-tip
+      timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # The push job: apply-patch.mjs, a script with no model that runs no head
+  # code. It checks the patch against the model job's SHA-256 and head,
+  # applies it, refuses what patch-rules.json's default row refuses, and
+  # pushes one commit without force. It runs only on a written patch: no
+  # change is the common case and needs no one. A refused patch posts its
+  # check neutral; this lane has no escalation job. The patch comes from
+  # whichever call ran the activity; a call that handed off left none.
+  apply-patch:
+    needs: [fix-docs, fix-docs-subscription]
+    if: >-
+      ${{ !cancelled() && (needs.fix-docs-subscription.outputs.patch-state || needs.fix-docs.outputs.patch-state) == 'written' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ github.event.pull_request.number || inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-refine
+      activity: apply-patch
+      pr-number: ${{ inputs.pr-number }}
+      trusted-base: default-tip
+      patch-state: ${{ needs.fix-docs-subscription.outputs.patch-state || needs.fix-docs.outputs.patch-state }}
+      patch-sha256: ${{ needs.fix-docs-subscription.outputs.patch-sha256 || needs.fix-docs.outputs.patch-sha256 }}
+      patch-attempt: ${{ needs.fix-docs-subscription.outputs.patch-attempt || needs.fix-docs.outputs.patch-attempt }}
+      patch-activity: fix-docs
+      patch-head-sha: ${{ needs.fix-docs-subscription.outputs.head-sha || needs.fix-docs.outputs.head-sha }}
+      reply-attempt: ${{ needs.fix-docs-subscription.outputs.reply-attempt || needs.fix-docs.outputs.reply-attempt }}

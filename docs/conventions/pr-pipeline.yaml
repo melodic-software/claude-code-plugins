@@ -5,7 +5,12 @@ activities:
   fix-docs:
     skill: ai-slop:audit
     args: fix
-    effect: mutate-branch
+    # Runs the skill's detect script on head files, so no write token: the
+    # read runner turns its uncommitted fixes into a patch that apply-patch
+    # pushes under patch-rules.json's default row.
+    effect: read
+    applied-by:
+      patch: apply-patch
     gating: advisory
     # Head markdown can quote issue, PR or web text.
     reads-untrusted: true
@@ -13,8 +18,8 @@ activities:
     applies-when:
       paths: ["**/*.md"]
       labels-absent: [do-not-merge, needs-human]
-      # Skips a draft PR before any model turn, since the promote step drops
-      # a draft's commits anyway.
+      # Skips a draft PR before any model turn: pipeline lanes leave drafts
+      # alone.
       draft: [false]
   resolve-conflicts:
     skill: source-control:resolve-conflicts
@@ -142,11 +147,12 @@ activities:
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
   apply-patch:
-    # Applies fix-ci's patch to the head fix-ci worked on and pushes it as one
-    # commit, without force. A script, no model, and it runs no head code;
-    # patch-rules.json's ci-context row holds what it admits. Before the mint
-    # the runner checks the patch artifact and the head, and an empty,
-    # invalid or unappliable patch goes to a person.
+    # Applies a producer's patch (fix-ci's, fix-docs's) to the head the
+    # producer worked on and pushes it as one commit, without force. A
+    # script, no model, and it runs no head code; the patch-rules.json row of
+    # the producer's prepare mode (default for none) holds what it admits.
+    # Before the mint the runner checks the patch artifact and the head, and
+    # an empty, invalid or unappliable patch goes to a person.
     script: .github/scripts/apply-patch/apply-patch.mjs
     prepare: apply-patch
     # Pushes the fix to the pull request's branch, nothing else.
@@ -334,6 +340,9 @@ lanes:
     stage: refine
     slots:
       - activity: fix-docs
+      # Runs after fix-docs, in its own job with its own token.
+      - activity: apply-patch
+        needs: [fix-docs]
   pr-unblock:
     stage: unblock
     slots:
@@ -389,9 +398,16 @@ models:
       workload: code
       effort-role: verifier
       max-turns: 75
+    # A mechanical worker (prose fixes against a rule catalog), from the
+    # multi-agent role map; the turn budget standard gave.
+    docs-fix:
+      role: worker
+      workload: mechanical
+      max-turns: 75
   default-profile: standard
   routes:
     fix-ci: code-fix
+    fix-docs: docs-fix
     verify-pr: review
     review-code: pr-review
     review-security: pr-review

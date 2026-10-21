@@ -1297,14 +1297,26 @@ test("run-claude-cli: a read skill without ci-context gets no Bash, Edit or Writ
   assert.doesNotMatch(run.preamble, /context file/);
 });
 
-test("run-claude-cli refuses an issue lane, a writing skill, a patch-producing read skill and a gate before any output", () => {
-  const appliedBy = path.join(mkdtempSync(path.join(root, "launch-ab-")), "resolved.json");
-  writeFileSync(appliedBy, JSON.stringify({ selected: { args: "--ci", "applied-by": { patch: "apply-patch" } } }));
+// A resolved file for the launcher tests: the activity's args plus `extra`.
+function launchResolved(extra) {
+  const file = path.join(mkdtempSync(path.join(root, "launch-ab-")), "resolved.json");
+  writeFileSync(file, JSON.stringify({ selected: { args: "fix", ...extra } }));
+  return file;
+}
+const PATCH = { "applied-by": { patch: "apply-patch" } };
+
+test("run-claude-cli refuses an issue lane, a writing skill, a patch-producing skill with a prepare mode, a gate and any check before any output", () => {
+  const appliedBy = launchResolved(PATCH);
   for (const [overrides, message] of [
     [{ ISSUE_NUMBER: "7" }, /an issue lane runs on claude-code-action/],
     [{ EFFECT: "mutate-branch", CAN_COMMIT: "true" }, /only a read skill/],
-    [{ RESOLVED: appliedBy }, /only a read skill/],
+    [{ RESOLVED: appliedBy, PREPARE: "review-threads" }, /only a read skill/],
+    [{ RESOLVED: appliedBy, PREPARE: "dependency-review" }, /only a read skill/],
+    [{ RESOLVED: appliedBy, PREPARE: "merge-base" }, /only a read skill/],
     [{ GATING: "gate" }, /a gate skill's verdict is not read from the launcher/],
+    [{ RESOLVED: launchResolved({ ...PATCH, checks: ["scripts/check-x.sh --check"] }) }, /checks, self-checks and verify-scripts have no wrapper/],
+    [{ RESOLVED: launchResolved({ ...PATCH, "self-checks": ["scripts/check-x.sh"] }) }, /checks, self-checks and verify-scripts have no wrapper/],
+    [{ RESOLVED: launchResolved({ ...PATCH, "verify-scripts": [VERIFY] }) }, /checks, self-checks and verify-scripts have no wrapper/],
   ]) {
     const run = launch(overrides);
     assert.notEqual(run.status, 0, JSON.stringify(overrides));
@@ -1324,4 +1336,35 @@ test("run-claude-cli: a skill plugin holding a symbolic link fails red", () => {
   assert.notEqual(run.status, 0);
   assert.match(run.stdout, /the skill's plugin holds a symbolic link/);
   assert.deepEqual(run.tools, []);
+});
+
+// fix-docs: a read skill with no prepare mode that hands on a patch gets Bash
+// for its own frontmatter grants (no Bash rule), Edit, Write and Agent, the
+// git directory denied, and the instruction to leave its change uncommitted.
+test("run-claude-cli: a patch-producing skill with no prepare mode gets Bash, Edit, Write and Agent, no Bash rule, and .git denied", () => {
+  const run = launch({ RESOLVED: launchResolved(PATCH), SKILL: "source-control:pull-request" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.tools.toSorted(), ["Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill", "Write"]);
+  assert.deepEqual(run.allowedTools.toSorted(), ["Agent", "Edit", "Glob", "Grep", "Skill(source-control:pull-request)", "Write"]);
+  for (const rule of ["WebFetch", "WebSearch", "Read(./.git/**)", "Read(//proc/**)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)", "Edit(./.lane/trusted-context.json)", "Write(./.lane/trusted-context.json)"]) {
+    assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
+  }
+  assert.equal(run.pluginDirs, ".lane/plugins/source-control");
+  assert.ok(statSync(path.join(run.stageDir, "plugins", "source-control")).isDirectory());
+  assert.ok(statSync(path.join(run.stageDir, "scratch")).isDirectory());
+  assert.ok(run.preamble.includes(`Your scratchpad directory is ${WORKSPACE}/.lane/scratch:`), run.preamble);
+  assert.ok(run.preamble.includes(UNCOMMITTED_SENTENCE), run.preamble);
+  assert.doesNotMatch(run.preamble, /context file/);
+  assert.equal(run.promptFile, "Call the Skill tool with skill source-control:pull-request and args fix, then follow the skill instructions to the end.\n");
+  assert.equal(run.args, "", "no claude_args for the launcher");
+  assert.deepEqual(run.plugins, []);
+});
+
+test("run-claude-cli: a ci-context skill that hands on a patch keeps the ci-context tool set and preamble", () => {
+  const ciDir = mkdtempSync(path.join(root, "ci-launch-ab-"));
+  writeFileSync(path.join(ciDir, "context.json"), "{}");
+  const run = launch({ RESOLVED: launchResolved(PATCH), PREPARE: "ci-context", CI_DIR: ciDir, SKILL: "source-control:pull-request" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.ok(run.allowedTools.includes("Bash"), "ci-context keeps its own tool set");
+  assert.ok(!run.preamble.includes(UNCOMMITTED_SENTENCE), run.preamble);
 });

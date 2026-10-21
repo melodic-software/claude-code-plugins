@@ -541,8 +541,8 @@ to `$RUNNER_TEMP/base-script` before the head checkout and checked against its r
 Read file only, chosen by the activity's `applied-by.patch` in the base config, which names the
 `prepare: apply-patch` script that applies it ([README.md, Activities](README.md#activities));
 `resolve-config` outputs it as `applied-by-patch`. It lets an activity run head code with no
-write token and hand its change to a separate job that holds one; `fix-ci` and `resolve-issue`
-use it. The read file passes `applied-by-supported: patch` to `resolve-config`, so a leaf whose
+write token and hand its change to a separate job that holds one; `fix-docs`, `fix-ci` and
+`resolve-issue` use it. The read file passes `applied-by-supported: patch` to `resolve-config`, so a leaf whose
 `applied-by` sets any other key fails red before the head checkout. A `gating: gate` leaf cannot
 set `applied-by`, and an issue-mode activity must set it. The steps:
 
@@ -589,7 +589,8 @@ Read file, PR mode: a skill runs on ci-workflows'
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`AUTOMATIONS_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
-(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`). The second runs only when the first's `lane-class` output
+(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); `pr-refine.yml`'s `fix-docs` and `fix-docs-subscription`
+do the same. The second runs only when the first's `lane-class` output
 is `credit-stop` or its `credential-present` is `false`, each compared to that fixed string, and
 passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr>`.
 
@@ -602,7 +603,14 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    read-only and has git ignore the directory. `--restricted` reads nothing outside the checkout,
    so `plugin-dirs` is `.lane/plugins/<plugin>`, never `$RUNNER_TEMP`. The tools, allow and deny
    rules come from the stage, with `permission-mode: dontAsk`; the preamble stands in for the
-   system prompt, and the prompt asks for the Skill tool.
+   system prompt, and the prompt asks for the Skill tool. The launcher takes a read skill, either
+   `prepare: ci-context` or one with no prepare mode that hands on a patch (`fix-docs`), and fails
+   red on any other prepare mode with a patch and on `checks`, `self-checks` or `verify-scripts`,
+   which have no wrapper there. The no-prepare patch skill gets the tools `Read`, `Glob`, `Grep`,
+   `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules name its skill, `Grep`, `Glob`,
+   `Edit`, `Write` and `Agent` but no `Bash` rule, so Bash runs only what the skill's own
+   frontmatter grants; its deny rules add `Read(./.git/**)` to the base set; and the preamble says
+   to keep scratch files in `.lane/scratch` and leave every change uncommitted.
 3. One step checks the call's secret is set (only that leaves it), and one launcher step per
    secret runs the skill: `act-key` on the first call, `act-token` on the fallback call, with
    `continue-on-error`, a 50-minute step timeout and a 45-minute leg. setup-python's
@@ -1002,6 +1010,14 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
 The run's `escalation-reason` output is the script's reason, else the select step's. The runner
 accepts the script's reasons only in this mode.
 
+In `pr-refine.yml` the same leaf follows `fix-docs`, which has no prepare mode: the caller passes
+no `patch-prepare`, so the script takes the `default` row, and runs the job only on a `written`
+patch. That row refuses the universal set and the `instruction-path` list, escalating
+`patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
+`--3way` when the moved commits touch no patched path (`skip-moved-head: false`), and commits
+`Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-refine/fix-docs`. The lane has
+no `report-escalation`, so an escalation leaves only the neutral `awaiting-human` check.
+
 In issue mode the same leaf is `apply-issue-patch`, which runs
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) with `PATCH_TARGET=issue`
 and the `issue` row of `patch-rules.json`. The caller passes `patch-base-sha` and
@@ -1026,7 +1042,7 @@ The rules each producer's patch is to be held to are registered in
 producer prepare mode ([README.md, Patch rules](README.md#patch-rules)): the refusals every row
 carries, what else a path must meet, a file cap, the producer output required, the commit's
 parents, message and trailer, and the row's escalation reasons. A row may also name an optional
-refusal, such as `ci-context`'s `instruction-path`.
+refusal, such as the `instruction-path` of `ci-context` and `default`.
 
 ## The summary job
 

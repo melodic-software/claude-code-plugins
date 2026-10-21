@@ -80,7 +80,9 @@ inputs:
       the CI context, a scratch directory and the prompt file are staged in
       $RUNNER_TEMP/lane-stage for the runner to copy to .lane/ after the head
       checkout, and the tool rules name them there. It takes a read skill
-      only (ci-context included), never a gate or an issue lane.
+      only (ci-context included, and one with no prepare mode that hands on
+      a patch), never a gate, an issue lane or an activity with checks,
+      self-checks or verify-scripts.
     required: false
     default: claude-code-action
 
@@ -217,8 +219,11 @@ runs:
         # preamble would not expand.
         if [ "$LAUNCHER" = run-claude-cli ]; then
           [ -z "${ISSUE_NUMBER:-}" ] || fail "run-claude-cli: an issue lane runs on claude-code-action"
-          [ "$edits" = read ] || fail "run-claude-cli: only a read skill, ci-context included, runs on the launcher"
+          [ "$edits" = read ] || { [ "$edits" = patch ] && [ -z "$PREPARE" ]; } ||
+            fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one with no prepare mode that hands on a patch"
           [ "$GATING" = advisory ] || fail "run-claude-cli: a gate skill's verdict is not read from the launcher"
+          jq -e '[.selected.checks, .selected["self-checks"], .selected["verify-scripts"]] | all(. == null or . == [])' "$RESOLVED" >/dev/null ||
+            fail "run-claude-cli: checks, self-checks and verify-scripts have no wrapper on the launcher"
           [[ $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ && $STAGE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
             fail "the workspace or the stage directory has a name a rule cannot carry"
           plugin=${SKILL%%:*}
@@ -243,6 +248,15 @@ runs:
             allowed+=(Bash Edit Write Agent)
             denied+=("Edit(./.lane/ci/**)" "Write(./.lane/ci/**)")
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The context file is $lane/ci/context.json. Leave every fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
+          fi
+          # A skill that hands on a patch with no prepare mode (fix-docs) gets
+          # Bash for the scripts its own frontmatter grants, which alone run
+          # under dontAsk: no Bash rule here. The git directory stays unread.
+          if [ "$edits" = patch ]; then
+            tools+=(Bash Edit Write Agent)
+            allowed+=(Edit Write Agent)
+            denied+=("Read(./.git/**)")
+            preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. Leave every change uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
           fi
           skill_args=$(jq -r '.selected.args // ""' "$RESOLVED")
           for target in "${targets[@]}"; do
