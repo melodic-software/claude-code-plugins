@@ -10,5 +10,6 @@ bump: patch
   `<!-- post-merge-fix check=... -->` first line and the workflow's recurrence comment, both
   `github-actions[bot]`'s, logs how many match, and has the lanes App post a record naming that
   comment, then remove and re-add `agent-ready`: once per recurrence comment, inside the
-  five-a-run cap, and never on an issue that is held, has an open lane PR or a lane run in flight,
+  five-a-run cap, and only when a listed human or the App added its newest `agent-ready`; never on
+  an issue that is held, has an open lane PR or a lane run in flight,
   or had `agent-ready` added since the reopen.

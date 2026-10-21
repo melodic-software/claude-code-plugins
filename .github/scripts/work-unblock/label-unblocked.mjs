@@ -60,7 +60,8 @@
 // GITHUB_TOKEN, which starts no run. An open agent-ready issue filed by
 // github-actions[bot] with a `<!-- post-merge-fix check=... -->` first line
 // and a newest github-actions[bot] recurrence comment, with no agent-ready
-// added since that comment, no hold, no open lane PR and no lane run in
+// added since that comment, its newest agent-ready added by a listed human
+// or the App, no hold, no open lane PR and no lane run in
 // flight, gets a record naming that comment and agent-ready removed and added
 // by the App. Relabels share limits.restarts-per-run, and the count is logged
 // before any of them.
@@ -480,7 +481,7 @@ async function runsInFlight(actions, repo) {
 // it is not relabeled now, or null with what to do. Null for any other issue,
 // and for one agent-ready was added to since the reopen, which the restart
 // and re-fire rules then take.
-async function recurrenceRefusal({ github, repo, issue, bot, inFlight }) {
+async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight }) {
   if (issue.user?.login !== ALERT_BOT || !FIX_ISSUE.test(String(issue.body ?? ""))) {
     return null;
   }
@@ -499,6 +500,12 @@ async function recurrenceRefusal({ github, repo, issue, bot, inFlight }) {
   const events = await paginate(github, `${base}/events`);
   if (events.some((event) => isLabel(event, "labeled") && Date.parse(event.created_at) >= at)) {
     return null;
+  }
+  // The App's re-add admits on its own, so it may only repeat a label that
+  // admission would take: a listed human's or the App's own.
+  const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
+  if (lastAdd === undefined || (lastAdd.actor?.login !== bot && !humans.has(lastAdd.actor?.id))) {
+    return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
   const held = (issue.labels ?? []).map((label) => String(typeof label === "string" ? label : label.name).toLowerCase()).find((label) => HOLDS.has(label));
   if (held) {
@@ -752,7 +759,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   for (const issue of open) {
     try {
       const verdict =
-        (await recurrenceRefusal({ github, repo, issue, bot, inFlight })) ??
+        (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight })) ??
         (await restartRefusal({
           github,
           actions,

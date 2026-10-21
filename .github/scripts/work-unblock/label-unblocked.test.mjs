@@ -1843,3 +1843,29 @@ test("a relabel record that fails, as on a locked issue, is warned about and the
   assert.deepEqual(writes(calls), relabeled(30));
   assert.ok(log.mock.calls.some((call) => String(call.arguments[0]).startsWith("::warning title=label-unblocked::#30: the relabel record was not posted")));
 });
+
+// A label admission refused must not become a credentialed run through the
+// App's re-add: the newest agent-ready must be a listed human's or the App's.
+const STRANGER = { id: 777, login: "triage-user" };
+const unlabeledBy = (actor, at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor, created_at: at });
+for (const [name, events] of [
+  ["a user who is not listed", [added("2026-10-10T09:00:00Z", STRANGER)]],
+  ["github-actions[bot]", [added("2026-10-10T09:00:00Z", ALERT)]],
+  ["the owner, then removed and re-added by a user who is not listed", [added("2026-10-10T09:00:00Z", OWNER), unlabeledBy(OWNER, "2026-10-12T09:00:00Z"), added("2026-10-12T10:00:00Z", STRANGER)]],
+  ["no account (no label event at all)", []],
+]) {
+  test(`a reopened fix issue whose agent-ready was added by ${name} is never relabeled`, async (t) => {
+    const log = t.mock.method(console, "log", () => {});
+    const { github, actions, calls } = reopened({ events });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), []);
+    const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+    assert.ok(lines.includes("label-unblocked: #30 not restarted: agent-ready was added by neither a listed human nor the lanes App"), lines.join("\n"));
+  });
+}
+
+test("a reopened fix issue whose agent-ready the App added is relabeled like a listed human's", async () => {
+  const { github, actions, calls } = reopened({ events: [added("2026-10-10T09:00:00Z")] });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), relabeled(30));
+});
