@@ -437,6 +437,16 @@ whole session; "@Claude" in chat or a Discussion always asks for everyone.
   answer back in that message. Only the owner shares it again; Discard is refused (409
   `wrong-status`) on a `private` answer, which its asker already has. A digest already sent keeps
   what it listed.
+- **Move.** `/api/request/act {action: "move", id, qid}` (or `scope: "session"` for the whole
+  session) puts a request and its result on another question, one a second. Only its asker or the
+  owner moves it; anyone else reads 404 `no-such-request`, and every other action stays the owner's
+  (403 `owner-only`). An unknown question reads 404, the place it is already 409 `same-place`, a
+  running request 409 `wrong-status`, and a request on the asker's own Claude stays on a question.
+  Once the host has taken up a request on the host's Claude (any status but `pending`), only the
+  owner moves it (409 `taken-up`); a waiting one its asker moves reads unread again in the owner's
+  Inbox. A result any answer cites stays put (409 `cited`). A shared result its asker moves waits for the
+  owner's Share again; one the owner moves stays shared, and on the whole session it becomes
+  Claude's chat message, as a Share makes it.
 
 ## Connect your Claude
 
