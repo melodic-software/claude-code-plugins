@@ -977,8 +977,13 @@ announced operator step.
 
 `--unattended` on the merge gate runs it under the unattended merge policy. It stays off unless
 the repository's `docs/conventions/pr-pipeline.yaml`, read at the pull request's base SHA and at
-the default branch head (each setting the stricter of the two, the identity the same at both), sets
-`merge.authority: local-babysit` and a `merge.agent-identity`. The gate decides in this order, and
+the default branch head, sets `merge.authority: local-babysit` and a `merge.agent-identity`. Each
+setting takes the stricter of the two values, except `merge.risk-escalation-minutes`, which keeps
+the base's, and `merge.max-in-flight`, read at the head alone so a raised cap applies at once. A
+different authority, or an identity set on one side only, is the stop `authority-differs`; two
+different identities refuse. During an authority switch, the old lane's runs on pull requests whose
+base predates the switch stop with `authority-differs` and dequeue the identity's entries, the new
+lane's included, until those bases move past the switch. The gate decides in this order, and
 any refusal is the blocker `unattended merge refused: <reason>`:
 
 1. Identity: the token acts as `merge.agent-identity`. Then the credential chokepoint:

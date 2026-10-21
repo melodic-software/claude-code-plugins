@@ -3562,11 +3562,16 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             "denied_paths": {".github/**", "docs/**"},
             "floor_paths": {"a/**", "b/**"},
             "floor_script_scopes": {"s/**", "t/**"},
-            "check_inputs": {"x/**", "y/**"},
         }
         for name, value in unions.items():
             with self.subTest(setting=name):
                 self.assertEqual(set(getattr(config, name)), value)
+        with self.subTest(setting="check_inputs"):
+            # Both lists are read, each in its own diff.
+            self.assertEqual(
+                set(config.check_inputs) | set(config.head_check_inputs),
+                {"x/**", "y/**"},
+            )
 
     def test_a_stricter_main_tightens_every_setting(self) -> None:
         self.moved(
@@ -3600,8 +3605,9 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         result = self.lane_assess(post_merge=lambda floor, who: gate())
         self.assertEqual(result.reason, "rung-off:merge.rung")
 
-    def test_main_dropping_the_pipeline_or_identity_refuses(self) -> None:
-        # Either leaves main's identity unset, which differs from the base's.
+    def test_main_dropping_the_pipeline_or_identity_stops_the_lane(self) -> None:
+        # Either switches the lane off on main: a stop, as rung: off is, so
+        # the identity's queued entries leave.
         for main in (
             None,
             LOOSE_PIPELINE.replace("  agent-identity: agent-lanes[bot]\n", ""),
@@ -3609,8 +3615,50 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             with self.subTest(main=main):
                 self.moved(LOOSE_PIPELINE, main)
                 self.lane_clear()
-                with self.assertRaises(policy.PolicyReadError):
-                    self.lane_assess(post_merge=lambda floor, who: gate())
+                result = self.lane_assess(post_merge=lambda floor, who: gate())
+                self.assertEqual(result.reason, "authority-differs")
+                self.assertEqual(result.inputs["identity"], IDENTITY)
+
+    def test_an_implicit_and_an_explicit_pr_merge_authority_agree(self) -> None:
+        implicit = LOOSE_PIPELINE.replace("  authority: pr-merge\n", "")
+        for base, main in ((implicit, LOOSE_PIPELINE), (LOOSE_PIPELINE, implicit)):
+            with self.subTest(base=base is implicit):
+                self.moved(base, main)
+                self.lane_clear()
+                result = self.lane_assess(post_merge=lambda floor, who: gate())
+                # Past the authority and identity checks: the path stays enabled.
+                self.assertIs(result.enabled, True)
+
+    def test_an_identity_differing_only_in_case_agrees(self) -> None:
+        self.moved(
+            LOOSE_PIPELINE,
+            LOOSE_PIPELINE.replace("agent-lanes[bot]", "Agent-Lanes[bot]"),
+        )
+        self.lane_clear()
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        # Past the authority and identity checks: the path stays enabled.
+        self.assertIs(result.enabled, True)
+
+    def test_main_turning_dependabot_enforce_down_reports_a_dependabot_pr(
+        self,
+    ) -> None:
+        # A Dependabot pull request's report-only is its own mode short of
+        # enforce, recomputed from the combined config.
+        gh = self.moved(LOOSE_PIPELINE, STRICT_PIPELINE)
+        gh.rest[f"repos/{REPO}/pulls/1"]["user"] = {
+            "login": "dependabot[bot]",
+            "type": "Bot",
+        }
+        tier = policy.dependabot.Classification("auto")
+        self.lane_clear()
+        with mock.patch.object(
+            policy,
+            "dependabot_eligibility",
+            return_value=policy.Eligibility(True, None, "C2", dependabot=tier),
+        ):
+            result = self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertIs(result.details["reportOnly"], True)
+        self.assertEqual(result.details["dependabot"]["mode"], "report")
 
     def test_main_enabling_another_authority_disables_the_lane(self) -> None:
         self.moved(LOOSE_PIPELINE, LOOSE_PIPELINE.replace("pr-merge", "local-babysit"))
@@ -3642,14 +3690,15 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         with self.assertRaises(policy.PolicyReadError):
             self.lane_assess(post_merge=lambda floor, who: gate())
 
-    def test_the_plain_merge_identity_read_refuses_a_different_identity_on_main(
+    def test_the_plain_merge_identity_read_names_both_identities(
         self,
     ) -> None:
         self.moved(
             LOOSE_PIPELINE, LOOSE_PIPELINE.replace("agent-lanes[bot]", "other[bot]")
         )
-        with self.assertRaises(policy.PolicyReadError):
-            policy.resolve(REPO, 1)
+        resolved = policy.resolve(REPO, 1)
+        self.assertEqual(resolved.agent_identity, IDENTITY)
+        self.assertEqual(resolved.details["agentIdentities"], [IDENTITY, "other[bot]"])
 
     def test_main_is_read_once_per_cache_window_and_a_failure_never_saved(
         self,
@@ -3705,8 +3754,11 @@ class TheStricterConfigEdges(unittest.TestCase):
                 main = dataclasses.replace(
                     base, base_sha=MAIN_SHA, check_inputs=("scripts/b.txt", exclude)
                 )
-                combined = policy.stricter_config(base, main).check_inputs
-                self.assertEqual(set(combined), {"scripts/a.txt", "scripts/b.txt"})
+                combined = policy.stricter_config(base, main)
+                # Each list is listed on its own, so main's exclude reaches
+                # only main's paths.
+                self.assertEqual(combined.check_inputs, ("scripts/a.txt",))
+                self.assertEqual(combined.head_check_inputs, ("scripts/b.txt", exclude))
 
     def test_a_malformed_cached_main_config_is_read_again(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -4405,15 +4457,29 @@ class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
     `merge.agent-identity`, read from a real pipeline file through the config
     reader and the shared YAML reader, exits 10 before any evaluation or write."""
 
-    def run_main(self, login: str) -> tuple[int, dict[str, Any]]:
+    def run_main(
+        self, login: str, main_identity: str | None = None
+    ) -> tuple[int, dict[str, Any]]:
         import contextlib
         import io
 
         import babysit_merge as merge
 
-        gh = config_fake(self, PIPELINE.replace("local-babysit", "pr-merge"))
+        pipeline = PIPELINE.replace("local-babysit", "pr-merge")
+        gh = config_fake(self, pipeline)
         gh.rest[f"repos/{REPO}"] = {"default_branch": "main"}
         gh.rest[f"repos/{REPO}/commits/main"] = {"sha": SHA}
+        if main_identity is not None:
+            # Main has moved to a head that names another identity.
+            gh.rest[f"repos/{REPO}/commits/main"] = {"sha": MAIN_SHA}
+            gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
+            for path, text in (
+                (policy.CONFIG_PATH, pipeline.replace(IDENTITY, main_identity)),
+                (policy.SOURCE_CONTROL_PATH, SOURCE_CONTROL),
+            ):
+                gh.rest[f"repos/{REPO}/contents/{path}?ref={MAIN_SHA}"] = file_payload(
+                    text
+                )
         # The config is read at the pull request's base SHA (S4), and at main's head.
         gh.rest[f"repos/{REPO}/pulls/1"] = {
             "number": 1,
@@ -4443,6 +4509,14 @@ class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
         self.assertEqual(code, 10)
         self.assertEqual(out["agentIdentity"], IDENTITY)
         self.assertEqual(out["actingLogin"], "Agent-Lanes[bot]")
+
+    def test_either_sides_identity_token_is_refused_after_a_rotation(self) -> None:
+        for login, named in (("Other[bot]", "other[bot]"), (IDENTITY, IDENTITY)):
+            with self.subTest(login=login):
+                code, out = self.run_main(login, main_identity="other[bot]")
+                self.assertEqual(code, 10)
+                self.assertEqual(out["agentIdentity"], named)
+                self.assertEqual(out["actingLogin"], login)
 
 
 DEPENDABOT_EMAIL = "49699333+dependabot[bot]@users.noreply.github.com"

@@ -177,9 +177,10 @@ class UnattendedPolicy:
 def resolve(repo: str, number: int | None = None) -> UnattendedPolicy:
     """The configured agent identity, for the plain `--merge` refusal: the
     pipeline config at the pull request's base SHA combined with the default
-    branch head's (`with_default_branch`; the head's alone without a
-    number). It never permits a merge. Raises `PolicyReadError` when a
-    pipeline config cannot be read or parsed, or the identities differ."""
+    branch head's (the head's alone without a number). It never permits a
+    merge. With a number, `details["agentIdentities"]` names every identity
+    either side sets, so the plain path refuses each one's token. Raises
+    `PolicyReadError` when a pipeline config cannot be read or parsed."""
     if number is None:
         _, sha = _default_branch_head(repo)
     else:
@@ -187,10 +188,21 @@ def resolve(repo: str, number: int | None = None) -> UnattendedPolicy:
     config = read_config_at(repo, sha)
     if config.error:
         raise PolicyReadError(f"{CONFIG_PATH} at {sha}: {config.error}")
+    configs = [config]
     if number is not None:
-        config = with_default_branch(repo, config)
+        configs.append(_default_branch_config(repo))
+    identities: list[str] = []
+    for c in configs:
+        login = (c.agent_identity or "").strip()
+        if login and login.casefold() not in {i.casefold() for i in identities}:
+            identities.append(login)
     reason = NOT_ASSESSED if enabled_authority(config) else AUTHORITY_UNCONFIGURED
-    return UnattendedPolicy(reason, config.agent_identity, enabled=False)
+    return UnattendedPolicy(
+        reason,
+        identities[0] if identities else None,
+        {"agentIdentities": identities} if number is not None else None,
+        enabled=False,
+    )
 
 
 # --- Bash, for the shared YAML reader -----------------------------------------
@@ -485,6 +497,9 @@ class PipelineConfig:
     # pr-merge lane updates its branch from the base instead of enqueuing it
     # (`babysit_check_inputs`). Absent or empty, nothing is updated.
     check_inputs: tuple[str, ...] = ()
+    # The default branch head's `merge.check-inputs` not in `check_inputs`,
+    # set by `stricter_config` and read on its own.
+    head_check_inputs: tuple[str, ...] = ()
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -748,10 +763,10 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
     default branch advances, so a tightening on main reaches open pull
     requests here, and a pull request still cannot drop its base's
     declaration. The timing-only `risk_escalation_minutes` keeps the base's.
-    Raises `PolicyReadError` when the agent identities differ."""
-    if (base.agent_identity or "").strip().casefold() != (
-        main.agent_identity or ""
-    ).strip().casefold():
+    An identity set on one side only switches the lane off, as a different
+    authority does; raises `PolicyReadError` when both are set and differ."""
+    identities = {(c.agent_identity or "").strip().casefold() for c in (base, main)}
+    if "" not in identities and len(identities) > 1:
         raise PolicyReadError(
             f"merge.agent-identity is {base.agent_identity!r} at the base "
             f"{base.base_sha} and {main.agent_identity!r} at the default branch "
@@ -765,7 +780,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         base,
         rung=min(base.rung, main.rung, key=RUNG_RANK.__getitem__),
         authority=base.authority
-        if enabled_authority(base) == enabled_authority(main)
+        if enabled_authority(base) == enabled_authority(main) and len(identities) == 1
         else AUTHORITY_CONFLICT,
         max_changed_lines=_cap(base.max_changed_lines, main.max_changed_lines),
         denied_paths=_union(base.denied_paths, main.denied_paths),
@@ -786,11 +801,10 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         c2_contradictions=base.c2_contradictions or main.c2_contradictions,
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
-        # A pathspec with magic (`:!x`, `:(exclude)x`) from main is dropped:
-        # the lists share one `git diff`, where an exclude would remove a
-        # base path.
-        check_inputs=_union(
-            base.check_inputs, tuple(p for p in main.check_inputs if p[:1] != ":")
+        # Main's own list, read in a `git diff` of its own, so an exclude or a
+        # bad entry on either side cannot cancel the other's paths.
+        head_check_inputs=tuple(
+            p for p in main.check_inputs if p not in base.check_inputs
         ),
         # The gate reads it at the head (`_run_max_in_flight`); this is only
         # the fallback when that read fails, which never exceeds main's.
@@ -799,6 +813,10 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
 
 
 DEFAULT_BRANCH_CONFIG_SECTION = "default-branch-config"
+# Repositories whose default branch head config this process took from the
+# run cache, with the head it was read at; `unattended_enqueue` reads the
+# head again before an enqueue.
+SHARED_HEAD_CONFIGS: dict[str, str] = {}
 
 
 def _cached_config(value: Any) -> PipelineConfig | None:
@@ -838,6 +856,7 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                     c.floor_paths,
                     c.floor_script_scopes,
                     c.check_inputs,
+                    c.head_check_inputs,
                 )
             )
             and all(
@@ -870,6 +889,7 @@ def _default_branch_config(repo: str, branch: str | None = None) -> PipelineConf
         run_cache.get(DEFAULT_BRANCH_CONFIG_SECTION, repo, run_cache.MAX_AGE)
     )
     if cached is not None:
+        SHARED_HEAD_CONFIGS[repo] = cached.base_sha
         return cached
     _, head = _default_branch_head(repo, branch)
     config = read_config_at(repo, head)
