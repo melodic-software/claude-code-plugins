@@ -250,9 +250,14 @@ the broker request, and no other permission; it never holds `checks: write` or `
     `$RUNNER_TEMP/setup-env`, so no head code runs before the skill's own Bash; a read skill that
     needs the head's own packages runs `npm ci` there.
     Then runs the activity (below) and, in the read file, records whether the tree is dirty, or
-    in [patch output mode](#patch-output-mode) collects the change as a patch.
+    in [patch output mode](#patch-output-mode) collects the change as a patch. Both run the
+    base's `collect-patch.sh`, so no git config the activity planted in `.git` runs, and the
+    dirty-tree check prints no path. After them, a PR-mode read run removes `.git` and `.base/.git`
+    from the workspace, so neither `actions/checkout` post step finds a `.git/config` to run git
+    in.
 13. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
-    `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
+    `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt. In the read file
+    the [scan job](#the-scan-job) does this instead.
 14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,
     pinned by SHA, so no binary resolved through `PATH` or `BASH_ENV` runs with the token, sends
     `DELETE /installation/token` with it, then `GET /installation/repositories`. It never fails
@@ -498,7 +503,7 @@ forge it, for example by writing a `$RUNNER_TEMP` file-command file such as one 
 at, or by leaving a process running. Tests, linters and builds that gate run as a `script` activity,
 or under a separate design that judges their result in a job head code never touched.
 
-The job's step summary shows the skill's final reply (at most 4000 characters, backticks
+The step summary (in a PR-mode read run, the scan job's) shows the skill's final reply (at most 4000 characters, backticks
 neutralized) for audit. It is model output, printed as data. The same text is uploaded as the
 artifact `skill-reply-<lane>-<activity>-<run_attempt>` (7-day retention) whenever the skill step
 ran, as audit evidence, because the REST API cannot read step summaries. Nothing in the workflow
@@ -557,7 +562,8 @@ set `applied-by`, and an issue-mode activity must set it. The steps:
    filter, hook, fsmonitor or include the activity wrote into `.git` runs. A failed, cancelled or
    turnless act step collects nothing and the check fails as usual.
 3. A non-empty patch is uploaded as the artifact `patch-<lane>-<activity>-<run attempt>`, holding
-   one file, `patch.diff` (7-day retention). The run's `patch-state` output is then `written`,
+   one file, `patch.diff` (7-day retention): in PR mode by the [scan job](#the-scan-job), after
+   its scan, in issue mode by the run job. The run's `patch-state` output is then `written`,
    `patch-sha256` is that file's SHA-256 and `patch-attempt` is the attempt in the artifact's name.
    No change is `patch-state` `empty`, with no artifact and the other two empty. A run that
    collected no patch leaves all three empty.
@@ -565,8 +571,8 @@ set `applied-by`, and an issue-mode activity must set it. The steps:
    collected no patch), and the check is
    `success` titled `Passed: patch written` or `Passed: no changes`.
 
-Head code ran in the job that writes the patch, its SHA-256 and the verdict, and could have
-replaced the collector copy or the patch, so none of them is trusted: the SHA-256 only binds the
+Head code ran in the job that collects the patch, and could have replaced the collector copy or
+the patch, so neither the patch nor the run outputs the verdict is built from is trusted: the SHA-256 only binds the
 artifact to this run's output. A job that applies the patch downloads it by `patch-attempt`, so a
 re-run of that job alone still finds it. Before applying it, that job must check that:
 
@@ -610,26 +616,15 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    `continue-on-error`, a 50-minute step timeout and a 45-minute leg. setup-python's
    `LD_LIBRARY_PATH` is cleared for the launcher, which refuses a loader variable.
 4. The first call hands off (`handed-off: true`) when its key is empty or its key leg ends in a
-   credit stop. It then uploads no reply, patch or verdict, records no lane outcome, collects no
-   patch and posts no check, so the fallback call's artifacts and check are the run's. Otherwise
+   credit stop. It then skips the scan job, so it uploads no reply, patch or verdict, and records
+   no lane outcome, collects no patch and posts no check, so the fallback call's artifacts and check are the run's. Otherwise
    the call records its lane outcome with `report-lane-outcome`, on the fallback call under the
    name `<lane>/<activity> (key <ROLE>_CLAUDE_API_KEY hit a credit stop)` or `(... is empty)`.
 5. The run job's last step fails it when the launcher left no success and the call did not hand
    off, an empty token on the fallback call included.
-6. Before any upload or step summary, `leak-scan` runs the base's `findSecret`
-   (`lib/publish-gate.mjs`, read through the API at the base SHA, never from the checkout) over the
-   reply, the run fields, the patch, every changed or untracked file and the execution file (each
-   string in its JSON on its own lines, and its raw bytes for credential formats). It applies the
-   patch as apply-patch does, onto the gated head's objects copied through `git index-pack`, and
-   scans every file the patch makes. It scans copies of the reply, the run fields and the patch,
-   which the uploads and the summary then read, and the run's `patch-sha256` is the scanned copy's.
-   A credential format fails the run naming the pattern and asking for rotation, uploads and
-   summarizes nothing, and leaves `patch-state` empty. A patch that does not apply, or a scan that
-   does not finish within the step's timeout, fails it without the rotation line. A
-   `password or secret assignment` on a plain line only warns, naming the kind of source, never its
-   path; beside markup or escapes the gate folds it blocks as
-   `assignment hidden by markup or escapes`, without the rotation line. File names are scanned
-   too.
+6. The run job uploads nothing and writes no step summary. It hands the reply, the run fields and
+   the patch to the [scan job](#the-scan-job) as job outputs, which the scan job scans before
+   anything is published.
 
 The issue lane's skill stays on claude-code-action.
 
@@ -1041,6 +1036,54 @@ carries, what else a path must meet, a file cap, the producer output required, t
 parents, message and trailer, and the row's escalation reasons. A row may also name an optional
 refusal, such as `ci-context`'s `instruction-path`.
 
+## The scan job
+
+Read file: runs after the run job when it succeeded or failed, unless the run was cancelled or the
+call handed off, on a fresh `ubuntu-24.04` VM. It holds `contents: read` and nothing else: no
+secret, no `id-token`, no cache, and nothing from the run job but its outputs. run-claude-cli's
+contract puts the reporting and uploads of a lane that grants unrestricted Bash in a downstream
+job that validates its inputs
+([`action.yml`](https://github.com/melodic-software/ci-workflows/blob/7b362428c76085a160e28656cd2c75c3147a69ff/.github/actions/run-claude-cli/action.yml)).
+
+The carrier. After the collector, a PR-mode run job writes each of `reply.txt`, `act-turns.json`
+and `patch.diff` as `carry-<name>-b64-<n>` job outputs, base64 in chunks of 98304 characters so
+each fits one environment variable, with `carry-<name>-sha256` and `carry-<name>-bytes`. The caps
+are 16 KiB for the reply, 32 KiB for the run fields (at most four `<local-command-stderr>`
+entries) and 256 KiB for the patch; a payload over its cap carries only its byte count. None is a
+`workflow_call` output, so no caller can echo one. In order:
+
+1. Decodes each payload from `env`, never inlined into a script, and fails closed, publishing
+   nothing, on:
+   - `too-large`: a byte count over the cap;
+   - `output-withheld`: a chunk the runner left empty, as it does for an output that may hold a
+     secret
+     ([`jobs.<job_id>.outputs`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs));
+     it asks for rotation;
+   - `payload-mismatch`: any other hash, byte count or base64 mismatch, or a patch that does not
+     match the state its collector reported;
+   - `bad-output`: a run job output set after head code (`skip-reason`, `dirty-tree`,
+     `patch-collected`, `act-outcome`, `lane-class`) or a gate field outside its closed set.
+2. Checks out the gated `head-sha` with `persist-credentials: false` when a patch arrived.
+3. `leak-scan` runs the base's `findSecret` (`lib/publish-gate.mjs`, read through the API at the
+   base SHA, never from a checkout) over the reply, the run fields and the patch. It applies the
+   patch as apply-patch does, onto the gated head's objects copied through `git index-pack`, and
+   scans every file the patch makes, by name and bytes. It scans copies, which the uploads and the
+   summary then read, and the run's `patch-sha256` is the scanned copy's. A credential format
+   fails the job naming the pattern and asking for rotation, uploads and summarizes nothing, and
+   leaves `patch-state` empty. A patch that does not apply, or a scan that does not finish within
+   the step's timeout, fails it without the rotation line. A `password or secret assignment` on a
+   plain line only warns, naming the kind of source, never its path; beside markup or escapes the
+   gate folds it blocks as `assignment hidden by markup or escapes`, without the rotation line.
+4. After a clean scan, writes the step summary and uploads `skill-reply-*` and `patch-*`, with
+   `overwrite: false`.
+5. Builds `verdict.json` from the run job's checked outputs and its own patch upload, and uploads
+   `verdict-*` (`overwrite: false`) once every step before it succeeded. A run that stopped
+   before head code skips the scan and still posts its skip; a scan hit leaves no verdict.
+
+Its `patch-state`, `patch-sha256`, `patch-attempt` and `reply-attempt` outputs are the read
+file's in PR mode; in issue mode the run job's, which still uploads its own reply, patch and
+outcome. The issue lane's run job holds the OAuth token alone and runs no scan.
+
 ## The summary job
 
 Read file, issue mode only: runs after the run job, unless the run was cancelled, when the run
@@ -1073,7 +1116,7 @@ runs with `!cancelled()`, so it opens the PR whether this job succeeded, failed 
 
 ## The report job
 
-Runs after the run job whatever its result, with `checks: write`, `contents: read` and
+Runs after the run job (and, in the read file, the scan job) whatever its result, with `checks: write`, `contents: read` and
 `pull-requests: read`, no model step, and a 10-minute timeout. It checks out the default branch
 tip, with full history, to `.base`, then checks out the run job's `base-sha` output only when that
 SHA is an ancestor of the tip; otherwise it stays on the tip. It never checks out the event's base
@@ -1134,12 +1177,15 @@ Claude OAuth token. Two routes reach it and the activity's GitHub token:
 Both are mitigations for the OAuth token and the activity's own GitHub token. The App key is kept
 off every runner by the broker instead: no workflow holds it.
 
-The verdict is written after head code ran in the same job, so it is never trusted: its lane,
+The verdict is built from run job outputs some of which are set after head code ran (in the write
+file, in the same job), so it is never trusted: its lane,
 activity, gate stop reason and `head-sha` must match the values above or the check fails, and its
 `dirty-tree` counts only as `true` (failure); its `patch` field only picks the title of a success. A missing verdict is a failure. A cancelled run job
 posts neutral `superseded-sha` only when the PR's current head SHA is non-empty and differs from
 the gated `head-sha`; a cancel with no newer head, such as a manual cancel or a timeout, is a
-failure. The full decision order is in the report-check-run README.
+failure. In the read file the run result passed to `report-check-run` is the scan job's when the
+broker check and the run job succeeded, so a failed scan fails the check. The full decision order
+is in the report-check-run README.
 
 ## Secrets and the two files
 

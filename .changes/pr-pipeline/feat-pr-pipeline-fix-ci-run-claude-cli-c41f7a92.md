@@ -26,6 +26,16 @@ bump: minor
   leak scan applies the patch onto the gated head, as apply-patch does, and scans every file it
   makes; it scans copies of the reply and patch that the uploads then read, and the run's
   `patch-sha256` is the scanned copy's.
+- The read runner's PR-mode model job uploads nothing and writes no step summary. It hands the
+  reply, the run fields and the patch to a new scan job as base64 job outputs, each with its
+  SHA-256 and byte count, with the patch capped at 256 KiB. The scan job runs with `contents: read`
+  and no secret or `id-token`, fails closed on a withheld, oversize or mismatched output, scans
+  against a fresh checkout of the gated head, and is the only job that uploads the reply, patch
+  and verdict
+  ([pr-run-activity.md, The scan job](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#the-scan-job)).
+- The read runner's dirty-tree check runs through `collect-patch.sh` and prints no path, and a
+  PR-mode run removes the workspace's `.git` and `.base/.git` after the collector, so no git
+  config the model planted runs after its legs.
 
 ### Removed
 
