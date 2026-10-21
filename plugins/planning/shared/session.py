@@ -621,8 +621,8 @@ def _person_name(body, *, empty_ok=False):
 # the interpreter's Unicode tables trail new emoji, which read as unassigned until they catch up.
 _HIDDEN = re.compile(
     "(\U0001f3f4[\U000e0030-\U000e0039\U000e0061-\U000e007a]{3,7}\U000e007f)"  # a subdivision flag: 3 to 7 tag a-z or 0-9
-    "|[\x00-\x08\x0b-\x1f\x7f-\x9f؜​‎‏‪-‮⁠-⁤⁦-⁯﻿￹-￻"
-    "\ud800-\udfff-\U000e0000-\U000e007f\U000f0000-\U0010ffff]"
+    "|[\x00-\x08\x0b-\x1f\x7f-\x9f\u061c\u200b\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb"
+    "\ud800-\udfff\ue000-\uf8ff\U000e0000-\U000e007f\U000f0000-\U0010ffff]"
 )
 
 
@@ -763,7 +763,7 @@ def _asset_type(data, wanted):
     if found is None and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         found = "webp"
     if found is None:
-        head = data[:2048].decode("utf-8", "replace").lstrip("﻿ \t\r\n").lower()
+        head = data[:2048].decode("utf-8", "replace").lstrip("\ufeff \t\r\n").lower()
         if head.startswith(("<!doctype html", "<html")):
             found = "html"
         elif head.startswith(("<svg", "<?xml")) and "<svg" in head:

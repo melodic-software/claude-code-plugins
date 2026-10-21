@@ -17,6 +17,7 @@ import stat
 import sys
 import tempfile
 import threading
+import unicodedata
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -2064,7 +2065,7 @@ class TestHiddenCharacters(SessionCase):
         self.open_round(text_q("Q1"))
 
     def test_bidi_overrides_are_dropped_from_an_answer_a_chat_message_a_request_and_a_comment(self):
-        spoof = "Pay ‮redro‬ ⁦now⁩‏"
+        spoof = "Pay \u202eredro\u202c \u2066now\u2069\u200f"
         self.act("answer", self.ann, {"qid": "Q1", "text": spoof, "view": "focus"})
         self.act("chat", self.ann, {"text": spoof})
         rid = self.act("request", self.ann, {"qid": "Q1", "kind": "ask", "text": spoof})["id"]
@@ -2076,9 +2077,9 @@ class TestHiddenCharacters(SessionCase):
         self.assertEqual(got, ["Pay redro now"] * 4)
 
     def test_emoji_sequences_tabs_and_line_breaks_survive(self):
-        family = "\U0001f468‍\U0001f469‍\U0001f467"  # ZWJ sequence
+        family = "\U0001f468\u200d\U0001f469\u200d\U0001f467"  # ZWJ sequence
         england = "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"  # emoji tag sequence
-        text = f"Us: {family} {england} ❤️\nCol\tumn"
+        text = f"Us: {family} {england} \u2764\ufe0f\nCol\tumn"
         self.act("chat", self.ann, {"text": text})
         self.assertEqual(self.s.state["chat"][-1]["text"], text)
 
@@ -2087,7 +2088,7 @@ class TestHiddenCharacters(SessionCase):
         self.assertEqual(self.s.state["chat"][-1]["text"], "one\ntwo\nthree")
 
     def test_invisible_text_tag_smuggling_controls_and_lone_surrogates_are_dropped(self):
-        self.act("chat", self.ann, {"text": "o​k\U000e0069\U000e0067\U000e006e \x07﻿\ud800fine\x00"})
+        self.act("chat", self.ann, {"text": "o\u200bk\U000e0069\U000e0067\U000e006e \x07\ufeff\ud800\ue000fine\x00"})
         self.assertEqual(self.s.state["chat"][-1]["text"], "ok fine")
 
     def test_tag_text_after_a_black_flag_is_dropped(self):
@@ -2110,8 +2111,20 @@ class TestHiddenCharacters(SessionCase):
         self.refused("bad-guest-key", "join", None, {"name": "Bo", "key": key + "\u200b"}, http=403)
 
     def test_a_field_of_only_hidden_characters_is_refused_as_empty(self):
-        self.refused("empty", "chat", self.ann, {"text": "‮​\x00 ⁦"}, http=400)
-        self.refused("empty", "request", self.ann, {"qid": "Q1", "kind": "ask", "text": "\U000e0041﻿"}, http=400)
+        self.refused("empty", "chat", self.ann, {"text": "\u202e\u200b\x00 \u2066"}, http=400)
+        self.refused("empty", "request", self.ann, {"qid": "Q1", "kind": "ask", "text": "\U000e0041\ufeff"}, http=400)
+
+
+class TestSourceText(unittest.TestCase):
+    def test_no_source_file_holds_an_invisible_or_reordering_character(self):
+        """Trojan Source (CVE-2021-42574): a bidi control, zero-width or private-use character in the code makes it
+        read differently than it runs, so the shared code writes every such character as an escape."""
+        here = Path(__file__).resolve().parent
+        found = []
+        for path in sorted([*here.parent.glob("*.py"), *here.glob("*.py")]):
+            for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                found += [f"{path.name}:{n} U+{ord(c):04X}" for c in line if unicodedata.category(c) in ("Cc", "Cf", "Co", "Cs", "Zl", "Zp") and c != "\t"]
+        self.assertEqual(found, [])
 
 
 class TestWriteLimits(SessionCase):
@@ -3883,7 +3896,7 @@ class TestPresenceStates(SessionCase):
         self.assertEqual(self.state_of(self.ann)["state"], "away")
 
     def test_the_tab_id_is_a_short_string(self):
-        for body in ({"tab": "x" * 33}, {"tab": 7}, {"tab": ""}, {"tab": "\u0000‮<img src=x>"}, {"tab": "../../etc"}, {"tab": " "}):
+        for body in ({"tab": "x" * 33}, {"tab": 7}, {"tab": ""}, {"tab": "\u0000\u202e<img src=x>"}, {"tab": "../../etc"}, {"tab": " "}):
             with self.subTest(body=body):
                 with self.assertRaises(session.DomainError) as ctx:
                     self.s.heartbeat(self.bo, body)
@@ -5787,7 +5800,7 @@ class TestUploadHardening(UploadCase):
                     self.assertFalse(zone.exists())
 
     def test_a_display_name_drops_format_private_and_unassigned_characters(self):
-        uid = self.offer(self.ann, name="inv‮oice​\U000e0001͸.pdf")["id"]
+        uid = self.offer(self.ann, name="inv\u202eoice\u200b\ue000\U000e0001\u0378.pdf")["id"]
         self.assertEqual(self.upload(uid)["file"], "invoice.pdf")
 
     def test_a_damaged_piece_counts_against_the_piece_throttle(self):
