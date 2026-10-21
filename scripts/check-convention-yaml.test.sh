@@ -249,7 +249,8 @@ if [[ $RC -eq 2 && "$ERR" == *yaml-subset.awk* && -z "$LOG" ]]; then ok "$label"
 #      lib/resolve-convention-home.sh: the first backticked token inside the
 #      region is the home, and a declined or absent region leaves docs/conventions.
 region_for() {
-  printf '# Team\n\n<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `%s` — read the topic doc there\n<!-- END GENERATED: convention-home -->\n' "$1"
+  printf '%s\n' '# Team' '' '<!-- BEGIN GENERATED: convention-home -->' \
+    "Team conventions live in \`$1\` — read the topic doc there" '<!-- END GENERATED: convention-home -->'
 }
 label="a repository bound to Documentation has its Documentation/<concern>.yaml validated"
 new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put Documentation/alpha.yaml 'mode: on' &&

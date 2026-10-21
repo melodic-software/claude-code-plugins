@@ -424,7 +424,8 @@ git_root() {
   printf '%s' "$r"
 }
 region_text() {
-  printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `%s` — read the topic doc there\nbefore changing a governed surface.\n<!-- END GENERATED: convention-home -->\n' "$1"
+  printf '%s\n' '<!-- BEGIN GENERATED: convention-home -->' "Team conventions live in \`$1\` — read the topic doc there" \
+    'before changing a governed surface.' '<!-- END GENERATED: convention-home -->'
 }
 resolved_home() { bash "$SCRIPT_DIR/resolve-convention-home.sh" --root "$1" 2>/dev/null; }
 
@@ -446,9 +447,9 @@ assert_eq "a region naming Documentation: --check exits 0" "0" "$?"
 assert_contains "a region naming Documentation: --check reads that file" "$out" "PASS mode: slow"
 out="$(run --root "$R" --home docs/conventions mode=fast)"
 assert_eq "a bound repository: a different --home exits 2" "2" "$?"
-assert_eq "a bound repository: a different --home writes nothing" "mode: slow" "$(cat "$R/Documentation/fixture.yaml")"
+assert_eq "a bound repository: a different --home writes nothing" "mode: slow" "$(grep -x 'mode: [a-z]*' "$R/Documentation/fixture.yaml")"
 out="$(run --root "$R" --home Documentation --yes mode=fast)"
-assert_eq "a bound repository: the same --home is accepted" "0:mode: fast" "$?:$(cat "$R/Documentation/fixture.yaml")"
+assert_eq "a bound repository: the same --home is accepted" "0:mode: fast" "$?:$(grep -x 'mode: [a-z]*' "$R/Documentation/fixture.yaml")"
 R2="$(git_root home-bound-index)"
 mkdir -p "$R2/Documentation"
 region_text Documentation >"$R2/AGENTS.md"
@@ -459,13 +460,29 @@ assert_eq "an existing index that would change: nothing is written" "0" "$(exist
 out="$(run --root "$R2" --yes mode=slow)"
 assert_eq "an existing index that would change: --yes lists the file" "0:1" "$?:$(grep -c '\](fixture.yaml)' "$R2/Documentation/conventions-index.md")"
 
-# An unbound repository with CLAUDE.md and no AGENTS.md.
+# An unbound repository with CLAUDE.md and no AGENTS.md. Without --yes the
+# missing settings file is still created (the owner's decision on #7939, and
+# "A missing file is created" in each setup skill); the pointer region and the
+# ignore line wait for --yes.
 R="$(git_root home-unbound)"
 printf '# Claude\n' >"$R/CLAUDE.md"
 out="$(run --root "$R" mode=slow)"
-assert_eq "an unbound repository without --yes: exits 3" "3" "$?"
+assert_eq "an unbound repository without --yes: exits 0" "0" "$?"
 assert_contains "an unbound repository without --yes: the offer is printed" "$out" "No convention home is bound"
-assert_eq "an unbound repository without --yes: nothing is written" "0:0:0:# Claude" "$(exists "$R/docs"):$(exists "$R/.gitignore"):$(exists "$R/AGENTS.md"):$(cat "$R/CLAUDE.md")"
+assert_eq "an unbound repository without --yes: a missing file is created" "mode: slow" "$(grep -x 'mode: slow' "$R/docs/conventions/fixture.yaml")"
+assert_eq "an unbound repository without --yes: no ignore line, region or AGENTS.md" "0:0:# Claude" "$(exists "$R/.gitignore"):$(exists "$R/AGENTS.md"):$(cat "$R/CLAUDE.md")"
+out="$(run --root "$R" mode=slow)"
+assert_eq "an unbound repository without --yes, run again: exits 0" "0" "$?"
+assert_contains "an unbound repository without --yes, run again: already configured" "$out" "already configured"
+before="$(cat "$R/docs/conventions/fixture.yaml")"
+out="$(run --root "$R" mode=fast)"
+assert_eq "an existing file that would change without --yes: exits 3" "3" "$?"
+assert_contains "an existing file that would change without --yes: the diff is printed" "$out" "+mode: fast"
+assert_eq "an existing file that would change without --yes: writes nothing" "$before:0:0" "$(cat "$R/docs/conventions/fixture.yaml"):$(exists "$R/.gitignore"):$(exists "$R/AGENTS.md")"
+R2="$(git_root home-unbound-chosen)"
+out="$(run --root "$R2" --home Documentation mode=slow)"
+assert_eq "an unbound repository with --home and no --yes: exits 3" "3" "$?"
+assert_eq "an unbound repository with --home and no --yes: writes nothing" "0:0:0" "$(exists "$R2/Documentation"):$(exists "$R2/.gitignore"):$(exists "$R2/AGENTS.md")"
 out="$(run --root "$R" --yes mode=slow)"
 assert_eq "an unbound repository with --yes: exits 0" "0" "$?"
 assert_eq "an unbound repository with --yes: creates docs/conventions/fixture.yaml" "mode: slow" "$(grep -x 'mode: slow' "$R/docs/conventions/fixture.yaml")"
@@ -543,7 +560,7 @@ assert_eq "a region with no pointer line: exits 1" "1" "$?"
 one_line "a region with no pointer line" "$out"
 assert_eq "a region with no pointer line: nothing is written" "$before:0" "$(cat "$R/AGENTS.md"):$(exists "$R/docs")"
 R="$(git_root home-two-pointers)"
-printf '<!-- BEGIN GENERATED: convention-home -->\n`a`\n`b`\n<!-- END GENERATED: convention-home -->\n' >"$R/AGENTS.md"
+printf '%s\n' '<!-- BEGIN GENERATED: convention-home -->' "\`a\`" "\`b\`" '<!-- END GENERATED: convention-home -->' >"$R/AGENTS.md"
 out="$(run --root "$R" mode=slow)"
 assert_eq "two pointer lines in one region: exits 1" "1" "$?"
 one_line "two pointer lines in one region" "$out"
