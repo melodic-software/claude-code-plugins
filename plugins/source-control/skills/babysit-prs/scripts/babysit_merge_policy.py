@@ -131,6 +131,15 @@ class PolicyReadError(RuntimeError):
     """A policy input could not be read; callers fail closed."""
 
 
+class StopReadError(PolicyReadError):
+    """A read whose failure stops the path (`reason`), so the identity's
+    queued entries leave."""
+
+    def __init__(self, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
 class _SymlinkAt(PolicyReadError):
     """A clone holds a symlink where a file was asked for. The contents API
     follows an in-repository symlink, so the caller reads it there instead."""
@@ -764,13 +773,14 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
     requests here, and a pull request still cannot drop its base's
     declaration. The timing-only `risk_escalation_minutes` keeps the base's.
     An identity set on one side only switches the lane off, as a different
-    authority does; raises `PolicyReadError` when both are set and differ."""
+    authority does; raises `StopReadError` when both are set and differ."""
     identities = {(c.agent_identity or "").strip().casefold() for c in (base, main)}
     if "" not in identities and len(identities) > 1:
-        raise PolicyReadError(
+        raise StopReadError(
+            AUTHORITY_DIFFERS,
             f"merge.agent-identity is {base.agent_identity!r} at the base "
             f"{base.base_sha} and {main.agent_identity!r} at the default branch "
-            f"head {main.base_sha}"
+            f"head {main.base_sha}",
         )
 
     def loop_rank(value: str | None) -> int:
@@ -883,8 +893,8 @@ def _default_branch_config(repo: str, branch: str | None = None) -> PipelineConf
     """The config at the default branch head, saved once per cache window
     (`run_cache.MAX_AGE`) for the run's gate processes, never saving a failed
     read; saving it saves its `merge.max-in-flight` for `_run_max_in_flight`
-    too. Raises `PolicyReadError` when the head or its config cannot be read
-    or parsed."""
+    too. Raises `PolicyReadError` when the head or its config cannot be read,
+    `StopReadError` when the config cannot be parsed."""
     cached = _cached_config(
         run_cache.get(DEFAULT_BRANCH_CONFIG_SECTION, repo, run_cache.MAX_AGE)
     )
@@ -894,8 +904,9 @@ def _default_branch_config(repo: str, branch: str | None = None) -> PipelineConf
     _, head = _default_branch_head(repo, branch)
     config = read_config_at(repo, head)
     if config.error:
-        raise PolicyReadError(
-            f"{CONFIG_PATH} at the default branch head {head}: {config.error}"
+        raise StopReadError(
+            DEFAULT_BRANCH_UNREADABLE,
+            f"{CONFIG_PATH} at the default branch head {head}: {config.error}",
         )
     run_cache.put(DEFAULT_BRANCH_CONFIG_SECTION, repo, asdict(config))
     run_cache.put(MAX_IN_FLIGHT_SECTION, repo, config.max_in_flight)
@@ -907,8 +918,8 @@ def with_default_branch(
 ) -> PipelineConfig:
     """The config a merge answers to: `stricter_config` of `base` and the
     config at the head of the default branch (`branch` when already read).
-    Raises `PolicyReadError` when the head's cannot be read or parsed, or the
-    agent identities differ."""
+    Raises `PolicyReadError` when the head's cannot be read, `StopReadError`
+    when it cannot be parsed or the agent identities differ."""
     main = _default_branch_config(repo, branch)
     return base if main.base_sha == base.base_sha else stricter_config(base, main)
 
@@ -3384,7 +3395,8 @@ def assess(
     promoted. `self_logins` names only lane or bot self identities (see
     `is_human`). Raises `PolicyReadError` when the pull request or either
     pipeline config cannot be read, because the agent identity is then
-    unknown, or the two configs name different identities.
+    unknown. A default branch head config that cannot be parsed, or names
+    another identity, is a stop (`StopReadError`).
     """
     pr = pull_request(repo, number)
     base_ref = str(json_object(pr.get("base")).get("ref"))
@@ -3460,7 +3472,12 @@ def assess(
         return replace(stopped, reason=inputs["own_refusal"])
     # The base's config, tightened by the default branch head's: from here
     # every setting is the stricter of the two.
-    config = inputs["config"] = with_default_branch(repo, config, default)
+    # A head config that cannot be parsed, or names another identity, stops.
+    try:
+        config = inputs["config"] = with_default_branch(repo, config, default)
+    except StopReadError as exc:
+        details["defaultBranchConfig"] = str(exc)
+        return replace(stopped, reason=exc.reason)
     report_only = (
         config.dependabot_mode != "enforce" if dependabot_pr else config.report_only
     )

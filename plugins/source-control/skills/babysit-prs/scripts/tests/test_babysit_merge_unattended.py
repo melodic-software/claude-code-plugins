@@ -1561,6 +1561,34 @@ class EachRefusalMakesNoMergeCall(Unattended):
                 self.assertEqual(out["unattended"]["reason"], "authority-differs")
                 self.assertEqual(self.log, ["dequeue:all"])
 
+    def test_another_identity_on_the_default_branch_dequeues_the_identitys_entries(
+        self,
+    ) -> None:
+        self.main_head = "d" * 40
+        self.head_configs = [
+            dataclasses.replace(
+                self.config, base_sha=self.main_head, agent_identity="other[bot]"
+            )
+        ]
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "authority-differs")
+        self.assertEqual(self.log, ["dequeue:all"])
+
+    def test_an_unparseable_default_branch_config_dequeues_the_identitys_entries(
+        self,
+    ) -> None:
+        self.main_head = "d" * 40
+        self.head_configs = [
+            dataclasses.replace(
+                self.config, base_sha=self.main_head, error="config-parse-error"
+            )
+        ]
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "default-branch-unreadable")
+        self.assertEqual(self.log, ["dequeue:all"])
+
     def test_live_refusals_hold_the_merge_and_keep_the_path_enabled(self) -> None:
         cases = {
             "in flight": (
