@@ -267,8 +267,9 @@ matches its remote:
    rejects `--effort` with `--cloud`, relaunch without it and have the report name the level and
    tell the user to send `/effort <level>` in the session. If it refuses `--cloud` because there is
    no terminal, take the local delivery with the same prompt file instead of the failure
-   fallback, so the work keeps moving. The report says the cloud launch was refused and the run
-   went local. Pointer: probe 3 in [reference/goal-probe.md](reference/goal-probe.md).
+   fallback, so the work keeps moving: local steps 3 and 4 then replace cloud step 3, and the
+   report adds that the cloud launch was refused and the run went local. Pointer: probe 3 in
+   [reference/goal-probe.md](reference/goal-probe.md).
 3. **Report** the session id and link it prints, plus the return paths: `claude --teleport <id>`
    or `/teleport` to continue it in a terminal (its requirements: Pointer below), which needs the
    same account; `claude -p "<message>" --cloud <id>` to queue a follow-up. Name
