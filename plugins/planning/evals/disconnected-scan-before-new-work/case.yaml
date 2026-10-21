@@ -6,7 +6,7 @@ expected_outcome: The answer names the unused build_digest import, the never-rea
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/planning:brainstorm we want notification recipients to get weekly summaries and to see whether a notification was opened. Treat the files under evals/fixtures/disconnected-scan/ as this repository (relative to the working directory); each carries an added .txt suffix, so app/notifier.py.txt is app/notifier.py."
+  prompt: "/planning:brainstorm we want notification recipients to get weekly summaries and to see whether a notification was opened. Yes, that is the problem. Why: recipients say they get too many emails, and we cannot tell what they read. My own ideas: none. Go ahead with candidates. Treat the files under evals/fixtures/disconnected-scan/ as this repository (relative to the working directory); each carries an added .txt suffix, so app/notifier.py.txt is app/notifier.py."
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 30
   timeout_seconds: 900

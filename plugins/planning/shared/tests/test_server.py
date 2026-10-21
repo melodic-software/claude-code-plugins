@@ -906,6 +906,23 @@ class TestSnapshot(ServerCase):
         code, _, _ = self.post("/api/join", {"name": "New link", "key": out["guestKey"]})
         self.assertEqual(code, 200)
 
+    def test_the_owner_renames_anyone_and_a_guest_only_themselves(self):
+        ann_pid, ann = self.join("Ann")
+        bo_pid, bo = self.join("Bo")
+        code, _, out = self.post("/api/rename", {"pid": ann_pid, "name": "Annabel"}, self.owner)
+        self.assertEqual((code, out["pid"], out["name"]), (200, ann_pid, "Annabel"))
+        self.assertEqual(self.get("/api/state", ann)[2]["me"]["name"], "Annabel")
+        code, _, out = self.post("/api/rename", {"pid": bo_pid, "name": "annabel"}, self.owner)
+        self.assertEqual((code, out["name"]), (200, "annabel 2"))
+        for target in (ann_pid, "host"):
+            code, _, err = self.post("/api/rename", {"pid": target, "name": "Mallory"}, bo)
+            self.assertEqual((code, err["error"]), (403, "owner-only"), target)
+        code, _, err = self.post("/api/rename", {"pid": "nobody", "name": "Ghost"}, self.owner)
+        self.assertEqual((code, err["error"]), (404, "not-found"))
+        self.assertEqual(self.get("/api/state", ann)[2]["me"]["name"], "Annabel")
+        code, _, out = self.post("/api/rename", {"pid": bo_pid, "name": "Bob"}, bo)
+        self.assertEqual((code, out["name"]), (200, "Bob"))
+
     def test_an_unchanged_snapshot_answers_304(self):
         _, guest = self.join("Ann")
         now = server.time.time()  # one PRESENCE_TICK for every read: the tick turning over is its own test below

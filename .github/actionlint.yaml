@@ -29,8 +29,17 @@ self-hosted-runner:
 # `queue` with `cancel-in-progress: true` passes the lint; GitHub rejects that
 # file when it parses it, and concurrency-policy flags `queue` on PR-triggered
 # top-level blocks.
+#
+# `cache-mode` is a workflow- and job-level key GitHub honors
+# (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax),
+# but actionlint 1.7.12, the latest release, rejects it with
+# `unexpected key "cache-mode" for "job" section`; the ignore matches only that
+# message. intake-triage.yml sets `cache-mode: none` on its model jobs.
+# Remove when actionlint knows the key and the pinned actionlint is bumped.
+# Trade-off: actionlint cannot check the key's value.
 paths:
   .github/workflows/**/*.{yml,yaml}:
     ignore:
       - 'specifying action "\$/[^"]+" in invalid format because ref is missing'
       - 'unexpected key "queue" for "concurrency" section'
+      - 'unexpected key "cache-mode" for "job" section'

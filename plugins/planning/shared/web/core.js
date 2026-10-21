@@ -664,6 +664,8 @@
     /** Owner: a round stuck with Claude working goes back to open; Claude's late preparation is refused. */
     resetRound: () => act("/api/round/reset", {}),
     rename: name => act("/api/rename", { name }).then(j => { Core.me.name = j.name; put("name", j.name); emit(); return j; }),
+    /** Owner: give another person a new name; resolves to {pid, name}, the name made unique as a self-rename is. */
+    renamePerson: (pid, name) => act("/api/rename", { pid, name }),
     removePerson: (pid, on) => act("/api/person/remove", { pid, on }),
     newGuestLink: () => act("/api/link/guest", {}),
     /** Owner: a new owner token; this page reloads on the new owner link. */

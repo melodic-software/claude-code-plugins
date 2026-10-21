@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Long lists in a real browser (triage 48), against `share.sh ensure-running` with the fake cloudflared and 30 guests:
 // answer cards show 12, then Show all (30); the Host view's people list shows 25 of 32 with Show more, presence
-// chips (All, Here, Away, Offline) and the owner's Removed chip with their counts, and a name search; the queue shows
+// chips (All, Active, Away, Offline, each person under exactly one of the last three) and the owner's Removed chip with their counts, and a name search; the queue shows
 // its oldest 20; the proposals panel 20, Later 10 and a locked question's suggestions 10, each with Show more; the
 // bell 20 with Show more and Unread only; and on a 320 px phone the people chips wrap inside the screen.
 //   node plugins/planning/shared/tests/ui_lists.js
@@ -72,8 +72,9 @@ async function main() {
     };
     await viewSeg("Host");
     const chipText = () => host.evaluate(() => [...document.querySelectorAll(".vf-pfilters .vf-fchip:not([hidden])")].map(b => b.textContent).join(" "));
-    ok("the people chips count All 32, Here 16, Away 5, Offline 15 and the owner's Removed 1", await until(host, () =>
-      [...document.querySelectorAll(".vf-pfilters .vf-fchip:not([hidden])")].map(b => b.textContent).join(" ") === "All32 Here16 Away5 Offline15 Removed1"), await chipText());
+    // Active: the 10 beating guests and the owner; Away: the 5 with a hidden tab; Offline: the 15 who never beat.
+    ok("the people chips count All 32, Active 11, Away 5, Offline 15 and the owner's Removed 1", await until(host, () =>
+      [...document.querySelectorAll(".vf-pfilters .vf-fchip:not([hidden])")].map(b => b.textContent).join(" ") === "All32 Active11 Away5 Offline15 Removed1"), await chipText());
     ok("the people list shows 25 of 32", await until(host, () => document.querySelectorAll(".vf-hpeople > li").length === 25
       && [...document.querySelectorAll(".vf-more-foot:not([hidden])")].some(f => f.textContent.startsWith("Showing 25 of 32"))), String(await rows(host, ".vf-hpeople > li")));
     await host.locator(".vf-hpeople + .vf-more-foot button").click();
@@ -86,6 +87,16 @@ async function main() {
     }), String(await rows(host, ".vf-hpeople > li")));
     await host.locator(".vf-pfilters .vf-fchip", { hasText: "Removed" }).click();
     ok("Removed shows the removed guest", await until(host, () => [...document.querySelectorAll(".vf-hpeople > li")].map(x => x.querySelector(".vf-hp-name").textContent).join() === "Gone"));
+    // Each of the 31 people not removed shows under exactly one of Active, Away and Offline, in that state.
+    const under = {};
+    for (const chip of ["Active", "Away", "Offline"]) {
+      await host.locator(".vf-pfilters .vf-fchip", { hasText: chip }).click();
+      await until(host, c => [...document.querySelectorAll(".vf-pfilters .vf-fchip")].find(b => b.textContent.startsWith(c))?.getAttribute("aria-pressed") === "true", chip);
+      under[chip] = await host.evaluate(() => [...document.querySelectorAll(".vf-hpeople > li")].map(li => [li.querySelector("[data-pid]").dataset.pid, li.dataset.presence]));
+    }
+    const placed = Object.values(under).flat().map(([pid]) => pid);
+    ok("each person not removed shows under exactly one of Active, Away and Offline, matching their presence",
+      placed.length === 31 && new Set(placed).size === 31 && Object.entries(under).every(([c, l]) => l.every(([, pr]) => pr === c.toLowerCase())), JSON.stringify(under));
     await host.locator(".vf-pfilters .vf-fchip", { hasText: "All" }).click();
     ok("a name search shows past 12 people", await host.locator(".vf-pfind").isVisible());
     await host.fill(".vf-pfind", "Guest 1");

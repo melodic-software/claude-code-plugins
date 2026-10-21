@@ -183,7 +183,7 @@
 }
 .app .vf-title { font-weight: 650; font-size: 14px; letter-spacing: -0.015em; }
 .app .vf-live {
-  display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px;
+  display: inline-flex; flex: none; align-items: center; gap: 6px; padding: 2px 8px; margin-inline-start: 4px;
   border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--muted); font-size: 12px; white-space: nowrap;
 }
 .app .vf-live-dot { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ok) 22%, transparent); }

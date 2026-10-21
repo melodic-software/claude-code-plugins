@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "notes/incident.md is rewritten. Check: I ran scripts/errors_by.sh tenant and scripts/errors_by.sh release. It showed 64 errors on acme-eu and 3 on globex, and 64 on release 4.18.2 against 3 on 4.18.1, so the spike follows the 4.18.2 deploy, not the provider.",
+      "why": "names the check it ran and the counts it showed"
+    },
+    {
+      "answer": "Updated the write-up: the cause is the PAYMENTS_TIMEOUT_MS change from 3000 to 800 in 4.18.2 for acme-eu. To confirm, I counted 502 lines in logs/checkout.log by release with grep and uniq -c: 4.18.2 had 64, 4.18.1 had 3.",
+      "why": "an executed count over the raw data, with its result"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rewrote notes/incident.md. Having read the log closely, I'm confident the cause is the 4.18.2 timeout change on acme-eu.",
+      "why": "uses its own reading as the check"
+    },
+    {
+      "answer": "The write-up now names the 4.18.2 timeout change on acme-eu. You can verify this by running scripts/errors_by.sh release.",
+      "why": "names a check but does not say what it showed"
+    }
+  ]
+}

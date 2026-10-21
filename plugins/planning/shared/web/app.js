@@ -20,7 +20,7 @@
       order: store.get("vf-order", "new"), seen: store.get("vf-seen", {}), seenAt: null,
       propFilter: "new", reqSeen: new Set(), reqEditing: new Set(),
       resClosed: new Set(), askOpen: false, askKind: "ask", exp: new Set(), pcard: null, mergeFrom: "", mergeTo: "",
-      bumped: false, heard: {}, renaming: false, tie: null,
+      bumped: false, heard: {}, renaming: false, renameFor: null, tie: null,
       // round 8
       revealed: new Set(), clOpen: new Map(), cites: {}, hostFilter: "all", treeClosed: new Set(),
       askPanel: false, askMode: "ask", askQ: "", askSelf: false, apAud: null, askAud: null, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
@@ -265,10 +265,13 @@
       return { question, park, later, restore };
     }
     /** F5: the owner's buttons for the person `getPid()` returns, the same words and toasts in the person card, the Host
-     *  view's people row, the person view and Settings' removed people: View all, Leader, Trusted, Merge…, Remove (or
-     *  Restore). `menu` draws them as the card's menu rows. Each place shows the ones that fit with paintPersonActs. */
-    function personActs(getPid, menu) {
+     *  view's people row, the person view and Settings' removed people: Rename, View all, Leader, Trusted, Merge…, Remove
+     *  (or Restore). `menu` draws them as the card's menu rows; `onRename(pid, button)` opens that place's rename form,
+     *  and without it there is no Rename. Each place shows the ones that fit with paintPersonActs. */
+    function personActs(getPid, menu, onRename) {
       const c = menu ? "vf-menu-item" : "vf-btn vf-btn-ghost vf-btn-sm";
+      const rename = btn(`${c} vf-pa-rename`, "Rename"); rename._on = !!onRename;
+      rename.onclick = () => onRename(getPid(), rename);
       const view = btn(`${c} vf-hp-view`, "View all"), lead = btn(`${c} vf-toggle vf-pa-lead`, "Leader"), trust = btn(`${c} vf-toggle vf-pa-trust`, "Trusted");
       const merge = btn(`${c} vf-pa-merge`, "Merge…"), remove = btn(`${c} ${menu ? "vf-menu-danger" : "vf-btn-danger"} vf-pa-remove`, "Remove");
       const gone = () => (Core.state.removed || []).includes(getPid());
@@ -286,7 +289,7 @@
         const p = getPid(), out = gone();
         Core.removePerson(p, !out).then(() => flash(out ? "Restored. Their content shows again." : `${disp(nameOf(p))} was removed. Their content is hidden; restore them from Settings.`)).catch(fail);
       });
-      return { view, lead, trust, merge, remove };
+      return { rename, view, lead, trust, merge, remove };
     }
     /** Leader and Trusted say whether they are on; a removed person has only Restore (and View all). `here` is the
      *  place's own row: the person view does not offer itself. */
@@ -301,6 +304,7 @@
       k.remove.textContent = out ? "Restore" : "Remove"; k.remove.hidden = !known;
       k.remove.setAttribute("aria-label", `${out ? "Restore" : "Remove"} ${name}`);
       k.view.hidden = here === "view"; k.view.setAttribute("aria-label", `View everything ${name} did`);
+      k.rename.hidden = !k.rename._on || out || !known; k.rename.setAttribute("aria-label", `Rename ${name}`);
     }
     /** New: Make it a question, Later, Park. Not placed: also Back to Proposed. Parked or Later: Back to Proposed, Make it a question. */
     function paintPropActs(k, i) {
@@ -819,13 +823,14 @@
     const goalAdd = btn("vf-goal-add", "Add a goal");
     const goalInput = E("input", "vf-input vf-goal-input"); goalInput.maxLength = 200; goalInput.hidden = true;
     goalInput.setAttribute("aria-label", "Session goal"); goalInput.placeholder = "What this session should settle";
-    titleRow.append(titleTxt, titleInput, titleEdit);
-    goalRow.append(goalTxt, goalAdd, goalInput, goalEdit);
-    titles.append(titleRow, goalRow);
-    brand.append(E("span", "vf-mark"), titles);
+    // The Live pill sits on the title's own line, so it stays beside the title however wide the goal runs.
     const live = E("span", "vf-live"); live.setAttribute("role", "status");
     const liveTxt = E("span", "vf-live-txt");
     live.append(E("span", "vf-live-dot"), liveTxt);
+    titleRow.append(titleTxt, titleInput, titleEdit, live);
+    goalRow.append(goalTxt, goalAdd, goalInput, goalEdit);
+    titles.append(titleRow, goalRow);
+    brand.append(E("span", "vf-mark"), titles);
     const people = E("div", "vf-people"); people.setAttribute("aria-label", "People here");
     const hereCount = E("span", "vf-here");
     const shareBtn = lbtn("vf-tbtn vf-sharebtn", "link", "Share"); shareBtn.setAttribute("aria-haspopup", "dialog");
@@ -844,7 +849,7 @@
     const bellBtn = btn("vf-tbtn vf-bell vf-inboxbtn"); bellBtn.setAttribute("aria-haspopup", "dialog"); bellBtn.setAttribute("aria-expanded", "false");
     const bellBadge = E("span", "vf-bell-n");
     bellBtn.append(icon("host"), E("span", "vf-inbox-l", "Inbox"), bellBadge);
-    top.append(brand, live, E("div", "vf-spacer"), people, hereCount, askTop, shareBtn, follow, keysBtn, themeBtn, bellBtn, gear);
+    top.append(brand, E("div", "vf-spacer"), people, hereCount, askTop, shareBtn, follow, keysBtn, themeBtn, bellBtn, gear);
 
     // ---------- rail ----------
     const body = E("main", "vf-body");
@@ -1477,10 +1482,10 @@
     const queueMore = showMore("queue", 20);
     hQueue.append(qFilters, queueList, queueMore.foot, queueEmpty);
     // people
-    // Filter chips by presence (and Removed, the owner's), a name search once the list passes 12, then 25 at a time.
+    // Filter chips by presence, one chip per state so each person is under exactly one (and Removed, the owner's), a name search once the list passes 12, then 25 at a time.
     const pFilters = E("div", "vf-chips vf-pfilters"); pFilters.setAttribute("role", "group"); pFilters.setAttribute("aria-label", "Show people");
     const pfBtns = {};
-    for (const [k, label] of [["all", "All"], ["here", "Here"], ["away", "Away"], ["offline", "Offline"], ["behind", "Behind"], ["removed", "Removed"]]) {
+    for (const [k, label] of [["all", "All"], ["active", "Active"], ["away", "Away"], ["offline", "Offline"], ["behind", "Behind"], ["removed", "Removed"]]) {
       const b = btn("vf-fchip"); b.append(E("span", null, label), E("span", "vf-fchip-n")); b.onclick = () => { ui.peopleFilter = k; render(); }; pFilters.append(b); pfBtns[k] = b;
     }
     const pFind = E("input", "vf-input vf-pfind"); pFind.type = "search"; pFind.placeholder = "Find a person"; pFind.setAttribute("aria-label", "Find a person by name");
@@ -2398,7 +2403,7 @@
     }
     function closePop() {
       if (!ui.pop) return;
-      if (ui.pop === pcard) { ui.pcard = null; ui.renaming = false; }
+      if (ui.pop === pcard) { ui.pcard = null; ui.renaming = false; ui.renameFor = null; ui.renameDraft = null; }
       if (ui.pop === msgMenu) ui.menuHeld = false; // a held-open menu closed without a release click: the next tap counts
       ui.pop.hidden = true; ui.pop._anchor?.setAttribute?.("aria-expanded", "false");
       if (ui.pop === bellPop) root.classList.remove("vf-inboxon");
@@ -4760,7 +4765,7 @@
       clearTimeout(hoverT); clearTimeout(hideT);
       if (pinned) closePop();
       ui.pcard = { pid: el.dataset.pid, name: el.dataset.name || "", anchor: el, pinned, sig: "" };
-      ui.mergeFrom = ""; ui.mergeTo = "";
+      ui.mergeFrom = ""; ui.mergeTo = ""; ui.renaming = false; ui.renameFor = null; ui.renameDraft = null;
       pcard.hidden = false;
       fillPcard();
       placeNear(pcard, el);
@@ -4832,7 +4837,7 @@
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
       const q = here?.q && qById(here.q);
-      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -4930,11 +4935,33 @@
         }
       }
       if (owner && c.pinned && !me && role !== "Host" && S.people) {
-        const acts = E("div", "vf-pc-acts"), pa = personActs(() => pid, true);
+        const acts = E("div", "vf-pc-acts"), pa = personActs(() => pid, true, p => {
+          ui.renameFor = p; ui.renameDraft = null; fillPcard();
+          const i = pcard.querySelector('[data-k="rnp"]'); i?.focus(); i?.select();
+        });
         for (const [kk, b] of Object.entries(pa)) k(b, "pa-" + kk);
         paintPersonActs(pa, pid, "card");
-        acts.append(pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
+        acts.append(pa.rename, pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
         parts.push(acts);
+        if (ui.renameFor === pid) {
+          // The same form as one's own name, for this person.
+          const f = E("form", "vf-rename");
+          const inp = E("input", "vf-input"); inp.maxLength = 40; inp.value = ui.renameDraft ?? nameOf(pid); inp.setAttribute("aria-label", `New name for ${disp(nameOf(pid))}`); k(inp, "rnp");
+          inp.oninput = () => { ui.renameDraft = inp.value; };
+          const row = E("div", "vf-crow");
+          const cancel = k(btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), "rpc");
+          const save = k(E("button", "vf-btn vf-btn-primary vf-btn-sm", "Save name"), "rps"); save.type = "submit";
+          row.append(cancel, save); f.append(inp, row);
+          cancel.onclick = () => { ui.renameFor = null; ui.renameDraft = null; fillPcard(); pcard.querySelector('[data-k="pa-rename"]')?.focus(); };
+          f.onsubmit = e => {
+            e.preventDefault();
+            const v = inp.value.trim(); if (!v) return inp.focus();
+            save.disabled = true;
+            Core.renamePerson(pid, v).then(j => { ui.renameFor = null; ui.renameDraft = null; flash(j.name !== v ? `Someone already uses that name, so they are ${j.name}.` : `Renamed to ${j.name}.`); fillPcard(); })
+              .catch(fail).finally(() => { save.disabled = false; });
+          };
+          parts.push(f);
+        }
         if (ui.mergeFrom === pid) {
           const box = E("div", "vf-merge");
           if (ui.mergeTo) {
@@ -6673,7 +6700,7 @@
       const pres = p => (gone.has(p.pid) ? "removed" : presState(here.get(p.pid)));
       // #7852: how many of the open round's questions each guest still owes (the server's count, moderators only)
       const behind = S.behind || {}, owes = p => (gone.has(p.pid) ? 0 : behind[p.pid] || 0);
-      const inFilter = { all: () => true, here: p => ["active", "away"].includes(pres(p)), away: p => pres(p) === "away", offline: p => pres(p) === "offline",
+      const inFilter = { all: () => true, active: p => pres(p) === "active", away: p => pres(p) === "away", offline: p => pres(p) === "offline",
         behind: p => owes(p) > 0, removed: p => pres(p) === "removed" };
       const noRemoved = !owner || !ppl.some(inFilter.removed), noBehind = !ppl.some(inFilter.behind);
       if ((noRemoved && ui.peopleFilter === "removed") || (noBehind && ui.peopleFilter === "behind")) ui.peopleFilter = "all";
@@ -6698,10 +6725,24 @@
         const nameRow = E("span", "vf-hp-namerow"); nameRow.append(nm, role, ctxB);
         mid.append(nameRow, meta);
         const acts = E("div", "vf-hp-acts");
-        const pa = personActs(() => li._p.pid);
-        acts.append(pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
+        // The owner renames anyone here, with the same form as their own name in the person card.
+        const pa = personActs(() => li._p.pid, false, () => { rform.hidden = false; nameIn.value = li._p.name; nameIn.focus(); nameIn.select(); });
+        const rform = E("form", "vf-rename vf-hp-rename"); rform.hidden = true;
+        const nameIn = E("input", "vf-input"); nameIn.maxLength = 40;
+        const rrow = E("div", "vf-crow"), rcancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
+        const rsave = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Save name"); rsave.type = "submit";
+        rrow.append(rcancel, rsave); rform.append(nameIn, rrow); mid.append(rform);
+        rcancel.onclick = () => { rform.hidden = true; pa.rename.focus(); };
+        rform.onsubmit = e => {
+          e.preventDefault();
+          const v = nameIn.value.trim(); if (!v) return nameIn.focus();
+          rsave.disabled = true;
+          Core.renamePerson(li._p.pid, v).then(j => { rform.hidden = true; flash(j.name !== v ? `Someone already uses that name, so they are ${j.name}.` : `Renamed to ${j.name}.`); pa.rename.focus(); })
+            .catch(fail).finally(() => { rsave.disabled = false; });
+        };
+        acts.append(pa.rename, pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
         li.append(avBox, mid, acts);
-        li._k = { avBox, nm, meta, role, ctxB, ...pa, acts, avKey: "" };
+        li._k = { avBox, nm, meta, role, ctxB, ...pa, rform, nameIn, acts, avKey: "" };
         return li;
       }, (li, p) => {
         const k = li._k, h = here.get(p.pid), rl = roleOf(p.pid), isGone = gone.has(p.pid), me2 = isMe(p.pid);
@@ -6725,6 +6766,8 @@
         const can = owner && !me2 && rl !== "Host";
         k.acts.hidden = !can;
         paintPersonActs(k, p.pid, "row");
+        k.nameIn.setAttribute("aria-label", `New name for ${disp(p.name)}`);
+        if (!can || isGone) k.rform.hidden = true;
       });
       if (ui.pop === personPop) fillPersonView();
       const nAway = S.presence.filter(p => p.away).length;

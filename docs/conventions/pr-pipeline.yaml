@@ -453,8 +453,9 @@ limits:
   # wip block below derives it otherwise.
   wip-cap: 12
   # Restarts after a run reaches its turn cap, per agent-ready a person adds.
-  # 0 hands every capped run back to a person, naming the cap; it stays 0
-  # until the lane commits a capped run's leftover edits.
+  # 0 hands every capped run back to a person, naming the cap; the run's
+  # leftover edits still reach a lane branch. Raise it above 0 only after the
+  # sandbox timeout probe passes and a security review (#7677).
   turn-cap-restarts: 0
   # Hours of issue-lane admissions the admitted backlog (open issues with
   # agent-ready) may hold before new agent-ready labels pause.

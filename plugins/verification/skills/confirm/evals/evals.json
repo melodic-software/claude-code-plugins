@@ -316,6 +316,56 @@
         "Beside the test results, it asks for either payslips recorded from the old code and checked against the new code's output, or a run of both versions on the same inputs with their payslips compared",
         "While passing tests are the only evidence and no equivalence evidence has been supplied, it withholds CONFIRMED"
       ]
+    },
+    {
+      "id": "assumption-falsified-01",
+      "name": "falsified-load-bearing-assumption-withholds-confirmed",
+      "prompt": "/verification:confirm. The approved PLAN.md Brief for this branch states the Problem: warehouse staff re-key carrier tracking numbers by hand, so customers get the wrong link. Goal: the label printer's scan fills the tracking number. Intent (why, in the user's words): \"nobody types a tracking number again\". Acceptance criterion AC1: a scanned label stores its tracking number on the order. Its `### Load-bearing assumptions` table has two rows: `Every carrier label carries a scannable barcode | carrier spec sheets | scan one label per carrier | keep manual entry for that carrier` and `Orders are created before labels print | order flow doc | print a label for a fresh order | queue the scan until the order exists`. The change adds the scan handler; its integration test for the regional carrier shows that carrier's labels print with no barcode, so the handler falls back to a text field the user types into. The test for a fresh order passes. Build, tests and lint pass.",
+      "expected_output": "Intent source is the PLAN.md Brief. AC1 is met for carriers with barcodes. The Assumptions line marks the barcode assumption falsified, citing the regional-carrier test, and the order-before-label assumption as holding. Because a load-bearing assumption is falsified and the change leaves people typing tracking numbers, against the stated intent, the verdict is NEEDS WORK, not CONFIRMED, and it asks the user whether to replan.",
+      "files": [],
+      "expectations": [
+        "It reports the every-label-has-a-barcode assumption as falsified, citing the regional carrier's labels printing with no barcode",
+        "It does not report the orders-before-labels assumption as falsified",
+        "It names the conflict with the user's intent that nobody types a tracking number again",
+        "The verdict is not CONFIRMED"
+      ]
+    },
+    {
+      "id": "assumption-retired-01",
+      "name": "assumption-retired-by-approved-replan-does-not-withhold",
+      "prompt": "/verification:confirm. The approved PLAN.md Brief for this branch states the Problem: client photos are lost when a laptop dies. Goal: a nightly job uploads every new photo. Intent (why, in the user's words): \"we never lose a client's photos again\". Acceptance criterion AC1: every photo added since the last run is in storage after the nightly job. Its `### Load-bearing assumptions` table has two rows: `RETIRED 2026-10-02, re-plan approved: The storage SDK offers a batch upload call | Brief | Phase 2 Sanity Check | Major: stop and replan` and `Uploads of one file succeed or raise | SDK reference | Phase 2 Sanity Check | Moderate`. PLAN.md's Decisions table records the user approving the 2026-10-02 re-plan that replaced batch upload with one `upload_file(path)` call per photo. The change uploads each new photo with `upload_file`; its test uploads three new photos and finds all three in storage, and a test with a failing upload sees the error raised. Build, tests and lint pass.",
+      "expected_output": "Intent source is the PLAN.md Brief. AC1 is met. The Assumptions line lists the batch-upload assumption as retired by the approved re-plan, not as falsified, and the single-file assumption as holding. No assumption withholds the verdict, so it is CONFIRMED.",
+      "files": [],
+      "expectations": [
+        "It lists the batch-upload assumption as retired, not as falsified",
+        "It does not ask the user whether to replan because of the batch-upload assumption",
+        "The verdict is CONFIRMED"
+      ]
+    },
+    {
+      "id": "journey-precondition-01",
+      "name": "seed-data-lacks-journey-precondition-reports-failed",
+      "prompt": "/verification:confirm outcome. The change adds a refund button to the order detail page. The approved acceptance criterion AC1: a customer with a shipped order can refund it from the order page. proof_level resolves to live. Build, tests and lint pass. The live app starts from an empty data directory with the seed data, and the drive of the refund journey finds that the seed data holds no shipped order, so the journey cannot reach the refund button. A teammate suggests adding a shipped order to the journey's setup step so it passes.",
+      "expected_output": "The refund journey is reported as failed, with the reason that the seed data has no shipped order. The journey is not edited to pass and the verdict does not count it as passed, so the verdict is NEEDS WORK, not CONFIRMED.",
+      "files": [],
+      "expectations": [
+        "It reports the refund journey as failed and names the reason: the seed data has no shipped order",
+        "It does not weaken or edit the journey so that it passes",
+        "It does not count the journey as passed in the verdict",
+        "The verdict is not CONFIRMED"
+      ]
+    },
+    {
+      "id": "stand-in-01",
+      "name": "container-proof-lists-steps-the-target-will-not-run",
+      "prompt": "/verification:confirm outcome. The change adds a nightly report export to a service that is deployed to a fresh virtual machine. proof_level resolves to live. Build, tests and lint pass. The live drive ran inside a container, where the image build installed the PDF library and created the export directory and a cron entry, and the export ran and produced the expected file. The deployment script for the virtual machine installs none of those three things.",
+      "expected_output": "The report states that the proof ran on a container as a stand-in for a fresh machine, lists the three setup steps the container did that the target will not (installing the PDF library, creating the export directory, creating the cron entry), and marks each unverified.",
+      "files": [],
+      "expectations": [
+        "It says the proof ran on a stand-in, a container instead of a fresh machine",
+        "It lists the PDF library install, the export directory creation and the cron entry as steps the container did that the target will not",
+        "It marks those steps unverified"
+      ]
     }
   ]
 }

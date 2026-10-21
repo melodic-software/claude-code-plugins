@@ -78,18 +78,20 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 
 ### Assessment
 - Intent source: <rung> (<PLAN.md slug, pull request, issue, or conversation>); intent drift: <none | each contradiction>
+- Assumptions: <none stated | each load-bearing or captured assumption: holds / falsified (evidence) / unchecked>
 - Plan items: X/Y complete (Z%)
 - Deviations: N (all justified / N unjustified)
 - Scope additions: N (M justified)
 - Verifier model: <model passed to the fresh-context verifier> / not matched to the producing model (unknown)
 - Proof level: <path | live | strict> (<layer that supplied it>; any dropped or skipped layer and why)
+- Stand-in: <none | what the proof ran on in place of the real target; each setup step the stand-in did that the target will not, marked unverified>
 - Live workers: <n resolved> (<layer that supplied it>; any dropped layer and why); <n ran> ran (<why fewer, if fewer>); per worker: <entry points> | <result> | <tokens measured> | <wall time measured>; <"live-UI step unverified on this host" on a cloud execution target>
 ```
 
 ### 6. Verdict
 
-- **CONFIRMED** if all plan items are COMPLETE, deviations are justified, and Stage 1 left no environment skip
-- **NEEDS WORK** if any plan items are MISSING or PARTIAL without justification
+- **CONFIRMED** if all plan items are COMPLETE, deviations are justified, no load-bearing or captured assumption is falsified, the stated problem is solved, and Stage 1 left no environment skip
+- **NEEDS WORK** if any plan items are MISSING or PARTIAL without justification, the change falsified a load-bearing or captured assumption, or it leaves the Brief's stated problem or the user's intent unmet ([intent.md](intent.md))
 - **NOT VERIFIED** if no gap was found but Stage 1 left an environment skip (a missing tool, including one too old for the check, or missing dependencies): name each skip and its reason, and what running it needs
 - **NOT VERIFIED: no intent source** when the intent ladder ([intent.md](intent.md)) found nothing and no one can be asked
 - **NOT VERIFIED** under `proof_level: strict` when a proof box is empty or its perf box has no baseline (see [Proof boxes](#proof-boxes))
