@@ -2381,22 +2381,21 @@ test("report job: a run head equal to a PR head that moved mid-run, never gated,
 
 test("report job: an empty run head after the kill switch or a broker refusal posts nothing, so the owner's switch is never a merge blocker", (t) => {
   const steps = reportSteps();
-  const kill = steps.find((s) => s.id === "kill");
-  assert.equal(kill.uses, "./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]".split(" ")[0]);
-  assert.deepEqual(kill.with, { value: "${{ vars.CLAUDE_LANES_DISABLED }}", "repo-value": "${{ vars.CLAUDE_LANES_REPO_DISABLED }}" });
+  // The broker-check job's allow alone, which already holds its kill switch
+  // read: never a run job output, and never a second read a switch flipped
+  // mid-run could change.
+  assert.equal(steps.find((s) => s.id === "kill"), undefined);
   const head = steps.find((s) => s.id === "head");
-  assert.ok(steps.indexOf(kill) < steps.indexOf(head));
-  // Read from the variables and the broker-check job, never from a run job output.
-  assert.equal(head.env.TRUSTED_SKIP, "${{ steps.kill.outputs.proceed != 'true' || needs.broker-check.outputs.allowed != 'true' }}");
-  for (const [proceed, allowed] of [["false", "false"], ["true", "false"], ["false", ""]]) {
-    const trusted = evaluate(head.env.TRUSTED_SKIP, { "steps.kill.outputs.proceed": proceed, "needs.broker-check.outputs.allowed": allowed });
-    assert.equal(String(trusted), "true", `${proceed} ${allowed}`);
+  assert.equal(head.env.TRUSTED_SKIP, "${{ needs.broker-check.outputs.allowed != 'true' }}");
+  for (const allowed of ["false", ""]) {
+    const trusted = evaluate(head.env.TRUSTED_SKIP, { "needs.broker-check.outputs.allowed": allowed });
+    assert.equal(String(trusted), "true", allowed);
     const chosen = chooseHead(t, { RUN_HEAD: "", CALLER_HEAD: TRUSTED, TRUSTED_SKIP: String(trusted) });
     assert.deepEqual(chosen.outputs, { post: "true", sha: "", forged: "false" });
     // Off pull_request, nothing is posted, so no failing check can block a merge.
     assert.equal(posted(chosen), null);
   }
-  assert.equal(String(evaluate(head.env.TRUSTED_SKIP, { "steps.kill.outputs.proceed": "true", "needs.broker-check.outputs.allowed": "true" })), "false");
+  assert.equal(String(evaluate(head.env.TRUSTED_SKIP, { "needs.broker-check.outputs.allowed": "true" })), "false");
 });
 
 test("report job: an empty run head with no trusted skip posts neutral not-assessed on the gated head, never failure or success", (t) => {

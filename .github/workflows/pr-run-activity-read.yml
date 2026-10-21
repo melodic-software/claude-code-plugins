@@ -2418,17 +2418,6 @@ jobs:
             echo "pr-mismatch=true" >>"$GITHUB_OUTPUT"
           fi
 
-      # The kill switch, read here from its variables, and the broker-check
-      # job's allow: the trusted gate decisions that stop a run before its
-      # trigger gate, which no run job output can write.
-      - name: Check the kill switch
-        id: kill
-        if: always()
-        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
-        with:
-          value: ${{ vars.CLAUDE_LANES_DISABLED }}
-          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
-
       # The commit the check is posted on. The run job's head-sha counts only
       # when it equals the gated head: the caller's head-sha input or the
       # event's PR head, and the PR head just read only when the caller and
@@ -2437,8 +2426,9 @@ jobs:
       # head, never on the run's SHA. With no trusted head nothing is posted
       # and the step fails. An empty run head (the run stopped before its
       # trigger gate passed) never posts failure, which babysit would read as
-      # a merge blocker: after the kill switch or a broker refusal, read
-      # above (no head code ran, so the run's outputs are its own), it keeps
+      # a merge blocker: after the broker-check job's refusal, which includes
+      # its own kill switch read (a trusted decision no run job output can
+      # write, and one a switch flipped mid-run cannot change here), it keeps
       # the old rule (on pull_request the event's head, otherwise no post);
       # with no caller or event head it posts nothing; otherwise it posts
       # neutral not-assessed on that gated head, which babysit passes and
@@ -2455,7 +2445,7 @@ jobs:
           EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
           API_HEAD: ${{ steps.pr-head.outputs.sha }}
           PR_MISMATCH: ${{ steps.pr-head.outputs.pr-mismatch }}
-          TRUSTED_SKIP: ${{ steps.kill.outputs.proceed != 'true' || needs.broker-check.outputs.allowed != 'true' }}
+          TRUSTED_SKIP: ${{ needs.broker-check.outputs.allowed != 'true' }}
         run: |
           out() { printf 'post=true\nsha=%s\nforged=%s\n' "$1" "$2" >>"$GITHUB_OUTPUT"; }
           valid() { [[ $1 =~ ^[0-9a-f]{40}$ ]]; }

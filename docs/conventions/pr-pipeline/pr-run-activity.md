@@ -1107,7 +1107,10 @@ Recorded, not fixed:
   pattern (`sk-` and 20 token characters): it is too loose to join safely, since a line ending in
   an `sk-` word joined to the next line's first word matches it, and a false block fails fix-ci
   closed and asks for a rotation. A split OpenAI key and a credential wrapped in base64 still
-  pass.
+  pass, and so do splits the pair join does not undo: an indented continuation, a quoted
+  concatenation (`"a" +` then `"b"`), a lone carriage return, a blank line or a trailing
+  backslash between the halves, and a split over three or more lines. In `act-turns.json` a
+  literal `\n` or `\u0000` escape inside a string also hides a split or UTF-16 credential.
 - Issue mode still publishes from the run job, unscanned: its `Show the skill's run in the step
   summary`, `Upload the skill's final reply` and `Upload the patch` steps, and the gate verdict's
   step summary (`Check the gate skill's verdict`). That predates the scan job and is slated for 6b.
