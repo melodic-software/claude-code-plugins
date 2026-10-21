@@ -12,16 +12,12 @@ its hive; which hive wins when both are set is not resolved here.
 
 Forcelist values are REG_SZ named 1, 2, 3, ...: only integer-named values are
 read, and each is split on the first ';' into the extension id and the
-optional update URL.
-
-On a machine not joined to a domain the browser does not install a forced
-extension from outside its own store, so such an entry is 'listed-but-blocked'
-rather than 'listed'. Edge treats an entry with no update URL as coming from
-the Edge Add-ons store; Chrome leaves such an entry alone too. ExtensionSettings
-ids whose installation mode installs them and whose update URL is off the
-store are counted the same way. Domain membership is read from
-Win32_ComputerSystem.PartOfDomain; when that read fails, no entry is called
-blocked and DomainState records the failure.
+optional update URL. ExtensionSettings is one JSON value; only ids whose
+installation mode installs them are returned. Each entry's update URL loses
+its query string, and OffStore says whether it names an update source other
+than that browser's own store (an entry with no URL uses the store).
+DomainJoined comes from Win32_ComputerSystem.PartOfDomain, $null when that
+read fails. What the check makes of an off-store entry is its rule.
 
 Read-only, unelevated.
 #>
@@ -45,15 +41,26 @@ function Get-ExtensionPolicyReadState {
     return 'error'
 }
 
-function Test-OffStoreUrl {
+function New-PolicyEntry {
     [CmdletBinding()]
-    [OutputType([bool])]
+    [OutputType([pscustomobject])]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Pure constructor: builds and returns an object, changes no system state.')]
     param(
+        [AllowNull()] [string] $ValueName,
+        [Parameter(Mandatory = $true)] [string] $ExtId,
         [AllowNull()] [AllowEmptyString()] [string] $UpdateUrl,
         [Parameter(Mandatory = $true)] [string] $StoreUpdateUrl
     )
-    if ([string]::IsNullOrWhiteSpace($UpdateUrl)) { return $false }
-    return -not [string]::Equals($UpdateUrl.Trim(), $StoreUpdateUrl, [System.StringComparison]::OrdinalIgnoreCase)
+
+    $url = if ([string]::IsNullOrWhiteSpace($UpdateUrl)) { $null } else { ($UpdateUrl.Trim() -split '\?', 2)[0] }
+    [pscustomobject]@{
+        ValueName = if ($ValueName) { $ValueName } else { $null }
+        ExtId     = $ExtId.Trim()
+        UpdateUrl = $url
+        OffStore  = $null -ne $url -and -not [string]::Equals($url, $StoreUpdateUrl, [System.StringComparison]::OrdinalIgnoreCase)
+    }
 }
 
 function Read-ExtensionPolicyKey {
@@ -93,7 +100,6 @@ function Get-ExtensionPolicy {
         $domainState = Get-ExtensionPolicyReadState -ErrorRecord $_
         if ($domainState -eq 'absent') { $domainState = 'error' }
     }
-    $blockOffStore = $domainJoined -eq $false
 
     $readState = 'ok'
     $rows = [System.Collections.Generic.List[pscustomobject]]::new()
@@ -103,65 +109,45 @@ function Get-ExtensionPolicy {
 
             $forcelistRead = Read-ExtensionPolicyKey -Path "$root\ExtensionInstallForcelist"
             if ($forcelistRead.State -notin @('ok', 'absent') -and $readState -eq 'ok') { $readState = $forcelistRead.State }
-            $entries = [System.Collections.Generic.List[pscustomobject]]::new()
             $names = @($forcelistRead.Values.Keys | Where-Object { $_ -match '^\d+$' } | Sort-Object { [long]$_ })
-            foreach ($name in $names) {
+            $forced = foreach ($name in $names) {
                 $data = $forcelistRead.Values[$name]
                 if ($data -isnot [string] -or [string]::IsNullOrWhiteSpace($data)) { continue }
                 $cut = $data.IndexOf(';')
                 $extId = ($cut -ge 0 ? $data.Substring(0, $cut) : $data).Trim()
-                $url = $cut -ge 0 ? $data.Substring($cut + 1).Trim() : $null
-                if ($url -eq '') { $url = $null }
-                $blocked = $blockOffStore -and (Test-OffStoreUrl -UpdateUrl $url -StoreUpdateUrl $b.StoreUpdateUrl)
-                $entries.Add([pscustomobject]@{
-                        ValueName    = $name
-                        ExtId        = $extId
-                        UpdateUrl    = $url
-                        InstallState = $blocked ? 'listed-but-blocked' : 'listed'
-                    })
+                if (-not $extId) { continue }
+                New-PolicyEntry -ValueName $name -ExtId $extId `
+                    -UpdateUrl ($cut -ge 0 ? $data.Substring($cut + 1) : $null) -StoreUpdateUrl $b.StoreUpdateUrl
             }
             $rows.Add([pscustomobject]@{
-                    Browser      = $b.Browser
-                    Hive         = $hive
-                    Kind         = 'forcelist'
-                    Entries      = $entries.Count
-                    Matched      = $forcelistRead.State -eq 'ok'
-                    BlockedCount = @($entries | Where-Object InstallState -eq 'listed-but-blocked').Count
-                    Forcelist    = $entries.ToArray()
+                    Browser = $b.Browser; Hive = $hive; Kind = 'forcelist'
+                    Matched = $forcelistRead.State -eq 'ok'; Entries = @($forced)
                 })
 
             $settingsRead = Read-ExtensionPolicyKey -Path $root
             if ($settingsRead.State -notin @('ok', 'absent') -and $readState -eq 'ok') { $readState = $settingsRead.State }
             $settingsText = $settingsRead.Values['ExtensionSettings']
-            $installed = 0
-            $settingsBlocked = 0
+            $settings = $null
             if ($settingsText -is [string] -and $settingsText.Trim()) {
                 try {
                     $settings = $settingsText | ConvertFrom-Json -AsHashtable -ErrorAction Stop
                 } catch {
                     $settings = $null
-                    if ($readState -eq 'ok') { $readState = 'error' }
                 }
-                if ($settings -is [hashtable]) {
-                    foreach ($id in $settings.Keys) {
-                        $entry = $settings[$id]
-                        if ($id -eq '*' -or $entry -isnot [hashtable]) { continue }
-                        if ([string]$entry['installation_mode'] -notin $script:ExtensionPolicyInstallModes) { continue }
-                        $installed++
-                        if ($blockOffStore -and (Test-OffStoreUrl -UpdateUrl ([string]$entry['update_url']) -StoreUpdateUrl $b.StoreUpdateUrl)) {
-                            $settingsBlocked++
-                        }
-                    }
+                if ($settings -isnot [hashtable] -and $readState -eq 'ok') { $readState = 'error' }
+            }
+            $installing = if ($settings -is [hashtable]) {
+                foreach ($id in $settings.Keys) {
+                    $entry = $settings[$id]
+                    if ($id -eq '*' -or -not $id.Trim() -or $entry -isnot [hashtable]) { continue }
+                    if ([string]$entry['installation_mode'] -notin $script:ExtensionPolicyInstallModes) { continue }
+                    $url = if ($entry['update_url'] -is [string]) { $entry['update_url'] } else { $null }
+                    New-PolicyEntry -ExtId $id -UpdateUrl $url -StoreUpdateUrl $b.StoreUpdateUrl
                 }
             }
             $rows.Add([pscustomobject]@{
-                    Browser      = $b.Browser
-                    Hive         = $hive
-                    Kind         = 'extension-settings'
-                    Entries      = $installed
-                    Matched      = $settingsText -is [string] -and [bool]$settingsText.Trim()
-                    BlockedCount = $settingsBlocked
-                    Forcelist    = @()
+                    Browser = $b.Browser; Hive = $hive; Kind = 'extension-settings'
+                    Matched = $settings -is [hashtable]; Entries = @($installing)
                 })
         }
     }

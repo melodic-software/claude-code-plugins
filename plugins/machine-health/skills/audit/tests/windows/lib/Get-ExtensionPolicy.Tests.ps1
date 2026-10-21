@@ -62,26 +62,30 @@ Describe 'Get-ExtensionPolicy' -Tag 'lib' {
             '2'     = "cccccccccccccccccccccccccccccccc;$($script:EdgeStore);extra"
             'Other' = 'dddddddddddddddddddddddddddddddd'
             '10'    = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee;'
+            '11'    = ';https://updates.example.test/crx'
         }
         $row = Get-Row -Result (Get-ExtensionPolicy) -Browser 'edge' -Hive 'hklm'
-        $row.Entries | Should -Be 3
-        @($row.Forcelist.ValueName) | Should -Be @('1', '2', '10')
-        $row.Forcelist[0].ExtId | Should -Be 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-        $row.Forcelist[0].UpdateUrl | Should -BeNullOrEmpty
-        $row.Forcelist[1].ExtId | Should -Be 'cccccccccccccccccccccccccccccccc'
-        $row.Forcelist[1].UpdateUrl | Should -Be "$($script:EdgeStore);extra"
-        $row.Forcelist[2].UpdateUrl | Should -BeNullOrEmpty
+        @($row.Entries.ValueName) | Should -Be @('1', '2', '10')
+        $row.Entries[0].ExtId | Should -Be 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+        $row.Entries[0].UpdateUrl | Should -BeNullOrEmpty
+        $row.Entries[1].ExtId | Should -Be 'cccccccccccccccccccccccccccccccc'
+        $row.Entries[1].UpdateUrl | Should -Be "$($script:EdgeStore);extra"
+        $row.Entries[2].UpdateUrl | Should -BeNullOrEmpty
     }
 
-    It 'marks an off-store Edge entry listed-but-blocked off a domain, and a store or URL-less entry listed' {
+    It 'strips the query string from an update URL' {
+        Register-RegKey $script:EdgeForce @{ '1' = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;https://updates.example.test/crx?token=secret' }
+        (Get-Row -Result (Get-ExtensionPolicy) -Browser 'edge' -Hive 'hklm').Entries[0].UpdateUrl |
+            Should -Be 'https://updates.example.test/crx'
+    }
+
+    It 'marks an entry off-store only when its URL names another source than the browser store' {
         Register-RegKey $script:EdgeForce @{
             '1' = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;https://updates.example.test/crx'
             '2' = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;$($script:EdgeStore.ToUpperInvariant())"
             '3' = 'cccccccccccccccccccccccccccccccc'
         }
-        $row = Get-Row -Result (Get-ExtensionPolicy) -Browser 'edge' -Hive 'hklm'
-        @($row.Forcelist.InstallState) | Should -Be @('listed-but-blocked', 'listed', 'listed')
-        $row.BlockedCount | Should -Be 1
+        @((Get-Row -Result (Get-ExtensionPolicy) -Browser 'edge' -Hive 'hklm').Entries.OffStore) | Should -Be @($true, $false, $false)
     }
 
     It 'judges Chrome entries against the Chrome Web Store URL, not the Edge one' {
@@ -89,38 +93,30 @@ Describe 'Get-ExtensionPolicy' -Tag 'lib' {
             '1' = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;$($script:ChromeStore)"
             '2' = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;$($script:EdgeStore)"
         }
-        $row = Get-Row -Result (Get-ExtensionPolicy) -Browser 'chrome' -Hive 'hkcu'
-        @($row.Forcelist.InstallState) | Should -Be @('listed', 'listed-but-blocked')
+        @((Get-Row -Result (Get-ExtensionPolicy) -Browser 'chrome' -Hive 'hkcu').Entries.OffStore) | Should -Be @($false, $true)
     }
 
-    It 'calls nothing blocked on a domain-joined machine' {
+    It 'reports domain membership, and records the failure when it cannot be read' {
         $script:PartOfDomain = $true
-        Register-RegKey $script:EdgeForce @{ '1' = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;https://updates.example.test/crx' }
-        $r = Get-ExtensionPolicy
-        $r.DomainJoined | Should -BeTrue
-        (Get-Row -Result $r -Browser 'edge' -Hive 'hklm').Forcelist[0].InstallState | Should -Be 'listed'
-    }
-
-    It 'calls nothing blocked and records the failure when domain membership cannot be read' {
+        (Get-ExtensionPolicy).DomainJoined | Should -BeTrue
         Mock Get-CimInstance { throw [System.UnauthorizedAccessException]::new('denied') }
-        Register-RegKey $script:EdgeForce @{ '1' = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;https://updates.example.test/crx' }
         $r = Get-ExtensionPolicy
         $r.DomainState | Should -Be 'denied'
         $r.DomainJoined | Should -BeNullOrEmpty
-        (Get-Row -Result $r -Browser 'edge' -Hive 'hklm').Forcelist[0].InstallState | Should -Be 'listed'
     }
 
-    It 'counts installing ExtensionSettings ids and the off-store ones among them' {
+    It 'returns only installing ExtensionSettings ids, each with its off-store flag' {
         Register-RegKey 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' @{ ExtensionSettings = (@{
                     '*'                                = @{ installation_mode = 'blocked' }
                     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' = @{ installation_mode = 'force_installed'; update_url = 'https://updates.example.test/crx' }
                     'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' = @{ installation_mode = 'normal_installed'; update_url = $script:EdgeStore }
                     'cccccccccccccccccccccccccccccccc' = @{ installation_mode = 'allowed' }
+                    'dddddddddddddddddddddddddddddddd' = 'not an object'
                 } | ConvertTo-Json -Depth 4) }
         $row = Get-Row -Result (Get-ExtensionPolicy) -Browser 'edge' -Hive 'hklm' -Kind 'extension-settings'
         $row.Matched | Should -BeTrue
-        $row.Entries | Should -Be 2
-        $row.BlockedCount | Should -Be 1
+        @($row.Entries | Sort-Object ExtId | ForEach-Object { "$($_.ExtId)=$($_.OffStore)" }) |
+            Should -Be @('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=True', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb=False')
     }
 
     It 'reports denied when a policy key cannot be read' {
@@ -128,8 +124,12 @@ Describe 'Get-ExtensionPolicy' -Tag 'lib' {
         (Get-ExtensionPolicy).ReadState | Should -Be 'denied'
     }
 
-    It 'reports error for an unparsable ExtensionSettings value' {
-        Register-RegKey 'HKCU:\SOFTWARE\Policies\Google\Chrome' @{ ExtensionSettings = '{ nope' }
+    It 'reports error for an ExtensionSettings value that is <Case>' -ForEach @(
+        @{ Case = 'unparsable'; Value = '{ nope' }
+        @{ Case = 'not a JSON object'; Value = '[1, 2]' }
+    ) {
+        Register-RegKey 'HKCU:\SOFTWARE\Policies\Google\Chrome' @{ ExtensionSettings = $Value }
         (Get-ExtensionPolicy).ReadState | Should -Be 'error'
     }
 }
+

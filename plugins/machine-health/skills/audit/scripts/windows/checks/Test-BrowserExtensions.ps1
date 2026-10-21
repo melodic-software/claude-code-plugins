@@ -44,6 +44,8 @@ $highAttentionApi = @('debugger', 'nativeMessaging', 'proxy', 'management')
 $allSitePatterns = @('<all_urls>', '*://*/*', 'http://*/*', 'https://*/*')
 # Locations that bypass store review.
 $developerKinds = @('unpacked', 'command-line')
+# Locations whose install path the browser keeps relative to the profile.
+$relativePathKinds = @('store', 'external', 'policy')
 
 function Get-HighAttention {
     [CmdletBinding()]
@@ -57,6 +59,35 @@ function Get-HighAttention {
     return [string[]]@($found | Sort-Object -Unique)
 }
 
+function Get-ExtensionReason {
+    <#
+    .SYNOPSIS
+    The reasons one installed extension is flagged; none means INFO.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory = $true)] $Record,
+        [AllowEmptyCollection()] [string[]] $HighAttention = @(),
+        [Parameter(Mandatory = $true)] [bool] $ClaimedByPolicy
+    )
+
+    $chromium = $Record.Browser -ne 'firefox'
+    # A Chromium component claim counts only when its path is inside the browser's own install.
+    $component = $Record.LocationKind -eq 'component' -and (-not $chromium -or $Record.UnderBrowserInstall -eq $true)
+    $reasons = @(
+        if ($Record.LocationKind -in $developerKinds) { "loaded as $($Record.LocationKind)" }
+        if ($Record.LocationKind -eq 'store' -and $Record.FromWebstore -eq $false) { 'not from the web store' }
+        if ($Record.Signed -eq $false) { 'not signed' }
+        if ($Record.ForeignInstall -eq $true) { 'installed by another program' }
+        if ($chromium -and $Record.LocationKind -in $relativePathKinds -and $Record.PathIsAbsolute -eq $true) { 'install path outside the profile' }
+        if ($chromium -and $Record.LocationKind -eq 'policy' -and -not $ClaimedByPolicy) { 'policy location with no policy entry' }
+        if ($chromium -and $Record.LocationKind -eq 'component' -and -not $component) { 'component outside the browser install' }
+        if (-not $component -and $HighAttention.Count -gt 0) { "high-attention permissions: $($HighAttention -join ', ')" }
+    )
+    return [string[]]$reasons
+}
+
 $FailureSummary = 'Browser extension check failed.'
 $PassThru = $false
 $CheckBody = {
@@ -67,91 +98,92 @@ $CheckBody = {
     )
     $policy = Get-ExtensionPolicy
 
-    $forcedBy = @{}
+    $installed = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($read in $browserReads) { foreach ($ext in $read.Extensions) { [void]$installed.Add("$($ext.Browser)|$($ext.ExtId)") } }
+
+    # install_state rule: check-catalog.md section 23, "Policy entries".
+    $offDomain = $policy.DomainJoined -eq $false
+    $claimedBy = @{}
     $policyEntries = [System.Collections.Generic.List[object]]::new()
+    $offStoreCount = 0
     foreach ($row in $policy.Policies) {
-        foreach ($entry in $row.Forcelist) {
+        foreach ($entry in $row.Entries) {
+            $claim = "$($row.Browser)|$($entry.ExtId)"
+            if (-not $claimedBy.ContainsKey($claim)) { $claimedBy[$claim] = $row.Hive }
+            $offStore = $offDomain -and $entry.OffStore -and -not $installed.Contains($claim)
+            if ($offStore) { $offStoreCount++ }
+            if ($row.Kind -ne 'forcelist') { continue }
             $policyEntries.Add([ordered]@{
                     browser       = $row.Browser
                     hive          = $row.Hive
-                    value_name    = $entry.ValueName
-                    ext_id        = $entry.ExtId
-                    update_url    = $entry.UpdateUrl
-                    install_state = $entry.InstallState
+                    value_name    = Format-MachineText $entry.ValueName
+                    ext_id        = Format-MachineText $entry.ExtId
+                    update_url    = Format-MachineText $entry.UpdateUrl
+                    install_state = $offStore ? 'listed-off-store' : 'listed'
                 })
-            $forcedKey = "$($row.Browser)|$($entry.ExtId)"
-            if (-not $forcedBy.ContainsKey($forcedKey)) { $forcedBy[$forcedKey] = $row.Hive }
         }
     }
 
-    $items = [System.Collections.Generic.List[object]]::new()
-    foreach ($read in $browserReads) {
+    $items = foreach ($read in $browserReads) {
         foreach ($ext in $read.Extensions) {
+            $claim = "$($ext.Browser)|$($ext.ExtId)"
             $highAttention = @(Get-HighAttention -Record $ext)
-            $reasons = [System.Collections.Generic.List[string]]::new()
-            if ($ext.LocationKind -in $developerKinds) { $reasons.Add("loaded as $($ext.LocationKind)") }
-            if ($ext.LocationKind -eq 'store' -and $ext.FromWebstore -eq $false) { $reasons.Add('not from the web store') }
-            if ($ext.Signed -eq $false) { $reasons.Add('not signed') }
-            if ($ext.ForeignInstall -eq $true) { $reasons.Add('installed by another program') }
-            if ($ext.LocationKind -ne 'component' -and $highAttention.Count -gt 0) {
-                $reasons.Add("high-attention permissions: $($highAttention -join ', ')")
+            $reasons = @(Get-ExtensionReason -Record $ext -HighAttention $highAttention -ClaimedByPolicy $claimedBy.ContainsKey($claim))
+            $label = if ($ext.Name) { $ext.Name } else { $ext.ExtId }
+            New-FindingItem -Kind 'ext' -Identity @($ext.Browser, $ext.ProfileDir, $ext.ExtId) -MutedKeys $MutedKeys `
+                -Severity ($reasons.Count -gt 0 ? 'WARN' : 'INFO') -Title "$label ($($ext.Browser), $($ext.ProfileDir))" -Fields @{
+                browser        = $ext.Browser
+                profile        = Format-MachineText $ext.ProfileDir
+                ext_id         = Format-MachineText $ext.ExtId
+                name           = Format-MachineText $ext.Name
+                version        = Format-MachineText $ext.Version
+                location_code  = $ext.LocationCode
+                location_kind  = $ext.LocationKind
+                from_webstore  = $ext.FromWebstore
+                enabled        = $ext.Enabled
+                high_attention = $highAttention
+                policy_hive    = $claimedBy[$claim]
+                reasons        = $reasons
             }
-
-            $title = if ($ext.Name) { "$($ext.Name) ($($ext.Browser), $($ext.ProfileName))" } else { "$($ext.ExtId) ($($ext.Browser), $($ext.ProfileName))" }
-            $items.Add((New-FindingItem -Kind 'ext' -Identity @($ext.Browser, $ext.ProfileDir, $ext.ExtId) `
-                        -MutedKeys $MutedKeys -Severity ($reasons.Count -gt 0 ? 'WARN' : 'INFO') -Title $title -Fields @{
-                        browser        = $ext.Browser
-                        profile        = $ext.ProfileName
-                        ext_id         = $ext.ExtId
-                        name           = $ext.Name
-                        version        = $ext.Version
-                        location_code  = $ext.LocationCode
-                        location_kind  = $ext.LocationKind
-                        from_webstore  = $ext.FromWebstore
-                        enabled        = $ext.Enabled
-                        high_attention = $highAttention
-                        policy_hive    = $forcedBy["$($ext.Browser)|$($ext.ExtId)"]
-                        reasons        = @($reasons)
-                    }))
         }
     }
     $items = @($items | Sort-Object { $_.browser }, { $_.profile }, { $_.ext_id })
 
     $readStates = @($browserReads | ForEach-Object { $_.ReadState }) + @($policy.ReadState)
-    # Domain membership only decides the blocked label; it cannot hide an extension.
+    $unreadable = @($readStates | Where-Object { $_ -notin @('ok', 'absent') }).Count
     $severity = Get-UnmutedSeverity -Items $items -ReadState $readStates
+    # A source that could not be read can hide anything, so no item verdict stands.
+    if ($unreadable -gt 0) { $severity = 'UNKNOWN' }
 
-    $mutedCount = @($items | Where-Object muted).Count
-    $flagged = @($items | Where-Object { -not $_.muted -and $_.severity -eq 'WARN' })
-    $blockedCount = ($policy.Policies | Measure-Object -Property BlockedCount -Sum).Sum
-    $unreadable = @($browserReads | Where-Object { $_.ReadState -notin @('ok', 'absent') } | ForEach-Object { $_.Browser })
-    if ($policy.ReadState -notin @('ok', 'absent')) { $unreadable += 'policy' }
-
-    $summary = "$($items.Count) browser extension(s), $($flagged.Count) flagged, $($policyEntries.Count) forcelist entr$($policyEntries.Count -eq 1 ? 'y' : 'ies')."
-    if ($unreadable.Count -gt 0) { $summary += " Could not read: $($unreadable -join ', ')." }
+    $flagged = @($items | Where-Object { -not $_.muted -and $_.severity -eq 'WARN' }).Count
+    $summary = "$($items.Count) browser extension(s), $flagged flagged, $($policyEntries.Count) forcelist entr$($policyEntries.Count -eq 1 ? 'y' : 'ies')."
+    if ($unreadable -gt 0) { $summary += " $unreadable source(s) could not be read." }
 
     $detail = @{
         extension_count      = $items.Count
         high_attention_count = @($items | Where-Object { @($_.high_attention).Count -gt 0 }).Count
         stubs_skipped        = [int]($browserReads | Measure-Object -Property StubsSkipped -Sum).Sum
         policy_entry_count   = $policyEntries.Count
-        blocked_marker_count = [int]$blockedCount
+        blocked_marker_count = $offStoreCount
         items_count          = $items.Count
-        muted_count          = $mutedCount
+        muted_count          = @($items | Where-Object muted).Count
         domain_read_state    = $policy.DomainState
         browsers             = @($browserReads | ForEach-Object {
-                [ordered]@{ browser = $_.Browser; profile_count = $_.ProfileCount; read_state = $_.ReadState }
+                [ordered]@{
+                    browser = $_.Browser; profile_count = $_.ProfileCount; read_state = $_.ReadState
+                    profiles = @($_.Profiles | ForEach-Object { [ordered]@{ profile = Format-MachineText $_.ProfileDir; read_state = $_.ReadState } })
+                }
             })
         policy               = @($policy.Policies | ForEach-Object {
-                [ordered]@{ browser = $_.Browser; hive = $_.Hive; kind = $_.Kind; entries = $_.Entries; matched = $_.Matched }
+                [ordered]@{ browser = $_.Browser; hive = $_.Hive; kind = $_.Kind; entries = @($_.Entries).Count; matched = $_.Matched }
             })
         policy_entries       = @($policyEntries)
         items                = $items
     }
 
     $failure = @{}
-    if ($unreadable.Count -gt 0) {
-        $failure = @{ RanSuccessfully = $false; ErrorMessage = "Unreadable extension source(s): $($unreadable -join ', ')." }
+    if ($unreadable -gt 0) {
+        $failure = @{ RanSuccessfully = $false; ErrorMessage = "$unreadable extension source(s) could not be read." }
     }
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' -Severity $severity `
         -Summary $summary -Commands $commands -Detail $detail -NeedsAdmin $false @failure

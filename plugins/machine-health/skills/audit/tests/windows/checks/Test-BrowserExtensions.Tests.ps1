@@ -19,29 +19,42 @@ BeforeAll {
     function Get-TestExtension {
         param([string] $Browser = 'chrome', [string] $ExtId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
             [string] $Kind = 'store', $FromWebstore = $true, [string[]] $Api = @(), [string[]] $Hosts = @(),
-            $Signed = $null, $Foreign = $null)
-        [pscustomobject]@{
-            Browser = $Browser; ProfileDir = 'Default'; ProfileName = 'Personal'; ExtId = $ExtId
-            Name = "Ext $ExtId"; Version = '1.0'; LocationCode = 1; LocationKind = $Kind
-            FromWebstore = $FromWebstore; Enabled = $true; ApiPermissions = $Api; HostPatterns = $Hosts
-            Signed = $Signed; ForeignInstall = $Foreign
+            $Signed = $null, $Foreign = $null, $PathIsAbsolute = $false, $UnderBrowserInstall = $null,
+            [string] $Name = "Ext name")
+        $recordArgs = @{
+            Browser = $Browser; ProfileDir = 'Default'; ExtId = $ExtId; Name = $Name; Version = '1.0'
+            LocationKind = $Kind; FromWebstore = $FromWebstore; Enabled = $true; ApiPermissions = $Api
+            HostPatterns = $Hosts; Signed = $Signed; ForeignInstall = $Foreign
         }
+        if ($Browser -ne 'firefox') {
+            $recordArgs['LocationCode'] = 1
+            $recordArgs['PathIsAbsolute'] = $PathIsAbsolute
+            $recordArgs['UnderBrowserInstall'] = $UnderBrowserInstall
+        }
+        New-ExtensionRecord @recordArgs
     }
 
     function Get-TestRead {
         param([string] $Browser, [object[]] $Extensions = @(), [string] $ReadState = 'ok', [int] $Stubs = 0)
-        [pscustomobject]@{ Browser = $Browser; ReadState = $ReadState; ProfileCount = 1; StubsSkipped = $Stubs; Extensions = $Extensions }
+        [pscustomobject]@{
+            Browser = $Browser; ReadState = $ReadState; ProfileCount = 1; StubsSkipped = $Stubs
+            Profiles = @([pscustomobject]@{ ProfileDir = 'Default'; ReadState = $ReadState }); Extensions = $Extensions
+        }
+    }
+
+    function Get-TestEntry {
+        param([string] $ExtId, [bool] $OffStore = $false, [string] $ValueName = '1')
+        [pscustomobject]@{ ValueName = $ValueName; ExtId = $ExtId; UpdateUrl = $(if ($OffStore) { 'https://updates.example.test/crx' }); OffStore = $OffStore }
     }
 
     function Get-TestPolicy {
-        param([object[]] $Forcelist = @(), [string] $ReadState = 'ok')
+        param([object[]] $Forcelist = @(), [object[]] $Settings = @(), [string] $ReadState = 'ok', $DomainJoined = $false)
         [pscustomobject]@{
-            ReadState = $ReadState; DomainState = 'ok'; DomainJoined = $false
-            Policies  = @([pscustomobject]@{
-                    Browser = 'edge'; Hive = 'hklm'; Kind = 'forcelist'; Entries = $Forcelist.Count
-                    Matched = $Forcelist.Count -gt 0; BlockedCount = @($Forcelist | Where-Object InstallState -eq 'listed-but-blocked').Count
-                    Forcelist = $Forcelist
-                })
+            ReadState = $ReadState; DomainState = 'ok'; DomainJoined = $DomainJoined
+            Policies  = @(
+                [pscustomobject]@{ Browser = 'edge'; Hive = 'hklm'; Kind = 'forcelist'; Matched = $Forcelist.Count -gt 0; Entries = $Forcelist }
+                [pscustomobject]@{ Browser = 'edge'; Hive = 'hklm'; Kind = 'extension-settings'; Matched = $Settings.Count -gt 0; Entries = $Settings }
+            )
         }
     }
 
@@ -81,23 +94,25 @@ Describe 'Test-BrowserExtensions' -Tag 'check' {
         $r.detail.stubs_skipped | Should -Be 5
     }
 
-    It 'lists a store extension with ordinary permissions as INFO' {
+    It 'lists a store extension with ordinary permissions as INFO, naming the profile folder' {
         Register-FakeRead -Edge @(Get-TestExtension -Browser 'edge' -Api @('storage', 'tabs'))
         $r = Invoke-BrowserExtensionsAsObject
         $r.severity | Should -Be 'INFO'
         $item = $r.detail.items[0]
         $item.key | Should -Match '^ext:[0-9a-f]{16}$'
-        $item.browser | Should -Be 'edge'
-        $item.profile | Should -Be 'Personal'
-        $item.location_kind | Should -Be 'store'
+        $item.profile | Should -Be 'Default'
+        $item.title | Should -Be 'Ext name (edge, Default)'
         @($item.high_attention).Count | Should -Be 0
-        $r.detail.extension_count | Should -Be 1
     }
 
-    It 'flags <Case> as WARN' -TestCases @(
-        @{ Case = 'an unpacked extension'; Ext = { Get-TestExtension -Kind 'unpacked' -FromWebstore $false } }
+    It 'flags <Case> as WARN' -ForEach @(
+        @{ Case = 'an unpacked extension'; Ext = { Get-TestExtension -Kind 'unpacked' -FromWebstore $false -PathIsAbsolute $true } }
         @{ Case = 'a command-line extension'; Ext = { Get-TestExtension -Kind 'command-line' -FromWebstore $false } }
         @{ Case = 'a store-location extension not from the web store'; Ext = { Get-TestExtension -FromWebstore $false } }
+        @{ Case = 'a store extension with an absolute install path'; Ext = { Get-TestExtension -PathIsAbsolute $true } }
+        @{ Case = 'a policy-location extension no policy names'; Ext = { Get-TestExtension -Kind 'policy' } }
+        @{ Case = 'a component outside the browser install'; Ext = { Get-TestExtension -Kind 'component' -PathIsAbsolute $true -UnderBrowserInstall $false } }
+        @{ Case = 'a component when the install folder could not be read'; Ext = { Get-TestExtension -Kind 'component' -PathIsAbsolute $true } }
         @{ Case = 'a debugger permission'; Ext = { Get-TestExtension -Api @('debugger') } }
         @{ Case = 'access to all sites'; Ext = { Get-TestExtension -Hosts @('<all_urls>') } }
         @{ Case = 'an unsigned Firefox add-on'; Ext = { Get-TestExtension -Browser 'firefox' -FromWebstore $null -Signed $false -Foreign $false } }
@@ -107,14 +122,44 @@ Describe 'Test-BrowserExtensions' -Tag 'check' {
         $r = Invoke-BrowserExtensionsAsObject
         $r.severity | Should -Be 'WARN'
         $r.detail.items[0].severity | Should -Be 'WARN'
+        @($r.detail.items[0].reasons).Count | Should -BeGreaterThan 0
     }
 
-    It 'does not flag a component extension for its permissions' {
-        Register-FakeRead -Chrome @(Get-TestExtension -Kind 'component' -FromWebstore $false -Api @('nativeMessaging') -Hosts @('<all_urls>'))
+    It 'does not flag a verified component extension for its permissions' {
+        Register-FakeRead -Chrome @(Get-TestExtension -Kind 'component' -FromWebstore $false -Api @('nativeMessaging') `
+                -Hosts @('<all_urls>') -PathIsAbsolute $true -UnderBrowserInstall $true)
         $r = Invoke-BrowserExtensionsAsObject
         $r.severity | Should -Be 'INFO'
         @($r.detail.items[0].high_attention) | Should -Be @('<all_urls>', 'nativeMessaging')
-        $r.detail.high_attention_count | Should -Be 1
+    }
+
+    It 'accepts a policy-location extension a forcelist or ExtensionSettings entry names' {
+        Register-FakeRead -Chrome @() -Edge @(
+            (Get-TestExtension -Browser 'edge' -Kind 'policy' -ExtId 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+            (Get-TestExtension -Browser 'edge' -Kind 'policy' -ExtId 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+        ) -Policy (Get-TestPolicy -Forcelist @(Get-TestEntry 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') `
+                -Settings @(Get-TestEntry 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' -ValueName $null))
+        $r = Invoke-BrowserExtensionsAsObject
+        $r.severity | Should -Be 'INFO'
+        @($r.detail.items.policy_hive) | Should -Be @('hklm', 'hklm')
+    }
+
+    It 'calls an off-store forcelist entry listed-off-store off a domain only when no extension with that id is installed' {
+        $policy = Get-TestPolicy -Forcelist @(
+            (Get-TestEntry 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' -OffStore $true)
+            (Get-TestEntry 'cccccccccccccccccccccccccccccccc' -OffStore $true -ValueName '2')
+            (Get-TestEntry 'dddddddddddddddddddddddddddddddd' -ValueName '3')
+        )
+        Register-FakeRead -Edge @(Get-TestExtension -Browser 'edge' -Kind 'policy' -ExtId 'cccccccccccccccccccccccccccccccc') -Policy $policy
+        $r = Invoke-BrowserExtensionsAsObject
+        @($r.detail.policy_entries.install_state) | Should -Be @('listed-off-store', 'listed', 'listed')
+        $r.detail.blocked_marker_count | Should -Be 1
+        $r.detail.policy_entry_count | Should -Be 3
+    }
+
+    It 'calls nothing off-store on a domain-joined machine' {
+        Register-FakeRead -Policy (Get-TestPolicy -DomainJoined $true -Forcelist @(Get-TestEntry 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' -OffStore $true))
+        (Invoke-BrowserExtensionsAsObject).detail.policy_entries[0].install_state | Should -Be 'listed'
     }
 
     It 'keeps a muted WARN item listed without raising the check' {
@@ -124,16 +169,6 @@ Describe 'Test-BrowserExtensions' -Tag 'check' {
         $r.severity | Should -Be 'OK'
         $r.detail.items[0].muted | Should -BeTrue
         $r.detail.muted_count | Should -Be 1
-        $r.detail.items_count | Should -Be 1
-    }
-
-    It 'keys the item by browser, profile directory and id, not by display name' {
-        Register-FakeRead -Chrome @(Get-TestExtension)
-        $first = (Invoke-BrowserExtensionsAsObject).detail.items[0].key
-        $renamed = Get-TestExtension
-        $renamed.ProfileName = 'Renamed'
-        Register-FakeRead -Chrome @($renamed)
-        (Invoke-BrowserExtensionsAsObject).detail.items[0].key | Should -Be $first
     }
 
     It 'reports UNKNOWN, never OK, when a browser could not be read' {
@@ -141,28 +176,31 @@ Describe 'Test-BrowserExtensions' -Tag 'check' {
         $r = Invoke-BrowserExtensionsAsObject
         { Assert-CheckResult $r } | Should -Not -Throw
         $r.severity | Should -Be 'UNKNOWN'
-        $r.summary | Should -Match 'chrome'
         $r.ran_successfully | Should -BeFalse
     }
 
-    It 'reports UNKNOWN when the policy keys could not be read' {
-        Register-FakeRead -Policy (Get-TestPolicy -ReadState 'error')
+    It 'reports UNKNOWN when a profile file failed, even with flagged and listed items' {
+        Register-FakeRead -ChromeState 'error' -Chrome @(
+            (Get-TestExtension -Kind 'unpacked' -FromWebstore $false)
+            (Get-TestExtension -ExtId 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+        )
+        $r = Invoke-BrowserExtensionsAsObject
+        $r.severity | Should -Be 'UNKNOWN'
+        $r.detail.items_count | Should -Be 2
+        $r.detail.browsers[0].profiles[0].read_state | Should -Be 'error'
+    }
+
+    It 'reports UNKNOWN when the policy keys could not be read, even with items' {
+        Register-FakeRead -Edge @(Get-TestExtension -Browser 'edge') -Policy (Get-TestPolicy -ReadState 'error')
         (Invoke-BrowserExtensionsAsObject).severity | Should -Be 'UNKNOWN'
     }
 
-    It 'lists policy entries with their hive and install state and labels the forced extension' {
-        $forcelist = @(
-            [pscustomobject]@{ ValueName = '1'; ExtId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; UpdateUrl = $null; InstallState = 'listed' }
-            [pscustomobject]@{ ValueName = '2'; ExtId = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'; UpdateUrl = 'https://updates.example.test/crx'; InstallState = 'listed-but-blocked' }
-        )
-        Register-FakeRead -Edge @(Get-TestExtension -Browser 'edge' -Kind 'policy') -Policy (Get-TestPolicy -Forcelist $forcelist)
+    It 'keeps machine text out of the summary and sanitizes it in titles and fields' {
+        $evil = "Evil$([char]0x1B)[31m$([char]0x202E)name"
+        Register-FakeRead -Chrome @(Get-TestExtension -Name $evil)
         $r = Invoke-BrowserExtensionsAsObject
-        $r.severity | Should -Be 'INFO'
-        $r.detail.policy_entry_count | Should -Be 2
-        $r.detail.blocked_marker_count | Should -Be 1
-        @($r.detail.policy_entries.install_state) | Should -Be @('listed', 'listed-but-blocked')
-        $r.detail.policy_entries[0].hive | Should -Be 'hklm'
-        $r.detail.items[0].policy_hive | Should -Be 'hklm'
-        $r.detail.policy[0].kind | Should -Be 'forcelist'
+        $r.summary | Should -Not -Match 'Evil'
+        $r.detail.items[0].name | Should -Not -Match "[$([char]0x1B)$([char]0x202E)]"
+        $r.detail.items[0].title | Should -Not -Match "[$([char]0x1B)$([char]0x202E)]"
     }
 }
