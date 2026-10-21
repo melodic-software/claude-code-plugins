@@ -101,6 +101,15 @@ on:
         required: false
         type: string
         default: pr-base
+      head-sha:
+        description: >-
+          The PR head the caller gated in a job that ran no head code (pr-unblock's
+          fix-ci-context). The report job posts the check only on it, the event's
+          PR head, or the PR's head read from the API; a run job head-sha that is
+          none of these posts failure on the trusted head instead.
+        required: false
+        type: string
+        default: ""
       ci-context-attempt:
         description: >-
           For a prepare: ci-context activity, the run attempt whose
@@ -1576,7 +1585,19 @@ jobs:
       # by the event, never by a run job output: this code runs with the
       # private key, and head code with sudo on the run job's runner could
       # forge any output, base-sha included, to name a commit of its own.
-      # The gated head's checkout below replaces this one.
+      # The gated head's checkout below replaces this one. An empty default
+      # branch would make the checkout fall back to the event's ref, so it
+      # fails closed first.
+      - name: Assert the default branch is set
+        if: inputs.issue-number == '' && needs.run.outputs.go == 'true' && needs.run.outputs.carry-sealed-length != ''
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::the event names no default branch; the opener is not checked out"
+            exit 1
+          fi
+
       - name: Check out the default branch tip
         id: base
         if: inputs.issue-number == '' && needs.run.outputs.go == 'true' && needs.run.outputs.carry-sealed-length != ''
@@ -2269,9 +2290,10 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      # The default branch tip, then the run job's base SHA only when the
-      # default branch holds it. The event's base SHA is never checked out:
-      # a PR into another branch would choose the actions that post its check.
+      # The default branch tip, never the run job's base-sha or the event's
+      # base SHA: a hostile run job could forge the one, and a PR into another
+      # branch would choose the other, and either would pick the code that
+      # posts the check.
       - name: Assert the default branch is set
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -2289,18 +2311,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check out the run job's base SHA when the default branch holds it
-        env:
-          BASE_SHA: ${{ needs.run.outputs.base-sha }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          if [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] &&
-            git -C .base merge-base --is-ancestor "$BASE_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"; then
-            git -C .base checkout -q --detach "$BASE_SHA"
-          else
-            echo "No base SHA on the default branch; staying on the default branch tip"
-          fi
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -2317,24 +2327,16 @@ jobs:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict
 
-      - name: Check the lane's commits are signed
-        id: signed
-        if: >-
-          always()
-          && needs.run.outputs.can-commit != 'false'
-          && needs.run.outputs.pr-number != ''
-        uses: ./.base/.github/actions/check-signed-commits # zizmor: ignore[self-repository]
-        with:
-          pr-number: ${{ needs.run.outputs.pr-number }}
-          since-sha: ${{ needs.run.outputs.head-sha }}
-          github-token: ${{ github.token }}
-
-      # A cancelled run is superseded only when the PR has a newer head.
+      # The PR number from the caller or the event, never from the run job,
+      # whose outputs head code could forge. A run job pr-number that names
+      # another PR fails closed: the check then goes to the trusted head as a
+      # failure.
       - name: Read the PR's current head SHA
         id: pr-head
         if: always()
         env:
-          PR_NUMBER: ${{ needs.run.outputs.pr-number || github.event.pull_request.number || inputs.pr-number }}
+          PR_NUMBER: ${{ inputs.pr-number || github.event.pull_request.number }}
+          RUN_PR_NUMBER: ${{ needs.run.outputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
         run: |
           sha=""
@@ -2346,19 +2348,80 @@ jobs:
             sha=""
           fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          if [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then echo "number=$PR_NUMBER" >>"$GITHUB_OUTPUT"; fi
+          if [ -n "$RUN_PR_NUMBER" ] && [ "$RUN_PR_NUMBER" != "$PR_NUMBER" ]; then
+            echo "::error::the run job's pr-number is not the PR the caller or event names"
+            echo "pr-mismatch=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      # The commit the check is posted on. The run job's head-sha counts only
+      # when it equals a trusted head: the caller's gated head, the event's PR
+      # head, or the PR head just read. Any other value posts failure on the
+      # trusted head, never on the run's SHA; with no trusted head nothing is
+      # posted and the step fails. An empty run head keeps the old rule: on
+      # pull_request the event's head, otherwise no post.
+      - name: Choose the head the check is posted on
+        id: head
+        if: always()
+        env:
+          RUN_HEAD: ${{ needs.run.outputs.head-sha }}
+          CALLER_HEAD: ${{ inputs.head-sha }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          API_HEAD: ${{ steps.pr-head.outputs.sha }}
+          PR_MISMATCH: ${{ steps.pr-head.outputs.pr-mismatch }}
+        run: |
+          out() { printf 'post=true\nsha=%s\nforged=%s\n' "$1" "$2" >>"$GITHUB_OUTPUT"; }
+          if [ -z "$RUN_HEAD" ] && [ "$PR_MISMATCH" != true ]; then
+            out "" false
+            exit 0
+          fi
+          trusted=()
+          for sha in "$CALLER_HEAD" "$EVENT_HEAD" "$API_HEAD"; do
+            if [[ $sha =~ ^[0-9a-f]{40}$ ]]; then trusted+=("$sha"); fi
+          done
+          if [ "${#trusted[@]}" -eq 0 ]; then
+            echo "post=false" >>"$GITHUB_OUTPUT"
+            echo "::error::no trusted PR head to post the check on; nothing is posted"
+            exit 1
+          fi
+          if [ "$PR_MISMATCH" != true ]; then
+            for sha in "${trusted[@]}"; do
+              if [ "$RUN_HEAD" = "$sha" ]; then
+                out "$sha" false
+                exit 0
+              fi
+            done
+          fi
+          echo "::error::the run job's head-sha or pr-number is not the gated PR's; failure is posted on the trusted head ${trusted[0]}"
+          out "${trusted[0]}" true
+
+      - name: Check the lane's commits are signed
+        id: signed
+        if: >-
+          always()
+          && needs.run.outputs.can-commit != 'false'
+          && steps.pr-head.outputs.number != ''
+          && steps.head.outputs.forged == 'false'
+        uses: ./.base/.github/actions/check-signed-commits # zizmor: ignore[self-repository]
+        with:
+          pr-number: ${{ steps.pr-head.outputs.number }}
+          since-sha: ${{ steps.head.outputs.sha }}
+          github-token: ${{ github.token }}
 
       # Off pull_request, an empty run head SHA would fall back to github.sha,
       # the dispatch ref, which is not the PR's commit, so nothing is posted.
       - name: Note that no check is posted without a head SHA
         if: >-
           always() && github.event_name != 'pull_request'
-          && needs.run.outputs.head-sha == ''
+          && steps.head.outputs.post == 'true' && steps.head.outputs.sha == ''
         run: echo "The run job gated no head SHA, so no check run is posted." >>"$GITHUB_STEP_SUMMARY"
 
+      # A forged head or PR posts failure on the trusted head: the run result
+      # reads failure and the head disagrees with the verdict's.
       - name: Post the check run
         if: >-
-          always() && !(github.event_name != 'pull_request'
-          && needs.run.outputs.head-sha == '')
+          always() && steps.head.outputs.post == 'true'
+          && !(github.event_name != 'pull_request' && steps.head.outputs.sha == '')
         uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
         with:
           lane: ${{ inputs.lane }}
@@ -2368,12 +2431,13 @@ jobs:
           # scan job that failed (a credential, a withheld or oversize
           # payload) fails the check after a run job that succeeded.
           run-result: >-
-            ${{ needs.broker-check.result != 'success' && needs.broker-check.result
+            ${{ steps.head.outputs.forged == 'true' && 'failure'
+            || needs.broker-check.result != 'success' && needs.broker-check.result
             || needs.run.result != 'success' && needs.run.result
             || needs.scan.result }}
           act-outcome: ${{ needs.run.outputs.act-outcome }}
-          gate-reason: ${{ needs.run.outputs.gate-reason }}
-          head-sha: ${{ needs.run.outputs.head-sha }}
+          gate-reason: ${{ steps.head.outputs.forged != 'true' && needs.run.outputs.gate-reason || '' }}
+          head-sha: ${{ steps.head.outputs.sha }}
           pr-head-sha: ${{ steps.pr-head.outputs.sha }}
           can-commit: ${{ needs.run.outputs.can-commit }}
           all-verified: ${{ steps.signed.outputs.all-verified }}

@@ -378,6 +378,7 @@ jobs:
       trusted-base: default-tip
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       # Reproducing, fixing and rerunning several checks outlasts the default.
       timeout-minutes: 60
     secrets:
@@ -414,6 +415,7 @@ jobs:
       trusted-base: default-tip
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}

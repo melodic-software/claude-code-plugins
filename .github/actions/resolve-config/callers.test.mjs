@@ -20,6 +20,7 @@ import { parse } from "yaml";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
+import { decide } from "../report-check-run/decide.mjs";
 import { main as reportCheckRun } from "../report-check-run/report-check-run.mjs";
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -1170,7 +1171,8 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
   const steps = scanSteps();
   const at = (id) => steps.findIndex((step) => step.id === id);
   const scan = at("leak-scan");
-  assert.deepEqual(["base", "key", "open", "decode"].map(at), [0, 1, 2, 3]);
+  assert.equal(steps[0].name, "Assert the default branch is set");
+  assert.deepEqual(["base", "key", "open", "decode"].map(at), [1, 2, 3, 4]);
   assert.ok(at("decode") < scan);
   const outputs = steps.filter((step) => (isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step));
   assert.equal(outputs.length, 3);
@@ -2218,7 +2220,7 @@ test("pr-run-activity-read.yml: the report needs the scan job, and a failed scan
   assert.deepEqual(report.needs, ["broker-check", "run", "scan"]);
   const post = report.steps.find((s) => s.name === "Post the check run");
   const result = (broker, run, scan) =>
-    evaluate(post.with["run-result"], { "needs.broker-check.result": broker, "needs.run.result": run, "needs.scan.result": scan });
+    evaluate(post.with["run-result"], { "steps.head.outputs.forged": "false", "needs.broker-check.result": broker, "needs.run.result": run, "needs.scan.result": scan });
   assert.equal(result("success", "success", "success"), "success");
   assert.equal(result("success", "success", "failure"), "failure", "a credential, a withheld or an oversize payload");
   assert.equal(result("success", "failure", "success"), "failure");
@@ -2292,3 +2294,148 @@ test("scan job: patch-sha256 is the SHA-256 of exactly the bytes opened, scanned
   assert.match(hit.failed, /^leak-scan: Anthropic key; nothing is uploaded or summarized/);
   for (const dir of [clean.outputs.dir, hit.outputs.dir]) if (dir) rmSync(dir, { recursive: true, force: true });
 });
+
+// --- the report job: where the check is posted ---
+
+const reportSteps = () => workflow("pr-run-activity-read.yml").jobs.report.steps;
+const TRUSTED = "a".repeat(40);
+const OTHER = "f".repeat(40);
+
+// Runs the head step with the given env; returns its exit and outputs.
+function chooseHead(t, env) {
+  const root = mkdtempSync(join(tmpdir(), "report-head-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const output = join(root, "github-output");
+  writeFileSync(output, "");
+  const step = reportSteps().find((s) => s.id === "head");
+  const result = runStep(step, root, { RUN_HEAD: "", CALLER_HEAD: "", EVENT_HEAD: "", API_HEAD: "", PR_MISMATCH: "", ...env, GITHUB_OUTPUT: output });
+  return { status: result.status, log: result.stdout, outputs: outputLines(output) };
+}
+
+// The post step's inputs as the runner evaluates them, then decide().
+function posted(head, { verdictHead = head.outputs.sha, runResult = "success", gateReason = "", event = "workflow_dispatch" } = {}) {
+  const post = reportSteps().find((s) => s.name === "Post the check run");
+  const context = {
+    "steps.head.outputs.post": head.outputs.post ?? "",
+    "steps.head.outputs.sha": head.outputs.sha ?? "",
+    "steps.head.outputs.forged": head.outputs.forged ?? "",
+    "github.event_name": event,
+    "needs.broker-check.result": "success",
+    "needs.run.result": runResult,
+    "needs.scan.result": "success",
+    "needs.run.outputs.gate-reason": gateReason,
+  };
+  if (!evaluate(post.if.replaceAll("always()", "true"), context)) return null;
+  const verdict = {
+    version: 1, lane: "pr-unblock", activity: "fix-ci", "run-url": "u", "head-sha": verdictHead,
+    gates: { "kill-switch": { proceed: "true", reason: "" }, trigger: { proceed: "true", reason: "" } },
+    config: "valid", "skip-reason": null, outcome: "success", "dirty-tree": null, patch: "written",
+  };
+  const decision = decide(verdict, {
+    lane: "pr-unblock",
+    activity: "fix-ci",
+    runResult: evaluate(post.with["run-result"], context),
+    actOutcome: "success",
+    signedCommits: null,
+    gateReason: evaluate(post.with["gate-reason"], context),
+    headSha: evaluate(post.with["head-sha"], context),
+    headShaFallback: "",
+    prHeadSha: TRUSTED,
+    gateSkipReasons: {},
+    skipReasons: [],
+  });
+  return decision.report;
+}
+
+test("report job: a run head that is the gated head posts normally on it", (t) => {
+  for (const env of [{ CALLER_HEAD: TRUSTED }, { EVENT_HEAD: TRUSTED }, { API_HEAD: TRUSTED }, { CALLER_HEAD: OTHER.replace(/f/g, "e"), API_HEAD: TRUSTED }]) {
+    const head = chooseHead(t, { RUN_HEAD: TRUSTED, ...env });
+    assert.equal(head.status, 0, head.log);
+    assert.deepEqual(head.outputs, { post: "true", sha: TRUSTED, forged: "false" }, JSON.stringify(env));
+    const report = posted(head);
+    assert.deepEqual([report.head_sha, report.conclusion], [TRUSTED, "success"], JSON.stringify(env));
+  }
+});
+
+test("report job: a forged run head-sha naming another commit posts failure on the trusted head, never on the forged SHA", (t) => {
+  const head = chooseHead(t, { RUN_HEAD: OTHER, CALLER_HEAD: TRUSTED, API_HEAD: TRUSTED });
+  assert.equal(head.status, 0);
+  assert.deepEqual(head.outputs, { post: "true", sha: TRUSTED, forged: "true" });
+  assert.match(head.log, /^::error::the run job's head-sha or pr-number is not the gated PR's/m);
+  // A verdict the hostile run made to agree with its own head, a forged gate skip
+  // or success: still failure, on the trusted head.
+  for (const options of [{ verdictHead: OTHER }, { verdictHead: OTHER, gateReason: "untrusted-actor" }, { verdictHead: TRUSTED }]) {
+    const report = posted(head, options);
+    assert.deepEqual([report.head_sha, report.conclusion], [TRUSTED, "failure"], JSON.stringify(options));
+  }
+  // A pr-number naming another PR fails the same way, even with a matching head.
+  const pr = chooseHead(t, { RUN_HEAD: TRUSTED, CALLER_HEAD: TRUSTED, PR_MISMATCH: "true" });
+  assert.deepEqual(pr.outputs, { post: "true", sha: TRUSTED, forged: "true" });
+  assert.deepEqual([posted(pr).head_sha, posted(pr).conclusion], [TRUSTED, "failure"]);
+});
+
+test("report job: with no trusted head, nothing is posted and the job fails", (t) => {
+  for (const env of [{}, { CALLER_HEAD: "x", EVENT_HEAD: "A".repeat(40), API_HEAD: "a".repeat(39) }]) {
+    const head = chooseHead(t, { RUN_HEAD: OTHER, ...env });
+    assert.equal(head.status, 1, JSON.stringify(env));
+    assert.deepEqual(head.outputs, { post: "false" });
+    assert.equal(posted(head), null, "the post step does not run");
+  }
+  // An empty run head (a run that stopped before its gate) keeps the old rule:
+  // off pull_request nothing is posted; on pull_request the event's head.
+  const empty = chooseHead(t, {});
+  assert.deepEqual(empty.outputs, { post: "true", sha: "", forged: "false" });
+  assert.equal(posted(empty), null);
+  const post = reportSteps().find((s) => s.name === "Post the check run");
+  assert.equal(post.with["head-sha-fallback"], "${{ github.event.pull_request.head.sha || github.sha }}");
+});
+
+test("report job: the PR number comes from the caller or the event, a run job pr-number naming another PR fails closed, and the posting code comes from the default branch tip", (t) => {
+  const steps = reportSteps();
+  const read = steps.find((s) => s.id === "pr-head");
+  assert.equal(read.env.PR_NUMBER, "${{ inputs.pr-number || github.event.pull_request.number }}");
+  assert.equal(read.env.RUN_PR_NUMBER, "${{ needs.run.outputs.pr-number }}");
+  const signed = steps.find((s) => s.id === "signed");
+  assert.equal(signed.with["pr-number"], "${{ steps.pr-head.outputs.number }}");
+  // Stub gh: the PR's head.
+  const root = mkdtempSync(join(tmpdir(), "report-pr-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "bin"));
+  writeFileSync(join(root, "bin", "gh"), `#!/bin/sh\necho ${TRUSTED}\n`, { mode: 0o755 });
+  const run = (env) => {
+    const output = join(root, "out");
+    writeFileSync(output, "");
+    const result = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", read.run], { cwd: root, env: { PATH: `${join(root, "bin")}:/usr/bin:/bin`, GITHUB_REPOSITORY: "o/r", GH_TOKEN: "x", GITHUB_OUTPUT: output, ...env }, encoding: "utf8" });
+    return { status: result.status, outputs: outputLines(output), log: result.stdout };
+  };
+  assert.deepEqual(run({ PR_NUMBER: "5", RUN_PR_NUMBER: "5" }).outputs, { sha: TRUSTED, number: "5" });
+  assert.deepEqual(run({ PR_NUMBER: "5", RUN_PR_NUMBER: "" }).outputs, { sha: TRUSTED, number: "5" });
+  const other = run({ PR_NUMBER: "5", RUN_PR_NUMBER: "6" });
+  assert.deepEqual(other.outputs, { sha: TRUSTED, number: "5", "pr-mismatch": "true" });
+  assert.match(other.log, /^::error::the run job's pr-number is not the PR the caller or event names/m);
+  // The posting code: the default branch tip, never a run job output.
+  const checkout = steps.find((s) => String(s.uses ?? "").startsWith("actions/checkout@"));
+  assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
+  assert.equal(steps.filter((s) => String(s.uses ?? "").startsWith("actions/checkout@")).length, 1);
+  assert.doesNotMatch(JSON.stringify(steps), /base-sha/, "no step reads the run job's base-sha");
+  assert.equal(steps.findIndex((s) => s.name === "Assert the default branch is set"), 0);
+  // pr-unblock passes fix-ci-context's head to both fix-ci calls.
+  const { jobs } = workflow("pr-unblock.yml");
+  for (const id of ["fix-ci", "fix-ci-subscription"]) assert.equal(jobs[id].with["head-sha"], "${{ needs.fix-ci-context.outputs.head-sha }}", id);
+});
+
+test("scan job: an empty default branch fails closed before the opener is checked out", (t) => {
+  const steps = scanSteps();
+  const assertStep = steps[0];
+  const base = steps.find((s) => s.id === "base");
+  assert.equal(assertStep.name, "Assert the default branch is set");
+  assert.equal(assertStep.if, base.if, "runs whenever the checkout would");
+  assert.equal(assertStep.env.DEFAULT_BRANCH, "${{ github.event.repository.default_branch }}");
+  const root = mkdtempSync(join(tmpdir(), "scan-branch-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const empty = runStep(assertStep, root, { DEFAULT_BRANCH: "" });
+  assert.equal(empty.status, 1);
+  assert.match(empty.stdout, /^::error::the event names no default branch/m);
+  assert.equal(runStep(assertStep, root, { DEFAULT_BRANCH: "main" }).status, 0);
+});
+

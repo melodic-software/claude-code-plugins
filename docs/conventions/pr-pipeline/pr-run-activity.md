@@ -1161,6 +1161,18 @@ apart, since it can lag the promote step's push), and posts the check with
 `pr-head-sha`. Why the check is written by this job and not the run job:
 [ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md).
 
+In the read file the run job is hostile (its head code can tamper with the runner before its
+outputs are sent), so the report job differs:
+
+- It stays on the default branch tip and never checks out the run job's `base-sha`.
+- The PR number comes from the caller's `pr-number` input or the event, never from the run job; a
+  run job `pr-number` that names another PR fails closed.
+- It posts on the run job's `head-sha` only when that equals a trusted head: the caller's
+  `head-sha` input (pr-unblock passes `fix-ci-context`'s), the event's PR head, or the PR head it
+  just read. Any other value, or a mismatched PR number, posts failure on the trusted head and
+  never on the run's SHA. With no trusted head it posts nothing and fails. An empty run head keeps
+  the old rule: the event's head on `pull_request`, otherwise no check.
+
 What it trusts:
 
 - Lane and activity from the reusable workflow's own inputs.
