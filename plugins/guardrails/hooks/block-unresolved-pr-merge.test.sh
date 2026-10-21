@@ -646,6 +646,16 @@ quiet "backtick in git merge-base" 'git merge-base HEAD `git rev-parse origin/ma
 quiet "heredoc commit mentioning merge in backticks" $'git commit -F - <<\'EOF\'\nfix(guardrails): tighten the `merge` path\n\nThe `merge` guard reads `pulls/`.\nEOF'
 quiet "commit -m mentioning merge in backticks" 'git commit -m "fix the merge path in `foo.sh`"'
 quiet "commit -m with pulls/ before merge, no merge route" 'git commit -m "fix `pulls/` parsing, then merge"'
+# #8657: "PR Merge" in prose is not `gh pr merge`; only a `pr merge` whose
+# command word is gh, or cannot be read, is merge-shaped.
+quiet "jq test() naming Gated PR Merge, grep with a backtick" 'jq -r '"'"'.autoMode | .. | strings | select(test("Gated PR Merge"))'"'"' ~/.claude/settings.json | grep -oE '"'"'^[1-6]\. `[^`]*`'"'"''
+quiet "heredoc issue comment naming Gated PR Merge with a backtick" $'gh issue comment 8657 --body-file - <<\'EOF\'\nThe Gated PR Merge guard refused `jq -r` here.\nEOF'
+unresolvable "quote-split gh before pr merge, with a backtick" 'g""h pr merge 5`echo 0` -R acme/widgets'
+unresolvable "command word from a variable, with a backtick" '$GH pr merge 42 -R acme/widgets --body "`cat notes`"'
+unresolvable "command word glued to an expansion, with a backtick" 'gh${IFS}pr merge 5`echo 0` -R acme/widgets'
+unresolvable "two spaces between gh and pr, with a backtick" 'gh  pr merge 5`echo 0` -R acme/widgets'
+unresolvable "tab and space between gh and pr, with a backtick" $'gh\t pr merge 5`echo 0` -R acme/widgets'
+quiet "prose with two spaces before PR Merge, with a backtick" 'echo "Gated  PR Merge `x`"'
 quiet "--disable-auto, then gh pr view" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr view 42'
 scenario none none green green
 run "--disable-auto, then one merge" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr merge 42 -R acme/widgets --squash' 0
