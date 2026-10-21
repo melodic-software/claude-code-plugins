@@ -187,6 +187,7 @@ ROUTES = {
     "/api/review/clear": ("moderator", "clear_review"),
     "/api/propose": ("person", "propose"),
     "/api/proposal/act": ("moderator", "act_on_proposal"),
+    "/api/proposal/all": ("owner", "approve_proposals"),
     "/api/chat": ("person", "chat"),
     "/api/chat/propose": ("moderator", "propose_from_chat"),
     "/api/chat/react": ("person", "react_chat"),
@@ -245,7 +246,7 @@ GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("pers
 # The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
 # requests. Anywhere else the header answers 401, so the key never acts as the person's session secret.
 WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
-BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_MAX, "/api/report/add": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}  # path -> bytes, where not session.BODY_MAX
+BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_SEND_MAX, "/api/report/add": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}  # path -> bytes, where not session.BODY_MAX
 SERVER_ERROR = ("state-invalid", "The server could not do that; nothing was written.")
 
 
@@ -853,6 +854,12 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.upload_chunk()
         if path not in ROUTES and path != CLIENT_LOG:
             return self.fail(DomainError(404, "not-found", "Nothing here."))
+        if path != CLIENT_LOG:  # who sends it is settled from headers before any of the body is read
+            auth, method = ROUTES[path]
+            try:
+                pid = self.authorize(auth)
+            except DomainError as exc:
+                return self.fail(exc)
         if not self.headers.get("Content-Type", "").lower().startswith("application/json"):
             return self.fail(DomainError(415, "json-required", "Send JSON with Content-Type: application/json."))
         cap = BODY_CAPS.get(path, session.BODY_MAX)
@@ -864,10 +871,11 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(400, "bad-json", "The request needs a Content-Length."))
         if length > cap:
             return self.fail(DomainError(413, "body-too-large", f"The body allows at most {cap} bytes.", max=cap))
+        seconds = session.REPORT_SECONDS if path == "/api/report" else session.BODY_SECONDS  # up to four pictures take longer
         try:
-            raw = self.read_body(length)
+            raw = self.read_body(length, seconds)
         except TimeoutError:
-            return self.fail(DomainError(408, "body-timeout", f"The body must arrive within {session.BODY_SECONDS:.0f} s."))
+            return self.fail(DomainError(408, "body-timeout", f"The body must arrive within {seconds:.0f} s."))
         if raw is None:
             return None
         try:
@@ -878,10 +886,8 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(400, "bad-json", "The body must be a JSON object."))
         if path == CLIENT_LOG:
             return self.client_log(body)
-        auth, method = ROUTES[path]
         app = self.app
         try:
-            pid = self.authorize(auth)
             fn = getattr(app.session, method)
             out = fn(pid, body, address=self.address()) if method in ("join", "redeem_pairing") else fn(pid, body)
         except DomainError as exc:

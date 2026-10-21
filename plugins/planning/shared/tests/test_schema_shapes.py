@@ -202,8 +202,12 @@ class TestFormatsReactionsPresence(unittest.TestCase):
         state["reports"] = {"F1": {"by": "host", "text": "Send does nothing", "ctx": ctx, "image": "reports/F1.png", "status": "open", "ts": 1.0}}
         state["session"]["seq"]["F"] = 1
         self.assertIsNone(schema.first_error(state, STATE))
+        more = copy.deepcopy(state)  # four pictures sent with it: the first at image, the rest at moreImages
+        more["reports"]["F1"]["moreImages"] = ["reports/F1-p2.png", "reports/F1-p3.jpg", "reports/F1-p4.webp"]
+        self.assertIsNone(schema.first_error(more, STATE))
         for bad, want in ((lambda r: r.update(status="closed"), "'closed' is not one of"), (lambda r: r["ctx"].update(answer="x"), "'answer'"),
-                          (lambda r: r.pop("text"), "missing required 'text'"), (lambda r: r["ctx"].update(errors=["e"] * 6), "at most 5")):
+                          (lambda r: r.pop("text"), "missing required 'text'"), (lambda r: r["ctx"].update(errors=["e"] * 6), "at most 5"),
+                          (lambda r: r.update(moreImages=[f"reports/F1-p{n}.png" for n in range(2, 6)]), "at most 3")):
             with self.subTest(want=want):
                 broken = copy.deepcopy(state)
                 bad(broken["reports"]["F1"])

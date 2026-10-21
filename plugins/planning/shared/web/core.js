@@ -261,9 +261,9 @@
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
-    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, asked: !!r.asked, ts: r.ts, adds: r.adds || [] }));
+    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, images: r.images || 0, status: r.status, asked: !!r.asked, ts: r.ts, adds: r.adds || [] }));
     // My own problem reports (Your reports): their words, additions and status, never the page context.
-    view.myReports = (s.myReports || []).map(r => ({ id: r.id, text: r.text, image: r.image, status: r.status, ts: r.ts, adds: r.adds || [] }));
+    view.myReports = (s.myReports || []).map(r => ({ id: r.id, text: r.text, image: r.image, images: r.images || 0, status: r.status, ts: r.ts, adds: r.adds || [] }));
     view.files = { ...held.files, ...(s.files || {}) };
     // Follow-up 32: qid -> received pictures offered on it that nothing carries, as far as this viewer may see them.
     view.questionPics = s.questionPics || {};
@@ -593,8 +593,8 @@
       const nameOf = pid => (pid === "host" ? "Host" : Core.state.people[pid]?.name || "Someone");
       return { ...j, ...(j.text ? { text: Core.plain(j.text) } : {}), history: (j.history || []).map(v => ({ text: Core.plain(v.text), cid: v.by, name: nameOf(v.by), ts: v.at })) };
     },
-    /** Report a problem: text, the page context (Core.reportContext) and at most one picture, a data: URL. */
-    report: (text, ctx, image) => act("/api/report", { text, ctx, ...(image ? { image } : {}) }),
+    /** Report a problem: text, the page context (Core.reportContext) and up to four pictures, each a data: URL. */
+    report: (text, ctx, images) => act("/api/report", { text, ctx, ...(images?.length ? { images } : {}) }),
     /** Owner: mark a report seen or resolved; either tells the reporter. */
     /** Owner: seen | resolved tell the reporter; ask hands a report to Claude once (a report alone never reaches it). */
     reportAct: (id, action) => act("/api/report/act", { id, action }),
@@ -607,9 +607,9 @@
       if (!r.ok) throw { status: r.status, ...j };
       return j.image;
     },
-    /** Owner: one report's picture, or its Nth addition's, as a data: URL. */
-    reportImage: async (id, add) => {
-      const r = await fetch(`/api/report/image?${new URLSearchParams({ id, ...(add ? { add } : {}) })}`, { headers: ident() });
+    /** Owner: one report's picture (its Nth sent with it, `pic`), or its Nth addition's, as a data: URL. */
+    reportImage: async (id, add, pic) => {
+      const r = await fetch(`/api/report/image?${new URLSearchParams({ id, ...(add ? { add } : {}), ...(pic ? { pic } : {}) })}`, { headers: ident() });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw { status: r.status, ...j };
       return j.image;
@@ -659,6 +659,8 @@
       }
     } }),
     proposal: (id, action) => act("/api/proposal/act", { id, action }),
+    /** Owner: Approve all, the new proposals `ids` (the ones the confirm counted) each made a question in the next round. */
+    approveProposals: ids => act("/api/proposal/all", { ids }),
     setTitle: title => act("/api/session/title", { title }),
     merge: (from, to) => act("/api/person/merge", { from, to }),
     clearReview: qid => act("/api/review/clear", { qid }),

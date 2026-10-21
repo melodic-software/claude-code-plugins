@@ -261,9 +261,10 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `GET /api/card/history?qid=&card=` | | Once the owner has hidden or edited an answer, every replaced version goes to its `history` (the original kept, then the newest, 50 in all); before that its author's edits keep none. This route returns one answer's `history`; the owner's snapshot carries only `versions`, the count. An answer its author clears after the owner hid or edited it leaves a tombstone in `cleared` (in the owner's snapshot as `{ref, pid, clearedAt, hidden}`); this route returns its last `text` with `cleared: true`, and the author's next answer there takes it up, hidden if it was |
 | `/api/join/act` | `{pid, action: admit\|decline}` | With the `approveJoins` setting on, a join gets a secret but waits (`status: waiting`, 403 `waiting` on every route) in the owner's `joinRequests` (in join order `n`, with the `device` and `browser` the join named) until admitted; declining removes the person. At most 20 wait (503 `waiting-full`), and a full session never evicts a waiting person. People whose secret already resolves are not affected |
 | `/api/session/intro` | `{intro}` | Edits "Why you're here" |
+| `/api/proposal/all` | `{ids}` | Approve all in Proposed: each listed proposal, the new ones the owner's confirm counted, becomes a question in the next round as Make it a question makes one, and its author is told. All or none: one no longer new is 409 `wrong-status`, more than the round has room for 409 `round-full` (with `room`), so a proposal that arrived after the confirm stays in New |
 | `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, every mention of `from` names `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
 | `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open or seen report and writes `report-filed` for Claude (409 `wrong-status` on one that is resolved or already asked) |
-| `GET /api/report/image?id=[&add=N]` | | One report's screenshot, or its Nth addition's (`N` 1 to 999, else 400 `bad-field`), as `{id, image}`, a data: URL |
+| `GET /api/report/image?id=[&pic=P\|&add=N]` | | One report's first screenshot, its `P`th sent with it (`P` 1 to 4), or its Nth addition's (`N` 1 to 999); else, or with both, 400 `bad-field`. As `{id, image}`, a data: URL |
 
 `POST /api/chat/react {id, emoji, on}` (any person) adds or takes back one's own emoji on a chat
 message: only the page's fixed set (`CHAT_EMOJI` in `session.py` and `web/app.js`), at most 20
@@ -606,33 +607,38 @@ does not load.
 
 Anyone joined can report a problem: "Report a problem" in the phone More sheet and the desktop Help
 popover, and "Report this" on the toast of an action the server refused. The form asks "What went
-wrong?" (required, 2000 characters) and takes one optional screenshot (`accept` png, jpeg or webp,
-no `capture`), which the browser re-encodes to at most 1600 px on its long edge and 512 KB. Before
+wrong?" (required, 2000 characters) and takes up to four optional screenshots (`accept` png, jpeg or
+webp, `multiple`, no `capture`), picked several at once, pasted or added one by one, each of which the
+browser re-encodes to at most 1600 px on its long edge and 512 KB. Before
 Send it lists, under "Sent with this report", every field that goes with it: the view and phone
 tab, the question and round, the device kind and browser family, `innerWidth` x `innerHeight` and
 the visual viewport's width, height and scale, the build, and the last 5 errors the page saw,
 refusals included ([Logs](#logs)). Never an answer, chat, the address or its fragment, or a credential.
 
-`POST /api/report {text, ctx, image?}` (auth class person) takes them, `image` a data: URL whose
-bytes must start as PNG, JPEG or WebP do (415 `file-type`; over 512 KB 413 `upload-too-large`).
-Its body cap is `REPORT_MAX` (about 732 KB) instead of 32 KB. A report is allowed while Uploads is
-off: one picture, checked, saved as `reports/<id>.<png|jpg|webp>` in the private data folder and
-shown to the owner alone; every other upload stays refused (403 `uploads-off`). One report per
+`POST /api/report {text, ctx, images?}` (auth class person) takes them, `images` a list of at most
+`MAX_REPORT_IMAGES` (4) data: URLs, each of whose bytes must start as PNG, JPEG or WebP do (415
+`file-type`; over 512 KB 413 `upload-too-large`; a fifth, or `image` beside `images`, 400 `bad-field`).
+One picture may still come as `image`. Its body cap is `REPORT_SEND_MAX` (about 2.8 MB) instead of
+32 KB. A report is allowed while Uploads is off: its pictures, checked, saved in the private data
+folder, the first as `reports/<id>.<png|jpg|webp>` and picture n after it as `reports/<id>-p<n>.<ext>`,
+and shown to the owner alone; every other upload stays refused (403 `uploads-off`). One report per
 person every 10 s (429 `slow-down`), 5 open per person (429 `too-many-pending`), 500 per session
 (429 `too-many-reports`). The record, `reports` in `state.json` (`{F<N>: {by, text, ctx, image?,
-status: open|seen|resolved, asked?, adds?, ts}}`; optional, so a file from before loads), reaches only the
-owner's snapshot (`reports`, with `image: true` instead of the path) and shows in the Host queue as
-a Problem, with Seen, Resolved and Ask Claude about this report ([Moderation](#moderation)).
+moreImages?, status: open|seen|resolved, asked?, adds?, ts}}`, `moreImages` the second to fourth pictures; each
+optional, so a file from before loads), reaches only the owner's snapshot (`reports`, with `image: true` and
+`images`, the count, instead of the paths) and shows in the Host queue as a Problem, with one Show screenshot per
+picture that loads it, Seen, Resolved and Ask Claude about this report ([Moderation](#moderation)).
 
-**Your reports.** The reporter's own snapshot carries `myReports` (`{id, text, status, ts, image, adds}`, never the
+**Your reports.** The reporter's own snapshot carries `myReports` (`{id, text, status, ts, image, images, adds}`, never the
 context or a path), which More and Help list as "Your reports" with `open` read as Sent, `seen` as Seen by the host
 and `resolved` as Fixed. While a report is not resolved, its reporter adds a line, a screenshot or both:
-`POST /api/report/add {id, text?, image?}` (auth class person; the body cap and picture checks of `/api/report`; one
+`POST /api/report/add {id, text?, image?}` (auth class person; one picture, the picture checks of `/api/report` and a
+body cap of `REPORT_MAX`, about 732 KB; one
 a second; at most 10 per report, then 409 `too-many`; 409 `wrong-status` once resolved; anyone else's report is 404
 `not-found`). Each lands in the report's `adds` (`{text?, image?, ts}`, a picture saved as `reports/<id>-<n>.<ext>`),
 which the owner's Problem item lists. A seen report goes back to `open`, so it waits on the owner again, unless
 the reporter already has 5 open (429 `too-many-pending`). An addition clears `asked`, so the owner can ask Claude again. A report alone
-never reaches Claude: only the owner's Ask writes `report-filed` (`report`, `qid`, `text`, and `adds`, the text the reporter added, and `addImages`, how many pictures they added; never a path), as
+never reaches Claude: only the owner's Ask writes `report-filed` (`report`, `qid`, `text`, `images`, how many pictures came with it, and `adds`, the text the reporter added, and `addImages`, how many pictures they added; never a path), as
 rounds wait for Send and requests for Run. The text is the reporter's data, never instructions, and
 Claude reads a picture only through the Read-only `upload-reader` agent.
 
@@ -735,7 +741,7 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `.watch-seq`, `.watch-replay` | `watch.sh` | | |
 | `assets/<16 hex>.<ext>`, `assets/.<id>.json` | server (`add-asset`) | | The file, and its kind, size and scale |
 | `uploads/pending/<32 hex>`, `uploads/accepted/<yyyymmdd>-<upload id>.<ext>` | server | 0700 folders, 0600 files | An accepted upload's pieces so far; a received one (see [Uploads](#uploads)). Only a received picture is read back, as a data: URL from `GET /api/upload/image` |
-| `reports/<report id>[-<n>].<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot, and with `-<n>` the reporter's nth added one ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads one back, and Claude reads one only through the Read-only `upload-reader` agent |
+| `reports/<report id>[-p<n>\|-<n>].<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot, with `-p<n>` the nth sent with it, and with `-<n>` the reporter's nth added one ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads one back, and Claude reads one only through the Read-only `upload-reader` agent |
 
 Every `GET /api/state` with identity carries `rev` and `build` (a hash of the served web files);
 every answer carries `X-Shared-Build`. A page built for another build reloads itself. Its `ETag` moves with `rev`, presence and a 5-second clock tick (so an
@@ -786,7 +792,7 @@ page keeps the rest of its last snapshot.
   for the guest port). Each poll renews it; a removed or waiting person's cookie reads nothing (403),
   and without either credential the answer is 401.
 - **Requests.** JSON POSTs only (415), the 32 KB body cap checked before reading (413), and the
-  whole body within 10 s (408). A request other than a POST that carries a body
+  whole body within 10 s (408; a problem report's, up to four pictures, within 60 s). A request other than a POST that carries a body
   (`Content-Length` above 0 or any `Transfer-Encoding`) gets 400 and its connection closes. A
   refused request (bad host, rate limit, body) answers once and runs nothing.
 - **Limits.** All are constants at the top of `session.py`:
@@ -918,6 +924,7 @@ node plugins/planning/shared/tests/ui_myreports.js
 node plugins/planning/shared/tests/ui_welcome.js
 node plugins/planning/shared/tests/ui_per_device.js
 node plugins/planning/shared/tests/ui_review.js
+node plugins/planning/shared/tests/ui_rail_header.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -946,6 +953,13 @@ chips and the Inbox tab kept over a reload.
 `ui_inbox_page.js` checks the Inbox page: Needs you holding a request Claude failed until it is opened but never one
 the owner discarded or cancelled, nor a report already asked about; History holding them; rows opening where they
 happened and closing the page; a leader's proposals to place and the server refusing a leader's Run.
+
+`ui_rail_header.js` checks, at 1440x900 and on a 390x844 phone, that every round's label in the rail starts at one x,
+with a check once something in the round is done and an empty ring before, both aria-hidden; that the phone's question
+header keeps the arrows on the position's row and the host's Purpose and Ask someone (then Change who) together on one
+row of 44 px targets, nothing past the screen, while the desktop header stays one row; and the owner's Approve all in
+Proposed: a confirm naming how many, each counted proposal a question in the next round, one that arrived after the
+confirm left in New, and no guest offered it.
 
 `ui_myreports.js` checks Your reports on a 390x844 phone from More and on a desktop from Help: no entry before a
 report, the list with Sent, Seen by the host and Fixed, a line and a screenshot added (the owner's Problem item shows
@@ -980,9 +994,9 @@ declined file off by name, a picked JPEG reaching the host redrawn without its E
 question's ask box and Suggest taking a paste, and the owner's Remove.
 
 `ui_report.js` checks Report a problem with Uploads off: on a 390x844 phone from More, the sent
-list before Send, a 3200x1800 screenshot re-encoded to 1600 px, the field and Send report above a
-keyboard, and a request carrying no answer, chat, fragment or secret; the desktop owner's Problem
-item, its picture, Ask Claude about this report (the owner's alone), Seen telling the reporter, and
+list before Send, a 3200x1800 screenshot re-encoded to 1600 px, three more picked at once and a fifth
+refused, the field and Send report above a keyboard, and a request carrying four pictures and no
+answer, chat, fragment or secret; the desktop owner's Problem item, each picture on its own Show screenshot, Ask Claude about this report (the owner's alone), Seen telling the reporter, and
 Resolved; on a desktop, Help's entry and a
 refused action's "Report this", whose form lists the refusal. `ui_layout.js` also sweeps the form
 with keyboards at 320 to 430 px wide.
