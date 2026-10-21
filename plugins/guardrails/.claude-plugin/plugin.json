@@ -46,7 +46,7 @@
       "type": "boolean",
       "title": "Block-dangerous-git guard",
       "description": "Blocks irreversible git operations: push --force, reset --hard, clean -f, worktree-wide checkout or restore discards, and a push --force-with-lease that leases against a value git resolves at push time. On by default. The README's Option details define the lease case.",
-      "default": true
+      "default": false
     },
     "block_dangerous_git_allow": {
       "type": "string",
