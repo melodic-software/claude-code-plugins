@@ -4198,9 +4198,11 @@ class Session:
         is refused past SESSION_UPLOAD_MAX. Declining or withdrawing deletes what arrived so far and takes the file off
         every answer; the browser deletes its copy. `remove`, by the owner or the uploader, ends a received file: it
         leaves everything that carries it and is deleted from the data folder. `approve`, the owner's, lets everyone who
-        sees what carries a guest's received picture see the picture (`shown`)."""
+        sees what carries a guest's received picture see the picture (`shown`). `draftOnly` (the attachment chip's x)
+        refuses a withdraw or remove once something sent carries the file, so a stale page never takes it off a post."""
         action = _choice(body, "action", ("accept", "decline", "withdraw", "remove", "approve"))
         uid = _ident(body, "id")
+        draft_only = _bool(body, "draftOnly")
         now = self.now()
         with self._tx():
             if action in ("withdraw", "remove") and pid != HOST:
@@ -4211,6 +4213,8 @@ class Session:
             u = self._upload(uid)
             if (action == "withdraw" or pid != HOST) and u["pid"] != pid:
                 raise DomainError(404, "no-such-upload", f"No upload {uid[:40]}.")
+            if draft_only and action in ("withdraw", "remove") and not u.get("draft"):
+                raise DomainError(409, "wrong-status", "That file went with something you sent, so it stays there.", status="carried")
             kind = u["status"]["kind"]
             if kind not in {"accept": ("offered",), "remove": ("done",), "approve": ("done",)}.get(action, UPLOAD_LIVE):
                 raise DomainError(409, "wrong-status", f"That file is {kind}.", status=kind)

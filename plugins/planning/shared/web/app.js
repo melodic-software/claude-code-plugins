@@ -485,7 +485,9 @@
       return rec.pick ? { option: rec.pick } : null;
     }
     /** Follow-up 26: a poll or pick-many question takes its comment before the pick, and the comment goes in with it. */
-    const commentFirst = q => q?.purpose === "poll" || q?.format === "multi";
+    /** A question that takes a pick first: polls, multi, scale and rank, and a choice with "Something else" (writing
+     *  your own option goes there). Its comment box works before the pick, and the comment goes in with it. */
+    const commentFirst = q => q?.purpose === "poll" || isFormat(q) || (q?.format === "choice" && !!otherOf(q));
     const pickLabel = (q, id) => optionsOf(q).find(o => o.id === id)?.label || id;
     /** What a person card picked, in words: "Picked: Card", "Picked: A, B", "Chose 4 of 5", "Ranked: A > B > C". */
     function pickedText(q, a) {
@@ -906,7 +908,7 @@
     }
     const propRow = railRow("Proposed");
     const myProp = E("ul", "vf-myprops"); myProp.setAttribute("aria-label", "Your proposals");
-    const proposeBtn = lbtn("vf-btn vf-btn-ghost vf-propose", "plus", "Propose a question");
+    const proposeBtn = lbtn("vf-btn vf-propose", "plus", "Propose a question"); // a secondary button, not ghost (research: propose discoverability)
     proposeBtn.setAttribute("aria-haspopup", "dialog"); proposeBtn.setAttribute("aria-expanded", "false");
     railFoot.append(propRow, myProp, proposeBtn);
     rail.append(railHead, rounds, railFoot);
@@ -2817,7 +2819,7 @@
         b.append(E("span", "vf-mreact-e", e), E("span", "vf-mreact-n", String(pids.length)));
         const who = pids.map(p => (isMe(p) ? "you" : p ? disp(nameOf(p)) : "someone"));
         b.setAttribute("aria-pressed", String(mine));
-        b.setAttribute("aria-label", `${e} ${pids.length}, from ${who.join(", ")}. ${mine ? "Take yours back" : "Add yours"}`);
+        b.setAttribute("aria-label", `${e}: ${pids.length}, from ${who.join(", ")}`); // aria-pressed says whether it is yours
         b.title = who.join(", ");
         b.onclick = () => react(m.id, e, !mine).catch(fail);
         return b;
@@ -3845,7 +3847,9 @@
           // (the server says so on my own uploads).
           const mine = (Core.state.myUploads || []).find(u => u.id === a.upload), st2 = mine?.status;
           if (a.pasted && mine && !mine.carried && ["offered", "accepted", "uploading", "done"].includes(st2)) {
-            Core.uploadAct(a.upload, st2 === "done" ? "remove" : "withdraw").then(() => forget(a.upload)).catch(fail);
+            // draftOnly: a page that has not yet seen a send carry it never takes the file off what was sent (#8615)
+            Core.uploadAct(a.upload, st2 === "done" ? "remove" : "withdraw", true).then(() => forget(a.upload))
+              .catch(e => { if (e?.status !== "carried") fail(e); }); // carried: it stays on the post, and its copy here too
           }
         };
         li.append(x); return li;
@@ -4399,9 +4403,14 @@
       if (cForm.classList.contains("vf-composer-sheet") && ta.selectionEnd === ta.value.length) ta.scrollTop = ta.scrollHeight;
     });
     // Triage 18: on a phone, writing opens the answer as a full-height sheet: the text pre-filled, Cancel and Save on
-    // top, and the field filling the visual viewport, so the keyboard never covers it.
+    // top, and the field filling the visual viewport, so the keyboard never covers it. Not when Tab brought focus here:
+    // the sheet keeps Tab inside it, so the controls after the field (Pass, Claude, Discussion) would be out of reach
+    // (WCAG 2.1.1); a keyboard user writes in the field where it is. Capture, as Tab traps stop propagation.
+    let tabbedIn = false;
+    on(document, "keydown", e => { if (e.key === "Tab") tabbedIn = true; }, true);
+    on(document, "pointerdown", () => { tabbedIn = false; }, true);
     on(ta, "focus", () => {
-      if (!phone.matches || ta.disabled || cForm.classList.contains("vf-composer-sheet")) return;
+      if (!phone.matches || ta.disabled || tabbedIn || cForm.classList.contains("vf-composer-sheet")) return;
       ui.sheetFrom = ta.value;
       sheetTitle.textContent = Core.myAnswer(ui.cur) ? "Edit your answer" : qById(ui.cur)?.text || "Your answer";
       cForm.classList.add("vf-composer-sheet"); root.dataset.sheet = "";
@@ -4801,8 +4810,8 @@
       const c = ui.pcard; if (!c) return;
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
-      const q = here?.q && qById(here.q);
-      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const q = here?.q && qById(here.q), ab = owner && !me && S.aboutYou?.[pid]; // follow-up 46: for the owner only
+      const sig = JSON.stringify([pid, name, role, ab, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -4815,6 +4824,9 @@
       const fact = (k, v) => facts.append(E("dt", null, k), E("dd", null, v));
       fact("Now", here ? `${here.away ? `Away${awayFor(here)}. ` : ""}${q ? `${q.id}: ${q.text}` : "Here, between questions"}` : "Offline: not here right now");
       if (joined) fact("Joined", since(joined));
+      // what they said about themselves: the people row drops it once the list goes compact (#8698)
+      if (ab) fact("Tech comfort", COMFORT[ab.techComfort]);
+      if (ab?.note) { fact("Their note", ab.note); facts.lastChild.className = "vf-pc-note"; } // whole, never clamped
       const parts = [head, facts];
       const k = (b, key) => { b.dataset.k = key; return b; };
       if (c.pinned) parts.unshift(k(ibtn("vf-tbtn vf-icon-btn vf-popx", "x", `Close ${me ? "your card" : `${disp(name)}'s card`}`), "x")); // F11: the one close control
@@ -5379,12 +5391,11 @@
     function renderComposer() {
       const qid = ui.cur, q = qById(qid), mine = Core.myAnswer(qid), S = Core.state;
       const rec = myRec(qid), picked = !!savedPick(q, rec);
-      // A pick comes first where the question takes one: polls, multi, scale and rank, and a choice with "Something else…"
-      // (writing your own option goes there). My own option is my card's text, so it takes no comment.
-      const pickFirst = q?.purpose === "poll" || isFormat(q) || (q?.format === "choice" && !!otherOf(q));
+      // Where a pick comes first, the comment box works before it (the owner's call, every format), and the comment goes
+      // in with the pick. My own option is my card's text, so it takes no comment.
       const lockedQ = !!Core.lockOf(qid), ro = readOnly(q), ownOpt = !!rec?.other;
-      const early = pickFirst && !picked && commentFirst(q), pollWait = pickFirst && !picked && !early;
-      const locked = lockedQ || ro || pollWait || ownOpt;
+      const early = commentFirst(q) && !picked;
+      const locked = lockedQ || ro || ownOpt;
       ta.disabled = !qid || locked;
       if (ta.disabled) closeSheet();
       // a phone's composer is one line between the paperclip and send, so every placeholder there fits it whole (sweep S24)
@@ -5395,9 +5406,6 @@
         : ro ? (phone.matches ? "Read-only: sent to Claude" : `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Use Suggest a change." : ""}`)
         : lockedQ ? (phone.matches ? "Locked" : Core.canModerate() ? "This question is locked. Use Edit or Unlock." : "This question is locked. Use Suggest a change.")
         : ownOpt ? (phone.matches ? "Your own option is your answer" : "Your own option is your answer here. Change it above.")
-        // A phone's composer is one line: the first half alone, so it is never cut mid-word.
-        : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option first" : q?.format === "rank" ? "Save your ranking first" : "Pick first")
-          + (phone.matches ? "" : ", then add a comment if you like.")
         : early ? "Add a comment (optional)…" + (phone.matches ? "" : " It goes in with your pick.")
         : q?.format === "choice" ? (picked ? "Add a comment (optional)…" : phone.matches ? "Or answer in your own words…" : "Pick an option, or answer in your own words…")
         : isFormat(q) ? "Add a comment (optional)…"
@@ -6050,7 +6058,8 @@
       const q = qById(qid);
       if (!q || readOnly(q) || Core.lockOf(qid) || !otherOf(q)) return;
       ui.otherOpen[qid] = true;
-      ui.otherText[qid] = ownText(q);
+      // On a choice my own option takes no comment, so a comment typed before the pick becomes the option's first draft.
+      ui.otherText[qid] = ownText(q) || (q.format === "choice" && earlyOf(q, myRec(qid))?.comment) || "";
       if (q.format === "multi" && !draftOf(q).includes("other")) ui.fdraft[qid] = { options: [...draftOf(q), "other"] };
       otherBox._q = null;
       render();
@@ -6071,6 +6080,10 @@
       if (!q) return;
       if (!text) { otherTa.focus(); return flash("Write your own option first."); }
       if (ownTooLong(text)) return;
+      // A comment typed before it was its first draft (openOther), and an own option takes none, so it leaves the comment
+      // box; files attached before it go in with it. A file still waiting for the host holds the save back, the box open.
+      const early = q.format === "rank" ? null : earlyOf(q, myRec(qid));
+      if (earlyWaits(qid, early)) return;
       delete useBefore[qid];
       if (q.format === "rank") {
         ui.otherText[qid] = text;
@@ -6083,7 +6096,7 @@
       }
       // It shows in Answers at once; a refusal reopens the box with the text.
       delete ui.otherText[qid]; ui.otherOpen[qid] = false;
-      Core.pick(qid, "other", "", { other: text }).then(() => flash("Your own option is in Answers, where others can back it."))
+      Core.pickWith(qid, { option: "other" }, { other: text, attachments: early?.attachments }).then(() => { if (early) sentEarly(qid, early); flash("Your own option is in Answers, where others can back it."); })
         .catch(e => { if (ui.otherText[qid] == null) { ui.otherText[qid] = text; ui.otherOpen[qid] = true; } fail(e); render(); });
     };
     /** Follow-up 29: the asker of an ask on a choice, pick-many or ranking question may make Claude's answer their own
@@ -6236,13 +6249,15 @@
       if (own != null && ownTooLong(own)) return;
       const fields = q.format === "multi" ? { options: list } : { order: list };
       // A file still waiting for the host holds the save back, the picks kept as drafted.
-      const early = own == null ? earlyOf(q, rec) : null;
+      const early = earlyOf(q, rec);
       if (earlyWaits(qid, early)) return;
       // The saved pick shows at once; a refusal puts the draft back.
       const draft = ui.fdraft[qid], ownDraft = ui.otherText[qid];
       delete useBefore[qid]; delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
-      Core.pickWith(qid, fields, own != null ? { other: own } : early || { comment: commentOf(rec) })
-        .then(() => { if (early) sentEarly(qid, early); flash(q.format === "multi" ? `Your picks are saved${early?.comment ? " with your comment" : ""}.` : `Your ranking is saved${early?.comment ? " with your comment" : ""}.`); })
+      // An own option takes no comment, so only the files written before it go in with it.
+      const sent = own != null ? early?.attachments && { attachments: early.attachments } : early;
+      Core.pickWith(qid, fields, own != null ? { other: own, attachments: sent?.attachments } : early || { comment: commentOf(rec) })
+        .then(() => { if (sent) sentEarly(qid, sent); flash(q.format === "multi" ? `Your picks are saved${sent?.comment ? " with your comment" : ""}.` : `Your ranking is saved${sent?.comment ? " with your comment" : ""}.`); })
         .catch(e => { if (draft && !ui.fdraft[qid]) ui.fdraft[qid] = draft; if (ownDraft != null && ui.otherText[qid] == null) ui.otherText[qid] = ownDraft; fail(e); render(); });
     };
     fmtClear.onclick = () => {
@@ -6700,6 +6715,9 @@
         b.hidden = (k === "removed" && noRemoved) || (k === "behind" && noBehind);
       }
       pFind.hidden = ppl.length <= 12;
+      // #8698: past 12 people (the search box's cutoff) each person is one compact line: dot, name, state, and a menu
+      // button opening their card with the host's actions
+      peopleList.classList.toggle("vf-hpeople-compact", !pFind.hidden);
       const find = pFind.hidden ? "" : ui.peopleFind.trim().toLowerCase();
       const pShown = ppl.filter(p => inFilter[ui.peopleFilter](p) && (!find || disp(p.name).toLowerCase().includes(find)));
       peopleEmpty.hidden = pShown.length > 0;
@@ -6712,7 +6730,10 @@
         const li = E("li", "vf-hperson");
         const avBox = E("span", "vf-hp-av"), mid = E("div", "vf-hp-mid"), nm = E("span", "vf-hp-name"), meta = E("span", "vf-hp-meta");
         const role = E("span", "vf-role"), ctxB = E("span", "vf-ctx"); ctxB.hidden = true;
-        const nameRow = E("span", "vf-hp-namerow"); nameRow.append(nm, role, ctxB);
+        const state = E("span", "vf-hp-state");
+        const nameRow = E("span", "vf-hp-namerow"); nameRow.append(nm, role, ctxB, state);
+        const more = ibtn("vf-tbtn vf-icon-btn vf-tbtn-quiet vf-hp-more", "more", "Actions"); more.setAttribute("aria-haspopup", "dialog");
+        more.onclick = () => { more.dataset.pid = li._p.pid; more.dataset.name = li._p.name; showCard(more, true); delete more.dataset.pid; delete more.dataset.name; };
         mid.append(nameRow, meta);
         const acts = E("div", "vf-hp-acts");
         // The owner renames anyone here, with the same form as their own name in the person card.
@@ -6731,8 +6752,8 @@
             .catch(fail).finally(() => { rsave.disabled = false; });
         };
         acts.append(pa.rename, pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
-        li.append(avBox, mid, acts);
-        li._k = { avBox, nm, meta, role, ctxB, ...pa, rform, nameIn, acts, avKey: "" };
+        li.append(avBox, mid, more, acts);
+        li._k = { avBox, nm, meta, role, ctxB, state, more, ...pa, rform, nameIn, acts, avKey: "" };
         return li;
       }, (li, p) => {
         const k = li._k, h = here.get(p.pid), rl = roleOf(p.pid), isGone = gone.has(p.pid), me2 = isMe(p.pid);
@@ -6754,7 +6775,9 @@
         li.dataset.presence = presState(h);
         li.classList.toggle("vf-hperson-gone", isGone);
         const can = owner && !me2 && rl !== "Host";
-        k.acts.hidden = !can;
+        k.acts.hidden = k.more.hidden = !can;
+        k.state.textContent = isGone ? "" : { active: "Active", away: "Away", offline: "Offline" }[presState(h)];
+        k.more.setAttribute("aria-label", `Actions for ${disp(p.name)}`);
         paintPersonActs(k, p.pid, "row");
         k.nameIn.setAttribute("aria-label", `New name for ${disp(p.name)}`);
         if (!can || isGone) k.rform.hidden = true;
@@ -6804,6 +6827,8 @@
       const qs = S.questions, owner = Core.owner(), here = S.presence;
       // ux-review-2 #7: the viewer counts as here from the moment the page loads, before their first heartbeat lands.
       const hereN = here.length + (here.some(p => isMe(p.cid)) ? 0 : 1);
+      // D5: "1 here" read as a count of others (who had not joined yet); with no one else, it says who it counts.
+      const hereTxt = hereN === 1 ? "only you here" : `${hereN} here`;
       migratePrefs(); follow.setAttribute("aria-pressed", String(following()));
       if (following() && owner && !isMe(owner.cid) && owner.q && owner.q !== ui.cur && S.questions.some(q => q.id === owner.q)) { select(owner.q); return; }
       const R = curRound(), cur = R.current;
@@ -6879,7 +6904,7 @@
         if (a.textContent !== Core.initials(p.name) || a.dataset.name !== p.name) b.replaceChildren(av(p.cid, p.name, AV.l));
         presDot(b.firstChild, p);
       });
-      hereCount.textContent = here.length > 7 ? `+${here.length - 7}` : `${hereN} here`;
+      hereCount.textContent = here.length > 7 ? `+${here.length - 7}` : hereTxt[0].toUpperCase() + hereTxt.slice(1);
       follow.hidden = me.isOwner || !s.follow;
       followTxt.textContent = owner ? `Follow ${disp(owner.name)}` : "Follow host";
       follow.classList.toggle("vf-dim", !owner);
@@ -7370,7 +7395,7 @@
         // Answered counts everyone who joined (Claude's cards are not people); who is here is a separate number.
         const joinedN = Math.max(Object.keys(S.people || {}).filter(p => !(S.removed || []).includes(p)).length, here.length);
         const answeredN = all.filter(a => !a.claude).length;
-        ansCount.textContent = `${answeredN} of ${joinedN} answered, ${hereN} here`;
+        ansCount.textContent = `${answeredN} of ${joinedN} answered, ${hereTxt}`;
         // Suggestions an unlock closed, shown while the question is open again.
         const closed = lk ? [] : Core.suggestionsFor(q.id).filter(x => x.status === "closed");
         closedBox.hidden = !closed.length;
