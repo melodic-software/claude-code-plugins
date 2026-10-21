@@ -5875,6 +5875,51 @@ class TestReports(SessionCase):
         self.assertEqual((self.s.state.get("reports", {}), (self.tmp / "reports").exists()), ({}, False))
         self.file(self.ann, image=data_url("jpeg", b"\xff\xd8\xff" + b"\x00" * (512 * 1024 - 3)))  # exactly 512 KB
 
+    def test_up_to_four_pictures_go_with_one_report_in_order_and_the_owner_reads_each(self):
+        """The owner's ask (2026-10-21): several screenshots in the first send, at most four, each a checked picture."""
+        webp = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 16
+        jpeg = b"\xff\xd8\xff" + b"\x01" * 20
+        pics = [("png", PNG_BYTES), ("webp", webp), ("jpeg", jpeg), ("png", PNG_BYTES + b"\x02")]
+        fid = self.file(self.ann, images=[data_url(k, b) for k, b in pics])
+        rec = self.s.state["reports"][fid]
+        self.assertEqual((rec["image"], rec["moreImages"]), ("reports/F1.png", ["reports/F1-p2.webp", "reports/F1-p3.jpg", "reports/F1-p4.png"]))
+        self.assertEqual([(self.tmp / n).read_bytes() for n in [rec["image"], *rec["moreImages"]]], [b for _, b in pics])
+        self.assertEqual([(r["image"], r["images"]) for r in self.s.snapshot(HOST)["reports"]], [(True, 4)])
+        self.assertEqual([(r["image"], r["images"]) for r in self.s.snapshot(self.ann)["myReports"]], [(True, 4)])
+        self.assertNotIn("moreImages", json.dumps(self.s.snapshot(HOST)["reports"]))
+        got = [self.s.report_image(HOST, {"id": fid, **({"pic": str(n)} if n else {})})["image"] for n in (None, 2, 3, 4)]
+        self.assertEqual(got, [data_url(k, b) for k, b in pics])
+        self.refused("not-found", "report_image", HOST, {"id": fid, "add": "1"}, http=404)  # pictures sent with it are no additions
+        self.act("act_on_report", HOST, {"id": fid, "action": "ask"})
+        ev = self.events("report-filed")[0]
+        self.assertEqual((ev["images"], ev["addImages"]), (4, 0))
+        self.assertIsNone(support_event_error(ev))
+        self.assertIsNone(session.document_error(self.disk()))
+        session.Session.load(self.s.path, validate_writes=True)
+
+    def test_a_fifth_picture_a_bad_one_or_image_beside_images_refuses_the_report_and_keeps_no_file(self):
+        good = data_url("png", PNG_BYTES)
+        for body, code in (({"images": [good] * 5}, "bad-field"), ({"images": [good, data_url("png", b"GIF89a" + b"\x00" * 30)]}, "file-type"),
+                           ({"images": [good, ""]}, "bad-field"), ({"images": good}, "bad-field"), ({"image": good, "images": [good]}, "bad-field")):
+            with self.subTest(code=code, keys=sorted(body)):
+                self.clock.tick(session.REPORT_INTERVAL)
+                self.refused(code, "report", self.ann, {"text": "x", "ctx": CTX, **body})
+        self.assertEqual((self.s.state.get("reports", {}), (self.tmp / "reports").exists()), ({}, False))
+
+    def test_a_report_from_before_keeps_its_one_picture_and_a_name_the_server_never_makes_does_not_load(self):
+        fid = self.file(self.ann, image=data_url("png", PNG_BYTES))
+        self.assertNotIn("moreImages", self.s.state["reports"][fid])  # one picture: the shape a report always had
+        self.assertEqual(self.s.snapshot(HOST)["reports"][0]["images"], 1)
+        for more in (["reports/F1-p3.png"], ["reports/F1-2.png"], ["../x.png"], [], ["reports/F1-p2.png"] * 4):
+            with self.subTest(more=more):
+                doc = self.disk()
+                doc["reports"][fid]["moreImages"] = more
+                self.assertIsNotNone(session.document_error(doc))
+        doc = self.disk()
+        del doc["reports"][fid]["image"]
+        doc["reports"][fid]["moreImages"] = ["reports/F1-p2.png"]
+        self.assertIsNotNone(session.document_error(doc))
+
     def test_text_is_required_and_the_context_takes_only_the_listed_fields(self):
         self.refused("empty", "report", self.ann, {"text": " ", "ctx": CTX})
         for extra in ({"answer": "my answer"}, {"url": "https://x.example/#me=abc"}, {"chat": "hi"}):

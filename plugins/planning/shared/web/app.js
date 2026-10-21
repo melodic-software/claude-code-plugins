@@ -949,6 +949,7 @@
     const myRepList = E("ul", "vf-plist vf-myrep-list"); myRepList.setAttribute("role", "list");
     myRepPop.append(E("h2", "vf-pop-title", "Your reports"), E("p", "vf-pop-note", "Only you and the host see these."), myRepList);
     const REP_WORD = { open: "Sent", seen: "Seen by the host", resolved: "Fixed" };
+    const MAX_REPORT_IMAGES = 4; // screenshots a report takes when it is sent (session.py MAX_REPORT_IMAGES); an addition takes one
 
     // Wide panels: beside the rail when there is room, over the center pane when not, a bottom sheet on phones.
     function panel(title, label) {
@@ -4508,13 +4509,13 @@
         .catch(fail).finally(() => { propSend.disabled = false; });
     };
     // ---------- Report a problem ----------
-    const REP = { ctx: null, image: "", size: null };
+    const REP = { ctx: null };
     function paintSent() {
       const c = REP.ctx;
       if (!c) return; // the form has not opened yet: a screenshot picked or cleared before it has nothing to list (sweep S30)
       const rows = [...ctxLines(c),
         c.errors.length ? `Recent errors: ${c.errors.join("; ")}` : "Recent errors: none",
-        ...(REP.image ? [`Your screenshot, ${REP.size.w} × ${REP.size.h}`] : []),
+        ...repShot.shots.map((x, i, all) => `Your screenshot${all.length > 1 ? ` ${i + 1} of ${all.length}` : ""}, ${x.w} × ${x.h}`),
         "Not sent: your answers, the chat, this page's address or your sign-in"];
       repSent.replaceChildren(...rows.map(t => E("li", null, t)));
     }
@@ -4536,58 +4537,71 @@
       }
       throw new Error("too large");
     }
-    /** F3: a report's one screenshot, picked or pasted into its field, shown as an attachment chip (attSlot's look)
-     *  and sent as a data: URL (shrinkShot), so it works while Uploads is off. changed(error) runs after each change. */
-    function shotSlot(field, changed) {
-      const input = E("input", "vf-rep-file"); input.type = "file"; input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true;
-      const b = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-rep-attach", "clip", "Add a screenshot");
-      const chips = E("ul", "vf-reflist vf-attlist vf-attdraft"); chips.setAttribute("aria-label", "Screenshot, not sent yet"); chips.hidden = true;
-      const sl = { btn: b, chips, input, image: "", size: null, gen: 0 };
+    /** F3: a report's screenshots, at most `max`, picked (several at once) or pasted into its field, each shown as an
+     *  attachment chip (attSlot's look) and sent as a data: URL (shrinkShot), so they work while Uploads is off. `shots`
+     *  holds {url, w, h} in the order they came; with max 1 a new one replaces the old. changed(error) runs after each change. */
+    function shotSlot(field, changed, max = 1) {
+      const input = E("input", "vf-rep-file"); input.type = "file"; input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true; input.multiple = max > 1;
+      const b = lbtn("vf-btn vf-btn-ghost vf-btn-sm vf-rep-attach", "clip", max > 1 ? "Add screenshots" : "Add a screenshot");
+      const chips = E("ul", "vf-reflist vf-attlist vf-attdraft"); chips.setAttribute("aria-label", max > 1 ? "Screenshots, not sent yet" : "Screenshot, not sent yet"); chips.hidden = true;
+      const sl = { btn: b, chips, input, shots: [], gen: 0, get image() { return sl.shots[0]?.url || ""; } };
       const paint = () => {
-        chips.hidden = !sl.image; b.hidden = !!sl.image; // one screenshot: its chip's x takes it off
-        if (!sl.image) return chips.replaceChildren();
-        const li = E("li", "vf-ref"), v = btn("vf-ref-img vf-uppic"), thumb = E("span", "vf-ref-thumb"), img = E("img");
-        const cap = `Screenshot, ${sl.size.w} × ${sl.size.h}`;
-        li.dataset.kind = "image"; img.src = sl.image; img.alt = "";
-        thumb.append(img, zoomTag()); v.append(thumb, E("span", "vf-ref-cap", cap));
-        v.setAttribute("aria-label", `View larger: ${cap}`);
-        v.onclick = () => openLb("att", null, 0, v, [{ src: sl.image, title: cap }], "Not sent yet");
-        const x = ibtn("vf-tbtn vf-icon-btn vf-ref-x", "x", "Remove the screenshot");
-        x.onclick = () => { sl.clear(); changed(); b.focus(); };
-        li.append(v, x); chips.replaceChildren(li);
+        chips.hidden = !sl.shots.length; b.hidden = sl.shots.length >= max; // full: each chip's x takes one off
+        const all = sl.shots.map(x => ({ src: x.url, title: "" }));
+        chips.replaceChildren(...sl.shots.map((x, i) => {
+          const li = E("li", "vf-ref"), v = btn("vf-ref-img vf-uppic"), thumb = E("span", "vf-ref-thumb"), img = E("img");
+          const cap = `Screenshot${sl.shots.length > 1 ? ` ${i + 1}` : ""}, ${x.w} × ${x.h}`;
+          all[i].title = cap;
+          li.dataset.kind = "image"; img.src = x.url; img.alt = "";
+          thumb.append(img, zoomTag()); v.append(thumb, E("span", "vf-ref-cap", cap));
+          v.setAttribute("aria-label", `View larger: ${cap}`);
+          v.onclick = () => openLb("att", null, i, v, all, "Not sent yet");
+          const rm = ibtn("vf-tbtn vf-icon-btn vf-ref-x", "x", sl.shots.length > 1 ? `Remove screenshot ${i + 1}` : "Remove the screenshot");
+          rm.onclick = () => {
+            sl.shots.splice(i, 1); paint(); changed();
+            (b.hidden ? chips.querySelectorAll(".vf-ref-img")[Math.max(0, i - 1)] : b)?.focus();
+          };
+          li.append(v, rm); return li;
+        }));
       };
-      // gen: a clear (the form sent or the chip's x) or a newer pick makes a screenshot still shrinking stale
-      sl.clear = () => { sl.gen++; sl.image = ""; sl.size = null; input.value = ""; paint(); };
-      const take = async f => {
-        const gen = ++sl.gen;
-        try {
-          if (!["image/png", "image/jpeg", "image/webp"].includes(f.type)) throw new Error("type");
-          const s = await shrinkShot(f);
-          if (gen !== sl.gen) return;
-          const moved = document.activeElement === b; // the button hides once its chip shows: focus goes to the chip
-          Object.assign(sl, { image: s.url, size: { w: s.w, h: s.h } }); paint(); changed();
-          if (moved) chips.querySelector(".vf-ref-img")?.focus();
-        } catch { if (gen === sl.gen) { sl.clear(); changed("That picture could not be added. Use a PNG, JPEG or WebP screenshot."); } }
-      };
+      // gen: a clear (the form sent) makes a screenshot still shrinking stale; takes run one after another, so the
+      // chips keep the order the pictures came in
+      sl.clear = () => { sl.gen++; sl.shots = []; input.value = ""; paint(); };
+      let line = Promise.resolve();
+      const take = files => (line = line.then(async () => {
+        const gen = sl.gen, moved = document.activeElement === b;
+        let err = "";
+        for (const f of files) {
+          if (max > 1 && sl.shots.length >= max) { err = `A report takes at most ${max} screenshots.`; break; }
+          try {
+            if (!["image/png", "image/jpeg", "image/webp"].includes(f.type)) throw new Error("type");
+            const x = await shrinkShot(f);
+            if (gen !== sl.gen) return;
+            sl.shots = max > 1 ? [...sl.shots, { url: x.url, w: x.w, h: x.h }] : [{ url: x.url, w: x.w, h: x.h }];
+          } catch { if (gen !== sl.gen) return; err = "That picture could not be added. Use a PNG, JPEG or WebP screenshot."; }
+        }
+        input.value = ""; paint(); changed(err);
+        if (moved && b.hidden) chips.querySelector(".vf-ref:last-child .vf-ref-img")?.focus(); // the button hid once full: focus goes to the last chip
+      }));
       b.onclick = () => input.click();
-      on(input, "change", () => { if (input.files?.[0]) take(input.files[0]); });
+      on(input, "change", () => { if (input.files?.length) take([...input.files]); });
       on(field, "paste", e => {
-        const f = [...(e.clipboardData?.files || [])].find(x => /^image\//.test(x.type));
-        if (f) { e.preventDefault(); take(f); }
+        const fs = [...(e.clipboardData?.files || [])].filter(x => /^image\//.test(x.type));
+        if (fs.length) { e.preventDefault(); take(fs); }
       });
       return sl;
     }
-    const repShot = shotSlot(repTa, err => { REP.image = repShot.image; REP.size = repShot.size; repErr.textContent = err || ""; paintSent(); });
+    const repShot = shotSlot(repTa, err => { repErr.textContent = err || ""; paintSent(); }, MAX_REPORT_IMAGES);
     const repShotRow = E("div", "vf-crow vf-rep-shotrow"); repShotRow.append(repShot.btn);
     repTa.after(repShot.chips, repShotRow); reportPop.append(repShot.input);
-    const dropShot = () => { repShot.clear(); REP.image = ""; REP.size = null; paintSent(); };
+    const dropShot = () => { repShot.clear(); paintSent(); };
     const repBack = () => { const r = reportPop._return || reportPop._anchor; closePop(); if (r?.isConnected && r.offsetParent) r.focus({ preventScroll: true }); };
     repCancel.onclick = repBack;
     reportPop.onsubmit = e => {
       e.preventDefault();
       const text = repTa.value.trim(); if (!text) return repTa.focus();
       repSend.disabled = true; repErr.textContent = "";
-      Core.report(text, REP.ctx, REP.image).then(() => { repTa.value = ""; kitPaint(repK); dropShot(); repBack(); flash("Report sent. The host and Claude will look at it."); })
+      Core.report(text, REP.ctx, repShot.shots.map(x => x.url)).then(() => { repTa.value = ""; kitPaint(repK); dropShot(); repBack(); flash("Report sent. The host and Claude will look at it."); })
         .catch(x => { repErr.textContent = `Not sent: ${x?.message || Core.errorText(x)}`; }).finally(() => { repSend.disabled = false; });
     };
     function makeMyRep() {
@@ -6518,13 +6532,11 @@
       li._k = { chip, who, qref, text, att, extra, acts, sig: "" };
       if (it.t === "upload") { const row = makeUpRow(true); row.classList.add("vf-uprow-q"); extra.append(row); li._k.up = row; }
       if (it.t === "report") {
-        // The reporter's words and context are their data. The picture loads only when the owner asks for it.
-        const ctx = E("ul", "vf-rep-sent"), show = btn("vf-btn vf-btn-ghost vf-btn-sm", "Show screenshot"), img = E("img", "vf-rep-shot");
-        img.alt = "The reporter's screenshot"; img.hidden = true;
-        show.onclick = () => { show.disabled = true; Core.reportImage(li._it.f.id).then(src => { img.src = src; img.hidden = false; show.hidden = true; }).catch(e => { show.disabled = false; fail(e); }); };
+        // The reporter's words and context are their data. Each picture loads only when the owner asks for it.
+        const ctx = E("ul", "vf-rep-sent"), pics = E("div", "vf-rep-pics");
         const adds = E("ul", "vf-myrep-adds vf-rep-adds"); adds.setAttribute("aria-label", "Added by the reporter");
-        extra.append(ctx, show, img, adds);
-        li._k.rep = { ctx, show, adds };
+        extra.append(ctx, pics, adds);
+        li._k.rep = { ctx, pics, adds };
       }
       return li;
     }
@@ -6555,7 +6567,19 @@
       if (k.rep) {
         const c = it.f.ctx;
         k.rep.ctx.replaceChildren(...[...ctxLines(c), ...c.errors.map(e => `Error: ${e}`)].map(t => E("li", null, t)));
-        k.rep.show.hidden = !it.f.image || !!k.rep.show.nextSibling.getAttribute("src");
+        // one Show screenshot per picture sent with the report, numbered when there are several; built once per count
+        const nPics = it.f.images || (it.f.image ? 1 : 0);
+        if (k.rep.pics._n !== nPics) {
+          k.rep.pics._n = nPics;
+          k.rep.pics.replaceChildren(...Array.from({ length: nPics }, (_, i) => {
+            const of = nPics > 1 ? ` ${i + 1} of ${nPics}` : "";
+            const w = E("div", "vf-rep-pic"), show = btn("vf-btn vf-btn-ghost vf-btn-sm", `Show screenshot${of}`), img = E("img", "vf-rep-shot");
+            img.alt = `The reporter's screenshot${of}`; img.hidden = true;
+            show.onclick = () => { show.disabled = true; Core.reportImage(li._it.f.id, null, i ? i + 1 : null).then(src => { img.src = src; img.hidden = false; show.hidden = true; }).catch(e => { show.disabled = false; fail(e); }); };
+            w.append(show, img); return w;
+          }));
+        }
+        k.rep.pics.hidden = !nPics;
         // What the reporter added since: each line, and a screenshot that loads only when the owner asks.
         const sig = JSON.stringify(it.f.adds);
         if (k.rep.adds._sig !== sig) {

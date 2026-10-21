@@ -1049,6 +1049,8 @@
 .app .vf-rep-shotrow { justify-content: flex-start; margin-block-start: 0; }
 .app .vf-rep-shotrow:has(> [hidden]:only-child) { display: none; }
 .app .vf-rep-shot { display: block; max-inline-size: 100%; max-block-size: 140px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+.app .vf-rep-pics { display: grid; gap: 6px; justify-items: start; }
+.app .vf-rep-pics[hidden] { display: none; }
 .app .vf-rep-sent { margin: 0; display: grid; gap: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .app .vf-rep-sent li::before { content: "· "; }
 .app .vf-rep-err { margin: 0; font-size: 13px; color: var(--warn); }

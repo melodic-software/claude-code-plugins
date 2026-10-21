@@ -1748,8 +1748,29 @@ class TestReports(ServerCase):
         self.assertEqual((code, out["error"]), (403, "uploads-off"))
 
     def test_a_body_past_the_report_cap_is_refused_before_it_is_read(self):
-        code, _, out = call(self.port, "POST", "/api/report", raw=b"{}", headers={"Content-Type": "application/json", "Content-Length": str(session.REPORT_MAX + 1), **self.ann})
-        self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", session.REPORT_MAX))
+        for route, cap in (("/api/report", session.REPORT_SEND_MAX), ("/api/report/add", session.REPORT_MAX)):
+            with self.subTest(route=route):
+                code, _, out = call(self.port, "POST", route, raw=b"{}", headers={"Content-Type": "application/json", "Content-Length": str(cap + 1), **self.ann})
+                self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", cap))
+
+    def test_four_512_kb_screenshots_go_in_one_report_and_the_owner_reads_each_back(self):
+        """The owner's ask (2026-10-21): up to four pictures in the first send, each within the 512 KB cap."""
+        shots = [b"\xff\xd8\xff" + bytes([n]) * (512 * 1024 - 3) for n in range(4)]
+        code, _, out = self.post("/api/report", {"text": "Send does nothing", "ctx": {**self.CTX, "qid": "Q1"}, "images": [self.data_url("jpeg", b) for b in shots]}, self.ann)
+        self.assertEqual((code, out.get("id")), (200, "F1"), out)
+        self.assertEqual([(self.d / "reports" / f).read_bytes() for f in ("F1.jpg", "F1-p2.jpg", "F1-p3.jpg", "F1-p4.jpg")], shots)
+        mine = self.get("/api/state", self.owner)[2]["reports"]
+        self.assertEqual([(r["id"], r["image"], r["images"]) for r in mine], [("F1", True, 4)])
+        self.assertNotIn("reports/F1", json.dumps(mine))
+        self.assertEqual([self.get(f"/api/report/image?id=F1{q}", self.owner)[2]["image"] for q in ("", "&pic=2", "&pic=3", "&pic=4")], [self.data_url("jpeg", b) for b in shots])
+        code, _, out = self.get("/api/report/image?id=F1&pic=2", self.ann)
+        self.assertEqual((code, out["error"]), (403, "owner-only"))
+        for q, want in (("&pic=5", (400, "bad-field")), ("&pic=2&add=1", (400, "bad-field"))):
+            code, _, out = self.get(f"/api/report/image?id=F1{q}", self.owner)
+            self.assertEqual((code, out["error"]), want, q)
+        code, _, out = self.post("/api/report", {"text": "Five", "ctx": {**self.CTX, "qid": "Q1"}, "images": [self.data_url("png", PNG)] * 5}, self.ann)
+        self.assertEqual((code, out["error"], out.get("field")), (400, "bad-field", "images"))
+        self.assertEqual(sorted(self.app.session.state["reports"]), ["F1"])
 
     def test_a_picture_one_byte_past_512_kb_or_of_another_kind_is_refused(self):
         code, _, out = self.report(self.ann, self.data_url("png", PNG + b"\x00" * (512 * 1024 + 1 - len(PNG))))
