@@ -1,6 +1,6 @@
 {
   "name": "corrections",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Turns a recurring correction into an enforced check. The first piece is scripts/prove-check.sh, which proves a proposed check fails on the old code and passes on the current code by running it in temporary worktrees at two refs. The codify skill that uses it comes next.",
   "author": {
     "name": "Melodic Software",
