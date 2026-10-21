@@ -2756,14 +2756,38 @@ class TestMoveRequest(ServerCase):
     def where(self, rid):
         return next(r.get("qid") for r in self.app.session.state["requests"] if r["id"] == rid)
 
+    def own_answer(self, who, summary):
+        """`who` asks their own Claude on Q1 and it answers: the request's id and its result's."""
+        rid = self.ask(who, runner="self")
+        self.assertEqual(self.post("/api/mine/requests/claim", {"id": rid}, who)[0], 200)
+        body = {"id": rid, "summary": summary, "sources": [], "report": "", "used": [], "why": ""}
+        code, _, out = self.post("/api/mine/requests/result", body, who)
+        self.assertEqual(code, 200, out)
+        return rid, out["id"]
+
     def test_the_asker_moves_a_request_and_its_answer_follows(self):
-        rid = self.ask(self.ann)
-        self.go(rid)
-        self.answer(rid, "Moved along.")
+        rid, _ = self.own_answer(self.ann, "Moved along.")
         code, _, out = self.move(rid, self.ann, qid="Q2")
         self.assertEqual((code, out), (200, {"ok": True, "id": rid, "qid": "Q2"}))
-        self.assertEqual((self.sees(self.owner, "Moved along.", "Q1"), self.sees(self.owner, "Moved along.", "Q2")), (False, True))
+        self.assertEqual((self.sees(self.ann, "Moved along.", "Q1"), self.sees(self.ann, "Moved along.", "Q2")), (False, True))
         self.assertEqual(self.where(rid), "Q2")
+
+    def test_the_asker_cannot_move_a_request_the_host_took_up_but_the_owner_can(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        self.answer(rid, "Answered on Q1.")
+        code, _, out = self.move(rid, self.ann, qid="Q2")
+        self.assertEqual((code, out["error"], out["status"]), (409, "taken-up", "done"))
+        self.assertEqual(self.where(rid), "Q1")
+        self.assertEqual(self.move(rid, self.owner, qid="Q2")[0], 200)
+        self.assertTrue(self.sees(self.bo, "Answered on Q1.", "Q2"))
+
+    def test_a_waiting_request_its_asker_moves_reads_unread_again_for_the_owner(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.post("/api/inbox/read", {"keys": ["run:" + rid]}, self.owner)[2]["read"], 1)
+        self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
+        item = next(i for i in self.state(self.owner)["inbox"] if i["key"] == "run:" + rid)
+        self.assertEqual((item["qid"], item["unread"]), ("Q2", True))
 
     def test_another_guest_cannot_move_it(self):
         rid = self.ask(self.ann)
@@ -2804,12 +2828,12 @@ class TestMoveRequest(ServerCase):
         self.assertEqual((code, out["field"]), (400, "scope"))
 
     def test_a_shared_answer_its_asker_moves_waits_for_the_owners_share_and_the_owners_move_keeps_it_shared(self):
-        rid = self.ask(self.ann)
-        self.go(rid)
-        xid = self.answer(rid, "Approved on Q1.")["id"]
+        rid, xid = self.own_answer(self.ann, "Approved on Q1.")
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
+        self.assertTrue(self.sees(self.bo, "Approved on Q1.", "Q1"))
         self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
         self.assertFalse(self.sees(self.bo, "Approved on Q1.", "Q2"))
-        self.assertEqual(self.status(self.ann, rid), "unshared")  # held like a fresh answer under review
+        self.assertTrue(self.sees(self.ann, "Approved on Q1.", "Q2"))  # their own Claude's answer, as before it was shared
         self.assertIn("share:" + xid, [i["key"] for i in self.state(self.owner)["inbox"]])
         self.assertEqual(self.app.session.summary()["queue"]["results"], 1)
         self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)

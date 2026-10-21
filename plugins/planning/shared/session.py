@@ -3787,6 +3787,8 @@ class Session:
             raise DomainError(409, "same-place", f"Request {r['id']} is {_on(r)} already.")
         if r["status"]["kind"] == "running":
             raise DomainError(409, "wrong-status", f"Request {r['id']} is running.", status="running")
+        if pid != HOST and r["runner"] == "host" and r["status"]["kind"] != "pending":
+            raise DomainError(409, "taken-up", "The host already took up this request, so only the host can move it.", status=r["status"]["kind"])
         key, results = r.get("qid", GENERAL), self.state["results"]
         res = next((x for x in results.get(key, ()) if x["request"] == r["id"]), None)
         if res and any(res["id"] in c.get("cites", ()) for c in _answers(self.state["cards"])):
@@ -3807,6 +3809,8 @@ class Session:
                 res["published"] = False
                 res.pop("publishedAt", None)
                 self._unseen(HOST, "share:" + res["id"])
+        if pid != HOST:
+            self._unseen(HOST, "run:" + r["id"])  # the owner reads where it went before pressing Run
         if pid != r["pid"]:
             self._notify(r["pid"], "request", f"Your request moved {_on(r)}.", actor=pid, qid=to)
         return {"id": r["id"], **({"qid": to} if to else {"scope": GENERAL})}
