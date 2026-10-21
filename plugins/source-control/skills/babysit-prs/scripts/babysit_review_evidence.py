@@ -63,7 +63,10 @@ LANE_SOURCE_NAME = ".mcp.json"
 # The security lane's `skip=docs-only` counts as its review only when every
 # path the pull request changes is documentation by the lane's own rule: its
 # `docs-only-paths` default (ci-workflows pr-review-security.yml at v0.48.0)
-# minus the agent instruction paths it never counts as documentation. Fixed in
+# minus the agent instruction paths it never counts as documentation, and
+# stricter than the lane: any `reference/` directory (skills read them as
+# instructions), docs/adr/, docs/conventions/ and docs/standards/ never count,
+# in any case. Fixed in
 # code, like `LANES`. The lane applies the rule to the files since its last
 # review, so its skip alone says nothing about the whole pull request, and it
 # binds only when the lane never reviewed the pull request: an earlier
@@ -72,7 +75,9 @@ DOCS_ONLY_LANE = "claude-security-review"
 DOCS_ONLY_GLOBS = ("docs/**/*.md", "**/README.md", "**/CHANGELOG.md")
 INSTRUCTIONS_RE = re.compile(
     r"(?:^|/)(?:(?:CLAUDE|CLAUDE\.local|AGENTS|GEMINI|SKILL|copilot-instructions)\.md$"
-    r"|(?:\.claude|skills|agents|commands|rules|hooks|instructions|prompts)/)"
+    r"|(?:\.claude|skills|agents|commands|rules|hooks|instructions|prompts|reference)/)"
+    r"|^docs/(?:adr|conventions|standards)/",
+    re.IGNORECASE,
 )
 
 RECORD_TITLE = "claude-lane-review-complete"
@@ -238,7 +243,14 @@ def _bind_lane(
     try:
         lane_runs = _lane_runs(lane, runs)
         reviewed, chain = _resolve(lane, head, lane_runs, docs_only)
-        _require_marker(lane, head, comments)
+        marker_created = _require_marker(lane, head, comments)
+        if chain[0].skip is not None and marker_created < min(
+            str(item.get("created_at") or "") for item in lane_runs
+        ):
+            # The lane edits one marker in place: one older than every listed
+            # run was written by a run no longer listed, which may have
+            # reviewed the pull request.
+            raise Unbound("marker-predates-runs")
         _require_marked_runs(lane, lane_runs, comments)
         count, clears = _open_findings(
             lane, lane_runs, threads, is_human, claimed, reviewed, chain, head_file
@@ -470,10 +482,9 @@ def _record(lane: str, sha: str, job: Mapping[str, Any]) -> _Record | None:
     )
 
 
-def _require_marker(
-    lane: str, head: str, comments: Sequence[Mapping[str, Any]]
-) -> None:
-    """The newest reviewed-head marker the lane job wrote must name `head`."""
+def _require_marker(lane: str, head: str, comments: Sequence[Mapping[str, Any]]) -> str:
+    """The newest reviewed-head marker the lane job wrote must name `head`;
+    returns when that comment was created."""
     if not isinstance(comments, list | tuple):
         raise Unbound("evidence-error")
     newest: tuple[str, int, str] | None = None
@@ -496,6 +507,7 @@ def _require_marker(
             newest = key
     if newest is None or newest[2] != head:
         raise Unbound("no-marker")
+    return newest[0]
 
 
 def _require_marked_runs(

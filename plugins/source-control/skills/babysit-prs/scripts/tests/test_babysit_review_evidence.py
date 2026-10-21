@@ -639,7 +639,7 @@ class SecurityDocsOnlyTests(Base):
         ]
 
     def test_binds_with_no_findings_when_every_path_is_docs(self) -> None:
-        item = self.skip("docs/adr/0001-x.md", "README.md", "plugins/a/CHANGELOG.md")
+        item = self.skip("docs/guide/setup.md", "README.md", "plugins/a/CHANGELOG.md")
         self.assertTrue(item.bound)
         self.assertEqual(item.open_findings, 0)
         self.assertFalse(item.whole_review_clears)
@@ -659,6 +659,16 @@ class SecurityDocsOnlyTests(Base):
             "docs/SKILL.md",
             "AGENTS.md",
             "docs/rules/README.md",
+            # Stricter than the lane: skills read reference/ as instructions,
+            # and these trees set merge and lane policy.
+            "plugins/source-control/reference/providers/github/README.md",
+            "docs/adr/0001-x.md",
+            "docs/conventions/pr-pipeline/README.md",
+            "docs/standards/README.md",
+            # In any case.
+            "docs/Agents/x.md",
+            "Docs/ADR/x.md",
+            "agents.md",
         ):
             with self.subTest(path=path):
                 self.assertUnbound(self.skip(path), "skip-not-no-change")
@@ -704,6 +714,23 @@ class SecurityDocsOnlyTests(Base):
         ]
         result = self.bind(runs, changed_paths=["README.md"])
         self.assertUnbound(result["claude-security-review"], "skip-not-no-change")
+
+    def test_a_marker_older_than_every_listed_run_unbinds(self) -> None:
+        # A deleted run that reviewed the pull request wrote the marker the
+        # docs-only skip later edited in place.
+        old = marker("claude-security-review", S)
+        old["created_at"] = "2025-12-31T00:00:00Z"
+        comments = [marker("claude-review", S), old]
+        runs = [
+            whole("claude-review", S),
+            run("claude-security-review", S, "skip=docs-only"),
+        ]
+        result = self.bind(runs, comments=comments, changed_paths=["README.md"])
+        self.assertUnbound(result["claude-security-review"], "marker-predates-runs")
+        # Not a docs-only skip: the marker age does not matter.
+        runs[1] = whole("claude-security-review", S)
+        result = self.bind(runs, comments=comments, changed_paths=["README.md"])
+        self.assertTrue(result["claude-security-review"].bound)
 
     def test_earlier_docs_only_skips_still_bind(self) -> None:
         runs = [
