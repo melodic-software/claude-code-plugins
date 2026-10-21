@@ -278,6 +278,10 @@ class TreatsContentAsData(TempDirCase):
 
 
 GITHUB_TOKEN = "ghp_" + "Zx4" * 12
+# The stateless installation token is ghs_APPID_JWT, about 520 characters: a numeric
+# app id and three base64url segments joined by '.', each segment obviously fake.
+JWT_SEGMENT = "FAKE-not_a_token" * 10
+STATELESS_TOKEN = "ghs" + "_123456_" + ".".join([JWT_SEGMENT] * 3)
 AWS_KEY = "AKIA" + "MNBVCXZLKJHGFDSA"
 
 
@@ -287,6 +291,25 @@ def dump(db):
 
 
 class RedactsEveryStringField(TempDirCase):
+    def test_stateless_installation_token_is_redacted_whole(self):
+        path = self.write_json(
+            "stateless.json",
+            {
+                "traceEvents": [
+                    {
+                        "name": "RunTask",
+                        "ph": "X",
+                        "args": {"t": f"x {STATELESS_TOKEN} y"},
+                    }
+                ]
+            },
+        )
+        out = self.tmp / "stateless.db"
+        result = run("--in", path, "--out", out)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("FAKE-not_a_token", dump(out))
+        self.assertIn("<REDACTED>", dump(out))
+
     def test_trace_event_phase_and_pid(self):
         path = self.write_json(
             "tokens.json",

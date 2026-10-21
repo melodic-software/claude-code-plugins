@@ -19,6 +19,10 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 HEAD=$(printf 'a%.0s' {1..40})
 FIX=$(printf 'f%.0s' {1..40})
 TOKEN=ghs_secretlanetoken1234567890
+# The stateless installation token is ghs_APPID_JWT, about 520 characters: a numeric app id
+# and three base64url segments joined by '.', each segment obviously fake. Built at run time.
+SEG=$(printf 'FAKE-not_a_token%.0s' {1..10})
+STATELESS="ghs""_123456_$SEG.$SEG.$SEG"
 
 mkdir -p "$TEST_TMPDIR/bin"
 cat >"$TEST_TMPDIR/bin/gh" <<'STUB_EOF'
@@ -166,6 +170,10 @@ disposition '{"disposition":"UNCERTAIN","note":"Needs the vendor docs to settle.
 run record PRRT_b "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "an UNCERTAIN record with no evidence succeeds" 0 "$?"
 assert_eq "both are recorded in order" "INCORRECT UNCERTAIN" "$(jq -rs 'map(.disposition) | join(" ")' "$STUB/replies.jsonl")"
+setup
+disposition "{\"disposition\":\"UNCERTAIN\",\"note\":\"The fixture uses ghs_job; see $FIX.\"}"
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a note naming a token placeholder and a commit sha is recorded" 0 "$?"
 assert_eq "INCORRECT and UNCERTAIN make no API call" 0 "$(wc -l <"$STUB/calls")"
 
 # the note limit counts code points, as the reply job does: 2000 emoji pass,
@@ -216,6 +224,7 @@ for bad in \
   '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"bell \u0007 here"}' \
   '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"safe‮evil"}' \
   "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"token $TOKEN\"}" \
+  "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"token $STATELESS\"}" \
   'not json'; do
   setup
   disposition "$bad"
