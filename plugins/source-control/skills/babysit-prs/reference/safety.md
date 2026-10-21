@@ -976,8 +976,14 @@ announced operator step.
 ## Unattended Merge Path
 
 `--unattended` on the merge gate runs it under the unattended merge policy. It stays off unless
-the repository's `docs/conventions/pr-pipeline.yaml`, read at the pull request's base SHA, sets
-`merge.authority: local-babysit` and a `merge.agent-identity`. The gate decides in this order, and
+the repository's `docs/conventions/pr-pipeline.yaml`, read at the pull request's base SHA and at
+the default branch head, sets `merge.authority: local-babysit` and a `merge.agent-identity`. Each
+setting takes the stricter of the two values, except `merge.risk-escalation-minutes`, which keeps
+the base's, and `merge.max-in-flight`, read at the head alone so a raised cap applies at once. A
+different authority, or an identity set on one side only, is the stop `authority-differs`; two
+different identities refuse. During an authority switch, the old lane's runs on pull requests whose
+base predates the switch stop with `authority-differs` and dequeue the identity's entries, the new
+lane's included, until those bases move past the switch. The gate decides in this order, and
 any refusal is the blocker `unattended merge refused: <reason>`:
 
 1. Identity: the token acts as `merge.agent-identity`. Then the credential chokepoint:
@@ -1080,8 +1086,10 @@ Named residuals:
 - `merge.max-in-flight` is read at the default branch head once per cache window
   (`run_cache.MAX_AGE`), shared by the run's gate processes in that window, so a changed cap
   applies to every candidate, whatever its base, once the window ends. The room check after an
-  enqueue reads it again, uncached. When a read fails, the candidate's base commit's value
-  applies; in the room check, the lower of that and the cap the gate applied.
+  enqueue reads it again, uncached. When the gate cannot read the head's config at all, it
+  refuses, since that config also tightens every other setting. When only the cap's own read
+  fails, the lower of the base commit's cap and the head's applies; in the room check, the lower
+  of that and the cap the gate applied.
 
 Operator runbook: the refusal `in-flight:merged-history-truncated` (or an unreadable post-merge
 verdict naming the read limit) means more merges landed since the floor than the history read
