@@ -167,7 +167,7 @@ if ! listed="$(gh api --paginate "repos/{owner}/{repo}/issues?creator=$BOT&state
 fi
 ISSUES="$(jq -s --arg bot "$BOT" 'add // [] | map(select(.pull_request == null and .user.login == $bot)
   | select(((.body // "") | split("\n")) as $l
-    | ($l[0] // "" | startswith("<!-- factory-monitor key=")) or ($l | map(select(test("\\S"))) | last // "" | test("^<!-- lane-sweep:fp=[0-9a-f]{16} -->\\s*$"))
+    | ($l[0] // "" | startswith("<!-- factory-monitor key=")) or ($l | map(select(test("[^[:space:]]"))) | last // "" | test("^<!-- lane-sweep:fp=[0-9a-f]{16} -->[[:space:]]*$"))
     | not))' <<<"$listed")" || {
   printf '%s: unreadable issue list\n' "$SELF" >&2
   exit 1
