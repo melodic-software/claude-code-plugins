@@ -29,7 +29,7 @@ jobs:
   check-links:
     permissions:
       contents: read
-    uses: melodic-software/ci-workflows/.github/workflows/maintenance-check-links-online.yml@3a2c748fdef9cfb9ceec5a66289e21842189689f # v0.55.0
+    uses: melodic-software/ci-workflows/.github/workflows/maintenance-check-links-online.yml@5468b60ebc87827075041c29439e2d489b9a4189 # ci-workflows#844 head (dispatch probe, not for merge)
     with:
       runner: ubuntu-24.04
       # Test data, not links to check: intentionally broken fixtures.
