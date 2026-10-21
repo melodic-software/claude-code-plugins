@@ -172,6 +172,13 @@
       "description": "Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask.",
       "default": "offer",
       "options": ["off", "offer"]
+    },
+    "orient_catch_up_word_cap": {
+      "type": "number",
+      "title": "Orient catch-up word cap",
+      "description": "Most words /session-flow:orient catch-up may use in its reply, visuals excluded; default 250, minimum 150. The reply opens with what needs you, then what happened, then each decision.",
+      "default": 250,
+      "min": 150
     }
   }
 }

@@ -123,7 +123,7 @@ def env(**extra):
 def share(d, *args, environ=None, timeout=90):
     """Run share.py; (exit code, the last JSON line on stdout or None, stderr)."""
     cmd = [sys.executable, str(SHARE)] + (["--dir", str(d)] if d is not None else []) + list(args)
-    p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=environ or env())
+    p = subprocess.run(cmd, capture_output=True, encoding="utf-8", timeout=timeout, env=environ or env())
     lines = [x for x in p.stdout.splitlines() if x.startswith("{")]
     return p.returncode, (json.loads(lines[-1]) if lines else None), p.stderr
 

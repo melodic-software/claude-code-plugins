@@ -50,6 +50,17 @@ test("the output record drops what fails its shape: a reset off rate-limit, a fo
   assert.equal(laneRecordOutput({ ...forgedRun, runId: "7", runAttempt: "0" }).externalId, null);
 });
 
+// The classes report-lane-outcome's failure-class output names at the pinned
+// ci-workflows v0.56.0 beyond the original six.
+test("an install-failed or no-execution run keeps its output record", () => {
+  for (const failureClass of ["install-failed", "no-execution"]) {
+    assert.equal(
+      laneRecordOutput({ lane: "pr-unblock", activity: "x", failureClass }).line,
+      `lane=pr-unblock activity=x class=${failureClass}`,
+    );
+  }
+});
+
 test("no record, an unknown class, or a malformed name add no output record", () => {
   assert.equal(laneRecordOutput({ lane: "pr-unblock", activity: "x" }), null);
   assert.equal(laneRecordOutput({ lane: "pr-unblock", activity: "x", failureClass: "forged class" }), null);
