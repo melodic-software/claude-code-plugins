@@ -11,10 +11,39 @@ const job = text.slice(text.indexOf("\n  report-red-main:\n"));
 
 test("the report job runs only after the alert, for a failed full run on main", () => {
   assert.match(job, /\n {4}needs: \[alert\]\n/);
-  assert.match(job, /github\.event\.workflow_run\.name == 'pr-require-checks'/);
-  assert.match(job, /contains\(fromJSON\('\["schedule", "workflow_dispatch"\]'\), github\.event\.workflow_run\.event\)/);
-  assert.match(job, /github\.event\.workflow_run\.conclusion == 'failure'/);
-  assert.match(job, /github\.event\.workflow_run\.head_branch == 'main'/);
+  assert.match(job, /needs\.alert\.outputs\.name == 'pr-require-checks'/);
+  assert.match(job, /contains\(fromJSON\('\["schedule", "workflow_dispatch"\]'\), needs\.alert\.outputs\.event\)/);
+  assert.match(job, /needs\.alert\.outputs\.conclusion == 'failure'/);
+  assert.match(job, /needs\.alert\.outputs\.branch == 'main'/);
+  assert.match(job, /needs\.alert\.outputs\.repo == github\.repository/);
+});
+
+test("the report reads the run from the alert job's outputs, never the event, so a dispatch reaches it", () => {
+  assert.doesNotMatch(job, /github\.event\.workflow_run/);
+  for (const [env, output] of [
+    ["RUN_ID", "id"],
+    ["RUN_SHA", "sha"],
+    ["RUN_URL", "url"],
+    ["RUN_WORKFLOW_ID", "workflow-id"],
+    ["RUN_CREATED", "created"],
+  ]) {
+    assert.match(job, new RegExp(`\\n {10}${env}: \\$\\{\\{ needs\\.alert\\.outputs\\.${output} \\}\\}\\n`));
+  }
+  const alert = text.slice(text.indexOf("\n  alert:\n"), text.indexOf("\n  report-red-main:\n"));
+  for (const output of [
+    "name",
+    "event",
+    "conclusion",
+    "branch",
+    "repo",
+    "sha",
+    "url",
+    "id",
+    "workflow-id",
+    "created",
+  ]) {
+    assert.match(alert, new RegExp(`\\n {6}${output}: \\$\\{\\{ steps\\.run\\.outputs\\.${output} \\}\\}\\n`));
+  }
 });
 
 test("an event the lanes App sent is skipped", () => {

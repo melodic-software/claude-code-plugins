@@ -1428,6 +1428,16 @@ this rule after the alert job has filed its post-merge record. It runs no model;
 tests are in
 [`.github/scripts/post-merge-demotion-alert/`](../../../.github/scripts/post-merge-demotion-alert/).
 
+The full run pr-merge starts after each merge uses `GITHUB_TOKEN`, so its completion raises no
+`workflow_run` event. When that run fails, pr-merge's `dispatch-full-run` job sends its run id to
+the alert workflow through `workflow_dispatch`. The alert accepts the id only from
+`github-actions[bot]` or a listed human (`trusted-actors.json` on `main`), never the lanes App,
+and only for attempt 1 of a failed `pr-require-checks.yml` run on this repository's `main` that
+`github-actions[bot]` dispatched. Both jobs then wait for pr-merge's re-run for up to
+`confirm-wait-minutes`, so the record, its fix issues and this report follow the merge instead of
+the next scheduled run. Records, fix issues and report comments dedupe as they do for any run:
+records by signal and SHA or by failing run, fix issues by check, and reports by run and attempt.
+
 1. **Confirmed red.** Attempt 1 concluded `failure`, the one re-run of its failed jobs finished
    and concluded `failure`, and one check failed in both, a check being a job that concluded
    `failure` or a gate the hygiene aggregator titles (never the all-branches gitleaks gate). A

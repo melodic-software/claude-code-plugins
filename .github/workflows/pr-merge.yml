@@ -38,9 +38,13 @@ name: pr-merge
 # whoever enqueued it, the push starts a full CI run of main (the
 # dispatch-full-run job), even while the switch or report-only is on, since it
 # merges nothing. That run raises no workflow_run event (GITHUB_TOKEN started
-# it), so post-merge-demotion-alert.yml never sees it. A red attempt 1 gets
-# its one re-run from the post-merge-dispatch job, which records it; the merge
-# job's post-merge check files the demotion record once it reads the run red.
+# it), so when it fails the same job sends its run id to
+# post-merge-demotion-alert.yml through workflow_dispatch, which files the
+# post-merge record and fix issues and reports the red-main culprit once the
+# re-run fails too. A red attempt 1 gets its one re-run from the
+# post-merge-dispatch job, which records it; for a lane merge the merge job's
+# post-merge check also files the demotion record once it reads the run red,
+# and either filer's record is found by the other through its failing run.
 #
 # On its schedule it also gives a PR a new head, an empty commit, when a lane
 # run on its current head was refused by the token broker as
@@ -636,8 +640,9 @@ jobs:
       # A failed lane merge (the check above exited 1) holds the gate until a
       # human closes every open demotion record, and the gate reads only records the
       # lanes App or github-actions[bot] filed. post-merge-demotion-alert.yml
-      # files none for a full run this workflow dispatched: a run started with
-      # GITHUB_TOKEN raises no workflow_run event. So the check runs again
+      # hears of a full run this workflow dispatched only when the push job
+      # sends it, and not of one the merge job or post-merge-dispatch started:
+      # a run started with GITHUB_TOKEN raises no workflow_run event. So the check runs again
       # with --remediate under the lane token, which files the record (or
       # comments on it, reopening it on a new sighting) and dequeues the
       # lane's merge-queue entries. The lane token holds no Actions
@@ -1105,7 +1110,7 @@ jobs:
     # minutes, plus time in the runner queue.
     timeout-minutes: 45
     permissions:
-      actions: write # start pr-require-checks.yml on main and read its status
+      actions: write # start pr-require-checks.yml on main, read its status, and send a red one to post-merge-demotion-alert.yml
     steps:
       - name: Start the full CI run on main
         id: dispatch
@@ -1138,6 +1143,10 @@ jobs:
       # Holds the push group until the run finishes, so a burst of merges
       # waits here as one pending job. One REST read a minute; the run's
       # result is the merge job's post-merge check's to judge, not this job's.
+      # A run that failed raises no workflow_run event (this token started
+      # it), so this step sends its id to post-merge-demotion-alert.yml, which
+      # waits for its one re-run before it files or reports anything. Every
+      # merge is a push to main, so every merge's run passes here.
       - name: Wait for the full run to finish
         if: github.event_name == 'push'
         env:
@@ -1148,9 +1157,15 @@ jobs:
           set -euo pipefail
           for _ in $(seq 40); do
             sleep 60
-            status=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .status) || continue
-            if [ "$status" = completed ]; then
-              echo "run $RUN_ID completed"
+            state=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.status + " " + (.conclusion // "")') || continue
+            if [ "${state% *}" = completed ]; then
+              echo "run $RUN_ID completed: ${state#* }"
+              if [ "${state#* }" = failure ] &&
+                ! gh api -X POST "repos/$REPO/actions/workflows/post-merge-demotion-alert.yml/dispatches" \
+                  -f ref=main -f "inputs[run-id]=$RUN_ID" >/dev/null; then
+                echo "::error::could not send run $RUN_ID to post-merge-demotion-alert.yml; the next scheduled full run reports a red that lasts"
+                exit 1
+              fi
               exit 0
             fi
           done

@@ -223,7 +223,7 @@ run_step() {
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
-    GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
+    GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
     RUN_COMMIT_MESSAGE="${COMMIT_MESSAGE:-fix: a change (#1234)}" \
@@ -1017,5 +1017,189 @@ if [[ "$RC" -eq 0 && "$(dispatches)" -eq 0 ]] && ! grep -qx 'POST repos/o/r/issu
 else
   fail "existing record filed fix work: log='$LOG'"
 fi
+
+# --- A per-merge full run sent by workflow_dispatch (#8896) -------------------
+# pr-merge.yml starts a full run after each merge with GITHUB_TOKEN, so its
+# completion raises no workflow_run event; pr-merge sends a red one's id here.
+# The re-run comes from pr-merge's next scheduled run, so the step waits for it
+# as long as red-main.confirm-wait-minutes and starts none of its own.
+confirm_wait="$(sed -n 's/^  confirm-wait-minutes: \([0-9]*\).*/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
+
+VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=failure \
+  run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+issue_fields="$(cat "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1)" 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)$(dispatches)" == 11 ]] &&
+  ! grep -q 'rerun-failed-jobs' <<<"$LOG" && grep -qx 'GET repos/o/r/actions/runs/4242' <<<"$LOG" &&
+  [[ "$issue_fields" == *"<!-- babysit-merge-demotion sha=$SHA signal=dispatch -->"* &&
+    "$issue_fields" == *"- Failing run: $RUN_URL/attempts/2"$'\n'* ]]; then
+  ok "a dispatched red per-merge run waits for pr-merge's re-run, then files the record and a fix issue"
+else
+  fail "dispatched red run: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=success \
+  run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"passed: nothing to file"* ]] && ! grep -q 'rerun-failed-jobs' <<<"$LOG"; then
+  ok "a dispatched red per-merge run whose re-run passes files nothing"
+else
+  fail "dispatched run, re-run passed: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never \
+  run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$confirm_wait" =~ ^[0-9]+$ &&
+  "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq "$confirm_wait" && "$OUT" == *"within $confirm_wait minutes"* ]] &&
+  ! grep -q 'rerun-failed-jobs' <<<"$LOG"; then
+  ok "a dispatched run waits red-main.confirm-wait-minutes ($confirm_wait) for the re-run before judging attempt 1"
+else
+  fail "dispatched run wait: confirm-wait=$confirm_wait rc=$RC polls=$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG") out='$OUT'"
+fi
+timeout_expr="$(sed -n 's/^    timeout-minutes: //p' <<<"$alert_job")"
+if [[ "$timeout_expr" =~ workflow_dispatch\'\ \&\&\ ([0-9]+)\ \|\|\ 30 ]] && ((BASH_REMATCH[1] >= confirm_wait + 10)); then
+  ok "the alert job's dispatch timeout leaves room past the confirm wait"
+else
+  fail "alert timeout '$timeout_expr' does not cover a $confirm_wait-minute wait"
+fi
+
+# --- The step that reads the run ----------------------------------------------
+# workflow_run: the event's fields pass through unchanged. workflow_dispatch:
+# the run id is checked, the sender must be github-actions[bot] or a listed
+# human (never the lanes App), and attempt 1 of the named run must be a failed
+# pr-require-checks.yml run on this repository's main dispatched by
+# github-actions[bot]. A refusal writes no output and fails the step.
+READ_NAME='Read the failed run'
+awk -v name="      - name: $READ_NAME" '$0 == name { on = 1; next }
+  on && /^      - / { exit }
+  on { print }' "$WORKFLOW" | awk '/^        run: \|$/ { on = 1; next }
+  on && /^          / { print substr($0, 11); next }
+  on && /^[[:blank:]]*$/ { print ""; next }
+  on { exit }' >"$TMP_ROOT/read.sh"
+read_env="$(awk -v name="      - name: $READ_NAME" '$0 == name { on = 1; next } on && /^      - / { exit } on' "$WORKFLOW")"
+body_env="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; next } on && /^        run:/ { exit } on' "$WORKFLOW")"
+if [[ ! -s "$TMP_ROOT/read.sh" ]]; then
+  fail "no '$READ_NAME' step with a run: | body"
+elif grep -qF "\${{" "$TMP_ROOT/read.sh"; then
+  fail "the '$READ_NAME' body interpolates an expression"
+elif [[ "$read_env" != *"INPUT_RUN_ID: \${{ inputs.run-id }}"* || "$body_env" == *'github.event.workflow_run'* ]] ||
+  ! grep -qF "RUN_COMMIT_MESSAGE: \${{ steps.run.outputs.commit-message }}" <<<"$body_env" ||
+  ! grep -qF "RUN_TRIGGERING_ACTOR: \${{ steps.run.outputs.triggering-actor }}" <<<"$body_env"; then
+  fail "the filing step does not read the run from the '$READ_NAME' step's outputs"
+else
+  ok "the filing step reads the run from the '$READ_NAME' step, whose body takes its input through env"
+fi
+inputs="$(awk '/^  workflow_dispatch:$/ { on = 1; next } on && /^[a-z]/ { exit } on' "$WORKFLOW")"
+if [[ "$inputs" == *$'\n      run-id:\n'* && "$(grep -c '^      [a-z-]*:$' <<<"$inputs")" -eq 1 ]]; then
+  ok "workflow_dispatch takes one input, run-id"
+else
+  fail "workflow_dispatch inputs are not exactly run-id: '$inputs'"
+fi
+
+mkdir -p "$TMP_ROOT/bin-read"
+cat >"$TMP_ROOT/bin-read/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$STUB_DIR/log"
+case "$*" in
+  *trusted-actors.json*) exec cat "$STUB_DIR/trusted.json" ;;
+  *actions/runs/*/attempts/1) exec cat "$STUB_DIR/attempt.json" ;;
+esac
+exit 1
+EOF
+chmod +x "$TMP_ROOT/bin-read/gh"
+
+# attempt_run [jq-update] -> attempt 1 of run 4242, a failed per-merge full run
+attempt_run() {
+  jq -n --arg sha "$SHA" --arg url "$RUN_URL" '{id: 4242, run_attempt: 1, name: "pr-require-checks",
+    path: ".github/workflows/pr-require-checks.yml", event: "workflow_dispatch",
+    actor: {login: "github-actions[bot]"}, triggering_actor: {login: "github-actions[bot]"},
+    head_branch: "main", repository: {full_name: "o/r"}, head_repository: {full_name: "o/r"},
+    head_sha: $sha, html_url: $url, workflow_id: 77, created_at: "2026-10-17T16:26:00Z",
+    status: "completed", conclusion: "failure", head_commit: {message: "fix: a change (#1234)\n\nbody"}}' |
+    jq "${1:-.}"
+}
+
+# run_read <event> <run-id> <actor-id> <triggering-actor> [attempt-json]
+run_read() {
+  rm -rf "$TMP_ROOT/read"
+  mkdir -p "$TMP_ROOT/read"
+  : >"$TMP_ROOT/read/log"
+  : >"$TMP_ROOT/read/output"
+  printf '%s\n' "${5:-$(attempt_run)}" >"$TMP_ROOT/read/attempt.json"
+  jq -n '{version: 1, actors: [{id: 100, login: "a-human", kind: "human"},
+    {id: 337, login: "lanes[bot]", kind: "bot"}, {id: 200, login: "a-bot", kind: "bot"}]}' >"$TMP_ROOT/read/trusted.json"
+  OUT="$(PATH="$TMP_ROOT/bin-read:$PATH" STUB_DIR="$TMP_ROOT/read" GITHUB_OUTPUT="$TMP_ROOT/read/output" \
+    GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="$1" INPUT_RUN_ID="$2" ACTOR_ID="$3" TRIGGERING_ACTOR="$4" \
+    APP_SENDER_ID=337 RUN_WORKFLOW="${WR_NAME:-}" RUN_EVENT="${WR_EVENT:-}" RUN_CONCLUSION="${WR_CONCLUSION:-}" \
+    RUN_BRANCH="${WR_BRANCH:-}" RUN_REPO="${WR_REPO:-}" RUN_SHA="${WR_SHA:-}" RUN_URL="${WR_URL:-}" RUN_ID="${WR_ID:-}" \
+    RUN_WORKFLOW_ID="${WR_WORKFLOW_ID:-}" RUN_CREATED="${WR_CREATED:-}" RUN_ATTEMPT="${WR_ATTEMPT:-}" \
+    RUN_TRIGGERING_ACTOR="${WR_ACTOR:-}" RUN_COMMIT_MESSAGE="${WR_MESSAGE:-}" \
+    bash -e "$TMP_ROOT/read.sh" 2>&1)" && RC=0 || RC=$?
+  LOG="$(cat "$TMP_ROOT/read/log")"
+  OUTPUT="$(cat "$TMP_ROOT/read/output")"
+}
+# output <key>: one single-line output the step wrote.
+output() { sed -n "s/^$1=//p" <<<"$OUTPUT"; }
+
+WR_NAME="$FULL" WR_EVENT=schedule WR_CONCLUSION=failure WR_BRANCH=main WR_REPO=o/r WR_SHA="$SHA" WR_URL="$RUN_URL" \
+  WR_ID=4242 WR_WORKFLOW_ID=77 WR_CREATED="$CREATED" WR_ATTEMPT=2 WR_ACTOR=octocat WR_MESSAGE=$'fix: x (#1)\n\nbody' \
+  run_read workflow_run '' 1 octocat
+if [[ "$RC" -eq 0 && -z "$LOG" && "$(output name)|$(output event)|$(output conclusion)|$(output branch)|$(output repo)" == "$FULL|schedule|failure|main|o/r" &&
+  "$(output sha)|$(output url)|$(output id)|$(output workflow-id)|$(output created)|$(output attempt)|$(output triggering-actor)" == "$SHA|$RUN_URL|4242|77|$CREATED|2|octocat" &&
+  "$OUTPUT" == *$'\nfix: x (#1)\n\nbody\nEOF_'* ]]; then
+  ok "a workflow_run event's fields pass through unchanged, with no API read"
+else
+  fail "workflow_run pass-through: rc=$RC log='$LOG' output='$OUTPUT' out='$OUT'"
+fi
+
+run_read workflow_dispatch 4242 41898282 'github-actions[bot]'
+if [[ "$RC" -eq 0 && "$(output name)|$(output event)|$(output conclusion)|$(output branch)|$(output repo)" == "$FULL|workflow_dispatch|failure|main|o/r" &&
+  "$(output sha)|$(output url)|$(output id)|$(output workflow-id)|$(output created)|$(output attempt)|$(output triggering-actor)" == "$SHA|$RUN_URL|4242|77|$CREATED|1|github-actions[bot]" &&
+  "$OUTPUT" == *$'\nfix: a change (#1234)\n\nbody\nEOF_'* ]] &&
+  grep -qx 'api repos/o/r/actions/runs/4242/attempts/1' <<<"$LOG"; then
+  ok "a red per-merge run pr-merge dispatches is read back as attempt 1 with the event's fields"
+else
+  fail "dispatched red run read: rc=$RC log='$LOG' output='$OUTPUT' out='$OUT'"
+fi
+
+run_read workflow_dispatch 4242 100 a-human
+if [[ "$RC" -eq 0 && "$(output id)" == 4242 ]]; then
+  ok "a listed human may send a run"
+else
+  fail "listed human refused: rc=$RC out='$OUT'"
+fi
+
+# refused <label> <run_read args...>: fails, writes no output.
+refused() {
+  local label="$1"
+  shift
+  run_read "$@"
+  if [[ "$RC" -ne 0 && -z "$OUTPUT" && "$OUT" == *'::error::'* ]]; then
+    ok "$label"
+  else
+    fail "$label: rc=$RC output='$OUTPUT' out='$OUT'"
+  fi
+}
+refused "a run id that is not digits is refused before any read" workflow_dispatch '4242; echo x' 41898282 'github-actions[bot]'
+[[ -z "$LOG" ]] || fail "a malformed run id was read: log='$LOG'"
+refused "an empty run id is refused" workflow_dispatch '' 41898282 'github-actions[bot]'
+refused "the lanes App cannot send a run" workflow_dispatch 4242 337 'github-actions[bot]'
+refused "an unlisted sender cannot send a run" workflow_dispatch 4242 555 someone
+refused "a listed bot that is not github-actions[bot] cannot send a run" workflow_dispatch 4242 200 a-bot
+refused "an unlisted re-runner cannot send a run" workflow_dispatch 4242 41898282 someone
+refused "a run of another workflow is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
+  "$(attempt_run '.path = ".github/workflows/post-merge-detect-silent-revert.yml" | .name = "pr-require-checks"')"
+refused "a run on another branch is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
+  "$(attempt_run '.head_branch = "feature"')"
+refused "a run of another repository's head is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
+  "$(attempt_run '.head_repository.full_name = "fork/r"')"
+refused "a green run is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
+  "$(attempt_run '.conclusion = "success"')"
+refused "a run still in progress is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
+  "$(attempt_run '.status = "in_progress" | .conclusion = null')"
+refused "a scheduled run, which raises its own workflow_run event, is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
+  "$(attempt_run '.event = "schedule"')"
+refused "a run a person dispatched, which raises its own workflow_run event, is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
+  "$(attempt_run '.actor.login = "a-human"')"
+refused "an answer for another run id is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
+  "$(attempt_run '.id = 4243')"
 
 test_harness::report
