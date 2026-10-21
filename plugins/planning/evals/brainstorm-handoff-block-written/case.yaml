@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: brainstorm-handoff-block-written
+description: A brainstorm that routes to the interview writes brainstorm.md with the Handoff block and all six fields, carrying the user's own why and the reasons candidates were kept or dropped. Needs --allow-tools Write.
+tags: [brainstorm, handoff, idea-stage]
+expected_outcome: The run writes brainstorm.md in the memory slice with a Handoff heading and the Problem, Intent, Vision, Chosen direction, Rejected options and Criteria surfaced fields, keeps the user's why in their words, gives each rejected candidate its reason, and routes to /planning:interview naming the file.
+execution:
+  prompt: "/planning:brainstorm topic onboarding-dropoff. You already ran intake and the candidate list with me. Problem (confirmed): new users drop off before finishing the setup wizard. Why, in my words: \"people pay us and never see the product work\". Where this heads: a new user sees their first report on day one. My own idea was a shorter wizard. Your candidates were: 1. email a reminder to users who stall; 2. my idea, cut the wizard to three steps; 3. prefill the wizard from the signup form; 4. a guided sample project; 5. rebuild onboarding as an in-app tour. 2 and 3 resonate: 2 because it is my idea and quick to try, 3 because users hate retyping. 1 is out because support already sends reminders by hand; 4 and 5 are out because they are too big for this quarter. Propose the scope and route me to the interview."
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?brainstorm"'
+    arm: with-only
+  - name: handoff-six-fields
+    type: tool_used
+    tool: Write
+    input_match: '^(?=[\s\S]*"file_path":"[^"]*brainstorm\.md")(?=[\s\S]*## Handoff)(?=[\s\S]*Problem:)(?=[\s\S]*Intent \(why, in the user[''’]s words\):)(?=[\s\S]*Vision \(where this heads\):)(?=[\s\S]*Chosen direction:)(?=[\s\S]*Rejected options:)(?=[\s\S]*Criteria surfaced:)'
+    arm: with-only
+  - name: handoff-carries-content
+    type: llm
+    arm: both
+    criteria: "PASS only if the run records, in a written file or in the reply, the confirmed problem (users drop off before finishing the setup wizard), the user's why in their own words (people pay and never see the product work), the vision (a first report on day one), candidates 2 and 3 as the chosen direction, candidates 1, 4 and 5 as rejected each with its stated reason (support sends reminders by hand; too big for this quarter), and the criteria the user gave (quick to try; users hate retyping), AND routes onward to /planning:interview. FAIL if any of those is missing, if the why is replaced by the agent's own paraphrase with no quote, or if the run starts the interview or writes a Brief itself."

@@ -1546,10 +1546,16 @@ class Session:
             return {"pid": pid, "name": person["name"], "role": person["role"], "trusted": person["trusted"]}
 
     def rename(self, pid, body):
+        """POST /api/rename: `{name, pid?}`. Each person renames themselves; the owner alone may name a target `pid`,
+        throttled per target, so the owner can rename several people in a row."""
         name = _person_name(body)
-        with self._write_as(pid, "rename") as st:
-            st["people"][pid]["name"] = self._unique_name(name, pid)
-            return {"name": st["people"][pid]["name"]}
+        target = _ident(body, "pid", optional=True) or pid
+        route, check = ("rename", None) if target == pid else (f"rename:{target}", self._owner)
+        with self._write_as(pid, route, check=check) as st:
+            if target not in st["people"]:
+                raise DomainError(404, "not-found", "No such person.", field="pid")
+            st["people"][target]["name"] = self._unique_name(name, target)
+            return {"pid": target, "name": st["people"][target]["name"]}
 
     def set_color(self, pid, body):
         color = _choice(body, "color", COLORS)

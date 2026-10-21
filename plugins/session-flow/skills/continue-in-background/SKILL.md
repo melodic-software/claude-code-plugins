@@ -54,7 +54,7 @@ tailors emphasis only"). Parse purpose from `$ARGUMENTS` in place, never pre-com
 resolved topic is embedded anywhere (filename, `--name` flag), sanitize it to `[a-z0-9-]` only,
 strip or replace every other character, so a crafted slug cannot smuggle quotes or extra flags
 into the launch command. Purpose text is never embedded in the launch command at all. It shapes
-the save-point's content, and the agent receives only the rails prompt.
+the save-point's content, and the agent receives only the `/goal` payload.
 
 ## Produce the save-point
 
@@ -62,29 +62,57 @@ The save-point machinery, destination resolution, locating the position, full-vs
 choice, the mandatory redaction pass, the handoff-file write, and the rails resume prompt, lives
 in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
-Walk it top to bottom; do not restate or improvise any of its steps. The launched agent receives
-exactly the resume prompt that sits between the resume region's rails (full path: it follows the
-prompt's Read directive to the handoff file; prompt-only: the remaining-work bullets travel
-inline). On the full
-path the file is shape 2: `save_point.py validate <file>` must exit 0 before anything launches
-(an unfinished skeleton, one still carrying `<!-- FILL` slots, fails there and cannot be launched
-from), and the launch payload is the between-rails text of the resume region of
-`save_point.py emit <file>` (the region headed by the `/clear`, then copy instruction), the lines
-from the `Read @` directive through the last `Next:` headline, taken from that output and never
-retyped. The same bytes the file's `## Resume prompt` section stores for that region are what the
-agent gets. When the prompt also holds a goal region (headed by the `Type /goal` instruction),
-that region is never passed: arming a goal inside a detached agent is a new behavior to decide on
-its own merits, the same reasoning as the `/loop` transfer note in the engine doc. The goal
-region stays in the emitted prompt for the operator's own paste.
+Walk it top to bottom; do not restate or improvise any of its steps. On the full path the file is
+shape 2: `save_point.py validate <file>` must exit 0 before anything launches (an unfinished
+skeleton, one still carrying `<!-- FILL` slots, fails there and cannot be launched from).
+
+## Completion condition gate
+
+No one is present to say the work is done, so the launched session starts only with a checkable
+completion condition, armed as its `/goal`. Settle it while producing the save-point:
+
+1. **A goal applies** under the engine doc's goal-region rule (the user asked for a fresh goal, or
+   a `/goal` is active in this session) → the save-point's goal region holds the condition the
+   launch arms. A checkable done condition the user states in this invocation ("done when …")
+   is a fresh-goal request: it lands here, with no draft and no confirmation round. When the goal is active here, the report tells the user to run `/goal clear` in
+   this session, which otherwise keeps starting turns after the STOP.
+2. **No goal applies** → draft one from the remaining work with `/planning:draft-goal-condition`
+   and write the save-point with it as a fresh goal; its on-screen goal region is the display.
+   Then ask the user to confirm the launch, and launch only on a yes: the request made over that
+   condition is their approval to arm it. No answer this turn → no launch.
+3. **No checkable condition** (the lever check routes away from `/goal`, or the draft cannot pass
+   its counter) → write the save-point without a goal region and do not launch. Say that a
+   background run needs a completion condition and that the user can rerun
+   `/session-flow:continue-in-background` with the done condition named in the request. Fall
+   back to the `/clear`-then-paste instruction.
+
+The launch payload is `/goal`, a space, then text taken from the emitted prompt, never retyped:
+
+- **Full path**: the between-rails text of the goal region (headed by the `Type /goal`
+  instruction) of `save_point.py emit <file>`. It ends with the resume region's `Read @`
+  directive, so the agent reads the handoff file in the turn the goal arms.
+- **Prompt-only**: the goal region's between-rails text, a blank line, then the resume region's,
+  so the remaining-work bullets travel too. The payload after `/goal` and its space stays within
+  the goal-region limit the engine doc states, counted with `wc -m <prompt-file>` less those 6
+  characters, never estimated; over it, do not launch, and fall back with the full path (`file`)
+  named as the fix.
+
+We rely on a background launch arming the whole multi-line payload as its goal, which our probe
+observed.
+
+- **Pointer**: the probe record in [reference/goal-probe.md](reference/goal-probe.md); the docs
+  section for non-interactive goals, <https://code.claude.com/docs/en/goal#run-non-interactively>.
+- **As of**: 2026-10-20
+- **Recheck trigger**: a Claude Code release note changes how a background session's first prompt
+  runs a slash command, or that section starts or stops naming background sessions.
 
 ## Delivery: background-agent launch
 
 **Output order: position panel, then the rails prompt, then the launch report.** The panel (engine
 doc, "Emit the position panel") leads; the operator is walking away while an agent keeps working,
 so the one thing they should not have to reconstruct is where the work stood when they left. It is
-screen output only: **the launched agent receives exactly the text between the resume region's
-rails and never a line of the panel**, which keeps the payload identical to what a manual `/clear`-and-paste would
-produce.
+screen output only: **the launched agent receives exactly the `/goal` payload and never a line of
+the panel**, which keeps it identical to the goal-region paste a person would make.
 
 The rails prompt from the engine doc is still emitted before the launch (transparency + manual
 fallback), then:
@@ -161,11 +189,9 @@ fallback), then:
    and <https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams>;
    as of 2026-10-18; recheck trigger: either section changes how the file and its drop-ins merge
    or their order.
-2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
-   First write the prompt, exactly as emitted between the rails, to a temporary file with the
-   Write tool (full path: the between-rails lines of the resume region of the
-   `save_point.py emit <file>` output, never the goal region;
-   prompt-only: the block as emitted; never inline it in the command: prompt content is
+2. Launch from the consuming project's root, passing the `/goal` payload verbatim as one argument.
+   First write it, as the completion condition gate defines it, to a temporary file with the
+   Write tool (never inline it in the command: prompt content is
    untrusted session text, and any inline embedding, a heredoc, an escaped string, hands crafted
    content a path out of the quoting and into the shell). `<topic>` = the resolved, sanitized
    topic slug (argument or inferred); when none resolves, use `resume`:
@@ -214,8 +240,10 @@ fallback), then:
 
 ## Delivery variant: `--cloud`
 
-Same hard gate, save-point, rails payload, prompt file, failure fallback and STOP, plus one more
-condition: the user's own words asked for a cloud session. A request for background work alone
+Same hard gate, completion condition gate, save-point, `/goal` payload, prompt file, failure
+fallback and STOP, plus one more condition: the user's own words asked for a cloud session.
+Whether a cloud session arms a `/goal` from its first prompt has not been probed, so the report
+says so and tells the user to confirm `◎ /goal active` when they open the session. A request for background work alone
 does not cover it; without that, drop `--cloud` and take the local delivery. Steps 1 to 3
 change, because this skill launches a cloud session only from a clean checkout whose branch
 matches its remote:
@@ -237,7 +265,11 @@ matches its remote:
    `claude --cloud "$(cat "<prompt-file>")" && rm -f "<prompt-file>"`, with `--effort "<level>"`
    before the prompt argument when "What the launched session inherits" calls for one. If the CLI
    rejects `--effort` with `--cloud`, relaunch without it and have the report name the level and
-   tell the user to send `/effort <level>` in the session.
+   tell the user to send `/effort <level>` in the session. If it refuses `--cloud` because there is
+   no terminal, take the local delivery with the same prompt file instead of the failure
+   fallback, so the work keeps moving: local steps 3 and 4 then replace cloud step 3, and the
+   report adds that the cloud launch was refused and the run went local. Pointer: probe 3 in
+   [reference/goal-probe.md](reference/goal-probe.md).
 3. **Report** the session id and link it prints, plus the return paths: `claude --teleport <id>`
    or `/teleport` to continue it in a terminal (its requirements: Pointer below), which needs the
    same account; `claude -p "<message>" --cloud <id>` to queue a follow-up. Name
@@ -323,10 +355,14 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   `WorktreeCreate` hook configured → launch, that reading stated in the report; any other
   `rev-parse` result, failing or `false`, and any hook whose absence is not established → state
   unknown, no launch, same fallback
-- [ ] Background agent launched with the rails prompt (`claude --bg --name … --permission-mode auto`), the payload being
-  the between-rails text of the resume region of `save_point.py emit <file>` on the full path
-  (validated first, exit 0 quoted; a goal region, when present, excluded) or the emitted block on
-  prompt-only, and the launch result reported (including any non-inherited flags mirrored or worth
+- [ ] Completion condition settled: an applying goal used (an active one → `/goal clear` advised
+  in the report), or one drafted with `/planning:draft-goal-condition`, shown as the goal region,
+  and launched only on the user's yes to it; none → no launch, the message saying how to supply
+  one, fallback to `/clear`-then-paste
+- [ ] Background agent launched (`claude --bg --name … --permission-mode auto`), the payload being
+  `/goal`, a space and the goal region's between-rails text from `save_point.py emit <file>` on
+  the full path (validated first, exit 0 quoted), or on prompt-only the goal region then the
+  resume region, counted within the limit; and the launch result reported (including any non-inherited flags mirrored or worth
   flagging, and that auto mode may deny an action and where a denied action is reported is
   unverified), OR the non-zero exit reported with fallback to
   `/clear`-then-paste
@@ -335,7 +371,8 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   at its default level
 - [ ] `--cloud` only: clean tree, fetched branch matching its upstream, prompt-only payload,
   `--effort` passed as for `--bg` (CLI rejects it → relaunched without, `/effort` advised); the
-  report names the session id, the teleport and follow-up commands, and the signed-in account
+  report names the session id, the teleport and follow-up commands, and the signed-in account,
+  and says goal arming there is unprobed; a no-terminal refusal → local delivery, reported
 - [ ] **EXECUTION STOPS HERE**, no monitoring, no babysitting, no new work items
 
 ## Boundary, native Claude Code surfaces
@@ -351,8 +388,9 @@ can mean any of them.
   [native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
   (as of 2026-10-11; recheck trigger: that table's rows or their recheck events change).
 - **This skill (marketplace plugin).** Writes a durable, redacted save-point, gates on a dirty
-  tree, and launches a fresh `claude --bg` session seeded only with the rails resume prompt, so
-  the continuation carries no conversation history and survives on disk.
+  tree, and launches a fresh `claude --bg` session seeded only with the save-point's `/goal`
+  payload, so the continuation carries no conversation history, survives on disk, and ends on a
+  checked condition.
 
 **Routing.** At the start of the run, offer them to the person: you can run `/background` to
 detach this session as it is, `/fork` to copy it into a background session, or `/subtask` for a
@@ -382,6 +420,7 @@ CLI flags ("What the launched session inherits").
 
 - **Does not launch without explicit user intent**. The hard gate above; the fallback exit is
   the sibling `handoff` skill's `/clear`-then-paste shape
+- **Does not launch without a completion condition**. The completion condition gate above
 - **Does not commit**. Save-points are durable task state, not source code; the dirty-tree gate
   reports other uncommitted work rather than committing or stashing it
 - **Does not monitor the launched agent**. The user manages it with `claude agents`

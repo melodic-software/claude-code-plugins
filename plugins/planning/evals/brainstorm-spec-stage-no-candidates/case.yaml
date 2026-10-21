@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: brainstorm-spec-stage-no-candidates
+description: A spec-stage interview request that states its problem and a solution gets no candidate list and no reopened mechanism, because the idea-stage rule does not apply to it. Needs --allow-tools Write.
+tags: [interview, brainstorm, problem-framing, stated-problem, scaffold]
+expected_outcome: The reply lists no alternative approaches, asks no question that reopens streaming the export as the fix, does not run the brainstorm skill, and writes no PLAN.md; it may restate the problem and ask about the streaming change's details.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the interview skill from the planning plugin, topic csv-export-timeout. Problem: CSV exports time out for accounts with more than 50,000 rows; logs/export-timeouts.log shows 38 timeouts last week across 6 accounts. Fix: stream the export row by row in src/exports/csv_export.py instead of building it in memory. I'm here and will answer."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+  - name: no-brainstorm
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?brainstorm"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-candidates-no-rethink
+    type: llm
+    arm: both
+    criteria: "FAIL if the reply (a) lists alternative approaches or candidate fixes for the timeouts (for example a background export job, pagination, or a bigger server) as options to choose from, (b) asks the user whether to keep streaming the export or replace or rethink it, or (c) writes a Brief or plan. Otherwise PASS. Questions about the streaming change's details (chunk size, encoding, how the download is served, error handling) pass, and so does restating the stated problem and asking the user to confirm it."
+  - name: no-plan-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*PLAN\.md"'
+    min: 0
+    max: 0
+    arm: both

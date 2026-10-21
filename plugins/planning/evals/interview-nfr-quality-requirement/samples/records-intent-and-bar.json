@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "### Captured assumptions\n- Quality bar: production\n- Intent: second variant = speculative; existing structure: checkout has one pay step; upstream: none\n",
+      "answer": "### Captured assumptions\n- Quality bar: production\n- Variation intent: second variant = speculative; existing structure: checkout has one pay step; upstream: none\n",
       "why": "both contract lines"
     }
   ],
@@ -12,10 +12,10 @@
     },
     {
       "answer": "### Captured assumptions\n- Quality bar: production\n",
-      "why": "no Intent line"
+      "why": "no Variation intent line"
     },
     {
-      "answer": "### Captured assumptions\n- Quality bar: production\n- Intent: second variant = known; existing structure: one pay step; upstream: none\n",
+      "answer": "### Captured assumptions\n- Quality bar: production\n- Variation intent: second variant = known; existing structure: one pay step; upstream: none\n",
       "why": "records the wrong answer: the user said nothing says another provider is coming"
     }
   ]

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/houseplant-swap/interview-checklist.md", "content": "- Q1 | open | round 1 | What problem would a swap solve? |\n"}}], "why": "writes the ledger, not the Brief"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/houseplant-swap/PLAN.md", "content": "## Brief\n"}}], "why": "wrote a Brief for an unsettled idea"}
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "### Goal\nSupport staff upload a scanned intake form and get a draft ticket.\n- Intent (why, in the user's words): \"re-keying the weekend's paper forms\"\n- Vision (where this heads): eventually every intake channel, paper, email and phone notes, lands in one queue\n- When goals conflict, prefer: none stated\n\n### Work size\n",
+      "why": "Vision line and an unstated tiebreak"
+    },
+    {
+      "answer": "### Goal\nDraft tickets from scans.\n- When goals conflict, prefer: `none stated`\n- Vision (where this heads): one queue for every intake channel\n",
+      "why": "order of the two lines does not matter"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no Brief written"
+    },
+    {
+      "answer": "### Goal\nDraft tickets from scans.\n- Vision (where this heads): one queue for every intake channel\n- When goals conflict, prefer: accuracy over speed\n",
+      "why": "invents a tiebreak the user never stated"
+    },
+    {
+      "answer": "### Goal\nDraft tickets from scans.\n- When goals conflict, prefer: none stated\n",
+      "why": "no Vision line"
+    },
+    {
+      "answer": "### Goal\nDraft tickets from scans.\n\n### Captured assumptions\n- Vision (where this heads): one queue for every intake channel\n- When goals conflict, prefer: none stated\n",
+      "why": "the lines sit outside the Goal section"
+    }
+  ]
+}

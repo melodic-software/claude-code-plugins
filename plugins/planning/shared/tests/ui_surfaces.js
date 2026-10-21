@@ -97,9 +97,9 @@ async function main() {
       && /^On a computer, Chrome, 1440×900, in Focus$/.test(li.querySelector(".vf-ctx")?.getAttribute("aria-label") || "")), null, 10000),
       await owner.evaluate(() => [...document.querySelectorAll(".vf-hperson .vf-ctx")].map(e => e.getAttribute("aria-label")).join(" | ")));
     // F5: the host row's list (the most complete), by accessible name.
-    const PERSON = ["View everything Gus did", "Leader: Gus", "Trusted: Gus", "Merge Gus into someone", "Remove Gus"];
-    ok("the Host view row offers View all, Leader, Trusted, Merge and Remove for Gus", JSON.stringify(row) === JSON.stringify(PERSON), JSON.stringify(row));
-    ok("  and Gus's card offers the same five, in the same words", JSON.stringify(card) === JSON.stringify(PERSON), JSON.stringify(card));
+    const PERSON = ["Rename Gus", "View everything Gus did", "Leader: Gus", "Trusted: Gus", "Merge Gus into someone", "Remove Gus"];
+    ok("the Host view row offers Rename, View all, Leader, Trusted, Merge and Remove for Gus", JSON.stringify(row) === JSON.stringify(PERSON), JSON.stringify(row));
+    ok("  and Gus's card offers the same six, in the same words", JSON.stringify(card) === JSON.stringify(PERSON), JSON.stringify(card));
 
     // ---------- F6: one set of proposal actions and toasts, in Proposed and the Inbox ----------
     const IDEA = "Show the delivery date beside the total";

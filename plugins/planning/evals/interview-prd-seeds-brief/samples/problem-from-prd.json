@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "### Problem\n- Gap: pickers who lose or smudge their paper pick list walk back to the dispatch desk to have it reprinted.\n- Who: warehouse pickers, a dozen round trips a shift.\n- Evidence: PRD.md Problem (rated: stated by the user).\n\n### Goal\n",
+      "why": "the PRD's problem carried into the Brief's Problem"
+    },
+    {
+      "answer": "### Problem\nA lost pick-list means a walk to the desk for a reprint, about twelve times per shift (from PRD).\n",
+      "why": "a hyphenated paraphrase still names the pick list and the reprint"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no Brief written"
+    },
+    {
+      "answer": "### Problem\n- Gap: pickers need a mobile view of their orders.\n\n### Goal\nStop reprints of the pick list at the dispatch desk.\n",
+      "why": "the PRD's problem is in the Goal, not the Problem section"
+    },
+    {
+      "answer": "### Problem\n- Status: unconfirmed\n- Gap: unknown; the user gave no problem.\n",
+      "why": "the PRD's Problem was ignored"
+    }
+  ]
+}
