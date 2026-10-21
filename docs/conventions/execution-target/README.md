@@ -149,17 +149,14 @@ the lane prompt; a per-item dispatcher puts it in front of the item brief. The p
    the lane's telemetry state block.
 
 On a gap in steps 1-3 the stage writes `execution_target_fallback: {"reason": ..., "at": ...}` to the
-lane's telemetry state block and, for a per-item stage, the marker comment
-`<!-- execution-target:fallback v1 -->` on the item; it clears the item's in-flight mark, claims
-nothing and exits. A passing probe sets `execution_target_fallback` to `null`.
+lane's telemetry state block, claims nothing and exits. A passing probe sets
+`execution_target_fallback` to `null`.
 
 - **Lane fallback.** The launcher reads the newest `execution_target_fallback` on the lane's telemetry
   issue, counting only comments written by the `gh`-authenticated login or the lane's configured
   `telemetry.author`; a comment from anyone else, `null` included, changes nothing. A value it has
   not yet honored moves exactly one launch to `local-worktree`; the launcher records the value's hash
   in its plugin data directory, and the next launch probes the cloud again.
-- **Item fallback.** The dispatcher runs the item `local-worktree` on its next cycle and does not send
-  it to the cloud again while the marker stands; the marker stays until the item closes.
 
 Because `claude agents --json` does not list cloud sessions, the launcher records each cloud launch in
 its plugin data directory: `start` does not send a second cloud session for a lane while that record
