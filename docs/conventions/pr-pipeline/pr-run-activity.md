@@ -1108,6 +1108,11 @@ Recorded, not fixed:
   step summary (`Check the gate skill's verdict`). That predates the scan job and is slated for 6b.
 - A leaked scan-carrier private key also opens the payloads the scan blocked, which stay in the
   run's job outputs as ciphertext. Rotate the key on a block, as the rotation line says.
+- The verdict's step outcomes, `act-outcome` among them, come from the run job, which a hostile
+  run can forge, so the check-run conclusion this workflow posts is not evidence. No PR-mode gate
+  skill runs on it, and no consumer treats that conclusion as merge or apply evidence: not a
+  required check, ci-status, pr-merge's verify evidence or risk score, apply-ci-fix, apply-patch,
+  or a `workflow_run` trigger keyed on it.
 
 ## The summary job
 

@@ -287,6 +287,11 @@ jobs:
     # skill: the verdict step it reads runs after the skill, so a gate skill
     # must not execute head code. Every output set after a leg (or any head
     # code) is forgeable: the scan job takes those only through checks.
+    # act-outcome and the other step outcomes still reach the verdict and the
+    # check-run conclusion this workflow posts, and a hostile run can forge
+    # them. So no PR-mode gate skill runs on this workflow, and nothing may
+    # trust that conclusion as merge or apply evidence (a required check,
+    # ci-status, pr-merge, apply-patch, or a workflow_run trigger).
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
