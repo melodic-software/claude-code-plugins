@@ -384,6 +384,8 @@ jobs:
         with:
           ref: ${{ steps.branch.outputs.branch }}
           path: .lane
+          # Full history, so the lane branch's merge base with the base tip resolves.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Run the activity's checks
@@ -404,13 +406,20 @@ jobs:
             fail "cannot read the resolve-issue checks from the resolved config"
           mapfile -t checks < <(printf '%s' "$list")
           tip=$(git -C "$LANE" rev-parse HEAD) || fail "cannot read the lane branch tip"
+          base_tip=$(git -C "$BASE" rev-parse HEAD) || fail "cannot read the base tip"
+          merge_base=$(git -C "$LANE" merge-base HEAD "$base_tip") ||
+            fail "cannot find the lane branch's merge base with the base tip"
           rm -rf "${LANE:?}/scripts"
           cp -R "$BASE/scripts" "$LANE/scripts"
-          # Code stays the base's; the branch's own data lists come back from its commit.
-          find "$LANE/scripts" -type f \( -name '*.txt' -o -name '*.json' -o -name '*.jsonl' \) -delete
-          git -C "$LANE" ls-files -z -- 'scripts/*.txt' 'scripts/*.json' 'scripts/*.jsonl' |
+          # Code stays the base's. Data is what the merged ref would hold: the
+          # base's, with the branch's own data changes since the merge base.
+          data=('scripts/*.txt' 'scripts/*.json' 'scripts/*.jsonl')
+          git -C "$LANE" diff --name-only -z --no-renames --diff-filter=AMT "$merge_base" HEAD -- "${data[@]}" |
             xargs -0r env GIT_LFS_SKIP_SMUDGE=1 git -C "$LANE" restore --source=HEAD -- ||
             fail "cannot restore the lane branch's scripts/ data files"
+          git -C "$LANE" diff --name-only -z --no-renames --diff-filter=D "$merge_base" HEAD -- "${data[@]}" |
+            xargs -0r -I{} rm -f -- "$LANE/{}" ||
+            fail "cannot remove the scripts/ data files the lane branch deleted"
           [[ -z $(find "$LANE/scripts" -type l -print -quit) ]] || fail "the lane branch's scripts/ holds a symlink"
           shape='^scripts/[A-Za-z0-9_-]+\.sh( --[a-z][a-z-]*)*$'
           results='[]'

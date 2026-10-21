@@ -2177,8 +2177,10 @@ test("the script loads from a copy of its own directory alone", async () => {
 
 // work-resolve-issue.yml's run-checks step, run against a throwaway base and
 // lane branch. Expected values come from #7497 and W-92 (a): each check runs
-// from the base copy against the lane branch, and reads the branch's committed
-// scripts/ data (.txt, .json, .jsonl); a committed symlink there fails the step.
+// from the base copy against the lane branch, and reads the scripts/ data
+// (.txt, .json, .jsonl) the merged ref would hold: the base's, with the
+// branch's own changes since the merge base; a committed symlink there fails
+// the step.
 function runChecksScript() {
   const lines = readFileSync(new URL("../../workflows/work-resolve-issue.yml", import.meta.url), "utf8").split("\n");
   const id = lines.findIndex((line) => /^\s+id: run-checks$/.test(line));
@@ -2194,11 +2196,24 @@ function runChecksScript() {
   return body.map((l) => l.slice(indent)).join("\n");
 }
 
-// The base's check passes only when scripts/list.txt says ok and the branch
-// holds .changes/good.md. The base's own list says bad, so the check passes
-// only when it reads the branch's list; the branch's copy of the check logs
-// "lane" and always passes, so running it gives a different log and result.
-function runChecks({ goodFragment, branchList = "ok\n", symlink, checks = ["scripts/check-x.sh --check"] }) {
+// The lane repository forks from a commit holding the base's check and a
+// scripts/list.txt saying bad; the lane branch then commits its own files and
+// the default branch moves on with `baseFiles`, and BASE is a clone of that
+// tip. The base's check passes only when scripts/list.txt says ok, the branch
+// holds .changes/good.md and `extraCheck` holds; the branch's copy of the check
+// logs "lane" and always passes, so running it gives a different log and result.
+function runChecks({
+  goodFragment,
+  branchList = "ok\n",
+  symlink,
+  checks = ["scripts/check-x.sh --check"],
+  forkFiles = {},
+  laneFiles = {},
+  laneDeletes = [],
+  baseFiles = {},
+  extraCheck = "true",
+  unrelatedBase = false,
+}) {
   const root = mkdtempSync(join(tmpdir(), "run-checks-"));
   try {
     const base = join(root, "base");
@@ -2209,24 +2224,41 @@ function runChecks({ goodFragment, branchList = "ok\n", symlink, checks = ["scri
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, text);
     };
-    write(join(base, "scripts", "list.txt"), "bad\n");
-    write(
-      join(base, "scripts", "check-x.sh"),
-      '#!/usr/bin/env bash\necho "base $PWD $CHECK_DATA_ROOT $*" >>"$LOG"\ngrep -qx ok scripts/list.txt && [ -f .changes/good.md ]\n',
-    );
-    write(join(laneDir, "scripts", "list.txt"), branchList);
-    write(join(laneDir, "scripts", "check-x.sh"), '#!/usr/bin/env bash\necho lane >>"$LOG"\nexit 0\n');
+    const gitIn = (dir, ...args) => {
+      const run = spawnSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8" });
+      assert.equal(run.status, 0, `git ${args.join(" ")}: ${run.stderr}`);
+      return run.stdout;
+    };
+    const git = (...args) => gitIn(laneDir, ...args);
+    const commitAll = (dir, files, message) => {
+      for (const [path, text] of Object.entries(files)) write(join(dir, path), text);
+      gitIn(dir, "add", "-A");
+      gitIn(dir, "commit", "-qm", message, "--allow-empty");
+    };
+    const baseCheck = `#!/usr/bin/env bash\necho "base $PWD $CHECK_DATA_ROOT $*" >>"$LOG"\ngrep -qx ok scripts/list.txt && [ -f .changes/good.md ] && ${extraCheck}\n`;
+    const forkTree = { "scripts/list.txt": "bad\n", "scripts/check-x.sh": baseCheck, ...forkFiles };
+    mkdirSync(laneDir, { recursive: true });
+    git("init", "-q", "-b", "main");
+    commitAll(laneDir, forkTree, "fork");
+    git("checkout", "-q", "-b", "lane");
+    for (const path of laneDeletes) rmSync(join(laneDir, path));
     if (symlink) {
       symlinkSync(symlink.target, join(laneDir, "scripts", symlink.name));
     }
-    if (goodFragment) {
-      write(join(laneDir, ".changes", "good.md"), "x\n");
+    const laneTree = { "scripts/list.txt": branchList, "scripts/check-x.sh": '#!/usr/bin/env bash\necho lane >>"$LOG"\nexit 0\n', ...laneFiles };
+    if (goodFragment) laneTree[".changes/good.md"] = "x\n";
+    commitAll(laneDir, laneTree, "lane");
+    git("checkout", "-q", "main");
+    commitAll(laneDir, baseFiles, "base moves on");
+    if (unrelatedBase) {
+      mkdirSync(base, { recursive: true });
+      gitIn(base, "init", "-q", "-b", "main");
+      commitAll(base, forkTree, "unrelated");
+    } else {
+      gitIn(root, "clone", "-q", "--branch", "main", laneDir, base);
     }
-    const git = (...args) => spawnSync("git", ["-C", laneDir, ...args], { encoding: "utf8" });
-    git("init", "-q");
-    git("add", "-A");
-    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "lane");
-    const tip = git("rev-parse", "HEAD").stdout.trim();
+    git("checkout", "-q", "lane");
+    const tip = git("rev-parse", "HEAD").trim();
     write(join(root, "resolved.json"), JSON.stringify({ lane: { slots: [{ name: "resolve-issue", checks }] } }));
     const run = spawnSync("bash", ["-e", "-o", "pipefail", "-c", runChecksScript()], {
       encoding: "utf8",
@@ -2263,6 +2295,53 @@ test("the runner runs each check's code from the base copy, reading the lane bra
   const failing = runChecks({ goodFragment: false });
   assert.equal(failing.status, 0, failing.stdout);
   assert.deepEqual(failing.checks.results, [{ check: "scripts/check-x.sh --check", exit: 1 }]);
+});
+
+test("a scripts/ data file the default branch added after the lane branch forked is the base's copy", () => {
+  const run = runChecks({ goodFragment: true, baseFiles: { "scripts/added.txt": "base\n" }, extraCheck: "grep -qx base scripts/added.txt" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.checks.results, [{ check: "scripts/check-x.sh --check", exit: 0 }]);
+});
+
+test("a scripts/ data file the default branch changed and the lane branch did not is the base's copy", () => {
+  const run = runChecks({
+    goodFragment: true,
+    forkFiles: { "scripts/shared.json": "fork\n" },
+    baseFiles: { "scripts/shared.json": "base\n" },
+    extraCheck: "grep -qx base scripts/shared.json",
+  });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.checks.results, [{ check: "scripts/check-x.sh --check", exit: 0 }]);
+});
+
+test("a scripts/ data file the lane branch changed is the branch's copy", () => {
+  const run = runChecks({
+    goodFragment: true,
+    forkFiles: { "scripts/own.jsonl": "fork\n" },
+    laneFiles: { "scripts/own.jsonl": "lane\n" },
+    extraCheck: "grep -qx lane scripts/own.jsonl",
+  });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.checks.results, [{ check: "scripts/check-x.sh --check", exit: 0 }]);
+});
+
+test("a scripts/ data file the lane branch deleted is absent", () => {
+  const run = runChecks({
+    goodFragment: true,
+    forkFiles: { "scripts/gone.txt": "fork\n" },
+    laneDeletes: ["scripts/gone.txt"],
+    extraCheck: "[ ! -e scripts/gone.txt ]",
+  });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.checks.results, [{ check: "scripts/check-x.sh --check", exit: 0 }]);
+});
+
+test("the runner fails and runs no check when the lane branch shares no history with the base tip", () => {
+  const run = runChecks({ goodFragment: true, unrelatedBase: true });
+  assert.equal(run.status, 1, run.stdout);
+  assert.match(run.stdout, /::error::cannot find the lane branch's merge base with the base tip/);
+  assert.equal(run.checks, null);
+  assert.equal(run.log, "");
 });
 
 test("the runner fails and runs no check when the lane branch commits a symlink under scripts/", () => {
