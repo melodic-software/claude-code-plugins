@@ -22,7 +22,7 @@ lib/prerequisites.test.sh 11
 lib/resolve-convention-pattern.test.sh 1
 lib/rewrite-guard.test.sh 1
 lib/session-bridge/test_session_bridge.py 33
-lib/session-bridge/test_view_bridge.py 21
+lib/session-bridge/test_view_bridge.py 35
 lib/view-builder.test.sh 10
 plugins/actionlint/hooks/actionlint-check.test.sh 1
 plugins/ai-slop/skills/audit/scripts/cascade-read.test.sh 1
@@ -415,7 +415,7 @@ plugins/planning/shared/tests/align.test.sh 200
 plugins/planning/shared/tests/test_load.py 11
 plugins/planning/shared/tests/test_schema_shapes.py 1
 plugins/planning/shared/tests/test_server.py 94
-plugins/planning/shared/tests/test_session.py 15
+plugins/planning/shared/tests/test_session.py 22
 plugins/planning/shared/tests/test_share.py 94
 plugins/planning/shared/tests/test_tunnel.py 25
 plugins/planning/shared/tests/tracer-live.test.sh 1
@@ -551,7 +551,7 @@ plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_base_freshness.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_branch_rules.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_policy.py 74
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_policy.py 100
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_prefilter.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_rate_limit_rerun.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_review_settle.py 1
@@ -562,7 +562,7 @@ plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_postmerge_c
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_repo_config.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_resolve_thread.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_risk.py 31
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_risk.py 74
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_state.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_util.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_verify_evidence.py 2
