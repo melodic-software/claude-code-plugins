@@ -6,7 +6,7 @@
 // `stopped` comment, add needs-human and remove agent-ready.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -2176,8 +2176,9 @@ test("the script loads from a copy of its own directory alone", async () => {
 });
 
 // work-resolve-issue.yml's run-checks step, run against a throwaway base and
-// lane branch. Expected values come from #7497: each check runs from the base
-// copy against the lane branch, and reads its scripts/ data from the base.
+// lane branch. Expected values come from #7497 and W-92 (a): each check runs
+// from the base copy against the lane branch, and reads the branch's committed
+// scripts/ data (.txt, .json, .jsonl); a committed symlink there fails the step.
 function runChecksScript() {
   const lines = readFileSync(new URL("../../workflows/work-resolve-issue.yml", import.meta.url), "utf8").split("\n");
   const id = lines.findIndex((line) => /^\s+id: run-checks$/.test(line));
@@ -2193,11 +2194,11 @@ function runChecksScript() {
   return body.map((l) => l.slice(indent)).join("\n");
 }
 
-// The base's check passes only when its own scripts/list.txt says ok and the
-// branch holds .changes/good.md; the branch's copy of the check always passes
-// and its list says bad, so a check run from, or reading data from, the
-// branch's scripts/ gives the other answer.
-function runChecks({ goodFragment, checks = ["scripts/check-x.sh --check"] }) {
+// The base's check passes only when scripts/list.txt says ok and the branch
+// holds .changes/good.md. The base's own list says bad, so the check passes
+// only when it reads the branch's list; the branch's copy of the check logs
+// "lane" and always passes, so running it gives a different log and result.
+function runChecks({ goodFragment, branchList = "ok\n", symlink, checks = ["scripts/check-x.sh --check"] }) {
   const root = mkdtempSync(join(tmpdir(), "run-checks-"));
   try {
     const base = join(root, "base");
@@ -2208,13 +2209,16 @@ function runChecks({ goodFragment, checks = ["scripts/check-x.sh --check"] }) {
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, text);
     };
-    write(join(base, "scripts", "list.txt"), "ok\n");
+    write(join(base, "scripts", "list.txt"), "bad\n");
     write(
       join(base, "scripts", "check-x.sh"),
       '#!/usr/bin/env bash\necho "base $PWD $CHECK_DATA_ROOT $*" >>"$LOG"\ngrep -qx ok scripts/list.txt && [ -f .changes/good.md ]\n',
     );
-    write(join(laneDir, "scripts", "list.txt"), "bad\n");
-    write(join(laneDir, "scripts", "check-x.sh"), "#!/usr/bin/env bash\nexit 0\n");
+    write(join(laneDir, "scripts", "list.txt"), branchList);
+    write(join(laneDir, "scripts", "check-x.sh"), '#!/usr/bin/env bash\necho lane >>"$LOG"\nexit 0\n');
+    if (symlink) {
+      symlinkSync(symlink.target, join(laneDir, "scripts", symlink.name));
+    }
     if (goodFragment) {
       write(join(laneDir, ".changes", "good.md"), "x\n");
     }
@@ -2242,7 +2246,7 @@ function runChecks({ goodFragment, checks = ["scripts/check-x.sh --check"] }) {
   }
 }
 
-test("the runner runs each check from the base copy against the lane branch, with the base's scripts/ data", () => {
+test("the runner runs each check's code from the base copy, reading the lane branch's committed scripts/ data", () => {
   const passing = runChecks({ goodFragment: true });
   assert.equal(passing.status, 0, passing.stdout);
   assert.deepEqual(passing.checks, {
@@ -2252,10 +2256,23 @@ test("the runner runs each check from the base copy against the lane branch, wit
     results: [{ check: "scripts/check-x.sh --check", exit: 0 }],
   });
   assert.equal(passing.log, `base ${passing.laneDir} ${passing.laneDir} --check\n`);
+  const badList = runChecks({ goodFragment: true, branchList: "bad\n" });
+  assert.equal(badList.status, 0, badList.stdout);
+  assert.deepEqual(badList.checks.results, [{ check: "scripts/check-x.sh --check", exit: 1 }]);
+  assert.equal(badList.log, `base ${badList.laneDir} ${badList.laneDir} --check\n`);
   const failing = runChecks({ goodFragment: false });
   assert.equal(failing.status, 0, failing.stdout);
   assert.deepEqual(failing.checks.results, [{ check: "scripts/check-x.sh --check", exit: 1 }]);
 });
+
+test("the runner fails and runs no check when the lane branch commits a symlink under scripts/", () => {
+  const run = runChecks({ goodFragment: true, symlink: { name: "link.txt", target: "/etc/hostname" } });
+  assert.equal(run.status, 1, run.stdout);
+  assert.match(run.stdout, /::error::the lane branch's scripts\/ holds a symlink/);
+  assert.equal(run.checks, null);
+  assert.equal(run.log, "");
+});
+
 
 test("the runner writes no check results for a check outside scripts/ or with free arguments", () => {
   for (const check of ["plugins/x/scripts/check.sh", "scripts/check-x.sh ../etc", "scripts/check-x.sh; true"]) {
