@@ -158,7 +158,7 @@ It is not the approval-marker publish gate (#7956), and it does not cover
   when installed; every path works without them. Claude Code's bundled `/code-review` command and
   the managed Code Review GitHub App service are two further surfaces, distinct from the
   `code-review` marketplace plugin despite the shared name. **`/review` is one of them, not this
-  plugin**: per [code-review](https://code.claude.com/docs/en/code-review#review-a-diff-locally)
+  plugin**: per [code-review](https://code.claude.com/docs/en/code-review-local)
   (fetched 2026-08-10), "`/review` is an alias of `/code-review`; before v2.1.223, it was a separate
   command that ran a single-pass, read-only review of a GitHub pull request." Recheck when that
   page changes the `/review` alias note. A bare `/review` is that bundled reviewer, so name this plugin's skills by their namespaced commands
