@@ -64,9 +64,16 @@ err=$(node "$ENTRY" --fail-closed "$segv" 2>&1 >/dev/null) || rc=$?
 [[ "$(grep -c . <<<"$err")" -eq 1 ]] || fail "--fail-closed should write one stderr line: $err"
 grep -q 'segv.sh' <<<"$err" || fail "--fail-closed line should name the script: $err"
 grep -q 'SIGSEGV' <<<"$err" || fail "--fail-closed line should name the cause: $err"
-rc=0
-node "$ENTRY" "$segv" >/dev/null 2>&1 || rc=$?
-[[ "$rc" -eq 1 ]] || fail "a SIGSEGV child without --fail-closed should still exit 1 (got $rc)"
+if [[ "$(node -p process.platform)" == win32 ]]; then
+  # Without the flag Git Bash's raw 2816 passes through; $? would keep only its
+  # low byte (0), so read the status from node.
+  rc=$(node -e 'const r = require("node:child_process").spawnSync(process.execPath, process.argv.slice(1), { stdio: "ignore" }); console.log(r.status)' "$ENTRY" "$segv")
+  [[ "$rc" -eq 2816 ]] || fail "a SIGSEGV child without --fail-closed should pass exit 2816 through on Windows (got $rc)"
+else
+  rc=0
+  node "$ENTRY" "$segv" >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 1 ]] || fail "a SIGSEGV child without --fail-closed should still exit 1 (got $rc)"
+fi
 
 for code in 0 2 3 139; do
   printf '#!/bin/bash\nexit %s\n' "$code" >"$TEST_TMPDIR/exit.sh"

@@ -1115,9 +1115,9 @@ run_guards::finish() {
     fi
   fi
   # The aggregated status is the dispatcher's answer. Under exec-bash's
-  # --fail-closed, which every hooks.json row passes, any non-zero status other
-  # than 2 (a guard-not-found 1, a stub's 3) denies the call. Release the
-  # boundary so it is not reported as an abort.
+  # --fail-closed, which every run-guards.sh row passes, any non-zero status
+  # other than 2 (a guard-not-found 1, a stub's 3) denies the call. Release
+  # the boundary so it is not reported as an abort.
   guard::abort_boundary_release
   builtin exit "$RC"
 }
