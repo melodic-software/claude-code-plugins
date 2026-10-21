@@ -6,8 +6,8 @@ description: >
   `wip` block; count held pull requests apart; and publish the status. Set
   `capped` to `true` only when the lane pauses (over the WIP cap or the held
   cap on or after `wip.pause-from`). When a read fails, the last known pause
-  (the newest status a run saved to the Actions cache) applies; with none
-  the check fails open.
+  (the newest status a `save-state` run saved to the Actions cache) applies;
+  with none the check fails open.
   Run it from the default branch checkout, before any slot or lane token.
 
 inputs:
@@ -15,6 +15,13 @@ inputs:
     description: The default-branch checkout that holds this action and the config.
     required: false
     default: .base
+  save-state:
+    description: >-
+      `true` saves a status whose reads succeeded as the last known state.
+      Only a trusted trigger can save a default-branch cache, so only
+      work-unblock's hourly schedule sets it; issue-event runs only restore.
+    required: false
+    default: "false"
   github-token:
     description: A token that can search this repository's pull requests.
     required: false
@@ -64,7 +71,7 @@ runs:
 
     # Only a read that succeeded saves; a failed one keeps the last state.
     - name: Save the last known state
-      if: steps.check.outputs.state-saved == 'true'
+      if: inputs.save-state == 'true' && steps.check.outputs.state-saved == 'true'
       continue-on-error: true
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:

@@ -11,7 +11,8 @@
 // 2026-10-21). A read that fails keeps the last known pause, or with none
 // fails open (owner decision 2026-10-21, #8804).
 import assert from "node:assert/strict";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -383,6 +384,47 @@ test("a kept pause ends when a readable config no longer pauses", async () => {
     assert.equal(open.wip.pause_basis, "last-state");
     assert.ok(!open.summary.includes("admission paused"));
   }
+});
+
+test("a last known pause reason outside wip, held-cap and wip,held-cap is no prior state", async () => {
+  for (const reason of ["wip\n::error::injected", "other", null]) {
+    const path = stateFile({ paused: true, pause_reason: reason });
+    const open = await runMain({ open: failed, merged: 24 }, { WIP_STATE: path }, pastConfig());
+    assert.equal(open.capped, "false");
+    assert.equal(open.wip.pause_basis, "fail-open");
+    assert.ok(!open.summary.includes("admission paused"));
+  }
+  const kept = await runMain({ open: failed, merged: 24 }, { WIP_STATE: stateFile({ paused: true, pause_reason: "wip,held-cap" }) }, pastConfig());
+  assert.equal(kept.capped, "true");
+});
+
+// Issue-event runs cannot save a default-branch cache (low-trust trigger), so
+// only work-unblock's hourly schedule saves the state; pick-slot only reads.
+const { parse } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("yaml");
+const yamlAt = (path) => parse(readFileSync(new URL(`../../../${path}`, import.meta.url), "utf8"));
+const usesWip = (step) => String(step?.uses ?? "").endsWith("/.github/actions/check-wip-cap");
+
+test("the state is saved only from work-unblock's schedule, and pick-slot only reads it", () => {
+  const action = yamlAt(".github/actions/check-wip-cap/action.yml");
+  assert.equal(action.inputs["save-state"].default, "false");
+  const saves = action.runs.steps.filter((step) => String(step.uses ?? "").startsWith("actions/cache/save@"));
+  assert.equal(saves.length, 1);
+  assert.match(saves[0].if, /inputs\.save-state == 'true'/);
+  const savers = [];
+  for (const file of readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f))) {
+    for (const [name, job] of Object.entries(yamlAt(`.github/workflows/${file}`).jobs ?? {})) {
+      for (const step of (job.steps ?? []).filter(usesWip)) {
+        if (String(step.with?.["save-state"] ?? "false") === "true") {
+          savers.push({ file, name, step });
+        }
+      }
+    }
+  }
+  assert.deepEqual(savers.map(({ file, name }) => `${file}:${name}`), ["work-unblock.yml:label-unblocked"]);
+  assert.match(savers[0].step.if, /github\.event_name == 'schedule'/);
+  const pickSlot = yamlAt(".github/workflows/work-resolve-issue.yml").jobs["pick-slot"];
+  assert.equal(pickSlot["cache-mode"], "read");
+  assert.equal(pickSlot.steps.filter(usesWip).length, 1);
 });
 
 test("a read that fails keeps a last known open lane open", async () => {

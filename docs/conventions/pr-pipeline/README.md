@@ -1396,8 +1396,11 @@ Over the WIP cap or the held cap on or after `pause-from` it pauses the lane: wo
 starts no run, work-unblock re-fires none, and the log and step summary carry one line
 `admission paused: reason=<wip|held-cap|wip,held-cap> countable=<n> wip_cap=<n> held=<n> held_cap=<n>`
 (a `::notice` annotation titled `admission paused`). When the open listing or the base config
-cannot be read, the lane keeps the last known pause: the status the last run whose reads succeeded
-saved to the Actions cache (key prefix `check-wip-cap-state-`). A kept pause logs
+cannot be read, the lane keeps the last known pause: the status work-unblock's hourly sweep last
+saved to the Actions cache (key prefix `check-wip-cap-state-`) from reads that succeeded. Only a
+trusted trigger such as `schedule` can save a default-branch cache, so work-resolve-issue's
+pick-slot (`cache-mode: read`) only restores it. A kept pause names only `wip`, `held-cap` or
+`wip,held-cap`; any other saved reason counts as no saved state. A kept pause logs
 `admission paused: reason=<reason> (read-error, kept last state)`, unless a config that was read no
 longer pauses (`pause-from` cleared or in the future); with no saved state (none yet,
 or the cache evicted it), the check fails open and the run starts. Without a merged count the

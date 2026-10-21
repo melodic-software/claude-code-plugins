@@ -66,6 +66,7 @@ jobs:
     permissions:
       actions: read # list work-resolve-issue runs to find a failed one
       contents: read # check out main
+      pull-requests: read # the WIP cap check counts the lanes App's PRs
       id-token: write # prove to the token broker which workflow this is
     steps:
       - name: Check out the default branch tip
@@ -80,6 +81,17 @@ jobs:
         with:
           node-version-file: .base/.node-version
           package-manager-cache: false
+
+      # The hourly sweep saves the WIP cap's last known state, which
+      # work-resolve-issue's pick-slot restores when its own reads fail. Only
+      # a trusted trigger such as schedule can save a default-branch cache;
+      # an issues run cannot. A failure here never stops the sweep.
+      - name: Save the WIP cap's last known state
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
+        with:
+          save-state: "true"
 
       # The off switch, checked before anything else.
       - name: Check the kill switch

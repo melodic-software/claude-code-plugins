@@ -14,8 +14,8 @@
 // wip.pause-from, it pauses the lane (work-resolve-issue starts no run,
 // work-unblock re-fires none) and logs one `admission paused: reason=...`
 // line. When a read fails (the open listing, the base config) the lane keeps
-// the last known pause, the previous run's status in WIP_STATE; with none it
-// fails open.
+// the last known pause, the status work-unblock's hourly sweep last saved in
+// WIP_STATE; with none it fails open.
 //
 // As the action's step it writes `capped` (the pause), `wip` (the status
 // as one flat JSON object) and `state-saved` (`true` when a read that
@@ -171,11 +171,15 @@ export function searchRateLimit() {
   };
 }
 
-// The last known state: a previous run's status, or null when there is none.
+const PAUSE_REASONS = new Set(["wip", "held-cap", "wip,held-cap"]);
+
+// The last known state: a previous run's status, or null when there is none
+// or it names a pause reason wipStatus never writes.
 function lastState(path) {
   try {
     const prior = JSON.parse(readFileSync(path, "utf8"));
-    return typeof prior?.paused === "boolean" ? prior : null;
+    const valid = prior?.paused === false || (prior?.paused === true && PAUSE_REASONS.has(prior.pause_reason));
+    return valid ? prior : null;
   } catch {
     return null;
   }
@@ -192,7 +196,7 @@ export function keepLastState(status, { readError, prior, pausing = true }) {
     return { ...status, pause_basis: "fail-open" };
   }
   const paused = prior.paused && pausing;
-  const reason = paused ? String(prior.pause_reason ?? "unknown") : null;
+  const reason = paused ? prior.pause_reason : null;
   return { ...status, paused, pause_reason: reason, pause_basis: "last-state" };
 }
 
