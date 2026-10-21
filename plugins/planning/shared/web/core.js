@@ -639,6 +639,8 @@
     /** Owner: edit | decline | fail | rerun one request, publish | discard | takedown a result; runRequests runs the given ids still pending. */
     requestAct: (id, action, text) => (action === "run" ? Core.runRequests([id])
       : act("/api/request/act", { id, action, ...(text != null ? { text } : {}) })),
+    /** My own request, or as the owner any: it and its answer move to question `to`, or Core.GENERAL for the whole session. */
+    moveRequest: (id, to) => act("/api/request/act", { id, action: "move", ...(to === Core.GENERAL ? { scope: to } : { qid: to }) }),
     /** The given ids still waiting show as running at once; a refusal puts them back. */
     runRequests: ids => act("/api/request/act", { action: "run", ids }, { key: "run:" + ids.join(), patch: s => {
       for (const r of [...(s.requests || []), ...(s.myRequests || [])]) {
@@ -670,8 +672,9 @@
     /** Offer a file ({file, size, type, qid?, thumb?}); resolves to {id, status, chunks, chunkSize}. The bytes wait
      *  in this browser until the owner accepts (the owner's own are accepted at once). */
     uploadOffer: body => act("/api/upload/offer", body),
-    /** Owner: accept or decline; the uploader: withdraw. */
-    uploadAct: (id, action) => act("/api/upload/act", { id, action }),
+    /** Owner: accept or decline; the uploader: withdraw. `draftOnly` (an attachment chip's x): refused once something
+     *  sent carries the file. */
+    uploadAct: (id, action, draftOnly) => act("/api/upload/act", { id, action, ...(draftOnly ? { draftOnly: true } : {}) }),
     /** One piece of an accepted upload, as raw bytes; `whole` is the whole file's sha256, sent with the last piece.
      *  Resolves to {received}; rejects with {status, error, received?} (409 chunk-gap names the next piece). */
     uploadChunk: (id, index, total, bytes, sha, whole) => spaced("/api/upload/chunk", async () => {

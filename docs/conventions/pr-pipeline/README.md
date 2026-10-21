@@ -116,7 +116,7 @@ reader applies.
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR and each unreviewed review-tier Dependabot PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
-| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue` once resolve-issue accepts App-added labels (follow-up by Automation Lanes) |
+| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
@@ -524,7 +524,9 @@ actor or author not on the trusted-actor list), `workflow-modified` (the token b
 write lane's mint for a workflow file the PR itself changes), or, for an issue run under
 `models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
 account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
-`split`). Silence is not a skip, with three exceptions that
+`split`). Issue mode posts no check, so work-resolve-issue.yml reports those four dimension skips
+on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step
+([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
@@ -615,7 +617,9 @@ and its queued entries leave; two different identities, or an unreadable head co
   or sent is named in a comment on the record. A check
   whose fix issue was closed reopens that issue with a comment naming the new range, keeping
   `agent-ready` and sending it to intake triage no second time, so a repeat goes straight back to
-  agents (a first failure still waits for the owner's ratification); one closed
+  agents (a first failure still waits for the owner's ratification). That reopen starts no run, so
+  work-unblock's hourly sweep removes and re-adds `agent-ready` with the lanes App token, once per
+  recurrence comment, unless the issue is held or has an open lane PR or a lane run in flight; one closed
   as not planned or duplicate stays closed and mutes the check. Closing a fix issue releases
   nothing on the record.
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
@@ -1448,12 +1452,33 @@ this rule after the alert job has filed its post-merge record. It runs no model;
 tests are in
 [`.github/scripts/post-merge-demotion-alert/`](../../../.github/scripts/post-merge-demotion-alert/).
 
+The full run pr-merge starts after each merge uses `GITHUB_TOKEN`, so its completion raises no
+`workflow_run` event. When that run ends red, pr-merge's `dispatch-full-run` job sends its run id to
+the alert workflow through `workflow_dispatch`. The alert accepts the id only from
+`github-actions[bot]` or a listed human (`trusted-actors.json` on `main`), never the lanes App,
+and only for attempt 1 of a red `pr-require-checks.yml` run on this repository's `main` that
+`github-actions[bot]` dispatched. Red is any conclusion `babysit_postmerge.py` counts as failed:
+`failure`, `timed_out`, `cancelled`, `startup_failure` or `action_required`, so a run cancelled
+on a time-budget overrun files its record and fix issues too; only a `failure` reaches this
+report (rule 1). A red run inside a lane merge's attribution window gets its one re-run from
+pr-merge's `post-merge-dispatch` job; a red run with no lane merge to charge gets none. Both jobs
+wait for a re-run for up to `confirm-wait-minutes`, so the record, its fix issues and this report
+follow the merge instead of the next scheduled run. A dispatched red, whether its re-run failed or
+never finished within that wait, files nothing once a newer `pr-require-checks` run on this
+repository's `main` has succeeded: `main` already recovered, and the alert logs so and files no
+record, fix issue or report. A failed lookup files as before. The dispatch also names the run's
+head SHA, which the alert checks against the run, so a dispatch and a `workflow_run` event of the
+same run share one concurrency group by signal and SHA. Records, fix issues and report comments
+dedupe as they do for any run: records by signal and SHA or by failing run, fix issues by check,
+and reports by run and attempt.
+
 1. **Confirmed red.** Attempt 1 concluded `failure`, the one re-run of its failed jobs finished
    and concluded `failure`, and one check failed in both, a check being a job that concluded
    `failure` or a gate the hygiene aggregator titles (never the all-branches gitleaks gate). A
    cancelled, timed-out or not-started run, a re-run that passes or never finishes within
    `confirm-wait-minutes`, and the canary never trigger it. The job waits for the re-run because
-   pr-merge starts the one for a run it dispatched, and that re-run raises no event of its own.
+   pr-merge starts the one for a run it dispatched inside a lane merge's attribution window, and
+   that re-run raises no event of its own.
 2. **Culprit.** The range is the first-parent merges since `main`'s last green full run. A
    merge is red when its own full run is a confirmed red in a check the head also fails, and
    green when it passed. The culprit is the one merge that is red while its parent is green (the

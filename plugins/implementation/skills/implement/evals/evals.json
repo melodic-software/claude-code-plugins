@@ -538,6 +538,19 @@
         "Appends a human-decision entry for the PDF export to DEVIATIONS.md",
         "Completes the CSV export the plan calls for"
       ]
+    },
+    {
+      "id": 41,
+      "name": "feature-block-fewer-lines-check",
+      "prompt": "/implementation:implement feature - phase 1 of the approved plan adds `active_emails` (the normalized emails of active users) to the user module. The block is written in evals/fixtures/redundant-feature-block.py and its tests pass. Finish the block and commit.",
+      "expected_output": "Before counting the block done, the execution cadence's fewer-lines check asks whether it could say the same thing in fewer lines with identical behavior. The fixture has a redundant else/pass branch and a throwaway accumulator that a comprehension replaces, so the skill shrinks it, keeps the tests green, and only then commits.",
+      "files": ["evals/fixtures/redundant-feature-block.py"],
+      "expectations": [
+        "Runs the fewer-lines check on the finished block before the commit checkpoint",
+        "Shrinks the redundant block (the empty else branch and the accumulator loop) while keeping behavior identical",
+        "Re-runs the build and tests after shrinking and commits only at green",
+        "Does NOT add features or behavior while shrinking"
+      ]
     }
   ]
 }

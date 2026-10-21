@@ -37,7 +37,8 @@ or force-pushes.
   `<invalid-sha>`, so no free text reaches the output or the comment.
 - On any unverified commit, or a PR it cannot check whole, it adds `escalation-label` only if that label already exists on the
   repository (it never creates one), then posts one fixed comment listing the SHAs. No model text
-  reaches the comment.
+  reaches the comment. When no commit is unverified but the PR could not be checked whole, the log
+  line and the comment say the commits could not be verified, never that they are unverified.
 
 ## Outputs
 

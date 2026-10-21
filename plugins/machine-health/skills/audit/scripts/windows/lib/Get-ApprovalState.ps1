@@ -24,6 +24,7 @@ After migration, TODO.md checkboxes are ignored permanently.
 . (Join-Path $PSScriptRoot 'Assert-ApprovalState.ps1')
 . (Join-Path $PSScriptRoot 'Read-SharedText.ps1')
 . (Join-Path $PSScriptRoot 'Write-MachineHealthLog.ps1')
+. (Join-Path $PSScriptRoot 'Write-StateFile.ps1')
 
 function New-DefaultApprovalState {
     [CmdletBinding()]
@@ -137,8 +138,13 @@ function Get-ApprovalState {
         $migrated = Read-ApprovalsFromTodo -TodoPath $TodoPath
         if ($null -ne $migrated) {
             try {
-                $migrated | ConvertTo-Json -Depth 10 |
-                    Set-Content -LiteralPath $approvalsPath -Encoding utf8 -ErrorAction Stop
+                $migratedJson = $migrated | ConvertTo-Json -Depth 10
+                # An approvals.json that appeared since the existence test wins over the migration.
+                $written = Write-StateFile -Path $approvalsPath -Update {
+                    param($Current)
+                    if ($null -eq $Current) { $migratedJson }
+                }.GetNewClosure()
+                if (-not $written) { return (Get-ApprovalState -StateDir $StateDir -LogPath $LogPath) }
                 Write-MachineHealthLog -LogPath $LogPath `
                     -Message "approvals_migrated source=$TodoPath dest=$approvalsPath"
             } catch {

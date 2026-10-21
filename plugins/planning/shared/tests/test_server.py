@@ -90,7 +90,7 @@ class ServerCase(unittest.TestCase):
 
     def join(self, name, ip=None):
         h = {"CF-Connecting-IP": ip} if ip else {}
-        code, _, out = self.post("/api/join", {"name": name, "device": "computer"}, h)
+        code, _, out = self.post("/api/join", {"name": name, "device": "computer", "key": self.app.session.state["session"]["guestKey"]}, h)
         self.assertEqual(code, 200, out)
         return out["pid"], {"X-Session-Secret": out["secret"]}
 
@@ -184,7 +184,7 @@ class TestAuthClasses(ServerCase):
         self.assertEqual((code, out["error"]), (401, "unknown-session"))
 
     def test_join_is_public(self):
-        code, _, out = self.post("/api/join", {"name": "Cy", "device": "phone"})
+        code, _, out = self.post("/api/join", {"name": "Cy", "device": "phone", "key": self.app.session.state["session"]["guestKey"]})
         self.assertEqual(code, 200)
         self.assertEqual(sorted(out), ["name", "ok", "pid", "secret"])
 
@@ -379,12 +379,12 @@ class TestHeadersAndCaps(ServerCase):
         (self.d / "assets").mkdir()
         (self.d / "assets" / "0123456789abcdef.png").write_bytes(PNG)
         (self.d / "assets" / "fedcba9876543210.html").write_text("<html></html>", encoding="utf-8")
-        code, h, body = self.get("/assets/0123456789abcdef.png")
+        code, h, body = self.get("/assets/0123456789abcdef.png", self.owner)
         self.assertEqual((code, h["Content-Type"], h["Content-Security-Policy"], h["Content-Disposition"], body), (200, "image/png", "sandbox", "inline", PNG))
-        _, h, _ = self.get("/assets/fedcba9876543210.html")
+        _, h, _ = self.get("/assets/fedcba9876543210.html", self.owner)
         self.assertEqual(h["Content-Security-Policy"], HTML_ASSET_CSP)
         self.assertNotIn("allow-same-origin", h["Content-Security-Policy"])
-        code, _, _ = self.get("/assets/0123456789abcdef.exe")
+        code, _, _ = self.get("/assets/0123456789abcdef.exe", self.owner)
         self.assertEqual(code, 404)
 
     def test_a_non_json_post_is_415(self):
@@ -477,10 +477,101 @@ class TestJoinLimit(ServerCase):
     def test_the_join_limit_keys_on_cf_connecting_ip_and_ignores_x_forwarded_for(self):
         for i in range(session.JOINS_PER_WINDOW):
             self.join(f"P{i}", ip="198.51.100.7")
-        code, _, out = self.post("/api/join", {"name": "Late"}, {"CF-Connecting-IP": "198.51.100.7", "X-Forwarded-For": "192.0.2.1"})
+        code, _, out = self.post("/api/join", {"name": "Late", "key": self.app.session.state["session"]["guestKey"]}, {"CF-Connecting-IP": "198.51.100.7", "X-Forwarded-For": "192.0.2.1"})
         self.assertEqual((code, out["error"]), (429, "join-rate"))
-        code, _, _ = self.post("/api/join", {"name": "Other"}, {"CF-Connecting-IP": "198.51.100.8"})
+        code, _, _ = self.post("/api/join", {"name": "Other", "key": self.app.session.state["session"]["guestKey"]}, {"CF-Connecting-IP": "198.51.100.8"})
         self.assertEqual(code, 200)
+
+
+class TestGuestKey(ServerCase):
+    def test_a_new_session_refuses_a_join_without_its_guest_key(self):
+        self.assertTrue(self.get("/api/state")[2]["joinNeedsKey"])
+        code, _, out = self.post("/api/join", {"name": "No key"})
+        self.assertEqual((code, out["error"]), (403, "bad-guest-key"))
+
+    def test_a_keyless_session_from_before_stays_keyless_across_a_restart(self):
+        self.app.shutdown()
+        doc = json.loads((self.d / server.STATE).read_text(encoding="utf-8"))
+        doc["session"]["guestKey"] = ""
+        (self.d / server.STATE).write_text(json.dumps(doc), encoding="utf-8")
+        app = server.App(self.d, watch_tunnel=False)
+        app.serve()
+        self.addCleanup(app.shutdown)
+        code, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+        self.assertEqual(code, 200, out)
+        self.assertEqual(app.session.state["session"]["guestKey"], "")
+
+
+class TestAssetAccess(ServerCase):
+    def setUp(self):
+        super().setUp()
+        (self.d / "assets").mkdir()
+        (self.d / "assets" / "0123456789abcdef.png").write_bytes(PNG)
+        self.pid, self.guest = self.join("Ann")
+
+    def png(self, headers=None):
+        code, _, body = self.get("/assets/0123456789abcdef.png", headers)
+        return code, body if code == 200 else body["error"]
+
+    def cookie(self, headers):
+        """The asset cookie a state read sets, as a Cookie header, and its attributes."""
+        _, h, _ = self.get("/api/state", headers)
+        pair, *attrs = h["Set-Cookie"].split("; ")
+        return {"Cookie": pair}, attrs
+
+    def test_an_asset_needs_a_person_or_the_owner(self):
+        self.assertEqual(self.png(), (401, "unknown-session"))
+        self.assertEqual(self.png({"X-Session-Secret": "forged"}), (401, "unknown-session"))
+        self.assertEqual(self.png(self.guest), (200, PNG))
+        self.assertEqual(self.png(self.owner), (200, PNG))
+
+    def test_a_state_read_sets_an_asset_cookie_that_reads_assets_only_while_the_person_may(self):
+        cookie, attrs = self.cookie(self.guest)
+        self.assertEqual(attrs, ["Path=/assets/", f"Max-Age={server.ASSET_COOKIE_SECONDS}", "HttpOnly", "SameSite=Strict"])
+        self.assertEqual(self.png(cookie), (200, PNG))
+        self.assertEqual(self.png(self.cookie(self.owner)[0]), (200, PNG))
+        code, _, out = self.post("/api/person/remove", {"pid": self.pid, "on": True}, self.owner)
+        self.assertEqual(code, 200, out)
+        self.assertEqual(self.png(cookie), (403, "removed"))
+
+    def test_the_asset_cookie_is_secure_on_the_tunnel_host(self):
+        self.app.tunnel_host = "fake-0123456789ab.trycloudflare.com"
+        _, attrs = self.cookie({**self.guest, "Host": self.app.tunnel_host})
+        self.assertIn("Secure", attrs)
+
+    def test_the_asset_cookie_is_secure_on_the_retired_host(self):
+        self.app.tunnel_host = "new.example.com"
+        self.app.retired_host = "fake-0123456789ab.trycloudflare.com"
+        _, attrs = self.cookie({**self.guest, "Host": self.app.retired_host})
+        self.assertIn("Secure", attrs)
+
+    def test_the_asset_cookie_is_not_secure_on_the_local_address(self):
+        self.app.tunnel_host = "new.example.com"
+        self.app.retired_host = "fake-0123456789ab.trycloudflare.com"
+        _, attrs = self.cookie(self.guest)
+        self.assertNotIn("Secure", attrs)
+
+    def test_an_anonymous_state_read_sets_no_cookie(self):
+        self.assertNotIn("Set-Cookie", self.get("/api/state")[1])
+
+    def test_a_forged_expired_or_other_session_cookie_reads_nothing(self):
+        cookie, _ = self.cookie(self.guest)
+        name, value = cookie["Cookie"].split("=", 1)
+        pid, exp, sig = value.split(".")
+        forged = {
+            "another pid": f"{name}=host.{exp}.{sig}",
+            "a later expiry": f"{name}={pid}.{int(exp) + 1}.{sig}",
+            "another port's name": f"shared-assets-1={value}",
+            "a superscript digit expiry": f"{name}={pid}.².{sig}",
+            "a huge expiry": f"{name}={pid}.{'9' * 5000}.{sig}",
+            "a non-ASCII signature": f"{name}={pid}.{exp}.é{sig[1:]}",
+        }
+        for what, c in forged.items():
+            with self.subTest(what):
+                self.assertEqual(self.png({"Cookie": c}), (401, "unknown-session"))
+        with mock.patch.object(server, "ASSET_COOKIE_SECONDS", -1):
+            expired, _ = self.cookie(self.guest)
+        self.assertEqual(self.png(expired), (401, "unknown-session"))
 
 
 class TestRateKeys(ServerCase):
@@ -1144,7 +1235,7 @@ class TestControl(ServerCase):
         code, _, out = self.ops({"op": "add-asset", "path": str(src), "scale": 2})
         self.assertEqual(code, 200, out)
         aid = out["results"][0]["id"]
-        code, h, body = self.get(f"/assets/{aid}")
+        code, h, body = self.get(f"/assets/{aid}", self.owner)
         self.assertEqual((code, body, h["Content-Security-Policy"]), (200, PNG, "sandbox"))
 
     def test_the_ping_reports_the_guest_port_and_build(self):
@@ -1458,7 +1549,7 @@ class TestClientLog(LogCase):
             app = server.App(d, watch_tunnel=False)
             app.serve()
             self.addCleanup(app.shutdown)
-            _, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+            _, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer", "key": app.session.state["session"]["guestKey"]})
             guest = {"X-Session-Secret": out["secret"]}
 
             def log():
@@ -1489,7 +1580,7 @@ class TestClientLog(LogCase):
             app = server.App(d, watch_tunnel=False)
             app.serve()
             self.addCleanup(app.shutdown)
-            code, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+            code, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer", "key": app.session.state["session"]["guestKey"]})
             guest = {"X-Session-Secret": out["secret"]}
             for i in range(20):
                 call(app.guest_port, "POST", "/api/client-log", {"kind": "error", "message": f"entry-{i:02d}"}, guest)
@@ -1579,7 +1670,7 @@ class TestModerationRoutes(ServerCase):
         code, _, out = self.post("/api/session/settings", {"approveJoins": True}, self.owner)
         self.assertEqual(code, 200, out)
         self.post("/api/session/intro", {"intro": "Why we meet."}, self.owner)
-        code, _, out = self.post("/api/join", {"name": "Jib"})
+        code, _, out = self.post("/api/join", {"name": "Jib", "key": self.app.session.state["session"]["guestKey"]})
         self.assertEqual((code, out["waiting"]), (200, True))
         jib = {"X-Session-Secret": out["secret"]}
         code, _, err = self.get("/api/state?since=0", jib)
@@ -1661,19 +1752,19 @@ class TestPrototypePage(ServerCase):
         self.assertEqual((code, h["Content-Type"]), (200, "text/javascript; charset=utf-8"))
 
     def test_an_html_variant_is_sandboxed_and_framable_by_the_session_only(self):
-        code, h, body = self.get(f"/assets/{self.html}")
+        code, h, body = self.get(f"/assets/{self.html}", self.guest)
         self.assertEqual((code, h["Content-Security-Policy"], h["X-Frame-Options"], body), (200, HTML_ASSET_CSP, "SAMEORIGIN", self.VARIANT_HTML))
         self.assertNotIn("allow-same-origin", h["Content-Security-Policy"])
-        code, h, _ = self.get(f"/assets/{self.png}?pin=1")
+        code, h, _ = self.get(f"/assets/{self.png}?pin=1", self.guest)
         self.assertEqual((code, h["Content-Security-Policy"], h["X-Frame-Options"]), (200, "sandbox", "DENY"))
 
     def test_pin_1_appends_the_pin_helper_as_the_one_inline_script(self):
-        _, h, body = self.get(f"/assets/{self.html}?pin=1")
+        _, h, body = self.get(f"/assets/{self.html}?pin=1", self.guest)
         self.assertEqual(h["Content-Security-Policy"], HTML_ASSET_CSP)
         self.assertTrue(body.startswith(self.VARIANT_HTML))
         helper = (server.WEB / "proto-pin.js").read_bytes()
         self.assertEqual(body[len(self.VARIANT_HTML):], b"\n<script>" + helper + b"</script>\n")
-        self.assertEqual(self.get(f"/assets/{self.png}?pin=1")[2], PNG)
+        self.assertEqual(self.get(f"/assets/{self.png}?pin=1", self.guest)[2], PNG)
 
     def test_a_pin_helper_that_could_end_or_hide_its_script_element_is_refused(self):
         for text in ("x</script>", "x</SCRIPT >", "x<!-- y", "x<script>", "x<ScRiPt src=a>"):
@@ -2841,6 +2932,146 @@ class TestSharingDefault(ServerCase):
         self.go(later)
         self.answer(later, "Shared at once.")
         self.assertEqual((self.sees(self.bo, "Still held."), self.sees(self.bo, "Shared at once.")), (False, True))
+
+
+class TestMoveRequest(ServerCase):
+    """Owner decision R27: Move to puts a request and its result on another question or the whole session; only its
+    asker or the owner moves it."""
+
+    ask, go, answer, state, sees, status = (TestSharingDefault.ask, TestSharingDefault.go, TestSharingDefault.answer, TestSharingDefault.state,
+                                          TestSharingDefault.sees, TestSharingDefault.status)
+
+    def setUp(self):
+        super().setUp()
+        self.open_round("Q1", "Q2")
+        self.ann_pid, self.ann = self.join("Ann")
+        self.bo_pid, self.bo = self.join("Bo")
+
+    def move(self, rid, who, **to):
+        return self.post("/api/request/act", {"action": "move", "id": rid, **to}, who)
+
+    def where(self, rid):
+        return next(r.get("qid") for r in self.app.session.state["requests"] if r["id"] == rid)
+
+    def own_answer(self, who, summary):
+        """`who` asks their own Claude on Q1 and it answers: the request's id and its result's."""
+        rid = self.ask(who, runner="self")
+        self.assertEqual(self.post("/api/mine/requests/claim", {"id": rid}, who)[0], 200)
+        body = {"id": rid, "summary": summary, "sources": [], "report": "", "used": [], "why": ""}
+        code, _, out = self.post("/api/mine/requests/result", body, who)
+        self.assertEqual(code, 200, out)
+        return rid, out["id"]
+
+    def test_the_asker_moves_a_request_and_its_answer_follows(self):
+        rid, _ = self.own_answer(self.ann, "Moved along.")
+        code, _, out = self.move(rid, self.ann, qid="Q2")
+        self.assertEqual((code, out), (200, {"ok": True, "id": rid, "qid": "Q2"}))
+        self.assertEqual((self.sees(self.ann, "Moved along.", "Q1"), self.sees(self.ann, "Moved along.", "Q2")), (False, True))
+        self.assertEqual(self.where(rid), "Q2")
+
+    def test_the_asker_cannot_move_a_request_the_host_took_up_but_the_owner_can(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        self.answer(rid, "Answered on Q1.")
+        code, _, out = self.move(rid, self.ann, qid="Q2")
+        self.assertEqual((code, out["error"], out["status"]), (409, "taken-up", "done"))
+        self.assertEqual(self.where(rid), "Q1")
+        self.assertEqual(self.move(rid, self.owner, qid="Q2")[0], 200)
+        self.assertTrue(self.sees(self.bo, "Answered on Q1.", "Q2"))
+
+    def test_a_waiting_request_its_asker_moves_reads_unread_again_for_the_owner(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.post("/api/inbox/read", {"keys": ["run:" + rid]}, self.owner)[2]["read"], 1)
+        self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
+        item = next(i for i in self.state(self.owner)["inbox"] if i["key"] == "run:" + rid)
+        self.assertEqual((item["qid"], item["unread"]), ("Q2", True))
+
+    def test_another_guest_cannot_move_it(self):
+        rid = self.ask(self.ann)
+        code, _, out = self.move(rid, self.bo, qid="Q2")
+        self.assertEqual((code, out["error"]), (404, "no-such-request"))
+        self.assertEqual(self.where(rid), "Q1")
+
+    def test_the_owner_moves_a_guests_request_to_the_whole_session(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        self.answer(rid, "For everyone.")
+        code, _, out = self.move(rid, self.owner, scope="session")
+        self.assertEqual((code, out), (200, {"ok": True, "id": rid, "scope": "session"}))
+        self.assertEqual((self.sees(self.ann, "For everyone.", "Q1"), self.sees(self.ann, "For everyone.", "session")), (False, True))
+        self.assertIsNone(self.where(rid))
+
+    def test_a_waiting_request_moved_is_answered_where_it_went(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.move(rid, self.owner, qid="Q2")[0], 200)
+        self.go(rid)
+        self.answer(rid, "Answered on Q2.", qid="Q2")
+        self.assertTrue(self.sees(self.bo, "Answered on Q2.", "Q2"))
+
+    def test_bad_targets_are_refused(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.move(rid, self.owner, qid="Q9")[2]["error"], "no-such-question")
+        self.assertEqual(self.move(rid, self.owner, scope="elsewhere")[0], 400)
+        self.assertEqual(self.move(rid, self.owner, qid="Q2", scope="session")[0], 400)
+        self.assertEqual(self.move(rid, self.owner, qid="Q1")[2]["error"], "same-place")
+        self.assertEqual(self.where(rid), "Q1")
+
+    def test_a_running_request_and_an_own_claude_one_to_the_session_stay_put(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        self.assertEqual(self.move(rid, self.owner, qid="Q2")[2]["error"], "wrong-status")
+        mine = self.ask(self.bo, runner="self")
+        code, _, out = self.move(mine, self.bo, scope="session")
+        self.assertEqual((code, out["field"]), (400, "scope"))
+
+    def test_a_shared_answer_its_asker_moves_waits_for_the_owners_share_and_the_owners_move_keeps_it_shared(self):
+        rid, xid = self.own_answer(self.ann, "Approved on Q1.")
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
+        self.assertTrue(self.sees(self.bo, "Approved on Q1.", "Q1"))
+        self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
+        self.assertFalse(self.sees(self.bo, "Approved on Q1.", "Q2"))
+        self.assertTrue(self.sees(self.ann, "Approved on Q1.", "Q2"))  # their own Claude's answer, as before it was shared
+        self.assertIn("share:" + xid, [i["key"] for i in self.state(self.owner)["inbox"]])
+        self.assertEqual(self.app.session.summary()["queue"]["results"], 1)
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
+        time.sleep(1.05)
+        self.assertEqual(self.move(rid, self.owner, qid="Q1")[0], 200)
+        self.assertTrue(self.sees(self.bo, "Approved on Q1.", "Q1"))
+        self.assertNotIn("share:" + xid, [i["key"] for i in self.state(self.owner)["inbox"]])
+
+    def test_a_cited_answer_is_refused_a_move_and_stays(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        xid = self.answer(rid, "Cite me.")["id"]
+        code, _, out = self.post("/api/answer", {"qid": "Q1", "text": "As Claude found.", "cites": [xid], "device": "computer", "view": "focus"}, self.bo)
+        self.assertEqual(code, 200, out)
+        code, _, out = self.move(rid, self.owner, qid="Q2")
+        self.assertEqual((code, out["error"]), (409, "cited"))
+        self.assertEqual(self.where(rid), "Q1")
+        self.assertEqual((self.sees(self.bo, "Cite me.", "Q1"), self.sees(self.bo, "Cite me.", "Q2")), (True, False))
+
+    def test_a_shared_answer_the_owner_moves_to_the_whole_session_is_claudes_chat_message(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        xid = self.answer(rid, "Now for the session.")["id"]
+        self.assertEqual(self.move(rid, self.owner, scope="session")[0], 200)
+        said = [m for m in self.app.session.state["chat"] if m.get("claude") == {"result": xid}]
+        self.assertEqual([m["text"] for m in said], ["Now for the session."])
+
+    def test_a_second_move_within_a_second_is_throttled(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
+        self.assertEqual(self.move(rid, self.ann, qid="Q1")[2]["error"], "slow-down")
+
+    def test_every_other_action_stays_the_owners(self):
+        lead_pid, lead = self.join("Lee")
+        self.leader(lead_pid)
+        rid = self.ask(self.ann)
+        for who in (self.ann, lead):
+            for action in ("edit", "decline", "fail", "rerun", "run", "publish", "discard", "takedown"):
+                with self.subTest(action=action):
+                    code, _, out = self.post("/api/request/act", {"action": action, "id": rid, "ids": [rid], "text": "x"}, who)
+                    self.assertEqual((code, out["error"]), (403, "owner-only"))
 
 
 if __name__ == "__main__":

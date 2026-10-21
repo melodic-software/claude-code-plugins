@@ -11,7 +11,8 @@ No secret travels on this command line: the control token and the owner token co
   tunnel's only target. Its own handler: Host and Origin checks, JSON-only POSTs with the body cap
   checked before reading, security headers on every answer, a per-address rate limit, and the
   auth class of each route. Identity is the `X-Owner-Token` or `X-Session-Secret` header, never a
-  body field.
+  body field; `/assets/*` also takes the signed cookie each `/api/state` answer sets, since an
+  `<img>` or a frame sends no header.
 - Control listener (`--control-port`): session_bridge's `LoopbackHandler` with NAME `shared`
   (token header `X-Shared-Token`), for `share.sh`, `watch.sh` and `wake.sh` only, never tunneled.
   It adds `POST /api/ops` (Claude's ops) and `GET /api/status`.
@@ -32,6 +33,7 @@ import argparse
 import collections
 import contextlib
 import hashlib
+import hmac
 import http.client
 import ipaddress
 import json
@@ -154,6 +156,7 @@ SUMMARY_BATCH_BYTES = 100_000  # judgment: the most one batch entry holds; a sum
 TUNNEL_POLL = 1.0  # seconds between tunnel checks
 TUNNEL_BACKOFF_MAX = 60.0
 PRESENCE_TICK = 5  # the snapshot ETag moves at least this often, so expired presence shows
+ASSET_COOKIE_SECONDS = 900  # judgment: an asset cookie's life; every /api/state answer renews it, so an open page keeps it
 
 # The guest routes: path -> (auth class, session method). Classes (Contracts, "Auth classes"):
 # public needs no identity; person needs a secret or the owner token; moderator is a person whose
@@ -198,7 +201,7 @@ ROUTES = {
     "/api/session/intro": ("owner", "set_intro"),
     "/api/annotate": ("person", "annotate"),
     "/api/request": ("person", "request"),
-    "/api/request/act": ("owner", "act_on_request"),
+    "/api/request/act": ("person", "act_on_request"),  # session.py: move is the asker's or the owner's, the rest the owner's
     "/api/result/share": ("person", "share_result"),
     "/api/round/ready": ("moderator", "ready_round"),
     "/api/round/send": ("owner", "send_round"),
@@ -778,7 +781,32 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(404, "not-found", "Nothing here."))
         return self.send(200, f.read_bytes(), ctype)
 
+    def asset_cookie(self, pid):
+        """The Set-Cookie that lets this browser's <img> and frame requests read /assets/ as `pid` for a while."""
+        exp = int(time.time()) + ASSET_COOKIE_SECONDS
+        secure = "; Secure" if self.headers.get("Host") in {h for h in (self.app.tunnel_host, self.app.retired_host) if h} else ""
+        value = f"{pid}.{exp}.{self.app.asset_sign(pid, exp)}"
+        return f"{self.app.asset_cookie}={value}; Path=/assets/; Max-Age={ASSET_COOKIE_SECONDS}; HttpOnly; SameSite=Strict{secure}"
+
+    def asset_reader(self):
+        """The pid an asset request reads as: a credential header, else an unexpired asset cookie whose person may
+        still read (a removed person's cookie reads nothing). DomainError 401 without either."""
+        pid = self.identity()
+        if pid is None:
+            for part in (self.headers.get("Cookie") or "").split(";"):
+                name, _, value = part.strip().partition("=")
+                who, _, rest = value.partition(".")
+                exp, _, sig = rest.partition(".")
+                ok_exp = exp.isascii() and exp.isdigit() and len(exp) <= 12
+                if name == self.app.asset_cookie and ok_exp and int(exp) >= time.time() and hmac.compare_digest(sig.encode(), self.app.asset_sign(who, int(exp)).encode()):
+                    pid = self.app.session.check(who)
+                    break
+        if pid is None:
+            raise DomainError(401, "unknown-session", "Join the session first.")
+        return pid
+
     def asset(self, aid, ext, *, pin=False):
+        self.asset_reader()
         f = self.app.dir / "assets" / aid
         if not f.is_file():
             return self.fail(DomainError(404, "not-found", "No such asset."))
@@ -795,17 +823,18 @@ class GuestHandler(BaseHTTPRequestHandler):
         if pid is None:
             return self.send(200, app.session.anonymous_view())
         tag, sent = app.etag(pid), self.headers.get("If-None-Match") or ""
+        extra = {"ETag": tag, "Set-Cookie": self.asset_cookie(pid)}
         if sent == tag:  # identity() already refused a removed or waiting person
-            return self.send(304, b"", extra={"ETag": tag})
+            return self.send(304, b"", extra=extra)
         if sent.rsplit(".", 2)[0] == tag.rsplit(".", 2)[0]:  # only presence or the clock moved: send just that part
-            return self.send(200, {"rev": app.session.state["rev"], "presenceOnly": True, **app.session.presence_view(pid)}, extra={"ETag": tag})
+            return self.send(200, {"rev": app.session.state["rev"], "presenceOnly": True, **app.session.presence_view(pid)}, extra=extra)
         snap = app.session.snapshot(pid)
         snap["build"] = app.build
         if snap["me"]["role"] in ("owner", "leader"):
             share = dict(app.session.state["session"]["share"])
             share["tunnel"] = tunnel_kind(tunnel.read(app.dir), True) if app.tunnel_up else "down"
             snap["share"] = share
-        return self.send(200, snap, extra={"ETag": tag})
+        return self.send(200, snap, extra=extra)
 
     def do_POST(self):
         if self.refused():
@@ -953,6 +982,7 @@ class App:
         if swept:
             self.log.info("uploads: deleted %d partial or unclaimed files", swept)
         self.build = build_hash()
+        self._asset_key = secrets.token_bytes(32)  # signs asset cookies; a restart ends them, and the next poll renews them
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
         self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)  # keyed by pid
         self.image_bucket = Bucket(IMAGE_PER_MINUTE / 60, IMAGE_PER_MINUTE)  # GET /api/upload/image, keyed by pid
@@ -974,6 +1004,7 @@ class App:
         self.guest.app = self
         self.guest_port = self.guest.server_address[1]
         self.local_hosts = {f"127.0.0.1:{self.guest_port}", f"localhost:{self.guest_port}"}
+        self.asset_cookie = f"shared-assets-{self.guest_port}"  # cookies ignore the port: two local sessions keep their own
         handler = type("SharedControlHandler", (ControlHandler,), {})  # its own class: start() sets hub on it
         self.control, self.hub = session_bridge.start(handler, lambda port: ControlHub(port, self.dir, self), control_port, nonce)
         self.control_port = self.hub.port
@@ -1015,6 +1046,9 @@ class App:
             self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
         if items or dropped:
             self.log.info("summary-batch summaries=%d dropped=%d data=%s", len(items), dropped, batch_json(items))
+
+    def asset_sign(self, pid, exp):
+        return hmac.new(self._asset_key, f"{pid}.{exp}".encode(), hashlib.sha256).hexdigest()
 
     @property
     def local_url(self):
