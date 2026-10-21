@@ -934,17 +934,15 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
     ),
     (re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "<REDACTED: API key>"),
     (
-        # The bounded `eyJ` header and the spelled-out segments keep this
-        # linear; an unbounded first segment is quadratic on a repeated `ghs_1_-`.
-        re.compile(
-            r"\b(?:ghs_[0-9]+_eyJ[A-Za-z0-9_-]{0,512}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"
-            r"|gh[pousr]_[A-Za-z0-9]{20,})"
-        ),
-        "<REDACTED: GitHub token>",
-    ),
-    (
-        # A header past the bound: the whole run, dots included, in one match.
-        re.compile(r"\bghs_[0-9]+_eyJ[A-Za-z0-9_-]{513}[A-Za-z0-9_.-]*"),
+        # GitHub prefixes from
+        # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+        # and the ghs_ regex GitHub recommends for current and stateless installation tokens from
+        # https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+        # (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
+        # Alternation takes the first branch that matches, so ghs_ comes first:
+        # otherwise a JWT loses only its header. One greedy run of one class with
+        # nothing after it matches or fails within 36 characters, so it stays linear.
+        re.compile(r"\b(?:ghs_[A-Za-z0-9._-]{36,}|gh[pousr]_[A-Za-z0-9]{20,})"),
         "<REDACTED: GitHub token>",
     ),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "<REDACTED: Slack token>"),

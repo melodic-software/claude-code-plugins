@@ -88,8 +88,8 @@ async page => {
   // flyout tabs
   await page.keyboard.press("v"); await page.waitForTimeout(250);
   ok("v opens the Visuals tab", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && document.getElementById("flyTitle").textContent.startsWith("Visuals")));
-  const flyBox = await page.evaluate(() => { const f = document.getElementById("fly").getBoundingClientRect(), m = document.querySelector("main.detail").getBoundingClientRect(); return {overlay: getComputedStyle(document.getElementById("fly")).position === "absolute", mainW: Math.round(m.width), flyL: Math.round(f.left), mainR: Math.round(m.right)}; });
-  ok("flyout overlays the answer pane", flyBox.overlay && flyBox.flyL < flyBox.mainR, JSON.stringify(flyBox));
+  const flyBox = await page.evaluate(() => { const f = document.getElementById("fly").getBoundingClientRect(), m = document.querySelector("main.detail").getBoundingClientRect(); return {overlay: getComputedStyle(document.getElementById("fly")).position === "absolute", vw: innerWidth, mainW: Math.round(m.width), flyL: Math.round(f.left), mainR: Math.round(m.right)}; });
+  ok("unpinned flyout floats beside the answer pane without covering it from 1100px", flyBox.overlay && (flyBox.vw < 1100 || flyBox.flyL >= flyBox.mainR), JSON.stringify(flyBox));
   await page.click('#tabs [data-panel="notes"]'); await page.waitForTimeout(200);
   ok("Notes tab", await page.textContent("#flyTitle") === "Notes to Claude" && !!(await page.$("#noteText")));
   await page.click('#tabs [data-panel="settings"]'); await page.waitForTimeout(200);

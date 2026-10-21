@@ -5,7 +5,7 @@
 // once (the `tour` pref says skipped) and the card stays closed after a reload on that device; "Show the tour again"
 // in the person's settings brings the card and the tour offer back; on a 390x844 phone Skip is a whole 44 px target.
 // Also: the goal in one closable line on a return visit (follow-up 39), About you in the person's card, read only by
-// the owner (follow-up 46), and the in-app browser banner in Instagram's browser (follow-up 45).
+// the owner (follow-up 46) on the guest's row and in their card, which keeps it when a long list goes compact (#8698), and the in-app browser banner in Instagram's browser (follow-up 45).
 //   node plugins/planning/shared/tests/ui_welcome.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved spec (follow-up item 6) and the texts this suite writes, never from the page.
@@ -92,6 +92,12 @@ async function main() {
     await ownerHost();
     ok("  the owner's Host view shows it on Ann's row", await until(owner, () => [...document.querySelectorAll(".vf-hp-meta")].some(m => m.textContent.endsWith("Tech comfort: Not very, “I use a screen reader”")), null, 8000),
       await owner.evaluate(() => [...document.querySelectorAll(".vf-hp-meta")].map(m => m.textContent).join(" | ")));
+    await owner.click(`.vf-hpeople .vf-hp-av [data-pid="${annPid}"]`);
+    ok("  and Ann's card shows it to the owner, where it stays once the people list goes compact (#8698)", await until(owner, () => {
+      const f = document.querySelector(".vf-pcard:not([hidden]) .vf-pc-facts")?.textContent || "";
+      return f.includes("Tech comfortNot very") && f.includes("Their noteI use a screen reader");
+    }, null, 8000), await owner.evaluate(() => document.querySelector(".vf-pcard")?.textContent));
+    await owner.keyboard.press("Escape");
     ok("  and no guest snapshot holds anyone's", await ann.evaluate(() => !("aboutYou" in window.Core.snapshot())));
     await ann.click(".vf-pcard .vf-tour-again");
     ok("it brings the welcome card back", await until(ann, shown));

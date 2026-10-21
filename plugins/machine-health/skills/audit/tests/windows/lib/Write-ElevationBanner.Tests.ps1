@@ -12,14 +12,20 @@ BeforeAll {
     # [Console]::Error.WriteLine bypasses the error stream, so `2>&1` captures nothing;
     # swap in a StringWriter to capture real stderr text.
     function Invoke-BannerCapture {
-        param([Parameter(Mandatory)] [bool] $Elevated, [switch] $Quiet, [string] $StateBase)
+        param(
+            [Parameter(Mandatory)] [bool] $Elevated,
+            [switch] $Quiet,
+            [string] $StateBase,
+            [string[]] $Coverage = @()
+        )
         $writer = [System.IO.StringWriter]::new()
         $saved = [Console]::Error
         try {
             [Console]::SetError($writer)
             Write-ElevationBanner -Elevated $Elevated -HostName 'HOST' `
                 -UserName 'DOMAIN\user' -OutputBase 'C:\out' `
-                -StateBase $StateBase -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix) -Quiet:$Quiet
+                -StateBase $StateBase -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix) `
+                -NonElevatedCoverage $Coverage -Quiet:$Quiet
         } finally {
             [Console]::SetError($saved)
         }
@@ -40,6 +46,19 @@ Describe 'Write-ElevationBanner' -Tag 'lib' {
         $err | Should -Match ([regex]::Escape("Start-Transcript -Path 'C:\state\logs\elevated-run-"))
         $err | Should -Match 'elevated-run-\d{4}-\d{2}-\d{2}\.log'
         $err | Should -Match ([regex]::Escape("-StateBase 'C:\state'"))
+    }
+
+    It 'lists each derived coverage label under Covered non-elevated' {
+        $err = Invoke-BannerCapture -Elevated $false -Coverage @('disk-space', 'my-check [custom]')
+        $err | Should -Match ([regex]::Escape(' Covered non-elevated:'))
+        $err | Should -Match ([regex]::Escape('   - disk-space'))
+        $err | Should -Match ([regex]::Escape('   - my-check [custom]'))
+    }
+
+    It 'omits the coverage section when the derived list is empty' {
+        $err = Invoke-BannerCapture -Elevated $false
+        $err | Should -Not -Match 'Covered non-elevated'
+        $err | Should -Match 'Admin-only'
     }
 
     It 'emits nothing when elevated' {

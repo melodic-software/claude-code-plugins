@@ -36,7 +36,7 @@ class TestLoad(unittest.TestCase):
         latencies, failures, lock = [], [], threading.Lock()
 
         def person(i):
-            code, _, out = call(port, "POST", "/api/join", {"name": f"Person {i}", "device": "phone"}, {"CF-Connecting-IP": f"198.51.100.{i}"})
+            code, _, out = call(port, "POST", "/api/join", {"name": f"Person {i}", "device": "phone", "key": app.session.state["session"]["guestKey"]}, {"CF-Connecting-IP": f"198.51.100.{i}"})
             if code != 200:
                 failures.append(("join", code, out))
                 return
