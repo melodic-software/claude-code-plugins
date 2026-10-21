@@ -18,8 +18,8 @@ https://learn.microsoft.com/en-us/windows/client-management/mdm/defender-csp#con
 exclusions or how a hidden list answers). An unelevated process is masked
 without reading anything. An elevated read is masked when a list holds exactly
 one entry that is not a path pattern (rooted, environment-variable, relative or
-wildcard), an extension or a file name: a sentence holding characters no path
-segment may hold, the placeholder's shape in any language. The placeholder
+wildcard), an extension or a file name. The decision rests on the entry's
+shape (characters no path segment may hold) with no text match. The placeholder
 never leaves this file.
 
 The class is read from its own CIM namespace rather than through the Defender

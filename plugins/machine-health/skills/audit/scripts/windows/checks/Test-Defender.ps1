@@ -43,11 +43,7 @@ $CheckBody = {
     } else {
         $status = Get-MpComputerStatus -ErrorAction Stop
 
-        # AMRunningMode values (per MSFT_MpComputerStatus docs): 'Normal',
-        # 'Passive Mode', 'SxS Passive Mode', 'EDR Block Mode', 'Unknown'.
-        # Modern Windows reports 'SxS Passive Mode' when a third-party AV is
-        # the active protection; older builds used 'Passive Mode'. Both mean
-        # Defender is NOT the primary AV.
+        # Passive-mode values: check-catalog.md section 5, Notes.
         $passiveMode = $status.AMRunningMode -in 'Passive Mode', 'SxS Passive Mode'
 
         $history = Get-DefenderEventHistory
@@ -82,7 +78,8 @@ $CheckBody = {
         # Counts cover unmuted items only, like the severity.
         $recentThreats = @($detectionItems | Where-Object { -not $_.muted -and $_.severity -in 'WARN', 'CRIT' })
         $unremediated = @($recentThreats | Where-Object severity -EQ 'CRIT')
-        $suspectAdds = @($exclusionItems | Where-Object { -not $_.muted -and $_.severity -eq 'WARN' })
+        $unmutedChanges = @($exclusionItems | Where-Object { -not $_.muted })
+        $suspectAdds = @($unmutedChanges | Where-Object severity -EQ 'WARN')
 
         $severities = [System.Collections.Generic.List[string]]::new()
         $severities.Add('OK')
@@ -149,8 +146,8 @@ $CheckBody = {
         if ($suspectAdds.Count -gt 0) {
             $reasons.Add("$($suspectAdds.Count) path exclusion(s) added in last $recentDays days outside the known-safe list")
         }
-        if ($exclusionItems.Count -gt 0) {
-            $reasons.Add("$($exclusionItems.Count) exclusion change(s) in the event log")
+        if ($unmutedChanges.Count -gt 0) {
+            $reasons.Add("$($unmutedChanges.Count) exclusion change(s) in the event log")
         }
 
         $severities.Add((Get-UnmutedSeverity -Items $items))
@@ -189,7 +186,7 @@ $CheckBody = {
             threat_query_error   = $threatQueryError
             events_read_state    = $history.ReadState
             log_oldest_record    = $oldestText
-            exclusion_change_count = $exclusionItems.Count
+            exclusion_change_count = $unmutedChanges.Count
             events_skipped_count = $history.SkippedRecords
             coverage_gap         = $coverageGap
             items_count          = $items.Count

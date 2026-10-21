@@ -31,7 +31,7 @@ Pins these rubric fixes:
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-Defender' -AsObject 'Invoke-DefenderAsObject' `
-        -LibScript 'New-FindingItem.ps1', 'New-DefenderExclusionItem.ps1', 'Get-DefenderEventHistory.ps1' -MockHelpers
+        -LibScript 'New-FindingItem.ps1', 'New-DefenderExclusionItem.ps1', 'Get-DefenderEventHistory.ps1', 'ConvertTo-DetailMarkdown.ps1' -MockHelpers
 
     if (-not (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue)) {
         throw ('Get-MpComputerStatus is not available on this host. ' +
@@ -467,6 +467,17 @@ Describe 'Test-Defender -- exclusion change history (5007)' -Tag 'check' {
         $result = Invoke-DefenderWithMuteList -MutedKeys @(Get-FindingKey -Kind 'exclusion' -Identity 'path', $script:Sentinel)
         $result.severity | Should -Be 'OK'
         $result.detail.muted_count | Should -Be 1
+        $result.detail.exclusion_change_count | Should -Be 0
+        $result.summary | Should -Not -Match 'exclusion'
+    }
+
+    It 'keeps the 5007 value out of the real check''s markdown detail and summary, showing the count' {
+        $result = Invoke-CheckScriptAsObject $script:ScriptPath
+        $md = ConvertTo-DetailMarkdown -Detail $result.detail -MaxRows 50
+
+        $md | Should -Not -Match ([regex]::Escape($script:Sentinel))
+        $result.summary | Should -Not -Match ([regex]::Escape($script:Sentinel))
+        $md | Should -Match '(?m)^\| `exclusion_change_count` \| 1 \|$'
     }
 }
 

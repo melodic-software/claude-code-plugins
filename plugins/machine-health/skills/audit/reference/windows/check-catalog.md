@@ -219,7 +219,15 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   - As of: 2026-10-21.
   - Recheck trigger: a Defender release that changes how 5007 reports an exclusion change.
 
-- **Notes:** When a third-party AV is the active protection, Defender reports `AMRunningMode` as `Passive Mode` or `SxS Passive Mode`. Record that in `detail` and apply the passive re-bucketing: passive mode itself is `INFO`; a signature age over 3 days drops to `INFO` (the other product owns detection); real-time protection being off is not a finding at all. Tamper protection and any recorded detection keep their normal severity. Do not report CRIT for a system intentionally running, say, CrowdStrike. This is a check-local rule, independent of the ±1 trend adjustment in `reference/shared/severity-rubric.md`.
+- **Notes:** We treat Defender as passive, meaning another product is the primary antivirus, when
+  `AMRunningMode` holds one of the passive values the script lists (`$passiveMode` in
+  `Test-Defender.ps1`). The value lands in `detail.running_mode`, and the check applies the passive re-bucketing: passive mode itself is `INFO`; a signature age over 3 days drops to `INFO` (the other product owns detection); real-time protection being off is not a finding at all. Tamper protection and any recorded detection keep their normal severity. Do not report CRIT for a system intentionally running, say, CrowdStrike. This is a check-local rule, independent of the ±1 trend adjustment in `reference/shared/severity-rubric.md`.
+  - Pointer: the `AMRunningMode` values, the
+    [Defender Antivirus compatibility page, "Use Windows PowerShell to confirm that antivirus protection is running"](https://learn.microsoft.com/en-us/defender-endpoint/microsoft-defender-antivirus-compatibility#use-windows-powershell-to-confirm-that-antivirus-protection-is-running).
+    That page names the passive value without the `SxS` form the script also accepts.
+  - As of: 2026-10-21.
+  - Recheck trigger: a Defender platform release that adds or renames an `AMRunningMode` value, or
+    a host reporting a passive value the script does not list.
 
 ---
 
