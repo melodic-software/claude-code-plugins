@@ -12,7 +12,7 @@ source-branch: <the findings file's branch: value>
 rank: <Rank>
 finding-class: <class>
 class-basis: rule-id | rule-family | dimension | judgment | unresolved
-rung: make-impossible | editorconfig-severity | analyzer-pack-rule | custom-analyzer | semgrep-rule | architecture-test | hook | llm-only
+rung: make-impossible | editorconfig-severity | analyzer-pack-rule | custom-analyzer | semgrep-rule | architecture-test | action-guard | automated-review
 earliest-stage: design | edit | build | commit | test | tool-call | review
 owner: <invocation, plugin name, or URL>
 ---
@@ -82,11 +82,11 @@ finding would have been caught.
 | `custom-analyzer` | `build` |
 | `semgrep-rule` | `commit` |
 | `architecture-test` | `test` |
-| `hook` | `tool-call` |
-| `llm-only` | `review` |
+| `action-guard` | `tool-call` |
+| `automated-review` | `review` |
 
 A rung outside the table is refused: the run stops with exit 2, names the TSV line and the value,
-and writes nothing. An empty rung field takes the `llm-only` default.
+and writes nothing. An empty rung field takes the `automated-review` default.
 
 ## When a stub carries the ratchet offer
 
@@ -94,7 +94,7 @@ The writer's `--ratchet-offer` flag takes `on` or `off`; absent means `on`, and 
 exits 2 before anything is written. Under `on`, the section appears on the five counting rungs,
 whose check reports how many places violate it: `editorconfig-severity`, `analyzer-pack-rule`,
 `custom-analyzer`, `semgrep-rule` and `architecture-test`. `make-impossible` removes the state
-rather than counting it, and `hook` and `llm-only` produce no count, so those stubs never carry it.
+rather than counting it, and `action-guard` and `automated-review` produce no count, so those stubs never carry it.
 Under `off`, no stub carries it. The section is one fixed paragraph: once the rule exists, a count
 above zero goes to `/review:ratchet` as a CI ceiling, and a count of zero lands the rule with no
 ceiling.
@@ -114,7 +114,7 @@ belongs to the skill body, not to the writer, and the skill's in-conversation re
 reasoning. A stub is therefore reproducible from the same findings file plus the same TSV.
 
 The writer splits each TSV line on tabs itself, so an empty field keeps its position and takes
-its default (`unclassified`, `unresolved`, `llm-only`, `none`, or `none proposed` for the error
+its default (`unclassified`, `unresolved`, `automated-review`, `none`, or `none proposed` for the error
 text) without shifting the fields after it. A line with other than five or six fields, or whose
 first field is not a rank the `## Findings` table carries, or whose rung is outside the table
 above, stops the run with exit 2 and the line
