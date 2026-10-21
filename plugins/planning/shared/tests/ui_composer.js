@@ -6,7 +6,7 @@
 // sends chat, Escape cancels a comment edit, the counter shows near the limit, the request edit field has its limit and
 // a pasted answer from one's own Claude is never cut (follow-ups 22, 31, F1, F2, B1, B3); a poll or pick-many comment,
 // and its files, go in with the pick in one step, on a phone too, keeping text typed while the pick is on its way
-// (26), a save held back by a file still waiting for the host keeping the picks; the comment box working before a pick
+// (26), and with an own option saved on a choice or pick-many question, a save held back by a file still waiting for the host keeping the picks; the comment box working before a pick
 // on a choice with Something else and on a scale too, a comment typed before Something else becoming the own option's
 // draft (the owner's call: the composer works before a pick on every format); a field the person is not typing in never pulls the page back when it repaints (28); Claude's answer to an ask
 // becomes its asker's own option on a choice question, asking first when they had picked, Cancel putting the picks back, never cutting a long answer, never once taken down or
@@ -365,6 +365,42 @@ async function main() {
     ok("a file attached before the pick goes in with the pick and its comment", await until(owner, id => (window.Core.snapshot().cards?.Q4 || [])
       .some(c => c.pick === "opt-2" && c.text === "With a photo of the menu" && (c.attachments || []).includes(id)), up),
       JSON.stringify(await myCard(fay, "Q4")));
+
+    // ---------- 26: files attached before an own option go in with it, on a choice and on a pick-many question ----------
+    const pastePng = (p, name) => p.evaluate(async n => {
+      const c = document.createElement("canvas"); c.width = 64; c.height = 40; c.getContext("2d").fillRect(0, 0, 64, 40);
+      const blob = await new Promise(r => c.toBlob(r, "image/png")), dt = new DataTransfer();
+      dt.items.add(new File([blob], n, { type: "image/png" }));
+      document.getElementById("vf-answer").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, name);
+    const accepted = async (p, n) => {
+      await until(p, k => (window.Core.snapshot().myUploads || []).length === k, n, 10000);
+      const id = await p.evaluate(k => window.Core.snapshot().myUploads[k - 1].id, n);
+      await owner.evaluate(u => window.Core.uploadAct(u, "accept"), id);
+      await until(p, u => (window.Core.snapshot().myUploads || []).some(x => x.id === u && x.status.kind === "done"), id, 30000);
+      return id;
+    };
+    const gil = await rec.open(A.localUrl, DESK);
+    await joinAs(gil, "Gil");
+    await go(gil, T.q7);
+    await until(gil, () => !!document.querySelector(".vf-composer .vf-attach")?.offsetParent);
+    await pastePng(gil, "box.png");
+    const gilUp = await accepted(gil, 1);
+    await gil.locator(".vf-opt-other .vf-optchoose").click({ timeout: 5000 }).catch(() => {});
+    await gil.fill("#vf-other", "A padded envelope", { timeout: 5000 }).catch(() => {});
+    await gil.click(".vf-other-save", { timeout: 5000 }).catch(() => {});
+    ok("a file attached before Something else on a choice goes in with the own option", await until(owner, id => (window.Core.snapshot().cards?.Q7 || [])
+      .some(c => c.pick === "other" && c.text === "A padded envelope" && (c.attachments || []).includes(id)), gilUp), JSON.stringify(await myCard(gil, "Q7")));
+    await gil.waitForTimeout(1100); // one pick a second per person (session.py WRITE_INTERVAL)
+    await go(gil, T.q5);
+    await pastePng(gil, "voucher.png");
+    const gilUp2 = await accepted(gil, 2);
+    await gil.locator(".vf-check-row", { hasText: "Card" }).locator("input").check();
+    await gil.locator(".vf-check-row", { hasText: "Something else…" }).locator("input").check();
+    await gil.fill("#vf-other", "Gift vouchers", { timeout: 5000 }).catch(() => {});
+    await gil.click(".vf-fmt-save");
+    ok("  and before an own option on a pick-many question, with Save my picks", await until(owner, id => (window.Core.snapshot().cards?.Q5 || [])
+      .some(c => JSON.stringify(c.picks) === '["opt-1","other"]' && c.text === "Gift vouchers" && (c.attachments || []).includes(id)), gilUp2), JSON.stringify(await myCard(gil, "Q5")));
 
     // ---------- a pick-many save held back by a file still waiting for the host keeps the picks drafted ----------
     const hy = await rec.open(A.localUrl, DESK);

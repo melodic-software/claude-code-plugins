@@ -6043,6 +6043,10 @@
       if (!q) return;
       if (!text) { otherTa.focus(); return flash("Write your own option first."); }
       if (ownTooLong(text)) return;
+      // A comment typed before it was its first draft (openOther), and an own option takes none, so it leaves the comment
+      // box; files attached before it go in with it. A file still waiting for the host holds the save back, the box open.
+      const early = q.format === "rank" ? null : earlyOf(q, myRec(qid));
+      if (earlyWaits(qid, early)) return;
       delete useBefore[qid];
       if (q.format === "rank") {
         ui.otherText[qid] = text;
@@ -6053,11 +6057,9 @@
         announce("Your own option is in your ranking. Move it where it belongs, then save your ranking.");
         return fmtSave.focus({ preventScroll: true });
       }
-      // It shows in Answers at once; a refusal reopens the box with the text. A comment typed before it was its first
-      // draft (openOther), and an own option takes none, so it leaves the comment box.
-      const early = earlyOf(q, myRec(qid));
+      // It shows in Answers at once; a refusal reopens the box with the text.
       delete ui.otherText[qid]; ui.otherOpen[qid] = false;
-      Core.pick(qid, "other", "", { other: text }).then(() => { if (early?.comment) sentEarly(qid, { comment: early.comment }); flash("Your own option is in Answers, where others can back it."); })
+      Core.pickWith(qid, { option: "other" }, { other: text, attachments: early?.attachments }).then(() => { if (early) sentEarly(qid, early); flash("Your own option is in Answers, where others can back it."); })
         .catch(e => { if (ui.otherText[qid] == null) { ui.otherText[qid] = text; ui.otherOpen[qid] = true; } fail(e); render(); });
     };
     /** Follow-up 29: the asker of an ask on a choice, pick-many or ranking question may make Claude's answer their own
@@ -6210,13 +6212,15 @@
       if (own != null && ownTooLong(own)) return;
       const fields = q.format === "multi" ? { options: list } : { order: list };
       // A file still waiting for the host holds the save back, the picks kept as drafted.
-      const early = own == null ? earlyOf(q, rec) : null;
+      const early = earlyOf(q, rec);
       if (earlyWaits(qid, early)) return;
       // The saved pick shows at once; a refusal puts the draft back.
       const draft = ui.fdraft[qid], ownDraft = ui.otherText[qid];
       delete useBefore[qid]; delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
-      Core.pickWith(qid, fields, own != null ? { other: own } : early || { comment: commentOf(rec) })
-        .then(() => { if (early) sentEarly(qid, early); flash(q.format === "multi" ? `Your picks are saved${early?.comment ? " with your comment" : ""}.` : `Your ranking is saved${early?.comment ? " with your comment" : ""}.`); })
+      // An own option takes no comment, so only the files written before it go in with it.
+      const sent = own != null ? early?.attachments && { attachments: early.attachments } : early;
+      Core.pickWith(qid, fields, own != null ? { other: own, attachments: sent?.attachments } : early || { comment: commentOf(rec) })
+        .then(() => { if (sent) sentEarly(qid, sent); flash(q.format === "multi" ? `Your picks are saved${sent?.comment ? " with your comment" : ""}.` : `Your ranking is saved${sent?.comment ? " with your comment" : ""}.`); })
         .catch(e => { if (draft && !ui.fdraft[qid]) ui.fdraft[qid] = draft; if (ownDraft != null && ui.otherText[qid] == null) ui.otherText[qid] = ownDraft; fail(e); render(); });
     };
     fmtClear.onclick = () => {
