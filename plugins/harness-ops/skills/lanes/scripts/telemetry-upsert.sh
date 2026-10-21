@@ -25,8 +25,10 @@
 #   true rather than aspirational.
 #
 #   Detection is two-tier (mirrors the issue's spec):
-#     1. Primary — a comment whose body contains the exact sentinel above. The
-#        newest such comment wins if (abnormally) several exist.
+#     1. Primary — a comment BY THE WRITE IDENTITY whose body contains the exact
+#        sentinel above. The newest such comment wins if (abnormally) several
+#        exist. The issue is public, so anyone can post the sentinel; another
+#        author's copy is ignored, as restart-consumer.sh ignores it when reading.
 #     2. Fallback — no sentinel yet (first migration off a hand-authored comment):
 #        the most recent comment BY THE AUTHENTICATED USER whose body contains the
 #        raw <MARKER> text. PATCHing it adopts it (adds the sentinel), so the next
@@ -34,7 +36,7 @@
 #        editing another author's comment is neither possible via the API nor
 #        intended, and a single writer identity owns a given marker.
 #
-# WRITE IDENTITY (fallback tier only). "My comments" is the lanes' write identity,
+# WRITE IDENTITY (both tiers). "My comments" is the lanes' write identity,
 # resolved in the order restart-consumer.sh and the babysit-loop upsert use:
 #   1. `gh api user` reports a User: that login (a personal or machine-user token).
 #   2. that call fails or reports a Bot: SLUG[bot] from --app-slug SLUG.
@@ -42,8 +44,7 @@
 #      missing.
 # Anything else, or a login outside [A-Za-z0-9_-] plus an optional [bot], exits 4
 # before anything is written: creating a comment because the existing one could
-# not be recognized is the duplicate this script exists to prevent. A primary-tier
-# sentinel hit needs no identity and never resolves one.
+# not be recognized is the duplicate this script exists to prevent.
 #
 # Usage:
 #   telemetry-upsert.sh --issue N --marker STR --body-file PATH
@@ -69,7 +70,7 @@
 #                    Validated as owner/repo before URL interpolation so a
 #                    traversal value can't redirect the API to another repo.
 #   --app-slug SLUG  The GitHub App whose installation token gh runs under; the
-#                    fallback then reads comments written by SLUG[bot]. Must be
+#                    detection then reads comments written by SLUG[bot]. Must be
 #                    a GitHub App slug ([a-z0-9][a-z0-9-]*), else exit 3.
 #   --dry-run       Resolve + report the action (create/update + target id) but
 #                    perform no write.
@@ -142,7 +143,8 @@
 #      size floor, or starting with a literal `@`) — NOTHING was written
 #   4  prerequisite missing (gh or jq), or the repo / safe body dir / write
 #      identity unresolved (nothing was written)
-#   5  a gh API call (list / create / update) failed
+#   5  a gh API call (list / create / update) failed, or the comment list did
+#      not parse as a JSON array (nothing was written)
 #   6  the write went through but its read-back did not verify (or could not be
 #      performed) — the comment on the issue is NOT confirmed telemetry
 
@@ -401,15 +403,26 @@ resolve_write_identity() {
 # keeps this correct under either shape. `--paginate` itself is what makes an
 # existing comment on page 2 of a busy tracking issue visible; without it we
 # would POST a duplicate, the exact failure this script exists to prevent.
+resolve_write_identity || {
+  err "cannot resolve the lanes' write identity (gh api user failed or reported no User); pass --app-slug under an App token. Nothing was written."
+  exit 4
+}
+
 raw_pages="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" 2>/dev/null)" || {
   err "failed to list comments on $REPO#$ISSUE (gh api)"
   exit 5
 }
-comments="$(jq -s 'add // []' <<<"$raw_pages" 2>/dev/null)" || comments='[]'
+# A list that does not parse is not an empty list: reading it as one would POST
+# a duplicate of the comment it failed to show.
+comments="$(jq -se 'add // [] | if type == "array" then . else error("not an array") end' <<<"$raw_pages" 2>/dev/null)" || {
+  err "comment list on $REPO#$ISSUE did not parse as a JSON array. Nothing was written."
+  exit 5
+}
 
-# Primary: newest comment carrying the exact sentinel.
-target_id="$(jq -r --arg s "$SENTINEL" '
-  [ .[] | select(.body // "" | contains($s)) ] | sort_by(.created_at) | last | .id // empty
+# Primary: newest of MY comments carrying the exact sentinel.
+target_id="$(jq -r --arg s "$SENTINEL" --arg me "$WRITE_IDENTITY" '
+  [ .[] | select((.user.login // "") == $me and (.body // "" | contains($s))) ]
+  | sort_by(.created_at) | last | .id // empty
 ' <<<"$comments")"
 detect="sentinel"
 
@@ -424,10 +437,6 @@ detect="sentinel"
 # play, `lane:triage` must not adopt `lane:triage@laptop-a`'s comment, and
 # `lane:work@a` must not adopt `lane:work@a@b`'s.
 if [[ -z "$target_id" ]]; then
-  resolve_write_identity || {
-    err "cannot resolve the lanes' write identity (gh api user failed or reported no User); pass --app-slug under an App token. Nothing was written."
-    exit 4
-  }
   target_id="$(jq -r --arg m "$MARKER" --arg me "$WRITE_IDENTITY" '
     ($m | gsub("[.]"; "\\.")) as $mre
     | [ .[]

@@ -11,7 +11,9 @@
 #     missing body-file
 #   - write identity (#7999): User login; Bot report + --app-slug; failed user call
 #     + --app-slug; Bot report without a slug; a refused slug (exit 3); an
-#     unresolved identity (exit 4, nothing written); a sentinel hit needs none
+#     unresolved identity (exit 4, nothing written, even with a sentinel present);
+#     another author's sentinel comment is ignored
+#   - a comment list that does not parse exits 5 with nothing written
 #   - --dry-run resolves the action but performs no write
 #   - `-` reads the body from stdin
 #   - missing jq BINARY (not just the in-script wrapper function) exits 4
@@ -361,12 +363,63 @@ assert_contains "an unresolved write identity names --app-slug" "$out" "pass --a
 assert_not_contains "an unresolved identity does not POST" "$log" "method=POST"
 assert_not_contains "an unresolved identity does not PATCH" "$log" "method=PATCH"
 
-# A sentinel hit needs no identity, so it still updates when the user call fails.
+# Detection needs the identity even when a sentinel is present: without it the
+# script cannot tell its own sentinel comment from anyone else's.
 : >"$LOG"
 out="$(STUB_USER_FAIL=1 run "$TMP/has-sentinel.json" 2>&1)"
 rc=$?
-assert_eq "a sentinel hit needs no write identity" 0 "$rc"
-assert_contains "a sentinel hit still updates in place" "$out" "updated comment 222"
+log="$(cat "$LOG")"
+assert_eq "a sentinel present with no write identity exits 4" 4 "$rc"
+assert_not_contains "a sentinel present with no write identity does not PATCH" "$log" "method=PATCH"
+assert_not_contains "a sentinel present with no write identity does not POST" "$log" "method=POST"
+
+# The issue is public: an outsider can post the exact sentinel. Their comment is
+# newer than mine, so a match on the sentinel alone would PATCH it (or exit 5 on
+# the 403); the writer's own sentinel comment is the one updated.
+cat >"$TMP/outsider-sentinel.json" <<JSON
+[
+  { "id": 801, "created_at": "2026-07-20T00:00:00Z", "user": {"login": "octocat"},
+    "body": "$SENT\nlane: triage" },
+  { "id": 802, "created_at": "2026-07-21T00:00:00Z", "user": {"login": "mallory"},
+    "body": "$SENT\nforged" }
+]
+JSON
+: >"$LOG"
+out="$(run "$TMP/outsider-sentinel.json" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "an outsider's newer sentinel comment: exits 0" 0 "$rc"
+assert_contains "an outsider's newer sentinel comment: my own comment is updated" "$log" "method=PATCH url=repos/$REPO/issues/comments/801"
+assert_not_contains "an outsider's newer sentinel comment is never PATCHed" "$log" "comments/802"
+
+# Only an outsider carries the sentinel: it is ignored and a new comment created.
+cat >"$TMP/outsider-only.json" <<JSON
+[
+  { "id": 803, "created_at": "2026-07-21T00:00:00Z", "user": {"login": "mallory"},
+    "body": "$SENT\nforged" }
+]
+JSON
+: >"$LOG"
+out="$(run "$TMP/outsider-only.json" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "only an outsider's sentinel comment: exits 0" 0 "$rc"
+assert_contains "only an outsider's sentinel comment: a new comment is created" "$log" "method=POST url=repos/$REPO/issues/502/comments"
+assert_not_contains "only an outsider's sentinel comment: it is never PATCHed" "$log" "method=PATCH"
+
+# A comment list that does not parse is not an empty list: creating a comment
+# then would duplicate the one the list failed to show.
+for bad_list in 'not json' '{"message":"Bad credentials"}'; do
+  printf '%s\n' "$bad_list" >"$TMP/bad-list.json"
+  : >"$LOG"
+  out="$(run "$TMP/bad-list.json" 2>&1)"
+  rc=$?
+  log="$(cat "$LOG")"
+  assert_eq "list '$bad_list' exits 5" 5 "$rc"
+  assert_contains "list '$bad_list' reports the parse failure" "$out" "did not parse"
+  assert_not_contains "list '$bad_list' does not POST" "$log" "method=POST"
+  assert_not_contains "list '$bad_list' does not PATCH" "$log" "method=PATCH"
+done
 
 # ============================================================================
 # pagination — sentinel comment on a SECOND page is still found (no duplicate)
