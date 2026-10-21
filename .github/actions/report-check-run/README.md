@@ -19,6 +19,7 @@ conclusion is `success`, `failure`, or `neutral` with one skip reason.
 | `head-sha` | `''` | The run job's `head-sha` output; the check is posted on it |
 | `can-commit` | `''` | The run job's `can-commit` output; only `false` skips the signed-commit requirement |
 | `all-verified` | `''` | The `check-signed-commits` `all-verified` output |
+| `unverified` | `''` | The `check-signed-commits` `unverified` output; empty on a failed check means the commits could not be verified |
 | `verdict-path` | `''` | The downloaded `verdict.json`; a missing file is a failure |
 | `base-path` | `.base` | Base-SHA checkout; the skip-reason enum is read from its pr-pipeline schema |
 | `head-sha-fallback` | `${{ github.sha }}` | Head SHA when `head-sha` is empty |
@@ -53,7 +54,8 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
      [`gate-skip-reasons.json`](gate-skip-reasons.json); an unmapped reason fails. A gate stop
      carries no `head-sha`, so the check goes on `head-sha-fallback`.
   6. An unverified or missing signed-commit result when `can-commit` is not `false`,
-     `act-outcome` `failure`, or `dirty-tree: true`: failure. No skip reason overrides these.
+     `act-outcome` `failure`, or `dirty-tree: true`: failure. No skip reason overrides these. A
+     failed signed-commit result with an empty `unverified` list reads "could not be verified".
   7. A verdict `skip-reason`: neutral with that reason when `run-result` is `success` and
      `act-outcome` is `success` (a script that exited 0 with a reason) or `skipped` (the act step
      never ran, so no head code wrote the verdict); failure otherwise.
