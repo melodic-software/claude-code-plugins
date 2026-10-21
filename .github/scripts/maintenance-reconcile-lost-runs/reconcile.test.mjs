@@ -76,10 +76,14 @@ function fakeGitHub({ pulls, runs = [], fail = {} }) {
       const found = runs.filter((r) => r.head_sha === listing[1]);
       return { total_count: found.length, workflow_runs: found };
     }
-    const byWorkflow = /^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/([a-z0-9-]+\.yml)\/runs\?created=%3E%3D2026-10-18T20%3A00%3A00Z&per_page=100$/.exec(path);
+    const byWorkflow = /^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/([a-z0-9-]+\.yml)\/runs\?created=%3E%3D2026-10-18T20%3A00%3A00Z(?:&status=([a-z_]+))?&per_page=100(?:&page=([0-9]+))?$/.exec(path);
     if (method === "GET" && byWorkflow) {
-      const found = runs.filter((r) => r.path === `.github/workflows/${byWorkflow[1]}`);
-      return { total_count: found.length, workflow_runs: found };
+      // Like GitHub, `status` matches a run's status or its conclusion.
+      const found = runs.filter(
+        (r) => r.path === `.github/workflows/${byWorkflow[1]}` && (byWorkflow[2] === undefined || r.status === byWorkflow[2] || r.conclusion === byWorkflow[2]),
+      );
+      const page = Number(byWorkflow[3] ?? 1);
+      return { total_count: found.length, workflow_runs: found.slice((page - 1) * 100, page * 100) };
     }
     const jobs = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/attempts\/1\/jobs\?per_page=100$/.exec(path);
     if (method === "GET" && jobs) {
@@ -447,4 +451,83 @@ test("a non-operational Actions status records nothing", async () => {
   const { outputs, calls } = await reconcile({ pulls: [], runs: [verifyRun(201)], status: statusWith("major_outage") });
   assert.deepEqual(calls, []);
   assert.deepEqual(records(outputs), ["", "", ""]);
+});
+
+// A day of pr-verify runs: succeeded ones, with the given runs among them.
+const verifyDay = (count, lost) =>
+  Array.from({ length: count }, (_, i) => lost.get(i) ?? { ...run(10_000 + i, MAIN_TIP, { path: VERIFY, event: "workflow_run", conclusion: "success" }), head_branch: "main" });
+
+// Lost pr-verify runs, oldest first.
+const lostDay = (count) =>
+  Array.from({ length: count }, (_, i) => verifyRun(1000 + i, { created: new Date(Date.parse("2026-10-19T00:00:00Z") + i * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z") }));
+const lostQueries = (calls) => calls.filter((c) => c.includes("/workflows/pr-verify.yml/runs?") && c.includes("&status=cancelled&"));
+
+test("a lost-run listing of 150 runs over 2 pages is read in full", async () => {
+  const { code, reruns, calls } = await reconcile({ pulls: [], runs: lostDay(150) });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [1000, 1001, 1002]);
+  assert.equal(lostQueries(calls).length, 2);
+});
+
+test("700 succeeded verify runs and 2 lost ones plan the 2 lost runs without hitting the page cap", async () => {
+  const { code, reruns, outputs, calls } = await reconcile({
+    pulls: [],
+    runs: [...verifyDay(700, new Map()), verifyRun(201), verifyRun(202, { created: "2026-10-19T19:00:00Z" })],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [201, 202]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, `reconcile-rerun-202-2-${MAIN_TIP}`, ""]);
+  assert.ok(calls.every((c) => !c.includes("&page=2")));
+});
+
+test("with 700 succeeded runs listed, verify re-runs already queued or in progress still take places", async () => {
+  const { code, reruns } = await reconcile({
+    pulls: [],
+    runs: [
+      ...verifyDay(700, new Map()),
+      verifyRun(209, { status: "in_progress", attempt: 2 }),
+      verifyRun(210, { status: "queued", attempt: 2 }),
+      verifyRun(201),
+      verifyRun(202, { created: "2026-10-19T19:00:00Z" }),
+    ],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [201]);
+});
+
+test("verify re-runs that start while the listing is read still take places", async () => {
+  const queued = [209, 210, 211].map((id) => verifyRun(id, { status: "queued", attempt: 2 }));
+  const { code, reruns } = await reconcile({
+    pulls: [],
+    runs: [...queued, verifyRun(201)],
+    github: (g) => async (method, path, body) => {
+      if (path.includes("/workflows/pr-verify.yml/runs?") && path.includes("&status=queued&")) {
+        for (const r of queued) {
+          r.status = "in_progress";
+        }
+      }
+      return g(method, path, body);
+    },
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, []);
+});
+
+test("a lane listing past the page cap is a failure, and nothing is called lost", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { code, reruns } = await reconcile({ pulls: [], runs: lostDay(501) });
+  const lines = log.mock.calls.map((c) => String(c.arguments[0]));
+  assert.equal(code, 1);
+  assert.deepEqual(reruns, []);
+  assert.ok(lines.some((l) => l.startsWith("::error title=reconcile::.github/workflows/pr-verify.yml:") && l.includes("has more than 5 pages")));
+  assert.ok(!lines.includes("reconcile: nothing lost"));
+  assert.ok(lines.includes("reconcile: 1 listings failed; what was lost is unknown"));
+});
+
+test("act says why it exits 1 when the plan recorded listing failures", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { code } = await reconcile({ pulls: [], runs: lostDay(501) });
+  const errors = log.mock.calls.map((c) => String(c.arguments[0])).filter((l) => l.startsWith("::error title=reconcile::the plan step"));
+  assert.equal(code, 1);
+  assert.deepEqual(errors, ["::error title=reconcile::the plan step recorded 1 listing failures and 0 re-runs failed; see the Find lost runs step"]);
 });

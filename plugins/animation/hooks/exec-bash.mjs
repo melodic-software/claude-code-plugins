@@ -65,6 +65,16 @@
 // Claude Code ignores the exit code when stdout holds a JSON object, and
 // the hook would no longer be reported as an error. Exit 1 is a hook error,
 // not a guard block. A guard's own exit 2 passes through.
+//
+//   --fail-closed                (no value) for a blocking guard row: once bash
+//                                is resolved, any child outcome other than exit
+//                                0 or exit 2 (another exit code, a signal, a
+//                                spawn error) exits 2 with one stderr line, so
+//                                the call is denied. A closed option gate still
+//                                exits 0, and a missing bash still exits 1. On
+//                                Windows, Git Bash reports a death by signal N
+//                                as exit code N << 8 (SIGSEGV is 2816), and the
+//                                line names the signal (msysSignal).
 
 import { spawn } from "node:child_process";
 import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
@@ -187,10 +197,20 @@ const FLAGS = {
 
 const USAGE = "usage: node exec-bash.mjs [--FLAG VALUE]... <script> [args...] (flags: header of exec-bash.mjs)";
 
+// --fail-closed takes no value: it changes what a child failure means, not
+// whether the script runs, so it is not a gate.
+const FAIL_CLOSED = "--fail-closed";
+
 export function parseLaunchArgs(argv) {
   const gates = [];
+  let failClosed = false;
   let i = 0;
-  while (i < argv.length && Object.hasOwn(FLAGS, argv[i])) {
+  while (i < argv.length && (argv[i] === FAIL_CLOSED || Object.hasOwn(FLAGS, argv[i]))) {
+    if (argv[i] === FAIL_CLOSED) {
+      failClosed = true;
+      i += 1;
+      continue;
+    }
     const flag = argv[i];
     const value = FLAGS[flag].parse(argv[i + 1]);
     if (value === null) return { error: `usage: ${flag} ${FLAGS[flag].problem}` };
@@ -199,7 +219,7 @@ export function parseLaunchArgs(argv) {
   }
   const script = argv[i];
   if (!script) return { error: USAGE };
-  return { gates, script, args: argv.slice(i + 1) };
+  return { gates, failClosed, script, args: argv.slice(i + 1) };
 }
 
 const ofPhase = (gates, phase) => gates.filter((gate) => FLAGS[gate.flag].phase === phase);
@@ -453,6 +473,7 @@ const FAILURE_LINES = {
   signal: (c) =>
     `exec-bash: ${c.name} was killed by ${c.detail} before it finished, so it enforced nothing for this call.`,
   usage: (c) => `exec-bash: the launcher itself was called wrongly, so no hook ran: ${c.detail}`,
+  deny: (c) => `exec-bash: ${c.name} failed (${c.detail}), so this call is blocked (--fail-closed).`,
 };
 
 // The one stderr line for a launcher failure. Claude Code shows only the
@@ -464,9 +485,30 @@ export function failureLine(kind, { script = "", bash = "", platform = "", detai
   return FAILURE_LINES[kind]({ name, bash, platform, detail }).replace(/\s+/g, " ").trim();
 }
 
-function fail(line) {
+function fail(line, code = 1) {
   process.stderr.write(`${line}\n`);
-  process.exit(1);
+  process.exit(code);
+}
+
+// Under --fail-closed a child outcome other than exit 0 or exit 2 is a deny:
+// exit 2 with one line naming the script and the cause. Otherwise the launcher
+// failure keeps its exit 1.
+function childFailure(parsed, ctx, kind, detail) {
+  if (parsed.failClosed) fail(failureLine("deny", { ...ctx, detail: kind === "spawn" ? `could not start: ${detail}` : detail }), 2);
+  fail(failureLine(kind, { ...ctx, detail }));
+}
+
+// The POSIX kill numbers that are fixed on every platform, plus SIGSEGV.
+const MSYS_SIGNALS = { 1: "SIGHUP", 2: "SIGINT", 3: "SIGQUIT", 6: "SIGABRT", 9: "SIGKILL", 11: "SIGSEGV", 14: "SIGALRM", 15: "SIGTERM" };
+
+// The signal a Windows Git Bash exit code stands for under --fail-closed, or
+// null. Such a code is N << 8 with N a signal number from 1 to 64, so its low
+// byte is 0; anything else, such as an NTSTATUS crash code (0xC0000005), is
+// not decoded. Without the flag the raw code passes through unchanged.
+export function msysSignal(code, platform, failClosed) {
+  if (!failClosed || platform !== "win32" || !Number.isInteger(code) || code < 0x100 || code > 0x4000 || (code & 0xff) !== 0) return null;
+  const n = code >> 8;
+  return MSYS_SIGNALS[n] ?? `signal ${n}`;
 }
 
 async function main() {
@@ -500,9 +542,11 @@ async function main() {
   };
   process.on("SIGTERM", () => forward("SIGTERM"));
   process.on("SIGINT", () => forward("SIGINT"));
-  child.on("error", (err) => fail(failureLine("spawn", { ...ctx, detail: err.message })));
+  child.on("error", (err) => childFailure(parsed, ctx, "spawn", err.message));
   child.on("exit", (code, signal) => {
-    if (signal) fail(failureLine("signal", { ...ctx, detail: signal }));
+    const killedBy = signal ?? msysSignal(code, platform, parsed.failClosed);
+    if (killedBy) childFailure(parsed, ctx, "signal", killedBy);
+    if (parsed.failClosed && code !== 0 && code !== 2) childFailure(parsed, ctx, "code", `exit ${code}`);
     process.exit(code ?? 1);
   });
 }

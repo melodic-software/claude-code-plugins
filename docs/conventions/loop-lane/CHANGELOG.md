@@ -13,6 +13,15 @@ Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 i
   and the pr-merge lane reads no class: it merges on the verifier verdict at the head and refuses
   fork pull requests, so C5 stays human there too (#6140).
 
+## [12.2.1] - 2026-10-21
+
+Patch. Tightens an existing rule; no topology, escalation-contract, capability-tier or §4
+invariant changed.
+
+- **Unattended merge rung.** The rung comes from the tracked files read at the pull request's base
+  SHA and at the default branch head, the lower of each, so a lowered rung on the default branch
+  reaches pull requests opened before it.
+
 ## [12.2.0] - 2026-10-18
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.

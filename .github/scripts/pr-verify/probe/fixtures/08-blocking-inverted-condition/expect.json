@@ -1,0 +1,7 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "main",
+  "defect": "inverted condition: `if (!project.archived) continue` keeps only archived projects, and the new test asserts `[\"old\"]`, the inversion",
+  "mentions": ["invert", "only (the )?archived", "keeps archived", "returns archived", "opposite", "!project\\.archived"]
+}

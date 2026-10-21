@@ -14,7 +14,7 @@ Code best-practices page offers one Claude writing tests and another writing cod
 The cost is measured in one study only. ImpossibleBench, on benchmark tasks, reports that hiding
 tests during implementation cut cheating to near zero but also degraded legitimate performance,
 while read-only tests kept performance and stopped test edits but not special-casing. The
-read-only half is the default fence (SKILL.md, Dispatch cadence item 1.12). This file is the hidden
+read-only half is the default fence (SKILL.md, Dispatch cadence item 1.13). This file is the hidden
 half, and it inherits the measured trade-off, so a plan turns it on where gaming is the bigger risk:
 an unattended run, a phase whose acceptance criteria are executable, a behavior a worker could
 special-case.
@@ -75,9 +75,9 @@ special-case.
    directory holds no entry other than a regular file or directory
    (`find <holdout>/phase-N ! -type f ! -type d` prints nothing; a symlink is the case this
    catches). A difference it did not make itself (step 6, which records a new hash) is a Major
-   divergence and stops the run. It then creates a detached throwaway worktree at
-   the phase head, never reusing a worker's worktree, and the `phase-verifier` dispatch carries
-   that path, the holdout path, the exact run command, and the criterion each test maps to. When
+   divergence and stops the run. It then creates the throwaway worktree that SKILL.md "Phase
+   boundaries" describes (the full phase state; never a worker's worktree). The `phase-verifier`
+   dispatch carries that path, the holdout path, the exact run command, and the criterion each test maps to. When
    the ecosystem needs the tests inside the tree to build, the orchestrator copies them into the
    throwaway worktree, never into a worker's. It removes the throwaway worktree after the verdict.
 
@@ -88,7 +88,10 @@ special-case.
    never through a package script. For example, `pytest --noconftest -c <holdout>/pytest.ini
    --rootdir <holdout> -p no:cacheprovider`, `vitest run --config <holdout>/vitest.config.ts`, or
    `jest --config <holdout>/jest.config.js`. A runner configuration or test setup file the phase
-   diff adds or changes is a verifier finding (SKILL.md, Dispatch cadence item 1.12).
+   diff adds or changes without sanction is a verifier FAIL under the rule SKILL.md, Dispatch
+   cadence item 1.13, quotes; a sanctioned one is still a finding. The throwaway worktree is not
+   holdout-only: SKILL.md, Phase boundaries, creates it whenever the phase diff touches a test or
+   check file, so the verifier can re-run the check with those paths restored from base.
 
    - **Pointer**: the runners' own flag references:
      [pytest command-line flags](https://docs.pytest.org/en/stable/reference/reference.html#command-line-flags),
@@ -107,4 +110,4 @@ special-case.
    `DEVIATIONS.md` entry. A disputed reading of a criterion is a human-decision entry, and Major
    divergence still stops the run.
 7. **After `[DONE]`.** The tests may be promoted into the repository's suite in a test-only commit.
-   From then on they are existing tests, read-only to later phases' workers under item 1.12.
+   From then on they are existing tests, read-only to later phases' workers under item 1.13.

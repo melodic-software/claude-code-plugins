@@ -18,6 +18,7 @@
 .github/scripts/maintenance-audit-lane-runs
 .github/scripts/maintenance-monitor-signals
 .github/scripts/maintenance-reconcile-lost-runs
+.github/scripts/post-merge-demotion-alert
 .github/scripts/pr-merge
 .github/scripts/pr-unblock
 .github/scripts/pr-verify

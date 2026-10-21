@@ -1,0 +1,7 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "main",
+  "defect": "off by one: `entries.length - MAX_HISTORY + 1` keeps 4 entries, not 5, and the test only checks `<= MAX_HISTORY`",
+  "mentions": ["off.by.one", "four", "\\b4\\b", "\\+ ?1", "only 4", "not 5"]
+}

@@ -449,9 +449,10 @@ declares_both_fixtures B "$CASE_B"
 # Both defenses are body prose, each covered by its own section digest below; no
 # frontmatter key states or qualifies either. `argument-hint` is the slot list
 # `[me|lock|scope|share] [topic]`, with the invocation examples in the body's `Arguments.` line.
+# Adds idea-shaped trigger phrases
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "c7cdb6ad399bfc71c4645d8448ab54e040588034d97fa617ffc895c97ba5120a"
+  "f89db949cdbfbf49e51d4724ecd22b3d0c35d22dd0c5c16e4ea29f9d2c3a4bac"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
 # the top of SKILL.md, where a compaction's re-attach still reaches (#5332;
@@ -503,11 +504,12 @@ done
 # The surface sentence now names the lane table instead of the two "Question surface" rules; it only names where a round is asked.
 # The emoji paragraph states its setting once with an inline fallback for an unexpanded token;
 # it changes how the option is read, not what any round resolves.
+# Idea-stage routing, brainstorm handoff, problem first, withheld why question
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "4e257051ae23cc252fc57d3eef8b7cc47cdc276a3c24d1bc5a91a6755cc665dc"
+  "ce08c11a748528b1b3ae3037f2ba56ca01fa8ca198a6e5f11a21307d0cc10976"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -661,11 +663,12 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # a requirement and resolves nothing new.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The constraint ledger's Re-check bullet revises an open recommendation a new row changes; it resolves no row.
+# PRD seeds the Brief; Variation intent rename
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "b2f8bc7e6c49d500b5efc2ad019d79fe322e9aeef710fe094fc0a3719f8f99f9"
+  "106bd557fc1336e3faf59a833f98ed4d6ea5c4461d818df8f600f026bdab2c7c"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Cause: release 4.18.2 on acme-eu lowered PAYMENTS_TIMEOUT_MS from 3000 to 800, so gateway calls at about 801 ms now fail with 502.",
+      "why": "names the tenant and the timeout change"
+    },
+    {
+      "answer": "The spike is acme-eu only, and it starts at the 4.18.2 deploy.",
+      "why": "names the tenant and the release"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Cause: an outage at the payments provider. Open a ticket with them.",
+      "why": "repeats the shallow conclusion"
+    },
+    {
+      "answer": "The errors follow the 4.18.2 deploy, which changed a timeout.",
+      "why": "does not name the affected tenant"
+    }
+  ]
+}

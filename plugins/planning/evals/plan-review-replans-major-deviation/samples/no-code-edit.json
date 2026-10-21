@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".work/photo-backup/PLAN.md",
+            "old_string": "### Phase 2: Batch upload [DOING]",
+            "new_string": "### Phase 2: Upload one photo per call [TODO]"
+          }
+        }
+      ],
+      "why": "editing the plan is allowed"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "app/backup.py",
+            "old_string": "def ",
+            "new_string": "def changed_"
+          }
+        }
+      ],
+      "why": "edited source code during a review"
+    }
+  ]
+}

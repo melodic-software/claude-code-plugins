@@ -6,7 +6,7 @@ expected_outcome: Multiple ordered candidates, each naming a file or mechanism i
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/planning:brainstorm we should speed up nightly ETL — I think we need a bigger warehouse or more workers."
+  prompt: "/planning:brainstorm we should speed up nightly ETL — I think we need a bigger warehouse or more workers. Yes, slow nightly ETL is the problem. Why: the morning reports arrive late. Those are my own first ideas. Go ahead with candidates."
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 30
   timeout_seconds: 900

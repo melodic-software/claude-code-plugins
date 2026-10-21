@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Pictures on a question and the shared display parts, against `share.sh ensure-running` with the fake cloudflared:
-// a picture pasted into the answer box shows in its uploader's file row as the thumbnail her browser made; a draft's
+// a picture pasted into the answer box shows once, as its tile in the answer, with the thumbnail her browser made; a draft's
 // picture shows under no question and reads back to nobody else, and the x on its chip removes it for good; a picture
 // from before attachments that nothing carried shows under its question to the owner (with Approve picture) and its
 // uploader (with Remove), and to another guest only once approved; the round-ready note names "You" by person, not by name, so a second
@@ -90,8 +90,10 @@ async function main() {
     // ---------- B5: the uploader's row shows the thumbnail her browser made ----------
     await paste(ann, "#vf-answer");
     const uid = await pasted(ann, 1);
-    ok("the pasted picture's row shows the thumbnail made in her browser while it waits for the host", await until(ann, () => [...document.querySelectorAll(".vf-upstrip .vf-uprow")]
-      .some(r => /Waiting for the host/.test(r.textContent) && r.querySelector(".vf-upthumb:not([hidden]) img")?.getAttribute("src")?.startsWith("data:image/")), null, 10000));
+    ok("the pasted picture's tile shows the thumbnail made in her browser while it waits for the host", await until(ann, () => [...document.querySelectorAll(".vf-composer .vf-attdraft .vf-ref")]
+      .some(r => /Waiting for the host/.test(r.textContent) && r.querySelector(".vf-uppic-wait img:not([hidden])")?.getAttribute("src")?.startsWith("data:image/")), null, 10000));
+    ok("  and shows once: no file row repeats it under the answer (sweep S17)", await ann.evaluate(() => ![...document.querySelectorAll(".vf-upstrip .vf-uprow")].some(r => /Waiting for the host/.test(r.textContent))),
+      await ann.evaluate(() => JSON.stringify({ rows: [...document.querySelectorAll(".vf-upstrip .vf-uprow")].map(r => r.textContent), draft: window.Core.snapshot().myUploads?.map(u => [u.id, u.status?.kind, u.file]) })));
     await owner.evaluate(id => window.Core.uploadAct(id, "accept"), uid);
     ok("accepted, it arrives", await until(ann, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), uid, 20000));
 

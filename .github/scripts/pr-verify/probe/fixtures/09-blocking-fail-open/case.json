@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`isAllowedHost(host)` throws when `allowlist.txt` is missing, and the install command crashes with a stack trace.\n\n## Fix\n\nCatch the read error. When the allowlist is missing or unreadable, deny every host: `isAllowedHost` returns `false` and logs one warning naming the file. Never allow a host the list was not read for.\n\n## Done when\n\n- [ ] A missing or unreadable allowlist denies every host and warns.\n- [ ] A test covers the missing-file case."
+  },
+  "pr": {
+    "title": "fix(sample-kit): stop crashing when the allowlist is missing",
+    "body": "Catches the allowlist read error and warns instead of crashing, with a test."
+  }
+}

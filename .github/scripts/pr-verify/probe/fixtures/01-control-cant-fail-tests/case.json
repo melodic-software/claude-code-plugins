@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\nTwo tests in `plugins/sample-kit/scripts/slugify.test.mjs` cannot fail: `lowercases input` calls `slugify` and then asserts `assert.ok(true)`, and `trims dashes` compares `slugify(input)` with itself.\n\n## Fix\n\nMake both assert real behavior:\n\n- `slugify(\"Hello World\")` is `hello-world`;\n- `slugify(\"--a--\")` is `a`.\n\n## Done when\n\n- [ ] Both tests assert the values above.\n- [ ] `slugify.mjs` is unchanged."
+  },
+  "pr": {
+    "title": "test(sample-kit): make the two slugify tests assert behavior",
+    "body": "Rewrites the two slugify tests that could not fail so each asserts the value the issue gives. No change to slugify.mjs."
+  }
+}

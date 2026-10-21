@@ -138,7 +138,10 @@ jq -e 'has("args")' <<<"$HOOK_JSON" >/dev/null && HOOK_EXEC=1
   exit 2
 }
 
-WORK="$(mktemp -d)"
+# No dot before the random part: mktemp's default `tmp.XXXXXXXXXX` can draw a
+# suffix starting `md`, putting `.md` in the payload's @DIR@ paths and defeating
+# a launcher that skips on that text (#8425).
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/hook-census-XXXXXXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 # One assistant record, repeated. Whole lines only, so a reader that parses
@@ -148,7 +151,7 @@ LINE='{"type":"assistant","message":{"role":"assistant","content":[{"type":"text
 # census_once <transcript-bytes> <spawns|transcript-bytes>: prints the count.
 census_once() {
   local bytes="$1" mode="$2" run
-  run="$(mktemp -d "$WORK/run.XXXXXX")"
+  run="$(mktemp -d "$WORK/run-XXXXXX")"
   local dir="$run/repo" transcript="$run/transcript.jsonl"
   mkdir -p "$dir" "$run/home" "$run/tmp" "$run/data"
   git init -q "$dir"
