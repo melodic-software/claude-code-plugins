@@ -1025,9 +1025,27 @@ function main(config, argv) {
 
   // An unbound repository is offered the pointer region and the overlay ignore
   // line, written in the same step as the file.
-  const offer = state === "unbound" ? { region: planRegion(regionLines(true)), ignore: planIgnore() } : null;
+  // Without --yes nothing in the offer is written, so a plan the writer would
+  // refuse (a symlinked AGENTS.md or .gitignore) does not stop the settings
+  // file; the refusal is printed in place of the offer.
+  let offer = null;
+  let offerRefused = null;
+  if (state === "unbound") {
+    try {
+      offer = { region: planRegion(regionLines(true)), ignore: planIgnore() };
+    } catch (e) {
+      if (!(e instanceof Refusal) || opts.yes) throw e;
+      offerRefused = e.message.replace(/;? ?nothing written$/, "");
+    }
+  }
   // pending: the settings file waits for --yes too, so the offer lists it.
   const printOffer = (pending) => {
+    if (offer === null) {
+      process.stdout.write(
+        printable(`No convention home is bound in this repository, and setup cannot add the pointer region: ${offerRefused}. Add the region by hand, or re-run with --home <dir>.\n`),
+      );
+      return;
+    }
     const { region, ignore } = offer;
     process.stdout.write(
       printable(
@@ -1046,7 +1064,8 @@ function main(config, argv) {
     );
   };
 
-  if (!changes && index === null && offer === null) {
+  const unbound = offer !== null || offerRefused !== null;
+  if (!changes && index === null && !unbound) {
     process.stdout.write(`${rel}: already configured; nothing written\n`);
     return 0;
   }
@@ -1054,7 +1073,7 @@ function main(config, argv) {
   // Without --yes a missing settings file is still created; changing an
   // existing file or index waits, and so does a file in a --home the pointer
   // does not name yet, since an unbound repository reads docs/conventions.
-  const strandedHome = offer !== null && home !== DEFAULT_HOME;
+  const strandedHome = unbound && home !== DEFAULT_HOME;
   if (!opts.yes && ((existing !== null && changes) || (index !== null && index.existing !== null) || strandedHome)) {
     if (existing !== null && changes) {
       const diff = spawnSync("diff", ["-u", "--label", `a/${rel}`, "--label", `b/${rel}`, join(root, rel), "-"], {
@@ -1067,7 +1086,7 @@ function main(config, argv) {
     if (index !== null && index.existing !== null) {
       process.stdout.write(`${indexRel} exists and would list ${name}; nothing written. Re-run with --yes once the operator confirms.\n`);
     }
-    if (offer !== null) printOffer(true);
+    if (unbound) printOffer(true);
     return 3;
   }
 
@@ -1081,7 +1100,7 @@ function main(config, argv) {
     writeFile(indexRel, index.proposed, index.existing);
     process.stdout.write(`wrote ${indexRel}: listed ${name}\n`);
   }
-  if (offer !== null && !opts.yes) {
+  if (unbound && !opts.yes) {
     // Printed after the settings write, so a refusal there stays one line.
     printOffer(false);
     return 0;

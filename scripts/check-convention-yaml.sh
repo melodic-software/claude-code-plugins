@@ -82,12 +82,15 @@ fi
 # default branch (origin/HEAD, then origin/main). Where none resolves (a clone
 # with no origin, a fixture repository) only the working tree's pointer is
 # read; in CI (GITHUB_ACTIONS=true or a GITHUB_BASE_REF) that is exit 2.
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 base_branch="origin/${GITHUB_BASE_REF:-}"
 if [[ -z "${GITHUB_BASE_REF:-}" ]]; then
   base_branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" || base_branch=origin/main
 fi
 merge_base=""
-if git rev-parse --verify --quiet --end-of-options "$base_branch^{commit}" >/dev/null 2>&1; then
+# shellcheck disable=SC2310  # the non-zero return IS the handled case
+if changed_files::verify_base "$base_branch"; then
   merge_base="$(git merge-base HEAD "$base_branch" 2>/dev/null)" || merge_base=""
 fi
 if [[ -z "$merge_base" && ("${GITHUB_ACTIONS:-}" == true || -n "${GITHUB_BASE_REF:-}") ]]; then
