@@ -928,8 +928,9 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   reported as a date, never converted to a length of time.
 - **Verdicts:**
   - `launched`: a launch record names the app: its AppUserModelID for a packaged app; for a Win32
-    app, its DisplayIcon executable or a path under its install folder (a folder only one level
-    below a drive root holds many apps and never matches).
+    app, its DisplayIcon executable or a path under its install folder. An install folder too
+    shallow to belong to one app never matches; the depth floor is in
+    `scripts/windows/checks/Test-AppLastUse.ps1`.
   - `no-launch-recorded`: UserAssist read, the app could have appeared in it, and did not. Shown
     as "no launch recorded since <evidence_start>".
   - `no-evidence`: UserAssist did not read, or nothing could name the app in it: a packaged app
