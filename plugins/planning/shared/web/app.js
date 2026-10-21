@@ -1075,7 +1075,9 @@
     const forLegend = E("legend", null, "Who must answer (no one ticked asks everyone)"), forList = E("div", "vf-forlist");
     forBox.append(forLegend, forList);
     forBtn.onclick = () => { ui.forOpen = ui.forOpen === ui.cur ? "" : ui.cur; render(); };
-    qMeta.append(qPos, qPurpose, purposeSel.w, qFor, forBtn, qFrom, qDeps, qSug, qHost);
+    // the purpose and who it asks, one group: on a phone it wraps to its own row as a whole (app.css .vf-qtools)
+    const qTools = E("span", "vf-qtools"); qTools.append(qPurpose, purposeSel.w, qFor, forBtn);
+    qMeta.append(qPos, qTools, qFrom, qDeps, qSug, qHost);
     const qText = E("h1", "vf-qtext"); qText.tabIndex = -1;
     // F:30: the background Claude wrote for the question (its stored `context`), under the question, clamped like any long text
     const qCtx = clampBox("vf-qctx"); qCtx.hidden = true;
@@ -7200,6 +7202,7 @@
         forBtn.textContent = asked.length ? "Change who" : "Ask someone";
         forBtn.setAttribute("aria-expanded", String(ui.forOpen === q.id));
         forBox.hidden = forBtn.hidden || ui.forOpen !== q.id;
+        qTools.hidden = qPurpose.hidden && purposeSel.w.hidden && qFor.hidden && forBtn.hidden;
         if (!forBox.hidden) {
           const people = Object.keys(S.people).filter(p => !(S.removed || []).includes(p));
           sync(forList, people, p => p, p => {
@@ -7384,7 +7387,7 @@
         agreeTxt.classList.toggle("vf-agree-all", !!topA && agreeN === here.length);
       } else {
         qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = qCtx.hidden = true; qText.textContent = "No questions yet";
-        qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
+        qTools.hidden = qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
         onItTxt.textContent = ""; ansCount.textContent = ""; aEmpty.hidden = true; lockBox.hidden = true; lockBtn.hidden = true;
         reviewRow.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;
       }
