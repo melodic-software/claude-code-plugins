@@ -55,7 +55,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-async function check({ api = load(), since = B, routes = routesFrom(api, since), label } = {}) {
+async function check({ api = load(), since = B, routes = routesFrom(api, since), label, log = () => {} } = {}) {
   const outputPath = path.join(dir, "output");
   writeFileSync(outputPath, "");
   const github = fakeGitHub(routes);
@@ -66,7 +66,7 @@ async function check({ api = load(), since = B, routes = routesFrom(api, since),
     GITHUB_OUTPUT: outputPath,
     ...(label === undefined ? {} : { ESCALATION_LABEL: label }),
   };
-  const code = await main({ env, github, log: () => {}, sleep: async () => {} });
+  const code = await main({ env, github, log, sleep: async () => {} });
   return { code, outputs: readOutputs(readFileSync(outputPath, "utf8")), github };
 }
 
@@ -408,6 +408,24 @@ test("a PR head that never matches its branch fails closed, even for a lane with
   assert.equal(github.reads.filter((read) => read.endsWith("/pulls/42")).length, 5);
   assert.ok(!github.reads.some((read) => read.includes("/compare/")));
   assert.match(github.writes.at(-1).body.body, /head did not match its branch/);
+});
+
+test("a PR head that never matches its branch reads as could not verify, not as unverified commits", async () => {
+  const api = load();
+  api.headRef.object.sha = "f".repeat(40);
+  for (const commit of api.commits) {
+    commit.commit.verification.verified = true;
+  }
+  const lines = [];
+  const { code, outputs, github } = await check({ api, log: (line) => lines.push(line) });
+  assert.equal(code, 0);
+  assert.equal(outputs["all-verified"], "false");
+  assert.equal(outputs.unverified, "");
+  assert.ok(lines.some((line) => /could not verify/.test(line)));
+  assert.ok(!lines.some((line) => /unverified commits|no comparison from the recorded head/.test(line)));
+  const comment = github.writes.at(-1).body.body;
+  assert.match(comment, /could not be verified/);
+  assert.doesNotMatch(comment, /not GitHub-verified/);
 });
 
 test("a PR read that lags the branch is re-read until its head matches", async () => {
