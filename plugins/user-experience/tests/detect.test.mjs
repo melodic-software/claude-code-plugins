@@ -662,6 +662,22 @@ describe("team paths may not start with a dot (.claude, .git, .env, .aws)", () =
     assert.deepEqual(team.research_paths, []);
   });
 
+  for (const value of ["docs/.env", "docs/.claude/x", "a/b/.git"]) {
+    test(`a dot segment anywhere in the path is dropped for both keys: ${value}`, () => {
+      const team = run(`version: 1\noutput_home: ${value}\nresearch_paths:\n  - ${value}\n`);
+      assert.equal(team.output_home, null);
+      assert.deepEqual(team.research_paths, []);
+      const dropped = team.warnings.filter((w) => w.includes(JSON.stringify(value)) && w.includes("starts with a dot"));
+      assert.equal(dropped.length, 2, team.warnings.join("\n"));
+    });
+  }
+
+  test("a normal nested path is kept for both keys", () => {
+    const team = run("version: 1\noutput_home: docs/research/notes\nresearch_paths:\n  - docs/research/notes\n");
+    assert.equal(team.output_home, "docs/research/notes");
+    assert.deepEqual(team.research_paths, ["docs/research/notes"]);
+  });
+
   test("a symlink inside the project that points at a dot-directory cannot carry a path there", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
     const project = mkdtempSync(join(scratch, "reserved-dot-link-"));
     mkdirSync(join(project, ".aws"));
@@ -687,7 +703,7 @@ describe("team paths may not start with a dot (.claude, .git, .env, .aws)", () =
     });
   }
 
-  for (const missing of ["rootlink/.claude", "rootlink/.github/workflows"]) {
+  for (const missing of ["rootlink/.claude", "rootlink/.github/workflows", "rootlink/docs/.claude"]) {
     test(`a missing path under a link to the root resolves to a dot path and is dropped for both keys: ${missing}`, { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
       const project = mkdtempSync(join(scratch, "reserved-missing-dot-"));
       symlinkSync(".", join(project, "rootlink"));
