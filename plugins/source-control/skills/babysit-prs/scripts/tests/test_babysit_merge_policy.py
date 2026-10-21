@@ -3463,7 +3463,9 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
                 self.assertEqual(details["cap"], 5)
                 self.assertEqual(details["capSource"], "default-branch")
 
-    def test_an_unreadable_head_config_refuses(self) -> None:
+    def test_an_unreadable_head_config_refuses_and_an_unparsable_one_stops(
+        self,
+    ) -> None:
         for answer in (502, file_payload("merge: [unclosed\n")):
             with self.subTest(answer=answer):
                 gh = self.moved(answer)
@@ -3474,8 +3476,14 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
                         )
                     )
                 )
-                with self.assertRaises(policy.PolicyReadError):
-                    self.cap()
+                if answer == 502:
+                    with self.assertRaises(policy.PolicyReadError):
+                        self.cap()
+                    continue
+                self.lane_clear()
+                result = self.lane_assess(post_merge=lambda floor, who: gate())
+                self.assertEqual(result.reason, "default-branch-unreadable")
+                policy.in_flight.assert_not_called()
 
     def test_the_heads_cap_is_shared_per_cache_window_and_a_failure_never(
         self,
@@ -3731,12 +3739,21 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         self.assertIs(result.enabled, False)
 
     def test_an_unreadable_main_config_refuses(self) -> None:
-        for main in (502, "merge: [unclosed\n"):
+        self.moved(LOOSE_PIPELINE, 502)
+        self.lane_clear()
+        with self.assertRaises(policy.PolicyReadError):
+            self.lane_assess(post_merge=lambda floor, who: gate())
+
+    def test_an_unparsable_main_config_stops(self) -> None:
+        duplicate = LOOSE_PIPELINE.replace("merge:\n", "merge:\n  rung: C2\n")
+        for main in ("merge: [unclosed\n", duplicate):
             with self.subTest(main=main):
                 self.moved(LOOSE_PIPELINE, main)
                 self.lane_clear()
-                with self.assertRaises(policy.PolicyReadError):
-                    self.lane_assess(post_merge=lambda floor, who: gate())
+                result = self.lane_assess(post_merge=lambda floor, who: gate())
+                self.assertEqual(result.reason, "default-branch-unreadable")
+                self.assertIs(result.enabled, False)
+                self.assertEqual(result.inputs["identity"], IDENTITY)
 
     def test_an_unreadable_main_head_refuses(self) -> None:
         gh = self.moved(LOOSE_PIPELINE, LOOSE_PIPELINE)
@@ -3745,13 +3762,15 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         with self.assertRaises(policy.PolicyReadError):
             self.lane_assess(post_merge=lambda floor, who: gate())
 
-    def test_a_different_identity_on_main_refuses(self) -> None:
+    def test_a_different_identity_on_main_stops(self) -> None:
         self.moved(
             LOOSE_PIPELINE, LOOSE_PIPELINE.replace("agent-lanes[bot]", "other[bot]")
         )
         self.lane_clear()
-        with self.assertRaises(policy.PolicyReadError):
-            self.lane_assess(post_merge=lambda floor, who: gate())
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertEqual(result.reason, "authority-differs")
+        self.assertIs(result.enabled, False)
+        self.assertEqual(result.inputs["identity"], IDENTITY)
 
     def test_the_plain_merge_identity_read_names_both_identities(
         self,
