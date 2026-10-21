@@ -110,9 +110,92 @@ def token_file_problem(path):
         return f"the tunnel token file {path} is not a file with a token in it"
     if not os.access(p, os.R_OK):
         return f"the tunnel token file {path} cannot be read"
-    if not detached.WINDOWS and st.st_mode & 0o077:
+    if detached.WINDOWS:
+        return _acl_problem(path)
+    if st.st_mode & 0o077:
         return f"the tunnel token file {path} can be read by other users: run chmod 600 on it"
     return None
+
+
+WINDOWS_ALLOWED = ("S-1-5-18", "S-1-5-32-544", "S-1-3-4")  # SYSTEM, Administrators and OWNER RIGHTS, beside the user
+
+
+def _acl_problem(path):
+    """Why the token file's Windows DACL lets more than this user, the file's owner, SYSTEM and Administrators in, or None."""
+    got = _windows_acl(path)
+    if got is None:
+        return f"the permissions of the tunnel token file {path} cannot be read"
+    me, sids = got
+    others = sorted(set(sids) - {me, *WINDOWS_ALLOWED})
+    if others:
+        return (
+            f"the tunnel token file {path} can be read by others ({', '.join(others)}): allow only your account, SYSTEM and"
+            f' Administrators (icacls "{path}" /inheritance:r /grant:r "%USERNAME%:F" SYSTEM:F *S-1-5-32-544:F)'
+        )
+    return None
+
+
+def _windows_acl(path):
+    """(this user's SID, the SIDs the file's DACL allows access) as strings, or None when either cannot be read.
+    Deny and inherit-only entries are skipped; no DACL at all, which allows everyone, reads as Everyone (S-1-1-0), and
+    an allow entry of another kind as "?". Win32 calls through ctypes, as the stdlib has no ACL reader:
+    https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-getfilesecurityw"""
+    import ctypes
+    from ctypes import wintypes
+
+    advapi = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi.GetFileSecurityW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    advapi.GetSecurityDescriptorDacl.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.BOOL), ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.BOOL)]
+    advapi.GetAce.argtypes = [ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p)]
+    advapi.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.LPWSTR)]
+    advapi.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    advapi.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.LocalFree.argtypes = [ctypes.c_void_p]
+
+    def sid_text(sid):
+        out = wintypes.LPWSTR()
+        if not advapi.ConvertSidToStringSidW(sid, ctypes.byref(out)):
+            return None
+        try:
+            return out.value
+        finally:
+            kernel.LocalFree(out)
+
+    token = wintypes.HANDLE()
+    if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), 0x0008, ctypes.byref(token)):  # TOKEN_QUERY
+        return None
+    try:
+        need = wintypes.DWORD()
+        advapi.GetTokenInformation(token, 1, None, 0, ctypes.byref(need))  # TokenUser
+        buf = ctypes.create_string_buffer(need.value or 1)
+        if not advapi.GetTokenInformation(token, 1, buf, need, ctypes.byref(need)):
+            return None
+        me = sid_text(ctypes.c_void_p.from_buffer(buf).value)  # TOKEN_USER starts with the user's PSID
+    finally:
+        kernel.CloseHandle(token)
+    need = wintypes.DWORD()
+    advapi.GetFileSecurityW(path, 4, None, 0, ctypes.byref(need))  # DACL_SECURITY_INFORMATION
+    if not me or not need.value:
+        return None
+    sd = ctypes.create_string_buffer(need.value)
+    present, defaulted, acl = wintypes.BOOL(), wintypes.BOOL(), ctypes.c_void_p()
+    if not advapi.GetFileSecurityW(path, 4, sd, need, ctypes.byref(need)) or not advapi.GetSecurityDescriptorDacl(sd, ctypes.byref(present), ctypes.byref(acl), ctypes.byref(defaulted)):
+        return None
+    if not present.value or not acl.value:
+        return me, ["S-1-1-0"]
+    sids = []
+    for i in range(ctypes.c_uint16.from_address(acl.value + 4).value):  # ACL.AceCount
+        ace = ctypes.c_void_p()
+        if not advapi.GetAce(acl, i, ctypes.byref(ace)):
+            return None
+        kind, flags = ctypes.c_uint8.from_address(ace.value).value, ctypes.c_uint8.from_address(ace.value + 1).value
+        if kind == 1 or flags & 0x08:  # ACCESS_DENIED_ACE_TYPE, INHERIT_ONLY_ACE
+            continue
+        sids.append((sid_text(ace.value + 8) or "?") if kind == 0 else "?")  # ACCESS_ALLOWED_ACE: header, mask, then the SID
+    return me, sids
 
 
 def config(rec):

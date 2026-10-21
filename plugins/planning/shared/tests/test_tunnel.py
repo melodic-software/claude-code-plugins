@@ -449,6 +449,40 @@ class TestNamed(TunnelCase):
         self.assertIsNone(tunnel.hostname_problem("planning-interview.melodicsoftware.com"))
 
 
+ME = "S-1-5-21-1-2-3-1001"  # a user's SID, as a fixture
+
+
+class TestWindowsTokenFileAcl(unittest.TestCase):
+    """On Windows the token file may be readable by its user, its owner (OWNER RIGHTS), SYSTEM and Administrators only,
+    as chmod 600 means on POSIX. The ACL reader is mocked here; the Windows-only test below runs the real one."""
+
+    def problem(self, acl):
+        f = tmpdir(self) / "tunnel.token"
+        f.write_text(TOKEN_TEXT, encoding="utf-8")
+        with mock.patch.object(detached, "WINDOWS", True), mock.patch.object(tunnel, "_windows_acl", return_value=acl):
+            return tunnel.token_file_problem(str(f))
+
+    def test_the_user_owner_system_and_administrators_pass(self):
+        self.assertIsNone(self.problem((ME, [ME, "S-1-5-18", "S-1-5-32-544", "S-1-3-4"])))
+
+    def test_any_other_reader_is_refused_by_sid(self):
+        for other in ("S-1-5-32-545", "S-1-1-0", "S-1-5-11", "?"):
+            with self.subTest(other=other):
+                self.assertIn(f"can be read by others ({other})", self.problem((ME, [ME, "S-1-5-18", other])) or "")
+
+    def test_permissions_that_cannot_be_read_are_refused(self):
+        self.assertIn("cannot be read", self.problem(None) or "")
+
+    @unittest.skipUnless(WINDOWS, "the real ACL reader needs Windows")
+    def test_the_real_reader_passes_a_private_file_and_refuses_one_everyone_reads(self):
+        f = tmpdir(self) / "tunnel.token"
+        f.write_text(TOKEN_TEXT, encoding="utf-8")
+        subprocess.run(["icacls", str(f), "/inheritance:r", "/grant:r", f"*{tunnel._windows_acl(str(f))[0]}:F"], check=True, capture_output=True)
+        self.assertIsNone(tunnel.token_file_problem(str(f)))
+        subprocess.run(["icacls", str(f), "/grant", "*S-1-1-0:R"], check=True, capture_output=True)
+        self.assertIn("S-1-1-0", tunnel.token_file_problem(str(f)) or "")
+
+
 class TestSwitch(TunnelCase):
     """A switch to another address keeps the old tunnel running as `retired` for RETIRE_SECONDS, so pages open there
     can move with their identity; a restart at the same address retires nothing."""

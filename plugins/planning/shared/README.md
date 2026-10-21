@@ -90,7 +90,7 @@ through two planning plugin options, set in that machine's user settings (`plugi
 The skill passes them as `ensure-running --tunnel-hostname H --tunnel-token-file F`; an
 `ensure-running` without `--tunnel-hostname` keeps the tunnel the session already runs, and only an
 empty `--tunnel-hostname ''` goes back to the quick tunnel. share.py
-checks the file (it exists, is not empty, and on macOS and Linux no other user can read it) but
+checks the file (it exists, is not empty, and no other user can read it) but
 never reads it: cloudflared does, through
 [`--token-file`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/)
 (cloudflared 2025.4.0 or later), so the token is on no command line and in no output. Neither cloudflared nor the server inherits `TUNNEL_TOKEN`,
@@ -148,9 +148,9 @@ as new people, and the owner can merge each with their earlier self.
 cloudflared install commands per platform are in the plugin's `prerequisites.json`; check
 `cloudflared --version` is 2025.4.0 or later.
 
-- **Windows.** Keep the token file under your user profile folder: share.py skips the permission
-  check there, so the folder's own access rules keep it private. `python share.py` runs without
-  bash; `python cfdns.py` likewise.
+- **Windows.** The token file's access list may name only you, the file's owner, SYSTEM and
+  Administrators; share.py refuses any other entry and prints the `icacls` command that fixes it.
+  `python share.py` runs without bash; `python cfdns.py` likewise.
 - **macOS and Linux.** `chmod 600` the token file; share.py refuses one other users can read.
 
 ## The state file is not versioned
