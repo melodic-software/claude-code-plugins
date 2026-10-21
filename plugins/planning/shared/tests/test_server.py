@@ -36,6 +36,8 @@ HTML_ASSET_CSP = (
     "connect-src 'none'; frame-ancestors 'self'"
 )
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
+# Sleeps past the one-write-a-second limit: time.sleep(WRITE_INTERVAL) can read as a hair under it on the throttle's time.time clock.
+PAST_WRITE = session.WRITE_INTERVAL + 0.05
 
 
 def raw_exchange(port, data, *, wait=5.0):
@@ -338,11 +340,11 @@ class TestFormatsAndPresenceRoutes(ServerCase):
 
     def test_multi_scale_and_rank_picks_travel_in_their_own_fields(self):
         self.assertEqual(self.pick({"qid": "Q1", "options": ["opt-2", "other"], "other": "Price"})[2], {"ok": True, "picks": ["opt-2", "other"]})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         self.assertEqual(self.pick({"qid": "Q2", "value": 4})[2], {"ok": True, "value": 4})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         self.assertEqual(self.pick({"qid": "Q3", "order": ["opt-3", "opt-1", "opt-2"]})[2], {"ok": True, "order": ["opt-3", "opt-1", "opt-2"]})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         code, _, out = self.pick({"qid": "Q3", "order": ["opt-3"]})
         self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "order"))
 
@@ -1907,11 +1909,11 @@ class TestUploads(ServerCase):
             self.assertEqual(self.chunk(self.ann, done, i)[0], 200)
         code, _, out = self.post("/api/answer", {"qid": "Q1", "text": "The funnel.", "view": "focus", "attachments": [done]}, self.ann)
         self.assertEqual(code, 200, out)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         sending = self.accepted(self.ann, name="b.pdf")
         self.assertEqual(self.chunk(self.ann, sending, 0)[0], 200)
         offered = self.offer(self.bo)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         declined = self.accepted(self.bo, name="c.pdf")
         self.assertEqual(self.chunk(self.bo, declined, 0)[0], 200)
         self.post("/api/upload/act", {"id": declined, "action": "decline"}, self.owner)
@@ -1948,10 +1950,10 @@ class TestUploads(ServerCase):
                 self.assertEqual(self.chunk(who, uid, i, pic)[0], 200)
         for uid in (shown, hidden):
             self.assertEqual(self.post("/api/upload/act", {"id": uid, "action": "approve"}, self.owner)[0], 200)
-            time.sleep(session.WRITE_INTERVAL)
+            time.sleep(PAST_WRITE)
         code, _, out = self.post("/api/chat", {"text": "Look", "attachments": [shown]}, self.ann)
         self.assertEqual(code, 200, out)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         code, _, out = self.post("/api/discussion", {"qid": "Q1", "text": "Mine", "attachments": [hidden]}, self.bo)
         self.assertEqual(code, 200, out)
         self.assertEqual(self.post("/api/discussion/hide", {"qid": "Q1", "id": out["id"], "on": True}, self.owner)[0], 200)
@@ -1994,7 +1996,7 @@ class TestUploads(ServerCase):
 
     def test_one_piece_per_person_is_read_at_a_time(self):
         first = self.accepted(self.ann)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         second = self.accepted(self.ann, name="b.pdf")
         piece = self.DATA[:self.CHUNK]
         head = "".join(f"{k}: {v}\r\n" for k, v in {"Host": f"127.0.0.1:{self.port}", "Content-Length": str(len(piece)), **self.chunk_headers(self.ann, first, 0, piece)}.items())
