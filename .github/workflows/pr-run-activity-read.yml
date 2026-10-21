@@ -289,6 +289,10 @@ jobs:
     # code) is forgeable: the scan job takes those only through checks.
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
+      # The default branch tip this run checked out before any head code: the
+      # commit default-tip mode trusts, whatever mode the caller passed. The
+      # scan job reads the leak-scan gate at it, never at an older base.
+      default-tip-sha: ${{ steps.base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
       pr-number: ${{ steps.gate.outputs.pr-number }}
       gate-reason: >-
@@ -1732,9 +1736,11 @@ jobs:
       # the patch text. git here never reads the checkout's config, hooks or
       # info files (a fresh repository borrows only its objects, and the
       # patch applies onto a copy of the head's objects each named by its
-      # own hash), and lib/publish-gate.mjs comes from the API at the trusted
-      # base SHA, with the job's read-only token, into a fresh directory,
-      # and must import only node: builtins. A credential format fails the
+      # own hash), and lib/publish-gate.mjs comes from the API at the default
+      # branch tip the run job checked out (default-tip-sha; a missing or
+      # malformed one fails the scan closed), never an older PR base, with
+      # the job's read-only token, into a fresh directory, and must import
+      # only node: builtins. A credential format fails the
       # step naming the pattern, never the value, and says to rotate it; a
       # patch that does not apply, or a scan that does not finish (the
       # timeout included), fails it with no rotation; every upload and
@@ -1747,7 +1753,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          BASE_SHA: ${{ needs.run.outputs.base-sha }}
+          GATE_SHA: ${{ needs.run.outputs.default-tip-sha }}
           HEAD_SHA: ${{ needs.run.outputs.head-sha }}
           REPLY_DIR: ${{ steps.decode.outputs.dir }}
           PATCH_FILE: ${{ steps.decode.outputs.dir }}/patch.diff
@@ -1760,7 +1766,7 @@ jobs:
             const crypto = require('crypto');
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
-            const { BASE_SHA, HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
+            const { GATE_SHA, HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
             // The one findSecret label that warns instead of blocking.
             const WARN_ONLY = 'password or secret assignment';
             // A regular file's bytes, a link's target text; anything else holds none.
@@ -1776,9 +1782,9 @@ jobs:
             };
             let hit = null;
             try {
-              if (!/^[0-9a-f]{40}$/.test(BASE_SHA ?? '') || !/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no base or head');
+              if (!/^[0-9a-f]{40}$/.test(GATE_SHA ?? '') || !/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no default branch tip or head');
               const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
-              const { data } = await github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: BASE_SHA });
+              const { data } = await github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: GATE_SHA });
               const source = Buffer.from(data.content, 'base64').toString('utf8');
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
               if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');

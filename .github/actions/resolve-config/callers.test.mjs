@@ -1217,13 +1217,21 @@ test("pr-run-activity-read.yml: a PR run that stops before head code still uploa
   for (const id of ["key", "open"]) assert.equal(steps.find((s) => s.id === id).if, "steps.base.outcome == 'success'", id);
 });
 
-test("pr-run-activity-read.yml: the leak scan loads the publish gate from the API at the base SHA, never from the checkout", () => {
+test("pr-run-activity-read.yml: the leak scan loads the publish gate from the API at the default branch tip, never at the base SHA or from a checkout", () => {
   const step = scanSteps().find((s) => s.id === "leak-scan");
   const script = step.with.script;
-  // The run job's base, from its trusted-base step before any head code.
-  assert.equal(step.env.BASE_SHA, "${{ needs.run.outputs.base-sha }}");
-  assert.equal(workflow("pr-run-activity-read.yml").jobs.run.outputs["base-sha"], "${{ steps.trusted-base.outputs.commit }}");
-  assert.match(script, /getContent\(\{ \.\.\.context\.repo, path: 'lib\/publish-gate\.mjs', ref: BASE_SHA \}\)/);
+  // The default branch tip the run job checked out before any head code: the
+  // checkout default-tip mode resolves its tip from, whatever mode the caller passed.
+  const { jobs } = workflow("pr-run-activity-read.yml");
+  assert.equal(step.env.GATE_SHA, "${{ needs.run.outputs.default-tip-sha }}");
+  assert.equal(step.env.BASE_SHA, undefined, "never the PR's base");
+  assert.equal(jobs.run.outputs["default-tip-sha"], "${{ steps.base.outputs.commit }}");
+  const tip = jobs.run.steps.find((s) => s.id === "base");
+  assert.deepEqual([tip.with.ref, tip.with.path], ["${{ github.event.repository.default_branch }}", ".base"]);
+  assert.ok(jobs.run.steps.indexOf(tip) < jobs.run.steps.findIndex((s) => s.name === "Check out the PR head"), "before any head code");
+  assert.match(jobs.run.steps.find((s) => s.id === "trusted-base").with.mode, /inputs\.trusted-base/);
+  assert.match(script, /getContent\(\{ \.\.\.context\.repo, path: 'lib\/publish-gate\.mjs', ref: GATE_SHA \}\)/);
+  assert.doesNotMatch(script, /BASE_SHA/);
   assert.doesNotMatch(script, /require\(['"]\.|import\(['"]\.|GITHUB_WORKSPACE[^)]*publish-gate|\.base\/|RUNNER_TEMP/);
   assert.match(script, /mkdtempSync/);
   assert.equal(step.env.GITHUB_TOKEN, undefined);
@@ -1274,14 +1282,16 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), 
     rest: {
       repos: {
         getContent: async ({ owner, repo, path: file, ref }) => {
-          assert.deepEqual({ owner, repo, file, ref }, { owner: "o", repo: "r", file: "lib/publish-gate.mjs", ref: "b".repeat(40) }, "the gate at the base SHA only");
+          assert.deepEqual({ owner, repo, file, ref }, { owner: "o", repo: "r", file: "lib/publish-gate.mjs", ref: "d".repeat(40) }, "the gate at the default branch tip only, never the base SHA");
           return { data: { content: Buffer.from(gate).toString("base64") } };
         },
       },
     },
   };
   const env = {
+    // An older PR base beside the tip: the gate must come from the tip.
     BASE_SHA: "b".repeat(40),
+    GATE_SHA: "d".repeat(40),
     HEAD_SHA: head,
     REPLY_DIR: replyDir,
     PATCH_FILE: patchFile,
@@ -1326,7 +1336,7 @@ test("leak scan: a key in the reply, in a binary changed file or in an untracked
   }
 });
 
-test("leak scan: a missing base or head, or a gate that imports beyond node builtins, fails closed", async (t) => {
+test("leak scan: a missing default branch tip or head, or a gate that imports beyond node builtins, fails closed", async (t) => {
   const outputs = {};
   let failed = null;
   const { createRequire } = await import("node:module");
@@ -1346,6 +1356,25 @@ test("leak scan: a missing base or head, or a gate that imports beyond node buil
   const refused = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), "clean\n"), evil);
   assert.equal(refused.clean, "false");
   assert.match(refused.failed, /^leak-scan: no finished scan \(Error\)/);
+});
+
+test("leak scan: with no default branch tip, or a malformed one, the gate is never fetched and the scan fails closed", async () => {
+  const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
+  const { createRequire } = await import("node:module");
+  for (const tip of [undefined, "", "d".repeat(39), "D".repeat(40), "main"]) {
+    const outputs = {};
+    let failed = null;
+    const github = { rest: { repos: { getContent: async () => assert.fail("the gate was fetched without a tip") } } };
+    await new AsyncFunction("require", "core", "github", "context", "process", script)(
+      createRequire(import.meta.url),
+      { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message), warning: () => {} },
+      github,
+      { repo: { owner: "o", repo: "r" } },
+      { env: { BASE_SHA: "b".repeat(40), GATE_SHA: tip, HEAD_SHA: "c".repeat(40) } },
+    );
+    assert.equal(outputs.clean, "false", String(tip));
+    assert.equal(failed, "leak-scan: no finished scan (Error); nothing is uploaded or summarized", String(tip));
+  }
 });
 
 // One sample per credential format the gate names, built at run time.
