@@ -25,8 +25,8 @@ its base text, or whose text could not be read, rates HIGH as
 A safe file whose every path is a test (a `*.test.mjs`, `*.test.sh`,
 `*.test.js` or `test_*.py` name, or a `tests` or `fixtures` directory, matched
 case-sensitively) under no declared path is left out of the floor's
-script-directory entries and the script scopes; every other entry, and a
-configured copy of one of those, still holds it.
+script-directory entries, `floor-paths` globs with a `scripts` segment and
+the script scopes; every other entry and every denied path still holds it.
 `floor_extensions` gates FLOOR_ADDITIONS, `floor-paths`, the script scopes and
 the capability check in every lane. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Claude.md` as
@@ -866,11 +866,8 @@ def _high_path_reasons(
     configured = _readable_globs(inp.high_paths, unsafe)
     on = inp.high_floor is not False
     extended = on and inp.floor_extensions is not False
-    added = (
-        (*FLOOR_ADDITIONS, *_readable_globs(inp.floor_paths, unsafe))
-        if extended
-        else ()
-    )
+    floor_globs = _readable_globs(inp.floor_paths, unsafe) if extended else ()
+    added = (*FLOOR_ADDITIONS, *floor_globs) if extended else ()
     declared = _declared_paths(inp.declarations, unsafe) if on else ()
     floor = (*HIGH_FLOOR, *added, *declared) if on else ()
     scopes = _readable_globs(inp.floor_script_scopes, unsafe) if extended else ()
@@ -879,8 +876,10 @@ def _high_path_reasons(
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
     paths = [path for f in files for path in f.paths if path]
     tests = {p for f in files if _test_only(f, declared) for p in f.paths}
-    # Only the fixed script entries exempt tests; a configured copy holds them.
-    exempt = _SCRIPT_FLOOR.difference(configured, added) if on else ()
+    # The floor's script entries and floor-paths globs with a scripts segment
+    # exempt tests; a denied path never does.
+    scripted = {g for g in floor_globs if "scripts" in g.split("/")}
+    exempt = _SCRIPT_FLOOR.union(scripted).difference(configured) if on else ()
     for pattern in dict.fromkeys((*floor, *configured)):
         hits = [
             path

@@ -622,7 +622,8 @@ merge:
       # The directories of the scripts a SessionStart or PreToolUse hook runs
       # by path, outside the plugin's hooks/, held whole so a sibling module
       # cannot shadow one of their imports (pydeps.py, arm_observer.py,
-      # destructive_guard.py).
+      # destructive_guard.py). Like every scripts glob here, they do not hold
+      # a test file a plugin declares nothing under.
       - "plugins/animation/scripts/**"
       - "plugins/explainer-video/scripts/**"
       - "plugins/speech/scripts/**"

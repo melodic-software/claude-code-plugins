@@ -629,8 +629,9 @@ and its queued entries leave; two different identities, or an unreadable head co
   scores HIGH and is never merged unattended. A file whose every path is a test (a `*.test.mjs`,
   `*.test.sh`, `*.test.js` or `test_*.py` name, or a `tests/` or `fixtures/` directory, matched
   case-sensitively, safe and under no path a plugin declares as run) does not take the floor's
-  `plugins/*/scripts/**`, `plugins/*/skills/*/scripts/**` and `plugins/**/scripts/**` entries or
-  `floor-script-scopes`; every other floor entry, `denied-paths` and `floor-paths` still hold it.
+  `plugins/*/scripts/**`, `plugins/*/skills/*/scripts/**` and `plugins/**/scripts/**` entries,
+  `floor-paths` globs with a `scripts` segment, or `floor-script-scopes`; every other floor entry,
+  every other `floor-paths` glob and `denied-paths` still hold it.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.

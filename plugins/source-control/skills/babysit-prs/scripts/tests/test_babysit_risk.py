@@ -1030,14 +1030,56 @@ class TestOnlyScriptPathTests(unittest.TestCase):
             ("high-path:plugins/source-control/skills/babysit-prs/**",),
         )
 
-    def test_configured_script_globs_still_hold_tests(self):
+    def test_a_denied_script_glob_still_holds_tests(self):
         path = "plugins/foo/scripts/tests/test_run.py"
-        for field in ("high_paths", "floor_paths"):
-            with self.subTest(field):
-                result = score(
-                    _input(files=(_file(path),), **{field: ("plugins/*/scripts/**",)})
-                )
-                self.assertIn(self.SCRIPT, _codes(result))
+        result = score(
+            _input(files=(_file(path),), high_paths=("plugins/*/scripts/**",))
+        )
+        self.assertIn(self.SCRIPT, _codes(result))
+
+    def test_tests_under_configured_scripts_floor_paths_are_low(self):
+        floor_paths = (
+            "plugins/discovery/skills/*/scripts/**",
+            "plugins/animation/scripts/**",  # a hook-run directory
+        )
+        for path in (
+            "plugins/discovery/skills/research/scripts/tests/test_x.py",
+            "plugins/animation/scripts/tests/test_render.py",
+            "plugins/animation/scripts/probe.test.sh",
+        ):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path),), floor_paths=floor_paths))
+                self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+    def test_a_non_test_file_under_a_configured_scripts_floor_path_holds(self):
+        result = score(
+            _input(
+                files=(_file("plugins/animation/scripts/render.py"),),
+                floor_paths=("plugins/animation/scripts/**",),
+            )
+        )
+        self.assertIn("high-path:plugins/animation/scripts/**", _codes(result))
+
+    def test_tests_under_a_configured_floor_path_without_scripts_hold(self):
+        result = score(
+            _input(
+                files=(_file("plugins/animation/tools/tests/test_x.py"),),
+                floor_paths=("plugins/animation/tools/**",),
+            )
+        )
+        self.assertEqual(_codes(result), ("high-path:plugins/animation/tools/**",))
+
+    def test_a_declared_test_file_under_a_configured_hook_run_directory_holds(self):
+        command = "${CLAUDE_PLUGIN_ROOT}/scripts/tests/run.test.sh"
+        hooks = json.dumps({"hooks": {"Stop": [{"hooks": [{"command": command}]}]}})
+        result = score(
+            _input(
+                files=(_file("plugins/animation/scripts/tests/run.test.sh"),),
+                floor_paths=("plugins/animation/scripts/**",),
+                declarations=(("plugins/animation/hooks/hooks.json", hooks),),
+            )
+        )
+        self.assertIn("high-path:plugins/animation/scripts/**", _codes(result))
 
     def test_an_executable_test_file_in_a_script_scope_is_low(self):
         scopes = ("plugins/foo/**",)
