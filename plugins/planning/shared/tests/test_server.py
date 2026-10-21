@@ -1239,7 +1239,15 @@ class TestClientLog(LogCase):
     def test_a_lone_surrogate_in_a_message_still_reaches_the_log(self):
         _, guest = self.join("Ann")
         self.assertEqual(self.post("/api/client-log", {"kind": "error", "message": "cut-emoji-\ud83d"}, guest)[0], 200)
-        self.assertIn("cut-emoji-\\ud83d", self.entry_for("cut-emoji-"))
+        self.assertIn('message=cut-emoji- ', self.entry_for("cut-emoji-") + " ")  # the half emoji is dropped, the entry kept
+
+    def test_hidden_characters_never_reach_the_log(self):
+        pid, guest = self.join("Ann")
+        body = {"kind": "error", "message": "Type\U0000202eError\U0000200b", "source": "/app\U00002066.js", "route": "/\U000e0041x"}
+        self.assertEqual(self.post("/api/client-log", body, guest)[0], 200)
+        self.assertTrue(self.entry_for(" client ").endswith(f"client pid={pid} kind=error message=TypeError source=/app.js route=/x"))
+        code, _, out = self.post("/api/client-log", {"kind": "error", "message": "\U0000202e\U0000200b"}, guest)
+        self.assertEqual((code, out["error"]), (400, "empty"))
 
     def test_a_message_cannot_forge_a_log_line(self):
         """U+2028 and U+2029 end a line for str.splitlines(): escaped, the forged request entry stays inside the
