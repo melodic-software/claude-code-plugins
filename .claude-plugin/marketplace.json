@@ -273,6 +273,12 @@
       }
     },
     {
+      "name": "app-control",
+      "source": "./plugins/app-control",
+      "category": "testing",
+      "tags": ["app-control", "drive", "launch", "evidence", "capture", "e2e", "skill"]
+    },
+    {
       "name": "code-tidying",
       "source": "./plugins/code-tidying",
       "category": "maintenance",
