@@ -644,7 +644,7 @@ test("main resolves fix-ci through the base's role map to opus at effort high", 
   assert.equal(outputs.model, "opus");
   assert.equal(outputs.effort, "high");
   assert.equal(outputs["claude-args"], "--model opus --max-turns 75 --effort high");
-  assert.equal(outputs["applied-by-patch"], undefined);
+  assert.equal(outputs["applied-by-patch"], "apply-patch");
 });
 
 test("main gives fix-ci opus and no effort when the base has no role map", async () => {
