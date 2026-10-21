@@ -3,7 +3,8 @@
 <#
 .SYNOPSIS
 Read Defender detections (events 1116/1117) and exclusion changes (event 5007)
-from the Defender Operational log, which a standard user can read.
+from the Defender Operational log, unelevated (reference/windows/check-catalog.md
+section 5, "Needs admin").
 
 .DESCRIPTION
 Defender's threat-detection cmdlets forget detections after the scan-history

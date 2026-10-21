@@ -157,8 +157,16 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 
 - **Script:** `scripts/windows/checks/Test-Defender.ps1`
 - **Category:** `security`
-- **Needs admin:** no. The check reads only what a standard user can read; a field Defender
-  withholds from it stays empty.
+- **Needs admin:** no. We run this check unelevated and read the Defender Operational event log as
+  the standard user; a field Defender withholds from that user stays empty, and a log read the user
+  is refused reports `events_read_state = denied`, never zero.
+  - Pointer: where the log lives, the
+    [Defender Antivirus event reference, "How do I view a Microsoft Defender Antivirus event?"](https://learn.microsoft.com/en-us/defender-endpoint/troubleshoot-microsoft-defender-antivirus#how-do-i-view-a-microsoft-defender-antivirus-event).
+    That a standard user can read it was observed on both fleet hosts (probe of 2026-10-21); the
+    page does not state the log's access rights.
+  - As of: 2026-10-21.
+  - Recheck trigger: a Windows or Defender release that changes the Operational channel's access
+    rights, or a run reporting `events_read_state = denied` unelevated.
 - **Commands:**
 
   ```powershell
@@ -435,7 +443,8 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 
 - **Known-safe path patterns:** a dev-machine allowlist matched with PowerShell `-like`, held in
   `scripts/windows/lib/New-DefenderExclusionItem.ps1` and shared with section 5. A pattern may match
-  anywhere in the path. `detail.unexpected_paths` lists at most 20.
+  anywhere in the path. `detail.unexpected_paths` lists at most 20, each as `{ path }`, so the
+  markdown report shows their count, never a value.
 
 ---
 

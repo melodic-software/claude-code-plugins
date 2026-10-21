@@ -77,6 +77,7 @@ Describe 'Get-DefenderExclusionState' -Tag 'lib' {
         Mock Test-IsElevated { $true }
         Mock Get-CimInstance {
             [pscustomobject]@{
+                # Synthetic: no non-English capture exists; it stands in for a localized placeholder.
                 ExclusionPath      = @('N/D: Se requieren permisos de administrador')
                 ExclusionExtension = $null
                 ExclusionProcess   = $null
@@ -100,6 +101,22 @@ Describe 'Get-DefenderExclusionState' -Tag 'lib' {
         $state.ReadState | Should -Be 'ok'
         $state.Paths | Should -Be @('%ProgramData%\build')
         $state.Extensions | Should -Be @('.tmp')
+    }
+
+    It 'keeps a single wildcard or relative path pattern as a real entry' {
+        Mock Test-IsElevated { $true }
+        Mock Get-CimInstance {
+            [pscustomobject]@{
+                ExclusionPath      = @('*\node_modules')
+                ExclusionExtension = $null
+                ExclusionProcess   = @('build\tool?.exe')
+            }
+        }
+
+        $state = Get-DefenderExclusionState
+        $state.ReadState | Should -Be 'ok'
+        $state.Paths | Should -Be @('*\node_modules')
+        $state.Processes | Should -Be @('build\tool?.exe')
     }
 
     It 'reports error when the class returns no instance' {

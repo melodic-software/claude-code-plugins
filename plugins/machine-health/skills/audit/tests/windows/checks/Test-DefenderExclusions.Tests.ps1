@@ -7,7 +7,7 @@ BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DefenderExclusions' `
         -AsObject 'Invoke-DefenderExclusionsAsObject' `
         -LibScript 'Test-IsElevated.ps1', 'New-FindingItem.ps1', 'New-DefenderExclusionItem.ps1', 'Get-DefenderExclusionState.ps1',
-        'Get-DefenderEventHistory.ps1' -MockHelpers
+        'Get-DefenderEventHistory.ps1', 'ConvertTo-DetailMarkdown.ps1' -MockHelpers
 
     function Invoke-DefenderExclusionWithMuteList {
         param([string[]] $MutedKeys)
@@ -93,6 +93,26 @@ Describe 'Test-DefenderExclusions -- severity rubric' -Tag 'check' {
         $item = @($result.detail.items)[0]
         $item.severity | Should -Be 'WARN'
         $item.expected | Should -BeFalse
+    }
+
+    It 'keeps every current exclusion value out of the markdown detail and the summary, showing counts' {
+        Mock Get-DefenderExclusionState {
+            [pscustomobject]@{
+                ReadState  = 'ok'
+                Paths      = @('X:\SentinelUnexpected', 'X:\Profile\.dotnet')
+                Extensions = @('.sentinelext')
+                Processes  = @('sentinelproc.exe')
+            }
+        }
+        $result = Invoke-DefenderExclusionsAsObject
+        $md = ConvertTo-DetailMarkdown -Detail $result.detail -MaxRows 50
+
+        foreach ($value in 'SentinelUnexpected', '.dotnet', 'sentinelext', 'sentinelproc') {
+            $md | Should -Not -Match ([regex]::Escape($value))
+            $result.summary | Should -Not -Match ([regex]::Escape($value))
+        }
+        $md | Should -Match '(?m)^\| `unexpected_paths` \| 1 item \|$'
+        $md | Should -Match '(?m)^\| `exclusion_path_count` \| 2 \|$'
     }
 
     It 'lists extension and process exclusions as INFO items' {

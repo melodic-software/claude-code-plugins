@@ -17,8 +17,9 @@ https://learn.microsoft.com/en-us/windows/client-management/mdm/defender-csp#con
 (as of 2026-10-21; recheck when a Defender release changes who may read
 exclusions or how a hidden list answers). An unelevated process is masked
 without reading anything. An elevated read is masked when a list holds exactly
-one entry that is not a rooted or environment-variable path, an extension or a
-file name, which is the placeholder's shape in any language. The placeholder
+one entry that is not a path pattern (rooted, environment-variable, relative or
+wildcard), an extension or a file name: a sentence holding characters no path
+segment may hold, the placeholder's shape in any language. The placeholder
 never leaves this file.
 
 The class is read from its own CIM namespace rather than through the Defender
@@ -33,7 +34,12 @@ $script:DefenderPreferenceClass = 'MSFT_MpPreference'
 function Test-DefenderExclusionEntryShape {
     param([AllowEmptyString()] [string] $Entry)
     if ([System.IO.Path]::IsPathRooted($Entry) -or $Entry.StartsWith('%')) { return $true }
-    return $Entry.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -lt 0
+    # Wildcard and relative path patterns are valid: check each segment, allowing * and ?.
+    $invalid = [System.IO.Path]::GetInvalidFileNameChars() | Where-Object { $_ -notin '*', '?' }
+    foreach ($segment in $Entry -split '[\\/]') {
+        if ($segment.IndexOfAny([char[]]$invalid) -ge 0) { return $false }
+    }
+    return $true
 }
 
 function Get-DefenderExclusionState {

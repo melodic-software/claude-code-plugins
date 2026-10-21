@@ -10,6 +10,12 @@ Operational log (Threat ID, Threat Name, Path, Action ID on 1116/1117; Old Value
 and New Value on 5007) and listed in Microsoft's Defender Antivirus event
 reference. Values are placeholders. Action IDs follow the Set-MpPreference
 remediation action table: 2 Quarantine, 6 Allow, 9 NoAction.
+
+The 5007 value format ("HKLM\SOFTWARE\Microsoft\Windows Defender\Exclusions\
+<Paths|Extensions|Processes>\<value> = 0x0" in Old Value or New Value) comes
+from 5007 events captured on a fleet host on 2026-10-21, values redacted. The
+Learn event reference's Event ID 5007 section names the Old Value and New Value
+fields but does not show this format.
 #>
 
 BeforeAll {

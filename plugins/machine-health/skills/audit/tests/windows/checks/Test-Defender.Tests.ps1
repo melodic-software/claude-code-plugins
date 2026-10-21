@@ -302,6 +302,16 @@ Describe 'Test-Defender -- detections from events' -Tag 'check' {
         @($result.detail.items)[0].muted | Should -BeTrue
     }
 
+    It 'leaves a fully muted CRIT detection out of recent_threat_count and the summary' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'ok' -Detections @(New-Detection -DaysAgo 1 -ActionSucceeded $null) }
+        $key = Get-FindingKey -Kind 'detection' -Identity '2147000001', 'file:_<drive>:\Profile\sample.exe', '{00000000-0000-0000-0000-000000000001}'
+
+        $result = Invoke-DefenderWithMuteList -MutedKeys @($key)
+        $result.severity | Should -Be 'OK'
+        $result.detail.recent_threat_count | Should -Be 0
+        $result.summary | Should -Not -Match 'detection'
+    }
+
     It 'reports OK with zero counts when the log holds no matching events' {
         Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'absent' }
 

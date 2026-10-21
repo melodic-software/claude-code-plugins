@@ -79,9 +79,10 @@ $CheckBody = {
             }
         })
         $items = $detectionItems + $exclusionItems
-        $recentThreats = @($detectionItems | Where-Object severity -In 'WARN', 'CRIT')
-        $unremediated = @($detectionItems | Where-Object severity -EQ 'CRIT')
-        $suspectAdds = @($exclusionItems | Where-Object severity -EQ 'WARN')
+        # Counts cover unmuted items only, like the severity.
+        $recentThreats = @($detectionItems | Where-Object { -not $_.muted -and $_.severity -in 'WARN', 'CRIT' })
+        $unremediated = @($recentThreats | Where-Object severity -EQ 'CRIT')
+        $suspectAdds = @($exclusionItems | Where-Object { -not $_.muted -and $_.severity -eq 'WARN' })
 
         $severities = [System.Collections.Generic.List[string]]::new()
         $severities.Add('OK')
