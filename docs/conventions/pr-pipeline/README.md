@@ -570,7 +570,15 @@ The babysit wrapper does not enforce these reads yet; until it does, the live co
 
 The babysit wrapper (`babysit_merge.py` in the source-control plugin) may merge without a human
 only when every read below allows it. Each read happens at one captured base SHA, and any read
-that fails counts as a refusal.
+that fails counts as a refusal. The `merge:` block and `babysit_loop_merge` are also read at the
+default branch head, and each setting takes the stricter of the two values: the lower rung, any
+true switch, the union of path lists (each side's `check-inputs` read in a diff of its own), the
+smaller cap, the stricter Dependabot mode. Two settings are exceptions: `risk-escalation-minutes`
+keeps the base's value, and `max-in-flight` is read at the default branch head alone, so a raised
+cap applies at once. So a tightening on the default branch reaches pull requests opened before it,
+a loosening waits until a pull request's base includes it, and a pull request still cannot drop its
+base's declaration. A different authority, or an identity set on one side only, stops the lane
+and its queued entries leave; two different identities, or an unreadable head config, refuse.
 
 - **Authority and identity.** `merge.authority` reads `local-babysit` and `merge.agent-identity`
   names the login the lane acts as. The schema rejects `local-babysit` without an identity. The
@@ -651,7 +659,8 @@ admin permission on the repository.
 ### The pr-merge lane
 
 The same wrapper run with `--unattended --authority pr-merge` is the pr-merge lane's gate. It needs
-`merge.authority: pr-merge` and `merge.agent-identity` at the base, and keeps every read above
+`merge.authority: pr-merge` and `merge.agent-identity` at the base and at the default branch
+head, and keeps every read above
 except six:
 
 - **Eligibility.** Not a fork or a dependency manager's pull request, opened by
