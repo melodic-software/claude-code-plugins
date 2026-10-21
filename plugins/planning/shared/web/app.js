@@ -2152,9 +2152,9 @@
     const apcKey = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-key", "Copy watcher key");
     const apcRevoke = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-revoke", "Revoke watcher key");
     apcLinks.append(apcCode, apcDesk, apcCopyW, apcKey, apcRevoke);
-    const apcAuth = E("a", "vf-apc-auth", "how to sign in with one");
+    const apcAuth = E("a", "vf-apc-auth", "how to set it up");
     apcAuth.href = "https://code.claude.com/docs/en/authentication"; apcAuth.target = "_blank"; apcAuth.rel = "noopener noreferrer";
-    const apcApiKey = E("p", "vf-meta", "No Claude subscription? Claude Code also runs on an Anthropic Console API key: ");
+    const apcApiKey = E("p", "vf-meta", "No Claude subscription? Claude Code also runs on your own API key: ");
     apcApiKey.append(apcAuth, ".");
     apConnect.append(apcHead,
       E("p", "vf-pop-note", "Your own Claude, on your own plan, runs these requests; the host's Claude never sees them. The host reviews each answer before anyone else sees it, marked as from your Claude."),
