@@ -8,8 +8,8 @@ muted FindingKeys for one check.
 .DESCRIPTION
 Get-MuteState is read only: it creates no directory or file, migrates nothing
 and writes no log, so a run that must leave the state folder alone can still
-call it. It opens the file with FileShare.ReadWrite | FileShare.Delete so a
-writer replacing the file never blocks it.
+call it. It reads through Read-SharedText, so a writer replacing the file
+never blocks it.
 
 Fail-safe posture: a missing, empty, malformed or schema-invalid file means no
 mutes. A broken file warns and is left as it is; muted items then count toward
@@ -17,6 +17,9 @@ severity again until the file is fixed.
 
 Schema: catalog/schemas/mutes.schema.json.
 #>
+
+. (Join-Path $PSScriptRoot 'Read-SharedText.ps1')
+. (Join-Path $PSScriptRoot 'Resolve-SkillRoot.ps1')
 
 function Get-MuteState {
     [CmdletBinding()]
@@ -31,14 +34,9 @@ function Get-MuteState {
     if (-not [System.IO.File]::Exists($mutesPath)) { return $none }
 
     try {
-        $stream = [System.IO.File]::Open($mutesPath, 'Open', 'Read', [System.IO.FileShare]'ReadWrite, Delete')
-        try {
-            $raw = [System.IO.StreamReader]::new($stream).ReadToEnd()
-        } finally {
-            $stream.Dispose()
-        }
+        $raw = Read-SharedText -Path $mutesPath
         if ([string]::IsNullOrWhiteSpace($raw)) { return $none }
-        $schemaPath = Join-Path $PSScriptRoot '..\..\..\catalog\schemas\mutes.schema.json'
+        $schemaPath = Join-Path (Resolve-SkillRoot) 'catalog\schemas\mutes.schema.json'
         if (-not (Test-Json -Json $raw -SchemaFile $schemaPath -ErrorAction Stop)) {
             throw 'does not match mutes.schema.json.'
         }

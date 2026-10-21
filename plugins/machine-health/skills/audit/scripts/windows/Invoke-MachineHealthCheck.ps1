@@ -376,7 +376,7 @@ foreach ($entry in $windowsChecks) {
     }
 
     $muted = Get-MutedFindingKey -State $muteState -CheckId $entry.id
-    $checkArgs = Get-CheckArgument -CheckId $entry.id -RunLog $runLog `
+    $checkArgs = Get-CheckArgument -CheckId $entry.id -ScriptPath $scriptPath -RunLog $runLog `
         -BatteryReportPath $batteryReportPath -MutedKeys $muted
     Write-MachineHealthLog "check_dispatch id=$($entry.id) script=$($entry.script)"
     $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec 90 -Arguments $checkArgs

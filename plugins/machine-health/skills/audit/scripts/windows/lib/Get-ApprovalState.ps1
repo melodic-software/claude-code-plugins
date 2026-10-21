@@ -22,6 +22,7 @@ After migration, TODO.md checkboxes are ignored permanently.
 #>
 
 . (Join-Path $PSScriptRoot 'Assert-ApprovalState.ps1')
+. (Join-Path $PSScriptRoot 'Read-SharedText.ps1')
 . (Join-Path $PSScriptRoot 'Write-MachineHealthLog.ps1')
 
 function New-DefaultApprovalState {
@@ -118,15 +119,7 @@ function Get-ApprovalState {
 
     if (Test-Path -LiteralPath $approvalsPath) {
         try {
-            # Share Delete as well as ReadWrite so a writer replacing the file never blocks the read.
-            $stream = [System.IO.File]::Open(
-                $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($approvalsPath),
-                'Open', 'Read', [System.IO.FileShare]'ReadWrite, Delete')
-            try {
-                $raw = [System.IO.StreamReader]::new($stream).ReadToEnd()
-            } finally {
-                $stream.Dispose()
-            }
+            $raw = Read-SharedText -Path $approvalsPath
             if ([string]::IsNullOrWhiteSpace($raw)) {
                 return (New-DefaultApprovalState)
             }

@@ -99,18 +99,14 @@ Muted finding items live in their own file, `<StateBase>/state/mutes.json`, besi
 }
 ```
 
-- `key` names one listed item across runs:
-  `<kind>:<first 16 hex of SHA-256(lower(kind + "|" + identity fields joined by "|"))>`, built by
-  `scripts/windows/lib/New-FindingItem.ps1`. `key` and `added_at` are required; no other
-  properties are allowed.
-- A muted item stays listed in the check's `detail.items[]` with `muted: true` and no longer counts
-  toward the check's severity.
-- The orchestrator reads the file with `Get-MuteState` and passes each list-style check its muted
-  keys as a `-MutedKeys` argument. Checks never read `mutes.json`.
+- The entry fields are defined by the schema; `key` is the item's FindingKey and the item shape
+  is in [`output-schema.md`](output-schema.md#detail-of-a-list-style-check-findingitems).
+- The orchestrator reads the file with `Get-MuteState` (`scripts/windows/lib/Get-MutedFindingKey.ps1`)
+  and passes each check that declares `-MutedKeys` its muted keys. Checks never read `mutes.json`.
 - The read creates nothing, migrates nothing and writes no log. A missing, empty, malformed or
   schema-invalid file means no mutes; a broken file warns and is left as it is.
-- `Get-ApprovalState` and `Get-MuteState` open their files with `FileShare.ReadWrite | FileShare.Delete`, so a writer replacing
-  the file never blocks a run.
+- `Get-ApprovalState` and `Get-MuteState` read through `Read-SharedText`
+  (`FileShare.ReadWrite | FileShare.Delete`), so a writer replacing the file never blocks a run.
 - A plugin build older than `mutes.json` ignores the file: muted items count toward severity again
   until the upgrade. Nothing FAILs and nothing is stripped.
 
@@ -124,10 +120,12 @@ Pester tests in `tests/windows/lib/Get-ApprovalState.Tests.ps1` cover:
 - Valid file - returns parsed approvals
 - Migration path: TODO.md `[x]` present, no approvals.json - migrates, writes file, logs
 - Revocation: edit file, re-read, respects new state
-- Shared read: succeeds while another handle holds the file for write or delete
+- Shared read: succeeds while another handle holds the file for write
 
 `tests/windows/lib/Get-MutedFindingKey.Tests.ps1` covers `mutes.json`: the schema, the per-check
 key lookup, the fail-safe fallbacks, the shared read, and that the read creates no file or folder.
+`tests/windows/lib/Read-SharedText.Tests.ps1` covers the shared open, including a holder with
+delete access.
 
 ## Known limits
 

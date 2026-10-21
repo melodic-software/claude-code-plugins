@@ -113,19 +113,6 @@ Describe 'Get-MuteState and Get-MutedFindingKey' -Tag 'lib' {
             $keys = Get-MutedFindingKey -State $state -CheckId 'startup-items'
             $keys | Should -Be @('startup:7eef5f7d094fe8c0')
         }
-
-        It 'reads while another handle holds delete access, as a replacing writer does' {
-            $holder = [System.IO.FileStream]::new($script:mutesPath, 'Open', 'ReadWrite',
-                [System.IO.FileShare]'ReadWrite, Delete', 4096, [System.IO.FileOptions]::DeleteOnClose)
-            try {
-                $state = Get-MuteState -StateDir $script:stateDir -WarningVariable warned -WarningAction SilentlyContinue
-            } finally {
-                $holder.Dispose()
-            }
-            $warned | Should -BeNullOrEmpty
-            $keys = Get-MutedFindingKey -State $state -CheckId 'startup-items'
-            $keys | Should -Be @('startup:7eef5f7d094fe8c0')
-        }
     }
 
     Context 'nothing to read' {

@@ -22,6 +22,8 @@ the check OK.
 
 . (Join-Path $PSScriptRoot 'Get-WorstSeverity.ps1')
 
+$script:ReadStates = @('ok', 'absent', 'masked', 'denied', 'false-zero', 'error')
+
 function Get-FindingKey {
     [CmdletBinding()]
     [OutputType([string])]
@@ -74,8 +76,8 @@ function Assert-ReadState {
         [Parameter(Mandatory = $true, Position = 0)] [AllowEmptyString()] [string] $State
     )
 
-    if ($State -cnotin @('ok', 'absent', 'masked', 'denied', 'false-zero', 'error')) {
-        throw "ReadState '$State' is not one of ok, absent, masked, denied, false-zero, error."
+    if ($State -cnotin $script:ReadStates) {
+        throw "ReadState '$State' is not one of $($script:ReadStates -join ', ')."
     }
     return $true
 }

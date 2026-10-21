@@ -7,50 +7,81 @@ splat the orchestrator injects when dispatching a check.
 #>
 
 BeforeAll {
-    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-CheckArgument.ps1'
+    . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript @(
+        'Get-CheckArgument.ps1', 'Invoke-CheckWithTimeout.ps1')
+    $script:ChecksRoot = Join-Path $script:SkillRoot 'scripts\windows\checks'
+
+    function Write-FixtureCheck {
+        param([Parameter(Mandatory)] [string] $Name, [Parameter(Mandatory)] [string] $Body)
+        $path = Join-Path $TestDrive "$Name.ps1"
+        Set-Content -LiteralPath $path -Value $Body -Encoding utf8
+        return $path
+    }
 }
 
 Describe 'Get-CheckArgument' -Tag 'lib' {
     It 'gives the battery check a -ReportPath so capacity analysis can run' {
-        $splat = Get-CheckArgument -CheckId 'battery' -RunLog 'C:\logs\run.log' -BatteryReportPath 'C:\logs\battery.html'
+        $splat = Get-CheckArgument -CheckId 'battery' -ScriptPath (Join-Path $script:ChecksRoot 'Test-Battery.ps1') `
+            -RunLog 'C:\logs\run.log' -BatteryReportPath 'C:\logs\battery.html'
         $splat.ContainsKey('ReportPath') | Should -BeTrue
         $splat['ReportPath'] | Should -Be 'C:\logs\battery.html'
     }
 
     It 'gives the winget check a -LogPath so the KEV fetch is logged' {
-        $splat = Get-CheckArgument -CheckId 'winget-upgrades' -RunLog 'C:\logs\run.log' -BatteryReportPath 'C:\logs\battery.html'
+        $splat = Get-CheckArgument -CheckId 'winget-upgrades' -ScriptPath (Join-Path $script:ChecksRoot 'Test-WingetUpgrades.ps1') `
+            -RunLog 'C:\logs\run.log' -BatteryReportPath 'C:\logs\battery.html'
         $splat.ContainsKey('LogPath') | Should -BeTrue
         $splat['LogPath'] | Should -Be 'C:\logs\run.log'
     }
 
     It 'returns an empty hashtable for a check that takes no run-scoped arguments' {
-        $splat = Get-CheckArgument -CheckId 'disk-space' -RunLog 'C:\logs\run.log' -BatteryReportPath 'C:\logs\battery.html'
+        $splat = Get-CheckArgument -CheckId 'disk-health' -ScriptPath (Join-Path $script:ChecksRoot 'Test-DiskHealth.ps1') `
+            -RunLog 'C:\logs\run.log' -BatteryReportPath 'C:\logs\battery.html' -MutedKeys @('startup:7eef5f7d094fe8c0')
         $splat | Should -BeOfType [hashtable]
         $splat.Count | Should -Be 0
     }
 
-    Context 'muted finding keys' {
-        It 'gives <_> its muted keys as a string[]' -ForEach @(
-            'top-processes', 'startup-items', 'storage-top-n', 'app-last-use',
-            'browser-extensions', 'network-listeners', 'backup-status', 'firewall-rules'
-        ) {
-            $splat = Get-CheckArgument -CheckId $_ -RunLog 'C:\logs\run.log' -BatteryReportPath 'C:\logs\battery.html' `
+    Context 'muted finding keys follow the script''s declared parameters' {
+        BeforeAll {
+            $script:declaring = Write-FixtureCheck -Name 'declares-muted' -Body @'
+param([string[]] $MutedKeys = @('unset'))
+ConvertTo-Json -Compress -InputObject @{ count = $MutedKeys.Count; keys = @($MutedKeys) }
+'@
+            $script:notDeclaring = Write-FixtureCheck -Name 'no-muted' -Body @'
+param([switch] $Human)
+'{"ran":true}'
+'@
+        }
+
+        It 'gives a script that declares -MutedKeys its keys as a string[]' {
+            $splat = Get-CheckArgument -CheckId 'startup-items' -ScriptPath $script:declaring `
                 -MutedKeys @('startup:7eef5f7d094fe8c0', 'ext:dfe36cc7950bcbf3')
             @($splat.Keys) | Should -Be @('MutedKeys')
             , $splat['MutedKeys'] | Should -BeOfType [string[]]
             $splat['MutedKeys'] | Should -Be @('startup:7eef5f7d094fe8c0', 'ext:dfe36cc7950bcbf3')
         }
 
-        It 'gives a listed check an empty string[] when nothing is muted' {
-            $splat = Get-CheckArgument -CheckId 'startup-items' -RunLog 'C:\logs\run.log' -MutedKeys $null
+        It 'gives a declaring script an empty string[] when nothing is muted' {
+            $splat = Get-CheckArgument -CheckId 'startup-items' -ScriptPath $script:declaring -MutedKeys $null
             , $splat['MutedKeys'] | Should -BeOfType [string[]]
             $splat['MutedKeys'].Count | Should -Be 0
         }
 
-        It 'never gives MutedKeys to <_>, which does not declare it' -ForEach @('disk-space', 'battery', 'winget-upgrades', 'defender') {
-            $splat = Get-CheckArgument -CheckId $_ -RunLog 'C:\logs\run.log' -BatteryReportPath 'C:\logs\battery.html' `
+        It 'leaves -MutedKeys out for a script that does not declare it, and that script still dispatches' {
+            $splat = Get-CheckArgument -CheckId 'startup-items' -ScriptPath $script:notDeclaring `
                 -MutedKeys @('startup:7eef5f7d094fe8c0')
             $splat.ContainsKey('MutedKeys') | Should -BeFalse
+            $dispatch = Invoke-CheckWithTimeout -ScriptPath $script:notDeclaring -TimeoutSec 60 -Arguments $splat
+            $dispatch.ok | Should -BeTrue
+            $dispatch.result.ran | Should -BeTrue
+        }
+
+        It 'gives a list-style battery check both -ReportPath and -MutedKeys' {
+            $both = Write-FixtureCheck -Name 'battery-with-items' -Body 'param([string] $ReportPath, [string[]] $MutedKeys)'
+            $splat = Get-CheckArgument -CheckId 'battery' -ScriptPath $both -BatteryReportPath 'C:\logs\battery.html' `
+                -MutedKeys @('startup:7eef5f7d094fe8c0')
+            $splat['ReportPath'] | Should -Be 'C:\logs\battery.html'
+            $splat['MutedKeys'] | Should -Be @('startup:7eef5f7d094fe8c0')
         }
     }
 }

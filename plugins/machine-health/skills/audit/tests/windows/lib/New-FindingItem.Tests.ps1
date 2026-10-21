@@ -14,6 +14,16 @@ first 16 hex characters.
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'New-FindingItem.ps1'
+    $script:MutesSchemaPath = Join-Path $script:SkillRoot 'catalog\schemas\mutes.schema.json'
+
+    # A key is only useful if it can be stored: validate it inside a mutes.json.
+    function Test-MuteKeyAgainstSchema([string] $Key) {
+        $json = [ordered]@{
+            schema_version = '1.0'
+            checks         = @{ 'startup-items' = @{ muted_findings = @(@{ key = $Key; added_at = '2026-10-21T12:00:00Z' }) } }
+        } | ConvertTo-Json -Depth 6
+        Test-Json -Json $json -SchemaFile $script:MutesSchemaPath -ErrorAction SilentlyContinue
+    }
 }
 
 Describe 'Get-FindingKey' -Tag 'lib' {
@@ -30,7 +40,18 @@ Describe 'Get-FindingKey' -Tag 'lib' {
     ) {
         $key = Get-FindingKey -Kind $Kind -Identity $Identity
         $key | Should -BeExactly $Expected
-        $key | Should -MatchExactly '^[a-z-]{1,16}:[0-9a-f]{16}$'
+        Test-MuteKeyAgainstSchema $key | Should -BeTrue
+    }
+
+    It 'gives every kind it accepts a key that mutes.schema.json accepts' {
+        $kinds = @((Get-Command Get-FindingKey).Parameters['Kind'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] } |
+                ForEach-Object ValidValues)
+        $kinds.Count | Should -BeGreaterThan 0
+        foreach ($kind in $kinds) {
+            Test-MuteKeyAgainstSchema (Get-FindingKey -Kind $kind -Identity @('example')) |
+                Should -BeTrue -Because "kind '$kind' must produce a storable key"
+        }
     }
 
     It 'lowercases the identity before hashing, so case never changes the key' {

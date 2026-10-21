@@ -129,7 +129,7 @@ ConvertTo-Json -Depth 10 -Compress -InputObject ([ordered]@{
 
             $muteState = Get-MuteState -StateDir $stateDir
             $muted = Get-MutedFindingKey -State $muteState -CheckId 'startup-items'
-            $checkArgs = Get-CheckArgument -CheckId 'startup-items' -RunLog (Join-Path $TestDrive 'run.log') `
+            $checkArgs = Get-CheckArgument -CheckId 'startup-items' -ScriptPath $script:fixturePath -RunLog (Join-Path $TestDrive 'run.log') `
                 -BatteryReportPath (Join-Path $TestDrive 'battery.html') -MutedKeys $muted
             $script:dispatch = Invoke-CheckWithTimeout -ScriptPath $script:fixturePath -TimeoutSec 60 -Arguments $checkArgs
         }

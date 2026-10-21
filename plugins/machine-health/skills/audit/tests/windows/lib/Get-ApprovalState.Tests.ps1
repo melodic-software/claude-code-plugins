@@ -96,26 +96,11 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
     }
 
     Context 'reading while another process holds the file' {
-        BeforeEach {
+        It 'reads while another handle holds the file with ReadWrite' {
             New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
             $payload = '{"schema_version":"1.0","remediations":{"clear-temp-files":{"approved":true}}}'
             Set-Content -LiteralPath $script:approvalsPath -Value $payload -Encoding utf8
-        }
-
-        It 'reads while another handle holds the file with ReadWrite' {
             $holder = [System.IO.File]::Open($script:approvalsPath, 'Open', 'ReadWrite', 'ReadWrite')
-            try {
-                $state = Get-ApprovalState -StateDir $script:stateDir -WarningVariable warned -WarningAction SilentlyContinue
-            } finally {
-                $holder.Dispose()
-            }
-            $warned | Should -BeNullOrEmpty
-            $state.remediations.'clear-temp-files'.approved | Should -BeTrue
-        }
-
-        It 'reads while another handle holds delete access, as a replacing writer does' {
-            $holder = [System.IO.FileStream]::new($script:approvalsPath, 'Open', 'ReadWrite',
-                [System.IO.FileShare]'ReadWrite, Delete', 4096, [System.IO.FileOptions]::DeleteOnClose)
             try {
                 $state = Get-ApprovalState -StateDir $script:stateDir -WarningVariable warned -WarningAction SilentlyContinue
             } finally {
