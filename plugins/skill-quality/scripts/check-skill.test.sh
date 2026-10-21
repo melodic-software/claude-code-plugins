@@ -5036,6 +5036,19 @@ scope_case "skips a repo's test from a cwd in no repo (single mode)" "$SCOPE_TMP
   "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" single skip
 scope_case "skips a repo's test from a cwd in no repo (root mode)" "$SCOPE_TMP/plaincwd" \
   "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" root skip
+# An exported GIT_DIR and GIT_WORK_TREE naming the skill's repo must not make
+# it the invoking repo: both toplevel probes ignore them.
+rm -f "$SCOPE_TMP/other.ran"
+out="$(cd "$TMP" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING_TOPLEVEL \
+  GIT_DIR="$SCOPE_TMP/other/.git" GIT_WORK_TREE="$SCOPE_TMP/other" \
+  CHECK_SKILL_SKILLS_ROOT="$SCOPE_TMP/other/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" good-skill 2>&1)"
+if [[ ! -f "$SCOPE_TMP/other.ran" ]] &&
+  grep -q 'script tests skipped: the skill is outside the current repository' <<<"$out"; then
+  pass "check 7 ignores an exported GIT_DIR and GIT_WORK_TREE"
+else
+  fail "check 7 should skip a test an exported GIT_DIR points at: $out"
+fi
 
 # The usage error carries no bash-internal prefix and points at --help; the
 # header names the markdownlint seam.

@@ -236,9 +236,11 @@ fi
 # Check 7 runs a skill's script tests only when the skill sits in the invoking
 # shell's repository, so checking an installed plugin copy never executes its
 # code. Root mode runs each child at its dispatched root, so the parent hands
-# its own answer down; empty means the invoker is in no repository.
-INVOKING_TOPLEVEL=""
-((HAVE_GIT)) && INVOKING_TOPLEVEL="$(cd -- "$REPO_ROOT" && pwd -P)"
+# its own answer down; empty means the invoker is in no repository. These
+# probes ignore an exported GIT_DIR or GIT_WORK_TREE, which could name any repo.
+GIT_UNSET=(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX)
+INVOKING_TOPLEVEL="$("${GIT_UNSET[@]}" git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+[[ -n "$INVOKING_TOPLEVEL" ]] && INVOKING_TOPLEVEL="$(cd -- "$INVOKING_TOPLEVEL" && pwd -P)"
 INVOKING_TOPLEVEL="${CHECK_SKILL_INVOKING_TOPLEVEL-$INVOKING_TOPLEVEL}"
 
 # shellcheck source=./skill-frontmatter.sh
@@ -1314,7 +1316,7 @@ fi
 # --- Check 7: scripts/*.test.sh pass where present -------------------------
 
 if [[ -d "$SKILL_DIR/scripts" ]]; then
-  SKILL_TOPLEVEL="$(git -C "$SKILL_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  SKILL_TOPLEVEL="$("${GIT_UNSET[@]}" git -C "$SKILL_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -n "$SKILL_TOPLEVEL" ]] && SKILL_TOPLEVEL="$(cd -- "$SKILL_TOPLEVEL" && pwd -P)"
   while IFS= read -r test_sh; do
     [[ -z "$test_sh" ]] && continue
@@ -1332,8 +1334,7 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
     # broke. Success stays silent: the reason to suppress was log noise, and that
     # reason does not apply to the run that just went red.
     test_out=""
-    if test_out="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX \
-      -u CHECK_SKILL_INVOKING_TOPLEVEL bash "$test_sh" 2>&1 </dev/null)"; then
+    if test_out="$("${GIT_UNSET[@]}" -u CHECK_SKILL_INVOKING_TOPLEVEL bash "$test_sh" 2>&1 </dev/null)"; then
       note "script test passed: ${test_sh#"$SKILL_DIR"/}"
     else
       err "script test failed: ${test_sh#"$SKILL_DIR"/}"
