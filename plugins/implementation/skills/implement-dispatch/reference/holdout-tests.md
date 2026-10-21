@@ -88,7 +88,10 @@ special-case.
    never through a package script. For example, `pytest --noconftest -c <holdout>/pytest.ini
    --rootdir <holdout> -p no:cacheprovider`, `vitest run --config <holdout>/vitest.config.ts`, or
    `jest --config <holdout>/jest.config.js`. A runner configuration or test setup file the phase
-   diff adds or changes is a verifier finding (SKILL.md, Dispatch cadence item 1.13).
+   diff adds or changes without sanction is a verifier FAIL under the rule SKILL.md, Dispatch
+   cadence item 1.13, quotes; a sanctioned one is still a finding. The throwaway worktree is not
+   holdout-only: SKILL.md, Phase boundaries, creates it whenever the phase diff touches a test or
+   check file, so the verifier can re-run the check with those paths restored from base.
 
    - **Pointer**: the runners' own flag references:
      [pytest command-line flags](https://docs.pytest.org/en/stable/reference/reference.html#command-line-flags),
