@@ -2163,7 +2163,7 @@
   .app .vf-scroll { padding-block-start: 10px; }
   .app .vf-qmeta { gap: 8px; margin-block-end: 6px; }
   .app .vf-qmeta > span:first-child { flex: 1 1 0; min-width: 7.5em; } /* the position takes two lines before a chip wraps */
-  .app .vf-qmeta :is(.vf-purpose, .vf-purposesel, .vf-chip) { order: 1; } /* chips wrap to their own row under the position and the arrows */
+  .app .vf-qmeta :is(.vf-purpose, .vf-purposesel, .vf-chip, .vf-forbtn) { order: 1; } /* chips and the host's Who must answer wrap to their own row under the position and the arrows */
   .app .vf-qmeta { flex-wrap: wrap; row-gap: 6px; }
   .app .vf-qnav { display: flex; gap: 0; margin-inline-start: auto; flex: none; }
   /* who else is on the question: up to 3 avatars in a slot this row keeps empty or not, so presence never moves the page */

@@ -2,7 +2,8 @@
 // Page alignment check: seeds a varied session and an empty one through `share.sh ensure-running` (fake cloudflared,
 // spare ports), then opens every view below at each size and theme and checks the page: no mention token (<@pid>) in
 // its text, attributes or fields, and the geometry: no page scroll,
-// no horizontal overflow, the focus view's blocks on the question's column (column), no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
+// no horizontal overflow, the focus view's blocks on the question's column (column), a phone's previous and next arrows on the question
+// position's row (qnav-row), no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
 // place, the phone tab bar, choice and confirm controls above the fold, and icon-only buttons with the icon centered
 // on the button within 0.5 px (icon-center).
 //   node plugins/planning/shared/tests/align.js
@@ -420,6 +421,13 @@ const check = (page, theme) => page.evaluate(theme => {
       const r = el.getBoundingClientRect();
       if (Math.abs(r.left - qr.left) > 1 || Math.abs(r.right - qr.right) > 1) fail("column", `${name(el)} x ${r.left.toFixed(1)}..${r.right.toFixed(1)} is not on the question's column x ${qr.left.toFixed(1)}..${qr.right.toFixed(1)}`);
     }
+  }
+  // 2c. A phone's question row (app.css .vf-qmeta): previous and next stay on the position's row; the host's Who must
+  // answer, the chips and the avatars of who else is on it wrap below, never the arrows.
+  const qnav = document.querySelector(".vf-focus .vf-qmeta > .vf-qnav"), qpos = qnav?.parentElement.firstElementChild;
+  if (qnav && vis(qnav) && qpos && vis(qpos)) {
+    const n = qnav.getBoundingClientRect(), p = qpos.getBoundingClientRect();
+    if (n.top >= p.bottom - T || n.bottom <= p.top + T) fail("qnav-row", `${name(qnav)} y ${n.top.toFixed(1)}..${n.bottom.toFixed(1)} wrapped off the position's row y ${p.top.toFixed(1)}..${p.bottom.toFixed(1)}`);
   }
 
   // 3. Visible text never overlaps other visible text.
