@@ -795,6 +795,7 @@ node plugins/planning/shared/tests/ui_myreports.js
 node plugins/planning/shared/tests/ui_welcome.js
 node plugins/planning/shared/tests/ui_per_device.js
 node plugins/planning/shared/tests/ui_review.js
+node plugins/planning/shared/tests/ui_rail_header.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -823,6 +824,13 @@ chips and the Inbox tab kept over a reload.
 `ui_inbox_page.js` checks the Inbox page: Needs you holding a request Claude failed until it is opened but never one
 the owner discarded or cancelled, nor a report already asked about; History holding them; rows opening where they
 happened and closing the page; a leader's proposals to place and the server refusing a leader's Run.
+
+`ui_rail_header.js` checks, at 1440x900 and on a 390x844 phone, that every round's label in the rail starts at one x,
+with a check once something in the round is done and an empty ring before, both aria-hidden; that the phone's question
+header keeps the arrows on the position's row and the host's Purpose and Ask someone (then Change who) together on one
+row of 44 px targets, nothing past the screen, while the desktop header stays one row; and the owner's Approve all in
+Proposed: a confirm naming how many, each counted proposal a question in the next round, one that arrived after the
+confirm left in New, and no guest offered it.
 
 `ui_myreports.js` checks Your reports on a 390x844 phone from More and on a desktop from Help: no entry before a
 report, the list with Sent, Seen by the host and Fixed, a line and a screenshot added (the owner's Problem item shows
