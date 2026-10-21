@@ -969,21 +969,36 @@ class MalformedInputTests(unittest.TestCase):
 
 class TestOnlyScriptPathTests(unittest.TestCase):
     """A change whose files under floored script paths are all tests (a
-    *.test.mjs, *.test.sh, *.test.js or test_*.py name, or a tests/ or
-    fixtures/ directory) takes no script-path hold; every other reason stays."""
+    *.test.mjs, *.test.sh, *.test.js or test_*.py name) takes no script-path
+    hold; every other reason stays."""
 
     SCRIPT = "high-path:plugins/*/scripts/**"
 
     def test_test_only_change_under_a_script_directory_is_low(self):
         files = (
             _file("plugins/foo/scripts/tests/test_run.py"),
-            _file("plugins/foo/scripts/tests/fixtures/input.json"),
             _file("plugins/foo/skills/bar/scripts/merge.test.mjs"),
             _file("plugins/foo/skills/bar/scripts/check.test.sh"),
             _file("plugins/foo/docs/scripts/x.test.js"),
         )
         result = score(_input(files=files))
         self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+    def test_a_file_only_a_tests_or_fixtures_directory_names_still_holds(self):
+        # An unchanged shipped file the scorer cannot read may source a tests/
+        # helper, glob a tests/ directory, or copy fixtures to a consumer, as a
+        # setup check copying scripts/fixtures/sources/* does.
+        for path, code in (
+            ("plugins/foo/scripts/tests/lib.sh", self.SCRIPT),
+            ("plugins/foo/scripts/tests/evil.sh", self.SCRIPT),
+            ("plugins/foo/scripts/tests/fixtures/input.json", self.SCRIPT),
+            (
+                "plugins/foo/skills/setup/scripts/fixtures/sources/x.py",
+                "high-path:plugins/*/skills/*/scripts/**",
+            ),
+        ):
+            with self.subTest(path):
+                self.assertIn(code, _codes(score(_input(files=(_file(path),)))))
 
     def test_a_path_leaving_tests_still_holds(self):
         path = "plugins/foo/scripts/tests/../run.sh"
@@ -1121,7 +1136,7 @@ class TestOnlyScriptPathTests(unittest.TestCase):
                     "high-path:plugins/**/scripts/**",
                     _codes(score(_input(files=(_file(path),)))),
                 )
-        low = score(_input(files=(_file("plugins/x/scripts/tests/a.sh"),)))
+        low = score(_input(files=(_file("plugins/x/scripts/tests/a.test.sh"),)))
         self.assertEqual(low.score, Risk.LOW, _codes(low))
 
     def test_a_tests_directory_above_a_script_scope_still_holds(self):
@@ -1132,7 +1147,7 @@ class TestOnlyScriptPathTests(unittest.TestCase):
         self.assertEqual(_codes(result), ("high-script",))
         below = _file("plugins/foo/tools/tests/run.sh", mode="100755")
         result = score(_input(files=(below,), floor_script_scopes=("plugins/foo/**",)))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        self.assertEqual(_codes(result), ("high-script",))
 
     def test_a_test_file_another_changed_file_names_still_holds(self):
         test = _file("plugins/foo/skills/bar/scripts/preflight.test.sh", status="added")

@@ -23,9 +23,8 @@ key, adds a `!` command, or changes a line inside a ```! block, compared with
 its base text, or whose text could not be read, rates HIGH as
 `high-capability`.
 A safe file whose every path is a test (a `*.test.mjs`, `*.test.sh`,
-`*.test.js` or `test_*.py` name, or a `tests` or `fixtures` directory below the
-path's last `scripts` directory, in any case, and below any script scope it is
-in; names and test directories match case-sensitively), under no declared path and named by no other changed file
+`*.test.js` or `test_*.py` name, matched case-sensitively; a `tests` or
+`fixtures` directory alone is not one), under no declared path and named by no other changed file
 (every other file readable), is left out of the floor's script-directory
 entries, `floor-paths` globs whose last segment other than `**` is `scripts`,
 and the script scopes; every other entry and every denied path still holds it.
@@ -627,7 +626,6 @@ _SCRIPT_FLOOR = frozenset(
     {"plugins/*/scripts/**", "plugins/*/skills/*/scripts/**", "plugins/**/scripts/**"}
 )
 _TEST_NAMES = ("*.test.mjs", "*.test.sh", "*.test.js", "test_*.py")
-_TEST_DIRS = frozenset({"tests", "fixtures"})
 
 
 def _ends_in_scripts(glob: str) -> bool:
@@ -636,32 +634,12 @@ def _ends_in_scripts(glob: str) -> bool:
     return bool(segments) and segments[-1] == "scripts"
 
 
-def _scope_depth(scope: str, segments: list[str]) -> int:
-    """How many leading path segments the scope names, without its trailing
-    `**`: 0 when it does not match."""
-    stem = scope.rstrip("/")
-    while stem.endswith("/**"):
-        stem = stem[: -len("/**")]
-    for depth in range(1, len(segments) + 1):
-        if glob_match(stem, "/".join(segments[:depth])):
-            return depth
-    return 0
-
-
-def _test_path(path: str, scopes: tuple[str, ...]) -> bool:
-    """A test file name, or a tests or fixtures directory below the path's last
-    scripts directory (in any case, as the floor globs match) and below every
-    script scope it falls in; test names and directories match
-    case-sensitively."""
-    *dirs, name = path.split("/")
-    if any(_segment_match(g, name) for g in _TEST_NAMES):
-        return True
-    below = max(
-        [i + 1 for i, d in enumerate(dirs) if d.casefold() == "scripts"]
-        + [_scope_depth(s, dirs + [name]) for s in scopes if glob_match(s, path)]
-        + [0]
-    )
-    return bool(_TEST_DIRS.intersection(dirs[below:]))
+def _test_path(path: str) -> bool:
+    """A test file name, matched case-sensitively. A tests or fixtures
+    directory alone is no test: an unchanged shipped file the scorer cannot
+    read may source, glob or copy what it holds."""
+    name = path.rsplit("/", 1)[-1]
+    return any(_segment_match(g, name) for g in _TEST_NAMES)
 
 
 def _named(f: _File, files: list[_File], raw_files: list[Any]) -> bool:
@@ -688,14 +666,13 @@ def _test_only(
     files: list[_File],
     raw_files: list[Any],
     declared: tuple[str, ...],
-    scopes: tuple[str, ...],
 ) -> bool:
     """Every path of a safe file is a test (`_test_path`), under no declared
     path, and no other changed file names it."""
     if f.unsafe or not f.paths:
         return False
     for path in f.paths:
-        if not _test_path(path, scopes) or any(glob_match(d, path) for d in declared):
+        if not _test_path(path) or any(glob_match(d, path) for d in declared):
             return False
     return not _named(f, files, raw_files)
 
@@ -933,10 +910,7 @@ def _high_path_reasons(
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
     paths = [path for f in files for path in f.paths if path]
     tests = {
-        p
-        for f in files
-        if _test_only(f, files, raw_files, declared, scopes)
-        for p in f.paths
+        p for f in files if _test_only(f, files, raw_files, declared) for p in f.paths
     }
     # The floor's script entries and floor-paths globs ending in a scripts
     # directory exempt tests; a denied path never does.
