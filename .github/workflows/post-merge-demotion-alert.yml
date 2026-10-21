@@ -461,6 +461,9 @@ jobs:
           if [[ -n "$newly" ]]; then
             declare -A fix_seen=()
             while IFS= read -r check; do
+              # The job's name only: it comes from the workflow file on main,
+              # while a gate title is any step's annotation text.
+              check="${check%%: *}"
               if [[ -n "${fix_seen[$check]+x}" ]]; then
                 continue
               fi
@@ -507,12 +510,24 @@ jobs:
             merges="\`${base:0:12}..${RUN_SHA:0:12}\`, listed on $on_record"
           fi
           fix_failed=''
-          # The hourly triage sweep skips github-actions[bot] issues, so a
-          # failed dispatch is retried by nothing: it fails the job.
+          undelivered=()
+          # The hourly triage sweep skips github-actions[bot] issues, and a
+          # re-run takes the existing-record path, so a failed dispatch is
+          # retried by nothing: the record, which a person already handles,
+          # gets a comment naming it, and the job fails.
+          # Locked before intake reads it, so no outsider comment reaches the
+          # triage prompt; a lock that fails sends nothing.
           dispatch() {
+            if ! gh api -X PUT "repos/$GITHUB_REPOSITORY/issues/$1/lock" >/dev/null; then
+              echo "::error::could not lock #$1: not sent to intake triage"
+              undelivered+=("#$1 could not be locked, so it was not sent to intake triage")
+              fix_failed=1
+              return
+            fi
             if ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
               -f ref=main -f "inputs[issue-number]=$1" >/dev/null; then
               echo "::error::could not dispatch intake triage for #$1"
+              undelivered+=("#$1 was not sent to intake triage")
               fix_failed=1
             fi
           }
@@ -540,6 +555,7 @@ jobs:
                 dispatch "$fix_number"
               else
                 echo "::error::could not reopen fix issue #$fix_number for $check"
+                undelivered+=("#$fix_number (\`$check\`) could not be reopened")
                 fix_failed=1
               fi
             else
@@ -559,11 +575,20 @@ jobs:
                 dispatch "$fix_number"
               else
                 echo "::error::could not file the fix issue for $check"
+                undelivered+=("no fix issue could be filed for \`$check\`")
                 fix_failed=1
               fi
             fi
           done
           if [[ -n "$fix_failed" ]]; then
+            if [[ "${#undelivered[@]}" -gt 0 ]]; then
+              note="Fix issues not handed to intake on this run; triage them by hand:"
+              for line in "${undelivered[@]}"; do
+                note+=$'\n'"- $line"
+              done
+              gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$record/comments" -f body="$note" >/dev/null ||
+                echo "::error::could not comment on record #$record"
+            fi
             exit 1
           fi
 
