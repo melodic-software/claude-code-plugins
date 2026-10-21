@@ -671,6 +671,7 @@
         }
       }
     },
+    "route-role": { "enum": ["orchestrator", "worker", "verifier", "retrieval"] },
     "issue-field": {
       "type": "object",
       "additionalProperties": false,
@@ -689,7 +690,18 @@
     "profile": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["model", "max-turns"],
+      "required": ["max-turns"],
+      "description": "A model profile names its model, or a role profile names a multi-agent role, never both. A role profile has no model or effort key, so it can name neither default nor a model ID: its model and effort come from the role map, plugins/multi-agent/reference/defaults.yaml in the base checkout, and the model is opus when the role map gives inherit or no alias (README.md, Models).",
+      "oneOf": [
+        {
+          "required": ["model"],
+          "not": { "anyOf": [{ "required": ["role"] }, { "required": ["workload"] }, { "required": ["effort-role"] }] }
+        },
+        {
+          "required": ["role"],
+          "not": { "anyOf": [{ "required": ["model"] }, { "required": ["effort"] }] }
+        }
+      ],
       "properties": {
         "model": {
           "enum": ["default", "best", "fable", "opus", "sonnet"],
@@ -698,6 +710,18 @@
         "effort": {
           "enum": ["low", "medium", "high", "xhigh", "max"],
           "description": "Passed as --effort. Absent: no --effort, so the model's default effort applies."
+        },
+        "role": {
+          "$ref": "#/$defs/route-role",
+          "description": "The multi-agent role whose model the run takes."
+        },
+        "workload": {
+          "enum": ["code", "research", "mechanical"],
+          "description": "The role's workload, whose model and effort win over the role's own where the role map sets them."
+        },
+        "effort-role": {
+          "$ref": "#/$defs/route-role",
+          "description": "The role whose effort the run takes, in place of its own role's."
         },
         "subagent-model": {
           "enum": ["inherit", "best", "fable", "opus", "sonnet"],
