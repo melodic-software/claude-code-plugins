@@ -2606,9 +2606,10 @@ class LocalEnabledSince(unittest.TestCase):
 
     def test_more_than_100_enabled_commits_still_have_a_floor(self) -> None:
         # Every commit enables the path, so the walk reaches the first one.
+        # Two alternating texts keep each commit a change to the file.
         for n in range(101):
             base = self.pipeline(
-                f"{PIPELINE}# {n}\n", f"2026-02-01T00:{n // 60:02d}:{n % 60:02d}Z"
+                f"{PIPELINE}# {n % 2}\n", f"2026-02-01T00:{n // 60:02d}:{n % 60:02d}Z"
             )
         gh = self.local()
         self.assertEqual(
@@ -5357,11 +5358,38 @@ _role_label = mock.patch.object(
 )
 
 
+_read_concern_values = policy._concern_values
+_real_run_command = policy.run_command
+_READER = policy.PARSER
+_concern_answers: dict[Any, dict[str, list[str]] | None] = {}
+
+
+def _cached_concern_values(
+    text: str, keys: list[tuple[str, bool]]
+) -> dict[str, list[str]] | None:
+    """The shared YAML reader's answer, read once per document, key list and
+    environment: the reader is a pure function of them, and spawning it for
+    every config read dominated this module's run time. A test that swaps
+    the command runner or the reader script reads through."""
+    if policy.run_command is not _real_run_command or policy.PARSER != _READER:
+        return _read_concern_values(text, keys)
+    key = (text, tuple(keys), tuple(sorted(os.environ.items())))
+    if key not in _concern_answers:
+        _concern_answers[key] = _read_concern_values(text, keys)
+    found = _concern_answers[key]
+    return None if found is None else {k: list(v) for k, v in found.items()}
+
+
+_concern_cache = mock.patch.object(policy, "_concern_values", _cached_concern_values)
+
+
 def setUpModule() -> None:
     _role_label.start()
+    _concern_cache.start()
 
 
 def tearDownModule() -> None:
+    _concern_cache.stop()
     _role_label.stop()
 
 
