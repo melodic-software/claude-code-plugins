@@ -895,12 +895,12 @@
             "floor-paths": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "description": "Globs joined to the risk scorer's HIGH path floor while it applies: a diff touching one scores HIGH and waits for a human, where a denied path makes the pull request ineligible. They add to the fixed floor, never replace it."
+              "description": "Globs joined to the risk scorer's HIGH path floor while it applies: a diff touching one scores HIGH and waits for a human, where a denied path makes the pull request ineligible. They add to the fixed floor, never replace it. A glob whose last segment other than ** is scripts does not hold a test file (a *.test.mjs, *.test.sh, *.test.js or test_*.py name; a tests or fixtures directory alone is not one) under no declared path and named by no other changed file."
             },
             "floor-script-scopes": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "description": "Globs inside which, as at the repository top level, a .ps1 or .cjs file, or a file with git mode 100755, scores HIGH while the floor applies and waits for a human."
+              "description": "Globs inside which, as at the repository top level, a .ps1 or .cjs file, or a file with git mode 100755, scores HIGH while the floor applies and waits for a human. Outside the top level, a test file (a *.test.mjs, *.test.sh, *.test.js or test_*.py name; a tests or fixtures directory alone is not one) under no declared path and named by no other changed file is exempt."
             },
             "c2-contradictions": {
               "type": "boolean",
