@@ -1544,9 +1544,11 @@ jobs:
               patch: ($patch | nullable)
             }' >"$VERDICT_DIR/verdict.json"
 
+      # Before any head code ran there is nothing to scan, and the report
+      # job needs this verdict to post the skip.
       - name: Upload the verdict
         if: >-
-          always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
+          always() && (inputs.issue-number != '' || steps.go.outputs.run != 'true' || steps.leak-scan.outputs.clean == 'true')
           && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

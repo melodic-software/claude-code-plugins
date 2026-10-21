@@ -1104,12 +1104,47 @@ test("pr-run-activity-read.yml: the leak scan runs after the act and collect ste
   assert.ok(outputs.length >= 3);
   for (const step of outputs.filter((step) => !UNSCANNED.has(step.name))) {
     assert.ok(steps.indexOf(step) > scan, `${step.name} comes after the scan`);
-    assert.ok(String(step.if).includes(CLEAN_GATE), `${step.name} needs clean == 'true'`);
+    assert.equal(atStep(step.if, prRun(step.if, { "steps.leak-scan.outputs.clean": "true" })), true, `${step.name} runs on a clean scan`);
+    assert.equal(atStep(step.if, prRun(step.if, { "steps.leak-scan.outputs.clean": "false" })), false, `${step.name} is dropped on a hit`);
   }
   for (const id of ["reply-upload", "patch-upload"]) assert.ok(String(steps[at(id)].if).includes(CLEAN_GATE), id);
   // A hit skips the patch upload, so the run's patch-state is never `written`.
   const { outputs: jobOutputs } = workflow("pr-run-activity-read.yml").jobs.run;
   assert.match(jobOutputs["patch-state"], /^\$\{\{ steps\.patch-upload\.outcome == 'success' && 'written'/);
+});
+
+// Every context reference in an expression, empty unless the PR-mode skill
+// run below or the overrides set it.
+const PR_RUN = {
+  "inputs.issue-number": "",
+  "steps.go.outputs.run": "true",
+  "steps.key-present.outcome": "success",
+  "steps.key-present.outputs.present": "true",
+  "steps.act-skill.outcome": "skipped",
+  "steps.act-key.outcome": "success",
+  "steps.act-token.outcome": "skipped",
+  "steps.patch.outputs.state": "written",
+};
+function prRun(expression, overrides = {}, base = PR_RUN) {
+  const context = {};
+  for (const [name] of String(expression).matchAll(/\b(?:steps|inputs|job)\.[\w.-]*[\w]/g)) context[name] = "";
+  // Longer names first, so no name is replaced inside another.
+  return Object.fromEntries(Object.entries({ ...context, ...base, ...overrides }).sort(([a], [b]) => b.length - a.length));
+}
+
+test("pr-run-activity-read.yml: a PR run that stops before head code still uploads its verdict, and nothing else", () => {
+  const steps = runSteps();
+  const step = (name) => steps.find((s) => s.name === name);
+  // A trigger decline, the kill switch, applies false or an issue-prior stop: go never ran, so no scan.
+  const stopped = { "inputs.issue-number": "", "steps.go.outputs.run": "", "steps.leak-scan.outputs.clean": "" };
+  const verdict = step("Upload the verdict").if;
+  assert.equal(atStep(verdict, prRun(verdict, stopped, {})), true, "the report job needs the verdict to post the skip");
+  for (const name of ["Upload the skill's final reply", "Upload the patch", "Show the skill's run in the step summary"]) {
+    const expression = step(name).if;
+    assert.equal(atStep(expression, prRun(expression, stopped, {})), false, `${name} has nothing to upload`);
+  }
+  // Once head code ran, a hit drops the verdict too.
+  assert.equal(atStep(verdict, prRun(verdict, { "steps.leak-scan.outputs.clean": "false" })), false);
 });
 
 test("pr-run-activity-read.yml: the leak scan loads the publish gate from the API at the base SHA, never from the checkout", () => {
@@ -1151,7 +1186,14 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs")) 
   let failed = null;
   const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) };
   const github = {
-    rest: { repos: { getContent: async ({ ref }) => ({ data: { content: Buffer.from(gate).toString("base64"), ref } }) } },
+    rest: {
+      repos: {
+        getContent: async ({ owner, repo, path: file, ref }) => {
+          assert.deepEqual({ owner, repo, file, ref }, { owner: "o", repo: "r", file: "lib/publish-gate.mjs", ref: "b".repeat(40) }, "the gate at the base SHA only");
+          return { data: { content: Buffer.from(gate).toString("base64") } };
+        },
+      },
+    },
   };
   const env = {
     BASE_SHA: "b".repeat(40),
@@ -1171,11 +1213,12 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs")) 
     { repo: { owner: "o", repo: "r" } },
     { env },
   );
-  return { clean: outputs.clean, failed };
+  return { clean: outputs.clean, failed, work };
 }
 
 test("leak scan: a clean run is clean", async (t) => {
-  assert.deepEqual(await scanWith(t, () => {}), { clean: "true", failed: null });
+  const { clean, failed } = await scanWith(t, () => {});
+  assert.deepEqual({ clean, failed }, { clean: "true", failed: null });
 });
 
 test("leak scan: a key in the reply, in a binary changed file, in an untracked file or in the execution file fails it, naming the pattern and never the key", async (t) => {
@@ -1191,8 +1234,10 @@ test("leak scan: a key in the reply, in a binary changed file, in an untracked f
     "execution file": ({ temp }) => writeFileSync(join(temp, "execution.json"), JSON.stringify([{ type: "user", text: KEY }])),
   };
   for (const [where, plant] of Object.entries(plants)) {
-    const { clean, failed } = await scanWith(t, plant);
+    const { clean, failed, work } = await scanWith(t, plant);
     assert.equal(clean, "false", where);
+    // The scan stages in a scratch index and leaves the checkout's own as the run left it.
+    assert.match(spawnSync("git", ["ls-files", "-v", "tracked.txt"], { cwd: work, encoding: "utf8" }).stdout, where.includes("assume-unchanged") ? /^h / : /^H /, where);
     assert.match(failed, /^leak-scan: Anthropic key; .*\nrotate this credential$/, where);
     assert.ok(!failed.includes(KEY), where);
   }

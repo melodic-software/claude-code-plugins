@@ -121,7 +121,7 @@ function fakeApi(repo, head, overrides = {}) {
     getPull: async () => (record("getPull"), overrides.pull ?? { draft: false, head: { repo: { full_name: "o/r" } } }),
     listLabels: async () => (record("listLabels"), overrides.labels ?? []),
     readBranch: async () => (record("readBranch"), overrides.branch ?? tip),
-    createBlob: async (content) => (record("createBlob"), git(repo, ["hash-object", "-w", "--stdin"], Buffer.from(content, "base64"))),
+    createBlob: async (content) => (record("createBlob"), overrides.blobSha ?? git(repo, ["hash-object", "-w", "--stdin"], Buffer.from(content, "base64"))),
     createTree: async (baseTree, entries) => {
       record("createTree");
       if (overrides.tree) {
@@ -141,7 +141,7 @@ function fakeApi(repo, head, overrides = {}) {
     createCommit: async (message, tree, parents) => (record("createCommit", { message, tree, parents }), "c".repeat(40)),
     updateRef: async (ref, sha, force) => {
       record("updateRef", { ref, sha, force });
-      tip = sha;
+      tip = overrides.afterWrite ?? sha;
     },
     createRef: async (ref, sha) => {
       record("createRef", { ref, sha });
@@ -572,6 +572,46 @@ test("a patch file whose SHA-256 changed since the select step is invalid at pus
   const api = fakeApi(fix.repo, fix.head);
   assert.deepEqual(await ciPush(fix, api, { patchSha256: "0".repeat(64) }), { outcome: "escalate", escalationReason: "ci-fix-invalid" });
   assert.deepEqual(api.calls, []);
+});
+
+test("an empty patch file is invalid in select and in the push", async (t) => {
+  const none = patchDirOf(t, "");
+  assert.deepEqual(selectCi(none.dir, none.sum), INVALID);
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await ciPush(fix, api, { patchFile: join(none.dir, "patch.diff"), patchSha256: none.sum }), {
+    outcome: "escalate",
+    escalationReason: "ci-fix-invalid",
+  });
+  assert.deepEqual(api.calls, []);
+});
+
+// A patch that changes README.md and changes it back applies and leaves the
+// head's tree: the row's empty reason, as an empty patch-state gives.
+test("a patch that applies but changes nothing escalates ci-fix-empty", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const forward = readFileSync(fix.patchFile, "utf8");
+  writeFileSync(join(fix.repo, "README.md"), "# s\n");
+  const back = execFileSync("git", ["diff", "-R", "--full-index"], { cwd: fix.repo, encoding: "utf8" });
+  git(fix.repo, ["checkout", "-q", "README.md"]);
+  writeFileSync(fix.patchFile, forward + back);
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await ciPush(fix, api, { patchSha256: sha256(forward + back) }), { outcome: "escalate", escalationReason: "ci-fix-empty" });
+  assert.deepEqual(api.calls, []);
+});
+
+test("a blob GitHub stores under another SHA is not committed", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const api = fakeApi(fix.repo, fix.head, { blobSha: "f".repeat(40) });
+  await assert.rejects(ciPush(fix, api), /stored a blob/);
+  assert.equal(api.calls.some((call) => call === "createTree" || call.createCommit), false);
+});
+
+test("a branch that does not read back as the new commit after the write fails the push", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+  const api = fakeApi(fix.repo, fix.head, { afterWrite: "e".repeat(40) });
+  await assert.rejects(ciPush(fix, api), /reads e{40} after the write/);
+  assert.ok(api.calls.some((call) => call.updateRef));
 });
 
 // --- select and main ---
