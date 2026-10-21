@@ -41,7 +41,7 @@ SECRET_PATTERNS=(
   'ghp_[0-9a-zA-Z]{36}'                                          # GitHub PAT
   'gho_[0-9a-zA-Z]{36}'                                          # GitHub OAuth
   'gh[us]_[0-9a-zA-Z]{36}'                                       # GitHub app (ghu_/ghs_)
-  'ghs_[A-Za-z0-9._-]{36,}'                                      # GitHub installation token, current and stateless
+  '(^|[^A-Za-z0-9_])ghs_[A-Za-z0-9._-]{36,}'                     # GitHub installation token, current and stateless
   'github_pat_[0-9a-zA-Z_]{82}'                                  # GitHub fine-grained PAT
   'glpat-[0-9a-zA-Z_-]{20}'                                      # GitLab PAT
   'xoxb-[0-9]{10,13}-[0-9]{10,13}'                               # Slack bot token

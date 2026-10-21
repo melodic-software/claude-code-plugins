@@ -681,7 +681,7 @@ for header in "$(b64url '{"alg":"RS256","typ":"JWT"}')" "$(b64url '{"kid":"k?~>"
     assert_eq "case 11: stateless ${tok:0:20}... is a secret-shaped error" "error" "$(jq -r '.findings[] | select(.identity.claim=="secret-shaped-value") | .severity' <<<"$out")"
   done
 done
-for placeholder in ghs_job ghs_lane 3e7fef0587433cfb07332dbeabf0d79fc0baadf3; do
+for placeholder in ghs_job ghs_lane 3e7fef0587433cfb07332dbeabf0d79fc0baadf3 highs_and_lows_of_the_market_over_the_year laughs_out_loud_at_the_whole_long_meeting_today; do
   printf '%s\n' "$CLEAN_SETTINGS" | jq --arg t "$placeholder" '. + {env:{GH:$t}}' >"$m/project/.claude/settings.json"
   out=$(run "$m" --json --docs-dir "$m/docs" 2>&1) || true
   assert_eq "case 11: the placeholder $placeholder is not secret-shaped" "0" "$(jq '[.findings[] | select(.identity.claim=="secret-shaped-value")] | length' <<<"$out")"

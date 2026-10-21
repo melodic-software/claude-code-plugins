@@ -227,7 +227,7 @@ for header in "$(b64url '{"alg":"RS256","typ":"JWT"}')" "$(b64url '{"kid":"k?~>"
     refuse "a stateless GitHub App token (${prefix}${header:0:16}...) is refused" '{"key":"k","value":"'"$prefix$header$jwt_tail"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
   done
 done
-for placeholder in ghs_job ghs_lane 3e7fef0587433cfb07332dbeabf0d79fc0baadf3; do
+for placeholder in ghs_job ghs_lane 3e7fef0587433cfb07332dbeabf0d79fc0baadf3 highs_and_lows_of_the_market_over_the_year laughs_out_loud_at_the_whole_long_meeting_today; do
   accept "the placeholder $placeholder is accepted" '{"key":"k","value":"'"$placeholder"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 done
 # A JWS whose header carries a certificate chain (x5c) runs to many hundreds of characters.

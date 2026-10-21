@@ -440,6 +440,10 @@ OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'token = ghs_job; lane = ghs_lane
 RC=$?
 assert_exit "token placeholders and a commit sha → exit 0" 0 "$RC"
 
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'label = highs_and_lows_of_the_market_over_the_year; mood = laughs_out_loud_at_the_whole_long_meeting_today')" 2>&1)
+RC=$?
+assert_exit "a long identifier ending in ghs_ → exit 0" 0 "$RC"
+
 OUT=$(bash "$HOOK" <<<"$(other_tool_json "Read" "$FIXTURE")" 2>&1)
 RC=$?
 assert_exit "Read tool → exit 0" 0 "$RC"
