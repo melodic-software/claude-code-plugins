@@ -28,6 +28,9 @@
 // so the AI review owns the pull request; it never sorts `auto`.
 
 export const DEPENDABOT_LOGIN = "dependabot[bot]";
+// Dependabot's account id. GraphQL names the Bot "dependabot" and REST
+// "dependabot[bot]", so a GraphQL listing matches it by id.
+export const DEPENDABOT_ID = 49699333;
 export const DEPENDABOT_AUTHOR = Object.freeze(["dependabot[bot]", "49699333+dependabot[bot]@users.noreply.github.com"]);
 export const ACTIONS_AUTHOR = Object.freeze(["github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com"]);
 export const ACTIONS_PUBLISHERS = Object.freeze(["actions", "github", "anthropics"]);

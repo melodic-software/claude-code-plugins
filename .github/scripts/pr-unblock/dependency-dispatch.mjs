@@ -11,7 +11,7 @@
 // no commits or files for a red ci-status, which is review tier on its own
 // (dependency-classify.mjs classify).
 
-import { RED } from "./dependency-classify.mjs";
+import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
 import { ciStatusOf, classifyPull, commitFilesReader } from "./review-dependency.mjs";
 
@@ -61,7 +61,7 @@ export async function dispatchDependencyReviews({
 }) {
   const candidates = (listed ?? (await listAll(api, base)))
     .filter((node) => node.isDraft === false && node.isCrossRepository === false && node.baseRefName === base)
-    .filter((node) => node.author?.login === "dependabot[bot]")
+    .filter((node) => node.author?.databaseId === DEPENDABOT_ID)
     .sort((a, b) => a.number - b.number);
   const dispatched = [];
   let failed = 0;
@@ -84,7 +84,7 @@ export async function dispatchDependencyReviews({
       tier = RED.has(ciStatus) ? "review" : (
         await classifyPull({
           pull: {
-            user: { login: node.author.login },
+            user: { login: DEPENDABOT_LOGIN },
             head: { ref: node.headRefName },
             title: node.title,
             body: node.body,
