@@ -2399,7 +2399,7 @@
     }
     function closePop() {
       if (!ui.pop) return;
-      if (ui.pop === pcard) { ui.pcard = null; ui.renaming = false; }
+      if (ui.pop === pcard) { ui.pcard = null; ui.renaming = false; ui.renameFor = null; ui.renameDraft = null; }
       if (ui.pop === msgMenu) ui.menuHeld = false; // a held-open menu closed without a release click: the next tap counts
       ui.pop.hidden = true; ui.pop._anchor?.setAttribute?.("aria-expanded", "false");
       if (ui.pop === bellPop) root.classList.remove("vf-inboxon");
@@ -4728,7 +4728,7 @@
       clearTimeout(hoverT); clearTimeout(hideT);
       if (pinned) closePop();
       ui.pcard = { pid: el.dataset.pid, name: el.dataset.name || "", anchor: el, pinned, sig: "" };
-      ui.mergeFrom = ""; ui.mergeTo = "";
+      ui.mergeFrom = ""; ui.mergeTo = ""; ui.renaming = false; ui.renameFor = null; ui.renameDraft = null;
       pcard.hidden = false;
       fillPcard();
       placeNear(pcard, el);
@@ -4800,7 +4800,7 @@
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
       const q = here?.q && qById(here.q);
-      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
