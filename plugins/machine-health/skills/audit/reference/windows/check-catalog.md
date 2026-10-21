@@ -919,14 +919,20 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   source is enough:
   - `system-image`: the Backup event channel by numeric event id, never message text. No events
     reads `unknown`, never `absent`, because we have not seen a Windows 11 client job log there.
-    Elevated, wbadmin's exit code and its count of version-id-shaped lines; a zero count settles
+    Elevated, wbadmin's exit code and its count of version-id-shaped lines; a positive count reads
+    `present` even when the retained channel holds only failed runs, and a zero count settles
     nothing. `detail.deprecation_note` always carries the System Image Backup deprecation, and
     the summary repeats it only when a system image is the present source.
   - `restore-points`: the SystemRestore CIM class.
   - `file-history`: a File History configuration file for the user.
   - `windows-backup`: the record count of the Windows Backup app's own log, an undocumented
     signal labeled as such.
-  - `onedrive-kfm`: Known Folder Move opt-in values under the OneDrive policy keys.
+  - `onedrive-kfm`: `present` when Desktop, Documents or Pictures resolves at or under a OneDrive
+    root (signal `known-folder-redirect`, read from the user's shell-folder values without opening
+    any file), or when a Known Folder Move policy names a tenant and moves at least one folder
+    (signal `policy-key`; a folder value of 0 moves nothing, and notification or prompt values are
+    never evidence). This detects redirection, not sync health: a redirected folder whose sync is
+    paused or failing still reads `present`.
 - **Severity rubric:**
   - `UNKNOWN`: any source reads `needs-admin`, or a source state outside the closed set.
   - `WARN`: no source is `present`.
@@ -935,8 +941,11 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   [Deprecated features in the Windows client, "Deprecated features"](https://learn.microsoft.com/en-us/windows/whats-new/deprecated-features#deprecated-features)
   live and read its System Image Backup (SIB) Solution row; when checking who may run wbadmin,
   fetch [wbadmin get versions](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/wbadmin-get-versions)
+  live; when checking which Known Folder Move policy values move a folder, fetch
+  [Use OneDrive policies, "Silently move Windows known folders to OneDrive"](https://learn.microsoft.com/sharepoint/use-group-policy#silently-move-windows-known-folders-to-onedrive)
   live.
 - **As of**: 2026-10-21
 - **Recheck trigger**: the System Image Backup row leaves the deprecated list or moves to the
-  removed-features page, wbadmin get versions stops requiring elevation, or a host with a known
-  system image shows no Backup channel events.
+  removed-features page, wbadmin get versions stops requiring elevation, a host with a known
+  system image shows no Backup channel events, or the Known Folder Move section renames a value
+  or changes what an unset folder value moves.

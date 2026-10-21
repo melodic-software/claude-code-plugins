@@ -40,8 +40,23 @@ Describe 'Get-BackupSignal' -Tag 'lib' {
         Mock Invoke-NativeCommand { throw 'wbadmin must not run unelevated' }
         Mock Get-CimInstance { throw 'restore points must not be read unelevated' }
         Mock Test-Path { $false }
-        Mock Get-Item { throw 'not expected' }
         Mock Get-ChildItem { @() }
+        Mock Get-ItemProperty { throw 'policy key not expected' }
+        Mock Get-ItemProperty {
+            [pscustomobject]@{ Desktop = '%USERPROFILE%\Desktop'; Personal = '%USERPROFILE%\Documents' }
+        } -ParameterFilter { $LiteralPath -like '*User Shell Folders' }
+        $script:SavedRoots = @{}
+        foreach ($name in 'OneDrive', 'OneDriveConsumer', 'OneDriveCommercial') {
+            $script:SavedRoots[$name] = [Environment]::GetEnvironmentVariable($name)
+            [Environment]::SetEnvironmentVariable($name, $null)
+        }
+        [Environment]::SetEnvironmentVariable('OneDrive', 'X:\Profile\OneDrive')
+    }
+
+    AfterEach {
+        foreach ($name in $script:SavedRoots.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $script:SavedRoots[$name])
+        }
     }
 
     Context 'system-image' {
@@ -92,6 +107,21 @@ Describe 'Get-BackupSignal' -Tag 'lib' {
             Should -Invoke Invoke-NativeCommand -Times 1 -ParameterFilter {
                 @($ArgumentList).Count -eq 2 -and $ArgumentList[0] -eq 'get' -and $ArgumentList[1] -eq 'versions'
             }
+        }
+
+        It 'is present from wbadmin versions even when the channel holds only failed runs' {
+            Mock Get-WinEvent {
+                New-BackupEvent -Id 9 -Time ([datetime]'2026-10-08T10:00:00Z')
+            } -ParameterFilter { $FilterHashtable }
+            Mock Invoke-NativeCommand {
+                [pscustomobject]@{ status = 'Ok'; exit_code = 0; output = '01/06/2022-09:02' }
+            } -ParameterFilter { $Name -eq 'wbadmin' }
+            Mock Get-CimInstance { @() }
+            $s = Get-Source (Get-BackupSignal -Elevated $true) 'system-image'
+            $s.State | Should -Be 'present'
+            $s.Signal | Should -Be 'wbadmin-count'
+            $s.LastResultEvent | Should -Be 9
+            $s.Count | Should -Be 1
         }
 
         It 'stays unknown when elevated wbadmin exits -2 with no identifier' {
@@ -158,18 +188,41 @@ Describe 'Get-BackupSignal' -Tag 'lib' {
             (Get-Source (Get-BackupSignal -Elevated $false) 'windows-backup').State | Should -Be 'absent'
         }
 
-        It 'reads Known Folder Move as present from an opt-in policy value' {
-            Mock Test-Path { $true } -ParameterFilter { $LiteralPath -eq 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive' }
-            Mock Get-Item { [pscustomobject]@{ Property = @('KFMSilentOptIn', 'FilesOnDemandEnabled') } }
+        It 'reads OneDrive folder backup as present when Documents resolves under the OneDrive root' {
+            Mock Get-ItemProperty {
+                [pscustomobject]@{ Desktop = '%USERPROFILE%\Desktop'; Personal = '%OneDrive%\Documents' }
+            } -ParameterFilter { $LiteralPath -like '*User Shell Folders' }
             $s = Get-Source (Get-BackupSignal -Elevated $false) 'onedrive-kfm'
             $s.State | Should -Be 'present'
-            $s.Signal | Should -Be 'policy-key'
+            $s.Signal | Should -Be 'known-folder-redirect'
+            $s.Basis | Should -Match 'Personal'
         }
 
-        It 'does not read a block-opt-in policy value as Known Folder Move' {
-            Mock Test-Path { $true } -ParameterFilter { $LiteralPath -eq 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive' }
-            Mock Get-Item { [pscustomobject]@{ Property = @('KFMBlockOptIn') } }
+        It 'does not count a folder that only shares the OneDrive root''s name prefix' {
+            Mock Get-ItemProperty {
+                [pscustomobject]@{ Desktop = 'X:\Profile\OneDriveOld\Desktop' }
+            } -ParameterFilter { $LiteralPath -like '*User Shell Folders' }
             (Get-Source (Get-BackupSignal -Elevated $false) 'onedrive-kfm').State | Should -Be 'absent'
+        }
+
+        It 'is unknown when the shell folders cannot be read and no policy moves folders' {
+            Mock Get-ItemProperty { throw 'denied' } -ParameterFilter { $LiteralPath -like '*User Shell Folders' }
+            (Get-Source (Get-BackupSignal -Elevated $false) 'onedrive-kfm').State | Should -Be 'unknown'
+        }
+
+        It 'reads a Known Folder Move policy as <Expected> for <Case>' -ForEach @(
+            @{ Case = 'a tenant id with no folder selection'; Values = @{ KFMSilentOptIn = 'tenant' }; Expected = 'present' }
+            @{ Case = 'a tenant id selecting Desktop'; Values = @{ KFMSilentOptIn = 'tenant'; KFMSilentOptInDesktop = 1; KFMSilentOptInDocuments = 0 }; Expected = 'present' }
+            @{ Case = 'a tenant id with every folder value 0'; Values = @{ KFMSilentOptIn = 'tenant'; KFMSilentOptInDesktop = 0; KFMSilentOptInWithNotification = 1 }; Expected = 'absent' }
+            @{ Case = 'notification and prompt values without a tenant id'; Values = @{ KFMSilentOptInWithNotification = 1; KFMOptInWithWizard = 'tenant' }; Expected = 'absent' }
+            @{ Case = 'a block-opt-in value'; Values = @{ KFMBlockOptIn = 1 }; Expected = 'absent' }
+        ) {
+            $policy = [pscustomobject]$Values
+            Mock Test-Path { $true } -ParameterFilter { $LiteralPath -eq 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive' }
+            Mock Get-ItemProperty { $policy } -ParameterFilter { $LiteralPath -eq 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive' }
+            $s = Get-Source (Get-BackupSignal -Elevated $false) 'onedrive-kfm'
+            $s.State | Should -Be $Expected
+            if ($Expected -eq 'present') { $s.Signal | Should -Be 'policy-key' }
         }
     }
 }

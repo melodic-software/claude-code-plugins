@@ -128,6 +128,8 @@ Describe 'Test-TopProcesses' -Tag 'check' {
             $result = Invoke-TopProcessCheck
             $result.severity | Should -Be 'UNKNOWN'
             $result.detail.counters_state | Should -Be 'error'
+            $result.summary | Should -Match 'system counters unreadable'
+            $result.summary | Should -Not -Match 'CPU\s+%'
         }
 
         It 'keeps a WARN reading from the counters that did read' {

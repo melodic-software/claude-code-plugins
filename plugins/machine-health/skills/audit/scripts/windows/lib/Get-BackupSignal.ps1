@@ -46,8 +46,11 @@ $script:BackupSignalSource = [pscustomobject]@{
     FileHistoryFilter  = 'Config*.xml'
     WindowsBackupLog   = 'Microsoft-Windows-UserSettingsBackup-Orchestrator/Operational'
     OneDrivePolicyKeys = @('HKLM:\SOFTWARE\Policies\Microsoft\OneDrive', 'HKCU:\SOFTWARE\Policies\Microsoft\OneDrive')
-    KfmOptInValues     = @('KFMSilentOptIn', 'KFMSilentOptInWithNotification', 'KFMSilentOptInDesktop',
-        'KFMSilentOptInDocuments', 'KFMSilentOptInPictures', 'KFMOptInWithWizard')
+    KfmTenantValue     = 'KFMSilentOptIn'
+    KfmFolderValues    = @('KFMSilentOptInDesktop', 'KFMSilentOptInDocuments', 'KFMSilentOptInPictures')
+    ShellFoldersKey    = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders'
+    ShellFolderValues  = @('Desktop', 'Personal', 'My Pictures')
+    OneDriveRootVars   = @('OneDrive', 'OneDriveConsumer', 'OneDriveCommercial')
 }
 
 function Get-BackupSignal {
@@ -119,20 +122,26 @@ function Get-SystemImageSignal {
         }
     }
 
-    if ($events.Count -gt 0) {
-        $newestSuccess = $events | Where-Object { $_.Id -eq $src.BackupNewestId } | Select-Object -First 1
-        $lastSuccess = $newestSuccess ? (Get-BackupEventTime -Record $newestSuccess) : $null
-        $succeeded = @($events | Where-Object { $_.Id -in $src.BackupSuccessIds }).Count -gt 0
-        return New-BackupSource -Source $id -State ($succeeded ? 'present' : 'absent') `
-            -Signal 'backup-event' -LastSuccess $lastSuccess -LastResultEvent $events[0].Id -Count $count `
-            -Basis ($succeeded ? 'Backup channel success event' : 'Backup channel shows only failed runs')
+    $versions = $null -ne $count -and $count -gt 0
+    $succeeded = @($events | Where-Object { $_.Id -in $src.BackupSuccessIds }).Count -gt 0
+    $newestSuccess = $events | Where-Object { $_.Id -eq $src.BackupNewestId } | Select-Object -First 1
+    $lastSuccess = $newestSuccess ? (Get-BackupEventTime -Record $newestSuccess) : $null
+    $lastResult = $events.Count -gt 0 ? $events[0].Id : $null
+    $wbadminNote = "wbadmin exit $exitCode, $count version id(s)"
+    # wbadmin lists every backup still on disk, so its versions outweigh failed runs in the
+    # retained channel: an older success may have aged out of the log.
+    if ($succeeded -or $versions) {
+        return New-BackupSource -Source $id -State 'present' -Signal ($succeeded ? 'backup-event' : 'wbadmin-count') `
+            -LastSuccess $lastSuccess -LastResultEvent $lastResult -Count $count `
+            -Basis ($succeeded ? 'Backup channel success event' : $wbadminNote)
     }
-    if ($null -ne $count -and $count -gt 0) {
-        return New-BackupSource -Source $id -State 'present' -Signal 'wbadmin-count' -Count $count `
-            -Basis "wbadmin exit $exitCode, $count version id(s)"
+    if ($events.Count -gt 0) {
+        $basis = 'Backup channel shows only failed runs' + ($null -ne $count ? "; $wbadminNote" : '')
+        return New-BackupSource -Source $id -State 'absent' -Signal 'backup-event' -LastResultEvent $lastResult `
+            -Count $count -Basis $basis
     }
     $basis = $eventsRead ? 'no Backup events (emission on Windows 11 unverified)' : 'Backup channel unreadable'
-    if ($null -ne $count) { $basis += "; wbadmin exit $exitCode, no version id" }
+    if ($null -ne $count) { $basis += "; $wbadminNote" }
     return New-BackupSource -Source $id -State 'unknown' -Signal 'backup-event' -Count $count -Basis $basis
 }
 
@@ -223,25 +232,77 @@ function Get-WindowsBackupSignal {
 }
 
 function Get-KnownFolderMoveSignal {
+    <#
+    .SYNOPSIS
+    OneDrive folder backup: a known folder redirected under a OneDrive root, or a
+    Known Folder Move policy that moves folders.
+
+    .DESCRIPTION
+    Redirection is read from the user's shell-folder values, expanded with the
+    user's environment; no file or folder is opened. A policy counts only when it
+    names a tenant and either selects at least one folder with a non-zero value or
+    selects none, which moves every folder. Notification and prompt policies are
+    never evidence. Policy values: reference/windows/check-catalog.md section 27.
+    #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param()
 
     $src = $script:BackupSignalSource
     $id = $script:BackupSourceId.OneDriveKfm
-    $found = [System.Collections.Generic.List[string]]::new()
+
+    $roots = @($src.OneDriveRootVars | ForEach-Object { [Environment]::GetEnvironmentVariable($_) } |
+            Where-Object { $_ } | ForEach-Object { $_.TrimEnd('\') })
+    $redirected = [System.Collections.Generic.List[string]]::new()
+    $shellRead = $true
+    try {
+        $shell = Get-ItemProperty -LiteralPath $src.ShellFoldersKey -ErrorAction Stop
+        foreach ($name in $src.ShellFolderValues) {
+            $prop = $shell.PSObject.Properties[$name]
+            if (-not $prop -or -not $prop.Value) { continue }
+            $path = [Environment]::ExpandEnvironmentVariables([string]$prop.Value).TrimEnd('\')
+            foreach ($root in $roots) {
+                if ($path -eq $root -or $path.StartsWith("$root\", [StringComparison]::OrdinalIgnoreCase)) {
+                    $redirected.Add($name)
+                    break
+                }
+            }
+        }
+    } catch {
+        $shellRead = $false
+    }
+    if ($redirected.Count -gt 0) {
+        return New-BackupSource -Source $id -State 'present' -Signal 'known-folder-redirect' `
+            -Basis "redirected under OneDrive: $($redirected -join ', ')"
+    }
+
+    $policies = [System.Collections.Generic.List[string]]::new()
+    $policyRead = $true
     foreach ($key in $src.OneDrivePolicyKeys) {
         try {
             if (-not (Test-Path -LiteralPath $key)) { continue }
-            $names = @((Get-Item -LiteralPath $key -ErrorAction Stop).Property)
+            $values = Get-ItemProperty -LiteralPath $key -ErrorAction Stop
         } catch {
-            return New-BackupSource -Source $id -State 'unknown' -Signal 'policy-key' `
-                -Basis 'OneDrive policy key unreadable'
+            $policyRead = $false
+            continue
         }
-        $hive = $key.Split(':')[0]
-        foreach ($n in $names) { if ($n -in $src.KfmOptInValues) { $found.Add("$hive $n") } }
+        $tenant = $values.PSObject.Properties[$src.KfmTenantValue]
+        if (-not $tenant -or -not "$($tenant.Value)") { continue }
+        $selected = @($src.KfmFolderValues | Where-Object { $values.PSObject.Properties[$_] })
+        $moving = @($selected | Where-Object { [int64]$values.$_ -ne 0 })
+        if ($selected.Count -eq 0 -or $moving.Count -gt 0) {
+            $what = $selected.Count -eq 0 ? 'all folders' : ($moving -join ', ')
+            $policies.Add("$($key.Split(':')[0]) $what")
+        }
     }
-    return New-BackupSource -Source $id -State ($found.Count -gt 0 ? 'present' : 'absent') `
-        -Signal 'policy-key' -Basis ($found.Count -gt 0 ? "Known Folder Move policy: $($found -join ', ')" :
-            'no Known Folder Move policy value')
+    if ($policies.Count -gt 0) {
+        return New-BackupSource -Source $id -State 'present' -Signal 'policy-key' `
+            -Basis "Known Folder Move policy: $($policies -join '; ')"
+    }
+    if (-not $shellRead -or -not $policyRead) {
+        return New-BackupSource -Source $id -State 'unknown' -Signal 'known-folder-redirect' `
+            -Basis 'shell folders or OneDrive policy unreadable'
+    }
+    return New-BackupSource -Source $id -State 'absent' -Signal 'known-folder-redirect' `
+        -Basis 'no known folder under a OneDrive root and no folder-moving Known Folder Move policy'
 }

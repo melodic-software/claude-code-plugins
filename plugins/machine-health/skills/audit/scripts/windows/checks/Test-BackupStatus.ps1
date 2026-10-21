@@ -31,7 +31,8 @@ $commands = @(
     "Get-CimInstance -Namespace $($src.RestoreNamespace) -ClassName $($src.RestoreClass) (elevated only)"
     "Get-ChildItem `"`$env:LOCALAPPDATA\$($src.FileHistoryFolder)`" -Filter '$($src.FileHistoryFilter)'"
     "Get-WinEvent -ListLog '$($src.WindowsBackupLog)'"
-    "Get-Item $(($src.OneDrivePolicyKeys | ForEach-Object { "'$_'" }) -join ', ')"
+    "Get-ItemProperty '$($src.ShellFoldersKey)'"
+    "Get-ItemProperty $(($src.OneDrivePolicyKeys | ForEach-Object { "'$_'" }) -join ', ')"
 )
 
 $FailureSummary = 'Backup-status check failed.'

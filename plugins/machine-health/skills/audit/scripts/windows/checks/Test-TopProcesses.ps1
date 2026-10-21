@@ -117,12 +117,17 @@ $CheckBody = {
     $severity = Get-WorstSeverity -Levels @($signals | ForEach-Object severity)
     if ($severity -eq 'OK') { $severity = Get-UnmutedSeverity -ReadState $sample.ReadState }
 
-    $diskNote = $sustained ? "disk latency $($c.DiskLatencyMs) ms" :
+    $diskNote = if (-not $sustained) {
         "disk latency not sustained-tested (window under $SustainedSeconds s)"
-    $lead = "CPU $($c.CpuTotalPct)% over $($sample.IntervalSeconds) s on $($sample.LogicalCpus) CPUs"
+    } elseif ($null -ne $c.DiskLatencyMs) {
+        "disk latency $($c.DiskLatencyMs) ms"
+    }
+    $window = "$($sample.IntervalSeconds) s on $($sample.LogicalCpus) CPUs"
+    $lead = ($null -ne $c.CpuTotalPct) ? "CPU $($c.CpuTotalPct)% over $window" : "sampled $window"
+    $unread = $sample.ReadState -ne 'ok' ? 'system counters unreadable' : $null
     $top = @($byCpu | Select-Object -First 3 | ForEach-Object { "$($_.Name) $($_.CpuPct)%" }) -join ', '
     $flagged = @($signals | Where-Object severity -NE 'OK' | ForEach-Object text) -join '; '
-    $parts = @($lead, ($top ? "top: $top" : $null), ($flagged ? $flagged : $null), $diskNote,
+    $parts = @($lead, $unread, ($top ? "top: $top" : $null), ($flagged ? $flagged : $null), $diskNote,
         "bands: $thresholdsLabel") | Where-Object { $_ }
     $summary = ($parts -join '. ') + '.'
     if ($summary.Length -gt 240) { $summary = $summary.Substring(0, 237) + '...' }
