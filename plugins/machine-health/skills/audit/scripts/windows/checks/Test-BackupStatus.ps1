@@ -34,10 +34,10 @@ $commands = @(
     "Get-Item 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive', 'HKCU:\SOFTWARE\Policies\Microsoft\OneDrive'"
 )
 
-$FailureSummary = 'Backup-status check failed.'
+$deprecation = 'System Image Backup has been deprecated since Windows 10 version 1709.'
+$FailureSummary = "Backup-status check failed. $deprecation"
 $PassThru = $false
 $CheckBody = {
-    $deprecation = 'System Image Backup has been deprecated since Windows 10 version 1709.'
     $elevated = [bool](Test-IsElevated)
     $sources = @(Get-BackupSignal -Elevated $elevated)
 

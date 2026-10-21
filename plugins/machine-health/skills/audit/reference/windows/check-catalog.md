@@ -912,7 +912,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   basis:
   - `system-image`: the `Microsoft-Windows-Backup` channel by numeric event id, never message
     text. No events reads `unknown`, never `absent`: whether a Windows 11 client job logs there
-    is unverified. Elevated, wbadmin's exit code and its count of version-identifier-shaped
+    is unverified. Elevated, wbadmin's exit code and its count of version-id-shaped
     lines; a zero count settles nothing. The summary always carries the deprecation sentence
     the script holds.
   - `restore-points`: the SystemRestore CIM class.

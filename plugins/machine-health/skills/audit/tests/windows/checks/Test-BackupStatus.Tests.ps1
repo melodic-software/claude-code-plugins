@@ -109,5 +109,12 @@ Describe 'Test-BackupStatus' -Tag 'check' {
             }
             (Invoke-BackupStatus).severity | Should -Be 'UNKNOWN'
         }
+
+        It 'still states the deprecation when the read throws' {
+            Mock Get-BackupSignal { throw 'read failed' }
+            $result = Invoke-BackupStatus
+            $result.severity | Should -Be 'UNKNOWN'
+            $result.summary | Should -BeLike "*$script:Deprecation*"
+        }
     }
 }

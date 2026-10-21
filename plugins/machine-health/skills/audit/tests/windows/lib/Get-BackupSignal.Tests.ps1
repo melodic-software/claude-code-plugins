@@ -80,7 +80,7 @@ Describe 'Get-BackupSignal' -Tag 'lib' {
             (Get-Source (Get-BackupSignal -Elevated $false) 'system-image').State | Should -Be 'unknown'
         }
 
-        It 'counts wbadmin version identifiers when elevated and the channel is empty' {
+        It 'counts wbadmin version ids when elevated and the channel is empty' {
             Mock Invoke-NativeCommand {
                 [pscustomobject]@{ status = 'Ok'; exit_code = 0; output = "01/06/2022-09:02`n02/03/2022-09:02`nx" }
             } -ParameterFilter { $Name -eq 'wbadmin' }

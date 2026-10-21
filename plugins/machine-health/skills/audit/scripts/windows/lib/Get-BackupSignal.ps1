@@ -13,7 +13,7 @@ Each source's State is present | absent | needs-admin | unknown:
                   event 4's BackupTime. No events at all is unknown, never absent
                   (whether a Windows 11 client job logs there is unverified).
                   Elevated only: wbadmin's exit code and the count of
-                  version-identifier-shaped lines; no label text is read, and a
+                  version-id-shaped lines; no label text is read, and a
                   zero count settles nothing.
   restore-points  CIM root/default SystemRestore, elevated only. A value that
                   is not a restore point object (a string such as an error text)
@@ -26,7 +26,7 @@ Message text is never read; event ids, XML data fields and counts are.
 
 Each record: Source, State, LastSuccess (ISO or null), LastResultEvent (int or
 null), Signal, Basis (one-line label naming the signal), Count (restore points,
-or wbadmin version identifiers; null when not read).
+or wbadmin version ids; null when not read).
 #>
 
 . (Join-Path $PSScriptRoot 'Invoke-NativeCommand.ps1')
@@ -109,10 +109,10 @@ function Get-SystemImageSignal {
     }
     if ($null -ne $count -and $count -gt 0) {
         return New-BackupSource -Source 'system-image' -State 'present' -Signal 'wbadmin-count' -Count $count `
-            -Basis "wbadmin exit $exitCode, $count version identifier(s)"
+            -Basis "wbadmin exit $exitCode, $count version id(s)"
     }
     $basis = $eventsRead ? 'no Backup events (emission on Windows 11 unverified)' : 'Backup channel unreadable'
-    if ($null -ne $count) { $basis += "; wbadmin exit $exitCode, no version identifier" }
+    if ($null -ne $count) { $basis += "; wbadmin exit $exitCode, no version id" }
     return New-BackupSource -Source 'system-image' -State 'unknown' -Signal 'backup-event' -Count $count -Basis $basis
 }
 
