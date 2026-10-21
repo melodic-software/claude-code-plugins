@@ -102,7 +102,9 @@ or a merge queue blocks an otherwise ready merge and the consumer's own policy a
 merge for that repository. Write the PR number and `-R <owner>/<repo>` literally, never as a
 variable, command substitution or loop: the guardrails merge guard reads the target from them and
 blocks a merge whose target it cannot resolve. `--match-head-commit <sha>`, with the sha written
-literally, is an optional pin that makes GitHub refuse the merge if the head moved.
+literally, makes GitHub refuse the merge if the head moved. It is optional for an immediate merge
+and required with `--auto`, pinning the head the session reviewed: where the AI review checks are
+not required checks, an armed auto-merge would otherwise merge a later push.
 
 GitHub's rulesets and required checks, and the guardrails merge guard, are the merge gate. A merge
 that GitHub or the permission layer refuses is reported with its error text, and the session moves
@@ -194,7 +196,8 @@ echo "merge-ready $HEAD_SHA $MODE"
 The script does not merge. After `merge-ready <sha> <queue|squash>`, run the
 [merge command](#merge-command) as its own Bash command with the PR number and repository written
 in: `--squash` when the script printed `squash`, no strategy flag when it printed `queue`. To pin
-the merge to the head the script checked, add `--match-head-commit` with the printed sha.
+the merge to the head the script checked, add `--match-head-commit` with the printed sha; with
+`--auto` the pin is required.
 
 Behind a merge queue `gh pr merge` should enqueue and return; had required checks not passed it
 would arm auto-merge instead. It has also been seen to return with a `CLEAN` PR left out of the

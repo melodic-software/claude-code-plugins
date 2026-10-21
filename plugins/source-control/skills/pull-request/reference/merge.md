@@ -54,8 +54,10 @@ Default merge mode is squash: one squashed commit per PR onto the default branch
 
 Merge with the forge's plain merge command, with the PR number and repository written literally
 and the flags the repository needs ([GitHub](../../../reference/providers/github/pull-request/merge.md#merge-command)).
-Pinning it to the `HEAD_SHA` captured in 4.1 step 2 is optional; a pinned merge fails when a push
-lands after approval. The repository's rules, required checks and the merge guard hook are the
+Pinning it to the `HEAD_SHA` captured in 4.1 step 2 (`--match-head-commit`) is optional for an
+immediate merge and required with `--auto`: where the AI review checks are not required checks, an
+armed auto-merge would otherwise merge a later push. A pinned merge fails when a push lands after
+approval. The repository's rules, required checks and the merge guard hook are the
 gate: a merge the forge or the permission layer refuses is reported with its error text and the
 session moves on to other work, never handed to the user as a command to run and never retried in
 another shape. Before any merge call, poll the PR's merge state at
@@ -118,7 +120,7 @@ print the pinned head and the merge mode. Then run the merge command per 4.2 as 
 refusal is reported and the session moves on, as in 4.2.
 
 Behind a merge queue (claude-code-plugins) the queue sets the strategy, so pass no strategy flag.
-Pass `--auto` only on a merge-queue or auto-merge base, and `--admin` only where a code-owner
+Pass `--auto` only on a merge-queue or auto-merge base, always pinned to `HEAD_SHA`, and `--admin` only where a code-owner
 review or merge queue blocks an otherwise ready merge and the consumer's policy allows an admin
 merge for the repository. Confirm queue entry per
 [4.2.2](#422-confirm-queue-entry), then poll the PR's state over REST every 60
@@ -145,7 +147,7 @@ Run the confirm read
 the PR's state, queue membership, merge state, head and auto-merge request, polling while the merge
 state reads `UNKNOWN`. Merged or queued is reported as such. Open, not queued and `CLEAN` at
 `HEAD_SHA`: it prints the PR's node id to enqueue. Any other state, or a moved head, is a hold that
-prints the state. An armed auto-merge is reported.
+prints the state. An armed auto-merge is reported; 4.2 arms one only pinned to `HEAD_SHA`.
 
 To enqueue, run the enqueue call once as its own command, with the printed node id and `HEAD_SHA`
 written in as literal values rather than a variable or command substitution, pinned to that head,

@@ -68,7 +68,7 @@ research-gated:
   reuse/cleanup, post-merge CI health check. Merges or enqueues without
   asking only once the AI review checks pass on the reviewed head commit;
   otherwise merges on approval. Merges with plain `gh pr merge` and the flags
-  the repository needs; a refused merge is reported, never handed to the user
+  the repository needs, `--auto` only pinned to the reviewed head; a refused merge is reported, never handed to the user
   or retried in another shape.
 - **fetch-logs**. Tiered CI-log retrieval (annotations → full untruncated
   ZIP via the REST API → per-job text).
