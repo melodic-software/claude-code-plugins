@@ -116,7 +116,7 @@ reader applies.
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR and each unreviewed review-tier Dependabot PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
-| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue` once resolve-issue accepts App-added labels (follow-up by Automation Lanes) |
+| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
@@ -615,7 +615,9 @@ and its queued entries leave; two different identities, or an unreadable head co
   or sent is named in a comment on the record. A check
   whose fix issue was closed reopens that issue with a comment naming the new range, keeping
   `agent-ready` and sending it to intake triage no second time, so a repeat goes straight back to
-  agents (a first failure still waits for the owner's ratification); one closed
+  agents (a first failure still waits for the owner's ratification). That reopen starts no run, so
+  work-unblock's hourly sweep removes and re-adds `agent-ready` with the lanes App token, once per
+  recurrence comment, unless the issue is held or has an open lane PR or a lane run in flight; one closed
   as not planned or duplicate stays closed and mutes the check. Closing a fix issue releases
   nothing on the record.
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,

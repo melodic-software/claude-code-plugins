@@ -362,6 +362,10 @@
 .app .vf-ptxt { font-size: 12.5px; overflow-wrap: anywhere; }
 .app .vf-pfrom { display: flex; align-items: center; gap: 6px; margin-block-start: 6px; color: var(--faint); font-size: 11.5px; }
 .app .vf-acts { display: flex; gap: 6px; margin-block-start: 8px; flex-wrap: wrap; }
+.app .vf-res-acts > .vf-acts { margin: 0; } /* Use as my answer sits beside Reply */
+/* Move to shows Choose; a long question in its list must not widen the row past its card */
+.app .vf-selwrap.vf-req-move { flex: 0 1 auto; min-width: 0; max-inline-size: 100%; }
+.app .vf-req-move .vf-select { min-width: 0; max-inline-size: 14em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 /* typing dots */
 .app .vf-dots { display: none; gap: 2px; align-items: center; block-size: 8px; }

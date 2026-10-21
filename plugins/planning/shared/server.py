@@ -198,7 +198,7 @@ ROUTES = {
     "/api/session/intro": ("owner", "set_intro"),
     "/api/annotate": ("person", "annotate"),
     "/api/request": ("person", "request"),
-    "/api/request/act": ("owner", "act_on_request"),
+    "/api/request/act": ("person", "act_on_request"),  # session.py: move is the asker's or the owner's, the rest the owner's
     "/api/result/share": ("person", "share_result"),
     "/api/round/ready": ("moderator", "ready_round"),
     "/api/round/send": ("owner", "send_round"),
