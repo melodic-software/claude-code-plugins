@@ -128,8 +128,9 @@ syntax.
 `.claude-plugin/marketplace.json`, compare the base and head manifests:
 
 - A `userConfig` field's `default` changed, or a field removed: the PR says why, since the change
-  reaches every user who never set the value. No stated reason is a finding. A guard turned off
-  by default is the security lane's.
+  reaches every user who never set the value. No stated reason is a finding. A default change
+  that widens what a guard allows (one whose reading code gates, caps, confirms, limits, or costs
+  something) is a finding whatever the PR says: a stated reason may explain it, never clear it.
 - A `userConfig` field gains or changes `options`: the PR names the client version floor that
   raises. No named floor is a finding.
 - A new `userConfig` field has a default a user who never opens settings should get, and code in
@@ -155,7 +156,7 @@ As of: 2026-10-21. Recheck trigger: that page changes a `userConfig` field's sem
 Scope the review to files changed in this PR. Use `gh pr diff` to identify what
 changed, then review those files. Reading the PR context file, the matching rule
 files, the tests that would cover a criterion, and a changed plugin's files when
-looking for what reads a new `userConfig` key is in scope; do not explore
+looking for what reads a new or changed `userConfig` key is in scope; do not explore
 other parts of the codebase.
 
 Never restate the PR author's own claimed verification (e.g. a Test plan's

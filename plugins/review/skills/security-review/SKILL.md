@@ -93,7 +93,8 @@ nothing else):
 ## Criteria
 
 Perform a security review of THIS pull request. Review ONLY the files changed
-in this PR: use `gh pr diff` to see what changed, then read those files. Do not
+in this PR: use `gh pr diff` to see what changed, then read those files. Reading a changed
+plugin's files to find the code that consumes a changed `userConfig` key is in scope. Do not
 audit unrelated parts of the codebase.
 
 Hunt for vulnerabilities that static analysis misses: logic flaws, authorization
@@ -134,24 +135,36 @@ local and CI review judge such a diff by the same register.
 can switch a control off or install code without touching a script, so such a diff is never
 eligible for skip 2. Compare the base and head manifests:
 
-- A `userConfig` guard key (one named `*_enabled` that turns a check, gate, or block on) whose
-  `default` goes from true to false, or that is removed, is a finding: every user who never set it
-  loses the control on update. Name the control and the action that now reaches it unchecked.
-- Anything added or changed that runs or fetches code (`hooks`, `mcpServers`, `lspServers`,
-  `monitors`, `dependencies`, or a marketplace entry's `source`): name in the summary what runs and
-  where it comes from (the command or server, and the path, package, or URL with its pin), even
-  when nothing is wrong. A source outside the repository with no pin, or a command fed
-  consumer-controlled input, is a finding with its exploit path.
+- A `userConfig` key is a guard when the code that reads it gates, caps, confirms, limits, or
+  costs something; judge by that code, never by the key's name. A guard whose `default` changes in
+  the direction that widens unchecked action (a gate turned off, an autonomy tier or unlimited
+  mode turned on, a cap or budget raised), or that is removed, is a finding: every user who never
+  set it gets the wider action on update. Name the control and the action that now reaches it
+  unchecked. So is a `sensitive` option going from true to false, which moves a secret out of
+  secure storage.
+- Anything added or changed that runs, fetches, or widens what code may do: `hooks`,
+  `mcpServers` (an `https://` bundle URL included), `lspServers`, `monitors` and
+  `experimental.monitors`, `channels` (whose `userConfig` values reach an MCP server's `env`),
+  `workflows` scripts, a command's `allowedTools`, `settings.agent` or
+  `settings.subagentStatusLine`, `dependencies`, or a marketplace entry's `source`. Name in the
+  summary what runs and where it comes from (the command, server, or script, and the path,
+  package, or URL with its pin), even when nothing is wrong. A source outside the repository with
+  no pin, a command fed consumer-controlled input, or a tool grant wider than the command needs is
+  a finding with its exploit path.
+- A changed `name`, a removed `version`, or a changed `defaultEnabled`: say what installed users
+  get on update, since each changes which code they load or when.
 
 For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
 `manifest <field>: flag, <reason>`, so the outcome reads without the inline comments. Every
 `flag` line is a finding: it counts in the review's findings total, which is what holds the merge.
 
-Pointer: which fields run code is read at
-[plugin manifest reference: Component path forms](https://code.claude.com/docs/en/plugins-reference#component-path-forms)
-and [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration).
-As of: 2026-10-21. Recheck trigger: that page adds a manifest field that runs or fetches code, or
-changes how a `userConfig` default applies.
+Pointer: what each field loads or runs is read at
+[plugin manifest reference: Fields](https://code.claude.com/docs/en/plugins-reference#fields),
+[Component path forms](https://code.claude.com/docs/en/plugins-reference#component-path-forms),
+[User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration), and
+[Channels](https://code.claude.com/docs/en/plugins-reference#channels). As of: 2026-10-21.
+Recheck trigger: that page adds or renames a field that runs, fetches, or grants tools, moves
+`monitors` out of `experimental`, or changes how a `userConfig` default or `sensitive` applies.
 
 ## High-signal bar
 
@@ -160,14 +173,17 @@ without a concrete exploitable path in this diff. Each finding gives the file an
 line, why it is wrong, and that exploit path: the input or request that shows it
 failing. Committable suggestion fences
 (GitHub `suggestion` code blocks) only when the suggestion alone fully fixes the
-anchored finding.
+anchored finding. A `manifest <field>: flag` line is exempt from this bar: it counts as a finding
+with or without an exploit path.
 
 ## Adversarial validation
 
 When fanning out hunters, validate each surviving candidate with a separate
 verifier subagent (producer ≠ verifier). Dispatch every hunter and verifier as
 the `review:lane-verifier` agent, never a general-purpose subagent, so no
-subagent can re-invoke this skill and fan out. Drop rejected candidates.
+subagent can re-invoke this skill and fan out. Drop rejected candidates, except a
+`manifest <field>: flag` line, which a verifier never drops: the diff hitting the item is the
+evidence.
 
 ## Reporting
 
