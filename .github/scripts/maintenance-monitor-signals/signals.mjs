@@ -285,6 +285,29 @@ export function throughputFindings({ now, sweep = null, laneMerges = null }) {
   ];
 }
 
+// work-resolve-issue's stops that need a person to know: out of funding, the
+// usage limit, or the turn cap.
+const LANE_STOPS = new Set(["funding", "limited", "turn-cap"]);
+
+export function laneStopFindings({ laneStops = [] }) {
+  const groups = new Map();
+  for (const stop of laneStops) {
+    if (!LANE_STOPS.has(stop.outcome)) continue;
+    groups.set(stop.outcome, [...(groups.get(stop.outcome) ?? []), stop]);
+  }
+  return [...groups].map(([outcome, stops]) =>
+    finding({
+      key: `lane-stop:${outcome}`,
+      signal: "9 lane stop",
+      title: `Lane stop: ${stops.length} issue-lane runs stopped with ${outcome} in the last hour`,
+      area: "Issue lane (work-resolve-issue)",
+      summary: `work-resolve-issue left ${stops.length} outcome=${outcome} markers in the last hour.`,
+      facts: stops.map((s) => `#${s.issue ?? "?"} ${s.createdAt}: ${s.url}`),
+      evidence: [`lane-stop:${outcome}`, stops.map((s) => Number(s.id)).sort((a, b) => a - b)],
+    }),
+  );
+}
+
 const DETECTORS = [
   mainRedFindings,
   ceilingFindings,
@@ -294,6 +317,7 @@ const DETECTORS = [
   auditFindings,
   platformFindings,
   throughputFindings,
+  laneStopFindings,
 ];
 
 export function detect(data) {

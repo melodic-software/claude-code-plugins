@@ -1217,10 +1217,11 @@ every hour (and on a manual run from `main`) with no model. It reads the signals
 | 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-check-upstream-drift` failed, which each does on findings | `audit:<workflow>` |
 | 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational | `platform:<incident>`, `platform:actions` |
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
+| 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap ... -->` marker, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap` |
 
 An issue's first body line is `<!-- factory-monitor key=<key> fp=<fingerprint> -->`; the body names
 the signal, the owning area and the key, and carries the evidence inside a text fence as inert lines.
-The fingerprint changes only when the evidence does: the failure text, the run or PR set, the newest
+The fingerprint changes only when the evidence does: the failure text, the run, PR or stop-comment set, the newest
 failed merge group, the incident status, the last merge, or the day for a ceiling. The newest issue for a key
 decides: open with the same fingerprint, nothing is written; open with a new one, a comment carries
 the evidence and the marker records it; closed as not planned or duplicate, the key is muted; closed
@@ -1262,11 +1263,8 @@ profile: model `default` and 75 turns. `resolve-config` turns the run's profile 
 which that action cannot pass, so such a run fails. The values come only from this file on the
 base, never from text the run reads.
 
-This repository's block has five profiles: `standard` (model `default`, 75 turns, no effort),
-every skill activity's; `review` (`opus`, 60 turns, no effort), the verifier's; `pr-review`
-(`sonnet`, effort `high`, 75 turns), both review lanes'; `triage` (`sonnet`, effort `medium`,
-30 turns), intake triage's and the [lane sweep](#the-lane-sweep)'s; and `summary` (`sonnet`, effort `medium`, 10 turns), the reuse
-summary pass's.
+This repository's profiles, and the route each run takes, are set in
+[`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.profiles` and `models.routes`).
 
 `models.issue-dimensions` budgets a skill activity with input `issue` from its issue's Size,
 Complexity and Uncertainty org issue fields. `fields` maps each field id and its single-select
@@ -1342,8 +1340,8 @@ with defaults.
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
-the WIP cap check fails open and starts the run. This repository sets `wip-cap`,
-`turn-cap-restarts` (0), the two fix-ci limits, the two admission limits and the `wip` block.
+the WIP cap check fails open and starts the run. This repository's values are in
+[`pr-pipeline.yaml`](../pr-pipeline.yaml) (`limits` and `wip`).
 
 `node .github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are
 open: the admitted backlog is under `admission-factor` times lane merges per hour (the last 24

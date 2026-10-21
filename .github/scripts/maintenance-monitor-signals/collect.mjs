@@ -2,6 +2,7 @@
 // job's own GITHUB_TOKEN and githubstatus.com, into one data object. A source
 // that fails to read is recorded in `gaps` and the others still run. Every
 // list is bounded, and `get` spends the run's call budget.
+import { parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { parseBudget } from "./signals.mjs";
 
 export const LIMITS = {
@@ -12,6 +13,7 @@ export const LIMITS = {
   mainFailedJobs: 5,
   mergeGroupRuns: 10,
   sweepArtifacts: 5,
+  commentPages: 5,
 };
 export const AUDIT_WORKFLOWS = ["maintenance-audit-test-selection", "maintenance-check-upstream-drift"];
 // Pull-request and merge-group runs hold no lane token, and a merge-group
@@ -208,6 +210,27 @@ export async function collect({ get, getStatus, readArtifact, repo, now, windowS
       .map((p) => p.merged_at)
       .sort();
     data.laneMerges = { lastMergedAt: merged.at(-1) ?? null };
+  });
+
+  // work-resolve-issue's outcome markers, from the lanes App only: anyone who
+  // can comment can paste one. `since` filters on update time, so the
+  // creation time is checked here.
+  await source("lane stops", async () => {
+    data.laneStops = [];
+    for (let page = 1; page <= LIMITS.commentPages; page += 1) {
+      const batch = await get(
+        `/repos/${repo}/issues/comments?since=${iso(windowStart)}&sort=created&direction=desc&per_page=100&page=${page}`,
+      );
+      for (const c of batch) {
+        const at = Date.parse(c.created_at);
+        if (c.user?.login !== agentIdentity || at < windowStart.getTime() || at > now.getTime()) continue;
+        const marker = parseOutcomeMarker(c.body);
+        if (!marker) continue;
+        const issue = Number(/\/issues\/(\d+)$/.exec(c.issue_url ?? "")?.[1]) || null;
+        data.laneStops.push({ id: c.id, outcome: marker.outcome, issue, url: c.html_url, createdAt: c.created_at });
+      }
+      if (batch.length < 100) break;
+    }
   });
 
   await source("audits", async () => {
