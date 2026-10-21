@@ -1564,6 +1564,16 @@ test("a pushback marker, or a newer pushback for another run, resumes nothing", 
   assert.deepEqual(prior({ branches, markers: newer }), { action: "run" });
 });
 
+// A dimension skip ran nothing and touched no branch, so it leaves the
+// earlier run's resume as it was.
+test("a newer dimension-skip marker keeps an earlier run's resume", () => {
+  const branches = [branchFact(lane(400), { sha: SHA_400 })];
+  for (const reason of ["split-required", "research-first", "probe-first", "not-assessed"]) {
+    const markers = [marked("turn-cap", "400"), marked(reason, "401", "2026-10-16T12:00:00Z")];
+    assert.deepEqual(prior({ branches, markers }), { action: "resume", branch: lane(400), tip: SHA_400, cause: "turn-cap" }, reason);
+  }
+});
+
 // A resumed run that committed nothing keeps no branch of its own, so the
 // work is still on the run before it.
 test("a newer turn-cap marker for a resumed run that kept no branch resumes the run before it", () => {

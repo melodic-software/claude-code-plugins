@@ -907,11 +907,14 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   const allLane = ({ commits }) => allLaneCommits(commits, bot);
   // Newest marker first. A resumable marker for a resumed run that kept no
   // branch of its own (`branch=resumed`) left the work on the run before it,
-  // so it is passed over. The first other marker decides: a resumable one
+  // so it is passed over, and so is a dimension skip, which ran nothing. The
+  // first other marker decides: a resumable one
   // whose run's branch still passes resumes it; anything else (a pushback, a
   // marker naming no run, or a branch deleted or failing a check) starts
   // fresh, so deleting a resumed run's branch never falls back to an older one.
-  const decisive = [...markers].reverse().find((marker) => !(marker.onResumed && RESUMABLE.has(marker.outcome)));
+  const decisive = [...markers]
+    .reverse()
+    .find((marker) => !(marker.onResumed && RESUMABLE.has(marker.outcome)) && !Object.hasOwn(DIMENSION_STEPS, marker.outcome));
   const resume =
     RESUMABLE.has(decisive?.outcome) && decisive.run !== ""
       ? lane.find((branch) => branch.match[1] === decisive.run && usable(branch) && allLane(branch))
