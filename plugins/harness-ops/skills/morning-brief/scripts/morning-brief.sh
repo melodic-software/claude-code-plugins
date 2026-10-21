@@ -1826,7 +1826,7 @@ COST_MON=$((10#${COST_MONTH:5:2}))
 COST_NEXT="$((COST_YEAR + COST_MON / 12))-$(printf '%02d' $((COST_MON % 12 + 1)))"
 COST_HOURS=$((($(to_epoch "${COST_NEXT}-01T00:00Z") - $(to_epoch "${COST_MONTH}-01T00:00Z")) / 3600))
 # Comma lists become JSON arrays for the jq programs.
-csv_json() { jq -cn --arg s "$1" '$s | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))'; }
+csv_json() { jq -cn --arg s "$1" '$s | split(",") | map(gsub("^[[:space:]]+|[[:space:]]+$"; "")) | map(select(length > 0))'; }
 REQUIRED_BUDGETS_JSON="$(csv_json "$REQUIRED_BUDGETS_ARG")"
 ALLOWED_COLLABORATORS_JSON="$(csv_json "$ALLOWED_COLLABORATORS_ARG")"
 # The Azure lines, so a failed az login renders each of them UNREADABLE.
@@ -1884,10 +1884,10 @@ SCAN_JQ='
       | . as $who | select(($admins + $allowed) | index($who) | not) | {r: $r, who: $who}] as $extra
   | [$repos[] | (.name | str) as $r | .workflows | list | .[]
       | (.path | str) as $path
-      | (.text | str | split("\n") | map(select(test("^\\s*#") | not))) as $lines
-      | ([$lines[] | select(test("(^|[\\s,\\[])(pull_request_target|workflow_run)(\\s*:|\\s*[\\],]|\\s*$)"))
+      | (.text | str | split("\n") | map(select(test("^[[:space:]]*#") | not))) as $lines
+      | ([$lines[] | select(test("(^|[[:space:],\\[])(pull_request_target|workflow_run)([[:space:]]*:|[[:space:]]*[\\],]|[[:space:]]*$)"))
           | match("pull_request_target|workflow_run").string] | unique) as $events
-      | ([$lines[] | match("secrets\\.([A-Za-z0-9_]*_CLAUDE_[A-Za-z0-9_]*)|secrets\\[\\s*.([A-Za-z0-9_]*_CLAUDE_[A-Za-z0-9_]*).\\s*\\]"; "gi")
+      | ([$lines[] | match("secrets\\.([A-Za-z0-9_]*_CLAUDE_[A-Za-z0-9_]*)|secrets\\[[[:space:]]*.([A-Za-z0-9_]*_CLAUDE_[A-Za-z0-9_]*).[[:space:]]*\\]"; "gi")
           | .captures[] | .string // empty] | unique) as $secrets
       | select(($events | length) > 0 and ($secrets | length) > 0)
       | {r: $r, path: $path, events: $events, secrets: $secrets}] as $hits
