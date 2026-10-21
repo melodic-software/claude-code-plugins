@@ -124,8 +124,10 @@ on:
       claude-api-key:
         description: The role's Claude Console API key, for a PR-mode skill's first call.
         required: false
-    # Patch output mode. Head code ran in the job that sets the patch outputs:
-    # the job that applies the patch checks it against patch-sha256.
+    # Patch output mode. In PR mode the scan job sets the patch and reply
+    # outputs from what it scanned; in issue mode the run job, where head
+    # code ran. Either way the job that applies the patch checks it against
+    # patch-sha256.
     outputs:
       head-sha:
         description: The PR head the trigger gate passed, set before any head code ran.
@@ -134,20 +136,20 @@ on:
         description: >-
           `written` (the patch artifact holds the change), `empty` (no change,
           no artifact), or '' when the run collected no patch.
-        value: ${{ jobs.run.outputs.patch-state }}
+        value: ${{ jobs.scan.outputs.patch-state || jobs.run.outputs.patch-state }}
       patch-sha256:
         description: The SHA-256 of patch.diff in the patch artifact, when patch-state is written.
-        value: ${{ jobs.run.outputs.patch-sha256 }}
+        value: ${{ jobs.scan.outputs.patch-sha256 || jobs.run.outputs.patch-sha256 }}
       patch-attempt:
         description: >-
           The run attempt in the artifact name
           patch-<lane>-<activity>-<attempt>, when patch-state is written.
-        value: ${{ jobs.run.outputs.patch-attempt }}
+        value: ${{ jobs.scan.outputs.patch-attempt || jobs.run.outputs.patch-attempt }}
       reply-attempt:
         description: >-
           The run attempt in the artifact name
           skill-reply-<lane>-<activity>-<attempt>, when the skill ran.
-        value: ${{ jobs.run.outputs.reply-attempt }}
+        value: ${{ jobs.scan.outputs.reply-attempt || jobs.run.outputs.reply-attempt }}
       base-sha:
         description: >-
           The trusted base commit the run checked, set before any head code
@@ -278,7 +280,8 @@ jobs:
     # The report job trusts only these. Each is a step outcome or an output of a
     # step that ran before any PR head code, except act-outcome for a gate
     # skill: the verdict step it reads runs after the skill, so a gate skill
-    # must not execute head code.
+    # must not execute head code. Every output set after a leg (or any head
+    # code) is forgeable: the scan job takes those only through checks.
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
@@ -289,9 +292,8 @@ jobs:
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
       # A gate skill succeeds only on a `pass` verdict, and a skill that took
-      # no model turn fails. The verdict step's ACT_OUTCOME repeats this
-      # expression: runner-policy refuses YAML aliases. A PR-mode skill runs
-      # on one of act-key and act-token.
+      # no model turn fails. The scan job's verdict reads it. A PR-mode
+      # skill runs on one of act-key and act-token.
       act-outcome: >-
         ${{ (steps.act-skill.outcome == 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
         && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
@@ -300,16 +302,26 @@ jobs:
         || steps.act-key.outcome != 'skipped' && steps.act-key.outcome
         || steps.act-token.outcome != 'skipped' && steps.act-token.outcome
         || steps.act-script.outcome }}
-      # Set after head code ran; see the collect step.
-      # The verdict step's PATCH_STATE repeats this expression.
+      # Issue mode, set after head code ran; see the collect step. PR mode's
+      # come from the scan job.
       patch-state: >-
-        ${{ steps.patch-upload.outcome == 'success' && 'written'
-        || steps.patch.outputs.state == 'empty' && 'empty' || '' }}
-      patch-sha256: >-
-        ${{ steps.patch-upload.outcome == 'success'
-        && (inputs.issue-number == '' && steps.leak-scan.outputs.patch-sha256 || steps.patch.outputs.sha256) || '' }}
+        ${{ inputs.issue-number != '' && (steps.patch-upload.outcome == 'success' && 'written'
+        || steps.patch.outputs.state == 'empty' && 'empty') || '' }}
+      patch-sha256: ${{ steps.patch-upload.outcome == 'success' && steps.patch.outputs.sha256 || '' }}
       patch-attempt: ${{ steps.patch-upload.outcome == 'success' && github.run_attempt || '' }}
       reply-attempt: ${{ steps.reply-upload.outcome == 'success' && github.run_attempt || '' }}
+      # For the scan job's verdict. go and the gate fields come from steps
+      # before any head code; skip-reason, dirty-tree and patch-collected
+      # after it, so the scan job holds each to its closed set.
+      go: ${{ steps.go.outputs.run }}
+      kill-proceed: ${{ steps.kill.outputs.proceed }}
+      kill-reason: ${{ steps.kill.outputs.reason }}
+      trigger-proceed: ${{ steps.gate.outputs.proceed }}
+      trigger-reason: ${{ steps.gate.outputs.reason }}
+      config-outcome: ${{ steps.config.outcome }}
+      skip-reason: ${{ steps.config.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
+      dirty-tree: ${{ steps.tree.outputs.dirty-tree }}
+      patch-collected: ${{ steps.patch.outputs.state }}
       # Issue mode, all from steps that run before any model turn.
       issue-run-started: ${{ inputs.issue-number != '' && steps.go.outputs.run == 'true' }}
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
@@ -1297,9 +1309,9 @@ jobs:
       # succeeded: what the activity changed against the gated head becomes
       # one binary patch. Head code ran in this job and could have replaced
       # the collector copy, so the patch and its SHA-256 are activity output;
-      # the job that applies the patch checks both. The launcher steps fail
-      # softly, so a PR-mode skill needs one that succeeded: a handoff or a
-      # failed leg collects nothing.
+      # in PR mode the scan job scans it, and the job that applies the patch
+      # checks both. The launcher steps fail softly, so a PR-mode skill needs
+      # one that succeeded: a handoff or a failed leg collects nothing.
       # In issue mode it also runs after a failed skill step (a turn cap or a
       # usage limit), so the partial work reaches a lane branch a resumed run
       # continues; the apply job holds it to the same rules.
@@ -1318,6 +1330,15 @@ jobs:
           rm -rf "$PATCH_DIR"
           mkdir -p "$PATCH_DIR"
           bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$PATCH_DIR/patch.diff" >>"$GITHUB_OUTPUT"
+
+      # Each actions/checkout post step runs git in its checkout's path
+      # whenever <path>/.git/config is there, as a node step that holds the
+      # job's runtime token. The head checkout's .git is the model's to write,
+      # and the head checkout removed .base, so the model could make one
+      # there too; with both gone, both post steps return before any git runs.
+      - name: Remove the checkouts' .git directories
+        if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
+        run: rm -rf "${GITHUB_WORKSPACE:?}/.git" "${GITHUB_WORKSPACE:?}/.base/.git"
 
       # PR mode: the reply, the run fields and the patch leave this job only
       # as job outputs to the scan job, never as an artifact: each in base64,
@@ -1356,22 +1377,296 @@ jobs:
           carry patch "$PATCH_FILE" 262144 4
           rm -rf "$copy"
 
+      # Issue mode: model text and run fields, as data. PR mode shows them
+      # from the scan job, after its scan.
+      - name: Show the skill's run in the step summary
+        if: >-
+          always() && inputs.issue-number != ''
+          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          REPLY_DIR: ${{ runner.temp }}/skill-reply
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { REPLY_DIR } = process.env;
+            const text = (name) => {
+              try {
+                return fs.readFileSync(`${REPLY_DIR}/${name}`, 'utf8');
+              } catch {
+                return null;
+              }
+            };
+            // addCodeBlock does not escape its text.
+            const escape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const reply = text('reply.txt');
+            if (reply !== null) core.summary.addHeading('Skill reply', 3).addCodeBlock(escape(reply), 'text');
+            const turns = text('act-turns.json');
+            if (turns !== null) core.summary.addHeading('Skill run', 3).addCodeBlock(escape(turns), 'json');
+            await core.summary.write();
+
+      # Issue mode: PR mode's uploads come from the scan job.
+      - name: Upload the skill's final reply
+        id: reply-upload
+        if: >-
+          always() && inputs.issue-number != ''
+          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          # Named files only: head code can write into this directory.
+          path: |
+            ${{ runner.temp }}/skill-reply/reply.txt
+            ${{ runner.temp }}/skill-reply/act-turns.json
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Upload the patch
+        id: patch-upload
+        if: always() && inputs.issue-number != '' && steps.patch.outputs.state == 'written'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/patch/patch.diff
+          retention-days: 7
+          if-no-files-found: error
+
+      # Issue mode: the skill's outcome file is model output, copied as data
+      # and capped. lane.json is built from step outputs, never from a file
+      # in the directory, which could have been planted during the run. Code
+      # the activity ran can still reach this step (BASH_ENV, PATH), so
+      # report-outcome re-checks every field. This run makes no branch: the
+      # apply job names the one it makes in lane.json.
+      - name: Collect the issue outcome
+        if: >-
+          always() && inputs.issue-number != '' && steps.go.outputs.run == 'true'
+          && steps.config.outputs.kind == 'skill'
+        env:
+          SCRATCH_OUTCOME: ${{ runner.temp }}/lane-scratch/work-outcome.json
+          OUT_DIR: ${{ runner.temp }}/work-outcome
+          LANE_CLASS: ${{ steps.lane-record.outputs.failure-class }}
+          LANE_RESETS: ${{ steps.lane-record.outputs.resets-at }}
+          # The run's turn cap, so a turn-cap stop names it.
+          LANE_MAX_TURNS: ${{ steps.config.outputs.max-turns }}
+          # The branch a resumed run continued, which still holds the work
+          # when the run left no change of its own.
+          LANE_RESUME: ${{ steps.issue-prior.outputs.resume-branch }}
+          # A run that exited non-zero, and the API error it ended on, so a
+          # funding stop is named as one (report-outcome readFunding).
+          LANE_FAILED: ${{ steps.act-skill.outcome == 'failure' }}
+          LANE_API_STATUS: ${{ steps.act-error.outputs.status }}
+          LANE_ERROR_TEXT: ${{ steps.act-error.outputs.text }}
+        run: |
+          mkdir -p "$OUT_DIR"
+          rm -f "$OUT_DIR/work-outcome.json" "$OUT_DIR/lane.json"
+          if [ -f "$SCRATCH_OUTCOME" ] && [ ! -L "$SCRATCH_OUTCOME" ]; then
+            head -c 65536 "$SCRATCH_OUTCOME" >"$OUT_DIR/work-outcome.json"
+          fi
+          jq -n --arg class "$LANE_CLASS" --arg resets "$LANE_RESETS" \
+            --arg max_turns "$LANE_MAX_TURNS" --arg resume "$LANE_RESUME" \
+            --arg failed "$LANE_FAILED" --arg status "$LANE_API_STATUS" --arg error_text "$LANE_ERROR_TEXT" \
+            '{branch: "", class: $class, resets: $resets, "max-turns": $max_turns, resume: $resume,
+              failed: $failed, "api-error-status": $status, "error-text": $error_text}' >"$OUT_DIR/lane.json"
+
+      - name: Upload the issue outcome
+        if: >-
+          always() && inputs.issue-number != '' && steps.go.outputs.run == 'true'
+          && steps.config.outputs.kind == 'skill'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: work-outcome-${{ inputs.issue-number }}
+          path: |
+            ${{ runner.temp }}/work-outcome/lane.json
+            ${{ runner.temp }}/work-outcome/work-outcome.json
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
+
+      # The launcher steps fail softly. A run that handed off ends green and
+      # leaves the activity to the fallback call; any other PR-mode skill run
+      # that got as far as the credential steps and left no launcher success
+      # fails here.
+      - name: Fail without a result
+        if: >-
+          always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success')
+          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
+          && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
+        run: |
+          echo "::error::the skill's launcher run left no result"
+          exit 1
+
+  # Everything the run job hands on leaves here, on a fresh VM that ran no
+  # model or head code, with no secret, no id-token, no cache and nothing
+  # from the run job but its outputs: the run-claude-cli contract puts the
+  # reporting and uploads of a lane that grants unrestricted Bash in a
+  # downstream job that validates its inputs. In PR mode it decodes and
+  # checks the run job's payloads, scans what leaves against a fresh fetch
+  # of the gated head, writes the summary, and is the only job that uploads
+  # the reply, patch and verdict artifacts. In issue mode it writes only the
+  # verdict. A handoff skips it: the fallback call's artifacts take the same
+  # names.
+  scan:
+    needs: run
+    if: >-
+      !cancelled() && (needs.run.result == 'success' || needs.run.result == 'failure')
+      && needs.run.outputs.handed-off != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      # The verdict step's PATCH_STATE repeats this expression.
+      patch-state: >-
+        ${{ steps.patch-upload.outcome == 'success' && 'written'
+        || steps.decode.outputs.patch-state == 'empty' && 'empty' || '' }}
+      patch-sha256: ${{ steps.patch-upload.outcome == 'success' && steps.leak-scan.outputs.patch-sha256 || '' }}
+      patch-attempt: ${{ steps.patch-upload.outcome == 'success' && github.run_attempt || '' }}
+      reply-attempt: ${{ steps.reply-upload.outcome == 'success' && github.run_attempt || '' }}
+    steps:
+      # Each payload through env, never inlined into a script. Every output
+      # the run job set after head code ran must be in its closed set. A
+      # payload's byte count over its cap is too-large; a chunk the runner
+      # left empty, as it does for an output that may hold a secret, is
+      # output-withheld and asks for rotation; any other hash, length or
+      # base64 mismatch fails too. Nothing is written unless every check
+      # passed.
+      - name: Decode and check the run job's outputs
+        id: decode
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          GO: ${{ needs.run.outputs.go }}
+          BASE_SHA: ${{ needs.run.outputs.base-sha }}
+          HEAD_SHA: ${{ needs.run.outputs.head-sha }}
+          KILL_PROCEED: ${{ needs.run.outputs.kill-proceed }}
+          KILL_REASON: ${{ needs.run.outputs.kill-reason }}
+          TRIGGER_PROCEED: ${{ needs.run.outputs.trigger-proceed }}
+          TRIGGER_REASON: ${{ needs.run.outputs.trigger-reason }}
+          GATE_REASON: ${{ needs.run.outputs.gate-reason }}
+          CONFIG_OUTCOME: ${{ needs.run.outputs.config-outcome }}
+          SKIP_REASON: ${{ needs.run.outputs.skip-reason }}
+          ACT_OUTCOME: ${{ needs.run.outputs.act-outcome }}
+          DIRTY_TREE: ${{ needs.run.outputs.dirty-tree }}
+          PATCH_COLLECTED: ${{ needs.run.outputs.patch-collected }}
+          LANE_CLASS: ${{ needs.run.outputs.lane-class }}
+          REPLY_BYTES: ${{ needs.run.outputs.carry-reply-bytes }}
+          REPLY_SHA256: ${{ needs.run.outputs.carry-reply-sha256 }}
+          REPLY_B64_1: ${{ needs.run.outputs.carry-reply-b64-1 }}
+          ACT_TURNS_BYTES: ${{ needs.run.outputs.carry-act-turns-bytes }}
+          ACT_TURNS_SHA256: ${{ needs.run.outputs.carry-act-turns-sha256 }}
+          ACT_TURNS_B64_1: ${{ needs.run.outputs.carry-act-turns-b64-1 }}
+          PATCH_BYTES: ${{ needs.run.outputs.carry-patch-bytes }}
+          PATCH_SHA256: ${{ needs.run.outputs.carry-patch-sha256 }}
+          PATCH_B64_1: ${{ needs.run.outputs.carry-patch-b64-1 }}
+          PATCH_B64_2: ${{ needs.run.outputs.carry-patch-b64-2 }}
+          PATCH_B64_3: ${{ needs.run.outputs.carry-patch-b64-3 }}
+          PATCH_B64_4: ${{ needs.run.outputs.carry-patch-b64-4 }}
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const os = require('os');
+            const path = require('path');
+            const crypto = require('crypto');
+            const env = process.env;
+            const NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+            const SHA = /^[0-9a-f]{40}$/;
+            const OUTCOME = ['success', 'failure', 'skipped', 'cancelled'];
+            const closed = {
+              GO: ['true', 'false'],
+              KILL_PROCEED: ['true', 'false'],
+              TRIGGER_PROCEED: ['true', 'false'],
+              CONFIG_OUTCOME: OUTCOME,
+              ACT_OUTCOME: OUTCOME,
+              DIRTY_TREE: ['true', 'false'],
+              PATCH_COLLECTED: ['written', 'empty'],
+              KILL_REASON: NAME,
+              TRIGGER_REASON: NAME,
+              GATE_REASON: NAME,
+              SKIP_REASON: NAME,
+              LANE_CLASS: NAME,
+              BASE_SHA: SHA,
+              HEAD_SHA: SHA,
+            };
+            // The carry step's caps and chunk counts; a chunk is 98304 characters.
+            const PAYLOADS = [
+              ['reply', 'reply.txt', 16384, 1],
+              ['act-turns', 'act-turns.json', 32768, 1],
+              ['patch', 'patch.diff', 262144, 4],
+            ];
+            const CHUNK = 98304;
+            class Refused extends Error {}
+            const refuse = (message) => {
+              throw new Refused(message);
+            };
+            try {
+              for (const [key, allowed] of Object.entries(closed)) {
+                const value = env[key] ?? '';
+                if (value !== '' && !(Array.isArray(allowed) ? allowed.includes(value) : allowed.test(value))) {
+                  refuse(`bad-output: the run job's ${key.toLowerCase().replaceAll('_', '-')} output is not one the runner sets; nothing is published`);
+                }
+              }
+              const present = {};
+              for (const [name, file, cap, chunks] of PAYLOADS) {
+                const prefix = name.toUpperCase().replaceAll('-', '_');
+                const bytesText = env[`${prefix}_BYTES`] ?? '';
+                const sha = env[`${prefix}_SHA256`] ?? '';
+                const parts = Array.from({ length: chunks }, (_, i) => env[`${prefix}_B64_${i + 1}`] ?? '');
+                if (bytesText === '' && sha === '' && parts.every((part) => part === '')) continue;
+                if (!/^[0-9]+$/.test(bytesText)) refuse(`payload-mismatch: the ${name} has no byte count; nothing is published`);
+                const bytes = Number(bytesText);
+                if (bytes > cap) refuse(`too-large: the ${name} is ${bytes} bytes, over its ${cap}-byte cap; nothing is published`);
+                const length = 4 * Math.ceil(bytes / 3);
+                if (parts.some((part, i) => part === '' && length > i * CHUNK)) {
+                  refuse(`output-withheld: the runner withheld the run job's ${name} output as one that may hold a secret; nothing is published\nrotate this credential`);
+                }
+                const b64 = parts.join('');
+                const data = Buffer.from(b64, 'base64');
+                if (
+                  !/^[0-9a-f]{64}$/.test(sha) || b64.length !== length || !/^[A-Za-z0-9+/]*={0,2}$/.test(b64)
+                  || data.length !== bytes || crypto.createHash('sha256').update(data).digest('hex') !== sha
+                ) {
+                  refuse(`payload-mismatch: the ${name} does not match its SHA-256 and byte count; nothing is published`);
+                }
+                present[name] = [file, data];
+              }
+              // PR mode: the patch the run collected, and only that, arrives.
+              if (env.ISSUE_NUMBER === '' && Boolean(present.patch) !== (env.PATCH_COLLECTED === 'written')) {
+                refuse('payload-mismatch: the patch does not match the state its collector reported; nothing is published');
+              }
+              // Written only once every check passed.
+              const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-in-'));
+              for (const [file, data] of Object.values(present)) fs.writeFileSync(path.join(dir, file), data, { flag: 'wx', mode: 0o444 });
+              core.setOutput('dir', dir);
+              core.setOutput('reply', present.reply || present['act-turns'] ? 'true' : 'false');
+              core.setOutput('patch', present.patch ? 'true' : 'false');
+              core.setOutput('patch-state', env.PATCH_COLLECTED === 'empty' ? 'empty' : '');
+            } catch (error) {
+              core.setFailed(error instanceof Refused ? error.message : `payload-mismatch: the outputs could not be decoded (${error.name}); nothing is published`);
+            }
+
+      # The gated head's objects, fresh: the patch applies onto them.
+      - name: Check out the gated head
+        if: steps.decode.outputs.patch == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.run.outputs.head-sha }}
+          persist-credentials: false
+
       # PR mode: the skill ran Bash with the API key in reach, and artifacts
       # are readable by anyone who can read the repository; masking covers
       # logs and summaries only. Before any upload or summary, this copies
-      # what leaves the job (the reply, the run fields and the patch) into a
-      # fresh directory and scans those copies; the uploads and the summary
-      # read only the copies, and the patch-sha256 the apply job checks is
-      # the scanned copy's. It also scans the execution file, which the
-      # launcher never scans, and every changed or untracked file's name and
-      # bytes, listed through a scratch index. The patch is applied as the
-      # apply job applies it, onto the gated head in a scratch index, and
-      # every file it makes is scanned by name and bytes: a binary hunk's
-      # bytes are compressed in the patch text. The model could edit the
-      # checkout and its .git, so git here never reads that directory's
-      # config, hooks or info files (a fresh repository borrows only its
-      # objects, and the patch applies onto a copy of the head's objects
-      # each named by its own hash), and lib/publish-gate.mjs comes from the API at the trusted
+      # what leaves (the reply, the run fields and the patch) into a fresh
+      # directory and scans those copies; the uploads and the summary read
+      # only the copies, and the patch-sha256 the apply job checks is the
+      # scanned copy's. The patch is applied as the apply job applies it,
+      # onto the gated head in a scratch index, and every file it makes is
+      # scanned by name and bytes: a binary hunk's bytes are compressed in
+      # the patch text. git here never reads the checkout's config, hooks or
+      # info files (a fresh repository borrows only its objects, and the
+      # patch applies onto a copy of the head's objects each named by its
+      # own hash), and lib/publish-gate.mjs comes from the API at the trusted
       # base SHA, with the job's read-only token, into a fresh directory,
       # and must import only node: builtins. A credential format fails the
       # step naming the pattern, never the value, and says to rotate it; a
@@ -1382,17 +1677,14 @@ jobs:
       # source, never a path.
       - name: Scan the outputs for credentials
         id: leak-scan
-        if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
+        if: inputs.issue-number == '' && needs.run.outputs.go == 'true'
         timeout-minutes: 10
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
-          HEAD_SHA: ${{ steps.start.outputs.sha }}
-          EXECUTION_FILE: >-
-            ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file
-            || format('{0}/claude-execution-output.json', runner.temp) }}
-          REPLY_DIR: ${{ runner.temp }}/skill-reply
-          PATCH_FILE: ${{ runner.temp }}/patch/patch.diff
+          BASE_SHA: ${{ needs.run.outputs.base-sha }}
+          HEAD_SHA: ${{ needs.run.outputs.head-sha }}
+          REPLY_DIR: ${{ steps.decode.outputs.dir }}
+          PATCH_FILE: ${{ steps.decode.outputs.dir }}/patch.diff
         with:
           retries: 0
           script: |
@@ -1402,7 +1694,7 @@ jobs:
             const crypto = require('crypto');
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
-            const { BASE_SHA, HEAD_SHA, EXECUTION_FILE, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
+            const { BASE_SHA, HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
             // The one findSecret label that warns instead of blocking.
             const WARN_ONLY = 'password or secret assignment';
             // A regular file's bytes, a link's target text; anything else holds none.
@@ -1428,20 +1720,19 @@ jobs:
               const { findSecret, SECRET_PATTERNS } = await import(pathToFileURL(path.join(scratch, 'publish-gate.mjs')).href);
               // git with no global or system config, in a fresh bare repository
               // that borrows at most the checkout's objects and nothing else
-              // from its .git: no filter, hook, fsmonitor or include the model
-              // planted runs (collect-patch.sh runs the same way).
+              // from its .git (collect-patch.sh runs the same way).
               const home = path.join(scratch, 'home');
               fs.mkdirSync(home);
               fs.writeFileSync(path.join(scratch, 'config'), '');
               const clean = { PATH: '/usr/bin:/bin', HOME: home, XDG_CONFIG_HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: path.join(scratch, 'config'), GIT_NO_REPLACE_OBJECTS: '1' };
-              const repo = (name, extra, borrow = true) => {
+              const repo = (name, borrow) => {
                 const dir = path.join(scratch, name);
                 execFileSync('/usr/bin/git', ['init', '-q', '--bare', '--template=', dir], { env: clean, stdio: 'ignore' });
                 if (borrow) fs.writeFileSync(path.join(dir, 'objects', 'info', 'alternates'), `${path.join(GITHUB_WORKSPACE, '.git', 'objects')}\n`);
-                const env = { ...clean, GIT_DIR: dir, GIT_INDEX_FILE: path.join(dir, 'scan-index'), ...extra };
+                const env = { ...clean, GIT_DIR: dir, GIT_INDEX_FILE: path.join(dir, 'scan-index') };
                 return (args, input) =>
                   execFileSync('/usr/bin/git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', ...args], {
-                    cwd: extra?.GIT_WORK_TREE ?? scratch,
+                    cwd: scratch,
                     env,
                     input,
                     maxBuffer: 1 << 30,
@@ -1449,8 +1740,7 @@ jobs:
                   });
               };
               // What leaves is copied once; the scan reads the copy and the
-              // uploads after it read the same bytes, so a process the run
-              // left behind cannot swap them by the paths it knew.
+              // uploads after it read the same bytes.
               const out = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-out-'));
               const keep = (file, name) => {
                 const bytes = read(file);
@@ -1507,44 +1797,6 @@ jobs:
                 if (whole && whole[0] !== WARN_ONLY) return credential(whole[0]);
                 return { warn };
               };
-              // The launcher writes the execution file as one JSON line, so a
-              // credential format is looked for in the raw bytes, and then every
-              // string in it, keys included, is judged on its own lines. A file
-              // that does not parse is judged as text.
-              const classifyExecution = (bytes) => {
-                const raw = bytes.toString('latin1');
-                let value;
-                try {
-                  value = JSON.parse(bytes.toString('utf8'));
-                } catch {
-                  return classify(raw);
-                }
-                for (const line of raw.split(/\r?\n/)) {
-                  const result = classifyLine(line);
-                  if (result.credential) return result;
-                }
-                const whole = findSecret(raw);
-                if (whole && whole[0] !== WARN_ONLY) return credential(whole[0]);
-                const strings = [];
-                const walk = (node) => {
-                  if (typeof node === 'string') strings.push(node);
-                  else if (Array.isArray(node)) node.forEach(walk);
-                  else if (node && typeof node === 'object') {
-                    for (const [key, child] of Object.entries(node)) {
-                      strings.push(key);
-                      walk(child);
-                    }
-                  }
-                };
-                walk(value);
-                let warn = false;
-                for (const text of strings) {
-                  const result = classify(text);
-                  if (result.block) return result;
-                  warn ||= Boolean(result.warn);
-                }
-                return { warn };
-              };
               // Each source has a kind, which names no model-chosen text.
               const warned = new Set();
               const judge = (kind, bytes, how = (b) => classify(b.toString('latin1'))) => {
@@ -1556,34 +1808,17 @@ jobs:
               judge('the reply', reply);
               judge('the reply', turns);
               judge('the patch', patch);
-              judge('the execution file', read(EXECUTION_FILE), classifyExecution);
-              // Every changed or untracked file in the checkout, through a
-              // scratch index (the checkout's own is the model's to write:
-              // assume-unchanged, skip-worktree). A file's name reaches the
-              // patch, so it is a source too.
-              const tree = repo('tree', { GIT_WORK_TREE: GITHUB_WORKSPACE });
-              const paths = ['--', ':(top)', ':(top,exclude).lane'];
-              tree(['read-tree', HEAD_SHA]);
-              tree(['add', '-A', ...paths]);
-              const listed = (...filter) =>
-                tree(['diff', '--cached', '--name-only', '--no-renames', ...filter, '-z', HEAD_SHA, ...paths]).toString('latin1').split('\0').filter(Boolean);
-              const added = new Set(listed('--diff-filter=A'));
-              for (const name of listed()) {
-                const kind = added.has(name) ? 'an untracked file' : 'a changed file';
-                judge(`${kind}'s name`, Buffer.from(name, 'latin1'));
-                judge(kind, read(path.join(GITHUB_WORKSPACE, name)));
-              }
               // The patch as the apply job applies it, onto the gated head: every
               // file it makes, by name and bytes. git apply takes a blob the store
-              // already holds in place of a binary hunk's bytes, and the model
-              // could plant one under the name of the hunk's blob, so the head's
+              // already holds in place of a binary hunk's bytes, so the head's
               // objects are copied through index-pack, which names each by its
               // own hash, into a store that borrows nothing. A patch that does
               // not apply blocks. A missing or blank patch file is no patch: the
               // collector writes none for no change.
               if (!hit && patch && patch.toString('latin1').trim() !== '') {
-                const apply = repo('apply', undefined, false);
-                apply(['index-pack', '--stdin'], tree(['pack-objects', '--stdout', '-q'], tree(['rev-list', '--objects', '--no-walk', HEAD_SHA])));
+                const head = repo('head', true);
+                const apply = repo('apply', false);
+                apply(['index-pack', '--stdin'], head(['pack-objects', '--stdout', '-q'], head(['rev-list', '--objects', '--no-walk', HEAD_SHA])));
                 apply(['read-tree', HEAD_SHA]);
                 let made = null;
                 try {
@@ -1611,18 +1846,12 @@ jobs:
             }
 
       # After the scan: model text and run fields, as data, from the scan's
-      # copies in PR mode. Issue mode has no scan (its job holds no API key)
-      # and keeps its summary.
+      # copies.
       - name: Show the skill's run in the step summary
-        if: >-
-          always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
-          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
-          || (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
-          && steps.act-key.outputs.lane-class != 'credit-stop'
-          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+        if: steps.leak-scan.outputs.clean == 'true' && steps.decode.outputs.reply == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          REPLY_DIR: ${{ steps.leak-scan.outputs.dir || format('{0}/skill-reply', runner.temp) }}
+          REPLY_DIR: ${{ steps.leak-scan.outputs.dir }}
         with:
           retries: 0
           script: |
@@ -1643,115 +1872,49 @@ jobs:
             if (turns !== null) core.summary.addHeading('Skill run', 3).addCodeBlock(escape(turns), 'json');
             await core.summary.write();
 
-      # A handoff uploads nothing: the fallback call's artifacts take the same
-      # names. Every upload below repeats the handoff terms.
+      # PR mode, after a clean scan, from its copies. overwrite: false, so a
+      # second upload of a name this run already holds fails.
       - name: Upload the skill's final reply
         id: reply-upload
-        if: >-
-          always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
-          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
-          || steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
-          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+        if: steps.leak-scan.outputs.clean == 'true' && steps.decode.outputs.reply == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
-          # Named files only: head code can write into this directory. PR
-          # mode reads the leak scan's copies.
           path: |
-            ${{ steps.leak-scan.outputs.dir || format('{0}/skill-reply', runner.temp) }}/reply.txt
-            ${{ steps.leak-scan.outputs.dir || format('{0}/skill-reply', runner.temp) }}/act-turns.json
+            ${{ steps.leak-scan.outputs.dir }}/reply.txt
+            ${{ steps.leak-scan.outputs.dir }}/act-turns.json
           retention-days: 3
           if-no-files-found: error
+          overwrite: false
 
       - name: Upload the patch
         id: patch-upload
-        if: >-
-          always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
-          && steps.patch.outputs.state == 'written'
+        if: steps.leak-scan.outputs.clean == 'true' && steps.decode.outputs.patch == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
-          path: ${{ steps.leak-scan.outputs.dir || format('{0}/patch', runner.temp) }}/patch.diff
+          path: ${{ steps.leak-scan.outputs.dir }}/patch.diff
           retention-days: 7
           if-no-files-found: error
+          overwrite: false
 
-      # Issue mode: the skill's outcome file is model output, copied as data
-      # and capped. lane.json is built from step outputs, never from a file
-      # in the directory, which could have been planted during the run. Code
-      # the activity ran can still reach this step (BASH_ENV, PATH), so
-      # report-outcome re-checks every field. This run makes no branch: the
-      # apply job names the one it makes in lane.json.
-      - name: Collect the issue outcome
-        if: >-
-          always() && inputs.issue-number != '' && steps.go.outputs.run == 'true'
-          && steps.config.outputs.kind == 'skill'
-        env:
-          SCRATCH_OUTCOME: ${{ runner.temp }}/lane-scratch/work-outcome.json
-          OUT_DIR: ${{ runner.temp }}/work-outcome
-          LANE_CLASS: ${{ steps.lane-record.outputs.failure-class }}
-          LANE_RESETS: ${{ steps.lane-record.outputs.resets-at }}
-          # The run's turn cap, so a turn-cap stop names it.
-          LANE_MAX_TURNS: ${{ steps.config.outputs.max-turns }}
-          # The branch a resumed run continued, which still holds the work
-          # when the run left no change of its own.
-          LANE_RESUME: ${{ steps.issue-prior.outputs.resume-branch }}
-          # A run that exited non-zero, and the API error it ended on, so a
-          # funding stop is named as one (report-outcome readFunding).
-          LANE_FAILED: ${{ steps.act-skill.outcome == 'failure' }}
-          LANE_API_STATUS: ${{ steps.act-error.outputs.status }}
-          LANE_ERROR_TEXT: ${{ steps.act-error.outputs.text }}
-        run: |
-          mkdir -p "$OUT_DIR"
-          rm -f "$OUT_DIR/work-outcome.json" "$OUT_DIR/lane.json"
-          if [ -f "$SCRATCH_OUTCOME" ] && [ ! -L "$SCRATCH_OUTCOME" ]; then
-            head -c 65536 "$SCRATCH_OUTCOME" >"$OUT_DIR/work-outcome.json"
-          fi
-          jq -n --arg class "$LANE_CLASS" --arg resets "$LANE_RESETS" \
-            --arg max_turns "$LANE_MAX_TURNS" --arg resume "$LANE_RESUME" \
-            --arg failed "$LANE_FAILED" --arg status "$LANE_API_STATUS" --arg error_text "$LANE_ERROR_TEXT" \
-            '{branch: "", class: $class, resets: $resets, "max-turns": $max_turns, resume: $resume,
-              failed: $failed, "api-error-status": $status, "error-text": $error_text}' >"$OUT_DIR/lane.json"
-
-      - name: Upload the issue outcome
-        if: >-
-          always() && inputs.issue-number != '' && steps.go.outputs.run == 'true'
-          && steps.config.outputs.kind == 'skill'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: work-outcome-${{ inputs.issue-number }}
-          path: |
-            ${{ runner.temp }}/work-outcome/lane.json
-            ${{ runner.temp }}/work-outcome/work-outcome.json
-          retention-days: 1
-          if-no-files-found: error
-          overwrite: true
-
-      # Written after head code ran, so the report job only cross-checks it.
-      # A handoff leaves the verdict to the fallback call.
+      # From the run job's outputs, each held to its closed set by the decode
+      # step, and this job's own patch upload: no job that ran model or head
+      # code writes it. The scan job's patch-state output repeats PATCH_STATE.
       - name: Write the verdict
-        if: always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
         env:
           LANE: ${{ inputs.lane }}
           ACTIVITY: ${{ inputs.activity }}
-          KILL_PROCEED: ${{ steps.kill.outputs.proceed }}
-          KILL_REASON: ${{ steps.kill.outputs.reason }}
-          TRIGGER_PROCEED: ${{ steps.gate.outputs.proceed }}
-          TRIGGER_REASON: ${{ steps.gate.outputs.reason }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          CONFIG_OUTCOME: ${{ steps.config.outcome }}
-          SKIP_REASON: ${{ steps.config.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
-          ACT_OUTCOME: >-
-            ${{ (steps.act-skill.outcome == 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
-            && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
-            || steps.act-turns.outcome != 'success') && 'failure'
-            || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
-            || steps.act-key.outcome != 'skipped' && steps.act-key.outcome
-            || steps.act-token.outcome != 'skipped' && steps.act-token.outcome
-            || steps.act-script.outcome }}
-          DIRTY_TREE: ${{ steps.tree.outputs.dirty-tree }}
-          PATCH_STATE: ${{ steps.patch-upload.outcome == 'success' && 'written' || steps.patch.outputs.state == 'empty' && 'empty' || '' }}
+          KILL_PROCEED: ${{ needs.run.outputs.kill-proceed }}
+          KILL_REASON: ${{ needs.run.outputs.kill-reason }}
+          TRIGGER_PROCEED: ${{ needs.run.outputs.trigger-proceed }}
+          TRIGGER_REASON: ${{ needs.run.outputs.trigger-reason }}
+          HEAD_SHA: ${{ needs.run.outputs.head-sha }}
+          CONFIG_OUTCOME: ${{ needs.run.outputs.config-outcome }}
+          SKIP_REASON: ${{ needs.run.outputs.skip-reason }}
+          ACT_OUTCOME: ${{ needs.run.outputs.act-outcome }}
+          DIRTY_TREE: ${{ needs.run.outputs.dirty-tree }}
+          PATCH_STATE: ${{ steps.patch-upload.outcome == 'success' && 'written' || steps.decode.outputs.patch-state == 'empty' && 'empty' || '' }}
           VERDICT_DIR: ${{ runner.temp }}/verdict
         run: |
           mkdir -p "$VERDICT_DIR"
@@ -1783,40 +1946,17 @@ jobs:
               patch: ($patch | nullable)
             }' >"$VERDICT_DIR/verdict.json"
 
-      # Before any head code ran there is nothing to scan, and the report
-      # job needs this verdict to post the skip.
+      # Only after every step above succeeded: a run that stopped before head
+      # code skipped the scan and still posts its skip; a scan hit leaves no
+      # verdict, which the report job reads as a failure.
       - name: Upload the verdict
-        if: >-
-          always() && (inputs.issue-number != '' || steps.go.outputs.run != 'true' || steps.leak-scan.outputs.clean == 'true')
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict/verdict.json
           retention-days: 1
           if-no-files-found: error
-
-      # Each actions/checkout post step runs git in its checkout's path
-      # whenever <path>/.git/config is there, as a node step that holds the
-      # job's runtime token. The head checkout's .git is the model's to write,
-      # and the head checkout removed .base, so the model could make one
-      # there too; with both gone, both post steps return before any git runs.
-      - name: Remove the checkouts' .git directories
-        if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
-        run: rm -rf "${GITHUB_WORKSPACE:?}/.git" "${GITHUB_WORKSPACE:?}/.base/.git"
-
-      # The launcher steps fail softly. A run that handed off ends green and
-      # leaves the activity to the fallback call; any other PR-mode skill run
-      # that got as far as the credential steps and left no launcher success
-      # fails here.
-      - name: Fail without a result
-        if: >-
-          always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success')
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
-          && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
-        run: |
-          echo "::error::the skill's launcher run left no result"
-          exit 1
+          overwrite: false
 
   # Issue mode, reuse: the summary pass, in its own job with a read-only
   # GITHUB_TOKEN. It starts only when the run job's issue-prior step named a
@@ -2023,7 +2163,7 @@ jobs:
           overwrite: true
 
   report:
-    needs: [broker-check, run]
+    needs: [broker-check, run, scan]
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
     # lanes App's own pull_request events skip the run job. Issue mode has no
     # PR head to post a check on, and a run that handed off leaves the check
@@ -2079,8 +2219,9 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      # A run job that never uploaded a verdict is already a failure, or a
-      # neutral superseded-sha on a cancel, in report-check-run's decision.
+      # A run that never uploaded a verdict (the scan job writes it) is
+      # already a failure, or a neutral superseded-sha on a cancel, in
+      # report-check-run's decision.
       - name: Download the verdict
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -2135,10 +2276,13 @@ jobs:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
           # A broker-check failure skips the run job and leaves no verdict, so
-          # the check fails; a cancelled broker-check reads as cancelled.
+          # the check fails; a cancelled broker-check reads as cancelled. A
+          # scan job that failed (a credential, a withheld or oversize
+          # payload) fails the check after a run job that succeeded.
           run-result: >-
             ${{ needs.broker-check.result != 'success' && needs.broker-check.result
-            || needs.run.result }}
+            || needs.run.result != 'success' && needs.run.result
+            || needs.scan.result }}
           act-outcome: ${{ needs.run.outputs.act-outcome }}
           gate-reason: ${{ needs.run.outputs.gate-reason }}
           head-sha: ${{ needs.run.outputs.head-sha }}

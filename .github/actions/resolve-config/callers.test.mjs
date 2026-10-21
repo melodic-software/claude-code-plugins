@@ -899,7 +899,6 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
     "steps.token-present.outputs.present": "",
     "steps.key-present.outcome": "success",
     "steps.patch.outputs.state": "written",
-    "steps.leak-scan.outputs.clean": "true",
   };
   const handoffs = {
     "an empty key": { ...base, "steps.key-present.outputs.present": "false", "steps.act-key.outcome": "skipped", "steps.act-key.outputs.lane-class": "" },
@@ -909,17 +908,25 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
   const guarded = run.steps.filter((s) => /^actions\/upload-artifact@|\/report-lane-outcome@/.test(String(s.uses ?? "")) || s.id === "patch");
   assert.deepEqual(
     guarded.map((s) => s.id ?? s.name),
-    ["lane-record", "Record the launcher's lane outcome", "patch", "reply-upload", "patch-upload", "Upload the issue outcome", "Upload the verdict"],
+    ["lane-record", "Record the launcher's lane outcome", "patch", "reply-upload", "patch-upload", "Upload the issue outcome"],
   );
   for (const step of guarded) {
     for (const [name, context] of Object.entries(handoffs)) {
       assert.equal(atStep(step.if, context), false, `${step.id ?? step.name} after ${name}`);
     }
   }
-  // A PR-mode call that ran uploads its reply, patch and verdict and records its outcome.
-  for (const step of guarded.filter((s) => !String(s.if).replace(CLEAN_GATE, "").includes("inputs.issue-number != ''"))) {
+  // A PR-mode call that ran collects its patch and records its outcome; its uploads are the scan job's.
+  for (const step of guarded.filter((s) => !String(s.if).includes("inputs.issue-number != ''"))) {
     assert.equal(atStep(step.if, ran), true, step.id ?? step.name);
   }
+  // The scan job, which uploads the reply, patch and verdict, is skipped on a handoff.
+  const scanRuns = (handedOffOutput, result = "success") =>
+    atStep(jobs.scan.if, { "needs.run.outputs.handed-off": handedOffOutput, "needs.run.result": result });
+  assert.equal(scanRuns("true"), false);
+  assert.equal(scanRuns("false"), true);
+  assert.equal(scanRuns("false", "failure"), true, "a failed run still posts its verdict");
+  assert.equal(scanRuns("false", "skipped"), false, "a run job the broker check skipped");
+  assert.equal(scanRuns("false", "cancelled"), false);
   const handedOff = (context) => atStep(run.outputs["handed-off"], context);
   assert.equal(handedOff(handoffs["an empty key"]), true);
   assert.equal(handedOff(handoffs["a credit stop"]), true);
@@ -1088,29 +1095,75 @@ test("pr-run-activity-read.yml: with output-mode gone, issue mode still refuses 
 // --- the PR-mode leak scan, before any upload or summary ---
 
 const runSteps = () => workflow("pr-run-activity-read.yml").jobs.run.steps;
-const CLEAN_GATE = "(inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')";
-// Issue-mode steps.
-const UNSCANNED = new Set(["Upload the issue outcome", "Check the gate skill's verdict"]);
+const scanSteps = () => workflow("pr-run-activity-read.yml").jobs.scan.steps;
 const writesSummary = (step) => /GITHUB_STEP_SUMMARY|core\.summary/.test(`${step.run ?? ""}${step.with?.script ?? ""}`);
+const isUpload = (step) => String(step.uses ?? "").startsWith("actions/upload-artifact@");
 
-test("pr-run-activity-read.yml: the leak scan runs after the act and collect steps and gates every later upload and summary", () => {
+test("pr-run-activity-read.yml: in PR mode the model job uploads nothing and writes no step summary", () => {
   const steps = runSteps();
+  const out = steps.filter((step) => isUpload(step) || writesSummary(step));
+  assert.ok(out.length >= 4, out.map((s) => s.name).join(", "));
+  // claude-code-action runs only in issue mode, so a PR run's act-skill is skipped.
+  const actSkill = steps.find((s) => s.id === "act-skill");
+  assert.equal(atStep(actSkill.if, prRun(actSkill.if, { "steps.config.outputs.kind": "skill" })), false);
+  for (const step of out) {
+    // Under every PR-mode context, the step stays off.
+    const pr = [{}, { "steps.act-key.outcome": "failure" }, { "steps.act-key.outcome": "skipped", "steps.act-token.outcome": "success" }, { "steps.config.outputs.gating": "gate" }];
+    for (const overrides of pr) {
+      assert.equal(atStep(step.if, prRun(step.if, overrides)), false, `${step.name} ${JSON.stringify(overrides)}`);
+    }
+  }
+  // The leak scan and the verdict are the scan job's alone.
+  for (const step of steps) {
+    assert.notEqual(step.id, "leak-scan");
+    assert.doesNotMatch(String(step.with?.name ?? ""), /^verdict-/, step.name);
+    assert.doesNotMatch(String(step.run ?? ""), /verdict\.json/, step.name);
+  }
+});
+
+test("pr-run-activity-read.yml: the scan job holds no secret, no id-token, no cache and no artifact from the run job", () => {
+  const { jobs } = workflow("pr-run-activity-read.yml");
+  const scan = jobs.scan;
+  assert.equal(scan["runs-on"], "ubuntu-24.04");
+  assert.equal(scan.needs, "run");
+  assert.deepEqual(scan.permissions, { contents: "read" });
+  assert.deepEqual(stepSecrets(scan), [], "no secret anywhere in the job");
+  assert.doesNotMatch(JSON.stringify(scan), /id-token|ACTIONS_ID_TOKEN/);
+  for (const step of scan.steps) {
+    assert.doesNotMatch(String(step.uses ?? ""), /^actions\/(cache|download-artifact)@/, step.name);
+    assert.doesNotMatch(String(step.uses ?? ""), /^\.\//, `${step.name}: no action from a checkout`);
+  }
+  // Payloads reach a script only through env, never inlined.
+  for (const step of scan.steps) {
+    assert.doesNotMatch(`${step.run ?? ""}${step.with?.script ?? ""}`, /\$\{\{/, step.name);
+  }
+  // It is the only job that uploads the reply, patch and verdict in PR mode, each once per name.
+  const uploads = Object.entries(jobs).flatMap(([id, job]) => (job.steps ?? []).filter(isUpload).map((step) => [id, step]));
+  for (const prefix of ["skill-reply-", "patch-", "verdict-"]) {
+    const named = uploads.filter(([, step]) => String(step.with.name).startsWith(prefix));
+    const scanUploads = named.filter(([id]) => id === "scan");
+    assert.equal(scanUploads.length, 1, prefix);
+    assert.equal(scanUploads[0][1].with.overwrite, false, prefix);
+    for (const [id, step] of named.filter(([id]) => id !== "scan")) assert.match(String(step.if), /inputs\.issue-number != ''/, `${id} ${prefix}`);
+  }
+});
+
+test("pr-run-activity-read.yml: the leak scan runs after the decode and gates every later upload and summary", () => {
+  const steps = scanSteps();
   const at = (id) => steps.findIndex((step) => step.id === id);
   const scan = at("leak-scan");
-  for (const id of ["act-key", "act-token", "act-turns", "patch"]) {
-    assert.ok(at(id) >= 0 && at(id) < scan, `${id} runs before the scan`);
-  }
-  const outputs = steps.slice(at("act-key")).filter((step) => String(step.uses ?? "").startsWith("actions/upload-artifact@") || writesSummary(step));
-  assert.ok(outputs.length >= 3);
-  for (const step of outputs.filter((step) => !UNSCANNED.has(step.name))) {
+  assert.ok(at("decode") === 0 && at("decode") < scan);
+  const outputs = steps.filter((step) => (isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step));
+  assert.equal(outputs.length, 3);
+  const context = (clean) => ({ "steps.leak-scan.outputs.clean": clean, "steps.decode.outputs.reply": "true", "steps.decode.outputs.patch": "true" });
+  for (const step of outputs) {
     assert.ok(steps.indexOf(step) > scan, `${step.name} comes after the scan`);
-    assert.equal(atStep(step.if, prRun(step.if, { "steps.leak-scan.outputs.clean": "true" })), true, `${step.name} runs on a clean scan`);
-    assert.equal(atStep(step.if, prRun(step.if, { "steps.leak-scan.outputs.clean": "false" })), false, `${step.name} is dropped on a hit`);
+    assert.equal(atStep(step.if, context("true")), true, `${step.name} runs on a clean scan`);
+    assert.equal(atStep(step.if, context("false")), false, `${step.name} is dropped on a hit`);
+    assert.equal(atStep(step.if, context("")), false, `${step.name} is dropped when no scan ran`);
   }
-  for (const id of ["reply-upload", "patch-upload"]) assert.ok(String(steps[at(id)].if).includes(CLEAN_GATE), id);
-  // A hit skips the patch upload, so the run's patch-state is never `written`.
-  const { outputs: jobOutputs } = workflow("pr-run-activity-read.yml").jobs.run;
-  assert.match(jobOutputs["patch-state"], /^\$\{\{ steps\.patch-upload\.outcome == 'success' && 'written'/);
+  // A hit skips the patch upload, so the scan job's patch-state is never `written`.
+  assert.match(workflow("pr-run-activity-read.yml").jobs.scan.outputs["patch-state"], /^\$\{\{ steps\.patch-upload\.outcome == 'success' && 'written'/);
 });
 
 // Every context reference in an expression, empty unless the PR-mode skill
@@ -1133,24 +1186,28 @@ function prRun(expression, overrides = {}, base = PR_RUN) {
 }
 
 test("pr-run-activity-read.yml: a PR run that stops before head code still uploads its verdict, and nothing else", () => {
-  const steps = runSteps();
+  const steps = scanSteps();
   const step = (name) => steps.find((s) => s.name === name);
   // A trigger decline, the kill switch, applies false or an issue-prior stop: go never ran, so no scan.
-  const stopped = { "inputs.issue-number": "", "steps.go.outputs.run": "", "steps.leak-scan.outputs.clean": "" };
-  const verdict = step("Upload the verdict").if;
-  assert.equal(atStep(verdict, prRun(verdict, stopped, {})), true, "the report job needs the verdict to post the skip");
+  const stopped = { "inputs.issue-number": "", "needs.run.outputs.go": "", "steps.decode.outputs.reply": "false", "steps.decode.outputs.patch": "false", "steps.leak-scan.outputs.clean": "" };
+  const scan = step("Scan the outputs for credentials");
+  assert.equal(atStep(scan.if, stopped), false);
+  assert.equal(atStep(scan.if, { ...stopped, "needs.run.outputs.go": "true" }), true);
+  // The verdict steps keep the default success(): they run when no step before
+  // them failed, so a skipped scan still posts the skip and a hit posts nothing.
+  for (const name of ["Write the verdict", "Upload the verdict"]) assert.equal(step(name).if, undefined, name);
   for (const name of ["Upload the skill's final reply", "Upload the patch", "Show the skill's run in the step summary"]) {
-    const expression = step(name).if;
-    assert.equal(atStep(expression, prRun(expression, stopped, {})), false, `${name} has nothing to upload`);
+    assert.equal(atStep(step(name).if, stopped), false, `${name} has nothing to upload`);
   }
-  // Once head code ran, a hit drops the verdict too.
-  assert.equal(atStep(verdict, prRun(verdict, { "steps.leak-scan.outputs.clean": "false" })), false);
+  assert.equal(step("Check out the gated head").if, "steps.decode.outputs.patch == 'true'");
 });
 
 test("pr-run-activity-read.yml: the leak scan loads the publish gate from the API at the base SHA, never from the checkout", () => {
-  const step = runSteps().find((s) => s.id === "leak-scan");
+  const step = scanSteps().find((s) => s.id === "leak-scan");
   const script = step.with.script;
-  assert.equal(step.env.BASE_SHA, "${{ steps.trusted-base.outputs.commit }}");
+  // The run job's base, from its trusted-base step before any head code.
+  assert.equal(step.env.BASE_SHA, "${{ needs.run.outputs.base-sha }}");
+  assert.equal(workflow("pr-run-activity-read.yml").jobs.run.outputs["base-sha"], "${{ steps.trusted-base.outputs.commit }}");
   assert.match(script, /getContent\(\{ \.\.\.context\.repo, path: 'lib\/publish-gate\.mjs', ref: BASE_SHA \}\)/);
   assert.doesNotMatch(script, /require\(['"]\.|import\(['"]\.|GITHUB_WORKSPACE[^)]*publish-gate|\.base\/|RUNNER_TEMP/);
   assert.match(script, /mkdtempSync/);
@@ -1164,10 +1221,12 @@ const KEY = ["sk", "ant", "api03", "x".repeat(40)].join("-");
 
 const COLLECT = fileURLToPath(new URL("../../scripts/read-patch/collect-patch.sh", import.meta.url));
 
-// The PR-mode tail of the run job: the plant stands in for the model's run,
-// then the real collector writes the patch from the checkout, then
-// afterCollect stands in for a process the run left behind, then the scan.
-async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {} } = {}) {
+// The plant stands in for the model's run, then the real collector writes the
+// patch from the checkout, then afterCollect stands in for a process the run
+// left behind, then the scan job's scan. headRepo, given the checkout and a
+// scratch directory, returns the repository the scan reads the head's
+// objects from (the scan job's own checkout); by default the run's checkout.
+async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {}, headRepo = (work) => work } = {}) {
   const root = mkdtempSync(join(tmpdir(), "leak-scan-test-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const work = join(root, "work");
@@ -1184,7 +1243,6 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), 
   const head = git("rev-parse", "HEAD").stdout.trim();
   writeFileSync(join(temp, "skill-reply", "reply.txt"), "lint-shell: fixed\n");
   writeFileSync(join(temp, "skill-reply", "act-turns.json"), '{"num_turns": 3}\n');
-  writeFileSync(join(temp, "execution.json"), "[]\n");
   plant({ work, temp });
   const collected = spawnSync("bash", [COLLECT, head, join(temp, "patch", "patch.diff")], { cwd: work, encoding: "utf8" });
   assert.equal(collected.status, 0, collected.stderr);
@@ -1206,13 +1264,12 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), 
   const env = {
     BASE_SHA: "b".repeat(40),
     HEAD_SHA: head,
-    EXECUTION_FILE: join(temp, "execution.json"),
     REPLY_DIR: join(temp, "skill-reply"),
     PATCH_FILE: join(temp, "patch", "patch.diff"),
-    GITHUB_WORKSPACE: work,
+    GITHUB_WORKSPACE: headRepo(work, root),
     HOME: process.env.HOME,
   };
-  const script = runSteps().find((s) => s.id === "leak-scan").with.script;
+  const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
   const { createRequire } = await import("node:module");
   await new AsyncFunction("require", "core", "github", "context", "process", script)(
     createRequire(import.meta.url),
@@ -1229,7 +1286,7 @@ test("leak scan: a clean run is clean", async (t) => {
   assert.deepEqual({ clean, failed }, { clean: "true", failed: null });
 });
 
-test("leak scan: a key in the reply, in a binary changed file, in an untracked file or in the execution file fails it, naming the pattern and never the key", async (t) => {
+test("leak scan: a key in the reply, in a binary changed file or in an untracked file fails it, naming the pattern and never the key", async (t) => {
   const plants = {
     reply: ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `done ${KEY}\n`),
     "binary changed file": ({ work }) => writeFileSync(join(work, "tracked.txt"), Buffer.concat([Buffer.from([0, 255, 0]), Buffer.from(KEY)])),
@@ -1239,7 +1296,6 @@ test("leak scan: a key in the reply, in a binary changed file, in an untracked f
       assert.equal(spawnSync("git", ["diff", "--name-only"], { cwd: work, encoding: "utf8" }).stdout, "", "the real index hides it");
     },
     "untracked file": ({ work }) => writeFileSync(join(work, "new.bin"), Buffer.concat([Buffer.from([0, 1]), Buffer.from(KEY)])),
-    "execution file": ({ temp }) => writeFileSync(join(temp, "execution.json"), JSON.stringify([{ type: "user", text: KEY }])),
   };
   for (const [where, plant] of Object.entries(plants)) {
     const { clean, failed, work } = await scanWith(t, plant);
@@ -1255,7 +1311,7 @@ test("leak scan: a missing base or head, or a gate that imports beyond node buil
   const outputs = {};
   let failed = null;
   const { createRequire } = await import("node:module");
-  const script = runSteps().find((s) => s.id === "leak-scan").with.script;
+  const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
   await new AsyncFunction("require", "core", "github", "context", "process", script)(
     createRequire(import.meta.url),
     { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message), warning: () => {} },
@@ -1288,21 +1344,6 @@ const CREDENTIALS = {
   "upload token": `${"pgup"}_${"A".repeat(20)}`,
 };
 const ASSIGNMENT = `password = '${["hunter2", "zz9"].join("-")}'`;
-// The execution file as run-claude-cli writes it (lane.cjs at 7b362428, the
-// pinned launcher: JSON.stringify(linesToMessages(stdout))): the CLI's
-// stream-json lines parsed into one array, on one line. A tool result
-// carries the given text; the model's turn names a Windows path, whose
-// backslash the file holds doubled.
-const executionFile = (toolText) =>
-  JSON.stringify(
-    [
-      '{"type":"system","subtype":"init","model":"claude-sonnet-5-5","tools":["Read","Bash"]}',
-      JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Reading C:\\src\\lint.sh" }, { type: "tool_use", id: "t1", name: "Bash", input: { command: "cat .env.example" } }] } }),
-      JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: `${toolText}\nPORT=8080` }] } }),
-      '{"type":"result","subtype":"success","num_turns":3,"result":"lint-shell: fixed"}',
-    ].map((line) => JSON.parse(line)),
-  );
-
 test("leak scan: every credential format the gate names blocks and asks for rotation", async (t) => {
   const { SECRET_PATTERNS } = await import("../../../lib/publish-gate.mjs");
   const blocking = SECRET_PATTERNS.map(([label]) => label).filter((label) => label !== "password or secret assignment");
@@ -1322,14 +1363,14 @@ test("leak scan: a plain password or secret assignment warns, naming the kind of
   const plants = {
     "a changed file": ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`),
     "an untracked file": ({ work }) => writeFileSync(join(work, "new-notes.txt"), `${ASSIGNMENT}\n`),
-    "the execution file": ({ temp }) => writeFileSync(join(temp, "execution.json"), executionFile(ASSIGNMENT)),
+    "the reply": ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `${ASSIGNMENT}\n`),
   };
   for (const [kind, plant] of Object.entries(plants)) {
     const { clean, failed, warnings } = await scanWith(t, plant);
     assert.deepEqual({ clean, failed }, { clean: "true", failed: null }, kind);
-    // A changed or untracked file reaches the patch, which warns as well.
-    const kinds = kind.endsWith("file") && kind !== "the execution file" ? ["the patch", kind] : [kind];
-    assert.deepEqual(warnings, kinds.map((name) => `leak-scan: password or secret assignment in ${name}; not blocking, check it is no real credential`), kind);
+    // A changed or untracked file leaves only in the patch.
+    const source = kind === "the reply" ? kind : "the patch";
+    assert.deepEqual(warnings, [`leak-scan: password or secret assignment in ${source}; not blocking, check it is no real credential`], kind);
     assert.ok(!/hunter2|tracked\.txt|new-notes/.test(warnings[0]), kind);
   }
 });
@@ -1364,7 +1405,7 @@ test("leak scan: an assignment never hides a credential the gate finds only in i
   }
   // Case 15: a plain assignment still only warns.
   const plain = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`));
-  assert.deepEqual({ clean: plain.clean, failed: plain.failed, warnings: plain.warnings.length }, { clean: "true", failed: null, warnings: 2 });
+  assert.deepEqual({ clean: plain.clean, failed: plain.failed, warnings: plain.warnings.length }, { clean: "true", failed: null, warnings: 1 });
 });
 
 test("leak scan: a credential-format file name blocks, and a PEM header alone blocks as a private key", async (t) => {
@@ -1387,28 +1428,6 @@ test("leak scan: a gate whose labels lack the warning label still blocks its cre
   const hit = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `${KEY}\n`), gate);
   assert.equal(hit.clean, "false");
   assert.match(hit.failed, /^leak-scan: Anthropic key; .*\nrotate this credential$/);
-});
-
-test("leak scan: an execution file the launcher writes on one line judges each message's text on its own lines", async (t) => {
-  const file = executionFile(ASSIGNMENT);
-  assert.equal(file.split("\n").length, 1, "the launcher's file is one line");
-  assert.ok(file.includes("\\\\"), "the file holds a doubled backslash away from the assignment");
-  const plain = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "execution.json"), file));
-  assert.deepEqual({ clean: plain.clean, failed: plain.failed }, { clean: "true", failed: null });
-  assert.deepEqual(plain.warnings, ["leak-scan: password or secret assignment in the execution file; not blocking, check it is no real credential"]);
-  // Beside markup on its own line, the assignment still blocks, with no rotation.
-  const hidden = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "execution.json"), executionFile(`<b>${ASSIGNMENT}</b>`)));
-  assert.equal(hidden.failed, `leak-scan: ${HIDDEN}; nothing is uploaded or summarized`);
-  // A JSON escape the parse undoes, and a credential in the raw bytes, both block and ask for rotation.
-  const escaped = JSON.stringify([{ type: "user", text: CREDENTIALS["Cloudflare API token"] }]).replace("cfut", "\\u0063fut");
-  for (const [name, text] of [["escaped", escaped], ["raw", executionFile(KEY)]]) {
-    const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "execution.json"), text));
-    assert.equal(clean, "false", name);
-    assert.match(failed, /\nrotate this credential$/, name);
-  }
-  // A file that does not parse is judged as text.
-  const broken = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "execution.json"), `[{"text": "${ASSIGNMENT} \\\\x"`));
-  assert.equal(broken.failed, `leak-scan: ${HIDDEN}; nothing is uploaded or summarized`);
 });
 
 // A key the working tree no longer shows: the patch carries it as a binary
@@ -1478,16 +1497,16 @@ test("leak scan: no filter, include, hook or fsmonitor planted in the checkout's
 });
 
 test("leak scan: the uploads and the summary read the scanned copies, and the patch SHA-256 the apply job checks is the copy's", async (t) => {
-  const steps = runSteps();
+  const steps = scanSteps();
   const step = (id) => steps.find((s) => s.id === id);
   const scan = step("leak-scan");
   assert.equal(typeof scan["timeout-minutes"], "number", "a slow scan ends, failing closed");
   assert.equal(scan.with.script.match(/setOutput\('clean'/g).length, 1, "clean is set only once the scan finished");
-  const copy = "steps.leak-scan.outputs.dir || format(";
-  assert.ok(String(step("reply-upload").with.path).split("\n").filter(Boolean).every((line) => line.includes(copy)));
-  assert.ok(step("patch-upload").with.path.includes(copy));
-  assert.ok(steps.find((s) => s.name === "Show the skill's run in the step summary").env.REPLY_DIR.includes(copy));
-  assert.match(workflow("pr-run-activity-read.yml").jobs.run.outputs["patch-sha256"], /inputs\.issue-number == '' && steps\.leak-scan\.outputs\.patch-sha256/);
+  const copy = "${{ steps.leak-scan.outputs.dir }}";
+  assert.ok(String(step("reply-upload").with.path).split("\n").filter(Boolean).every((line) => line.startsWith(`${copy}/`)));
+  assert.ok(step("patch-upload").with.path.startsWith(`${copy}/`));
+  assert.equal(steps.find((s) => s.name === "Show the skill's run in the step summary").env.REPLY_DIR, copy);
+  assert.equal(workflow("pr-run-activity-read.yml").jobs.scan.outputs["patch-sha256"], "${{ steps.patch-upload.outcome == 'success' && steps.leak-scan.outputs.patch-sha256 || '' }}");
   const { outputs, temp } = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "changed\n"));
   const original = readFileSync(join(temp, "patch", "patch.diff"));
   // A process left behind rewrites what it knows; the copies keep the scanned bytes.
@@ -1689,4 +1708,245 @@ test("pr-run-activity-read.yml: the run fields keep at most four local-command s
   await new AsyncFunction("require", "core", "process", script)(createRequire(import.meta.url), core, { env: { EXECUTION_FILE: join(root, "execution.json"), REPLY_DIR: root } });
   const { local_command_stderr: kept } = JSON.parse(readFileSync(join(root, "act-turns.json"), "utf8"));
   assert.deepEqual(kept, [1, 2, 3, 4].map((n) => `<local-command-stderr>failure ${n}</local-command-stderr>`));
+});
+
+// --- the scan job's decode, from the run job's outputs ---
+
+// The env the decode step reads, built from the run job's outputs as the
+// runner would pass them: each `${{ needs.run.outputs.<name> }}` replaced by
+// the value of that output.
+function decodeEnv(runOutputs, inputs = { "issue-number": "" }) {
+  const step = scanSteps().find((s) => s.id === "decode");
+  const env = {};
+  for (const [name, expression] of Object.entries(step.env)) {
+    const output = /^\$\{\{ needs\.run\.outputs\.([\w-]+) \}\}$/.exec(expression);
+    const input = /^\$\{\{ inputs\.([\w-]+) \}\}$/.exec(expression);
+    assert.ok(output || input, `${name}: ${expression}`);
+    env[name] = output ? (runOutputs[output[1]] ?? "") : (inputs[input[1]] ?? "");
+  }
+  return env;
+}
+
+// Runs the decode step; returns its outputs, failure and the files it wrote.
+async function decode(t, env) {
+  const tmp = mkdtempSync(join(tmpdir(), "decode-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  const outputs = {};
+  let failed = null;
+  const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) };
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  const os = { ...require("node:os"), tmpdir: () => tmp };
+  const script = scanSteps().find((s) => s.id === "decode").with.script;
+  await new AsyncFunction("require", "core", "process", script)((name) => (name === "os" ? os : require(name)), core, { env });
+  const files = outputs.dir ? Object.fromEntries(readdirSync(outputs.dir).map((name) => [name, readFileSync(join(outputs.dir, name))])) : {};
+  return { outputs, failed, files, written: readdirSync(tmp).flatMap((dir) => readdirSync(join(tmp, dir))) };
+}
+
+// The run job's outputs after a PR-mode skill run that collected a patch,
+// from the real carry step and the run job's output map.
+function runOutputsAfterCarry(t, files) {
+  const { outputs } = carry(t, files);
+  const { jobs } = workflow("pr-run-activity-read.yml");
+  const mapped = {};
+  for (const [name, expression] of Object.entries(jobs.run.outputs)) {
+    const step = /^\$\{\{ steps\.carry\.outputs\.([\w-]+) \}\}$/.exec(expression);
+    if (step) mapped[name] = outputs[step[1]] ?? "";
+  }
+  return {
+    ...mapped,
+    go: "true",
+    "base-sha": "b".repeat(40),
+    "head-sha": "c".repeat(40),
+    "kill-proceed": "true",
+    "trigger-proceed": "true",
+    "config-outcome": "success",
+    "act-outcome": "success",
+    "patch-collected": files["patch/patch.diff"] ? "written" : "empty",
+  };
+}
+
+test("scan job: the reply, run fields and patch round-trip from the carry step through the run job's outputs to the decode step", async (t) => {
+  const { randomBytes } = await import("node:crypto");
+  const files = {
+    "skill-reply/reply.txt": Buffer.from("lint-shell: fixed\nnon-ASCII: é中\n"),
+    "skill-reply/act-turns.json": Buffer.from('{"num_turns": 3}\n'),
+    "patch/patch.diff": randomBytes(262144),
+  };
+  const { outputs, failed, files: decoded } = await decode(t, decodeEnv(runOutputsAfterCarry(t, files)));
+  assert.equal(failed, null);
+  assert.deepEqual(decoded, { "act-turns.json": files["skill-reply/act-turns.json"], "patch.diff": files["patch/patch.diff"], "reply.txt": files["skill-reply/reply.txt"] });
+  assert.deepEqual({ reply: outputs.reply, patch: outputs.patch, state: outputs["patch-state"] }, { reply: "true", patch: "true", state: "" });
+  // Each env value fits one environment string.
+  for (const [name, value] of Object.entries(decodeEnv(runOutputsAfterCarry(t, files)))) assert.ok(`${name}=${value}`.length < ENV_STRING_MAX, name);
+  // No patch collected: no patch file, and the state the apply job reads is `empty`.
+  const empty = await decode(t, decodeEnv(runOutputsAfterCarry(t, { "skill-reply/reply.txt": "ok\n" })));
+  assert.equal(empty.failed, null);
+  assert.deepEqual(Object.keys(empty.files), ["reply.txt"]);
+  assert.deepEqual([empty.outputs.patch, empty.outputs["patch-state"]], ["false", "empty"]);
+  // A run that stopped before head code hands on nothing.
+  const stopped = await decode(t, decodeEnv({ go: "false", "kill-proceed": "true", "trigger-proceed": "false", "trigger-reason": "untrusted-actor" }));
+  assert.deepEqual([stopped.failed, stopped.outputs.reply, stopped.outputs.patch], [null, "false", "false"]);
+});
+
+test("scan job: an output the runner withheld fails closed with the rotation signal, and nothing is written", async (t) => {
+  const { randomBytes } = await import("node:crypto");
+  const outputs = runOutputsAfterCarry(t, { "skill-reply/reply.txt": "done\n", "patch/patch.diff": randomBytes(200000) });
+  // The runner skips an output it judges may hold a secret: the payload goes, its byte count stays.
+  for (const withheld of ["carry-reply-b64-1", "carry-patch-b64-1", "carry-patch-b64-3"]) {
+    const { failed, written } = await decode(t, decodeEnv({ ...outputs, [withheld]: "" }));
+    assert.match(failed ?? "", /^output-withheld: .*\nrotate this credential$/, withheld);
+    assert.deepEqual(written, [], `${withheld}: no file is written`);
+  }
+  // A 200000-byte patch fills three chunks: the fourth is empty by design, not withheld.
+  assert.equal(outputs["carry-patch-b64-4"], "");
+  assert.equal((await decode(t, decodeEnv(outputs))).failed, null);
+});
+
+test("scan job: a payload over its cap, or one that does not match its hash and size, fails closed without rotation", async (t) => {
+  const over = await decode(t, decodeEnv(runOutputsAfterCarry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61) })));
+  assert.equal(over.failed, "too-large: the patch is 262145 bytes, over its 262144-byte cap; nothing is published");
+  assert.deepEqual(over.written, []);
+  const at = await decode(t, decodeEnv(runOutputsAfterCarry(t, { "patch/patch.diff": Buffer.alloc(262144, 0x61) })));
+  assert.equal(at.failed, null, "the cap itself passes");
+  // A forged byte count over the cap is refused before the payload is read.
+  const forged = await decode(t, decodeEnv({ ...runOutputsAfterCarry(t, { "patch/patch.diff": "x\n" }), "carry-patch-bytes": "999999" }));
+  assert.match(forged.failed, /^too-large: /);
+  const good = runOutputsAfterCarry(t, { "skill-reply/reply.txt": "fixed\n", "patch/patch.diff": "diff\n" });
+  const tampered = {
+    "another payload": { "carry-reply-b64-1": Buffer.from("fixes\n").toString("base64") },
+    "a wrong hash": { "carry-reply-sha256": "0".repeat(64) },
+    "a wrong byte count": { "carry-reply-bytes": "7" },
+    // 5 and 6 bytes both take eight base64 characters.
+    "a byte count one short, with the same base64 length": { "carry-reply-bytes": "5" },
+    "a byte count that is no number": { "carry-reply-bytes": "6 " },
+    "no hash": { "carry-reply-sha256": "" },
+    "a patch the collector never reported": { "patch-collected": "empty" },
+    "a collected patch that never arrived": { "carry-patch-bytes": "", "carry-patch-sha256": "", "carry-patch-b64-1": "" },
+  };
+  for (const [name, change] of Object.entries(tampered)) {
+    const { failed, written } = await decode(t, decodeEnv({ ...good, ...change }));
+    assert.match(failed ?? "", /^payload-mismatch: .*nothing is published$/, name);
+    assert.doesNotMatch(failed, /rotate/, name);
+    assert.deepEqual(written, [], name);
+  }
+});
+
+test("scan job: every run job output set after head code must be in its closed set", async (t) => {
+  const good = runOutputsAfterCarry(t, { "skill-reply/reply.txt": "fixed\n" });
+  assert.equal((await decode(t, decodeEnv({ ...good, "dirty-tree": "false", "skip-reason": "no-ci-failure", "lane-class": "max-turns" }))).failed, null);
+  const forged = {
+    "dirty-tree": "maybe",
+    "act-outcome": "succes",
+    "skip-reason": "Skip\nreason",
+    "patch-collected": "written ",
+    "lane-class": "credit stop",
+    "head-sha": "c".repeat(39),
+    go: "yes",
+  };
+  for (const [name, value] of Object.entries(forged)) {
+    const { failed } = await decode(t, decodeEnv({ ...good, [name]: value }));
+    assert.match(failed ?? "", new RegExp(`^bad-output: the run job's ${name} output is not one the runner sets`), name);
+  }
+});
+
+test("scan job: the verdict is built from the run job's checked outputs, never from a file a model job wrote", (t) => {
+  const steps = scanSteps();
+  const write = steps.find((s) => s.name === "Write the verdict");
+  for (const [name, expression] of Object.entries(write.env)) {
+    assert.match(expression, /^\$\{\{ (needs\.run\.outputs\.[\w-]+|inputs\.(lane|activity)|runner\.temp|steps\.(patch-upload|decode)\.[\w.-]+.*) \}\}/, name);
+  }
+  // Every needs.run output it reads, the decode step checks.
+  const decoded = new Set(Object.values(steps.find((s) => s.id === "decode").env));
+  for (const expression of Object.values(write.env).filter((value) => value.includes("needs.run.outputs."))) {
+    assert.ok(decoded.has(expression), `${expression} is checked by the decode step`);
+  }
+  const root = mkdtempSync(join(tmpdir(), "verdict-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const env = {
+    LANE: "pr-unblock",
+    ACTIVITY: "fix-ci",
+    KILL_PROCEED: "true",
+    KILL_REASON: "",
+    TRIGGER_PROCEED: "true",
+    TRIGGER_REASON: "",
+    HEAD_SHA: "c".repeat(40),
+    CONFIG_OUTCOME: "success",
+    SKIP_REASON: "",
+    ACT_OUTCOME: "success",
+    DIRTY_TREE: "",
+    PATCH_STATE: "written",
+    VERDICT_DIR: root,
+    GITHUB_SERVER_URL: "https://github.com",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_RUN_ID: "7",
+  };
+  assert.equal(runStep(write, root, env).status, 0);
+  assert.deepEqual(JSON.parse(readFileSync(join(root, "verdict.json"), "utf8")), {
+    version: 1,
+    lane: "pr-unblock",
+    activity: "fix-ci",
+    "run-url": "https://github.com/o/r/actions/runs/7",
+    "head-sha": "c".repeat(40),
+    gates: { "kill-switch": { proceed: "true", reason: "" }, trigger: { proceed: "true", reason: "" } },
+    config: "valid",
+    "skip-reason": null,
+    outcome: "success",
+    "dirty-tree": null,
+    patch: "written",
+  });
+  // The run job writes no verdict.
+  assert.ok(!runSteps().some((s) => /verdict/i.test(s.name ?? "") && s.name !== "Check the gate skill's verdict"));
+});
+
+test("pr-run-activity-read.yml: the patch and reply outputs come from the scan job in PR mode and the run job in issue mode, and every caller's reads resolve", () => {
+  const read = workflow("pr-run-activity-read.yml");
+  const outputs = read.on.workflow_call.outputs;
+  for (const name of ["patch-state", "patch-sha256", "patch-attempt", "reply-attempt"]) {
+    assert.equal(outputs[name].value, `\${{ jobs.scan.outputs.${name} || jobs.run.outputs.${name} }}`, name);
+    assert.ok(Object.hasOwn(read.jobs.scan.outputs, name) && Object.hasOwn(read.jobs.run.outputs, name), name);
+  }
+  // In PR mode the run job's own patch outputs stay empty, so the scan job's alone count.
+  const runPatchState = read.jobs.run.outputs["patch-state"];
+  assert.equal(atStep(runPatchState, prRun(runPatchState, { "steps.patch-upload.outcome": "skipped", "steps.patch.outputs.state": "empty" })), "");
+  for (const id of ["patch-upload", "reply-upload"]) {
+    const step = read.jobs.run.steps.find((s) => s.id === id);
+    assert.equal(atStep(step.if, prRun(step.if, { "steps.patch.outputs.state": "written", "steps.act-key.outcome": "success" })), false, id);
+  }
+  // Every output a caller of the read runner reads is one the read runner declares.
+  for (const file of ["pr-unblock.yml", "work-resolve-issue.yml"]) {
+    const { jobs } = workflow(file);
+    const callers = Object.entries(jobs).filter(([, job]) => job.uses === READ_RUNNER).map(([id]) => id);
+    for (const [, name] of JSON.stringify(jobs).matchAll(new RegExp(`needs\\.(?:${callers.join("|")})\\.outputs\\.([\\w-]+)`, "g"))) {
+      assert.ok(Object.hasOwn(outputs, name), `${file} reads ${name}`);
+    }
+  }
+});
+
+test("pr-run-activity-read.yml: the report needs the scan job, and a failed scan fails the check after a green run job", () => {
+  const { report } = workflow("pr-run-activity-read.yml").jobs;
+  assert.deepEqual(report.needs, ["broker-check", "run", "scan"]);
+  const post = report.steps.find((s) => s.name === "Post the check run");
+  const result = (broker, run, scan) =>
+    evaluate(post.with["run-result"], { "needs.broker-check.result": broker, "needs.run.result": run, "needs.scan.result": scan });
+  assert.equal(result("success", "success", "success"), "success");
+  assert.equal(result("success", "success", "failure"), "failure", "a credential, a withheld or an oversize payload");
+  assert.equal(result("success", "failure", "success"), "failure");
+  assert.equal(result("success", "cancelled", "skipped"), "cancelled");
+  assert.equal(result("failure", "skipped", "skipped"), "failure");
+  assert.equal(result("success", "skipped", "skipped"), "skipped");
+});
+
+test("leak scan: a fresh shallow checkout of the head, as the scan job makes, still applies and scans the patch", async (t) => {
+  const shallow = (work, root) => {
+    const dir = join(root, "fresh");
+    const cloned = spawnSync("git", ["clone", "-q", "--depth", "1", `file://${work}`, dir], { encoding: "utf8" });
+    assert.equal(cloned.status, 0, cloned.stderr);
+    assert.equal(spawnSync("git", ["rev-parse", "--is-shallow-repository"], { cwd: dir, encoding: "utf8" }).stdout.trim(), "true");
+    return dir;
+  };
+  const hit = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), KEY_BLOB), undefined, { afterCollect: restore, headRepo: shallow });
+  assert.equal(hit.failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+  const clean = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "changed\n"), undefined, { headRepo: shallow });
+  assert.deepEqual({ clean: clean.clean, failed: clean.failed }, { clean: "true", failed: null });
 });
