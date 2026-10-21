@@ -22,6 +22,11 @@ commands/**/*.md file whose head text gains or changes a capability frontmatter
 key, adds a `!` command, or changes a line inside a ```! block, compared with
 its base text, or whose text could not be read, rates HIGH as
 `high-capability`.
+A safe file whose every path is a test (a `*.test.mjs`, `*.test.sh`,
+`*.test.js` or `test_*.py` name, or a `tests` or `fixtures` directory, matched
+case-sensitively) under no declared path is left out of the floor's
+script-directory entries and the script scopes; every other entry, and a
+configured copy of one of those, still holds it.
 `floor_extensions` gates FLOOR_ADDITIONS, `floor-paths`, the script scopes and
 the capability check in every lane. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Claude.md` as
@@ -615,8 +620,32 @@ def _declared_paths(value: Any, unsafe: list[str]) -> tuple[str, ...]:
 _SCRIPT_SUFFIXES = (".ps1", ".cjs")
 _EXECUTABLE_MODE = "100755"
 
+# The floor's script-directory entries, which a test-only file does not hold.
+_SCRIPT_FLOOR = frozenset(
+    {"plugins/*/scripts/**", "plugins/*/skills/*/scripts/**", "plugins/**/scripts/**"}
+)
+_TEST_NAMES = ("*.test.mjs", "*.test.sh", "*.test.js", "test_*.py")
+_TEST_DIRS = frozenset({"tests", "fixtures"})
 
-def _script_reasons(files: list[_File], raw_files: list[Any], scopes) -> list[Reason]:
+
+def _test_only(f: _File, declared: tuple[str, ...]) -> bool:
+    """Every path of a safe file is a test: a test file name or a directory
+    named tests or fixtures, matched case-sensitively, under no declared path."""
+    if f.unsafe or not f.paths:
+        return False
+    for path in f.paths:
+        *dirs, name = path.split("/")
+        if not (
+            _TEST_DIRS.intersection(dirs)
+            or any(_segment_match(g, name) for g in _TEST_NAMES)
+        ) or any(glob_match(d, path) for d in declared):
+            return False
+    return True
+
+
+def _script_reasons(
+    files: list[_File], raw_files: list[Any], scopes, tests: set[str]
+) -> list[Reason]:
     hits = []
     for f, raw in zip(files, raw_files):
         modes = (getattr(raw, "mode", None), getattr(raw, "previous_mode", None))
@@ -624,6 +653,8 @@ def _script_reasons(files: list[_File], raw_files: list[Any], scopes) -> list[Re
             # The top level is always in scope (owner decision Q646).
             top = "/" not in path
             if not path or not (top or any(glob_match(g, path) for g in scopes)):
+                continue
+            if not top and path in tests:
                 continue
             if path.casefold().endswith(_SCRIPT_SUFFIXES) or _EXECUTABLE_MODE in modes:
                 hits.append(path)
@@ -847,13 +878,20 @@ def _high_path_reasons(
     if unsafe:
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
     paths = [path for f in files for path in f.paths if path]
+    tests = {p for f in files if _test_only(f, declared) for p in f.paths}
+    # Only the fixed script entries exempt tests; a configured copy holds them.
+    exempt = _SCRIPT_FLOOR.difference(configured, added) if on else ()
     for pattern in dict.fromkeys((*floor, *configured)):
-        hits = [path for path in paths if glob_match(pattern, path)]
+        hits = [
+            path
+            for path in paths
+            if glob_match(pattern, path) and not (pattern in exempt and path in tests)
+        ]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
     if extended:
         reasons.extend(_capability_reasons(files, raw_files))
-        reasons.extend(_script_reasons(files, raw_files, scopes))
+        reasons.extend(_script_reasons(files, raw_files, scopes, tests))
     return reasons
 
 

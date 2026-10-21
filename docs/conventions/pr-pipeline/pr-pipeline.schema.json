@@ -870,7 +870,7 @@
             "floor-script-scopes": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "description": "Globs inside which, as at the repository top level, a .ps1 or .cjs file, or a file with git mode 100755, scores HIGH while the floor applies and waits for a human."
+              "description": "Globs inside which, as at the repository top level, a .ps1 or .cjs file, or a file with git mode 100755, scores HIGH while the floor applies and waits for a human. Outside the top level, a test file (a *.test.mjs, *.test.sh, *.test.js or test_*.py name, or a tests or fixtures directory) under no declared path is exempt."
             },
             "c2-contradictions": {
               "type": "boolean",

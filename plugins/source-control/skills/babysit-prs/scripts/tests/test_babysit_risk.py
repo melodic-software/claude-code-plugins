@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import difflib
+import json
 import pathlib
 import re
 import subprocess
@@ -964,6 +965,97 @@ class MalformedInputTests(unittest.TestCase):
             with self.subTest(glob):
                 result = score(_input(files=(_file("docs"),), high_paths=(glob,)))
                 self.assertIn(f"high-path:{glob}", _codes(result))
+
+
+class TestOnlyScriptPathTests(unittest.TestCase):
+    """A change whose files under floored script paths are all tests (a
+    *.test.mjs, *.test.sh, *.test.js or test_*.py name, or a tests/ or
+    fixtures/ directory) takes no script-path hold; every other reason stays."""
+
+    SCRIPT = "high-path:plugins/*/scripts/**"
+
+    def test_test_only_change_under_a_script_directory_is_low(self):
+        files = (
+            _file("plugins/foo/scripts/tests/test_run.py"),
+            _file("plugins/foo/scripts/tests/fixtures/input.json"),
+            _file("plugins/foo/skills/bar/scripts/merge.test.mjs"),
+            _file("plugins/foo/skills/bar/scripts/check.test.sh"),
+            _file("plugins/foo/docs/scripts/x.test.js"),
+        )
+        result = score(_input(files=files))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+    def test_a_path_leaving_tests_still_holds(self):
+        path = "plugins/foo/scripts/tests/../run.sh"
+        result = score(_input(files=(_file(path),)))
+        self.assertIn(self.SCRIPT, _codes(result))
+
+    def test_a_declared_test_file_still_holds(self):
+        command = "${CLAUDE_PLUGIN_ROOT}/scripts/tests/run.test.sh"
+        hooks = json.dumps({"hooks": {"Stop": [{"hooks": [{"command": command}]}]}})
+        result = score(
+            _input(
+                files=(_file("plugins/foo/scripts/tests/run.test.sh"),),
+                declarations=(("plugins/foo/hooks/hooks.json", hooks),),
+            )
+        )
+        self.assertIn(self.SCRIPT, _codes(result))
+        self.assertIn("high-path:plugins/foo/scripts/tests", _codes(result))
+
+    def test_a_mixed_change_holds_on_its_non_test_file(self):
+        files = (
+            _file("plugins/foo/scripts/tests/test_run.py"),
+            _file("plugins/foo/scripts/run.py"),
+        )
+        reasons = {r.code: r.detail for r in score(_input(files=files)).reasons}
+        self.assertEqual(reasons.get(self.SCRIPT), "plugins/foo/scripts/run.py")
+
+    def test_a_rename_out_of_a_script_into_tests_still_holds(self):
+        moved = _file(
+            "plugins/foo/scripts/tests/run.py",
+            status="renamed",
+            previous_path="plugins/foo/scripts/run.py",
+        )
+        self.assertIn(self.SCRIPT, _codes(score(_input(files=(moved,)))))
+
+    def test_other_floor_reasons_still_hold_beside_tests(self):
+        files = (
+            _file("plugins/foo/scripts/tests/test_run.py"),
+            _file(".github/workflows/ci.yml"),
+        )
+        self.assertEqual(_codes(score(_input(files=files))), ("high-path:.github/**",))
+        babysit = "plugins/source-control/skills/babysit-prs/scripts/tests/test_x.py"
+        self.assertEqual(
+            _codes(score(_input(files=(_file(babysit),)))),
+            ("high-path:plugins/source-control/skills/babysit-prs/**",),
+        )
+
+    def test_configured_script_globs_still_hold_tests(self):
+        path = "plugins/foo/scripts/tests/test_run.py"
+        for field in ("high_paths", "floor_paths"):
+            with self.subTest(field):
+                result = score(
+                    _input(files=(_file(path),), **{field: ("plugins/*/scripts/**",)})
+                )
+                self.assertIn(self.SCRIPT, _codes(result))
+
+    def test_an_executable_test_file_in_a_script_scope_is_low(self):
+        scopes = ("plugins/foo/**",)
+        test = _file("plugins/foo/scripts/tests/run.test.sh", mode="100755")
+        result = score(_input(files=(test,), floor_script_scopes=scopes))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        tool = _file("plugins/foo/tools/run.sh", mode="100755")
+        result = score(_input(files=(tool,), floor_script_scopes=scopes))
+        self.assertEqual(_codes(result), ("high-script",))
+
+    def test_test_names_match_case_sensitively(self):
+        for path in (
+            "plugins/foo/scripts/Tests/run.py",
+            "plugins/foo/scripts/Test_run.py",
+            "plugins/foo/scripts/run.Test.mjs",
+        ):
+            with self.subTest(path):
+                self.assertIn(self.SCRIPT, _codes(score(_input(files=(_file(path),)))))
 
 
 class LaneSwitchTests(unittest.TestCase):

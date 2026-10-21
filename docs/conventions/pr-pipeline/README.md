@@ -626,7 +626,11 @@ and its queued entries leave; two different identities, or an unreadable head co
   `merge.diff-check.denied-paths` and, while `high-path-floor` is true, `floor-paths`,
   `floor-script-scopes` and the capability check (see the pr-merge lane), matched
   case-insensitively. A diff that touches any of them
-  scores HIGH and is never merged unattended.
+  scores HIGH and is never merged unattended. A file whose every path is a test (a `*.test.mjs`,
+  `*.test.sh`, `*.test.js` or `test_*.py` name, or a `tests/` or `fixtures/` directory, matched
+  case-sensitively, safe and under no path a plugin declares as run) does not take the floor's
+  `plugins/*/scripts/**`, `plugins/*/skills/*/scripts/**` and `plugins/**/scripts/**` entries or
+  `floor-script-scopes`; every other floor entry, `denied-paths` and `floor-paths` still hold it.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.
@@ -701,8 +705,8 @@ except six:
   changes a line inside a ```` ```! ```` block, has changed frontmatter the strict reader cannot
   follow, or cannot be read, and a rename or copy into such a path), `floor-paths` (globs joined to
   that floor while it applies; a HIGH pull request waits for a human), `floor-script-scopes`
-  (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file scores HIGH with
-  the floor), `c2-contradictions` (true
+  (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file other than a test
+  file scores HIGH with the floor), `c2-contradictions` (true
   scores a removed, renamed or copied file, a schema change or more than one plugin MED),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository lists
   `floor-paths` and `floor-script-scopes` and sets `high-path-floor: true` (owner decision
