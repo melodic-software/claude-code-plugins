@@ -18,13 +18,18 @@ from a completed, successful one. Any other artifact is ignored.
   `verify:too-old`, since a verdict may already have expired;
 - a counted FAIL at the head, under any pull request number: `verify:fail`;
 - counted FAILs at `max_fails` or more distinct heads of this pull request
-  (tied as in the next item): `verify:repeated-fail`, whatever a pass says;
+  (tied as in the next item): `verify:repeated-fail`, whatever a pass says.
+  Before a pass decides, FAILs of other pull requests in this repository,
+  open or closed, that close one of its closing issues count too, at their
+  own heads (a FAIL among them whose run cannot be read is
+  `verify:unreadable`);
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch:
   `verify:earlier-fail`. It stands while a FAIL-named artifact cannot be
   read (next item); otherwise counted PASS or PASS-NOTES verdicts at the
-  head whose runs all started after every such FAIL's run (each start read
-  fresh from GitHub; a missing one keeps the refusal) clear it when the
+  head whose runs were all created after every such FAIL's run (each
+  creation time read fresh from GitHub, which a re-attempt keeps; a missing
+  one keeps the refusal) clear it when the
   pull request's own change at the head differs from its change at every
   FAILed head (`_patch_id`: a head that only merges the branch or adds an
   empty commit carries the FAIL forward, and a patch id that cannot be
@@ -141,7 +146,9 @@ CLOSING_QUERY = (
     "pullRequest(number:$n){closingIssuesReferences(first:10){totalCount "
     "nodes{number lastEditedAt repository{nameWithOwner} "
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
-    "author{...actor} editor{...actor}}}}}}}}"
+    "author{...actor} editor{...actor}}} "
+    "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
+    "nodes{number repository{nameWithOwner}}}}}}}}"
     "fragment actor on Actor{__typename login "
     "... on User{databaseId} ... on Bot{databaseId}}"
 )
@@ -271,6 +278,11 @@ class Evidence:
         }
 
 
+def _is_id(value: Any, run_id: int) -> bool:
+    """`value` is the integer `run_id`; `True` equals 1 but is no id."""
+    return type(value) is int and value == run_id
+
+
 def _read(args: list[str], label: str) -> Any:
     try:
         return postmerge._read(args, label)
@@ -302,6 +314,7 @@ class Reader:
     _listing_error: str | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
+    _created: dict[int, Any] = field(default_factory=dict)
     _patch_ids: dict[str, str | None] = field(default_factory=dict)
     # Runs whose standing came from the run cache (`_run_state`).
     _shared_runs: set[int] = field(default_factory=set)
@@ -519,6 +532,7 @@ class Reader:
             self._shared_runs.discard(run_id)
         if not cached:
             self._started[run_id] = record.get("run_started_at")
+            self._created[run_id] = record.get("created_at")
             run_cache.put(RUN_SECTION, key, {k: record.get(k) for k in RUN_FIELDS})
         done = (
             record.get("status") == "completed"
@@ -532,7 +546,7 @@ class Reader:
         repository whose head the branch holds."""
         head = record.get("head_sha")
         return (
-            record.get("id") == run_id
+            _is_id(record.get("id"), run_id)
             and record.get("path") == WORKFLOW_PATH
             and record.get("event") == "workflow_run"
             and record.get("head_branch") == self.branch
@@ -722,14 +736,29 @@ class Reader:
             == self.repo
         }
         for issue in live.values():
-            comments = json_object(issue.get("comments"))
-            if not is_json_array(comments.get("nodes")) or comments.get(
-                "totalCount"
-            ) != len(comments["nodes"]):
-                raise _Unreadable(
-                    f"#{issue.get('number')}: its comments could not be read"
-                )
+            for part in ("comments", "closedByPullRequestsReferences"):
+                listed = json_object(issue.get(part))
+                if not is_json_array(listed.get("nodes")) or listed.get(
+                    "totalCount"
+                ) != len(listed["nodes"]):
+                    raise _Unreadable(
+                        f"#{issue.get('number')}: its {part} could not be read"
+                    )
         return live
+
+    def _closers(self, live: dict[Any, Any]) -> set[int]:
+        """The pull requests in this repository, open or closed, that close
+        any of the closing issues `live` holds."""
+        return {
+            node.get("number")
+            for issue in live.values()
+            for node in map(
+                json_object,
+                json_object(issue.get("closedByPullRequestsReferences")).get("nodes"),
+            )
+            if json_object(node.get("repository")).get("nameWithOwner") == self.repo
+            and type(node.get("number")) is int
+        }
 
     def _commits(self, number: int, head: str) -> set[str]:
         try:
@@ -776,6 +805,11 @@ class Reader:
         head_fails: list[tuple[int, str]] = []
         ignored = 0
         unreadable: str | None = None
+        # FAILs of verifier origin by pull request number, and the numbers
+        # with a FAIL whose run cannot be read, for the cap's other pull
+        # requests (`_closers`).
+        failed_by_pr: dict[int, set[str]] = {}
+        unread_prs: set[int] = set()
         for item in map(json_object, self._listing()):
             name = str(item.get("name") or "")
             match = NAME_RE.fullmatch(name)
@@ -803,11 +837,13 @@ class Reader:
                 ignored += 1
                 continue
             if state == UNREAD:
+                unread_prs.add(pr_n)
                 if tied:
                     unreadable = unreadable or f"run of {name}"
                 else:
                     ignored += 1
                 continue
+            failed_by_pr.setdefault(pr_n, set()).add(sha)
             if not tied:
                 try:
                     recorded = self._head_ref(run_id, name, item.get("id"), head_ref)
@@ -840,13 +876,25 @@ class Reader:
             # Every pass at the head must allow, so listing order decides
             # nothing; any unreadable one refuses (`_Unreadable`).
             live = self._closing_issues(number)
-            refusals = {
-                self._pass_refusal(run_id, name, number, head, author, live)
-                for run_id, name in passes
-            }
-            refusal = next(
-                (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals), None
-            )
+            others = self._closers(live) - {number}
+            elsewhere = set().union(*(failed_by_pr.get(n, set()) for n in others))
+            if others & unread_prs:
+                raise _Unreadable("a FAIL run of a pull request for the same issue")
+            if len(failed | elsewhere) >= self.max_fails:
+                refusal = REPEATED_FAIL
+                detail = (
+                    f"fails at {len(failed | elsewhere)} heads of this and other "
+                    f"pull requests for its issues, the cap is {self.max_fails}"
+                )
+            else:
+                refusals = {
+                    self._pass_refusal(run_id, name, number, head, author, live)
+                    for run_id, name in passes
+                }
+                refusal = next(
+                    (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
+                    None,
+                )
         else:
             refusal = MISSING
         return Evidence(
@@ -858,11 +906,13 @@ class Reader:
             max(head_fails) if refusal == FAIL else None,
         )
 
-    def _fresh_start(self, run_id: int) -> datetime | None:
-        """When the run started, from a record this process read from
+    def _fresh_created(self, run_id: int) -> datetime | None:
+        """When the run was created, from a record this process read from
         GitHub: a cached or carried record could be forged, so it is read
-        again. None when that read fails or holds no time."""
-        if run_id not in self._started:
+        again. A re-attempt keeps `created_at` and moves `run_started_at`
+        later, so a re-run of an old judgment never looks newer than a FAIL
+        that followed it. None when that read fails or holds no time."""
+        if run_id not in self._created:
             try:
                 record = json_object(
                     self._actions(
@@ -872,11 +922,11 @@ class Reader:
                 )
             except _Unreadable:
                 return None
-            if record.get("id") != run_id:
+            if not _is_id(record.get("id"), run_id):
                 return None
-            self._started[run_id] = record.get("run_started_at")
+            self._created[run_id] = record.get("created_at")
         try:
-            return postmerge._time(self._started[run_id])
+            return postmerge._time(self._created[run_id])
         except postmerge.PostMergeReadError:
             return None
 
@@ -884,13 +934,14 @@ class Reader:
         self, fails: list[Verdict], passes: list[tuple[int, str]]
     ) -> bool:
         """Every counted pass at the head was judged after every counted
-        FAIL: each pass's run started after each FAIL's run. A pass judged
+        FAIL: each pass's run was created after each FAIL's run. A pass judged
         before a later FAIL (head B passes, A fails, the branch returns to B)
-        never clears it, and a missing start time clears nothing."""
+        never clears it, re-attempted or not, and a missing time clears
+        nothing."""
         if not passes:
             return False
-        starts = [self._fresh_start(v.run_id) for v in fails]
-        begun = [self._fresh_start(run_id) for run_id, _ in passes]
+        starts = [self._fresh_created(v.run_id) for v in fails]
+        begun = [self._fresh_created(run_id) for run_id, _ in passes]
         if None in starts or None in begun:
             return False
         return max(s for s in starts if s) < min(b for b in begun if b)

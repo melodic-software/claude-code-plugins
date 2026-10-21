@@ -1025,12 +1025,22 @@ head:
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
 - counted `fail` verdicts at `merge.max-verify-fails` (default 3) or more distinct heads of the pull
   request, tied as in the next item, refuse (`verify:repeated-fail`) whatever a later pass says. A
-  value that is not a count of 1 or more is 1, so any earlier `fail` holds;
+  value that is not a count of 1 or more, an empty or non-scalar one included, is 1, so any
+  earlier `fail` holds. Before a pass decides, the counted `fail` verdicts of every other pull
+  request in this repository, open or closed, that closes one of its closing issues count too, at
+  their own heads, so a new pull request for the same issue does not reset the count; such a
+  `fail` whose run cannot be read refuses `verify:unreadable`, and a cut list of those pull
+  requests refuses the same way. This cap is what bounds pushing until the verifier passes once:
+  the carry-forward below stops only a head that changes nothing of its own, and a one-line edit
+  gives a new change. A pull request that names the issue without closing it, or whose closing
+  reference was removed, is not counted;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch) refuses (`verify:earlier-fail`). The refusal stands while a
   `fail` artifact cannot be read (next item). Otherwise counted `pass` or `pass-notes` verdicts at
-  the head whose runs all started after every such `fail`'s run clear it, each start read fresh
-  from GitHub (a missing one keeps the refusal), when the pull request's own change at the head
+  the head whose runs were all created after every such `fail`'s run clear it, each `created_at`
+  read fresh from GitHub (a missing one keeps the refusal; a re-attempt keeps its run's
+  `created_at` and moves `run_started_at` later, so a re-run of an earlier pass never clears a
+  later `fail`), when the pull request's own change at the head
   differs from its change at every `fail`ed head, and those passes decide as below. A change is
   the stable patch id (`git patch-id --stable`) of the compare diff from its merge base with the
   branch, so a head that only merges the branch or adds an empty commit keeps the refusal, as

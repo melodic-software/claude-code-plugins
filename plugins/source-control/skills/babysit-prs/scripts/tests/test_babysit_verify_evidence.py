@@ -126,6 +126,7 @@ def run(run_id: int, **overrides: Any) -> dict[str, Any]:
         "head_branch": "main",
         "head_sha": MAIN_SHA,
         "run_attempt": 1,
+        "created_at": RUN_STARTED,
         "run_started_at": RUN_STARTED,
         "repository": {"full_name": REPO},
         "head_repository": {"full_name": REPO},
@@ -148,6 +149,11 @@ def record(number: int = PR, sha: str = HEAD, **overrides: Any) -> dict[str, Any
     }
     fields.update(overrides)
     return fields
+
+
+def judged(run_id: int, at: Any, **overrides: Any) -> dict[str, Any]:
+    """A run created, and its one attempt started, at `at`."""
+    return run(run_id, created_at=at, run_started_at=at, **overrides)
 
 
 def named(sha: str, verdict: str, number: int = PR) -> str:
@@ -201,6 +207,10 @@ class FakeGitHub:
         # Each closing issue's comments now, and a totalCount that cuts them.
         self.closing_comments: dict[int, list[dict[str, Any]]] = {}
         self.comments_total: dict[int, int] = {}
+        # The pull requests, open or closed, that close each issue:
+        # (number, repository), and a totalCount that cuts them.
+        self.closers: dict[int, list[tuple[int, str]]] = {}
+        self.closers_total: dict[int, int] = {}
 
     def __call__(
         self, args: list[str], **kwargs: Any
@@ -227,6 +237,15 @@ class FakeGitHub:
                             n, len(self.closing_comments.get(n, []))
                         ),
                         "nodes": self.closing_comments.get(n, []),
+                    },
+                    "closedByPullRequestsReferences": {
+                        "totalCount": self.closers_total.get(
+                            n, len(self.closers.get(n, [(PR, REPO)]))
+                        ),
+                        "nodes": [
+                            {"number": pr, "repository": {"nameWithOwner": repo}}
+                            for pr, repo in self.closers.get(n, [(PR, REPO)])
+                        ],
                     },
                 }
                 for n, repo in self.closing
@@ -538,7 +557,7 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
         return passing(
             artifact(named(EARLIER, "fail"), 2),
             *extra,
-            runs={2: run(2, run_started_at=started)},
+            runs={2: judged(2, started)},
         )
 
     def test_an_earlier_fail_and_an_allowing_pass_at_the_head_allow(self) -> None:
@@ -550,6 +569,34 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
         # Head B passed, A was pushed and failed, the branch went back to B.
         fake = self.earlier_fail("2026-10-15T00:00:01Z")
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_re_attempted_earlier_pass_does_not_clear_a_later_fail(self) -> None:
+        # Run 39652492098's record: attempt 2 keeps the run's created_at and
+        # moves run_started_at later. The pass run was created before the
+        # FAIL's and re-attempted after it.
+        fake = self.earlier_fail("2026-10-15T00:00:01Z")
+        fake.runs[1] = run(
+            1,
+            created_at=RUN_STARTED,
+            run_started_at="2026-10-15T00:00:02Z",
+            run_attempt=2,
+        )
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_re_attempt_created_after_the_fail_clears_it(self) -> None:
+        fake = self.earlier_fail()
+        fake.runs[1] = run(1, run_started_at="2026-10-15T00:05:00Z", run_attempt=2)
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_run_record_whose_id_is_true_counts_nothing(self) -> None:
+        # True == 1 in Python, so the id must be an int, not equal to one.
+        fake = self.earlier_fail()
+        fake.runs[1] = {**run(1), "id": True}
+        self.assertNotEqual(read(fake).refusal, None)
+        fake = FakeGitHub(
+            [artifact(named(HEAD, "fail"), 1)], {1: {**run(1), "id": True}}
+        )
+        self.assertEqual(read(fake).refusal, "verify:missing")
 
     def test_a_fail_started_with_the_pass_refuses(self) -> None:
         fake = self.earlier_fail(RUN_STARTED)
@@ -628,7 +675,7 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
 
     def test_one_failed_head_of_the_same_change_among_others_refuses(self) -> None:
         fake = self.earlier_fail(OLDER_START, artifact(named(IN_PR, "fail"), 3))
-        fake.runs[3] = run(3, run_started_at=OLDER_START)
+        fake.runs[3] = judged(3, OLDER_START)
         self.assertIsNone(read(fake).refusal)
         fake.diffs[IN_PR] = fake.diffs[HEAD]
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
@@ -659,6 +706,67 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
             self.assertEqual(read(self.earlier_fail()).refusal, "verify:earlier-fail")
 
 
+SIBLING = 40  # another pull request, closed, that closes issue 7 too
+SIBLING_HEADS = ("1" * 40, "2" * 40, "3" * 40)
+
+
+class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
+    """A new pull request for the same issue does not reset the cap: counted
+    FAILs of any pull request in this repository, open or closed, that closes
+    one of this pull request's closing issues count toward
+    `merge.max-verify-fails`, at their own heads."""
+
+    @staticmethod
+    def sibling_fails(*shas: str, number: int = SIBLING) -> FakeGitHub:
+        """A pass at the head, and FAILs of pull request `number` (branch
+        feat/old) at `shas`."""
+        runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
+        fake = passing(
+            *(artifact(named(sha, "fail", number), i) for i, sha in zip(runs, shas)),
+            runs=runs,
+        )
+        for sha in shas:
+            fake.records[named(sha, "fail", number)] = record(
+                number, sha, verdict="fail", head_ref="feat/old"
+            )
+        fake.closers[7] = [(SIBLING, REPO), (PR, REPO)]
+        return fake
+
+    def test_three_fails_on_a_closed_pull_request_refuse(self) -> None:
+        evidence = read(self.sibling_fails(*SIBLING_HEADS))
+        self.assertEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertTrue(evidence.needs_human)
+
+    def test_two_there_and_one_here_refuse(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS[:2])
+        fake.artifacts.append(artifact(named(EARLIER, "fail"), 9))
+        fake.runs[9] = judged(9, OLDER_START)
+        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
+
+    def test_two_there_leave_the_pass_to_decide(self) -> None:
+        self.assertIsNone(read(self.sibling_fails(*SIBLING_HEADS[:2])).refusal)
+
+    def test_a_pull_request_closing_another_issue_does_not_count(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS)
+        fake.closers[7] = [(PR, REPO)]
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_pull_request_in_another_repository_does_not_count(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS)
+        fake.closers[7] = [(SIBLING, "example-org/other"), (PR, REPO)]
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_cut_list_of_closing_pull_requests_refuses(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS[:1])
+        fake.closers_total[7] = 60
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+    def test_an_unreadable_fail_run_of_a_sibling_refuses(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS[:2])
+        del fake.runs[3]
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+
 class RepeatedFailsGoToAHuman(unittest.TestCase):
     """FAILs at `merge.max-verify-fails` (default 3) distinct heads of one
     pull request hold it for a human whatever a later pass says (owner
@@ -668,7 +776,7 @@ class RepeatedFailsGoToAHuman(unittest.TestCase):
     def failed_at(*shas: str) -> FakeGitHub:
         """A pass at the head (run 1) and a FAIL tied to the pull request at
         each of `shas`, every one judged before the pass."""
-        runs = {i: run(i, run_started_at=OLDER_START) for i in range(2, 2 + len(shas))}
+        runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
         return passing(
             *(artifact(named(sha, "fail"), i) for i, sha in zip(runs, shas)),
             runs=runs,
@@ -687,7 +795,7 @@ class RepeatedFailsGoToAHuman(unittest.TestCase):
         fake = self.failed_at(EARLIER, IN_PR)
         # A second FAIL at IN_PR, under another number, tied by the commit.
         fake.artifacts.append(artifact(named(IN_PR, "fail", 99), 4))
-        fake.runs[4] = run(4, run_started_at=OLDER_START)
+        fake.runs[4] = judged(4, OLDER_START)
         evidence = read(fake)
         self.assertIsNone(evidence.refusal)
         self.assertEqual(len([v for v in evidence.verdicts if v.verdict == "fail"]), 3)
@@ -1552,9 +1660,9 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
         # claims it started before.
         fake = passing(
             artifact(named(EARLIER, "fail"), 2),
-            runs={2: run(2, run_started_at="2026-10-15T00:00:01Z")},
+            runs={2: judged(2, "2026-10-15T00:00:01Z")},
         )
-        forged = run(2, run_started_at="2026-10-01T00:00:00Z")
+        forged = judged(2, "2026-10-01T00:00:00Z")
         for section in ("run-record", "carried-run-record"):
             with self.subTest(section=section):
                 self.restore({section: {f"{REPO}|2": forged}})

@@ -313,7 +313,13 @@ class ReadConfigAt(unittest.TestCase):
             (with_cap("\n    a: 1"), 1, True),
             (with_cap("\n    - 3"), 1, True),
             # A key of that name in another mapping is not the setting.
-            (PIPELINE.replace("diff-check:\n", "diff-check:\n    max-verify-fails:\n"), 3, False),
+            (
+                PIPELINE.replace(
+                    "diff-check:\n", "diff-check:\n    max-verify-fails:\n"
+                ),
+                3,
+                False,
+            ),
         ):
             with self.subTest(text=text):
                 config_fake(self, text)
