@@ -355,13 +355,15 @@ def ensure(data_dir, port, hostname="", token_file="", verify=None):
             _end(rec)
         if not keep:  # a restart at the same address: the tunnel retired before keeps its grace time
             return _start(d, port, hostname, token_file, retired_entry=old)
-        if old and detached.alive(*_identity(old)):
-            _end(old)  # one retired tunnel at a time
         if verify is None:
             _end(keep)
-            return _start(d, port, hostname, token_file)
-        entry = {k: keep[k] for k in ("pid", "url", "marker", "processStart", "adopted") if k in keep} | {"until": time.time() + _retire_seconds()}
-        return _start(d, port, hostname, token_file, retired_entry=entry, verify=verify)
+            new = _start(d, port, hostname, token_file)
+        else:
+            entry = {k: keep[k] for k in ("pid", "url", "marker", "processStart", "adopted") if k in keep} | {"until": time.time() + _retire_seconds()}
+            new = _start(d, port, hostname, token_file, retired_entry=entry, verify=verify)
+        if old and detached.alive(*_identity(old)):
+            _end(old)  # one retired tunnel at a time, ended only once the switch has landed
+        return new
 
 
 def retired(data_dir):

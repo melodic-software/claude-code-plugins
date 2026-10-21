@@ -566,6 +566,17 @@ class TestSwitch(TunnelCase):
         self.assertEqual(len(self.runs()), 2)
         self.assertIsNone(tunnel.retired(self.d))
 
+    def test_a_refused_switch_keeps_the_tunnel_retired_before_it(self):
+        """Pages still on the retired quick address keep learning where to go when a later switch is refused."""
+        tunnel.ensure(self.d, 4321)
+        tunnel.ensure(self.d, 4321, HOST, self.token, verify=self.reaches)
+        old = tunnel.retired(self.d)
+        self.assertIsNotNone(old)
+        with self.assertRaises(tunnel.TunnelDown):
+            tunnel.ensure(self.d, 4321, "typo.example.com", self.token, verify=lambda url: "elsewhere")
+        self.assertTrue(detached.alive(*tunnel._identity(old)))
+        self.assertEqual(tunnel.retired(self.d)["pid"], old["pid"])
+
     def test_a_check_that_raises_is_no_proof(self):
         def broken(url):
             raise OSError("the server did not answer")
