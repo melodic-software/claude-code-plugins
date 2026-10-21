@@ -1164,6 +1164,15 @@ class TestOnlyScriptPathTests(unittest.TestCase):
         result = score(_input(files=(test, blob)))
         self.assertIn(self.SCRIPT, _codes(result))
 
+    def test_a_floor_path_spelled_like_a_fixed_entry_keeps_it_holding(self):
+        result = score(
+            _input(
+                files=(_file("scripts/tests/test_x.py"),),
+                floor_paths=("scripts/**",),
+            )
+        )
+        self.assertIn("high-path:scripts/**", _codes(result))
+
     def test_a_floor_path_glob_below_scripts_still_holds_tests(self):
         result = score(
             _input(

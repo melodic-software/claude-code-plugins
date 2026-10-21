@@ -9,7 +9,8 @@ bump: minor
   `babysit_risk.score` no longer holds a file for the floor's
   `plugins/*/scripts/**`, `plugins/*/skills/*/scripts/**` and
   `plugins/**/scripts/**` entries, for `floor-paths` globs whose last segment
-  other than `**` is `scripts`, or for `floor-script-scopes` (`high-script`,
+  other than `**` is `scripts` (unless spelled like another fixed floor
+  entry, which keeps holding), or for `floor-script-scopes` (`high-script`,
   mode 100755 included) when every path of the file is a test: a
   `*.test.mjs`, `*.test.sh`, `*.test.js` or `test_*.py` name, matched
   case-sensitively. A file only a `tests` or `fixtures` directory marks still

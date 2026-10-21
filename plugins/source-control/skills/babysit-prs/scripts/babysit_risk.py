@@ -26,8 +26,8 @@ A safe file whose every path is a test (a `*.test.mjs`, `*.test.sh`,
 `*.test.js` or `test_*.py` name, matched case-sensitively; a `tests` or
 `fixtures` directory alone is not one), under no declared path and named by no other changed file
 (every other file readable), is left out of the floor's script-directory
-entries, `floor-paths` globs whose last segment other than `**` is `scripts`,
-and the script scopes; every other entry and every denied path still holds it.
+entries, `floor-paths` globs whose last segment other than `**` is `scripts`
+(unless spelled like another fixed entry), and the script scopes; every other entry and every denied path still holds it.
 `floor_extensions` gates FLOOR_ADDITIONS, `floor-paths`, the script scopes and
 the capability check in every lane. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Claude.md` as
@@ -913,8 +913,10 @@ def _high_path_reasons(
         p for f in files if _test_only(f, files, raw_files, declared) for p in f.paths
     }
     # The floor's script entries and floor-paths globs ending in a scripts
-    # directory exempt tests; a denied path never does.
-    scripted = {g for g in floor_globs if _ends_in_scripts(g)}
+    # directory exempt tests; a denied path never does, and neither does a
+    # floor-paths glob spelled like another fixed entry, which keeps holding.
+    fixed = {*HIGH_FLOOR, *FLOOR_ADDITIONS}
+    scripted = {g for g in floor_globs if _ends_in_scripts(g) and g not in fixed}
     exempt = _SCRIPT_FLOOR.union(scripted).difference(configured) if on else ()
     for pattern in dict.fromkeys((*floor, *configured)):
         hits = [
