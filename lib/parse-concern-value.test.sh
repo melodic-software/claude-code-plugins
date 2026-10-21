@@ -73,12 +73,13 @@ assert_eq 'a nested key never answers for an absent root key' ".notes" \
 assert_eq 'a key deeper than an indented root mapping is still nested' ".notes" \
   "$(resolve "$(printf '  other:\n    memory_dir: nested\n  other_key: docs/x')" memory_dir '.notes')"
 # No preamble at column 0 may fix the base indent and hide an indented root map.
-assert_eq 'a leading document marker does not become the base indent' ".scratch" \
-  "$(resolve "$(printf -- '---\nmemory_dir: .scratch')")"
-assert_eq 'a decorated document marker does not become the base indent' ".scratch" \
-  "$(resolve "$(printf -- '--- # generated file\n  memory_dir: .scratch')")"
 assert_eq 'a YAML directive does not become the base indent' ".scratch" \
-  "$(resolve "$(printf -- '%%YAML 1.2\n---\n  memory_dir: .scratch')")"
+  "$(resolve "$(printf -- '%%YAML 1.2\n  memory_dir: .scratch')")"
+# A document marker is outside the subset: the file reads as unset.
+assert_eq 'a leading document marker is a parse error, so it reads as unset' ".notes" \
+  "$(resolve "$(printf -- '---\nmemory_dir: .scratch')" memory_dir .notes 2>/dev/null)"
+assert_eq 'a decorated document marker is a parse error, so it reads as unset' ".notes" \
+  "$(resolve "$(printf -- '--- # generated file\n  memory_dir: .scratch')" memory_dir .notes 2>/dev/null)"
 assert_eq 'a leading comment does not become the base indent' ".scratch" \
   "$(resolve "$(printf -- '# committed, team-shared\n  memory_dir: .scratch')")"
 # A key that only appears as a SUBSTRING of another key must not match.
@@ -128,19 +129,19 @@ assert_exit "no args exits 2" 2 "$rc"
 # --- Dotted keys and lists, read from the pipeline's canonical example ---
 # Expected values are the literals on the cited lines of that example file.
 EX="$SCRIPT_DIR/../docs/conventions/pr-pipeline/examples/claude-code-plugins.yaml"
-assert_eq 'nested key merge.rung (example :175)' "C2" "$(bash "$SCRIPT" "$EX" merge.rung)"
-assert_eq '--list prints a flow list one item per line, quotes removed (example :177)' \
+assert_eq 'nested key merge.rung (example :173)' "C2" "$(bash "$SCRIPT" "$EX" merge.rung)"
+assert_eq '--list prints a flow list one item per line, quotes removed (example :179)' \
   $'.github/**\n.claude/**\ndocs/conventions/pr-pipeline.yaml' \
   "$(bash "$SCRIPT" "$EX" merge.diff-check.denied-paths --list)"
-assert_eq 'a block sequence of mappings is indexed (example :159)' "merge" \
+assert_eq 'a block sequence of mappings is indexed (example :143)' "merge" \
   "$(bash "$SCRIPT" "$EX" lanes.pr-merge.slots.0.activity)"
 assert_eq 'an absent nested key takes the fallback' "true" \
   "$(bash "$SCRIPT" "$EX" lanes.pr-merge.slots.0.enabled true)"
-assert_eq 'a later key of a sequence item (example :168)' "false" \
+assert_eq 'a later key of a sequence item (example :152)' "false" \
   "$(bash "$SCRIPT" "$EX" lanes.post-merge-sweep-comments.slots.0.enabled true)"
-assert_eq 'a flow list inside a sequence item (example :123)' "run-tests" \
+assert_eq 'a flow list inside a sequence item (example :111)' "run-tests" \
   "$(bash "$SCRIPT" "$EX" lanes.pr-run-checks.slots.1.needs --list)"
-assert_eq 'one item of a flow list by index (example :74)' "needs-human" \
+assert_eq 'one item of a flow list by index (example :72)' "needs-human" \
   "$(bash "$SCRIPT" "$EX" activities.resolve-conflicts.applies-when.labels-absent.1)"
 assert_eq 'a quoted glob in a flow list (example :19)' '**/*.md' \
   "$(bash "$SCRIPT" "$EX" activities.fix-docs.applies-when.paths --list)"
@@ -149,11 +150,12 @@ assert_eq 'a list key read as a scalar is absent' ".none" \
 assert_eq '--list on an absent key prints the fallback' "x" \
   "$(bash "$SCRIPT" "$EX" merge.nope --list x)"
 
-# Flow mappings nested in flow lists, and a sequence at its parent key's indent.
-assert_eq 'a flow mapping inside a flow list' "q" \
-  "$(resolve 'x: [{a: 1, b: [p, q]}, "r, s"]' x.0.b.1)"
+# A flow mapping is outside the subset, even inside a flow list; a quoted comma
+# stays inside its item; a sequence may sit at its parent key's indent.
+assert_eq 'a flow mapping inside a flow list is a parse error, so it reads as unset' ".none" \
+  "$(resolve 'x: [{a: 1}, "r, s"]' x.1 .none 2>/dev/null)"
 assert_eq 'a quoted comma stays inside its item' "r, s" \
-  "$(resolve 'x: [{a: 1, b: [p, q]}, "r, s"]' x.1)"
+  "$(resolve 'x: [p, "r, s"]' x.1)"
 printf 'k:\n- a\n- b\nz: 1\n' >"$TEST_TMPDIR/indentless.yaml"
 assert_eq 'a sequence at its key indent is still the key value' $'a\nb' \
   "$(bash "$SCRIPT" "$TEST_TMPDIR/indentless.yaml" k --list)"
@@ -176,8 +178,8 @@ assert_eq 'escapes inside a flow list' $'it\'s\nx "y"\na,b' \
   "$(esc "l: ['it''s', \"x \\\\\"y\\\\\"\", \"a,b\"]\n" l --list)"
 assert_eq 'a quoted key with an escape does not break the file' "2" "$(esc "'it''s': 1\nb: 2\n" b FB)"
 assert_eq 'a double-quoted root key reads' ".x" "$(esc '"memory_dir": .x\n' memory_dir)"
-assert_eq 'a quoted key inside a flow mapping' "w" "$(esc "m: {\"k\": v, 'q''r': w, z: 'w'}\n" m.z)"
-assert_eq 'a double-quoted flow-mapping key' "v" "$(esc "m: {\"k\": v}\n" m.k)"
+assert_eq 'a sibling of quoted nested keys' "w" "$(esc "m:\n  \"k\": v\n  'q''r': w\n  z: 'w'\n" m.z)"
+assert_eq 'a double-quoted nested key' "v" "$(esc "m:\n  \"k\": v\n" m.k)"
 assert_eq 'a quoted key on a sequence item' "n1" "$(esc 's:\n  - "name": n1\n' s.0.name)"
 
 # --- Parse errors: fallback and one stderr line by default, exit 3 under --strict ---

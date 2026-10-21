@@ -216,7 +216,7 @@ jobs:
       - name: Judge the unit
         id: judge
         if: steps.prompt.outcome == 'success'
-        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
+        uses: anthropics/claude-code-action@a5a423f75c251dcbff8a74e99f83b2cb03c72bfa # v1.0.256
         env:
           # Strips the OAuth token and other credentials from any subprocess
           # (as in pr-run-activity-read.yml).

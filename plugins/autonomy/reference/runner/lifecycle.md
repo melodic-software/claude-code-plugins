@@ -64,13 +64,9 @@ Launch disposition is thin and follows the class's
   `C1`'s disposition surface.
 - A mutating class lands as a per-item PR through the platform's native change-proposal flow:
   one item, one PR, no runner-owned merge machinery. Who lands it is the class's merge-policy
-  cell: an auto-merge only where that cell is promoted AND the run is self-run; human-gated
-  everywhere else.
-
-The vendor-hosted merge cap is restated here, not inherited silently: whenever the executing
-backend is a vendor-hosted executor, every class caps at human-gated regardless of its self-run
-merge row, so the auto-merge disposition path is reachable only on a self-run backend.
-[The topology leaf](topology.md) carries the same cap on the cloud-backend selection.
+  cell: an auto-merge only where that cell is promoted; human-gated everywhere else. The
+  executing backend's class caps nothing
+  ([executor surface classes](../trigger-dispatch.md#executor-surface-classes)).
 
 ### Growth stage: batched gated-merge serialization
 

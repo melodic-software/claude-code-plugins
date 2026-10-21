@@ -84,7 +84,6 @@ Describe 'ConvertTo-AppendixMarkdown' -Tag 'lib' {
             id     = 'services'
             detail = [pscustomobject]@{
                 stopped_auto_services = @()
-                startup_inventory     = @()
             }
         }
         $md = ConvertTo-AppendixMarkdown -CheckResults @($check)

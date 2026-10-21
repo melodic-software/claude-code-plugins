@@ -309,6 +309,7 @@ button.act:disabled{opacity:.45;cursor:not-allowed}
 aside.fly{display:none;background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;min-height:0;grid-template-rows:auto minmax(0,1fr);overflow:hidden}
 aside.fly.open{display:grid;position:absolute;top:0;right:calc(var(--strip-w) + var(--gap));bottom:0;width:min(var(--fly-w),calc(100% - var(--strip-w) - 40px));box-shadow:-10px 0 30px -18px rgba(0,0,0,.45);animation:slide .2s ease-out;z-index:5}
 .layout.pinned aside.fly.open{position:static;width:auto;box-shadow:none;animation:none}
+@media (min-width:1100px){ .layout.flyover main.detail{margin-right:calc(var(--fly-w) + var(--gap))} } /* an open, unpinned flyout overlays the strip side: keep the question detail, with its note box, out from under it */
 @keyframes slide{from{transform:translateX(24px);opacity:0}}
 .fhead{display:grid;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)}
 .frow{display:flex;gap:6px;align-items:center}
@@ -1494,6 +1495,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const fly = $("fly"), open = !!S.fly;
     fly.classList.toggle("open", open);
     $("layout").classList.toggle("pinned", open && S.pinned);
+    $("layout").classList.toggle("flyover", open && !S.pinned);
     $("layout").classList.toggle("norail", S.railHidden);
     $("railBtn").setAttribute("aria-pressed", String(!S.railHidden));
     document.querySelectorAll(".strip [data-panel]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.panel === S.fly)));

@@ -412,6 +412,214 @@ for pair in session=x weird=1; do
   one_line "$pair on the command line" "$out"
 done
 
+# --- Convention home: a bound pointer, the offer, the decline (ADR 0075) -------
+# Expected values come from the ADR's fixes 2, 7, 8 and 15 and the region
+# grammar in lib/resolve-convention-home.sh: the first backticked token inside
+# the region is the home, a `declined` line stops the offer, the ignore line is
+# <home>/**/*.local.*, and a foreign home lists our file in an index.
+git_root() {
+  local r="$TEST_TMPDIR/$1"
+  mkdir -p "$r"
+  g "$r" init -q
+  printf '%s' "$r"
+}
+region_text() {
+  printf '%s\n' '<!-- BEGIN GENERATED: convention-home -->' "Team conventions live in \`$1\` — read the topic doc there" \
+    'before changing a governed surface.' '<!-- END GENERATED: convention-home -->'
+}
+resolved_home() { bash "$SCRIPT_DIR/resolve-convention-home.sh" --root "$1" 2>/dev/null; }
+
+# A region naming Documentation: the file lands there, listed in the index.
+R="$(git_root home-bound)"
+mkdir -p "$R/Documentation"
+region_text Documentation >"$R/AGENTS.md"
+out="$(run --root "$R" mode=slow)"
+assert_eq "a region naming Documentation: apply exits 0" "0" "$?"
+assert_eq "a region naming Documentation: writes Documentation/fixture.yaml" "mode: slow" "$(grep -x 'mode: slow' "$R/Documentation/fixture.yaml")"
+assert_eq "a region naming Documentation: docs/conventions is not created" "0" "$(exists "$R/docs")"
+assert_eq "a region naming Documentation: the index lists the file" "1" "$(grep -c '\](fixture.yaml)' "$R/Documentation/conventions-index.md")"
+assert_eq "a region naming Documentation: no ignore line is added" "0" "$(exists "$R/.gitignore")"
+out="$(run --root "$R" mode=slow)"
+assert_contains "a bound repository: a second run is already configured" "$out" "Documentation/fixture.yaml: already configured"
+assert_eq "a bound repository: the index lists the file once" "1" "$(grep -c '\](fixture.yaml)' "$R/Documentation/conventions-index.md")"
+out="$(run --root "$R" --check)"
+assert_eq "a region naming Documentation: --check exits 0" "0" "$?"
+assert_contains "a region naming Documentation: --check reads that file" "$out" "PASS mode: slow"
+out="$(run --root "$R" --home docs/conventions mode=fast)"
+assert_eq "a bound repository: a different --home exits 2" "2" "$?"
+assert_eq "a bound repository: a different --home writes nothing" "mode: slow" "$(grep -x 'mode: [a-z]*' "$R/Documentation/fixture.yaml")"
+out="$(run --root "$R" --home Documentation --yes mode=fast)"
+assert_eq "a bound repository: the same --home is accepted" "0:mode: fast" "$?:$(grep -x 'mode: [a-z]*' "$R/Documentation/fixture.yaml")"
+R2="$(git_root home-bound-index)"
+mkdir -p "$R2/Documentation"
+region_text Documentation >"$R2/AGENTS.md"
+printf '# Index\n' >"$R2/Documentation/conventions-index.md"
+out="$(run --root "$R2" mode=slow)"
+assert_eq "an existing index that would change: exits 3 without --yes" "3" "$?"
+assert_eq "an existing index that would change: nothing is written" "0" "$(exists "$R2/Documentation/fixture.yaml")"
+out="$(run --root "$R2" --yes mode=slow)"
+assert_eq "an existing index that would change: --yes lists the file" "0:1" "$?:$(grep -c '\](fixture.yaml)' "$R2/Documentation/conventions-index.md")"
+
+# An unbound repository with CLAUDE.md and no AGENTS.md. Without --yes the
+# missing settings file is still created (the owner's decision on #7939, and
+# "A missing file is created" in each setup skill); the pointer region and the
+# ignore line wait for --yes.
+R="$(git_root home-unbound)"
+printf '# Claude\n' >"$R/CLAUDE.md"
+out="$(run --root "$R" mode=slow)"
+assert_eq "an unbound repository without --yes: exits 0" "0" "$?"
+assert_contains "an unbound repository without --yes: the offer is printed" "$out" "No convention home is bound"
+assert_eq "an unbound repository without --yes: a missing file is created" "mode: slow" "$(grep -x 'mode: slow' "$R/docs/conventions/fixture.yaml")"
+assert_eq "an unbound repository without --yes: no ignore line, region or AGENTS.md" "0:0:# Claude" "$(exists "$R/.gitignore"):$(exists "$R/AGENTS.md"):$(cat "$R/CLAUDE.md")"
+out="$(run --root "$R" mode=slow)"
+assert_eq "an unbound repository without --yes, run again: exits 0" "0" "$?"
+assert_contains "an unbound repository without --yes, run again: already configured" "$out" "already configured"
+before="$(cat "$R/docs/conventions/fixture.yaml")"
+out="$(run --root "$R" mode=fast)"
+assert_eq "an existing file that would change without --yes: exits 3" "3" "$?"
+assert_contains "an existing file that would change without --yes: the diff is printed" "$out" "+mode: fast"
+assert_eq "an existing file that would change without --yes: writes nothing" "$before:0:0" "$(cat "$R/docs/conventions/fixture.yaml"):$(exists "$R/.gitignore"):$(exists "$R/AGENTS.md")"
+R2="$(git_root home-unbound-chosen)"
+out="$(run --root "$R2" --home Documentation mode=slow)"
+assert_eq "an unbound repository with --home and no --yes: exits 3" "3" "$?"
+assert_eq "an unbound repository with --home and no --yes: writes nothing" "0:0:0" "$(exists "$R2/Documentation"):$(exists "$R2/.gitignore"):$(exists "$R2/AGENTS.md")"
+out="$(run --root "$R" --yes mode=slow)"
+assert_eq "an unbound repository with --yes: exits 0" "0" "$?"
+assert_eq "an unbound repository with --yes: creates docs/conventions/fixture.yaml" "mode: slow" "$(grep -x 'mode: slow' "$R/docs/conventions/fixture.yaml")"
+assert_eq "an unbound repository with --yes: writes the region into the existing CLAUDE.md" "docs/conventions" "$(resolved_home "$R")"
+assert_eq "an unbound repository with --yes: CLAUDE.md keeps its text" "# Claude" "$(head -n 1 "$R/CLAUDE.md")"
+assert_eq "an unbound repository with --yes: AGENTS.md is not created" "0" "$(exists "$R/AGENTS.md")"
+assert_eq "an unbound repository with --yes: the ignore line is added" "1" "$(grep -cxF 'docs/conventions/**/*.local.*' "$R/.gitignore")"
+assert_contains "an unbound repository with --yes: the ignore line is announced" "$out" "wrote .gitignore: added docs/conventions/**/*.local.*"
+assert_contains "an unbound repository with --yes: the region is announced" "$out" "wrote CLAUDE.md: added a convention-home region"
+out="$(run --root "$R" --yes mode=slow)"
+assert_contains "a repository bound by the writer: a second run is already configured" "$out" "already configured"
+assert_eq "a repository bound by the writer: the ignore line is not repeated" "1" "$(grep -cxF 'docs/conventions/**/*.local.*' "$R/.gitignore")"
+assert_eq "a repository bound by the writer: the region is not repeated" "1" "$(grep -cF 'BEGIN GENERATED: convention-home' "$R/CLAUDE.md")"
+
+# Neither instruction file exists: AGENTS.md is created. A bare shim does not count.
+R="$(git_root home-none)"
+out="$(run --root "$R" --yes mode=slow)"
+assert_eq "neither instruction file exists: exits 0" "0" "$?"
+assert_eq "neither instruction file exists: AGENTS.md is created with the region" "docs/conventions" "$(resolved_home "$R")"
+assert_eq "neither instruction file exists: CLAUDE.md is not created" "0" "$(exists "$R/CLAUDE.md")"
+R="$(git_root home-shim)"
+printf '@AGENTS.md\n' >"$R/CLAUDE.md"
+out="$(run --root "$R" --yes mode=slow)"
+assert_eq "a CLAUDE.md that only imports AGENTS.md: the region goes into a new AGENTS.md" "0:1:@AGENTS.md" "$?:$(exists "$R/AGENTS.md"):$(cat "$R/CLAUDE.md")"
+R="$(git_root home-both)"
+printf '# Agents\n' >"$R/AGENTS.md"
+printf '# Claude\n' >"$R/CLAUDE.md"
+out="$(run --root "$R" --yes mode=slow)"
+assert_eq "both instruction files exist: the region goes into AGENTS.md" "docs/conventions:# Claude" "$(resolved_home "$R"):$(cat "$R/CLAUDE.md")"
+
+# --home names the home to offer; its grammar is the resolver's.
+R="$(git_root home-chosen)"
+out="$(run --root "$R" --yes --home Documentation mode=slow)"
+assert_eq "an unbound repository with --home: exits 0" "0" "$?"
+assert_eq "an unbound repository with --home: the region names it" "Documentation" "$(resolved_home "$R")"
+assert_eq "an unbound repository with --home: the file lands there" "mode: slow" "$(grep -x 'mode: slow' "$R/Documentation/fixture.yaml")"
+assert_eq "an unbound repository with --home: the ignore line follows the home" "1" "$(grep -cxF 'Documentation/**/*.local.*' "$R/.gitignore")"
+for bad in /abs ../up 'a b' '~x' "a$(printf '\134')b"; do
+  R="$(git_root "home-bad-$CASE_NUM")"
+  out="$(run --root "$R" --yes --home "$bad" mode=slow)"
+  assert_eq "--home $bad: exits 2" "2" "$?"
+  assert_eq "--home $bad: nothing is written" "0:0" "$(exists "$R/AGENTS.md"):$(exists "$R/docs")"
+done
+
+# A decline is recorded and not offered again.
+R="$(git_root home-decline)"
+printf '# Agents\n' >"$R/AGENTS.md"
+out="$(run --root "$R" --decline)"
+assert_eq "--decline: exits 0" "0" "$?"
+assert_eq "--decline: writes a declined line in the region" "1" "$(grep -cx 'declined' "$R/AGENTS.md")"
+assert_eq "--decline: the resolver reports the decline" "4" "$(bash "$SCRIPT_DIR/resolve-convention-home.sh" --root "$R" >/dev/null 2>&1; echo $?)"
+assert_eq "--decline: writes no ignore line and no settings file" "0:0" "$(exists "$R/.gitignore"):$(exists "$R/docs")"
+before="$(cat "$R/AGENTS.md")"
+out="$(run --root "$R" mode=slow)"
+assert_eq "after a decline: the next run exits 0 without --yes" "0" "$?"
+assert_eq "after a decline: the next run does not offer again" "0" "$(printf '%s\n' "$out" | grep -c 'No convention home')"
+assert_eq "after a decline: the settings file is written in docs/conventions" "mode: slow" "$(grep -x 'mode: slow' "$R/docs/conventions/fixture.yaml")"
+assert_eq "after a decline: the region is untouched and no ignore line is added" "$before:0" "$(cat "$R/AGENTS.md"):$(exists "$R/.gitignore")"
+out="$(run --root "$R" --decline)"
+assert_eq "--decline twice: exits 0 and writes nothing more" "$before" "$(cat "$R/AGENTS.md")"
+out="$(run --root "$R" --decline mode=slow)"
+assert_eq "--decline with a key: exits 2" "2" "$?"
+R="$(git_root home-decline-bound)"
+mkdir -p "$R/Documentation"
+region_text Documentation >"$R/AGENTS.md"
+out="$(run --root "$R" --decline)"
+assert_eq "--decline in a bound repository: exits 1" "1" "$?"
+
+# A region without a pointer line, a broken region, a symlinked instruction file.
+R="$(git_root home-empty-region)"
+printf '<!-- BEGIN GENERATED: convention-home -->\nno pointer here\n<!-- END GENERATED: convention-home -->\n' >"$R/AGENTS.md"
+before="$(cat "$R/AGENTS.md")"
+out="$(run --root "$R" --yes mode=slow)"
+assert_eq "a region with no pointer line: exits 1" "1" "$?"
+one_line "a region with no pointer line" "$out"
+assert_eq "a region with no pointer line: nothing is written" "$before:0" "$(cat "$R/AGENTS.md"):$(exists "$R/docs")"
+R="$(git_root home-two-pointers)"
+printf '%s\n' '<!-- BEGIN GENERATED: convention-home -->' "\`a\`" "\`b\`" '<!-- END GENERATED: convention-home -->' >"$R/AGENTS.md"
+out="$(run --root "$R" mode=slow)"
+assert_eq "two pointer lines in one region: exits 1" "1" "$?"
+one_line "two pointer lines in one region" "$out"
+R="$(git_root home-missing-dir)"
+region_text Documentation >"$R/AGENTS.md"
+out="$(run --root "$R" --check)"
+assert_eq "a pointer to a missing directory: --check exits 1" "1" "$?"
+assert_contains "a pointer to a missing directory: the refusal names it" "$out" "pointer target directory missing: Documentation"
+R="$(git_root home-symlink-agents)"
+printf '# Real\n' >"$R/real.md"
+ln -s real.md "$R/AGENTS.md"
+out="$(run --root "$R" --yes mode=slow)"
+assert_eq "a symlinked AGENTS.md: exits 1 and is not written through" "1:# Real" "$?:$(cat "$R/real.md")"
+one_line "a symlinked AGENTS.md" "$out"
+assert_eq "a symlinked AGENTS.md: refused before any write, so no docs/ or .gitignore" "0:0" "$(exists "$R/docs"):$(exists "$R/.gitignore")"
+
+R="$(git_root home-symlink-agents-no-yes)"
+printf '# Real\n' >"$R/real.md"
+ln -s real.md "$R/AGENTS.md"
+out="$(run --root "$R" mode=slow)"
+assert_eq "a symlinked AGENTS.md without --yes: exits 0 and is not written through" "0:# Real" "$?:$(cat "$R/real.md")"
+assert_eq "a symlinked AGENTS.md without --yes: the settings file is still created" "mode: slow" "$(grep -x 'mode: slow' "$(yaml_of "$R")")"
+assert_contains "a symlinked AGENTS.md without --yes: the offer names the refusal" "$out" "cannot add the pointer region: AGENTS.md is a symlink"
+assert_eq "a symlinked AGENTS.md without --yes: no .gitignore is written" "0" "$(exists "$R/.gitignore")"
+R="$(git_root home-symlink-gitignore-no-yes)"
+printf 'x\n' >"$R/real-ignore"
+ln -s real-ignore "$R/.gitignore"
+out="$(run --root "$R" mode=slow)"
+assert_eq "a symlinked .gitignore without --yes: exits 0, settings created, link untouched" "0:mode: slow:x" "$?:$(grep -x 'mode: slow' "$(yaml_of "$R")"):$(cat "$R/real-ignore")"
+assert_contains "a symlinked .gitignore without --yes: the offer names the refusal" "$out" ".gitignore is a symlink"
+
+R="$(git_root home-symlink-claude)"
+printf '# Agents\n' >"$R/AGENTS.md"
+ln -s AGENTS.md "$R/CLAUDE.md"
+out="$(run --root "$R" --yes mode=slow)"
+assert_eq "CLAUDE.md a link to AGENTS.md: exits 0" "0" "$?"
+assert_eq "CLAUDE.md a link to AGENTS.md: the region lands in the real AGENTS.md" "docs/conventions:1" "$(resolved_home "$R"):$(grep -cF 'BEGIN GENERATED: convention-home' "$R/AGENTS.md")"
+assert_eq "CLAUDE.md a link to AGENTS.md: the link is kept" "AGENTS.md" "$(readlink "$R/CLAUDE.md")"
+R="$(git_root home-symlink-agents-real)"
+printf '# Claude\n' >"$R/CLAUDE.md"
+ln -s CLAUDE.md "$R/AGENTS.md"
+out="$(run --root "$R" --yes mode=slow)"
+assert_eq "AGENTS.md a link to CLAUDE.md: exits 0" "0" "$?"
+assert_eq "AGENTS.md a link to CLAUDE.md: the region lands in the real file" "1:CLAUDE.md" "$(grep -cF 'BEGIN GENERATED: convention-home' "$R/CLAUDE.md"):$(readlink "$R/AGENTS.md")"
+
+# A root that is $HOME is refused, in a repository too.
+R="$(git_root home-is-home)"
+out="$(HOME="$R" node "$APPLY" --root "$R" --yes mode=slow 2>&1)"
+assert_eq "a git root that is \$HOME: exits 1" "1" "$?"
+one_line "a git root that is \$HOME" "$out"
+assert_eq "a git root that is \$HOME: nothing is written" "0:0:0" "$(exists "$R/docs"):$(exists "$R/AGENTS.md"):$(exists "$R/.gitignore")"
+
+# --check on an unbound repository offers nothing and writes nothing.
+R="$(git_root home-check-unbound)"
+out="$(run --root "$R" --check)"
+assert_eq "an unbound repository: --check exits 0" "0" "$?"
+assert_contains "an unbound repository: --check reads docs/conventions" "$out" "INFO docs/conventions/fixture.yaml: absent"
+assert_eq "an unbound repository: --check writes nothing" "0:0" "$(exists "$R/docs"):$(exists "$R/AGENTS.md")"
+
 # --- Long whitespace runs: the line scan is linear ----------------------------
 # Each line holds a 200,000-space run; all three together finish within 1 s.
 # The expected keys and values follow from the key and comment rules above:

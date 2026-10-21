@@ -81,6 +81,18 @@ out=$(run 7)
 assert_exit "a body line starting Hold: holds the merge only, not the flip" 0 "$?"
 assert_silent "a Hold: line reports nothing" "$out"
 
+pr "feat(x): add a thing" $'## Summary\n\nHold: do not merge until X lands.\n'
+run 7 >/dev/null
+assert_exit "a Hold: line saying do not merge holds the merge only, not the flip" 0 "$?"
+
+pr "feat(x): add a thing" $'## Summary\n\n  > hold: don\'t merge yet\n'
+run 7 >/dev/null
+assert_exit "a quoted lower-case hold: line saying don't merge does not hold the flip" 0 "$?"
+
+pr "feat(x): add a thing" $'Hold: a human merges this\n\nPlease do not merge until the release.\n'
+run 7 >/dev/null
+assert_exit "do not merge outside a Hold: line still holds the flip" 3 "$?"
+
 pr "feat(x): add a thing" "Adds the do-not-merge label check to the merge lane."
 run 7 >/dev/null
 assert_exit "a body that only names the label is not a hold" 0 "$?"
@@ -100,6 +112,21 @@ assert_exit "a wip type holds the flip" 3 "$?"
 pr "fix(cache): wipe stale entries" ""
 run 7 >/dev/null
 assert_exit "a title word that only starts with wip is not a hold" 0 "$?"
+
+pr "feat(pr-pipeline): derive the issue-lane WIP cap from the merge rate" ""
+out=$(run 7)
+assert_exit "a WIP mid-title is not a hold" 0 "$?"
+assert_silent "a WIP mid-title reports nothing" "$out"
+
+pr "docs: explain wip limits (WIP cap)" ""
+run 7 >/dev/null
+assert_exit "WIP inside parentheses with other words is not a hold" 0 "$?"
+
+for title in "WIP thing" "wip: thing" "[WIP] thing" "(WIP) thing" "feat: WIP thing" "feat(x)!: wip: thing" "feat(x): [wip] thing" "feat(x): thing (WIP)"; do
+  pr "$title" ""
+  run 7 >/dev/null
+  assert_exit "the WIP marker in '$title' holds the flip" 3 "$?"
+done
 
 pr "feat(x): add a thing" "Closes #10, closes #11" "[]" "[$(ref 10),$(ref 11)]"
 echo open >"$TEST_TMPDIR/issue-10"

@@ -696,10 +696,20 @@
       "credential_roots": "/home/runner"
     },
     "vendor-hosted-auto.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
+    },
+    "vendor-hosted-auto-unratified.json": {
       "exit": 1,
       "findings_substrings": [
-        "merge_policy.C2: \"auto\" with executor_class vendor-hosted"
+        "merge_policy.C2: \"auto\" without a ratified promotion_state.C2-auto-merge entry (state \"promoted\")"
       ]
+    },
+    "executor-class-absent.json": {
+      "exit": 0,
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "verification-below-floor.json": {
       "exit": 1,

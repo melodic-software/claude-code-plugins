@@ -72,31 +72,41 @@ export async function shallowCloneGitHubRepo(
 function cloneWithHome(url, destDir, spawnFn, timeoutMs, home) {
   return new Promise((resolve) => {
     const args = ["-c", "credential.helper=", "clone", "--depth", "1", "--single-branch"];
-    const child = spawnFn("git", [...args, "--", url, destDir], {
-      stdio: "ignore",
-      // Its own process group on POSIX, so a timeout can signal the remote helpers too.
-      detached: process.platform !== "win32",
-      env: {
-        ...process.env,
-        HOME: home,
-        USERPROFILE: home,
-        XDG_CONFIG_HOME: home,
-        GIT_ASKPASS: "",
-        SSH_ASKPASS: "",
-        GIT_TERMINAL_PROMPT: "0",
-        GIT_LFS_SKIP_SMUDGE: "1",
-      },
-    });
-    const untrack = trackCloneGroup(child);
+    // Track before spawning: a signal between spawn and tracking would otherwise
+    // take the default exit and leave the detached clone running.
+    const tracker = trackCloneGroup();
+    /** @type {import("node:child_process").ChildProcess} */
+    let child;
+    try {
+      child = spawnFn("git", [...args, "--", url, destDir], {
+        stdio: "ignore",
+        // Its own process group on POSIX, so a timeout can signal the remote helpers too.
+        detached: process.platform !== "win32",
+        env: {
+          ...process.env,
+          HOME: home,
+          USERPROFILE: home,
+          XDG_CONFIG_HOME: home,
+          GIT_ASKPASS: "",
+          SSH_ASKPASS: "",
+          GIT_TERMINAL_PROMPT: "0",
+          GIT_LFS_SKIP_SMUDGE: "1",
+        },
+      });
+    } catch (error) {
+      tracker.untrack();
+      throw error;
+    }
+    tracker.add(child);
     const timer = setTimeout(() => killProcessTree(child), timeoutMs);
     child.on("close", (code) => {
       clearTimeout(timer);
-      untrack();
+      tracker.untrack();
       resolve(code === 0);
     });
     child.on("error", () => {
       clearTimeout(timer);
-      untrack();
+      tracker.untrack();
       resolve(false);
     });
   });
@@ -135,22 +145,36 @@ function removeParentHandlers() {
   for (const [signal, listener] of signalListeners) process.off(signal, listener);
 }
 
+/** Clones being spawned or live; the parent handlers exist while this is non-zero. */
+let trackedClones = 0;
+
 /**
  * Track a detached clone's process group so an abnormal parent exit (a signal or
- * `process.exit`) kills it instead of leaving it running. Windows clones are not
- * detached and are left alone. The handlers exist only while a clone is live, so
- * the default signal behavior returns once the last one ends.
+ * `process.exit`) kills it instead of leaving it running. Call it before spawning:
+ * the handlers are installed first, so a signal that arrives during the spawn is
+ * handled on the event loop after `add` has run. Windows clones are not detached
+ * and are left alone. The handlers exist only while a clone is tracked, so the
+ * default signal behavior returns once the last one ends.
  *
- * @param {import("node:child_process").ChildProcess} child
- * @returns {() => void} Stop tracking the clone.
+ * @returns {{ add: (child: import("node:child_process").ChildProcess) => void, untrack: () => void }}
  */
-function trackCloneGroup(child) {
-  if (process.platform === "win32") return () => {};
-  if (liveCloneGroups.size === 0) installParentHandlers();
-  liveCloneGroups.add(child);
-  return () => {
-    liveCloneGroups.delete(child);
-    if (liveCloneGroups.size === 0) removeParentHandlers();
+function trackCloneGroup() {
+  if (process.platform === "win32") return { add: () => {}, untrack: () => {} };
+  if (trackedClones++ === 0) installParentHandlers();
+  /** @type {import("node:child_process").ChildProcess | undefined} */
+  let tracked;
+  let done = false;
+  return {
+    add: (child) => {
+      tracked = child;
+      liveCloneGroups.add(child);
+    },
+    untrack: () => {
+      if (done) return;
+      done = true;
+      if (tracked) liveCloneGroups.delete(tracked);
+      if (--trackedClones === 0) removeParentHandlers();
+    },
   };
 }
 
