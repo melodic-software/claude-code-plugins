@@ -617,7 +617,8 @@ def _person_name(body, *, empty_ok=False):
 
 # Characters dropped from every text field: controls but tab and newline, surrogates, private use, the bidi controls
 # (Trojan Source), invisible spaces and operators, and tag characters outside an emoji flag (hidden text for Claude).
-# ZWJ, ZWNJ and variation selectors stay: emoji sequences and some scripts need them. Unassigned (Cn) stays too:
+# ZWJ, ZWNJ and variation selectors VS1-VS16 stay, one at a time (_no_runs): emoji sequences and some scripts need
+# them; VS17-VS256 never take part in an emoji and are dropped. Unassigned (Cn) stays too:
 # the interpreter's Unicode tables trail new emoji, which read as unassigned until they catch up.
 # The only tag sequences kept are the three RGI subdivision flags (England, Scotland, Wales); any other run of tag
 # characters, even one shaped like a flag, can spell hidden words.
@@ -625,13 +626,28 @@ _RGI_FLAGS = "|".join("\U0001f3f4" + "".join(chr(0xE0000 + ord(c)) for c in code
 _HIDDEN = re.compile(
     f"({_RGI_FLAGS})"
     "|[\x00-\x08\x0b-\x1f\x7f-\x9f\u061c\u200b\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb"
-    "\ud800-\udfff\ue000-\uf8ff\U000e0000-\U000e007f\U000f0000-\U0010ffff]"
+    "\ud800-\udfff\ue000-\uf8ff\U000e0000-\U000e007f\U000e0100-\U000e01ef\U000f0000-\U0010ffff]"
 )
+_JOINERS = "\u200c\u200d"
+
+
+def _no_runs(v):
+    """v with no variation selector after another selector or a joiner, and no joiner after a joiner: one selector
+    after a base (VS16) and a joiner between two emoji stay, but a run that hides bytes after one visible
+    character does not."""
+    out, last = [], ""
+    for c in v:
+        kind = "vs" if "\ufe00" <= c <= "\ufe0f" else "j" if c in _JOINERS else ""
+        if (kind == "vs" and last) or (kind == "j" and last == "j"):
+            continue
+        out.append(c)
+        last = kind
+    return "".join(out)
 
 
 def _visible(v):
-    """v with line breaks as \\n and every _HIDDEN character dropped."""
-    return _HIDDEN.sub(lambda m: m.group(1) or "", v.replace("\r\n", "\n").replace("\r", "\n"))
+    """v with line breaks as \\n, every _HIDDEN character dropped, and no selector or joiner run (_no_runs)."""
+    return _no_runs(_HIDDEN.sub(lambda m: m.group(1) or "", v.replace("\r\n", "\n").replace("\r", "\n")))
 
 
 def _text(body, field, *, limit=MAX_TEXT, empty_ok=False, optional=False):

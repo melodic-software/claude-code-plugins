@@ -2117,6 +2117,14 @@ class TestHiddenCharacters(SessionCase):
         self.act("chat", self.ann, {"text": f"{chained} {flag('gbsct')}{flag('gbwls')}"})
         self.assertEqual(self.s.state["chat"][-1]["text"], "\U0001f3f4" * 4 + " " + flag("gbsct") + flag("gbwls"))
 
+    def test_selector_and_joiner_runs_cannot_hide_bytes_after_a_visible_character(self):
+        selectors = "".join(chr(0xFE00 + i) for i in range(16))
+        supplement = "".join(chr(0xE0100 + i) for i in range(8))  # VS17 onward: never part of an emoji
+        heart_on_fire = "\u2764\ufe0f\u200d\U0001f525"  # VS16 then ZWJ, an RGI sequence
+        text = f"a{selectors} b\u200d\u200d\u200d\u200c c{supplement} d\u200d\ufe0f\u200d {heart_on_fire}"
+        self.act("chat", self.ann, {"text": text})
+        self.assertEqual(self.s.state["chat"][-1]["text"], f"a\ufe00 b\u200d c d\u200d {heart_on_fire}")
+
     def test_a_field_of_only_hidden_characters_is_refused_as_empty(self):
         self.refused("empty", "chat", self.ann, {"text": "\u202e\u200b\x00 \u2066"}, http=400)
         self.refused("empty", "request", self.ann, {"qid": "Q1", "kind": "ask", "text": "\U000e0041\ufeff"}, http=400)
