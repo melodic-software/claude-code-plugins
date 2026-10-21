@@ -1766,6 +1766,11 @@ assert_exit "defender: a plan off Free with no charge fails nothing" 0 "$(
 assert_contains "defender: the plan off Free is listed as INFO" "$COST_PLAN" "INFO       Azure Defender plans: not Free: VirtualMachines (Standard)"
 assert_contains "defender: no Defender cost rows is OK" "$COST_PLAN" "OK         Azure Defender charges, month to date: no Defender cost rows"
 assert_not_contains "defender: a plan off Free with no charge raises no ALERT" "$COST_PLAN" "ALERT"
+assert_contains "data date: rows with no usage date never read as no usage rows" "$COST_PLAN" \
+  "of 100 USD; usage data date unread; read 2026-07-20T08:00Z UTC"
+jq '.defenderCost.properties.rows = []' "$TMP/azure-clear.json" >"$TMP/azure-no-rows.json"
+assert_contains "data date: a query with no rows says so" "$(section "$(cost_brief --azure-json "$TMP/azure-no-rows.json")" "== Cost")" \
+  "of 100 USD; no usage rows this month; read 2026-07-20T08:00Z UTC"
 
 jq '.defenderCost = {"__error": "Too Many Requests(Too many requests. Please retry.)"}' "$TMP/azure-clear.json" >"$TMP/azure-429.json"
 COST_ARGS=(--billing-usage-json "$TMP/billing-usage-clear.json" --billing-budgets-json "$TMP/billing-budgets-clear.json")

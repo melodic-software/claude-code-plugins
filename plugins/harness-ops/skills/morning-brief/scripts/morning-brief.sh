@@ -2445,8 +2445,9 @@ cost_azure() {
     COST_DATA_DATE="$(jq -r '
       (.properties.columns | map(.name | ascii_downcase) | index("usagedate")) as $i
       | if $i == null then "usage data date unread"
+        elif (.properties.rows | length) == 0 then "no usage rows this month"
         else ([.properties.rows[] | .[$i] | numbers] | max) as $d
-          | if $d == null then "no usage rows this month"
+          | if $d == null then "usage data date unread"
             else ($d | tostring) as $s | "usage data through \($s[0:4])-\($s[4:6])-\($s[6:8])" end
         end' "$WORK/az-defenderCost.json" 2>/dev/null)" || COST_DATA_DATE="usage data date unread"
   fi
