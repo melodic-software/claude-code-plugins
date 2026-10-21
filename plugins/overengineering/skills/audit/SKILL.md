@@ -137,6 +137,10 @@ source or is UNPROVEN naming the tier consulted and whether it was silent or una
 Documentation, headers and rationale text are claims to verify, never evidence; doc-only support is
 marked unverified.
 
+An existing check is held to the enforcement ladder's guardrail criterion: read
+[the Guardrail criterion section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/enforcement-ladder/README.md#guardrail-criterion)
+live. **As of**: 2026-10-21. **Recheck trigger**: the ladder's major version changes.
+
 Protected items are audited in full: §7 caps the recommendation, not the scrutiny, and uncertain
 protection status counts as protected. A threshold that fires is cited with its source and its
 analogical label verbatim (§9); a threshold the consumer disabled is not cited at all, and the
