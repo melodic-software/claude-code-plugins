@@ -4,8 +4,8 @@ Load this page when the artifact is a JSON object with `nodes`, `samples` and us
 `timeDeltas`, `startTime` and `endTime`. Node.js writes it with its CPU profile flag; Chrome
 DevTools and the inspector protocol save the same shape.
 
-Format pointer: the `Profile` type in the DevTools protocol Profiler domain,
-<https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#type-Profile>. As of 2026-10-04.
+Format pointer: the `Profile` type (`type Profile extends object`) in the DevTools protocol Profiler
+domain, <https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/js_protocol.pdl>. As of 2026-10-04.
 Recheck when the converter exits 2 on a profile a current Node.js or Chrome wrote.
 
 ## What the converter stores

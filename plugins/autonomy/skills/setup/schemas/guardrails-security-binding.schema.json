@@ -7,7 +7,6 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "executor_class",
     "isolation_bindings",
     "merge_policy",
     "verification_blocking",
@@ -17,7 +16,8 @@
   "properties": {
     "schema_version": { "const": "1.0" },
     "executor_class": {
-      "description": "Merge-policy gating input, security-surface data per the trigger contract: vendor-hosted caps every class at human-gated merge.",
+      "description": "Deprecated and ignored: merge policy no longer depends on where the executor runs. Still accepted so existing bindings stay valid.",
+      "deprecated": true,
       "enum": ["self-operated", "vendor-hosted"]
     },
     "dispatch_posture": {

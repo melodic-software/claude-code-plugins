@@ -148,7 +148,7 @@ shape_case 'a key with spaces around its name' refuse 'spaces around its name' $
 shape_case 'a block map' refuse 'map or a list' $'phase_order:\n  mode: composed\n'
 shape_case 'a block list' refuse 'map or a list' $'phase_order:\n  - composed\n'
 shape_case 'a flow list' refuse 'map or a list' $'phase_order: [composed]\n'
-shape_case 'a flow map' refuse 'map or a list' $'phase_order: {mode: composed}\n'
+shape_case 'a flow map' refuse 'flow mapping ({...}) is outside the subset; use block style' $'phase_order: {mode: composed}\n'
 shape_case 'an empty flow list' refuse 'map or a list' $'phase_order: []\n'
 shape_case 'an empty value' replace 'is empty' $'phase_order:\n'
 shape_case 'an empty double-quoted value' refuse 'empty string' $'phase_order: ""\n'

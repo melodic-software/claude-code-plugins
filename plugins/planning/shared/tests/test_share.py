@@ -22,7 +22,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from support import WINDOWS, ShareCase, call, env, outside_cloudflared, share, tmpdir, wait_for
+from support import SHARE, WINDOWS, ShareCase, call, env, outside_cloudflared, share, tmpdir, wait_for
 
 import detached
 import share as share_cli
@@ -243,6 +243,21 @@ class TestLogs(unittest.TestCase):
         code, out, err = share(self.d, "logs", "--errors")
         self.assertEqual((code, out["lines"]), (0, [line]), err)
 
+    def test_output_is_utf8_when_the_locale_encoding_cannot_hold_it(self):
+        """#8239: a Windows pipe takes the ANSI code page; PYTHONIOENCODING=cp1252 stands in for it on any platform."""
+        text = "Pay \u2192 \U0001f389"  # neither the arrow nor the emoji is in cp1252
+        (self.d / "server.log").write_text(self.client.replace("TypeError", text) + "\n", encoding="utf-8")
+        (self.d / "server.log.1").unlink()
+        run = lambda d, *args: subprocess.run([sys.executable, str(SHARE), "--dir", str(d), *args], capture_output=True, timeout=60, env=env(PYTHONIOENCODING="cp1252"))  # noqa: E731
+        for args in (["logs"], ["logs", "--summary"]):
+            with self.subTest(args=args):
+                p = run(self.d, *args)
+                self.assertEqual(p.returncode, 0, p.stderr.decode("utf-8", "replace"))
+                self.assertIn(text.encode("utf-8"), p.stdout)
+        missing = self.d.resolve() / "\u03a9"
+        p = run(missing, "logs")
+        self.assertEqual((p.returncode, p.stderr), (1, f"no such data dir: {missing}{os.linesep}".encode("utf-8")))
+
     def test_a_folder_with_no_log_prints_no_lines(self):
         d = tmpdir(self)
         self.assertEqual(share(d, "logs")[:2], (0, {"ok": True, "lines": []}))
@@ -315,7 +330,7 @@ class TestLogsSummary(unittest.TestCase):
     def test_text_reads_the_same_counts_and_share_sh_prints_it(self):
         # A bare "bash" is found by CreateProcess on Windows, which searches System32 (the WSL relay) before PATH.
         bash = shutil.which("bash")
-        p = subprocess.run([bash, str(Path(share_cli.__file__).with_name("share.sh")), "--dir", str(self.d), "logs", "--summary"], capture_output=True, text=True, timeout=60, env=env())
+        p = subprocess.run([bash, str(Path(share_cli.__file__).with_name("share.sh")), "--dir", str(self.d), "logs", "--summary"], capture_output=True, encoding="utf-8", timeout=60, env=env())
         self.assertEqual(p.returncode, 0, p.stderr)
         for want in (
             "Summaries: 5 in 2 batches from 4 page views (1 of them the owner's, left out of the timings). 1 more did not fit in their batch.",

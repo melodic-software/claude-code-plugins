@@ -67,8 +67,11 @@ const DOT_SEGMENT = /(^|\/)\.\.?(\/|:)/;
 const BAD_CHARS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/u;
 // HTML comments carry markers; token shapes from
 // docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-// (as of 2026-10-15; recheck when that section adds a prefix).
-const FORBIDDEN = /<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|github_pat_/;
+// and the stateless installation token (ghs_ then a JWT) from
+// https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+// whose header gh[opsur]_[A-Za-z0-9]{20} matches; this prefix check is not GitHub's recommended regex
+// (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
+const FORBIDDEN = /<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_pat_/;
 const DISPOSITIONS = ["VALID", "INCORRECT", "UNCERTAIN", "VALID-defer"];
 const KEYS = ["disposition", "evidence", "fix_sha", "note", "thread"];
 const LABELS = {

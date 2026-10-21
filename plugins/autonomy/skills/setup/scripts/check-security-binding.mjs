@@ -546,7 +546,6 @@ function validateStructure(binding) {
   );
   for (const key of [
     "schema_version",
-    "executor_class",
     "isolation_bindings",
     "merge_policy",
     "verification_blocking",
@@ -558,6 +557,8 @@ function validateStructure(binding) {
   if (Object.hasOwn(binding, "schema_version") && binding.schema_version !== "1.0") {
     findings.push(`schema_version: ${JSON.stringify(binding.schema_version)} is not the supported "1.0"`);
   }
+  // executor_class is deprecated and ignored; a binding that still carries it
+  // stays valid as long as the value is one the schema names.
   if (Object.hasOwn(binding, "executor_class")) {
     checkEnum(binding.executor_class, ["self-operated", "vendor-hosted"], "executor_class");
   }
@@ -1917,16 +1918,12 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   const posture = binding.dispatch_posture ?? "autonomous-enabled";
   const autonomous = posture === "autonomous-enabled";
 
-  // Merge caps: vendor-hosted caps every class at human-gated; otherwise the
-  // matrix caps apply (only C2 and C3 are auto-merge eligible).
+  // Merge caps: the matrix caps apply (only C2 and C3 are auto-merge
+  // eligible). executor_class is deprecated and caps nothing.
   if (isPlainObject(binding.merge_policy)) {
     for (const workClass of WORK_CLASSES) {
       if (binding.merge_policy[workClass] !== "auto") continue;
-      if (binding.executor_class === "vendor-hosted") {
-        findings.push(
-          `merge_policy.${workClass}: "auto" with executor_class vendor-hosted — a vendor-hosted executor caps every class at human-gated merge`,
-        );
-      } else if (!AUTO_MERGE_ELIGIBLE.has(workClass)) {
+      if (!AUTO_MERGE_ELIGIBLE.has(workClass)) {
         findings.push(
           `merge_policy.${workClass}: "auto" exceeds the matrix cap — ${workClass === "C4" || workClass === "C5" ? "C4/C5 merge is human always" : "the matrix merges this class human; only the C2 and C3 cells are auto-merge eligible"}`,
         );
@@ -2074,7 +2071,6 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
     if (
       isPlainObject(binding.merge_policy) &&
       binding.merge_policy[workClass] === "auto" &&
-      binding.executor_class !== "vendor-hosted" &&
       !ratifiedPromoted(`${workClass}-auto-merge`)
     ) {
       findings.push(
@@ -2125,14 +2121,11 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   // layer they judge in never runs, so their agreement can never be obtained.
   // A class declaring no model-adjudicated checker is exempt from the second:
   // its floor is seated by a deterministic slot, whose force is its own layer.
-  // Vendor-hosted is exempt entirely — the cap above already rejects every auto
-  // cell there, the same carve-out the promotion-ratification checks make. A
-  // missing or malformed knob already produced its structural finding;
+  // A missing or malformed knob already produced its structural finding;
   // re-reporting it here would double-name one root cause.
   if (
     isPlainObject(binding.merge_policy) &&
-    isPlainObject(binding.verification_blocking) &&
-    binding.executor_class !== "vendor-hosted"
+    isPlainObject(binding.verification_blocking)
   ) {
     for (const workClass of WORK_CLASSES) {
       if (binding.merge_policy[workClass] !== "auto") continue;
