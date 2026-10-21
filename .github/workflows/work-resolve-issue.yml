@@ -102,6 +102,9 @@ jobs:
     if: github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    # An issues run can only restore a default-branch cache; it reads the
+    # WIP cap's last known state and never saves one (work-unblock does).
+    cache-mode: read
     permissions:
       contents: read # check out the default branch for the WIP cap
       pull-requests: read # count the lanes App's open pull requests
@@ -121,7 +124,7 @@ jobs:
       # wip.pause-from; the held cap only alerts), resolve-issue is skipped: no
       # slot, no token. work-unblock's sweep re-fires the issue once under the
       # cap. The check publishes its status as the `wip` output; one that fails
-      # starts the run.
+      # starts the run. A read that fails keeps the last known pause.
       - name: Check out the default branch tip
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
