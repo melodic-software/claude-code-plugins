@@ -1,7 +1,8 @@
-"""tunnel.py: start, address parse, reattach, exit detection and restart, adopt, stop.
+"""tunnel.py: start, address parse, reattach, exit detection and restart, adopt, stop, the named tunnel and a switch.
 
 Every run uses tests/fixtures/fake-cloudflared.sh (fake_cloudflared.py on Windows), which prints
-the quick-tunnel banner cloudflared 2026.9.3 prints, with a new trycloudflare.com address per run.
+the quick-tunnel banner cloudflared 2026.9.3 prints, with a new trycloudflare.com address per run,
+or for a named tunnel the "Registered tunnel connection" line cloudflared's connection/observer.go logs.
 """
 
 from __future__ import annotations
@@ -374,6 +375,146 @@ class TestAdopt(TunnelCase):
         )
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertEqual(json.loads(out.stdout)["url"], url)
+
+
+HOST = "interview.example.com"
+TOKEN_TEXT = "fake-tunnel-token-for-tests"  # what the token file holds; no output may carry it
+
+
+def token_file(case, text=TOKEN_TEXT, mode=0o600):
+    f = tmpdir(case) / "tunnel.token"
+    f.write_text(text, encoding="utf-8")
+    os.chmod(f, mode)
+    return str(f)
+
+
+class TestNamed(TunnelCase):
+    """A named tunnel: `cloudflared tunnel --no-autoupdate run --token-file F` (run-parameters page) at https://<hostname>."""
+
+    def setUp(self):
+        super().setUp()
+        self.token = token_file(self)
+
+    def test_it_runs_the_token_file_and_records_the_hostname_as_its_address(self):
+        rec = tunnel.ensure(self.d, 4321, HOST, self.token)
+        self.assertEqual(self.runs(), [f"tunnel --no-autoupdate run --token-file {self.token}"])
+        self.assertEqual((rec["url"], rec["hostname"], rec["tokenFile"], rec["port"]), (f"https://{HOST}", HOST, self.token, 4321))
+        self.assertEqual(tunnel.alive(self.d)["url"], f"https://{HOST}")
+
+    def test_the_token_itself_is_in_no_argument_record_or_log(self):
+        tunnel.ensure(self.d, 4321, HOST, self.token)
+        for f in (self.args, self.d / tunnel.RECORD, self.d / tunnel.LOG):
+            self.assertNotIn(TOKEN_TEXT, f.read_text(encoding="utf-8"), f.name)
+
+    def test_a_token_variable_in_this_environment_never_reaches_cloudflared(self):
+        """cloudflared's TUNNEL_TOKEN takes precedence over --token-file; the fake exits when either variable reaches it."""
+        with mock.patch.dict(os.environ, {"TUNNEL_TOKEN": "other", "TUNNEL_TOKEN_FILE": "/other"}):
+            self.assertEqual(tunnel.ensure(self.d, 4321, HOST, self.token)["url"], f"https://{HOST}")
+            tunnel.stop(self.d)
+            self.assertRegex(tunnel.ensure(self.d, 4321)["url"], ADDRESS)
+
+    def test_an_exited_named_tunnel_comes_back_at_the_same_address(self):
+        first = tunnel.ensure(self.d, 4321, HOST, self.token)
+        detached.stop(first["pid"], first["marker"])
+        second = tunnel.ensure(self.d, 4321, *tunnel.config(tunnel.read(self.d)))
+        self.assertNotEqual(second["pid"], first["pid"])
+        self.assertEqual(second["url"], first["url"])
+        self.assertNotIn("retired", second)
+
+    def test_a_token_cloudflared_cannot_read_is_down_and_leaves_nothing_running(self):
+        with mock.patch.object(tunnel, "token_file_problem", return_value=None):  # past the check, so cloudflared itself refuses it
+            with self.assertRaisesRegex(tunnel.TunnelDown, f"no connection for {HOST}"):
+                tunnel.ensure(self.d, 4321, HOST, str(self.d / "missing.token"))
+        self.assertIsNone(tunnel.read(self.d))
+
+    def test_a_tunnel_that_never_connects_is_down(self):
+        with mock.patch.dict(os.environ, {"FAKE_CF_NOURL": "1", "SHARED_TUNNEL_SECONDS": "1"}):
+            with self.assertRaisesRegex(tunnel.TunnelDown, "no connection"):
+                tunnel.ensure(self.d, 4321, HOST, self.token)
+        self.assertIsNone(tunnel.read(self.d))
+
+    def test_a_token_file_that_cannot_serve_is_refused_before_cloudflared_starts(self):
+        cases = {"relative": "tunnel.token", "missing": str(self.d / "missing.token"), "empty": token_file(self, text=""), "none": ""}
+        if not WINDOWS:
+            cases["readable by others"] = token_file(self, mode=0o644)
+        for why, path in cases.items():
+            with self.subTest(why=why), self.assertRaises(tunnel.TunnelDown):
+                tunnel.ensure(self.d, 4321, HOST, path)
+        self.assertEqual(self.runs(), [])
+
+    def test_a_hostname_must_be_a_dns_name_and_not_a_quick_tunnel(self):
+        for bad in ("https://interview.example.com", "interview", "Interview.Example.com", "a.trycloudflare.com", "x..example.com", "-a.example.com"):
+            with self.subTest(bad=bad):
+                self.assertIsNotNone(tunnel.hostname_problem(bad))
+        self.assertIsNone(tunnel.hostname_problem("planning-interview.melodicsoftware.com"))
+
+
+class TestSwitch(TunnelCase):
+    """A switch to another address keeps the old tunnel running as `retired` for RETIRE_SECONDS, so pages open there
+    can move with their identity; a restart at the same address retires nothing."""
+
+    def setUp(self):
+        super().setUp()
+        self.token = token_file(self)
+
+    def test_quick_to_named_keeps_the_quick_tunnel_as_retired(self):
+        quick = tunnel.ensure(self.d, 4321)
+        named = tunnel.ensure(self.d, 4321, HOST, self.token)
+        self.assertEqual(named["retired"]["url"], quick["url"])
+        self.assertEqual(tunnel.retired(self.d)["pid"], quick["pid"])
+        self.assertTrue(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
+        self.assertFalse(tunnel.sweep(self.d))  # its grace time runs
+        self.assertTrue(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
+
+    def test_a_restart_at_the_same_address_keeps_the_retired_tunnel_and_its_grace_time(self):
+        quick = tunnel.ensure(self.d, 4321)
+        named = tunnel.ensure(self.d, 4321, HOST, self.token)
+        detached.stop(named["pid"], named["marker"], named["processStart"])
+        again = tunnel.ensure(self.d, 4321, HOST, self.token)
+        self.assertEqual((again["retired"]["pid"], again["retired"]["until"]), (quick["pid"], named["retired"]["until"]))
+        self.assertTrue(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
+
+    def test_named_back_to_quick_retires_the_named_one(self):
+        named = tunnel.ensure(self.d, 4321, HOST, self.token)
+        quick = tunnel.ensure(self.d, 4321)
+        self.assertRegex(quick["url"], ADDRESS)
+        self.assertEqual(tunnel.retired(self.d)["url"], named["url"])
+
+    def test_a_retired_tunnel_is_stopped_once_its_grace_time_is_up(self):
+        with mock.patch.dict(os.environ, {"SHARED_RETIRE_SECONDS": "0"}):
+            quick = tunnel.ensure(self.d, 4321)
+            tunnel.ensure(self.d, 4321, HOST, self.token)
+        self.assertIsNone(tunnel.retired(self.d))
+        self.assertTrue(tunnel.sweep(self.d))
+        self.assertFalse(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
+        self.assertNotIn("retired", tunnel.read(self.d))
+        self.assertIsNotNone(tunnel.alive(self.d))
+
+    def test_stop_ends_the_retired_tunnel_too(self):
+        quick = tunnel.ensure(self.d, 4321)
+        named = tunnel.ensure(self.d, 4321, HOST, self.token)
+        self.assertTrue(tunnel.stop(self.d))
+        for rec in (quick, named):
+            self.assertFalse(detached.alive(rec["pid"], rec["marker"], rec["processStart"]))
+
+    def test_a_second_switch_ends_the_tunnel_retired_by_the_first(self):
+        quick = tunnel.ensure(self.d, 4321)
+        named = tunnel.ensure(self.d, 4321, HOST, self.token)
+        tunnel.ensure(self.d, 4321, "other.example.com", self.token)
+        self.assertFalse(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
+        self.assertEqual(tunnel.retired(self.d)["url"], named["url"])
+
+    def test_another_token_file_at_the_same_address_retires_nothing(self):
+        first = tunnel.ensure(self.d, 4321, HOST, self.token)
+        second = tunnel.ensure(self.d, 4321, HOST, token_file(self))
+        self.assertNotIn("retired", second)
+        self.assertFalse(detached.alive(first["pid"], first["marker"], first["processStart"]))
+
+    def test_a_tunnel_to_another_port_is_ended_not_retired(self):
+        quick = tunnel.ensure(self.d, 4321)
+        named = tunnel.ensure(self.d, 4322, HOST, self.token)
+        self.assertNotIn("retired", named)
+        self.assertFalse(detached.alive(quick["pid"], quick["marker"], quick["processStart"]))
 
 
 if __name__ == "__main__":

@@ -1,10 +1,16 @@
-"""The shared session's public link: a cloudflared quick tunnel to the guest listener. Python 3 stdlib.
+"""The shared session's public link: a cloudflared tunnel to the guest listener. Python 3 stdlib.
 
-The only file that names cloudflared. `share.py` and `server.py` see a record,
-`{pid, url, port, startedAt, marker, processStart, adopted}` in `<data_dir>/.shared-tunnel.json` (0600), and call
-`ensure`, `alive`, `adopt` and `stop`. cloudflared runs as its own detached process (detached.py),
-so it outlives a server restart and the guest link stays the same; the server restarts it when it
-exits, which gives a new link.
+The only file that runs cloudflared. `share.py` and `server.py` see a record,
+`{pid, url, port, startedAt, marker, processStart, adopted[, hostname, tokenFile][, retired]}` in
+`<data_dir>/.shared-tunnel.json` (0600), and call `ensure`, `alive`, `adopt`, `retired`, `sweep` and `stop`.
+cloudflared runs as its own detached process (detached.py), so it outlives a server restart and the
+guest link stays the same; the server restarts it when it exits.
+
+Two kinds of tunnel. A quick tunnel (no hostname) gets a new trycloudflare.com address on every
+start. A named tunnel (`hostname` and `tokenFile`, the planning plugin's `tunnel_hostname` option)
+runs a remotely-managed tunnel the owner set up, so its address is `https://<hostname>` on every
+start. Switching between them, or between two hostnames, keeps the old tunnel running as `retired`
+for RETIRE_SECONDS, so a page still open on the old address can learn the new one (server.py).
 
 How a quick tunnel starts and where it prints its address, as of 2026-10-16:
 https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/
@@ -12,6 +18,15 @@ https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-
 a new one on every start). `--no-autoupdate` is from `cloudflared tunnel --help` (2026.9.3). Recheck
 when that page changes the command, the address's domain or where it is printed, or a cloudflared
 release renames `--url` or `--no-autoupdate`.
+
+How a named tunnel runs, as of 2026-10-21:
+https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/
+(`token-file`: `cloudflared tunnel run --token-file <PATH>`, cloudflared 2025.4.0 or later), so the
+token never reaches a command line. cloudflared's `TUNNEL_TOKEN` takes precedence over the file
+(TunnelTokenFlag's usage in cmd/cloudflared/tunnel/subcommands.go), so neither token variable
+reaches the child. Ready means the log names a connection: "Registered tunnel connection"
+(connection/observer.go in https://github.com/cloudflare/cloudflared). Recheck when that page
+renames `--token-file`, or a release changes that log line.
 
   python tunnel.py adopt --dir D --pid N --url U --port P   record a cloudflared already running
   python tunnel.py status --dir D                           print the record, or null when it is down
@@ -39,7 +54,11 @@ LOG = "cloudflared.log"
 LOCK = ".shared-tunnel.lock"
 URL = re.compile(r"https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com")  # api. is cloudflared's own endpoint, never a tunnel
 BANNER = re.compile(r"\|\s+(" + URL.pattern + r")/?\s+\|")  # the address line inside the "quick Tunnel has been created" box
+READY = re.compile(r"Registered tunnel connection")  # a named tunnel's first connection to Cloudflare
+HOSTNAME = re.compile(r"(?=.{4,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]")
 START_SECONDS = 30.0  # how long a new tunnel may take to print its address
+RETIRE_SECONDS = 600.0  # judgment: how long the old address keeps answering after a switch, so open pages move
+TOKEN_ENV = ("TUNNEL_TOKEN", "TUNNEL_TOKEN_FILE")  # cloudflared reads these; the child never inherits them
 EXE = "cloudflared.exe" if detached.WINDOWS else "cloudflared"  # the program file an adopted pid must run
 MISSING = "missing prerequisite: cloudflared (not on PATH; see the planning plugin's prerequisites.json)"
 
@@ -53,9 +72,52 @@ def binary():
     return os.environ.get("SHARED_CLOUDFLARED") or detached.which("cloudflared")
 
 
-def _command(exe, port):
+def _command(exe, port, hostname="", token_file=""):
     head = detached.python(exe) if exe.endswith(".py") else [exe]
+    if hostname:
+        return [*head, "tunnel", "--no-autoupdate", "run", "--token-file", token_file]
     return [*head, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{port}"]
+
+
+def _env():
+    """This process's environment without cloudflared's token variables, which would override --token-file or turn a
+    quick tunnel into a named one."""
+    return {k: v for k, v in os.environ.items() if k.upper() not in TOKEN_ENV}
+
+
+def hostname_problem(hostname):
+    """Why `hostname` cannot be a named tunnel's address, or None."""
+    if not HOSTNAME.fullmatch(hostname or ""):
+        return f"the tunnel hostname must be a DNS name such as interview.example.com, got {hostname!r}"
+    if hostname == "trycloudflare.com" or hostname.endswith(".trycloudflare.com"):
+        return "a trycloudflare.com address is a quick tunnel's: leave the tunnel hostname empty for one"
+    return None
+
+
+def token_file_problem(path):
+    """Why `path` cannot be the tunnel token file, or None. Checks the file, never reads it."""
+    if not path:
+        return "a named tunnel needs its token file (the tunnel_token_file option)"
+    p = Path(path)
+    if not p.is_absolute():
+        return f"the tunnel token file must be an absolute path, got {path!r}"
+    try:
+        st = p.stat()
+    except OSError:
+        return f"the tunnel token file {path} does not exist"
+    if not p.is_file() or not st.st_size:
+        return f"the tunnel token file {path} is not a file with a token in it"
+    if not os.access(p, os.R_OK):
+        return f"the tunnel token file {path} cannot be read"
+    if not detached.WINDOWS and st.st_mode & 0o077:
+        return f"the tunnel token file {path} can be read by other users: run chmod 600 on it"
+    return None
+
+
+def config(rec):
+    """(hostname, token file) a record's tunnel runs with; ("", "") for a quick tunnel."""
+    rec = rec or {}
+    return rec.get("hostname") or "", rec.get("tokenFile") or ""
 
 
 def read(data_dir):
@@ -123,59 +185,108 @@ def host(url):
     return url.split("://", 1)[1].rstrip("/") if "://" in url else ""
 
 
-def _wait_url(proc, log, seconds):
+def _wait_url(proc, log, seconds, pattern=BANNER):
+    """The first match of `pattern` in the log (its group 1 when it has one), or None once cloudflared exits or time is up."""
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
         try:
-            m = BANNER.search(log.read_text(encoding="utf-8", errors="replace"))
+            m = pattern.search(log.read_text(encoding="utf-8", errors="replace"))
         except OSError:
             m = None
         if m:
-            return m.group(1)
+            return m.group(1) if pattern.groups else m.group(0)
         if proc.poll() is not None:
             return None
         time.sleep(0.1)
     return None
 
 
-def _start(data_dir, port):
+def _start(data_dir, port, hostname="", token_file="", retired_entry=None):
+    """Start cloudflared and write its record, with `retired_entry` (a tunnel left running) as its retired."""
+    problem = hostname and (hostname_problem(hostname) or token_file_problem(token_file))
+    if problem:
+        raise TunnelDown(problem)
     exe = binary()
     if not exe:
         raise TunnelDown(MISSING)
     d = Path(data_dir)
     log = d / LOG
     try:
-        proc = detached.spawn(_command(exe, port), log=log, cwd=d)
+        proc = detached.spawn(_command(exe, port, hostname, token_file), log=log, env=_env(), cwd=d)
     except OSError as exc:
         raise TunnelDown(f"cloudflared did not start: {exc}") from exc
-    url = _wait_url(proc, log, float(os.environ.get("SHARED_TUNNEL_SECONDS") or START_SECONDS))
+    seconds = float(os.environ.get("SHARED_TUNNEL_SECONDS") or START_SECONDS)
+    url = (f"https://{hostname}" if _wait_url(proc, log, seconds, READY) else None) if hostname else _wait_url(proc, log, seconds)
     start = detached.started(proc.pid) if url else None
     if start is None:
         if proc.poll() is None:
             proc.kill()
             proc.wait()
         if url is None:
-            raise TunnelDown(f"cloudflared printed no trycloudflare.com address in time (log: {log})")
+            what = f"no connection for {hostname}" if hostname else "no trycloudflare.com address"
+            raise TunnelDown(f"cloudflared printed {what} in time (log: {log})")
         raise TunnelDown(f"when cloudflared pid {proc.pid} started cannot be read, so it could not be told from a later program with its pid")
     # The word alive() looks for: the program's name in its command line, or on Windows the stem of
     # the executable the OS reports (python for the test fake).
     marker = Path((detached.describe(proc.pid) or exe) if detached.WINDOWS else exe).stem.lower()
     rec = {"pid": proc.pid, "url": url, "port": port, "startedAt": time.time(), "marker": marker, "processStart": start, "adopted": False}
+    if hostname:
+        rec.update(hostname=hostname, tokenFile=token_file)
+    if retired_entry:
+        rec["retired"] = retired_entry
     _write(d, rec)
     detached.release(proc)
     return rec
 
 
-def ensure(data_dir, port):
-    """The running tunnel to `port`, reattached or started (a new address); raises TunnelDown."""
+def _retire_seconds():
+    return float(os.environ.get("SHARED_RETIRE_SECONDS") or RETIRE_SECONDS)
+
+
+def ensure(data_dir, port, hostname="", token_file=""):
+    """The running tunnel to `port` with this hostname and token file ("" for a quick tunnel), reattached or started;
+    raises TunnelDown. A running tunnel to the same port at another address stays up as the record's `retired`."""
     d = Path(data_dir)
     with detached.locked(d / LOCK):
         rec = alive(d, held=True)
-        if rec and rec.get("port") == port:
+        if rec and rec.get("port") == port and config(rec) == (hostname, token_file):
             return rec
-        if rec:
+        if hostname and rec and rec.get("port") == port and rec["url"] == f"https://{hostname}":
+            _end(rec)  # the same address with another token file: nothing to move to
+            rec = None
+        old = (rec or read(d) or {}).get("retired")
+        keep = rec if rec and rec.get("port") == port else None
+        if rec and not keep:
             _end(rec)
-        return _start(d, port)
+        if not keep:  # a restart at the same address: the tunnel retired before keeps its grace time
+            return _start(d, port, hostname, token_file, retired_entry=old)
+        if old and detached.alive(*_identity(old)):
+            _end(old)  # one retired tunnel at a time
+        entry = {k: keep[k] for k in ("pid", "url", "marker", "processStart", "adopted") if k in keep} | {"until": time.time() + _retire_seconds()}
+        return _start(d, port, hostname, token_file, retired_entry=entry)
+
+
+def retired(data_dir):
+    """The retired tunnel while its grace time runs and it still runs, else None."""
+    old = (read(data_dir) or {}).get("retired")
+    if not isinstance(old, dict) or not isinstance(old.get("pid"), int) or time.time() >= float(old.get("until") or 0):
+        return None
+    return old if detached.alive(*_identity(old)) else None
+
+
+def sweep(data_dir):
+    """Stop a retired tunnel whose grace time is up and drop it from the record; True when one was stopped."""
+    d = Path(data_dir)
+    if "retired" not in (read(d) or {}) or retired(d):  # most passes: nothing to take the lock for
+        return False
+    with detached.locked(d / LOCK):
+        rec = read(d)
+        old = (rec or {}).get("retired")
+        if not old or retired(d):
+            return False
+        rec.pop("retired")
+        _write(d, rec)
+        return isinstance(old, dict) and isinstance(old.get("pid"), int) and _end(old)
 
 
 def _url_arg(args):
@@ -242,13 +353,16 @@ def stop(data_dir):
     d = Path(data_dir)
     with detached.locked(d / LOCK):
         rec = read(d)
+        old = (rec or {}).get("retired")
+        if isinstance(old, dict) and isinstance(old.get("pid"), int):
+            _end(old)
         stopped = bool(rec) and _ours(d, rec, True) and _end(rec)
         (d / RECORD).unlink(missing_ok=True)
         return stopped
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(description="The shared session's cloudflared quick tunnel.")
+    p = argparse.ArgumentParser(description="The shared session's cloudflared tunnel.")
     p.add_argument("cmd", choices=("adopt", "status"))
     p.add_argument("--dir", required=True)
     p.add_argument("--pid", type=int)

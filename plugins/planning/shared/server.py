@@ -18,7 +18,10 @@ No secret travels on this command line: the control token and the owner token co
 
 The domain rules live in session.py; this file routes, authenticates, caps and renders. It also
 watches the tunnel (tunnel.py): when its process exits it starts a new one, allows the new host and
-records the new link, so the owner's view says to share it again.
+records the new link, so the owner's view says to share it again (a named tunnel comes back at the
+same address). After a switch to another address it still allows the retired tunnel's host while
+that tunnel runs, and answers a page there with the new address only, so the page can move there
+with its identity (core.js).
 """
 
 from __future__ import annotations
@@ -279,6 +282,13 @@ def build_hash():
     return h.hexdigest()[:12]
 
 
+def tunnel_kind(rec, up):
+    """What a status says of the tunnel: named or quick while it runs, down when it does not, off with no record."""
+    if not rec:
+        return "off"
+    return ("named" if tunnel.config(rec)[0] else "quick") if up else "down"
+
+
 def read_json(path):
     try:
         doc = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -457,7 +467,7 @@ class ControlHandler(session_bridge.LoopbackHandler):
             ok=True,
             publicUrl=app.public_url,
             guestPort=app.guest_port,
-            tunnel="quick" if rec and app.tunnel_up else ("down" if rec else "off"),
+            tunnel=tunnel_kind(rec, app.tunnel_up),
             lease=self.hub.lease_view(),
         )
         return self.send(200, out)
@@ -751,6 +761,8 @@ class GuestHandler(BaseHTTPRequestHandler):
 
     def state(self):
         app = self.app
+        if app.moved(self.headers.get("Host", "")):  # the old address after a switch: only where the session went
+            return self.send(200, {"moved": app.public_url})
         pid = self.identity()
         if pid is None:
             return self.send(200, app.session.anonymous_view())
@@ -763,7 +775,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         snap["build"] = app.build
         if snap["me"]["role"] in ("owner", "leader"):
             share = dict(app.session.state["session"]["share"])
-            share["tunnel"] = "quick" if app.tunnel_up else "down"
+            share["tunnel"] = tunnel_kind(tunnel.read(app.dir), True) if app.tunnel_up else "down"
             snap["share"] = share
         return self.send(200, snap, extra={"ETag": tag})
 
@@ -922,6 +934,7 @@ class App:
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
         self.tunnel_host = ""
+        self.retired_host = ""  # the address before a switch, while its tunnel still runs
         self.tunnel_up = False
         self._next_tunnel_try = 0.0
         self._backoff = 2.0
@@ -989,16 +1002,22 @@ class App:
     def host_ok(self, host, origin):
         if not host:
             return False
-        if host not in self.local_hosts and host != self.tunnel_host:
+        public = {h for h in (self.tunnel_host, self.retired_host) if h}
+        if host not in self.local_hosts and host not in public:
             now = time.monotonic()
             if now - self._last_sync > 1.0:  # a tunnel share.py just started may not be seen yet
                 self._last_sync = now
                 self.sync_tunnel(restart=False)
-            if host != self.tunnel_host or not host:
+            public = {h for h in (self.tunnel_host, self.retired_host) if h}
+            if host not in public:
                 return False
         if origin is None:
             return True
-        return origin in {f"http://{h}" for h in self.local_hosts} or (bool(self.tunnel_host) and origin == f"https://{self.tunnel_host}")
+        return origin in {f"http://{h}" for h in self.local_hosts} or origin in {f"https://{h}" for h in public}
+
+    def moved(self, host):
+        """True when `host` is the retired tunnel's: the session now answers at public_url."""
+        return bool(self.retired_host) and host == self.retired_host and host != self.tunnel_host and bool(self.public_url)
 
     def etag(self, pid):
         tick = int(time.time() // PRESENCE_TICK)
@@ -1015,14 +1034,17 @@ class App:
         rec = tunnel.read(self.dir)
         if rec is None:
             self.tunnel_up = False
+            self.retired_host = ""
             return
+        old = tunnel.retired(self.dir)
+        self.retired_host = tunnel.host(old["url"]) if old else ""
         live = tunnel.alive(self.dir)
         if (live is None or live.get("port") != self.guest_port) and restart and self.watch_tunnel:
             if time.monotonic() < self._next_tunnel_try:
                 self.tunnel_up = False
                 return
             try:
-                live = tunnel.ensure(self.dir, self.guest_port)
+                live = tunnel.ensure(self.dir, self.guest_port, *tunnel.config(rec))  # a named tunnel comes back at its address
                 self._backoff = 2.0
                 self.log.info("tunnel started: %s", live["url"])
             except (tunnel.TunnelDown, TimeoutError) as exc:
@@ -1042,6 +1064,7 @@ class App:
     def watch(self):
         while not self._stop.wait(TUNNEL_POLL):
             try:
+                tunnel.sweep(self.dir)
                 self.sync_tunnel()
                 if time.monotonic() >= self._batch_at:
                     self.flush_summaries()

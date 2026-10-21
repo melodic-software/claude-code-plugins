@@ -238,6 +238,83 @@ class TestHostAndOrigin(ServerCase):
         self.assertEqual(code, 403)
 
 
+class TestTunnelSwitch(ServerCase):
+    """A switch to a named tunnel (or any new address) while the old tunnel still runs: a guest keeps their identity on
+    the new host, and the old host answers only with where the session went, until its grace time is up."""
+
+    NAMED = "interview.example.com"
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": FAKE, "SHARED_TUNNEL_SECONDS": "10"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(tunnel.stop, self.d)
+        self.token = tmpdir(self) / "tunnel.token"
+        self.token.write_text("fake-tunnel-token-for-tests", encoding="utf-8")
+        os.chmod(self.token, 0o600)
+        self.pid, self.guest = self.join("Ann")
+        self.quick = tunnel.host(tunnel.ensure(self.d, self.port)["url"])
+        self.app.sync_tunnel(restart=False)
+
+    def state(self, host, headers=None):
+        return self.get("/api/state", {"Host": host, "Origin": f"https://{host}", **(headers or {})})
+
+    def switch(self):
+        tunnel.ensure(self.d, self.port, self.NAMED, str(self.token))
+        self.app.sync_tunnel(restart=False)
+
+    def test_a_guest_secret_from_the_old_host_is_the_same_person_on_the_new_one(self):
+        code, _, before = self.state(self.quick, self.guest)
+        self.assertEqual((code, before["me"]["pid"]), (200, self.pid))
+        self.switch()
+        code, _, after = self.state(self.NAMED, self.guest)
+        self.assertEqual((code, after["me"]["pid"], after["me"]["name"]), (200, self.pid, "Ann"))
+
+    def test_the_old_host_answers_only_where_the_session_went(self):
+        self.switch()
+        for headers in (self.guest, {}):
+            with self.subTest(identified=bool(headers)):
+                code, _, out = self.state(self.quick, headers)
+                self.assertEqual((code, out), (200, {"moved": f"https://{self.NAMED}"}))
+
+    def test_the_old_host_is_refused_once_its_grace_time_is_up(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        rec["retired"]["until"] = 0
+        detached.write_private(self.d / tunnel.RECORD, json.dumps(rec))
+        self.app.sync_tunnel(restart=False)
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out["error"]), (403, "bad-host"))
+
+    def test_a_named_tunnel_that_exits_comes_back_at_its_address_with_no_share_again(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        share_before = dict(self.app.session.state["session"]["share"])
+        detached.stop(rec["pid"], rec["marker"], rec["processStart"])
+        self.app.watch_tunnel = True
+        self.app.sync_tunnel()
+        now = tunnel.alive(self.d)
+        self.assertNotEqual(now["pid"], rec["pid"])
+        self.assertEqual((now["url"], self.app.public_url), (f"https://{self.NAMED}",) * 2)
+        self.assertEqual(self.app.session.state["session"]["share"], share_before)
+
+    def test_a_named_tunnel_restarted_in_the_grace_time_keeps_the_old_host_answering(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        detached.stop(rec["pid"], rec["marker"], rec["processStart"])
+        self.app.watch_tunnel = True
+        self.app.sync_tunnel()
+        self.assertNotEqual(tunnel.alive(self.d)["pid"], rec["pid"])
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out), (200, {"moved": f"https://{self.NAMED}"}))
+
+    def test_status_names_the_named_tunnel(self):
+        self.switch()
+        code, _, out = call(self.app.control_port, "GET", "/api/status", headers={"X-Shared-Token": self.app.hub.token})
+        self.assertEqual((code, out["tunnel"], out["publicUrl"]), (200, "named", f"https://{self.NAMED}"))
+
+
 class TestHeadersAndCaps(ServerCase):
     def test_every_json_answer_carries_the_security_headers(self):
         for path in ("/api/state", "/api/nope"):

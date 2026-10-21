@@ -1217,6 +1217,17 @@
     lastOk = Date.now();
     if (shownAt != null) { tel.gaps.push(Math.round(performance.now() - shownAt)); tel.gaps.splice(0, tel.gaps.length - 20); shownAt = null; }
   }
+  /** The session answers at another address now (the host switched tunnels): go there, taking this browser's identity
+   *  as a personal link, or the invite key of someone who has not joined. The owner's tab stays: its token never
+   *  travels in a link. Only an https address on another origin is followed, once. */
+  let moving = false;
+  function moveTo(url) {
+    let to;
+    try { to = new URL(url); } catch { return; }
+    if (moving || ownerToken || to.protocol !== "https:" || to.origin === location.origin) return;
+    moving = true;
+    location.replace(`${to.origin}/${secret ? "#me=" + secret : joinKey ? "#join=" + joinKey : ""}`);
+  }
   async function pollOnce() {
     const seq = ++polls;
     try {
@@ -1224,6 +1235,7 @@
       const r = await fetch(`/api/state?since=${rev}`, { headers });
       if (r.status === 304) { good(); if (settle(seq) && snap) Core.state = view(); return; }
       const s = await r.json().catch(() => ({}));
+      if (r.ok && s.moved) { good(); moveTo(s.moved); return; }
       if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true, youWaiting: false }; good(); return; }
       // Approve new joins: the person waits until the owner lets them in; the poll keeps asking.
       if (r.status === 403 && s.error === "waiting") { Core.state = { ...structuredClone(DEFAULTS), title: s.title ?? Core.state.title, intro: s.intro || "", youWaiting: true }; good(); return; }
