@@ -2,7 +2,8 @@
 # morning-brief.sh — read-only operator morning view for a GitHub repo.
 #
 # Prints, for the current repo, one scannable picture: open issue counts per
-# queue label, the gh-native merge-ready PR list, parked decisions with their
+# queue label, the open items stuck in a queue label past --stuck-days, the
+# gh-native merge-ready PR list, parked decisions with their
 # RECOMMENDED lines, loop-lane telemetry freshness (last-cycle age + flags),
 # review findings stranded on already-merged PRs, and per lane workflow the last
 # 7 days of runs: failures by class, limit stops, restarts and turn headroom,
@@ -45,7 +46,8 @@
 # Transport. The gh subcommands ride GraphQL. When a GraphQL call is refused
 # (the cloud GitHub proxy's HTTP 403 refusal), sections 1-4 are re-read from repository-scoped REST endpoints and
 # the header names the transport. The stranded-findings section needs
-# reviewThreads, which has no REST equivalent, so it renders UNREADABLE there.
+# reviewThreads, which has no REST equivalent, so it renders UNREADABLE there;
+# so does the stuck section, whose label events are a GraphQL read.
 #
 # Usage:
 #   morning-brief.sh                          live view of the current repo
@@ -55,6 +57,8 @@
 #   morning-brief.sh --decision-label L       pin the parked-decision label
 #   morning-brief.sh --stale-hours N          age past which a lane is STALE (default 6)
 #   morning-brief.sh --stranded-days N        floor of the stranded-findings window, in days (default 3)
+#   morning-brief.sh --stuck-days N           age in a queue label past which an open item is listed as stuck (default 7)
+#   morning-brief.sh --stuck-limit N          cap on the stuck items listed, oldest first (default 20)
 #   morning-brief.sh --data-dir DIR           base dir for the stranded bookmark (default $CLAUDE_PLUGIN_DATA
 #                                             when it names harness-ops, else ~/.claude/plugins/data/harness-ops);
 #                                             absolute, with no .. segment or control character
@@ -111,6 +115,10 @@
 #   --merged-json FILE        array of merged-PR GraphQL page documents, as
 #                             emitted by `gh api graphql --paginate` (the
 #                             stranded-findings section)
+#   --stuck-json FILE         object mapping each queue label to an array of
+#                             search page documents, {data:{search:{issueCount,
+#                             pageInfo,nodes}}}, as the stuck section's GraphQL
+#                             read returns them
 #   --lane-runs-json FILE     object mapping a workflow file name to its runs,
 #                             each {id,html_url,event,display_title,head_sha,
 #                             status,conclusion,created_at} (the lanes section)
@@ -175,6 +183,12 @@ MERGED_JSON=""
 # threads: wide enough to cover a bot that reviews well after a merge lands. A
 # gap between runs is covered by the bookmark, not by this number.
 STRANDED_DAYS="3"
+# Stuck section: an open item counts as stuck once its newest labeled event for
+# a queue label is older than STUCK_DAYS; STUCK_LIMIT caps the lines shown.
+# Judgment defaults (the owner's, 2026-10-20), kept as settings.
+STUCK_DAYS="7"
+STUCK_LIMIT="20"
+STUCK_JSON=""
 DATA_DIR_ARG=""
 LANE_RUNS_JSON=""
 LANE_ANNOTATIONS_JSON=""
@@ -333,6 +347,18 @@ while (($# > 0)); do
     require_value "$1" "${2:-}"
     require_uint "$1" "$2"
     STRANDED_DAYS="$((10#$2))"
+    shift 2
+    ;;
+  --stuck-days)
+    require_value "$1" "${2:-}"
+    require_uint "$1" "$2"
+    STUCK_DAYS="$((10#$2))"
+    shift 2
+    ;;
+  --stuck-limit)
+    require_value "$1" "${2:-}"
+    require_uint "$1" "$2"
+    STUCK_LIMIT="$((10#$2))"
     shift 2
     ;;
   --data-dir)
@@ -523,6 +549,12 @@ while (($# > 0)); do
     require_value "$1" "${2:-}"
     require_file "$1" "$2"
     MERGED_JSON="$2"
+    shift 2
+    ;;
+  --stuck-json)
+    require_value "$1" "${2:-}"
+    require_file "$1" "$2"
+    STUCK_JSON="$2"
     shift 2
     ;;
   -*)
@@ -741,11 +773,13 @@ NEEDS_LIVE_PRS=0
 NEEDS_LIVE_DECISIONS=0
 NEEDS_LIVE_TELEMETRY=0
 NEEDS_LIVE_MERGED=0
+NEEDS_LIVE_STUCK=0
 [[ -z "$COUNTS_JSON" ]] && NEEDS_LIVE_COUNTS=1
 [[ -z "$PR_JSON" ]] && NEEDS_LIVE_PRS=1
 [[ -z "$DECISIONS_JSON" ]] && NEEDS_LIVE_DECISIONS=1
 [[ -z "$TELEMETRY_JSON" ]] && NEEDS_LIVE_TELEMETRY=1
 [[ -z "$MERGED_JSON" ]] && NEEDS_LIVE_MERGED=1
+[[ -z "$STUCK_JSON" ]] && NEEDS_LIVE_STUCK=1
 
 # --- Repo label inventory -------------------------------------------------------
 # An inventory that reached its cap cannot prove a label absent, so it is
@@ -805,11 +839,11 @@ if ((NEEDS_LIVE_DECISIONS)) && [[ -n "$REPO_LABELS_JSON" ]]; then
     label_exists_in_repo "$_probe_decision_label" "$WORK/probe-labels.json" || NEEDS_LIVE_DECISIONS=0
   fi
 fi
-# The stranded section alone never forces a repo resolution: every other
-# section can be driven from fixtures, and a fixture-only run must not reach
-# for the network just to resolve a repo it was not given. With --repo, or once
-# another live section resolves one, the section is live like the rest.
-ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY || (NEEDS_LIVE_MERGED && ${#REPO} > 0)))
+# The stranded and stuck sections alone never force a repo resolution: every
+# other section can be driven from fixtures, and a fixture-only run must not
+# reach for the network just to resolve a repo it was not given. With --repo, or
+# once another live section resolves one, the section is live like the rest.
+ANY_LIVE=$((NEEDS_LIVE_COUNTS || NEEDS_LIVE_PRS || NEEDS_LIVE_DECISIONS || NEEDS_LIVE_TELEMETRY || ((NEEDS_LIVE_MERGED || NEEDS_LIVE_STUCK) && ${#REPO} > 0)))
 if ((ANY_LIVE)) && ! have gh; then
   printf 'morning-brief: gh required for live queries (pass fixtures to run offline)\n' >&2
   exit 4
@@ -854,6 +888,7 @@ fi
 REPO_ARGS=()
 [[ -n "$REPO" ]] && REPO_ARGS=(--repo "$REPO")
 [[ -n "$REPO" ]] || NEEDS_LIVE_MERGED=0
+[[ -n "$REPO" ]] || NEEDS_LIVE_STUCK=0
 
 # --- Portable date handling ---------------------------------------------------
 # GNU `date -d` and BSD/macOS `date -j -f` are mutually exclusive dialects, and
@@ -959,10 +994,15 @@ resolve_decision_label() {
 resolve_queue_labels
 resolve_decision_label
 
+# The labels the Queues section settled on (after its live filter), which the
+# Stuck section reads too. print_queues narrows it; until then, or when the
+# inventory could not be read, it is the full configured set.
+STUCK_LABELS=("${QUEUE_LABELS[@]}")
+
 # --- Section state ---------------------------------------------------------
 # Sections render into files so the header, printed first, can carry the
 # unreadable count.
-SECTIONS_TOTAL=7
+SECTIONS_TOTAL=8
 UNREADABLE=0
 UNREADABLE_NAMES=()
 
@@ -1006,6 +1046,8 @@ print_queues() {
     for label in "${QUEUE_LABELS[@]}"; do
       label_exists_in_repo "$label" "$WORK/labels.json" && labels_to_show+=("$label")
     done
+    STUCK_LABELS=()
+    ((${#labels_to_show[@]})) && STUCK_LABELS=("${labels_to_show[@]}")
     if ((${#labels_to_show[@]} == 0)); then
       echo "  no queue labels found in this repo (nothing to report)"
       if [[ -z "$QUEUE_LABELS_ARG" ]]; then
@@ -1058,6 +1100,179 @@ print_queues() {
   if ((${#capped[@]} > 0)); then
     label="$(printf '%s, ' "${capped[@]}")"
     echo "  PARTIAL: ${label%, }: count reached the $COUNT_LIMIT-issue read cap; the true count may be higher"
+  fi
+  echo
+}
+
+# =============================================================================
+# Section 1b — open items stuck in a queue label
+# =============================================================================
+# For each label the Queues section shows, the open issues and PRs whose newest
+# labeled event for that label is older than --stuck-days. The read is one paged
+# GraphQL search per label, with the label events inside the search, so it stays
+# one call per page rather than one per item. Search returns at most 1,000
+# results; an item with no such event among its last 100 timeline events is
+# listed as `days unknown` after the dated ones, never dropped.
+# fetch_stuck_label_gql OUTFILE LABEL
+# Writes one GraphQL page document per page, the shape `gh api` emits.
+STUCK_PAGE_LIMIT=10 # 10 pages of 100 is the search ceiling
+fetch_stuck_label_gql() {
+  local out="$1" label="$2" cursor="" args pages=0 esc search
+  esc="${label//\"/\\\"}"
+  search="repo:$REPO is:open label:\"$esc\""
+  : >"$out"
+  while :; do
+    args=(api graphql -f query="$STUCK_QUERY" -f search="$search")
+    [[ -n "$cursor" ]] && args+=(-f endCursor="$cursor")
+    gh_read "$WORK/stuck.page" "${args[@]}" || return 1
+    cat "$WORK/stuck.page" >>"$out"
+    pages=$((pages + 1))
+    cursor="$(jq -r '
+      .data.search.pageInfo
+      | if .hasNextPage != true then ""
+        elif .endCursor == null then "!"
+        else .endCursor end
+    ' "$WORK/stuck.page" 2>/dev/null)" || {
+      LAST_ERR="could not parse a stuck-item page"
+      return 1
+    }
+    [[ "$cursor" != "!" ]] || {
+      LAST_ERR="a stuck-item page reported more results but no cursor to them"
+      return 1
+    }
+    [[ -n "$cursor" ]] || return 0
+    ((pages >= STUCK_PAGE_LIMIT)) && return 0
+  done
+}
+
+# shellcheck disable=SC2016  # $search/$endCursor are GraphQL variables bound by -f, and MUST reach the server unexpanded
+STUCK_QUERY='
+    query($search:String!, $endCursor:String) {
+      search(query:$search, type:ISSUE, first:100, after:$endCursor) {
+        issueCount
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          __typename
+          ... on Issue {
+            number title
+            timelineItems(itemTypes:[LABELED_EVENT], last:100) { nodes { ... on LabeledEvent { createdAt label { name } } } }
+          }
+          ... on PullRequest {
+            number title
+            timelineItems(itemTypes:[LABELED_EVENT], last:100) { nodes { ... on LabeledEvent { createdAt label { name } } } }
+          }
+        }
+      }
+    }'
+
+print_stuck() {
+  echo "== Stuck (open items in a queue label for more than ${STUCK_DAYS}d) =="
+  local label pages="$WORK/stuck.pages" items="$WORK/stuck.items" err ceiling=() out
+  if [[ -n "$STUCK_JSON" ]]; then
+    # A fixture is held to the same standard as a live read: an error document
+    # is an unreadable source, never an all-clear.
+    err="$(body_error "$STUCK_JSON")"
+    if [[ -n "$err" ]]; then
+      unreadable stuck "$err"
+      return
+    fi
+    jq -e 'type == "object"' "$STUCK_JSON" >/dev/null 2>&1 || {
+      unreadable stuck "--stuck-json is not an object mapping each label to its search pages"
+      return
+    }
+  elif [[ -z "$REPO" ]]; then
+    # A fixture-only run resolves no repo; that is an empty state, not a failure.
+    echo "  (no repo resolved — pass --repo or --stuck-json)"
+    echo
+    return
+  elif [[ "$TRANSPORT" == "rest" ]]; then
+    # A label event is a GraphQL read; REST would take one events call per item.
+    unreadable stuck "label events need GraphQL, which this session does not serve"
+    return
+  fi
+  if ((${#STUCK_LABELS[@]} == 0)); then
+    echo "  no queue labels found in this repo (nothing to report)"
+    echo
+    return
+  fi
+
+  : >"$items"
+  for label in "${STUCK_LABELS[@]}"; do
+    if [[ -n "$STUCK_JSON" ]]; then
+      jq -c --arg l "$label" '.[$l] // []' "$STUCK_JSON" >"$pages" 2>/dev/null || {
+        unreadable stuck "$label: could not parse the search pages"
+        return
+      }
+      err="$(body_error "$pages")"
+      if [[ -n "$err" ]]; then
+        unreadable stuck "$label: $err"
+        return
+      fi
+      # A label the fixture does not list holds nothing.
+      [[ "$(jq 'length' "$pages" 2>/dev/null)" == "0" ]] && continue
+    elif ! fetch_stuck_label_gql "$pages" "$label"; then
+      graphql_blocked "$LAST_ERR" && TRANSPORT="rest"
+      unreadable stuck "$label: $LAST_ERR"
+      return
+    fi
+    # A response with no page document is not an empty label.
+    jq -s -e '[ .. | objects | select(has("data")) | .data.search | objects ] | length > 0' \
+      "$pages" >/dev/null 2>&1 || {
+      unreadable stuck "$label: could not parse the search pages"
+      return
+    }
+    # The search reports more matches than it hands back once it reaches its ceiling.
+    if jq -s -e '
+      [ .. | objects | select(has("data")) | .data.search | objects ] as $p
+      | ($p[0].issueCount // 0) > ([ $p[].nodes[]? ] | length)
+    ' "$pages" >/dev/null 2>&1; then
+      ceiling+=("$label")
+    fi
+    # `jq -s` wraps the input in one more array, and a fixture holds an array of
+    # page documents where a live read holds a bare sequence of them; `..` walks
+    # both. Days in stage is measured from the NEWEST labeled event naming this label.
+    jq -s -c --arg l "$label" '
+      [ .. | objects | select(has("data")) | .data.search.nodes[]?
+        | select(type == "object" and .number != null) ]
+      | .[]
+      | . as $n
+      | { number: $n.number,
+          title: (($n.title // "") | gsub("[\\r\\n]+"; " ")),
+          label: $l,
+          kind: (if $n.__typename == "PullRequest" then "PR" else "issue" end),
+          since: ([ $n.timelineItems.nodes[]?
+                    | select(.label.name == $l and .createdAt != null)
+                    | .createdAt | fromdateiso8601 ] | max) }
+    ' "$pages" >>"$items" 2>/dev/null || {
+      unreadable stuck "$label: could not parse the search pages"
+      return
+    }
+  done
+
+  # Oldest first across every label, dated items before the `days unknown` ones.
+  out="$(jq -s -r --argjson now "$NOW_EPOCH" --argjson days "$STUCK_DAYS" --argjson cap "$STUCK_LIMIT" '
+    def line:
+      "  #\(.number) \(.kind)  \(.title)  (\(.label), "
+      + (if .since == null then "days unknown" else "\((($now - .since) / 86400) | floor)d in stage" end) + ")";
+    ([ .[] | select(.since != null and ($now - .since) > ($days * 86400)) ] | sort_by(.since, .number)) as $dated
+    | ([ .[] | select(.since == null) ] | sort_by(.number)) as $unknown
+    | ($dated + $unknown) as $all
+    | ($all[:$cap][] | line),
+      (if ($all | length) > $cap
+       then "  PARTIAL: \($all | length) stuck items; showing the oldest \($cap) (raise --stuck-limit)"
+       else empty end)
+  ' "$items" 2>/dev/null)" || {
+    unreadable stuck "could not parse the stuck items"
+    return
+  }
+  if [[ -n "$out" ]]; then
+    echo "$out"
+  else
+    echo "  (none — no open item has held a queue label for more than ${STUCK_DAYS}d)"
+  fi
+  if ((${#ceiling[@]})); then
+    label="$(printf '%s, ' "${ceiling[@]}")"
+    echo "  PARTIAL: ${label%, }: the search reached its 1,000-result ceiling; the list may be missing items"
   fi
   echo
 }
@@ -2548,6 +2763,7 @@ print_cost() {
 # Each section renders into its own file first so the header can state how
 # many were unreadable before any section prints.
 print_queues >"$WORK/s1"
+print_stuck >"$WORK/s1b"
 print_merge_ready >"$WORK/s2"
 print_decisions >"$WORK/s3"
 print_telemetry >"$WORK/s4"
@@ -2562,7 +2778,7 @@ if ((UNREADABLE > 0)); then
   echo "  $UNREADABLE of $SECTIONS_TOTAL sections unreadable: ${UNREADABLE_NAMES[*]}"
 fi
 echo
-cat "$WORK/s1" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s6" "$WORK/s7"
+cat "$WORK/s1" "$WORK/s1b" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5" "$WORK/s6" "$WORK/s7"
 
 # Exit 5 when the brief carries no data at all; 6 when some sections rendered
 # beside unreadable ones, so a caller never takes a partial brief for a full one.
