@@ -1439,12 +1439,14 @@ on a time-budget overrun files its record and fix issues too; only a `failure` r
 report (rule 1). A red run inside a lane merge's attribution window gets its one re-run from
 pr-merge's `post-merge-dispatch` job; a red run with no lane merge to charge gets none. Both jobs
 wait for a re-run for up to `confirm-wait-minutes`, so the record, its fix issues and this report
-follow the merge instead of the next scheduled run. When no re-run finishes within that wait and
-a newer `pr-require-checks` run on this repository's `main` has passed by its end, `main` already
-recovered: the alert logs so and files no record, fix issue or report. A failed lookup files as
-before. Records, fix issues
-and report comments dedupe as they do for any run: records by signal and SHA or by failing run,
-fix issues by check, and reports by run and attempt.
+follow the merge instead of the next scheduled run. A dispatched red, whether its re-run failed or
+never finished within that wait, files nothing once a newer `pr-require-checks` run on this
+repository's `main` has succeeded: `main` already recovered, and the alert logs so and files no
+record, fix issue or report. A failed lookup files as before. The dispatch also names the run's
+head SHA, which the alert checks against the run, so a dispatch and a `workflow_run` event of the
+same run share one concurrency group by signal and SHA. Records, fix issues and report comments
+dedupe as they do for any run: records by signal and SHA or by failing run, fix issues by check,
+and reports by run and attempt.
 
 1. **Confirmed red.** Attempt 1 concluded `failure`, the one re-run of its failed jobs finished
    and concluded `failure`, and one check failed in both, a check being a job that concluded

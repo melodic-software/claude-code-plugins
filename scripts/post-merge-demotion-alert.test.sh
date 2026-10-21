@@ -1121,10 +1121,11 @@ fi
 
 # --- The step that reads the run ----------------------------------------------
 # workflow_run: the event's fields pass through unchanged. workflow_dispatch:
-# the run id is checked, the sender must be github-actions[bot] or a listed
-# human (never the lanes App), and attempt 1 of the named run must be a failed
-# pr-require-checks.yml run on this repository's main dispatched by
-# github-actions[bot]. A refusal writes no output and fails the step.
+# the run id and head SHA are checked, the sender must be github-actions[bot]
+# or a listed human (never the lanes App), and attempt 1 of the named run must
+# be a failed pr-require-checks.yml run on this repository's main dispatched by
+# github-actions[bot], at the head SHA sent. A refusal writes no output and
+# fails the step.
 READ_NAME='Read the failed run'
 awk -v name="      - name: $READ_NAME" '$0 == name { on = 1; next }
   on && /^      - / { exit }
@@ -1138,7 +1139,8 @@ if [[ ! -s "$TMP_ROOT/read.sh" ]]; then
   fail "no '$READ_NAME' step with a run: | body"
 elif grep -qF "\${{" "$TMP_ROOT/read.sh"; then
   fail "the '$READ_NAME' body interpolates an expression"
-elif [[ "$read_env" != *"INPUT_RUN_ID: \${{ inputs.run-id }}"* || "$body_env" == *'github.event.workflow_run'* ]] ||
+elif [[ "$read_env" != *"INPUT_RUN_ID: \${{ inputs.run-id }}"* || "$read_env" != *"INPUT_HEAD_SHA: \${{ inputs.head-sha }}"* ||
+  "$body_env" == *'github.event.workflow_run'* ]] ||
   ! grep -qF "RUN_COMMIT_MESSAGE: \${{ steps.run.outputs.commit-message }}" <<<"$body_env" ||
   ! grep -qF "RUN_TRIGGERING_ACTOR: \${{ steps.run.outputs.triggering-actor }}" <<<"$body_env"; then
   fail "the filing step does not read the run from the '$READ_NAME' step's outputs"
@@ -1146,10 +1148,11 @@ else
   ok "the filing step reads the run from the '$READ_NAME' step, whose body takes its input through env"
 fi
 inputs="$(awk '/^  workflow_dispatch:$/ { on = 1; next } on && /^[a-z]/ { exit } on' "$WORKFLOW")"
-if [[ "$inputs" == *$'\n      run-id:\n'* && "$(grep -c '^      [a-z-]*:$' <<<"$inputs")" -eq 1 ]]; then
-  ok "workflow_dispatch takes one input, run-id"
+if [[ "$inputs" == *$'\n      run-id:\n'* && "$inputs" == *$'\n      head-sha:\n'* &&
+  "$(grep -c '^      [a-z-]*:$' <<<"$inputs")" -eq 2 ]]; then
+  ok "workflow_dispatch takes two inputs, run-id and head-sha"
 else
-  fail "workflow_dispatch inputs are not exactly run-id: '$inputs'"
+  fail "workflow_dispatch inputs are not exactly run-id and head-sha: '$inputs'"
 fi
 
 mkdir -p "$TMP_ROOT/bin-read"
@@ -1176,6 +1179,7 @@ attempt_run() {
 }
 
 # run_read <event> <run-id> <actor-id> <triggering-actor> [attempt-json]
+# READ_HEAD_SHA: the head-sha input, $SHA when unset.
 run_read() {
   rm -rf "$TMP_ROOT/read"
   mkdir -p "$TMP_ROOT/read"
@@ -1186,7 +1190,7 @@ run_read() {
     {id: 337, login: "lanes[bot]", kind: "bot"}, {id: 200, login: "a-bot", kind: "bot"}]}' >"$TMP_ROOT/read/trusted.json"
   OUT="$(PATH="$TMP_ROOT/bin-read:$PATH" STUB_DIR="$TMP_ROOT/read" GITHUB_OUTPUT="$TMP_ROOT/read/output" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="$1" INPUT_RUN_ID="$2" ACTOR_ID="$3" TRIGGERING_ACTOR="$4" \
-    APP_SENDER_ID=337 RUN_WORKFLOW="${WR_NAME:-}" RUN_EVENT="${WR_EVENT:-}" RUN_CONCLUSION="${WR_CONCLUSION:-}" \
+    INPUT_HEAD_SHA="${READ_HEAD_SHA-$SHA}" APP_SENDER_ID=337 RUN_WORKFLOW="${WR_NAME:-}" RUN_EVENT="${WR_EVENT:-}" RUN_CONCLUSION="${WR_CONCLUSION:-}" \
     RUN_BRANCH="${WR_BRANCH:-}" RUN_REPO="${WR_REPO:-}" RUN_SHA="${WR_SHA:-}" RUN_URL="${WR_URL:-}" RUN_ID="${WR_ID:-}" \
     RUN_WORKFLOW_ID="${WR_WORKFLOW_ID:-}" RUN_CREATED="${WR_CREATED:-}" RUN_ATTEMPT="${WR_ATTEMPT:-}" \
     RUN_TRIGGERING_ACTOR="${WR_ACTOR:-}" RUN_COMMIT_MESSAGE="${WR_MESSAGE:-}" \
@@ -1199,7 +1203,7 @@ output() { sed -n "s/^$1=//p" <<<"$OUTPUT"; }
 
 WR_NAME="$FULL" WR_EVENT=schedule WR_CONCLUSION=failure WR_BRANCH=main WR_REPO=o/r WR_SHA="$SHA" WR_URL="$RUN_URL" \
   WR_ID=4242 WR_WORKFLOW_ID=77 WR_CREATED="$CREATED" WR_ATTEMPT=2 WR_ACTOR=octocat WR_MESSAGE=$'fix: x (#1)\n\nbody' \
-  run_read workflow_run '' 1 octocat
+  READ_HEAD_SHA='' run_read workflow_run '' 1 octocat
 if [[ "$RC" -eq 0 && -z "$LOG" && "$(output name)|$(output event)|$(output conclusion)|$(output branch)|$(output repo)" == "$FULL|schedule|failure|main|o/r" &&
   "$(output sha)|$(output url)|$(output id)|$(output workflow-id)|$(output created)|$(output attempt)|$(output triggering-actor)" == "$SHA|$RUN_URL|4242|77|$CREATED|2|octocat" &&
   "$OUTPUT" == *$'\nfix: x (#1)\n\nbody\nEOF_'* ]]; then
@@ -1239,6 +1243,13 @@ refused() {
 refused "a run id that is not digits is refused before any read" workflow_dispatch '4242; echo x' 41898282 'github-actions[bot]'
 [[ -z "$LOG" ]] || fail "a malformed run id was read: log='$LOG'"
 refused "an empty run id is refused" workflow_dispatch '' 41898282 'github-actions[bot]'
+for bad in '' "${SHA^^}" "${SHA:1}" "${SHA:0:39}; echo x"; do
+  READ_HEAD_SHA="$bad" refused "a head SHA '$bad' that is not 40 lowercase hex digits is refused before any read" \
+    workflow_dispatch 4242 41898282 'github-actions[bot]'
+  [[ -z "$LOG" ]] || fail "a malformed head SHA '$bad' was read: log='$LOG'"
+done
+READ_HEAD_SHA=fedcba9876543210fedcba9876543210fedcba98 \
+  refused "a head SHA that is not the run's head SHA is refused" workflow_dispatch 4242 41898282 'github-actions[bot]'
 refused "the lanes App cannot send a run" workflow_dispatch 4242 337 'github-actions[bot]'
 refused "an unlisted sender cannot send a run" workflow_dispatch 4242 555 someone
 refused "a listed bot that is not github-actions[bot] cannot send a run" workflow_dispatch 4242 200 a-bot

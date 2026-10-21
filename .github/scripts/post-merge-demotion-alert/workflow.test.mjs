@@ -93,6 +93,32 @@ test("the run step takes every event field through env", () => {
   assert.doesNotMatch(run, /\$\{\{/);
 });
 
+// Records are one per signal and SHA, found by a read before a create, so
+// every sighting of one signal and SHA must wait on the others: a dispatch
+// and a workflow_run event of the same run, and two runs of one SHA.
+test("the alert's group keys on signal and head SHA, the same for a dispatch and a workflow_run event", () => {
+  const alert = text.slice(text.indexOf("\n  alert:\n"), text.indexOf("\n  report-red-main:\n"));
+  const block = /\n {4}concurrency:\n {6}group: (.*)\n {6}cancel-in-progress: false\n/.exec(alert);
+  assert.ok(block, "a job-level concurrency block that cancels nothing");
+  assert.doesNotMatch(block[1], /workflow_run\.id|run-id/);
+  const group = (ctx) =>
+    block[1].replace(/\$\{\{ (.*?) \}\}/g, (_, expr) => {
+      for (const alt of expr.split(" || ")) {
+        const value = /^'(.*)'$/.exec(alt)?.[1] ?? ctx[alt];
+        if (value) return value;
+      }
+      return "";
+    });
+  const sha = "0123456789abcdef0123456789abcdef01234567";
+  const sighting = group({
+    "github.event.workflow_run.name": "pr-require-checks",
+    "github.event.workflow_run.event": "workflow_dispatch",
+    "github.event.workflow_run.head_sha": sha,
+  });
+  assert.equal(sighting, `post-merge-demotion-alert-pr-require-checks-workflow_dispatch-${sha}`);
+  assert.equal(group({ "inputs['head-sha']": sha }), sighting);
+});
+
 test("reports run one at a time across the repository, so two cannot both read the log before writing", () => {
   assert.match(job, /\n {4}concurrency:\n {6}group: red-main-report\n {6}cancel-in-progress: false\n/);
 });

@@ -53,7 +53,9 @@ test("a push job holds the group until the dispatched run finishes", () => {
 // The wait step's body, run under bash against a stub gh (one canned run
 // read, then any write logged) and a stub sleep. The alert workflow hears of
 // a failed run only through this dispatch: GITHUB_TOKEN started the run, so
-// it raises no workflow_run event (issue #8896's counts).
+// it raises no workflow_run event.
+const HEAD = "0123456789abcdef0123456789abcdef01234567";
+const SEND = `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=4242 -f inputs[head-sha]=${HEAD}`;
 function runWait(conclusion, { dispatchFails = false } = {}) {
   const step = job("dispatch-full-run").split("\n      - name: Wait for the full run to finish\n")[1];
   const body = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/
@@ -72,7 +74,7 @@ function runWait(conclusion, { dispatchFails = false } = {}) {
 printf '%s\\n' "$*" >>"${dir}/log"
 case "$*" in
   *-X\\ POST*) exit ${dispatchFails ? 1 : 0} ;;
-  *) jq -r "\${@: -1}" <<<'{"status": "completed", "conclusion": "${conclusion}"}' ;;
+  *) jq -r "\${@: -1}" <<<'{"status": "completed", "conclusion": "${conclusion}", "head_sha": "${HEAD}"}' ;;
 esac
 `,
     { mode: 0o755 },
@@ -97,12 +99,12 @@ esac
   };
 }
 
-test("a red full run is sent to post-merge-demotion-alert.yml by its run id", () => {
+// The alert serializes on signal and head SHA, so the send names the run's
+// head SHA as the run reports it, not this workflow's push SHA.
+test("a red full run is sent to post-merge-demotion-alert.yml by its run id and head SHA", () => {
   const { status, writes } = runWait("failure");
   assert.equal(status, 0);
-  assert.deepEqual(writes, [
-    "api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=4242",
-  ]);
+  assert.deepEqual(writes, [SEND]);
 });
 
 // babysit_postmerge.py's FAILED_CONCLUSIONS, the conclusions post-merge
@@ -111,11 +113,7 @@ test("every red conclusion of a full run is sent to post-merge-demotion-alert.ym
   for (const conclusion of ["failure", "timed_out", "cancelled", "startup_failure", "action_required"]) {
     const { status, writes } = runWait(conclusion);
     assert.equal(status, 0, conclusion);
-    assert.deepEqual(
-      writes,
-      ["api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=4242"],
-      conclusion,
-    );
+    assert.deepEqual(writes, [SEND], conclusion);
   }
 });
 

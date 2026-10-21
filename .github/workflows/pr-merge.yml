@@ -38,7 +38,7 @@ name: pr-merge
 # whoever enqueued it, the push starts a full CI run of main (the
 # dispatch-full-run job), even while the switch or report-only is on, since it
 # merges nothing. That run raises no workflow_run event (GITHUB_TOKEN started
-# it), so when it ends red the same job sends its run id to
+# it), so when it ends red the same job sends its run id and head SHA to
 # post-merge-demotion-alert.yml through workflow_dispatch, which files the
 # post-merge record and fix issues and reports the red-main culprit once the
 # re-run fails too. A red run inside a lane merge's attribution window gets
@@ -1146,7 +1146,8 @@ jobs:
       # waits here as one pending job. One REST read a minute; the run's
       # result is the merge job's post-merge check's to judge, not this job's.
       # A red run raises no workflow_run event (this token started it), so
-      # this step sends its id to post-merge-demotion-alert.yml, which waits
+      # this step sends its id and head SHA (which keys the alert's
+      # concurrency group) to post-merge-demotion-alert.yml, which waits
       # for a re-run before it files or reports anything. Red is any
       # conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS: a cancel on
       # a time-budget overrun is red too. Every merge is a push to main, so
@@ -1161,12 +1162,13 @@ jobs:
           set -euo pipefail
           for _ in $(seq 40); do
             sleep 60
-            state=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.status + " " + (.conclusion // "")') || continue
-            if [ "${state% *}" = completed ]; then
-              echo "run $RUN_ID completed: ${state#* }"
-              if [[ "${state#* }" =~ ^(failure|timed_out|cancelled|startup_failure|action_required)$ ]] &&
+            state=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.status + " " + .head_sha + " " + (.conclusion // "")') || continue
+            read -r status head_sha conclusion <<<"$state"
+            if [ "$status" = completed ]; then
+              echo "run $RUN_ID completed: $conclusion"
+              if [[ "$conclusion" =~ ^(failure|timed_out|cancelled|startup_failure|action_required)$ ]] &&
                 ! gh api -X POST "repos/$REPO/actions/workflows/post-merge-demotion-alert.yml/dispatches" \
-                  -f ref=main -f "inputs[run-id]=$RUN_ID" >/dev/null; then
+                  -f ref=main -f "inputs[run-id]=$RUN_ID" -f "inputs[head-sha]=$head_sha" >/dev/null; then
                 echo "::error::could not send run $RUN_ID to post-merge-demotion-alert.yml; the next scheduled full run reports a red that lasts"
                 exit 1
               fi

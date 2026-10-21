@@ -36,9 +36,10 @@ name: post-merge-demotion-alert
 #
 # A full run pr-merge.yml starts after each merge uses GITHUB_TOKEN, so its
 # completion raises no workflow_run event. pr-merge's dispatch-full-run job
-# sends a red one here through workflow_dispatch with its run id instead; the
-# first step reads that run and refuses anything but a red pr-require-checks
-# run on this repository's main that github-actions[bot] dispatched. Red is
+# sends a red one here through workflow_dispatch with its run id and head SHA
+# instead; the first step reads that run and refuses anything but a red
+# pr-require-checks run on this repository's main that github-actions[bot]
+# dispatched, at that head SHA. Red is
 # any conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS. A red run
 # inside a lane merge's attribution window gets its one re-run from pr-merge's
 # post-merge-dispatch job, and one with no lane merge to charge gets none, so
@@ -70,11 +71,16 @@ on:
     branches: [main]
   # pr-merge.yml's dispatch-full-run job, with GITHUB_TOKEN, or a listed
   # human (trusted-actors.json on main) names a red full run that raised no
-  # workflow_run event. The run id is the only input and is checked before use.
+  # workflow_run event. Both inputs are checked before use, and the head SHA
+  # must be the run's own.
   workflow_dispatch:
     inputs:
       run-id:
         description: Id of a red pr-require-checks run on main that github-actions[bot] dispatched
+        required: true
+        type: string
+      head-sha:
+        description: The run's head SHA (40 lowercase hex digits), which keys the alert's concurrency group
         required: true
         type: string
 
@@ -92,12 +98,14 @@ jobs:
       checks: read # read the hygiene aggregator's annotations
       contents: read # read merge.agent-identity from main's pr-pipeline.yaml
       pull-requests: read # read each merged PR's merge-queue event
-    # One group per judged run, so two attempts of one run cannot both find no
-    # record and file two. A dispatch names only the run id, so both triggers
-    # key on it: a later attempt's workflow_run event and a dispatch of the
-    # same run wait on each other.
+    # One group per signal and SHA, as records are one per signal and SHA,
+    # found by a read before a create: two attempts of one run, two runs of
+    # one SHA, and a dispatch and a workflow_run event of the same run cannot
+    # both find no record and file two. A dispatch is always a
+    # pr-require-checks workflow_dispatch run and names its head SHA, which
+    # the Read step checks against the run.
     concurrency:
-      group: post-merge-demotion-alert-${{ github.event.workflow_run.name || 'pr-require-checks' }}-${{ github.event.workflow_run.event || 'workflow_dispatch' }}-${{ github.event.workflow_run.id || inputs.run-id }}
+      group: post-merge-demotion-alert-${{ github.event.workflow_run.name || 'pr-require-checks' }}-${{ github.event.workflow_run.event || 'workflow_dispatch' }}-${{ github.event.workflow_run.head_sha || inputs['head-sha'] }}
       cancel-in-progress: false
     # The run as the step below and the report job read it.
     outputs:
@@ -120,14 +128,15 @@ jobs:
       # never the lanes App, and only for attempt 1 of a pr-require-checks.yml
       # run on this repository's main that github-actions[bot] dispatched and
       # that concluded red: failure, timed_out, cancelled, startup_failure or
-      # action_required, babysit_postmerge.py's FAILED_CONCLUSIONS. Anything
-      # else writes no output and fails.
+      # action_required, babysit_postmerge.py's FAILED_CONCLUSIONS, at the
+      # head SHA the dispatch named. Anything else writes no output and fails.
       - name: Read the failed run
         id: run
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           INPUT_RUN_ID: ${{ inputs.run-id }}
+          INPUT_HEAD_SHA: ${{ inputs.head-sha }}
           ACTOR_ID: ${{ github.actor_id }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -148,6 +157,10 @@ jobs:
           if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
             if [[ ! "$INPUT_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
               echo "::error::run-id must be a run id (digits only)"
+              exit 1
+            fi
+            if [[ ! "$INPUT_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::head-sha must be a commit SHA (40 lowercase hex digits)"
               exit 1
             fi
             if [[ ! "$APP_SENDER_ID" =~ ^[1-9][0-9]*$ ]]; then
@@ -184,6 +197,10 @@ jobs:
                 and (.conclusion | IN("failure", "timed_out", "cancelled", "startup_failure", "action_required"))
               ' <<<"$run" >/dev/null; then
               echo "::error::run $INPUT_RUN_ID is not a red pr-require-checks.yml run on main of $GITHUB_REPOSITORY that github-actions[bot] dispatched"
+              exit 1
+            fi
+            if ! jq -e --arg sha "$INPUT_HEAD_SHA" '.head_sha == $sha' <<<"$run" >/dev/null; then
+              echo "::error::head-sha $INPUT_HEAD_SHA is not the head SHA of run $INPUT_RUN_ID"
               exit 1
             fi
             IFS=$'\t' read -r RUN_WORKFLOW RUN_EVENT RUN_CONCLUSION RUN_BRANCH RUN_REPO RUN_SHA RUN_URL RUN_ID \

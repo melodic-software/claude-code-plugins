@@ -14,6 +14,9 @@ bump: patch
   `github-actions[bot]` or a listed human, never the lanes App, and only for attempt 1 of a red
   `pr-require-checks.yml` run on this repository's `main` that `github-actions[bot]` dispatched.
   pr-merge re-runs such a run only inside a lane merge's attribution window, so the alert waits up
-  to `red-main.confirm-wait-minutes` for a re-run and starts none of its own. When no re-run
-  finishes in that wait and a newer `pr-require-checks` run on this repository's `main` has passed,
-  `main` already recovered: it logs so and files no record, fix issue or report.
+  to `red-main.confirm-wait-minutes` for a re-run and starts none of its own. A dispatched red,
+  whether its re-run failed or never finished, files nothing once a newer `pr-require-checks` run on
+  this repository's `main` has succeeded: `main` already recovered, and the alert logs so and files
+  no record, fix issue or report. The dispatch also sends the run's head SHA, which the alert
+  checks against the run and keys its concurrency group on, so every sighting of one signal and
+  SHA runs one at a time.
