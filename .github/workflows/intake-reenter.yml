@@ -18,7 +18,9 @@ name: intake-reenter
 # Accepted exposure: only a trusted comment decides whether a re-entry
 # happens, and the triage run it starts passes the model only comments whose
 # author id is in intake-triage.yml's allowed-author-ids (a person) or
-# allowed-bot-sender-ids (a bot), never the lane's own triage comment. The
+# allowed-bot-sender-ids (a bot), never the lane's own triage comment. That
+# bot list holds github-actions[bot], the dispatcher, so any other comment a
+# workflow posts with a GITHUB_TOKEN counts as trusted too. The
 # issue's title and body still reach the model on each re-entry, and that
 # text, like the trusted comments, stays untrusted data. The model holds no
 # GitHub token and only Read, Grep and Glob; a job with no model applies only
