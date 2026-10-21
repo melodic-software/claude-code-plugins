@@ -34,6 +34,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     # One per-PR queue shared by every write lane: it queues, never cancels.
     concurrency:

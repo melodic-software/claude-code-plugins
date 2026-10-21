@@ -17,15 +17,14 @@ they cite rather than redefine.
 
 The runner is one executor behind one adapter contract that normalizes every executor surface,
 self-operated CLI/SDK and vendor-hosted cloud-API shapes alike, into a uniform invoke
-operation. Swapping the executor leaves the upstream trigger adapters untouched; the
-executor-class determination that gates merge policy is security-surface data, never a
-repo-local value.
+operation. Swapping the executor leaves the upstream trigger adapters untouched, and the
+executor class gates no merge policy.
 
 - **Plugs into (shipped):** the [executor surface classes](../trigger-dispatch.md#executor-surface-classes)
   and the [one-entrypoint invariant](../trigger-dispatch.md#dispatch). The runner is the
   executor those cite, not a second dispatch path.
-- **Interface tokens:** binds the shipped `executor_class` (`self-operated` | `vendor-hosted`);
-  the runner-new adapter tokens resolve when the build trigger fires.
+- **Interface tokens:** the shipped `executor_class` (`self-operated` | `vendor-hosted`) is
+  deprecated and ignored; the runner-new adapter tokens resolve when the build trigger fires.
 
 ## Structured-output envelope
 
@@ -85,12 +84,11 @@ pass or a merge the policy would gate.
 ## Merge-policy toggle
 
 The runner applies the per-class merge policy and never lands a change the policy gates. The
-toggle honors the matrix merge-policy column and the vendor-hosted human-merge-gate cap: on any
-vendor-hosted executor, every class caps at human-gated regardless of its self-run row.
+toggle honors the matrix merge-policy column; the executor class caps nothing
+([executor surface classes](../trigger-dispatch.md#executor-surface-classes)).
 
-- **Plugs into (shipped):** the [merge-policy column](../guardrails.md#the-matrix) and the
-  vendor-hosted cap on the [executor surface classes](../trigger-dispatch.md#executor-surface-classes).
-- **Interface tokens:** reads the shipped `executor_class` cap; the thin launch disposition and
+- **Plugs into (shipped):** the [merge-policy column](../guardrails.md#the-matrix).
+- **Interface tokens:** reads the shipped `merge_policy`; the thin launch disposition and
   any growth-stage merge serialization are the [lifecycle leaf](lifecycle.md)'s subject.
 
 ## Observability and cost

@@ -2,13 +2,16 @@
 // admission-window.mjs: whether the issue lane's admissions are open. The
 // admitted backlog (open issues labeled agent-ready) may hold
 // `limits.admission-window-hours` of admissions, admitted at
-// `limits.admission-factor` times the lane's merge rate over the last 24 hours:
+// `limits.admission-factor` times the lane's merge rate over the last 24 hours,
+// and never below `limits.admission-min-per-hour`, so a day with no merges
+// cannot hold admissions shut:
 //
 //   hourly        = lane PRs merged in the last 24 h / 24
-//   release_point = admission-factor * hourly * admission-window-hours
+//   allowed       = max(admission-factor * hourly, admission-min-per-hour)
+//   release_point = allowed * admission-window-hours
 //   open          = admitted < release_point
 //
-// Prints one line and exits 0 open, 1 held, 2 on error. Reads both limits from
+// Prints one line and exits 0 open, 1 held, 2 on error. Reads the limits from
 // this checkout's pr-pipeline.yaml through resolve-config (run `npm ci` in
 // .github/actions/resolve-config once) and the counts through `gh`.
 //
@@ -39,10 +42,11 @@ export function counts(run, { repo, now }) {
   };
 }
 
-export function decide({ merged24h, admitted, windowHours, factor }) {
+export function decide({ merged24h, admitted, windowHours, factor, minPerHour }) {
   const hourly = merged24h / 24;
-  const releasePoint = Number(((factor * merged24h * windowHours) / 24).toFixed(9));
-  return { merged24h, hourly, admitted, releasePoint, open: admitted < releasePoint, allowedPerHour: factor * hourly };
+  const allowedPerHour = Math.max(factor * hourly, minPerHour);
+  const releasePoint = Number(Math.max((factor * merged24h * windowHours) / 24, minPerHour * windowHours).toFixed(9));
+  return { merged24h, hourly, admitted, releasePoint, open: admitted < releasePoint, allowedPerHour };
 }
 
 const fmt = (x) => String(Number(x.toFixed(2)));
@@ -53,7 +57,7 @@ export const formatLine = (d) =>
 async function limitsFromConfig() {
   const { limitsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
   const limits = limitsFromBase({ BASE_PATH: fileURLToPath(new URL("../../../", import.meta.url)) });
-  return { windowHours: limits["admission-window-hours"], factor: limits["admission-factor"] };
+  return { windowHours: limits["admission-window-hours"], factor: limits["admission-factor"], minPerHour: limits["admission-min-per-hour"] };
 }
 
 export async function main({ argv = process.argv.slice(2), run = gh, loadLimits = limitsFromConfig, now = Date.now(), out = console.log, err = console.error } = {}) {
@@ -63,8 +67,8 @@ export async function main({ argv = process.argv.slice(2), run = gh, loadLimits 
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo ?? "")) {
       throw new Error(`no owner/repo (got \`${repo}\`)`);
     }
-    const { windowHours, factor } = await loadLimits();
-    const decision = decide({ ...counts(run, { repo, now }), windowHours, factor });
+    const { windowHours, factor, minPerHour } = await loadLimits();
+    const decision = decide({ ...counts(run, { repo, now }), windowHours, factor, minPerHour });
     out(formatLine(decision));
     return decision.open ? 0 : 1;
   } catch (error) {
