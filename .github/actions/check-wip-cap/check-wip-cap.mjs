@@ -212,7 +212,7 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   }
   if (status.paused) {
     const line = `admission paused: reason=${status.pause_reason} countable=${status.countable_lane_prs} wip_cap=${status.wip_cap} held=${status.held_lane_prs} held_cap=${status.held_cap}`;
-    log(`::notice title=admission paused::${line}`);
+    log(`::notice title=admission paused::${escape(line)}`);
     if (env.GITHUB_STEP_SUMMARY) {
       appendFileSync(env.GITHUB_STEP_SUMMARY, `\n${line}\n`);
     }
