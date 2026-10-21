@@ -620,7 +620,7 @@ def _person_name(body, *, empty_ok=False):
 # ZWJ, ZWNJ and variation selectors stay: emoji sequences and some scripts need them. Unassigned (Cn) stays too:
 # the interpreter's Unicode tables trail new emoji, which read as unassigned until they catch up.
 _HIDDEN = re.compile(
-    "(\U0001f3f4[\U000e0020-\U000e007e]+\U000e007f)"
+    "(\U0001f3f4[\U000e0030-\U000e0039\U000e0061-\U000e007a]{3,7}\U000e007f)"  # a subdivision flag: 3 to 7 tag a-z or 0-9
     "|[\x00-\x08\x0b-\x1f\x7f-\x9f؜​‎‏‪-‮⁠-⁤⁦-⁯﻿￹-￻"
     "\ud800-\udfff-\U000e0000-\U000e007f\U000f0000-\U0010ffff]"
 )
