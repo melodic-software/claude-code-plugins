@@ -3,8 +3,8 @@
 // below sends the contract route's body. The map: plugins/planning/shared/snapshot-map.md.
 (() => {
   const memory = new Map();
-  const store = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })()
-    || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
+  const local = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })();
+  const store = local || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
   const get = k => { try { return store.getItem(k); } catch { return memory.get(k) ?? null; } };
   const put = (k, v) => { try { store.setItem(k, v); } catch { memory.set(k, v); } };
   const drop = k => { try { store.removeItem(k); } catch { /* storage gone */ } memory.delete(k); };
@@ -301,6 +301,7 @@
     ended: "This session has ended.",
     "bad-guest-key": "This invite link is no longer valid. Ask the host for the new one.",
     "bad-pair-code": "That code is wrong or has expired. Make a new one on your first device.",
+    "no-site-data": "This browser is not keeping site data, so it cannot stay signed in as the host. Allow site data for this page, or open your owner link here.",
     "host-device-only": "Do that on the device where you opened your owner link.",
     "devices-full": "As many other devices as a session takes are signed in. Sign one out first.",
     "owner-only": "Only the host can do that.",
@@ -824,6 +825,8 @@
   function forget() { secret = ""; drop("secret"); drop("pid"); Core.me.cid = ""; }
   /** Trade the host's one-time code for this device's own host credential, then reload as the host. */
   async function redeemPair(code) {
+    // A browser that keeps no site data would lose the credential on the reload below, after the code was spent.
+    if (!local) throw { error: "no-site-data" };
     const r = await fetch("/api/owner/pair/redeem", json({ code, device: deviceKind(), browser: browserKind() }));
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw { status: r.status, ...j };

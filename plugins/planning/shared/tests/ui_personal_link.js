@@ -109,6 +109,27 @@ async function main() {
       && !localStorage.getItem("ownerDevice"), null, 10000));
     ok("  and the other device stays the host", await until(laptop, () => window.Core.snapshot()?.me?.role === "owner") && await until(host, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 1));
 
+    // ---------- a browser that keeps no site data, and a device holding a signed-out credential (review findings) ----------
+    const C = await s.start("pair-edges");
+    const hostC = await rec.open(C.ownerUrl);
+    await until(hostC, () => window.Core.snapshot()?.me?.role === "owner", null, 10000);
+    await hostC.click(".vf-person-me");
+    await until(hostC, () => !!document.querySelector('.vf-pcard [data-k="pair"]'));
+    await hostC.click('.vf-pcard [data-k="pair"]');
+    const codeC = () => until(hostC, () => /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(document.querySelector(".vf-pair-code")?.textContent || ""))
+      .then(() => hostC.evaluate(() => document.querySelector(".vf-pair-code").textContent.replace("-", "")));
+    const code3 = await codeC();
+    // every storage write throws, as in a browser that blocks site data: core.js falls back to a map in the page
+    const BLOCKED = { fn: () => { Storage.prototype.setItem = () => { throw new DOMException("blocked", "QuotaExceededError"); }; } };
+    const noStore = await rec.open(`${C.localUrl}#join=${C.guestKey}&pair=${code3}`, { init: BLOCKED });
+    ok("a browser that keeps no site data is told it cannot stay signed in as the host", await until(noStore, () => /site data/.test(document.querySelector("dialog.core-name[open]")?.textContent || ""), null, 10000),
+      await noStore.evaluate(() => document.querySelector("dialog.core-name[open]")?.textContent || "(no dialog)"));
+    await noStore.waitForTimeout(1100); // one try a second from one address
+    const kept = await rec.open(`${C.localUrl}#join=${C.guestKey}&pair=${code3}`);
+    ok("  and its code is not spent: a browser that keeps data signs in with it", await until(kept, () => window.Core.snapshot()?.me?.role === "owner", null, 10000));
+    ok("  and the host's list shows only that one device", await until(hostC, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 1));
+
+
     // ---------- names hidden: two guests share a name, and only the moderator's people list tells them apart ----------
     const B = await s.start("shared-name");
     s.apply(B.dir, [{ op: "set-title", title: "Names" }, { op: "open-round", questions: [q("Q1", "Where should we go?")] }]);
