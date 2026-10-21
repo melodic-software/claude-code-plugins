@@ -108,6 +108,10 @@ for header in "$(b64url '{"alg":"RS256","typ":"JWT"}')" "$(b64url '{"kid":"k?~>"
     RC=$?
     assert_exit "stateless GitHub App token ${tok:0:20}... → exit 2" 2 "$RC"
     assert_contains "stateless GitHub App token ${tok:0:20}... → message" "$OUT" "GitHub App Token"
+    # A token right after an escaped newline in written JSON text has a word character on its left.
+    OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "{\"log\": \"line\\n$tok\"}")" 2>&1)
+    RC=$?
+    assert_exit "GitHub App token ${tok:0:20}... after a literal \\n → exit 2" 2 "$RC"
   done
 done
 

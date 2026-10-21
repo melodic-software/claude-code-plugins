@@ -675,7 +675,7 @@ done
 b64url() { printf '%s' "$1" | base64 | tr -d '\n=' | tr '+/' '-_'; }
 jwt_tail=".$(b64url '{"sub":"FAKE-not-a-real-token","iat":0}').$(b64url "$(printf 'FAKE signature, not a real token?>%.0s' {1..10})")"
 for header in "$(b64url '{"alg":"RS256","typ":"JWT"}')" "$(b64url '{"kid":"k?~>","alg":"RS256","typ":"JWT"}')"; do
-  for tok in "${ghs_prefix}$header$jwt_tail" "${ghs_prefix}123456_$header$jwt_tail"; do
+  for tok in "${ghs_prefix}$header$jwt_tail" "${ghs_prefix}123456_$header$jwt_tail" "line\\n${ghs_prefix}123456_$header$jwt_tail"; do
     printf '%s\n' "$CLEAN_SETTINGS" | jq --arg t "$tok" '. + {env:{GH:$t}}' >"$m/project/.claude/settings.json"
     out=$(run "$m" --json --docs-dir "$m/docs" 2>&1) || true
     assert_eq "case 11: stateless ${tok:0:20}... is a secret-shaped error" "error" "$(jq -r '.findings[] | select(.identity.claim=="secret-shaped-value") | .severity' <<<"$out")"

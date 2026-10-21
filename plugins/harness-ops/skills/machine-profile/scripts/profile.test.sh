@@ -225,6 +225,7 @@ jwt_tail=".$(b64url '{"sub":"FAKE-not-a-real-token","iat":0}').$(b64url "$(print
 for header in "$(b64url '{"alg":"RS256","typ":"JWT"}')" "$(b64url '{"kid":"k?~>","alg":"RS256","typ":"JWT"}')"; do
   for prefix in "ghs""_" "ghs""_123456_"; do
     refuse "a stateless GitHub App token (${prefix}${header:0:16}...) is refused" '{"key":"k","value":"'"$prefix$header$jwt_tail"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+    refuse "the token after a literal \\n (${prefix}${header:0:16}...) is refused" '{"key":"k","value":"line\\n'"$prefix$header$jwt_tail"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
   done
 done
 for placeholder in ghs_job ghs_lane 3e7fef0587433cfb07332dbeabf0d79fc0baadf3 highs_and_lows_of_the_market_over_the_year laughs_out_loud_at_the_whole_long_meeting_today; do
