@@ -687,6 +687,22 @@ test("every reason the push writes for the ci-context row is one the write runne
   assert.deepEqual([...reasons].sort(), [...accepted].sort());
 });
 
+// The same for fix-docs, whose patch takes the default row: a patch that
+// applies but changes nothing escalates patch-empty, and every reason the
+// push writes is in the write runner's case list.
+test("every reason the push writes for the default row is one the write runner's script step accepts, an empty diff patch-empty", () => {
+  const source = readFileSync(join(REPO_ROOT, ".github/scripts/apply-patch/apply-patch.mjs"), "utf8");
+  const pushBody = source.slice(source.indexOf("export async function push("), source.indexOf("\nexport", source.indexOf("export async function push(") + 1));
+  const kinds = new Set([...pushBody.matchAll(/escalate\("([a-z-]+)"/g)].map((match) => match[1]));
+  for (const name of row("default").refuse) kinds.add(REFUSALS[name].kind);
+  assert.ok(kinds.has("empty"), [...kinds].join(" "));
+  assert.equal(pushReason(row("default"), "empty"), "patch-empty");
+  const write = readFileSync(join(REPO_ROOT, ".github/workflows/pr-run-activity-write.yml"), "utf8");
+  const line = write.split("\n").find((text) => text.includes(":ci-fix-invalid |"));
+  const accepted = new Set([...line.matchAll(/:(patch-[a-z-]+)/g)].map((match) => match[1]));
+  for (const kind of kinds) assert.ok(accepted.has(pushReason(row("default"), kind)), `${kind}: ${pushReason(row("default"), kind)}`);
+});
+
 test("an empty patch-state whose report escalated a check names ci-fix-escalated", (t) => {
   const reportDir = scratch(t);
   writeFileSync(join(reportDir, "reply.txt"), "lint-shell: escalated not-reproducible needs a secret\n");
