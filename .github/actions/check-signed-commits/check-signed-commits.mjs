@@ -103,8 +103,11 @@ function laneCommits(comparison, prCommits, prListComplete) {
 
 function escalationComment({ unverified, sinceIsAncestor, checkable, countKnown, headConfirmed }) {
   const lines = [
-    "Lane commit check: these commits are not GitHub-verified, so no lane continues on this " +
-      "pull request until a human reviews them.",
+    unverified.length > 0
+      ? "Lane commit check: these commits are not GitHub-verified, so no lane continues on this " +
+        "pull request until a human reviews them."
+      : "Lane commit check: the lane's commits could not be verified, so no lane continues on " +
+        "this pull request until a human reviews them.",
   ];
   if (!headConfirmed) {
     lines.push(
@@ -206,14 +209,22 @@ export async function main({ env = process.env, github, log = console.log, sleep
       },
       env.GITHUB_OUTPUT,
     );
-    if (!result.sinceIsAncestor) {
+    if (result.headConfirmed && !result.sinceIsAncestor) {
       log("check-signed-commits: no comparison from the recorded head; checked the PR's commits");
     }
-    log(
-      result.allVerified
-        ? "check-signed-commits: every new commit is verified"
-        : `::warning::check-signed-commits: unverified commits ${result.unverified.join(" ")}`,
-    );
+    if (result.allVerified) {
+      log("check-signed-commits: every new commit is verified");
+    } else if (result.unverified.length > 0) {
+      log(`::warning::check-signed-commits: unverified commits ${result.unverified.join(" ")}`);
+    } else {
+      log(
+        `::warning::check-signed-commits: could not verify the lane's commits (${
+          result.headConfirmed
+            ? "the PR's commits could not all be listed"
+            : "the PR's head never matched its branch"
+        })`,
+      );
+    }
     if (!result.allVerified) {
       try {
         await escalate({ ...target, label: env.ESCALATION_LABEL || "needs-human", result });

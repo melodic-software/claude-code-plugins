@@ -984,7 +984,7 @@
 
     // ---------- center ----------
     const center = E("section", "vf-center");
-    // Session-wide notice: ended, removed, or (owner) a new guest link to share.
+    // Session-wide notice: moved, ended, removed, or (owner) a new guest link to share.
     const banner = E("div", "vf-banner"); banner.setAttribute("role", "status"); banner.hidden = true;
     const bannerTxt = E("span", "vf-banner-txt"), bannerAct = btn("vf-btn vf-btn-ghost vf-btn-sm");
     banner.append(icon("alert"), bannerTxt, bannerAct);
@@ -1700,8 +1700,10 @@
     const nativeShare = btn("vf-btn vf-btn-ghost", "Share…");
     shareRow.append(nativeShare, copyBtn);
     const shareNew = E("p", "vf-share-new"); shareNew.hidden = true;
-    sharePop.append(E("h2", "vf-pop-title", "Invite people"), shareNew, shareField, shareRow,
-      E("p", "vf-pop-note", "Anyone with this link can join. The link changes if the tunnel restarts."));
+    // A named tunnel keeps its address across restarts; a quick tunnel gets a new one (share.tunnel, owners and leaders).
+    const linkKeeps = () => Core.state.shareTunnel === "named";
+    const linkNote = E("p", "vf-pop-note");
+    sharePop.append(E("h2", "vf-pop-title", "Invite people"), shareNew, shareField, shareRow, linkNote);
 
     const keysPop = E("div", "vf-pop vf-keys"); keysPop.setAttribute("role", "dialog"); keysPop.setAttribute("aria-label", "Help"); keysPop.hidden = true;
     keysPop.tabIndex = -1;
@@ -2043,7 +2045,7 @@
         at: () => fab },
       { h: "Your Inbox", t: "Claude's answers to your requests, mentions and replies wait here, with what needs you first.", who: "guest",
         at: () => bellBtn },
-      { h: "Share the link", t: "Invite people with the guest link. It changes if the tunnel restarts.", who: "host",
+      { h: "Share the link", get t() { return `Invite people with the guest link. ${linkKeeps() ? "It stays the same when the tunnel restarts." : "It can change after the tunnel restarts."}`; }, who: "host",
         at: () => shareBtn },
       { h: "Needs you", t: "The Inbox lists what waits on you: requests to Claude to Run, and joins, files and merges to Approve.", who: "host",
         at: () => bellBtn },
@@ -2152,10 +2154,14 @@
     const apcKey = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-key", "Copy watcher key");
     const apcRevoke = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-revoke", "Revoke watcher key");
     apcLinks.append(apcCode, apcDesk, apcCopyW, apcKey, apcRevoke);
+    const apcAuth = E("a", "vf-apc-auth", "how to set it up");
+    apcAuth.href = "https://code.claude.com/docs/en/authentication"; apcAuth.target = "_blank"; apcAuth.rel = "noopener noreferrer";
+    const apcApiKey = E("p", "vf-meta", "No Claude subscription? Claude Code also runs on your own API key: ");
+    apcApiKey.append(apcAuth, ".");
     apConnect.append(apcHead,
       E("p", "vf-pop-note", "Your own Claude, on your own plan, runs these requests; the host's Claude never sees them. The host reviews each answer before anyone else sees it, marked as from your Claude."),
       E("p", "vf-pop-note", "Let Claude Code answer them as they come: open it with the prompt filled in, read it, and press Enter. It asks for your watcher key."),
-      apcLinks,
+      apcLinks, apcApiKey,
       E("p", "vf-meta", "A watcher key only reads and answers your own requests. Copying one replaces the last; revoke it when you are done. Or run one request at a time: copy its prompt below and paste the answer back."));
     const apScroll = E("div", "vf-pscroll vf-apscroll");
     const apReqHead = E("h3", "vf-pop-sub", "Your requests");
@@ -2670,7 +2676,8 @@
       grow(apTa);
       if (text) apTa.setSelectionRange(apTa.value.length, apTa.value.length);
     }
-    askTop.onclick = () => (ui.pop === askPanel ? closePop() : openAskPanel());
+    // The top Ask Claude asks about the whole session; a question's own Ask form asks about that question.
+    askTop.onclick = () => (ui.pop === askPanel ? closePop() : openAskPanel(null, Core.GENERAL));
     apForm.onsubmit = e => {
       e.preventDefault();
       const text = apTa.value.trim(); if (!text) return apTa.focus();
@@ -2978,6 +2985,9 @@
     const qLabel = qid => { const q = qById(qid); return q ? `${q.id} · ${q.text}` : qid || ""; };
     /** A request about the whole session has no question: it shows under this label, and opens in Ask Claude or chat. */
     const GEN_LABEL = "General", GEN_Q = { id: GEN_LABEL, text: "about the whole session" };
+    const clipWords = (t, n) => (t.length > n ? t.slice(0, n).replace(/\s+\S*$/, "") + "…" : t);
+    /** A picker's option: a question's id and the start of its text, or with no question About the whole session. */
+    const placeOpt = q => { const o = E("option", null, q ? `${q.id}: ${clipWords(q.text, 70)}` : "About the whole session"); o.value = q ? q.id : Core.GENERAL; return o; };
     const ixWhere = i => (i.qid ? `on ${i.qid}` : "about the session");
     /** Where everyone reads a shared general answer: chat, or with chat off only Ask Claude's General list. */
     const genWhere = () => (Core.state.settings?.chat ? "in chat" : "in Ask Claude, About the whole session");
@@ -3319,7 +3329,7 @@
         k.who.replaceChildren(...(x.byCid ? whoLine(x.byCid, x.by, x.ts) : [E("span", "vf-card-time", since(x.ts))]));
         k.status.hidden = true; k.fresh.hidden = true; k.tarea.hidden = true;
         k.text.hidden = !x.ask; if (x.ask) fillClamp(k.text, "rx:" + x.id, x.ask, `What ${disp(x.by || "someone")} asked`, q ? `${q.id}: ${q.text}` : "");
-        for (const b of [k.edit, k.save, k.cancel, k.decline, k.run, k.failB, k.rerun]) b.hidden = true;
+        for (const b of [k.edit, k.save, k.cancel, k.decline, k.run, k.failB, k.rerun, k.move]) b.hidden = true;
       }
       k.stat.textContent = row.st === "private" ? (x.takenDown ? "Taken down" : "Just me") : REV_WORD[row.st]; k.stat.dataset.stat = row.st;
       if (row.st !== "private" && (row.r?.justMe || x?.justMe)) k.stat.textContent += ", just me";
@@ -3364,7 +3374,7 @@
     };
     // What each menu entry does; `from` is the menu's own button (More's tab, or Help), where focus goes back.
     const MENU_RUN = {
-      ask: () => { closePop(); openAskPanel(); },
+      ask: () => { closePop(); openAskPanel(null, Core.GENERAL); },
       bell: from => { closePop(); openBell(from); },
       theme: cycleTheme,
       follow: () => setFollow(!following()),
@@ -5031,7 +5041,22 @@
       decline.onclick = guarded(() => declineAsk(getR()), () => Core.requestAct(getR().id, "decline").then(() => flash("Request declined.")).catch(fail));
       failB.onclick = () => Core.requestAct(getR().id, "fail").then(() => flash("Marked failed. The requester sees it.")).catch(fail);
       rerun.onclick = () => Core.requestAct(getR().id, "rerun").then(() => flash("Running again.")).catch(fail);
-      return { run, decline, failB, rerun };
+      // Move to: its asker or the owner puts the request, and any answer, on another question or the whole session.
+      const mv = selWrap("Move to", []), move = mv.w;
+      move.classList.add("vf-req-move");
+      mv.s.onchange = () => {
+        const to = mv.s.value; mv.s.value = ""; if (!to) return;
+        Core.moveRequest(getR().id, to).then(() => flash(to === Core.GENERAL ? "Moved to the whole session." : `Moved to ${to}.`)).catch(fail);
+      };
+      return { run, decline, failB, rerun, move };
+    }
+    /** Move to's choices: every other question and, for a request on a question the host's Claude runs, the whole session. */
+    function fillMove(move, r) {
+      const s = move.querySelector("select"), qs = Core.state.questions.filter(q => q.id !== r.qid);
+      const key = [r.qid, r.runner, ...qs.map(q => q.id + q.text)].join("|"); if (s._k === key) return;
+      s._k = key;
+      const pick = E("option", null, "Choose"); pick.value = "";
+      s.replaceChildren(pick, ...(r.qid && r.runner !== "self" ? [placeOpt(null)] : []), ...qs.map(placeOpt));
     }
     /** Share with everyone (or Send to its asker), Discard and Take down for the result `getX()` returns, on the question
      *  `getQ()` (GEN_Q for the whole session); `before` runs first (marking the Inbox row read). Paint with paintResActs. */
@@ -5060,12 +5085,16 @@
       k.publish.hidden = !((owner && draft) || canShare);
       k.takeDown.hidden = !(owner && !draft);
     }
+    // as session.py _move_request: an asker moves a host-run request only until the host takes it up
+    const canMove = r => Core.me.isOwner || (isMe(r.cid) && (r.runner === "self" || r.status === "pending"));
     function paintReqActs(k, r) {
       const owner = Core.me.isOwner;
       k.run.hidden = k.decline.hidden = !(owner && r.status === "pending");
       k.failB.hidden = !(owner && r.status === "running");
       k.rerun.hidden = !(owner && (r.status === "running" || r.status === "failed"));
-      return k.run.hidden && k.failB.hidden && k.rerun.hidden;
+      k.move.hidden = !canMove(r) || r.status === "running" || (!!Core.state.ended && !owner) || !!Core.state.youRemoved;
+      if (!k.move.hidden) fillMove(k.move, r);
+      return k.run.hidden && k.failB.hidden && k.rerun.hidden && k.move.hidden;
     }
     async function runAllShown() {
       const items = [...revList.children].filter(li => li._r?.status === "pending" && ui.reqSeen.has(li._r.id));
@@ -5096,13 +5125,13 @@
       const edit = btn("vf-btn vf-btn-ghost vf-btn-sm", "Edit");
       const save = btn("vf-btn vf-btn-ghost vf-btn-sm", "Save");
       const cancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
-      const { decline, run, failB, rerun } = reqActs(() => li._r, () => saveOpenEdit(li));
-      acts.append(edit, save, cancel, decline, run, failB, rerun);
+      const { decline, run, failB, rerun, move } = reqActs(() => li._r, () => saveOpenEdit(li));
+      acts.append(move, edit, save, cancel, decline, run, failB, rerun);
       const tK = composer(tarea, { send: () => save.click(), escape: () => cancel.click(), mentions: true, verb: "save" });
       acts.prepend(tK.count, tK.hint);
       li.append(head, who, text, tarea, fresh, acts);
       li._att = attRowEl(); text.after(li._att);
-      Object.assign(li, { _ta: tarea, _k: { kind, qref, who, status, text, tarea, tK, fresh, edit, save, cancel, decline, run, failB, rerun, acts } });
+      Object.assign(li, { _ta: tarea, _k: { kind, qref, who, status, text, tarea, tK, fresh, edit, save, cancel, decline, run, failB, rerun, move, acts } });
       qref.onclick = () => { if (!li._r.qid) return openGeneral("r:" + li._r.id); focusQuestion(li._r.qid); closePop(); };
       include.onclick = () => { ui.reqSeen.add(li._r.id); render(); };
       edit.onclick = () => { ui.reqEditing.add(li._r.id); tarea.value = li._r.text; render(); grow(tarea); tarea.focus(); };
@@ -5128,6 +5157,7 @@
       k.fresh.hidden = !fresh;
       k.edit.hidden = editing || running; k.save.hidden = k.cancel.hidden = !editing;
       paintReqActs(k, r);
+      if (editing) k.move.hidden = true; // the row is its text box, Save and Cancel until the edit ends
     }
 
     // ---------- answer card ----------
@@ -5549,19 +5579,23 @@
       const useRow = E("div", "vf-acts vf-res-use"), use = lbtn("vf-btn vf-btn-ghost vf-btn-sm", "reply", "Use as my answer");
       useRow.append(use);
       use.onclick = () => useClaude(li._x, li._q);
+      // Reply: a new ask, where this answer is, that quotes it.
+      const reply = btn("vf-btn vf-btn-ghost vf-btn-sm vf-res-reply", "Reply"), ansActs = E("div", "vf-acts vf-res-acts");
+      ansActs.append(useRow, reply);
+      reply.onclick = () => openAskPanel("ask", li._q === GEN_Q ? Core.GENERAL : li._q.id, `About Claude's answer: "${clipWords(li._x.summary, 300)}"\n\n`);
       // Who sees it, and what this viewer can do: the owner shares, discards or takes down any answer; its asker shares
       // their own Just me answer.
       const share = E("div", "vf-acts vf-res-share");
       const shareNote = E("span", "vf-meta", "Only you see this until you share it.");
       const { discard, publish, takeDown } = resActs(() => li._x, () => li._q);
       share.append(shareNote, E("span", "vf-spacer"), discard, publish, takeDown);
-      ans.append(ansLbl, sum, srcs, full, citedBy, useRow);
+      ans.append(ansLbl, sum, srcs, full, citedBy, ansActs);
       bodyR.append(share, ask, ans);
       ask.after(fromDisc);
       li.append(head, bodyR);
       head.onclick = () => { const id = li._x.id; ui.resClosed.has(id) ? ui.resClosed.delete(id) : ui.resClosed.add(id); render(); };
       full.onclick = () => openReader(`${KIND_LABEL[li._x.kind] || "Research"} report`, `${li._x.skill ? li._x.skill + ", " : ""}${li._q.id}: ${li._q.text}`, li._x.report, full);
-      li._k = { head, ttl, via, isNew, tm, bodyR, ask, sum, srcs, full, citedBy, share, shareNote, discard, publish, takeDown, fromDisc, useRow };
+      li._k = { head, ttl, via, isNew, tm, bodyR, ask, sum, srcs, full, citedBy, share, shareNote, discard, publish, takeDown, fromDisc, useRow, reply, ansActs };
       return li;
     }
     function fillRes(li, x, q) {
@@ -5638,6 +5672,8 @@
       }
       k.citedBy.hidden = !by.length;
       k.useRow.hidden = !canUseClaude(x, q);
+      k.reply.hidden = askTop.hidden;
+      k.ansActs.hidden = k.useRow.hidden && k.reply.hidden;
     }
     function makeThReq() {
       const li = E("li", "vf-threq");
@@ -5652,15 +5688,15 @@
       prog.append(E("span", "vf-runbar"), progTxt);
       ans.append(ansLbl, prog);
       const acts = E("div", "vf-acts");
-      const { decline, run, failB, rerun } = reqActs(() => li._r);
-      acts.append(decline, run, failB, rerun);
+      const { decline, run, failB, rerun, move } = reqActs(() => li._r);
+      acts.append(move, decline, run, failB, rerun);
       li._self = makeSelfActs();
       who.classList.add("vf-qa-lbl");
       const fromDisc = btn("vf-lbtn vf-fromdisc", "from Discussion");
       const askPart = E("div", "vf-qa-ask"); askPart.append(who, text, fromDisc);
       li.append(head, askPart, ans, acts, li._self);
       li._att = attRowEl(); text.after(li._att);
-      li._k = { kind, who, status, text, ans, prog, progTxt, acts, run, decline, failB, rerun, fromDisc };
+      li._k = { kind, who, status, text, ans, prog, progTxt, acts, run, decline, failB, rerun, move, fromDisc };
       return li;
     }
     function fillThReq(li, r, q) {
@@ -6416,8 +6452,7 @@
       const qk = qs.map(q => q.id + q.text).join("|");
       if (apQWrap.s._k !== qk) {
         apQWrap.s._k = qk;
-        const gen = E("option", null, "About the whole session"); gen.value = Core.GENERAL; // pinned first: no question needed
-        apQWrap.s.replaceChildren(gen, ...qs.map(q => { const o = E("option", null, `${q.id}: ${q.text.length > 70 ? q.text.slice(0, 70).replace(/\s+\S*$/, "") + "…" : q.text}`); o.value = q.id; return o; }));
+        apQWrap.s.replaceChildren(placeOpt(null), ...qs.map(placeOpt)); // the whole session pinned first: no question needed
       }
       if (apQWrap.s.value !== want && document.activeElement !== apQWrap.s) apQWrap.s.value = want;
       const general = askGeneral();
@@ -6448,7 +6483,7 @@
         const qref = btn("vf-qref vf-qref-wrap");
         const text = clampBox();
         li._self = makeSelfActs();
-        const ra = reqActs(() => li._r), acts = E("div", "vf-acts"); acts.append(ra.decline, ra.run, ra.failB, ra.rerun);
+        const ra = reqActs(() => li._r), acts = E("div", "vf-acts"); acts.append(ra.move, ra.decline, ra.run, ra.failB, ra.rerun);
         li.append(head, qref, text, acts, li._self);
         li._att = attRowEl(); text.after(li._att);
         qref.onclick = () => { const r = li._r; if (!r.qid) return openGeneral("r:" + r.id); closePop(); ui.clOpen.set(r.qid, true); focusQuestion(r.qid); };
@@ -6864,6 +6899,7 @@
       ownerTheme._paint();
       const url = Core.guestLink();
       if (shareField.value !== url) shareField.value = url;
+      linkNote.textContent = `Anyone with this link can join. ${linkKeeps() ? "The link stays the same when the tunnel restarts." : "The link can change after the tunnel restarts."}`;
       nativeShare.hidden = !(navigator.share && phone.matches);
       // A new tunnel address since the last start: the old guest link is dead until shared again.
       const reshare = mod && !!S.shareChanged && store.get("vf-share-ack", "") !== url;
@@ -6882,12 +6918,14 @@
         return li;
       }, (li, p) => { li._p = p; li.firstChild.textContent = disp(nameOf(p)); paintPersonActs(li._k, p, "removed"); });
 
-      // session banner: removed, ended, a link to share again, or (follow-up 45) a social app's browser, which never
-      // blocks the page (a waiting person's card says it all: no banner)
+      // session banner: moved, removed, ended, a link to share again, or (follow-up 45) a social app's browser, which
+      // never blocks the page (a waiting person's card says it all: no banner)
       const inApp = Core.inApp();
       root.toggleAttribute("data-waiting", !!S.youWaiting);
       if (S.youWaiting && (ui.mode !== "focus" || (phone.matches && ui.tab !== "answer"))) { if (phone.matches) setTab("answer"); else setMode("focus"); return; }
-      const bn = S.youMerged ? ["This browser was merged into the owner. Open your owner link here.", null]
+      const bn = Core.movedTo ? ["This session moved to a new address. Send or copy what you are writing first: unsent text does not move with you, and this address stops working in about 10 minutes.",
+        ["Go to the new address", () => Core.moveNow()]]
+        : S.youMerged ? ["This browser was merged into the owner. Open your owner link here.", null]
         : S.youWaiting ? null
         : S.youRemoved ? ["The host removed you from this session. You can still read it.", null]
         : S.ended ? [me.isOwner ? "You ended this session. Guests see it read-only, with the final tree." : "This session has ended. Here is what it decided.",
@@ -7581,6 +7619,9 @@
     };
     on(window, "pagehide", saveUnsent);
     Core.onReload(() => { saveUnsent(); markSeen(ui.cur); sendPrefsNow(); });
+    // A move to the session's new address (core.js moveTo) waits while any of that text is unsent: the banner offers it.
+    Core.keepUnsent(() => !!unsent || (!!ui.cur && !!ta.value && ta.value !== Core.myAnswer(ui.cur))
+      || Object.entries(ui.drafts).some(([q, t]) => q !== ui.cur && t && t !== Core.myAnswer(q)) || Object.values(kitStore()).some(Boolean));
     kitBooted = true;
     kitSwap();
     Core.subscribe(() => render());

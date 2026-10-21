@@ -240,6 +240,112 @@ class TestHostAndOrigin(ServerCase):
         self.assertEqual(code, 403)
 
 
+class TestTunnelSwitch(ServerCase):
+    """A switch to a named tunnel (or any new address) while the old tunnel still runs: a guest keeps their identity on
+    the new host, and the old host answers only with where the session went, until its grace time is up."""
+
+    NAMED = "interview.example.com"
+
+    def setUp(self):
+        super().setUp()
+        # The probe goes to this server's guest port with the new hostname as Host, as Cloudflare's edge would send it.
+        probe = {"SHARED_PROBE_ORIGIN": f"http://127.0.0.1:{self.port}", "SHARED_PROBE_SECONDS": "2"}
+        patcher = mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": FAKE, "SHARED_TUNNEL_SECONDS": "10", **probe})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(tunnel.stop, self.d)
+        self.token = tmpdir(self) / "tunnel.token"
+        self.token.write_text("fake-tunnel-token-for-tests", encoding="utf-8")
+        os.chmod(self.token, 0o600)
+        self.pid, self.guest = self.join("Ann")
+        self.quick = tunnel.host(tunnel.ensure(self.d, self.port)["url"])
+        self.app.sync_tunnel(restart=False)
+
+    def state(self, host, headers=None):
+        return self.get("/api/state", {"Host": host, "Origin": f"https://{host}", **(headers or {})})
+
+    def switch(self):
+        tunnel.ensure(self.d, self.port, self.NAMED, str(self.token), verify=self.app.probe_tunnel)
+        self.app.sync_tunnel(restart=False)
+
+    def test_a_hostname_that_reaches_another_server_is_not_switched_to(self):
+        """A typo'd or foreign hostname: whatever answers there cannot give this server's probe answer, so no page is
+        ever sent there with its secret."""
+        other = server.App(tmpdir(self), watch_tunnel=False)
+        other.serve()
+        self.addCleanup(other.shutdown)
+        with mock.patch.dict(os.environ, {"SHARED_PROBE_ORIGIN": f"http://127.0.0.1:{other.guest_port}"}):
+            with self.assertRaisesRegex(tunnel.TunnelDown, "does not reach this server"):
+                tunnel.ensure(self.d, self.port, self.NAMED, str(self.token), verify=self.app.probe_tunnel)
+        self.app.sync_tunnel(restart=False)
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out["me"]["pid"]), (200, self.pid))
+        self.assertNotIn("moved", out)
+        self.assertIsNone(tunnel.retired(self.d))
+
+    def test_a_probe_nonce_is_answered_once_and_only_when_pending(self):
+        nonce = "ab" * 16
+        code, _, _ = self.get(f"/api/tunnel-probe/{nonce}", {"Host": "anything.example"})
+        self.assertEqual(code, 404)
+        self.app._probes[nonce] = ("cd" * 16, time.monotonic() + 30)
+        code, _, out = self.get(f"/api/tunnel-probe/{nonce}", {"Host": self.NAMED})
+        self.assertEqual((code, out), (200, {"probe": "cd" * 16}))
+        self.assertEqual(self.get(f"/api/tunnel-probe/{nonce}", {"Host": self.NAMED})[0], 404)
+
+    def test_only_an_https_address_is_probed(self):
+        self.assertIn("not an https address", self.app.probe_tunnel(f"http://{self.NAMED}"))
+
+    def test_a_guest_secret_from_the_old_host_is_the_same_person_on_the_new_one(self):
+        code, _, before = self.state(self.quick, self.guest)
+        self.assertEqual((code, before["me"]["pid"]), (200, self.pid))
+        self.switch()
+        code, _, after = self.state(self.NAMED, self.guest)
+        self.assertEqual((code, after["me"]["pid"], after["me"]["name"]), (200, self.pid, "Ann"))
+
+    def test_the_old_host_answers_only_where_the_session_went(self):
+        self.switch()
+        for headers in (self.guest, {}):
+            with self.subTest(identified=bool(headers)):
+                code, _, out = self.state(self.quick, headers)
+                self.assertEqual((code, out), (200, {"moved": f"https://{self.NAMED}"}))
+
+    def test_the_old_host_is_refused_once_its_grace_time_is_up(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        rec["retired"]["until"] = 0
+        detached.write_private(self.d / tunnel.RECORD, json.dumps(rec))
+        self.app.sync_tunnel(restart=False)
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out["error"]), (403, "bad-host"))
+
+    def test_a_named_tunnel_that_exits_comes_back_at_its_address_with_no_share_again(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        share_before = dict(self.app.session.state["session"]["share"])
+        detached.stop(rec["pid"], rec["marker"], rec["processStart"])
+        self.app.watch_tunnel = True
+        self.app.sync_tunnel()
+        now = tunnel.alive(self.d)
+        self.assertNotEqual(now["pid"], rec["pid"])
+        self.assertEqual((now["url"], self.app.public_url), (f"https://{self.NAMED}",) * 2)
+        self.assertEqual(self.app.session.state["session"]["share"], share_before)
+
+    def test_a_named_tunnel_restarted_in_the_grace_time_keeps_the_old_host_answering(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        detached.stop(rec["pid"], rec["marker"], rec["processStart"])
+        self.app.watch_tunnel = True
+        self.app.sync_tunnel()
+        self.assertNotEqual(tunnel.alive(self.d)["pid"], rec["pid"])
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out), (200, {"moved": f"https://{self.NAMED}"}))
+
+    def test_status_names_the_named_tunnel(self):
+        self.switch()
+        code, _, out = call(self.app.control_port, "GET", "/api/status", headers={"X-Shared-Token": self.app.hub.token})
+        self.assertEqual((code, out["tunnel"], out["publicUrl"]), (200, "named", f"https://{self.NAMED}"))
+
+
 class TestHeadersAndCaps(ServerCase):
     def test_every_json_answer_carries_the_security_headers(self):
         for path in ("/api/state", "/api/nope"):
@@ -2735,6 +2841,146 @@ class TestSharingDefault(ServerCase):
         self.go(later)
         self.answer(later, "Shared at once.")
         self.assertEqual((self.sees(self.bo, "Still held."), self.sees(self.bo, "Shared at once.")), (False, True))
+
+
+class TestMoveRequest(ServerCase):
+    """Owner decision R27: Move to puts a request and its result on another question or the whole session; only its
+    asker or the owner moves it."""
+
+    ask, go, answer, state, sees, status = (TestSharingDefault.ask, TestSharingDefault.go, TestSharingDefault.answer, TestSharingDefault.state,
+                                          TestSharingDefault.sees, TestSharingDefault.status)
+
+    def setUp(self):
+        super().setUp()
+        self.open_round("Q1", "Q2")
+        self.ann_pid, self.ann = self.join("Ann")
+        self.bo_pid, self.bo = self.join("Bo")
+
+    def move(self, rid, who, **to):
+        return self.post("/api/request/act", {"action": "move", "id": rid, **to}, who)
+
+    def where(self, rid):
+        return next(r.get("qid") for r in self.app.session.state["requests"] if r["id"] == rid)
+
+    def own_answer(self, who, summary):
+        """`who` asks their own Claude on Q1 and it answers: the request's id and its result's."""
+        rid = self.ask(who, runner="self")
+        self.assertEqual(self.post("/api/mine/requests/claim", {"id": rid}, who)[0], 200)
+        body = {"id": rid, "summary": summary, "sources": [], "report": "", "used": [], "why": ""}
+        code, _, out = self.post("/api/mine/requests/result", body, who)
+        self.assertEqual(code, 200, out)
+        return rid, out["id"]
+
+    def test_the_asker_moves_a_request_and_its_answer_follows(self):
+        rid, _ = self.own_answer(self.ann, "Moved along.")
+        code, _, out = self.move(rid, self.ann, qid="Q2")
+        self.assertEqual((code, out), (200, {"ok": True, "id": rid, "qid": "Q2"}))
+        self.assertEqual((self.sees(self.ann, "Moved along.", "Q1"), self.sees(self.ann, "Moved along.", "Q2")), (False, True))
+        self.assertEqual(self.where(rid), "Q2")
+
+    def test_the_asker_cannot_move_a_request_the_host_took_up_but_the_owner_can(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        self.answer(rid, "Answered on Q1.")
+        code, _, out = self.move(rid, self.ann, qid="Q2")
+        self.assertEqual((code, out["error"], out["status"]), (409, "taken-up", "done"))
+        self.assertEqual(self.where(rid), "Q1")
+        self.assertEqual(self.move(rid, self.owner, qid="Q2")[0], 200)
+        self.assertTrue(self.sees(self.bo, "Answered on Q1.", "Q2"))
+
+    def test_a_waiting_request_its_asker_moves_reads_unread_again_for_the_owner(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.post("/api/inbox/read", {"keys": ["run:" + rid]}, self.owner)[2]["read"], 1)
+        self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
+        item = next(i for i in self.state(self.owner)["inbox"] if i["key"] == "run:" + rid)
+        self.assertEqual((item["qid"], item["unread"]), ("Q2", True))
+
+    def test_another_guest_cannot_move_it(self):
+        rid = self.ask(self.ann)
+        code, _, out = self.move(rid, self.bo, qid="Q2")
+        self.assertEqual((code, out["error"]), (404, "no-such-request"))
+        self.assertEqual(self.where(rid), "Q1")
+
+    def test_the_owner_moves_a_guests_request_to_the_whole_session(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        self.answer(rid, "For everyone.")
+        code, _, out = self.move(rid, self.owner, scope="session")
+        self.assertEqual((code, out), (200, {"ok": True, "id": rid, "scope": "session"}))
+        self.assertEqual((self.sees(self.ann, "For everyone.", "Q1"), self.sees(self.ann, "For everyone.", "session")), (False, True))
+        self.assertIsNone(self.where(rid))
+
+    def test_a_waiting_request_moved_is_answered_where_it_went(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.move(rid, self.owner, qid="Q2")[0], 200)
+        self.go(rid)
+        self.answer(rid, "Answered on Q2.", qid="Q2")
+        self.assertTrue(self.sees(self.bo, "Answered on Q2.", "Q2"))
+
+    def test_bad_targets_are_refused(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.move(rid, self.owner, qid="Q9")[2]["error"], "no-such-question")
+        self.assertEqual(self.move(rid, self.owner, scope="elsewhere")[0], 400)
+        self.assertEqual(self.move(rid, self.owner, qid="Q2", scope="session")[0], 400)
+        self.assertEqual(self.move(rid, self.owner, qid="Q1")[2]["error"], "same-place")
+        self.assertEqual(self.where(rid), "Q1")
+
+    def test_a_running_request_and_an_own_claude_one_to_the_session_stay_put(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        self.assertEqual(self.move(rid, self.owner, qid="Q2")[2]["error"], "wrong-status")
+        mine = self.ask(self.bo, runner="self")
+        code, _, out = self.move(mine, self.bo, scope="session")
+        self.assertEqual((code, out["field"]), (400, "scope"))
+
+    def test_a_shared_answer_its_asker_moves_waits_for_the_owners_share_and_the_owners_move_keeps_it_shared(self):
+        rid, xid = self.own_answer(self.ann, "Approved on Q1.")
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
+        self.assertTrue(self.sees(self.bo, "Approved on Q1.", "Q1"))
+        self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
+        self.assertFalse(self.sees(self.bo, "Approved on Q1.", "Q2"))
+        self.assertTrue(self.sees(self.ann, "Approved on Q1.", "Q2"))  # their own Claude's answer, as before it was shared
+        self.assertIn("share:" + xid, [i["key"] for i in self.state(self.owner)["inbox"]])
+        self.assertEqual(self.app.session.summary()["queue"]["results"], 1)
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
+        time.sleep(1.05)
+        self.assertEqual(self.move(rid, self.owner, qid="Q1")[0], 200)
+        self.assertTrue(self.sees(self.bo, "Approved on Q1.", "Q1"))
+        self.assertNotIn("share:" + xid, [i["key"] for i in self.state(self.owner)["inbox"]])
+
+    def test_a_cited_answer_is_refused_a_move_and_stays(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        xid = self.answer(rid, "Cite me.")["id"]
+        code, _, out = self.post("/api/answer", {"qid": "Q1", "text": "As Claude found.", "cites": [xid], "device": "computer", "view": "focus"}, self.bo)
+        self.assertEqual(code, 200, out)
+        code, _, out = self.move(rid, self.owner, qid="Q2")
+        self.assertEqual((code, out["error"]), (409, "cited"))
+        self.assertEqual(self.where(rid), "Q1")
+        self.assertEqual((self.sees(self.bo, "Cite me.", "Q1"), self.sees(self.bo, "Cite me.", "Q2")), (True, False))
+
+    def test_a_shared_answer_the_owner_moves_to_the_whole_session_is_claudes_chat_message(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        xid = self.answer(rid, "Now for the session.")["id"]
+        self.assertEqual(self.move(rid, self.owner, scope="session")[0], 200)
+        said = [m for m in self.app.session.state["chat"] if m.get("claude") == {"result": xid}]
+        self.assertEqual([m["text"] for m in said], ["Now for the session."])
+
+    def test_a_second_move_within_a_second_is_throttled(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
+        self.assertEqual(self.move(rid, self.ann, qid="Q1")[2]["error"], "slow-down")
+
+    def test_every_other_action_stays_the_owners(self):
+        lead_pid, lead = self.join("Lee")
+        self.leader(lead_pid)
+        rid = self.ask(self.ann)
+        for who in (self.ann, lead):
+            for action in ("edit", "decline", "fail", "rerun", "run", "publish", "discard", "takedown"):
+                with self.subTest(action=action):
+                    code, _, out = self.post("/api/request/act", {"action": action, "id": rid, "ids": [rid], "text": "x"}, who)
+                    self.assertEqual((code, out["error"]), (403, "owner-only"))
 
 
 if __name__ == "__main__":

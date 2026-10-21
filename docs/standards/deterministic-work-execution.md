@@ -59,7 +59,7 @@ prove that the inputs were complete, that the operation answered the intended
 question, or that a later judgment is sound. The National Academies report
 defines computational reproducibility around the same inputs, computational
 steps, methods, code, and conditions of analysis
-([*Reproducibility and Replicability in Science*](https://nap.nationalacademies.org/catalog/25303/reproducibility-and-replicability-in-science)).
+([*Reproducibility and Replicability in Science*](https://doi.org/10.17226/25303)).
 The UK Government Analysis Function likewise recommends minimizing manual steps
 while retaining quality assurance and an audit trail
 ([RAP strategy](https://analysisfunction.civilservice.gov.uk/policy-store/reproducible-analytical-pipelines-strategy/)).
@@ -105,4 +105,4 @@ plain:
 - Chen et al., ["Program of Thoughts Prompting: Disentangling Computation from Reasoning for Numerical Reasoning Tasks"](https://openreview.net/forum?id=YfZ4ZPt8zd) (TMLR 2023).
 - Schick et al., ["Toolformer: Language Models Can Teach Themselves to Use Tools"](https://proceedings.neurips.cc/paper_files/paper/2023/hash/d842425e4bf79ba039352da0f658a906-Abstract-Conference.html) (NeurIPS 2023).
 - UK Government Analysis Function, ["Reproducible Analytical Pipelines (RAP) strategy"](https://analysisfunction.civilservice.gov.uk/policy-store/reproducible-analytical-pipelines-strategy/).
-- National Academies of Sciences, Engineering, and Medicine, [*Reproducibility and Replicability in Science*](https://nap.nationalacademies.org/catalog/25303/reproducibility-and-replicability-in-science) (2019).
+- National Academies of Sciences, Engineering, and Medicine, [*Reproducibility and Replicability in Science*](https://doi.org/10.17226/25303) (2019).
