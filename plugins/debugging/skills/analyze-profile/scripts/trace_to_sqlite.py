@@ -41,8 +41,16 @@ from pathlib import Path
 FORMATS = ("chrome-trace", "cpuprofile", "heapsnapshot")
 MAX_INPUT_BYTES = 512 * 1024 * 1024
 REDACTED = "<REDACTED>"
+# GitHub prefixes from
+# https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+# and the ghs_ regex GitHub recommends for current and stateless installation tokens from
+# https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+# (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
+# Alternation takes the first branch that matches, so ghs_ comes before gh[pousr]_:
+# otherwise a JWT whose header is 36 alphanumerics loses only its header.
 SECRET = re.compile(
-    r"gh[pousr]_[A-Za-z0-9]{36}"
+    r"ghs_[A-Za-z0-9._-]{36,}"
+    r"|gh[pousr]_[A-Za-z0-9]{36}"
     r"|github_pat_[A-Za-z0-9_]{22,}"
     r"|(?:AKIA|ASIA)[0-9A-Z]{16}"
     r"|Bearer\s+[A-Za-z0-9._~+/=-]+"

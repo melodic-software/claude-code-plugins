@@ -52,8 +52,17 @@ Re-check all check runs for any state changes, then re-check for new comments si
 
 Default merge mode is squash: one squashed commit per PR onto the default branch. Follow the consuming project's convention when it differs (merge commit / rebase-merge).
 
-Every merge call in 4.2 pins to the `HEAD_SHA` captured in 4.1 step 2, so a push after approval
-fails the merge instead of landing unreviewed. Before any merge call, poll the PR's merge state at
+Merge with the forge's plain merge command, with the PR number and repository written literally
+and the flags the repository needs ([GitHub](../../../reference/providers/github/pull-request/merge.md#merge-command)).
+Pinning it to the `HEAD_SHA` captured in 4.1 step 2 (`--match-head-commit`) is optional for an
+immediate merge and required with `--auto`; an armed auto-merge is always reported. Before pushing
+to a PR with auto-merge armed, disarm it, and re-arm it only after the reviews pass on the new head
+([GitHub](../../../reference/providers/github/pull-request/merge.md#merge-command)). What the pin
+covers, and what it does not after arming:
+[GitHub](../../../reference/providers/github/pull-request/merge.md#merge-command). The repository's rules, required checks and the merge guard hook are the
+gate: a merge the forge or the permission layer refuses is reported with its error text and the
+session moves on to other work, never handed to the user as a command to run and never retried in
+another shape. Before any merge call, poll the PR's merge state at
 the pinned head over REST every 60 seconds while it reads `UNKNOWN`, and merge or enqueue only once it reads `CLEAN`; any
 other state, or a moved head, is a hold to report
 ([GitHub](../../../reference/providers/github/pull-request/merge.md#wait-for-a-known-merge-state)).
@@ -83,8 +92,7 @@ the request and applies the base's rules when the merge runs, so 4.1 still comes
 ### 4.2.1 Merge after AI review
 
 Merge or enqueue without asking only when every condition below holds; otherwise 4.1 step 4 waits
-for the user. Never arm auto-merge (`--auto`): the AI review checks are not required checks, so
-after arming, a push by anyone with write access would merge the new head on `ci-status` alone.
+for the user.
 
 - The repository is in the melodic-software organization and the live ruleset for the base branch
   requires the `ci-status` status check (both asserted in the merge script below).
@@ -110,16 +118,13 @@ melodic-software, the base branch's live rules require `ci-status`, every check 
 head was read (the count matches the reported total) and both AI review lanes, matched by the exact
 names above, completed with success, and the PR reads `CLEAN` at the pinned head (it polls while
 the merge state reads `UNKNOWN`, as in 4.2). Only then does it
-print the pinned head and the guarded merge command, with the PR number, repository and full head
-sha already filled in. Run that printed line as-is, alone, as one Bash command: never retype or
-edit it, chain anything before it, or put a variable, command substitution or loop in it. A failed
-guard is a hold; a merge the permission layer refuses in that shape waits for the user, never a
-retry in another shape.
+print the pinned head and the merge mode. Then run the merge command per 4.2 as its own command; a
+refusal is reported and the session moves on, as in 4.2.
 
 Behind a merge queue (claude-code-plugins) the queue sets the strategy, so pass no strategy flag.
-Never pass `--auto`, `--merge`/`-m` or `--rebase`/`-r`, and never `--admin` except in that
-section's guarded admin form where the user's own instructions authorize an admin merge for the
-repository. Confirm queue entry per
+Pass `--auto` only on a merge-queue or auto-merge base, always pinned to `HEAD_SHA`, and `--admin` only where a code-owner
+review or merge queue blocks an otherwise ready merge and the consumer's policy allows an admin
+merge for the repository. Confirm queue entry per
 [4.2.2](#422-confirm-queue-entry), then poll the PR's state over REST every 60
 seconds, reading queue membership once when that read changes, until it reads `MERGED` or leaves
 the queue unmerged (run the loop in the background or under
@@ -144,7 +149,7 @@ Run the confirm read
 the PR's state, queue membership, merge state, head and auto-merge request, polling while the merge
 state reads `UNKNOWN`. Merged or queued is reported as such. Open, not queued and `CLEAN` at
 `HEAD_SHA`: it prints the PR's node id to enqueue. Any other state, or a moved head, is a hold that
-prints the state. An armed auto-merge is reported, since 4.2.1 never arms it.
+prints the state. An armed auto-merge is reported; 4.2 arms one only pinned to `HEAD_SHA`.
 
 To enqueue, run the enqueue call once as its own command, with the printed node id and `HEAD_SHA`
 written in as literal values rather than a variable or command substitution, pinned to that head,
@@ -155,8 +160,7 @@ A non-zero exit from the read or the enqueue call is a hold: report the printed 
 "A conversation must be resolved" names the blocker), do not retry the enqueue, and 4.3 does not
 run. One exception: when the error says the PR is already queued, the merge call won the race;
 re-run the script once, and a `queued` read is the result. A hold with auto-merge armed also tells
-the user that a later push could merge on `ci-status` alone (4.2.1's reason for never arming it)
-and offers disarming auto-merge as their option; this phase does not disarm it. Never jump the
+the user that a later push could merge on `ci-status` alone and offers disarming auto-merge as their option; this phase does not disarm it. Never jump the
 queue. Only `queued` moves on to the poll in 4.2.1; `merged` moves on to 4.3.
 
 ## 4.3 Worktree transition and next-task setup

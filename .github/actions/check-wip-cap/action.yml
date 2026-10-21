@@ -5,7 +5,9 @@ description: >
   lane's WIP cap from the merge rate and the default branch's pr-pipeline.yaml
   `wip` block; count held pull requests apart; and publish the status. Set
   `capped` to `true` only when the lane pauses (over the WIP cap or the held
-  cap on or after `wip.pause-from`). A read that fails never caps.
+  cap on or after `wip.pause-from`). When a read fails, the last known pause
+  (the newest status a `save-state` run saved to the Actions cache) applies;
+  with none the check fails open.
   Run it from the default branch checkout, before any slot or lane token.
 
 inputs:
@@ -13,6 +15,13 @@ inputs:
     description: The default-branch checkout that holds this action and the config.
     required: false
     default: .base
+  save-state:
+    description: >-
+      `true` saves a status whose reads succeeded as the last known state.
+      Only a trusted trigger can save a default-branch cache, so only
+      work-unblock's hourly schedule sets it; issue-event runs only restore.
+    required: false
+    default: "false"
   github-token:
     description: A token that can search this repository's pull requests.
     required: false
@@ -20,7 +29,7 @@ inputs:
 
 outputs:
   capped:
-    description: "`true` only while the lane pauses (over the WIP cap or the held cap on or after `wip.pause-from`); otherwise `false`, including when a read fails."
+    description: "`true` only while the lane pauses (over the WIP cap or the held cap on or after `wip.pause-from`, or on a failed read whose last known state paused); otherwise `false`."
     value: ${{ steps.check.outputs.capped }}
   wip:
     description: "The status as one flat JSON object: countable_lane_prs, held_lane_prs, held_oldest_age_hours, held_over_alarm_count, wip_cap, wip_cap_source and the rest (pr-pipeline README, WIP cap)."
@@ -35,6 +44,17 @@ runs:
         node-version-file: ${{ inputs.base-path }}/.node-version
         package-manager-cache: false
 
+    # The last known state: the newest status a run saved; none on the first
+    # run. A cache restore spends no REST quota, so it holds when the
+    # searches fail on an exhausted rate limit.
+    - name: Restore the last known state
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/check-wip-cap-state.json
+        key: check-wip-cap-state-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: check-wip-cap-state-
+
     # The cap comes through resolve-config, which needs its dependencies; an
     # install that fails leaves the default cap.
     - name: Count the open lane PRs
@@ -43,7 +63,17 @@ runs:
       env:
         BASE_PATH: ${{ inputs.base-path }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        WIP_STATE: ${{ runner.temp }}/check-wip-cap-state.json
       run: |
         npm ci --ignore-scripts --omit=dev --prefix "$BASE_PATH/.github/actions/resolve-config" ||
           echo "::warning::resolve-config's dependencies did not install; the default WIP config applies"
         node "$GITHUB_ACTION_PATH/check-wip-cap.mjs"
+
+    # Only a read that succeeded saves; a failed one keeps the last state.
+    - name: Save the last known state
+      if: inputs.save-state == 'true' && steps.check.outputs.state-saved == 'true'
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/check-wip-cap-state.json
+        key: check-wip-cap-state-${{ github.run_id }}-${{ github.run_attempt }}

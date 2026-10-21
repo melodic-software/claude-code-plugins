@@ -24,7 +24,7 @@ Orchestrator consults this list after check execution and before any action.
   - User-load heuristic tripped.
   - Service name appears in `approvals.json` `check_overrides.services.service_exclusions` (per-host user curation).
   - `Start-Service` requires elevation the run lacks. Log `UNKNOWN` for the remediation attempt, do not auto-elevate.
-- **Default state:** **DISABLED** until user sets `remediations.restart-stopped-service.approved: true` in `<StateBase>/state/approvals.json`. First run dry-modes it regardless.
+- **Default state:** **DISABLED** until the user runs `/machine-health:setup apply approve=restart-stopped-service` (see [`../shared/approvals.md`](../shared/approvals.md)). First run dry-modes it regardless.
 - **On failure:** corresponding `services` finding upgrades to `CRIT` with `"notes": "Restart-StoppedService failed for <svc>: <message>"`.
 
 ---
@@ -41,7 +41,7 @@ Orchestrator consults this list after check execution and before any action.
   - `DryRun -eq $true`.
   - User-load heuristic tripped.
   - Free space on `C:` >15%, no longer WARN/CRIT, so no action (idempotent re-run safety).
-- **Default state:** **DISABLED** until the user sets `remediations.clear-temp-files.approved: true` in `<StateBase>/state/approvals.json`. First run dry-modes it regardless.
+- **Default state:** **DISABLED** until the user runs `/machine-health:setup apply approve=clear-temp-files` (see [`../shared/approvals.md`](../shared/approvals.md)). First run dry-modes it regardless.
 - **Output contract:**
   - `before`: `{ "temp_usage_bytes": <int>, "count": <int> }` for each target path.
   - `after`: same structure, recomputed post-delete.
@@ -71,9 +71,9 @@ These remediations are proposed periodically in online discussions but are **not
 ## Approval workflow
 
 1. First scheduled run produces a report with remediations flagged `DISABLED (pending approval)`.
-2. Human reviews the report, then approves via `/machine-health:setup` (or edits `<StateBase>/state/approvals.json` to set `remediations.<id>.approved: true`). See [`../shared/approvals.md`](../shared/approvals.md) for full schema and examples.
+2. Human reviews the report, then approves with `/machine-health:setup apply approve=<id>`, per [`../shared/approvals.md`](../shared/approvals.md).
 3. Next run sees the approval, flips authorization to enabled, and attempts the remediation.
-4. If the remediation causes trouble, the human flips `approved: true` back to `false`; the skill respects the revocation immediately on next run.
+4. If the remediation causes trouble, the human runs `/machine-health:setup apply revoke=<id>`; the skill respects the revocation immediately on next run.
 
 `approvals.json` is the single source of truth. The `TODO.md` shipped with the plugin is policy
 documentation only; no checkbox in it drives behavior. One-time carry-forward of checkbox-era

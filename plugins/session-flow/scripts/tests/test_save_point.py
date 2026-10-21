@@ -13,6 +13,7 @@ validated in place.
 
 from __future__ import annotations
 
+import base64
 import functools
 import importlib.util
 import json
@@ -470,6 +471,52 @@ def test_validate_flags_a_github_app_installation_token_in_jwt_form(tmp_path):
     result = run("validate", str(target), "--strict-transcript")
     assert result.returncode == 0, out(result)
     assert "secret-shaped" in out(result) and "GitHub token" in out(result)
+
+
+def _b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+# A stateless installation token is ghs_ then a JWT of about 520 characters, with
+# no app id. The RS256 header encodes to exactly 36 alphanumerics, the length
+# gh[pousr]_ accepts; the kid header carries a '-' 16 characters in, before any
+# alphanumeric minimum is met. Payload and signature are fake.
+_STATELESS_JWT_TAIL = (
+    "."
+    + _b64url(b'{"sub":"FAKE-not-a-real-token","iat":0}')
+    + "."
+    + _b64url(b"\xfb\xff\xfeFAKE signature, not a real token" * 9)
+)
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        _b64url(b'{"alg":"RS256","typ":"JWT"}'),
+        _b64url(b'{"kid":"k?~>","alg":"RS256","typ":"JWT"}'),
+    ],
+    ids=["rs256-header", "kid-header"],
+)
+@pytest.mark.parametrize(
+    "prefix", ["ghs" + "_", "ghs" + "_123456_"], ids=["no-app-id", "app-id"]
+)
+def test_stateless_installation_token_is_flagged_whole(header, prefix):
+    token = prefix + header + _STATELESS_JWT_TAIL
+    assert len(token) > 500
+    matches = [
+        pattern.search(f"tok {token} z").group()
+        for pattern, label in _save_point_module().SECRET_SHAPES
+        if label == "GitHub token" and pattern.search(f"tok {token} z")
+    ]
+    assert token in matches
+
+
+@pytest.mark.parametrize(
+    "text", ["ghs_job", "ghs_lane", "3e7fef0587433cfb07332dbeabf0d79fc0baadf3"]
+)
+def test_token_placeholders_are_not_secret_shaped(text):
+    shapes = _save_point_module().SECRET_SHAPES
+    assert not [label for pattern, label in shapes if pattern.search(text)]
 
 
 @pytest.mark.parametrize(

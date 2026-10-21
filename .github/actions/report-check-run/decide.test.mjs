@@ -545,6 +545,20 @@ test("signedCommits all_verified false posts failure", () => {
   assert.equal(report.conclusion, "failure");
 });
 
+test("the signed-commit failure says not GitHub-verified only when it names unverified commits", () => {
+  const named = posted(
+    decide(verdict(), inputs({ signedCommits: { all_verified: false, unverified: [HEAD] } })),
+  );
+  assert.equal(named.conclusion, "failure");
+  assert.match(named.output.summary, /not GitHub-verified/);
+  const unnamed = posted(
+    decide(verdict(), inputs({ signedCommits: { all_verified: false, unverified: [] } })),
+  );
+  assert.equal(unnamed.conclusion, "failure");
+  assert.match(unnamed.output.summary, /could not be verified/);
+  assert.doesNotMatch(unnamed.output.summary, /not GitHub-verified/);
+});
+
 test("an act step that did not succeed with no skip to explain it posts failure", () => {
   for (const actOutcome of ["skipped", "", "cancelled"]) {
     const report = posted(decide(verdict(), inputs({ actOutcome })));

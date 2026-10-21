@@ -2,7 +2,8 @@
 # Regression tests for review-venue.sh, black-box with a stubbed `gh` on PATH.
 # Expected verdicts come from the rule the script header and
 # reference/review-venue.md state: healthy only when the newest run with a
-# verdict (completed, not skipped or cancelled) succeeded within the window.
+# verdict (completed, not skipped or cancelled, and not a skipped-validation
+# red) succeeded within the window.
 
 set -uo pipefail
 
@@ -19,12 +20,24 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
 # The repository's run listing page N comes from $TEST_TMPDIR/page-N.json, a
-# lane workflow's runs from $TEST_TMPDIR/wf-<id>.json; a missing file fails.
+# lane workflow's runs from $TEST_TMPDIR/wf-<id>.json, a run's jobs from
+# jobs-<run-id>.json and a job's annotations from ann-<job-id>.json; a missing
+# file fails.
 cat >"$STUB_DIR/gh" <<STUB_EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$TEST_TMPDIR/calls"
 [[ "\$1" == api ]] || { echo "gh-stub: unrouted \$*" >&2; exit 1; }
 case "\$2" in
+  */actions/runs/*/jobs\?*)
+    id="\${2#*/actions/runs/}"; id="\${id%%/*}"
+    [[ -f "$TEST_TMPDIR/jobs-\$id.json" ]] || exit 1
+    cat "$TEST_TMPDIR/jobs-\$id.json"
+    ;;
+  */check-runs/*/annotations*)
+    id="\${2#*/check-runs/}"; id="\${id%%/*}"
+    [[ -f "$TEST_TMPDIR/ann-\$id.json" ]] || exit 1
+    cat "$TEST_TMPDIR/ann-\$id.json"
+    ;;
   */actions/runs\?*)
     page="\${2##*page=}"
     [[ -f "$TEST_TMPDIR/page-\$page.json" ]] || exit 1
@@ -69,15 +82,32 @@ page() {
   jq -sc '{workflow_runs: .}' <<<"$(printf '%s\n' "$@")" >"$TEST_TMPDIR/page-$n.json"
 }
 
-# wf <id> <status:conclusion:hours-ago[:event]>... -> wf-id.json, newest first,
-# event pull_request unless given; the workflow itself reads active.
+# wf <id> <status:conclusion:hours-ago[:event[:class]]>... -> wf-id.json,
+# newest first, event pull_request unless given; the workflow itself reads
+# active. A failed run gets one failed lane job whose annotations carry
+# `failure-class=<class>` as the reusable workflow's last step writes it
+# (ci-workflows .github/workflows/pr-review.yml), class `other` unless given;
+# a startup_failure run has no jobs.
+NEXT_RUN=1000
 wf() {
-  local id="$1" spec runs=()
+  local id="$1" spec runs=() rid
   shift
   for spec in "$@"; do
-    IFS=: read -r st co h ev <<<"$spec"
-    runs+=("$(jq -nc --arg s "$st" --arg c "$co" --arg t "$(ago "$h")" --arg e "${ev:-pull_request}" --argjson i "$RANDOM" \
+    IFS=: read -r st co h ev cl <<<"$spec"
+    rid=$((NEXT_RUN++))
+    runs+=("$(jq -nc --arg s "$st" --arg c "$co" --arg t "$(ago "$h")" --arg e "${ev:-pull_request}" --argjson i "$rid" \
       '{id: $i, event: $e, status: $s, conclusion: (if $c == "" then null else $c end), created_at: $t}')")
+    case "$co" in
+    startup_failure) echo '{"jobs": []}' >"$TEST_TMPDIR/jobs-$rid.json" ;;
+    failure | timed_out)
+      jq -nc --argjson j "$((rid * 10))" --arg c "$co" \
+        '{jobs: [{id: 1, conclusion: "success"}, {id: $j, conclusion: $c}]}' >"$TEST_TMPDIR/jobs-$rid.json"
+      jq -nc --arg c "${cl:-other}" '[
+        {annotation_level: "failure", message: "Process completed with exit code 1."},
+        {annotation_level: "failure", message: "failure-class=\($c): why"}]' >"$TEST_TMPDIR/ann-$((rid * 10)).json"
+      ;;
+    *) ;;
+    esac
   done
   jq -sc '{workflow_runs: .}' <<<"$(printf '%s\n' "${runs[@]}")" >"$TEST_TMPDIR/wf-$id.json"
   wf_state "$id" active
@@ -86,7 +116,7 @@ wf() {
 # wf_state <id> <state> -> the workflow's state, as GET .../actions/workflows/<id> returns it
 wf_state() { jq -nc --arg s "$2" '{state: $s}' >"$TEST_TMPDIR/wfmeta-$1.json"; }
 
-reset() { rm -f "$TEST_TMPDIR"/page-*.json "$TEST_TMPDIR"/wf-*.json "$TEST_TMPDIR"/wfmeta-*.json; }
+reset() { rm -f "$TEST_TMPDIR"/page-*.json "$TEST_TMPDIR"/wf-*.json "$TEST_TMPDIR"/wfmeta-*.json "$TEST_TMPDIR"/jobs-*.json "$TEST_TMPDIR"/ann-*.json; }
 
 run() {
   : >"$TEST_TMPDIR/calls"
@@ -122,6 +152,69 @@ assert_exit "a failing lane is still a read" 0 "$?"
 assert_contains "a lane whose newest verdict failed runs locally" "$out" "code-review local failing"
 assert_contains "the failing line names the conclusion" "$out" "concluded failure"
 assert_contains "the other lane keeps its own verdict" "$out" "security-review ci healthy"
+
+# #8867: a pull request that edits a review caller workflow ends both lanes red
+# by design (failure-class=skipped-validation); that says nothing about the lane.
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:failure:1::skipped-validation completed:success:3
+wf 22 completed:failure:1::skipped-validation completed:success:3
+out=$(run)
+assert_exit "a skipped-validation red is still a read" 0 "$?"
+assert_contains "a workflow-editing PR's red leaves the code lane healthy" "$out" "code-review ci healthy"
+assert_contains "a workflow-editing PR's red leaves the security lane healthy" "$out" "security-review ci healthy"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:failure:1::skipped-validation completed:failure:2::auth completed:success:3
+wf 22 completed:success:1
+out=$(run)
+assert_contains "a real failure behind a skipped-validation red still fails" "$out" "code-review local failing"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:failure:1 completed:failure:2 completed:timed_out:3 completed:success:4
+wf 22 completed:failure:1::rate-limit completed:success:2
+out=$(run)
+assert_contains "a lane whose recent runs all fail reads failing" "$out" "code-review local failing"
+assert_contains "a usage-limit stop is not a skipped-validation red" "$out" "security-review local failing"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:failure:1::skipped-validation completed:failure:2::skipped-validation
+wf 22 completed:success:1
+out=$(run)
+assert_contains "a lane with only skipped-validation reds is stale" "$out" "code-review local stale"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:failure:1::skipped-validation completed:success:200
+wf 22 completed:success:1
+out=$(run)
+assert_contains "the window applies to the run behind a skipped-validation red" "$out" "code-review local stale"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:failure:1::skipped-validation completed:success:3
+wf 22 completed:success:1
+rm -f "$TEST_TMPDIR"/ann-*.json
+run >/dev/null 2>&1
+assert_exit "unreadable annotations fail closed" 2 "$?"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:failure:1::skipped-validation completed:success:3
+wf 22 completed:success:1
+rm -f "$TEST_TMPDIR"/jobs-*.json
+run >/dev/null 2>&1
+assert_exit "unreadable jobs fail closed" 2 "$?"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:success:1
+run >/dev/null
+assert_not_contains "a healthy lane reads no jobs" "$(cat "$TEST_TMPDIR/calls")" "/jobs"
 
 reset
 page 1 "${BOTH_PAGE[@]}"

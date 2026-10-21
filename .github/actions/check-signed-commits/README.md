@@ -18,8 +18,8 @@ or force-pushes.
 
 ## Rules
 
-- The PR is re-read, at most 5 times 2 s apart, until its head SHA equals the SHA its head branch
-  ref points at, since `GET /pulls` can lag a push. When they never agree, the lane's commits
+- The PR is re-read, after waits of 5, 10, 20 and 25 s (60 s in all), until its head SHA equals
+  the SHA its head branch ref points at, since `GET /pulls` can lag a push by minutes. When they never agree, the lane's commits
   cannot be checked: `all-verified` and `since-is-ancestor` are `false` and the escalation runs.
 - The lane's commits are the commits the comparison `since-sha...head` lists, when `since-sha` is
   an ancestor of the head and the comparison lists every commit it counts. Their verification is
@@ -37,7 +37,8 @@ or force-pushes.
   `<invalid-sha>`, so no free text reaches the output or the comment.
 - On any unverified commit, or a PR it cannot check whole, it adds `escalation-label` only if that label already exists on the
   repository (it never creates one), then posts one fixed comment listing the SHAs. No model text
-  reaches the comment.
+  reaches the comment. When no commit is unverified but the PR could not be checked whole, the log
+  line and the comment say the commits could not be verified, never that they are unverified.
 
 ## Outputs
 
@@ -66,8 +67,9 @@ A lane job that uses this check:
 - Mints the App token only after both gates.
 
 The check itself runs in the scripted `report` job, with that job's `GITHUB_TOKEN`. The label
-and comment writes need `issues: write` on that job and never on the model job; until the report
-job holds it, an escalation fails with 403 and the step exits 1 with its outputs written.
+and comment writes need `issues: write` on that job and never on the model job. A called job holds
+no more than its caller grants, so every job that calls `pr-run-activity-write.yml` or
+`pr-run-activity-read.yml` grants `issues: write` too.
 
 ## Tests
 

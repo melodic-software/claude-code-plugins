@@ -99,6 +99,25 @@ class ChangedSinceMergeBase(unittest.TestCase):
             paths, head, "main", [root or self.clone]
         )
 
+    def test_the_default_branch_heads_list_is_read_on_its_own(self) -> None:
+        # Main's README.md change since A, through main's own list: a base
+        # exclude cannot cancel it, and an empty base list still reads it.
+        for paths in (("docs/none.md", ":!README.md"), ()):
+            with self.subTest(paths=paths):
+                out = check_inputs.changed_since_merge_base(
+                    paths, self.p, "main", [self.clone], extra=("README.md",)
+                )
+                self.assertEqual(out["state"], "stale")
+                self.assertEqual(out["changed"], ["README.md"])
+
+    def test_a_bad_entry_on_the_heads_list_leaves_the_bases_read(self) -> None:
+        out = check_inputs.changed_since_merge_base(
+            ("README.md",), self.p, "main", [self.clone], extra=("../x",)
+        )
+        self.assertEqual(out["state"], "stale")
+        self.assertEqual(out["changed"], ["README.md"])
+        self.assertIn("headInputsError", out)
+
     def test_a_registry_change_is_stale_for_a_pr_touching_a_registered_path(
         self,
     ) -> None:

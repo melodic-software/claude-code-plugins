@@ -26,6 +26,29 @@ name: post-merge-demotion-alert
 # nothing beside another failed job, and the gitleaks gate, which scans every
 # branch on these events, counts against no merge.
 #
+# Beside a new record of a full run, it files one fix issue per newly failing
+# check (at most 5) and dispatches intake-triage.yml for each, so an agent can
+# fix main once the owner ratifies it. First body line `<!-- post-merge-fix
+# check=<name> -->`, no label, fixed text only; one issue per check across
+# SHAs, reopened when the check fails again, keeping agent-ready and with no
+# second intake dispatch. The record keeps needs-human, and closing a fix issue
+# changes nothing on it.
+#
+# A full run pr-merge.yml starts after each merge uses GITHUB_TOKEN, so its
+# completion raises no workflow_run event. pr-merge's dispatch-full-run job
+# sends a red one here through workflow_dispatch with its run id and head SHA
+# instead; the first step reads that run and refuses anything but a red
+# pr-require-checks run on this repository's main that github-actions[bot]
+# dispatched, at that head SHA. Red is
+# any conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS. A red run
+# inside a lane merge's attribution window gets its one re-run from pr-merge's
+# post-merge-dispatch job, and one with no lane merge to charge gets none, so
+# the alert waits for a re-run as long as the report job does
+# (red-main.confirm-wait-minutes) and starts none itself. When the run is
+# still red after that wait (its re-run failed or did not finish) and a newer
+# pr-require-checks run on this repository's main has passed, main already
+# recovered: no record, fix issue or report is filed.
+#
 # After a failed scheduled or dispatched full run, the report-red-main job
 # applies the red-main rule (docs/conventions/pr-pipeline/README.md, "Red
 # main"): it waits for the run's one re-run, confirms the red, pins the
@@ -46,6 +69,20 @@ on:
     workflows: [pr-require-checks, post-merge-detect-silent-revert]
     types: [completed]
     branches: [main]
+  # pr-merge.yml's dispatch-full-run job, with GITHUB_TOKEN, or a listed
+  # human (trusted-actors.json on main) names a red full run that raised no
+  # workflow_run event. Both inputs are checked before use, and the head SHA
+  # must be the run's own.
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: Id of a red pr-require-checks run on main that github-actions[bot] dispatched
+        required: true
+        type: string
+      head-sha:
+        description: The run's head SHA (40 lowercase hex digits), which keys the alert's concurrency group
+        required: true
+        type: string
 
 permissions: {}
 
@@ -53,22 +90,56 @@ jobs:
   alert:
     name: File the demotion issue
     runs-on: ubuntu-24.04
-    timeout-minutes: 30 # up to 20 minutes waiting on the re-run
+    # Up to 20 minutes waiting on the re-run, 40 for a dispatched run.
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 50 || 30 }}
     permissions:
       issues: write # file the demotion issue or comment on it
       actions: write # re-run a red full run's failed jobs; read jobs and runs
       checks: read # read the hygiene aggregator's annotations
       contents: read # read merge.agent-identity from main's pr-pipeline.yaml
       pull-requests: read # read each merged PR's merge-queue event
-    # One group per signal and SHA, so two attempts of one run cannot both
-    # find no record and file two.
+    # One group per signal and SHA, as records are one per signal and SHA,
+    # found by a read before a create: two attempts of one run, two runs of
+    # one SHA, and a dispatch and a workflow_run event of the same run cannot
+    # both find no record and file two. A dispatch is always a
+    # pr-require-checks workflow_dispatch run and names its head SHA, which
+    # the Read step checks against the run.
     concurrency:
-      group: post-merge-demotion-alert-${{ github.event.workflow_run.name }}-${{ github.event.workflow_run.event }}-${{ github.event.workflow_run.head_sha }}
+      group: post-merge-demotion-alert-${{ github.event.workflow_run.name || 'pr-require-checks' }}-${{ github.event.workflow_run.event || 'workflow_dispatch' }}-${{ github.event.workflow_run.head_sha || inputs['head-sha'] }}
       cancel-in-progress: false
+    # The run as the step below and the report job read it.
+    outputs:
+      name: ${{ steps.run.outputs.name }}
+      event: ${{ steps.run.outputs.event }}
+      conclusion: ${{ steps.run.outputs.conclusion }}
+      branch: ${{ steps.run.outputs.branch }}
+      repo: ${{ steps.run.outputs.repo }}
+      sha: ${{ steps.run.outputs.sha }}
+      url: ${{ steps.run.outputs.url }}
+      id: ${{ steps.run.outputs.id }}
+      workflow-id: ${{ steps.run.outputs.workflow-id }}
+      created: ${{ steps.run.outputs.created }}
+      # 'true' when a dispatched run stayed red and main recovered since.
+      recovered: ${{ steps.file.outputs.recovered }}
     steps:
-      - name: File or comment on the demotion issue
+      # A workflow_run event's fields pass through as they are. A dispatch's
+      # run id is read back from the API, as attempt 1 of the run: accepted
+      # only from github-actions[bot] (actor id 41898282) or a listed human,
+      # never the lanes App, and only for attempt 1 of a pr-require-checks.yml
+      # run on this repository's main that github-actions[bot] dispatched and
+      # that concluded red: failure, timed_out, cancelled, startup_failure or
+      # action_required, babysit_postmerge.py's FAILED_CONCLUSIONS, at the
+      # head SHA the dispatch named. Anything else writes no output and fails.
+      - name: Read the failed run
+        id: run
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_RUN_ID: ${{ inputs.run-id }}
+          INPUT_HEAD_SHA: ${{ inputs.head-sha }}
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           RUN_WORKFLOW: ${{ github.event.workflow_run.name }}
           RUN_EVENT: ${{ github.event.workflow_run.event }}
           RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
@@ -83,6 +154,99 @@ jobs:
           RUN_TRIGGERING_ACTOR: ${{ github.event.workflow_run.triggering_actor.login }}
           RUN_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
         run: |
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            if [[ ! "$INPUT_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
+              echo "::error::run-id must be a run id (digits only)"
+              exit 1
+            fi
+            if [[ ! "$INPUT_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::head-sha must be a commit SHA (40 lowercase hex digits)"
+              exit 1
+            fi
+            if [[ ! "$APP_SENDER_ID" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
+              exit 1
+            fi
+            if [[ ! "$ACTOR_ID" =~ ^[1-9][0-9]*$ || "$ACTOR_ID" == "$APP_SENDER_ID" ]]; then
+              echo "::error::untrusted-actor: the lanes App cannot send a run here"
+              exit 1
+            fi
+            if ! gh api -H 'Accept: application/vnd.github.raw' \
+              "repos/$GITHUB_REPOSITORY/contents/.github/standards/trusted-actors/trusted-actors.json?ref=main" |
+              jq -e --argjson id "$ACTOR_ID" --argjson app "$APP_SENDER_ID" --arg login "$TRIGGERING_ACTOR" '
+                def human: .kind == "human" and .id != $app;
+                .version == 1
+                and ($id == 41898282 or any(.actors[]; .id == $id and human))
+                and ($login == "github-actions[bot]"
+                  or any(.actors[]; (.login | ascii_downcase) == ($login | ascii_downcase) and human))
+              ' >/dev/null; then
+              echo "::error::untrusted-actor: the sender or re-runner is neither github-actions[bot] nor a listed human"
+              exit 1
+            fi
+            run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$INPUT_RUN_ID/attempts/1")" || {
+              echo "::error::could not read attempt 1 of run $INPUT_RUN_ID"
+              exit 1
+            }
+            if ! jq -e --arg repo "$GITHUB_REPOSITORY" --argjson id "$INPUT_RUN_ID" '
+                .id == $id and .run_attempt == 1
+                and .path == ".github/workflows/pr-require-checks.yml"
+                and .event == "workflow_dispatch" and .actor.login == "github-actions[bot]"
+                and .head_branch == "main"
+                and .repository.full_name == $repo and .head_repository.full_name == $repo
+                and .status == "completed"
+                and (.conclusion | IN("failure", "timed_out", "cancelled", "startup_failure", "action_required"))
+              ' <<<"$run" >/dev/null; then
+              echo "::error::run $INPUT_RUN_ID is not a red pr-require-checks.yml run on main of $GITHUB_REPOSITORY that github-actions[bot] dispatched"
+              exit 1
+            fi
+            if ! jq -e --arg sha "$INPUT_HEAD_SHA" '.head_sha == $sha' <<<"$run" >/dev/null; then
+              echo "::error::head-sha $INPUT_HEAD_SHA is not the head SHA of run $INPUT_RUN_ID"
+              exit 1
+            fi
+            IFS=$'\t' read -r RUN_WORKFLOW RUN_EVENT RUN_CONCLUSION RUN_BRANCH RUN_REPO RUN_SHA RUN_URL RUN_ID \
+              RUN_WORKFLOW_ID RUN_CREATED RUN_ATTEMPT RUN_TRIGGERING_ACTOR < <(jq -r '[.name, .event, .conclusion,
+                .head_branch, .head_repository.full_name, .head_sha, .html_url, .id, .workflow_id, .created_at,
+                .run_attempt, .triggering_actor.login] | @tsv' <<<"$run")
+            RUN_COMMIT_MESSAGE="$(jq -r '.head_commit.message // ""' <<<"$run")"
+          fi
+          delimiter="EOF_$(openssl rand -hex 16)"
+          {
+            echo "name=$RUN_WORKFLOW"
+            echo "event=$RUN_EVENT"
+            echo "conclusion=$RUN_CONCLUSION"
+            echo "branch=$RUN_BRANCH"
+            echo "repo=$RUN_REPO"
+            echo "sha=$RUN_SHA"
+            echo "url=$RUN_URL"
+            echo "id=$RUN_ID"
+            echo "workflow-id=$RUN_WORKFLOW_ID"
+            echo "created=$RUN_CREATED"
+            echo "attempt=$RUN_ATTEMPT"
+            echo "triggering-actor=$RUN_TRIGGERING_ACTOR"
+            echo "commit-message<<$delimiter"
+            echo "$RUN_COMMIT_MESSAGE"
+            echo "$delimiter"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: File or comment on the demotion issue
+        id: file
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_WORKFLOW: ${{ steps.run.outputs.name }}
+          RUN_EVENT: ${{ steps.run.outputs.event }}
+          RUN_CONCLUSION: ${{ steps.run.outputs.conclusion }}
+          RUN_BRANCH: ${{ steps.run.outputs.branch }}
+          RUN_REPO: ${{ steps.run.outputs.repo }}
+          RUN_SHA: ${{ steps.run.outputs.sha }}
+          RUN_URL: ${{ steps.run.outputs.url }}
+          RUN_ID: ${{ steps.run.outputs.id }}
+          RUN_WORKFLOW_ID: ${{ steps.run.outputs.workflow-id }}
+          RUN_CREATED: ${{ steps.run.outputs.created }}
+          RUN_ATTEMPT: ${{ steps.run.outputs.attempt }}
+          RUN_TRIGGERING_ACTOR: ${{ steps.run.outputs.triggering-actor }}
+          RUN_COMMIT_MESSAGE: ${{ steps.run.outputs.commit-message }}
+        run: |
           case "$RUN_WORKFLOW:$RUN_EVENT" in
             pr-require-checks:schedule) signal=schedule ;;
             pr-require-checks:workflow_dispatch) signal=dispatch ;;
@@ -95,8 +259,17 @@ jobs:
           # Neither signal's runs are cancelled by concurrency, so a cancel
           # comes from an actor with actions: write and counts as a failure.
           # A re-run that passes is recorded on the record; it clears nothing.
+          # A dispatched run also files on action_required, as the Read step
+          # accepts every conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS.
           case "$RUN_CONCLUSION" in
             failure | timed_out | startup_failure | cancelled) passed='' ;;
+            action_required)
+              if [[ "$EVENT_NAME" != workflow_dispatch ]]; then
+                echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION: nothing to file"
+                exit 0
+              fi
+              passed=''
+              ;;
             success)
               if [[ ! "$RUN_ATTEMPT" =~ ^[0-9]+$ || "$RUN_ATTEMPT" -lt 2 ]]; then
                 echo "$RUN_WORKFLOW passed on attempt $RUN_ATTEMPT: nothing to file"
@@ -130,11 +303,18 @@ jobs:
             # left to the wrapper's own re-run. When the wrapper re-ran first,
             # the POST fails and the wait reads its attempt instead. A re-run
             # that does not finish within 20 minutes leaves attempt 1 judged.
-            if [[ "$RUN_ATTEMPT" -eq 1 && "$RUN_TRIGGERING_ACTOR" != 'github-actions[bot]' ]]; then
-              if ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
+            # A bot-started run sent by workflow_dispatch starts no re-run
+            # here either: pr-merge re-runs it only inside a lane merge's
+            # attribution window, so the wait for a re-run is
+            # red-main.confirm-wait-minutes (40), as the report job's.
+            if [[ "$RUN_ATTEMPT" -eq 1 && ("$RUN_TRIGGERING_ACTOR" != 'github-actions[bot]' || "$EVENT_NAME" == workflow_dispatch) ]]; then
+              polls=20
+              if [[ "$RUN_TRIGGERING_ACTOR" == 'github-actions[bot]' ]]; then
+                polls=40
+              elif ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
                 echo "::warning::could not re-run $RUN_URL; waiting for any re-run already started"
               fi
-              for _ in $(seq 20); do
+              for _ in $(seq "$polls"); do
                 sleep "${POLL_SECONDS:-60}"
                 latest="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
                   --jq '[.run_attempt, .status, (.conclusion // "")] | @tsv')" || continue
@@ -149,7 +329,24 @@ jobs:
                 fi
               done
               if [[ "$RUN_ATTEMPT" -eq 1 ]]; then
-                echo "::warning::the re-run of $RUN_URL did not finish: judging attempt 1"
+                echo "::warning::the re-run of $RUN_URL did not finish within $polls minutes: judging attempt 1"
+              fi
+            fi
+            # A dispatched red, re-run failed or not finished, files nothing,
+            # and the report job skips it, when a newer run on this
+            # repository's main has passed by now: main already recovered. A
+            # failed lookup files.
+            if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+              newer="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&per_page=20" \
+                --jq '[.workflow_runs[] | select(.conclusion == "success" and .head_branch == "main"
+                  and (.head_repository.full_name // "") == env.GITHUB_REPOSITORY
+                  and (.id > (env.RUN_ID | tonumber) or .created_at > env.RUN_CREATED))]
+                  | max_by(.created_at) // empty | [.id, .head_sha] | @tsv')" || newer=''
+              if [[ -n "$newer" ]]; then
+                IFS=$'\t' read -r newer_id newer_sha <<<"$newer"
+                echo "::notice::$RUN_URL is red at attempt $RUN_ATTEMPT, but main already recovered: run $newer_id at ${newer_sha:0:12} passed on main after it, so nothing filed"
+                echo 'recovered=true' >>"$GITHUB_OUTPUT"
+                exit 0
               fi
             fi
             # failing_checks <run id> <attempt>: one check per line.
@@ -314,13 +511,14 @@ jobs:
           read_records() {
             gh api --paginate \
               "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$1&per_page=100" \
-              --jq '.[] | select(.pull_request == null) | [.number, .state, (.body // "")]
-                | [.[0], .[1], (.[2] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
-                   ([.[2] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
+              --jq '.[] | select(.pull_request == null) | [.number, .state, (.state_reason // "none"), (.body // "")]
+                | [.[0], .[1], .[2], (.[3] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
+                   ([.[3] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
                     | ltrimstr("- Failing run: ") | sub("\\s+$"; ""))]
                 | @tsv'
           }
-          records="$(read_records "${filers[0]}")"$'\n'
+          own_records="$(read_records "${filers[0]}")"
+          records="$own_records"$'\n'
           if [[ -n "${filers[1]:-}" ]]; then
             if lane_records="$(read_records "${filers[1]}")"; then
               records+="$lane_records"
@@ -331,7 +529,7 @@ jobs:
           number=''
           state=''
           filed=''
-          while IFS=$'\t' read -r n s first failing; do
+          while IFS=$'\t' read -r n s _ first failing; do
             # A record matched by its failing run must be a demotion record:
             # anything else names the run without holding the gate.
             if [[ "$first" == "$marker" || "$first" == "$failure_marker" ||
@@ -437,39 +635,170 @@ jobs:
           "
             fi
           fi
+          # Fix issues (#7535): one per newly failing check of a full run, at
+          # most 5, for an agent to fix main through intake triage and the
+          # owner's ratification. github-actions[bot] files them, so their text
+          # is fixed: only a check name that passes fix_name_ok, hex SHAs, the
+          # run link built from its numeric id, and the record's number. No
+          # label, no closing keyword, no commit subject or annotation message,
+          # and neither record marker, so no reader takes one for a record.
+          fix_charset='^[A-Za-z0-9][- A-Za-z0-9._:,/()]{0,99}$'
+          fix_name_ok() {
+            [[ "$1" =~ $fix_charset && "$1" != *babysit-merge-demotion* && "$1" != *post-merge-failure* ]]
+          }
+          fix_checks=()
+          fix_over=''
+          if [[ -n "$newly" ]]; then
+            declare -A fix_seen=()
+            while IFS= read -r check; do
+              # The job's name only: it comes from the workflow file on main,
+              # while a gate title is any step's annotation text.
+              check="${check%%: *}"
+              if [[ -n "${fix_seen[$check]+x}" ]]; then
+                continue
+              fi
+              fix_seen[$check]=1
+              if [[ "${#fix_checks[@]}" -lt 5 ]] && fix_name_ok "$check"; then
+                fix_checks+=("$check")
+              else
+                fix_over=1
+              fi
+            done <"$now"
+          fi
           body="$marker
 
           $lead $rung
 
           $pr_line- $sha_label: \`$RUN_SHA\`
           - Failing run: $sighting${newly:+
-          - Newly failing: $newly}
+          - Newly failing: $newly}${fix_over:+
+          - More checks failed than were filed as fix issues: a run files at most 5, and none for a name outside A-Z a-z 0-9 space . _ : , / ( ) -}
 
           $revert"
-          gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
-            -f title="$title" -f body="$body" -f 'labels[]=needs-human' >/dev/null
+          record="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
+            -f title="$title" -f body="$body" -f 'labels[]=needs-human' --jq .number)"
           kind='demotion issue'
           if [[ -z "$lane" ]]; then
             kind='post-merge-failure issue (lane not demoted)'
           fi
           echo "filed the $signal $kind for $RUN_SHA"
 
+          if [[ "${#fix_checks[@]}" -eq 0 ]]; then
+            exit 0
+          fi
+          if [[ ! "$record" =~ ^[1-9][0-9]*$ || ! "$RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::record number '$record' or run id '$RUN_ID' is not a number: no fix issue filed"
+            exit 1
+          fi
+          on_record="demotion record #$record"
+          if [[ -z "$lane" ]]; then
+            on_record="failure record #$record"
+          fi
+          run_link="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT"
+          merges="unknown, see $on_record"
+          if [[ "${#range[@]}" -gt 0 ]]; then
+            merges="\`${base:0:12}..${RUN_SHA:0:12}\`, listed on $on_record"
+          fi
+          fix_failed=''
+          undelivered=()
+          # The hourly triage sweep skips github-actions[bot] issues, and a
+          # re-run takes the existing-record path, so a failed dispatch is
+          # retried by nothing: the record, which a person already handles,
+          # gets a comment naming it, and the job fails.
+          # Locked before intake reads it, so no outsider comment reaches the
+          # triage prompt; a lock that fails sends nothing.
+          dispatch() {
+            if ! gh api -X PUT "repos/$GITHUB_REPOSITORY/issues/$1/lock" >/dev/null; then
+              echo "::error::could not lock #$1: not sent to intake triage"
+              undelivered+=("#$1 could not be locked, so it was not sent to intake triage")
+              fix_failed=1
+              return
+            fi
+            if ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
+              -f ref=main -f "inputs[issue-number]=$1" >/dev/null; then
+              echo "::error::could not dispatch intake triage for #$1"
+              undelivered+=("#$1 was not sent to intake triage")
+              fix_failed=1
+            fi
+          }
+          for check in "${fix_checks[@]}"; do
+            # One issue per check across SHAs: an open one stands, a closed one
+            # is reopened (unless closed as not planned or a duplicate, which
+            # mutes the check). A reopened issue keeps agent-ready and is not
+            # sent to intake again, so a repeat goes straight back to agents.
+            # Only this workflow's own issues are read.
+            fix_marker="<!-- post-merge-fix check=$check -->"
+            found="$(awk -F'\t' -v m="$fix_marker" '$4 == m && any == "" { any = $0 }
+              $4 == m && $2 == "open" && open == "" { open = $0 }
+              END { print (open != "" ? open : any) }' <<<"$own_records")"
+            IFS=$'\t' read -r fix_number fix_state fix_reason _ <<<"$found"
+            if [[ "$fix_state" == open ]]; then
+              echo "#$fix_number already tracks $check"
+            elif [[ -n "$fix_number" && "$fix_reason" =~ ^(not_planned|duplicate)$ ]]; then
+              echo "#$fix_number, closed as $fix_reason, mutes $check"
+            elif [[ -n "$fix_number" ]]; then
+              note="This check failed on main again at \`$RUN_SHA\`. Merge range: $merges. Run: $run_link"
+              if gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$fix_number/comments" -f body="$note" >/dev/null &&
+                gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$fix_number" -f state=open -f state_reason=reopened >/dev/null; then
+                echo "reopened fix issue #$fix_number for $check"
+              else
+                echo "::error::could not reopen fix issue #$fix_number for $check"
+                undelivered+=("#$fix_number (\`$check\`) could not be reopened")
+                fix_failed=1
+              fi
+            else
+              fix_body="$fix_marker
+
+          The check \`$check\` started failing on main in a \`$signal\` run of pr-require-checks.
+
+          - Main at the failing run: \`$RUN_SHA\`
+          - Run: $run_link
+          - Merge range: $merges
+
+          Fix the check on main. Closing this issue releases nothing on $on_record; a human closes that record once main is green."
+              if fix_number="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
+                -f title="Fix main: $check fails since ${RUN_SHA:0:12}" -f body="$fix_body" --jq .number)" &&
+                [[ "$fix_number" =~ ^[1-9][0-9]*$ ]]; then
+                echo "filed fix issue #$fix_number for $check"
+                dispatch "$fix_number"
+              else
+                echo "::error::could not file the fix issue for $check"
+                undelivered+=("no fix issue could be filed for \`$check\`")
+                fix_failed=1
+              fi
+            fi
+          done
+          if [[ -n "$fix_failed" ]]; then
+            if [[ "${#undelivered[@]}" -gt 0 ]]; then
+              note="Fix issues not handed to intake on this run; triage them by hand:"
+              for line in "${undelivered[@]}"; do
+                note+=$'\n'"- $line"
+              done
+              gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$record/comments" -f body="$note" >/dev/null ||
+                echo "::error::could not comment on record #$record"
+            fi
+            exit 1
+          fi
+
   # The red-main report. It runs after the alert job, so a re-run the alert
   # started is already under way, and only for a full run on main that
   # concluded failure: a cancelled, timed-out or not-started run, and the
   # canary, never trigger it. It holds the job's own GITHUB_TOKEN, never a
   # lanes App token, writes only its log issue, and skips an event the lanes
-  # App sent.
+  # App sent. It reads the run from the alert job's outputs, which a refused
+  # dispatch leaves empty, and skips a dispatched run the alert found main
+  # already recovered from.
   report-red-main:
     name: Report the red-main culprit
     needs: [alert]
     if: >-
       !cancelled()
-      && github.event.workflow_run.name == 'pr-require-checks'
-      && contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event.workflow_run.event)
-      && github.event.workflow_run.conclusion == 'failure'
-      && github.event.workflow_run.head_branch == 'main'
-      && github.event.workflow_run.head_repository.full_name == github.repository
+      && needs.alert.outputs.name == 'pr-require-checks'
+      && contains(fromJSON('["schedule", "workflow_dispatch"]'), needs.alert.outputs.event)
+      && needs.alert.outputs.conclusion == 'failure'
+      && needs.alert.outputs.branch == 'main'
+      && needs.alert.outputs.repo == github.repository
+      && needs.alert.outputs.recovered != 'true'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
     runs-on: ubuntu-24.04
     # Up to red-main.confirm-wait-minutes (at most 45) waiting on the re-run.
@@ -528,9 +857,9 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           BASE_PATH: .base
           CALL_BUDGET: "300"
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
-          RUN_URL: ${{ github.event.workflow_run.html_url }}
-          RUN_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
-          RUN_CREATED: ${{ github.event.workflow_run.created_at }}
+          RUN_ID: ${{ needs.alert.outputs.id }}
+          RUN_SHA: ${{ needs.alert.outputs.sha }}
+          RUN_URL: ${{ needs.alert.outputs.url }}
+          RUN_WORKFLOW_ID: ${{ needs.alert.outputs.workflow-id }}
+          RUN_CREATED: ${{ needs.alert.outputs.created }}
         run: node .base/.github/scripts/post-merge-demotion-alert/report.mjs

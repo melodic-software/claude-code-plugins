@@ -4,7 +4,8 @@
 // for the host's Run; the Inbox lists it under General, never a question id, and its toasts say "about the session";
 // the host shares Claude's answer from Ask Claude's General thread, and it then replies to the message in every
 // chat, a 390-wide phone's included; Ask Claude's picker offers "About the whole session" first, with no "Run it on my
-// own Claude".
+// own Claude"; the top Ask Claude opens on it, Reply on Claude's answer quotes it in a new ask, and Move to puts the
+// asker's own request on a question (R26, R27).
 //   node plugins/planning/shared/tests/ui_general.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved spec (follow-up item 4) and the texts this suite writes, never from the page.
@@ -117,15 +118,31 @@ async function main() {
     // ---------- Ask Claude's picker: About the whole session ----------
     await ann.click(".vf-asktop");
     await until(ann, () => !document.querySelector(".vf-drawer").hidden);
+    ok("the top Ask Claude opens about the whole session (R26)", await until(ann, () => document.querySelector(".vf-apq select").value === "session"));
     const first = await ann.evaluate(() => { const o = document.querySelector(".vf-apq select").options[0]; return { value: o.value, text: o.textContent }; });
     ok("the picker's first option is About the whole session", first.value === "session" && first.text === "About the whole session", JSON.stringify(first));
     await ann.selectOption(".vf-apq select", "session");
     ok("  which offers no Run it on my own Claude", await until(ann, () => document.querySelector(".vf-apself").hidden));
+    // ---------- Reply on Claude's answer: a new ask about the whole session quoting it (R27) ----------
+    await ann.locator(".vf-apgen .vf-res", { hasText: ANSWER }).locator(".vf-res-reply").click();
+    ok("Reply opens an ask quoting Claude's answer, about the whole session", await until(ann, a => document.querySelector("#vf-ap-ta").value === `About Claude's answer: "${a}"\n\n`
+      && document.querySelector(".vf-apq select").value === "session", ANSWER), await ann.inputValue("#vf-ap-ta"));
     await ann.waitForTimeout(1100);
     await ann.fill("#vf-ap-ta", PICK_ASK);
     await ann.click(".vf-apform button[type=submit]");
     ok("sending it files a request with no question", await until(ann, t => (window.Core.state.myRequests || []).some(r => r.text === t && r.qid === ""), PICK_ASK));
     ok("  listed under Your requests as General", await until(ann, t => [...document.querySelectorAll(".vf-apreqs > li")].some(li => li.textContent.includes(t) && li.querySelector(".vf-qref").textContent === "General"), PICK_ASK));
+    // ---------- Move to: Ann puts her own request on Q1 (R27) ----------
+    await ann.locator(".vf-apreqs > li", { hasText: PICK_ASK }).locator(".vf-req-move select").selectOption("Q1");
+    ok("Move to puts Ann's request on Q1", await until(ann, t => (window.Core.state.myRequests || []).some(r => r.text === t && r.qid === "Q1"), PICK_ASK));
+    ok("  and its row names Q1", await until(ann, t => [...document.querySelectorAll(".vf-apreqs > li")].some(li => li.textContent.includes(t) && li.querySelector(".vf-qref").textContent.startsWith("Q1:")), PICK_ASK));
+    ok("Bo's page holds no Move to for Ann's request", await bo.evaluate(t => ![...document.querySelectorAll("li")].some(li => li.textContent.includes(t) && li.querySelector(".vf-req-move:not([hidden])")), PICK_ASK));
+    // ---------- Move to: once the host takes up her request, only the host can move it ----------
+    const pickId = await ann.evaluate(t => window.Core.state.myRequests.find(r => r.text === t).id, PICK_ASK);
+    await owner.evaluate(id => window.Core.requestAct(id, "decline"), pickId);
+    ok("the host declines Ann's request", await until(ann, id => window.Core.state.myRequests.find(r => r.id === id)?.status === "declined", pickId));
+    ok("  and her row holds no Move to", await until(ann, t => [...document.querySelectorAll(".vf-apreqs > li")].some(li => li.textContent.includes(t)
+      && li.querySelector(".vf-req-move")?.hidden), PICK_ASK), await ann.evaluate(t => [...document.querySelectorAll(".vf-apreqs > li")].find(li => li.textContent.includes(t))?.outerHTML.slice(0, 300), PICK_ASK));
 
     // ---------- a reply to Claude's answer quotes Claude ----------
     await ann.keyboard.press("Escape");

@@ -4,8 +4,10 @@
 // verdict, summary, notes, run_id}, each linked issue records its author, and
 // malformed output writes nothing. The output comes from the last result
 // message of run-claude-cli's execution file, a JSON array of CLI messages
-// (its action.yml, output execution-file), and model text shaped like an
-// Anthropic key or OAuth token (both start sk-ant-) writes nothing.
+// (its action.yml, output execution-file), and model text shaped like a
+// credential (an Anthropic key or OAuth token, both sk-ant-; a GitHub token,
+// per GitHub's documented ghp_ prefix and 36-character body; an AWS access key
+// id, AKIA plus 16; a PEM private key header, RFC 7468) writes nothing.
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -113,6 +115,32 @@ test("a summary or note shaped like an Anthropic key or OAuth token throws", () 
 test("naming the key prefix alone is not a credential", () => {
   const output = JSON.stringify({ verdict: "pass", summary: "keys start with sk-ant-", notes: ["sk-ant- prefix"] });
   assert.equal(buildVerdict({ ...ids, output }).summary, "keys start with sk-ant-");
+});
+
+// Other credential shapes from their published formats, also built at run time.
+const GITHUB_TOKEN = `${"ghp_"}${"k".repeat(36)}`;
+const AWS_KEY = `${"AKIA"}${"Q7".repeat(8)}`;
+const PEM = `-----BEGIN ${"RSA PRIVATE"} KEY-----`;
+
+test("a summary or note shaped like any shared credential pattern throws, naming the kind", () => {
+  for (const [secret, kind] of [
+    [GITHUB_TOKEN, "GitHub token"],
+    [AWS_KEY, "AWS access key"],
+    [PEM, "private key"],
+  ]) {
+    for (const output of [
+      { verdict: "pass", summary: `found ${secret}`, notes: [] },
+      { verdict: "fail", summary: "s", notes: ["fine", `see ${secret}`] },
+    ]) {
+      assert.throws(() => buildVerdict({ ...ids, output: JSON.stringify(output) }), new RegExp(`credential \\(${kind}\\)`), kind);
+    }
+  }
+});
+
+test("an ordinary verdict naming SHAs, paths and the ghp_ prefix passes", () => {
+  const summary = `Checked ${HEAD} against ${BASE}; lib/publish-gate.mjs:27 matches tokens that start ghp_.`;
+  const output = JSON.stringify({ verdict: "pass-notes", summary, notes: [".github/scripts/pr-verify/write-verdict.mjs:95 changed"] });
+  assert.equal(buildVerdict({ ...ids, output }).summary, summary);
 });
 
 test("the structured output is the last result message's", () => {
