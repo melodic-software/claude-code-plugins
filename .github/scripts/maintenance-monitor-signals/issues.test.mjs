@@ -155,3 +155,17 @@ test("a main-red key closed as completed reopens when main fails after the close
     [30],
   );
 });
+
+test("an observation at the close time is not after it, so the same evidence stays closed", () => {
+  const f = { ...findingFor([1]), observedAt: "2026-10-18T12:00:00Z" };
+  const closed = [issueFrom(f, 30, { state: "closed", state_reason: "completed", closed_at: "2026-10-18T12:00:00Z" })];
+  const plan = planIssues({ findings: [f], existing: closed });
+  assert.deepEqual(plan.reopen, []);
+  assert.deepEqual(plan.file, []);
+  assert.deepEqual(plan.skip, [{ key: f.key, number: 30, reason: "closed-unchanged" }]);
+  const later = planIssues({ findings: [{ ...f, observedAt: "2026-10-18T12:00:01Z" }], existing: closed });
+  assert.deepEqual(
+    later.reopen.map((r) => r.number),
+    [30],
+  );
+});

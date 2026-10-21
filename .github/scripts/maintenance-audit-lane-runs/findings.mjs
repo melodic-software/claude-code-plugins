@@ -134,8 +134,8 @@ export function readFingerprint(body) {
   return MARKER.exec(last ?? "")?.[1] ?? null;
 }
 
-// items: [{fingerprint, finding}]; existing: sweep issues (open, and closed in
-// the lookback) with body; openNumbers: open issue and PR numbers.
+// items: [{fingerprint, finding}]; existing: sweep issues of any state, with
+// no time window, with body; openNumbers: open issue and PR numbers.
 export function planFiling({ items, existing, openNumbers, maxNew = MAX_NEW_ISSUES }) {
   const byFp = new Map();
   for (const issue of existing) {
