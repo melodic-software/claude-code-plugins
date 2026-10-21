@@ -2741,7 +2741,8 @@ class TestMoveRequest(ServerCase):
     """Owner decision R27: Move to puts a request and its result on another question or the whole session; only its
     asker or the owner moves it."""
 
-    ask, go, answer, state, sees = TestSharingDefault.ask, TestSharingDefault.go, TestSharingDefault.answer, TestSharingDefault.state, TestSharingDefault.sees
+    ask, go, answer, state, sees, status = (TestSharingDefault.ask, TestSharingDefault.go, TestSharingDefault.answer, TestSharingDefault.state,
+                                          TestSharingDefault.sees, TestSharingDefault.status)
 
     def setUp(self):
         super().setUp()
@@ -2761,7 +2762,7 @@ class TestMoveRequest(ServerCase):
         self.answer(rid, "Moved along.")
         code, _, out = self.move(rid, self.ann, qid="Q2")
         self.assertEqual((code, out), (200, {"ok": True, "id": rid, "qid": "Q2"}))
-        self.assertEqual((self.sees(self.bo, "Moved along.", "Q1"), self.sees(self.bo, "Moved along.", "Q2")), (False, True))
+        self.assertEqual((self.sees(self.owner, "Moved along.", "Q1"), self.sees(self.owner, "Moved along.", "Q2")), (False, True))
         self.assertEqual(self.where(rid), "Q2")
 
     def test_another_guest_cannot_move_it(self):
@@ -2801,6 +2802,40 @@ class TestMoveRequest(ServerCase):
         mine = self.ask(self.bo, runner="self")
         code, _, out = self.move(mine, self.bo, scope="session")
         self.assertEqual((code, out["field"]), (400, "scope"))
+
+    def test_a_shared_answer_its_asker_moves_waits_for_the_owners_share_and_the_owners_move_keeps_it_shared(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        xid = self.answer(rid, "Approved on Q1.")["id"]
+        self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
+        self.assertFalse(self.sees(self.bo, "Approved on Q1.", "Q2"))
+        self.assertEqual(self.status(self.ann, rid), "unshared")  # held like a fresh answer under review
+        self.assertIn("share:" + xid, [i["key"] for i in self.state(self.owner)["inbox"]])
+        self.assertEqual(self.app.session.summary()["queue"]["results"], 1)
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
+        time.sleep(1.05)
+        self.assertEqual(self.move(rid, self.owner, qid="Q1")[0], 200)
+        self.assertTrue(self.sees(self.bo, "Approved on Q1.", "Q1"))
+        self.assertNotIn("share:" + xid, [i["key"] for i in self.state(self.owner)["inbox"]])
+
+    def test_a_cited_answer_is_refused_a_move_and_stays(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        xid = self.answer(rid, "Cite me.")["id"]
+        code, _, out = self.post("/api/answer", {"qid": "Q1", "text": "As Claude found.", "cites": [xid], "device": "computer", "view": "focus"}, self.bo)
+        self.assertEqual(code, 200, out)
+        code, _, out = self.move(rid, self.owner, qid="Q2")
+        self.assertEqual((code, out["error"]), (409, "cited"))
+        self.assertEqual(self.where(rid), "Q1")
+        self.assertEqual((self.sees(self.bo, "Cite me.", "Q1"), self.sees(self.bo, "Cite me.", "Q2")), (True, False))
+
+    def test_a_shared_answer_the_owner_moves_to_the_whole_session_is_claudes_chat_message(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        xid = self.answer(rid, "Now for the session.")["id"]
+        self.assertEqual(self.move(rid, self.owner, scope="session")[0], 200)
+        said = [m for m in self.app.session.state["chat"] if m.get("claude") == {"result": xid}]
+        self.assertEqual([m["text"] for m in said], ["Now for the session."])
 
     def test_a_second_move_within_a_second_is_throttled(self):
         rid = self.ask(self.ann)

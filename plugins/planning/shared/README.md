@@ -358,6 +358,9 @@ whole session; "@Claude" in chat or a Discussion always asks for everyone.
   owner moves it; anyone else reads 404 `no-such-request`, and every other action stays the owner's
   (403 `owner-only`). An unknown question reads 404, the place it is already 409 `same-place`, a
   running request 409 `wrong-status`, and a request on the asker's own Claude stays on a question.
+  A result any answer cites stays put (409 `cited`). A shared result its asker moves waits for the
+  owner's Share again; one the owner moves stays shared, and on the whole session it becomes
+  Claude's chat message, as a Share makes it.
 
 ## Connect your Claude
 

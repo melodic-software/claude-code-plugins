@@ -3789,6 +3789,8 @@ class Session:
             raise DomainError(409, "wrong-status", f"Request {r['id']} is running.", status="running")
         key, results = r.get("qid", GENERAL), self.state["results"]
         res = next((x for x in results.get(key, ()) if x["request"] == r["id"]), None)
+        if res and any(res["id"] in c.get("cites", ()) for c in _answers(self.state["cards"])):
+            raise DomainError(409, "cited", "This answer is cited in someone's answer, so it stays where it is.")
         if res:
             results[key].remove(res)
             if not results[key]:
@@ -3798,6 +3800,13 @@ class Session:
             x.pop("qid", None)
             if to:
                 x["qid"] = to
+        if res and res["published"]:
+            if pid == HOST:
+                self._claude_says(res, r)  # shared on the whole session now: Claude's chat message, as a Share posts
+            else:  # the owner shared it where it was: moved by its asker, it waits on the owner's Share again
+                res["published"] = False
+                res.pop("publishedAt", None)
+                self._unseen(HOST, "share:" + res["id"])
         if pid != r["pid"]:
             self._notify(r["pid"], "request", f"Your request moved {_on(r)}.", actor=pid, qid=to)
         return {"id": r["id"], **({"qid": to} if to else {"scope": GENERAL})}
