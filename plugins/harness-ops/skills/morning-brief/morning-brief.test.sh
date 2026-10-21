@@ -125,6 +125,43 @@ EOF
 
 printf '[]\n' >"$TMP/empty.json"
 
+# A stuck-section read that finds no label holding anything, for every run that
+# gives the brief a repo but is not about the Stuck section.
+printf '{}\n' >"$TMP/stuck-empty.json"
+
+# Stuck-section fixture: label -> search page documents. NOW is 2026-07-20T08:00Z.
+#   #201 issue — "status: ready" since 07-01 (19d); an older labeled event and a
+#                newer event for ANOTHER label must not move it   -> listed
+#   #202 PR    — "status: ready" since 07-18 (2d)                  -> under 7d, not listed
+#   #203 issue — "status: ready", no labeled event in its timeline -> days unknown
+#   #204 PR    — "needs-human" since 07-12 (8d)                    -> listed
+#   #205 PR    — "needs-human" labeled 06-01 and again 07-19 (1d)  -> newest event wins, not listed
+#   #206 issue — "needs-triage" since 07-10 (10d)                  -> listed
+cat >"$TMP/stuck.json" <<'EOF'
+{
+  "status: ready": [{"data": {"search": {"issueCount": 3, "pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+    {"__typename": "Issue", "number": 201, "title": "old ready item", "timelineItems": {"nodes": [
+      {"createdAt": "2026-06-01T08:00:00Z", "label": {"name": "status: ready"}},
+      {"createdAt": "2026-07-01T08:00:00Z", "label": {"name": "status: ready"}},
+      {"createdAt": "2026-07-18T08:00:00Z", "label": {"name": "needs-human"}}]}},
+    {"__typename": "PullRequest", "number": 202, "title": "fresh ready pr", "timelineItems": {"nodes": [
+      {"createdAt": "2026-07-18T08:00:00Z", "label": {"name": "status: ready"}}]}},
+    {"__typename": "Issue", "number": 203, "title": "unknown age", "timelineItems": {"nodes": []}}
+  ]}}}],
+  "needs-human": [{"data": {"search": {"issueCount": 2, "pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+    {"__typename": "PullRequest", "number": 204, "title": "boundary item", "timelineItems": {"nodes": [
+      {"createdAt": "2026-07-12T08:00:00Z", "label": {"name": "needs-human"}}]}},
+    {"__typename": "PullRequest", "number": 205, "title": "relabeled item", "timelineItems": {"nodes": [
+      {"createdAt": "2026-06-01T08:00:00Z", "label": {"name": "needs-human"}},
+      {"createdAt": "2026-07-19T08:00:00Z", "label": {"name": "needs-human"}}]}}
+  ]}}}],
+  "needs-triage": [{"data": {"search": {"issueCount": 1, "pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+    {"__typename": "Issue", "number": 206, "title": "triage stuck", "timelineItems": {"nodes": [
+      {"createdAt": "2026-07-10T08:00:00Z", "label": {"name": "needs-triage"}}]}}
+  ]}}}]
+}
+EOF
+
 # Merged-PR fixture for the stranded-findings section, shaped like the real case
 # (#1720): a P1 review comment posted 46 SECONDS AFTER the merge landed. The
 # fixture mirrors `gh api graphql --paginate` output — a list of page documents.
@@ -380,7 +417,7 @@ assert_contains "missing telemetry degrades gracefully" "$OUT2" "no telemetry is
 
 # --- Graceful: queue labels absent in consuming repo -------------------------
 OUT_NO_QL="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -405,7 +442,7 @@ assert_contains "partial taxonomy keeps another existing label" "$OUT_PARTIAL_QL
 assert_not_contains "partial taxonomy drops absent default labels" "$OUT_PARTIAL_QL" "needs-triage"
 
 OUT_CUSTOM_QL="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" \
   --queue-labels "bug, enhancement" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/empty.json" \
@@ -417,7 +454,7 @@ assert_contains "pinned queue labels are honored" "$OUT_CUSTOM_QL" "bug"
 assert_contains "pinned queue labels include the second entry" "$OUT_CUSTOM_QL" "enhancement"
 
 OUT_NO_DEC="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" \
   --repo-labels-json "$TMP/repo-labels-alternate.json" \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/empty.json" \
@@ -426,7 +463,7 @@ OUT_NO_DEC="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "missing decision label degrades gracefully" "$OUT_NO_DEC" "decision label not found in this repo"
 
 OUT_EMPTY_LABELS="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" \
   --repo-labels-json "$TMP/repo-labels-empty.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -436,7 +473,7 @@ OUT_EMPTY_LABELS="$(bash "$BRIEF" --now "$NOW" \
 assert_contains "empty label inventory degrades queue section" "$OUT_EMPTY_LABELS" "no queue labels found in this repo"
 
 OUT_EMPTY_LABELS_DEC="$(bash "$BRIEF" --now "$NOW" \
-  --repo "$FIXTURE_REPO" \
+  --repo "$FIXTURE_REPO" --stuck-json "$TMP/stuck-empty.json" \
   --repo-labels-json "$TMP/repo-labels-empty.json" \
   --counts-json "$TMP/empty.json" \
   --pr-json "$TMP/empty.json" \
@@ -589,7 +626,7 @@ OUT_ERR="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
 assert_not_contains "stranded: an API error is NEVER reported as clear" "$OUT_ERR" "every merged PR in the window is clear"
 assert_contains "stranded: an API error renders the section UNREADABLE" "$OUT_ERR" "UNREADABLE: API rate limit"
 assert_contains "stranded: the API error message is surfaced" "$OUT_ERR" "rate limit already exceeded"
-assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "1 of 6 sections unreadable: stranded"
+assert_contains "stranded: the header counts the unreadable section" "$OUT_ERR" "1 of 7 sections unreadable: stranded"
 
 # --- Severity classification and ranking -------------------------------------
 OUT_SEV="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
@@ -628,6 +665,74 @@ OUT_WIDE="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --stranded-days 60 \
 assert_contains "stranded: --stranded-days widens the window" "$OUT_WIDE" "#1690"
 assert_contains "stranded: the window is reported in the header" "$OUT_WIDE" "last 60d"
 
+# --- Stuck: open items past --stuck-days in a queue label ----------------------
+run_stuck() {
+  bash "$BRIEF" --now "$NOW" --stale-hours 6 \
+    --counts-json "$TMP/counts.json" \
+    --pr-json "$TMP/pr.json" \
+    --behind-json "$TMP/behind.json" \
+    --decisions-json "$TMP/decisions.json" \
+    --telemetry-json "$TMP/telemetry.json" \
+    --merged-json "$TMP/merged-clean.json" \
+    --stuck-json "$TMP/stuck.json" "$@" 2>&1
+}
+stuck_order() { printf '%s\n' "$1" | grep -oE '^  #[0-9]+' | tr -d ' \n'; }
+
+OUT_STUCK="$(run_stuck)"
+RC_STUCK=$?
+STUCK_SEC="$(section "$OUT_STUCK" "== Stuck")"
+assert_exit "stuck: a fully fixtured brief exits 0" 0 "$RC_STUCK"
+assert_contains "stuck: the heading names the threshold" "$STUCK_SEC" "== Stuck (open items in a queue label for more than 7d) =="
+assert_contains "stuck: an issue past the threshold is listed with its days in stage" "$STUCK_SEC" \
+  "  #201 issue  old ready item  (status: ready, 19d in stage)"
+assert_contains "stuck: a PR is listed and labeled PR" "$STUCK_SEC" "  #204 PR  boundary item  (needs-human, 8d in stage)"
+assert_contains "stuck: another label's item is listed under its own label" "$STUCK_SEC" \
+  "  #206 issue  triage stuck  (needs-triage, 10d in stage)"
+assert_not_contains "stuck: an item under the threshold is not listed" "$STUCK_SEC" "#202"
+assert_not_contains "stuck: the newest labeled event decides, not the first" "$STUCK_SEC" "#205"
+assert_contains "stuck: an item with no labeled event is listed as days unknown" "$STUCK_SEC" \
+  "  #203 issue  unknown age  (status: ready, days unknown)"
+assert_eq "stuck: oldest first, days unknown last" "#201#206#204#203" "$(stuck_order "$STUCK_SEC")"
+assert_not_contains "stuck: under the cap there is no PARTIAL" "$STUCK_SEC" "PARTIAL"
+
+STUCK_DAYS_SEC="$(section "$(run_stuck --stuck-days 9)" "== Stuck")"
+assert_contains "stuck: --stuck-days is in the heading" "$STUCK_DAYS_SEC" "for more than 9d"
+assert_eq "stuck: --stuck-days raises the threshold" "#201#206#203" "$(stuck_order "$STUCK_DAYS_SEC")"
+
+STUCK_CAP_SEC="$(section "$(run_stuck --stuck-limit 2)" "== Stuck")"
+assert_eq "stuck: --stuck-limit keeps the oldest items" "#201#206" "$(stuck_order "$STUCK_CAP_SEC")"
+assert_contains "stuck: past the cap the section says PARTIAL" "$STUCK_CAP_SEC" \
+  "PARTIAL: 4 stuck items; showing the oldest 2 (raise --stuck-limit)"
+
+STUCK_LABEL_SEC="$(section "$(run_stuck --queue-labels needs-human)" "== Stuck")"
+assert_eq "stuck: only the shown queue labels are read" "#204" "$(stuck_order "$STUCK_LABEL_SEC")"
+
+STUCK_NONE_SEC="$(section "$(run_stuck --stuck-json "$TMP/stuck-empty.json")" "== Stuck")"
+assert_contains "stuck: no stuck item says so" "$STUCK_NONE_SEC" "(none — no open item has held a queue label for more than 7d)"
+
+jq '.["status: ready"][0].data.search.issueCount = 1500' "$TMP/stuck.json" >"$TMP/stuck-ceiling.json"
+assert_contains "stuck: a search at its ceiling is PARTIAL" "$(section "$(run_stuck --stuck-json "$TMP/stuck-ceiling.json")" "== Stuck")" \
+  "PARTIAL: status: ready: the search reached its 1,000-result ceiling"
+
+printf '{"errors": [{"message": "boom stuck"}]}\n' >"$TMP/stuck-error.json"
+OUT_STUCK_ERR="$(run_stuck --stuck-json "$TMP/stuck-error.json")"
+RC_STUCK_ERR=$?
+assert_exit "stuck: an error document exits 6" 6 "$RC_STUCK_ERR"
+assert_contains "stuck: an error document is UNREADABLE" "$(section "$OUT_STUCK_ERR" "== Stuck")" "UNREADABLE: boom stuck"
+assert_contains "stuck: the header counts the unreadable section" "$OUT_STUCK_ERR" "1 of 7 sections unreadable: stuck"
+printf '[]\n' >"$TMP/stuck-array.json"
+assert_contains "stuck: a fixture that is not a label map is UNREADABLE" "$(section "$(run_stuck --stuck-json "$TMP/stuck-array.json")" "== Stuck")" \
+  "UNREADABLE: --stuck-json is not an object"
+printf '{"needs-human": [{"nodes": 1}]}\n' >"$TMP/stuck-nopage.json"
+assert_contains "stuck: a response with no page document is UNREADABLE" "$(section "$(run_stuck --stuck-json "$TMP/stuck-nopage.json")" "== Stuck")" \
+  "UNREADABLE: needs-human: could not parse the search pages"
+
+assert_contains "stuck: no repo and no fixture is an empty state, not UNREADABLE" "$(section "$OUT3" "== Stuck")" "(no repo resolved — pass --repo or --stuck-json)"
+bash "$BRIEF" --stuck-days x >/dev/null 2>&1
+assert_exit "non-numeric --stuck-days exits 3" 3 "$?"
+bash "$BRIEF" --stuck-limit x >/dev/null 2>&1
+assert_exit "non-numeric --stuck-limit exits 3" 3 "$?"
+
 # --- Degraded-mode contract: an unreadable source is never an all-clear -------
 # A `gh` test double on PATH stands in for the network. MB_GH_MODE selects the
 # host's behavior:
@@ -642,7 +747,8 @@ assert_contains "stranded: the window is reported in the header" "$OUT_WIDE" "la
 #            limit of 30 when none is given) and -q applies as a jq filter.
 #            Keys: label-list, pr-list, issue-list-label-<sanitized label>,
 #            issue-list-search, issue-view-<n>, and api-graphql-<cursor> (first
-#            page: api-graphql-first). `api graphql --paginate` follows the
+#            page: api-graphql-first), and api-graphql-stuck-<sanitized label>-
+#            <cursor> for a label search. `api graphql --paginate` follows the
 #            cursors to the last page, as gh does. Every key served is logged
 #            to MB_GH_LOG when set; a missing fixture fails the call.
 GH_STUB_DIR="$TMP/gh-stub"
@@ -692,14 +798,18 @@ case "$mode" in
     }
     cmd="$1 $2"
     shift 2
-    limit="" q="" label="" search=0 cursor="first" num="" paginate=0
+    limit="" q="" label="" search=0 cursor="first" num="" paginate=0 squery=""
     while (($#)); do
       case "$1" in
         --limit) limit="$2"; shift ;;
         -q) q="$2"; shift ;;
         --label) label="$2"; shift ;;
         --search) search=1; shift ;;
-        -f | -F) [[ "$2" == endCursor=* ]] && cursor="${2#endCursor=}"; shift ;;
+        -f | -F)
+          [[ "$2" == endCursor=* ]] && cursor="${2#endCursor=}"
+          [[ "$2" == search=* ]] && squery="${2#search=}"
+          shift
+          ;;
         --json | --repo | --state) shift ;;
         --paginate) paginate=1 ;;
         *) num="$1" ;;
@@ -708,6 +818,15 @@ case "$mode" in
     done
     case "$cmd" in
       "api graphql")
+        if [[ -n "$squery" ]]; then
+          # The stuck section's label search: one page per call, keyed by the
+          # label inside `label:"..."` and the cursor.
+          lbl="${squery#*label:\"}"
+          lbl="${lbl%\"}"
+          page="$(serve "api-graphql-stuck-$(san "$lbl")-$(san "$cursor")")" || exit 1
+          printf '%s\n' "$page"
+          exit 0
+        fi
         while :; do
           page="$(serve "api-graphql-$(san "$cursor")")" || exit 1
           printf '%s\n' "$page"
@@ -741,17 +860,24 @@ chmod +x "$GH_STUB_DIR/gh"
 
 run_stub() {
   # run_stub MODE args... — runs the brief with the gh double on PATH.
-  local mode="$1"
+  # The gql double serves the stranded fixtures by cursor alone, so a gql run
+  # takes its stuck read from an empty fixture unless MB_STUCK_LIVE is set; a
+  # later --stuck-json in "$@" wins.
+  local mode="$1" stuck=()
   shift
+  [[ "$mode" == gql && -z "${MB_STUCK_LIVE:-}" ]] && stuck=(--stuck-json "$TMP/stuck-empty.json")
   PATH="$GH_STUB_DIR:$PATH" MB_GH_MODE="$mode" MB_GH_FIXTURES="${MB_GH_FIXTURES:-$TMP/rest}" \
-    bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" --data-dir "${MB_DATA_DIR:-$TMP/data}" "$@" 2>&1
+    bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" --data-dir "${MB_DATA_DIR:-$TMP/data}" \
+    ${stuck[@]+"${stuck[@]}"} "$@" 2>&1
 }
 
 # Every section live, every call refused: nothing may read as clear or absent.
 OUT_BLOCKED="$(run_stub blocked)"
 RC_BLOCKED=$?
 assert_exit "blocked: every live section unreadable exits 5" 5 "$RC_BLOCKED"
-assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "6 of 6 sections unreadable"
+assert_contains "blocked: header counts every section" "$OUT_BLOCKED" "7 of 7 sections unreadable"
+assert_contains "blocked: stuck is UNREADABLE" "$(section "$OUT_BLOCKED" "== Stuck")" "UNREADABLE:"
+assert_not_contains "blocked: stuck never renders an all-clear" "$OUT_BLOCKED" "no open item has held a queue label"
 assert_contains "blocked: lanes are UNREADABLE" "$(section "$OUT_BLOCKED" "== Lanes")" "UNREADABLE:"
 assert_contains "blocked: queues are UNREADABLE" "$(section "$OUT_BLOCKED" "== Queues")" "UNREADABLE:"
 assert_contains "blocked: merge-ready is UNREADABLE" "$(section "$OUT_BLOCKED" "== Merge-ready")" "UNREADABLE:"
@@ -781,10 +907,11 @@ OUT_ONE="$(run_stub blocked \
   --pr-json "$TMP/pr.json" \
   --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json" \
+  --stuck-json "$TMP/stuck-empty.json" \
   --lane-runs-json "$TMP/lanes-empty.json")"
 RC_ONE=$?
 assert_exit "partial: one unreadable section among fixtures exits 6" 6 "$RC_ONE"
-assert_contains "partial: header names the lost section" "$OUT_ONE" "1 of 6 sections unreadable: stranded"
+assert_contains "partial: header names the lost section" "$OUT_ONE" "1 of 7 sections unreadable: stranded"
 assert_contains "partial: the fixture sections still render" "$OUT_ONE" "#10 clean pr"
 
 # A `message`-shaped error body (the REST/403 shape, no `errors` key) fed as a
@@ -811,12 +938,13 @@ if have git; then
     bash "$BRIEF" --now "$NOW" \
     --counts-json "$TMP/counts.json" \
     --pr-json "$TMP/pr.json" \
-    --decisions-json "$TMP/decisions.json" 2>&1)"
+    --decisions-json "$TMP/decisions.json" \
+    --stuck-json "$TMP/stuck-empty.json" 2>&1)"
   RC_REMOTE=$?
-  assert_exit "git remote fallback: renders (exit 6, three of six unreadable)" 6 "$RC_REMOTE"
+  assert_exit "git remote fallback: renders (exit 6, three of seven unreadable)" 6 "$RC_REMOTE"
   assert_contains "git remote fallback: owner/repo taken from origin" "$OUT_REMOTE" "Morning brief — $FIXTURE_REPO —"
   assert_contains "git remote fallback: the header names the source" "$OUT_REMOTE" "repo resolved from the git origin remote"
-  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "3 of 6 sections unreadable: telemetry stranded lanes"
+  assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "3 of 7 sections unreadable: telemetry stranded lanes"
 fi
 
 # --- REST fallback: sections 1-4 from repository-scoped endpoints -------------
@@ -918,7 +1046,8 @@ assert_contains "rest: decision RECOMMENDED line is extracted" "$OUT_REST" "RECO
 assert_contains "rest: telemetry issue found by title" "$OUT_REST" "source: issue #50"
 assert_contains "rest: telemetry lane age computed" "$OUT_REST" "babysit    last-cycle=2026-07-20T06:30Z UTC  age=1h 30m"
 assert_contains "rest: stranded is UNREADABLE, never clear" "$(section "$OUT_REST" "== Findings stranded")" "UNREADABLE: review threads need GraphQL"
-assert_contains "rest: header counts the one lost section" "$OUT_REST" "1 of 6 sections unreadable: stranded"
+assert_contains "rest: stuck is UNREADABLE, never empty" "$(section "$OUT_REST" "== Stuck")" "UNREADABLE: label events need GraphQL"
+assert_contains "rest: header counts the two lost sections" "$OUT_REST" "2 of 7 sections unreadable: stuck stranded"
 
 # The same data through the gh-shaped fixtures.
 cat >"$TMP/same-counts.json" <<'EOF'
@@ -943,6 +1072,7 @@ cat >"$TMP/same-telemetry.json" <<'EOF'
 [{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]
 EOF
 OUT_SAME="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" \
+  --stuck-json "$TMP/stuck-empty.json" \
   --repo-labels-json "$TMP/same-labels.json" \
   --counts-json "$TMP/same-counts.json" \
   --pr-json "$TMP/same-pr.json" \
@@ -1008,7 +1138,7 @@ OUT_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" \
   --telemetry-json "$TMP/garbage.json" --merged-json "$TMP/garbage.json" 2>&1)"
 RC_BAD=$?
 assert_exit "unparsable: a brief with unreadable sections exits 6" 6 "$RC_BAD"
-assert_contains "unparsable: the header counts the four lost sections" "$OUT_BAD" "4 of 6 sections unreadable: merge-ready decisions telemetry stranded"
+assert_contains "unparsable: the header counts the four lost sections" "$OUT_BAD" "4 of 7 sections unreadable: merge-ready decisions telemetry stranded"
 assert_contains "unparsable: merge-ready is UNREADABLE" "$(section "$OUT_BAD" "== Merge-ready")" "UNREADABLE: could not parse the PR list"
 assert_not_contains "unparsable: merge-ready never renders as none clean" "$OUT_BAD" "(none clean right now)"
 assert_contains "unparsable: decisions are UNREADABLE" "$(section "$OUT_BAD" "== Parked")" "UNREADABLE: could not parse the decision issues"
@@ -1175,6 +1305,41 @@ STR_NOCURSOR="$(section "$OUT_NOCURSOR" "== Findings stranded")"
 assert_contains "paging: a next page without a cursor is UNREADABLE" "$STR_NOCURSOR" "UNREADABLE: a merged-PR page reported more results but no cursor to them"
 assert_not_contains "paging: a next page without a cursor never reads as clear" "$STR_NOCURSOR" "every merged PR in the window is clear"
 assert_eq "paging: a next page without a cursor leaves the bookmark" "2026-07-10T08:00Z" "$(bookmark_of "$TMP/data-nocursor")"
+
+# --- Stuck: the live read is one paged search per queue label -----------------
+# status: ready spans two pages (cursor p2); the other labels hold nothing.
+STK="$TMP/gql-stuck"
+mkdir -p "$STK"
+cat >"$STK/api-graphql-stuck-status__ready-first.json" <<'EOF'
+{"data": {"search": {"issueCount": 2, "pageInfo": {"hasNextPage": true, "endCursor": "p2"}, "nodes": [
+  {"__typename": "Issue", "number": 301, "title": "live ready item", "timelineItems": {"nodes": [
+    {"createdAt": "2026-07-05T08:00:00Z", "label": {"name": "status: ready"}}]}}
+]}}}
+EOF
+cat >"$STK/api-graphql-stuck-status__ready-p2.json" <<'EOF'
+{"data": {"search": {"issueCount": 2, "pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+  {"__typename": "PullRequest", "number": 302, "title": "second page pr", "timelineItems": {"nodes": [
+    {"createdAt": "2026-07-10T08:00:00Z", "label": {"name": "status: ready"}}]}}
+]}}}
+EOF
+for stk_label in needs-triage status__needs-decision needs-human; do
+  cat >"$STK/api-graphql-stuck-$stk_label-first.json" <<'EOF'
+{"data": {"search": {"issueCount": 0, "pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": []}}}
+EOF
+done
+OUT_STUCK_LIVE="$(MB_STUCK_LIVE=1 MB_GH_FIXTURES="$STK" MB_GH_LOG="$TMP/log-stuck" run_stub gql "${FIX_ARGS[@]}" --merged-json "$TMP/merged-clean.json")"
+RC_STUCK_LIVE=$?
+STUCK_LIVE_SEC="$(section "$OUT_STUCK_LIVE" "== Stuck")"
+assert_exit "stuck live: a full read exits 0" 0 "$RC_STUCK_LIVE"
+assert_contains "stuck live: an item on the first page is listed" "$STUCK_LIVE_SEC" "  #301 issue  live ready item  (status: ready, 15d in stage)"
+assert_contains "stuck live: an item on the second page is listed" "$STUCK_LIVE_SEC" "  #302 PR  second page pr  (status: ready, 10d in stage)"
+assert_eq "stuck live: oldest first across pages" "#301#302" "$(stuck_order "$STUCK_LIVE_SEC")"
+assert_contains "stuck live: the page past the first is read" "$(cat "$TMP/log-stuck")" "api-graphql-stuck-status__ready-p2"
+assert_contains "stuck live: every queue label is searched" "$(cat "$TMP/log-stuck")" "api-graphql-stuck-needs-human-first"
+
+mkdir -p "$TMP/gql-stuck-none"
+OUT_STUCK_FAIL="$(MB_STUCK_LIVE=1 MB_GH_FIXTURES="$TMP/gql-stuck-none" run_stub gql "${FIX_ARGS[@]}" --merged-json "$TMP/merged-clean.json")"
+assert_contains "stuck live: a failed search renders UNREADABLE, never empty" "$(section "$OUT_STUCK_FAIL" "== Stuck")" "UNREADABLE: needs-triage: no fixture"
 
 # --- Lanes: failures by class, limit stops, restarts, turn headroom -----------
 # The window is 2026-07-13T08:00Z to NOW. intake-triage: three runs in the
