@@ -379,11 +379,24 @@ lanes:
 # pr-verify.yml's judgment routes as verify-pr.
 models:
   profiles:
-    standard: { model: default, max-turns: 75 }
-    review: { model: opus, max-turns: 60 }
-    pr-review: { model: sonnet, effort: high, max-turns: 75 }
-    triage: { model: sonnet, effort: medium, max-turns: 30 }
-    summary: { model: sonnet, effort: medium, max-turns: 10 }
+    standard:
+      model: default
+      max-turns: 75
+    review:
+      model: opus
+      max-turns: 60
+    pr-review:
+      model: sonnet
+      effort: high
+      max-turns: 75
+    triage:
+      model: sonnet
+      effort: medium
+      max-turns: 30
+    summary:
+      model: sonnet
+      effort: medium
+      max-turns: 10
   default-profile: standard
   routes:
     verify-pr: review
@@ -402,19 +415,32 @@ models:
     fields:
       size:
         field-id: 15462270
-        options: { "27053568": small, "27053567": medium, "27053566": large }
+        options:
+          "27053568": small
+          "27053567": medium
+          "27053566": large
       complexity:
         field-id: 48625720
-        options: { "85127651": low, "85127652": medium, "85127653": high }
+        options:
+          "85127651": low
+          "85127652": medium
+          "85127653": high
       uncertainty:
         field-id: 48625721
-        options: { "85127654": known, "85127655": knowable, "85127656": unknown }
+        options:
+          "85127654": known
+          "85127655": knowable
+          "85127656": unknown
     sizes:
       # 75 turns is the cap every lane run had; 50 minutes covers the high
       # factor at the 20 seconds a turn the old 75-turn, 25-minute run allowed.
-      small: { base-turns: 75, timeout-minutes: 50 }
+      small:
+        base-turns: 75
+        timeout-minutes: 50
       # Twice small's turns and time.
-      medium: { base-turns: 150, timeout-minutes: 100 }
+      medium:
+        base-turns: 150
+        timeout-minutes: 100
       # Too big for one run: the lane skips it (split-required) before any
       # model turn, and triage sends it to /work-items:decompose.
       large: split
