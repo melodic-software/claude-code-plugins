@@ -241,7 +241,7 @@ month's Defender cost. Two Azure reads are POSTs that read only: the Cost Manage
 (`az rest --method post`) and the Log Analytics Usage-table query (`az monitor log-analytics
 query`); every other Azure read is a GET. A throttled or failed query is `UNREADABLE` and is not
 retried; the brief makes one Cost Management query per run and reads its next pages, up to 20,
-only from `management.azure.com`. What a Log Analytics query of the Usage table costs: the table
+only from the same query endpoint (a `nextLink` naming any other path is `UNREADABLE`, never POSTed). What a Log Analytics query of the Usage table costs: the table
 plans pointer below.
 The GitHub org scan lists the org's repos and admins once, then per live repo reads its direct
 collaborators and the workflow files in `.github/workflows` at its default branch, at most

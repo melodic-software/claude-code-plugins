@@ -1940,6 +1940,10 @@ jq -n '{admins: ["owner-example"], partial: 0, repos: [{name: "app-forms", visib
     {path: ".github/workflows/inherit.yml", text: "on: pull_request_target\njobs:\n  call:\n    uses: example/shared/.github/workflows/review.yml@main\n    secrets: inherit\n"},
     {path: ".github/workflows/tojson.yml", text: "on:\n  workflow_run:\n    workflows: [ci]\njobs:\n  t:\n    steps:\n      - run: echo \u0027${{ toJSON(secrets) }}\u0027\n"},
     {path: ".github/workflows/computed.yml", text: "on: pull_request_target\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets[format(\u0027{0}_KEY\u0027, matrix.p)] }}\n"},
+    {path: ".github/workflows/inherit-dq.yml", text: "on: pull_request_target\njobs:\n  call:\n    uses: example/shared/.github/workflows/review.yml@main\n    secrets: \"inherit\"\n"},
+    {path: ".github/workflows/inherit-sq.yml", text: "on: pull_request_target\njobs:\n  call:\n    uses: example/shared/.github/workflows/review.yml@main\n    secrets: \u0027inherit\u0027 # all of them\n"},
+    {path: ".github/workflows/comment-scalar.yml", text: "on: pull_request_target # forks\njobs:\n  call:\n    uses: example/shared/.github/workflows/review.yml@main\n    secrets: inherit # all of them\n"},
+    {path: ".github/workflows/comment-list.yml", text: "on:\n  - pull_request_target   # forks\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets.LIST_CLAUDE_KEY }} # note\n"},
     {path: ".github/workflows/inherit-pr.yml", text: "on: pull_request\njobs:\n  call:\n    uses: example/shared/.github/workflows/review.yml@main\n    secrets: inherit\n"},
     {path: ".github/workflows/plain-index.yml", text: "on: pull_request_target\njobs:\n  t:\n    steps:\n      - run: echo ${{ secrets[\u0027PLAIN_TOKEN\u0027] }}\n"}]}]}' >"$TMP/org-scan-forms.json"
 COST_FORMS="$(section "$(cost_brief --org-scan-json "$TMP/org-scan-forms.json" --azure-json "$TMP/azure-clear.json")" "== Cost")"
@@ -1951,6 +1955,14 @@ assert_contains "fork forms: a quoted block key is a fork trigger" "$COST_FORMS"
   "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/quoted-key.yml: pull_request_target reads QUOTED_CLAUDE_KEY"
 assert_contains "fork forms: a reusable-workflow call with secrets: inherit passes every secret" "$COST_FORMS" \
   "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/inherit.yml: pull_request_target reads every secret (secrets: inherit)"
+assert_contains "fork forms: a double-quoted inherit passes every secret" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/inherit-dq.yml: pull_request_target reads every secret (secrets: inherit)"
+assert_contains "fork forms: a single-quoted inherit with a comment passes every secret" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/inherit-sq.yml: pull_request_target reads every secret (secrets: inherit)"
+assert_contains "fork forms: a scalar event with a trailing comment is a fork trigger" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/comment-scalar.yml: pull_request_target reads every secret (secrets: inherit)"
+assert_contains "fork forms: a list event with a trailing comment is a fork trigger" "$COST_FORMS" \
+  "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/comment-list.yml: pull_request_target reads LIST_CLAUDE_KEY"
 assert_contains "fork forms: toJSON(secrets) passes every secret" "$COST_FORMS" \
   "ALERT      GitHub fork-triggered workflows: app-forms .github/workflows/tojson.yml: workflow_run reads every secret (toJSON(secrets))"
 assert_contains "fork forms: a computed secrets index can read any secret" "$COST_FORMS" \
@@ -1975,8 +1987,10 @@ assert_contains "scan counts: a capped workflow read is UNREADABLE with its coun
 assert_not_contains "scan counts: a capped workflow read is never OK" "$COST_SCAN_CAPPED" "OK         GitHub fork-triggered workflows"
 
 # The cost query's next page is read and merged: page 2 holds a Defender charge
-# and the month's latest usage date, 2026-07-20.
-jq '.defenderCost.properties.nextLink = "https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.CostManagement/query?api-version=2023-11-01&$skiptoken=2"
+# and the month's latest usage date, 2026-07-20. The nextLink spells the path
+# `Query`, as the Query - Usage reference's examples do
+# (https://learn.microsoft.com/en-us/rest/api/cost-management/query/usage).
+jq '.defenderCost.properties.nextLink = "https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.CostManagement/Query?api-version=2023-11-01&$skiptoken=2"
   | .defenderCost_2 = {properties: {nextLink: null, columns: .defenderCost.properties.columns,
       rows: [[3, "Microsoft Defender for Cloud", "Microsoft Defender for Servers", "USD", 20260720]]}}' \
   "$TMP/azure-clear.json" >"$TMP/azure-paged.json"
@@ -1990,11 +2004,26 @@ COST_PAGED_LIVE="$(section "$(MB_GH_FIXTURES="$COST_LIVE" MB_AZ_MODE=serve MB_AZ
 COST_ARGS=("${CLEAR_COST_ARGS[@]}")
 assert_contains "pages live: the next page is read with az" "$COST_PAGED_LIVE" "ALERT      Azure Defender charges, month to date: 3 USD"
 assert_eq "pages live: one POST per page" "2" "$(grep -c -- "rest --method post" "$TMP/az-log-paged")"
-jq '.defenderCost.properties.nextLink = "https://attacker.example.invalid/query?$skiptoken=2"' "$TMP/azure-paged.json" >"$TMP/azure-paged-foreign.json"
-COST_FOREIGN="$(section "$(cost_brief --azure-json "$TMP/azure-paged-foreign.json")" "== Cost")"
-assert_contains "pages: a next page off management.azure.com is never read" "$COST_FOREIGN" \
-  "UNREADABLE Azure Defender charges, month to date: the cost query's next page is not on management.azure.com"
-assert_contains "pages: the budget line still prints, its data date unread" "$COST_FOREIGN" \
+# A next page that is not the query endpoint is never POSTed: another ARM
+# action, a path traversal, a doubled slash, a backslash, an encoded dot or
+# slash, an embedded newline, or another host. Page 2 would read as a charge.
+Q_URL="https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.CostManagement/query?api-version=2023-11-01"
+BAD_NEXT=(
+  "vm-start=https://management.azure.com/subscriptions/00000000-0000-0000-0000-000000000001/providers/Microsoft.Compute/virtualMachines/vm/start?api-version=2024-07-01&\$skiptoken=2"
+  "traversal=$Q_URL&x=/../../Microsoft.Compute/virtualMachines/vm/start&\$skiptoken=2"
+  "double-slash=$Q_URL&x=//evil.example.invalid/&\$skiptoken=2"
+  "backslash=$Q_URL&x=\\evil&\$skiptoken=2"
+  "encoded-dot=$Q_URL&x=%2E%2E%2fstart&\$skiptoken=2"
+  "newline=$Q_URL&x=1"$'\n'"https://management.azure.com/start&\$skiptoken=2"
+  "other-host=https://attacker.example.invalid/query?\$skiptoken=2"
+)
+for _bad in "${BAD_NEXT[@]}"; do
+  jq --arg n "${_bad#*=}" '.defenderCost.properties.nextLink = $n' "$TMP/azure-paged.json" >"$TMP/azure-paged-bad.json"
+  COST_BAD_NEXT="$(section "$(cost_brief --azure-json "$TMP/azure-paged-bad.json")" "== Cost")"
+  assert_contains "pages: a next page that is not the query endpoint is never read (${_bad%%=*})" "$COST_BAD_NEXT" \
+    "UNREADABLE Azure Defender charges, month to date: the cost query's next page is not the query endpoint; it was not read"
+done
+assert_contains "pages: the budget line still prints, its data date unread" "$COST_BAD_NEXT" \
   "of 100 USD; usage data date unread; read 2026-07-20T08:00Z UTC"
 
 # The org and the alert percents are validated.

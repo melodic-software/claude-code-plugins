@@ -2038,12 +2038,12 @@ SCAN_JQ='
   | [$repos[] | (.name | str) as $r | .workflows | list | .[]
       | (.path | str) as $path
       | (.text | str | split("\n") | map(select(test("^[[:space:]]*#") | not))) as $lines
-      | ([$lines[] | select(test("(^|[[:space:],\\[{\"\u0027])(pull_request_target|workflow_run)[\"\u0027]?([[:space:]]*:|[[:space:]]*[\\]},]|[[:space:]]*$)"))
+      | ([$lines[] | select(test("(^|[[:space:],\\[{\"\u0027])(pull_request_target|workflow_run)[\"\u0027]?([[:space:]]*:|[[:space:]]*[\\]},]|[[:space:]]*$|[[:space:]]+#)"))
           | match("pull_request_target|workflow_run").string] | unique) as $events
       | ([$lines[] | match("secrets\\.([A-Za-z0-9_]*_CLAUDE_[A-Za-z0-9_]*)|secrets\\[[[:space:]]*.([A-Za-z0-9_]*_CLAUDE_[A-Za-z0-9_]*).[[:space:]]*\\]"; "gi")
           | .captures[] | .string // empty] | unique) as $named
       | ([$lines[]
-          | (if test("(^|[[:space:],{])secrets[[:space:]]*:[[:space:]]*inherit([[:space:],}]|$)"; "i") then "every secret (secrets: inherit)" else empty end),
+          | (if test("(^|[[:space:],{])secrets[[:space:]]*:[[:space:]]*[\"\u0027]?inherit[\"\u0027]?([[:space:],}#]|$)"; "i") then "every secret (secrets: inherit)" else empty end),
             (if test("tojson[[:space:]]*\\([[:space:]]*secrets[[:space:]]*\\)"; "i") then "every secret (toJSON(secrets))" else empty end),
             (if test("secrets[[:space:]]*\\[[[:space:]]*[^[:space:]\\]\"\u0027]"; "i") then "a secret by computed name (secrets[...])" else empty end)]
           | unique) as $every
@@ -2386,9 +2386,14 @@ az_unreadable() {
 
 # cost_query URL: the month-to-date cost query, every page up to
 # AZ_QUERY_PAGE_LIMIT, merged into az-defenderCost.json; 1 with
-# COST_QUERY_ERR set when a page failed. A next page is read only from ARM.
+# COST_QUERY_ERR set when a page failed. A next page is POSTed only when it is
+# the same query endpoint: URL up to and including `?`, compared without case
+# (the Query - Usage reference's nextLink examples spell the path `Query`, its
+# request `query`), and its query string holds no `..`, `//`, backslash,
+# encoded `.` or `/`, or control character. Any other URL could name an ARM
+# action, and the POST would run it with the operator's token.
 cost_query() {
-  local out="$WORK/az-defenderCost.json" page=1 next
+  local out="$WORK/az-defenderCost.json" page=1 next prefix="${1%%\?*}?" lower
   COST_QUERY_ERR=""
   az_read "$out" defenderCost rest --method post --url "$1" --body "$COST_QUERY_BODY" || {
     COST_QUERY_ERR="$LAST_ERR"
@@ -2396,8 +2401,10 @@ cost_query() {
   }
   cp "$out" "$WORK/az-cq-1.json"
   while next="$(jq -r '.properties.nextLink // empty' "$WORK/az-cq-$page.json" 2>/dev/null)" && [[ -n "$next" ]]; do
-    if [[ "$next" != https://management.azure.com/* ]]; then
-      COST_QUERY_ERR="the cost query's next page is not on management.azure.com"
+    lower="${next,,}"
+    if [[ "$lower" != "${prefix,,}"* || "${lower#https://}" == *//* || "$lower" == *..* || "$lower" == *\\* ||
+      "$lower" == *%2e* || "$lower" == *%2f* || "$lower" == *[[:cntrl:]]* ]]; then
+      COST_QUERY_ERR="the cost query's next page is not the query endpoint; it was not read"
       return 1
     fi
     if ((page >= AZ_QUERY_PAGE_LIMIT)); then
