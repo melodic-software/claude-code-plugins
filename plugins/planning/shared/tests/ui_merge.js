@@ -43,7 +43,16 @@ async function main() {
     await owner.click('.vf-pcard [data-k="rps"]');
     ok("  and Save renames the guest and closes the form", await until(owner, p => document.querySelector(".vf-toast")?.textContent === "Renamed to Bobby."
       && !document.querySelector('.vf-pcard [data-k="rnp"]') && window.Core.snapshot().people.some(x => x.pid === p && x.name === "Bobby"), boPid));
-    await owner.click(boEl);
+    await owner.click('.vf-pcard [data-k="pa-rename"]');
+    await owner.fill('.vf-pcard [data-k="rnp"]', "Half typed");
+    // The taller card with its form open can cover the row's avatar, so these two clicks go to it directly.
+    await owner.locator(boEl).dispatchEvent("click");
+    await until(owner, () => document.querySelector(".vf-pcard")?.hidden);
+    await owner.locator(boEl).dispatchEvent("click");
+    await owner.click('.vf-pcard [data-k="pa-rename"]');
+    ok("  and a draft left unsaved does not come back when the card opens again", await until(owner, () => document.querySelector('.vf-pcard [data-k="rnp"]')?.value === "Bobby"),
+      await owner.evaluate(() => document.querySelector('.vf-pcard [data-k="rnp"]')?.value));
+    await owner.locator(boEl).dispatchEvent("click");
     await until(owner, () => document.querySelector(".vf-pcard")?.hidden);
 
     // ---------- the picker offers the owner ----------
