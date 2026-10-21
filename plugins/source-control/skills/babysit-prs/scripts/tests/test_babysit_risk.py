@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import difflib
+import functools
 import json
 import pathlib
 import re
@@ -1436,7 +1437,10 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[6]
 
 
+@functools.cache
 def _lane_config():
+    """This repository's live pr-merge config, read once: the file does not
+    change during a run."""
     import babysit_merge_policy
 
     def file_at(path, _sha):

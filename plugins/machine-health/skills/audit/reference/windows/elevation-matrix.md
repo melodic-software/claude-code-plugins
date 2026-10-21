@@ -1,6 +1,6 @@
 # Elevation matrix for Windows
 
-SSOT for which Windows capabilities the skill can and cannot exercise when the process is not Administrator. Structured form lives in `scripts/windows/lib/Get-ElevationMatrix.ps1`. When adding an admin-gated signal, update both files.
+Which Windows capabilities the skill can and cannot exercise when the process is not Administrator, and why.
 
 ## Policy
 
@@ -11,12 +11,7 @@ SSOT for which Windows capabilities the skill can and cannot exercise when the p
 
 ## Capabilities that require elevation
 
-| Feature | Check | Fields populated when elevated | Reason |
-|---|---|---|---|
-| SMART disk reliability counters | `disk-space` | `temp_c`, `wear_pct`, `read_errors`, `write_errors` | `Get-StorageReliabilityCounter` requires admin on most drives (NVMe/SATA alike). Non-elevated returns empty counters silently. |
-| Windows Update driver catalog | `drivers` | `pending_driver_updates` | PSWindowsUpdate's `Get-WindowsUpdate -Category Drivers` wraps Windows Update Agent COM API, requiring admin for elevation-sensitive calls. |
-| pnputil device problem codes | `drivers` | `problem_devices` | `pnputil /enum-devices /problem` lists devices with non-zero problem codes (10/28/43/45). Admin-only for complete output. |
-| TPM + BitLocker status | `tpm-bitlocker` | `tpm_owned`, `tpm_enabled`, `bitlocker_protection_status` | `Get-Tpm` + `Get-BitLockerVolume` require admin. |
+See `Get-ElevationMatrix` (`scripts/windows/lib/Get-ElevationMatrix.ps1`) for the admin-gated capabilities, and `Get-NonElevatedCoverage` (`scripts/windows/lib/Get-NonElevatedCoverage.ps1`) for the banner's "Covered non-elevated" list.
 
 ## How to run elevated
 
@@ -35,9 +30,6 @@ Or schedule the weekly task to run as `SYSTEM` / an admin account. That is out o
 1. Add a check (or extend an existing one) declaring `needs_admin: $true` via `New-HealthResult -NeedsAdmin $true`.
 2. When non-elevated, call `New-HealthResult -AdminFields @('fieldA', 'fieldB')` so the report's elevation-coverage block enumerates skipped fields.
 3. Add a row to `Get-ElevationMatrix.ps1` with `Feature`, `CheckId`, `Fields`, `Reason`.
-4. Add a row to the table above with same fields.
-
-Banner and report pull from `Get-ElevationMatrix.ps1`; table above is prose counterpart. Drift check: row counts should match.
 
 ## Cross-OS portability
 
