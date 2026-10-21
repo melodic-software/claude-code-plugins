@@ -610,7 +610,12 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules name its skill, `Grep`, `Glob`,
    `Edit`, `Write` and `Agent` but no `Bash` rule, so Bash runs only what the skill's own
    frontmatter grants; its deny rules add `Read(./.git/**)` to the base set; and the preamble says
-   to keep scratch files in `.lane/scratch` and leave every change uncommitted.
+   to keep scratch files in `.lane/scratch` and leave every change uncommitted. With `web-access`
+   (`domains: any` only; a domain list fails red) it also gets the `WebFetch` and `WebSearch`
+   tools, no longer denied, the rules `WebFetch(domain:*)`, `WebSearch` and the four research
+   skills, and the `discovery` and `knowledge` plugins staged read-only beside its own, one
+   `plugin-dirs` line each. The docs scripts are not staged, so the preamble says to read each
+   page with WebFetch and cite it.
 3. One step checks the call's secret is set (only that leaves it), and one launcher step per
    secret runs the skill: `act-key` on the first call, `act-token` on the fallback call, with
    `continue-on-error`, a 50-minute step timeout and a 45-minute leg. setup-python's

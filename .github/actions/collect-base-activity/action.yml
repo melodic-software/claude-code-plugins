@@ -252,11 +252,34 @@ runs:
           # A skill that hands on a patch with no prepare mode (fix-docs) gets
           # Bash for the scripts its own frontmatter grants, which alone run
           # under dontAsk: no Bash rule here. The git directory stays unread.
+          plugin_dirs=(".lane/plugins/$plugin")
           if [ "$edits" = patch ]; then
             tools+=(Bash Edit Write Agent)
             allowed+=(Edit Write Agent)
             denied+=("Read(./.git/**)")
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. Leave every change uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
+            # web-access `any` only: the research plugins load from .lane/
+            # too, read-only like the skill's own. The docs scripts are not
+            # staged, so the run reads pages with WebFetch.
+            if [ "$(jq -r '.selected["web-access"].enabled // false' "$RESOLVED")" = true ]; then
+              jq -e '.selected["web-access"].domains == "any"' "$RESOLVED" >/dev/null ||
+                fail "run-claude-cli: web-access takes domains: any"
+              for research in discovery knowledge; do
+                [ -d "$BASE_PATH/plugins/$research" ] || fail "web-access: the $research plugin is not in the base"
+                [ -d "$STAGE/plugins/$research" ] || cp -R "$BASE_PATH/plugins/$research" "$STAGE/plugins/"
+                [ "$research" = "$plugin" ] || plugin_dirs+=(".lane/plugins/$research")
+              done
+              [ -z "$(find "$STAGE/plugins" -type l -print -quit)" ] || fail "a research plugin holds a symbolic link"
+              tools+=(WebFetch WebSearch)
+              allowed+=("WebFetch(domain:*)" WebSearch "Skill(discovery:read-docs)" "Skill(discovery:research)" "Skill(knowledge:docpage-digest)" "Skill(knowledge:map-corpus)")
+              # A deny rule beats an allow rule.
+              kept=()
+              for rule in "${denied[@]}"; do
+                [[ $rule == WebFetch || $rule == WebSearch ]] || kept+=("$rule")
+              done
+              denied=("${kept[@]}")
+              preamble="$preamble This run may search the web and read any page with WebFetch; the docs scripts the research skills use are not available, so read each page with WebFetch, and cite each page you read."
+            fi
           fi
           skill_args=$(jq -r '.selected.args // ""' "$RESOLVED")
           for target in "${targets[@]}"; do
@@ -275,7 +298,8 @@ runs:
             printf '%s\n' "${allowed[@]}" "$delimiter"
             echo "disallowed-tools<<$delimiter"
             printf '%s\n' "${denied[@]}" "$delimiter"
-            echo "plugin-dirs=.lane/plugins/$plugin"
+            echo "plugin-dirs<<$delimiter"
+            printf '%s\n' "${plugin_dirs[@]}" "$delimiter"
             echo "preamble=$preamble"
           } >>"$GITHUB_OUTPUT"
           exit 0
