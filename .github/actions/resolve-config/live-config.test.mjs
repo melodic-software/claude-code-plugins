@@ -456,6 +456,17 @@ test("live config: fix-docs is not asked to fix an instruction surface", () => {
   assert.deepEqual(slot["changed-paths"], ["docs/guide.md"]);
 });
 
+// activity-rules.json is trust-root data: a config that gives fix-docs a
+// write effect again is refused.
+test("live config: fix-docs with a write effect is refused", () => {
+  const writes = FILES.config.replace("effect: read\n    applied-by:\n      patch: apply-patch\n", "effect: mutate-branch\n");
+  assert.notEqual(writes, FILES.config);
+  assert.throws(
+    () => resolve({ ...FILES, config: writes }, { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS }),
+    (error) => error.code === "forbidden-by-activity",
+  );
+});
+
 // Each activity's applied-by lands with the phase that moves it to the read
 // runner, after the broker serves a reader that knows the field; fix-docs,
 // fix-ci and resolve-issue so far.
