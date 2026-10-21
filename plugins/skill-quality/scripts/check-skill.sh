@@ -1318,18 +1318,20 @@ fi
 if [[ -d "$SKILL_DIR/scripts" ]]; then
   SKILL_TOPLEVEL="$("${GIT_UNSET[@]}" git -C "$SKILL_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -n "$SKILL_TOPLEVEL" ]] && SKILL_TOPLEVEL="$(cd -- "$SKILL_TOPLEVEL" && pwd -P)"
-  scripts_skipped=0
   while IFS= read -r test_sh; do
     [[ -z "$test_sh" ]] && continue
     if [[ -z "$INVOKING_TOPLEVEL" || "$SKILL_TOPLEVEL" != "$INVOKING_TOPLEVEL" ]]; then
-      scripts_skipped=1
+      note "script tests skipped: the skill is outside the current repository"
       break
     fi
     # Sharing a toplevel is not being part of the repo: a plugin copy git
-    # never tracked can sit under a home-directory work tree.
-    if ! "${GIT_UNSET[@]}" git -C "${test_sh%/*}" --literal-pathspecs \
-      ls-files --error-unmatch -- "${test_sh##*/}" >/dev/null 2>&1; then
-      scripts_skipped=1
+    # never tracked can sit under a home-directory work tree, and a nested
+    # repo would vouch for itself. Only the invoking repo's index answers.
+    test_real="$(cd -- "${test_sh%/*}" && pwd -P)/${test_sh##*/}"
+    if [[ "$test_real" != "$INVOKING_TOPLEVEL"/* ]] ||
+      ! "${GIT_UNSET[@]}" git -C "$INVOKING_TOPLEVEL" --literal-pathspecs \
+        ls-files --error-unmatch -- "${test_real#"$INVOKING_TOPLEVEL"/}" >/dev/null 2>&1; then
+      note "script test skipped: ${test_sh#"$SKILL_DIR"/} is not tracked in the current repository"
       continue
     fi
     # env -u: this gate may run inside git-hook chains where git exports
@@ -1355,7 +1357,6 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
       fi
     fi
   done < <(find "$SKILL_DIR/scripts" -name '*.test.sh' -type f 2>/dev/null | sort)
-  ((scripts_skipped)) && note "script tests skipped: the skill is outside the current repository"
 fi
 
 # --- Check 8: vendor/ byte-identical vs HEAD (vendor-backed only) ----------

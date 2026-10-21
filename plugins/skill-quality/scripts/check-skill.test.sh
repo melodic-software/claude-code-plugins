@@ -4998,7 +4998,7 @@ done
 git -C "$SCOPE_TMP/other" init -q
 git -C "$SCOPE_TMP/other" add skills
 mkdir -p "$SCOPE_TMP/plaincwd"
-# scope_case LABEL CWD SKILLS-ROOT MARKER single|root run|skip
+# scope_case LABEL CWD SKILLS-ROOT MARKER single|root run|skip [NOTE]
 scope_case() {
   rm -f "$4"
   local out rc
@@ -5017,7 +5017,7 @@ scope_case() {
       fail "check 7 $1: the test should run (rc=$rc): $out"
     fi
   elif [[ ! -f "$4" && $rc -eq 0 ]] &&
-    grep -q 'script tests skipped: the skill is outside the current repository' <<<"$out"; then
+    grep -q "${7:-script tests skipped: the skill is outside the current repository}" <<<"$out"; then
     pass "check 7 $1"
   else
     fail "check 7 $1: the test should be skipped with the note (rc=$rc): $out"
@@ -5048,9 +5048,11 @@ printf '%s' "$good_body" >"$SCOPE_TMP/home/cache/skills/good-skill/SKILL.md"
 printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/home.ran" \
   >"$SCOPE_TMP/home/cache/skills/good-skill/scripts/x.test.sh"
 scope_case "skips an untracked test under the invoking work tree (single mode)" "$SCOPE_TMP/home" \
-  "$SCOPE_TMP/home/cache/skills" "$SCOPE_TMP/home.ran" single skip
+  "$SCOPE_TMP/home/cache/skills" "$SCOPE_TMP/home.ran" single skip \
+  'script test skipped: scripts/x.test.sh is not tracked in the current repository'
 scope_case "skips an untracked test under the invoking work tree (root mode)" "$SCOPE_TMP/home" \
-  "$SCOPE_TMP/home/cache/skills" "$SCOPE_TMP/home.ran" root skip
+  "$SCOPE_TMP/home/cache/skills" "$SCOPE_TMP/home.ran" root skip \
+  'script test skipped: scripts/x.test.sh is not tracked in the current repository'
 printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/home-tracked.ran" \
   >"$SCOPE_TMP/home/cache/skills/good-skill/scripts/y.test.sh"
 git -C "$SCOPE_TMP/home" add cache/skills/good-skill/scripts/y.test.sh
@@ -5059,10 +5061,32 @@ out="$(cd "$SCOPE_TMP/home" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING
   CHECK_SKILL_SKILLS_ROOT="$SCOPE_TMP/home/cache/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
   bash "$SUT" good-skill 2>&1)"
 if [[ ! -f "$SCOPE_TMP/home.ran" && -f "$SCOPE_TMP/home-tracked.ran" ]] &&
-  grep -q 'script tests skipped: the skill is outside the current repository' <<<"$out"; then
+  grep -q 'script test skipped: scripts/x.test.sh is not tracked in the current repository' <<<"$out"; then
   pass "check 7 runs a tracked test and skips an untracked one beside it"
 else
   fail "check 7 should run only the tracked test: $out"
+fi
+
+# Only the invoking repository's index vouches for a test: a nested repo under
+# a skill's scripts/ that commits its own test is not part of it.
+mkdir -p "$SCOPE_TMP/other/skills/nested-skill/scripts/inner"
+printf '%s' "$good_body" >"$SCOPE_TMP/other/skills/nested-skill/SKILL.md"
+printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/nested.ran" \
+  >"$SCOPE_TMP/other/skills/nested-skill/scripts/inner/x.test.sh"
+git -C "$SCOPE_TMP/other/skills/nested-skill/scripts/inner" init -q
+git -C "$SCOPE_TMP/other/skills/nested-skill/scripts/inner" add x.test.sh
+git -C "$SCOPE_TMP/other/skills/nested-skill/scripts/inner" \
+  -c user.email=test@example.com -c user.name=test commit -qm fixture
+git -C "$SCOPE_TMP/other" add skills/nested-skill/SKILL.md
+rm -f "$SCOPE_TMP/nested.ran"
+out="$(cd "$SCOPE_TMP/other" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING_TOPLEVEL \
+  CHECK_SKILL_SKILLS_ROOT="$SCOPE_TMP/other/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" nested-skill 2>&1)"
+if [[ ! -f "$SCOPE_TMP/nested.ran" ]] &&
+  grep -q 'script test skipped: scripts/inner/x.test.sh is not tracked in the current repository' <<<"$out"; then
+  pass "check 7 skips a test only a nested repository tracks"
+else
+  fail "check 7 should skip a test a nested repository vouches for: $out"
 fi
 
 # An exported GIT_DIR and GIT_WORK_TREE naming the skill's repo must not make
