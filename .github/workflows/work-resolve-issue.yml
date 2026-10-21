@@ -410,6 +410,7 @@ jobs:
           git -C "$LANE" ls-files -z -- 'scripts/*.txt' 'scripts/*.json' 'scripts/*.jsonl' |
             xargs -0r git -C "$LANE" restore --source=HEAD -- ||
             fail "cannot restore the lane branch's scripts/ data files"
+          [[ -z $(find "$LANE/scripts" -type l -print -quit) ]] || fail "the lane branch's scripts/ holds a symlink"
           shape='^scripts/[A-Za-z0-9_-]+\.sh( --[a-z][a-z-]*)*$'
           results='[]'
           # A check prints what it reads from the branch, so none of its
