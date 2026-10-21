@@ -69,6 +69,15 @@ on:
         required: false
         type: string
         default: ""
+      dimension-skip:
+        description: >-
+          Issue mode, report-outcome: the issue-dimension skip reason
+          (split-required, research-first, probe-first or not-assessed) that
+          kept the run from starting; report-outcome hands the issue to a
+          person with the next step. Empty otherwise.
+        required: false
+        type: string
+        default: ""
       timeout-minutes:
         description: The run job's timeout in minutes.
         required: false
@@ -397,6 +406,7 @@ jobs:
           REUSE_BRANCH: ${{ inputs.reuse-branch }}
           PATCH_BASE_SHA: ${{ inputs.patch-base-sha }}
           PATCH_RESUME_TIP: ${{ inputs.patch-resume-tip }}
+          DIMENSION_SKIP: ${{ inputs.dimension-skip }}
         run: |
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs.
@@ -418,6 +428,12 @@ jobs:
           if [ -n "$PATCH_BASE_SHA$PATCH_RESUME_TIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
             ! [[ $PATCH_BASE_SHA =~ ^[0-9a-f]{40}$ ]] || ! [[ $PATCH_RESUME_TIP =~ ^([0-9a-f]{40})?$ ]]; }; then
             echo "::error::patch-base-sha and patch-resume-tip are an issue patch's commit ids"
+            exit 1
+          fi
+          # A dimension skip is one of the four issue-dimension reasons, only in issue mode.
+          if [ -n "$DIMENSION_SKIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
+            ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first|not-assessed)$ ]]; }; then
+            echo "::error::dimension-skip must be an issue-dimension skip reason, in issue mode"
             exit 1
           fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
@@ -1986,6 +2002,8 @@ jobs:
           REUSE_SUMMARY_DIR: ${{ inputs.reuse-branch != '' && format('{0}/reuse-summary', runner.temp) || '' }}
           # Parsed and checked against the lane branch by report-outcome.
           RUNNER_CHECKS: ${{ inputs.runner-checks }}
+          # Checked against the four reasons by the job's first step.
+          DIMENSION_SKIP: ${{ inputs.dimension-skip }}
           # review-replies only; empty otherwise.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
@@ -2353,6 +2371,7 @@ jobs:
           pr-head-sha: ${{ steps.pr-head.outputs.sha }}
           can-commit: ${{ needs.run.outputs.can-commit }}
           all-verified: ${{ steps.signed.outputs.all-verified }}
+          unverified: ${{ steps.signed.outputs.unverified }}
           lane-class: ${{ needs.run.outputs.lane-class }}
           lane-resets: ${{ needs.run.outputs.lane-resets }}
           lane-turns: ${{ needs.run.outputs.lane-turns }}

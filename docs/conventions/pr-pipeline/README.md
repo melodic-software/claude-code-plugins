@@ -524,7 +524,9 @@ actor or author not on the trusted-actor list), `workflow-modified` (the token b
 write lane's mint for a workflow file the PR itself changes), or, for an issue run under
 `models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
 account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
-`split`). Silence is not a skip, with three exceptions that
+`split`). Issue mode posts no check, so work-resolve-issue.yml reports those four dimension skips
+on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step
+([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
@@ -627,7 +629,14 @@ and its queued entries leave; two different identities, or an unreadable head co
   `merge.diff-check.denied-paths` and, while `high-path-floor` is true, `floor-paths`,
   `floor-script-scopes` and the capability check (see the pr-merge lane), matched
   case-insensitively. A diff that touches any of them
-  scores HIGH and is never merged unattended.
+  scores HIGH and is never merged unattended. A file whose every path is a test (a `*.test.mjs`,
+  `*.test.sh`, `*.test.js` or `test_*.py` name, matched case-sensitively; a `tests/` or
+  `fixtures/` directory alone is not one),
+  safe, under no path a plugin declares as run, and named by no other changed file in the diff,
+  does not take the floor's `plugins/*/scripts/**`, `plugins/*/skills/*/scripts/**` and
+  `plugins/**/scripts/**` entries, `floor-paths` globs that end in a `scripts` directory (such as
+  `plugins/x/scripts/**`), or `floor-script-scopes`; every other floor entry, every other
+  `floor-paths` glob and `denied-paths` still hold it.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.
@@ -702,8 +711,8 @@ except six:
   changes a line inside a ```` ```! ```` block, has changed frontmatter the strict reader cannot
   follow, or cannot be read, and a rename or copy into such a path), `floor-paths` (globs joined to
   that floor while it applies; a HIGH pull request waits for a human), `floor-script-scopes`
-  (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file scores HIGH with
-  the floor), `c2-contradictions` (true
+  (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file other than a test
+  file scores HIGH with the floor), `c2-contradictions` (true
   scores a removed, renamed or copied file, a schema change or more than one plugin MED),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository lists
   `floor-paths` and `floor-script-scopes` and sets `high-path-floor: true` (owner decision
@@ -798,10 +807,10 @@ it never enqueues. The inputs are the head and `updatedAt`, labels, base SHA, ch
 head, reviews, review threads, comments, closing issues, the verdict artifacts naming the pull request
 or its head, the gate's config and code on the default branch, and the rung cap. Check runs and
 statuses do not move `updatedAt`, so that is never the key alone. Only `risk:MED`, `risk:HIGH` and
-the `verify:` refusals `fail`, `earlier-fail`, `missing`, `too-old`, `spec-changed` and
-`untrusted-spec` are skipped. A refusal whose gate process failed a write or has a review re-run due
-is not. Neither is a pull request in the merge queue, nor `verify:missing` while a PASS artifact
-names the head. `merge.skip-unchanged` bounds each skip: `max-minutes` (default 60) after the
+the `verify:` refusals `fail`, `earlier-fail`, `repeated-fail`, `missing`, `too-old`,
+`spec-changed` and `untrusted-spec` are skipped. A refusal whose gate process failed a write or has a review re-run due
+is not. Neither is a pull request in the merge queue, nor `verify:missing` or `verify:earlier-fail`
+while a PASS artifact names the head. `merge.skip-unchanged` bounds each skip: `max-minutes` (default 60) after the
 refusal was judged, or `max-skips` (default 3) runs in a row, the candidate is gated again. `0` in
 either turns skipping off. When every candidate would be skipped, the first is gated, and any read
 that fails or comes back incomplete gates the candidate (`babysit_merge_skip.py`). The refusals live
@@ -1025,8 +1034,37 @@ head:
 - created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
   repository (the retention maximum and its setting), so an older verdict may be gone;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
+- counted `fail` verdicts at `merge.max-verify-fails` (default 3) or more distinct heads of the pull
+  request, tied as in the next item, refuse (`verify:repeated-fail`) whatever a later pass says. A
+  value that is not a count of 1 or more, an empty or non-scalar one included, is 1, so any
+  earlier `fail` holds. Before a pass decides, the counted `fail` verdicts of every other pull
+  request in this repository, open or closed, that closes one of its closing issues count too, at
+  their own heads, so a new pull request for the same issue does not reset the count; such a
+  `fail` whose run cannot be read refuses `verify:unreadable`, and a cut list of those pull
+  requests refuses the same way. This cap is what bounds pushing until the verifier passes once:
+  the carry-forward below stops only a head that changes nothing of its own, and a one-line edit
+  gives a new change. A pull request that names the issue without closing it, or whose closing
+  reference was removed, is not counted. Closing a newly filed duplicate issue instead starts the
+  count of other pull requests again; a pass then needs that issue written by a trusted human
+  other than the author, as below. More than 50 pull requests that claim to close one issue make
+  every pull request for that issue refuse `verify:unreadable`: a hold, not a way past the cap;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
-  verdict recording its head branch) refuses (`verify:earlier-fail`);
+  verdict recording its head branch) refuses (`verify:earlier-fail`). The refusal stands while a
+  `fail` artifact cannot be read (next item). Otherwise counted `pass` or `pass-notes` verdicts at
+  the head whose runs were all created after every such `fail`'s run clear it, each `created_at`
+  read fresh from GitHub (a missing one keeps the refusal; a re-attempt keeps its run's
+  `created_at` and moves `run_started_at` later, so a re-run of an earlier pass never clears a
+  later `fail`), when the pull request's own change at the head
+  differs from its change at every `fail`ed head, and those passes decide as below. A change is
+  a sha256 digest of the changed lines in the compare diff from its merge base with the branch:
+  per file its path, a rename's old and new paths, mode lines, the binary-change line and the `-`
+  and `+` lines with whitespace removed and the marker kept (blank ones and trailing carriage
+  returns dropped), lines and files sorted. A head that only adds blank lines holds. Context lines,
+  line numbers and hunk order do not count, so a head that only merges the branch, even one that
+  edits a line next to the fix, or adds an empty commit keeps the refusal, as does a diff that
+  cannot be read or holds no change. Removing whitespace also keeps the refusal for a change that
+  only re-indents, which can matter in Python: it holds more than it must, never less. A pass
+  judged before a later `fail` never clears it;
 - a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
   untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
   downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
@@ -1051,16 +1089,16 @@ login posts as that owner, so until agent sessions have their own GitHub identit
 acting as that account wrote it. The owner accepts that risk: unattended merge is on
 (`merge.report-only: false`) before that identity exists (#7711).
 
-`verify:fail`, `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and
-`verify:untrusted-spec` need a human. While `merge.report-only` is false the lane escalates such a
+`verify:fail`, `verify:too-old`, `verify:repeated-fail`, `verify:earlier-fail`,
+`verify:spec-changed` and `verify:untrusted-spec` need a human. While `merge.report-only` is false the lane escalates such a
 refusal on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, and
 for `verify:fail` quoting as data the first 1500 characters of the `summary` in the newest head
 `fail` verdict when its record can be read and names this pull request. The comment is rewritten
-only when any of these changes. A `verify:fail` whose record cannot be read, or a
-`verify:earlier-fail`, quotes the summary the lane's last such comment quoted, under the head it
-was given at, so a failed read rewrites nothing and the reason outlives a push; an earlier-fail
-whose last quote is a fail at this head stays `verify:fail`. Then the lane adds the tracker's human-gated role label (`needs-human` unless
+only when any of these changes. A `verify:fail` whose record cannot be read, a
+`verify:earlier-fail` or a `verify:repeated-fail` quotes the summary the lane's last such comment
+quoted, under the head it was given at, so a failed read rewrites nothing and the reason outlives
+a push; either of the last two whose last quote is a fail at this head stays `verify:fail`. Then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run; a rerun that
 finds both writes nothing. While it is true the refusal is only reported. The
@@ -1271,6 +1309,15 @@ Each profile under `models.profiles` names:
   definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
 
+A role profile names a multi-agent role in place of `model`, and never both: `role`, `workload`
+and `effort-role`, plus `max-turns`. It has no `model` or `effort` key, so it can name neither
+`default` nor a model ID. `resolve-config` reads its model and effort from the role map,
+`plugins/multi-agent/reference/defaults.yaml` in the base checkout. The model is `opus` when the
+role map gives `inherit`, no alias, or an alias other than `haiku`, `sonnet` or `opus`, and when
+the role map is absent or unreadable, so a route never resolves to an empty model, `default`, a
+model ID or the frontier tier. `resolve-config` also writes an `applied-by-patch` output, set
+only when the selected activity sets `applied-by.patch`.
+
 `models.routes` maps a run to a profile: a skill activity by its name, and a run that is no
 activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `review-code` and
 `review-security` for the code and security review lanes, `triage-issue` for intake triage, and
@@ -1430,12 +1477,33 @@ this rule after the alert job has filed its post-merge record. It runs no model;
 tests are in
 [`.github/scripts/post-merge-demotion-alert/`](../../../.github/scripts/post-merge-demotion-alert/).
 
+The full run pr-merge starts after each merge uses `GITHUB_TOKEN`, so its completion raises no
+`workflow_run` event. When that run ends red, pr-merge's `dispatch-full-run` job sends its run id to
+the alert workflow through `workflow_dispatch`. The alert accepts the id only from
+`github-actions[bot]` or a listed human (`trusted-actors.json` on `main`), never the lanes App,
+and only for attempt 1 of a red `pr-require-checks.yml` run on this repository's `main` that
+`github-actions[bot]` dispatched. Red is any conclusion `babysit_postmerge.py` counts as failed:
+`failure`, `timed_out`, `cancelled`, `startup_failure` or `action_required`, so a run cancelled
+on a time-budget overrun files its record and fix issues too; only a `failure` reaches this
+report (rule 1). A red run inside a lane merge's attribution window gets its one re-run from
+pr-merge's `post-merge-dispatch` job; a red run with no lane merge to charge gets none. Both jobs
+wait for a re-run for up to `confirm-wait-minutes`, so the record, its fix issues and this report
+follow the merge instead of the next scheduled run. A dispatched red, whether its re-run failed or
+never finished within that wait, files nothing once a newer `pr-require-checks` run on this
+repository's `main` has succeeded: `main` already recovered, and the alert logs so and files no
+record, fix issue or report. A failed lookup files as before. The dispatch also names the run's
+head SHA, which the alert checks against the run, so a dispatch and a `workflow_run` event of the
+same run share one concurrency group by signal and SHA. Records, fix issues and report comments
+dedupe as they do for any run: records by signal and SHA or by failing run, fix issues by check,
+and reports by run and attempt.
+
 1. **Confirmed red.** Attempt 1 concluded `failure`, the one re-run of its failed jobs finished
    and concluded `failure`, and one check failed in both, a check being a job that concluded
    `failure` or a gate the hygiene aggregator titles (never the all-branches gitleaks gate). A
    cancelled, timed-out or not-started run, a re-run that passes or never finishes within
    `confirm-wait-minutes`, and the canary never trigger it. The job waits for the re-run because
-   pr-merge starts the one for a run it dispatched, and that re-run raises no event of its own.
+   pr-merge starts the one for a run it dispatched inside a lane merge's attribution window, and
+   that re-run raises no event of its own.
 2. **Culprit.** The range is the first-parent merges since `main`'s last green full run. A
    merge is red when its own full run is a confirmed red in a check the head also fails, and
    green when it passed. The culprit is the one merge that is red while its parent is green (the

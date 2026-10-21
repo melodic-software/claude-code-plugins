@@ -671,6 +671,7 @@
         }
       }
     },
+    "route-role": { "enum": ["orchestrator", "worker", "verifier", "retrieval"] },
     "issue-field": {
       "type": "object",
       "additionalProperties": false,
@@ -689,7 +690,18 @@
     "profile": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["model", "max-turns"],
+      "required": ["max-turns"],
+      "description": "A model profile names its model, or a role profile names a multi-agent role, never both. A role profile has no model or effort key, so it can name neither default nor a model ID: its model and effort come from the role map, plugins/multi-agent/reference/defaults.yaml in the base checkout, and the model is opus when the role map gives inherit or no alias (README.md, Models).",
+      "oneOf": [
+        {
+          "required": ["model"],
+          "not": { "anyOf": [{ "required": ["role"] }, { "required": ["workload"] }, { "required": ["effort-role"] }] }
+        },
+        {
+          "required": ["role"],
+          "not": { "anyOf": [{ "required": ["model"] }, { "required": ["effort"] }] }
+        }
+      ],
       "properties": {
         "model": {
           "enum": ["default", "best", "fable", "opus", "sonnet"],
@@ -698,6 +710,18 @@
         "effort": {
           "enum": ["low", "medium", "high", "xhigh", "max"],
           "description": "Passed as --effort. Absent: no --effort, so the model's default effort applies."
+        },
+        "role": {
+          "$ref": "#/$defs/route-role",
+          "description": "The multi-agent role whose model the run takes."
+        },
+        "workload": {
+          "enum": ["code", "research", "mechanical"],
+          "description": "The role's workload, whose model and effort win over the role's own where the role map sets them."
+        },
+        "effort-role": {
+          "$ref": "#/$defs/route-role",
+          "description": "The role whose effort the run takes, in place of its own role's."
         },
         "subagent-model": {
           "enum": ["inherit", "best", "fable", "opus", "sonnet"],
@@ -813,6 +837,12 @@
           "default": 2,
           "description": "Merge-queue removals for failed checks since the pull request's head last changed (a pushed commit or a force push) at which the unattended merge gate stops enqueuing that head: the queue would eject it again on the same commits. A push resets the count."
         },
+        "max-verify-fails": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3,
+          "description": "Counted pr-verify fail verdicts at this many distinct heads of one pull request refuse it `verify:repeated-fail`, for a human, whatever a later pass says (README.md, Verifier verdict). Any other value is 1, so any earlier fail holds."
+        },
         "risk-escalation-minutes": {
           "type": "integer",
           "minimum": 0,
@@ -865,12 +895,12 @@
             "floor-paths": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "description": "Globs joined to the risk scorer's HIGH path floor while it applies: a diff touching one scores HIGH and waits for a human, where a denied path makes the pull request ineligible. They add to the fixed floor, never replace it."
+              "description": "Globs joined to the risk scorer's HIGH path floor while it applies: a diff touching one scores HIGH and waits for a human, where a denied path makes the pull request ineligible. They add to the fixed floor, never replace it. A glob whose last segment other than ** is scripts does not hold a test file (a *.test.mjs, *.test.sh, *.test.js or test_*.py name; a tests or fixtures directory alone is not one) under no declared path and named by no other changed file."
             },
             "floor-script-scopes": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "description": "Globs inside which, as at the repository top level, a .ps1 or .cjs file, or a file with git mode 100755, scores HIGH while the floor applies and waits for a human."
+              "description": "Globs inside which, as at the repository top level, a .ps1 or .cjs file, or a file with git mode 100755, scores HIGH while the floor applies and waits for a human. Outside the top level, a test file (a *.test.mjs, *.test.sh, *.test.js or test_*.py name; a tests or fixtures directory alone is not one) under no declared path and named by no other changed file is exempt."
             },
             "c2-contradictions": {
               "type": "boolean",

@@ -630,7 +630,7 @@ async function main() {
       q("Q1", "Card or cash?", { kind: "text" }), q("Q2", "Which header?", { kind: "text" }), q("Q12", "Anything else?", { kind: "text" })] }]);
     const nb = N.localUrl.replace(/\/$/, ""), ntok = new URL(N.ownerUrl).hash.replace(/^#owner=/, "");
     const npost = (route, body, h) => fetch(nb + route, { method: "POST", headers: { "Content-Type": "application/json", ...h }, body: JSON.stringify(body) }).then(r => r.json());
-    const ng = await npost("/api/join", { name: "Num", device: "computer" }, {});
+    const ng = await npost("/api/join", { name: "Num", device: "computer", key: N.guestKey }, {});
     await npost("/api/answer", { qid: "Q2", text: "The slim one.", view: "focus" }, { "X-Session-Secret": ng.secret });
     for (const [label, context] of [["1440x900", { viewport: { width: 1440, height: 900 } }], ["390x844", PHONE]]) {
       const own = await rec.open(N.ownerUrl, { context });
