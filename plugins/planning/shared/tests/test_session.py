@@ -1741,6 +1741,39 @@ class TestProposals(SessionCase):
         self.open_round(text_q("Q10"))
         self.assert_gathers(qid)
 
+    def test_the_owners_approve_all_makes_each_counted_proposal_a_question_in_the_next_round(self):
+        """The owner's ask (S1:19, OQ2 approved 2026-10-21): Approve All, the same outcome as Make it a question on each."""
+        self.open_round(text_q("Q1"))
+        counted = [self.propose(self.bo, "Ask about refunds"), self.propose(self.ann, "Ask about delivery"), self.propose(self.bo, "Ask about gift cards")]
+        late = self.propose(self.ann, "Arrived after the confirm")
+        out = self.act("approve_proposals", HOST, {"ids": counted})
+        self.assertEqual((out["round"], len(out["questions"])), (2, 3))
+        made = [self.question(q) for q in out["questions"]]
+        self.assertEqual([(q["text"], q["round"], q["purpose"], q["origin"]) for q in made],
+                         [(t, 2, "gather", {"kind": "host", "proposal": pid, "by": HOST}) for t, pid in
+                          zip(("Ask about refunds", "Ask about delivery", "Ask about gift cards"), counted)])
+        status = {x["id"]: x["status"] for x in self.s.state["proposals"]}
+        self.assertEqual([status[i] for i in counted], [{"kind": "question", "question": q} for q in out["questions"]])
+        self.assertEqual(status[late], {"kind": "new"})  # never placed unseen
+        self.assertEqual((len(self.notes(self.bo, "proposal")), len(self.notes(self.ann, "proposal"))), (2, 1))
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_approve_all_is_the_owners_alone_and_refuses_the_lot_on_any_problem(self):
+        self.open_round(text_q("Q1"))
+        a, b, c = (self.propose(self.bo, f"Idea {i}") for i in range(3))
+        self.act("act_on_proposal", HOST, {"id": c, "action": "park"})
+        self.refused("owner-only", "approve_proposals", self.ann, {"ids": [a, b]}, http=403)  # a leader places one at a time
+        self.refused("wrong-status", "approve_proposals", HOST, {"ids": [a, c]}, http=409)
+        self.refused("no-such-proposal", "approve_proposals", HOST, {"ids": [a, "P99"]}, http=404)
+        for ids in ([], [a, a], "P1", [1]):
+            with self.subTest(ids=ids):
+                self.refused("bad-field", "approve_proposals", HOST, {"ids": ids}, http=400)
+        with mock.patch.object(session, "MAX_ROUND", 1):
+            err = self.refused("round-full", "approve_proposals", HOST, {"ids": [a, b]}, http=409)
+            self.assertEqual(err.details["room"], 1)
+        self.assertEqual([x["status"]["kind"] for x in self.s.state["proposals"]], ["new", "new", "parked"])
+        self.assertEqual(len(self.s.state["questions"]), 1)
+
     def test_a_proposal_claude_places_as_a_question_without_a_body_gathers_answers(self):
         p = self.to_working_round()
         placements = [{"proposal": p[0], "as": "question"}, *({"proposal": x, "as": "later", "reason": "Later"} for x in p[1:])]

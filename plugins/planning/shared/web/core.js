@@ -646,6 +646,8 @@
       }
     } }),
     proposal: (id, action) => act("/api/proposal/act", { id, action }),
+    /** Owner: Approve all, the new proposals `ids` (the ones the confirm counted) each made a question in the next round. */
+    approveProposals: ids => act("/api/proposal/all", { ids }),
     setTitle: title => act("/api/session/title", { title }),
     merge: (from, to) => act("/api/person/merge", { from, to }),
     clearReview: qid => act("/api/review/clear", { qid }),

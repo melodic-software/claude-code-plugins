@@ -973,6 +973,21 @@
     PP.tools.append(propSeg);
     const propMore = showMore("proposals", 20);
     PP.list.after(propMore.foot);
+    // X42: the owner's Approve all makes every new proposal a question at once, behind a confirm that counts them; the
+    // server places only the ones counted, so one that arrives meanwhile waits
+    const propAllRow = E("div", "vf-pp-actions"), propAll = btn("vf-btn vf-btn-primary vf-btn-sm vf-prop-all");
+    propAllRow.append(propAll); PP.note.after(propAllRow);
+    let propAllIds = [];
+    propAll.onclick = guarded(() => {
+      propAllIds = Core.state.ideas.filter(i => i.status === "new").map(i => i.id);
+      const n = propAllIds.length;
+      return n && { title: `Approve all ${n} proposal${n === 1 ? "" : "s"}?`, ok: `Approve ${n}`,
+        body: "Each becomes a question in the next round, as Make it a question does, and its author hears so. Claude does not place them.", danger: false };
+    }, () => {
+      if (!propAllIds.length) return;
+      propAll.disabled = true;
+      Core.approveProposals(propAllIds).then(r => flash(`Added ${r.questions.length} question${r.questions.length === 1 ? "" : "s"} to round ${r.round}.`)).catch(fail).finally(() => { propAll.disabled = false; });
+    });
     propNewBtn.onclick = () => { ui.propFilter = "new"; render(); };
     propNotBtn.onclick = () => { ui.propFilter = "notplaced"; render(); };
     propParkBtn.onclick = () => { ui.propFilter = "parked"; render(); };
@@ -7045,6 +7060,8 @@
       propNewBtn.setAttribute("aria-pressed", String(ui.propFilter === "new"));
       propNotBtn.setAttribute("aria-pressed", String(ui.propFilter === "notplaced"));
       propParkBtn.setAttribute("aria-pressed", String(ui.propFilter === "parked"));
+      propAllRow.hidden = !me.isOwner || ui.propFilter !== "new" || !props.length;
+      propAll.textContent = `Approve all ${props.length}`;
       const joins = v8() ? nextN : preparing ? nextN : cur;
       PP.note.textContent = ui.propFilter === "new"
         ? `These go to Claude with round ${cur}${preparing ? " (already sent; they wait for the next send)" : ""}. Claude places each one. A question you make now joins round ${joins}.`

@@ -176,6 +176,7 @@ ROUTES = {
     "/api/review/clear": ("moderator", "clear_review"),
     "/api/propose": ("person", "propose"),
     "/api/proposal/act": ("moderator", "act_on_proposal"),
+    "/api/proposal/all": ("owner", "approve_proposals"),
     "/api/chat": ("person", "chat"),
     "/api/chat/propose": ("moderator", "propose_from_chat"),
     "/api/chat/react": ("person", "react_chat"),

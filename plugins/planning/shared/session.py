@@ -3170,23 +3170,7 @@ class Session:
                 n = self._next_round_n()
                 if self._round_size(n) >= MAX_ROUND:
                     raise DomainError(409, "round-full", f"Round {n} already holds {MAX_ROUND} questions.")
-                q = {
-                    "id": self._next_qid(),
-                    "text": prop["text"],
-                    "alternatives": [],
-                    "dependsOn": [],
-                    "round": n,
-                    "purpose": "gather",
-                    "format": {"kind": "text"},
-                    "answerScope": "person",
-                    "references": [],
-                    "origin": {"kind": "host", "proposal": prop["id"], "by": pid},
-                    "needsReview": [],
-                }
-                self._add_question(q)
-                prop["status"] = {"kind": "question", "question": q["id"]}
-                self._notify(prop["pid"], "proposal", f"Your proposal became question {q['id']}, in round {n}.", actor=pid, qid=q["id"])
-                out = {"question": q["id"], "round": n}
+                out = self._proposal_question(pid, prop, n)
             elif action == "park":
                 prop["status"] = {"kind": "parked", "by": pid}
                 self._notify(prop["pid"], "proposal", "Your proposal was parked by a moderator.", actor=pid)
@@ -3196,6 +3180,45 @@ class Session:
                 prop["status"] = {"kind": "later", "reason": reason or "Off this session's goal."}
                 self._notify(prop["pid"], "proposal", "Your proposal was moved to Later.", actor=pid, body=prop["status"]["reason"])
             return {"status": prop["status"]["kind"], **out}
+
+    def _proposal_question(self, pid, prop, n):
+        """Make a proposal a question in round `n`, which has room, and tell its author: Make it a question's one way."""
+        q = {
+            "id": self._next_qid(),
+            "text": prop["text"],
+            "alternatives": [],
+            "dependsOn": [],
+            "round": n,
+            "purpose": "gather",
+            "format": {"kind": "text"},
+            "answerScope": "person",
+            "references": [],
+            "origin": {"kind": "host", "proposal": prop["id"], "by": pid},
+            "needsReview": [],
+        }
+        self._add_question(q)
+        prop["status"] = {"kind": "question", "question": q["id"]}
+        self._notify(prop["pid"], "proposal", f"Your proposal became question {q['id']}, in round {n}.", actor=pid, qid=q["id"])
+        return {"question": q["id"], "round": n}
+
+    def approve_proposals(self, pid, body):
+        """POST /api/proposal/all: the owner's Approve all, `{ids}`, the new proposals their confirm counted, each made a
+        question in the next round as Make it a question makes one. All or none: a proposal no longer new, or more
+        than the round has room for, refuses the lot, so one that arrived after the confirm is never placed unseen."""
+        ids = _body(body).get("ids")
+        if not isinstance(ids, list) or not 0 < len(ids) <= MAX_PROPOSALS or not all(isinstance(i, str) for i in ids) or len(set(ids)) < len(ids):
+            raise _bad("ids", f"ids lists 1 to {MAX_PROPOSALS} proposals, each once.")
+        with self._tx():
+            self._owner(pid)
+            props = [self._proposal(i) for i in ids]
+            for prop in props:
+                if prop["status"]["kind"] != "new":
+                    raise DomainError(409, "wrong-status", f"Proposal {prop['id']} is {prop['status']['kind']}.", status=prop["status"]["kind"])
+            n = self._next_round_n()
+            room = MAX_ROUND - self._round_size(n)
+            if len(props) > room:
+                raise DomainError(409, "round-full", f"Round {n} has room for {max(room, 0)} more questions, not {len(props)}.", room=max(room, 0))
+            return {"round": n, "questions": [self._proposal_question(pid, prop, n)["question"] for prop in props]}
 
     def chat(self, pid, body):
         """POST /api/chat: side chat, never sent to Claude."""

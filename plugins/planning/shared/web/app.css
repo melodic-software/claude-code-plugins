@@ -349,6 +349,8 @@
 .app .vf-pp-head .vf-pop-title { margin: 0; flex: 1; }
 .app .vf-pp-tools { display: flex; align-items: center; gap: 8px; }
 .app .vf-panel > .vf-pop-note { margin: 4px 16px 10px; }
+.app .vf-pp-actions { display: flex; margin: 0 16px 10px; }
+.app .vf-pp-actions[hidden] { display: none; }
 .app .vf-pitem-parked { opacity: 0.75; }
 .app .vf-pscroll { overflow: auto; min-height: 0; padding: 0 10px 12px; overscroll-behavior: contain; }
 .app .vf-confirm { inline-size: 260px; }
