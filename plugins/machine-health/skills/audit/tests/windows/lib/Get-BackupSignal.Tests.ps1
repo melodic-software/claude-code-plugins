@@ -4,7 +4,7 @@
 <#
 .SYNOPSIS
 Tests for scripts/windows/lib/Get-BackupSignal.ps1. Event ids and the version
-identifier shape come from the plan's backup-status contract; the error ids are
+id shape come from the lib docblock and check-catalog.md section 27; the error ids are
 the ones Get-WinEvent raised on a host with no Backup events and no such log.
 wbadmin fixtures hold identifier-shaped lines only, never label text.
 #>
@@ -45,7 +45,7 @@ Describe 'Get-BackupSignal' -Tag 'lib' {
     }
 
     Context 'system-image' {
-        It 'returns system-image unknown when the Backup channel has no events (A6)' {
+        It 'returns system-image unknown when the Backup channel has no events' {
             $s = Get-Source (Get-BackupSignal -Elevated $false) 'system-image'
             $s.State | Should -Be 'unknown'
             $s.Signal | Should -Be 'backup-event'

@@ -9,6 +9,8 @@ Band edges come from Microsoft Learn's Windows Server performance pages (researc
 high CPU; available memory warning under 10%, critical under 1% or 500 MB; committed warning
 60-80, critical 80-100; disk latency warning over 25 ms, critical over 50 ms, sustained over
 about a minute). Learn's warning band reads INFO and its critical band WARN.
+The expected process keys were computed outside the code with
+printf '%s' 'process|<image>' | sha256sum, keeping the first 16 hex characters.
 #>
 
 BeforeAll {

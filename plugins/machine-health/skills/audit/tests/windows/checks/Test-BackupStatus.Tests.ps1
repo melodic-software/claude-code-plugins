@@ -4,8 +4,9 @@
 <#
 .SYNOPSIS
 Tests for scripts/windows/checks/Test-BackupStatus.ps1 with Get-BackupSignal mocked.
-The severity rule is the plan's: WARN when no source is present, UNKNOWN when any
-source needs admin. The deprecation sentence is quoted from the contract.
+The severity rule is reference/windows/check-catalog.md section 27: WARN when no
+source is present, UNKNOWN when any source needs admin. The deprecation sentence
+is the one that section names.
 #>
 
 BeforeAll {
