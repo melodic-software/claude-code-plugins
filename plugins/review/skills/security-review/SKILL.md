@@ -130,6 +130,28 @@ consulted. The `security-reviewer` agent behind
 `/review:quality-gate` security mode and `/review:fanout` carries the same lens as a pointer, so
 local and CI review judge such a diff by the same register.
 
+**Plugin manifests.** A change to a `.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json`
+can switch a control off or install code without touching a script, so such a diff is never
+eligible for skip 2. Compare the base and head manifests:
+
+- A `userConfig` guard key (one named `*_enabled` that turns a check, gate, or block on) whose
+  `default` goes from true to false, or that is removed, is a finding: every user who never set it
+  loses the control on update. Name the control and the action that now reaches it unchecked.
+- Anything added or changed that runs or fetches code (`hooks`, `mcpServers`, `lspServers`,
+  `monitors`, `dependencies`, or a marketplace entry's `source`): name in the summary what runs and
+  where it comes from (the command or server, and the path, package, or URL with its pin), even
+  when nothing is wrong. A source outside the repository with no pin, or a command fed
+  consumer-controlled input, is a finding with its exploit path.
+
+For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
+`manifest <field>: flag, <reason>`, so the outcome reads without the inline comments.
+
+Pointer: which fields run code is read at
+[plugin manifest reference: Component path forms](https://code.claude.com/docs/en/plugins-reference#component-path-forms)
+and [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration).
+As of: 2026-10-21. Recheck trigger: that page adds a manifest field that runs or fetches code, or
+changes how a `userConfig` default applies.
+
 ## High-signal bar
 
 Exclude pre-existing issues, linter-catchable noise, and generic security advice

@@ -124,9 +124,36 @@ them. Glob matching:
 2026-10-17; recheck when that section changes the `paths:` field or its glob
 syntax.
 
+**Plugin manifests.** When the diff changes a `.claude-plugin/plugin.json` or
+`.claude-plugin/marketplace.json`, compare the base and head manifests:
+
+- A `userConfig` field's `default` changed, or a field removed: the PR says why, since the change
+  reaches every user who never set the value. No stated reason is a finding. A guard turned off
+  by default is the security lane's.
+- A `userConfig` field gains or changes `options`: the PR names the client version floor that
+  raises.
+- A new `userConfig` field has a default a user who never opens settings should get, and code in
+  the plugin reads the key. A key nothing reads is a finding.
+- The version bump level matches the change under
+  [Semantic Versioning](https://semver.org/#summary). Where the repository releases from
+  changelog fragments, judge the fragment's `bump:` instead of `version`.
+- The `description`, `keywords`, and marketplace entry describe what ships after this change: a
+  capability they name that the diff removes, or one the diff adds that they omit, is a finding.
+
+For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
+`manifest <field>: flag, <reason>`, so the outcome reads without the inline comments.
+
+Pointer: field semantics, the `options` floor, and how a saved value is read are at
+[plugin manifest reference: User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration);
+entry-versus-manifest precedence is at
+[Marketplace entries and the manifest](https://code.claude.com/docs/en/plugins-reference#marketplace-entries-and-the-manifest).
+As of: 2026-10-21. Recheck trigger: that page changes a `userConfig` field's semantics, the
+`options` floor, or how a marketplace entry combines with `plugin.json`.
+
 Scope the review to files changed in this PR. Use `gh pr diff` to identify what
 changed, then review those files. Reading the PR context file, the matching rule
-files, and the tests that would cover a criterion is in scope; do not explore
+files, the tests that would cover a criterion, and a changed plugin's files when
+looking for what reads a new `userConfig` key is in scope; do not explore
 other parts of the codebase.
 
 Never restate the PR author's own claimed verification (e.g. a Test plan's
