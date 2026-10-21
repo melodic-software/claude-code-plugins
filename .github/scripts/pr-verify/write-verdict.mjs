@@ -136,7 +136,7 @@ export function earlierDenials(logText) {
   }
 }
 
-// After the key leg's credit stop the subscription job judges on a new VM
+// After the key leg hands off, the subscription job judges on a new VM
 // that cannot read this leg's log, so the key job records here whether the
 // leg was free of denials; the subscription job runs only on clean=true.
 export function checkKeyLeg(env = process.env) {
