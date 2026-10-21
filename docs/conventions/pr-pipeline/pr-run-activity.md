@@ -614,6 +614,10 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    name `<lane>/<activity> (key <ROLE>_CLAUDE_API_KEY hit a credit stop)` or `(... is empty)`.
 5. The run job's last step fails it when the launcher left no success and the call did not hand
    off, an empty token on the fallback call included.
+6. Before any upload or step summary, `leak-scan` runs the base's `findSecret`
+   (`lib/publish-gate.mjs`, read through the API at the base SHA, never from the checkout) over the
+   reply, the run fields, the patch, every changed or untracked file and the execution file; a hit
+   fails the run naming the pattern, uploads and summarizes nothing, and leaves `patch-state` empty.
 
 The issue lane's skill stays on claude-code-action.
 

@@ -9,7 +9,7 @@
 // work-resolve-issue.yml caps its concurrent runs.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -899,6 +899,7 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
     "steps.token-present.outputs.present": "",
     "steps.key-present.outcome": "success",
     "steps.patch.outputs.state": "written",
+    "steps.leak-scan.outputs.clean": "true",
   };
   const handoffs = {
     "an empty key": { ...base, "steps.key-present.outputs.present": "false", "steps.act-key.outcome": "skipped", "steps.act-key.outputs.lane-class": "" },
@@ -908,7 +909,7 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
   const guarded = run.steps.filter((s) => /^actions\/upload-artifact@|\/report-lane-outcome@/.test(String(s.uses ?? "")) || s.id === "patch");
   assert.deepEqual(
     guarded.map((s) => s.id ?? s.name),
-    ["reply-upload", "lane-record", "Record the launcher's lane outcome", "patch", "patch-upload", "Upload the issue outcome", "Upload the verdict"],
+    ["lane-record", "Record the launcher's lane outcome", "patch", "reply-upload", "patch-upload", "Upload the issue outcome", "Upload the verdict"],
   );
   for (const step of guarded) {
     for (const [name, context] of Object.entries(handoffs)) {
@@ -916,7 +917,7 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
     }
   }
   // A PR-mode call that ran uploads its reply, patch and verdict and records its outcome.
-  for (const step of guarded.filter((s) => !String(s.if).includes("inputs.issue-number != ''"))) {
+  for (const step of guarded.filter((s) => !String(s.if).replace(CLEAN_GATE, "").includes("inputs.issue-number != ''"))) {
     assert.equal(atStep(step.if, ran), true, step.id ?? step.name);
   }
   const handedOff = (context) => atStep(run.outputs["handed-off"], context);
@@ -1082,4 +1083,130 @@ test("pr-run-activity-read.yml: with output-mode gone, issue mode still refuses 
   assert.ok(index((s) => s === guard) > index((s) => s.id === "config"));
   assert.ok(index((s) => s === guard) < index((s) => s.name === "Check out the PR head"), "before any head code");
   assert.ok(index((s) => s === guard) < index((s) => s.id === "act-skill"));
+});
+
+// --- the PR-mode leak scan, before any upload or summary ---
+
+const runSteps = () => workflow("pr-run-activity-read.yml").jobs.run.steps;
+const CLEAN_GATE = "(inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')";
+// Issue-mode steps, and the verdict, which holds step outputs only.
+const UNSCANNED = new Set(["Upload the issue outcome", "Check the gate skill's verdict", "Upload the verdict"]);
+const writesSummary = (step) => /GITHUB_STEP_SUMMARY|core\.summary/.test(`${step.run ?? ""}${step.with?.script ?? ""}`);
+
+test("pr-run-activity-read.yml: the leak scan runs after the act and collect steps and gates every later upload and summary", () => {
+  const steps = runSteps();
+  const at = (id) => steps.findIndex((step) => step.id === id);
+  const scan = at("leak-scan");
+  for (const id of ["act-key", "act-token", "act-turns", "patch"]) {
+    assert.ok(at(id) >= 0 && at(id) < scan, `${id} runs before the scan`);
+  }
+  const outputs = steps.slice(at("act-key")).filter((step) => String(step.uses ?? "").startsWith("actions/upload-artifact@") || writesSummary(step));
+  assert.ok(outputs.length >= 3);
+  for (const step of outputs.filter((step) => !UNSCANNED.has(step.name))) {
+    assert.ok(steps.indexOf(step) > scan, `${step.name} comes after the scan`);
+    assert.ok(String(step.if).includes(CLEAN_GATE), `${step.name} needs clean == 'true'`);
+  }
+  for (const id of ["reply-upload", "patch-upload"]) assert.ok(String(steps[at(id)].if).includes(CLEAN_GATE), id);
+  // A hit skips the patch upload, so the run's patch-state is never `written`.
+  const { outputs: jobOutputs } = workflow("pr-run-activity-read.yml").jobs.run;
+  assert.match(jobOutputs["patch-state"], /^\$\{\{ steps\.patch-upload\.outcome == 'success' && 'written'/);
+});
+
+test("pr-run-activity-read.yml: the leak scan loads the publish gate from the API at the base SHA, never from the checkout", () => {
+  const step = runSteps().find((s) => s.id === "leak-scan");
+  const script = step.with.script;
+  assert.equal(step.env.BASE_SHA, "${{ steps.trusted-base.outputs.commit }}");
+  assert.match(script, /getContent\(\{ \.\.\.context\.repo, path: 'lib\/publish-gate\.mjs', ref: BASE_SHA \}\)/);
+  assert.doesNotMatch(script, /require\(['"]\.|import\(['"]\.|GITHUB_WORKSPACE[^)]*publish-gate|\.base\/|RUNNER_TEMP/);
+  assert.match(script, /mkdtempSync/);
+  assert.equal(step.env.GITHUB_TOKEN, undefined);
+  assert.equal(Object.keys(step.with).toSorted().join(","), "retries,script", "no token input beyond the job's default");
+  for (const value of Object.values(step.env)) assert.doesNotMatch(String(value), /secrets\./);
+});
+
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+const KEY = ["sk", "ant", "api03", "x".repeat(40)].join("-");
+
+async function scanWith(t, plant) {
+  const root = mkdtempSync(join(tmpdir(), "leak-scan-test-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const work = join(root, "work");
+  const temp = join(root, "temp");
+  mkdirSync(join(temp, "skill-reply"), { recursive: true });
+  mkdirSync(join(temp, "patch"), { recursive: true });
+  const git = (...args) => spawnSync("git", args, { cwd: work, encoding: "utf8" });
+  mkdirSync(work);
+  git("init", "-q", "-b", "main");
+  git("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "head");
+  writeFileSync(join(work, "tracked.txt"), "unchanged\n");
+  git("add", "tracked.txt");
+  git("-c", "user.email=t@example.com", "-c", "user.name=t", "commit", "-q", "-m", "tracked");
+  const head = git("rev-parse", "HEAD").stdout.trim();
+  writeFileSync(join(temp, "skill-reply", "reply.txt"), "lint-shell: fixed\n");
+  writeFileSync(join(temp, "skill-reply", "act-turns.json"), '{"num_turns": 3}\n');
+  writeFileSync(join(temp, "patch", "patch.diff"), "diff --git a/x b/x\n");
+  writeFileSync(join(temp, "execution.json"), "[]\n");
+  plant({ work, temp });
+  const outputs = {};
+  let failed = null;
+  const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) };
+  const github = {
+    rest: { repos: { getContent: async ({ path: file, ref }) => ({ data: { content: Buffer.from(read(`../../../${file}`)).toString("base64"), ref } }) } },
+  };
+  const env = {
+    BASE_SHA: "b".repeat(40),
+    HEAD_SHA: head,
+    EXECUTION_FILE: join(temp, "execution.json"),
+    REPLY_DIR: join(temp, "skill-reply"),
+    PATCH_FILE: join(temp, "patch", "patch.diff"),
+    GITHUB_WORKSPACE: work,
+    HOME: process.env.HOME,
+  };
+  const script = runSteps().find((s) => s.id === "leak-scan").with.script;
+  const { createRequire } = await import("node:module");
+  await new AsyncFunction("require", "core", "github", "context", "process", script)(
+    createRequire(import.meta.url),
+    core,
+    github,
+    { repo: { owner: "o", repo: "r" } },
+    { env },
+  );
+  return { clean: outputs.clean, failed };
+}
+
+test("leak scan: a clean run is clean", async (t) => {
+  assert.deepEqual(await scanWith(t, () => {}), { clean: "true", failed: null });
+});
+
+test("leak scan: a key in the reply, in a binary changed file, in an untracked file or in the execution file fails it, naming the pattern and never the key", async (t) => {
+  const plants = {
+    reply: ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `done ${KEY}\n`),
+    "binary changed file": ({ work }) => writeFileSync(join(work, "tracked.txt"), Buffer.concat([Buffer.from([0, 255, 0]), Buffer.from(KEY)])),
+    "untracked file": ({ work }) => writeFileSync(join(work, "new.bin"), Buffer.concat([Buffer.from([0, 1]), Buffer.from(KEY)])),
+    "execution file": ({ temp }) => writeFileSync(join(temp, "execution.json"), JSON.stringify([{ type: "user", text: KEY }])),
+  };
+  for (const [where, plant] of Object.entries(plants)) {
+    const { clean, failed } = await scanWith(t, plant);
+    assert.equal(clean, "false", where);
+    assert.match(failed, /^leak-scan: Anthropic key; .*\nrotate this credential$/, where);
+    assert.ok(!failed.includes(KEY), where);
+  }
+});
+
+test("leak scan: a missing base or head, or a gate that imports beyond node builtins, fails closed", async (t) => {
+  const steps = runSteps();
+  const script = steps.find((s) => s.id === "leak-scan").with.script;
+  assert.match(script, /startsWith\('node:'\)/);
+  const outputs = {};
+  let failed = null;
+  const { createRequire } = await import("node:module");
+  await new AsyncFunction("require", "core", "github", "context", "process", script)(
+    createRequire(import.meta.url),
+    { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) },
+    {},
+    { repo: {} },
+    { env: {} },
+  );
+  assert.equal(outputs.clean, "false");
+  assert.match(failed, /no finished scan/);
 });

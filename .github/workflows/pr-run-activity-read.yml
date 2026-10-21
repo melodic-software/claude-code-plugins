@@ -1023,14 +1023,14 @@ jobs:
                 `is_error=${JSON.stringify(result?.is_error ?? null)} num_turns=${JSON.stringify(turns ?? null)} max-turns=${cap ?? 'unset'}`,
             );
 
-      # The reply is untrusted model text: it is read with jq and printed as
+      # The reply is untrusted model text: it is read with jq and written as
       # data, never interpolated into a command. The file path falls back to
       # the action's fixed location (base-action/src/execution-file.ts:6-13).
-      # It is also uploaded below as audit evidence, since the REST API cannot
-      # read step summaries; apply-patch's ci-escalations report reads it. A
-      # launcher run that handed off has no reply: the fallback call's is
-      # the run's.
-      - name: Show the skill's final reply
+      # The leak scan reads it before the step summary shows it and before it
+      # is uploaded as audit evidence, since the REST API cannot read step
+      # summaries; apply-patch's ci-escalations report reads it. A launcher
+      # run that handed off has no reply: the fallback call's is the run's.
+      - name: Write the skill's final reply
         if: >-
           always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
           || (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
@@ -1050,13 +1050,6 @@ jobs:
           fi
           jq -r '[.[] | select(.type == "result")] | last | (.result // "")[:4000] | gsub("`"; "'"'"'")' \
             "$EXECUTION_FILE" >"$REPLY_DIR/reply.txt"
-          {
-            echo "### Skill reply"
-            echo
-            echo '```text'
-            cat "$REPLY_DIR/reply.txt"
-            echo '```'
-          } >>"$GITHUB_STEP_SUMMARY"
 
       # A slash command whose expansion fails, such as a skill pre-compute line
       # the permission mode denies, ends with a `success` result and no model
@@ -1108,12 +1101,8 @@ jobs:
                 .map((text) => text.slice(0, 2000)),
             };
             fs.mkdirSync(REPLY_DIR, { recursive: true });
+            // The summary step shows it after the leak scan.
             fs.writeFileSync(`${REPLY_DIR}/act-turns.json`, `${JSON.stringify(diag, null, 2)}\n`);
-            await core.summary
-              .addHeading('Skill run', 3)
-              // addCodeBlock does not escape its text.
-              .addCodeBlock(JSON.stringify(diag, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), 'json')
-              .write();
             // JSON escapes newlines, so no field can start a workflow command.
             core.info(JSON.stringify({ subtype: diag.subtype, is_error: diag.is_error, num_turns: diag.num_turns, models: diag.models.length }));
             if (!(diag.num_turns > 0) || diag.models.length === 0) {
@@ -1122,25 +1111,6 @@ jobs:
                   'the step summary and the skill-reply artifact hold the result fields and any local-command stderr',
               );
             }
-
-      # A handoff uploads nothing: the fallback call's artifacts take the same
-      # names. Every upload below repeats the handoff terms.
-      - name: Upload the skill's final reply
-        id: reply-upload
-        if: >-
-          always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
-          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
-          || steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
-          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
-          # Named files only: head code can write into this directory.
-          path: |
-            ${{ runner.temp }}/skill-reply/reply.txt
-            ${{ runner.temp }}/skill-reply/act-turns.json
-          retention-days: 3
-          if-no-files-found: error
 
       # Issue mode: the API error a failed skill run ended on, from the
       # execution file's result fields, never model text, for report-outcome's
@@ -1321,10 +1291,141 @@ jobs:
           mkdir -p "$PATCH_DIR"
           bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$PATCH_DIR/patch.diff" >>"$GITHUB_OUTPUT"
 
+      # PR mode: the skill ran Bash with the API key in reach, and artifacts
+      # are readable by anyone who can read the repository; masking covers
+      # logs and summaries only. Before any upload or summary, this scans
+      # what leaves the job (the reply, the run fields, the patch and every
+      # changed or untracked file's bytes, which cover a binary hunk) and the
+      # execution file, which the launcher never scans, with the publish
+      # gate's findSecret. The model could edit the checkout and its .git, so
+      # lib/publish-gate.mjs comes from the API at the trusted base SHA, with
+      # the job's read-only token, into a fresh directory, and must import
+      # only node: builtins. A hit fails the step naming the pattern, never
+      # the value; every upload and summary after it needs clean == 'true'.
+      - name: Scan the outputs for credentials
+        id: leak-scan
+        if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
+          HEAD_SHA: ${{ steps.start.outputs.sha }}
+          EXECUTION_FILE: >-
+            ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file
+            || format('{0}/claude-execution-output.json', runner.temp) }}
+          REPLY_DIR: ${{ runner.temp }}/skill-reply
+          PATCH_FILE: ${{ runner.temp }}/patch/patch.diff
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const os = require('os');
+            const path = require('path');
+            const { pathToFileURL } = require('url');
+            const { execFileSync } = require('child_process');
+            const { BASE_SHA, HEAD_SHA, EXECUTION_FILE, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
+            const git = (...args) =>
+              execFileSync('/usr/bin/git', ['-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', ...args], {
+                cwd: GITHUB_WORKSPACE,
+                env: { PATH: '/usr/bin:/bin', HOME: process.env.HOME ?? '/tmp', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' },
+                maxBuffer: 1 << 30,
+                stdio: ['ignore', 'pipe', 'ignore'],
+              });
+            // A regular file's bytes, a link's target text; anything else holds none.
+            const read = (file) => {
+              let stat;
+              try {
+                stat = fs.lstatSync(file);
+              } catch {
+                return null;
+              }
+              if (stat.isSymbolicLink()) return Buffer.from(fs.readlinkSync(file), 'latin1');
+              return stat.isFile() ? fs.readFileSync(file) : null;
+            };
+            let hit = null;
+            try {
+              if (!/^[0-9a-f]{40}$/.test(BASE_SHA ?? '') || !/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no base or head');
+              const { data } = await github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: BASE_SHA });
+              const source = Buffer.from(data.content, 'base64').toString('utf8');
+              const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
+              if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');
+              const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
+              fs.writeFileSync(path.join(dir, 'publish-gate.mjs'), source);
+              const { findSecret } = await import(pathToFileURL(path.join(dir, 'publish-gate.mjs')).href);
+              const names = [
+                ...git('diff', '--name-only', '--no-renames', '-z', HEAD_SHA).toString('latin1').split('\0'),
+                ...git('ls-files', '--others', '--exclude-standard', '-z').toString('latin1').split('\0'),
+              ].filter(Boolean);
+              const files = [`${REPLY_DIR}/reply.txt`, `${REPLY_DIR}/act-turns.json`, PATCH_FILE, EXECUTION_FILE, ...names.map((name) => path.join(GITHUB_WORKSPACE, name))];
+              for (const file of files) {
+                const bytes = read(file);
+                hit = bytes && findSecret(bytes.toString('latin1'));
+                if (hit) break;
+              }
+            } catch (error) {
+              hit = [`no finished scan (${error.name})`];
+            }
+            core.setOutput('clean', hit ? 'false' : 'true');
+            if (hit) {
+              core.setFailed(`leak-scan: ${hit[0]}; nothing is uploaded or summarized\nrotate this credential`);
+            }
+
+      # After the scan: model text and run fields, as data. Issue mode has no
+      # scan (its job holds no API key) and keeps its summary.
+      - name: Show the skill's run in the step summary
+        if: >-
+          always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
+          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
+          || (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
+          && steps.act-key.outputs.lane-class != 'credit-stop'
+          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          REPLY_DIR: ${{ runner.temp }}/skill-reply
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { REPLY_DIR } = process.env;
+            const text = (name) => {
+              try {
+                return fs.readFileSync(`${REPLY_DIR}/${name}`, 'utf8');
+              } catch {
+                return null;
+              }
+            };
+            // addCodeBlock does not escape its text.
+            const escape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const reply = text('reply.txt');
+            if (reply !== null) core.summary.addHeading('Skill reply', 3).addCodeBlock(escape(reply), 'text');
+            const turns = text('act-turns.json');
+            if (turns !== null) core.summary.addHeading('Skill run', 3).addCodeBlock(escape(turns), 'json');
+            await core.summary.write();
+
+      # A handoff uploads nothing: the fallback call's artifacts take the same
+      # names. Every upload below repeats the handoff terms.
+      - name: Upload the skill's final reply
+        id: reply-upload
+        if: >-
+          always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
+          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
+          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
+          || steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
+          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          # Named files only: head code can write into this directory.
+          path: |
+            ${{ runner.temp }}/skill-reply/reply.txt
+            ${{ runner.temp }}/skill-reply/act-turns.json
+          retention-days: 3
+          if-no-files-found: error
+
       - name: Upload the patch
         id: patch-upload
         if: >-
-          always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
+          always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
+          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
           && steps.patch.outputs.state == 'written'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
