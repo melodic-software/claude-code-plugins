@@ -139,7 +139,7 @@ once), then evaluate candidates sequentially.
 For each candidate:
 
 - **Read the relevant config/code**: the specific files that would be affected
-- **Check the enforcement hierarchy**: walk the ladder's rungs up from the weakest (`llm-only`) to the strongest (`make-impossible`). Stop when you find coverage. Document which level covers it
+- **Check the enforcement hierarchy**: walk the ladder's rungs up from the weakest (`automated-review`) to the strongest (`make-impossible`). Stop when you find coverage. Document which level covers it
 - **Check incident history**: `git log --grep` for related problems, then read a sample of the hits.
   The count is a **ceiling**, the number of commits whose message mentions a word, not a count of
   incidents and not a frequency. Report the match count, the total commit count, the sample size
