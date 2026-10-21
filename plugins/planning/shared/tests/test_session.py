@@ -2095,6 +2095,20 @@ class TestHiddenCharacters(SessionCase):
         self.act("chat", self.ann, {"text": f"Hi \U0001f3f4{hidden}\U000e007f"})
         self.assertEqual(self.s.state["chat"][-1]["text"], "Hi \U0001f3f4")
 
+    def test_the_heartbeat_question_drops_hidden_characters(self):
+        self.s.heartbeat(self.ann, {"q": "Q\u202e1\u200b"})
+        self.assertEqual(next(p["q"] for p in self.s.snapshot(HOST)["presence"] if p["pid"] == self.ann), "Q1")
+
+    def test_report_page_errors_drop_hidden_characters(self):
+        ctx = {"view": "focus", "device": "phone", "browser": "safari", "viewport": {"w": 390, "h": 844}, "errors": ["Type\u202eError\U000e0069: x\u2066"]}
+        fid = self.act("report", self.ann, {"text": "Broken", "ctx": ctx})["id"]
+        self.assertEqual(self.s.state["reports"][fid]["ctx"]["errors"], ["TypeError: x"])
+
+    def test_the_guest_key_is_compared_as_sent_never_filtered(self):
+        """The guest key is a secret compared byte for byte (hmac.compare_digest): a hidden character makes it wrong."""
+        key = self.act("rotate_guest_link", HOST, {})["guestKey"]
+        self.refused("bad-guest-key", "join", None, {"name": "Bo", "key": key + "\u200b"}, http=403)
+
     def test_a_field_of_only_hidden_characters_is_refused_as_empty(self):
         self.refused("empty", "chat", self.ann, {"text": "‮​\x00 ⁦"}, http=400)
         self.refused("empty", "request", self.ann, {"qid": "Q1", "kind": "ask", "text": "\U000e0041﻿"}, http=400)

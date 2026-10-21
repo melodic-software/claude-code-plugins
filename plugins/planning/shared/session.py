@@ -910,7 +910,7 @@ def _report_ctx(v):
     errors = v.get("errors", [])
     if not isinstance(errors, list) or len(errors) > MAX_REPORT_ERRORS or not all(isinstance(e, str) and len(e) <= MAX_REPORT_ERROR for e in errors):
         raise _bad("ctx.errors", f"ctx.errors lists at most {MAX_REPORT_ERRORS} errors of {MAX_REPORT_ERROR} characters.")
-    out["errors"] = [one_line(e) for e in errors]
+    out["errors"] = [one_line(_visible(e)) for e in errors]
     return out
 
 
@@ -1518,7 +1518,7 @@ class Session:
             raise _bad("tab", "tab must name the tab: 1 to 32 letters, digits, - or _.")
         visible = body.get("visible", True)
         away = body.get("away") is True
-        shown = {"q": (body.get("q") or "")[:16], "typing": body.get("typing") is True, "chatTyping": body.get("chatTyping") is True}
+        shown = {"q": _visible((body.get("q") or "")[:16]), "typing": body.get("typing") is True, "chatTyping": body.get("chatTyping") is True}
         identity = lambda p: {"pid": pid, "name": p["name"], "role": p["role"], "trusted": p["trusted"]}  # noqa: E731
         with self._lock:
             person = self._person(pid)
