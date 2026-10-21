@@ -1,6 +1,6 @@
 ---
 description: "Operator's read-only morning view of the current GitHub repo in one pass: open counts per queue label, merge-ready PRs, parked decisions with their RECOMMENDED lines, loop-lane telemetry freshness, per CI lane the week's failures by class, limit stops, restarts and turn headroom, and model usage per activity and profile, and whether anything on GitHub or Azure is charging or could start charging; never mutates issues, PRs, labels, comments, or billing and Azure settings. Use when: 'morning brief', 'ops dashboard', 'what needs attention', 'daily standup view', 'how do we monitor lane failures', 'which models do the lanes use', 'are we being charged'."
-argument-hint: "[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--stale-hours N] [--pr-limit N]"
+argument-hint: "[--repo owner/name] [--queue-labels A,B,C] [--stale-hours N] [--stuck-days N] [--pr-limit N]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh\":*)"]
 user-invocable: true
 disable-model-invocation: false
@@ -11,7 +11,7 @@ metadata:
   cadence: daily
 ---
 
-**Arguments.** `[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--stale-hours N] [--pr-limit N]`. Full form: [--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] [--stranded-days N] [--pr-limit N] [--lane-workflows A,B] [--lane-read-limit N] [--max-turns-hits N] [--org ORG] [--subscription ID] [--actions-included-minutes N] [--actions-included-storage-gb N] [--usage-alert-percent N] [--log-cap-alert-percent N] [--forecast-alert N] [--required-budgets A,B] [--anomaly-alert NAME] [--expiry-days N] [--allowed-collaborators A,B] [--workflow-read-limit N] [--config-home DIR]. `--org` defaults to the repo's owner, `--subscription` to az's current subscription; the Cost section's other settings are described under "What each section reports". Read-only on GitHub and Azure; omit to view the current repo
+**Arguments.** `[--repo owner/name] [--queue-labels A,B,C] [--stale-hours N] [--stuck-days N] [--pr-limit N]`. Full form: [--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] [--stranded-days N] [--stuck-days N] [--stuck-limit N] [--pr-limit N] [--lane-workflows A,B] [--lane-read-limit N] [--max-turns-hits N] [--org ORG] [--subscription ID] [--actions-included-minutes N] [--actions-included-storage-gb N] [--usage-alert-percent N] [--log-cap-alert-percent N] [--forecast-alert N] [--required-budgets A,B] [--anomaly-alert NAME] [--expiry-days N] [--allowed-collaborators A,B] [--workflow-read-limit N] [--config-home DIR]. `--org` defaults to the repo's owner, `--subscription` to az's current subscription; the Cost section's other settings are described under "What each section reports". Read-only on GitHub and Azure; omit to view the current repo
 
 ## Pre-computed context
 
@@ -140,15 +140,18 @@ GitHub budget list and the cost query print `PARTIAL` when they reach their cap 
 
 A list read that reaches its result cap prints a `PARTIAL` line in its section: the
 label inventory (and then the queue rows are not filtered to labels that exist), a
-queue count (shown as `N+`), the open-PR list, the decision list, and the telemetry
-issue search.
+queue count (shown as `N+`), the stuck list (past `--stuck-limit` lines, or when a
+label's search reaches GitHub's result cap), the open-PR list, the decision list,
+and the telemetry issue search.
 
 When a GraphQL read is refused (the cloud GitHub proxy's HTTP 403), sections 1-4 are
 re-read from repository-scoped REST endpoints and the header names the transport.
 Then the merge-ready list reports `review=n/a` and reads merge state for at most
 `--pr-limit` open PRs (default 50), saying so when capped or when GitHub has not
 finished computing a PR's mergeability; and the stranded-findings section renders
-`UNREADABLE`, because review threads have no REST read.
+`UNREADABLE`, because review threads have no REST read. The stuck section renders
+`UNREADABLE` there too: a label event is a GraphQL read, and a REST read would take one
+events call per item.
 
 The brief treats a clean PR as verified only when its head contains its base branch's tip. It
 reads one comparison per clean PR, up to `--pr-limit`, and prints an `UNVERIFIED` line under a PR
@@ -191,12 +194,21 @@ Upstream facts the script restates, each with its verification record:
 | Section | Source | Notes |
 |---|---|---|
 | Queues | `gh issue list --label <queue>` counts | Defaults to melodic-software queue labels; live runs filter to labels that exist in the repo (pass `--queue-labels` to pin a custom set) |
+| Stuck | one paged `gh api graphql` search per shown queue label (`is:open label:"<label>"`), with each result's `LABELED_EVENT` timeline items | Open issues **and** PRs (each line says `issue` or `PR`) whose newest labeled event for that label is older than `--stuck-days` (default 7), oldest first across all labels, one line each: number, title, label, days in stage. Lines are capped at `--stuck-limit` (default 20); past it the section says `PARTIAL`, and so it does for a search that reached GitHub's result cap. An item with no labeled event for the label among its last 100 timeline events is listed as `days unknown` after the dated ones, never dropped. The labels are the ones the Queues section shows. Read-only: it lists, it never moves or relabels an item |
 | Merge-ready PRs | `gh pr list` filtered to non-draft + `mergeStateStatus=CLEAN` (REST: `pulls` list plus one read per PR for `mergeable_state`) | A light glance signal; `reviewDecision` shown but not required (repos without required review leave it empty; the REST path reports `n/a`). One compare read per clean PR, capped at `--pr-limit`; `UNVERIFIED` marks a head behind its base, a comparison that could not be read, or a PR past the cap |
 | Parked decisions | open issues with the decision label (default `status: needs-decision`) | Surfaces each one's RECOMMENDED line, the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers; pass `--decision-label` to pin |
 | Lane telemetry | the loop-lane telemetry issue's per-lane comments | Each lane's `last-cycle` age (marked `STALE` past `--stale-hours`, default 6) and any `flags:` |
 | Stranded findings | merged PRs whose unresolved review threads were **created after the merge** | One line per PR at its worst severity, with a finding count. The header prints the window: merges since the older of `--stranded-days` ago (default 3) and the repo's bookmark. Paging stops at that cutoff |
 | Lanes | the last 7 days of runs of each lane workflow, and the check-run annotations of their jobs | One row per lane: runs, failures by class (rate-limit, max-turns, auth, other), limit stops, restarts (a run on an item whose previous run was a limit stop), and items with 3+ limit stops. Then turns used (max, p90) against the cap, with `CHECK` and run links when a run hit max-turns or the p90 is at or above 80% of the cap. Class, turns and cap come from the lane record when it carries them, else from the SDK result and the action's turn-cap annotation; a turn-cap stop counts as max-turns whatever class the record gives. Lanes default to the Claude workflows the repo has; `--lane-workflows` pins them. Annotations are read for `--lane-read-limit` runs (default 200), failed first; past it the row says `unread` and the section `PARTIAL`. Then a model-usage table, the baseline before model routing changes anything: one row per activity and profile over the runs whose annotations carry a lane record, with runs, passes (run conclusion success), median turns, max-turns hits and the models the records name, never sizes or costs. The activity is a pipeline lane's activity (`<lane> / <activity>`), else the lane; the profile is the record's `profile=`, else `unknown`. A row whose max-turns hits exceed `--max-turns-hits` gets a `RECOMMENDED` line; with the flag unset (the default) the table says no threshold is set |
 | Cost | GitHub: `gh api` org billing usage (this month) and budgets; the org's repos and admins, and per live repo its direct collaborators and default-branch workflow files. Azure, when `az account show` succeeds: budgets with their forecast and the Cost Management scheduled actions (`az rest` GETs), `az security pricing list`, a month-to-date Cost Management query (`az rest` POST), `az monitor log-analytics workspace list` and one Usage-table query per workspace, `az monitor activity-log list --offset 1d`, `az security secure-scores list`, and `az advisor recommendation list --category Security` and `--category Cost` | One line per check, each `OK`, `ALERT`, `INFO` or `UNREADABLE`. `ALERT`: a product whose net this month is above 0; private-repo Actions minutes or artifact storage at `--usage-alert-percent` (default 50) of `--actions-included-minutes` or `--actions-included-storage-gb` (unset: the line is `INFO` with the amount used); a GitHub budget above 0 or not stopping at its limit; a direct collaborator who is not an org admin or in `--allowed-collaborators`; a workflow on `pull_request_target` or `workflow_run` (the event key bare, quoted, or in a flow sequence or mapping) that references a secret whose name contains `_CLAUDE_`, or passes every secret (`secrets: inherit`, `toJSON(secrets)`, a computed `secrets[...]` index); an Azure budget whose spend reached its amount or whose forecast is above `--forecast-alert` (default: the budget's amount); a `--required-budgets` budget that is missing, or the `--anomaly-alert` alert (default: any cost anomaly alert) missing or disabled, or either ending within `--expiry-days` (default 30); a workspace whose peak billable day over 31 days is at `--log-cap-alert-percent` (default 50) of its daily cap, or that has no cap; a month-to-date actual cost above 0 on any cost row whose service or meter category names Defender or Security Center; a Defender plan, policy assignment or role assignment write in the last day. A repo's Actions usage counts as private unless the org's repo list says it is public; with no repo list read, the line says every repo was counted as private. Budget lines print the latest usage date in the month-to-date cost query (its daily `UsageDate` column) as the data date, beside the read time; with the query unread they say the data date is unread. The Defender plans line lists any plan not on Free as `INFO`, never `ALERT`. The secure score and Advisor counts are `INFO`. The org is `--org`, else the repo's owner, and must be a GitHub owner name; the subscription is `--subscription`, else az's current one. A fixture run reads neither live unless `--org` or `--subscription` is passed as a flag; a settings file never makes it live |
+
+The Stuck section depends on two GraphQL facts, the result cap of a search and the fields of a
+labeled event. Read both live:
+
+- **Pointer**: <https://docs.github.com/en/graphql/reference/queries#search> and
+  <https://docs.github.com/en/graphql/reference/objects#labeledevent>.
+- **As of**: 2026-10-21
+- **Recheck trigger**: either page changes the search's result cap or the event's fields.
 
 The Lanes section parses text two upstream components write. When a row's classes or turns look
 wrong, read the current shapes live:
