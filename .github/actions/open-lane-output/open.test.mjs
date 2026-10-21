@@ -174,15 +174,58 @@ test("a payload over its cap, a name the caller does not take, or a chunk of the
   assertClosed(open({ ...sealed, "sealed-2": "AAAA" }), "an extra chunk");
 });
 
-test("nothing sealed opens to an empty directory without reading the key; a bad expected key id fails", (t) => {
-  const run = runOpen(t, { "private-key": "", "expected-key-ids": "0123456789abcdef" });
+test("an empty or malformed key fails first, with one fixed message naming no key material, even with nothing sealed", (t) => {
+  const { recipient, keyId, privateText } = keyPair();
+  const sealed = sealedInputs(recipient, [["reply.txt", REPLY]]);
+  const ed25519 = crypto.generateKeyPairSync("ed25519").privateKey.export({ format: "der", type: "pkcs8" }).toString("base64");
+  const keys = { empty: "", blank: "  \n", "not base64": "not a key!", "truncated DER": privateText.slice(0, 20), "another curve": ed25519 };
+  for (const [name, key] of Object.entries(keys)) {
+    for (const inputs of [sealed, {}]) {
+      const run = runOpen(t, { ...inputs, "private-key": key, "expected-key-ids": keyId });
+      assert.equal(run.status, 1, name);
+      assert.equal(run.log, "::error::no-key: the private key is missing or malformed; no payload opened\n", name);
+      assert.deepEqual(run.files, {}, name);
+      assert.equal(run.output, "", name);
+    }
+  }
+});
+
+test("nothing sealed opens to an empty directory; a bad expected key id fails", (t) => {
+  const { privateText } = keyPair();
+  const run = runOpen(t, { "private-key": privateText, "expected-key-ids": "0123456789abcdef" });
   assert.equal(run.status, 0, run.log);
   assert.equal(run.output, "opened=\n");
-  assert.equal(runOpen(t, { "private-key": "", "expected-key-ids": "PLACEHOLDER:" }).status, 1);
-  const { recipient, keyId } = keyPair();
-  const noKey = runOpen(t, { ...sealedInputs(recipient, [["reply.txt", REPLY]]), "private-key": "", "expected-key-ids": keyId });
-  assert.equal(noKey.status, 1);
-  assert.match(noKey.log, /^::error::no-key: /m);
+  assert.equal(runOpen(t, { "private-key": privateText, "expected-key-ids": "PLACEHOLDER:" }).status, 1);
+});
+
+test("oversize ciphertext is refused on its size alone, before any base64 decode or key use", (t) => {
+  const { privateText, keyId } = keyPair();
+  const open = (inputs) => runOpen(t, { ...inputs, "private-key": privateText, "expected-key-ids": keyId });
+  const cases = {
+    "a chunk over 98304 characters": { "sealed-length": "98305", "sealed-1": "A".repeat(98305) },
+    "a length over six chunks": { "sealed-length": String(6 * CHUNK + 4), "sealed-1": "A".repeat(CHUNK) },
+    "a length of eleven digits": { "sealed-length": "99999999999", "sealed-1": "AAAA" },
+    // Not base64 at all: a decode first would refuse it as a mismatch instead.
+    "an oversize chunk that is not base64": { "sealed-length": "100000", "sealed-1": "!".repeat(CHUNK + 1) },
+  };
+  for (const [name, inputs] of Object.entries(cases)) {
+    const run = open(inputs);
+    assert.equal(run.status, 1, name);
+    assert.match(run.log, /^::error::too-large: the sealed input is over 589824 characters or 98304 a chunk; nothing is opened$/m, name);
+    assert.deepEqual(run.files, {}, name);
+  }
+});
+
+test("after the size cap, the GCM tag and then the AAD are checked: each fails closed, and the authentic record opens", (t) => {
+  const { recipient, privateText, keyId } = keyPair();
+  const open = (bundle, runId = "42") => runOpen(t, { ...sealedInputs(null, null, { bundle }), "private-key": privateText, "expected-key-ids": keyId }, { runId });
+  const bundle = sealBundle(recipient, [["reply.txt", REPLY]], "42", "run");
+  assert.equal(open(bundle).status, 0, "the authentic record opens");
+  const tag = Buffer.from(bundle);
+  tag[tag.length - 1] ^= 1;
+  assertClosed(open(tag), "a tampered tag");
+  // An intact tag over another AAD: the run id the opener binds differs.
+  assertClosed(open(bundle, "43"), "another AAD");
 });
 
 test("action.yml reads inputs.private-key in one step's env only, and uses no action", () => {

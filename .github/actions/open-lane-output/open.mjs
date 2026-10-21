@@ -32,15 +32,20 @@ const mismatch = (what) => new OpenError(`sealed-mismatch: ${what}; nothing is o
 const keyIdOf = (raw) => crypto.createHash("sha256").update(raw).digest("hex").slice(0, 16);
 const context = (name, runId, jobId) => Buffer.from(`lane-output/v${VERSION}\0${name}\0${runId}\0${jobId}`);
 
+// One fixed refusal for an empty or unusable key: it names no key material.
+export const NO_KEY = "no-key: the private key is missing or malformed; no payload opened";
+
 // The private key: base64 PKCS#8 DER of an X25519 key, as keygen.mjs writes it.
 export function parsePrivateKey(text) {
+  const trimmed = String(text ?? "").trim();
+  if (trimmed === "" || !/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed)) throw new OpenError(NO_KEY);
   let key;
   try {
-    key = crypto.createPrivateKey({ key: Buffer.from(String(text).trim(), "base64"), format: "der", type: "pkcs8" });
+    key = crypto.createPrivateKey({ key: Buffer.from(trimmed, "base64"), format: "der", type: "pkcs8" });
   } catch {
-    throw new OpenError("no-key: the private-key input is no PKCS#8 key; nothing is opened");
+    throw new OpenError(NO_KEY);
   }
-  if (key.asymmetricKeyType !== "x25519") throw new OpenError("no-key: the private-key input is no x25519 key; nothing is opened");
+  if (key.asymmetricKeyType !== "x25519") throw new OpenError(NO_KEY);
   const raw = crypto.createPublicKey(key).export({ format: "der", type: "spki" }).subarray(-32);
   return { key, raw, keyId: keyIdOf(raw) };
 }
@@ -59,6 +64,11 @@ export function parseCaps(text) {
 // The chunks back into one base64 text. A chunk the length says is there but
 // that arrived empty is the runner's withheld output, the rotation signal.
 export function joinChunks(lengthText, parts) {
+  // The size cap first, on the untrusted text as it arrived, before any decode.
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  if (parts.some((part) => part.length > CHUNK) || total > MAX_CHUNKS * CHUNK || lengthText.length > 10 || Number(lengthText) > MAX_CHUNKS * CHUNK) {
+    throw new OpenError(`too-large: the sealed input is over ${MAX_CHUNKS * CHUNK} characters or ${CHUNK} a chunk; nothing is opened`);
+  }
   if (!/^[1-9][0-9]{0,9}$/.test(lengthText)) throw mismatch("the sealed length is no count");
   const length = Number(lengthText);
   if (length > parts.length * CHUNK) throw mismatch("the sealed length is over what the chunks carry");
@@ -124,6 +134,8 @@ export function openBundle(recipient, expected, caps, bundle, runId, jobId) {
 }
 
 export function main(env = process.env) {
+  // The key first: an empty or malformed key opens nothing, whatever arrived.
+  const recipient = parsePrivateKey(env.PRIVATE_KEY);
   const jobId = env.JOB_ID ?? "";
   const runId = env.GITHUB_RUN_ID ?? "";
   if (!JOB_ID.test(jobId)) throw new OpenError("bad-input: the job-id input is not a job key");
@@ -140,7 +152,7 @@ export function main(env = process.env) {
   let opened = new Map();
   if (lengthText !== "" || parts.some((part) => part !== "")) {
     const bundle = joinChunks(lengthText, parts);
-    opened = openBundle(parsePrivateKey(env.PRIVATE_KEY ?? ""), expected, caps, bundle, runId, jobId);
+    opened = openBundle(recipient, expected, caps, bundle, runId, jobId);
   }
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   if (readdirSync(directory).length > 0) throw new OpenError("bad-input: the directory is not empty");

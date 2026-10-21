@@ -15,8 +15,13 @@ directory the caller names.
 | `directory` | An absolute path, missing or empty, outside the workspace (for example under `runner.temp`) |
 | `sealed-length`, `sealed-1` … `sealed-6` | The seal step's outputs, as the producing job mapped them |
 
-With no `sealed-length` and no chunk, nothing opens: the directory is made empty and the key is
-not read.
+The key is checked first: an empty or malformed key fails, even with nothing sealed. With no
+`sealed-length` and no chunk, nothing opens and the directory is made empty.
+
+In a reusable workflow, declare the key under `on.workflow_call.secrets` and have each caller pass
+the environment secret by name (never `secrets: inherit`): GitHub hands an environment secret to a
+reusable workflow only when the caller passes it, and gives the environment's value only to the job
+that names the environment.
 
 ## Outputs
 
@@ -26,15 +31,21 @@ never prints it, sets it as an output, writes it to `GITHUB_ENV` or masks anythi
 ## Refusals
 
 Every refusal is one `::error::` line naming a kind, never a value, and writes no file: every
-record is checked and decrypted in memory before the first file is written.
+record is checked and decrypted in memory before the first file is written. The checks run in this
+order: the key, the size of the ciphertext as it arrived, then each record's framing and header,
+then its GCM tag, which also authenticates the AAD (the header, payload name, run id and job id).
+
+- `no-key`: one fixed message, `the private key is missing or malformed; no payload opened`.
+- `too-large`: the sealed text over six chunks of 98304 characters, or one chunk over 98304,
+  refused before any decode; or a record whose plaintext is over its name's cap, refused before
+  decryption.
 
 - `output-withheld`: a chunk the length says is there arrived empty, which is how the runner drops an
   output it judges may hold a secret. The message ends with `rotate this credential`.
 - `sealed-mismatch`: a wrong private key, a failed GCM tag, a truncated bundle or record, an unknown
   key id, a bad version, a record sealed for another run, job or payload name, a name not in
   `max-bytes`, or a chunk of the wrong length. No rotation line.
-- `too-large`: a record whose plaintext is over its name's cap, refused before decryption.
-- `no-key`, `bad-input`: the key or an input is unusable.
+- `bad-input`: an input other than the key is unusable.
 
 A record re-read at another run attempt of the same run opens, so re-running a failed job works.
 
@@ -61,9 +72,15 @@ Keep the braces: zsh's default `MULTIOS` would send a bare `>file | ...` stdout 
 the pipe, appending the public line to the secret. Commit the key file; the secret lives only in the
 environment, which the opening job names.
 
+Then check that no repository-level or organization-level secret shares the environment secret's
+name: outside the opening job a caller's by-name pass resolves to that one. A repository may ship a
+check for it; this one's is `scripts/check-scan-carrier-secret-shadow.sh <owner/repo>` (exit 0
+none, 1 one exists, 2 a listing it cannot read). It reads secret names only.
+
 ## Rotation
 
 1. Run the key generation line above. It replaces the secret and rewrites the public key file.
+   Run the shadow check after it.
 2. Merge the new public key file at once. A run that sealed under the old key and opens under the
    new secret fails closed (`sealed-mismatch`, unknown key id or wrong key, no rotation line);
    re-run it after the merge.
