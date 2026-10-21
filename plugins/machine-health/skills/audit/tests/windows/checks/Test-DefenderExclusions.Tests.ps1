@@ -6,7 +6,8 @@ BeforeAll {
     # them; the check script's own imports are not visible in this scope.
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DefenderExclusions' `
         -AsObject 'Invoke-DefenderExclusionsAsObject' `
-        -LibScript 'Test-IsElevated.ps1', 'New-FindingItem.ps1', 'Get-DefenderExclusionState.ps1'
+        -LibScript 'Test-IsElevated.ps1', 'New-FindingItem.ps1', 'New-DefenderExclusionItem.ps1', 'Get-DefenderExclusionState.ps1',
+        'Get-DefenderEventHistory.ps1' -MockHelpers
 
     function Invoke-DefenderExclusionWithMuteList {
         param([string[]] $MutedKeys)
@@ -117,11 +118,22 @@ Describe 'Test-DefenderExclusions -- severity rubric' -Tag 'check' {
         @($result.detail.items)[0].muted | Should -BeTrue
     }
 
-    It 'keys an exclusion the way defender keys its 5007 history, so one mute covers both checks' {
+    It 'keys an exclusion exactly as defender keys its 5007 history, so one mute covers both checks' {
         Mock Get-DefenderExclusionState {
-            [pscustomobject]@{ ReadState = 'ok'; Paths = @('<drive>:\build'); Extensions = @(); Processes = @() }
+            [pscustomobject]@{ ReadState = 'ok'; Paths = @('X:\Build'); Extensions = @(); Processes = @() }
         }
-        $result = Invoke-DefenderExclusionsAsObject
-        @($result.detail.items)[0].key | Should -Be (Get-FindingKey -Kind 'exclusion' -Identity 'path', '<drive>:\build')
+        Mock Get-MpComputerStatus { New-MockDefenderComputerStatus }
+        Mock Get-DefenderEventHistory {
+            [pscustomobject]@{
+                ReadState = 'ok'; LogOldestRecord = (Get-Date).AddDays(-90); SkippedRecords = 0; Detections = @()
+                ExclusionChanges = @([pscustomobject]@{ Type = 'path'; Value = 'X:\build'; Change = 'added'; ChangedAt = (Get-Date).AddDays(-40) })
+            }
+        }
+        $defenderPath = Join-Path (Split-Path $script:ScriptPath) 'Test-Defender.ps1'
+
+        $current = @((Invoke-DefenderExclusionsAsObject).detail.items)[0].key
+        $history = @((Invoke-CheckScriptAsObject $defenderPath).detail.items)[0].key
+        $current | Should -Match '^exclusion:[0-9a-f]{16}$'
+        $history | Should -Be $current
     }
 }

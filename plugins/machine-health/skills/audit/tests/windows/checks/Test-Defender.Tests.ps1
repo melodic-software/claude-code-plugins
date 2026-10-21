@@ -25,21 +25,13 @@ Pins these rubric fixes:
 4. Null-comparison ordering (PSSA rule PSPossibleIncorrectComparisonWithNull).
    Previous code used `$x -ne $null`; new code uses `$null -ne $x`.
 
-5. Detection history comes from the Defender event log (Get-DefenderEventHistory),
-   because Get-MpThreatDetection forgets detections after the scan-history
-   purge. A failed history read is noted and can never leave the check OK.
-
-6. Detection severity: a detection in the recent window with no successful
-   remediation is CRIT, one whose remediation succeeded is WARN, an older one
-   is INFO. A muted item never raises the check's severity.
-
-7. Exclusion changes (event 5007) are listed as items, but their values stay
-   out of the summary and notes.
+5. Detections and exclusion changes from the event history: the rubric in
+   reference/windows/check-catalog.md section 5.
 #>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-Defender' -AsObject 'Invoke-DefenderAsObject' `
-        -LibScript 'Get-DefenderEventHistory.ps1', 'New-FindingItem.ps1' -MockHelpers
+        -LibScript 'New-FindingItem.ps1', 'New-DefenderExclusionItem.ps1', 'Get-DefenderEventHistory.ps1' -MockHelpers
 
     if (-not (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue)) {
         throw ('Get-MpComputerStatus is not available on this host. ' +
@@ -52,11 +44,14 @@ BeforeAll {
         param(
             [string] $ReadState = 'absent',
             [object[]] $Detections = @(),
-            [object[]] $ExclusionChanges = @()
+            [object[]] $ExclusionChanges = @(),
+            [int] $OldestDaysAgo = 90,
+            [int] $SkippedRecords = 0
         )
         [pscustomobject]@{
             ReadState        = $ReadState
-            LogOldestRecord  = (Get-Date).AddDays(-90)
+            LogOldestRecord  = (Get-Date).AddDays(-$OldestDaysAgo)
+            SkippedRecords   = $SkippedRecords
             Detections       = $Detections
             ExclusionChanges = $ExclusionChanges
         }
@@ -65,14 +60,25 @@ BeforeAll {
     function New-Detection {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
             Justification = 'Test fixture constructor: builds an object, changes no system state.')]
-        param([int] $DaysAgo, [AllowNull()] $ActionSucceeded, [string] $Resource = 'file:_<drive>:\Profile\sample.exe')
+        param(
+            [int] $DaysAgo, [AllowNull()] $ActionSucceeded, [string] $Resource = 'file:_<drive>:\Profile\sample.exe',
+            [string] $DetectionId = '{00000000-0000-0000-0000-000000000001}'
+        )
         [pscustomobject]@{
             ThreatId        = '2147000001'
             ThreatName      = 'Placeholder:Win32/Sample'
             Resource        = $Resource
+            DetectionId     = $DetectionId
             DetectedAt      = (Get-Date).AddDays(-$DaysAgo)
             ActionSucceeded = $ActionSucceeded
         }
+    }
+
+    function New-ExclusionChange {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Test fixture constructor: builds an object, changes no system state.')]
+        param([string] $Value, [int] $DaysAgo = 3, [string] $Change = 'added', [string] $Type = 'path')
+        [pscustomobject]@{ Type = $Type; Value = $Value; Change = $Change; ChangedAt = (Get-Date).AddDays(-$DaysAgo) }
     }
 
     function Invoke-DefenderWithMuteList {
@@ -243,7 +249,7 @@ Describe 'Test-Defender -- detections from events' -Tag 'check' {
         $result.detail.recent_threat_count | Should -Be 1
         $item = @($result.detail.items)[0]
         $item.severity | Should -Be 'CRIT'
-        $item.key | Should -Be (Get-FindingKey -Kind 'detection' -Identity '2147000001', 'file:_<drive>:\Profile\sample.exe')
+        $item.key | Should -Be (Get-FindingKey -Kind 'detection' -Identity '2147000001', 'file:_<drive>:\Profile\sample.exe', '{00000000-0000-0000-0000-000000000001}')
         $item.threat_name | Should -Be 'Placeholder:Win32/Sample'
         $item.action_succeeded | Should -BeNullOrEmpty
     }
@@ -287,7 +293,7 @@ Describe 'Test-Defender -- detections from events' -Tag 'check' {
 
     It 'keeps a muted detection listed without raising severity' {
         Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'ok' -Detections @(New-Detection -DaysAgo 1 -ActionSucceeded $null) }
-        $key = Get-FindingKey -Kind 'detection' -Identity '2147000001', 'file:_<drive>:\Profile\sample.exe'
+        $key = Get-FindingKey -Kind 'detection' -Identity '2147000001', 'file:_<drive>:\Profile\sample.exe', '{00000000-0000-0000-0000-000000000001}'
 
         $result = Invoke-DefenderWithMuteList -MutedKeys @($key)
         $result.severity | Should -Be 'OK'
@@ -325,6 +331,91 @@ Describe 'Test-Defender -- detections from events' -Tag 'check' {
 
         (Invoke-DefenderAsObject).severity | Should -Be 'CRIT'
     }
+
+    It 'raises an INFO reading to UNKNOWN when the event history could not be read' {
+        Mock Get-MpComputerStatus { New-MockDefenderComputerStatus -AMRunningMode 'Passive Mode' -RealTimeProtectionEnabled $false }
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'error' }
+
+        (Invoke-DefenderAsObject).severity | Should -Be 'UNKNOWN'
+    }
+
+    It 'keeps a real WARN when the event history could not be read' {
+        Mock Get-MpComputerStatus { New-MockDefenderComputerStatus -IsTamperProtected $false }
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'error' }
+
+        (Invoke-DefenderAsObject).severity | Should -Be 'WARN'
+    }
+
+    It 'reports skipped records and never OK when some events could not be parsed' {
+        Mock Get-DefenderEventHistory {
+            New-EventHistory -ReadState 'error' -SkippedRecords 2 -Detections @(New-Detection -DaysAgo 1 -ActionSucceeded $null)
+        }
+
+        $result = Invoke-DefenderAsObject
+        # The parsed detection still counts: its CRIT is not hidden behind UNKNOWN.
+        $result.severity | Should -Be 'CRIT'
+        $result.detail.events_skipped_count | Should -Be 2
+        $result.notes | Should -Match '2 Defender event record'
+    }
+
+    It 'gives two detections of one threat on one resource their own keys, so muting one leaves the other' {
+        Mock Get-DefenderEventHistory {
+            New-EventHistory -ReadState 'ok' -Detections @(
+                New-Detection -DaysAgo 40 -ActionSucceeded $true
+                New-Detection -DaysAgo 1 -ActionSucceeded $null -DetectionId '{00000000-0000-0000-0000-000000000002}'
+            )
+        }
+        $oldKey = Get-FindingKey -Kind 'detection' -Identity '2147000001', 'file:_<drive>:\Profile\sample.exe', '{00000000-0000-0000-0000-000000000001}'
+
+        $result = Invoke-DefenderWithMuteList -MutedKeys @($oldKey)
+        @($result.detail.items.key | Sort-Object -Unique).Count | Should -Be 2
+        $result.severity | Should -Be 'CRIT'
+    }
+
+    It 'never reports OK when log retention is shorter than the recent window' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'absent' -OldestDaysAgo 10 }
+
+        $result = Invoke-DefenderAsObject
+        $result.severity | Should -Be 'INFO'
+        $result.detail.coverage_gap | Should -BeTrue
+        $result.notes | Should -Match 'does not reach back'
+    }
+
+    It 'reports no coverage gap when retention covers the window' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'absent' }
+
+        (Invoke-DefenderAsObject).detail.coverage_gap | Should -BeFalse
+    }
+}
+
+Describe 'Test-Defender -- recent exclusion additions (5007)' -Tag 'check' {
+    BeforeEach {
+        Mock Get-MpComputerStatus { New-MockDefenderComputerStatus }
+    }
+
+    It 'lists a path added long ago as INFO history' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'ok' -ExclusionChanges @(New-ExclusionChange -Value '<drive>:\build' -DaysAgo 40) }
+
+        (Invoke-DefenderAsObject).severity | Should -Be 'INFO'
+    }
+
+    It 'lists a recent addition under a known-safe path as INFO' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'ok' -ExclusionChanges @(New-ExclusionChange -Value '<drive>:\Profile\.dotnet') }
+
+        (Invoke-DefenderAsObject).severity | Should -Be 'INFO'
+    }
+
+    It 'lists a recent removal as INFO' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'ok' -ExclusionChanges @(New-ExclusionChange -Value '<drive>:\build' -Change 'removed') }
+
+        (Invoke-DefenderAsObject).severity | Should -Be 'INFO'
+    }
+
+    It 'lists a recent process addition as INFO' {
+        Mock Get-DefenderEventHistory { New-EventHistory -ReadState 'ok' -ExclusionChanges @(New-ExclusionChange -Value 'tool.exe' -Type 'process') }
+
+        (Invoke-DefenderAsObject).severity | Should -Be 'INFO'
+    }
 }
 
 Describe 'Test-Defender -- exclusion change history (5007)' -Tag 'check' {
@@ -342,14 +433,14 @@ Describe 'Test-Defender -- exclusion change history (5007)' -Tag 'check' {
         }
     }
 
-    It 'lists the change as an INFO exclusion item labeled as history within retention' {
+    It 'WARNs on a recent path addition outside the known-safe list, labeled as history within retention' {
         $result = Invoke-DefenderAsObject
         { Assert-CheckResult $result } | Should -Not -Throw
-        $result.severity | Should -Be 'INFO'
+        $result.severity | Should -Be 'WARN'
         $result.detail.exclusion_change_count | Should -Be 1
         $item = @($result.detail.items)[0]
         $item.key | Should -Be (Get-FindingKey -Kind 'exclusion' -Identity 'path', $script:Sentinel)
-        $item.severity | Should -Be 'INFO'
+        $item.severity | Should -Be 'WARN'
         $item.exclusion_type | Should -Be 'path'
         $item.change | Should -Be 'added'
         $item.value | Should -Be $script:Sentinel

@@ -162,23 +162,64 @@ Describe 'Get-DefenderEventHistory -- detections' -Tag 'lib' {
         ($d | Where-Object Resource -EQ 'file:_<drive>:\b.exe').ActionSucceeded | Should -BeNullOrEmpty
     }
 
-    It 'collapses repeated 1116s for one threat and resource into one detection at the latest time' {
+    It 'collapses repeated 1116s of one detection and keeps a later detection of the same threat and resource apart' {
         $first = $script:Now.AddDays(-20)
         $latest = $script:Now.AddDays(-1)
         Mock Get-WinEvent {
             @(
                 New-Detection -Id 1116 -At $latest -DetectionId '{00000000-0000-0000-0000-000000000002}'
                 New-Detection -Id 1117 -At $first.AddSeconds(5) -ActionId 2
-                New-Detection -Id 1116 -At $first
+                New-Detection -Id 1116 -At $first.AddSeconds(1)
                 New-Detection -Id 1116 -At $first
             )
         } -ParameterFilter { $FilterHashtable }
 
         $d = @((Get-DefenderEventHistory).Detections)
-        $d.Count | Should -Be 1
-        $d[0].DetectedAt | Should -Be $latest
+        $d.Count | Should -Be 2
+        $earlier = $d | Where-Object DetectionId -EQ '{00000000-0000-0000-0000-000000000001}'
+        $earlier.DetectedAt | Should -Be $first.AddSeconds(1)
+        $earlier.ActionSucceeded | Should -BeTrue
         # The only 1117 answers the earlier detection: the threat came back and nothing acted on it.
-        $d[0].ActionSucceeded | Should -BeNullOrEmpty
+        ($d | Where-Object DetectionId -EQ '{00000000-0000-0000-0000-000000000002}').ActionSucceeded | Should -BeNullOrEmpty
+    }
+
+    It 'falls back to the detection time when a 1116 has no detection id, so sparse events never share an identity' {
+        Mock Get-WinEvent {
+            @(
+                New-DefenderEvent -Id 1116 -TimeCreated $script:Now.AddDays(-1) -Data @{ 'Threat ID' = '2147000001' }
+                New-DefenderEvent -Id 1116 -TimeCreated $script:Now.AddDays(-2) -Data @{ 'Threat ID' = '2147000001' }
+            )
+        } -ParameterFilter { $FilterHashtable }
+
+        $d = @((Get-DefenderEventHistory).Detections)
+        $d.Count | Should -Be 2
+        @($d.DetectionId | Sort-Object -Unique).Count | Should -Be 2
+    }
+
+    It 'replaces control characters and caps the length of threat names and resources' {
+        $long = 'file:_<drive>:\' + ('a' * 400)
+        Mock Get-WinEvent {
+            @(New-DefenderEvent -Id 1116 -TimeCreated $script:Now -Data @{
+                    'Threat ID' = '2147000001'; 'Detection ID' = '{x}'; 'Threat Name' = "Bad`tName`u{200B}Here"; 'Path' = $long
+                })
+        } -ParameterFilter { $FilterHashtable }
+
+        $d = @((Get-DefenderEventHistory).Detections)[0]
+        $d.ThreatName | Should -Be 'Bad Name Here'
+        $d.Resource.Length | Should -Be 260
+    }
+
+    It 'skips a record it cannot parse, counts it, reports error, and keeps the rest' {
+        Mock Get-WinEvent {
+            $broken = [pscustomobject]@{ Id = 1116; TimeCreated = $script:Now }
+            $broken | Add-Member -MemberType ScriptMethod -Name ToXml -Value { '<not xml' }
+            @($broken, (New-Detection -Id 1116 -At $script:Now.AddDays(-1)))
+        } -ParameterFilter { $FilterHashtable }
+
+        $history = Get-DefenderEventHistory
+        $history.SkippedRecords | Should -Be 1
+        $history.ReadState | Should -Be 'error'
+        @($history.Detections).Count | Should -Be 1
     }
 
     It 'pairs a 1117 whose Path differs from its 1116 by detection id' {

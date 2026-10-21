@@ -7,12 +7,19 @@ the native MSFT_MpPreference CIM class.
 
 .DESCRIPTION
 Returns { ReadState, Paths, Extensions, Processes }. ReadState is ok, masked,
-denied or error; every list is empty unless ReadState is ok.
+denied or error; every list is empty unless ReadState is ok. The list names
+match the keys of the shared exclusion type map (New-DefenderExclusionItem.ps1).
 
-Defender hides the lists from a standard user by answering with a placeholder
-string, so an unelevated process is masked without reading anything. An
-elevated read that still returns the placeholder (exclusions hidden from local
-admins too) is masked as well. The placeholder never leaves this file.
+Defender hides the exclusion lists from accounts the HideExclusionsFromLocalUsers
+and HideExclusionsFromLocalAdmins settings cover, answering each list with a
+single placeholder sentence instead of the entries:
+https://learn.microsoft.com/en-us/windows/client-management/mdm/defender-csp#configurationhideexclusionsfromlocalusers
+(as of 2026-10-21; recheck when a Defender release changes who may read
+exclusions or how a hidden list answers). An unelevated process is masked
+without reading anything. An elevated read is masked when a list holds exactly
+one entry that is not a rooted or environment-variable path, an extension or a
+file name, which is the placeholder's shape in any language. The placeholder
+never leaves this file.
 
 The class is read from its own CIM namespace rather than through the Defender
 module, which PowerShell 7 loads through Windows PowerShell compatibility.
@@ -22,6 +29,12 @@ module, which PowerShell 7 loads through Windows PowerShell compatibility.
 
 $script:DefenderPreferenceNamespace = 'root/Microsoft/Windows/Defender'
 $script:DefenderPreferenceClass = 'MSFT_MpPreference'
+
+function Test-DefenderExclusionEntryShape {
+    param([AllowEmptyString()] [string] $Entry)
+    if ([System.IO.Path]::IsPathRooted($Entry) -or $Entry.StartsWith('%')) { return $true }
+    return $Entry.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -lt 0
+}
 
 function Get-DefenderExclusionState {
     [CmdletBinding()]
@@ -40,15 +53,21 @@ function Get-DefenderExclusionState {
         Write-Verbose "Get-DefenderExclusionState: $($_.Exception.Message)"
         return $state
     }
+    if ($null -eq $pref) {
+        $state.ReadState = 'error'
+        return $state
+    }
 
     $lists = foreach ($name in 'ExclusionPath', 'ExclusionExtension', 'ExclusionProcess') {
-        , @($pref.$name | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        , [string[]]@($pref.$name | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     }
-    if (@($lists | ForEach-Object { $_ } | Where-Object { $_ -like 'N/A*' }).Count -gt 0) { return $state }
+    foreach ($list in $lists) {
+        if ($list.Count -eq 1 -and -not (Test-DefenderExclusionEntryShape $list[0])) { return $state }
+    }
 
     $state.ReadState = 'ok'
-    $state.Paths = [string[]]$lists[0]
-    $state.Extensions = [string[]]$lists[1]
-    $state.Processes = [string[]]$lists[2]
+    $state.Paths = $lists[0]
+    $state.Extensions = $lists[1]
+    $state.Processes = $lists[2]
     return $state
 }

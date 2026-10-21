@@ -60,7 +60,7 @@ Describe 'Get-DefenderExclusionState' -Tag 'lib' {
         Mock Test-IsElevated { $true }
         Mock Get-CimInstance {
             [pscustomobject]@{
-                ExclusionPath      = @('<drive>:\build', '', '   ')
+                ExclusionPath      = @('X:\build', '', '   ')
                 ExclusionExtension = $null
                 ExclusionProcess   = @('tool.exe')
             }
@@ -68,9 +68,47 @@ Describe 'Get-DefenderExclusionState' -Tag 'lib' {
 
         $state = Get-DefenderExclusionState
         $state.ReadState | Should -Be 'ok'
-        $state.Paths | Should -Be @('<drive>:\build')
+        $state.Paths | Should -Be @('X:\build')
         @($state.Extensions).Count | Should -Be 0
         $state.Processes | Should -Be @('tool.exe')
+    }
+
+    It 'reports masked by shape when the placeholder is in another language' {
+        Mock Test-IsElevated { $true }
+        Mock Get-CimInstance {
+            [pscustomobject]@{
+                ExclusionPath      = @('N/D: Se requieren permisos de administrador')
+                ExclusionExtension = $null
+                ExclusionProcess   = $null
+            }
+        }
+
+        (Get-DefenderExclusionState).ReadState | Should -Be 'masked'
+    }
+
+    It 'keeps a single real entry of each shape: rooted path, environment-variable path, extension, file name' {
+        Mock Test-IsElevated { $true }
+        Mock Get-CimInstance {
+            [pscustomobject]@{
+                ExclusionPath      = @('%ProgramData%\build')
+                ExclusionExtension = @('.tmp')
+                ExclusionProcess   = @('X:\tools\tool.exe')
+            }
+        }
+
+        $state = Get-DefenderExclusionState
+        $state.ReadState | Should -Be 'ok'
+        $state.Paths | Should -Be @('%ProgramData%\build')
+        $state.Extensions | Should -Be @('.tmp')
+    }
+
+    It 'reports error when the class returns no instance' {
+        Mock Test-IsElevated { $true }
+        Mock Get-CimInstance { $null }
+
+        $state = Get-DefenderExclusionState
+        $state.ReadState | Should -Be 'error'
+        @($state.Paths).Count | Should -Be 0
     }
 
     It 'reports denied on access denied' {

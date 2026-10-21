@@ -18,6 +18,7 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Get-WorstSeverity.ps1')
 . (Join-Path $PSScriptRoot '..\lib\New-FindingItem.ps1')
+. (Join-Path $PSScriptRoot '..\lib\New-DefenderExclusionItem.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Get-DefenderEventHistory.ps1')
 
 $id = 'defender'
@@ -27,7 +28,7 @@ $commands = @(
     "Get-WinEvent -FilterHashtable @{ LogName = '$script:DefenderEventLogName'; Id = $($script:DefenderEventIds -join ', ') }"
 )
 
-# A detection inside this window is current (CRIT or WARN); older ones are history (INFO).
+# The recent window for detections and exclusion additions; rubric in check-catalog.md section 5.
 $recentDays = 30
 
 $FailureSummary = 'Defender check failed.'
@@ -50,33 +51,37 @@ $CheckBody = {
         $passiveMode = $status.AMRunningMode -in 'Passive Mode', 'SxS Passive Mode'
 
         $history = Get-DefenderEventHistory
-        $threatQueryError = $history.ReadState -in 'ok', 'absent' ? $null : "Defender event log read state '$($history.ReadState)'."
+        $eventsFloor = Get-UnmutedSeverity -ReadState $history.ReadState
+        $threatQueryError = $eventsFloor -eq 'OK' ? $null : "Defender event log read state '$($history.ReadState)'."
         $cutoff = (Get-Date).AddDays(-$recentDays)
         $oldestText = $history.LogOldestRecord ? ([datetime]$history.LogOldestRecord).ToString('o') : $null
+        $coverageGap = $null -eq $history.LogOldestRecord -or [datetime]$history.LogOldestRecord -gt $cutoff
 
-        $items = [System.Collections.Generic.List[object]]::new()
-        foreach ($d in $history.Detections) {
+        $detectionItems = @(foreach ($d in $history.Detections) {
             $itemSeverity = if ($d.DetectedAt -lt $cutoff) { 'INFO' } elseif ($d.ActionSucceeded -eq $true) { 'WARN' } else { 'CRIT' }
-            $items.Add((New-FindingItem -Kind 'detection' -Identity @($d.ThreatId, $d.Resource) -MutedKeys $MutedKeys `
-                        -Severity $itemSeverity -Title "$($d.ThreatName) at $($d.Resource)" -Fields @{
-                        threat_name      = $d.ThreatName
-                        resource         = $d.Resource
-                        detected_at      = ([datetime]$d.DetectedAt).ToString('o')
-                        action_succeeded = $d.ActionSucceeded
-                    }))
-        }
-        foreach ($c in $history.ExclusionChanges) {
-            $items.Add((New-FindingItem -Kind 'exclusion' -Identity @($c.Type, $c.Value) -MutedKeys $MutedKeys `
-                        -Severity 'INFO' -Title "$($c.Type) exclusion $($c.Change): $($c.Value)" -Fields @{
-                        exclusion_type = $c.Type
-                        change         = $c.Change
-                        value          = $c.Value
-                        changed_at     = ([datetime]$c.ChangedAt).ToString('o')
-                        label          = "history within log retention since $oldestText"
-                    }))
-        }
-        $recentThreats = @($history.Detections | Where-Object { $_.DetectedAt -ge $cutoff })
-        $unremediated = @($recentThreats | Where-Object { $_.ActionSucceeded -ne $true })
+            New-FindingItem -Kind 'detection' -Identity @($d.ThreatId, $d.Resource, $d.DetectionId) -MutedKeys $MutedKeys `
+                -Severity $itemSeverity -Title "$($d.ThreatName) at $($d.Resource)" -Fields @{
+                threat_name      = $d.ThreatName
+                resource         = $d.Resource
+                detected_at      = ([datetime]$d.DetectedAt).ToString('o')
+                action_succeeded = $d.ActionSucceeded
+            }
+        })
+        $exclusionItems = @(foreach ($c in $history.ExclusionChanges) {
+            # A recent path addition outside the known-safe list is the one change worth a WARN.
+            $suspect = $c.Change -eq 'added' -and $c.Type -eq 'path' -and $c.ChangedAt -ge $cutoff -and
+                -not (Test-DefenderKnownSafePath -Path $c.Value)
+            New-DefenderExclusionItem -Type $c.Type -Value $c.Value -MutedKeys $MutedKeys `
+                -Severity ($suspect ? 'WARN' : 'INFO') -Title "$($c.Type) exclusion $($c.Change): $($c.Value)" -Fields @{
+                change     = $c.Change
+                changed_at = ([datetime]$c.ChangedAt).ToString('o')
+                label      = "history within log retention since $oldestText"
+            }
+        })
+        $items = $detectionItems + $exclusionItems
+        $recentThreats = @($detectionItems | Where-Object severity -In 'WARN', 'CRIT')
+        $unremediated = @($detectionItems | Where-Object severity -EQ 'CRIT')
+        $suspectAdds = @($exclusionItems | Where-Object severity -EQ 'WARN')
 
         $severities = [System.Collections.Generic.List[string]]::new()
         $severities.Add('OK')
@@ -135,24 +140,23 @@ $CheckBody = {
             $reasons.Add('Defender service disabled')
         }
 
+        # Detections keep their severity even in passive mode. Summary and
+        # notes carry counts only, never exclusion values.
         if ($recentThreats.Count -gt 0) {
-            # Detections keep their severity even in passive mode: a logged
-            # threat is something the user should inspect. The items carry the
-            # level, so a muted detection does not count.
             $reasons.Add("$($recentThreats.Count) threat detection(s) in last $recentDays days, $($unremediated.Count) without a recorded remediation")
         }
-        if ($history.ExclusionChanges.Count -gt 0) {
-            # Counts only: exclusion values stay out of the summary and notes.
-            $reasons.Add("$($history.ExclusionChanges.Count) exclusion change(s) in the event log")
+        if ($suspectAdds.Count -gt 0) {
+            $reasons.Add("$($suspectAdds.Count) path exclusion(s) added in last $recentDays days outside the known-safe list")
+        }
+        if ($exclusionItems.Count -gt 0) {
+            $reasons.Add("$($exclusionItems.Count) exclusion change(s) in the event log")
         }
 
-        $severities.Add((Get-UnmutedSeverity -Items $items.ToArray()))
+        $severities.Add((Get-UnmutedSeverity -Items $items))
         $severity = Get-WorstSeverity $severities
-        if ($severity -eq 'OK') {
-            # An unreadable history cannot leave the check OK, and never
-            # outranks a real finding.
-            $severity = Get-UnmutedSeverity -ReadState $history.ReadState
-        }
+        # An unreadable history is never hidden behind OK or INFO, and never outranks a real WARN or CRIT.
+        if ($severity -in 'OK', 'INFO' -and $eventsFloor -ne 'OK') { $severity = $eventsFloor }
+        if ($severity -eq 'OK' -and $coverageGap) { $severity = 'INFO' }
 
         $notesParts = [System.Collections.Generic.List[string]]::new()
         if ($passiveMode) {
@@ -160,6 +164,12 @@ $CheckBody = {
         }
         if ($threatQueryError) {
             $notesParts.Add("Could not query threat history: $threatQueryError")
+        }
+        if ($history.SkippedRecords -gt 0) {
+            $notesParts.Add("$($history.SkippedRecords) Defender event record(s) could not be parsed.")
+        }
+        if ($coverageGap) {
+            $notesParts.Add("The Defender event log does not reach back the full $recentDays days (oldest record: $(if ($oldestText) { $oldestText } else { 'unreadable' })); older detections are not visible.")
         }
         $noteAppend = $notesParts.Count -gt 0 ? ($notesParts -join ' ') : $null
 
@@ -178,10 +188,12 @@ $CheckBody = {
             threat_query_error   = $threatQueryError
             events_read_state    = $history.ReadState
             log_oldest_record    = $oldestText
-            exclusion_change_count = $history.ExclusionChanges.Count
+            exclusion_change_count = $exclusionItems.Count
+            events_skipped_count = $history.SkippedRecords
+            coverage_gap         = $coverageGap
             items_count          = $items.Count
             muted_count          = @($items | Where-Object muted).Count
-            items                = $items.ToArray()
+            items                = $items
         }
 
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `

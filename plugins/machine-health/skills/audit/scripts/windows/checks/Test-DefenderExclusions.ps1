@@ -19,24 +19,13 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Test-IsElevated.ps1')
-. (Join-Path $PSScriptRoot '..\lib\New-FindingItem.ps1')
+. (Join-Path $PSScriptRoot '..\lib\New-DefenderExclusionItem.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Get-DefenderExclusionState.ps1')
 
 $id = 'defender-exclusions'
 $category = 'security'
 $commands = @(
     "Get-CimInstance -Namespace $script:DefenderPreferenceNamespace -ClassName $script:DefenderPreferenceClass | Select-Object ExclusionPath, ExclusionExtension, ExclusionProcess"
-)
-
-# Well-known benign exclusions common on dev machines (.NET, Node, Python
-# test runners, build caches). The aim is to WARN only on unexpected entries.
-$knownSafePaths = @(
-    '*\NuGetScratch*'
-    '*\node_modules*'
-    '*\.dotnet*'
-    '*\dotnet-install*'
-    '*\.cache*'
-    '*\Visual Studio\Packages*'
 )
 
 $adminFieldList = @(
@@ -59,26 +48,14 @@ $CheckBody = {
     switch ($state.ReadState) {
         'ok' {
             $items = [System.Collections.Generic.List[object]]::new()
-            foreach ($entry in @(
-                    @{ Type = 'path'; Values = $state.Paths }
-                    @{ Type = 'extension'; Values = $state.Extensions }
-                    @{ Type = 'process'; Values = $state.Processes }
-                )) {
-                foreach ($value in $entry.Values) {
-                    $expected = $false
-                    if ($entry.Type -eq 'path') {
-                        foreach ($pattern in $knownSafePaths) {
-                            if ($value -like $pattern) { $expected = $true; break }
-                        }
-                    }
+            foreach ($listName in $script:DefenderExclusionTypes.Keys) {
+                $type = $script:DefenderExclusionTypes[$listName]
+                foreach ($value in $state.$listName) {
                     # Extension and process exclusions have no known-safe list and stay INFO.
-                    $itemSeverity = $entry.Type -eq 'path' -and -not $expected ? 'WARN' : 'INFO'
-                    $items.Add((New-FindingItem -Kind 'exclusion' -Identity @($entry.Type, $value) -MutedKeys $MutedKeys `
-                                -Severity $itemSeverity -Title "$($entry.Type) exclusion: $value" -Fields @{
-                                exclusion_type = $entry.Type
-                                value          = $value
-                                expected       = $expected
-                            }))
+                    $expected = $type -eq 'path' -and (Test-DefenderKnownSafePath -Path $value)
+                    $itemSeverity = $type -eq 'path' -and -not $expected ? 'WARN' : 'INFO'
+                    $items.Add((New-DefenderExclusionItem -Type $type -Value $value -MutedKeys $MutedKeys `
+                                -Severity $itemSeverity -Title "$type exclusion: $value" -Fields @{ expected = $expected }))
                 }
             }
 
@@ -107,8 +84,7 @@ $CheckBody = {
                 -NeedsAdmin $true -RanSuccessfully $true
         }
         'masked' {
-            # Defender answers a standard user with a placeholder, not the
-            # lists: the reading is unknown, never "no exclusions".
+            # Unknown, never "no exclusions" (see Get-DefenderExclusionState.ps1).
             $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
                 -Severity 'UNKNOWN' `
                 -Summary 'Defender exclusion lists are masked (re-run elevated).' `
