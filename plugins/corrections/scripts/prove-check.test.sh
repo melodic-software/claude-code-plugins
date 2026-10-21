@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression tests for prove-check.sh.
 # Black-box against a throwaway git fixture under a mktemp dir: a repository
-# whose first commit plants a violation (a TODO marker) and whose second commit
+# whose first commit plants a violation (a deferred-work marker) and whose second commit
 # reverts it. No network.
 #
 # Cases: the check fails at the violation and passes after its revert (exit 0);
