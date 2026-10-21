@@ -1103,6 +1103,15 @@ else
   fail "dispatched run, main still red: rc=$RC log='$LOG' out='$OUT'"
 fi
 
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" VIA=workflow_dispatch STARTER='github-actions[bot]' \
+  ATTEMPT=1 RERUN=failure run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$(fixes)" -eq 0 && "$OUT" == *"at attempt 2, but main already recovered: run 4300"* ]] &&
+  grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then
+  ok "a dispatched run whose re-run also failed files nothing when a newer run on main passed"
+else
+  fail "dispatched run, re-run failed, main recovered: rc=$RC posts=$(posts) fixes=$(fixes) log='$LOG' out='$OUT'"
+fi
+
 timeout_expr="$(sed -n 's/^    timeout-minutes: //p' <<<"$alert_job")"
 if [[ "$timeout_expr" =~ workflow_dispatch\'\ \&\&\ ([0-9]+)\ \|\|\ 30 ]] && ((BASH_REMATCH[1] >= confirm_wait + 10)); then
   ok "the alert job's dispatch timeout leaves room past the confirm wait"

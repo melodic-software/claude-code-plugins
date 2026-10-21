@@ -43,7 +43,8 @@ name: post-merge-demotion-alert
 # inside a lane merge's attribution window gets its one re-run from pr-merge's
 # post-merge-dispatch job, and one with no lane merge to charge gets none, so
 # the alert waits for a re-run as long as the report job does
-# (red-main.confirm-wait-minutes) and starts none itself. When no re-run finishes in that wait and a newer
+# (red-main.confirm-wait-minutes) and starts none itself. When the run is
+# still red after that wait (its re-run failed or did not finish) and a newer
 # pr-require-checks run on this repository's main has passed, main already
 # recovered: no record, fix issue or report is filed.
 #
@@ -91,11 +92,12 @@ jobs:
       checks: read # read the hygiene aggregator's annotations
       contents: read # read merge.agent-identity from main's pr-pipeline.yaml
       pull-requests: read # read each merged PR's merge-queue event
-    # One group per signal and SHA, so two attempts of one run cannot both
-    # find no record and file two. A dispatch names only a run id; it takes a
-    # group per run id, and only runs no workflow_run event covers.
+    # One group per judged run, so two attempts of one run cannot both find no
+    # record and file two. A dispatch names only the run id, so both triggers
+    # key on it: a later attempt's workflow_run event and a dispatch of the
+    # same run wait on each other.
     concurrency:
-      group: post-merge-demotion-alert-${{ github.event.workflow_run.name || 'pr-require-checks' }}-${{ github.event.workflow_run.event || 'workflow_dispatch' }}-${{ github.event.workflow_run.head_sha || inputs.run-id }}
+      group: post-merge-demotion-alert-${{ github.event.workflow_run.name || 'pr-require-checks' }}-${{ github.event.workflow_run.event || 'workflow_dispatch' }}-${{ github.event.workflow_run.id || inputs.run-id }}
       cancel-in-progress: false
     # The run as the step below and the report job read it.
     outputs:
@@ -109,7 +111,7 @@ jobs:
       id: ${{ steps.run.outputs.id }}
       workflow-id: ${{ steps.run.outputs.workflow-id }}
       created: ${{ steps.run.outputs.created }}
-      # 'true' when a dispatched run got no re-run and main recovered since.
+      # 'true' when a dispatched run stayed red and main recovered since.
       recovered: ${{ steps.file.outputs.recovered }}
     steps:
       # A workflow_run event's fields pass through as they are. A dispatch's
@@ -310,23 +312,24 @@ jobs:
                 fi
               done
               if [[ "$RUN_ATTEMPT" -eq 1 ]]; then
-                # A dispatched run with no re-run files nothing, and the report
-                # job skips it, when a newer run on this repository's main has
-                # passed by now: main already recovered. A failed lookup files.
-                if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
-                  newer="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&per_page=20" \
-                    --jq '[.workflow_runs[] | select(.conclusion == "success" and .head_branch == "main"
-                      and (.head_repository.full_name // "") == env.GITHUB_REPOSITORY
-                      and (.id > (env.RUN_ID | tonumber) or .created_at > env.RUN_CREATED))]
-                      | max_by(.created_at) // empty | [.id, .head_sha] | @tsv')" || newer=''
-                  if [[ -n "$newer" ]]; then
-                    IFS=$'\t' read -r newer_id newer_sha <<<"$newer"
-                    echo "::notice::the re-run of $RUN_URL did not finish within $polls minutes, but main already recovered: run $newer_id at ${newer_sha:0:12} passed on main after it, so nothing filed"
-                    echo 'recovered=true' >>"$GITHUB_OUTPUT"
-                    exit 0
-                  fi
-                fi
                 echo "::warning::the re-run of $RUN_URL did not finish within $polls minutes: judging attempt 1"
+              fi
+            fi
+            # A dispatched red, re-run failed or not finished, files nothing,
+            # and the report job skips it, when a newer run on this
+            # repository's main has passed by now: main already recovered. A
+            # failed lookup files.
+            if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+              newer="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&per_page=20" \
+                --jq '[.workflow_runs[] | select(.conclusion == "success" and .head_branch == "main"
+                  and (.head_repository.full_name // "") == env.GITHUB_REPOSITORY
+                  and (.id > (env.RUN_ID | tonumber) or .created_at > env.RUN_CREATED))]
+                  | max_by(.created_at) // empty | [.id, .head_sha] | @tsv')" || newer=''
+              if [[ -n "$newer" ]]; then
+                IFS=$'\t' read -r newer_id newer_sha <<<"$newer"
+                echo "::notice::$RUN_URL is red at attempt $RUN_ATTEMPT, but main already recovered: run $newer_id at ${newer_sha:0:12} passed on main after it, so nothing filed"
+                echo 'recovered=true' >>"$GITHUB_OUTPUT"
+                exit 0
               fi
             fi
             # failing_checks <run id> <attempt>: one check per line.
