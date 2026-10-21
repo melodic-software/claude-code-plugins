@@ -3,7 +3,7 @@ description: "Counts how often a described mistake recurs in recent commits and 
 argument-hint: "<description> [#PR]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git log:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git branch --show-current)", "Bash(git symbolic-ref:*)", "Write(.work/**)"]
+allowed-tools: ["Bash(git log:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git branch --show-current)", "Bash(git symbolic-ref:*)", "Write(.work/codify/**)"]
 shell: bash
 metadata:
   workflow-stage: retro
@@ -93,8 +93,9 @@ Resolve the **old ref**, the code that still holds the mistake:
 Then run the proof, `${CLAUDE_PLUGIN_ROOT}/scripts/prove-check.sh --check '<command>' --old <old ref>`,
 from inside the repository. Exit 0 means the check failed on the old ref and passed on the current
 code. Any other exit is **unproven**: the check passed on the old ref, failed on the current code, or
-the proof could not run. Report an unproven check with the exit code and the script's own lines,
-and do not propose it for install. A proof that passes on the old ref says the check does not catch
+the proof could not run, a denied proof call included. The script runs the check command, so it is
+not pre-approved and each proof asks first. Report an unproven check with the exit code and the
+script's own lines, and do not propose it for install. A proof that passes on the old ref says the check does not catch
 the mistake; change the check or the rung, and prove again.
 
 ## 5. Missing context
@@ -107,13 +108,12 @@ did not escape review needs no answer.
 ## 6. Consent and write
 
 - **A person invoked the skill** (they typed `/corrections:codify`): that is consent to write the
-  proposal. Write it to `<memory_dir>/codify/<branch-slug>/<UTC-timestamp>-proposal.md`, where
-  `<memory_dir>` is `.work/` unless the project's instructions declare another root and
-  `<branch-slug>` is the current branch lowercased with every character outside `[a-z0-9._-]` replaced
-  by `-`. An empty slug means no file; present the proposal in the report only. Announce the path
-  before writing. On the first write, check that the memory root holds a `.gitignore` containing `*`
-  and create it (announced) when absent; never edit the repository's own `.gitignore`; write nothing
-  when the memory root is the repository root.
+  proposal. Write it to `.work/codify/<branch-slug>/<UTC-timestamp>-proposal.md`, the only path
+  the skill's write grant covers, where `<branch-slug>` is the current branch lowercased with every
+  character outside `[a-z0-9._-]` replaced by `-`. An empty slug means no file; present the proposal
+  in the report only. Announce the path before writing. On the first write, check that
+  `.work/codify/` holds a `.gitignore` containing `*` and create it (announced) when absent; never
+  edit the repository's own `.gitignore`.
 - **The model invoked the skill**: it only proposes. Present the proposal in the report and write
   nothing.
 - **A blocking check** (a hook, a required CI check, a lint at error level): ask before installing it,
@@ -139,9 +139,9 @@ written. End with the question for any blocking install.
 
 ## Next
 
-- finding-shaped check: /review:audit-enforceability
-- hook: /harness-config:audit-automation-gaps
-- make-impossible: /architecture:improve
+- finding-shaped check: /review:audit-enforceability.
+- hook: /harness-config:audit-automation-gaps.
+- make-impossible: /architecture:improve.
 
 ## Gotchas
 

@@ -5,13 +5,13 @@
       "id": 1,
       "name": "direct-codify-one-occurrence-writes-proposal",
       "prompt": "/corrections:codify \"handlers build SQL by string concatenation\" - codify this now. It has only happened once in the log, in commit 3f2a1bc.",
-      "expected_output": "The person invoked the skill and said to codify it, so the one-occurrence count is below the threshold of 2 but acts anyway. The report lists the single occurrence with its commit, picks a rung by id from the ladder, places the lesson by scope, proves the check with prove-check.sh, and writes the proposal file under the memory root, announcing the path first.",
+      "expected_output": "The person invoked the skill and said to codify it, so the one-occurrence count is below the threshold of 2 but acts anyway. The report lists the single occurrence with its commit, picks a rung by id from the ladder, places the lesson by scope, proves the check with prove-check.sh, and writes the proposal file under .work/codify/, announcing the path first.",
       "narration": true,
       "expectations": [
         "Output lists the one occurrence counted with its commit and states the count next to the threshold of 2",
         "Output proceeds past the threshold because the person asked to codify this, and says that is why",
         "Output names the chosen rung by its ladder id and points at the ladder's guardrail criterion instead of restating it",
-        "Output announces the proposal path under the memory root before writing it, and writes the proposal",
+        "Output announces the proposal path under .work/codify/ before writing it, and writes the proposal",
         "Output states a scope (team standard, project rule or user scope) and why"
       ]
     },
@@ -19,7 +19,7 @@
       "id": 2,
       "name": "model-invoked-two-occurrences-proposes-only",
       "prompt": "(Invoked by the model while reviewing a diff, not typed by a person) Skill call: /corrections:codify \"new endpoints skip the shared auth helper\". The log shows two earlier occurrences, commits 91ac0de and 5be7712.",
-      "expected_output": "The count reaches the threshold of 2, so the skill picks a rung, places the lesson and runs the proof, then presents the proposal in the report. Because the model invoked it, nothing is written to the memory root or the repository.",
+      "expected_output": "The count reaches the threshold of 2, so the skill picks a rung, places the lesson and runs the proof, then presents the proposal in the report. Because the model invoked it, nothing is written to .work/codify/ or the repository.",
       "narration": true,
       "expectations": [
         "Output counts both occurrences with their commits and states they meet the threshold of 2",
