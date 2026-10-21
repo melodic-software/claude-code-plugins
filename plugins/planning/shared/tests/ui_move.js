@@ -2,8 +2,9 @@
 // A page told the session moved (GET /api/state answers {moved} on a retired tunnel's host, server.py) in a real
 // browser, against `share.sh ensure-running` with the fake cloudflared. core.js's moveTo follows only an https address
 // on another origin, once, carrying a guest's secret as #me= (or a newcomer's invite key as #join=), and never moves
-// the owner's tab. The answer is staged with page.route, as the retired host would send it; the new address is
-// served by a route too, so nothing leaves the machine.
+// the owner's tab. A page holding unsent text (sessionStorage keeps it per origin) stays and shows the move in its
+// banner until the person presses Go to the new address. The answer is staged with page.route, as the retired host
+// would send it; the new address is served by a route too, so nothing leaves the machine.
 //   node plugins/planning/shared/tests/ui_move.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the security review's guards for moveTo and the secret the server issued on join.
@@ -30,13 +31,29 @@ async function main() {
       return hits;
     };
     const stays = async page => { const at = page.url(); await page.waitForTimeout(4000); return page.url() === at; };
+    const notice = page => until(page, () => !document.querySelector(".vf-banner").hidden
+      && /moved to a new address.*stops working in about 10 minutes/.test(document.querySelector(".vf-banner-txt").textContent), null, 10000);
 
     const ann = await rec.open(A.localUrl);
     await joinAs(ann, "Ann");
     const secret = await ann.evaluate(() => localStorage.getItem("secret"));
     await stage(ann, NEW);
-    ok("a guest's page moves to the new https address with its secret as a personal link",
+    ok("a guest's page with no unsent text moves to the new https address with its secret as a personal link",
       await until(ann, u => location.href === u, `${NEW}/#me=${secret}`, 10000), ann.url());
+
+    for (const [name, field, text, chat] of [["Ed", "#vf-answer", "Somewhere with a lake."], ["Flo", ".vf-minput", "An unsent chat line", true]]) {
+      const p = await rec.open(A.localUrl);
+      await joinAs(p, name);
+      const key = await p.evaluate(() => localStorage.getItem("secret"));
+      if (chat) await p.click(".vf-fab");
+      await p.fill(field, text);
+      if (chat) await p.click(".vf-fab");
+      await stage(p, NEW);
+      ok(`a guest with unsent text in ${field} is told the session moved and stays`, (await notice(p)) && (await stays(p)), p.url());
+      await p.getByRole("button", { name: "Go to the new address" }).click();
+      ok(`pressing Go to the new address moves the guest with ${field} text, with its secret`,
+        await until(p, u => location.href === u, `${NEW}/#me=${key}`, 10000), p.url());
+    }
 
     const bo = await rec.open(A.localUrl);
     await joinAs(bo, "Bo");

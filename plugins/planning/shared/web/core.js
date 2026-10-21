@@ -1219,12 +1219,18 @@
   }
   /** The session answers at another address now (the host switched tunnels): go there, taking this browser's identity
    *  as a personal link, or the invite key of someone who has not joined. The owner's tab stays: its token never
-   *  travels in a link. Only an https address on another origin is followed, once. */
-  let moving = false;
-  function moveTo(url) {
+   *  travels in a link. Only an https address on another origin is followed, once. While the page holds unsent text
+   *  (sessionStorage keeps it per origin) it stays, with Core.movedTo set for its notice, until Core.moveNow() or the
+   *  first poll after that text is sent or cleared. */
+  let moving = false, holdsUnsent = () => false;
+  Core.movedTo = "";
+  Core.keepUnsent = fn => { holdsUnsent = fn; };
+  Core.moveNow = () => moveTo(Core.movedTo, true);
+  function moveTo(url, now) {
     let to;
     try { to = new URL(url); } catch { return; }
     if (moving || ownerToken || to.protocol !== "https:" || to.origin === location.origin) return;
+    if (!now && holdsUnsent()) { Core.movedTo = to.origin; return; }
     moving = true;
     location.replace(`${to.origin}/${secret ? "#me=" + secret : joinKey ? "#join=" + joinKey : ""}`);
   }
