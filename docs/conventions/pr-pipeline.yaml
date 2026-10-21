@@ -172,7 +172,8 @@ activities:
     # (--check-required needs committed work, and the lane commits through
     # the API, not in the checkout). After the skill, work-resolve-issue.yml's
     # run-checks job runs each check again itself, from the base copy against
-    # the lane branch with the base's scripts/, and report-outcome stops a done
+    # the lane branch with the base's scripts/ code and the branch's scripts/
+    # data files, and report-outcome stops a done
     # run whose checks failed or did not run, whatever the outcome file says.
     checks: ["scripts/check-changelog-fragments.sh --check"]
     # Runs the diff-scoped lint checks a push would face (markdown,
