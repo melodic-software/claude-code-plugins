@@ -51,6 +51,10 @@ route it:
 | It is about a tool call or a commit (a command an agent should not run, a step skipped before committing) | `/harness-config:audit-automation-gaps hooks` when it is among the available skills; otherwise list it as a hook candidate with no route |
 | It needs judgment no check can make | a line in `CLAUDE.md` or a rules file, placed by step 3; a rule only a reviewer applies, or a change to how severe a finding is, goes in `REVIEW.md` |
 
+Before proposing a check for a lesson a check could assert, judge it against the "Guardrail
+criterion" section of the ladder copy above. A recurring mistake that meets the criterion but has no
+check is reported as a "no guardrail" finding, naming the section.
+
 `encode_policy` (Settings below) sets the starting rung for a lesson a check could assert but
 that need not hold every time. Under `promote-when-must-hold`, the default, it starts as a line
 (last row) and the approval table names the rung it would move to once it must always hold.
