@@ -86,6 +86,7 @@ def comment(
 
 
 RUN_STARTED = "2026-10-15T00:00:00Z"
+OLDER_START = "2026-10-14T00:00:00Z"
 
 
 def pull(**overrides: Any) -> dict[str, Any]:
@@ -503,13 +504,38 @@ class AnEarlierFailGoesToAHuman(unittest.TestCase):
 
 class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
     """An earlier head's FAIL stops holding once the current head has a
-    counted pass that clears every spec check; without one it still holds."""
+    counted pass that clears every spec check and whose run started after
+    every earlier FAIL's run; without one it still holds."""
+
+    @staticmethod
+    def earlier_fail(started: Any = OLDER_START, *extra: dict[str, Any]) -> FakeGitHub:
+        """A pass at the head (run 1, started `RUN_STARTED`) and a FAIL at an
+        earlier head (run 2, started `started`)."""
+        return passing(
+            artifact(named(EARLIER, "fail"), 2),
+            *extra,
+            runs={2: run(2, run_started_at=started)},
+        )
 
     def test_an_earlier_fail_and_an_allowing_pass_at_the_head_allow(self) -> None:
-        fake = passing(artifact(named(EARLIER, "fail"), 2), runs={2: run(2)})
-        evidence = read(fake)
+        evidence = read(self.earlier_fail())
         self.assertIsNone(evidence.refusal)
         self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+
+    def test_a_fail_started_after_the_pass_refuses(self) -> None:
+        # Head B passed, A was pushed and failed, the branch went back to B.
+        fake = self.earlier_fail("2026-10-15T00:00:01Z")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_fail_started_with_the_pass_refuses(self) -> None:
+        fake = self.earlier_fail(RUN_STARTED)
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_fail_with_no_start_time_refuses(self) -> None:
+        for started in (None, "yesterday"):
+            with self.subTest(started=started):
+                fake = self.earlier_fail(started)
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_an_earlier_fail_with_no_verdict_at_the_head_refuses(self) -> None:
         fake = FakeGitHub([artifact(named(EARLIER, "fail"), 2)], {2: run(2)})
@@ -518,27 +544,22 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
         self.assertTrue(evidence.needs_human)
 
     def test_a_pass_from_an_unfinished_run_does_not_clear_it(self) -> None:
-        fake = passing(
-            artifact(named(EARLIER, "fail"), 2),
-            runs={1: run(1, status="in_progress", conclusion=None), 2: run(2)},
-        )
+        fake = self.earlier_fail()
+        fake.runs[1] = run(1, status="in_progress", conclusion=None)
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_a_fail_at_the_head_still_refuses_beside_the_pass(self) -> None:
-        fake = passing(
-            artifact(named(EARLIER, "fail"), 2),
-            artifact(named(HEAD, "fail"), 3),
-            runs={2: run(2), 3: run(3)},
-        )
+        fake = self.earlier_fail(OLDER_START, artifact(named(HEAD, "fail"), 3))
+        fake.runs[3] = run(3)
         self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_a_pass_on_a_changed_spec_still_refuses(self) -> None:
-        fake = passing(artifact(named(EARLIER, "fail"), 2), runs={2: run(2)})
+        fake = self.earlier_fail()
         fake.closing = [(8, REPO)]
         self.assertEqual(read(fake).refusal, "verify:spec-changed")
 
     def test_a_pass_on_an_untrusted_spec_still_refuses(self) -> None:
-        fake = passing(artifact(named(EARLIER, "fail"), 2), runs={2: run(2)})
+        fake = self.earlier_fail()
         fake.records[named(HEAD, "pass")] = record(
             linked_issues=[{**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}]
         )
@@ -546,11 +567,7 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
 
     def test_an_unreadable_tied_fail_keeps_the_earlier_fail(self) -> None:
         # Run 7 is not in the fake, so the tied FAIL at the head is unread.
-        fake = passing(
-            artifact(named(EARLIER, "fail"), 2),
-            artifact(named(HEAD, "fail"), 7),
-            runs={2: run(2)},
-        )
+        fake = self.earlier_fail(OLDER_START, artifact(named(HEAD, "fail"), 7))
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
 
@@ -1388,6 +1405,19 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
         for section in ("fail-head-ref", "carried-fail-head-ref"):
             with self.subTest(section=section):
                 self.restore({section: {f"{REPO}|20": {"head_ref": "feat/other"}}})
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_forged_old_start_never_clears_an_earlier_fail(self) -> None:
+        # GitHub says the FAIL's run started after the pass's; the cache
+        # claims it started before.
+        fake = passing(
+            artifact(named(EARLIER, "fail"), 2),
+            runs={2: run(2, run_started_at="2026-10-15T00:00:01Z")},
+        )
+        forged = run(2, run_started_at="2026-10-01T00:00:00Z")
+        for section in ("run-record", "carried-run-record"):
+            with self.subTest(section=section):
+                self.restore({section: {f"{REPO}|2": forged}})
                 self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_carried_reads_that_count_a_fail_spare_the_reads(self) -> None:

@@ -19,8 +19,11 @@ from a completed, successful one. Any other artifact is ignored.
 - a counted FAIL at the head, under any pull request number: `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch:
-  `verify:earlier-fail` when the head has no counted PASS or PASS-NOTES, or
-  a read below failed; otherwise the head's passes decide, as below;
+  `verify:earlier-fail`. It stands while a FAIL-named artifact cannot be
+  read (next item); otherwise counted PASS or PASS-NOTES verdicts at the
+  head whose runs all started after every such FAIL's run (each start read
+  fresh from GitHub; a missing one keeps the refusal) clear it, and those
+  passes decide, as below;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
   is ignored; an untied FAIL whose run is readable and of verifier origin but
@@ -804,7 +807,7 @@ class Reader:
         detail = unreadable
         if any(v.sha == head for v in fails):
             refusal = FAIL
-        elif fails and (unreadable or not passes):
+        elif fails and (unreadable or not self._passes_follow(fails, passes)):
             refusal = EARLIER_FAIL
         elif unreadable:
             refusal = UNREADABLE
@@ -829,6 +832,43 @@ class Reader:
             detail,
             max(head_fails) if refusal == FAIL else None,
         )
+
+    def _fresh_start(self, run_id: int) -> datetime | None:
+        """When the run started, from a record this process read from
+        GitHub: a cached or carried record could be forged, so it is read
+        again. None when that read fails or holds no time."""
+        if run_id not in self._started:
+            try:
+                record = json_object(
+                    self._actions(
+                        ["api", f"repos/{self.repo}/actions/runs/{run_id}"],
+                        f"run {run_id}",
+                    )
+                )
+            except _Unreadable:
+                return None
+            if record.get("id") != run_id:
+                return None
+            self._started[run_id] = record.get("run_started_at")
+        try:
+            return postmerge._time(self._started[run_id])
+        except postmerge.PostMergeReadError:
+            return None
+
+    def _passes_follow(
+        self, fails: list[Verdict], passes: list[tuple[int, str]]
+    ) -> bool:
+        """Every counted pass at the head was judged after every counted
+        FAIL: each pass's run started after each FAIL's run. A pass judged
+        before a later FAIL (head B passes, A fails, the branch returns to B)
+        never clears it, and a missing start time clears nothing."""
+        if not passes:
+            return False
+        starts = [self._fresh_start(v.run_id) for v in fails]
+        begun = [self._fresh_start(run_id) for run_id, _ in passes]
+        if None in starts or None in begun:
+            return False
+        return max(s for s in starts if s) < min(b for b in begun if b)
 
     def fail_summary(
         self, run_id: int, name: str, number: int, head: str

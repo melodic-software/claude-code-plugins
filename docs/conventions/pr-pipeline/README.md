@@ -1024,9 +1024,11 @@ head:
   repository (the retention maximum and its setting), so an older verdict may be gone;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
-  verdict recording its head branch) refuses (`verify:earlier-fail`) when the head has no counted
-  `pass` or `pass-notes`, or a read below fails. Otherwise the head's passes decide as below, so an
-  earlier `fail` stops holding once a counted pass at the current head clears every check;
+  verdict recording its head branch) refuses (`verify:earlier-fail`). The refusal stands while a
+  `fail` artifact cannot be read (next item). Otherwise counted `pass` or `pass-notes` verdicts at
+  the head whose runs all started after every such `fail`'s run clear it, each start read fresh
+  from GitHub (a missing one keeps the refusal), and those passes decide as below. A pass judged
+  before a later `fail` never clears it;
 - a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
   untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
   downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
