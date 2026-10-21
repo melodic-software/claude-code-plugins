@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/harness-ops/schemas/harness-ops.schema.json",
+  "title": "harness-ops team config",
+  "description": "Schema for a repository's docs/conventions/harness-ops.yaml, the team layer of the harness-ops plugin's settings. The morning_brief keys are resolved by plugins/harness-ops/skills/morning-brief/scripts/morning-brief.sh: a flag beats harness-ops.local.yaml, which beats this file, which beats the default. Contract: docs/conventions/config-cascade/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "name": { "type": "string", "minLength": 1, "pattern": "^[^\\u0000-\\u001f\\u007f]+$" },
+    "names": { "type": "array", "items": { "$ref": "#/$defs/name" } },
+    "amount": { "type": "number", "minimum": 0 },
+    "count": { "type": "integer", "minimum": 0 },
+    "percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "owner": { "type": "string", "pattern": "^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$" }
+  },
+  "properties": {
+    "morning_brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Settings of /harness-ops:morning-brief's Cost section.",
+      "properties": {
+        "org": { "$ref": "#/$defs/owner", "description": "GitHub org whose billing and repos the Cost section reads. Default: the repo's owner." },
+        "subscription": { "$ref": "#/$defs/name", "description": "Azure subscription the Cost section reads. Default: az's current one. Keep it out of a public repository's tracked file; set it in harness-ops.local.yaml." },
+        "actions_included_minutes": { "$ref": "#/$defs/amount", "description": "Actions minutes the org's plan includes each month. Unset: the minutes line is INFO with the amount used." },
+        "actions_included_storage_gb": { "$ref": "#/$defs/amount", "description": "Artifact storage the plan includes, in GB. Unset: the storage line is INFO with the amount used." },
+        "usage_alert_percent": { "$ref": "#/$defs/percent", "description": "Share of an included amount at which a usage line is an ALERT. Default 50." },
+        "log_cap_alert_percent": { "$ref": "#/$defs/percent", "description": "Share of a Log Analytics workspace's daily cap at which its peak day is an ALERT. Default 50." },
+        "forecast_alert": { "$ref": "#/$defs/amount", "description": "Budget forecast above which an Azure budget is an ALERT. Default: the budget's own amount." },
+        "required_budgets": { "$ref": "#/$defs/names", "description": "Azure budgets that must exist and not end within expiry_days." },
+        "anomaly_alert": { "$ref": "#/$defs/name", "description": "The Cost Management anomaly alert that must exist, be enabled and not end within expiry_days. Default: any anomaly alert." },
+        "expiry_days": { "$ref": "#/$defs/count", "description": "Days before a required budget or the anomaly alert ends at which it is an ALERT. Default 30." },
+        "allowed_collaborators": { "$ref": "#/$defs/names", "description": "Direct repo collaborators, besides org admins, who are not an ALERT." },
+        "workflow_read_limit": { "$ref": "#/$defs/count", "description": "Cap on workflow files read for secret triggers in one run. Default 300." }
+      }
+    }
+  }
+}

@@ -36,6 +36,8 @@ HTML_ASSET_CSP = (
     "connect-src 'none'; frame-ancestors 'self'"
 )
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
+# Sleeps past the one-write-a-second limit: time.sleep(WRITE_INTERVAL) can read as a hair under it on the throttle's time.time clock.
+PAST_WRITE = session.WRITE_INTERVAL + 0.05
 
 
 def raw_exchange(port, data, *, wait=5.0):
@@ -238,6 +240,112 @@ class TestHostAndOrigin(ServerCase):
         self.assertEqual(code, 403)
 
 
+class TestTunnelSwitch(ServerCase):
+    """A switch to a named tunnel (or any new address) while the old tunnel still runs: a guest keeps their identity on
+    the new host, and the old host answers only with where the session went, until its grace time is up."""
+
+    NAMED = "interview.example.com"
+
+    def setUp(self):
+        super().setUp()
+        # The probe goes to this server's guest port with the new hostname as Host, as Cloudflare's edge would send it.
+        probe = {"SHARED_PROBE_ORIGIN": f"http://127.0.0.1:{self.port}", "SHARED_PROBE_SECONDS": "2"}
+        patcher = mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": FAKE, "SHARED_TUNNEL_SECONDS": "10", **probe})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(tunnel.stop, self.d)
+        self.token = tmpdir(self) / "tunnel.token"
+        self.token.write_text("fake-tunnel-token-for-tests", encoding="utf-8")
+        os.chmod(self.token, 0o600)
+        self.pid, self.guest = self.join("Ann")
+        self.quick = tunnel.host(tunnel.ensure(self.d, self.port)["url"])
+        self.app.sync_tunnel(restart=False)
+
+    def state(self, host, headers=None):
+        return self.get("/api/state", {"Host": host, "Origin": f"https://{host}", **(headers or {})})
+
+    def switch(self):
+        tunnel.ensure(self.d, self.port, self.NAMED, str(self.token), verify=self.app.probe_tunnel)
+        self.app.sync_tunnel(restart=False)
+
+    def test_a_hostname_that_reaches_another_server_is_not_switched_to(self):
+        """A typo'd or foreign hostname: whatever answers there cannot give this server's probe answer, so no page is
+        ever sent there with its secret."""
+        other = server.App(tmpdir(self), watch_tunnel=False)
+        other.serve()
+        self.addCleanup(other.shutdown)
+        with mock.patch.dict(os.environ, {"SHARED_PROBE_ORIGIN": f"http://127.0.0.1:{other.guest_port}"}):
+            with self.assertRaisesRegex(tunnel.TunnelDown, "does not reach this server"):
+                tunnel.ensure(self.d, self.port, self.NAMED, str(self.token), verify=self.app.probe_tunnel)
+        self.app.sync_tunnel(restart=False)
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out["me"]["pid"]), (200, self.pid))
+        self.assertNotIn("moved", out)
+        self.assertIsNone(tunnel.retired(self.d))
+
+    def test_a_probe_nonce_is_answered_once_and_only_when_pending(self):
+        nonce = "ab" * 16
+        code, _, _ = self.get(f"/api/tunnel-probe/{nonce}", {"Host": "anything.example"})
+        self.assertEqual(code, 404)
+        self.app._probes[nonce] = ("cd" * 16, time.monotonic() + 30)
+        code, _, out = self.get(f"/api/tunnel-probe/{nonce}", {"Host": self.NAMED})
+        self.assertEqual((code, out), (200, {"probe": "cd" * 16}))
+        self.assertEqual(self.get(f"/api/tunnel-probe/{nonce}", {"Host": self.NAMED})[0], 404)
+
+    def test_only_an_https_address_is_probed(self):
+        self.assertIn("not an https address", self.app.probe_tunnel(f"http://{self.NAMED}"))
+
+    def test_a_guest_secret_from_the_old_host_is_the_same_person_on_the_new_one(self):
+        code, _, before = self.state(self.quick, self.guest)
+        self.assertEqual((code, before["me"]["pid"]), (200, self.pid))
+        self.switch()
+        code, _, after = self.state(self.NAMED, self.guest)
+        self.assertEqual((code, after["me"]["pid"], after["me"]["name"]), (200, self.pid, "Ann"))
+
+    def test_the_old_host_answers_only_where_the_session_went(self):
+        self.switch()
+        for headers in (self.guest, {}):
+            with self.subTest(identified=bool(headers)):
+                code, _, out = self.state(self.quick, headers)
+                self.assertEqual((code, out), (200, {"moved": f"https://{self.NAMED}"}))
+
+    def test_the_old_host_is_refused_once_its_grace_time_is_up(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        rec["retired"]["until"] = 0
+        detached.write_private(self.d / tunnel.RECORD, json.dumps(rec))
+        self.app.sync_tunnel(restart=False)
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out["error"]), (403, "bad-host"))
+
+    def test_a_named_tunnel_that_exits_comes_back_at_its_address_with_no_share_again(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        share_before = dict(self.app.session.state["session"]["share"])
+        detached.stop(rec["pid"], rec["marker"], rec["processStart"])
+        self.app.watch_tunnel = True
+        self.app.sync_tunnel()
+        now = tunnel.alive(self.d)
+        self.assertNotEqual(now["pid"], rec["pid"])
+        self.assertEqual((now["url"], self.app.public_url), (f"https://{self.NAMED}",) * 2)
+        self.assertEqual(self.app.session.state["session"]["share"], share_before)
+
+    def test_a_named_tunnel_restarted_in_the_grace_time_keeps_the_old_host_answering(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        detached.stop(rec["pid"], rec["marker"], rec["processStart"])
+        self.app.watch_tunnel = True
+        self.app.sync_tunnel()
+        self.assertNotEqual(tunnel.alive(self.d)["pid"], rec["pid"])
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out), (200, {"moved": f"https://{self.NAMED}"}))
+
+    def test_status_names_the_named_tunnel(self):
+        self.switch()
+        code, _, out = call(self.app.control_port, "GET", "/api/status", headers={"X-Shared-Token": self.app.hub.token})
+        self.assertEqual((code, out["tunnel"], out["publicUrl"]), (200, "named", f"https://{self.NAMED}"))
+
+
 class TestHeadersAndCaps(ServerCase):
     def test_every_json_answer_carries_the_security_headers(self):
         for path in ("/api/state", "/api/nope"):
@@ -338,11 +446,11 @@ class TestFormatsAndPresenceRoutes(ServerCase):
 
     def test_multi_scale_and_rank_picks_travel_in_their_own_fields(self):
         self.assertEqual(self.pick({"qid": "Q1", "options": ["opt-2", "other"], "other": "Price"})[2], {"ok": True, "picks": ["opt-2", "other"]})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         self.assertEqual(self.pick({"qid": "Q2", "value": 4})[2], {"ok": True, "value": 4})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         self.assertEqual(self.pick({"qid": "Q3", "order": ["opt-3", "opt-1", "opt-2"]})[2], {"ok": True, "order": ["opt-3", "opt-1", "opt-2"]})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         code, _, out = self.pick({"qid": "Q3", "order": ["opt-3"]})
         self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "order"))
 
@@ -985,7 +1093,7 @@ class TestSnapshot(ServerCase):
 
 
 class TestSnapshotContract(unittest.TestCase):
-    """The snapshot names the page's core.js reads, per .work/shared-interview-ui/snapshot-map.md
+    """The snapshot names the page's core.js reads, per plugins/planning/shared/snapshot-map.md
     (the page reads the prototype's names; core.js builds them from these). A key the server drops
     or renames fails here before it blanks part of the page."""
 
@@ -1311,7 +1419,15 @@ class TestClientLog(LogCase):
     def test_a_lone_surrogate_in_a_message_still_reaches_the_log(self):
         _, guest = self.join("Ann")
         self.assertEqual(self.post("/api/client-log", {"kind": "error", "message": "cut-emoji-\ud83d"}, guest)[0], 200)
-        self.assertIn("cut-emoji-\\ud83d", self.entry_for("cut-emoji-"))
+        self.assertIn('message=cut-emoji- ', self.entry_for("cut-emoji-") + " ")  # the half emoji is dropped, the entry kept
+
+    def test_hidden_characters_never_reach_the_log(self):
+        pid, guest = self.join("Ann")
+        body = {"kind": "error", "message": "Type\U0000202eError\U0000200b", "source": "/app\U00002066.js", "route": "/\U000e0041x"}
+        self.assertEqual(self.post("/api/client-log", body, guest)[0], 200)
+        self.assertTrue(self.entry_for(" client ").endswith(f"client pid={pid} kind=error message=TypeError source=/app.js route=/x"))
+        code, _, out = self.post("/api/client-log", {"kind": "error", "message": "\U0000202e\U0000200b"}, guest)
+        self.assertEqual((code, out["error"]), (400, "empty"))
 
     def test_a_message_cannot_forge_a_log_line(self):
         """U+2028 and U+2029 end a line for str.splitlines(): escaped, the forged request entry stays inside the
@@ -1981,11 +2097,11 @@ class TestUploads(ServerCase):
             self.assertEqual(self.chunk(self.ann, done, i)[0], 200)
         code, _, out = self.post("/api/answer", {"qid": "Q1", "text": "The funnel.", "view": "focus", "attachments": [done]}, self.ann)
         self.assertEqual(code, 200, out)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         sending = self.accepted(self.ann, name="b.pdf")
         self.assertEqual(self.chunk(self.ann, sending, 0)[0], 200)
         offered = self.offer(self.bo)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         declined = self.accepted(self.bo, name="c.pdf")
         self.assertEqual(self.chunk(self.bo, declined, 0)[0], 200)
         self.post("/api/upload/act", {"id": declined, "action": "decline"}, self.owner)
@@ -2022,10 +2138,10 @@ class TestUploads(ServerCase):
                 self.assertEqual(self.chunk(who, uid, i, pic)[0], 200)
         for uid in (shown, hidden):
             self.assertEqual(self.post("/api/upload/act", {"id": uid, "action": "approve"}, self.owner)[0], 200)
-            time.sleep(session.WRITE_INTERVAL)
+            time.sleep(PAST_WRITE)
         code, _, out = self.post("/api/chat", {"text": "Look", "attachments": [shown]}, self.ann)
         self.assertEqual(code, 200, out)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         code, _, out = self.post("/api/discussion", {"qid": "Q1", "text": "Mine", "attachments": [hidden]}, self.bo)
         self.assertEqual(code, 200, out)
         self.assertEqual(self.post("/api/discussion/hide", {"qid": "Q1", "id": out["id"], "on": True}, self.owner)[0], 200)
@@ -2068,7 +2184,7 @@ class TestUploads(ServerCase):
 
     def test_one_piece_per_person_is_read_at_a_time(self):
         first = self.accepted(self.ann)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         second = self.accepted(self.ann, name="b.pdf")
         piece = self.DATA[:self.CHUNK]
         head = "".join(f"{k}: {v}\r\n" for k, v in {"Host": f"127.0.0.1:{self.port}", "Content-Length": str(len(piece)), **self.chunk_headers(self.ann, first, 0, piece)}.items())

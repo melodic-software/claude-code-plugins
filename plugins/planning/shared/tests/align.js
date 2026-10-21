@@ -73,7 +73,7 @@ async function seed(s, A) {
       q("Q2", "Which pages need the new header?"),
       q("Q3", `Is this word too long: ${longWord}?`),
       q("Q4", "Should guest checkout be the default?"),
-      q("Q5", "Which reaction fits the new flow best? 🎉🚀😅👍🏽 🧑‍💻 or 🛒✨"),
+      q("Q5", "Which reaction fits the new flow best? 🎉🚀😅👍🏽 🧑\u200d💻 or 🛒✨"),
       q("Q6", "האם עמוד התשלום צריך לתמוך בעברית? ما هي طريقة الدفع المفضلة لديك؟"),
       q("Q7", "What worries you about the new checkout?", undefined, { purpose: "gather" }),
       q("Q8", "How should the confirmation page read?\n\nToday it repeats the whole order, the address and the delivery estimate, then asks for a review.\n\nSecond paragraph: should it link to the order history, or to the help center, or neither?\n\nThird paragraph: anything else it should say."),
