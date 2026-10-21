@@ -1081,6 +1081,33 @@ class TestOnlyScriptPathTests(unittest.TestCase):
         )
         self.assertIn("high-path:plugins/animation/scripts/**", _codes(result))
 
+    def test_an_executable_test_only_change_like_a_monitor_poll_test_is_low(self):
+        # A lane pull request changing only this mode-100755 test file, under
+        # this repository's floor-paths and floor-script-scopes globs.
+        path = "plugins/source-control/skills/pull-request/scripts/monitor-poll.test.sh"
+        changed = _file(path, mode="100755", previous_mode="100755")
+        result = score(
+            _input(
+                files=(changed,),
+                floor_paths=("plugins/source-control/skills/*/scripts/**",),
+                floor_script_scopes=("plugins/source-control/**",),
+            )
+        )
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        tool = _file(
+            "plugins/source-control/skills/pull-request/scripts/monitor-poll.sh",
+            mode="100755",
+            previous_mode="100755",
+        )
+        held = score(
+            _input(
+                files=(changed, tool),
+                floor_paths=("plugins/source-control/skills/*/scripts/**",),
+                floor_script_scopes=("plugins/source-control/**",),
+            )
+        )
+        self.assertIn("high-script", _codes(held))
+
     def test_an_executable_test_file_in_a_script_scope_is_low(self):
         scopes = ("plugins/foo/**",)
         test = _file("plugins/foo/scripts/tests/run.test.sh", mode="100755")
