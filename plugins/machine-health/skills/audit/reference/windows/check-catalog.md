@@ -1173,12 +1173,15 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   `protocol` and `local_port` null when unread.
 - **Severity rubric:** `INFO` always, for the check and every item, including when the inventory
   cannot be read (`read_state` records it and the summary says so) and when the program is
-  missing. The check never fails a run and never changes a rule. `baseline_hosts` is 1: the
-  SystemDefaults baseline is confirmed on one host until a second host's candidates show no
-  built-in rule.
+  missing. The check never fails a run and never changes a rule. `baseline_hosts` counts the
+  fleet hosts on which the SystemDefaults baseline has been confirmed (the value is set in the
+  check script).
+- **Baseline confirmation:** two fleet hosts on Windows build 26300 hold the same SystemDefaults
+  rule names, and neither host's candidate names intersect the other host's SystemDefaults names.
+  As of 2026-10-21. Recheck when a host's run lists a built-in Windows rule as a candidate or its
+  SystemDefaults names differ from another host's.
 - **Notes:** Per-version runtime rules are the main noise source this grouping removes. Pointers:
   [Get-NetFirewallRule](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule),
   [Get-NetFirewallPortFilter](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallportfilter).
-  As of 2026-10-21. Recheck when the unelevated bulk port-filter read returns every filter, a
-  second host's run lists a built-in Windows rule as a candidate, or a host run shows `not-found`
-  for a program that exists.
+  As of 2026-10-21. Recheck when the unelevated bulk port-filter read returns every filter, or a
+  host run shows `not-found` for a program that exists.

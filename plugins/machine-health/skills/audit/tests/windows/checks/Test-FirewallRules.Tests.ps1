@@ -57,7 +57,7 @@ Describe 'Test-FirewallRules' -Tag 'check' {
         $r.category | Should -Be 'security'
         $r.needs_admin | Should -BeFalse
         $r.severity | Should -Be 'INFO'
-        $r.detail.baseline_hosts | Should -Be 1
+        $r.detail.baseline_hosts | Should -Be 2 -Because 'the SystemDefaults baseline was confirmed on two fleet hosts'
         $r.detail.items_count | Should -Be 0
     }
 
