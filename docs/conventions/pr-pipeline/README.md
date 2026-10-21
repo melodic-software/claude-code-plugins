@@ -524,7 +524,9 @@ actor or author not on the trusted-actor list), `workflow-modified` (the token b
 write lane's mint for a workflow file the PR itself changes), or, for an issue run under
 `models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
 account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
-`split`). Silence is not a skip, with three exceptions that
+`split`). Issue mode posts no check, so work-resolve-issue.yml reports those four dimension skips
+on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step
+([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
