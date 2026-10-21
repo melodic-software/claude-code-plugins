@@ -606,7 +606,9 @@ that fails counts as a refusal.
   link, the merge range and the record's number, never an annotation title), with no label, locks it,
   and dispatches intake triage for each; a fix issue that could not be filed, locked, reopened
   or sent is named in a comment on the record. A check
-  whose fix issue was closed reopens that issue with a comment naming the new range; one closed
+  whose fix issue was closed reopens that issue with a comment naming the new range, keeping
+  `agent-ready` and sending it to intake triage no second time, so a repeat goes straight back to
+  agents (a first failure still waits for the owner's ratification); one closed
   as not planned or duplicate stays closed and mutes the check. Closing a fix issue releases
   nothing on the record.
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,

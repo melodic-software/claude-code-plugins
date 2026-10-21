@@ -101,9 +101,7 @@ fi
 if [[ "$method" == PUT && "${STUB_LOCK_FAIL:-}" == 1 && "$endpoint" == */lock ]]; then
   exit 1
 fi
-if [[ "$method" == DELETE && -n "${STUB_DELETE:-}" ]]; then
-  echo '{"message": "x"}'
-  echo "gh: Label failed (HTTP $STUB_DELETE)" >&2
+if [[ "$method" == PATCH && "${STUB_PATCH_FAIL:-}" == 1 ]]; then
   exit 1
 fi
 # A write answers with issue number 900 + its log line, through --jq as gh does.
@@ -224,7 +222,7 @@ run_step() {
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
-    STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_DELETE="${DELETE_STATUS:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
+    STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
@@ -909,38 +907,30 @@ else
   fail "open fix issue: rc=$RC log='$LOG' out='$OUT'"
 fi
 
+# A repeat goes straight back to agents: the reopened issue keeps
+# agent-ready and is not sent to intake triage again.
 run_step "$FULL" schedule failure main o/r "$SHA" \
   "[$(issue 60 "<!-- post-merge-fix check=test-bash -->" '' closed completed)]"
 r="$(record_number)"
 c_line="$(grep -nx 'POST repos/o/r/issues/60/comments' <<<"$LOG" | cut -d: -f1)"
-d_line="$(grep -nx 'DELETE repos/o/r/issues/60/labels/agent-ready' <<<"$LOG" | cut -d: -f1)"
 p_line="$(grep -nx 'PATCH repos/o/r/issues/60' <<<"$LOG" | cut -d: -f1)"
-s_line="$(grep -nx 'POST repos/o/r/actions/workflows/intake-triage.yml/dispatches' <<<"$LOG" | cut -d: -f1)"
-if [[ "$RC" -eq 0 && "$(fixes)" -eq 0 && -n "$c_line" && -n "$d_line" && -n "$p_line" && -n "$s_line" &&
-  "$c_line" -lt "$d_line" && "$d_line" -lt "$p_line" && "$p_line" -lt "$s_line" &&
+if [[ "$RC" -eq 0 && "$(fixes)" -eq 0 && "$(dispatches)" -eq 0 && -n "$c_line" && -n "$p_line" &&
+  "$c_line" -lt "$p_line" &&
   "$(cat "$TMP_ROOT/stub/post.$c_line")" == "body=This check failed on main again at \`$SHA\`. Merge range: \`89abcdef0123..0123456789ab\`, listed on demotion record #$r. Run: https://github.com/o/r/actions/runs/4242/attempts/2" &&
-  "$(cat "$TMP_ROOT/stub/post.$p_line")" == $'state=open\nstate_reason=reopened' &&
-  "$(dispatch_post 1)" == $'ref=main\ninputs[issue-number]=60' ]]; then
-  ok "a closed fix issue for the check is reopened with the new range, back to triage, not filed again"
+  "$(cat "$TMP_ROOT/stub/post.$p_line")" == $'state=open\nstate_reason=reopened' ]] &&
+  ! grep -qE '^DELETE |issues/60/lock' <<<"$LOG"; then
+  ok "a closed fix issue for the check is reopened with the new range, keeps agent-ready, and is not sent to intake again"
 else
   fail "closed fix issue: rc=$RC log='$LOG' out='$OUT'"
 fi
 
-DELETE_STATUS=404 run_step "$FULL" schedule failure main o/r "$SHA" \
-  "[$(issue 60 "<!-- post-merge-fix check=test-bash -->" '' closed completed)]"
-if [[ "$RC" -eq 0 && "$(dispatches)" -eq 1 ]] && grep -qx 'PATCH repos/o/r/issues/60' <<<"$LOG"; then
-  ok "a closed fix issue without agent-ready (a 404 on its removal) is still reopened"
-else
-  fail "agent-ready 404: rc=$RC log='$LOG' out='$OUT'"
-fi
-JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" DELETE_STATUS=403 run_step "$FULL" schedule failure main o/r "$SHA" \
+JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" PATCH_FAIL=1 run_step "$FULL" schedule failure main o/r "$SHA" \
   "[$(issue 60 "<!-- post-merge-fix check=test-bash -->" '' closed completed)]"
 if [[ "$RC" -ne 0 && "$(fixes)" -eq 1 && "$(dispatches)" -eq 1 && "$OUT" == *"::error::could not reopen fix issue #60 for test-bash"* ]] &&
-  ! grep -qx 'PATCH repos/o/r/issues/60' <<<"$LOG" &&
   grep -qF -- "- #60 (\`test-bash\`) could not be reopened" "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues/9[0-9]*/comments$' <<<"$LOG" | tail -1 | cut -d: -f1)"; then
-  ok "a failed agent-ready removal leaves the issue closed, fails the job, names it on the record, and the other checks still file"
+  ok "a failed reopen fails the job, names the issue on the record, and the other checks still file"
 else
-  fail "agent-ready 403: rc=$RC log='$LOG' out='$OUT'"
+  fail "reopen failure: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 for reason in not_planned duplicate; do
