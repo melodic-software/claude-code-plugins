@@ -92,16 +92,49 @@ test("one failed write is recorded and the rest still file", async () => {
   };
   const plan = {
     file: [
-      { fingerprint: "aaaa", finding: finding({ title: "fix: rejected" }), regressionOf: null },
-      { fingerprint: "bbbb", finding: finding(), regressionOf: null },
+      { fingerprint: "aaaa", finding: finding({ title: "fix: rejected" }) },
+      { fingerprint: "bbbb", finding: finding() },
     ],
     comment: [{ number: 7 }],
+    reopen: [],
   };
   const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
   assert.equal(calls.length, 3);
   assert.deepEqual(result, {
     filed: [102],
     commented: [7],
+    reopened: [],
     failed: [{ target: "aaaa", error: "POST /repos/o/r/issues: HTTP 422" }],
   });
+});
+
+test("a reopen comments with the checked claims, then sets the state open as reopened", async () => {
+  const calls = [];
+  const call = async (method, path, body) => {
+    calls.push([method, path, body]);
+    return {};
+  };
+  const plan = { file: [], comment: [], reopen: [{ number: 12, fingerprint: "cccc", finding: finding() }] };
+  const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "https://run/1", wait: async () => {} });
+  assert.deepEqual(result, { filed: [], commented: [], reopened: [12], failed: [] });
+  assert.deepEqual(
+    calls.map(([method, path]) => `${method} ${path}`),
+    ["POST /repos/o/r/issues/12/comments", "PATCH /repos/o/r/issues/12"],
+  );
+  assert.match(calls[0][2].body, /https:\/\/run\/1/);
+  assert.match(calls[0][2].body, /```text\na\.yml:1: if: true\n```/);
+  assert.deepEqual(calls[1][2], { state: "open", state_reason: "reopened" });
+});
+
+test("a failed reopen comment skips its PATCH and is recorded", async () => {
+  const calls = [];
+  const call = async (method, path) => {
+    calls.push(`${method} ${path}`);
+    if (method === "POST") throw new Error(`${method} ${path}: HTTP 500`);
+    return {};
+  };
+  const plan = { file: [], comment: [], reopen: [{ number: 12, fingerprint: "cccc", finding: finding() }] };
+  const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
+  assert.deepEqual(calls, ["POST /repos/o/r/issues/12/comments"]);
+  assert.deepEqual(result.failed, [{ target: "#12", error: "POST /repos/o/r/issues/12/comments: HTTP 500" }]);
 });

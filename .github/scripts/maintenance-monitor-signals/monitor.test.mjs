@@ -107,7 +107,7 @@ for (const [signal, first, changed] of CASES) {
 
     const callsBefore = s.calls.length;
     const two = await runOnce(s, first);
-    assert.deepEqual(two, { filed: [], updated: [], failed: [] });
+    assert.deepEqual(two, { filed: [], updated: [], reopened: [], failed: [] });
     assert.equal(s.calls.length, callsBefore);
 
     const three = await runOnce(s, changed);
@@ -117,7 +117,7 @@ for (const [signal, first, changed] of CASES) {
     assert.deepEqual(s.calls.slice(-2), ["POST /repos/o/r/issues/100/comments", "PATCH /repos/o/r/issues/100"]);
 
     const four = await runOnce(s, changed);
-    assert.deepEqual(four, { filed: [], updated: [], failed: [] });
+    assert.deepEqual(four, { filed: [], updated: [], reopened: [], failed: [] });
   });
 }
 
@@ -126,8 +126,41 @@ test("4 merge-queue ejections: the oldest group leaving the 24-hour window write
   await runOnce(s, { mergeGroupFailures: [ejection(1), ejection(2), ejection(3), ejection(4)] });
   const callsBefore = s.calls.length;
   const aged = await runOnce(s, { mergeGroupFailures: [ejection(2), ejection(3), ejection(4)] });
-  assert.deepEqual(aged, { filed: [], updated: [], failed: [] });
+  assert.deepEqual(aged, { filed: [], updated: [], reopened: [], failed: [] });
   assert.equal(s.calls.length, callsBefore);
+});
+
+for (const [signal, first, changed] of CASES) {
+  test(`${signal}: new evidence on a completed key comments on and reopens its issue`, async () => {
+    const s = store();
+    await runOnce(s, first);
+    Object.assign(s.issues[0], { state: "closed", state_reason: "completed", closed_at: "2026-10-19T16:00:00Z" });
+    const before = s.issues[0].body.split("\n").slice(1);
+
+    const again = await runOnce(s, changed);
+    assert.deepEqual(again, { filed: [], updated: [], reopened: [100], failed: [] });
+    assert.equal(s.issues.length, 1);
+    assert.deepEqual(s.calls.slice(-2), ["POST /repos/o/r/issues/100/comments", "PATCH /repos/o/r/issues/100"]);
+    assert.equal(s.issues[0].state, "open");
+    assert.equal(s.issues[0].state_reason, "reopened");
+    assert.deepEqual(s.issues[0].body.split("\n").slice(1), before);
+
+    const quiet = await runOnce(s, changed);
+    assert.deepEqual(quiet, { filed: [], updated: [], reopened: [], failed: [] });
+  });
+}
+
+test("a key closed as not planned or duplicate writes nothing on new evidence", async () => {
+  for (const reason of ["not_planned", "duplicate"]) {
+    const s = store();
+    await runOnce(s, CASES[2][1]);
+    Object.assign(s.issues[0], { state: "closed", state_reason: reason });
+    const callsBefore = s.calls.length;
+    const muted = await runOnce(s, CASES[2][2]);
+    assert.deepEqual(muted, { filed: [], updated: [], reopened: [], failed: [] });
+    assert.equal(s.calls.length, callsBefore);
+    assert.equal(s.issues[0].state, "closed");
+  }
 });
 
 test("an update keeps the body below the marker line", async () => {

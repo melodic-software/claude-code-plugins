@@ -1,6 +1,6 @@
 // The lane sweep's file job: checks every claim against main, fingerprints
-// each finding, reads the issues earlier sweeps filed, and files, comments or
-// skips per planFiling. No model. Writes with the job's own token, one call at
+// each finding, reads the issues earlier sweeps filed, and files, comments,
+// reopens or skips per planFiling. No model. Writes with the job's own token, one call at
 // a time, 1 s apart, within its call budget.
 import { appendFileSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,6 +16,7 @@ import {
   planFiling,
   readFingerprint,
   renderBody,
+  renderReopenComment,
   validateFinding,
 } from "./findings.mjs";
 
@@ -71,13 +72,14 @@ export const droppedLine = (d) => `- dropped (${d.unit}) ${inertLine(d.title)}: 
 export async function writeAll({ plan, call, repo, labels, runUrl, wait = () => delay(1000) }) {
   const filed = [];
   const commented = [];
+  const reopened = [];
   const failed = [];
-  for (const { fingerprint: fp, finding, regressionOf } of plan.file) {
+  for (const { fingerprint: fp, finding } of plan.file) {
     await wait();
     try {
       const issue = await call("POST", `/repos/${repo}/issues`, {
         title: inertTitle(finding.title),
-        body: renderBody(finding, fp, runUrl, regressionOf),
+        body: renderBody(finding, fp, runUrl),
         labels,
       });
       filed.push(issue.number);
@@ -96,7 +98,20 @@ export async function writeAll({ plan, call, repo, labels, runUrl, wait = () => 
       failed.push({ target: `#${number}`, error: error.message });
     }
   }
-  return { filed, commented, failed };
+  // The marker is the fingerprint, which a reopen leaves unchanged, so the
+  // PATCH sets the state only and keeps any rewrite a person made.
+  for (const { number, finding } of plan.reopen) {
+    try {
+      await wait();
+      await call("POST", `/repos/${repo}/issues/${number}/comments`, { body: renderReopenComment(finding, runUrl) });
+      await wait();
+      await call("PATCH", `/repos/${repo}/issues/${number}`, { state: "open", state_reason: "reopened" });
+      reopened.push(number);
+    } catch (error) {
+      failed.push({ target: `#${number}`, error: error.message });
+    }
+  }
+  return { filed, commented, reopened, failed };
 }
 
 async function main() {
@@ -138,18 +153,17 @@ async function main() {
     items,
     existing,
     openNumbers: new Set(openItems.map((i) => i.number)),
-    now: new Date(),
   });
   const labels = [];
   for (const name of LABELS) {
     if (await call("GET", `/repos/${repo}/labels/${encodeURIComponent(name)}`)) labels.push(name);
   }
   const runUrl = `${env.GITHUB_SERVER_URL}/${repo}/actions/runs/${env.GITHUB_RUN_ID}`;
-  const { filed, commented, failed } = await writeAll({ plan, call, repo, labels, runUrl });
+  const { filed, commented, reopened, failed } = await writeAll({ plan, call, repo, labels, runUrl });
   const lines = [
     "### Lane sweep filing",
     "",
-    `Filed: ${filed.map((n) => `#${n}`).join(", ") || "none"}. Commented: ${commented.map((n) => `#${n}`).join(", ") || "none"}. Labels applied: ${labels.join(", ") || "none"}. Calls: ${budget.used}.`,
+    `Filed: ${filed.map((n) => `#${n}`).join(", ") || "none"}. Commented: ${commented.map((n) => `#${n}`).join(", ") || "none"}. Reopened: ${reopened.map((n) => `#${n}`).join(", ") || "none"}. Labels applied: ${labels.join(", ") || "none"}. Calls: ${budget.used}.`,
     "",
     ...failed.map((f) => `- failed ${f.target}: ${f.error}`),
     ...plan.skip.map((s) => `- skipped ${s.fingerprint}: ${s.reason}`),
@@ -157,7 +171,7 @@ async function main() {
   ];
   appendFileSync(env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
   console.log(
-    `file-findings: filed ${filed.length}, commented ${commented.length}, failed ${failed.length}, skipped ${plan.skip.length}, dropped ${dropped.length}`,
+    `file-findings: filed ${filed.length}, commented ${commented.length}, reopened ${reopened.length}, failed ${failed.length}, skipped ${plan.skip.length}, dropped ${dropped.length}`,
   );
   if (failed.length > 0) {
     console.log(`::error::${failed.length} lane sweep write(s) failed; see the step summary`);

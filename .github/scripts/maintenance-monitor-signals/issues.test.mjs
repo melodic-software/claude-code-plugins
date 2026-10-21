@@ -1,7 +1,7 @@
 // The dedup rules: a finding files one issue per key; a repeat with the same
 // evidence changes nothing; a repeat with new evidence updates the open issue
-// instead of filing a second; closing as not planned mutes the key; a key
-// closed as completed files again only on new evidence.
+// instead of filing a second; closing as not planned or duplicate mutes the
+// key; a key closed as completed reopens that issue on new evidence.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -73,14 +73,29 @@ test("the newest issue for a key decides, and a not-planned close mutes it", () 
   assert.equal(muted.skip[0].reason, "muted");
 });
 
-test("a key closed as completed files again only on new evidence, naming the old issue", () => {
+test("a duplicate close mutes the key too", () => {
+  const f = findingFor([1]);
+  const muted = planIssues({
+    findings: [findingFor([1, 2])],
+    existing: [issueFrom(f, 20, { state: "closed", state_reason: "duplicate" })],
+  });
+  assert.deepEqual(muted.file, []);
+  assert.deepEqual(muted.reopen, []);
+  assert.deepEqual(muted.skip, [{ key: f.key, number: 20, reason: "muted" }]);
+});
+
+test("a key closed as completed reopens that issue on new evidence and files nothing", () => {
   const f = findingFor([1]);
   const closed = [issueFrom(f, 30, { state: "closed", state_reason: "completed" })];
-  assert.deepEqual(planIssues({ findings: [findingFor([1])], existing: closed }).file, []);
-  const again = planIssues({ findings: [findingFor([1, 2])], existing: closed });
-  assert.equal(again.file.length, 1);
-  assert.equal(again.file[0].recurrenceOf, 30);
-  assert.match(renderBody(again.file[0].finding, runUrl, 30), /#30/);
+  const same = planIssues({ findings: [findingFor([1])], existing: closed });
+  assert.deepEqual(same.file, []);
+  assert.deepEqual(same.reopen, []);
+  assert.deepEqual(same.skip, [{ key: f.key, number: 30, reason: "closed-unchanged" }]);
+  const changed = findingFor([1, 2]);
+  const again = planIssues({ findings: [changed], existing: closed });
+  assert.deepEqual(again.file, []);
+  assert.deepEqual(again.update, []);
+  assert.deepEqual(again.reopen, [{ number: 30, finding: changed }]);
 });
 
 test("no more than MAX_NEW_ISSUES are filed in one run", () => {
@@ -88,6 +103,18 @@ test("no more than MAX_NEW_ISSUES are filed in one run", () => {
   const plan = planIssues({ findings: many, existing: [] });
   assert.equal(plan.file.length, MAX_NEW_ISSUES);
   assert.equal(plan.skip.filter((s) => s.reason === "cap").length, 2);
+});
+
+test("reopens do not count against MAX_NEW_ISSUES", () => {
+  const closed = Array.from({ length: MAX_NEW_ISSUES }, (_, i) =>
+    issueFrom({ ...findingFor([1]), key: `old${i}` }, 50 + i, { state: "closed", state_reason: "completed" }),
+  );
+  const reopened = closed.map((_, i) => ({ ...findingFor([1, 2]), key: `old${i}` }));
+  const fresh = Array.from({ length: MAX_NEW_ISSUES }, (_, i) => ({ ...findingFor([i + 1]), key: `new${i}` }));
+  const plan = planIssues({ findings: [...reopened, ...fresh], existing: closed });
+  assert.equal(plan.reopen.length, MAX_NEW_ISSUES);
+  assert.equal(plan.file.length, MAX_NEW_ISSUES);
+  assert.deepEqual(plan.skip, []);
 });
 
 test("the body and comment carry the evidence inside a text fence, and the comment the run", () => {
@@ -101,7 +128,7 @@ test("the body and comment carry the evidence inside a text fence, and the comme
   assert.match(comment, /```text\n/);
 });
 
-test("a main-red key closed as completed files again when main fails after the close, even with the same text", () => {
+test("a main-red key closed as completed reopens when main fails after the close, even with the same text", () => {
   const red = (createdAt) =>
     detect({
       now,
@@ -117,7 +144,14 @@ test("a main-red key closed as completed files again when main fails after the c
       },
     })[0];
   const closed = [issueFrom(red("2026-10-18T09:17:00Z"), 30, { state: "closed", state_reason: "completed", closed_at: "2026-10-18T12:00:00Z" })];
-  assert.deepEqual(planIssues({ findings: [red("2026-10-18T09:17:00Z")], existing: closed }).file, []);
+  const before = planIssues({ findings: [red("2026-10-18T09:17:00Z")], existing: closed });
+  assert.deepEqual(before.file, []);
+  assert.deepEqual(before.reopen, []);
+  assert.equal(before.skip[0].reason, "closed-unchanged");
   const again = planIssues({ findings: [red("2026-10-19T16:17:00Z")], existing: closed });
-  assert.deepEqual(again.file.map((f) => f.recurrenceOf), [30]);
+  assert.deepEqual(again.file, []);
+  assert.deepEqual(
+    again.reopen.map((r) => r.number),
+    [30],
+  );
 });

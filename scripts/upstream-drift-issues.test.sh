@@ -23,9 +23,10 @@ trap cleanup EXIT
 
 STUB="$TMP/bin"
 mkdir -p "$STUB"
-# The stub answers the sweep's `issue list` (searching `in:title "Upstream drift"`)
-# with $GH_STUB_SWEEP, any other `issue list` with $GH_STUB_LIST (JSON files), and fails the
-# subcommand named in $GH_STUB_FAIL (list, create, edit or close).
+# The stub answers `gh api` (the issue list read) with $GH_STUB_LIST, a file of
+# one or more JSON arrays as `gh api --paginate` prints pages, and fails the
+# command named in $GH_STUB_FAIL (api, or the issue subcommand create, edit,
+# reopen or close).
 printf '%s\n' \
   '#!/usr/bin/env bash' \
   'n=$(($(cat "$GH_STUB_LOG/count" 2>/dev/null || echo 0) + 1))' \
@@ -36,9 +37,8 @@ printf '%s\n' \
   '  [[ "$prev" == --body-file ]] && cp "$a" "$GH_STUB_LOG/body.$n"' \
   '  prev="$a"' \
   'done' \
-  '[[ "$1 $2" == "issue ${GH_STUB_FAIL:-none}" ]] && exit 1' \
-  'if [[ "$1 $2" == "issue list" && " $* " == *" in:title \"Upstream drift\" "* ]]; then cat "${GH_STUB_SWEEP:-/dev/null}" 2>/dev/null || echo "[]"; exit 0; fi' \
-  'if [[ "$1 $2" == "issue list" ]]; then cat "${GH_STUB_LIST:-/dev/null}"; fi' \
+  '[[ "$1 $2" == "issue ${GH_STUB_FAIL:-none}" || "$1" == "${GH_STUB_FAIL:-none}" ]] && exit 1' \
+  'if [[ "$1" == api ]]; then cat "${GH_STUB_LIST:-/dev/null}"; fi' \
   'exit 0' >"$STUB/gh"
 chmod +x "$STUB/gh"
 
@@ -57,7 +57,6 @@ run_sut() {
   OUT="$(env PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" \
     GITHUB_SERVER_URL=https://github.com GITHUB_REPOSITORY=acme/site GITHUB_RUN_ID=777 \
     ${GH_STUB_LIST:+GH_STUB_LIST="$GH_STUB_LIST"} ${GH_STUB_FAIL:+GH_STUB_FAIL="$GH_STUB_FAIL"} \
-    ${GH_STUB_SWEEP:+GH_STUB_SWEEP="$GH_STUB_SWEEP"} \
     ${COMPAT:+BASH_COMPAT="$COMPAT"} \
     bash "$SUT" "$@" "$report" 2>&1)"
   CODE=$?
@@ -95,13 +94,19 @@ expect_lacks() { # <name> <haystack> <needle>
   if [[ "$2" != *"$3"* ]]; then pass "$1"; else bad "$1" "unexpected '$3' in: $2"; fi
 }
 
-# gh prints a bot author as app/<slug> with is_bot true.
-BOT_AUTHOR='"author":{"is_bot":true,"login":"app/github-actions"}'
-USER_AUTHOR='"author":{"is_bot":false,"login":"mallory"}'
+# The REST issue list names the author as user.login, github-actions[bot] for
+# the workflow's bot, and gives state and state_reason.
+BOT_AUTHOR='"user":{"login":"github-actions[bot]","type":"Bot"}'
+USER_AUTHOR='"user":{"login":"mallory","type":"User"}'
+OPEN='"state":"open","state_reason":null'
+COMPLETED='"state":"closed","state_reason":"completed"'
+# #5's title only starts like acme/widgets'; it is closed, so no sweep reaches it.
 LIST_NONE="$TMP/list-none.json"
-printf '[{"number":5,"title":"Upstream drift: acme/widgets-extra",%s}]\n' "$BOT_AUTHOR" >"$LIST_NONE"
+printf '[{"number":5,"title":"Upstream drift: acme/widgets-extra",%s,%s}]\n' "$COMPLETED" "$BOT_AUTHOR" >"$LIST_NONE"
 LIST_OPEN="$TMP/list-open.json"
-printf '[{"number":5,"title":"Upstream drift: acme/widgets-extra",%s},{"number":12,"title":"Upstream drift: acme/widgets",%s}]\n' "$BOT_AUTHOR" "$BOT_AUTHOR" >"$LIST_OPEN"
+printf '[{"number":5,"title":"Upstream drift: acme/widgets-extra",%s,%s},{"number":12,"title":"Upstream drift: acme/widgets",%s,%s}]\n' \
+  "$COMPLETED" "$BOT_AUTHOR" "$OPEN" "$BOT_AUTHOR" >"$LIST_OPEN"
+LIST_API='api --paginate repos/{owner}/{repo}/issues?creator=github-actions[bot]&state=all&per_page=100'
 
 DRIFT="$TMP/drift.txt"
 printf '%s\n' \
@@ -120,7 +125,8 @@ GH_STUB_LIST="$LIST_NONE"
 run_sut "$DRIFT"
 expect_code "create: exit 0" 0
 c="$(calls)"
-expect_has "create: list searches the exact title" "$c" 'issue list --state open --author app/github-actions --search in:title "Upstream drift: acme/widgets" --json number,title,author'
+expect_has "create: reads the bot's issues of every state through the REST list" "$c" "$LIST_API"
+expect_lacks "create: no search" "$c" 'search'
 expect_has "create: creates the titled issue from a body file" "$c" 'issue create --title Upstream drift: acme/widgets --body-file'
 expect_lacks "create: a near-match title is not edited" "$c" 'issue edit'
 body="$(body_of create)"
@@ -162,7 +168,8 @@ expect_lacks "clean, none open: no close" "$c" 'issue close'
 
 # --- a same-titled issue someone else opened is never edited or closed ------
 LIST_SPOOF="$TMP/list-spoof.json"
-printf '[{"number":9,"title":"Upstream drift: acme/widgets",%s},{"number":12,"title":"Upstream drift: acme/widgets",%s}]\n' "$USER_AUTHOR" "$BOT_AUTHOR" >"$LIST_SPOOF"
+printf '[{"number":9,"title":"Upstream drift: acme/widgets",%s,%s},{"number":12,"title":"Upstream drift: acme/widgets",%s,%s}]\n' \
+  "$OPEN" "$USER_AUTHOR" "$OPEN" "$BOT_AUTHOR" >"$LIST_SPOOF"
 GH_STUB_LIST="$LIST_SPOOF"
 run_sut "$DRIFT"
 c="$(calls)"
@@ -173,7 +180,7 @@ c="$(calls)"
 expect_has "spoof: closes the bot's issue 12" "$c" 'issue close 12'
 expect_lacks "spoof: never closes the user's issue 9" "$c" 'issue close 9'
 LIST_SPOOF_ONLY="$TMP/list-spoof-only.json"
-printf '[{"number":9,"title":"Upstream drift: acme/widgets",%s}]\n' "$USER_AUTHOR" >"$LIST_SPOOF_ONLY"
+printf '[{"number":9,"title":"Upstream drift: acme/widgets",%s,%s}]\n' "$OPEN" "$USER_AUTHOR" >"$LIST_SPOOF_ONLY"
 GH_STUB_LIST="$LIST_SPOOF_ONLY"
 run_sut "$DRIFT"
 c="$(calls)"
@@ -186,10 +193,11 @@ expect_lacks "spoof only, clean: never closes the user's issue 9" "$(calls)" 'is
 # Open: the bot's #12 (acme/widgets, still reported), the bot's #20
 # (acme/gone, no longer reported), a user's #21 for acme/old, and the bot's
 # #22 whose title is not the drift shape.
+# Closed: the bot's #23 for acme/closed-gone.
 SWEEP="$TMP/sweep.json"
-printf '[{"number":12,"title":"Upstream drift: acme/widgets",%s},{"number":20,"title":"Upstream drift: acme/gone",%s},{"number":21,"title":"Upstream drift: acme/old",%s},{"number":22,"title":"Upstream drift notes",%s}]\n' \
-  "$BOT_AUTHOR" "$BOT_AUTHOR" "$USER_AUTHOR" "$BOT_AUTHOR" >"$SWEEP"
-GH_STUB_LIST="$LIST_OPEN" GH_STUB_SWEEP="$SWEEP"
+printf '[{"number":12,"title":"Upstream drift: acme/widgets",%s,%s},{"number":20,"title":"Upstream drift: acme/gone",%s,%s},{"number":21,"title":"Upstream drift: acme/old",%s,%s},{"number":22,"title":"Upstream drift notes",%s,%s},{"number":23,"title":"Upstream drift: acme/closed-gone","state":"closed","state_reason":"completed",%s}]\n' \
+  "$OPEN" "$BOT_AUTHOR" "$OPEN" "$BOT_AUTHOR" "$OPEN" "$USER_AUTHOR" "$OPEN" "$BOT_AUTHOR" "$BOT_AUTHOR" >"$SWEEP"
+GH_STUB_LIST="$SWEEP"
 run_sut "$DRIFT"
 expect_code "sweep: exit 0" 0
 c="$(calls)"
@@ -199,18 +207,85 @@ expect_has "sweep: reports the action" "$OUT" 'action=close-unreported repo=acme
 expect_lacks "sweep: never closes the user's issue" "$c" 'issue close 21'
 expect_lacks "sweep: never closes an issue of another title shape" "$c" 'issue close 22'
 expect_lacks "sweep: never closes a reported upstream's issue" "$c" 'issue close 12'
+expect_lacks "sweep: never touches an already closed issue" "$c" 'issue close 23'
 run_sut "$DRIFT" --dry-run
 expect_lacks "sweep, dry run: closes nothing" "$(calls)" 'issue close'
 expect_has "sweep, dry run: still reports the action" "$OUT" 'action=close-unreported repo=acme/gone'
-unset GH_STUB_SWEEP
+
+# --- a closed issue for the title: reopened on drift unless muted -----------
+# The bot's #12 for acme/widgets, closed with the given state_reason.
+closed_list() { # <state_reason JSON>
+  printf '[{"number":12,"title":"Upstream drift: acme/widgets","state":"closed","state_reason":%s,%s}]\n' "$1" "$BOT_AUTHOR" >"$TMP/list-closed.json"
+  GH_STUB_LIST="$TMP/list-closed.json"
+}
+closed_list '"completed"'
+run_sut "$DRIFT"
+expect_code "reopen: exit 0" 0
+c="$(calls)"
+expect_has "reopen: reopens issue 12" "$c" 'issue reopen 12'
+expect_has "reopen: replaces its body from a body file" "$c" 'issue edit 12 --body-file'
+expect_lacks "reopen: creates nothing" "$c" 'issue create'
+expect_has "reopen: reports the action" "$OUT" 'action=reopen repo=acme/widgets'
+expect_has "reopen: the body lists the changed row" "$(body_of edit)" '`skills/alpha/SKILL.md`'
+if [[ "$c" == *'issue reopen 12'*'issue edit 12'* ]]; then
+  pass "reopen: reopens before it edits"
+else
+  bad "reopen: reopens before it edits" "$c"
+fi
+closed_list 'null'
+run_sut "$DRIFT"
+expect_has "reopen, no state reason: reopens issue 12" "$(calls)" 'issue reopen 12'
+run_sut "$CLEAN"
+c="$(calls)"
+expect_lacks "closed, clean: no reopen" "$c" 'issue reopen'
+expect_lacks "closed, clean: no close" "$c" 'issue close'
+for reason in not_planned duplicate; do
+  closed_list "\"$reason\""
+  run_sut "$DRIFT"
+  expect_code "muted ($reason): exit 0" 0
+  c="$(calls)"
+  expect_lacks "muted ($reason): no reopen" "$c" 'issue reopen'
+  expect_lacks "muted ($reason): no create" "$c" 'issue create'
+  expect_lacks "muted ($reason): no edit" "$c" 'issue edit'
+  expect_has "muted ($reason): reports action none" "$OUT" 'action=none repo=acme/widgets'
+done
+LIST_BOTH="$TMP/list-both.json"
+printf '[{"number":30,"title":"Upstream drift: acme/widgets","state":"closed","state_reason":"completed",%s},{"number":12,"title":"Upstream drift: acme/widgets",%s,%s}]\n' \
+  "$BOT_AUTHOR" "$OPEN" "$BOT_AUTHOR" >"$LIST_BOTH"
+GH_STUB_LIST="$LIST_BOTH"
+run_sut "$DRIFT"
+c="$(calls)"
+expect_has "open and closed: edits the open issue 12" "$c" 'issue edit 12 --body-file'
+expect_lacks "open and closed: no reopen" "$c" 'issue reopen'
+LIST_TWO_CLOSED="$TMP/list-two-closed.json"
+printf '[{"number":30,"title":"Upstream drift: acme/widgets","state":"closed","state_reason":"completed",%s},{"number":12,"title":"Upstream drift: acme/widgets","state":"closed","state_reason":"not_planned",%s}]\n' \
+  "$BOT_AUTHOR" "$BOT_AUTHOR" >"$LIST_TWO_CLOSED"
+GH_STUB_LIST="$LIST_TWO_CLOSED"
+run_sut "$DRIFT"
+expect_has "two closed: the newest, issue 30, decides" "$(calls)" 'issue reopen 30'
+LIST_PAGED="$TMP/list-paged.json"
+{
+  printf '[{"number":5,"title":"Upstream drift: acme/widgets-extra",%s,%s}]\n' "$OPEN" "$BOT_AUTHOR"
+  printf '[{"number":12,"title":"Upstream drift: acme/widgets","state":"closed","state_reason":"completed",%s}]\n' "$BOT_AUTHOR"
+} >"$LIST_PAGED"
+GH_STUB_LIST="$LIST_PAGED"
+run_sut "$DRIFT"
+expect_has "paged: a match on the second page is found" "$(calls)" 'issue reopen 12'
+LIST_SPOOF_CLOSED="$TMP/list-spoof-closed.json"
+printf '[{"number":9,"title":"Upstream drift: acme/widgets","state":"closed","state_reason":"completed",%s}]\n' "$USER_AUTHOR" >"$LIST_SPOOF_CLOSED"
+GH_STUB_LIST="$LIST_SPOOF_CLOSED"
+run_sut "$DRIFT"
+c="$(calls)"
+expect_lacks "spoof closed: never reopens the user's issue 9" "$c" 'issue reopen'
+expect_has "spoof closed: creates its own issue" "$c" 'issue create'
 
 # --- untracked page touches nothing -----------------------------------------
 UNTRACKED="$TMP/untracked.txt"
 printf '%s\n' "page repo=acme/plans pin=$PIN head=$HEAD status=untracked path=docs/upstream/plans.md" >"$UNTRACKED"
-GH_STUB_LIST="$LIST_OPEN"
+GH_STUB_LIST="$LIST_NONE"
 run_sut "$UNTRACKED"
 expect_code "untracked: exit 0" 0
-expect_has "untracked: the only gh call is the sweep's read" "[$(calls)]" '[issue list --state open --author app/github-actions --search in:title "Upstream drift" --limit 500 --json number,title,author]'
+expect_has "untracked: the only gh call is the issue list read" "[$(calls)]" "[$LIST_API]"
 expect_has "untracked: reports action none" "$OUT" 'action=none repo=acme/plans'
 
 # --- body over the cap is cut with a job-summary pointer --------------------
@@ -293,7 +368,8 @@ GH_STUB_LIST="$LIST_OPEN"
 run_sut "$MIXED" --dry-run
 expect_code "dry-run: exit 0" 0
 c="$(calls)"
-expect_has "dry-run: makes the list call" "$c" 'issue list'
+expect_has "dry-run: makes the list call" "$c" "$LIST_API"
+expect_lacks "dry-run: no reopen" "$c" 'issue reopen'
 expect_lacks "dry-run: no create" "$c" 'issue create'
 expect_lacks "dry-run: no edit" "$c" 'issue edit'
 expect_lacks "dry-run: no close" "$c" 'issue close'
@@ -313,7 +389,7 @@ run_sut "$CLEAN" --dry-run
 expect_has "dry-run: close when clean and one is open" "$OUT" 'action=close repo=acme/widgets'
 
 # --- a failed gh call fails the run -----------------------------------------
-for verb in list create; do
+for verb in api create; do
   GH_STUB_LIST="$LIST_NONE" GH_STUB_FAIL="$verb"
   run_sut "$DRIFT"
   if [[ "$CODE" != 0 ]]; then pass "failed $verb: exits nonzero"; else bad "failed $verb: exits nonzero" "$OUT"; fi
@@ -324,6 +400,11 @@ if [[ "$CODE" != 0 ]]; then pass "failed edit: exits nonzero"; else bad "failed 
 GH_STUB_FAIL=close
 run_sut "$CLEAN"
 if [[ "$CODE" != 0 ]]; then pass "failed close: exits nonzero"; else bad "failed close: exits nonzero" "$OUT"; fi
+closed_list '"completed"'
+GH_STUB_FAIL=reopen
+run_sut "$DRIFT"
+if [[ "$CODE" != 0 ]]; then pass "failed reopen: exits nonzero"; else bad "failed reopen: exits nonzero" "$OUT"; fi
+expect_lacks "failed reopen: does not edit the closed issue" "$(calls)" 'issue edit'
 GH_STUB_FAIL=""
 
 # --- untrusted text never reaches shell evaluation (bash 5.1 semantics) -----

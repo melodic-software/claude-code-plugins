@@ -7,7 +7,6 @@ import { join, normalize } from "node:path";
 
 export const SLICES = new Set(["A", "C", "D"]);
 export const MAX_NEW_ISSUES = 5;
-const REGRESSION_DAYS = 14;
 const MARKER = /^<!-- lane-sweep:fp=([0-9a-f]{16}) -->$/;
 const TEXT_FIELDS = ["title", "problem", "root_cause", "proposed_fix", "workflow", "job", "signature"];
 
@@ -90,13 +89,11 @@ export const inertTitle = (text) =>
     .replace(/@(?=[A-Za-z0-9])/g, "@\u200b")
     .replace(/#(?=\d)/g, "#\u200b");
 
-export function renderBody(finding, fp, runUrl, regressionOf = null) {
-  const claims = finding.evidence.map((c) => `${c.path}:${c.line}: ${c.quote}`).join("\n");
+const claimsOf = (finding) => finding.evidence.map((c) => `${c.path}:${c.line}: ${c.quote}`).join("\n");
+
+export function renderBody(finding, fp, runUrl) {
   return [
     `Filed by the lane sweep ([run](${runUrl})) from slice ${finding.slice}. A model wrote the fenced text below from CI data, which can carry text written to steer it; every cited line was checked against main when filed. Rewrite the issue in your own words before marking it agent-ready.`,
-    ...(regressionOf
-      ? ["", `A finding with the same fingerprint was fixed in #${regressionOf}; this may be a regression.`]
-      : []),
     "",
     "## Problem",
     "",
@@ -106,7 +103,7 @@ export function renderBody(finding, fp, runUrl, regressionOf = null) {
     "",
     fenced(finding.root_cause),
     "",
-    fenced(claims),
+    fenced(claimsOf(finding)),
     "",
     "## Proposed fix",
     "",
@@ -120,6 +117,14 @@ export function renderBody(finding, fp, runUrl, regressionOf = null) {
   ].join("\n");
 }
 
+// The comment that reopens a closed issue: the run and the recheck claims.
+export const renderReopenComment = (finding, runUrl) =>
+  [
+    `Seen again by the lane sweep in [this run](${runUrl}) after this issue was closed, so it is reopened. Every cited line below was checked against main in that run.`,
+    "",
+    fenced(claimsOf(finding)),
+  ].join("\n");
+
 // The fingerprint from the body's last line only.
 export function readFingerprint(body) {
   const last = String(body ?? "")
@@ -131,14 +136,14 @@ export function readFingerprint(body) {
 
 // items: [{fingerprint, finding}]; existing: sweep issues (open, and closed in
 // the lookback) with body; openNumbers: open issue and PR numbers.
-export function planFiling({ items, existing, openNumbers, now, maxNew = MAX_NEW_ISSUES }) {
+export function planFiling({ items, existing, openNumbers, maxNew = MAX_NEW_ISSUES }) {
   const byFp = new Map();
   for (const issue of existing) {
     const fp = readFingerprint(issue.body);
     if (fp && !byFp.has(fp)) byFp.set(fp, issue);
     if (fp && issue.state === "open") byFp.set(fp, issue);
   }
-  const plan = { file: [], comment: [], skip: [] };
+  const plan = { file: [], comment: [], reopen: [], skip: [] };
   const seen = new Set();
   for (const { fingerprint: fp, finding } of items) {
     const skip = (reason) => plan.skip.push({ fingerprint: fp, reason });
@@ -156,20 +161,23 @@ export function planFiling({ items, existing, openNumbers, now, maxNew = MAX_NEW
       skip("not-planned");
       continue;
     }
+    if (match?.state_reason === "duplicate") {
+      skip("closed-duplicate");
+      continue;
+    }
     if (finding.covered_by !== null && openNumbers.has(finding.covered_by)) {
       skip("covered");
+      continue;
+    }
+    if (match) {
+      plan.reopen.push({ number: match.number, fingerprint: fp, finding });
       continue;
     }
     if (plan.file.length >= maxNew) {
       skip("cap");
       continue;
     }
-    const recent = match && now - new Date(match.closed_at) <= REGRESSION_DAYS * 86_400_000;
-    plan.file.push({
-      fingerprint: fp,
-      finding,
-      regressionOf: recent ? match.number : null,
-    });
+    plan.file.push({ fingerprint: fp, finding });
   }
   return plan;
 }

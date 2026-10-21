@@ -5,16 +5,17 @@
 #   scripts/upstream-drift-issues.sh [--dry-run] <report-file>
 #   scripts/upstream-drift-issues.sh --help
 #
-# Each upstream repository gets at most one open issue titled
-# `Upstream drift: <owner>/<repo>`, found with `gh issue list` and an exact
-# title match in jq, among issues opened by the workflow's github-actions bot
-# only: a same-titled issue anyone else opens is never edited or closed. A
-# repository with a drifted page gets that issue created,
-# or its body replaced in place; a repository whose pages are all clean gets
-# an open issue closed with a comment; a repository whose pages are all
-# `untracked` is left alone. Last, the bot's open drift issue for any upstream
-# the report no longer names is closed with a comment, printed as
-# `action=close-unreported`. The body names the pin, head, run date and run URL,
+# Each upstream repository gets at most one issue titled
+# `Upstream drift: <owner>/<repo>`, found with an exact title match in jq over
+# every issue, open or closed, the workflow's github-actions bot opened, read
+# once through the REST issue list: a same-titled issue anyone else opens is
+# never edited or closed. A repository with a drifted page gets that issue
+# created, its body replaced in place, or, when closed other than as not
+# planned or duplicate, reopened with its body replaced; a repository whose
+# pages are all clean gets an open issue closed with a comment; a repository
+# whose pages are all `untracked` is left alone. Last, the bot's open drift
+# issue for any upstream the report no longer names is closed with a comment,
+# printed as `action=close-unreported`. The body names the pin, head, run date and run URL,
 # then one line per changed row or unit, every report-derived string inside a
 # code span with backticks replaced. It is cut at 60,000 characters with a
 # pointer to the run's job summary, written to a temp file and passed with
@@ -25,12 +26,13 @@
 # --report row): the path is everything after the first ` path=`. A line that
 # breaks the order exits 2 with no gh call.
 #
-# --dry-run makes only the `gh issue list` reads. Every run prints one
-# `action=<create|edit|close|none> repo=<owner>/<repo>` line per repository,
+# --dry-run makes only the issue list read. Every run prints one
+# `action=<create|edit|reopen|close|none> repo=<owner>/<repo>` line per repository,
 # then one `action=close-unreported` line per swept issue.
 # The run URL comes from GITHUB_SERVER_URL, GITHUB_REPOSITORY and GITHUB_RUN_ID.
 #
-# Exit: 0 success, 1 any failed gh call (the other repositories still run),
+# Exit: 0 success, 1 any failed gh call (a failed list read stops the run; after
+# a failed write the other repositories still run),
 # 2 usage, unreadable or malformed report, or jq missing.
 set -uo pipefail
 export LC_ALL=C
@@ -151,17 +153,26 @@ trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
 failed=0
 
-# open_issue <title>: prints the number of the open issue with exactly that
-# title opened by the workflow's own bot ($BOT), or nothing; returns 1 when the
-# list call fails. Anyone can open an issue with the same title, so the author
-# is checked both in the search and in jq.
-BOT=app/github-actions
-open_issue() {
-  local json num
-  json="$(gh issue list --state open --author "$BOT" --search "in:title \"$1\"" --json number,title,author)" || return 1
-  num="$(jq -r --arg t "$1" --arg bot "$BOT" '[.[] | select(.title == $t and .author.is_bot == true and .author.login == $bot) | .number] | first // empty' <<<"$json")" || return 1
-  [[ -z "$num" || "$num" =~ ^[0-9]+$ ]] || return 1
-  printf '%s' "$num"
+# Every issue the workflow's own bot opened, open and closed, read once through
+# the REST list (page by page) rather than search, which is rate-limited and
+# can return incomplete results. Anyone can open an issue with the same title,
+# so the author is checked in jq as well as by the creator filter.
+BOT='github-actions[bot]'
+if ! listed="$(gh api --paginate "repos/{owner}/{repo}/issues?creator=$BOT&state=all&per_page=100")"; then
+  printf '%s: issue list failed\n' "$SELF" >&2
+  exit 1
+fi
+ISSUES="$(jq -s --arg bot "$BOT" 'add // [] | map(select(.pull_request == null and .user.login == $bot))' <<<"$listed")" || {
+  printf '%s: unreadable issue list\n' "$SELF" >&2
+  exit 1
+}
+
+# bot_issue <title>: prints `<number> <state> <state_reason>` for the bot's
+# issue with exactly that title, the open one first, else the newest closed;
+# prints nothing when there is none.
+bot_issue() {
+  jq -r --arg t "$1" '[.[] | select(.title == $t)] | (map(select(.state == "open")) + sort_by(-.number))
+    | first // empty | "\(.number) \(.state) \(.state_reason // "none")"' <<<"$ISSUES"
 }
 
 # write_body <index> <file>
@@ -184,15 +195,23 @@ for i in "${!REPOS[@]}"; do
   title="Upstream drift: $repo"
   action=none
   if [[ "${STATE[i]}" != none ]]; then
-    if ! num="$(open_issue "$title")"; then
-      printf '%s: issue list failed for %s\n' "$SELF" "$repo" >&2
+    if ! found="$(bot_issue "$title")" || ! read -r num issue_state reason <<<"$found" ||
+      [[ -n "$num" && ! "$num" =~ ^[0-9]+$ ]]; then
+      printf '%s: unreadable issue list for %s\n' "$SELF" "$repo" >&2
       failed=1
       continue
     fi
+    # Closed as not planned or duplicate mutes the upstream; closed otherwise,
+    # drift reopens that issue rather than filing another.
     if [[ "${STATE[i]}" == drift ]]; then
-      action=create
-      [[ -n "$num" ]] && action=edit
-    elif [[ -n "$num" ]]; then
+      if [[ -z "$num" ]]; then
+        action=create
+      elif [[ "$issue_state" == open ]]; then
+        action=edit
+      elif [[ "$reason" != not_planned && "$reason" != duplicate ]]; then
+        action=reopen
+      fi
+    elif [[ "$issue_state" == open ]]; then
       action=close
     fi
   fi
@@ -214,6 +233,16 @@ for i in "${!REPOS[@]}"; do
       failed=1
     }
     ;;
+  reopen)
+    write_body "$i" "$body_file"
+    if ! gh issue reopen "$num" >/dev/null; then
+      printf '%s: issue reopen failed for %s\n' "$SELF" "$repo" >&2
+      failed=1
+    elif ! gh issue edit "$num" --body-file "$body_file" >/dev/null; then
+      printf '%s: issue edit failed for %s\n' "$SELF" "$repo" >&2
+      failed=1
+    fi
+    ;;
   close)
     gh issue close "$num" --comment "Upstream $(span "$repo") is clean against its pin as of $RUN_DATE ($RUN_URL)." >/dev/null || {
       printf '%s: issue close failed for %s\n' "$SELF" "$repo" >&2
@@ -228,13 +257,8 @@ done
 # docs/upstream page was removed or renamed) is closed, since no later run
 # would reach it. Titles are matched exactly and the repository part must be
 # <owner>/<repo>; an upstream listed in this report in any state is left alone.
-if ! swept="$(gh issue list --state open --author "$BOT" --search 'in:title "Upstream drift"' \
-  --limit 500 --json number,title,author)"; then
-  printf '%s: issue list failed for the sweep\n' "$SELF" >&2
-  exit 1
-fi
-rows="$(jq -r --arg bot "$BOT" '.[] | select(.author.is_bot == true and .author.login == $bot)
-  | select(.title | startswith("Upstream drift: ")) | [.number, (.title | ltrimstr("Upstream drift: "))] | @tsv' <<<"$swept")" || {
+rows="$(jq -r '.[] | select(.state == "open" and (.title | startswith("Upstream drift: ")))
+  | [.number, (.title | ltrimstr("Upstream drift: "))] | @tsv' <<<"$ISSUES")" || {
   printf '%s: unreadable issue list for the sweep\n' "$SELF" >&2
   exit 1
 }
