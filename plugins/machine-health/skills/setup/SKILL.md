@@ -1,11 +1,11 @@
 ---
 description: "Configure the machine-health plugin for this machine. check (read-only): report the effective catalog overlay, remediation approvals, and pending proposals against the shipped catalog. apply: write the machine-local overlay (disable/deprecate/demote checks, register custom ones), approve or revoke remediations (approve=, revoke=), and unmute findings (unmute=). Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'revoke a remediation', 'unmute a finding', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Actions: check (read-only verification, default) | apply (write the machine-local overlay, approvals and mutes). Re-runnable and safe."
-argument-hint: "[check|apply] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>]"
+argument-hint: "[check|apply] [disable=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>…]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
-**Arguments.** `[check|apply] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>]`.
+**Arguments.** `[check|apply] [disable=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>…]`; the full set: `[check|apply] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>]`.
 
 ## Purpose
 

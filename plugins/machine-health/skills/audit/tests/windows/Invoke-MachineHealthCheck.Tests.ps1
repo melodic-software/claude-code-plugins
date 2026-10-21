@@ -150,6 +150,26 @@ Describe 'Invoke-MachineHealthCheck with a synced StateBase' -Tag 'orchestrator'
         @(Select-String -LiteralPath $reports[0].FullName -Pattern '\| state-location \| \*\*UNKNOWN\*\*').Count | Should -Be 1
     }
 
+    It 'leaves no log default behind, so a writable run after a synced one in the same session writes its run log' {
+        $writableBase = Initialize-QuietStateBase (Join-Path $script:root 'writable')
+        $defaults = $PSDefaultParameterValues.Clone()
+        try {
+            & $script:Orchestrator -OutputBase (Join-Path $script:root 'out-1') -StateBase $script:stateBase `
+                -RunMode on-demand -DryRun -SkipBanner 2>$null | Out-Null
+            $PSDefaultParameterValues.Keys | Should -Not -Contain 'Write-MachineHealthLog:ToStderr'
+
+            & $script:Orchestrator -OutputBase (Join-Path $script:root 'out-2') -StateBase $writableBase `
+                -RunMode on-demand -DryRun -SkipBanner 2>$null | Out-Null
+        } finally {
+            $PSDefaultParameterValues.Clear()
+            foreach ($k in $defaults.Keys) { $PSDefaultParameterValues[$k] = $defaults[$k] }
+        }
+
+        $logs = @(Get-ChildItem -LiteralPath (Join-Path $writableBase 'logs') -Filter 'run-*.log')
+        $logs.Count | Should -Be 1
+        Get-Content -LiteralPath $logs[0].FullName -Raw | Should -Match 'run_start .*state_writable=True'
+    }
+
     It 'writes only the report when the output folder is inside the synced StateBase' {
         $outputBase = Join-Path $script:stateBase 'out'
         $before = Get-TreeListing $script:sync

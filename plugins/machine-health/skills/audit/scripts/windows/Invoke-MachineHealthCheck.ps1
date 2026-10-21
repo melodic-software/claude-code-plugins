@@ -206,6 +206,14 @@ if ($stateWritable) {
     }
 }
 
+# The log defaults bound below live in the caller's $PSDefaultParameterValues; the finally
+# puts back whatever was there so a later run in the same session starts clean.
+$logDefaultKeys = @('Write-MachineHealthLog:LogPath', 'Write-MachineHealthLog:ToStderr')
+$savedLogDefaults = @{}
+foreach ($k in $logDefaultKeys) {
+    if ($PSDefaultParameterValues.ContainsKey($k)) { $savedLogDefaults[$k] = $PSDefaultParameterValues[$k] }
+}
+
 # Everything below runs while run.lock is held; the finally releases it on every exit path.
 try {
     Initialize-Directory -Path @($OutputBase, $reportsDir)
@@ -507,7 +515,8 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
 
     $todoPath = Get-TodoPath -StateBase $StateBase
     $queuedTodoTitles = [System.Collections.Generic.List[string]]::new()
-    # Get-ApprovalState creates the state folder and may migrate TODO.md, so a synced StateBase skips it.
+    # Get-ApprovalState creates the state folder and may run the one-time checkbox migration,
+    # so a synced StateBase skips it.
     $approvalState = if ($stateWritable) {
         Get-ApprovalState -StateDir $stateDir -TodoPath $todoPath -LogPath $runLog
     } else {
@@ -906,4 +915,11 @@ $glanceRows
     }
 } finally {
     if ($runLock) { $runLock.Dispose() }
+    foreach ($k in $logDefaultKeys) {
+        if ($savedLogDefaults.ContainsKey($k)) {
+            $PSDefaultParameterValues[$k] = $savedLogDefaults[$k]
+        } else {
+            $PSDefaultParameterValues.Remove($k)
+        }
+    }
 }
