@@ -686,7 +686,6 @@
 @media (max-width: 1080px) {
   .app .vf-body { grid-template-columns: minmax(220px, 250px) minmax(0, 1fr); }
   .app .vf-here { display: none; }
-  .app .vf-composer { padding-inline-end: 88px; }
 }
 
 @media (max-width: 720px) {
