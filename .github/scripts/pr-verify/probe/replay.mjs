@@ -24,7 +24,9 @@
 //   https://code.claude.com/docs/en/settings-reference (scope Managed), as of
 //   2026-10-20; recheck when that row's scope changes.
 // - CLI version: CLI_VERSION, the cli-version default of run-claude-cli at
-//   RUN_CLAUDE_CLI_PIN; a live run refuses any other.
+//   RUN_CLAUDE_CLI_PIN. `latest` resolves, as lane.cjs does, with
+//   `npm view @anthropic-ai/claude-code version`; a live run refuses any
+//   other version.
 // - Environment: built from an allowlist, then lane.cjs legEnv's additions
 //   and the judge step's env; nothing else of the caller's shell passes.
 // - MCP: --strict-mcp-config with no --mcp-config, as on the runner.
@@ -58,8 +60,8 @@ const REPOSITORY = "melodic-software/claude-code-plugins";
 // apply-claude-managed-settings to. cliArgs, LEG_ENV, CLI_VERSION and
 // MANAGED_SETTINGS were read from that SHA; the parity test fails when the
 // pin moves, so they are read again.
-export const RUN_CLAUDE_CLI_PIN = "1bb8953644d16f21d10718962c6702f01ea3308a";
-export const CLI_VERSION = "2.1.304";
+export const RUN_CLAUDE_CLI_PIN = "5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c";
+export const CLI_VERSION = "latest";
 export const MANAGED_SETTINGS = Object.freeze({
   apiKeyHelper: "",
   allowManagedHooksOnly: true,
@@ -673,16 +675,17 @@ export async function main(argv = process.argv.slice(2)) {
   const models = resolveModels();
   // A dry run never starts the CLI, so it needs none installed.
   const version = values.live ? /^(\d+\.\d+\.\d+)/.exec(sh(values.claude, ["--version"], { env: { PATH: process.env.PATH } }))?.[1] : "not checked";
+  const runnerVersion = values.live && CLI_VERSION === "latest" ? sh("npm", ["view", "@anthropic-ai/claude-code", "version"]) : CLI_VERSION;
   const commit = sh("git", ["-C", REPO_ROOT, "rev-parse", "HEAD"]);
   console.log(
-    `pr-verify replay: commit ${commit}; run-claude-cli ${RUN_CLAUDE_CLI_PIN}; claude ${version} (runner ${CLI_VERSION}); ` +
+    `pr-verify replay: commit ${commit}; run-claude-cli ${RUN_CLAUDE_CLI_PIN}; claude ${version} (runner ${runnerVersion}); ` +
       `route ${JUDGE.modelRoute} -> ${models.profile}: model ${models.model}, effort ${models.effort || "default"}, max-turns ${models.maxTurns}; ` +
       `${cases.length} case(s) x ${runs} run(s); ${values.live ? "live" : "dry run"}`,
   );
   const opts = { live: values.live, claude: values.claude, maxAttempts, out: values.out };
   if (values.live) {
-    if (version !== CLI_VERSION) {
-      throw new Error(`claude is ${version}; the runner runs ${CLI_VERSION}`);
+    if (version !== runnerVersion) {
+      throw new Error(`claude is ${version}; the runner runs ${runnerVersion}`);
     }
     if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) {
       throw new Error("set CLAUDE_CODE_OAUTH_TOKEN (claude setup-token) for a live run");

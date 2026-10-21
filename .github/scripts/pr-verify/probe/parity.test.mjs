@@ -171,7 +171,7 @@ test("cliArgs is lane.cjs's argv for this lane, plus --settings", () => {
 });
 
 test("the runner's CLI version, environment additions and managed settings", () => {
-  assert.equal(CLI_VERSION, "2.1.304");
+  assert.equal(CLI_VERSION, "latest");
   assert.deepEqual(LEG_ENV, {
     CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
     CLAUDE_CODE_RETRY_WATCHDOG: "1",
