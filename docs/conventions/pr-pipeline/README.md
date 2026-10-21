@@ -116,7 +116,7 @@ reader applies.
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR and each unreviewed review-tier Dependabot PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
-| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue` once resolve-issue accepts App-added labels (follow-up by Automation Lanes) |
+| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 

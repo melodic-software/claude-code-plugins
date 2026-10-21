@@ -818,8 +818,15 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
     }
     try {
       // The record first: a failed comment re-fires nothing, so the bound holds.
-      if ((refire || recurrence) && !recorded) {
-        await github("POST", `${base}/comments`, { body: refire ? refireComment(refire) : recurrenceComment(recurrence) });
+      if (refire && !recorded) {
+        await github("POST", `${base}/comments`, { body: refireComment(refire) });
+      }
+      // The labels, not the record, bound a relabel, so a failed record (the
+      // alert locks every fix issue) is named and the relabel goes ahead.
+      if (recurrence && !recorded) {
+        await github("POST", `${base}/comments`, { body: recurrenceComment(recurrence) }).catch((error) =>
+          console.log(`::warning title=label-unblocked::#${number}: the relabel record was not posted: ${escapeCommand(error?.message ?? error)}`),
+        );
       }
       await github("DELETE", `${base}/labels/${LABEL}`);
     } catch (error) {

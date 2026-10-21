@@ -1828,3 +1828,18 @@ test("relabels share the restarts-per-run cap, the longest-waiting first", async
   assert.equal(await sweep({ github: fake.github, actions: fake.github }), 0);
   assert.deepEqual(writes(fake.calls), numbers.slice(0, 5).flatMap((n) => relabeled(n)));
 });
+
+test("a relabel record that fails, as on a locked issue, is warned about and the labels still move", async (t) => {
+  const { github: base, calls } = reopened();
+  const github = async (method, path, body) => {
+    if (method === "POST" && path.endsWith("/issues/30/comments")) {
+      calls.push(`${method} ${path} ${JSON.stringify(body)}`);
+      throw new Error("POST failed with status 403");
+    }
+    return base(method, path, body);
+  };
+  const log = t.mock.method(console, "log", () => {});
+  assert.equal(await sweep({ github, actions: base }), 0);
+  assert.deepEqual(writes(calls), relabeled(30));
+  assert.ok(log.mock.calls.some((call) => String(call.arguments[0]).startsWith("::warning title=label-unblocked::#30: the relabel record was not posted")));
+});
