@@ -124,9 +124,40 @@ them. Glob matching:
 2026-10-17; recheck when that section changes the `paths:` field or its glob
 syntax.
 
+**Plugin manifests.** When the diff changes a `.claude-plugin/plugin.json` or
+`.claude-plugin/marketplace.json`, compare the base and head manifests:
+
+- A `userConfig` field's `default` changed, or a field removed: the PR says why, since the change
+  reaches every user who never set the value. No stated reason is a finding. Where no security
+  lane runs, a default change that widens what a guard allows (one whose reading code gates,
+  caps, confirms, limits, or costs something) is a finding whatever the PR says; where one runs,
+  that judgment is the security lane's alone.
+- A `userConfig` field gains or changes `options`: the PR names the client version floor that
+  raises. No named floor is a finding.
+- A new `userConfig` field has a default a user who never opens settings should get, and code in
+  the plugin reads the key. A key nothing reads is a finding.
+- The version bump level matches the change under
+  [Semantic Versioning](https://semver.org/#summary). Where the repository releases from
+  changelog fragments, judge the fragment's `bump:` instead of `version`. A level below the
+  change's is a finding.
+- The `description`, `keywords`, and marketplace entry describe what ships after this change: a
+  capability they name that the diff removes, or one the diff adds that they omit, is a finding.
+
+For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
+`manifest <field>: flag, <reason>`, so the outcome reads without the inline comments. Every
+`flag` line is a finding: it counts in the review's findings total, which is what holds the merge.
+
+Pointer: field semantics, the `options` floor, and how a saved value is read are at
+[plugin manifest reference: User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration);
+entry-versus-manifest precedence is at
+[Marketplace entries and the manifest](https://code.claude.com/docs/en/plugins-reference#marketplace-entries-and-the-manifest).
+As of: 2026-10-21. Recheck trigger: that page changes a `userConfig` field's semantics, the
+`options` floor, or how a marketplace entry combines with `plugin.json`.
+
 Scope the review to files changed in this PR. Use `gh pr diff` to identify what
 changed, then review those files. Reading the PR context file, the matching rule
-files, and the tests that would cover a criterion is in scope; do not explore
+files, the tests that would cover a criterion, and a changed plugin's files when
+looking for what reads a new or changed `userConfig` key is in scope; do not explore
 other parts of the codebase.
 
 Never restate the PR author's own claimed verification (e.g. a Test plan's
@@ -145,12 +176,16 @@ caller, or command that produces the wrong result). Exclude:
 - Generic advice, style nits, and "consider adding tests" without a concrete gap
 - Security findings that belong on the security lane (see "Gotchas" above)
 
+A `manifest <field>: flag` line is exempt from this bar: it counts as a finding as written.
+
 ## Adversarial validation
 
 When you fan out subagents for candidate findings, dispatch each hunter and
 verifier as the `review:lane-verifier` agent, never a general-purpose
 subagent, so no subagent can re-invoke this skill and fan out. The producer of a
-finding must not be the verifier. Drop candidates the verifier rejects. Committable
+finding must not be the verifier. Drop candidates the verifier rejects, except a
+`manifest <field>: flag` line, which a verifier never drops: the diff hitting the item is the
+evidence. Committable
 suggestion fences (GitHub `suggestion` code blocks) are allowed only when the
 suggestion alone fully fixes the finding on the anchored lines.
 

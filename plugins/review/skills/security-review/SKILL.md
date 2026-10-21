@@ -93,7 +93,8 @@ nothing else):
 ## Criteria
 
 Perform a security review of THIS pull request. Review ONLY the files changed
-in this PR: use `gh pr diff` to see what changed, then read those files. Do not
+in this PR: use `gh pr diff` to see what changed, then read those files. Reading a changed
+plugin's files to find the code that consumes a changed `userConfig` key is in scope. Do not
 audit unrelated parts of the codebase.
 
 Hunt for vulnerabilities that static analysis misses: logic flaws, authorization
@@ -130,6 +131,39 @@ consulted. The `security-reviewer` agent behind
 `/review:quality-gate` security mode and `/review:fanout` carries the same lens as a pointer, so
 local and CI review judge such a diff by the same register.
 
+**Plugin manifests.** A change to a `.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json`
+can switch a control off or install code without touching a script, so such a diff is never
+eligible for skip 2. Compare the base and head manifests:
+
+- A `userConfig` key is a guard when the code that reads it gates, caps, confirms, limits, or
+  costs something; judge by that code, never by the key's name. A guard whose `default` changes in
+  the direction that widens unchecked action (a gate turned off, an autonomy tier or unlimited
+  mode turned on, a cap or budget raised), or that is removed, is a finding: every user who never
+  set it gets the wider action on update. Name the control and the action that now reaches it
+  unchecked. An added key that is a guard (judged by the code or skill text that reads it) whose
+  default is the permissive value is a finding. A change that lowers a value's protection is a
+  finding too.
+- Default deny. Every other field added, changed, or removed is a `manifest <field>: flag`,
+  whatever the lane believes about it, unless it is in this repository's inert set:
+  `description`, `keywords`, `author`, `homepage`, `repository`, `license`, a marketplace
+  entry's `tags` and `category`, a `userConfig` key's `title` and `description`, and a changed
+  (not added or removed) `version`. On each such flag, name in the summary what runs and where it comes from (the command, server, or script, and the
+  path, package, or URL with its pin), or what installed users get on update. A source outside
+  the repository with no pin, a command fed consumer-controlled input, or a tool grant wider than
+  the command needs also gets its exploit path.
+
+For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
+`manifest <field>: flag, <reason>`, so the outcome reads without the inline comments. Every
+`flag` line is a finding: it counts in the review's findings total, which is what holds the merge.
+
+The pointers below are reading material for naming what a flagged field runs, never the test
+for whether it is flagged. Pointer: what each field loads, runs, grants, or stores is read at
+[plugin manifest reference: Fields](https://code.claude.com/docs/en/plugins-reference#fields),
+[Component path forms](https://code.claude.com/docs/en/plugins-reference#component-path-forms),
+[User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration), and
+[Channels](https://code.claude.com/docs/en/plugins-reference#channels). As of: 2026-10-21.
+Recheck trigger: any of those sections changes.
+
 ## High-signal bar
 
 Exclude pre-existing issues, linter-catchable noise, and generic security advice
@@ -137,14 +171,17 @@ without a concrete exploitable path in this diff. Each finding gives the file an
 line, why it is wrong, and that exploit path: the input or request that shows it
 failing. Committable suggestion fences
 (GitHub `suggestion` code blocks) only when the suggestion alone fully fixes the
-anchored finding.
+anchored finding. A `manifest <field>: flag` line is exempt from this bar: it counts as a finding
+with or without an exploit path.
 
 ## Adversarial validation
 
 When fanning out hunters, validate each surviving candidate with a separate
 verifier subagent (producer ≠ verifier). Dispatch every hunter and verifier as
 the `review:lane-verifier` agent, never a general-purpose subagent, so no
-subagent can re-invoke this skill and fan out. Drop rejected candidates.
+subagent can re-invoke this skill and fan out. Drop rejected candidates, except a
+`manifest <field>: flag` line, which a verifier never drops: the diff hitting the item is the
+evidence.
 
 ## Reporting
 

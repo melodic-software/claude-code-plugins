@@ -94,6 +94,12 @@ value and its unset fallback.
   (An external-fork head outside `<watched-owners>` remains the read-only stop-and-ask case below.)
 - Honor `mutation_policy.branch_write_allowed`: never push, and never create a write-capable
   worker or refresh a PR head, when it is false.
+- Never update the branch of a PR carrying the tracker's standards-sync role label
+  (`standards-sync` unless `.work-item-tracker.json` `config.role_labels` maps it): the sync App
+  is its only writer, and a merge commit from the base fails its managed-files guard, so the sync
+  cannot re-arm. `refresh_pr_branch.py` refuses it, and the unattended enqueue skips its update
+  from the base (`checkInputs.updateSkipped`) and enqueues as after a refused update. An
+  unreadable label refuses the refresh and holds the enqueue.
 - Head-ref uniqueness guard: two open PRs sharing one head repository/branch is a stop-and-ask.
   Escalate, never guess which PR a push would update.
 - Lease-protected removal: never remove a worktree without holding that PR's worker lease
@@ -1017,7 +1023,9 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
-   Only LOW merges. A C3 pull request also needs a LOW blast-radius rating, which nothing supplies
+   Only LOW merges. A test file under a plugin `scripts/` directory, a `floor-paths` glob ending
+   in a `scripts` directory or a `floor-script-scopes` glob, named by no other changed file, takes
+   no HIGH path floor hold for that reason alone; the rule is in `babysit_risk.py`'s docstring. A C3 pull request also needs a LOW blast-radius rating, which nothing supplies
    yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With

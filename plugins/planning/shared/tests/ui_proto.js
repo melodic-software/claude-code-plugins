@@ -7,7 +7,7 @@
 // own click handler does not run while Annotate is on); a note on a spot of a picture variant; the notes in the
 // question's Claude thread on the main page and in the round's digest for Claude; picking a variant; the variant's
 // sandbox (no access to the page or its storage, and a forged pin message is ignored); a second pick while a note is
-// open; a variant that navigates its frame away (dropped, then not heard); the owner token kept out of every link and
+// open; a variant that navigates its frame away (dropped, and the page it goes to refused); the owner token kept out of every link and
 // the address bar, the owner still the owner after a reload and on the pages its links open; the phone layout; no 429,
 // no CSP violation and no page error.
 //   node plugins/planning/shared/tests/ui_proto.js
@@ -34,7 +34,9 @@ addEventListener("message", e => { if (e.data && e.data.type === "mode" && e.dat
 </script></body></html>`;
 // A hostile variant: once loaded it sends its own frame to another page, which then talks like the pin helper (ready,
 // and a pin on "html", a path the page would take) and shows a sign-in form inside the session's page. The other page
-// is an asset of the same session, so the page's frame-src 'self' lets the frame go there.
+// is an asset of the same session, so the page's frame-src 'self' lets the frame go there, but the server refuses it
+// (401): a navigation the sandboxed frame starts comes from an opaque origin, so its request carries no SameSite=Strict
+// asset cookie (decision 1: assets only for joined people and the owner).
 const ELSEWHERE = `<!doctype html><p id="evil">Sign in again</p><script>parent.postMessage({ type: "ready" }, "*");
 setInterval(() => parent.postMessage({ type: "pinned", selector: "html", rect: { x: 0, y: 0, w: 10, h: 10 }, label: "evil" }, "*"), 100);</script>`;
 const leaver = to => `<!doctype html><html><body><p>Loading</p><script>
@@ -51,7 +53,7 @@ async function main() {
   const s = suite("ui_proto"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("proto");
-    const v1 = s.asset(A.dir, "v1.html", VARIANT), v2 = s.asset(A.dir, "v2.png", png(300, 200, [80, 120])), v3 = s.asset(A.dir, "v3.html", leaver(s.asset(A.dir, "elsewhere.html", ELSEWHERE)));
+    const v1 = s.asset(A.dir, "v1.html", VARIANT), v2 = s.asset(A.dir, "v2.png", png(300, 200, [80, 120])), elsewhere = s.asset(A.dir, "elsewhere.html", ELSEWHERE), v3 = s.asset(A.dir, "v3.html", leaver(elsewhere));
     s.apply(A.dir, [{ op: "set-title", title: "Checkout prototype" }, { op: "open-round", questions: [
       q("Q1", "Which checkout layout?", { kind: "prototype", variants: [{ id: "v-1", label: "One page", asset: v1 }, { id: "v-2", label: "Two steps", asset: v2 }] }),
       q("Q2", "What should the pay button say?", { kind: "text" }),
@@ -59,6 +61,9 @@ async function main() {
     ] }]);
     const ownerToken = new URL(A.ownerUrl).hash.replace(/^#owner=/, "");
     const owner = await rec.open(A.ownerUrl);
+    // Every request the server answers 401, in the contexts whose pages the error check below covers.
+    const refused = [], hear401 = ctx => ctx.on("response", r => { if (r.status() === 401) refused.push(`${r.request().method()} ${new URL(r.url()).pathname}`); });
+    hear401(owner.context());
     await until(owner, () => (window.Core.snapshot()?.questions || []).some(x => x.id === "Q1"));
     await owner.locator(".vf-q", { hasText: "Which checkout layout?" }).first().click();
 
@@ -106,6 +111,7 @@ async function main() {
 
     // ---------- desktop guest: opens the prototype from the question ----------
     const gus = await rec.open(A.localUrl);
+    hear401(gus.context());
     const gusPid = await joinAs(gus, "Gus");
     await gus.locator(".vf-q", { hasText: "Which checkout layout?" }).first().click();
     await until(gus, () => !document.querySelector(".vf-proto")?.hidden);
@@ -215,6 +221,7 @@ async function main() {
 
     // ---------- phone guest in another browser context, straight to /proto/Q1 ----------
     const pia = await rec.open(new URL("/proto/Q1", A.localUrl).href, { context: PHONE });
+    hear401(pia.context());
     const piaPid = await joinAs(pia, "Pia");
     ok("a phone opening the prototype first joins on that page", !!piaPid && piaPid !== gusPid);
     await until(pia, () => document.querySelectorAll(".vp-notes li").length === 1);
@@ -253,7 +260,7 @@ async function main() {
       && document.querySelector(".vp-left")?.textContent.startsWith("This variant tried to leave its page")));
     await away.locator(".vp-annotate").click();
     await away.waitForTimeout(800);
-    ok("the page it went to is not heard: its pins open no note", await away.locator(".vp-composer").isHidden());
+    ok("the page it went to is refused and opens no note", refused.includes(`GET /assets/${elsewhere}`) && await away.locator(".vp-composer").isHidden(), refused.join(", "));
     ok("Load it again frames the variant afresh", await away.evaluate(() => { document.querySelector(".vp-left button").click(); return !!document.querySelector(".vp-frame"); }));
     ok("and drops it again when it leaves again", await until(away, () => !document.querySelector(".vp-frame") && !!document.querySelector(".vp-left")));
     await away.keyboard.press("Escape");
@@ -270,7 +277,11 @@ async function main() {
     ok("no request was answered 429 (slow down)", rec.too.length === 0, rec.too.slice(0, 5).join(", "));
     const csp = [...await rec.cspViolations(), ...(await proto.evaluate(() => window.__csp || []))];
     ok("no page broke the server's CSP", csp.length === 0, csp.slice(0, 3).join(" | "));
-    ok("no page error or console error", rec.errors.length === 0, rec.errors.slice(0, 3).join(" | "));
+    const left = `GET /assets/${elsewhere}`;
+    ok("the only 401s are the leaving variant's two trips to the other page", JSON.stringify(refused) === JSON.stringify([left, left]), refused.join(", "));
+    let expected401 = refused.length; // each refused load also logs one console error; drop only those
+    const errors = rec.errors.filter(e => !(expected401 > 0 && e.includes("status of 401") && expected401--));
+    ok("no page error or console error", errors.length === 0, errors.slice(0, 3).join(" | "));
   } catch (e) {
     s.results.push(`ERROR ${e?.stack || e}`);
   } finally {

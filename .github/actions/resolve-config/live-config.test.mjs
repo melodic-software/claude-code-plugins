@@ -126,7 +126,7 @@ test("live config: pr-unblock runs its slots in order", () => {
       "review-dependency",
       "apply-dependency-verdict",
       "fix-ci",
-      "apply-ci-fix",
+      "apply-patch",
       "report-escalation",
     ],
   );
@@ -193,22 +193,24 @@ test("live config: report-escalation follows every other pr-unblock activity", (
     "review-dependency",
     "apply-dependency-verdict",
     "fix-ci",
-    "apply-ci-fix",
+    "apply-patch",
   ]);
 });
 
 test("live config: fix-ci holds no write token and its push job may only write its branch", () => {
   const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
   assert.deepEqual(grant("fix-ci"), { effect: "read", grant: { contents: "read", "pull-requests": "read", issues: "read" } });
-  assert.deepEqual(grant("apply-ci-fix"), {
+  assert.deepEqual(grant("apply-patch"), {
     effect: "mutate-branch",
     grant: { contents: "write", "pull-requests": "read", issues: "read" },
   });
   const fix = selected("pr-unblock", "fix-ci");
   assert.equal(fix.prepare, "ci-context");
   assert.equal(fix.args, "ci --ci");
-  assert.equal(selected("pr-unblock", "apply-ci-fix").prepare, "apply-patch");
-  assert.equal(selected("pr-unblock", "apply-ci-fix").applies, true);
+  assert.deepEqual(fix["applied-by"], { patch: "apply-patch" });
+  assert.equal(selected("pr-unblock", "apply-patch").prepare, "apply-patch");
+  assert.equal(selected("pr-unblock", "apply-patch").script, ".github/scripts/apply-patch/apply-patch.mjs");
+  assert.equal(selected("pr-unblock", "apply-patch").applies, true);
   assert.equal(selected("pr-unblock", "fix-ci", { labels: ["needs-human"] }).applies, false);
 });
 
@@ -417,15 +419,18 @@ test("live config: fix-docs does not apply to a draft PR", () => {
 });
 
 // Each activity's applied-by lands with the phase that moves it to the read
-// runner, after the broker serves a reader that knows the field; resolve-issue
-// is the first.
-test("live config: only resolve-issue sets applied-by, its patch to apply-issue-patch and its outcome to report-outcome", () => {
+// runner, after the broker serves a reader that knows the field; fix-ci and
+// resolve-issue so far.
+test("live config: only fix-ci and resolve-issue set applied-by: fix-ci's patch to apply-patch, resolve-issue's to apply-issue-patch and its outcome to report-outcome", () => {
   const { activities } = parse(FILES.config);
   assert.deepEqual(
     Object.entries(activities)
       .filter(([, activity]) => Object.hasOwn(activity, "applied-by"))
       .map(([name, activity]) => [name, activity["applied-by"]]),
-    [["resolve-issue", { patch: "apply-issue-patch", "work-outcome": "report-outcome" }]],
+    [
+      ["fix-ci", { patch: "apply-patch" }],
+      ["resolve-issue", { patch: "apply-issue-patch", "work-outcome": "report-outcome" }],
+    ],
   );
   assert.equal(selected("work-resolve-issue", "resolve-issue", ISSUE).effect, "read");
 });
