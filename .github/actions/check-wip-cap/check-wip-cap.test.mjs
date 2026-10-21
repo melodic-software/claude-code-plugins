@@ -420,8 +420,13 @@ test("the state is saved only from work-unblock's schedule, and pick-slot only r
       }
     }
   }
-  assert.deepEqual(savers.map(({ file, name }) => `${file}:${name}`), ["work-unblock.yml:label-unblocked"]);
-  assert.match(savers[0].step.if, /github\.event_name == 'schedule'/);
+  // Its own job: a restored cache must never reach a job that can mint
+  // through the token broker (id-token) or holds a secret.
+  assert.deepEqual(savers.map(({ file, name }) => `${file}:${name}`), ["work-unblock.yml:wip-state"]);
+  const saver = yamlAt(".github/workflows/work-unblock.yml").jobs["wip-state"];
+  assert.match(saver.if, /github\.event_name == 'schedule'/);
+  assert.deepEqual(saver.permissions, { contents: "read", "pull-requests": "read" });
+  assert.ok(!JSON.stringify(saver).includes("secrets."));
   const pickSlot = yamlAt(".github/workflows/work-resolve-issue.yml").jobs["pick-slot"];
   assert.equal(pickSlot["cache-mode"], "read");
   assert.equal(pickSlot.steps.filter(usesWip).length, 1);
