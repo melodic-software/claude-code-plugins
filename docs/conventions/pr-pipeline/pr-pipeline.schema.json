@@ -149,6 +149,13 @@
           "maximum": 1,
           "default": 0.8,
           "description": "Share of the issue lane's hourly merge rate (lanes App PRs merged in the last 24 hours, divided by 24) admitted per hour. The release point is this factor times hourly merges times admission-window-hours."
+        },
+        "admission-min-per-hour": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 1,
+          "description": "Admissions per hour the release point never falls below: it is at least this rate times admission-window-hours, so a day with no lane merges cannot hold admissions shut. 0 removes the floor."
         }
       }
     },
@@ -190,7 +197,7 @@
           "minimum": 1,
           "maximum": 500,
           "default": 60,
-          "description": "Open held lane PRs at or above which the held buffer is over its cap."
+          "description": "Open held lane PRs at or above which the held buffer is over its cap; on or after pause-from the issue lane pauses there."
         },
         "held-alarm-hours": {
           "type": "number",
@@ -203,7 +210,7 @@
           "type": "string",
           "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?Z)?$",
           "default": "",
-          "description": "UTC date (or date-time) from which the issue lane pauses while over the WIP cap (the held cap only alerts). Empty: it never pauses, it only alerts."
+          "description": "UTC date (or date-time) from which the issue lane pauses while over the WIP cap or the held cap. Empty: it never pauses, it only alerts."
         }
       }
     },

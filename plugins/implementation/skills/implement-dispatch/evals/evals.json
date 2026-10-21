@@ -806,6 +806,34 @@
         "The brief carries the 'mail queue delivers at least once' assumption row",
         "The brief does NOT carry the PDF rendering assumption row"
       ]
+    },
+    {
+      "id": 61,
+      "name": "items-brief-quotes-out-of-scope-verbatim",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch --items items.md - autonomous run. Item 1 in items.md is a spec'd work item for the invoice email dedupe. Its spec carries a goal line `Goal: one email per invoice`, an `Out of scope:` list naming the email template redesign and the PDF renderer, and no assumptions. Compose and dispatch item 1's brief.",
+      "expected_output": "The item 1 brief quotes the item's goal line and its Out of scope list word for word, naming the email template redesign and the PDF renderer, with no paraphrase. The assumptions part is written as `none in plan`, not left blank and not treated as a gap that holds the row back.",
+      "files": [],
+      "expectations": [
+        "The brief quotes the Out of scope list verbatim, including the email template redesign and the PDF renderer",
+        "The brief quotes the goal line `Goal: one email per invoice` word for word",
+        "The brief marks the assumptions part as none in plan rather than leaving it blank",
+        "The row is dispatched, not held back as a brief with a gap"
+      ]
+    },
+    {
+      "id": 62,
+      "name": "no-routing-row-brief-names-model-effort-and-docs-row",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch phase-3 - autonomous run. The plan's routing table has no row for phase 3. The phase's Brief states it is a small, well-specified change: rename one config key in a single file with its test. Compose and dispatch phase 3's brief.",
+      "expected_output": "With no routing row, the orchestrator picks the model and the effort from the complexity the Brief states. The brief carries a `Model and effort:` line naming the model, the effort, and the docs row matched: a row of the model-selection matrix and a row of the effort-levels table, read through the dated pointers. It invents no workload or class name, passes no frontier tier, and dispatches an implementer.",
+      "files": [],
+      "expectations": [
+        "The brief has a Model and effort line naming the model and the effort",
+        "The line names the docs row matched, from the model-selection matrix and from the effort-levels table",
+        "No workload or class name is invented for the pick",
+        "The pick does not use the frontier tier and the worker is dispatched as an implementer agent"
+      ]
     }
   ]
 }

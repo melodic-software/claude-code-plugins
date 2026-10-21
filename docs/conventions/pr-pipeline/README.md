@@ -1300,10 +1300,12 @@ is `split`, and Uncertainty Known, Knowable and Unknown map to `run`, `research-
 Each Claude lane's runs are paid by one funding role: `reviews`, `automations` or `issue-lane`. A
 lane on ci-workflows' `run-claude-cli` action passes its role with the role's two secrets,
 `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` (role upper-snake, so `issue-lane`
-gives `ISSUE_LANE_`); the key runs first and the subscription token only after a credit stop.
-`pr-verify` holds one credential per job: `check-intent` runs on the key, and
-`check-intent-subscription` runs on the token, on a new runner, only after `check-intent`'s credit
-stop with no permission denial or when the key is empty. Each lane's workflow names its role as a
+gives `ISSUE_LANE_`); the key runs first and the subscription token only after the key leg hands
+off (`run-claude-cli`'s `handoff` output: a credit stop, or class `auth` with API status 401 or
+402; a 403 hands nothing off). `pr-verify` holds one credential per job: `check-intent` runs on the
+key, and `check-intent-subscription` runs on the token, on a new runner, only after
+`check-intent`'s handoff with no permission denial or when the key is empty; its lane record is
+`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. Each lane's workflow names its role as a
 literal, and the runner policy admits it; no config key records it. `intake`, `pr-unblock`,
 `fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
 `claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
@@ -1345,6 +1347,7 @@ with defaults.
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `admission-window-hours` | 24 | Hours of issue-lane admissions the admitted backlog (open issues labeled `agent-ready`) may hold before new `agent-ready` labels pause. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour; greater than 0, at most 1. |
+| `admission-min-per-hour` | 1 | Admissions per hour the release point never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
@@ -1354,7 +1357,7 @@ the WIP cap check fails open and starts the run. This repository's values are in
 
 `node .github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are
 open: the admitted backlog is under `admission-factor` times lane merges per hour (the last 24
-hours) times `admission-window-hours`. It prints one line and exits 0 open, 1 held, 2 on error.
+hours), or `admission-min-per-hour` when that is higher, times `admission-window-hours`. It prints one line and exits 0 open, 1 held, 2 on error.
 No lane reads it yet.
 
 ## WIP cap
@@ -1371,16 +1374,18 @@ and those opened in it.
 | `min-cap` | 1 | Floor under the computed WIP cap, so a day with few merges cannot shrink the cap until the lane stalls. This repository's value is in `docs/conventions/pr-pipeline.yaml` `wip`. |
 | `merge-rate-window-hours` | 24 | Rolling window for the merged and opened counts. |
 | `opened-to-merged-ratio` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. Not `limits.admission-factor`, which sizes the agent-ready backlog. |
-| `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap. |
+| `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap; on or after `pause-from` the lane pauses there. This repository sets 10. |
 | `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
-| `pause-from` | empty | UTC date or date-time from which the lane pauses over the WIP cap; empty never pauses. |
+| `pause-from` | empty | UTC date or date-time from which the lane pauses over the WIP cap or the held cap; empty never pauses. |
 
 A held lane PR carries `needs-human` or `do-not-merge`, or has a body line exactly
 `Hold: a human merges this`. Held PRs never count against the WIP cap; countable PRs are the open
 lane PRs that are not held. Over the WIP cap (countable at or above it), over the held cap, over
 the admission share, or with a held PR past the alarm age, the check writes a warning annotation.
-Over the WIP cap on or after `pause-from` it pauses the lane: work-resolve-issue starts no run and
-work-unblock re-fires none. The held cap only alerts; it never pauses the lane. A read that fails
+Over the WIP cap or the held cap on or after `pause-from` it pauses the lane: work-resolve-issue
+starts no run, work-unblock re-fires none, and the log and step summary carry one line
+`admission paused: reason=<wip|held-cap|wip,held-cap> countable=<n> wip_cap=<n> held=<n> held_cap=<n>`
+(a `::notice` annotation titled `admission paused`). A read that fails
 never caps; without a merged count the cap is `limits.wip-cap`. A held PR's age runs from when it
 opened.
 
@@ -1402,6 +1407,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane
 | `wip_over`, `held_over`, `admission_over`, `held_alarm` | Which limit is crossed. |
 | `alert` | Any of the four. |
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |
+| `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
 
 ## Red main
 
