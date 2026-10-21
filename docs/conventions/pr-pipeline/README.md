@@ -1338,6 +1338,7 @@ with defaults.
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `admission-window-hours` | 24 | Hours of issue-lane admissions the admitted backlog (open issues labeled `agent-ready`) may hold before new `agent-ready` labels pause. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour; greater than 0, at most 1. |
+| `admission-min-per-hour` | 1 | Admissions per hour the release point never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
@@ -1347,7 +1348,7 @@ the WIP cap check fails open and starts the run. This repository's values are in
 
 `node .github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are
 open: the admitted backlog is under `admission-factor` times lane merges per hour (the last 24
-hours) times `admission-window-hours`. It prints one line and exits 0 open, 1 held, 2 on error.
+hours), or `admission-min-per-hour` when that is higher, times `admission-window-hours`. It prints one line and exits 0 open, 1 held, 2 on error.
 No lane reads it yet.
 
 ## WIP cap
