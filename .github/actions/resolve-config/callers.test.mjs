@@ -1950,3 +1950,22 @@ test("leak scan: a fresh shallow checkout of the head, as the scan job makes, st
   const clean = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "changed\n"), undefined, { headRepo: shallow });
   assert.deepEqual({ clean: clean.clean, failed: clean.failed }, { clean: "true", failed: null });
 });
+
+test("scan job: every gate, skip and launcher class value the runner sets passes the decode step's closed sets", async (t) => {
+  const good = runOutputsAfterCarry(t, {});
+  const schema = JSON.parse(read("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json"));
+  const gateReasons = Object.keys(JSON.parse(read("../report-check-run/gate-skip-reasons.json")));
+  // run-claude-cli's failure classes, the keys of SUMMARY_NOTES in lane.cjs at
+  // the pinned 7b362428. cant-fail-ok: an external contract's value list.
+  const laneClasses = ["credit-stop", "rate-limit", "auth", "overloaded", "max-turns", "timeout", "other"];
+  const cases = [
+    ...schema.$defs["skip-reason"].enum.map((value) => ["skip-reason", value]),
+    ...gateReasons.flatMap((value) => [["kill-reason", value], ["trigger-reason", value], ["gate-reason", value]]),
+    ...laneClasses.map((value) => ["lane-class", value]),
+  ];
+  assert.ok(cases.length > 20);
+  for (const [name, value] of cases) {
+    const { failed } = await decode(t, decodeEnv({ ...good, [name]: value }));
+    assert.equal(failed, null, `${name}=${value}`);
+  }
+});
