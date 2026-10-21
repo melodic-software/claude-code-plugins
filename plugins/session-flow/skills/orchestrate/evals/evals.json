@@ -260,6 +260,18 @@
         "Resolves worker_continuation to resume from the default, not respawn from the user config",
         "Continues priming the session instead of stopping"
       ]
+    },
+    {
+      "id": 22,
+      "name": "coordinator-area-keeps-no-store",
+      "prompt": "/session-flow:orchestrate coordinator billing",
+      "expected_output": "A terse acknowledgment that this session is armed as the coordinator for the billing area, delegating that area's work to workers. It names where state lives (the tracker and the repository's durable files) and creates no store file of its own.",
+      "files": [],
+      "expectations": [
+        "Acknowledges the billing area as the one this session now coordinates",
+        "Names the tracker and the repository's durable files as where state lives",
+        "Does not create a store or state file for the coordinator"
+      ]
     }
   ]
 }
