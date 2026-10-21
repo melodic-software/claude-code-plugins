@@ -618,8 +618,10 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    (`lib/publish-gate.mjs`, read through the API at the base SHA, never from the checkout) over the
    reply, the run fields, the patch, every changed or untracked file and the execution file. A
    credential format fails the run naming the pattern and asking for rotation, uploads and
-   summarizes nothing, and leaves `patch-state` empty; a `password or secret assignment` only
-   warns, naming the file.
+   summarizes nothing, and leaves `patch-state` empty. A `password or secret assignment` on a plain
+   line only warns, naming the kind of source, never its path; beside markup or escapes the gate
+   folds it blocks as `assignment hidden by markup or escapes`, without the rotation line. File
+   names are scanned too.
 
 The issue lane's skill stays on claude-code-action.
 

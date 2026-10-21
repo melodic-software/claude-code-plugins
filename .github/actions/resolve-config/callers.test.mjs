@@ -1298,20 +1298,24 @@ test("leak scan: every credential format the gate names blocks and asks for rota
   assert.match(wrapped.failed, /^leak-scan: Cloudflare API token; .*\nrotate this credential$/);
 });
 
-test("leak scan: a password or secret assignment warns, naming the file and not the value, and does not block", async (t) => {
+test("leak scan: a plain password or secret assignment warns, naming the kind of source only, and does not block", async (t) => {
   const plants = {
-    "tracked.txt": ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`),
+    "a changed file": ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`),
+    "an untracked file": ({ work }) => writeFileSync(join(work, "new-notes.txt"), `${ASSIGNMENT}\n`),
     "the execution file": ({ temp }) => writeFileSync(join(temp, "execution.json"), JSON.stringify([{ type: "user", text: ASSIGNMENT }])),
   };
-  for (const [source, plant] of Object.entries(plants)) {
+  for (const [kind, plant] of Object.entries(plants)) {
     const { clean, failed, warnings } = await scanWith(t, plant);
-    assert.deepEqual({ clean, failed }, { clean: "true", failed: null }, source);
-    assert.deepEqual(warnings, [`leak-scan: password or secret assignment in ${source}; not blocking, check it is no real credential`], source);
-    assert.ok(!warnings[0].includes("hunter2"), source);
+    assert.deepEqual({ clean, failed }, { clean: "true", failed: null }, kind);
+    assert.deepEqual(warnings, [`leak-scan: password or secret assignment in ${kind}; not blocking, check it is no real credential`], kind);
+    assert.ok(!/hunter2|tracked\.txt|new-notes/.test(warnings[0]), kind);
   }
 });
 
+const HIDDEN = "assignment hidden by markup or escapes";
+const R2_TAIL = "A".repeat(20);
 test("leak scan: an assignment never hides a credential the gate finds only in its normalized copy", async (t) => {
+  const A40 = "A".repeat(40);
   const cases = {
     // An early assignment line, then a key split by an HTML tag.
     "a tag-split key after an assignment line": [`${ASSIGNMENT}\nnotes ${KEY.slice(0, 7)}<i></i>${KEY.slice(7)}\n`, "Anthropic key"],
@@ -1319,16 +1323,37 @@ test("leak scan: an assignment never hides a credential the gate finds only in i
     "an entity-escaped token on the assignment's line": [`${ASSIGNMENT} &#x63;${CREDENTIALS["Cloudflare API token"].slice(1)}\n`, "Cloudflare API token"],
     // The escaped token is the assignment's own value.
     "an entity-escaped token as the assignment's value": [`token = '&#x63;${CREDENTIALS["Cloudflare API token"].slice(1)}'\n`, "Cloudflare API token"],
-    // A second assignment only the normalized copy shows fails closed.
-    "a tag-split second assignment": [`${ASSIGNMENT} secret=<b></b>'abcdefgh1'\n`, "password or secret assignment"],
+    // The harness's cases 11-13: an R2 pair the folded copy shows, overlapping an assignment.
+    "an R2 assignment form across the assignment's edge": [`token = 'x.secret_access_key'=&#65;${R2_TAIL}\n`, HIDDEN],
+    "an R2 assignment form inside the assignment's value": [`token = 'secret_access_key=&#65;${R2_TAIL}'\n`, HIDDEN],
+    "an R2 hex pair split by a tag around the assignment": [`token = '${"a".repeat(32)}' ${"b".repeat(32)}<b></b>${"b".repeat(32)}\n`, HIDDEN],
+    // Case 14: an assignment only the folded copy shows.
+    "an entity-escaped assignment": ["password = &quot;hunter2-zz9&quot;\n", HIDDEN],
+    "a tag-split second assignment": [`${ASSIGNMENT} secret=<b></b>'abcdefgh1'\n`, HIDDEN],
+    "a tag-split Cloudflare token": [`x cf<b></b>ut_${A40} y\n`, "Cloudflare API token"],
+    // A raw R2 assignment form inside an assignment: blanking = and : would erase it, so the raw check names it.
+    "a raw R2 assignment form inside the assignment's value": [`token = 'secret_access_key=${R2_TAIL}'\n`, "R2 key pair"],
   };
   for (const [name, [text, label]] of Object.entries(cases)) {
     const { clean, failed } = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), text));
     assert.equal(clean, "false", name);
-    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized\nrotate this credential`, name);
+    const rotate = label === HIDDEN ? "" : "\nrotate this credential";
+    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized${rotate}`, name);
   }
+  // Case 15: a plain assignment still only warns.
   const plain = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`));
   assert.deepEqual({ clean: plain.clean, failed: plain.failed, warnings: plain.warnings.length }, { clean: "true", failed: null, warnings: 1 });
+});
+
+test("leak scan: a credential-format file name blocks, and a PEM header alone blocks as a private key", async (t) => {
+  // Case 17: the file holds only an assignment; its name is the credential.
+  const named = await scanWith(t, ({ work }) => writeFileSync(join(work, `${CREDENTIALS["Cloudflare API token"]}.txt`), `${ASSIGNMENT}\n`));
+  assert.equal(named.clean, "false");
+  assert.equal(named.failed, "leak-scan: Cloudflare API token; nothing is uploaded or summarized\nrotate this credential");
+  assert.deepEqual(named.warnings, []);
+  const pem = await scanWith(t, ({ work }) => writeFileSync(join(work, "key.pem"), `${CREDENTIALS["private key"]}\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n-----END RSA PRIVATE KEY-----\n`));
+  assert.equal(pem.clean, "false");
+  assert.match(pem.failed, /^leak-scan: private key; .*\nrotate this credential$/);
 });
 
 test("leak scan: a gate whose labels lack the warning label still blocks its credentials", async (t) => {
