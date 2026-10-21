@@ -44,8 +44,11 @@ BeforeAll {
     }
 
     function Get-TestEntry {
-        param([string] $ExtId, [bool] $OffStore = $false, [string] $ValueName = '1')
-        [pscustomobject]@{ ValueName = $ValueName; ExtId = $ExtId; UpdateUrl = $(if ($OffStore) { 'https://updates.example.test/crx' }); OffStore = $OffStore }
+        param([string] $ExtId, [bool] $OffStore = $false, [string] $ValueName = '1', [string] $InstallMode)
+        [pscustomobject]@{
+            ValueName = $ValueName; ExtId = $ExtId; UpdateUrl = $(if ($OffStore) { 'https://updates.example.test/crx' })
+            InstallMode = $(if ($InstallMode) { $InstallMode }); OffStore = $OffStore
+        }
     }
 
     function Get-TestPolicy {
@@ -156,6 +159,29 @@ Describe 'Test-BrowserExtensions' -Tag 'check' {
         @($r.detail.policy_entries.install_state) | Should -Be @('listed-off-store', 'listed', 'listed')
         $r.detail.blocked_marker_count | Should -Be 1
         $r.detail.policy_entry_count | Should -Be 3
+    }
+
+    It 'lists an installing ExtensionSettings entry beside the forcelist, so an off-store one is identifiable' {
+        $policy = Get-TestPolicy -Forcelist @(Get-TestEntry 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') -Settings @(
+            Get-TestEntry 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' -OffStore $true -ValueName $null -InstallMode 'force_installed'
+        )
+        Register-FakeRead -Policy $policy
+        $r = Invoke-BrowserExtensionsAsObject
+        $r.detail.blocked_marker_count | Should -Be 1
+        $settings = @($r.detail.policy_entries | Where-Object source -eq 'extension-settings')
+        $settings.Count | Should -Be 1
+        $settings[0].ext_id | Should -Be 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+        $settings[0].hive | Should -Be 'hklm'
+        $settings[0].install_mode | Should -Be 'force_installed'
+        $settings[0].update_url | Should -Be 'https://updates.example.test/crx'
+        $settings[0].install_state | Should -Be 'listed-off-store'
+        @($r.detail.policy_entries | Where-Object source -eq 'forcelist').Count | Should -Be 1
+    }
+
+    It 'sanitizes machine text in policy entries' {
+        $policy = Get-TestPolicy -Settings @(Get-TestEntry 'ffffffffffffffffffffffffffffffff' -ValueName $null -InstallMode "force$([char]0x1B)[2J")
+        Register-FakeRead -Policy $policy
+        (Invoke-BrowserExtensionsAsObject).detail.policy_entries[0].install_mode | Should -Not -Match ([char]0x1B)
     }
 
     It 'calls nothing off-store on a domain-joined machine' {

@@ -1,5 +1,12 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
+<#
+.DESCRIPTION
+The location-kind set and the size cap are this project's own decisions,
+declared in New-ExtensionRecord.ps1 and described in check-catalog.md
+section 23; the expected values below restate those decisions, not an
+upstream source.
+#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'New-ExtensionRecord.ps1'

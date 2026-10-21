@@ -115,8 +115,8 @@ Describe 'Get-ExtensionPolicy' -Tag 'lib' {
                 } | ConvertTo-Json -Depth 4) }
         $row = Get-Row -Result (Get-ExtensionPolicy) -Browser 'edge' -Hive 'hklm' -Kind 'extension-settings'
         $row.Matched | Should -BeTrue
-        @($row.Entries | Sort-Object ExtId | ForEach-Object { "$($_.ExtId)=$($_.OffStore)" }) |
-            Should -Be @('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=True', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb=False')
+        @($row.Entries | Sort-Object ExtId | ForEach-Object { "$($_.ExtId)=$($_.OffStore)=$($_.InstallMode)" }) |
+            Should -Be @('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=True=force_installed', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb=False=normal_installed')
     }
 
     It 'reports denied when a policy key cannot be read' {

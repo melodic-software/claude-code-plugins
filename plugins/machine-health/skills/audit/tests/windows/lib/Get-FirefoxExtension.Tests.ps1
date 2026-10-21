@@ -1,5 +1,13 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
+<#
+.DESCRIPTION
+signedState values come from Mozilla's AddonManager.sys.mjs SIGNEDSTATE_*
+constants (0 missing, 2 signed), and location names from XPIProvider.sys.mjs
+KEY_APP_* constants, both pinned in check-catalog.md section 23. Which kind
+each location maps to is our judgment, recorded there. profiles.ini and
+extensions.json are synthetic shapes with made-up ids.
+#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-FirefoxExtension.ps1'

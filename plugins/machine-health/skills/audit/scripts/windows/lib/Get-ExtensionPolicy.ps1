@@ -51,15 +51,17 @@ function New-PolicyEntry {
         [AllowNull()] [string] $ValueName,
         [Parameter(Mandatory = $true)] [string] $ExtId,
         [AllowNull()] [AllowEmptyString()] [string] $UpdateUrl,
+        [AllowNull()] [string] $InstallMode,
         [Parameter(Mandatory = $true)] [string] $StoreUpdateUrl
     )
 
     $url = if ([string]::IsNullOrWhiteSpace($UpdateUrl)) { $null } else { ($UpdateUrl.Trim() -split '\?', 2)[0] }
     [pscustomobject]@{
-        ValueName = if ($ValueName) { $ValueName } else { $null }
-        ExtId     = $ExtId.Trim()
-        UpdateUrl = $url
-        OffStore  = $null -ne $url -and -not [string]::Equals($url, $StoreUpdateUrl, [System.StringComparison]::OrdinalIgnoreCase)
+        ValueName   = if ($ValueName) { $ValueName } else { $null }
+        ExtId       = $ExtId.Trim()
+        UpdateUrl   = $url
+        InstallMode = if ($InstallMode) { $InstallMode } else { $null }
+        OffStore    = $null -ne $url -and -not [string]::Equals($url, $StoreUpdateUrl, [System.StringComparison]::OrdinalIgnoreCase)
     }
 }
 
@@ -142,7 +144,8 @@ function Get-ExtensionPolicy {
                     if ($id -eq '*' -or -not $id.Trim() -or $entry -isnot [hashtable]) { continue }
                     if ([string]$entry['installation_mode'] -notin $script:ExtensionPolicyInstallModes) { continue }
                     $url = if ($entry['update_url'] -is [string]) { $entry['update_url'] } else { $null }
-                    New-PolicyEntry -ExtId $id -UpdateUrl $url -StoreUpdateUrl $b.StoreUpdateUrl
+                    New-PolicyEntry -ExtId $id -UpdateUrl $url -InstallMode ([string]$entry['installation_mode']) `
+                        -StoreUpdateUrl $b.StoreUpdateUrl
                 }
             }
             $rows.Add([pscustomobject]@{

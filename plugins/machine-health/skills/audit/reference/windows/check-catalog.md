@@ -1074,10 +1074,13 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
     counts them.
   - A muted item stays in `detail.items[]` and does not raise the level. Never `CRIT`.
 
-- **Policy entries:** `install_state` is `listed-off-store` for a forcelist entry whose update URL
-  is off that browser's own store, on a machine not joined to a domain, when no installed
-  extension in this run has that id; otherwise `listed`. `blocked_marker_count` counts forcelist
-  and ExtensionSettings entries in that state. The browser marks such entries rather than dropping
+- **Policy entries:** `detail.policy_entries` lists every forcelist entry and every
+  ExtensionSettings id whose installation mode installs it, each with its `source` (`forcelist`
+  or `extension-settings`), hive, extension id, update URL without its query string and, for
+  ExtensionSettings, its `install_mode`. `install_state` is `listed-off-store` for an entry whose
+  update URL is off that browser's own store, on a machine not joined to a domain, when no
+  installed extension in this run has that id; otherwise `listed`. `blocked_marker_count` counts
+  the entries in that state. The browser marks such entries rather than dropping
   them, and Learn limits forced installs off a domain to its store; the check does not claim the
   entry was blocked. When domain membership cannot be read, no entry is off-store and
   `domain_read_state` says so.
@@ -1088,7 +1091,12 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   Chromium
   [`policy_loader_common.cc`, `FilterSensitiveExtensionsInstallForcelist`](https://chromium.googlesource.com/chromium/src/+/681d1503162defa0f779565615b64173cda5cc04/components/policy/core/common/policy_loader_common.cc#50)
   and
-  [`manifest.mojom`, `ManifestLocation`](https://chromium.googlesource.com/chromium/src/+/681d1503162defa0f779565615b64173cda5cc04/extensions/common/mojom/manifest.mojom#18).
+  [`manifest.mojom`, `ManifestLocation`](https://chromium.googlesource.com/chromium/src/+/681d1503162defa0f779565615b64173cda5cc04/extensions/common/mojom/manifest.mojom#18);
+  Mozilla
+  [`AddonManager.sys.mjs`, `SIGNEDSTATE_*`](https://github.com/mozilla-firefox/firefox/blob/034cd8a8207e38b04afec5e6f75e5161f75a112f/toolkit/mozapps/extensions/AddonManager.sys.mjs#L4305)
+  and
+  [`XPIProvider.sys.mjs`, `KEY_APP_*` install locations](https://github.com/mozilla-firefox/firefox/blob/034cd8a8207e38b04afec5e6f75e5161f75a112f/toolkit/mozapps/extensions/internal/XPIProvider.sys.mjs#L100).
+  Which `location_kind` each browser location maps to is our judgment, held in the adapters.
   As of 2026-10-21. Recheck when the Learn page changes the policy path or the off-domain rule, a
   host shows a forced extension under another key, or Chromium changes its location enum or how it
   marks off-store entries.
@@ -1135,7 +1143,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 - **Notes:** `established_count` counts established TCP connections for context only. UDP
   endpoints include ephemeral ports, which can change between runs. Pointers:
   [QueryFullProcessImageNameW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-queryfullprocessimagenamew#parameters),
-  [Netsh http commands](https://learn.microsoft.com/en-us/windows-server/networking/technologies/netsh/netsh-http#show-servicestate),
+  [netsh http, `show servicestate` in Syntax](https://learn.microsoft.com/windows-server/administration/windows-commands/netsh-http#syntax),
   [Get-AuthenticodeSignature](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/get-authenticodesignature#outputs).
   As of 2026-10-21. Recheck when an unelevated run starts resolving every listener, the netsh
   request-queue view changes shape, or the signature status values change.

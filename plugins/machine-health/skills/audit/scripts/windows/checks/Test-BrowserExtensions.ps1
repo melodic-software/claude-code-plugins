@@ -112,13 +112,14 @@ $CheckBody = {
             if (-not $claimedBy.ContainsKey($claim)) { $claimedBy[$claim] = $row.Hive }
             $offStore = $offDomain -and $entry.OffStore -and -not $installed.Contains($claim)
             if ($offStore) { $offStoreCount++ }
-            if ($row.Kind -ne 'forcelist') { continue }
             $policyEntries.Add([ordered]@{
+                    source        = $row.Kind
                     browser       = $row.Browser
                     hive          = $row.Hive
                     value_name    = Format-MachineText $entry.ValueName
                     ext_id        = Format-MachineText $entry.ExtId
                     update_url    = Format-MachineText $entry.UpdateUrl
+                    install_mode  = Format-MachineText $entry.InstallMode
                     install_state = $offStore ? 'listed-off-store' : 'listed'
                 })
         }
@@ -165,7 +166,7 @@ $CheckBody = {
     if ($unreadableSources.Count -gt 0) { $severity = 'UNKNOWN' }
 
     $flagged = @($items | Where-Object { -not $_.muted -and $_.severity -eq 'WARN' }).Count
-    $summary = "$($items.Count) browser extension(s), $flagged flagged, $($policyEntries.Count) forcelist entr$($policyEntries.Count -eq 1 ? 'y' : 'ies')."
+    $summary = "$($items.Count) browser extension(s), $flagged flagged, $($policyEntries.Count) policy entr$($policyEntries.Count -eq 1 ? 'y' : 'ies')."
     if ($unreadableSources.Count -gt 0) { $summary += " $($unreadableSources.Count) source(s) could not be read." }
 
     $detail = @{

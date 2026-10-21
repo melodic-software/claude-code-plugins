@@ -20,12 +20,17 @@ stay inside this file. Read-only, unelevated.
 
 . (Join-Path $PSScriptRoot 'New-ExtensionRecord.ps1')
 
+# Install location names from XPIProvider.sys.mjs (KEY_APP_* and the winreg
+# locations); the kind each maps to is our judgment.
 $script:FirefoxLocationKind = @{
     'app-profile'         = 'store'
     'app-temporary'       = 'unpacked'
     'app-builtin'         = 'component'
+    'app-builtin-addons'  = 'component'
     'app-system-defaults' = 'component'
     'app-system-addons'   = 'component'
+    'app-system-profile'  = 'component'
+    'app-global'          = 'external'
     'app-system-share'    = 'external'
     'app-system-local'    = 'external'
     'app-system-user'     = 'external'
@@ -34,7 +39,8 @@ $script:FirefoxLocationKind = @{
 }
 
 # signedState at or above this value is a Mozilla signature (signed, system,
-# privileged); below it is missing, broken, preliminary or unknown.
+# privileged); below it is missing, broken, preliminary or unknown
+# (AddonManager.sys.mjs SIGNEDSTATE_* constants).
 $script:FirefoxSignedFloor = 2
 
 function Read-FirefoxProfileList {
