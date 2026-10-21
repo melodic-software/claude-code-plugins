@@ -178,6 +178,18 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
             Test-Path -LiteralPath $script:approvalsPath | Should -BeFalse
         }
 
+        It 'writes the migration through Write-StateFile, which never overwrites a file that appeared meanwhile' {
+            Set-Content -LiteralPath $script:todoPath -Value '- [x] Clear-TempFiles' -Encoding utf8
+            $script:update = $null
+            Mock Write-StateFile { $script:update = $Update; $true }
+
+            $null = Get-ApprovalState -StateDir $script:stateDir -TodoPath $script:todoPath
+
+            Should -Invoke Write-StateFile -Times 1 -Exactly -ParameterFilter { $Path -eq $script:approvalsPath }
+            (& $script:update $null | ConvertFrom-Json).migration.migrated_from_todo_md | Should -BeTrue
+            & $script:update '{"schema_version":"1.0","remediations":{}}' | Should -BeNullOrEmpty
+        }
+
         It 'logs a migration event when LogPath is provided' {
             Set-Content -LiteralPath $script:todoPath `
                 -Value '- [x] Clear-TempFiles' -Encoding utf8
