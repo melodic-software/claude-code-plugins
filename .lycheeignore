@@ -55,3 +55,14 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://jackrighteous\.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-prompt-too-complicated-clean-workflow$
 ^https://testing\.googleblog\.com/2017/07/code-health-to-comment-or-not-to-comment\.html$
 ^https://testing\.googleblog\.com/2016/05/flaky-tests-at-google-and-how-we\.html$
+
+# gnu.org User-Agent throttle: 429 on the runner (online run 39616513990) and to lychee's User-Agent from a workstation, 200 to a browser User-Agent (verified 2026-10-21).
+^https://www\.gnu\.org/prep/standards/html_node/Command_002dLine-Interfaces\.html$
+
+# GitHub REST API endpoints cited as how a fact was fetched: 403 on the runner (online run 39616513990), 200 unauthenticated from a workstation (verified 2026-10-21). A host-wide exclude is proposed in melodic-software/standards#831.
+^https://api\.github\.com/repos/anthropics/claude-code/commits\?path=mods$
+^https://api\.github\.com/repos/anthropics/claude-code/commits\?path=mods&per_page=100&sha=main$
+^https://api\.github\.com/repos/anthropics/claude-code/issues/91870/comments$
+^https://api\.github\.com/repos/anthropics/claude-code/releases$
+^https://api\.github\.com/repos/anthropics/claude-code/releases/tags/v2\.1\.269$
+^https://api\.github\.com/repos/anthropics/claude-code/tags$
