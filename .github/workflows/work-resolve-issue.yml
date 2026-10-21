@@ -6,13 +6,15 @@ name: work-resolve-issue
 # exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md, Issue mode.
 #
-# resolve-issue runs /work-items:work on the issue and commits to a new branch,
-# or stops and says why. report-outcome then opens a ready PR from that branch,
-# or comments on the issue and labels it needs-human. The agent-ready label
-# alone admits the issue; the hold labels and the go-live time are in
+# resolve-issue runs /work-items:work on the issue in pr-run-activity-read.yml,
+# with no write token, and leaves its change as a patch, or stops and says why.
+# apply-issue-patch, a script in pr-run-activity-write.yml, commits that patch
+# to a new branch. report-outcome then opens a ready PR from that branch, or
+# comments on the issue and labels it needs-human. The agent-ready label alone
+# admits the issue; the hold labels and the go-live time are in
 # docs/conventions/pr-pipeline.yaml. The kill switch, the labeler check (a
-# listed human, or the lanes App) and the token broker run inside
-# pr-run-activity-write.yml.
+# listed human, or the lanes App) and the token broker run inside each
+# runner.
 
 # The morning brief's Lanes section groups runs by the issue number that ends
 # this title, so a retitled issue stays one item and two issues with one
@@ -33,13 +35,70 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The lane's admission gate, before any job that gets a credential: the
+  # account that applied agent-ready, and any re-runner, must be a listed
+  # human, or the lanes App applying agent-ready itself (work-unblock's).
+  # Anyone else's label, on an issue anyone can open, starts nothing past
+  # this job. It runs check-trusted-trigger from the default branch tip with
+  # a read-only token and no secret; the read runner checks the trigger again.
+  admit:
+    if: github.event.label.name == 'agent-ready'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      proceed: ${{ steps.gate.outputs.proceed }}
+    steps:
+      # The gate cannot match an unset lanes App id, so the App's own
+      # labels would read as a stranger's and its exception would never hold.
+      - name: Assert the lanes App sender id and default branch are set
+        env:
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
+            exit 1
+          fi
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::the event names no default branch"
+            exit 1
+          fi
+
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the trigger
+        id: gate
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          triggering-actor: ${{ github.triggering_actor }}
+          require-pr: "false"
+          require-kind: human
+          app-label: agent-ready
+
   # Picks the concurrency slot resolve-issue waits on (a run-time cap, not a
   # lane slot in pr-pipeline.yaml): the issue number modulo SLOTS. Workflow
   # expressions have no arithmetic operator, so a job computes it. A burst of
   # admissions then waits in SLOTS queues instead of spending the lanes App's
   # hourly API quota at once.
   pick-slot:
-    if: github.event.label.name == 'agent-ready'
+    needs: admit
+    if: github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -89,6 +148,8 @@ jobs:
           activity: resolve-issue
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
+          # What the read runner hands on for resolve-issue.
+          applied-by-supported: patch work-outcome
 
       - name: Pick the slot
         id: slot
@@ -100,8 +161,10 @@ jobs:
   # listed human's; the App's other labels never start one. No step of this
   # lane adds agent-ready, so a run cannot start another.
   resolve-issue:
-    needs: pick-slot
-    if: github.event.label.name == 'agent-ready' && needs.pick-slot.outputs.capped != 'true'
+    needs: [admit, pick-slot]
+    if: >-
+      github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
+      && needs.pick-slot.outputs.capped != 'true'
     # One run per slot at a time; the rest wait in line, holding no runner,
     # and are never cancelled (`queue: max`). GitHub keeps at most 100 waiting
     # per slot and cancels any more. report-outcome takes no slot, so it never
@@ -110,17 +173,22 @@ jobs:
     concurrency:
       group: work-resolve-issue-slot-${{ needs.pick-slot.outputs.slot }}
       queue: max
+    # The read runner's run job, which runs the model, holds contents and
+    # pull-requests read only; checks: write is its report job's (posting
+    # nothing in issue mode) and id-token: write its broker-check job's,
+    # which runs only default-branch-tip code.
     permissions:
       contents: read
       pull-requests: read
       checks: write
       id-token: write
-    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
       lane: work-resolve-issue
       role: issue-lane
       activity: resolve-issue
       issue-number: ${{ format('{0}', github.event.issue.number) }}
+      output-mode: patch
       trusted-base: default-tip
       app-label: agent-ready
       timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '25') }}
@@ -128,12 +196,48 @@ jobs:
     secrets:
       claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
 
+  # The commit job: a script with no model that runs nothing from the patch.
+  # It checks the patch against the model job's SHA-256, applies it to the
+  # commit the model worked on (checked out fresh, never the model job's
+  # workspace), refuses the paths patch-rules.json's `issue` row refuses,
+  # re-reads the issue's hold labels and agent-ready, and commits it to a new
+  # work-resolve-issue/issue-<n>-<run id>-<attempt> branch. One per issue at a
+  # time, the rest queued.
+  apply-issue-patch:
+    needs: resolve-issue
+    if: >-
+      ${{ !cancelled() && needs.resolve-issue.outputs.issue-run-started == 'true'
+      && needs.resolve-issue.outputs.patch-state == 'written' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: work-resolve-issue-write-${{ github.event.issue.number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: work-resolve-issue
+      role: issue-lane
+      activity: apply-issue-patch
+      issue-number: ${{ format('{0}', github.event.issue.number) }}
+      trusted-base: default-tip
+      app-label: agent-ready
+      patch-state: ${{ needs.resolve-issue.outputs.patch-state }}
+      patch-sha256: ${{ needs.resolve-issue.outputs.patch-sha256 }}
+      patch-attempt: ${{ needs.resolve-issue.outputs.patch-attempt }}
+      patch-activity: resolve-issue
+      patch-base-sha: ${{ needs.resolve-issue.outputs.base-sha }}
+      patch-resume-tip: ${{ needs.resolve-issue.outputs.resume-tip }}
+      reply-attempt: ${{ needs.resolve-issue.outputs.reply-attempt }}
+
   # One `pipeline/<activity>` commit status per lane step on the lane branch's
   # head (post-statuses.mjs). No step is skipped on them; a failing one holds
   # the merge gate like any failing check. This is the lane's only `statuses: write` grant, on the job's own
   # GITHUB_TOKEN, and it runs only scripts from the default branch tip.
   report-statuses:
-    needs: [resolve-issue, run-checks, report-outcome]
+    needs: [resolve-issue, apply-issue-patch, run-checks, report-outcome]
     if: >-
       ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
       || needs.resolve-issue.outputs.reuse-branch != '') }}
@@ -187,7 +291,7 @@ jobs:
   # them only when this job succeeded, and stops a done run whose checks
   # failed, did not run, or ran on another tip.
   run-checks:
-    needs: resolve-issue
+    needs: [resolve-issue, apply-issue-patch]
     if: >-
       ${{ !cancelled() && (needs.resolve-issue.outputs.issue-run-started == 'true'
       || needs.resolve-issue.outputs.reuse-branch != '') }}
@@ -231,8 +335,8 @@ jobs:
           path: ${{ runner.temp }}/work-outcome
 
       # The branch report-outcome opens the PR from: the reuse branch, else
-      # the one lane.json names, which must be this run's own, else the
-      # branch a resumed run continued.
+      # the one lane.json names (apply-issue-patch writes it), which must be
+      # this run's own, else the branch a resumed run continued.
       - name: Pick the lane branch
         id: branch
         env:
@@ -324,9 +428,11 @@ jobs:
           echo "checks=$record" >>"$GITHUB_OUTPUT"
 
   report-outcome:
-    needs: [resolve-issue, run-checks]
-    # issue-run-started is set only by the write runner's own steps, once the
-    # run got its token; a run that failed after that still reports.
+    needs: [resolve-issue, apply-issue-patch, run-checks]
+    # issue-run-started is set only by the read runner's own steps, before
+    # any model turn, once the run chose to run the skill; a run that failed
+    # after that still reports, with apply-issue-patch's branch when it made
+    # one.
     # reuse-branch, also runner-computed, names a lane branch an earlier run
     # left with commits and no report: the work was skipped, a read-only
     # summary pass described the branch, and this opens the PR from it.

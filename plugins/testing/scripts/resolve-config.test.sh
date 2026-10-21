@@ -406,7 +406,8 @@ erun
 assert_eq "e2e with no layer: every key at its default" \
   "0:e2e_driver	auto	default
 reuse_running_instance	auto	default
-feature_map_dir	.claude/skills/feature-map	default" "$rc:$out"
+feature_map_dir	.claude/skills/feature-map	default
+browser_driver	playwright-cli	default" "$rc:$out"
 erun --user 'e2e_driver=${user_config.e2e_driver}' --user 'reuse_running_instance='
 assert_eq "an unrendered or empty userConfig value reads as unset" \
   "e2e_driver	auto	default
@@ -558,6 +559,51 @@ printf 'feature_map_dir: docs/map\n' >"$TY"
 erun
 assert_eq "a refused overlay takes the default, not testing.yaml's value" "feature_map_dir	.claude/skills/feature-map	default" "$(fmd)"
 rm -f "$REPO/.claude/testing.local.yaml" "$TY"
+
+# browser_driver: one command name, same layer order as e2e_driver.
+bd() { grep '^browser_driver	' <<<"$out"; }
+reset
+erun
+assert_eq "no layer sets browser_driver: the default" "browser_driver	playwright-cli	default" "$(bd)"
+printf 'browser_driver: my-browser.v2_x\n' >"$TY"
+erun
+assert_eq "testing.yaml sets browser_driver and is the source" "browser_driver	my-browser.v2_x	$TY" "$(bd)"
+erun --user browser_driver=from-option
+assert_eq "testing.yaml wins over userConfig" "browser_driver	my-browser.v2_x	$TY" "$(bd)"
+rm -f "$TY"
+erun --user browser_driver=from-option
+assert_eq "userConfig supplies it when no file does" "browser_driver	from-option	userConfig" "$(bd)"
+for bad in 'a/b' 'x@y' '..//z'; do
+  printf 'browser_driver: %s\n' "$bad" >"$TY"
+  erun
+  assert_eq "browser_driver '$bad' takes the default" "0:browser_driver	playwright-cli	default" "$rc:$(bd)"
+  assert_contains "and is named on stderr for '$bad'" "$err" "$TY: browser_driver: unknown value '$bad'"
+done
+rm -f "$TY"
+
+# check-browser-driver.sh: stops when the resolved command is not on PATH.
+CHECK="$SCRIPT_DIR/check-browser-driver.sh"
+bcheck() {
+  rc=0
+  out="$(PATH="$T/bin:$PATH" bash "$CHECK" --root "$REPO" "$@" 2>&1)" || rc=$?
+}
+mkdir -p "$T/bin"
+printf 'browser_driver: no-such-browser-tool-zz\n' >"$TY"
+bcheck
+assert_eq "a browser_driver command not on PATH exits 1" 1 "$rc"
+assert_contains "naming the setting" "$out" "browser_driver"
+assert_contains "the command" "$out" "no-such-browser-tool-zz"
+assert_contains "and the source" "$out" "$TY"
+assert_contains "with the two ways forward" "$out" "install 'no-such-browser-tool-zz', or set browser_driver"
+assert_contains "and no silent substitute" "$out" "No other browser tool is used as a silent substitute"
+printf '#!/bin/sh\nexit 0\n' >"$T/bin/no-such-browser-tool-zz"
+chmod +x "$T/bin/no-such-browser-tool-zz"
+bcheck
+assert_eq "the same command as a stub on PATH exits 0" 0 "$rc"
+rm -f "$TY" "$T/bin/no-such-browser-tool-zz"
+bcheck --user browser_driver=another-missing-tool-zz
+assert_eq "a userConfig command not on PATH exits 1" 1 "$rc"
+assert_contains "naming userConfig as the source" "$out" "source: userConfig"
 
 erun --user nonsense
 assert_eq "--user without <key>=<value> is a usage error" 2 "$rc"

@@ -49,7 +49,7 @@ Two threads are required, each in one of those states:
 
 - **Principles**: which design principles, or consumer overrides recorded as
   `Overrides bundled default <principle> per <standards file>`, shaped the design, and how
-  generalize-now-or-wait was settled (citing the Brief's `Intent:` line counts).
+  generalize-now-or-wait was settled (citing the Brief's `Variation intent:` line counts).
 - **Lifecycle and reversibility**: the door calls `/planning:design` "Lifecycle and
   reversibility" requires at the Brief's quality bar, in a thread of that name or as `Door:` lines
   in the decision threads.

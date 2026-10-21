@@ -44,9 +44,9 @@ would otherwise have to rebuild.
 
 Principles applied: SRP keeps per-channel formatting out of the fanout service; reuse of the
 existing outbox over a new delivery path.
-Generalize now or wait: the Brief's `Intent: second variant = category` line settles it: channels
+Generalize now or wait: the Brief's `Variation intent: second variant = category` line settles it: channels
 vary, so the per-channel step is isolated behind one interface now.
-Rationale: the Intent line is the user's answer; every new channel is a known variation.
+Rationale: the Variation intent line is the user's answer; every new channel is a known variation.
 
 ## Thread 8: Lifecycle and reversibility. RESOLVED
 

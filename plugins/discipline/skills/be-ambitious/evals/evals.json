@@ -73,6 +73,46 @@
         "Carries the abort line: if the target is infeasible, stop and report; never edit tests, criteria or the target",
         "Carries the scope fence lines"
       ]
+    },
+    {
+      "id": 6,
+      "name": "deepen-in-progress-carry-on",
+      "prompt": "/discipline:be-ambitious This is too shallow. (Earlier I asked why checkout errors spiked yesterday and you wrote notes/incident.md from logs/summary.txt.)",
+      "expected_output": "Needs the seeded workspace in plugins/discipline/evals/ba-deepen-carry-on/scaffold.sh. Treats the text as feedback on finished work. Answers the four depth questions for that write-up, rewrites the brief with the feedback in it, sees that the goal and scope are unchanged, and redoes the write-up without waiting: from the raw log rather than the digest, with the methods it named, ending with what an outside check showed.",
+      "files": [],
+      "expectations": [
+        "Answers what a top practitioner would do, the rawest material, the methods and tools, and the outside check, each for this write-up",
+        "Shows the rewritten brief",
+        "Does not pause, because the goal and scope are unchanged",
+        "Redoes the work from the raw log rather than the digest",
+        "Reports what the outside check showed"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "deepen-in-progress-pause",
+      "prompt": "/discipline:be-ambitious Not good enough. What I actually need is alerting for every tenant. (Earlier I asked why checkout errors spiked yesterday and you wrote notes/incident.md.)",
+      "expected_output": "Answers the four depth questions and shows the rewritten brief, says the feedback changes the goal and widens the scope, and waits for the go-ahead without building anything.",
+      "files": [],
+      "expectations": [
+        "Says the goal or scope changed",
+        "Shows the rewritten brief",
+        "Waits for the user's go-ahead",
+        "Creates no file and runs no command"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "depth-argument",
+      "prompt": "/discipline:be-ambitious depth Write a Python function that parses the dates in our nightly CSV export.",
+      "expected_output": "Raises the request on Depth and the outside check only, and says Altitude and Range were skipped because the user asked for depth only.",
+      "files": [],
+      "expectations": [
+        "Runs the depth pass: expert additions, real export rows as raw material, named methods, an outside check",
+        "Says Altitude and Range were skipped and why",
+        "States no bigger goal and brings in no other field",
+        "Executes nothing until the user accepts"
+      ]
     }
   ]
 }

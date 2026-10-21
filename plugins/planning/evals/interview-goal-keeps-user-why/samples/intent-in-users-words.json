@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "### Goal\nSupport staff upload a scanned intake form and get a draft ticket with its fields filled in.\n- Intent (why, in the user's words): \"our support team loses every Monday morning re-keying the weekend's paper forms\"\n- Vision (where this heads): every intake channel lands in one queue\n- When goals conflict, prefer: none stated\n\n### Work size\n",
+      "why": "the user's reason quoted on the Intent line"
+    },
+    {
+      "answer": "### Goal\nDraft tickets from scanned intake forms.\n- Intent (why, in the user’s words): loses every Monday morning rekeying the weekend’s paper forms\n",
+      "why": "curly apostrophes and a dropped hyphen still carry the user's words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no Brief written"
+    },
+    {
+      "answer": "### Goal\nDraft tickets from scanned intake forms.\n- Intent (why, in the user's words): save support staff time on manual data entry\n",
+      "why": "a paraphrase, not the user's words"
+    },
+    {
+      "answer": "### Goal\nDraft tickets from scanned intake forms.\n\n### Captured assumptions\n- Intent (why, in the user's words): re-keying the weekend's paper forms\n",
+      "why": "the line sits outside the Goal section"
+    },
+    {
+      "answer": "### Goal\nDraft tickets from scanned intake forms, because the team spends Mondays re-keying the weekend's paper forms.\n",
+      "why": "the why is folded into the paragraph with no Intent line"
+    }
+  ]
+}

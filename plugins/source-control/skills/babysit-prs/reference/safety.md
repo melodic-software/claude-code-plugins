@@ -704,7 +704,8 @@ A ready PR merges through GitHub's async merge API ([GitHub](../../../reference/
   corrupt: it is never put in an API path or cleared, and holds the same way until a human inspects
   it. A finished request, or one GitHub no longer returns (404; GitHub keeps a result 24 hours
   after its latest update), clears the record and shows as `pendingMergeRequest`; the gate keeps no
-  local age limit of its own. A request that finished merged is first checked against every head
+  local age limit of its own. A `merge.report-only` unattended run reads the record but leaves it
+  as it was, so the live run that dispatches the post-merge full run still finds it. A request that finished merged is first checked against every head
   the gate evaluated, the PR's and, for a stack, each lower layer's, recorded with it
   (`pendingMergeRequest.verification`). A mismatch puts an escalation first in `blockers` with exit
   `10`; heads that cannot be read back keep the record, hold the same way, and are re-checked next

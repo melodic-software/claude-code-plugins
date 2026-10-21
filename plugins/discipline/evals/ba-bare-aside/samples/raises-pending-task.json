@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Your previous message was a side question, so I raised the task still waiting on your yes.\n\nOriginal: add a CSV export to the invoice list page.\nRaised: an export finance can reconcile against the ledger, streamed so large lists do not time out, with column names agreed with finance and a test that compares an export against known invoices.\nCheck: export a month with a known total and compare the sums.\n\nReply \"accept\", edit it, or keep the original.",
+      "why": "treats the pending CSV export as the request and raises it"
+    },
+    {
+      "answer": "No need to run it first. Taking the pending CSV export as the request: Raised: export what the user filtered, in the order shown, streamed, with a round-trip test that re-imports the file. Nothing is built until you reply.",
+      "why": "answers the aside briefly and raises the pending task"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Original: \"Do you want me to run this command first so you can see how it behaves?\"\nRaised: run the command on a sample request and compare its output with the documentation.",
+      "why": "raises the side question as if it were the task"
+    },
+    {
+      "answer": "What request would you like me to raise? Paste it after the command.",
+      "why": "asks for a request while one is pending"
+    }
+  ]
+}

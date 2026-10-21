@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "### Captured assumptions\n- Quality bar: production\n- Intent: second variant = blocked (Q1, USER-RESERVED); existing structure: checkout has one pay step; upstream: issue 412 asks for Loqate validation\n",
+      "answer": "### Captured assumptions\n- Quality bar: production\n- Variation intent: second variant = blocked (Q1, USER-RESERVED); existing structure: checkout has one pay step; upstream: issue 412 asks for Loqate validation\n",
       "why": "the contract line with the blocked value"
     }
   ],
@@ -11,11 +11,11 @@
       "why": "no Brief written"
     },
     {
-      "answer": "### Captured assumptions\n- Intent: second variant = category; existing structure: one pay step; upstream: the triage bot says more providers are coming\n",
+      "answer": "### Captured assumptions\n- Variation intent: second variant = category; existing structure: one pay step; upstream: the triage bot says more providers are coming\n",
       "why": "settles the answer from bot text"
     },
     {
-      "answer": "### Captured assumptions\n- The intent was not blocked; Intent: second variant was left out.\n",
+      "answer": "### Captured assumptions\n- The intent was not blocked; Variation intent: second variant was left out.\n",
       "why": "a negated mention, not the contract line"
     }
   ]
