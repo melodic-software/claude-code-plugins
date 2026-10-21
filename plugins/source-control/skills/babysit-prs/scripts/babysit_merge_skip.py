@@ -37,9 +37,9 @@ A candidate is skipped only when the stored refusal is one of `SKIPPABLE`,
 names the same key and head, was judged less than `max-minutes` ago and has
 been skipped fewer than `max-skips` runs in a row; never when it is in the
 merge queue, when any read is incomplete or failed, or for `verify:missing`
-while a PASS artifact names its head (its run may finish). When every
-candidate would be skipped, the first is gated, so a gate process still
-sweeps the merge queue. Any doubt gates the candidate.
+or `verify:earlier-fail` while a PASS artifact names its head (its run may
+finish). When every candidate would be skipped, the first is gated, so a gate
+process still sweeps the merge queue. Any doubt gates the candidate.
 
 `record` runs after the gate loop. It stores each gated candidate's refusal
 when it is one of `SKIPPABLE` at the listed head and its gate process wrote
@@ -426,7 +426,8 @@ def select(
             else None
         )
         if record is None or (
-            record["value"]["reason"] == verify_evidence.MISSING
+            record["value"]["reason"]
+            in (verify_evidence.MISSING, verify_evidence.EARLIER_FAIL)
             and known.get("passAtHead")
         ):
             kept.append(candidate)

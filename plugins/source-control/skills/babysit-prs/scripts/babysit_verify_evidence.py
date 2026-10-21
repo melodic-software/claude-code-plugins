@@ -19,7 +19,8 @@ from a completed, successful one. Any other artifact is ignored.
 - a counted FAIL at the head, under any pull request number: `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch:
-  `verify:earlier-fail`;
+  `verify:earlier-fail` when the head has no counted PASS or PASS-NOTES, or
+  a read below failed; otherwise the head's passes decide, as below;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
   is ignored; an untied FAIL whose run is readable and of verifier origin but
@@ -803,7 +804,7 @@ class Reader:
         detail = unreadable
         if any(v.sha == head for v in fails):
             refusal = FAIL
-        elif fails:
+        elif fails and (unreadable or not passes):
             refusal = EARLIER_FAIL
         elif unreadable:
             refusal = UNREADABLE

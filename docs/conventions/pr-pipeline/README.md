@@ -799,8 +799,8 @@ or its head, the gate's config and code on the default branch, and the rung cap.
 statuses do not move `updatedAt`, so that is never the key alone. Only `risk:MED`, `risk:HIGH` and
 the `verify:` refusals `fail`, `earlier-fail`, `missing`, `too-old`, `spec-changed` and
 `untrusted-spec` are skipped. A refusal whose gate process failed a write or has a review re-run due
-is not. Neither is a pull request in the merge queue, nor `verify:missing` while a PASS artifact
-names the head. `merge.skip-unchanged` bounds each skip: `max-minutes` (default 60) after the
+is not. Neither is a pull request in the merge queue, nor `verify:missing` or `verify:earlier-fail`
+while a PASS artifact names the head. `merge.skip-unchanged` bounds each skip: `max-minutes` (default 60) after the
 refusal was judged, or `max-skips` (default 3) runs in a row, the candidate is gated again. `0` in
 either turns skipping off. When every candidate would be skipped, the first is gated, and any read
 that fails or comes back incomplete gates the candidate (`babysit_merge_skip.py`). The refusals live
@@ -1025,7 +1025,9 @@ head:
   repository (the retention maximum and its setting), so an older verdict may be gone;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
-  verdict recording its head branch) refuses (`verify:earlier-fail`);
+  verdict recording its head branch) refuses (`verify:earlier-fail`) when the head has no counted
+  `pass` or `pass-notes`, or a read below fails. Otherwise the head's passes decide as below, so an
+  earlier `fail` stops holding once a counted pass at the current head clears every check;
 - a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
   untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
   downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run

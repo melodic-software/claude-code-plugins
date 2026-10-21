@@ -6,7 +6,8 @@ named `pr-verify-<pr>-<sha>-<verdict>` counts only through a run of
 `.github/workflows/pr-verify.yml` on main of this repository; a FAIL counts
 whatever the run's conclusion and under any pull request number, a PASS only
 from a completed success at this pull request's head; a FAIL at another head
-of the pull request goes to a human; an unreadable FAIL blocks; a pull request
+of the pull request goes to a human unless a counted pass at the head clears
+every check; an unreadable FAIL blocks; a pull request
 older than 80 days goes to a human; a pass needs every linked issue written
 and last edited by a trusted human other than the author, unchanged since the
 judgment; the Actions reads use the Actions token; a Dependabot pull request
@@ -469,14 +470,14 @@ class AFailCountsUnderAnyNumber(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_a_fail_at_one_of_this_prs_commits_under_another_number(self) -> None:
-        fake = passing(artifact(named(IN_PR, "fail", 99), 2), runs={2: run(2)})
+        fake = FakeGitHub([artifact(named(IN_PR, "fail", 99), 2)], {2: run(2)})
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertTrue(evidence.needs_human)
 
     def test_a_fail_recording_this_head_branch_under_another_number(self) -> None:
         name = named(UNRELATED, "fail", 99)
-        fake = passing(artifact(name, 2), runs={2: run(2)})
+        fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
         fake.records[name] = record(99, UNRELATED, verdict="fail")
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
@@ -492,19 +493,65 @@ class AFailCountsUnderAnyNumber(unittest.TestCase):
 
 
 class AnEarlierFailGoesToAHuman(unittest.TestCase):
-    def test_a_fail_at_an_earlier_head_blocks_a_pass_at_the_current_one(self) -> None:
-        fake = passing(artifact(named(EARLIER, "fail"), 2), runs={2: run(2)})
-        evidence = read(fake)
-        self.assertEqual(evidence.refusal, "verify:earlier-fail")
-        self.assertTrue(evidence.needs_human)
-        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
-
     def test_a_fail_at_the_current_head_wins_over_an_earlier_fail(self) -> None:
         fake = FakeGitHub(
             [artifact(named(EARLIER, "fail"), 1), artifact(named(HEAD, "fail"), 2)],
             {1: run(1), 2: run(2)},
         )
         self.assertEqual(read(fake).refusal, "verify:fail")
+
+
+class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
+    """An earlier head's FAIL stops holding once the current head has a
+    counted pass that clears every spec check; without one it still holds."""
+
+    def test_an_earlier_fail_and_an_allowing_pass_at_the_head_allow(self) -> None:
+        fake = passing(artifact(named(EARLIER, "fail"), 2), runs={2: run(2)})
+        evidence = read(fake)
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+
+    def test_an_earlier_fail_with_no_verdict_at_the_head_refuses(self) -> None:
+        fake = FakeGitHub([artifact(named(EARLIER, "fail"), 2)], {2: run(2)})
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail")
+        self.assertTrue(evidence.needs_human)
+
+    def test_a_pass_from_an_unfinished_run_does_not_clear_it(self) -> None:
+        fake = passing(
+            artifact(named(EARLIER, "fail"), 2),
+            runs={1: run(1, status="in_progress", conclusion=None), 2: run(2)},
+        )
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_fail_at_the_head_still_refuses_beside_the_pass(self) -> None:
+        fake = passing(
+            artifact(named(EARLIER, "fail"), 2),
+            artifact(named(HEAD, "fail"), 3),
+            runs={2: run(2), 3: run(3)},
+        )
+        self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_pass_on_a_changed_spec_still_refuses(self) -> None:
+        fake = passing(artifact(named(EARLIER, "fail"), 2), runs={2: run(2)})
+        fake.closing = [(8, REPO)]
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+
+    def test_a_pass_on_an_untrusted_spec_still_refuses(self) -> None:
+        fake = passing(artifact(named(EARLIER, "fail"), 2), runs={2: run(2)})
+        fake.records[named(HEAD, "pass")] = record(
+            linked_issues=[{**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}]
+        )
+        self.assertEqual(read(fake).refusal, "verify:untrusted-spec")
+
+    def test_an_unreadable_tied_fail_keeps_the_earlier_fail(self) -> None:
+        # Run 7 is not in the fake, so the tied FAIL at the head is unread.
+        fake = passing(
+            artifact(named(EARLIER, "fail"), 2),
+            artifact(named(HEAD, "fail"), 7),
+            runs={2: run(2)},
+        )
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
 
 class AFailCountsWhateverTheRunConcluded(unittest.TestCase):
@@ -1201,9 +1248,10 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         # An overwrite uploads a new id under the same name: the head ref
         # shared for the old id must not stand for the new contents.
         fake = self.other_fail()
-        self.assertIsNone(read(fake).refusal)
+        del fake.artifacts[0]  # no pass, so a tied FAIL refuses
+        self.assertEqual(read(fake).refusal, "verify:missing")
         name = named(self.OTHER, "fail", 99)
-        fake.artifacts[1] = {**fake.artifacts[1], "id": 21}
+        fake.artifacts[0] = {**fake.artifacts[0], "id": 21}
         fake.records[name] = record(99, self.OTHER, head_ref="feat/x")
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
         self.assertEqual(self.downloads(fake, 2), 2)
@@ -1335,7 +1383,7 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
 
     def test_a_forged_head_ref_does_not_untie_an_earlier_fail(self) -> None:
         name = named(UNRELATED, "fail", 99)
-        fake = passing(artifact(name, 2), runs={2: run(2)})
+        fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
         fake.records[name] = record(99, UNRELATED, head_ref="feat/x")
         for section in ("fail-head-ref", "carried-fail-head-ref"):
             with self.subTest(section=section):
@@ -1344,7 +1392,7 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
 
     def test_carried_reads_that_count_a_fail_spare_the_reads(self) -> None:
         name = named(UNRELATED, "fail", 99)
-        fake = passing(artifact(name, 2), runs={2: run(2)})
+        fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
         self.restore(
             {
                 "run-record": {f"{REPO}|2": run(2)},
