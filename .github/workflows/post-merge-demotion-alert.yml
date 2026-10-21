@@ -26,6 +26,13 @@ name: post-merge-demotion-alert
 # nothing beside another failed job, and the gitleaks gate, which scans every
 # branch on these events, counts against no merge.
 #
+# Beside a new record of a full run, it files one fix issue per newly failing
+# check (at most 5) and dispatches intake-triage.yml for each, so an agent can
+# fix main once the owner ratifies it. First body line `<!-- post-merge-fix
+# check=<name> -->`, no label, fixed text only; one issue per check across
+# SHAs, reopened when the check fails again. The record keeps needs-human, and
+# closing a fix issue changes nothing on it.
+#
 # After a failed scheduled or dispatched full run, the report-red-main job
 # applies the red-main rule (docs/conventions/pr-pipeline/README.md, "Red
 # main"): it waits for the run's one re-run, confirms the red, pins the
@@ -314,13 +321,14 @@ jobs:
           read_records() {
             gh api --paginate \
               "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$1&per_page=100" \
-              --jq '.[] | select(.pull_request == null) | [.number, .state, (.body // "")]
-                | [.[0], .[1], (.[2] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
-                   ([.[2] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
+              --jq '.[] | select(.pull_request == null) | [.number, .state, (.state_reason // "none"), (.body // "")]
+                | [.[0], .[1], .[2], (.[3] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
+                   ([.[3] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
                     | ltrimstr("- Failing run: ") | sub("\\s+$"; ""))]
                 | @tsv'
           }
-          records="$(read_records "${filers[0]}")"$'\n'
+          own_records="$(read_records "${filers[0]}")"
+          records="$own_records"$'\n'
           if [[ -n "${filers[1]:-}" ]]; then
             if lane_records="$(read_records "${filers[1]}")"; then
               records+="$lane_records"
@@ -331,7 +339,7 @@ jobs:
           number=''
           state=''
           filed=''
-          while IFS=$'\t' read -r n s first failing; do
+          while IFS=$'\t' read -r n s _ first failing; do
             # A record matched by its failing run must be a demotion record:
             # anything else names the run without holding the gate.
             if [[ "$first" == "$marker" || "$first" == "$failure_marker" ||
@@ -437,22 +445,127 @@ jobs:
           "
             fi
           fi
+          # Fix issues (#7535): one per newly failing check of a full run, at
+          # most 5, for an agent to fix main through intake triage and the
+          # owner's ratification. github-actions[bot] files them, so their text
+          # is fixed: only a check name that passes fix_name_ok, hex SHAs, the
+          # run link built from its numeric id, and the record's number. No
+          # label, no closing keyword, no commit subject or annotation message,
+          # and neither record marker, so no reader takes one for a record.
+          fix_charset='^[A-Za-z0-9][- A-Za-z0-9._:,/()]{0,99}$'
+          fix_name_ok() {
+            [[ "$1" =~ $fix_charset && "$1" != *babysit-merge-demotion* && "$1" != *post-merge-failure* ]]
+          }
+          fix_checks=()
+          fix_over=''
+          if [[ -n "$newly" ]]; then
+            declare -A fix_seen=()
+            while IFS= read -r check; do
+              if [[ -n "${fix_seen[$check]+x}" ]]; then
+                continue
+              fi
+              fix_seen[$check]=1
+              if [[ "${#fix_checks[@]}" -lt 5 ]] && fix_name_ok "$check"; then
+                fix_checks+=("$check")
+              else
+                fix_over=1
+              fi
+            done <"$now"
+          fi
           body="$marker
 
           $lead $rung
 
           $pr_line- $sha_label: \`$RUN_SHA\`
           - Failing run: $sighting${newly:+
-          - Newly failing: $newly}
+          - Newly failing: $newly}${fix_over:+
+          - More checks failed than were filed as fix issues: a run files at most 5, and none for a name outside A-Z a-z 0-9 space . _ : , / ( ) -}
 
           $revert"
-          gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
-            -f title="$title" -f body="$body" -f 'labels[]=needs-human' >/dev/null
+          record="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
+            -f title="$title" -f body="$body" -f 'labels[]=needs-human' --jq .number)"
           kind='demotion issue'
           if [[ -z "$lane" ]]; then
             kind='post-merge-failure issue (lane not demoted)'
           fi
           echo "filed the $signal $kind for $RUN_SHA"
+
+          if [[ "${#fix_checks[@]}" -eq 0 ]]; then
+            exit 0
+          fi
+          if [[ ! "$record" =~ ^[1-9][0-9]*$ || ! "$RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::record number '$record' or run id '$RUN_ID' is not a number: no fix issue filed"
+            exit 1
+          fi
+          on_record="demotion record #$record"
+          if [[ -z "$lane" ]]; then
+            on_record="failure record #$record"
+          fi
+          run_link="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT"
+          merges="unknown, see $on_record"
+          if [[ "${#range[@]}" -gt 0 ]]; then
+            merges="\`${base:0:12}..${RUN_SHA:0:12}\`, listed on $on_record"
+          fi
+          fix_failed=''
+          # The hourly triage sweep skips github-actions[bot] issues, so a
+          # failed dispatch is retried by nothing: it fails the job.
+          dispatch() {
+            if ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
+              -f ref=main -f "inputs[issue-number]=$1" >/dev/null; then
+              echo "::error::could not dispatch intake triage for #$1"
+              fix_failed=1
+            fi
+          }
+          for check in "${fix_checks[@]}"; do
+            # One issue per check across SHAs: an open one stands, a closed one
+            # is reopened (unless closed as not planned or a duplicate, which
+            # mutes the check), with agent-ready taken off so the owner
+            # ratifies again. Only this workflow's own issues are read.
+            fix_marker="<!-- post-merge-fix check=$check -->"
+            found="$(awk -F'\t' -v m="$fix_marker" '$4 == m && any == "" { any = $0 }
+              $4 == m && $2 == "open" && open == "" { open = $0 }
+              END { print (open != "" ? open : any) }' <<<"$own_records")"
+            IFS=$'\t' read -r fix_number fix_state fix_reason _ <<<"$found"
+            if [[ "$fix_state" == open ]]; then
+              echo "#$fix_number already tracks $check"
+            elif [[ -n "$fix_number" && "$fix_reason" =~ ^(not_planned|duplicate)$ ]]; then
+              echo "#$fix_number, closed as $fix_reason, mutes $check"
+            elif [[ -n "$fix_number" ]]; then
+              note="This check failed on main again at \`$RUN_SHA\`. Merge range: $merges. Run: $run_link"
+              if gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$fix_number/comments" -f body="$note" >/dev/null &&
+                { err="$(gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$fix_number/labels/agent-ready" 2>&1 >/dev/null)" ||
+                  [[ "$err" == *'(HTTP 404)'* ]]; } &&
+                gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$fix_number" -f state=open -f state_reason=reopened >/dev/null; then
+                echo "reopened fix issue #$fix_number for $check"
+                dispatch "$fix_number"
+              else
+                echo "::error::could not reopen fix issue #$fix_number for $check"
+                fix_failed=1
+              fi
+            else
+              fix_body="$fix_marker
+
+          The check \`$check\` started failing on main in a \`$signal\` run of pr-require-checks.
+
+          - Main at the failing run: \`$RUN_SHA\`
+          - Run: $run_link
+          - Merge range: $merges
+
+          Fix the check on main. Closing this issue releases nothing on $on_record; a human closes that record once main is green."
+              if fix_number="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
+                -f title="Fix main: $check fails since ${RUN_SHA:0:12}" -f body="$fix_body" --jq .number)" &&
+                [[ "$fix_number" =~ ^[1-9][0-9]*$ ]]; then
+                echo "filed fix issue #$fix_number for $check"
+                dispatch "$fix_number"
+              else
+                echo "::error::could not file the fix issue for $check"
+                fix_failed=1
+              fi
+            fi
+          done
+          if [[ -n "$fix_failed" ]]; then
+            exit 1
+          fi
 
   # The red-main report. It runs after the alert job, so a re-run the alert
   # started is already under way, and only for a full run on main that
