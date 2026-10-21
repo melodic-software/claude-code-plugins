@@ -4598,12 +4598,13 @@
           li.append(v, rm); return li;
         }));
       };
-      // gen: a clear (the form sent) makes a screenshot still shrinking stale; takes run one after another, so the
-      // chips keep the order the pictures came in
+      // gen, read when the pictures come: a clear (the form sent) makes those still shrinking or waiting their turn
+      // stale; takes run one after another, so the chips keep the order the pictures came in
       sl.clear = () => { sl.gen++; sl.shots = []; input.value = ""; paint(); };
       let line = Promise.resolve();
-      const take = files => (line = line.then(async () => {
-        const gen = sl.gen, moved = document.activeElement === b;
+      const take = files => { const gen = sl.gen; return (line = line.then(async () => {
+        if (gen !== sl.gen) return; // picked for a report sent since
+        const moved = document.activeElement === b;
         let err = "";
         for (const f of files) {
           if (max > 1 && sl.shots.length >= max) { err = `A report takes at most ${max} screenshots.`; break; }
@@ -4616,7 +4617,7 @@
         }
         input.value = ""; paint(); changed(err);
         if (moved && b.hidden) chips.querySelector(".vf-ref:last-child .vf-ref-img")?.focus(); // the button hid once full: focus goes to the last chip
-      }));
+      })); };
       b.onclick = () => input.click();
       on(input, "change", () => { if (input.files?.length) take([...input.files]); });
       on(field, "paste", e => {

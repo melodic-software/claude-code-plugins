@@ -189,6 +189,30 @@ async function main() {
     const errs = await bo.locator(".vf-reportpop .vf-rep-sent li", { hasText: "Recent errors:" }).textContent();
     ok("  listing that refusal among the recent errors", /api ended: HTTP 403/.test(errs), errs);
 
+    // A screenshot picked while an earlier one still shrinks, then the report sent before either lands: neither may
+    // join the next report. The page's createImageBitmap is held until released, so the first one is still shrinking.
+    await bo.evaluate(() => {
+      const real = window.createImageBitmap.bind(window), held = [];
+      let open = false;
+      window.__held = held; window.__release = () => { open = true; held.splice(0).forEach(go => go()); };
+      window.createImageBitmap = (...a) => (open ? real(...a) : new Promise(r => held.push(() => r(real(...a)))));
+    });
+    const pick = (w, h) => bo.locator(".vf-reportpop input[type=file]").setInputFiles({ name: `s${w}.png`, mimeType: "image/png", buffer: png(w, h, [10, 20]) });
+    await pick(700, 300);
+    await until(bo, () => window.__held.length === 1);
+    await pick(500, 300); // queued behind the first
+    await bo.locator("#vf-rep-ta").fill("Sent while a screenshot shrinks");
+    await bo.locator(".vf-reportpop button[type=submit]").click();
+    await until(bo, () => document.querySelector(".vf-reportpop").hidden);
+    await bo.locator(".vf-keysbtn").click();
+    await bo.locator(".vf-help-report").click();
+    await until(bo, () => !!document.querySelector(".vf-reportpop:not([hidden])"));
+    await bo.evaluate(() => window.__release());
+    await pick(300, 200);
+    const caps = () => bo.evaluate(() => [...document.querySelectorAll(".vf-reportpop .vf-attdraft .vf-ref-cap")].map(c => c.textContent).join("|"));
+    await until(bo, () => [...document.querySelectorAll(".vf-reportpop .vf-attdraft .vf-ref-cap")].some(c => c.textContent.endsWith("300 × 200")));
+    ok("a screenshot queued before the report was sent does not join the next one", (await caps()) === "Screenshot, 300 × 200", await caps());
+
     const pageErrs = rec.errors.filter(m => !/Failed to load resource/.test(m));
     ok("no page error", pageErrs.length === 0, pageErrs.slice(0, 3).join(" | "));
     ok("no CSP violation", (await rec.cspViolations()).length === 0);
