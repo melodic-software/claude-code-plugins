@@ -104,7 +104,7 @@
 #      cited path with a backslash separator FAILs (rejected at plugin load on
 #      macOS and Linux)
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
-#   7. scripts/*.test.sh pass where present
+#   7. scripts/*.test.sh pass where present and inside the current repository
 #   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
 #      bump (a legitimate maintainer-run sync) (vendor-backed skills only); a
 #      pure rename inside vendor/ keeps the bytes and passes
@@ -232,6 +232,14 @@ HAVE_GIT=0
 if [[ -n "$REPO_ROOT" && -d "$REPO_ROOT" ]]; then
   HAVE_GIT=1
 fi
+
+# Check 7 runs a skill's script tests only when the skill sits in the invoking
+# shell's repository, so checking an installed plugin copy never executes its
+# code. Root mode runs each child at its dispatched root, so the parent hands
+# its own answer down; empty means the invoker is in no repository.
+INVOKING_TOPLEVEL=""
+((HAVE_GIT)) && INVOKING_TOPLEVEL="$(cd -- "$REPO_ROOT" && pwd -P)"
+INVOKING_TOPLEVEL="${CHECK_SKILL_INVOKING_TOPLEVEL-$INVOKING_TOPLEVEL}"
 
 # shellcheck source=./skill-frontmatter.sh
 source "$SCRIPT_DIR/skill-frontmatter.sh"
@@ -391,6 +399,7 @@ if ((${#DISPATCH_ROOTS[@]} > 0)); then
         CDPATH='' cd -- "$dispatch_root" || exit 2
         CHECK_SKILL_SKILLS_ROOT="$dispatch_root" \
           CHECK_SKILL_REQUIRE_EVALS="$REQUIRE_EVALS" \
+          CHECK_SKILL_INVOKING_TOPLEVEL="$INVOKING_TOPLEVEL" \
           exec bash "$SCRIPT_PATH" -- "$dispatch_leaf"
       )
       case $? in
@@ -1305,8 +1314,14 @@ fi
 # --- Check 7: scripts/*.test.sh pass where present -------------------------
 
 if [[ -d "$SKILL_DIR/scripts" ]]; then
+  SKILL_TOPLEVEL="$(git -C "$SKILL_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+  [[ -n "$SKILL_TOPLEVEL" ]] && SKILL_TOPLEVEL="$(cd -- "$SKILL_TOPLEVEL" && pwd -P)"
   while IFS= read -r test_sh; do
     [[ -z "$test_sh" ]] && continue
+    if [[ -z "$INVOKING_TOPLEVEL" || "$SKILL_TOPLEVEL" != "$INVOKING_TOPLEVEL" ]]; then
+      note "script tests skipped: the skill is outside the current repository"
+      break
+    fi
     # env -u: this gate may run inside git-hook chains where git exports
     # GIT_DIR/GIT_INDEX_FILE — a fixture `git init` in a test would then mutate
     # the real repo. Strip before exec.
@@ -1318,7 +1333,7 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
     # reason does not apply to the run that just went red.
     test_out=""
     if test_out="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX \
-      bash "$test_sh" 2>&1 </dev/null)"; then
+      -u CHECK_SKILL_INVOKING_TOPLEVEL bash "$test_sh" 2>&1 </dev/null)"; then
       note "script test passed: ${test_sh#"$SKILL_DIR"/}"
     else
       err "script test failed: ${test_sh#"$SKILL_DIR"/}"

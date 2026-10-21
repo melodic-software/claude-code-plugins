@@ -85,7 +85,7 @@ the reviewer to confirm the description still names that intent, or to restore t
     **As of**: 2026-10-11. **Recheck trigger**: that section dropping or widening the backslash
     rule.
 - `markdownlint-cli2` clean (advisory-skips when `npx` is absent).
-- `scripts/*.test.sh` pass where present.
+- `scripts/*.test.sh` pass where present and inside the current repository.
 - Vendored `vendor/` byte-identical vs `HEAD`; stale-tracking metadata keys preserved; sync age.
   A `vendor/` change passes only when the same change bumps `metadata.upstream-version`, or bumps
   `metadata.upstream-sha` to the content hash the check recomputes offline: SHA-256 of the one file

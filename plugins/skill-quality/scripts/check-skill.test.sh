@@ -4980,6 +4980,63 @@ else
   fail "check 7 should truncate a 300-line failing test: $out"
 fi
 
+# Check 7 runs a skill's script tests only when the skill sits in the invoking
+# cwd's git work tree; anywhere else (another repo, no repo, or a cwd in no
+# repo) it skips them with a note. Root mode runs each child at its dispatched
+# root, so the parent's answer must reach the child. Each fixture test touches
+# a marker and exits 1, so a run shows as the marker and a failure.
+SCOPE_TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP" "$XREPO" "$SCOPE_TMP"' EXIT
+for scope_r in other nogit; do
+  mkdir -p "$SCOPE_TMP/$scope_r/skills/good-skill/scripts"
+  printf '%s' "$good_body" >"$SCOPE_TMP/$scope_r/skills/good-skill/SKILL.md"
+  printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/$scope_r.ran" \
+    >"$SCOPE_TMP/$scope_r/skills/good-skill/scripts/x.test.sh"
+done
+git -C "$SCOPE_TMP/other" init -q
+mkdir -p "$SCOPE_TMP/plaincwd"
+# scope_case LABEL CWD SKILLS-ROOT MARKER single|root run|skip
+scope_case() {
+  rm -f "$4"
+  local out rc
+  if [[ "$5" == single ]]; then
+    out="$(cd "$2" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING_TOPLEVEL \
+      CHECK_SKILL_SKILLS_ROOT="$3" CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" good-skill 2>&1)"
+  else
+    out="$(cd "$2" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_SKILLS_ROOT -u CHECK_SKILL_INVOKING_TOPLEVEL \
+      CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" "$3" 2>&1)"
+  fi
+  rc=$?
+  if [[ "$6" == run ]]; then
+    if [[ -f "$4" && $rc -eq 1 ]] && grep -q 'script test failed: scripts/x.test.sh' <<<"$out"; then
+      pass "check 7 $1"
+    else
+      fail "check 7 $1: the test should run (rc=$rc): $out"
+    fi
+  elif [[ ! -f "$4" && $rc -eq 0 ]] &&
+    grep -q 'script tests skipped: the skill is outside the current repository' <<<"$out"; then
+    pass "check 7 $1"
+  else
+    fail "check 7 $1: the test should be skipped with the note (rc=$rc): $out"
+  fi
+}
+scope_case "runs a test in the invoking repo (root mode)" "$SCOPE_TMP/other" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" root run
+scope_case "runs a test in the invoking repo from a subdirectory (single mode)" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" single run
+scope_case "skips a test in another repo (single mode)" "$TMP" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" single skip
+scope_case "skips a test in another repo (root mode)" "$TMP" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" root skip
+scope_case "skips a test in no repo (single mode)" "$TMP" \
+  "$SCOPE_TMP/nogit/skills" "$SCOPE_TMP/nogit.ran" single skip
+scope_case "skips a test in no repo (root mode)" "$TMP" \
+  "$SCOPE_TMP/nogit/skills" "$SCOPE_TMP/nogit.ran" root skip
+scope_case "skips a repo's test from a cwd in no repo (single mode)" "$SCOPE_TMP/plaincwd" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" single skip
+scope_case "skips a repo's test from a cwd in no repo (root mode)" "$SCOPE_TMP/plaincwd" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" root skip
+
 # The usage error carries no bash-internal prefix and points at --help; the
 # header names the markdownlint seam.
 out="$(run_roots 2>&1)"
@@ -5445,7 +5502,7 @@ else
 fi
 
 ST_PLAIN="$(mktemp -d)"
-trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP" "$XREPO" "$ST_PLAIN"' EXIT
+trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP" "$XREPO" "$SCOPE_TMP" "$ST_PLAIN"' EXIT
 mkdir -p "$ST_PLAIN/skills"
 cp -R "$SKILLS/st-misread" "$ST_PLAIN/skills/"
 out="$(GIT_CEILING_DIRECTORIES="$ST_PLAIN" run_st_default "$ST_PLAIN" "$SUT" "$ST_PLAIN/skills" st-misread 2>&1)"
