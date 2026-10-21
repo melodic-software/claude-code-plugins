@@ -209,7 +209,7 @@ test("a valid config writes ResolvedConfig and the selected activity's outputs",
 test("a mutate-branch activity can commit; args stay in the file only", async () => {
   const { env } = workspace();
   env.LANE = "pr-refine";
-  env.ACTIVITY = "fix-docs";
+  env.ACTIVITY = "fix-prose";
   assert.equal(await main({ env, github: noApi }), 0);
   const outputs = readOutputs(env.GITHUB_OUTPUT);
   assert.deepEqual(
@@ -342,7 +342,7 @@ const REJECTIONS = [
     "rejection 7: a requested activity absent from the lane",
     /0 slots for activity/,
     {},
-    { ACTIVITY: "fix-docs" },
+    { ACTIVITY: "fix-prose" },
   ],
   [
     "rejection 7: a requested lane absent from the config",
@@ -471,7 +471,7 @@ test("changed-paths holds the head's changed files minus removed ones and the ba
     "/plugins/ai-slop/** @owner\n",
   );
   env.LANE = "pr-refine";
-  env.ACTIVITY = "fix-docs";
+  env.ACTIVITY = "fix-prose";
   const files = [
     { filename: "docs/kept.md", status: "modified" },
     { filename: "docs/gone.md", status: "removed" },
@@ -562,7 +562,7 @@ test("a config with no predicate makes no API call", async () => {
 
 // Labels, events and work classes
 
-// Gives valid.yaml's fix-docs activity (lane pr-refine) a predicate.
+// Gives valid.yaml's fix-prose activity (lane pr-refine) a predicate.
 function withPredicate(env, predicate) {
   const config = join(env.BASE_PATH, CONFIG_PATH);
   writeFileSync(
@@ -573,7 +573,7 @@ function withPredicate(env, predicate) {
     ),
   );
   env.LANE = "pr-refine";
-  env.ACTIVITY = "fix-docs";
+  env.ACTIVITY = "fix-prose";
 }
 
 test("labels come from the pull_request payload without an API call", async () => {
@@ -711,7 +711,7 @@ test("a work-classes predicate fails red: no run supplies work classes yet", asy
   await assertFailsRed(t, env, /needs workClasses/);
 });
 
-// valid.yaml's fix-docs (lane pr-refine) with prepare: merge-base and `extra`.
+// valid.yaml's fix-prose (lane pr-refine) with prepare: merge-base and `extra`.
 function withPrepare(env, extra = "") {
   const config = join(env.BASE_PATH, CONFIG_PATH);
   writeFileSync(
@@ -722,7 +722,7 @@ function withPrepare(env, extra = "") {
     ),
   );
   env.LANE = "pr-refine";
-  env.ACTIVITY = "fix-docs";
+  env.ACTIVITY = "fix-prose";
 }
 
 test("a leaf's prepare mode is a step output, set only when the leaf declares one", async () => {

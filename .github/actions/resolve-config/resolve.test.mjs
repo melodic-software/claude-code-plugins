@@ -141,7 +141,7 @@ test("rejection 3: a gate activity in pr-explain is rejected", () => {
 
 test("rejection 3: a merge effect outside pr-merge is rejected in a lane the run did not ask for", () => {
   const config = edited((doc) => {
-    doc.activities["fix-docs"].effect = "merge";
+    doc.activities["fix-prose"].effect = "merge";
   });
   assertRejected(() => run(config), "forbidden-by-lane");
 });
@@ -221,7 +221,7 @@ test("rejection 7: a requested lane the config lacks is rejected", () => {
 
 test("rejection 7: a requested activity the lane has no slot for is rejected", () => {
   assertRejected(
-    () => run(fixture("valid.yaml"), { activity: "fix-docs" }),
+    () => run(fixture("valid.yaml"), { activity: "fix-prose" }),
     "undefined-activity",
   );
 });
@@ -677,7 +677,7 @@ test("resolveGrant returns the selected slot's effect and grant", () => {
     grant: READ_GRANT,
   });
   assert.deepEqual(
-    grantOf(fixture("valid.yaml"), { lane: "pr-refine", activity: "fix-docs" }),
+    grantOf(fixture("valid.yaml"), { lane: "pr-refine", activity: "fix-prose" }),
     {
       effect: "mutate-branch",
       grant: { contents: "write", "pull-requests": "read", issues: "read" },
@@ -725,7 +725,7 @@ test("resolveGrant rejects an unknown lane", () => {
 
 test("resolveGrant rejects an activity outside the lane, or none", () => {
   assertRejected(
-    () => grantOf(fixture("valid.yaml"), { activity: "fix-docs" }),
+    () => grantOf(fixture("valid.yaml"), { activity: "fix-prose" }),
     "undefined-activity",
   );
   for (const activity of [undefined, ""]) {
@@ -843,8 +843,8 @@ const CODEOWNERS = `# owned and unowned entries
 
 const withChangedPaths = (edit = () => {}) =>
   edited((doc) => {
-    doc.activities["fix-docs"].inputs = ["changed-paths"];
-    doc.activities["fix-docs"]["applies-when"] = { paths: ["**/*.md"] };
+    doc.activities["fix-prose"].inputs = ["changed-paths"];
+    doc.activities["fix-prose"]["applies-when"] = { paths: ["**/*.md"] };
     edit(doc);
   });
 
@@ -853,7 +853,7 @@ const targetsOf = (changedTargets, config = withChangedPaths()) =>
     config,
     {
       lane: "pr-refine",
-      activity: "fix-docs",
+      activity: "fix-prose",
       facts: { ...FACTS, changedPaths: changedTargets, changedTargets },
     },
     { codeowners: CODEOWNERS },
@@ -907,7 +907,7 @@ test("changed-paths with nothing left skips the activity as not-applicable-paths
 
 test("a read activity's changed-paths keeps instruction surfaces and owned paths", () => {
   const config = withChangedPaths((doc) => {
-    doc.activities["fix-docs"].effect = "read";
+    doc.activities["fix-prose"].effect = "read";
   });
   assert.deepEqual(
     targetsOf(["CLAUDE.md", "plugins/ai-slop/README.md"], config)[
@@ -919,12 +919,12 @@ test("a read activity's changed-paths keeps instruction surfaces and owned paths
 
 test("an activity with the changed-paths input needs the changed files even without a paths predicate", () => {
   const config = edited((doc) => {
-    doc.activities["fix-docs"].inputs = ["changed-paths"];
+    doc.activities["fix-prose"].inputs = ["changed-paths"];
   });
   assert.deepEqual(
     neededFacts(files(config), {
       lane: "pr-refine",
-      activity: "fix-docs",
+      activity: "fix-prose",
       configPath: CONFIG_PATH,
     }),
     ["changedPaths"],
