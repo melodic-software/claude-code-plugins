@@ -23,6 +23,7 @@ computer-use
 context-budget
 context-guard
 context7
+corrections
 coupling
 debugging
 desktop-notification
