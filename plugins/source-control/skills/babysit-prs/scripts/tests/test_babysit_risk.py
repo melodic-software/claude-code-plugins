@@ -2133,10 +2133,6 @@ class ManifestTests(unittest.TestCase):
         for after in (
             PLUGIN_BASE.replace("1.0.0", "1.1.0"),
             PLUGIN_BASE.replace("Foo.", "Foo, reworded."),
-            PLUGIN_BASE.replace(
-                '"userConfig": {',
-                '"userConfig": {"mode": {"type": "string", "default": "x"}, ',
-            ),
             PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "keywords": ["a"],'),
         ):
             with self.subTest(after=after):
@@ -2295,7 +2291,6 @@ class ManifestAllowListTests(unittest.TestCase):
             _with(PLUGIN_BASE, homepage="https://example.com"),
             _with(PLUGIN_BASE, repository="https://example.com/r"),
             _with(PLUGIN_BASE, license="MIT"),
-            _with(PLUGIN_BASE, defaultEnabled=False),
             _with(PLUGIN_BASE, description=None),
             _option(title="Guard"),
             _option(description="Turns the guard on."),
@@ -2303,15 +2298,14 @@ class ManifestAllowListTests(unittest.TestCase):
             with self.subTest(after=after):
                 self.assertEqual(self._detail(MANIFEST, PLUGIN_BASE, after), {})
 
-    def test_an_added_user_config_key_clears_only_with_a_default_and_no_options(self):
+    def test_an_added_user_config_key_holds(self):
         def add(entry):
             data = json.loads(PLUGIN_BASE)
             data["userConfig"]["mode"] = entry
             return json.dumps(data)
 
-        clears = add({"type": "string", "default": "x"})
-        self.assertEqual(self._detail(MANIFEST, PLUGIN_BASE, clears), {})
         for entry in (
+            {"type": "string", "default": "x"},
             {"type": "string"},
             {"type": "string", "default": "a", "options": ["a", "b"]},
             "x",
@@ -2330,6 +2324,7 @@ class ManifestAllowListTests(unittest.TestCase):
             (_with(PLUGIN_BASE, settings={"agent": "x"}), "settings"),
             (_with(PLUGIN_BASE, somethingNew=True), "somethingNew"),
             (_with(PLUGIN_BASE, name="bar"), "name"),
+            (_with(PLUGIN_BASE, defaultEnabled=False), "defaultEnabled"),
             (_with(PLUGIN_BASE, version=None), "version removed"),
             (_with(PLUGIN_BASE, userConfig=[]), "userConfig is not an object"),
             (_with(PLUGIN_BASE, userConfig={}), "userConfig.guard_enabled removed"),

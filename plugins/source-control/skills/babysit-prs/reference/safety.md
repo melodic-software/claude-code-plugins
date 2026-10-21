@@ -1028,9 +1028,9 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    entries `babysit_risk.py`'s docstring names, unless the file sits in an eval case whose
    `case.yaml` could name a `scaffold_script` (HIGH as `eval-scaffold-review-required`). A plugin
    or marketplace manifest takes no floor hold; its parsed change clears only when every key that
-   differs is on that docstring's allow-lists (version, description and other metadata, a
-   `userConfig` title or description, an added `userConfig` key with a default and no options),
-   and anything else scores HIGH as `manifest-review-required`. A C3 pull request also needs a
+   differs is on that docstring's allow-lists (version, description and other metadata, or a
+   title or description edit on an existing `userConfig` key), and anything else, an added
+   `userConfig` key or a `defaultEnabled` change included, scores HIGH as `manifest-review-required`. A C3 pull request also needs a
    LOW blast-radius rating, which nothing supplies
    yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
 

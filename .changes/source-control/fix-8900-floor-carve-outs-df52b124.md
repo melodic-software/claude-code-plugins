@@ -30,11 +30,10 @@ bump: minor
   allow-lists and rates any other difference HIGH as
   `manifest-review-required`, so an unlisted key such as `skills`, `commands`
   or `name` fails closed. In `plugin.json` only `version`, `description`,
-  `keywords`, `author`, `homepage`, `repository`, `license`, `defaultEnabled`
-  and `userConfig` may differ, and `version` may not be removed; an existing
-  `userConfig` entry may change only its `title` or `description`, an added
-  entry clears only with a `default` and no `options`, and a removed entry
-  holds. In `marketplace.json` only `plugins` and `metadata.description` or
+  `keywords`, `author`, `homepage`, `repository` and `license` may differ,
+  and `version` may not be removed; an existing `userConfig` entry may
+  change only its `title` or `description`, and an added or removed entry
+  holds, as does a `defaultEnabled` change. In `marketplace.json` only `plugins` and `metadata.description` or
   `metadata.version` may differ; an existing plugin entry may change only
   its version, description, keywords, author, homepage, repository, license,
   category and tags, and an added, removed or renamed entry holds. A new

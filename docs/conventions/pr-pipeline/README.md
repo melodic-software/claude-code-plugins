@@ -642,9 +642,9 @@ and its queued entries leave; two different identities, or an unreadable head co
   `.claude-plugin/marketplace.json` leaves the floor: its parsed base and head are compared against
   allow-lists, and any difference outside them scores HIGH as `manifest-review-required`. In
   `plugin.json` only `version`, `description`, `keywords`, `author`, `homepage`, `repository`,
-  `license`, `defaultEnabled` and `userConfig` may differ, and `version` may not be removed; an
-  existing `userConfig` entry may change only its `title` or `description`, an added entry needs a
-  `default` and no `options`, and a removed entry holds. In `marketplace.json` only `plugins` and
+  and `license` may differ, and `version` may not be removed; an existing `userConfig` entry may
+  change only its `title` or `description`, and an added or removed entry or a `defaultEnabled`
+  change holds. In `marketplace.json` only `plugins` and
   `metadata.description` or `metadata.version` may differ; an existing plugin entry may change only
   `version`, `description`, `keywords`, `author`, `homepage`, `repository`, `license`, `category`
   and `tags`, and an added, removed or renamed entry holds. A side that cannot be read, does not

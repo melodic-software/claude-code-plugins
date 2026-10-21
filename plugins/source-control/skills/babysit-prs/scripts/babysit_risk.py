@@ -52,8 +52,8 @@ unless a denied path repeats that pattern. Its base and head JSON are compared
 against allow-lists instead, and any other difference rates HIGH as
 `manifest-review-required`, so an unlisted key fails closed. In plugin.json
 only `_PLUGIN_CLEAR` keys may differ, and `version` may not be removed; a
-`userConfig` entry may change only its `title` or `description`, an added entry
-clears only with a `default` and no `options`, and a removed one holds. In
+`userConfig` entry may change only its `title` or `description`, and an added
+or removed one holds. In
 marketplace.json only `plugins` and `metadata.description`/`version` may
 differ; a plugin entry, matched by name, may change only `_ENTRY_CLEAR` keys,
 and an added, removed or renamed entry holds. A manifest whose side cannot be
@@ -993,7 +993,6 @@ _PLUGIN_CLEAR = frozenset(
         "homepage",
         "repository",
         "license",
-        "defaultEnabled",
         "userConfig",
     }
 )
@@ -1070,12 +1069,6 @@ def _unlisted(
     return found
 
 
-def _added_user_config_clears(entry: Any) -> bool:
-    """An added userConfig key clears review only with a `default` and no
-    `options`."""
-    return isinstance(entry, dict) and "default" in entry and "options" not in entry
-
-
 def _user_config_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
     before, after = _object(base, "userConfig"), _object(head, "userConfig")
     if before is None or after is None:
@@ -1086,10 +1079,7 @@ def _user_config_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str
         if new is _MISSING:
             found.append(f"userConfig.{key} removed")
         elif old is _MISSING:
-            if not _added_user_config_clears(new):
-                found.append(
-                    f"userConfig.{key} added without a default or with options"
-                )
+            found.append(f"userConfig.{key} added")
         elif not (isinstance(old, dict) and isinstance(new, dict)):
             found.append(f"userConfig.{key} is not an object")
         else:
