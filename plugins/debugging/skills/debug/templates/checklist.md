@@ -5,7 +5,7 @@ Copy into your project's working-notes location, or track inline. Tick as each p
 ## Phases
 
 - [ ] Phase 1: Build the reproduction loop. One command, quick to run, that reports pass or fail for this bug
-- [ ] Phase 2: Reproduce. Confirm the bug manifests deterministically OR characterize non-determinism
+- [ ] Phase 2: Reproduce. Confirm the bug manifests deterministically OR characterize non-determinism, then minimize the reproduction
 - [ ] Phase 3: Hypothesize. List candidate root causes in priority order
 - [ ] Phase 4: Instrument. Add logging / breakpoints; gather evidence per hypothesis
 - [ ] Phase 5: Fix + regression test. Apply minimal fix; add test that would have caught the bug

@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.15.3] - 2026-10-20
+
+### Changed
+
+- The babysit merge gate's high-path floor now also holds plugin git hooks (`plugins/*/git-hooks/**`), any `scripts/` directory at any depth under `plugins/`, and two skill-run scripts outside one (`net-probe.sh`, `preflight.mjs`) out of unattended merge.
+
 ## [1.15.2] - 2026-10-20
 
 ### Changed

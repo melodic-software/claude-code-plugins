@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Deeper pass on the incident write-up:\n\n1. A top incident analyst would split the errors by tenant, release and time before naming a cause, and line them up against every deploy in the window.\n2. Rawest material: logs/checkout.log, not the digest in logs/summary.txt, which sums every tenant into one number.\n3. Methods: group errors with scripts/errors_by.sh by tenant and release, then read the deploy line nearest the first error.\n4. Outside check: the error counts by release must put the errors on one release and not the others.\n\nRedone: notes/incident.md now names release 4.18.2 on acme-eu, which cut PAYMENTS_TIMEOUT_MS from 3000 to 800. errors_by.sh shows 64 of 67 errors on acme-eu and release 4.18.2.",
+      "why": "answers all four questions concretely for this incident"
+    },
+    {
+      "answer": "What a senior on-call engineer would add: per-tenant and per-release breakdowns, and a timeline against deploys. Start from logs/checkout.log rather than the daily digest. Tools: grep and the bundled scripts/errors_by.sh, grouped by tenant then release. Check: rerun errors_by.sh release; if the cause is right, nearly all errors sit on one release.\n\nI rewrote notes/incident.md. Cause: the 4.18.2 deploy for acme-eu set the payments timeout to 800 ms, and upstream calls at about 801 ms now fail with 502. The check showed 64 errors on 4.18.2 and 3 on 4.18.1.",
+      "why": "covers practitioner moves, raw source, named tools and an outside check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "You're right, that was thin. I went back through the logs and rewrote notes/incident.md: the errors come from acme-eu after the 4.18.2 deploy lowered PAYMENTS_TIMEOUT_MS to 800. The provider was fine.",
+      "why": "redoes the work but answers none of the four questions"
+    },
+    {
+      "answer": "To go deeper: an expert would be more thorough, use better data, apply the right tools, and verify the result. With that in mind I revised notes/incident.md to say the cause is the 4.18.2 timeout change on acme-eu.",
+      "why": "the four answers are generic and would fit any task"
+    }
+  ]
+}

@@ -22,6 +22,11 @@ clause names no more than the paths or test filter they break, and that Phase `<
 turn those failures green. Report a declaration wider than its cause, or a span no phase closes,
 as a finding.
 
+A second check on every plan: report a Goal that does not serve the Brief's Problem, or a Brief
+Captured assumption of the form `<assumption>: revisit if <trigger>` with no row in the
+Load-bearing assumptions table, as a finding. The Quality bar, Variation intent and
+standards-override lines are settings, not rows.
+
 Keep reasoning **brief**. Return the findings table from the prompt template, not a narrative essay.
 
 We pin the reviewer's effort in this definition, and `/planning:plan` passes no `effort` on the

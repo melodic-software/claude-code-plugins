@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview"}}], "why": "only the interview runs"},
+    {"answer": [], "why": "no skill call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview"}}, {"tool": "Skill", "input": {"skill": "planning:brainstorm"}}], "why": "routes a spec-stage request to brainstorm"}
+  ]
+}

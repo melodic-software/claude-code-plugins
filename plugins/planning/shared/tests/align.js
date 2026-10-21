@@ -73,7 +73,7 @@ async function seed(s, A) {
       q("Q2", "Which pages need the new header?"),
       q("Q3", `Is this word too long: ${longWord}?`),
       q("Q4", "Should guest checkout be the default?"),
-      q("Q5", "Which reaction fits the new flow best? 🎉🚀😅👍🏽 🧑‍💻 or 🛒✨"),
+      q("Q5", "Which reaction fits the new flow best? 🎉🚀😅👍🏽 🧑\u200d💻 or 🛒✨"),
       q("Q6", "האם עמוד התשלום צריך לתמוך בעברית? ما هي طريقة الدفع المفضلة لديك؟"),
       q("Q7", "What worries you about the new checkout?", undefined, { purpose: "gather" }),
       q("Q8", "How should the confirmation page read?\n\nToday it repeats the whole order, the address and the delivery estimate, then asks for a review.\n\nSecond paragraph: should it link to the order history, or to the help center, or neither?\n\nThird paragraph: anything else it should say."),
@@ -506,6 +506,23 @@ const check = (page, theme) => page.evaluate(theme => {
       }
     }
   }
+  // live-pill: the Live pill sits on the title's line, its center y within 1px of the title row's, its left edge at most
+  // 8px past the title or rename pencil before it, inside the row, and clear of every other top-bar control
+  const pill = app.querySelector(".vf-top .vf-live"), trow = app.querySelector(".vf-top .vf-titlerow");
+  if (pill && trow && vis(pill) && vis(trow)) {
+    const pb = pill.getBoundingClientRect(), rb = trow.getBoundingClientRect();
+    const before = [...trow.children].filter(k => k !== pill && vis(k)).map(k => k.getBoundingClientRect()).filter(b => b.right <= pb.left + T);
+    const prevRight = before.length ? Math.max(...before.map(b => b.right)) : rb.left;
+    const dy = (pb.top + pb.bottom) / 2 - (rb.top + rb.bottom) / 2;
+    if (Math.abs(dy) > 1) fail("live-pill", `${name(pill)} center y off the title row's by ${dy.toFixed(1)}px`);
+    if (pb.left - prevRight > 8 + T) fail("live-pill", `${name(pill)} left x ${pb.left.toFixed(1)} sits ${(pb.left - prevRight).toFixed(1)}px past the title row's content end ${prevRight.toFixed(1)}`);
+    if (pb.left < rb.left - T || pb.right > rb.right + T) fail("live-pill", `${name(pill)} x ${pb.left.toFixed(1)}..${pb.right.toFixed(1)} outside the title row x ${rb.left.toFixed(1)}..${rb.right.toFixed(1)}`);
+    for (const el of app.querySelectorAll(".vf-top button, .vf-top .vf-people, .vf-top .vf-here")) {
+      if (!vis(el) || trow.contains(el)) continue;
+      const b = el.getBoundingClientRect();
+      if (b.left < pb.right - T && b.right > pb.left + T && b.top < pb.bottom - T && b.bottom > pb.top + T) fail("live-pill", `${name(pill)} overlaps ${name(el)}`);
+    }
+  } else if (pill && vis(pill)) fail("live-pill", `${name(pill)} shows with no title row beside it`);
   // toast: centered on the center pane ±1px, text centered, clear of composer, tab bar, chat button and chat
   const toast = app.querySelector(".vf-toast.vf-on");
   if (toast && vis(toast)) {

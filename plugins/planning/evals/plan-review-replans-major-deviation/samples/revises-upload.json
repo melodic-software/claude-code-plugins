@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "### Phase 2: Upload new photos [TODO]\n- `app/backup.py`: `upload_photos(client, photos)` calls `upload_file(path)` once per photo.\n",
+      "why": "revised phase names the per-call upload"
+    },
+    {
+      "answer": "Revised Phase 2 uploads one file per call, since the SDK has no batch upload.\n",
+      "why": "prose form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The plan is complete against the template: every phase has a Sanity Check and the blast radius is LOW.\n",
+      "why": "completeness grade only"
+    },
+    {
+      "answer": "Phase 2 keeps the batch upload call; continue implementation.\n",
+      "why": "pushes through the divergence"
+    },
+    {
+      "answer": "DEVIATIONS.md says: plan said Phase 2 calls the SDK's batch upload; found the storage SDK has no batch upload, only `upload_file(path)` one file per call. The plan is otherwise complete.\n",
+      "why": "quotes the log without revising the phase"
+    },
+    {
+      "answer": "### Phase 2: Batch upload [DOING]\n- `app/backup.py`: `upload_batch(client, photos)` calls the SDK's batch upload once per run.\n",
+      "why": "restates the original phase"
+    }
+  ]
+}

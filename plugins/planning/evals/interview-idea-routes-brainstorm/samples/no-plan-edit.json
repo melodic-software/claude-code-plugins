@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/houseplant-swap/interview-checklist.md", "old_string": "x", "new_string": "y"}}], "why": "edits the ledger only"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/houseplant-swap/PLAN.md", "old_string": "## Plan", "new_string": "## Brief\n\n## Plan"}}], "why": "edited a Brief for an unsettled idea"}
+  ]
+}

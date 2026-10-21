@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "### Captured assumptions\n- Quality bar: internal\n- Every picker's handheld scanner has a browser that can open an internal web page (from PRD): revisit if a scanner model on the floor has no browser\n\n### Out-of-scope\n",
+      "why": "the PRD assumption in the template shape"
+    },
+    {
+      "answer": "### Captured assumptions\n- (from PRD) All floor scanners run a browser: revisit if one model does not\n",
+      "why": "the source tag ahead of the text still counts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no Brief written"
+    },
+    {
+      "answer": "### Captured assumptions\n- Every picker's handheld scanner has a browser: revisit if a scanner model has no browser\n",
+      "why": "no (from PRD) source tag"
+    },
+    {
+      "answer": "### Constraints\n- Handheld scanners have a browser (from PRD)\n\n### Captured assumptions\n- Quality bar: internal\n",
+      "why": "the assumption sits under Constraints, not Captured assumptions"
+    }
+  ]
+}

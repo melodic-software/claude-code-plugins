@@ -118,7 +118,7 @@ q="[\"']?"
   fail_closed "pre_ready appears more than once"
 
 records="$(LC_ALL=C awk -f "$PARSER" <<<"$doc")" ||
-  fail_closed "docs/conventions/source-control.yaml does not parse"
+  fail_closed "docs/conventions/source-control.yaml does not parse: $(awk -F '\t' '$1 == "error" { print "line " $2 ": " $3 }' <<<"$records")"
 
 seen=$'\n' max=-1
 while IFS=$'\t' read -r key val; do

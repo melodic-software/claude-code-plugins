@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import difflib
+import functools
 import pathlib
 import re
 import subprocess
@@ -339,6 +340,24 @@ class HighReasonTests(unittest.TestCase):
                 "plugins/foo/skills/bar/scripts/run.py",
                 "high-path:plugins/*/skills/*/scripts/**",
             ),
+            (
+                "plugins/foo/skills/bar/reference/scripts/x.md",
+                "high-path:plugins/**/scripts/**",
+            ),
+            ("plugins/foo/docs/scripts/x.sh", "high-path:plugins/**/scripts/**"),
+            (
+                "plugins/source-control/git-hooks/pre-push",
+                "high-path:plugins/*/git-hooks/**",
+            ),
+            (
+                "plugins/harness-ops/skills/observability/otel/net-probe.sh",
+                "high-path:plugins/harness-ops/skills/observability/otel/net-probe.sh",
+            ),
+            (
+                "plugins/knowledge/skills/video-digest/extraction/preflight.mjs",
+                "high-path:plugins/knowledge/skills/video-digest/extraction/"
+                "preflight.mjs",
+            ),
         ]
         for path, code in cases:
             with self.subTest(path):
@@ -354,8 +373,11 @@ class HighReasonTests(unittest.TestCase):
     def test_near_miss_script_directories_are_not_high(self):
         for path in (
             "plugins/foo/reference/scripts.md",
-            "plugins/foo/skills/bar/reference/scripts/x.md",
-            "plugins/foo/docs/scripts/x.sh",
+            "plugins/foo/skills/bar/scriptsx/run.sh",
+            "plugins/foo/docs/git-hooks.md",
+            "plugins/foo/skills/bar/git-hooks/x.md",
+            "plugins/harness-ops/skills/observability/otel/net-probe.md",
+            "plugins/knowledge/skills/video-digest/extraction/preflight.md",
         ):
             with self.subTest(path):
                 self.assertEqual(score(_input(files=(_file(path),))).score, Risk.LOW)
@@ -1180,7 +1202,10 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[6]
 
 
+@functools.cache
 def _lane_config():
+    """This repository's live pr-merge config, read once: the file does not
+    change during a run."""
     import babysit_merge_policy
 
     def file_at(path, _sha):
@@ -1273,6 +1298,12 @@ class LanePathFloorTests(unittest.TestCase):
         result = score(_lane_input((_file("plugins/foo/bin/run"),)))
         self.assertEqual(result.score, Risk.HIGH, _codes(result))
         self.assertIn("high-path:**/bin/**", _codes(result))
+
+    def test_an_adr_waits_for_a_human(self):
+        # Owner decision 2026-10-21: docs/adr/** joins the floor.
+        result = score(_lane_input((_file("docs/adr/0099-x.md"),)))
+        self.assertEqual(result.score, Risk.HIGH, _codes(result))
+        self.assertIn("high-path:docs/adr/**", _codes(result))
 
     def test_the_switch_off_gives_mains_pr_merge_scoring(self):
         skill = FRONT.replace("y\n", "y\nallowed-tools: Bash\n", 1)

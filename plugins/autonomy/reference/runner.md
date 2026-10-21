@@ -46,13 +46,12 @@ loop (Boris step-3 trap: no agent-count scaling before the loop earns trust).
 
 ## Substrate stance: self-run primary, hosted via adapter
 
-- **Self-operated is primary.** The self-operated CLI/SDK surface class is the only class
-  where merge policy is ownable, because every vendor-hosted issue-to-change agent keeps a
-  deliberate human-merge-gate, so the `C2` auto-merge promotion is reachable only self-run.
-- **Vendor-hosted is reachable, capped.** Vendor-hosted surfaces stay reachable through the
+- **Self-operated is primary.** The self-operated CLI/SDK surface class is where the org owns
+  the whole merge path.
+- **Vendor-hosted is reachable.** Vendor-hosted surfaces stay reachable through the
   [invocation-adapter seam](trigger-dispatch.md#executor-surface-classes) (it covers
-  local-CLI and cloud-API shapes) but inherit their human-merge-gate: the matrix merge-policy
-  column caps at human-gated on any vendor-hosted executor. Vendor-managed isolation remains a
+  local-CLI and cloud-API shapes). The executor class caps no merge policy: merge authority comes from the work class, the evidence gates and the configured rung, not from where the executor runs. A
+  vendor product that keeps its own human-merge gate still applies it. Vendor-managed isolation remains a
   legitimate `L3` instance, and untrusted-provenance (`C5`) work is its natural fit.
 - **Classes, never vendors.** The contract names surface classes, self-operated versus
   vendor-hosted, and never a product.

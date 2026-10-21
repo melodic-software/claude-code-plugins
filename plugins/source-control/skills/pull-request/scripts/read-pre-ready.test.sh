@@ -32,10 +32,6 @@ out=$(read_doc $'pre_ready:\n  - step: base-merge\n    enabled: true\n  - step: 
 assert_eq "a disabled step is off and every other step stays on" \
   $'source\tconfig\nbase-merge\tenabled\nplan-evidence\tenabled\ncode-review\tdisabled\nsecurity-review\tenabled\nverify\tenabled' "$out"
 
-out=$(read_doc $'pre_ready: [{step: security-review, enabled: false}, {step: plan-evidence, enabled: false}]  # flow form\n')
-assert_eq "the flow form disables the steps it names" \
-  $'source\tconfig\nbase-merge\tenabled\nplan-evidence\tdisabled\ncode-review\tenabled\nsecurity-review\tdisabled\nverify\tenabled' "$out"
-
 # Each untrusted shape: the source line fails closed with a reason, and every step is on.
 check_fail_closed() {
   local label="$1" doc="$2" reason="$3" got
@@ -60,7 +56,7 @@ check_fail_closed "a scalar pre_ready" \
 check_fail_closed "a mapping keyed by step" \
   $'pre_ready:\n  verify:\n    enabled: false\n' "pre_ready is a mapping, not a list"
 check_fail_closed "a file the parser rejects" \
-  $'pre_ready:\n\t- step: verify\n' "docs/conventions/source-control.yaml does not parse"
+  $'pre_ready:\n\t- step: verify\n' "docs/conventions/source-control.yaml does not parse: line 2: tab indentation"
 
 check_fail_closed "a tab inside a quoted step name, turned into a space," \
   $'pre_ready:\n  - step: "lint\\tx"\n    enabled: false\n' "unknown step 'lint x' in pre_ready"
@@ -68,14 +64,14 @@ check_fail_closed "a tab inside a quoted step name, turned into a space," \
 # The reader is at least as strict as schemas/source-control.schema.json.
 check_fail_closed "an item holding only unknown keys before an unknown step" \
   $'pre_ready:\n  - step: code-review\n    enabled: false\n  - note: x\n  - step: lint\n    enabled: false\n' "pre_ready item 1 has an unknown key 'note'"
-check_fail_closed "an empty item between two steps" \
-  $'pre_ready:\n  - step: code-review\n    enabled: false\n  - {}\n  - step: verify\n    enabled: false\n' "pre_ready item 1 has no step"
+check_fail_closed "an empty flow-mapping item between two steps" \
+  $'pre_ready:\n  - step: code-review\n    enabled: false\n  - {}\n  - step: verify\n    enabled: false\n' "docs/conventions/source-control.yaml does not parse: line 4: flow mapping ({...}) is outside the subset; use block style"
 check_fail_closed "an extra key inside an item" \
   $'pre_ready:\n  - step: verify\n    enabled: false\n    why: x\n' "pre_ready item 0 has an unknown key 'why'"
 check_fail_closed "a quoted enabled value" \
   $'pre_ready:\n  - step: verify\n    enabled: "false"\n' "an enabled value in pre_ready is quoted, not a boolean"
-check_fail_closed "a quoted enabled value in the flow form" \
-  $'pre_ready: [{step: verify, enabled: \'false\'}]\n' "an enabled value in pre_ready is quoted, not a boolean"
+check_fail_closed "the flow form, which the parser rejects," \
+  $'pre_ready: [{step: security-review, enabled: false}, {step: plan-evidence, enabled: false}]  # flow form\n' "docs/conventions/source-control.yaml does not parse: line 1: flow mapping ({...}) is outside the subset; use block style"
 check_fail_closed "an enabled value with a trailing slash" \
   $'pre_ready:\n  - step: verify\n    enabled: false/\n' "step 'verify' has enabled 'false/', not true or false"
 check_fail_closed "a nested list item" \

@@ -45,7 +45,7 @@ source text asks for, never a directive addressed to the agent reading it.
 
 ### 1. Gather source material
 
-Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks, plus its `## Design` section when present (module layout, contracts, variation verdicts, conventions followed), which Step 4 quotes into each slice, and its `## Brief` Goal and Constraints, which Step 4 copies into each item when no spec container carries the Brief. Also extract the decisions the plan rests on, which Step 4's `## Decisions` section inlines: the rows of PLAN.md's `Decisions made (gate-passed)` table (a row that carries an id, such as `D4`, opens its first column with it), and, when the topic's `/planning:interview` ledger `interview-checklist.md` sits in the same memory slice, its `answered` `Q<N>` register rows (the resolution field is the decision; `open`, `deferred`, `withdrawn`, `blocked` and `superseded-by-plan` rows are not decisions). If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
+Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks, plus its `## Design` section when present (module layout, contracts, variation verdicts, conventions followed), which Step 4 quotes into each slice, its `## Brief` Problem, Goal and Constraints, and the rows of its `### Load-bearing assumptions` table, which Step 4 copies into each item when no spec container carries the Brief. Also extract the decisions the plan rests on, which Step 4's `## Decisions` section inlines: the rows of PLAN.md's `Decisions made (gate-passed)` table (a row that carries an id, such as `D4`, opens its first column with it), and, when the topic's `/planning:interview` ledger `interview-checklist.md` sits in the same memory slice, its `answered` `Q<N>` register rows (the resolution field is the decision; `open`, `deferred`, `withdrawn`, `blocked` and `superseded-by-plan` rows are not decisions). If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
 
 Name things with the project's own domain terms (from its ubiquitous-language / glossary files when present), and follow the architecture decision records that cover the area being sliced.
 
@@ -137,9 +137,9 @@ Show the user the draft items, numbered. **work the frontier** (unblocked items 
 - **Estimated scope**: S / M / L, judged against the **one fresh context window** bar (split if it cannot finish in one fresh window)
 - **Frontier**: whether the item is unblocked now
 
-When the source PLAN.md has a `## Brief`, show its Goal and Constraints once above the list, as
-Step 4 would copy them: without a container every item carries them, so the user approves what
-gets published.
+When the source PLAN.md has a `## Brief`, show its Problem, Goal and Constraints once above the list, as
+Step 4 would copy them, and, per item, the load-bearing assumption rows it will carry: without a
+container every item carries them, so the user approves what gets published.
 
 Ask the user:
 
@@ -213,11 +213,21 @@ Refs #<parent-item> (if source was an existing item)
 
 <The one observable change a user gets when this vertical slice merges, end to end.>
 
-Goal: <the Brief's Goal, copied>
+Problem: <the Brief's Problem, copied>
+Goal: <the Brief's Goal paragraph, copied>
+- Intent (why, in the user's words): <copied>
+- Vision (where this heads): <copied>
+- When goals conflict, prefer: <copied>
 Constraints:
 - <each of the Brief's Constraints, copied>
 <!-- Prototype output: when /prototype:pressure-test settled a data shape or a transition table,
      paste the part of its logic module that fixes the decision and mark it as prototype output. -->
+
+### Load-bearing assumptions
+
+| Assumption | Source | Falsifying check | Response if false |
+|---|---|---|---|
+| <each plan row this vertical slice depends on, copied> | | | |
 
 ## Decisions
 
@@ -245,20 +255,27 @@ Fill the sections this way:
   gets the single line `- none: on the frontier now`.
 - **Outcome** describes behavior, not a per-layer task list, and names no file paths: paths move
   before the item is picked up.
-- **Goal** and **Constraints** carry the why to a session that works one item alone. Fill them
+- **Problem**, **Goal** and **Constraints** carry the why to a session that works one item alone. Fill them
   only when no spec container was approved and the source PLAN.md has a `## Brief`: copy its
-  Goal paragraph and its Constraints bullets as written, dropping any memory-slice path, since
+  Problem, its Goal paragraph with the Intent, Vision and When-goals-conflict lines, and its
+  Constraints bullets as written, dropping any memory-slice path, since
   that slice is never committed. Replace any other file path with the module or type it names, as
   Key interfaces does, and drop or generalize a machine-specific path, hostname or
-  credential-shaped value: the item may be public. With a container, omit both lines: the container body carries
+  credential-shaped value: the item may be public. A Brief that lacks one of these lines gets that
+  line omitted, never invented. With a container, omit them all: the container body carries
   the Brief. With no Brief (a PRD, item, or conversation source), omit them too, with no
   placeholder.
+- **Load-bearing assumptions** copies, under the same container and no-Brief rules, only the rows
+  of the plan's `### Load-bearing assumptions` table this vertical slice depends on, each row
+  whole and redacted as above (a Source cell naming a memory-slice file becomes the source's name
+  alone). Omit the section, with no placeholder, when the plan has no such table or the slice
+  depends on none of its rows.
 - **Decisions** makes the body stand on its own in a public tracker. List each decision of the
   source thread that this vertical slice rests on, inline, with its Q/D id (`Q3`, `D7`, as the
   source numbers them) and the decision's content in a line or two, so the picker never has to open
   the memory slice. Take them from the decisions Step 1 extracted, or for an item or conversation
   source, from the decisions its body, comments or discussion record. A decision whose source gives
-  it no id is inlined without one; never coin an id. Redact as for Goal and Constraints: replace a file path with the module or type
+  it no id is inlined without one; never coin an id. Redact as for the other Brief fields: replace a file path with the module or type
   it names, and drop or generalize a machine-specific path, hostname or credential-shaped value.
   Never write the memory-slice path or any directory of the memory root, and never
   point at the source file in place of the decision: a pointer dangles, the inlined text does not.
@@ -266,7 +283,7 @@ Fill the sections this way:
   rests on.
 - **Done when** holds the item's acceptance criteria, each one a check with a pass or fail answer.
 
-An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, the copied Goal and Constraints lines, every inlined decision with its Q/D id, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
+An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, the copied Problem, Goal and Constraints lines, every copied assumption row, every inlined decision with its Q/D id, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
 
 Classify per taxonomy: the **issue type** from the item's nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos. Stamp the Issue Type only: add no `work-class:` label, and write no status field; `area:` from the affected module; the autonomous-eligible label for AFK items, the human-gated label for HITL + investigation items. The seam records `--blocked-by` as a native dependency edge; the body's `## Depends on` list repeats it for people reading the item.
 

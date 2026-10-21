@@ -48,6 +48,42 @@
         "Output recommends asserting the row fields"
       ],
       "files": []
+    },
+    {
+      "id": 5,
+      "name": "absence-check-without-paired-presence",
+      "prompt": "My whole test for validateOrder is `expect(validateOrder(valid).errors).toEqual([])`. Is that a good test?",
+      "expected_output": "Names it an absence check with no paired presence case: an implementation that always returns no errors passes it. Adds an invalid-order case that asserts the exact error list (for an order with no sku, ['sku required']). Names no audit rule id for the shape.",
+      "expectations": [
+        "Output names the test as an absence check with no paired presence case",
+        "Output says an implementation that always returns no errors passes the test",
+        "Output adds an invalid-order case that asserts the exact error list",
+        "Output names no rule-* id for this shape"
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "absence-check-with-paired-presence-is-kept",
+      "prompt": "My validateOrder test asserts `expect(validateOrder(valid).errors).toEqual([])` and also `expect(validateOrder(noSku).errors).toEqual(['sku required'])`. A review says absence assertions are weak, so should I delete or rewrite the first one?",
+      "expected_output": "Keeps the test: the absence is the contract for a valid order and a paired presence case already shows the code producing errors for another input. Does not ask to delete or rewrite the absence assertion.",
+      "expectations": [
+        "Output keeps the test",
+        "Output says the paired presence case (the noSku assertion) means a do-nothing implementation fails the test",
+        "Output does not ask to delete or rewrite the absence assertion"
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "assertions-never-reach-the-subject",
+      "prompt": "Review this test: `const cart = { items: [a, b, c] }; totalCart(cart); expect(cart.items).toHaveLength(3);`",
+      "expected_output": "Says every assertion reads data the test built, so the test passes whatever totalCart does. Asserts the total that totalCart returns instead.",
+      "expectations": [
+        "Output says every assertion reads data the test built, so the test passes whatever totalCart does",
+        "Output asserts the total that totalCart returns instead"
+      ],
+      "files": []
     }
   ]
 }

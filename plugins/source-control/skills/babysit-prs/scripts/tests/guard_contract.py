@@ -1375,7 +1375,9 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         gate="--merge (absent: readiness check only, exit 0 ready / 10 not ready)",
         claim=(
             "Without --merge this is a readiness reporter on GitHub; with --state-dir it "
-            "may still clear a finished pending-merge record locally. With --merge, the TOCTOU guard "
+            "may still clear a finished pending-merge record locally, except under "
+            "`merge.report-only`, which reads the record and leaves it as it was. "
+            "With --merge, the TOCTOU guard "
             "requires --expected-head unless --allow-unpinned-head is passed -- and the "
             "scripts/ wrapper refuses that override outright."
         ),

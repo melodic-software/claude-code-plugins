@@ -26,11 +26,28 @@ name: post-merge-demotion-alert
 # nothing beside another failed job, and the gitleaks gate, which scans every
 # branch on these events, counts against no merge.
 #
-# Test: scripts/post-merge-demotion-alert.test.sh runs the step body.
+# Beside a new record of a full run, it files one fix issue per newly failing
+# check (at most 5) and dispatches intake-triage.yml for each, so an agent can
+# fix main once the owner ratifies it. First body line `<!-- post-merge-fix
+# check=<name> -->`, no label, fixed text only; one issue per check across
+# SHAs, reopened when the check fails again, keeping agent-ready and with no
+# second intake dispatch. The record keeps needs-human, and closing a fix issue
+# changes nothing on it.
+#
+# After a failed scheduled or dispatched full run, the report-red-main job
+# applies the red-main rule (docs/conventions/pr-pipeline/README.md, "Red
+# main"): it waits for the run's one re-run, confirms the red, pins the
+# culprit merge and names the revert the bot would open, in its step summary
+# and one log issue. While `red-main.dry-run` is true it pushes, opens and
+# merges nothing.
+#
+# Test: scripts/post-merge-demotion-alert.test.sh runs the alert step body;
+# .github/scripts/post-merge-demotion-alert/ tests the report job.
 
 on:
-  # The job checks out nothing and runs no action, so no code from the
-  # triggering run executes here. The
+  # The alert job checks out nothing and runs no action; the report job checks
+  # out main's tip and runs main's own scripts. So no code from the triggering
+  # run executes here. Each
   # step reads the event's fields through env and acts only on runs of this
   # repository's main branch.
   workflow_run: # zizmor: ignore[dangerous-triggers]
@@ -305,13 +322,14 @@ jobs:
           read_records() {
             gh api --paginate \
               "repos/$GITHUB_REPOSITORY/issues?state=all&creator=$1&per_page=100" \
-              --jq '.[] | select(.pull_request == null) | [.number, .state, (.body // "")]
-                | [.[0], .[1], (.[2] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
-                   ([.[2] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
+              --jq '.[] | select(.pull_request == null) | [.number, .state, (.state_reason // "none"), (.body // "")]
+                | [.[0], .[1], .[2], (.[3] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
+                   ([.[3] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
                     | ltrimstr("- Failing run: ") | sub("\\s+$"; ""))]
                 | @tsv'
           }
-          records="$(read_records "${filers[0]}")"$'\n'
+          own_records="$(read_records "${filers[0]}")"
+          records="$own_records"$'\n'
           if [[ -n "${filers[1]:-}" ]]; then
             if lane_records="$(read_records "${filers[1]}")"; then
               records+="$lane_records"
@@ -322,7 +340,7 @@ jobs:
           number=''
           state=''
           filed=''
-          while IFS=$'\t' read -r n s first failing; do
+          while IFS=$'\t' read -r n s _ first failing; do
             # A record matched by its failing run must be a demotion record:
             # anything else names the run without holding the gate.
             if [[ "$first" == "$marker" || "$first" == "$failure_marker" ||
@@ -428,19 +446,228 @@ jobs:
           "
             fi
           fi
+          # Fix issues (#7535): one per newly failing check of a full run, at
+          # most 5, for an agent to fix main through intake triage and the
+          # owner's ratification. github-actions[bot] files them, so their text
+          # is fixed: only a check name that passes fix_name_ok, hex SHAs, the
+          # run link built from its numeric id, and the record's number. No
+          # label, no closing keyword, no commit subject or annotation message,
+          # and neither record marker, so no reader takes one for a record.
+          fix_charset='^[A-Za-z0-9][- A-Za-z0-9._:,/()]{0,99}$'
+          fix_name_ok() {
+            [[ "$1" =~ $fix_charset && "$1" != *babysit-merge-demotion* && "$1" != *post-merge-failure* ]]
+          }
+          fix_checks=()
+          fix_over=''
+          if [[ -n "$newly" ]]; then
+            declare -A fix_seen=()
+            while IFS= read -r check; do
+              # The job's name only: it comes from the workflow file on main,
+              # while a gate title is any step's annotation text.
+              check="${check%%: *}"
+              if [[ -n "${fix_seen[$check]+x}" ]]; then
+                continue
+              fi
+              fix_seen[$check]=1
+              if [[ "${#fix_checks[@]}" -lt 5 ]] && fix_name_ok "$check"; then
+                fix_checks+=("$check")
+              else
+                fix_over=1
+              fi
+            done <"$now"
+          fi
           body="$marker
 
           $lead $rung
 
           $pr_line- $sha_label: \`$RUN_SHA\`
           - Failing run: $sighting${newly:+
-          - Newly failing: $newly}
+          - Newly failing: $newly}${fix_over:+
+          - More checks failed than were filed as fix issues: a run files at most 5, and none for a name outside A-Z a-z 0-9 space . _ : , / ( ) -}
 
           $revert"
-          gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
-            -f title="$title" -f body="$body" -f 'labels[]=needs-human' >/dev/null
+          record="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
+            -f title="$title" -f body="$body" -f 'labels[]=needs-human' --jq .number)"
           kind='demotion issue'
           if [[ -z "$lane" ]]; then
             kind='post-merge-failure issue (lane not demoted)'
           fi
           echo "filed the $signal $kind for $RUN_SHA"
+
+          if [[ "${#fix_checks[@]}" -eq 0 ]]; then
+            exit 0
+          fi
+          if [[ ! "$record" =~ ^[1-9][0-9]*$ || ! "$RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::record number '$record' or run id '$RUN_ID' is not a number: no fix issue filed"
+            exit 1
+          fi
+          on_record="demotion record #$record"
+          if [[ -z "$lane" ]]; then
+            on_record="failure record #$record"
+          fi
+          run_link="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT"
+          merges="unknown, see $on_record"
+          if [[ "${#range[@]}" -gt 0 ]]; then
+            merges="\`${base:0:12}..${RUN_SHA:0:12}\`, listed on $on_record"
+          fi
+          fix_failed=''
+          undelivered=()
+          # The hourly triage sweep skips github-actions[bot] issues, and a
+          # re-run takes the existing-record path, so a failed dispatch is
+          # retried by nothing: the record, which a person already handles,
+          # gets a comment naming it, and the job fails.
+          # Locked before intake reads it, so no outsider comment reaches the
+          # triage prompt; a lock that fails sends nothing.
+          dispatch() {
+            if ! gh api -X PUT "repos/$GITHUB_REPOSITORY/issues/$1/lock" >/dev/null; then
+              echo "::error::could not lock #$1: not sent to intake triage"
+              undelivered+=("#$1 could not be locked, so it was not sent to intake triage")
+              fix_failed=1
+              return
+            fi
+            if ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
+              -f ref=main -f "inputs[issue-number]=$1" >/dev/null; then
+              echo "::error::could not dispatch intake triage for #$1"
+              undelivered+=("#$1 was not sent to intake triage")
+              fix_failed=1
+            fi
+          }
+          for check in "${fix_checks[@]}"; do
+            # One issue per check across SHAs: an open one stands, a closed one
+            # is reopened (unless closed as not planned or a duplicate, which
+            # mutes the check). A reopened issue keeps agent-ready and is not
+            # sent to intake again, so a repeat goes straight back to agents.
+            # Only this workflow's own issues are read.
+            fix_marker="<!-- post-merge-fix check=$check -->"
+            found="$(awk -F'\t' -v m="$fix_marker" '$4 == m && any == "" { any = $0 }
+              $4 == m && $2 == "open" && open == "" { open = $0 }
+              END { print (open != "" ? open : any) }' <<<"$own_records")"
+            IFS=$'\t' read -r fix_number fix_state fix_reason _ <<<"$found"
+            if [[ "$fix_state" == open ]]; then
+              echo "#$fix_number already tracks $check"
+            elif [[ -n "$fix_number" && "$fix_reason" =~ ^(not_planned|duplicate)$ ]]; then
+              echo "#$fix_number, closed as $fix_reason, mutes $check"
+            elif [[ -n "$fix_number" ]]; then
+              note="This check failed on main again at \`$RUN_SHA\`. Merge range: $merges. Run: $run_link"
+              if gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$fix_number/comments" -f body="$note" >/dev/null &&
+                gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$fix_number" -f state=open -f state_reason=reopened >/dev/null; then
+                echo "reopened fix issue #$fix_number for $check"
+              else
+                echo "::error::could not reopen fix issue #$fix_number for $check"
+                undelivered+=("#$fix_number (\`$check\`) could not be reopened")
+                fix_failed=1
+              fi
+            else
+              fix_body="$fix_marker
+
+          The check \`$check\` started failing on main in a \`$signal\` run of pr-require-checks.
+
+          - Main at the failing run: \`$RUN_SHA\`
+          - Run: $run_link
+          - Merge range: $merges
+
+          Fix the check on main. Closing this issue releases nothing on $on_record; a human closes that record once main is green."
+              if fix_number="$(gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
+                -f title="Fix main: $check fails since ${RUN_SHA:0:12}" -f body="$fix_body" --jq .number)" &&
+                [[ "$fix_number" =~ ^[1-9][0-9]*$ ]]; then
+                echo "filed fix issue #$fix_number for $check"
+                dispatch "$fix_number"
+              else
+                echo "::error::could not file the fix issue for $check"
+                undelivered+=("no fix issue could be filed for \`$check\`")
+                fix_failed=1
+              fi
+            fi
+          done
+          if [[ -n "$fix_failed" ]]; then
+            if [[ "${#undelivered[@]}" -gt 0 ]]; then
+              note="Fix issues not handed to intake on this run; triage them by hand:"
+              for line in "${undelivered[@]}"; do
+                note+=$'\n'"- $line"
+              done
+              gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$record/comments" -f body="$note" >/dev/null ||
+                echo "::error::could not comment on record #$record"
+            fi
+            exit 1
+          fi
+
+  # The red-main report. It runs after the alert job, so a re-run the alert
+  # started is already under way, and only for a full run on main that
+  # concluded failure: a cancelled, timed-out or not-started run, and the
+  # canary, never trigger it. It holds the job's own GITHUB_TOKEN, never a
+  # lanes App token, writes only its log issue, and skips an event the lanes
+  # App sent.
+  report-red-main:
+    name: Report the red-main culprit
+    needs: [alert]
+    if: >-
+      !cancelled()
+      && github.event.workflow_run.name == 'pr-require-checks'
+      && contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event.workflow_run.event)
+      && github.event.workflow_run.conclusion == 'failure'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    runs-on: ubuntu-24.04
+    # Up to red-main.confirm-wait-minutes (at most 45) waiting on the re-run.
+    timeout-minutes: 60
+    permissions:
+      actions: read # read runs, attempts and jobs
+      checks: read # read the hygiene aggregator's annotations
+      contents: read # check out main; compare the failing range
+      issues: write # file and comment on the log issue
+      pull-requests: read # read each merge's merge-queue entry
+    # One report at a time, repository-wide, so two runs cannot both read the
+    # log before either writes: one cap slot, one decision per culprit, one log
+    # issue. A later attempt's event waits, then finds its run logged.
+    concurrency:
+      group: red-main-report
+      cancel-in-progress: false
+    steps:
+      # Full history, so the revert's fit to main's tip is checked in memory.
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this report (reason ${REASON:-unreadable}); nothing read or written"
+
+      # report.mjs reads the red-main leaf through the base's resolve-config,
+      # which needs its dependencies.
+      - name: Install resolve-config's dependencies
+        if: steps.kill.outputs.proceed == 'true'
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      - name: Report the culprit and the revert it would open
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BASE_PATH: .base
+          CALL_BUDGET: "300"
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
+          RUN_CREATED: ${{ github.event.workflow_run.created_at }}
+        run: node .base/.github/scripts/post-merge-demotion-alert/report.mjs

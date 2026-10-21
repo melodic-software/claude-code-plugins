@@ -5,7 +5,7 @@ runs: 3
 max_turns: 30
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
-expected_outcome: ".work/address-validation/PLAN.md has, under ### Constraints, a '- Quality requirement:' line carrying the 300 ms p95 target and another for proceeding when Loqate is down or slower than 2 seconds; its Captured assumptions carry 'Quality bar: production' and 'Intent: second variant = speculative'"
+expected_outcome: ".work/address-validation/PLAN.md has, under ### Constraints, a '- Quality requirement:' line carrying the 300 ms p95 target and another for proceeding when Loqate is down or slower than 2 seconds; its Captured assumptions carry 'Quality bar: production' and 'Variation intent: second variant = speculative'"
 ---
 
 /planning:interview lock

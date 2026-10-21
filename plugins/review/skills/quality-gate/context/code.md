@@ -6,7 +6,7 @@ Specialized multi-aspect code feedback during development, before the formal PR 
 
 Claude Code ships `/code-review` as a [bundled skill](https://code.claude.com/docs/en/skills#bundled-skills) that reviews the same current diff this mode does, so the two overlap on the "code review" trigger. We route between them by what the review must ground in and whether it may write anything, never by the effort level passed to `/code-review`: we treat no level as a substitute for this mode.
 
-- **Pointer**: when choosing an effort level for `/code-review` or judging what a level covers, fetch <https://code.claude.com/docs/en/code-review#tune-effort-and-arguments> live; for what the bundled review reads, fetch <https://code.claude.com/docs/en/code-review#what-the-review-reads-and-edits> live.
+- **Pointer**: when choosing an effort level for `/code-review` or judging what a level covers, fetch <https://code.claude.com/docs/en/code-review-local#tune-effort-and-arguments> live; for what the bundled review reads, fetch <https://code.claude.com/docs/en/code-review-local#what-the-review-reads-and-edits> live.
 - **As of**: 2026-10-10
 - **Recheck trigger**: the code-review page changes its effort or reads-and-edits text, the skills page drops `/code-review` from its bundled skills, or a release note names the command.
 

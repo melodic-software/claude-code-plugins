@@ -174,7 +174,7 @@ apply() {
     # indented lines, share testing.yaml; they are not setup's to drop.
     [[ "$f" != "$new" || ! -f "$f" ]] ||
       keep="$(LC_ALL=C sed -e $'1s/^\xef\xbb\xbf//' -e 's/\r$//' "$f" |
-        awk '/^[^ \t#]/ { k = /^pixel_tolerance[ \t]*:/ } k || /^(e2e_driver|reuse_running_instance|feature_map_dir)[ \t]*:/')"
+        awk '/^[^ \t#]/ { k = /^pixel_tolerance[ \t]*:/ } k || /^(e2e_driver|reuse_running_instance|feature_map_dir|browser_driver)[ \t]*:/')"
     printf '# Test-file scope and rule levels for the testing plugin (/testing:setup).\n%s%s' "$y" "${keep:+$keep$'\n'}" >"$tmp"
   fi
   mv -f "$tmp" "$f" || die "cannot write $f"

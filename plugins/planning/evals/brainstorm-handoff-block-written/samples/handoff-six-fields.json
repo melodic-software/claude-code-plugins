@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".work/onboarding-dropoff/brainstorm.md", "content": "## Handoff\n\n- Problem: new users drop off before finishing the setup wizard (reported)\n- Intent (why, in the user's words): \"people pay us and never see the product work\"\n- Vision (where this heads): a new user sees their first report on day one\n- Chosen direction: 2 (cut the wizard to three steps) and 3 (prefill from the signup form)\n- Rejected options: 1, support already sends reminders by hand; 4 and 5, too big for this quarter\n- Criteria surfaced: quick to try; users hate retyping\n"}}],
+      "why": "all six fields under the Handoff heading in brainstorm.md"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".work/onboarding-dropoff/brainstorm.md", "content": "## Handoff\n\n- **Problem:** wizard drop-off\n- **Intent (why, in the user's words):** \"people pay us and never see the product work\"\n- **Vision (where this heads):** first report on day one\n- **Chosen direction:** 2 and 3\n- **Rejected options:** 1 (reminders already sent by hand); 4, 5 (too big)\n- **Criteria surfaced:** quick to try; no retyping\n"}}],
+      "why": "bold labels still carry each field"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".work/onboarding-dropoff/brainstorm.md", "content": "## Handoff\n\n- Problem: wizard drop-off\n- Chosen direction: 2 and 3\n- Rejected options: 1, 4, 5\n"}}],
+      "why": "Intent, Vision and Criteria surfaced are missing"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".work/onboarding-dropoff/notes.md", "content": "## Handoff\n\n- Problem: x\n- Intent (why, in the user's words): y\n- Vision (where this heads): z\n- Chosen direction: 2\n- Rejected options: 1\n- Criteria surfaced: quick\n"}}],
+      "why": "written to the wrong file"
+    },
+    {"answer": [], "why": "nothing written"}
+  ]
+}

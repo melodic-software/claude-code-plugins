@@ -6,8 +6,9 @@
 // body line exactly "Hold: a human merges this") counts against the held
 // cap and its age alarm. Lane PRs opened in the window may be at most
 // wip.opened-to-merged-ratio times those merged in it. Over a cap the check alerts; it
-// pauses the lane only over the WIP cap, on or after wip.pause-from; the held
-// cap only alerts. A read that fails never caps.
+// pauses the lane over the WIP cap or the held cap, on or after wip.pause-from,
+// and logs one `admission paused: reason=...` line (owner decision
+// 2026-10-21). A read that fails never caps.
 import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -211,23 +212,27 @@ test("over the WIP cap the lane pauses only on or after pause-from: unset never,
   assert.equal(status(under, { "pause-from": "2026-10-01" }).paused, false);
 });
 
-test("over the held cap alone the lane alerts but never pauses, whatever pause-from says", async () => {
-  const overHeld = await read({ open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 100 });
-  for (const pauseFrom of ["", "2026-10-19", "2026-10-18", "2026-10-01T00:00:00Z"]) {
-    const result = status(overHeld, { "pause-from": pauseFrom });
+test("over the held cap alone the lane pauses only on or after pause-from, for reason held-cap", async () => {
+  const overHeld = await read({ open: Array.from({ length: 10 }, () => pr({ labels: ["needs-human"] })), merged: 100 });
+  for (const [pauseFrom, paused] of [["", false], ["2026-10-19", false], ["2026-10-18", true], ["2026-10-01T00:00:00Z", true]]) {
+    const result = status(overHeld, { "held-cap": 10, "pause-from": pauseFrom });
     assert.equal(result.held_over, true, pauseFrom);
     assert.equal(result.wip_over, false, pauseFrom);
     assert.equal(result.alert, true, pauseFrom);
-    assert.equal(result.paused, false, pauseFrom);
+    assert.equal(result.paused, paused, pauseFrom);
+    assert.equal(result.pause_reason, paused ? "held-cap" : null, pauseFrom);
   }
+  const under = await read({ open: Array.from({ length: 9 }, () => pr({ labels: ["needs-human"] })), merged: 100 });
+  assert.equal(status(under, { "held-cap": 10, "pause-from": "2026-10-01" }).paused, false);
 });
 
-test("over both caps the lane pauses, because of the WIP cap", async () => {
+test("over both caps the lane pauses for both reasons", async () => {
   const both = await read({ open: [pr(), pr(), pr(), ...Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] }))], merged: 24 });
   const result = status(both, { "pause-from": "2026-10-01" });
   assert.equal(result.held_over, true);
   assert.equal(result.wip_over, true);
   assert.equal(result.paused, true);
+  assert.equal(result.pause_reason, "wip,held-cap");
 });
 
 test("reads that fail never cap or pause", async () => {
@@ -238,6 +243,7 @@ test("reads that fail never cap or pause", async () => {
   assert.equal(result.wip_over, false);
   assert.equal(result.held_over, false);
   assert.equal(result.paused, false);
+  assert.equal(result.pause_reason, null);
 });
 
 // main against a base checkout; with no `config` it holds no schema, so the
@@ -311,18 +317,35 @@ test("main writes capped=true only when paused", async () => {
   assert.equal(paused.wip.wip_min_cap, 12);
   assert.equal(paused.capped, "true");
   assert.ok(paused.logs.some((line) => line.includes("13 countable lane PRs are at or over the WIP cap of 12")));
-  assert.equal((await runMain({ open: [pr()], merged: 24 }, {}, config)).capped, "false");
+  const line = "admission paused: reason=wip countable=13 wip_cap=12 held=0 held_cap=10";
+  assert.ok(paused.logs.includes(`::notice title=admission paused::${line}`), paused.logs.join("\n"));
+  assert.ok(paused.summary.includes(`\n${line}\n`));
+  const running = await runMain({ open: [pr()], merged: 24 }, {}, config);
+  assert.equal(running.capped, "false");
+  assert.ok(!running.logs.some((l) => l.includes("admission paused")));
+  assert.ok(!running.summary.includes("admission paused"));
 });
 
-test("main's warning over the held cap alone, past pause-from, says only the WIP cap pauses", async () => {
+test("main pauses at this repository's held cap of 10, past pause-from, and logs the pause line", async () => {
   const repoConfig = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8");
   const config = repoConfig.replace(/^( +pause-from: ).*$/m, '$1"2026-10-01"');
-  const held = await runMain({ open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, {}, config);
+  const held = await runMain({ open: Array.from({ length: 10 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, {}, config);
+  assert.equal(held.wip.held_cap, 10);
   assert.equal(held.wip.held_over, true);
   assert.equal(held.wip.wip_over, false);
+  assert.equal(held.capped, "true");
+  const warning = held.logs.find((line) => line.startsWith("::warning title=check-wip-cap::") && line.includes("held cap of 10"));
+  assert.ok(warning?.includes("this run starts no work and work-unblock re-fires it once under both caps"), warning);
+  assert.ok(held.logs.includes("::notice title=admission paused::admission paused: reason=held-cap countable=0 wip_cap=12 held=10 held_cap=10"));
+  const nine = await runMain({ open: Array.from({ length: 9 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, {}, config);
+  assert.equal(nine.capped, "false");
+});
+
+test("main's warning before pause-from says the pause date is not reached", async () => {
+  const repoConfig = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8");
+  const config = repoConfig.replace(/^( +pause-from: ).*$/m, '$1"2026-10-19"');
+  const held = await runMain({ open: Array.from({ length: 10 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, {}, config);
   assert.equal(held.capped, "false");
-  const warning = held.logs.find((line) => line.startsWith("::warning title=check-wip-cap::") && line.includes("held cap of 60"));
-  assert.ok(warning);
-  assert.ok(!warning.includes("pause-from not reached"), warning);
-  assert.ok(warning.includes("the lane keeps running (only the WIP cap pauses it)"), warning);
+  const warning = held.logs.find((line) => line.startsWith("::warning title=check-wip-cap::"));
+  assert.ok(warning?.includes("the lane keeps running (pause-from not reached)"), warning);
 });
