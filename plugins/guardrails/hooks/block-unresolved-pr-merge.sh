@@ -665,16 +665,21 @@ _bupm_runs="$(jq -c '. as $all
 # `superseded by full run <url>/actions/runs/<id> in flight on <sha>`; its
 # output summary is empty. Such a run does not count: the named full run's run
 # of the same check and app decides, and the check is pending until that run
-# exists. A failed annotations read leaves the failure standing. Three failed
-# runs at most are read, each one more call.
+# exists. Any other failure annotation beside the marker and the runner's
+# `Process completed with exit code <n>.` is a failure of the run's own steps
+# (a contract check), which the full run cannot clear, so the failure stands.
+# A failed annotations read leaves the failure standing. Three failed runs at
+# most are read, each one more call.
 _bupm_sup='{}'
 while IFS= read -r _bupm_id; do
   [[ "$_bupm_id" =~ ^[0-9]+$ ]] || continue
   # shellcheck disable=SC2016
   _bupm_api "repos/$BUPM_REPO/check-runs/$_bupm_id/annotations?per_page=100" --jq '
-    [.[] | select(.annotation_level == "failure") | .message // ""
-      | capture("^superseded by full run https://[^ ]+/actions/runs/(?<run>[0-9]+) in flight on (?<sha>[0-9a-f]+)[:. ]")
-      | "\(.run) \(.sha)"] | first // empty' || continue
+    [.[] | select(.annotation_level == "failure") | .message // ""] as $m
+    | if all($m[]; test("^superseded by full run ") or test("^Process completed with exit code [0-9]+\\.$"))
+      then [$m[] | capture("^superseded by full run https://[^ ]+/actions/runs/(?<run>[0-9]+) in flight on (?<sha>[0-9a-f]+)[:. ]")
+        | "\(.run) \(.sha)"] | first // empty
+      else empty end' || continue
   read -r _bupm_frun _bupm_fsha <<<"$BUPM_OUT"
   [[ -n "$_bupm_frun" && "$_bupm_fsha" == "$_bupm_sha" ]] || continue
   _bupm_sup="$(jq -c --arg k "$_bupm_id" --arg v "$_bupm_frun" '.[$k] = $v' <<<"$_bupm_sup")" || _bupm_sup='{}'

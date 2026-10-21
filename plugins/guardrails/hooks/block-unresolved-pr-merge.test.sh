@@ -160,17 +160,19 @@ J
   # (run 5001) in flight on the head (#8716), with the full run's ci-status
   # success, failed or not yet created, or the marker naming another head. The
   # first shape gives the superseded run the higher id, a constructed race; on
-  # #8715 the full run's job did not exist yet, the absent shape.
-  ci-superseded-full-success | ci-superseded-full-failed | ci-superseded-full-absent | ci-superseded-other-sha)
-    local full='' sha=abc123 sup='{"id":903,"name":"ci-status","app":{"id":15368},"check_suite":{"id":3},"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5002/job/3"}'
+  # #8715 the full run's job did not exist yet, the absent shape. The mixed shape
+  # also carries a contract step's own error, which the full run cannot clear.
+  ci-superseded-full-success | ci-superseded-full-failed | ci-superseded-full-absent | ci-superseded-other-sha | ci-superseded-mixed)
+    local full='' sha=abc123 extra='' sup='{"id":903,"name":"ci-status","app":{"id":15368},"check_suite":{"id":3},"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5002/job/3"}'
     case "$3" in
-    *-full-success | *-other-sha) full='{"id":902,"name":"ci-status","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success","details_url":"https://github.com/acme/widgets/actions/runs/5001/job/2"},' ;;
+    *-full-success | *-other-sha | *-mixed) full='{"id":902,"name":"ci-status","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success","details_url":"https://github.com/acme/widgets/actions/runs/5001/job/2"},' ;;
     *-full-failed) full='{"id":902,"name":"ci-status","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5001/job/2"},' ;;
     *) ;; # the full run's ci-status is not created yet
     esac
     [[ "$3" == *-other-sha ]] && sha=def456
+    [[ "$3" == *-mixed ]] && extra='{"annotation_level":"failure","message":"#42 carries the '\''do-not-merge'\'' label; the merge queue removes it."},'
     echo '{"total_count":3,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"success","details_url":"https://github.com/acme/widgets/actions/runs/5000/job/1"},'"$full$sup"']}' >"$FIX/checks.json"
-    echo '[{"annotation_level":"failure","message":"Process completed with exit code 1."},{"annotation_level":"failure","message":"superseded by full run https://github.com/acme/widgets/actions/runs/5001 in flight on '"$sha"': its own ci-status check run is newer than this one and decides the merge gate."}]' >"$FIX/annotations_903.json"
+    echo '['"$extra"'{"annotation_level":"failure","message":"Process completed with exit code 1."},{"annotation_level":"failure","message":"superseded by full run https://github.com/acme/widgets/actions/runs/5001 in flight on '"$sha"': its own ci-status check run is newer than this one and decides the merge gate."}]' >"$FIX/annotations_903.json"
     ;;
   # A lone failed ci-status whose annotations carry no superseded marker.
   ci-failed-plain)
@@ -318,6 +320,9 @@ run "superseded contract-only run, full run not reported, --auto" 'gh pr merge 4
 scenario none none ci-superseded-other-sha green
 run "superseded marker naming another head" 'gh pr merge 42 --squash' 2
 assert_contains "other head -> still failing" "$ERR" "Failing checks: ci-status"
+scenario none none ci-superseded-mixed green
+run "superseded marker beside a contract error, full run succeeded" 'gh pr merge 42 --squash' 2
+assert_contains "superseded beside a contract error -> failing" "$ERR" "Failing checks: ci-status"
 scenario none none ci-failed-plain green
 run "lone failed ci-status" 'gh pr merge 42 --squash' 2
 assert_contains "lone failure -> names ci-status" "$ERR" "Failing checks: ci-status"
