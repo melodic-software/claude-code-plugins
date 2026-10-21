@@ -146,7 +146,7 @@ git -C "$R" mv keep.txt moved.txt
 put edit.txt 'one\nTWO\n'
 run_collect
 check 'config: exit 0' 0 "$RC"
-check 'config: no colour codes' 0 "$(grep -c $'\e' "$PATCH" || true)"
+check 'config: no color codes' 0 "$(grep -c $'\e' "$PATCH" || true)"
 check 'config: no rename headers' 0 "$(grep -c '^rename ' "$PATCH" || true)"
 check 'config: a/ and b/ prefixes' 'diff --git a/edit.txt b/edit.txt' "$(grep '^diff --git a/edit.txt' "$PATCH")"
 apply_to_fresh
