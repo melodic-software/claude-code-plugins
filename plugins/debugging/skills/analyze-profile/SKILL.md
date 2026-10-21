@@ -149,5 +149,6 @@ Capture runs a profiler on the user's machine, so it needs a human present who c
   above all the cost; walk parents before naming a culprit.
 - **One heap snapshot cannot show growth.** Compare two snapshots taken some minutes apart under
   the same load to see which type or retaining path grows.
+  `scripts/query_profile.py compare <before.db> <after.db>` lists the types that grew.
 - **Sampling profiles miss short functions.** A function absent from the samples may still run;
   absence of evidence at the sampling interval is not proof.

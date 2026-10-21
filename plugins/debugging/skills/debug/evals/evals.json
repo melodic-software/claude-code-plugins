@@ -177,6 +177,45 @@
         "Output does not recast the check as an architectural finding, since the bug had a valid test seam",
         "Output proposes the check and does not create or edit a lint config, hook or analyzer rule in this run"
       ]
+    },
+    {
+      "id": 15,
+      "name": "minimize-red-loop-before-hypotheses",
+      "prompt": "/debugging:debug my loop is red: replaying one saved POST /orders request returns a 500. The request has 40 body fields, 12 headers and 8 config values set in the test environment. The 500 repeats on every run and matches what the user reported. What next?",
+      "expected_output": "Before ranking causes, it shrinks the reproduction: cuts one element at a time, re-runs the loop after each cut, and keeps only the elements whose removal turns the loop green. It does not move to hypotheses with the full request.",
+      "files": [],
+      "expectations": [
+        "Output plans or makes cuts to the request, headers and config one element at a time, with a loop run after each cut",
+        "Output keeps an element only when removing it turns the loop green, and drops one whose removal leaves the loop red",
+        "Output does not move to Phase 3 hypotheses with the full 40-field request",
+        "Output says the minimized case is reused as the regression test"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "forced-red-diff-against-pristine-copy",
+      "prompt": "/debugging:debug I changed the discount value in the order fixture to -5 to force the test red, and it is red now. Is that red good enough to start the fix?",
+      "expected_output": "Does not trust the red yet. It diffs the edited fixture against the committed or a saved copy and confirms the edit landed, then checks the test fails for the intended reason.",
+      "files": [],
+      "expectations": [
+        "Output diffs the edited fixture against the committed version or a copy saved before the edit",
+        "Output confirms the edit is present before trusting the red",
+        "Output also checks the failure message matches the intended reason",
+        "Output does not start the fix before that diff"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "human-driven-loop-keeps-sign-in-out-of-ask",
+      "prompt": "/debugging:debug the bug shows only after signing in to our staging site, which sends a one-time code to my phone, so no script of yours can reach it. After sign-in, the dashboard shows an empty orders table. Build the loop.",
+      "expected_output": "Falls back to a human-driven script. Signing in is an instruct step the user does on their own, no ask collects the password, code or other sign-in detail, and the script is handed to the user to run.",
+      "files": [],
+      "expectations": [
+        "Output drafts signing in to staging as an instruct step for the user",
+        "Output has no ask that collects a password, one-time code, token or other sign-in detail",
+        "Output asks only for observations, such as whether the table is empty or the copied error text",
+        "Output hands the script to the user to run in their own terminal and asks for the results block back"
+      ]
     }
   ]
 }
