@@ -18,7 +18,10 @@ Returns { ReadState, Apps }, each app
 An Uninstall entry counts when it has a DisplayName, is not a SystemComponent,
 and is not an update to another entry. A package counts when it is not a
 framework, resource or system-signed package. The Windows Installer's WMI
-product class is never queried: enumerating it can start installer repairs.
+product class is never queried: its class page warns that enumerating it starts
+a consistency check that verifies and repairs installed packages (Remarks of
+https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa394378(v=vs.85)#remarks;
+as of 2026-10-21, recheck when that warning changes).
 
 ReadState is ok when every source read; otherwise the first failing source's
 state, with the apps the other sources returned.

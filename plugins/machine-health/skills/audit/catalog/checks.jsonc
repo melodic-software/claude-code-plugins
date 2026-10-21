@@ -63,7 +63,7 @@
       "category": "services",
       "os": ["windows"],
       "script": "scripts/windows/checks/Test-Services.ps1",
-      "severity_rules": "reference/windows/check-catalog.md#4-services--startup-items",
+      "severity_rules": "reference/windows/check-catalog.md#4-services",
       "needs_admin": false,
       "enabled": true,
       "deprecated": false,

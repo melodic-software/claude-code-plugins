@@ -10,8 +10,8 @@ Returns { ReadState, Complete, Tasks }, each task
 is a logon trigger. Command joins each action's executable and arguments, or
 names the COM handler for a handler action.
 
-Complete is $false without elevation: a standard token sees only part of the
-task store, so the list is partial there.
+Complete is $false without elevation, when the list is partial; why is the
+startup-items row of Get-ElevationMatrix.ps1.
 #>
 
 . (Join-Path $PSScriptRoot 'Test-IsElevated.ps1')

@@ -3,7 +3,7 @@
 .SYNOPSIS
 Check: Services. Emits a CheckResult JSON on stdout.
 
-See reference/windows/check-catalog.md#4-services--startup-items for rubric.
+See reference/windows/check-catalog.md#4-services for rubric.
 #>
 [CmdletBinding()]
 param([switch]$Human)

@@ -150,7 +150,7 @@ $CheckBody = {
         "$launchedCount launched; $noEvidenceCount without launch evidence.")
     if ($userAssist.ReadState -ne 'ok') { $summary += " UserAssist launch records: $($userAssist.ReadState)." }
 
-    # Prefetch and BAM refuse a standard token; their fields fill only when elevated.
+    # Elevation-only fields, per the app-last-use row of Get-ElevationMatrix.ps1.
     $adminFields = @(
         if ($prefetch.ReadState -eq 'denied') { 'prefetch_state' }
         if ($bam.ReadState -eq 'denied') { 'bam_state' }

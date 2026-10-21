@@ -17,7 +17,8 @@ Returns two records, { Source, ReadState, Entries }:
              values; Path drops the \Device\HarddiskVolumeN prefix, so it is
              rooted at the volume without a drive letter.
 
-Without elevation both reads are refused and report denied.
+Without elevation both report denied; why is the app-last-use row of
+Get-ElevationMatrix.ps1.
 #>
 
 . (Join-Path $PSScriptRoot 'ConvertFrom-FileTimeBytes.ps1')
