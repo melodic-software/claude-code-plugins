@@ -24,6 +24,7 @@
 - [20. Storage top-N](#20-storage-top-n)
 - [21. Startup items](#21-startup-items)
 - [22. App last-use](#22-app-last-use)
+- [23. Browser extensions](#23-browser-extensions)
 
 Per-check rubrics for Windows. Section numbers follow the order of `catalog/checks.jsonc`. Each
 number is the anchor a catalog entry's `severity_rules` points at, so renumbering breaks those
@@ -1028,3 +1029,59 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   - App use is inventory, never `WARN` or `CRIT`.
 - **Notes:** items are keyed `app:` over the Uninstall subkey name or the package family name.
   `launched_count` and `userassist_state` show whether the decode works on this host.
+
+---
+
+## 23. Browser extensions
+
+- **Script:** `scripts/windows/checks/Test-BrowserExtensions.ps1`
+- **Category:** `security`
+- **Needs admin:** no. Browser profile files and the policy registry keys read unelevated.
+- **Commands:**
+
+  ```powershell
+  Get-Content "$env:LOCALAPPDATA\<browser>\User Data\<profile>\Secure Preferences" | ConvertFrom-Json
+  Get-Content "$env:APPDATA\Mozilla\Firefox\Profiles\<profile>\extensions.json" | ConvertFrom-Json
+  Get-ItemProperty HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist
+  ```
+
+- **What it lists:** every extension installed in each Chrome, Edge and Firefox profile, one
+  mutable item (FindingKey kind `ext`: browser, profile directory, extension id) per extension,
+  plus the Edge and Chrome `ExtensionInstallForcelist` and `ExtensionSettings` policies read in
+  both HKLM and HKCU. Each policy row names its hive; which hive wins when both are set is not
+  resolved. Reads are contained in `Get-ChromiumExtension.ps1`, `Get-FirefoxExtension.ps1` and
+  `Get-ExtensionPolicy.ps1`, which hold the browsers' key names, location codes and store update
+  URLs.
+
+- **Severity rubric** (owner-approved judgment rules):
+  - `WARN`: an unmuted extension loaded unpacked or from the command line, installed at the store
+    location but not from the web store, a Firefox add-on that is unsigned or was installed by
+    another program, or a non-component extension holding a high-attention permission (access to
+    all sites, `debugger`, `nativeMessaging`, `proxy`, `management`). The item's `reasons` says
+    which.
+  - `INFO`: extensions are listed and none of the above holds, including policy-installed and
+    component extensions. Forcelist entries are always `INFO`.
+  - `OK`: no extensions and every source read.
+  - `UNKNOWN`: a browser's profile data or the policy keys could not be read (`browsers[].read_state`
+    or the summary names it); a failed read never reads as an empty browser. `ran_successfully`
+    is false.
+  - A muted item stays in `detail.items[]` and does not raise the level. Never `CRIT`.
+
+- **Notes:**
+  - Chromium keeps an extension's state across `Preferences` and `Secure Preferences`; the two
+    are merged per id first. An entry with no install location after the merge is a stub, not an
+    installed extension: it is dropped and counted in `stubs_skipped` (on Edge, about two thirds
+    of entries on the probed hosts).
+  - `install_state` is `listed-but-blocked` for a forcelist entry whose update URL is off that
+    browser's own store on a machine not joined to a domain (`Win32_ComputerSystem.PartOfDomain`),
+    and `listed` otherwise; an entry with no update URL uses the store. `blocked_marker_count`
+    counts these entries and the matching `ExtensionSettings` ids. Chromium marks such entries
+    blocked rather than dropping them, and Learn says forced install off a domain is limited to the
+    Edge Add-ons store. When domain membership cannot be read, nothing is called blocked and
+    `domain_read_state` records it. Intune enrollment is not detected.
+  - No other policy path is read: the Learn policy page lists only the mandatory path.
+  - Pointers: [Edge ExtensionInstallForcelist](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/extensioninstallforcelist),
+    Chromium `components/policy/core/common/policy_loader_common.cc` and
+    `extensions/common/mojom/manifest.mojom`. As of 2026-10-21. Recheck when the Learn page
+    changes the path or the off-domain rule, a host shows a forced extension under another key,
+    or Chromium changes its location enum or the blocked-entry rule.
