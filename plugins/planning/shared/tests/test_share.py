@@ -80,7 +80,8 @@ class TestEnsureRunning(Running):
         self.assertEqual(code, 0, err)
         (self.d / tunnel.RECORD).write_text(json.dumps(rec), encoding="utf-8")  # its pid has exited
         runs = self.d.parent / "cf-runs.txt"
-        slow = env(FAKE_CF_DELAY=str(int(share_cli.START_SECONDS) + 2), SHARED_TUNNEL_SECONDS="60", FAKE_CF_ARGS=str(runs))
+        # a 6 s start limit keeps the case (a tunnel slower than the limit) without waiting out the real 15 s one
+        slow = env(SHARED_START_SECONDS="6", FAKE_CF_DELAY="8", SHARED_TUNNEL_SECONDS="60", FAKE_CF_ARGS=str(runs))
         code, out, err = share(self.d, "ensure-running", environ=slow)
         self.assertEqual(code, 0, err)
         now = tunnel.read(self.d)
