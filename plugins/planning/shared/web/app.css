@@ -255,6 +255,8 @@
   background: var(--brass-soft); color: var(--brass-text);
 }
 .app .vf-rcheck .vf-i { inline-size: 11px; block-size: 11px; stroke-width: 2.6; }
+.app .vf-rcheck-none { background: none; box-shadow: inset 0 0 0 1.5px var(--faint); }
+.app .vf-rcheck-none .vf-i { display: none; }
 .app .vf-rlabel { flex: 1; }
 .app .vf-chev { color: var(--faint); inline-size: 14px; block-size: 14px; }
 .app .vf-rtoggle[aria-expanded="true"] .vf-chev { rotate: 90deg; }

@@ -6941,7 +6941,9 @@
         const head = E("div", "vf-rhead");
         const toggle = btn("vf-rtoggle");
         const tLabel = E("span", "vf-rlabel");
-        const check = E("span", "vf-rcheck"); check.append(icon("check"));
+        // the slot always shows, so every round's label starts at one x: a check once any is done, else an empty ring; the
+        // label says the count, so the slot is aria-hidden in both
+        const check = E("span", "vf-rcheck"); check.setAttribute("aria-hidden", "true"); check.append(icon("check"));
         toggle.append(check, tLabel, icon("chevR", "vf-i vf-chev"));
         toggle.onclick = () => { const o = openRounds(); o.has(n) ? o.delete(n) : o.add(n); setOpenRounds(o); };
         const curHead = E("div", "vf-rcur");
@@ -6972,7 +6974,7 @@
         // ux-review-2 #7: guests count what they answered; "decided" is the moderators' word.
         const done = mod ? decided : inRound.filter(mineDone).length, word = mod ? "decided" : "answered";
         k.tLabel.textContent = n > cur ? `Round ${n}, opens after round ${cur}` : `Round ${n}, ${done} of ${inRound.length} ${word}`;
-        k.check.hidden = !done;
+        k.check.classList.toggle("vf-rcheck-none", !done);
         k.name.textContent = `Round ${n}`;
         k.meta.textContent = list.length < inRound.length ? `${list.length} of ${inRound.length} shown` : `${done} of ${inRound.length} ${word}`;
         k.prog.firstChild.style.transform = `scaleX(${inRound.length ? done / inRound.length : 0})`;
