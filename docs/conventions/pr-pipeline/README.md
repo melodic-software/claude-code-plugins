@@ -1311,7 +1311,7 @@ full review rounds, one more high-severity-only pass runs; if it still has findi
 escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
 rounds have run, unless a write-access trusted person asked for a fix on a thread after the
 newest round: that runs one more round, on the requested threads only. The default is 2; this
-repository sets 3. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
+repository's value is in `docs/conventions/pr-pipeline.yaml` `loop`. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
 App may push to one PR; the next fix-ci run hands it to a person before any model turn.
 
@@ -1359,7 +1359,7 @@ and those opened in it.
 | Key | Default | What it sets |
 |---|---|---|
 | `target-lead-time-hours` | 2 | Target open-to-merge hours. The WIP cap is merged lane PRs per hour times this, rounded up, at least `min-cap`. |
-| `min-cap` | 1 | Floor under the computed WIP cap, so a day with few merges cannot shrink the cap until the lane stalls. This repository sets 12. |
+| `min-cap` | 1 | Floor under the computed WIP cap, so a day with few merges cannot shrink the cap until the lane stalls. This repository's value is in `docs/conventions/pr-pipeline.yaml` `wip`. |
 | `merge-rate-window-hours` | 24 | Rolling window for the merged and opened counts. |
 | `opened-to-merged-ratio` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. Not `limits.admission-factor`, which sizes the agent-ready backlog. |
 | `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap. |
