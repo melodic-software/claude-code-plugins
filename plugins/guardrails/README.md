@@ -135,7 +135,8 @@ action, because a written claim can be deliberately forward-looking.
 never in the repository, so it never enters the deleted-path set and the guard
 stays silent by construction. Separating a hallucinated path from a correctly
 documented consumer-tree path needs a signal a repo-root oracle does not have.
-Both are absent locally and conventionally shaped, so that class is deliberately
+Both kinds of path are absent locally
+and conventionally shaped, so that class is deliberately
 out of scope until such a signal exists.
 
 ### Scope notes
@@ -1020,7 +1021,7 @@ guard's own **≈ 505 ms is ≈ 25% of the ≤ 2 s worst-case ceiling as an uppe
 bound on its contribution**, and less than that in practice because it is
 dispatched in parallel rather than added. Per the convention's rule 2 the budget
 does not relax to absorb the overage: remediation is guardrails' own
-spawn-reduction work (#1403), and this change pays part of its way: it removes
+spawn-reduction work (#1403), and this change offsets part of the spawn cost it adds: it removes
 the `printf | tr` fork-and-exec pair from the shared normalizer and stops
 resolving the telemetry subject in a subshell when no sink is wired, both costs
 the pre-existing per-Bash-call lane was paying on every call. Operators who
