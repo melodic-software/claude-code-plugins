@@ -602,8 +602,8 @@ that fails counts as a refusal.
   also `needs-human`. That record does not hold the rung off.
   With a new record of either kind, the alert files one fix issue per newly failing check, at
   most 5 per run (an overflow line on the record says when more failed), first line
-  `<!-- post-merge-fix check=<name> -->`, in fixed text only (the failing job's name, never an
-  annotation title, SHA, run link, merge range, the record's number), with no label, locks it,
+  `<!-- post-merge-fix check=<name> -->`, in fixed text only (the failing job's name, the SHA, the run
+  link, the merge range and the record's number, never an annotation title), with no label, locks it,
   and dispatches intake triage for each; a fix issue that could not be filed, locked, reopened
   or sent is named in a comment on the record. A check
   whose fix issue was closed reopens that issue with a comment naming the new range; one closed
