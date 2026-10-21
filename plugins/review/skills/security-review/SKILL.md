@@ -140,12 +140,14 @@ eligible for skip 2. Compare the base and head manifests:
   the direction that widens unchecked action (a gate turned off, an autonomy tier or unlimited
   mode turned on, a cap or budget raised), or that is removed, is a finding: every user who never
   set it gets the wider action on update. Name the control and the action that now reaches it
-  unchecked. A change that lowers a value's protection is a finding too.
+  unchecked. An added key that is a guard (judged by the code or skill text that reads it) whose
+  default is the permissive value is a finding. A change that lowers a value's protection is a
+  finding too.
 - Default deny. Every other field added, changed, or removed is a `manifest <field>: flag`,
   whatever the lane believes about it, unless it is in this repository's inert set:
-  `description`, `keywords`, `author`, `homepage`, `repository`, `license`, and a changed (not
-  added or removed) `version`. On each such flag,
-  name in the summary what runs and where it comes from (the command, server, or script, and the
+  `description`, `keywords`, `author`, `homepage`, `repository`, `license`, a marketplace
+  entry's `tags` and `category`, a `userConfig` key's `title` and `description`, and a changed
+  (not added or removed) `version`. On each such flag, name in the summary what runs and where it comes from (the command, server, or script, and the
   path, package, or URL with its pin), or what installed users get on update. A source outside
   the repository with no pin, a command fed consumer-controlled input, or a tool grant wider than
   the command needs also gets its exploit path.
