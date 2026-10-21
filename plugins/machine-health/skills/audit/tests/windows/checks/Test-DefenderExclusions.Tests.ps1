@@ -2,128 +2,158 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
 BeforeAll {
-    # Test-IsElevated is dot-sourced here so Mock can intercept it; the check script's
-    # own import is not visible in this scope.
+    # The adapter and Test-IsElevated are dot-sourced here so Mock can intercept
+    # them; the check script's own imports are not visible in this scope.
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DefenderExclusions' `
-        -AsObject 'Invoke-DefenderExclusionsAsObject' -LibScript 'Test-IsElevated.ps1'
+        -AsObject 'Invoke-DefenderExclusionsAsObject' `
+        -LibScript 'Test-IsElevated.ps1', 'New-FindingItem.ps1', 'New-DefenderExclusionItem.ps1', 'Get-DefenderExclusionState.ps1',
+        'Get-DefenderEventHistory.ps1', 'ConvertTo-DetailMarkdown.ps1' -MockHelpers
+
+    function Invoke-DefenderExclusionWithMuteList {
+        param([string[]] $MutedKeys)
+        ConvertFrom-CheckOutput (& $script:ScriptPath -MutedKeys $MutedKeys)
+    }
 }
 
-Describe 'Test-DefenderExclusions -- elevation gate' -Tag 'check' {
-    It 'reports UNKNOWN + needs_admin when non-elevated' {
+Describe 'Test-DefenderExclusions -- masked lists' -Tag 'check' {
+    It 'reports UNKNOWN + needs_admin with list_state masked and no items, never OK' {
         Mock Test-IsElevated { $false }
-        # Get-MpPreference must NOT be called when the gate trips; mock it as
-        # throwing so a regression that bypasses the gate fails loudly.
-        Mock Get-MpPreference { throw 'Should not be reached when non-elevated' }
+        Mock Get-DefenderExclusionState {
+            [pscustomobject]@{ ReadState = 'masked'; Paths = @(); Extensions = @(); Processes = @() }
+        }
         $result = Invoke-DefenderExclusionsAsObject
+        { Assert-CheckResult $result } | Should -Not -Throw
         $result.severity | Should -Be 'UNKNOWN'
         $result.needs_admin | Should -BeTrue
         $result.ran_successfully | Should -BeFalse
         $result.error | Should -Be 'needs_admin'
         $result.detail.admin_fields | Should -Contain 'unexpected_path_count'
+        $result.detail.elevated | Should -BeFalse
+        $result.detail.list_state | Should -Be 'masked'
+        $result.detail.items_count | Should -Be 0
+        $result.detail.muted_count | Should -Be 0
+        @($result.detail.items).Count | Should -Be 0
     }
 }
 
 Describe 'Test-DefenderExclusions -- baseline' -Tag 'check' {
     It 'emits a schema-valid CheckResult with zero exclusions' {
-        Mock Test-IsElevated { $true }
-        Mock Get-MpPreference {
-            [pscustomobject]@{
-                ExclusionPath      = @()
-                ExclusionExtension = @()
-                ExclusionProcess   = @()
-            }
+        Mock Get-DefenderExclusionState {
+            [pscustomobject]@{ ReadState = 'ok'; Paths = @(); Extensions = @(); Processes = @() }
         }
         $result = Invoke-DefenderExclusionsAsObject
         { Assert-CheckResult $result } | Should -Not -Throw
         $result.id | Should -Be 'defender-exclusions'
         $result.severity | Should -Be 'OK'
+        $result.detail.list_state | Should -Be 'ok'
+        $result.detail.exclusion_path_count | Should -Be 0
+        $result.detail.unexpected_path_count | Should -Be 0
+        $result.detail.items_count | Should -Be 0
         # Admin-gated checks must keep needs_admin=true even when run elevated
         # so downstream tooling consistently classifies coverage. Mirrors TPM.
         $result.needs_admin | Should -BeTrue
     }
 
-    It 'reports OK with zero counts when every exclusion property is $null' {
-        # The shape Get-MpPreference really returns on a host with no exclusions.
-        Mock Test-IsElevated { $true }
-        Mock Get-MpPreference {
-            [pscustomobject]@{
-                ExclusionPath      = $null
-                ExclusionExtension = $null
-                ExclusionProcess   = $null
-            }
+    It 'reports UNKNOWN with the read state when the preference read fails' {
+        Mock Get-DefenderExclusionState {
+            [pscustomobject]@{ ReadState = 'error'; Paths = @(); Extensions = @(); Processes = @() }
         }
         $result = Invoke-DefenderExclusionsAsObject
         { Assert-CheckResult $result } | Should -Not -Throw
-        $result.severity | Should -Be 'OK'
-        $result.detail.exclusion_path_count | Should -Be 0
-        $result.detail.exclusion_extension_count | Should -Be 0
-        $result.detail.exclusion_process_count | Should -Be 0
-        $result.detail.unexpected_path_count | Should -Be 0
-        @($result.detail.unexpected_paths).Count | Should -Be 0
-    }
-
-    It 'ignores blank entries alongside real ones' {
-        Mock Test-IsElevated { $true }
-        Mock Get-MpPreference {
-            $sep = [char]92
-            [pscustomobject]@{
-                ExclusionPath      = @($null, '', '   ', "<drive>:${sep}Users${sep}<user>${sep}.dotnet")
-                ExclusionExtension = @('')
-                ExclusionProcess   = $null
-            }
-        }
-        $result = Invoke-DefenderExclusionsAsObject
-        $result.severity | Should -Be 'INFO'
-        $result.detail.exclusion_path_count | Should -Be 1
-        $result.detail.exclusion_extension_count | Should -Be 0
-        $result.detail.unexpected_path_count | Should -Be 0
-    }
-
-    It 'reports UNKNOWN when Get-MpPreference is unavailable' {
-        Mock Test-IsElevated { $true }
-        Mock Get-MpPreference { throw 'Defender API unavailable' }
-        $result = Invoke-DefenderExclusionsAsObject
         $result.severity | Should -Be 'UNKNOWN'
         $result.ran_successfully | Should -BeFalse
-        # Admin-gated checks must keep needs_admin=true on the API-unavailable
-        # path too, so downstream coverage tooling stays consistent.
         $result.needs_admin | Should -BeTrue
+        $result.detail.list_state | Should -Be 'error'
     }
 }
 
 Describe 'Test-DefenderExclusions -- severity rubric' -Tag 'check' {
     It 'reports INFO when only well-known dev paths are excluded' {
-        Mock Test-IsElevated { $true }
-        Mock Get-MpPreference {
-            # Pester 5 mock bodies don't reliably see $script:* vars; build
-            # placeholder paths locally. [char]92 = backslash.
-            $sep = [char]92
+        Mock Get-DefenderExclusionState {
             [pscustomobject]@{
-                ExclusionPath      = @(
-                    "<drive>:${sep}Users${sep}<user>${sep}.dotnet"
-                    "<drive>:${sep}Users${sep}<user>${sep}project${sep}node_modules"
-                )
-                ExclusionExtension = @()
-                ExclusionProcess   = @()
+                ReadState  = 'ok'
+                Paths      = @('<drive>:\Profile\.dotnet', '<drive>:\Profile\project\node_modules')
+                Extensions = @()
+                Processes  = @()
             }
         }
         $result = Invoke-DefenderExclusionsAsObject
         $result.severity | Should -Be 'INFO' -Because $result.error
         $result.detail.unexpected_path_count | Should -Be 0
+        @($result.detail.items | Where-Object expected).Count | Should -Be 2
     }
 
     It 'reports WARN when an unexpected path is excluded' {
-        Mock Test-IsElevated { $true }
-        Mock Get-MpPreference {
-            $sep = [char]92
-            [pscustomobject]@{
-                ExclusionPath      = @("<drive>:${sep}sketchy${sep}folder")
-                ExclusionExtension = @()
-                ExclusionProcess   = @()
-            }
+        Mock Get-DefenderExclusionState {
+            [pscustomobject]@{ ReadState = 'ok'; Paths = @('<drive>:\sketchy\folder'); Extensions = @(); Processes = @() }
         }
         $result = Invoke-DefenderExclusionsAsObject
         $result.severity | Should -Be 'WARN' -Because $result.error
         $result.detail.unexpected_path_count | Should -Be 1
+        $item = @($result.detail.items)[0]
+        $item.severity | Should -Be 'WARN'
+        $item.expected | Should -BeFalse
+    }
+
+    It 'keeps every current exclusion value out of the markdown detail and the summary, showing counts' {
+        Mock Get-DefenderExclusionState {
+            [pscustomobject]@{
+                ReadState  = 'ok'
+                Paths      = @('X:\SentinelUnexpected', 'X:\Profile\.dotnet')
+                Extensions = @('.sentinelext')
+                Processes  = @('sentinelproc.exe')
+            }
+        }
+        $result = Invoke-DefenderExclusionsAsObject
+        $md = ConvertTo-DetailMarkdown -Detail $result.detail -MaxRows 50
+
+        foreach ($value in 'SentinelUnexpected', '.dotnet', 'sentinelext', 'sentinelproc') {
+            $md | Should -Not -Match ([regex]::Escape($value))
+            $result.summary | Should -Not -Match ([regex]::Escape($value))
+        }
+        $md | Should -Match '(?m)^\| `unexpected_paths` \| 1 item \|$'
+        $md | Should -Match '(?m)^\| `exclusion_path_count` \| 2 \|$'
+    }
+
+    It 'lists extension and process exclusions as INFO items' {
+        Mock Get-DefenderExclusionState {
+            [pscustomobject]@{ ReadState = 'ok'; Paths = @(); Extensions = @('.tmp'); Processes = @('tool.exe') }
+        }
+        $result = Invoke-DefenderExclusionsAsObject
+        $result.severity | Should -Be 'INFO'
+        $result.detail.exclusion_extension_count | Should -Be 1
+        $result.detail.exclusion_process_count | Should -Be 1
+        $result.detail.items_count | Should -Be 2
+        ($result.detail.items | Where-Object exclusion_type -EQ 'process').value | Should -Be 'tool.exe'
+    }
+
+    It 'counts a muted unexpected path as expected and does not raise severity' {
+        Mock Get-DefenderExclusionState {
+            [pscustomobject]@{ ReadState = 'ok'; Paths = @('<drive>:\sketchy\folder'); Extensions = @(); Processes = @() }
+        }
+        $result = Invoke-DefenderExclusionWithMuteList -MutedKeys @(Get-FindingKey -Kind 'exclusion' -Identity 'path', '<drive>:\sketchy\folder')
+        $result.severity | Should -Be 'OK'
+        $result.detail.unexpected_path_count | Should -Be 0
+        $result.detail.muted_count | Should -Be 1
+        @($result.detail.items)[0].muted | Should -BeTrue
+    }
+
+    It 'keys an exclusion exactly as defender keys its 5007 history, so one mute covers both checks' {
+        Mock Get-DefenderExclusionState {
+            [pscustomobject]@{ ReadState = 'ok'; Paths = @('X:\Build'); Extensions = @(); Processes = @() }
+        }
+        Mock Get-MpComputerStatus { New-MockDefenderComputerStatus }
+        Mock Get-DefenderEventHistory {
+            [pscustomobject]@{
+                ReadState = 'ok'; LogOldestRecord = (Get-Date).AddDays(-90); SkippedRecords = 0; Detections = @()
+                ExclusionChanges = @([pscustomobject]@{ Type = 'path'; Value = 'X:\build'; Change = 'added'; ChangedAt = (Get-Date).AddDays(-40) })
+            }
+        }
+        $defenderPath = Join-Path (Split-Path $script:ScriptPath) 'Test-Defender.ps1'
+
+        $current = @((Invoke-DefenderExclusionsAsObject).detail.items)[0].key
+        $history = @((Invoke-CheckScriptAsObject $defenderPath).detail.items)[0].key
+        $current | Should -Match '^exclusion:[0-9a-f]{16}$'
+        $history | Should -Be $current
     }
 }

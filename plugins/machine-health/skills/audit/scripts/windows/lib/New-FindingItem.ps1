@@ -93,13 +93,23 @@ function Get-UnmutedSeverity {
 
     $worst = Get-WorstSeverity -Levels @($Items | Where-Object { $_.muted -eq $false } | ForEach-Object { $_.severity })
     foreach ($state in $ReadState) {
-        [void](Assert-ReadState $state)
-        $floor = switch ($state) {
-            'ok' { 'OK' }
-            'absent' { 'OK' }
-            default { 'UNKNOWN' }
-        }
-        if ($floor -ne 'OK' -and $worst -eq 'OK') { $worst = $floor }
+        if (-not (Test-ReadStateUsable $state) -and $worst -eq 'OK') { $worst = 'UNKNOWN' }
     }
     return $worst
+}
+
+function Test-ReadStateUsable {
+    <#
+    .SYNOPSIS
+    True when a read state lets the fields it feeds count as a clean reading:
+    ok or absent. Any other state cannot make a check OK.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)] [AllowEmptyString()] [string] $ReadState
+    )
+
+    [void](Assert-ReadState $ReadState)
+    return $ReadState -cin 'ok', 'absent'
 }

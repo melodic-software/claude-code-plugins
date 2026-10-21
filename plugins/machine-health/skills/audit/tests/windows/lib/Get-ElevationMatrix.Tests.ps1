@@ -33,9 +33,13 @@ Describe 'Get-ElevationMatrix' -Tag 'lib' {
         $entry.Fields | Should -Contain 'unexpected_path_count'
     }
 
-    It 'includes backup-status with the fields the check leaves null unelevated' {
-        $entry = Get-ElevationMatrix | Where-Object { $_.CheckId -eq 'backup-status' }
-        $entry | Should -Not -BeNullOrEmpty
-        $entry.Fields | Should -Be @('restore_points', 'system_image')
+    It 'names the fields <CheckId> fills only when elevated' -ForEach @(
+        @{ CheckId = 'startup-items'; Fields = @('tasks_complete') }
+        @{ CheckId = 'app-last-use'; Fields = @('prefetch_state', 'bam_state') }
+        @{ CheckId = 'backup-status'; Fields = @('restore_points', 'system_image') }
+    ) {
+        $entry = Get-ElevationMatrix | Where-Object { $_.CheckId -eq $CheckId }
+        @($entry).Count | Should -Be 1
+        $entry.Fields | Should -Be $Fields
     }
 }

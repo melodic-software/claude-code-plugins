@@ -374,9 +374,10 @@ lanes:
 
 # The model, effort and turn budget of every model run (README.md, Models).
 # Aliases only, never full model IDs. `default` passes no --model, so the
-# account's default model runs. No profile sets effort, so each run keeps its
-# model's default effort. Every skill activity takes default-profile;
-# pr-verify.yml's judgment routes as verify-pr.
+# account's default model runs. A profile with no effort keeps its model's
+# default effort. A role profile names a multi-agent role in place of a model.
+# A skill activity with no route takes default-profile; pr-verify.yml's
+# judgment routes as verify-pr.
 models:
   profiles:
     standard:
@@ -397,8 +398,16 @@ models:
       model: sonnet
       effort: medium
       max-turns: 10
+    # A worker on code at the verifier's effort, from the multi-agent role map;
+    # the turn budget standard gave.
+    code-fix:
+      role: worker
+      workload: code
+      effort-role: verifier
+      max-turns: 75
   default-profile: standard
   routes:
+    fix-ci: code-fix
     verify-pr: review
     review-code: pr-review
     review-security: pr-review
@@ -480,10 +489,9 @@ limits:
   # wip block below derives it otherwise.
   wip-cap: 12
   # Restarts after a run reaches its turn cap, per agent-ready a person adds.
-  # 0 hands every capped run back to a person, naming the cap; the run's
-  # leftover edits still reach a lane branch. Raise it above 0 only after the
-  # sandbox timeout probe passes and a security review (#7677).
-  turn-cap-restarts: 0
+  # 1: one capped run resumes from its pushed branch before a person is asked
+  # again. Raise it further only with a security review (#7677).
+  turn-cap-restarts: 1
   # Hours of issue-lane admissions the admitted backlog (open issues with
   # agent-ready) may hold before new agent-ready labels pause.
   admission-window-hours: 24
@@ -589,6 +597,10 @@ merge:
   skip-unchanged:
     max-minutes: 60
     max-skips: 3
+  # pr-verify FAILs at this many distinct heads of one PR hold it for a human
+  # whatever a later pass says, so pushing until the verifier passes once
+  # does not merge it (owner decision 2026-10-21).
+  max-verify-fails: 3
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane
@@ -649,7 +661,8 @@ merge:
       # The directories of the scripts a SessionStart or PreToolUse hook runs
       # by path, outside the plugin's hooks/, held whole so a sibling module
       # cannot shadow one of their imports (pydeps.py, arm_observer.py,
-      # destructive_guard.py).
+      # destructive_guard.py). Like every scripts glob here, they do not hold
+      # a test file a plugin declares nothing under.
       - "plugins/animation/scripts/**"
       - "plugins/explainer-video/scripts/**"
       - "plugins/speech/scripts/**"

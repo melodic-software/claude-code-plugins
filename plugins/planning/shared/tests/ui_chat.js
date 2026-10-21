@@ -147,6 +147,11 @@ async function main() {
     }
     const chipOn = page => until(page, () => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const c = li?.querySelector(".vf-mreact"); return !!c && c.textContent === "👍1" && c.getBoundingClientRect().height > 0; });
     ok("React's quick row adds 👍, and the chip appears for the reactor and the host", await chipOn(pia) && await chipOn(owner));
+    // The WAI-ARIA APG toggle button: aria-pressed carries the state, and the label names no action that flips with it.
+    const chipA11y = page => page.evaluate(() => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const c = li?.querySelector(".vf-mreact"); return c && [c.getAttribute("aria-pressed"), c.getAttribute("aria-label")]; });
+    const [onP, onL] = (await chipA11y(pia)) || [], [offP, offL] = (await chipA11y(owner)) || [];
+    ok("  the chip is a toggle: pressed for the reactor, not for the host, and its label names no action (APG)", onP === "true" && offP === "false"
+      && ![onL, offL].some(l => !l || /take|add|back/i.test(l)), JSON.stringify({ onP, onL, offP, offL }));
     if (await pia.locator(".vf-msg", { hasText: "New C" }).locator(".vf-mreact").count()) await pia.locator(".vf-msg", { hasText: "New C" }).locator(".vf-mreact").tap();
     const rowGone = page => until(page, () => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const r = li?.querySelector(".vf-mreacts"); return !!li && !li.querySelector(".vf-mreact") && (!r || r.getBoundingClientRect().height === 0); });
     ok("tapping the chip takes the reaction back and the row goes away", await rowGone(pia) && await rowGone(owner));

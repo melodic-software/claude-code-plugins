@@ -58,6 +58,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3); in the write file also a `pr-feedback-dispatch.yml` run |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first`, `probe-first` or `not-assessed`) that kept the run from starting; any other value, or one outside issue mode, fails step 1 |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-sha256` output |
@@ -1280,8 +1281,12 @@ caller or the write file merges while it waits, the broker would refuse the appl
 as `workflow-modified`. Before any model turn, the read file's `workflow-current` step compares
 the caller's and the write file's blobs at `github.workflow_sha` with the default branch checkout, the broker's
 rule, and on a difference fails red `workflow-stale` with no model turn and no outcome marker;
-work-unblock's hourly sweep re-fires such a failed run on main's files. What changes from the PR
-flow:
+work-unblock's hourly sweep re-fires such a failed run on main's files. An issue that
+`pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first`, `probe-first`
+or `not-assessed`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
+which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
+`dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
+step under an `outcome=<reason>` marker. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read

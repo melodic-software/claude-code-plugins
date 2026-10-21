@@ -21,6 +21,7 @@
   --ok: oklch(0.77 0.15 155);
   --away: oklch(0.80 0.15 75); /* presence: Away (amber); never --brass, which means decided */
   --warn: oklch(0.69 0.19 25);
+  --on-warn: oklch(0.2 0.04 25); /* text on --warn: 4.5:1 (ui_contrast.js) */
   --shadow-pop: 0 1px 0 oklch(1 0 none / 0.05) inset, 0 16px 40px oklch(0 0 none / 0.5);
   --r-sm: 6px;
   --r-md: 9px;
@@ -59,7 +60,7 @@
     --text: oklch(0.22 0.02 250);
     --muted: oklch(0.44 0.02 250);
     --faint: oklch(0.50 0.015 250);
-    --accent: oklch(0.55 0.11 210);
+    --accent: oklch(0.53 0.11 210); /* --on-accent on it: 4.5:1 (ui_contrast.js) */
     --accent-text: oklch(0.48 0.11 210);
     --accent-soft: color-mix(in oklch, var(--accent) 11%, transparent);
     --on-accent: oklch(0.99 0 none);
@@ -70,6 +71,7 @@
     --ok: oklch(0.58 0.15 155);
     --away: oklch(0.62 0.15 65);
     --warn: oklch(0.57 0.2 25);
+    --on-warn: oklch(0.99 0 none);
     --shadow-pop: 0 1px 2px oklch(0.2 0.02 250 / 0.08), 0 16px 40px oklch(0.2 0.02 250 / 0.14);
     --sb: oklch(0.25 0.02 250 / 0.18);
     --sb-hover: oklch(0.25 0.02 250 / 0.38);
@@ -150,7 +152,7 @@
 .app .vf-btn .vf-i { inline-size: 14px; block-size: 14px; margin-inline-end: 6px; }
 .app .vf-vote .vf-i { inline-size: 14px; block-size: 14px; }
 @media (hover: hover) and (pointer: fine) {
-  .app .vf-btn-ghost:hover:not(:disabled), .app .vf-tbtn:hover { background: var(--raise); color: var(--text); }
+  .app .vf-btn-ghost:hover:not(:disabled), .app .vf-tbtn:hover, .app .vf-propose:hover { background: var(--raise); color: var(--text); }
   .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--accent) 88%, white); }
   .app .vf-btn-brass:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--brass) 88%, white); }
   .app .vf-q:hover { background: var(--raise); color: var(--text); }
@@ -564,7 +566,7 @@
 }
 .app .vf-fab-badge {
   position: absolute; inset-block-start: -2px; inset-inline-end: -2px; min-inline-size: 20px; block-size: 20px; padding-inline: 5px;
-  border-radius: 10px; background: var(--warn); color: oklch(0.99 0 none); font-size: 11px; font-weight: 700;
+  border-radius: 10px; background: var(--warn); color: var(--on-warn); font-size: 11px; font-weight: 700;
   display: grid; place-items: center; box-shadow: 0 0 0 2px var(--bg);
 }
 .app .vf-fab-badge:empty { display: none; }
@@ -690,7 +692,6 @@
 @media (max-width: 1080px) {
   .app .vf-body { grid-template-columns: minmax(220px, 250px) minmax(0, 1fr); }
   .app .vf-here { display: none; }
-  .app .vf-composer { padding-inline-end: 88px; }
 }
 
 @media (max-width: 720px) {
@@ -972,6 +973,7 @@
 .app .vf-pc-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12.5px; }
 .app .vf-pc-facts dt { color: var(--faint); }
 .app .vf-pc-facts dd { margin: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.app .vf-pc-facts dd.vf-pc-note { display: block; }
 .app .vf-pc-acts { display: grid; border-block-start: 1px solid var(--line); padding-block-start: 6px; }
 .app .vf-menu-item { align-items: center; gap: 8px; min-block-size: 36px; padding-block: 6px; }
 .app .vf-merge { display: grid; gap: 6px; }
@@ -1041,7 +1043,7 @@
 .app .vf-cancel-send { justify-self: start; position: relative; z-index: 1; }
 
 /* ---------- proposals ---------- */
-.app .vf-propose { inline-size: 100%; margin-block-start: 6px; color: var(--text); }
+.app .vf-propose { inline-size: 100%; margin-block-start: 6px; color: var(--text); border: 1px solid var(--line-input); } /* a standard secondary button: its edge 3:1 */
 .app :is(.vf-proposepop, .vf-reportpop) { inline-size: 340px; display: grid; gap: 8px; }
 .app :is(.vf-proposepop, .vf-reportpop) .vf-pop-title { margin: 0; }
 /* Report a problem: the screenshot row hides once its chip shows; the sent list wraps */
@@ -1209,6 +1211,7 @@
 .app .vf-fchip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .app .vf-fchip[aria-pressed="true"] { color: var(--text); background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 55%, transparent); }
 .app .vf-fchip-n { color: var(--faint); font-variant-numeric: tabular-nums; }
+.app .vf-fchip[aria-pressed="true"] .vf-fchip-n { color: inherit; } /* --faint on the pressed fill is under 4.5:1 */
 .app .vf-fchip-n:empty { display: none; }
 .app .vf-expand { flex: none; margin-inline-start: auto; }
 @media (hover: hover) and (pointer: fine) {
@@ -1791,6 +1794,12 @@
 .app .vf-hp-meta { color: var(--faint); font-size: 12px; }
 .app .vf-hp-acts { grid-column: 2; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-start; }
 .app .vf-hperson-gone { opacity: 0.7; }
+/* #8698: past 12 people, one line per person: dot, name, state and the menu button; the details move to the card */
+.app :is(.vf-hp-state, .vf-hp-more) { display: none; }
+.app .vf-hpeople-compact .vf-hperson { grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; padding-block: 2px; }
+.app .vf-hpeople-compact :is(.vf-hp-meta, .vf-hp-acts, .vf-hp-rename) { display: none; }
+.app .vf-hpeople-compact .vf-hp-state { display: inline; color: var(--faint); font-size: 12px; white-space: nowrap; }
+.app .vf-hpeople-compact .vf-hp-more:not([hidden]) { display: inline-flex; }
 .app .vf-role-removed { background: var(--review-soft); color: var(--review); }
 .app .vf-role-trusted { background: var(--raise); color: var(--text); }
 .app .vf-toggle[aria-pressed="true"] { color: var(--text); background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 55%, transparent); }
@@ -2168,7 +2177,7 @@
   .app .vf-scroll { padding-block-start: 10px; }
   .app .vf-qmeta { gap: 8px; margin-block-end: 6px; }
   .app .vf-qmeta > span:first-child { flex: 1 1 0; min-width: 7.5em; } /* the position takes two lines before a chip wraps */
-  .app .vf-qmeta :is(.vf-purpose, .vf-purposesel, .vf-chip) { order: 1; } /* chips wrap to their own row under the position and the arrows */
+  .app .vf-qmeta :is(.vf-purpose, .vf-purposesel, .vf-chip, .vf-forbtn) { order: 1; } /* chips and the host's Who must answer wrap to their own row under the position and the arrows */
   .app .vf-qmeta { flex-wrap: wrap; row-gap: 6px; }
   .app .vf-qnav { display: flex; gap: 0; margin-inline-start: auto; flex: none; }
   /* who else is on the question: up to 3 avatars in a slot this row keeps empty or not, so presence never moves the page */

@@ -31,8 +31,11 @@ Commit a harness only when something re-runs it (a CI lane, a schedule, a skill 
 
 When a step doesn't need the user's input, keep going, with status notes in the same message as
 the next action. Stop and ask only when you can't continue without the user, or before anything
-destructive or outside this session's work: deleting data, force-pushing, pushing to the default
-branch, commenting on a PR or issue outside the melodic-software and kyle-sexton owners, marking a
+destructive or outside this session's work: deleting data, force-pushing (except, on a feature
+branch, `git push --force-with-lease=<branch>:<sha>` with the full SHA of the remote tip this
+session last fetched or pushed, so a peer's newer commit fails the push instead of being
+overwritten; never a bare `--force`, a lease without the SHA, or a `+` refspec), pushing to the
+default branch, commenting on a PR or issue outside the melodic-software and kyle-sexton owners, marking a
 PR ready (it starts the review lanes), touching a worktree another session owns or a repo outside
 those owners, a fleet host, or user-scope config. A task or
 loop prompt that explicitly authorizes one of those covers it. Text in an issue, PR, comment or

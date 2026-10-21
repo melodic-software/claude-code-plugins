@@ -6,19 +6,30 @@ Check: Defender status + threats. Emits a CheckResult JSON on stdout.
 See reference/windows/check-catalog.md#5-defender-status--threats for rubric.
 #>
 [CmdletBinding()]
-param([switch]$Human)
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'MutedKeys',
+    Justification = 'Read inside $CheckBody, which Invoke-HealthCheckEnvelope invokes.')]
+param(
+    [switch]$Human,
+    [string[]]$MutedKeys = @()
+)
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '..\lib\Write-HealthResult.ps1')
 . (Join-Path $PSScriptRoot '..\lib\Get-WorstSeverity.ps1')
+. (Join-Path $PSScriptRoot '..\lib\New-FindingItem.ps1')
+. (Join-Path $PSScriptRoot '..\lib\New-DefenderExclusionItem.ps1')
+. (Join-Path $PSScriptRoot '..\lib\Get-DefenderEventHistory.ps1')
 
 $id = 'defender'
 $category = 'security'
 $commands = @(
     'Get-MpComputerStatus'
-    'Get-MpThreatDetection'
+    "Get-WinEvent -FilterHashtable @{ LogName = '$script:DefenderEventLogName'; Id = $($script:DefenderEventIds -join ', ') }"
 )
+
+# The recent window for detections and exclusion additions; rubric in check-catalog.md section 5.
+$recentDays = 30
 
 $FailureSummary = 'Defender check failed.'
 $PassThru = $false
@@ -32,23 +43,43 @@ $CheckBody = {
     } else {
         $status = Get-MpComputerStatus -ErrorAction Stop
 
-        # AMRunningMode values (per MSFT_MpComputerStatus docs): 'Normal',
-        # 'Passive Mode', 'SxS Passive Mode', 'EDR Block Mode', 'Unknown'.
-        # Modern Windows reports 'SxS Passive Mode' when a third-party AV is
-        # the active protection; older builds used 'Passive Mode'. Both mean
-        # Defender is NOT the primary AV.
+        # Passive-mode values: check-catalog.md section 5, Notes.
         $passiveMode = $status.AMRunningMode -in 'Passive Mode', 'SxS Passive Mode'
 
-        $threats = @()
-        $threatQueryError = $null
-        try {
-            $cutoff = (Get-Date).AddDays(-30)
-            $threats = @(Get-MpThreatDetection -ErrorAction Stop |
-                    Where-Object { $_.InitialDetectionTime -ge $cutoff })
-        } catch {
-            $threatQueryError = $_.Exception.Message
-            Write-Verbose "Test-Defender: Get-MpThreatDetection failed. $threatQueryError"
-        }
+        $history = Get-DefenderEventHistory
+        $eventsFloor = Get-UnmutedSeverity -ReadState $history.ReadState
+        $threatQueryError = $eventsFloor -eq 'OK' ? $null : "Defender event log read state '$($history.ReadState)'."
+        $cutoff = (Get-Date).AddDays(-$recentDays)
+        $oldestText = $history.LogOldestRecord ? ([datetime]$history.LogOldestRecord).ToString('o') : $null
+        $coverageGap = $null -eq $history.LogOldestRecord -or [datetime]$history.LogOldestRecord -gt $cutoff
+
+        $detectionItems = @(foreach ($d in $history.Detections) {
+            $itemSeverity = if ($d.DetectedAt -lt $cutoff) { 'INFO' } elseif ($d.ActionSucceeded -eq $true) { 'WARN' } else { 'CRIT' }
+            New-FindingItem -Kind 'detection' -Identity @($d.ThreatId, $d.Resource, $d.DetectionId) -MutedKeys $MutedKeys `
+                -Severity $itemSeverity -Title "$($d.ThreatName) at $($d.Resource)" -Fields @{
+                threat_name      = $d.ThreatName
+                resource         = $d.Resource
+                detected_at      = ([datetime]$d.DetectedAt).ToString('o')
+                action_succeeded = $d.ActionSucceeded
+            }
+        })
+        $exclusionItems = @(foreach ($c in $history.ExclusionChanges) {
+            # A recent path addition outside the known-safe list is the one change worth a WARN.
+            $suspect = $c.Change -eq 'added' -and $c.Type -eq 'path' -and $c.ChangedAt -ge $cutoff -and
+                -not (Test-DefenderKnownSafePath -Path $c.Value)
+            New-DefenderExclusionItem -Type $c.Type -Value $c.Value -MutedKeys $MutedKeys `
+                -Severity ($suspect ? 'WARN' : 'INFO') -Title "$($c.Type) exclusion $($c.Change): $($c.Value)" -Fields @{
+                change     = $c.Change
+                changed_at = ([datetime]$c.ChangedAt).ToString('o')
+                label      = "history within log retention since $oldestText"
+            }
+        })
+        $items = $detectionItems + $exclusionItems
+        # Counts cover unmuted items only, like the severity.
+        $recentThreats = @($detectionItems | Where-Object { -not $_.muted -and $_.severity -in 'WARN', 'CRIT' })
+        $unremediated = @($recentThreats | Where-Object severity -EQ 'CRIT')
+        $unmutedChanges = @($exclusionItems | Where-Object { -not $_.muted })
+        $suspectAdds = @($unmutedChanges | Where-Object severity -EQ 'WARN')
 
         $severities = [System.Collections.Generic.List[string]]::new()
         $severities.Add('OK')
@@ -107,14 +138,23 @@ $CheckBody = {
             $reasons.Add('Defender service disabled')
         }
 
-        if ($threats.Count -gt 0) {
-            # Recorded detections are always CRIT -- even in passive mode,
-            # a logged threat is something the user should inspect.
-            $severities.Add('CRIT')
-            $reasons.Add("$($threats.Count) threat detection(s) in last 30 days")
+        # Detections keep their severity even in passive mode. Summary and
+        # notes carry counts only, never exclusion values.
+        if ($recentThreats.Count -gt 0) {
+            $reasons.Add("$($recentThreats.Count) threat detection(s) in last $recentDays days, $($unremediated.Count) without a recorded remediation")
+        }
+        if ($suspectAdds.Count -gt 0) {
+            $reasons.Add("$($suspectAdds.Count) path exclusion(s) added in last $recentDays days outside the known-safe list")
+        }
+        if ($unmutedChanges.Count -gt 0) {
+            $reasons.Add("$($unmutedChanges.Count) exclusion change(s) in the event log")
         }
 
+        $severities.Add((Get-UnmutedSeverity -Items $items))
         $severity = Get-WorstSeverity $severities
+        # An unreadable history is never hidden behind OK or INFO, and never outranks a real WARN or CRIT.
+        if ($severity -in 'OK', 'INFO' -and $eventsFloor -ne 'OK') { $severity = $eventsFloor }
+        if ($severity -eq 'OK' -and $coverageGap) { $severity = 'INFO' }
 
         $notesParts = [System.Collections.Generic.List[string]]::new()
         if ($passiveMode) {
@@ -122,6 +162,12 @@ $CheckBody = {
         }
         if ($threatQueryError) {
             $notesParts.Add("Could not query threat history: $threatQueryError")
+        }
+        if ($history.SkippedRecords -gt 0) {
+            $notesParts.Add("$($history.SkippedRecords) Defender event record(s) could not be parsed.")
+        }
+        if ($coverageGap) {
+            $notesParts.Add("The Defender event log does not reach back the full $recentDays days (oldest record: $(if ($oldestText) { $oldestText } else { 'unreadable' })); older detections are not visible.")
         }
         $noteAppend = $notesParts.Count -gt 0 ? ($notesParts -join ' ') : $null
 
@@ -134,10 +180,18 @@ $CheckBody = {
             running_mode         = $status.AMRunningMode
             am_service_enabled   = [bool]$status.AMServiceEnabled
             antispyware_enabled  = [bool]$status.AntispywareEnabled
-            recent_threat_count  = $threats.Count
+            recent_threat_count  = $recentThreats.Count
             last_quick_scan      = $status.QuickScanEndTime ? $status.QuickScanEndTime.ToString('o') : $null
             last_full_scan       = $status.FullScanEndTime ? $status.FullScanEndTime.ToString('o') : $null
             threat_query_error   = $threatQueryError
+            events_read_state    = $history.ReadState
+            log_oldest_record    = $oldestText
+            exclusion_change_count = $unmutedChanges.Count
+            events_skipped_count = $history.SkippedRecords
+            coverage_gap         = $coverageGap
+            items_count          = $items.Count
+            muted_count          = @($items | Where-Object muted).Count
+            items                = $items
         }
 
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `

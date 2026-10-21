@@ -18,8 +18,8 @@ or force-pushes.
 
 ## Rules
 
-- The PR is re-read, at most 5 times 2 s apart, until its head SHA equals the SHA its head branch
-  ref points at, since `GET /pulls` can lag a push. When they never agree, the lane's commits
+- The PR is re-read, after waits of 5, 10, 20 and 25 s (60 s in all), until its head SHA equals
+  the SHA its head branch ref points at, since `GET /pulls` can lag a push by minutes. When they never agree, the lane's commits
   cannot be checked: `all-verified` and `since-is-ancestor` are `false` and the escalation runs.
 - The lane's commits are the commits the comparison `since-sha...head` lists, when `since-sha` is
   an ancestor of the head and the comparison lists every commit it counts. Their verification is

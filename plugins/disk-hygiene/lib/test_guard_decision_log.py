@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import base64
 import importlib.util
 import json
 import os
@@ -25,6 +26,26 @@ def load_module(name: str, filename: str):
 
 
 decision_log = load_module("guard_decision_log", "guard_decision_log.py")
+
+
+def b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+# A stateless installation token is ghs_ then a JWT of about 520 characters, with
+# no app id. The RS256 header encodes to exactly 36 alphanumerics, the length
+# gh[pousr]_ accepts; the kid header carries a '-' 16 characters in, before any
+# alphanumeric minimum is met. Payload and signature are fake.
+STATELESS_HEADERS = (
+    b64url(b'{"alg":"RS256","typ":"JWT"}'),
+    b64url(b'{"kid":"k?~>","alg":"RS256","typ":"JWT"}'),
+)
+FAKE_PAYLOAD = b64url(b'{"sub":"FAKE-not-a-real-token","iat":0}')
+FAKE_SIGNATURE = b64url(b"\xfb\xff\xfeFAKE signature, not a real token" * 9)
+
+
+def stateless_jwt(header: str) -> str:
+    return f"{header}.{FAKE_PAYLOAD}.{FAKE_SIGNATURE}"
 
 
 class GuardDecisionLogTests(unittest.TestCase):
@@ -155,6 +176,32 @@ class GuardDecisionLogTests(unittest.TestCase):
         (entry,) = self.read_records()
         self.assertNotIn(payload[:40], entry["command"])
         self.assertEqual("echo " + decision_log.REDACTED, entry["command"])
+
+    def test_stateless_installation_token_is_redacted_whole(self) -> None:
+        for header in STATELESS_HEADERS:
+            for prefix in ("ghs" + "_", "ghs" + "_123456_"):
+                token = prefix + stateless_jwt(header)
+                with self.subTest(header=header[:20], prefix=prefix):
+                    self.assertGreater(len(token), 500)
+                    record = decision_log.build_record(
+                        hook="h", decision="deny", rule="r", command=f"echo {token} x"
+                    )
+                    command = record["command"]
+                    self.assertEqual(f"echo {decision_log.REDACTED} x", command)
+                    for fragment in (FAKE_PAYLOAD[:12], FAKE_SIGNATURE[-12:]):
+                        self.assertNotIn(fragment, command)
+
+    def test_a_token_cut_at_the_scan_bound_is_redacted_from_its_prefix(self) -> None:
+        for prefix in ("ghs" + "_", "ghs" + "_123456_"):
+            with self.subTest(prefix=prefix):
+                cut = "echo " + prefix + STATELESS_HEADERS[0][:20]
+                self.assertEqual(
+                    "echo " + decision_log.REDACTED, decision_log._redact_cut_tail(cut)
+                )
+
+    def test_token_placeholders_are_not_redacted(self) -> None:
+        for text in ("ghs_job", "ghs_lane", "3e7fef0587433cfb07332dbeabf0d79fc0baadf3"):
+            self.assertEqual(text, decision_log._redact_secrets(text))
 
     def test_redaction_of_adversarial_commands_finishes_promptly(self) -> None:
         # Shapes that made a backtracking pattern take seconds to minutes.

@@ -168,3 +168,17 @@ Describe 'Get-UnmutedSeverity' -Tag 'lib' {
         { Get-UnmutedSeverity -Items @() -ReadState @('partial') } | Should -Throw
     }
 }
+
+Describe 'Test-ReadStateUsable' -Tag 'lib' {
+    It 'accepts <_>' -ForEach @('ok', 'absent') {
+        Test-ReadStateUsable -ReadState $_ | Should -BeTrue
+    }
+
+    It 'refuses <_>' -ForEach @('masked', 'denied', 'false-zero', 'error') {
+        Test-ReadStateUsable -ReadState $_ | Should -BeFalse
+    }
+
+    It 'rejects a state outside the closed set' {
+        { Test-ReadStateUsable -ReadState 'partial' } | Should -Throw
+    }
+}
