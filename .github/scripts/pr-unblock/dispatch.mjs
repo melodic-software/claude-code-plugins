@@ -116,9 +116,9 @@ export async function dispatchConflicting({
 
   for (let attempt = 1; pending.length > 0 && attempt <= unknownRetries; attempt += 1) {
     await sleep(unknownDelayMs);
-    const requeried = await api.getPulls(pending);
-    candidates.push(...requeried.filter((node) => isCandidate(node, base) && !recorded(node)));
-    pending = requeried.filter((node) => isPending(node, base) && !recorded(node)).map((node) => node.number);
+    const reread = await api.getPulls(pending);
+    candidates.push(...reread.filter((node) => isCandidate(node, base) && !recorded(node)));
+    pending = reread.filter((node) => isPending(node, base) && !recorded(node)).map((node) => node.number);
   }
   for (const number of pending) {
     log(
