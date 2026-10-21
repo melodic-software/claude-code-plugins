@@ -1,0 +1,67 @@
+{
+  "skill_name": "codify",
+  "evals": [
+    {
+      "id": 1,
+      "name": "direct-codify-one-occurrence-writes-proposal",
+      "prompt": "/corrections:codify \"handlers build SQL by string concatenation\" - codify this now. It has only happened once in the log, in commit 3f2a1bc.",
+      "expected_output": "The person invoked the skill and said to codify it, so the one-occurrence count is below the threshold of 2 but acts anyway. The report lists the single occurrence with its commit, picks a rung by id from the ladder, places the lesson by scope, proves the check with prove-check.sh, and writes the proposal file under the memory root, announcing the path first.",
+      "narration": true,
+      "expectations": [
+        "Output lists the one occurrence counted with its commit and states the count next to the threshold of 2",
+        "Output proceeds past the threshold because the person asked to codify this, and says that is why",
+        "Output names the chosen rung by its ladder id and points at the ladder's guardrail criterion instead of restating it",
+        "Output announces the proposal path under the memory root before writing it, and writes the proposal",
+        "Output states a scope (team standard, project rule or user scope) and why"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "model-invoked-two-occurrences-proposes-only",
+      "prompt": "(Invoked by the model while reviewing a diff, not typed by a person) Skill call: /corrections:codify \"new endpoints skip the shared auth helper\". The log shows two earlier occurrences, commits 91ac0de and 5be7712.",
+      "expected_output": "The count reaches the threshold of 2, so the skill picks a rung, places the lesson and runs the proof, then presents the proposal in the report. Because the model invoked it, nothing is written to the memory root or the repository.",
+      "narration": true,
+      "expectations": [
+        "Output counts both occurrences with their commits and states they meet the threshold of 2",
+        "Output presents the full proposal (rung, scope, check, proof result) in the report",
+        "Output writes no proposal file and installs nothing, and says a model invocation only proposes"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "blocking-hook-asks-before-install",
+      "prompt": "/corrections:codify \"agents force-push to main\" - this keeps happening, three times this month. The proof for the hook check already passed.",
+      "expected_output": "The mistake is an action no file check sees, so the rung is the action-guard hook, a blocking check. The person's invocation covers writing the proposal, but the skill asks before installing the hook and installs nothing until the answer is yes.",
+      "narration": true,
+      "expectations": [
+        "Output picks the action-guard rung, a blocking hook, from the ladder",
+        "Output writes the proposal but does NOT install the hook",
+        "Output asks the person before installing the blocking check, and says it asks every time"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "proof-passes-on-old-ref-is-unproven",
+      "prompt": "/corrections:codify \"config loader ignores the timeout key\" - codify this. My candidate check is `grep -q timeout config/defaults.yaml`. Running prove-check.sh on it printed: old (a91c3d2): exit 0 (expected non-zero) and new (HEAD): exit 0, and the script exited 1.",
+      "expected_output": "The check passed on the old ref, so it does not catch the mistake. The skill reports the check as unproven with the exit code and the script's lines, does not propose it for install, and says to change the check or the rung and prove again.",
+      "narration": true,
+      "expectations": [
+        "Output reports the check as unproven because it passes on the old ref",
+        "Output does NOT propose the check for install",
+        "Output shows the proof's exit code and old and new results, and says to change the check or rung and prove again"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "escaped-defect-names-missing-context",
+      "prompt": "/corrections:codify \"a null price reached checkout and charged zero\" - this defect escaped review twice (commits c04e8d1 and 7ad3f90) and codify this. The pricing rules file was never opened in either session.",
+      "expected_output": "The proposal names the rung and the check, and also answers what the model did not have in front of it when it made the mistake: the pricing rules file, which was never opened. The answer sits next to the rung so the fix can be context as well as a check.",
+      "narration": true,
+      "expectations": [
+        "Output answers what the model did not have in front of it when it made the mistake, naming the pricing rules file",
+        "Output puts that answer in the proposal next to the rung",
+        "Output treats a rule that was never loaded as fixed where it lives, per the ladder's recurring-correction question, instead of only moving up the ladder"
+      ]
+    }
+  ]
+}
