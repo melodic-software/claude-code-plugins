@@ -24,8 +24,8 @@ its base text, or whose text could not be read, rates HIGH as
 `high-capability`.
 A safe file whose every path is a test (a `*.test.mjs`, `*.test.sh`,
 `*.test.js` or `test_*.py` name, or a `tests` or `fixtures` directory below the
-path's last `scripts` directory and below any script scope it is in, matched
-case-sensitively), under no declared path and named by no other changed file
+path's last `scripts` directory, in any case, and below any script scope it is
+in; names and test directories match case-sensitively), under no declared path and named by no other changed file
 (every other file readable), is left out of the floor's script-directory
 entries, `floor-paths` globs whose last segment other than `**` is `scripts`,
 and the script scopes; every other entry and every denied path still holds it.
@@ -650,13 +650,14 @@ def _scope_depth(scope: str, segments: list[str]) -> int:
 
 def _test_path(path: str, scopes: tuple[str, ...]) -> bool:
     """A test file name, or a tests or fixtures directory below the path's last
-    scripts directory and below every script scope it falls in, matched
+    scripts directory (in any case, as the floor globs match) and below every
+    script scope it falls in; test names and directories match
     case-sensitively."""
     *dirs, name = path.split("/")
     if any(_segment_match(g, name) for g in _TEST_NAMES):
         return True
     below = max(
-        [i + 1 for i, d in enumerate(dirs) if d == "scripts"]
+        [i + 1 for i, d in enumerate(dirs) if d.casefold() == "scripts"]
         + [_scope_depth(s, dirs + [name]) for s in scopes if glob_match(s, path)]
         + [0]
     )

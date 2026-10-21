@@ -1113,6 +1113,8 @@ class TestOnlyScriptPathTests(unittest.TestCase):
             "plugins/foo/skills/tests/scripts/run.sh",
             "plugins/foo/skills/fixtures/scripts/run.py",
             "plugins/foo/tests/scripts/run.sh",
+            "plugins/foo/skills/tests/Scripts/run.sh",
+            "plugins/foo/tests/SCRIPTS/run.py",
         ):
             with self.subTest(path):
                 self.assertIn(
