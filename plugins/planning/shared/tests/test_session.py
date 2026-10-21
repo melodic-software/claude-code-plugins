@@ -2110,6 +2110,13 @@ class TestHiddenCharacters(SessionCase):
         key = self.act("rotate_guest_link", HOST, {})["guestKey"]
         self.refused("bad-guest-key", "join", None, {"name": "Bo", "key": key + "\u200b"}, http=403)
 
+    def test_only_the_rgi_subdivision_flags_keep_their_tags(self):
+        tags = lambda word: "".join(chr(0xE0000 + ord(c)) for c in word)  # noqa: E731
+        flag = lambda word: "\U0001f3f4" + tags(word) + "\U000e007f"  # noqa: E731
+        chained = flag("ignore") + flag("all") + flag("rules") + flag("sendkey")  # a-z only, each 3 to 7 long
+        self.act("chat", self.ann, {"text": f"{chained} {flag('gbsct')}{flag('gbwls')}"})
+        self.assertEqual(self.s.state["chat"][-1]["text"], "\U0001f3f4" * 4 + " " + flag("gbsct") + flag("gbwls"))
+
     def test_a_field_of_only_hidden_characters_is_refused_as_empty(self):
         self.refused("empty", "chat", self.ann, {"text": "\u202e\u200b\x00 \u2066"}, http=400)
         self.refused("empty", "request", self.ann, {"qid": "Q1", "kind": "ask", "text": "\U000e0041\ufeff"}, http=400)

@@ -619,8 +619,11 @@ def _person_name(body, *, empty_ok=False):
 # (Trojan Source), invisible spaces and operators, and tag characters outside an emoji flag (hidden text for Claude).
 # ZWJ, ZWNJ and variation selectors stay: emoji sequences and some scripts need them. Unassigned (Cn) stays too:
 # the interpreter's Unicode tables trail new emoji, which read as unassigned until they catch up.
+# The only tag sequences kept are the three RGI subdivision flags (England, Scotland, Wales); any other run of tag
+# characters, even one shaped like a flag, can spell hidden words.
+_RGI_FLAGS = "|".join("\U0001f3f4" + "".join(chr(0xE0000 + ord(c)) for c in code) + "\U000e007f" for code in ("gbeng", "gbsct", "gbwls"))
 _HIDDEN = re.compile(
-    "(\U0001f3f4[\U000e0030-\U000e0039\U000e0061-\U000e007a]{3,7}\U000e007f)"  # a subdivision flag: 3 to 7 tag a-z or 0-9
+    f"({_RGI_FLAGS})"
     "|[\x00-\x08\x0b-\x1f\x7f-\x9f\u061c\u200b\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff\ufff9-\ufffb"
     "\ud800-\udfff\ue000-\uf8ff\U000e0000-\U000e007f\U000f0000-\U0010ffff]"
 )
