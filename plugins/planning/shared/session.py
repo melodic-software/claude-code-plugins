@@ -1380,7 +1380,11 @@ class Session:
             if self._ended():
                 raise DomainError(403, "ended", "This session has ended.")
             guest_key = st["session"]["guestKey"]
-            if guest_key and not hmac.compare_digest(key.encode(), guest_key.encode()):
+            try:
+                sent = key.encode()
+            except UnicodeEncodeError:  # a lone surrogate (json.loads takes one): no key is that, and it is never filtered
+                sent = None
+            if guest_key and (sent is None or not hmac.compare_digest(sent, guest_key.encode())):
                 raise DomainError(403, "bad-guest-key", "This invite link is no longer valid; ask the host for the new one.")
             self._prune_joins(now)
             window = (guest_key, address)

@@ -2110,6 +2110,10 @@ class TestHiddenCharacters(SessionCase):
         key = self.act("rotate_guest_link", HOST, {})["guestKey"]
         self.refused("bad-guest-key", "join", None, {"name": "Bo", "key": key + "\u200b"}, http=403)
 
+    def test_a_guest_key_holding_a_lone_surrogate_is_refused_not_a_server_error(self):
+        key = self.act("rotate_guest_link", HOST, {})["guestKey"]
+        self.refused("bad-guest-key", "join", None, {"name": "Bo", "key": key[:-1] + "\ud800"}, http=403)
+
     def test_only_the_rgi_subdivision_flags_keep_their_tags(self):
         tags = lambda word: "".join(chr(0xE0000 + ord(c)) for c in word)  # noqa: E731
         flag = lambda word: "\U0001f3f4" + tags(word) + "\U000e007f"  # noqa: E731
