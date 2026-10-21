@@ -59,7 +59,7 @@ function New-FindingItem {
     $item = [ordered]@{
         key      = $key
         severity = $Severity
-        muted    = [bool]($MutedKeys -ccontains $key)
+        muted    = [bool]($key -cin $MutedKeys)
         title    = $Title
     }
     foreach ($name in $Fields.Keys) {
