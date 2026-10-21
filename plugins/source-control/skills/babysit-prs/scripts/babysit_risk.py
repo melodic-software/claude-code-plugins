@@ -39,7 +39,8 @@ the floor entries in `_EVALS_FLOOR` that no denied path repeats. Every other
 floor entry (a `.claude-plugin/` manifest, `**/CLAUDE.md`, `**/.claude/**` and
 the rest) still holds it.
 A plugins/<plugin>/.claude-plugin/plugin.json or the top-level
-.claude-plugin/marketplace.json takes no `**/.claude-plugin/**` hold. Its base
+.claude-plugin/marketplace.json takes no `**/.claude-plugin/**` floor hold
+unless a denied path repeats that pattern. Its base
 and head JSON are compared instead, and it rates HIGH as
 `manifest-review-required` when a `userConfig` entry is removed or its
 `default` changes, an `options` enum is added or changed, `hooks`,
@@ -1113,7 +1114,11 @@ def _high_path_reasons(
         for p in f.paths
     }
     eval_exempt = _EVALS_FLOOR.difference(configured)
-    manifests = {f.path for f in files if on and is_manifest_path(f.path)}
+    manifests = {
+        f.path
+        for f in files
+        if on and _MANIFEST_FLOOR not in configured and is_manifest_path(f.path)
+    }
     for pattern in dict.fromkeys((*floor, *configured)):
         hits = [
             path

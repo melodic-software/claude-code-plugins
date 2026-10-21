@@ -2160,11 +2160,22 @@ class ManifestTests(unittest.TestCase):
             PLUGIN_BASE.replace(
                 '"name": "foo",', '"name": "foo", "experimental": {"monitors": []},'
             ),
+            PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "lspServers": {},'),
+            PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "monitors": [],'),
         ):
             with self.subTest(after=after):
                 self.assertEqual(
                     self._codes(MANIFEST, PLUGIN_BASE, after), (self.REVIEW,)
                 )
+
+    def test_a_denied_manifest_path_keeps_the_hold(self):
+        bump = _manifest_change(
+            MANIFEST, PLUGIN_BASE, PLUGIN_BASE.replace("1.0.0", "1.1.0")
+        )
+        codes = _codes(
+            score(_input(files=(bump,), high_paths=("**/.claude-plugin/**",)))
+        )
+        self.assertIn("high-path:**/.claude-plugin/**", codes)
 
     def test_a_marketplace_source_change_or_addition_holds(self):
         for after in (
@@ -2173,6 +2184,7 @@ class ManifestTests(unittest.TestCase):
             MARKET_BASE.replace(
                 '"name": "m",', '"name": "m", "metadata": {"pluginRoot": "x"},'
             ),
+            MARKET_BASE.replace('"category": "dev"', '"category": "dev", "hooks": {}'),
         ):
             with self.subTest(after=after):
                 self.assertEqual(
