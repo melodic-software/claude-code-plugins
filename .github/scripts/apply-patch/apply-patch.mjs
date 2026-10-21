@@ -107,10 +107,14 @@ export const REFUSALS = {
 export const refusalsOf = (entry, names = Object.keys(REFUSALS)) => names.filter((name) => REFUSALS[name].test(entry));
 
 // Credential shapes: any match in the patch or a patched blob refuses it all.
+// GitHub prefixes and the stateless ghs_APPID_JWT installation token from
+// docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+// and github.blog/changelog/2026-10-02-stateless-github-app-installation-tokens-rolled-out
+// (as of 2026-10-21; recheck when that section adds a prefix or changes a token's format).
 export const CREDENTIALS = [
   { name: "Anthropic API key", pattern: /sk-ant-(?:api|admin)\d{2}-[A-Za-z0-9_-]{20,}/ },
   { name: "Anthropic OAuth token", pattern: /sk-ant-oat\d{2}-[A-Za-z0-9_-]{20,}/ },
-  { name: "GitHub token", pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})/ },
+  { name: "GitHub token", pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|ghs_[0-9]+_[A-Za-z0-9_.-]{20,}|github_pat_[A-Za-z0-9_]{22,})/ },
 ];
 export const credentialIn = (text) => CREDENTIALS.find((credential) => credential.pattern.test(text))?.name ?? "";
 

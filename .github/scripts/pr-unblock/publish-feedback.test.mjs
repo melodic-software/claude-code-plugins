@@ -140,6 +140,13 @@ test("a note of exactly 2000 emoji is accepted and posted", async () => {
   assert.equal(api.posted().length, 1);
 });
 
+test("a note naming a token placeholder and a commit sha is accepted and posted", async () => {
+  const api = fakeApi();
+  const result = await run(api, lines(reply({ note: `The fixture uses ghs_job; see ${FIX}.` })));
+  assert.equal(result.escalationReason, "feedback-disputed");
+  assert.equal(api.posted().length, 1);
+});
+
 test("a VALID reply is posted in the fixed template on its root comment and resolved", async () => {
   const api = fakeApi();
   const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX, note: "Guarded the null case." })));
@@ -334,6 +341,7 @@ const INVALID = [
   ["a note carrying a marker", lines(reply({ note: `done ${ROUND}` }))],
   ["a note closing an HTML comment", lines(reply({ note: "a --> b" }))],
   ["a note carrying a token", lines(reply({ note: `token ghs_${"A".repeat(36)}` }))],
+  ["a note carrying a stateless installation token", lines(reply({ note: `token ${"ghs"}_123456_${Array(3).fill("FAKE-not_a_token".repeat(10)).join(".")}` }))],
   ["a note carrying a control character", lines(reply({ note: "bell \u0007" }))],
   ["a note carrying a direction override", lines(reply({ note: "safe‮evil" }))],
   ["a note carrying a zero-width space", lines(reply({ note: "a​b" }))],
