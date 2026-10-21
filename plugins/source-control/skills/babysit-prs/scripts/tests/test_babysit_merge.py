@@ -17,6 +17,7 @@ import contextlib
 import io
 import json
 import pathlib
+import subprocess
 import sys
 import unittest
 from typing import Any
@@ -31,6 +32,9 @@ import babysit_merge as merge
 import babysit_postmerge as postmerge
 import refresh_pr_branch as refresh
 
+# Captured before setUpModule stubs `_role_label` for the rest of the module.
+REAL_ROLE_LABEL = postmerge._role_label
+
 HEAD = "a" * 40
 # The base compare the freshness hold reads for an otherwise-ready PR.
 UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
@@ -43,9 +47,21 @@ LINKED_REF = f"owner/repo#{LINKED_ISSUE}"
 
 
 def role_label_stub(label: str = "needs-human") -> Any:
-    """A patcher for the tracker's human-gated label read, which an
-    autonomous gate makes; started per module so no test reads GitHub."""
-    return mock.patch.object(postmerge, "_role_label", return_value=label)
+    """A patcher for the tracker's role label reads: `label` for the
+    human-gated role an autonomous gate reads, each other role's default;
+    started per module so no test reads GitHub."""
+
+    def read(
+        owner: str,
+        name: str,
+        *,
+        strict: bool = False,
+        role: str = "human-gated",
+        default: str = "needs-human",
+    ) -> str:
+        return label if role == "human-gated" else default
+
+    return mock.patch.object(postmerge, "_role_label", side_effect=read)
 
 
 _role_label = role_label_stub()
@@ -1787,6 +1803,7 @@ class RefreshRefusesMergeQueueBases(unittest.TestCase):
                 return_value=[f"{repo}#{PR_NUMBER}"],
             ),
             mock.patch.object(refresh, "base_requires_merge_queue", return_value=queue),
+            mock.patch.object(refresh, "gh_json", return_value={"labels": []}),
         ):
             refresh.validate_current_candidate(
                 repo, PR_NUMBER, HEAD, frozenset({"owner"})
@@ -1802,6 +1819,124 @@ class RefreshRefusesMergeQueueBases(unittest.TestCase):
 
     def test_base_without_queue_passes(self) -> None:
         self._validate(False)
+
+
+class RefreshRefusesStandardsSyncPrs(unittest.TestCase):
+    """A PR carrying the standards-sync role label is never refreshed: the
+    sync App is its only writer, and a merge commit from the base fails the
+    managed-files guard so the sync cannot re-arm."""
+
+    REPO = "owner/repo"
+
+    def _run(self, labels: list[str], *, apply: bool = True) -> list[list[str]]:
+        self.writes: list[list[str]] = []
+        writes = self.writes
+        pr = {
+            "state": "OPEN",
+            "author": {"login": "melodic-standards-sync[bot]"},
+            "headRefOid": HEAD,
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "BEHIND",
+            "baseRefName": "main",
+        }
+        pull = {"auto_merge": None, "labels": [{"name": n} for n in labels]}
+
+        def gh_json(args: list[str]) -> Any:
+            if args[:2] == ["api", f"repos/{self.REPO}/pulls/{PR_NUMBER}"]:
+                return pull
+            writes.append(args)
+            return {"message": "Updating pull request branch."}
+
+        state = {"pr_states": {}}
+        pr_state = {
+            "mergeable": "MERGEABLE",
+            "branch_freshness": {"state": "behind"},
+            "mutation_policy": {
+                "head_metadata_complete": True,
+                "branch_write_allowed": True,
+                "base_owner": "owner",
+                "head_owner": "owner",
+            },
+            "human_stop": {},
+            "head_ref_uniqueness": {"checked": True, "unique": True},
+        }
+        opened = (
+            self.REPO,
+            PR_NUMBER,
+            f"{self.REPO}#{PR_NUMBER}",
+            state,
+            pr_state,
+            HEAD,
+        )
+        policy = mock.Mock(extra_dependency_manager_logins=frozenset())
+        scope = {"head_metadata_complete": True, "branch_write_allowed": True}
+        args = mock.Mock(apply=apply)
+        with (
+            mock.patch.object(refresh, "begin_guarded_mutation", return_value=opened),
+            mock.patch.object(refresh, "require_worker_lease"),
+            mock.patch.object(refresh, "write_state"),
+            mock.patch.object(
+                refresh.repo_policy, "fallback_from_args", return_value={}
+            ),
+            mock.patch.object(refresh, "view_pr", return_value=pr),
+            mock.patch.object(refresh.repo_policy, "resolve", return_value=policy),
+            mock.patch.object(refresh, "head_repository_scope", return_value=scope),
+            mock.patch.object(refresh, "fetch_current_human_stop", return_value={}),
+            mock.patch.object(
+                refresh,
+                "find_open_prs_for_head_ref",
+                return_value=[f"{self.REPO}#{PR_NUMBER}"],
+            ),
+            mock.patch.object(refresh, "base_requires_merge_queue", return_value=False),
+            mock.patch.object(refresh, "gh_json", side_effect=gh_json),
+        ):
+            refresh.run_locked(args, pathlib.Path("state"), pathlib.Path("state.json"))
+        return writes
+
+    def test_a_standards_sync_pr_is_refused_and_never_updated(self) -> None:
+        for label in ("standards-sync", "Standards-Sync"):
+            with self.subTest(label=label):
+                with self.assertRaisesRegex(
+                    RuntimeError, "standards-sync.*refusing branch refresh"
+                ):
+                    self._run([label])
+                self.assertEqual(self.writes, [])
+
+    def test_an_unlabeled_pr_is_still_updated(self) -> None:
+        [update] = self._run(["enhancement"])
+        self.assertIn(f"repos/{self.REPO}/pulls/{PR_NUMBER}/update-branch", update)
+
+    def test_a_remapped_label_is_the_one_refused(self) -> None:
+        def read(owner: str, name: str, **kwargs: Any) -> str:
+            if kwargs.get("role") == "standards-sync":
+                return "sync-managed"
+            return "needs-human"
+
+        with mock.patch.object(postmerge, "_role_label", side_effect=read):
+            with self.assertRaisesRegex(RuntimeError, "'sync-managed'"):
+                self._run(["sync-managed"])
+            self.assertEqual(self.writes, [])
+            self.assertEqual(len(self._run(["standards-sync"])), 1)
+
+    def test_an_unreadable_label_config_refuses(self) -> None:
+        failed = postmerge.PostMergeReadError("tracker: HTTP 502")
+        with (
+            mock.patch.object(postmerge, "_role_label", side_effect=failed),
+            self.assertRaisesRegex(RuntimeError, "unreadable.*refusing branch refresh"),
+        ):
+            self._run([])
+        self.assertEqual(self.writes, [])
+
+    def test_the_bundled_default_is_standards_sync(self) -> None:
+        # No tracker config (404): the real resolver falls back to the default.
+        missing = subprocess.CompletedProcess([], 1, "", "gh: Not Found (HTTP 404)")
+        with (
+            mock.patch.object(postmerge, "_role_label", REAL_ROLE_LABEL),
+            mock.patch.object(postmerge, "gh_capture", return_value=missing),
+        ):
+            self.assertEqual(
+                postmerge.standards_sync_label("owner", "repo"), "standards-sync"
+            )
 
 
 class RepoPolicyReachesTheGate(unittest.TestCase):

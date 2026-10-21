@@ -13,6 +13,8 @@ const CLASSES = new Set([
   "overloaded",
   "max-turns",
   "timeout",
+  "install-failed",
+  "no-execution",
   "other",
   "skipped-validation",
   "incomplete",

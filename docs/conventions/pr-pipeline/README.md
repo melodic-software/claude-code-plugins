@@ -547,9 +547,8 @@ human. Work classes are defined in
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
 - The work class comes from the linked issue's label and is re-checked against the diff. No class,
   or a class the diff contradicts, means no lane merge.
-- C5 always needs a human. C4 becomes promotable under
-  [ADR 0050](../../adr/0050-let-merge-authority-reach-c4-by-evidence-and-drop-the-vendor-hosted-cap.md),
-  but the schema adds no C4 rung until the autonomy plugin and loop-lane carry the matching change.
+- No rung reaches C4 or C5: `merge.rung` stops at `C3`, and C5 always needs a human. The pr-merge
+  lane reads no class and merges on the verifier verdict instead ([The pr-merge lane](#the-pr-merge-lane)).
 - A rung rises only through a merged change to the config file. Under `pr-merge` it falls
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
   through a repository variable that can only lower the rung, and a `needs-human` issue is filed.
@@ -570,7 +569,15 @@ The babysit wrapper does not enforce these reads yet; until it does, the live co
 
 The babysit wrapper (`babysit_merge.py` in the source-control plugin) may merge without a human
 only when every read below allows it. Each read happens at one captured base SHA, and any read
-that fails counts as a refusal.
+that fails counts as a refusal. The `merge:` block and `babysit_loop_merge` are also read at the
+default branch head, and each setting takes the stricter of the two values: the lower rung, any
+true switch, the union of path lists (each side's `check-inputs` read in a diff of its own), the
+smaller cap, the stricter Dependabot mode. Two settings are exceptions: `risk-escalation-minutes`
+keeps the base's value, and `max-in-flight` is read at the default branch head alone, so a raised
+cap applies at once. So a tightening on the default branch reaches pull requests opened before it,
+a loosening waits until a pull request's base includes it, and a pull request still cannot drop its
+base's declaration. A different authority, or an identity set on one side only, stops the lane
+and its queued entries leave; two different identities, or an unreadable head config, refuse.
 
 - **Authority and identity.** `merge.authority` reads `local-babysit` and `merge.agent-identity`
   names the login the lane acts as. The schema rejects `local-babysit` without an identity. The
@@ -600,6 +607,17 @@ that fails counts as a refusal.
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
   also `needs-human`. That record does not hold the rung off.
+  With a new record of either kind, the alert files one fix issue per newly failing check, at
+  most 5 per run (an overflow line on the record says when more failed), first line
+  `<!-- post-merge-fix check=<name> -->`, in fixed text only (the failing job's name, the SHA, the run
+  link, the merge range and the record's number, never an annotation title), with no label, locks it,
+  and dispatches intake triage for each; a fix issue that could not be filed, locked, reopened
+  or sent is named in a comment on the record. A check
+  whose fix issue was closed reopens that issue with a comment naming the new range, keeping
+  `agent-ready` and sending it to intake triage no second time, so a repeat goes straight back to
+  agents (a first failure still waits for the owner's ratification); one closed
+  as not planned or duplicate stays closed and mutes the check. Closing a fix issue releases
+  nothing on the record.
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
@@ -651,7 +669,8 @@ admin permission on the repository.
 ### The pr-merge lane
 
 The same wrapper run with `--unattended --authority pr-merge` is the pr-merge lane's gate. It needs
-`merge.authority: pr-merge` and `merge.agent-identity` at the base, and keeps every read above
+`merge.authority: pr-merge` and `merge.agent-identity` at the base and at the default branch
+head, and keeps every read above
 except six:
 
 - **Eligibility.** Not a fork or a dependency manager's pull request, opened by
@@ -977,7 +996,7 @@ uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holdin
 (`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
 account type, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one `pr-require-checks`
 ran on, never the pull request's live head. A model error, an output that fails the schema, a
-summary or note shaped like an Anthropic key or OAuth token, or a run with any permission denial
+summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
 uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again. Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
@@ -1291,10 +1310,12 @@ is `split`, and Uncertainty Known, Knowable and Unknown map to `run`, `research-
 Each Claude lane's runs are paid by one funding role: `reviews`, `automations` or `issue-lane`. A
 lane on ci-workflows' `run-claude-cli` action passes its role with the role's two secrets,
 `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` (role upper-snake, so `issue-lane`
-gives `ISSUE_LANE_`); the key runs first and the subscription token only after a credit stop.
-`pr-verify` holds one credential per job: `check-intent` runs on the key, and
-`check-intent-subscription` runs on the token, on a new runner, only after `check-intent`'s credit
-stop with no permission denial or when the key is empty. Each lane's workflow names its role as a
+gives `ISSUE_LANE_`); the key runs first and the subscription token only after the key leg hands
+off (`run-claude-cli`'s `handoff` output: a credit stop, or class `auth` with API status 401 or
+402; a 403 hands nothing off). `pr-verify` holds one credential per job: `check-intent` runs on the
+key, and `check-intent-subscription` runs on the token, on a new runner, only after
+`check-intent`'s handoff with no permission denial or when the key is empty; its lane record is
+`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. Each lane's workflow names its role as a
 literal, and the runner policy admits it; no config key records it. `intake`, `pr-unblock`,
 `fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
 `claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
@@ -1336,6 +1357,7 @@ with defaults.
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `admission-window-hours` | 24 | Hours of issue-lane admissions the admitted backlog (open issues labeled `agent-ready`) may hold before new `agent-ready` labels pause. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour; greater than 0, at most 1. |
+| `admission-min-per-hour` | 1 | Admissions per hour the release point never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
@@ -1345,7 +1367,7 @@ the WIP cap check fails open and starts the run. This repository's values are in
 
 `node .github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are
 open: the admitted backlog is under `admission-factor` times lane merges per hour (the last 24
-hours) times `admission-window-hours`. It prints one line and exits 0 open, 1 held, 2 on error.
+hours), or `admission-min-per-hour` when that is higher, times `admission-window-hours`. It prints one line and exits 0 open, 1 held, 2 on error.
 No lane reads it yet.
 
 ## WIP cap
@@ -1362,16 +1384,18 @@ and those opened in it.
 | `min-cap` | 1 | Floor under the computed WIP cap, so a day with few merges cannot shrink the cap until the lane stalls. This repository's value is in `docs/conventions/pr-pipeline.yaml` `wip`. |
 | `merge-rate-window-hours` | 24 | Rolling window for the merged and opened counts. |
 | `opened-to-merged-ratio` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. Not `limits.admission-factor`, which sizes the agent-ready backlog. |
-| `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap. |
+| `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap; on or after `pause-from` the lane pauses there. This repository sets 10. |
 | `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
-| `pause-from` | empty | UTC date or date-time from which the lane pauses over the WIP cap; empty never pauses. |
+| `pause-from` | empty | UTC date or date-time from which the lane pauses over the WIP cap or the held cap; empty never pauses. |
 
 A held lane PR carries `needs-human` or `do-not-merge`, or has a body line exactly
 `Hold: a human merges this`. Held PRs never count against the WIP cap; countable PRs are the open
 lane PRs that are not held. Over the WIP cap (countable at or above it), over the held cap, over
 the admission share, or with a held PR past the alarm age, the check writes a warning annotation.
-Over the WIP cap on or after `pause-from` it pauses the lane: work-resolve-issue starts no run and
-work-unblock re-fires none. The held cap only alerts; it never pauses the lane. A read that fails
+Over the WIP cap or the held cap on or after `pause-from` it pauses the lane: work-resolve-issue
+starts no run, work-unblock re-fires none, and the log and step summary carry one line
+`admission paused: reason=<wip|held-cap|wip,held-cap> countable=<n> wip_cap=<n> held=<n> held_cap=<n>`
+(a `::notice` annotation titled `admission paused`). A read that fails
 never caps; without a merged count the cap is `limits.wip-cap`. A held PR's age runs from when it
 opened.
 
@@ -1393,6 +1417,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane
 | `wip_over`, `held_over`, `admission_over`, `held_alarm` | Which limit is crossed. |
 | `alert` | Any of the four. |
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |
+| `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
 
 ## Red main
 

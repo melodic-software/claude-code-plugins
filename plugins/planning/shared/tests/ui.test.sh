@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The browser suites: every ui_*.js beside this file, UI_JOBS at a time (default 2), each into its own buffer printed
+# The browser suites: every ui_*.js beside this file, UI_JOBS at a time (default 2, or 6 under
+# CI where the runner's memory is the job's own), each into its own buffer printed
 # whole in suite order under `== <suite> <seconds>s`, then the 3 slowest. They start slowest first, by ui-timings.txt
 # (one "<suite> <seconds>" per line, from a full run's headers; a suite it does not list starts last), so the longest
 # is never the last to start. Each seeds its own session through share.sh ensure-running on spare ports (fake
@@ -15,7 +16,9 @@ command -v node >/dev/null || {
   echo "SKIP: node is not on PATH" # silent-skip-ok: a browser suite needs node
   exit 0
 }
-max=${UI_JOBS:-2}
+default_jobs=2
+[[ -n ${CI:-} ]] && default_jobs=6
+max=${UI_JOBS:-$default_jobs}
 [[ $max =~ ^[1-9][0-9]*$ ]] || {
   echo "UI_JOBS must be a whole number above 0, not: $max" >&2
   exit 2

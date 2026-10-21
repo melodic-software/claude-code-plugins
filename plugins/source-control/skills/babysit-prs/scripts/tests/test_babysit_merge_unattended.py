@@ -557,7 +557,8 @@ class Unattended(unittest.TestCase):
         # the cap is `self.config`'s.
         self.main_head = BASE
         # Reads of the pipeline config at `main_head` when it is not the
-        # base, in order: a config, or an exception to raise. Empty reads
+        # base, in order (the merge config's, the in-flight cap's, the room
+        # check's): a config, or an exception to raise. Empty reads
         # `self.config`.
         self.head_configs: list[Any] = []
 
@@ -1324,6 +1325,47 @@ class AllInputsGood(Unattended):
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
         self.assertIs(out["enqueued"], True)
 
+    def test_a_cached_head_config_is_read_again_before_the_enqueue(self) -> None:
+        # The gate took main's config from the run cache, read at head B.
+        # Main moved to D before the enqueue: D's config is read again, and a
+        # tightening there holds; an unmoved head enqueues on one head read.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        for main_head, d_lines, enqueued in (
+            ("d" * 40, 100, False),
+            ("b" * 40, None, True),
+        ):
+            with self.subTest(main_head=main_head):
+                self.setUp()
+                cache = str(pathlib.Path(tmp.name, f"{main_head[0]}.json"))
+                patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": cache})
+                patcher.start()
+                self.addCleanup(patcher.stop)
+                cached = dataclasses.replace(self.config, base_sha="b" * 40)
+                policy.run_cache.put(
+                    policy.DEFAULT_BRANCH_CONFIG_SECTION,
+                    "owner/repo",
+                    dataclasses.asdict(cached),
+                )
+                policy.run_cache.put(policy.MAX_IN_FLIGHT_SECTION, "owner/repo", 1)
+                self.main_head = main_head
+                if d_lines is not None:
+                    self.head_configs = [
+                        dataclasses.replace(
+                            self.config, base_sha=main_head, max_changed_lines=d_lines
+                        )
+                    ]
+                code, out = self.run_main()
+                self.assertEqual(
+                    f"enqueue:{HEAD}:merge_queue" in self.log, enqueued, out["blockers"]
+                )
+                self.assertEqual(code, 0 if enqueued else 10)
+                if not enqueued:
+                    self.assertTrue(
+                        any("merge config changed" in b for b in out["blockers"]),
+                        out["blockers"],
+                    )
+
     def test_a_head_that_moved_after_scoring_is_not_enqueued(self) -> None:
         # The policy scored one head; the gate's later read sees another that
         # still matches the --expected-head prefix. That head was never scored.
@@ -1499,6 +1541,24 @@ class EachRefusalMakesNoMergeCall(Unattended):
                 code, out = self.run_main()
                 self.assert_no_merge(code)
                 self.assertEqual(out["unattended"]["reason"], reason)
+                self.assertEqual(self.log, ["dequeue:all"])
+
+    def test_an_authority_differing_on_the_default_branch_dequeues_the_identitys_entries(
+        self,
+    ) -> None:
+        # Switching merge.authority on main stops the lane as rung: off does,
+        # so the identity's queued entries leave.
+        # Unsetting merge.agent-identity on main switches the lane off too.
+        for change in ({"authority": "pr-merge"}, {"agent_identity": None}):
+            with self.subTest(change=change):
+                self.setUp()
+                self.main_head = "d" * 40
+                self.head_configs = [
+                    dataclasses.replace(self.config, base_sha=self.main_head, **change)
+                ]
+                code, out = self.run_main()
+                self.assert_no_merge(code)
+                self.assertEqual(out["unattended"]["reason"], "authority-differs")
                 self.assertEqual(self.log, ["dequeue:all"])
 
     def test_live_refusals_hold_the_merge_and_keep_the_path_enabled(self) -> None:
@@ -1684,6 +1744,7 @@ class CheckInputsChangedOnTheBase(Unattended):
         self.update_stderr = "gh: Resource not accessible by integration (HTTP 403)"
         self.update_failure: Exception | None = None
         self.inputs_reads: list[tuple[Any, ...]] = []
+        self.inputs_kwargs: list[dict[str, Any]] = []
         self.inputs_answer: dict[str, Any] = {
             "state": "stale",
             "mergeBase": self.MERGE_BASE,
@@ -1704,8 +1765,9 @@ class CheckInputsChangedOnTheBase(Unattended):
         return super()._capture(args)
 
     def run_main(self, *flags: str, merge_flag: bool = True) -> Any:
-        def read(*args: Any) -> dict[str, Any]:
+        def read(*args: Any, **kwargs: Any) -> dict[str, Any]:
             self.inputs_reads.append(args)
+            self.inputs_kwargs.append(kwargs)
             return dict(self.inputs_answer)
 
         with mock.patch.object(
@@ -1724,6 +1786,18 @@ class CheckInputsChangedOnTheBase(Unattended):
         self.assertIn("scripts/shared-copies.txt", blocker)
         self.assertIn(self.MERGE_BASE, blocker)
         self.assertIs(out["unattended"]["enqueue"]["checkInputs"]["updated"], True)
+
+    def test_the_default_branch_heads_own_list_is_read_on_its_own(self) -> None:
+        self.main_head = "d" * 40
+        head = dataclasses.replace(
+            self.config, base_sha=self.main_head, check_inputs=("docs/x.txt",)
+        )
+        self.head_configs = [head, head]
+        self.run_main()
+        self.assertEqual(
+            self.inputs_reads, [(("scripts/shared-copies.txt",), HEAD, "main")]
+        )
+        self.assertEqual(self.inputs_kwargs, [{"extra": ("docs/x.txt",)}])
 
     def test_an_unchanged_or_unknown_read_enqueues_as_before(self) -> None:
         for state in ("current", "unknown", "off"):
@@ -1751,6 +1825,51 @@ class CheckInputsChangedOnTheBase(Unattended):
         self.assertEqual(
             read["updateError"],
             {"status": 403, "message": "Resource not accessible by integration"},
+        )
+
+    def test_a_standards_sync_head_is_never_updated(self) -> None:
+        # The sync App is the branch's only writer: a merge commit from the
+        # base fails the managed-files guard, so the head enqueues as before.
+        self.pr_labels = [{"name": "Standards-Sync"}]
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+        read = out["unattended"]["enqueue"]["checkInputs"]
+        self.assertIs(read["updated"], False)
+        self.assertIn("'standards-sync'", read["updateSkipped"])
+
+    def test_the_standards_sync_label_comes_from_the_tracker_config(self) -> None:
+        def read(owner: str, name: str, **kwargs: Any) -> str:
+            if kwargs.get("role") == "standards-sync":
+                return "sync-managed"
+            return "needs-human"
+
+        with mock.patch.object(postmerge, "_role_label", side_effect=read):
+            self.pr_labels = [{"name": "sync-managed"}]
+            self.run_main()
+            self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+            # The unmapped default no longer skips the update.
+            self.log = []
+            self.pr_labels = [{"name": "standards-sync"}]
+            self.run_main()
+            self.assertEqual(self.log, [f"update-branch:expected_head_sha={HEAD}"])
+
+    def test_an_unreadable_standards_sync_label_holds(self) -> None:
+        # Neither updated nor enqueued: a stale head fails the queue's merge.
+        def read(owner: str, name: str, **kwargs: Any) -> str:
+            if kwargs.get("role") == "standards-sync":
+                raise postmerge.PostMergeReadError("tracker: HTTP 502")
+            return "needs-human"
+
+        with mock.patch.object(postmerge, "_role_label", side_effect=read):
+            code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+        self.assertTrue(
+            any(
+                "standards-sync role label is unreadable" in b for b in out["blockers"]
+            ),
+            out["blockers"],
         )
 
     SHARED_COPY_LABEL = (
@@ -1931,7 +2050,7 @@ class OneUnattendedMergeInFlight(Unattended):
                 self.log.clear()
                 self.config = dataclasses.replace(self.config, max_in_flight=base_cap)
                 head = dataclasses.replace(self.config, max_in_flight=head_cap)
-                self.head_configs = [head, head]
+                self.head_configs = [head, head, head]
                 self.entries = [*earlier, entry(PR, "2026-10-12T10:00:00Z", "PR_self")]
                 code, out = self.run_main()
                 self.assertEqual(out["unattended"]["inFlight"]["cap"], head_cap)
@@ -1946,6 +2065,7 @@ class OneUnattendedMergeInFlight(Unattended):
         self.main_head = "d" * 40
         self.config = dataclasses.replace(self.config, max_in_flight=5)
         self.head_configs = [
+            dataclasses.replace(self.config, max_in_flight=1),
             dataclasses.replace(self.config, max_in_flight=1),
             policy.PolicyReadError("HTTP 502"),
         ]

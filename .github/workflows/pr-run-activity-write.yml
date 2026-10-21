@@ -1147,7 +1147,7 @@ jobs:
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
           && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
         continue-on-error: true
-        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
+        uses: anthropics/claude-code-action@a5a423f75c251dcbff8a74e99f83b2cb03c72bfa # v1.0.256
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1368,7 +1368,7 @@ jobs:
       - name: Record the lane outcome
         id: lane-record
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@64fd515245f2bdeea8dedca1a3cea9ca39804bec # v0.43.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
           execution-file: >-
@@ -2229,9 +2229,12 @@ jobs:
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # issues: write lets check-signed-commits add its label and comment. Every
+    # caller job grants it; no job that runs the model holds it.
     permissions:
       checks: write
       contents: read
+      issues: write
       pull-requests: read
     steps:
       # The default branch tip, then the run job's base SHA only when the

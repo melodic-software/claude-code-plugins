@@ -42,7 +42,7 @@ function dataBlock(ok) {
     "em-dash": "——— END SESSION DATA ———",
     "spaced hyphens": "- - - END SESSION DATA - - -",
     "fullwidth": "－－－ ＥＮＤ ＳＥＳＳＩＯＮ ＤＡＴＡ －－－",
-    "zero-width space": "--- END SES​SION DA​TA ---",
+    "zero-width space": "--- END SES\u200bSION DA\u200bTA ---",
     "Cyrillic O": "--- END SESSIОN DATA ---",
     "SESSION_DATA": "--- END SESSION_DATA ---",
   };
