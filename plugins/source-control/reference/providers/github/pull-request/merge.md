@@ -106,7 +106,11 @@ literally, makes GitHub refuse the merge if the head moved. It is optional for a
 and required with `--auto`, so auto-merge is armed only on the head the session reviewed. The pin
 does not hold after arming: a push by anyone with write access keeps auto-merge armed, and where the
 AI review checks are not required checks the new head can merge on `ci-status` alone. An armed
-auto-merge is therefore reported, as [confirm queue entry](#confirm-queue-entry) does.
+auto-merge is therefore reported, as [confirm queue entry](#confirm-queue-entry) does. Before
+pushing to a PR with auto-merge armed, disarm it with
+`gh pr merge <pr_number> -R <owner>/<repo> --disable-auto`, and re-arm it only after the reviews
+pass on the new head. Making the AI review checks required in rulesets is tracked in
+[melodic-software/github-iac#734](https://github.com/melodic-software/github-iac/issues/734).
 
 GitHub's rulesets and required checks, and the guardrails merge guard, are the merge gate. A merge
 that GitHub or the permission layer refuses is reported with its error text, and the session moves
@@ -239,10 +243,10 @@ done
   and `removed_from_merge_queue` for a queue-merged PR (melodic-software/claude-code-plugins#7771,
   read 2026-10-17), though [issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types)
   does not list them.
-- **As of**: 2026-10-09; queue events 2026-10-17
+- **As of**: 2026-10-09; queue events 2026-10-17; About auto-merge 2026-10-21
 - **Recheck trigger**: a gh release that changes `gh pr merge` flags or merge-queue handling, a
-  rename of the AI review lanes' check names, or the events endpoint no longer returning the queue
-  events.
+  rename of the AI review lanes' check names, the events endpoint no longer returning the queue
+  events, or About auto-merge changing whether a push keeps auto-merge armed.
 
 ## Confirm queue entry
 
