@@ -145,6 +145,23 @@ Describe 'Measure-FolderSize' -Tag 'lib' {
         @($r.folders | Where-Object { $_.path -eq $cloud -and $null -eq $_.skip_reason }).Count | Should -Be 0
     }
 
+    It 'records a sync root under a later root even when an earlier walk spends the budget' {
+        Write-SizedFile -Path (Join-Path $script:root 'first\big\a.bin') -Bytes 10
+        Write-SizedFile -Path (Join-Path $script:root 'second\Cloud\doc.bin') -Bytes 10
+        $env:OneDrive = Get-LongName (Join-Path $script:root 'second\Cloud')
+        $script:budget = New-ScanBudget -Milliseconds 600000
+        Mock Invoke-FolderWalk {
+            $script:budget.LimitMs = 0
+            return [pscustomobject]@{ Bytes = [long]0; FileCount = 0; Complete = $false }
+        }
+
+        $r = Measure-FolderSize -Root (Join-Path $script:root 'first'), (Join-Path $script:root 'second') -Budget $script:budget
+
+        $r.scan_complete | Should -BeFalse
+        $r.skipped_sync_roots | Should -Be 1
+        @($r.folders | Where-Object { $_.skip_reason -eq 'cloud-sync-root' })[0].path | Should -Be $env:OneDrive
+    }
+
     It 'skips a root that lies under a sync root without listing it' {
         Write-SizedFile -Path (Join-Path $script:root 'inner\a.bin') -Bytes 40
         $env:OneDriveCommercial = $script:rootLong
