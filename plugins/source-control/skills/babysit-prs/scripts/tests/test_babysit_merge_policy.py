@@ -3616,7 +3616,7 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         self.moved(LOOSE_PIPELINE, LOOSE_PIPELINE.replace("pr-merge", "local-babysit"))
         self.lane_clear()
         result = self.lane_assess(post_merge=lambda floor, who: gate())
-        self.assertEqual(result.reason, policy.AUTHORITY_UNCONFIGURED)
+        self.assertEqual(result.reason, "authority-differs")
         self.assertIs(result.enabled, False)
 
     def test_an_unreadable_main_config_refuses(self) -> None:
@@ -3670,6 +3670,83 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         for _ in range(3):
             self.assertEqual(self.config().rung, "C2")
         self.assertEqual(gh.calls.count(["api", self.MAIN_CONFIG]), 3)
+
+
+class TheStricterConfigEdges(unittest.TestCase):
+    """The combination never lets the default branch's config loosen the
+    base's through a side door: the in-flight fallback, a cached copy, or a
+    check-inputs pathspec."""
+
+    BASE = policy.PipelineConfig(
+        SHA, "C2", "pr-merge", IDENTITY, None, (), "c2-mechanical", max_in_flight=5
+    )
+
+    def test_a_failed_cap_re_read_never_exceeds_mains_cap(self) -> None:
+        main = dataclasses.replace(self.BASE, base_sha=MAIN_SHA, max_in_flight=1)
+        gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={MAIN_SHA}"] = 502
+        cap, _ = policy._run_max_in_flight(
+            REPO,
+            "trunk",
+            MAIN_SHA,
+            policy.stricter_config(self.BASE, main),
+            shared=False,
+        )
+        self.assertEqual(cap, 1)
+
+    def test_an_exclude_pathspec_on_main_never_removes_a_base_path(self) -> None:
+        base = dataclasses.replace(self.BASE, check_inputs=("scripts/a.txt",))
+        for exclude in (
+            ":!scripts/a.txt",
+            ":(exclude)scripts/a.txt",
+            ":^scripts/a.txt",
+        ):
+            with self.subTest(exclude=exclude):
+                main = dataclasses.replace(
+                    base, base_sha=MAIN_SHA, check_inputs=("scripts/b.txt", exclude)
+                )
+                combined = policy.stricter_config(base, main).check_inputs
+                self.assertEqual(set(combined), {"scripts/a.txt", "scripts/b.txt"})
+
+    def test_a_malformed_cached_main_config_is_read_again(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {"BABYSIT_RUN_CACHE": str(pathlib.Path(tmp.name, "run.json"))}
+        patcher = mock.patch.dict("os.environ", env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        good = dataclasses.asdict(dataclasses.replace(self.BASE, base_sha=MAIN_SHA))
+        for broken in (
+            {**good, "rung": "C9"},
+            {**good, "dependabot_mode": "always"},
+            {**good, "max_in_flight": "five"},
+            {**good, "notes": 7},
+            {**good, "denied_paths": [1, 2]},
+        ):
+            with self.subTest(broken=broken):
+                policy.run_cache.put(policy.DEFAULT_BRANCH_CONFIG_SECTION, REPO, broken)
+                gh = config_fake(self, PIPELINE.replace("local-babysit", "pr-merge"))
+                gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
+                gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": MAIN_SHA}
+                gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
+                for path, text in (
+                    (policy.CONFIG_PATH, PIPELINE.replace("local-babysit", "pr-merge")),
+                    (policy.SOURCE_CONTROL_PATH, SOURCE_CONTROL),
+                ):
+                    gh.rest[f"repos/{REPO}/contents/{path}?ref={MAIN_SHA}"] = (
+                        file_payload(text)
+                    )
+                combined = policy.with_default_branch(
+                    REPO, dataclasses.replace(self.BASE, max_changed_lines=200)
+                )
+                self.assertEqual(combined.rung, "C2")
+                self.assertIn(
+                    [
+                        "api",
+                        f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={MAIN_SHA}",
+                    ],
+                    gh.calls,
+                )
 
 
 class SharedPostMergeAnswer(unittest.TestCase):

@@ -729,6 +729,8 @@ def read_config_at(
 # An authority value that enables neither lane (`enabled_authority`): the
 # combined config's when base and main enable different ones.
 AUTHORITY_CONFLICT = "base-and-default-branch-differ"
+# The gate's refusal for it: a stop, so the identity's queued entries leave.
+AUTHORITY_DIFFERS = "authority-differs"
 
 
 def _cap(a: int | None, b: int | None) -> int | None:
@@ -745,9 +747,8 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
     default branch head, per setting. GitHub never moves a base SHA as the
     default branch advances, so a tightening on main reaches open pull
     requests here, and a pull request still cannot drop its base's
-    declaration. Timing-only settings (`risk_escalation_minutes`) and
-    `max_in_flight` (read at the head on its own, `_run_max_in_flight`) keep
-    the base's. Raises `PolicyReadError` when the agent identities differ."""
+    declaration. The timing-only `risk_escalation_minutes` keeps the base's.
+    Raises `PolicyReadError` when the agent identities differ."""
     if (base.agent_identity or "").strip().casefold() != (
         main.agent_identity or ""
     ).strip().casefold():
@@ -785,11 +786,78 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         c2_contradictions=base.c2_contradictions or main.c2_contradictions,
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
-        check_inputs=_union(base.check_inputs, main.check_inputs),
+        # A pathspec with magic (`:!x`, `:(exclude)x`) from main is dropped:
+        # the lists share one `git diff`, where an exclude would remove a
+        # base path.
+        check_inputs=_union(
+            base.check_inputs, tuple(p for p in main.check_inputs if p[:1] != ":")
+        ),
+        # The gate reads it at the head (`_run_max_in_flight`); this is only
+        # the fallback when that read fails, which never exceeds main's.
+        max_in_flight=min(base.max_in_flight, main.max_in_flight),
     )
 
 
 DEFAULT_BRANCH_CONFIG_SECTION = "default-branch-config"
+
+
+def _cached_config(value: Any) -> PipelineConfig | None:
+    """A saved config, or None (a miss, read again) for anything a config
+    read could not have produced."""
+    if not isinstance(value, dict):
+        return None
+    try:
+        c = PipelineConfig(
+            **{k: tuple(v) if isinstance(v, list) else v for k, v in value.items()}
+        )
+
+        def texts(t: Any) -> bool:
+            return isinstance(t, tuple) and all(isinstance(x, str) for x in t)
+
+        def count(v: Any, least: int) -> bool:
+            return type(v) is int and v >= least
+
+        ok = (
+            isinstance(c.base_sha, str)
+            and SHA_RE.fullmatch(c.base_sha)
+            and c.error is None
+            and c.rung in RUNG_RANK
+            and all(
+                v is None or isinstance(v, str)
+                for v in (c.authority, c.agent_identity, c.loop_merge)
+            )
+            and all(
+                v is None or count(v, 0)
+                for v in (c.max_changed_lines, c.max_changed_files)
+            )
+            and all(
+                texts(t)
+                for t in (
+                    c.denied_paths,
+                    c.notes,
+                    c.floor_paths,
+                    c.floor_script_scopes,
+                    c.check_inputs,
+                )
+            )
+            and all(
+                type(b) is bool
+                for b in (
+                    c.report_only,
+                    c.require_verifier_verdict,
+                    c.high_path_floor,
+                    c.c2_contradictions,
+                )
+            )
+            and c.dependabot_mode in DEPENDABOT_MODES
+            and c.dependabot_majors in DEPENDABOT_MAJORS
+            and count(c.max_in_flight, 1)
+            and count(c.max_queue_ejections, 1)
+            and count(c.risk_escalation_minutes, 0)
+        )
+    except (TypeError, ValueError):
+        return None
+    return c if ok else None
 
 
 def _default_branch_config(repo: str, branch: str | None = None) -> PipelineConfig:
@@ -798,16 +866,11 @@ def _default_branch_config(repo: str, branch: str | None = None) -> PipelineConf
     read; saving it saves its `merge.max-in-flight` for `_run_max_in_flight`
     too. Raises `PolicyReadError` when the head or its config cannot be read
     or parsed."""
-    cached = run_cache.get(DEFAULT_BRANCH_CONFIG_SECTION, repo, run_cache.MAX_AGE)
-    if isinstance(cached, dict):
-        try:
-            config = PipelineConfig(
-                **{k: tuple(v) if isinstance(v, list) else v for k, v in cached.items()}
-            )
-            if SHA_RE.fullmatch(config.base_sha) and config.error is None:
-                return config
-        except TypeError:
-            pass
+    cached = _cached_config(
+        run_cache.get(DEFAULT_BRANCH_CONFIG_SECTION, repo, run_cache.MAX_AGE)
+    )
+    if cached is not None:
+        return cached
     _, head = _default_branch_head(repo, branch)
     config = read_config_at(repo, head)
     if config.error:
@@ -3383,7 +3446,7 @@ def assess(
     )
     details["reportOnly"] = report_only
     if enabled_authority(config) != authority:
-        return stopped
+        return replace(stopped, reason=AUTHORITY_DIFFERS)
 
     permission = permission_reader(repo)
     readers = {

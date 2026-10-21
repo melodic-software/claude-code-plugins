@@ -2809,6 +2809,7 @@ STOP_REFUSALS = (
     "post-merge:",
     "rung-off:",
     merge_policy.DEFAULT_BRANCH_UNREADABLE,
+    merge_policy.AUTHORITY_DIFFERS,
 )
 # The run-cache section of queued entries a gate process judged and kept.
 SWEEP = "queue-sweep"

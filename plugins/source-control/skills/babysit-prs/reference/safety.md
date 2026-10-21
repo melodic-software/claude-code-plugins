@@ -1081,9 +1081,10 @@ Named residuals:
 - `merge.max-in-flight` is read at the default branch head once per cache window
   (`run_cache.MAX_AGE`), shared by the run's gate processes in that window, so a changed cap
   applies to every candidate, whatever its base, once the window ends. The room check after an
-  enqueue reads it again, uncached. A failed read in the gate refuses, since the head's config
-  also tightens every other setting; in the room check, the lower of the base commit's value and
-  the cap the gate applied holds.
+  enqueue reads it again, uncached. When the gate cannot read the head's config at all, it
+  refuses, since that config also tightens every other setting. When only the cap's own read
+  fails, the lower of the base commit's cap and the head's applies; in the room check, the lower
+  of that and the cap the gate applied.
 
 Operator runbook: the refusal `in-flight:merged-history-truncated` (or an unreadable post-merge
 verdict naming the read limit) means more merges landed since the floor than the history read

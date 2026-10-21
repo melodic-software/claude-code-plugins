@@ -1502,6 +1502,22 @@ class EachRefusalMakesNoMergeCall(Unattended):
                 self.assertEqual(out["unattended"]["reason"], reason)
                 self.assertEqual(self.log, ["dequeue:all"])
 
+    def test_an_authority_differing_on_the_default_branch_dequeues_the_identitys_entries(
+        self,
+    ) -> None:
+        # Switching merge.authority on main stops the lane as rung: off does,
+        # so the identity's queued entries leave.
+        self.main_head = "d" * 40
+        self.head_configs = [
+            dataclasses.replace(
+                self.config, base_sha=self.main_head, authority="pr-merge"
+            )
+        ]
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "authority-differs")
+        self.assertEqual(self.log, ["dequeue:all"])
+
     def test_live_refusals_hold_the_merge_and_keep_the_path_enabled(self) -> None:
         cases = {
             "in flight": (
