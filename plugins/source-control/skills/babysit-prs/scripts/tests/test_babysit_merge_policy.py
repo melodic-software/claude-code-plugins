@@ -304,6 +304,16 @@ class ReadConfigAt(unittest.TestCase):
             (with_cap("0"), 1, True),
             (with_cap("-3"), 1, True),
             (with_cap("three"), 1, True),
+            # Present but empty or not a scalar: the shared reader prints
+            # nothing for these, as for an absent key.
+            (with_cap("''"), 1, True),
+            (with_cap("[]"), 1, True),
+            (with_cap("[3]"), 1, True),
+            (with_cap(""), 1, True),
+            (with_cap("\n    a: 1"), 1, True),
+            (with_cap("\n    - 3"), 1, True),
+            # A key of that name in another mapping is not the setting.
+            (PIPELINE.replace("diff-check:\n", "diff-check:\n    max-verify-fails:\n"), 3, False),
         ):
             with self.subTest(text=text):
                 config_fake(self, text)
@@ -313,6 +323,14 @@ class ReadConfigAt(unittest.TestCase):
                 self.assertEqual(
                     any("max-verify-fails" in n for n in config.notes), noted
                 )
+
+    def test_a_flow_mapping_max_verify_fails_turns_the_lane_off(self) -> None:
+        config_fake(
+            self,
+            PIPELINE.replace("merge:\n", "merge:\n  max-verify-fails: {a: 1}\n"),
+        )
+        config = policy.read_config_at(REPO, SHA)
+        self.assertEqual((config.rung, config.error), ("off", "config-parse-error"))
 
     def test_risk_escalation_minutes_defaults_to_sixty_and_reads_minutes(
         self,

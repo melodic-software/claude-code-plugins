@@ -317,6 +317,31 @@ def _concern_values(
     return values
 
 
+def _merge_names(text: str, key: str) -> bool:
+    """Whether the top-level `merge` mapping holds `key` at all. The shared
+    reader prints nothing for an empty or non-scalar value, as for an absent
+    key; the document already parsed as the block-style subset."""
+    lines = [
+        line
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    base = len(lines[0]) - len(lines[0].lstrip(" ")) if lines else 0
+    entry = re.compile(r"""(\s*)(["']?)([^"':]+)\2\s*:(\s|$)""")
+    inside, child = False, None
+    for line in lines:
+        found = entry.match(line)
+        indent = len(line) - len(line.lstrip(" "))
+        if indent <= base:
+            inside = indent == base and found is not None and found[3] == "merge"
+            child = None
+        elif inside and found is not None:
+            child = indent if child is None else child
+            if indent == child and found[3] == key:
+                return True
+    return False
+
+
 # --- The gh seam ----------------------------------------------------------------
 
 
@@ -725,6 +750,8 @@ def read_config_at(
         )
         escalation_minutes = None
     verify_fails = scalar("merge.max-verify-fails")
+    if verify_fails is None and _merge_names(text, "max-verify-fails"):
+        verify_fails = ""
     if verify_fails is not None and not re.fullmatch(r"[1-9][0-9]*", verify_fails):
         notes.append(
             f"merge.max-verify-fails {verify_fails!r} is not a count of 1 or more"
