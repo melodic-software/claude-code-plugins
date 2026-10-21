@@ -81,6 +81,22 @@ async page => { // the question page itself: choices, chips, banners, header and
       if (w > 400) ok("the met prerequisite (Q2) carries a check and an answered label; an unmet one carries neither", /^needs Q2✓ \[answered\]$/.test(row.marks[0]) && row.marks.slice(1).every(m => !/✓|answered/.test(m)), JSON.stringify(row.marks));
     }
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
+
+    // #8083: an unpinned Notes or Activity flyout stays off the note box, Ask Claude and Rephrase at 1440 px
+    await pick("Q1");
+    for (const panel of ["notes", "activity"]) {
+      await page.click('.strip [data-panel="' + panel + '"]'); await page.waitForTimeout(400);
+      const hit = await page.evaluate(() => {
+        const box = s => { const e = document.querySelector(s); if (!e || !e.offsetParent) return null; const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
+        const fly = box("aside.fly.open"), hits = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+        const names = {note: "#note", ask: '#talkRow [data-act="ask"]', rephrase: '#talkRow [data-act="rephrase"]'}, out = {pinned: document.getElementById("layout").classList.contains("pinned"), fly: !!fly};
+        for (const k in names) { const b = box(names[k]); out[k] = !b ? "missing" : fly && hits(b, fly) ? "covered" : "clear"; }
+        out.decideBar = Math.round(document.getElementById("answer").getBoundingClientRect().height);
+        return out;
+      });
+      ok("at 1440 px the unpinned " + panel + " flyout does not cover the note box, Ask Claude or Rephrase", !hit.pinned && hit.fly && hit.note === "clear" && hit.ask === "clear" && hit.rephrase === "clear", JSON.stringify(hit));
+      await page.click('.strip [data-panel="' + panel + '"]'); await page.waitForTimeout(250);
+    }
   }
   if (PHASE === 2) { // the shell revised Q1's recommendation with no why while Q8 was not open
     const banner = () => page.$$eval("#dscroll .banner", els => els.map(e => e.textContent).join(" | "));
