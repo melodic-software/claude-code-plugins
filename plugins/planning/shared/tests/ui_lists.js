@@ -34,7 +34,7 @@ async function main() {
     };
     const guests = [];
     for (let i = 1; i <= GUESTS; i++) {
-      const ip = { "CF-Connecting-IP": `198.51.100.${i}` }, out = await api("/api/join", { name: `Guest ${i}`, device: "computer" }, ip);
+      const ip = { "CF-Connecting-IP": `198.51.100.${i}` }, out = await api("/api/join", { name: `Guest ${i}`, device: "computer", key: A.guestKey }, ip);
       guests.push({ pid: out.pid, h: { ...ip, "X-Session-Secret": out.secret } });
     }
     const { id: hello } = await api("/api/chat", { text: "Hello all" }, owner);
@@ -44,7 +44,7 @@ async function main() {
       await api("/api/propose", { text: `Proposal from Guest ${i + 1}` }, g.h);
       if (i < 25) await api("/api/chat", { text: `Reply ${i + 1}`, replyTo: hello }, g.h);
     }
-    const gone = await api("/api/join", { name: "Gone", device: "computer" }, { "CF-Connecting-IP": "198.51.100.99" });
+    const gone = await api("/api/join", { name: "Gone", device: "computer", key: A.guestKey }, { "CF-Connecting-IP": "198.51.100.99" });
     await api("/api/person/remove", { pid: gone.pid, on: true }, owner);
     // Presence lives in memory: a restart leaves everyone offline until they beat. Guests 1-10 are here and active,
     // 11-15 here with their tab hidden (Away); the rest stay offline.

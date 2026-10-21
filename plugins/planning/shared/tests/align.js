@@ -54,7 +54,7 @@ async function seed(s, A) {
   }
   const host = { id: "host", h: { "X-Owner-Token": owner } };
   await post("/api/join", { name: "Kyle" }, host).catch(() => {});
-  const join = async name => { const j = await post("/api/join", { name, device: "computer" }, { id: "anon-" + name, h: {} }); return { id: j.pid, pid: j.pid, h: { "X-Session-Secret": j.secret } }; };
+  const join = async name => { const j = await post("/api/join", { name, device: "computer", key: A.guestKey }, { id: "anon-" + name, h: {} }); return { id: j.pid, pid: j.pid, h: { "X-Session-Secret": j.secret } }; };
 
   const shot = s.asset(A.dir, "shot.png", png(640, 400, [40, 90, 160], [220, 220, 230]));
   const pics = [[200, 60, 60], [60, 160, 90], [230, 180, 40], [120, 70, 170]].map((c, i) => s.asset(A.dir, `opt${i + 1}.png`, png(320, 200, c, [245, 245, 245])));

@@ -1205,7 +1205,7 @@ class Session:
                 "createdAt": now,
                 "phase": {"kind": "live"},
                 "share": {"url": ""},
-                "guestKey": "",
+                "guestKey": ids.token(9),
                 "settings": _settings_patch({**copy.deepcopy(DEFAULT_SETTINGS), "reviewAnswers": False}, settings or {}),
                 "seq": {k: 0 for k in SEQ_KEYS},
             },
@@ -1343,6 +1343,13 @@ class Session:
                 if h in self._merged_into_owner:
                     raise DomainError(401, "merged-into-owner", "This browser was merged into the owner. Open your owner link here.")
             raise DomainError(401, "unknown-session", "Join the session again.")
+
+    def check(self, pid):
+        """`pid` while that person may read: DomainError once they are removed, waiting or gone (server.py's asset
+        cookie names a pid, not a credential)."""
+        with self._lock:
+            self._person(pid)
+        return pid
 
     def _person(self, pid):
         person = self.state["people"].get(pid) if isinstance(pid, str) else None
