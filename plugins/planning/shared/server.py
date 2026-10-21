@@ -850,7 +850,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.crash()
         if method == "rotate_owner_link":
             app.write_owner_link()
-        if method in ("rotate_owner_link", "revoke_device"):
+        if method in ("rotate_owner_link", "revoke_device", "end_session"):
             app._asset_key = secrets.token_bytes(32)  # an asset cookie names the host, not the device: every one ends
         app.changed()
         return self.send(200, {"ok": True, **out})

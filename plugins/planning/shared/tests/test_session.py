@@ -4954,6 +4954,18 @@ class TestOwnerDevices(SessionCase):
             self.assertEqual(ctx.exception.http, 401)
         self.assertNotIn("devices", self.disk()["credentials"])
 
+    def test_closing_the_session_signs_out_every_device_and_reopening_brings_none_back(self):
+        token = self.device()["token"]
+        self.act("end_session", HOST, {"on": True})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(owner_token=token)
+        self.assertEqual(ctx.exception.http, 401)
+        self.assertNotIn("devices", self.disk()["credentials"])
+        self.act("end_session", HOST, {"on": False})
+        with self.assertRaises(session.DomainError):
+            self.s.resolve(owner_token=token)
+        self.assertEqual(self.s.resolve(owner_token=self.owner_token), HOST)
+
     def test_a_new_owner_link_at_start_signs_out_every_device(self):
         token = self.device()["token"]
         self.assertTrue(self.s.reset_owner_token("tok-newer", self.clock.t + 1))

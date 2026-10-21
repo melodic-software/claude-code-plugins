@@ -675,9 +675,10 @@ page keeps the rest of its last snapshot.
   answers the new owner token) work only with the owner link's own token (403
   `host-device-only`), so the owner link never reaches another device. The owner's Signed-in
   devices list signs one out (`POST /api/owner/devices/revoke`) and the next request with its
-  credential gets 401; signing out or a new owner link also renews the asset-cookie key, so no
+  credential gets 401; signing out, closing the session or a new owner link also renews the asset-cookie key, so no
   cookie outlives it (every open page gets a new one on its next poll). A new owner link,
-  including one issued at start, signs out every device.
+  including one issued at start, and closing the session sign out every device; reopening the
+  session brings none back.
 - **Joining.** A new session issues a guest key, so its first guest link already ends in
   `#join=<key>` and a join without the key gets 403 `bad-guest-key`. A session saved before
   sessions had one keeps an empty key, and with it a link that needs none, until the owner presses

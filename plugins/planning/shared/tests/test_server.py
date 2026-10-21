@@ -249,6 +249,14 @@ class TestOwnerDevices(ServerCase):
         for dev in devs:
             self.assertEqual(self.get("/api/state", {"X-Owner-Token": dev["token"]})[0], 401)
 
+    def test_closing_the_session_signs_out_every_device(self):
+        _, dev = self.pair()
+        status, _, out = self.post("/api/session/end", {"on": True}, self.owner)
+        self.assertEqual(status, 200, out)
+        status, _, out = self.get("/api/state", {"X-Owner-Token": dev["token"]})
+        self.assertEqual((status, out["error"]), (401, "unknown-session"))
+        self.assertEqual(self.get("/api/state", self.owner)[0], 200)
+
     def test_the_log_never_holds_a_code_or_a_credential(self):
         code, dev = self.pair()
         self.post("/api/owner/pair/redeem", {"code": code}, {"CF-Connecting-IP": "198.51.100.7"})

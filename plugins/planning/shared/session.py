@@ -4486,6 +4486,8 @@ class Session:
             ]
             if on:
                 st["session"]["phase"] = {"kind": "ended", "at": self.now()}
+                st["credentials"].pop("devices", None)  # the owner's other devices sign out with the session; a reopen brings none back
+                self._pairing = None
                 self._event("session-ended", later=later)
             else:
                 st["session"]["phase"] = {"kind": "live"}

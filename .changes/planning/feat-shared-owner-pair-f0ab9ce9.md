@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- The shared interview host can sign in on another device without the owner link: Sign in on another device in the owner's menu shows a one-time code and its QR code, good once for 2 minutes, which a phone scans or types in the join dialog to get its own host sign-in. Signed-in devices lists them, each with Sign out, and a new owner link signs all of them out.
+- The shared interview host can sign in on another device without the owner link: Sign in on another device in the owner's menu shows a one-time code and its QR code, good once for 2 minutes, which a phone scans or types in the join dialog to get its own host sign-in. Signed-in devices lists them, each with Sign out, and a new owner link or closing the session signs all of them out.
 
 ### Security
 
