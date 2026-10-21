@@ -4411,9 +4411,14 @@
       if (cForm.classList.contains("vf-composer-sheet") && ta.selectionEnd === ta.value.length) ta.scrollTop = ta.scrollHeight;
     });
     // Triage 18: on a phone, writing opens the answer as a full-height sheet: the text pre-filled, Cancel and Save on
-    // top, and the field filling the visual viewport, so the keyboard never covers it.
+    // top, and the field filling the visual viewport, so the keyboard never covers it. Not when Tab brought focus here:
+    // the sheet keeps Tab inside it, so the controls after the field (Pass, Claude, Discussion) would be out of reach
+    // (WCAG 2.1.1); a keyboard user writes in the field where it is. Capture, as Tab traps stop propagation.
+    let tabbedIn = false;
+    on(document, "keydown", e => { if (e.key === "Tab") tabbedIn = true; }, true);
+    on(document, "pointerdown", () => { tabbedIn = false; }, true);
     on(ta, "focus", () => {
-      if (!phone.matches || ta.disabled || cForm.classList.contains("vf-composer-sheet")) return;
+      if (!phone.matches || ta.disabled || tabbedIn || cForm.classList.contains("vf-composer-sheet")) return;
       ui.sheetFrom = ta.value;
       sheetTitle.textContent = Core.myAnswer(ui.cur) ? "Edit your answer" : qById(ui.cur)?.text || "Your answer";
       cForm.classList.add("vf-composer-sheet"); root.dataset.sheet = "";
