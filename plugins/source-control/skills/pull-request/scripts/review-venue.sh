@@ -6,9 +6,11 @@
 # workflow: ci-workflows pr-review.yml (code-review) or pr-review-security.yml
 # (security-review). It is healthy when its workflow is active and its newest
 # pull_request run that reached a verdict (completed, and neither skipped nor
-# cancelled) succeeded and was created within --max-age-days. A disabled
-# workflow, a failed run (a usage-limit stop included), a timed-out one, or none
-# in the window is not healthy.
+# cancelled) succeeded and was created within --max-age-days. A failed run whose
+# every failed job says failure-class=skipped-validation reached no verdict: the
+# pull request edits the caller workflow, so the review skipped itself by
+# design. A disabled workflow, any other failed run (a usage-limit stop
+# included), a timed-out one, or none in the window is not healthy.
 #
 # Usage:
 #   review-venue.sh [--repo <owner/repo>] [--max-age-days <n>]
@@ -68,6 +70,25 @@ REUSABLE=(
 )
 WORKFLOW_ID=("" "") WORKFLOW_PATH=("" "")
 PAGES=3
+# Skipped-validation reds passed over per lane before it reads stale.
+MAX_PASSED=10
+
+# skipped_validation <run-id>: true when the run failed only because the pull
+# request edits the caller workflow. A run with no failed job keeps its verdict.
+skipped_validation() {
+  local jobs ids id ann hit
+  jobs=$(gh api "repos/$REPO/actions/runs/$1/jobs?per_page=100") || die 2 "cannot read the jobs of run $1"
+  ids=$(jq -r '.jobs[]? | select(.conclusion | IN("failure", "timed_out")) | .id' <<<"$jobs") ||
+    die 2 "cannot parse the jobs of run $1"
+  [[ -n "$ids" ]] || return 1
+  for id in $ids; do
+    [[ "$id" =~ ^[0-9]+$ ]] || die 2 "unexpected job id in run $1"
+    ann=$(gh api "repos/$REPO/check-runs/$id/annotations?per_page=100") || die 2 "cannot read the annotations of job $id"
+    hit=$(jq 'any(.[]?; .annotation_level == "failure" and (.message | test("^failure-class=skipped-validation(:|$)")))' <<<"$ann") ||
+      die 2 "cannot parse the annotations of job $id"
+    [[ "$hit" == true ]] || return 1
+  done
+}
 
 # Find each lane's caller workflow among the newest pull_request runs. Every PR
 # event starts each lane, a draft's run included (it concludes skipped), so a
@@ -106,15 +127,24 @@ for i in "${!LANES[@]}"; do
   fi
   lane_runs=$(gh api "repos/$REPO/actions/workflows/$id/runs?event=pull_request&per_page=100") ||
     die 2 "cannot list the runs of $path"
-  jq -r --arg lane "$lane" --arg path "$path" --argjson days "$MAX_AGE_DAYS" '
-    [.workflow_runs[]? | select(.status == "completed" and (.conclusion | IN("skipped", "cancelled") | not))][0] as $r
-    | if $r == null then
-        "\($lane) local stale: \($path) has no run with a verdict among its newest 100"
-      elif ($r.created_at | fromdateiso8601) < (now - $days * 86400) then
-        "\($lane) local stale: the newest run with a verdict, \($r.id), is from \($r.created_at), older than \($days) days (\($path))"
-      elif $r.conclusion == "success" then
-        "\($lane) ci healthy: newest run with a verdict, \($r.id), succeeded at \($r.created_at) (\($path))"
-      else
-        "\($lane) local failing: newest run with a verdict, \($r.id), concluded \($r.conclusion) at \($r.created_at) (\($path))"
-      end' <<<"$lane_runs" || die 2 "cannot parse the runs of $path"
+  verdicts=$(jq -r '.workflow_runs[]? | select(.status == "completed" and (.conclusion | IN("skipped", "cancelled") | not))
+    | "\(.id)\t\(.conclusion)\t\(.created_at)"' <<<"$lane_runs") || die 2 "cannot parse the runs of $path"
+  rid="" passed=0
+  while IFS=$'\t' read -r rid conclusion created; do
+    [[ -n "$rid" ]] || continue
+    [[ "$rid" =~ ^[0-9]+$ ]] || die 2 "unexpected run id in $path"
+    if [[ "$conclusion" == success ]] || ! skipped_validation "$rid"; then break; fi
+    rid="" passed=$((passed + 1))
+    ((passed < MAX_PASSED)) || break
+  done <<<"$verdicts"
+  [[ -z "$rid" ]] || made=$(jq -nr --arg t "$created" '$t | fromdateiso8601') || die 2 "cannot parse the time of run $rid"
+  if [[ -z "$rid" ]]; then
+    printf '%s local stale: %s has no run with a verdict among its newest 100\n' "$lane" "$path"
+  elif ((made < $(date +%s) - MAX_AGE_DAYS * 86400)); then
+    printf '%s local stale: the newest run with a verdict, %s, is from %s, older than %s days (%s)\n' "$lane" "$rid" "$created" "$MAX_AGE_DAYS" "$path"
+  elif [[ "$conclusion" == success ]]; then
+    printf '%s ci healthy: newest run with a verdict, %s, succeeded at %s (%s)\n' "$lane" "$rid" "$created" "$path"
+  else
+    printf '%s local failing: newest run with a verdict, %s, concluded %s at %s (%s)\n' "$lane" "$rid" "$conclusion" "$created" "$path"
+  fi
 done

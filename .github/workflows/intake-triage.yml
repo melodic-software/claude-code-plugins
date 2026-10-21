@@ -104,7 +104,9 @@ jobs:
       # Bots the reusable admits: github-actions[bot] (41898282), the actor of
       # a dispatch sent with a GITHUB_TOKEN, and the lanes App when its id is
       # set. An issue the GITHUB_TOKEN opens starts no issues run, so listing
-      # 41898282 admits only its dispatches.
+      # 41898282 starts runs only for its dispatches. The same list picks the
+      # comments the model reads, so any comment a GITHUB_TOKEN posts (other
+      # than the lane's own marker comment) reaches the model as trusted text.
       - name: Compose the bot id list
         id: bots
         env:
@@ -176,7 +178,7 @@ jobs:
     concurrency:
       group: intake-triage-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
+    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@1bb8953644d16f21d10718962c6702f01ea3308a # v0.56.0
     with:
       runner: ubuntu-24.04
       role: automations
