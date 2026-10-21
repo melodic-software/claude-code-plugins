@@ -7,9 +7,12 @@
 # Callers handle I/O, exemptions, and exit-code mapping.
 #
 # Pattern selection: only HIGH-confidence patterns with distinctive prefixes
-# and fixed lengths or a fixed structure (the ghs_<APPID>_<JWT> installation
-# token varies in length, so it is matched by its `eyJ` JWT header and
-# dot-separated segments). Generic patterns (password=, api_key=, secret=) are
+# and fixed lengths or a fixed structure. The ghs_ installation token varies in
+# length and may carry a JWT with or without an app id, so it takes the regex
+# GitHub recommends for current and stateless installation tokens from
+# https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+# (as of 2026-10-21; recheck when GitHub changes a token format or its
+# recommended regex). Generic patterns (password=, api_key=, secret=) are
 # excluded — too many false positives for a real-time blocking hook. Sourced
 # from gitleaks, TruffleHog, and secrets-patterns-db. grep -E (POSIX ERE) only,
 # run under LC_ALL=C: in a UTF-8 locale GNU grep takes quadratic time on a long
@@ -38,7 +41,7 @@ SECRET_PATTERNS=(
   'ghp_[0-9a-zA-Z]{36}'                                          # GitHub PAT
   'gho_[0-9a-zA-Z]{36}'                                          # GitHub OAuth
   'gh[us]_[0-9a-zA-Z]{36}'                                       # GitHub app (ghu_/ghs_)
-  'ghs_[0-9]+_eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' # GitHub app ghs_<APPID>_<JWT>
+  '(^|[^A-Za-z0-9_])ghs_[A-Za-z0-9._-]{36,}|ghs_([0-9]+_)?eyJ[A-Za-z0-9._-]{20,}' # GitHub installation token, current and stateless; a JWT-shaped one needs no left boundary
   'github_pat_[0-9a-zA-Z_]{82}'                                  # GitHub fine-grained PAT
   'glpat-[0-9a-zA-Z_-]{20}'                                      # GitLab PAT
   'xoxb-[0-9]{10,13}-[0-9]{10,13}'                               # Slack bot token

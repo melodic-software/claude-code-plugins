@@ -115,6 +115,14 @@ JOIN_WINDOW = 60.0
 JOINS_PER_WINDOW = 30
 JOIN_KEY_WINDOW = 600.0
 JOINS_PER_KEY = 60  # judgment: per guest key across all addresses, above JOINS_PER_WINDOW so one office NAT joins at once
+# Signing the owner in on another device: a code typed or scanned once. Its 8 characters from PAIR_ALPHABET (31, no
+# 0/O, 1/I/L) hold about 39.6 bits; after PAIR_MISSES wrong tries an address is refused that code, while other
+# addresses keep it, so a guesser gets PAIR_MISSES tries at 31**8 per address it holds.
+PAIR_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+PAIR_LENGTH = 8
+PAIR_SECONDS = 120.0  # judgment: long enough to pick up a phone and scan
+PAIR_MISSES = 5  # judgment: a few typos; the host makes a new code after
+MAX_DEVICES = 10  # judgment: the owner's other signed-in devices; one more needs one signed out first
 MAX_CHAT = 2000  # the newest messages kept, so chat cannot grow state.json without bound
 CHAT_WINDOW = 50  # judgment: the newest messages a snapshot carries; GET /api/chat pages through the rest
 CHAT_PAGE_MAX = 100  # judgment: the most messages one GET /api/chat returns
@@ -148,7 +156,10 @@ PERSON_THUMB_MAX = 4 * MAX_THUMB  # judgment: preview characters one person's fi
 SESSION_THUMB_MAX = 1_000_000  # judgment: preview characters state.json and the owner's snapshot carry in all
 REPORT_IMAGE_MAX = 512 * 1024  # bytes of a report's screenshot, which the page re-encodes to 1600 px at most
 SHOWN_IMAGE_MAX = REPORT_IMAGE_MAX  # bytes of a received picture GET /api/upload/image reads back, what the page makes of a picked or pasted one; a larger one shows as a file
-REPORT_MAX = BODY_MAX + -(-REPORT_IMAGE_MAX // 3) * 4 + 32  # a report's body: that picture as a data: URL, plus its text
+MAX_REPORT_IMAGES = 4  # judgment (the owner, 2026-10-21): screenshots one report takes when it is sent; an addition takes one
+REPORT_MAX = BODY_MAX + -(-REPORT_IMAGE_MAX // 3) * 4 + 32  # an addition's body: one picture as a data: URL, plus its text
+REPORT_SEND_MAX = BODY_MAX + MAX_REPORT_IMAGES * (-(-REPORT_IMAGE_MAX // 3) * 4 + 32)  # a report's body: up to MAX_REPORT_IMAGES of them
+REPORT_SECONDS = 60.0  # judgment: a report's whole body, REPORT_SEND_MAX (about 2.8 MB), arrives within this on a 0.25 MB/s phone link (about 11 s)
 REPORT_INTERVAL = 10.0  # judgment: seconds between one person's reports
 MAX_OPEN_REPORTS = 5  # judgment: reports one person has waiting for the owner
 MAX_REPORTS = 500  # judgment: reports across the session; at the cap a new one is refused, none dropped
@@ -419,6 +430,8 @@ def cross_field_errors(doc):
     errors += [f"A result under {key[:40]} names another place." for key, lst in doc["results"].items() for r in lst if r.get("qid", GENERAL) != key]
     errors += [f"Report {fid[:40]} holds an id or picture name the server never makes." for fid, r in doc.get("reports", {}).items()
                if not REPORT_ID.fullmatch(fid) or not (r.get("image") is None or re.fullmatch(rf"{REPORTS_DIR}/{fid}\.(png|jpg|webp)", r["image"]))
+               or ("moreImages" in r and ("image" not in r or not 0 < len(r["moreImages"]) < MAX_REPORT_IMAGES
+                                         or any(not re.fullmatch(rf"{REPORTS_DIR}/{fid}-p{n}\.(png|jpg|webp)", m) for n, m in enumerate(r["moreImages"], 2))))
                or len(r.get("adds", [])) > MAX_REPORT_ADDS
                or any(not (a.get("image") is None or re.fullmatch(rf"{REPORTS_DIR}/{fid}-{n}\.(png|jpg|webp)", a["image"])) for n, a in enumerate(r.get("adds", []), 1))]
     return errors
@@ -968,24 +981,47 @@ def _thumb(v, ext):
     return v
 
 
-def _report_image(v):
+def _report_image(v, field="image"):
     """A report's screenshot: (bytes, extension) from a data: URL of a PNG, JPEG or WebP whose bytes are that kind,
     at most REPORT_IMAGE_MAX bytes; None for no picture."""
     if v is None or v == "":
         return None
     m = THUMB.fullmatch(v) if isinstance(v, str) else None
     if m is None:
-        raise DomainError(415, "file-type", "A report's picture must be a PNG, JPEG or WebP screenshot.", field="image")
+        raise DomainError(415, "file-type", "A report's picture must be a PNG, JPEG or WebP screenshot.", field=field)
     try:
         data = base64.b64decode(m.group(2), validate=True)
     except ValueError as exc:
-        raise _bad("image", "image is not base64.") from exc
+        raise _bad(field, f"{field} is not base64.") from exc
     if len(data) > REPORT_IMAGE_MAX:
-        raise DomainError(413, "upload-too-large", "That picture is too large.", field="image", max=REPORT_IMAGE_MAX)
+        raise DomainError(413, "upload-too-large", "That picture is too large.", field=field, max=REPORT_IMAGE_MAX)
     kind = {"jpeg": "jpg"}.get(m.group(1), m.group(1))
     if not UPLOAD_KINDS[kind][1](data[:64]):
-        raise DomainError(415, "file-type", f"The picture says {m.group(1)}, but its bytes are not.", field="image")
+        raise DomainError(415, "file-type", f"The picture says {m.group(1)}, but its bytes are not.", field=field)
     return data, kind
+
+
+def _report_images(body):
+    """A new report's screenshots, in order: `images`, a list of at most MAX_REPORT_IMAGES data: URLs, or one `image`
+    as before; never both."""
+    if "images" not in body:
+        one = _report_image(body.get("image"))
+        return [one] if one else []
+    if "image" in body:
+        raise _bad("image", "Send image or images, not both.")
+    v = body["images"]
+    if not isinstance(v, list) or len(v) > MAX_REPORT_IMAGES:
+        raise DomainError(400, "bad-field", f"images lists at most {MAX_REPORT_IMAGES} pictures.", field="images", max=MAX_REPORT_IMAGES)
+    out = [_report_image(x, f"images[{i}]") for i, x in enumerate(v)]
+    if None in out:
+        raise _bad("images", "images lists only pictures.")
+    return out
+
+
+def _report_pics(r):
+    """Where a report's own screenshots are saved, in order: `image`, then `moreImages` (a report from before them has
+    only `image`)."""
+    return ([r["image"]] if "image" in r else []) + r.get("moreImages", [])
 
 
 def _dims(v, field, keys):
@@ -1163,6 +1199,7 @@ class Session:
         self.uploads_dir = self.path.parent / "uploads"  # in the private data folder; never under web/ or assets/
         self._sending = set()  # upload ids whose chunk is being written outside the lock
         self.on_owner_token = None  # called with (token, rotatedAt) inside the rotation, before it commits
+        self._pairing = None  # the one live sign-in code: {"hash", "until", "misses": {address: count}}; never persisted
 
     # -- construction and persistence ---------------------------------------------------------
 
@@ -1205,7 +1242,7 @@ class Session:
                 "createdAt": now,
                 "phase": {"kind": "live"},
                 "share": {"url": ""},
-                "guestKey": "",
+                "guestKey": ids.token(9),
                 "settings": _settings_patch({**copy.deepcopy(DEFAULT_SETTINGS), "reviewAnswers": False}, settings or {}),
                 "seq": {k: 0 for k in SEQ_KEYS},
             },
@@ -1331,7 +1368,8 @@ class Session:
                 self._person(pid)
                 return pid
             if owner_token:
-                if hmac.compare_digest(sha256(owner_token), creds["owner"]["tokenHash"]):
+                h = sha256(owner_token)
+                if hmac.compare_digest(h, creds["owner"]["tokenHash"]) or h in creds.get("devices", {}):
                     return HOST
                 raise DomainError(401, "unknown-session", "This owner link is no longer valid.")
             if secret:
@@ -1343,6 +1381,13 @@ class Session:
                 if h in self._merged_into_owner:
                     raise DomainError(401, "merged-into-owner", "This browser was merged into the owner. Open your owner link here.")
             raise DomainError(401, "unknown-session", "Join the session again.")
+
+    def check(self, pid):
+        """`pid` while that person may read: DomainError once they are removed, waiting or gone (server.py's asset
+        cookie names a pid, not a credential)."""
+        with self._lock:
+            self._person(pid)
+        return pid
 
     def _person(self, pid):
         person = self.state["people"].get(pid) if isinstance(pid, str) else None
@@ -3287,23 +3332,7 @@ class Session:
                 n = self._next_round_n()
                 if self._round_size(n) >= MAX_ROUND:
                     raise DomainError(409, "round-full", f"Round {n} already holds {MAX_ROUND} questions.")
-                q = {
-                    "id": self._next_qid(),
-                    "text": prop["text"],
-                    "alternatives": [],
-                    "dependsOn": [],
-                    "round": n,
-                    "purpose": "gather",
-                    "format": {"kind": "text"},
-                    "answerScope": "person",
-                    "references": [],
-                    "origin": {"kind": "host", "proposal": prop["id"], "by": pid},
-                    "needsReview": [],
-                }
-                self._add_question(q)
-                prop["status"] = {"kind": "question", "question": q["id"]}
-                self._notify(prop["pid"], "proposal", f"Your proposal became question {q['id']}, in round {n}.", actor=pid, qid=q["id"])
-                out = {"question": q["id"], "round": n}
+                out = self._proposal_question(pid, prop, n)
             elif action == "park":
                 prop["status"] = {"kind": "parked", "by": pid}
                 self._notify(prop["pid"], "proposal", "Your proposal was parked by a moderator.", actor=pid)
@@ -3313,6 +3342,45 @@ class Session:
                 prop["status"] = {"kind": "later", "reason": reason or "Off this session's goal."}
                 self._notify(prop["pid"], "proposal", "Your proposal was moved to Later.", actor=pid, body=prop["status"]["reason"])
             return {"status": prop["status"]["kind"], **out}
+
+    def _proposal_question(self, pid, prop, n):
+        """Make a proposal a question in round `n`, which has room, and tell its author: Make it a question's one way."""
+        q = {
+            "id": self._next_qid(),
+            "text": prop["text"],
+            "alternatives": [],
+            "dependsOn": [],
+            "round": n,
+            "purpose": "gather",
+            "format": {"kind": "text"},
+            "answerScope": "person",
+            "references": [],
+            "origin": {"kind": "host", "proposal": prop["id"], "by": pid},
+            "needsReview": [],
+        }
+        self._add_question(q)
+        prop["status"] = {"kind": "question", "question": q["id"]}
+        self._notify(prop["pid"], "proposal", f"Your proposal became question {q['id']}, in round {n}.", actor=pid, qid=q["id"])
+        return {"question": q["id"], "round": n}
+
+    def approve_proposals(self, pid, body):
+        """POST /api/proposal/all: the owner's Approve all, `{ids}`, the new proposals their confirm counted, each made a
+        question in the next round as Make it a question makes one. All or none: a proposal no longer new, or more
+        than the round has room for, refuses the lot, so one that arrived after the confirm is never placed unseen."""
+        ids = _body(body).get("ids")
+        if not isinstance(ids, list) or not 0 < len(ids) <= MAX_PROPOSALS or not all(isinstance(i, str) for i in ids) or len(set(ids)) < len(ids):
+            raise _bad("ids", f"ids lists 1 to {MAX_PROPOSALS} proposals, each once.")
+        with self._tx():
+            self._owner(pid)
+            props = [self._proposal(i) for i in ids]
+            for prop in props:
+                if prop["status"]["kind"] != "new":
+                    raise DomainError(409, "wrong-status", f"Proposal {prop['id']} is {prop['status']['kind']}.", status=prop["status"]["kind"])
+            n = self._next_round_n()
+            room = MAX_ROUND - self._round_size(n)
+            if len(props) > room:
+                raise DomainError(409, "round-full", f"Round {n} has room for {max(room, 0)} more questions, not {len(props)}.", room=max(room, 0))
+            return {"round": n, "questions": [self._proposal_question(pid, prop, n)["question"] for prop in props]}
 
     def chat(self, pid, body):
         """POST /api/chat: side chat, never sent to Claude."""
@@ -3733,8 +3801,12 @@ class Session:
 
     def act_on_request(self, pid, body):
         """POST /api/request/act: edit, decline, fail, rerun one request; run the ids the owner saw; publish, discard or
-        take down (`takedown`) a result."""
-        action = _choice(body, "action", ("edit", "decline", "fail", "rerun", "run", "publish", "discard", "takedown"))
+        take down (`takedown`) a result. `move`, its asker's or the owner's, puts one request and its result on `qid` or
+        about the whole session (`scope: session`)."""
+        action = _choice(body, "action", ("edit", "decline", "fail", "rerun", "run", "publish", "discard", "takedown", "move"))
+        if action == "move":
+            with self._write_as(pid, "request-move"):
+                return self._move_request(pid, body)
         now = self.now()
         with self._tx() as st:
             self._owner(pid)
@@ -3768,6 +3840,48 @@ class Session:
                 self._run([r])
                 self._unseen(HOST, "fail:" + r["id"])  # a later failure waits on the owner again
             return {"id": r["id"], "status": r["status"]["kind"]}
+
+    def _move_request(self, pid, body):
+        """Move a request, and its result with it; another person's request reads as 404. A running one stays put: Claude's
+        answer names where it was sent."""
+        r = self._request(_ident(body, "id"), owner_pid=None if pid == HOST else pid)
+        general = _choice(body, "scope", (GENERAL,), optional=True) is not None
+        if general and _body(body).get("qid") is not None:
+            raise _bad("qid", "A request about the whole session names no question.")
+        if general and r["runner"] == "self":
+            raise _bad("scope", "A request about the whole session runs on the host's Claude.")
+        to = None if general else self._question(body.get("qid"))["id"]
+        if r.get("qid") == to:
+            raise DomainError(409, "same-place", f"Request {r['id']} is {_on(r)} already.")
+        if r["status"]["kind"] == "running":
+            raise DomainError(409, "wrong-status", f"Request {r['id']} is running.", status="running")
+        if pid != HOST and r["runner"] == "host" and r["status"]["kind"] != "pending":
+            raise DomainError(409, "taken-up", "The host already took up this request, so only the host can move it.", status=r["status"]["kind"])
+        key, results = r.get("qid", GENERAL), self.state["results"]
+        res = next((x for x in results.get(key, ()) if x["request"] == r["id"]), None)
+        if res and any(res["id"] in c.get("cites", ()) for c in _answers(self.state["cards"])):
+            raise DomainError(409, "cited", "This answer is cited in someone's answer, so it stays where it is.")
+        if res:
+            results[key].remove(res)
+            if not results[key]:
+                results.pop(key)
+            results.setdefault(to or GENERAL, []).append(res)
+        for x in (r, res) if res else (r,):
+            x.pop("qid", None)
+            if to:
+                x["qid"] = to
+        if res and res["published"]:
+            if pid == HOST:
+                self._claude_says(res, r)  # shared on the whole session now: Claude's chat message, as a Share posts
+            else:  # the owner shared it where it was: moved by its asker, it waits on the owner's Share again
+                res["published"] = False
+                res.pop("publishedAt", None)
+                self._unseen(HOST, "share:" + res["id"])
+        if pid != HOST:
+            self._unseen(HOST, "run:" + r["id"])  # the owner reads where it went before pressing Run
+        if pid != r["pid"]:
+            self._notify(r["pid"], "request", f"Your request moved {_on(r)}.", actor=pid, qid=to)
+        return {"id": r["id"], **({"qid": to} if to else {"scope": GENERAL})}
 
     def _decline(self, r, by):
         r["status"] = {"kind": "declined", "at": self.now()}
@@ -4092,7 +4206,7 @@ class Session:
 
     @staticmethod
     def _discard(path):
-        """Delete one file of ours; a failure (Windows holds open files) leaves it for the next start's sweep."""
+        """Delete one file of ours; a failure (Windows holds open files) leaves it on disk, unreferenced and never served."""
         with contextlib.suppress(OSError):
             Path(path).unlink(missing_ok=True)
 
@@ -4152,9 +4266,11 @@ class Session:
         is refused past SESSION_UPLOAD_MAX. Declining or withdrawing deletes what arrived so far and takes the file off
         every answer; the browser deletes its copy. `remove`, by the owner or the uploader, ends a received file: it
         leaves everything that carries it and is deleted from the data folder. `approve`, the owner's, lets everyone who
-        sees what carries a guest's received picture see the picture (`shown`)."""
+        sees what carries a guest's received picture see the picture (`shown`). `draftOnly` (the attachment chip's x)
+        refuses a withdraw or remove once something sent carries the file, so a stale page never takes it off a post."""
         action = _choice(body, "action", ("accept", "decline", "withdraw", "remove", "approve"))
         uid = _ident(body, "id")
+        draft_only = _bool(body, "draftOnly")
         now = self.now()
         with self._tx():
             if action in ("withdraw", "remove") and pid != HOST:
@@ -4165,6 +4281,8 @@ class Session:
             u = self._upload(uid)
             if (action == "withdraw" or pid != HOST) and u["pid"] != pid:
                 raise DomainError(404, "no-such-upload", f"No upload {uid[:40]}.")
+            if draft_only and action in ("withdraw", "remove") and not u.get("draft"):
+                raise DomainError(409, "wrong-status", "That file went with something you sent, so it stays there.", status="carried")
             kind = u["status"]["kind"]
             if kind not in {"accept": ("offered",), "remove": ("done",), "approve": ("done",)}.get(action, UPLOAD_LIVE):
                 raise DomainError(409, "wrong-status", f"That file is {kind}.", status=kind)
@@ -4364,14 +4482,15 @@ class Session:
     # -- problem reports --------------------------------------------------------------------
 
     def report(self, pid, body):
-        """POST /api/report: tell the owner something is broken, with what the page says about where, and at most one
-        screenshot. Allowed while uploads are off: one checked picture the owner alone sees, saved under reports/
-        in the data folder. One report a REPORT_INTERVAL per person, MAX_OPEN_REPORTS open, MAX_REPORTS in all."""
+        """POST /api/report: tell the owner something is broken, with what the page says about where, and at most
+        MAX_REPORT_IMAGES screenshots. Allowed while uploads are off: checked pictures the owner alone sees, saved under
+        reports/ in the data folder, the first at `image` as a report from before kept it and the rest at `moreImages`.
+        One report a REPORT_INTERVAL per person, MAX_OPEN_REPORTS open, MAX_REPORTS in all."""
         body = _body(body)
         text = _text(body, "text")
         ctx = _report_ctx(body.get("ctx"))
-        image = _report_image(body.get("image"))
-        now, saved = self.now(), None
+        images = _report_images(body)
+        now, saved = self.now(), []
         try:
             with self._tx() as st:
                 self._writer(pid)
@@ -4384,14 +4503,18 @@ class Session:
                     raise DomainError(429, "too-many-pending", f"You have {MAX_OPEN_REPORTS} reports waiting already.")
                 fid = self._next("F")
                 rec = {"by": pid, "text": text, "ctx": ctx, "status": "open", "ts": now}
-                if image:
-                    rec["image"] = f"{REPORTS_DIR}/{fid}.{image[1]}"
-                    saved = self.path.parent / rec["image"]
-                    _write_chunk(saved, 0, image[0])
+                for n, (data, ext) in enumerate(images, 1):
+                    name = f"{REPORTS_DIR}/{fid}.{ext}" if n == 1 else f"{REPORTS_DIR}/{fid}-p{n}.{ext}"
+                    if n == 1:
+                        rec["image"] = name
+                    else:
+                        rec.setdefault("moreImages", []).append(name)
+                    saved.append(self.path.parent / name)
+                    _write_chunk(saved[-1], 0, data)
                 reports[fid] = rec
         except BaseException:
-            if saved:
-                self._discard(saved)
+            for f in saved:
+                self._discard(f)
             raise
         with self._lock:
             self._reported[pid] = now
@@ -4459,7 +4582,7 @@ class Session:
                 raise DomainError(409, "wrong-status", f"Report {fid} is {state}.", status=state)
             r["asked"] = self.now()
             adds = r.get("adds", [])
-            self._event("report-filed", report=fid, qid=r["ctx"].get("qid"), text=r["text"],
+            self._event("report-filed", report=fid, qid=r["ctx"].get("qid"), text=r["text"], images=len(_report_pics(r)),
                         adds=[a["text"] for a in adds if "text" in a], addImages=sum(1 for a in adds if "image" in a))
             return {"id": fid, "status": r["status"], "asked": True}
         if r["status"] == "resolved" or r["status"] == action:
@@ -4470,16 +4593,20 @@ class Session:
         return {"id": fid, "status": action}
 
     def report_image(self, pid, body):
-        """GET /api/report/image?id=[&add=N]: owner only. A report's picture, or its Nth addition's, as a data: URL."""
+        """GET /api/report/image?id=[&pic=N|&add=N]: owner only. A report's first picture, its Nth one sent with it, or
+        its Nth addition's, as a data: URL."""
         with self._lock:
             self._owner(pid)
             fid = _ident(_body(body), "id")
             r = self._report(fid)
-            n = body.get("add")
+            n, pic = body.get("add"), body.get("pic")
             if n is not None and not (isinstance(n, str) and re.fullmatch(r"[1-9][0-9]{0,2}", n)):
                 raise _bad("add", "add must name an addition by its number.")
+            if pic is not None and (n is not None or not (isinstance(pic, str) and re.fullmatch(rf"[1-{MAX_REPORT_IMAGES}]", pic))):
+                raise _bad("pic", f"pic must name one of the report's pictures, 1 to {MAX_REPORT_IMAGES}, without add.")
             if n is None:
-                stored = r.get("image", "")
+                pics = _report_pics(r)
+                stored = pics[int(pic or 1) - 1] if int(pic or 1) <= len(pics) else ""
             else:
                 adds = r.get("adds", [])
                 stored = adds[int(n) - 1].get("image", "") if int(n) <= len(adds) else ""
@@ -4491,13 +4618,13 @@ class Session:
 
     def _report_view(self, fid, r):
         """A report as the owner's page reads it: whether it has a picture, never where it is saved."""
-        return {"id": fid, **{k: copy.deepcopy(v) for k, v in r.items() if k not in ("image", "adds")}, "image": "image" in r,
-                "adds": [{**{k: v for k, v in a.items() if k != "image"}, "image": "image" in a} for a in r.get("adds", [])]}
+        return {"id": fid, **{k: copy.deepcopy(v) for k, v in r.items() if k not in ("image", "moreImages", "adds")}, "image": "image" in r,
+                "images": len(_report_pics(r)), "adds": [{**{k: v for k, v in a.items() if k != "image"}, "image": "image" in a} for a in r.get("adds", [])]}
 
     def _my_report_view(self, fid, r):
         """A report as its reporter reads it in Your reports: their words and additions, and its status, never the
         context their page sent or where a picture is saved."""
-        return {"id": fid, "text": r["text"], "status": r["status"], "ts": r["ts"], "image": "image" in r,
+        return {"id": fid, "text": r["text"], "status": r["status"], "ts": r["ts"], "image": "image" in r, "images": len(_report_pics(r)),
                 "adds": [{**{k: v for k, v in a.items() if k != "image"}, "image": "image" in a} for a in r.get("adds", [])]}
 
     # -- settings, prefs, notifications, session ---------------------------------------------
@@ -4619,6 +4746,8 @@ class Session:
             ]
             if on:
                 st["session"]["phase"] = {"kind": "ended", "at": self.now()}
+                st["credentials"].pop("devices", None)  # the owner's other devices sign out with the session; a reopen brings none back
+                self._pairing = None
                 self._event("session-ended", later=later)
             else:
                 st["session"]["phase"] = {"kind": "live"}
@@ -4633,7 +4762,7 @@ class Session:
             return {"guestKey": st["session"]["guestKey"]}
 
     def rotate_owner_link(self, pid, body):
-        """POST /api/link/owner: a new owner token; the old owner link stops working."""
+        """POST /api/link/owner: a new owner token; the old owner link and every other signed-in device stop working."""
         _body(body)
         with self._tx() as st:
             self._owner(pid)
@@ -4642,7 +4771,61 @@ class Session:
             if self.on_owner_token is not None:  # the secrets file holds the token before the hash commits
                 self.on_owner_token(token, at)
             st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": at}
+            st["credentials"].pop("devices", None)
+            self._pairing = None
             return {"token": token}
+
+    def pair_device(self, pid, body):
+        """POST /api/owner/pair: a sign-in code for another device of the owner's, replacing any earlier one. It works
+        once, for PAIR_SECONDS; only its hash is kept, in memory."""
+        _body(body)
+        now = self.now()
+        with self._lock:
+            self._owner(pid)
+            self._throttle(pid, "pair", now)
+            if len(self.state["credentials"].get("devices", {})) >= MAX_DEVICES:
+                raise DomainError(409, "devices-full", f"{MAX_DEVICES} other devices are signed in. Sign one out first.", max=MAX_DEVICES)
+            code = "".join(secrets.choice(PAIR_ALPHABET) for _ in range(PAIR_LENGTH))
+            self._pairing = {"hash": sha256(code), "until": now + PAIR_SECONDS, "misses": {}}
+        self._wrote(pid, "pair", now)
+        return {"code": code, "expiresIn": PAIR_SECONDS}
+
+    def redeem_pairing(self, pid, body, *, address=""):
+        """POST /api/owner/pair/redeem: trade the live sign-in code for this device's own owner credential. One try a
+        second per address, and an address with PAIR_MISSES wrong codes is refused the live one, which stays good for
+        everyone else, so a stranger cannot burn it."""
+        body = _body(body)
+        code = re.sub(r"[^0-9A-Z]", "", body["code"].upper()) if isinstance(body.get("code"), str) else ""
+        device = _choice(body, "device", DEVICES, optional=True)
+        browser = body.get("browser")
+        browser = None if browser is None else browser if browser in BROWSERS else "other"
+        now = self.now()
+        with self._tx() as st:
+            self._throttle(address, "pair-redeem", now)
+            self._wrote(address, "pair-redeem", now)
+            p = self._pairing
+            if p is not None and now >= p["until"]:
+                p = self._pairing = None
+            if p is None or p["misses"].get(address, 0) >= PAIR_MISSES or not hmac.compare_digest(sha256(code), p["hash"]):
+                if p is not None and p["misses"].get(address, 0) < PAIR_MISSES:
+                    p["misses"][address] = p["misses"].get(address, 0) + 1
+                raise DomainError(403, "bad-pair-code", "That code is wrong or has expired. Ask the host for a new one.")
+            self._pairing = None
+            token, did = self.ids.token(32), self.ids.token(6)
+            hint = {k: v for k, v in (("device", device), ("browser", browser)) if v}
+            st["credentials"].setdefault("devices", {})[sha256(token)] = {"id": did, "at": now, **hint}
+            return {"token": token, "id": did}
+
+    def revoke_device(self, pid, body):
+        """POST /api/owner/devices/revoke: one of the owner's other devices is signed out at once."""
+        did = _body(body).get("id")
+        with self._write_as(pid, "device-revoke", check=self._owner) as st:
+            devices = st["credentials"].get("devices", {})
+            h = next((h for h, d in devices.items() if d["id"] == did), None)
+            if h is None:
+                raise DomainError(404, "not-found", "That device is not signed in.")
+            devices.pop(h)
+            return {"id": did}
 
     # -- notifications -----------------------------------------------------------------------
 
@@ -5397,6 +5580,7 @@ class Session:
                 )
             with self._tx() as st:
                 st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": issued_at}
+                st["credentials"].pop("devices", None)  # a new owner link, as a rotation makes
             return True
 
     def is_owner_token(self, token):
@@ -5769,6 +5953,7 @@ class Session:
                 snap["reports"] = [self._report_view(f, r) for f, r in st.get("reports", {}).items() if r["status"] != "resolved"]
                 snap["passes"] = {q: {p: dict(r) for p, r in by.items() if self._active(p)} for q, by in st.get("passes", {}).items()}
                 snap["aboutYou"] = copy.deepcopy(st["aboutYou"])
+                snap["ownerDevices"] = sorted((dict(d) for d in st["credentials"].get("devices", {}).values()), key=lambda d: d["at"])
                 snap["removed"] = [
                     {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")} for v in st["people"].values() if v["status"]["kind"] == "removed"
                 ]

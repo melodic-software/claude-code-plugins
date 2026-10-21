@@ -13,8 +13,8 @@
       "expectations": [
         "Output announces the resolved stub home path before any stub is written",
         "Output classifies all seven rows and writes exactly seven stubs, not fourteen (the By dimension section re-renders every row)",
-        "Output names a distinct rung per row: editorconfig-severity, analyzer-pack-rule, custom-analyzer, semgrep-rule, architecture-test, hook, llm-only",
-        "Output names an owner or pointer for every rung, and the semgrep and hook rungs are presence-gated on their plugin with a stated fallback",
+        "Output names a distinct rung per row: editorconfig-severity, analyzer-pack-rule, custom-analyzer, semgrep-rule, architecture-test, action-guard, automated-review",
+        "Output names an owner or pointer for every rung, and the semgrep and action-guard rungs are presence-gated on their plugin with a stated fallback",
         "Output reports the line 'N findings' with N equal to 7 and the resolved home"
       ]
     },
@@ -107,8 +107,8 @@
     {
       "id": 9,
       "name": "stub-carries-earliest-stage-and-error-text",
-      "prompt": "Audit enforceability for this findings file. Row 1 is a missing-braces style finding that lands on editorconfig-severity, and row 6 is an agent that keeps editing generated files, which lands on the hook rung. What earliest stage and error text does each stub carry?",
-      "expected_output": "Each stub's frontmatter carries earliest-stage derived from its rung by the writer's fixed table: edit for editorconfig-severity, tool-call for hook. The skill composes a sixth TSV field per row, one line with no tab that names the fix the check would tell the author to make (for row 1, adding the braces; for row 6, editing the source the file is generated from instead), and the writer renders it under an Error text section. A row whose error text cannot be written as one line leaves the field empty and the stub says none proposed.",
+      "prompt": "Audit enforceability for this findings file. Row 1 is a missing-braces style finding that lands on editorconfig-severity, and row 6 is an agent that keeps editing generated files, which lands on the action-guard rung. What earliest stage and error text does each stub carry?",
+      "expected_output": "Each stub's frontmatter carries earliest-stage derived from its rung by the writer's fixed table: edit for editorconfig-severity, tool-call for action-guard. The skill composes a sixth TSV field per row, one line with no tab that names the fix the check would tell the author to make (for row 1, adding the braces; for row 6, editing the source the file is generated from instead), and the writer renders it under an Error text section. A row whose error text cannot be written as one line leaves the field empty and the stub says none proposed.",
       "narration": true,
       "expectations": [
         "Output states that row 1's stub carries earliest-stage edit and row 6's carries earliest-stage tool-call",
@@ -153,7 +153,7 @@
       "id": 12,
       "name": "ratchet-offer-repository-file-wins",
       "prompt": "/review:audit-enforceability evals/fixtures/findings-one-per-rung.md [The repository's docs/conventions/review.yaml is captured in evals/fixtures/review-ratchet-offer-on.yaml relative to the skill directory. The ratchet_offer userConfig option is set to false.]",
-      "expected_output": "Both layers set the key and the repository layer wins: ratchet_offer resolves true from docs/conventions/review.yaml even though userConfig says false. The writer is called with --ratchet-offer on, so the editorconfig-severity, analyzer-pack-rule, custom-analyzer, semgrep-rule and architecture-test stubs carry a Ratchet offer section and the hook and llm-only stubs do not.",
+      "expected_output": "Both layers set the key and the repository layer wins: ratchet_offer resolves true from docs/conventions/review.yaml even though userConfig says false. The writer is called with --ratchet-offer on, so the editorconfig-severity, analyzer-pack-rule, custom-analyzer, semgrep-rule and architecture-test stubs carry a Ratchet offer section and the action-guard and automated-review stubs do not.",
       "files": [
         "evals/fixtures/findings-one-per-rung.md",
         "evals/fixtures/classification-one-per-rung.tsv",
@@ -162,7 +162,7 @@
       "expectations": [
         "Output reports ratchet_offer as true with docs/conventions/review.yaml as the supplying layer, not userConfig",
         "Output passes --ratchet-offer on to the stub writer",
-        "Output offers /review:ratchet for the five counting rungs and not for the hook or llm-only rows"
+        "Output offers /review:ratchet for the five counting rungs and not for the action-guard or automated-review rows"
       ]
     },
     {

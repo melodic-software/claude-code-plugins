@@ -3018,7 +3018,9 @@ def score_unattended(
         inputs.get("authority") == merge_policy.PR_MERGE
         and config.require_verifier_verdict
     ):
-        reader = verify_evidence.Reader(repo, str(inputs["branch"]))
+        reader = verify_evidence.Reader(
+            repo, str(inputs["branch"]), max_fails=config.max_verify_fails
+        )
         verdict = reader.evidence(number, str(details["headSha"]), pr)
         details["verify"] = verdict.report()
         inputs["verify_reader"] = reader
@@ -3417,17 +3419,19 @@ def escalate_verify(
     inputs: Mapping[str, Any],
     summary: str | None = None,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal. A `verify:fail` or
-    `verify:earlier-fail` with no `summary` (unreadable, or a fail at an
-    earlier head) quotes the last fail summary its comment carried, so an
-    unreadable artifact rewrites nothing and the reason outlives the head.
-    An earlier-fail whose carried quote is a fail at this head is that fail
-    read as unreadable this run: it stays `verify:fail`."""
+    """`escalate` for a needs-human verifier refusal. A `verify:fail`,
+    `verify:earlier-fail` or `verify:repeated-fail` with no `summary`
+    (unreadable, or a fail at an earlier head) quotes the last fail summary
+    its comment carried, so an unreadable artifact rewrites nothing and the
+    reason outlives the head. Either of the last two whose carried quote is a
+    fail at this head is that fail read as unreadable this run: it stays
+    `verify:fail`."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
     carried = None
     if summary is None and refusal in (
         verify_evidence.FAIL,
         verify_evidence.EARLIER_FAIL,
+        verify_evidence.REPEATED_FAIL,
     ):
         comments = inputs.get("comments")
         if comments is None:
@@ -3618,7 +3622,7 @@ def unattended_writes(
             # passing verifier verdict at its head now.
             config = inputs.get("config")
             verifier = inputs.get("verify_reader") or (
-                verify_evidence.Reader(repo, branch)
+                verify_evidence.Reader(repo, branch, max_fails=config.max_verify_fails)
                 if inputs.get("authority") == merge_policy.PR_MERGE
                 and config is not None
                 and config.require_verifier_verdict
@@ -4075,7 +4079,22 @@ def unattended_enqueue(
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             step["escalationError"] = str(exc)
         return hold(reason)
-    if inputs_read["state"] == "stale" and eligible_dependabot is None:
+    # A standards-sync head is not written either: the sync App is its only
+    # writer, and a merge commit fails its managed-files guard. An unreadable
+    # label holds, since the stale head would fail the queue's merge.
+    stale_update = inputs_read["state"] == "stale" and eligible_dependabot is None
+    skip = None
+    if stale_update:
+        owner, name = repo.split("/", 1)
+        try:
+            skip = postmerge.standards_sync_skip(
+                owner, name, inputs["pr"].get("labels")
+            )
+        except postmerge.PostMergeReadError as exc:
+            return hold(f"the standards-sync role label is unreadable ({exc})")
+    if skip:
+        inputs_read.update(updated=False, updateSkipped=skip)
+    elif stale_update:
         stale = (
             f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
             f"{branch} since merge base {inputs_read['mergeBase']}"

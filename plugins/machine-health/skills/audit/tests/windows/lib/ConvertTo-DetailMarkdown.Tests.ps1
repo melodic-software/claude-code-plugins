@@ -47,6 +47,25 @@ Describe 'ConvertTo-DetailMarkdown' -Tag 'lib' {
         $md | Should -Match '_4 more detail field\(s\) in latest\.json\._'
     }
 
+    It 'keeps 5007 exclusion values out of the markdown, showing counts only' {
+        $sentinel = '<drive>:\Sentinel-5007-value'
+        $item = [ordered]@{
+            key = 'exclusion:0123456789abcdef'; severity = 'INFO'; muted = $false
+            title = "path exclusion added: $sentinel"; exclusion_type = 'path'; change = 'added'
+            value = $sentinel; changed_at = '2026-10-18T09:00:00.0000000-04:00'
+            label = 'history within log retention since 2026-07-01T00:00:00.0000000-04:00'
+        }
+        # The defender detail as latest.json holds it: round-tripped through JSON.
+        $detail = [pscustomobject]@{
+            exclusion_change_count = 1; items_count = 1; muted_count = 0; items = @([pscustomobject]$item)
+        } | ConvertTo-Json -Depth 5 | ConvertFrom-Json
+
+        $md = ConvertTo-DetailMarkdown -Detail $detail
+        $md | Should -Not -Match ([regex]::Escape($sentinel))
+        $md | Should -Match '(?m)^\| `exclusion_change_count` \| 1 \|$'
+        $md | Should -Match '(?m)^\| `items` \| 1 item \|$'
+    }
+
     It 'escapes pipes, collapses line breaks, and cuts long values' {
         $detail = [pscustomobject]@{ message = "a|b`r`nsecond line"; long = ('x' * 200) }
         $md = ConvertTo-DetailMarkdown -Detail $detail

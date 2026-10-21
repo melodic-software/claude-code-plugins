@@ -43,6 +43,10 @@
 //             issue, the branch and its current tip; else fixed text only.
 //             The runner's check results are listed and never stop it: the
 //             PR always carries the hold line, so a human reads them.
+//   dimension the issue's dimensions skipped the run before any model turn
+//             (DIMENSION_SKIP): comments the next step with an
+//             outcome=<reason> marker, adds the human-gated label, removes
+//             agent-ready. No outcome file is read.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -68,6 +72,9 @@
 //                       copy against the lane branch. Empty when that job did
 //                       not succeed.
 //   REUSE_BRANCH        the lane branch --find-prior chose, or empty
+//   DIMENSION_SKIP      split-required, research-first, probe-first or
+//                       not-assessed when the issue dimensions skipped the
+//                       run (work-resolve-issue.yml report-skip), else empty
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
 //                       (runner-written issue, branch and tip; model output)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
@@ -338,6 +345,37 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
   return {
     action: "hand-back",
     exit: outcome.exit,
+    issueNumber,
+    comment: lines.join("\n"),
+    addLabels: [humanLabel],
+    removeLabels: ["agent-ready"],
+  };
+}
+
+// The step that must come before the lane can run an issue its dimensions
+// skipped, as triage's apply-outcome rule names it.
+export const DIMENSION_STEPS = {
+  "split-required": "Its Size is too large for one run: split it into smaller issues with `/work-items:decompose`.",
+  "research-first": "Its Uncertainty says research comes first: plan or research the approach, then set Uncertainty to Known.",
+  "probe-first": "Its Uncertainty says only an experiment answers it: run a probe or spike first, then set Uncertainty to Known.",
+  "not-assessed":
+    "Its Size, Complexity and Uncertainty fields are not all set by a listed human or the lanes App: triage it, or set them yourself.",
+};
+
+// A run its issue dimensions skipped before any model turn: the issue goes to
+// a person with the next step, and agent-ready comes off.
+function dimensionSkipPlan({ reason, issueNumber, humanLabel, runUrl, runId }) {
+  const lines = [
+    `<!-- work-resolve-issue outcome=${reason}${runId ? ` run=${runId}` : ""} -->`,
+    `The work-resolve-issue lane did not start this issue (\`${reason}\`). ${DIMENSION_STEPS[reason]}`,
+  ];
+  if (runUrl) {
+    lines.push("", `Run: ${runUrl}`);
+  }
+  lines.push("", `To retry, remove \`${humanLabel}\` and add \`agent-ready\` again.`);
+  return {
+    action: "hand-back",
+    exit: reason,
     issueNumber,
     comment: lines.join("\n"),
     addLabels: [humanLabel],
@@ -869,11 +907,14 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   const allLane = ({ commits }) => allLaneCommits(commits, bot);
   // Newest marker first. A resumable marker for a resumed run that kept no
   // branch of its own (`branch=resumed`) left the work on the run before it,
-  // so it is passed over. The first other marker decides: a resumable one
+  // so it is passed over, and so is a dimension skip, which ran nothing. The
+  // first other marker decides: a resumable one
   // whose run's branch still passes resumes it; anything else (a pushback, a
   // marker naming no run, or a branch deleted or failing a check) starts
   // fresh, so deleting a resumed run's branch never falls back to an older one.
-  const decisive = [...markers].reverse().find((marker) => !(marker.onResumed && RESUMABLE.has(marker.outcome)));
+  const decisive = [...markers]
+    .reverse()
+    .find((marker) => !(marker.onResumed && RESUMABLE.has(marker.outcome)) && !Object.hasOwn(DIMENSION_STEPS, marker.outcome));
   const resume =
     RESUMABLE.has(decisive?.outcome) && decisive.run !== ""
       ? lane.find((branch) => branch.match[1] === decisive.run && usable(branch) && allLane(branch))
@@ -1123,6 +1164,19 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
   }
 }
 
+// A hand-back plan's edits. The label first, so a failed comment still leaves
+// the issue with a person.
+async function applyHandBack(github, repo, plan) {
+  await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels });
+  for (const name of plan.removeLabels) {
+    await github("DELETE", `${repo}/issues/${plan.issueNumber}/labels/${encodeURIComponent(name)}`).catch((error) =>
+      console.log(`report-outcome: could not remove ${name}: ${error.message}`),
+    );
+  }
+  await github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
+  console.log(`report-outcome: handed issue #${plan.issueNumber} back (${plan.exit})`);
+}
+
 export async function main({ env = process.env, fetch = globalThis.fetch, now = Date.now() } = {}) {
   try {
     const issueNumber = Number(env.ISSUE_NUMBER);
@@ -1132,6 +1186,10 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
+    const dimensionSkip = env.DIMENSION_SKIP ?? "";
+    if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip)) {
+      throw new Error("DIMENSION_SKIP is not an issue-dimension skip reason");
+    }
     const reuse = env.REUSE_BRANCH ?? "";
     const reused = laneBranch(issueNumber).exec(reuse);
     if (reuse && !reused) {
@@ -1139,6 +1197,15 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     }
     const repo = `/repos/${env.GITHUB_REPOSITORY}`;
     const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN });
+    const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
+    const runUrl = runUrlOf(env.GITHUB_RUN_ID);
+    const runId = /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "";
+    // A dimension skip left no outcome to read: no model ran.
+    if (dimensionSkip) {
+      const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
+      await applyHandBack(github, repo, dimensionSkipPlan({ reason: dimensionSkip, issueNumber, humanLabel, runUrl, runId }));
+      return 0;
+    }
     const dir = env.WORK_OUTCOME_DIR ?? "";
     const ran = readBranch(dir, issueNumber);
     // On a reuse the downloaded outcome is the branch's own only when it names
@@ -1157,8 +1224,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const limit = readLimit(dir);
     const turnCap = readTurnCap(dir);
     const funding = readFunding(dir);
-    const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
-    const runUrl = runUrlOf(env.GITHUB_RUN_ID);
     const issue = await github("GET", `${repo}/issues/${issueNumber}`);
     const unreported = reuse && (outcome === null || outcome.unread);
     // The summary counts only while the branch is still at the tip it read; a
@@ -1226,7 +1291,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       (await paginate(github, `${repo}/issues/${issueNumber}/events`)
         .then((events) => trustedLabeler(events, HUMAN_MERGE_LABEL, { bot, humans: readHumans(env.TRUSTED_ACTORS ?? "") }))
         .catch(() => true));
-    const runId = /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "";
     // Only a turn cap with no outcome of the run's own reads the issue's history.
     const capped = !unreported && funding === null && turnCap !== null && outcome?.unread === true;
     const comments = capped ? await paginate(github, `${repo}/issues/${issueNumber}/comments`) : [];
@@ -1352,15 +1416,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         return 0;
       }
     }
-    // The label first, so a failed comment still leaves the issue with a person.
-    await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: plan.addLabels });
-    for (const name of plan.removeLabels) {
-      await github("DELETE", `${repo}/issues/${issueNumber}/labels/${encodeURIComponent(name)}`).catch((error) =>
-        console.log(`report-outcome: could not remove ${name}: ${error.message}`),
-      );
-    }
-    await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: plan.comment });
-    console.log(`report-outcome: handed issue #${issueNumber} back (${plan.exit})`);
+    await applyHandBack(github, repo, plan);
     return 0;
   } catch (error) {
     console.log(`::error title=report-outcome::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);

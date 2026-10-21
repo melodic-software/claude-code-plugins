@@ -2,7 +2,10 @@
 # to size and balance the test-bash and test-python legs. Shell suites measured
 # 2026-10-03 from the logs of four whole-tree ci runs (37113193629, 37141134032,
 # 37141960428, 37144196526), Python suites 2026-10-19 from the four test-python
-# legs of whole-tree run 39299177976: a shell suite runs from the moment
+# legs of whole-tree run 39299177976 (lib/session-bridge/test_view_bridge.py and
+# plugins/planning/shared/tests/test_session.py 2026-10-21 from run
+# 39657422349, babysit-prs suites 2026-10-21 as the larger of runs 39671073602
+# and 39667488096): a shell suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
 # listed counts 5 s. Wrong numbers cost leg balance, never coverage: every
@@ -22,7 +25,7 @@ lib/prerequisites.test.sh 11
 lib/resolve-convention-pattern.test.sh 1
 lib/rewrite-guard.test.sh 1
 lib/session-bridge/test_session_bridge.py 33
-lib/session-bridge/test_view_bridge.py 21
+lib/session-bridge/test_view_bridge.py 22
 lib/view-builder.test.sh 10
 plugins/actionlint/hooks/actionlint-check.test.sh 1
 plugins/ai-slop/skills/audit/scripts/cascade-read.test.sh 1
@@ -415,7 +418,7 @@ plugins/planning/shared/tests/align.test.sh 200
 plugins/planning/shared/tests/test_load.py 11
 plugins/planning/shared/tests/test_schema_shapes.py 1
 plugins/planning/shared/tests/test_server.py 94
-plugins/planning/shared/tests/test_session.py 15
+plugins/planning/shared/tests/test_session.py 13
 plugins/planning/shared/tests/test_share.py 94
 plugins/planning/shared/tests/test_tunnel.py 25
 plugins/planning/shared/tests/tracer-live.test.sh 1
@@ -547,27 +550,27 @@ plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_feedback.py
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_findings.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_gh.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_lease.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge.py 1
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge.py 3
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_base_freshness.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_branch_rules.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_policy.py 74
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_policy.py 33
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_prefilter.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_rate_limit_rerun.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_review_settle.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_skip.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_unattended.py 1
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_unattended.py 2
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_postmerge.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_postmerge_contains.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_repo_config.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_resolve_thread.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_risk.py 31
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_risk.py 5
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_state.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_util.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_verify_evidence.py 2
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_verify_evidence.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_guarded_mutation.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_guards.py 5
+plugins/source-control/skills/babysit-prs/scripts/tests/test_guards.py 10
 plugins/source-control/skills/babysit-prs/scripts/tests/test_integration.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_manage_feedback_ledger.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_pr_queue_snapshot.py 1

@@ -51,6 +51,7 @@ async function main() {
     // ---------- the Ask boxes: Everyone on a question, Just me about the whole session ----------
     await ann.click(".vf-asktop");
     await until(ann, () => !!document.querySelector(".vf-drawer:not([hidden]) .vf-apform"));
+    await ann.selectOption(".vf-apq select", "Q1"); // the top Ask Claude opens about the whole session
     ok("Ask Claude on a question starts on Everyone", await audIn(ann, ".vf-apform .vf-aud") === "Everyone", await audIn(ann, ".vf-apform .vf-aud"));
     await ann.selectOption(".vf-apq select", "session");
     ok("  and about the whole session on Just me", await until(ann, () => document.querySelector(".vf-apform .vf-aud [aria-pressed=true]")?.textContent === "Just me"));

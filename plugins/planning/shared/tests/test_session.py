@@ -139,8 +139,11 @@ class SessionCase(unittest.TestCase):
 
     def join(self, name, **body):
         self.clock.tick()
-        out = self.s.join(None, {"name": name, "device": "computer", **body})
+        out = self.s.join(None, {"name": name, "device": "computer", "key": self.key(), **body})
         return out["pid"], out["secret"]
+
+    def key(self):
+        return self.s.state["session"]["guestKey"]
 
     def people(self, *names):
         return [self.join(n)[0] for n in names]
@@ -385,7 +388,7 @@ class TestJoin(SessionCase):
     def test_a_name_matching_an_offline_person_offers_was(self):
         ann, _ = self.join("Ann")
         self.s._presence.clear()
-        out = self.s.join(None, {"name": "ann"})
+        out = self.s.join(None, {"key": self.key(), "name": "ann"})
         self.assertEqual(out["was"], {"pid": ann, "name": "Ann"})
 
     def test_was_never_reveals_a_name_the_session_hides(self):
@@ -394,7 +397,7 @@ class TestJoin(SessionCase):
             with self.subTest(names=names):
                 self.act("update_settings", HOST, {"names": names})
                 self.s._presence.clear()
-                self.assertNotIn("was", self.s.join(None, {"name": "ann"}))
+                self.assertNotIn("was", self.s.join(None, {"key": self.key(), "name": "ann"}))
 
     def test_a_join_while_names_are_hidden_keeps_the_name_whether_or_not_it_is_taken(self):
         """A " 2" suffix would tell the joiner someone already has the name."""
@@ -403,9 +406,9 @@ class TestJoin(SessionCase):
             with self.subTest(names=names):
                 self.act("update_settings", HOST, {"names": names})
                 self.clock.tick(5)
-                self.assertEqual(self.s.join(None, {"name": "alice"})["name"], "alice")
+                self.assertEqual(self.s.join(None, {"key": self.key(), "name": "alice"})["name"], "alice")
                 self.clock.tick(5)
-                self.assertEqual(self.s.join(None, {"name": f"Nobody {names}"})["name"], f"Nobody {names}")
+                self.assertEqual(self.s.join(None, {"key": self.key(), "name": f"Nobody {names}"})["name"], f"Nobody {names}")
 
     def test_a_nameless_join_while_names_are_hidden_is_numbered_whatever_names_were_typed(self):
         """Skipping a typed "Guest N" would tell the joiner someone typed it."""
@@ -421,21 +424,21 @@ class TestJoin(SessionCase):
         self.assertGreater(session.JOINS_PER_KEY, session.JOINS_PER_WINDOW)
         for i in range(session.JOINS_PER_KEY):
             self.clock.tick(1)
-            self.s.join(None, {"name": f"P{i}"}, address=f"198.51.100.{i}")
-        err = self.refused("join-rate", "join", None, {"name": "One more"})
+            self.s.join(None, {"key": self.key(), "name": f"P{i}"}, address=f"198.51.100.{i}")
+        err = self.refused("join-rate", "join", None, {"key": self.key(), "name": "One more"})
         self.assertEqual(err.http, 429)
         with self.assertRaises(session.DomainError):
-            self.s.join(None, {"name": "Fresh address"}, address="203.0.113.250")
+            self.s.join(None, {"key": self.key(), "name": "Fresh address"}, address="203.0.113.250")
         key = self.act("rotate_guest_link", HOST, {})["guestKey"]
         self.assertTrue(self.s.join(None, {"name": "New link", "key": key}, address="203.0.113.251")["pid"])
 
     def test_join_records_are_forgotten_once_their_window_passes(self):
         for i in range(50):
-            self.s.join(None, {"name": f"P{i}"}, address=f"198.51.100.{i}")
+            self.s.join(None, {"key": self.key(), "name": f"P{i}"}, address=f"198.51.100.{i}")
         self.clock.tick(session.JOIN_KEY_WINDOW)
-        self.s.join(None, {"name": "Later"}, address="203.0.113.9")
-        self.assertEqual(list(self.s._joins), [("", "203.0.113.9")])
-        self.assertEqual(len(self.s._key_joins[""]), 1)
+        self.s.join(None, {"key": self.key(), "name": "Later"}, address="203.0.113.9")
+        self.assertEqual(list(self.s._joins), [(self.key(), "203.0.113.9")])
+        self.assertEqual(len(self.s._key_joins[self.key()]), 1)
 
     def test_joiners_get_the_first_unused_color(self):
         a, b = self.people("Ann", "Bo")
@@ -457,6 +460,20 @@ class TestJoin(SessionCase):
         err = self.refused("ended", "join", None, {"name": "Ann"})
         self.assertEqual(err.http, 403)
 
+    def test_a_new_session_issues_a_guest_key_and_refuses_a_join_without_it(self):
+        self.assertEqual(self.key(), "tok0002x9")  # Ids: the owner token is the first token, then 9 bytes, as rotation draws
+        self.refused("bad-guest-key", "join", None, {"name": "Ann"}, http=403)
+        self.assertTrue(self.s.join(None, {"name": "Ann", "key": "tok0002x9"})["pid"])
+
+    def test_a_session_saved_without_a_guest_key_stays_keyless_after_a_load(self):
+        doc = self.disk()
+        doc["session"]["guestKey"] = ""
+        self.path.write_text(json.dumps(doc), encoding="utf-8")
+        s = session.Session.load(self.path, clock=self.clock, ids=self.ids, validate_writes=True)
+        self.assertTrue(s.join(None, {"name": "Ann"})["pid"])
+        self.assertEqual(s.state["session"]["guestKey"], "")
+        self.assertEqual(json.loads(self.path.read_text(encoding="utf-8"))["session"]["guestKey"], "")
+
     def test_join_needs_the_current_guest_key_once_one_was_issued(self):
         key = self.act("rotate_guest_link", HOST, {})["guestKey"]
         self.refused("bad-guest-key", "join", None, {"name": "Ann"}, http=403)
@@ -465,13 +482,13 @@ class TestJoin(SessionCase):
 
     def test_join_rate_is_limited_per_address(self):
         for i in range(session.JOINS_PER_WINDOW):
-            self.s.join(None, {"name": f"P{i}"}, address="203.0.113.7")
+            self.s.join(None, {"key": self.key(), "name": f"P{i}"}, address="203.0.113.7")
         with self.assertRaises(session.DomainError) as ctx:
-            self.s.join(None, {"name": "Late"}, address="203.0.113.7")
+            self.s.join(None, {"key": self.key(), "name": "Late"}, address="203.0.113.7")
         self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "join-rate"))
-        self.s.join(None, {"name": "Elsewhere"}, address="198.51.100.2")
+        self.s.join(None, {"key": self.key(), "name": "Elsewhere"}, address="198.51.100.2")
         self.clock.tick(session.JOIN_WINDOW)
-        self.s.join(None, {"name": "Later"}, address="203.0.113.7")
+        self.s.join(None, {"key": self.key(), "name": "Later"}, address="203.0.113.7")
 
     def test_a_full_session_forgets_an_idle_person_or_refuses(self):
         with mock.patch.object(session, "MAX_PEOPLE", 3):
@@ -483,7 +500,7 @@ class TestJoin(SessionCase):
             self.assertNotIn(idle, self.s.state["people"])
             self.act("propose", newcomer, {"text": "Mine"})
             self.s._presence.clear()
-            err = self.refused("full", "join", None, {"name": "One more"})
+            err = self.refused("full", "join", None, {"key": self.key(), "name": "One more"})
             self.assertEqual(err.http, 503)
 
     def test_owner_join_keeps_pid_host_and_sets_the_name(self):
@@ -1742,6 +1759,46 @@ class TestProposals(SessionCase):
         self.open_round(text_q("Q10"))
         self.assert_gathers(qid)
 
+    def test_the_owners_approve_all_makes_each_counted_proposal_a_question_in_the_next_round(self):
+        """The owner's ask (S1:19, OQ2 approved 2026-10-21): Approve All, the same outcome as Make it a question on each."""
+        self.open_round(text_q("Q1"))
+        counted = [self.propose(self.bo, "Ask about refunds"), self.propose(self.ann, "Ask about delivery"), self.propose(self.bo, "Ask about gift cards")]
+        late = self.propose(self.ann, "Arrived after the confirm")
+        out = self.act("approve_proposals", HOST, {"ids": counted})
+        self.assertEqual((out["round"], len(out["questions"])), (2, 3))
+        made = [self.question(q) for q in out["questions"]]
+        self.assertEqual([(q["text"], q["round"], q["purpose"], q["origin"]) for q in made],
+                         [(t, 2, "gather", {"kind": "host", "proposal": pid, "by": HOST}) for t, pid in
+                          zip(("Ask about refunds", "Ask about delivery", "Ask about gift cards"), counted)])
+        status = {x["id"]: x["status"] for x in self.s.state["proposals"]}
+        self.assertEqual([status[i] for i in counted], [{"kind": "question", "question": q} for q in out["questions"]])
+        self.assertEqual(status[late], {"kind": "new"})  # never placed unseen
+        self.assertEqual((len(self.notes(self.bo, "proposal")), len(self.notes(self.ann, "proposal"))), (2, 1))
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_proposals_approved_after_the_send_need_no_placement_from_claude(self):
+        props = self.to_working_round()  # six proposals in the sent digest
+        self.act("approve_proposals", HOST, {"ids": props})
+        out = self.open_round(text_q("Q20"))["results"][0]  # no placements: none is new any more
+        self.assertEqual(out["placed"], [])
+        self.assertEqual(sorted(q["round"] for q in self.s.state["questions"] if q["origin"].get("proposal") in props), [2] * 6)
+
+    def test_approve_all_is_the_owners_alone_and_refuses_the_lot_on_any_problem(self):
+        self.open_round(text_q("Q1"))
+        a, b, c = (self.propose(self.bo, f"Idea {i}") for i in range(3))
+        self.act("act_on_proposal", HOST, {"id": c, "action": "park"})
+        self.refused("owner-only", "approve_proposals", self.ann, {"ids": [a, b]}, http=403)  # a leader places one at a time
+        self.refused("wrong-status", "approve_proposals", HOST, {"ids": [a, c]}, http=409)
+        self.refused("no-such-proposal", "approve_proposals", HOST, {"ids": [a, "P99"]}, http=404)
+        for ids in ([], [a, a], "P1", [1]):
+            with self.subTest(ids=ids):
+                self.refused("bad-field", "approve_proposals", HOST, {"ids": ids}, http=400)
+        with mock.patch.object(session, "MAX_ROUND", 1):
+            err = self.refused("round-full", "approve_proposals", HOST, {"ids": [a, b]}, http=409)
+            self.assertEqual(err.details["room"], 1)
+        self.assertEqual([x["status"]["kind"] for x in self.s.state["proposals"]], ["new", "new", "parked"])
+        self.assertEqual(len(self.s.state["questions"]), 1)
+
     def test_a_proposal_claude_places_as_a_question_without_a_body_gathers_answers(self):
         p = self.to_working_round()
         placements = [{"proposal": p[0], "as": "question"}, *({"proposal": x, "as": "later", "reason": "Later"} for x in p[1:])]
@@ -2137,19 +2194,19 @@ class TestHiddenCharacters(SessionCase):
     def test_names_compare_by_their_compatibility_form_but_keep_their_letters(self):
         for name in ("Clau\U000000adde", "\U0000ff23laude", "\U0000ff23\U0000ff2c\U0000ff21\U0000ff35\U0000ff24\U0000ff25"):
             with self.subTest(name=name):
-                self.refused("reserved-name", "join", None, {"name": name, "device": "computer"})
-        self.assertEqual(self.s.join(None, {"name": "An\U000000adn", "device": "computer"})["name"], "Ann 2")
-        fullwidth = self.s.join(None, {"name": "\U0000ff21nn", "device": "computer"})["name"]
+                self.refused("reserved-name", "join", None, {"key": self.key(), "name": name, "device": "computer"})
+        self.assertEqual(self.s.join(None, {"key": self.key(), "name": "An\U000000adn", "device": "computer"})["name"], "Ann 2")
+        fullwidth = self.s.join(None, {"key": self.key(), "name": "\U0000ff21nn", "device": "computer"})["name"]
         self.assertEqual(fullwidth, "\U0000ff21nn 3")
 
     def test_invisible_marks_and_lookalike_letters_do_not_make_another_claude(self):
         for name in ("CLAUDE\U0000200d", "Clau\U000017b4de", "Clau\U0000180bde", "\U00000421l\U00000430ud\U00000435", "C\U000013deaude"):
             with self.subTest(name=name.encode("unicode_escape").decode()):
-                self.refused("reserved-name", "join", None, {"name": name, "device": "computer"})
+                self.refused("reserved-name", "join", None, {"key": self.key(), "name": name, "device": "computer"})
 
     def test_a_joiner_does_not_make_a_name_unique_but_a_lookalike_letter_does(self):
-        self.assertEqual(self.s.join(None, {"name": "Ann\U0000200d", "device": "computer"})["name"], "Ann\U0000200d 2")
-        self.assertEqual(self.s.join(None, {"name": "\U00000410nn", "device": "computer"})["name"], "\U00000410nn")  # confusables are for "Claude" only
+        self.assertEqual(self.s.join(None, {"key": self.key(), "name": "Ann\U0000200d", "device": "computer"})["name"], "Ann\U0000200d 2")
+        self.assertEqual(self.s.join(None, {"key": self.key(), "name": "\U00000410nn", "device": "computer"})["name"], "\U00000410nn")  # confusables are for "Claude" only
 
     def test_a_field_of_only_hidden_characters_is_refused_as_empty(self):
         self.refused("empty", "chat", self.ann, {"text": "\u202e\u200b\x00 \u2066"}, http=400)
@@ -2586,7 +2643,7 @@ class TestInbox(TestRequests):
         self.act("report", self.ann, {"text": "The button is gone.", "ctx": {"view": "focus", "device": "phone", "browser": "safari", "viewport": {"w": 390, "h": 844}, "errors": []}})
         self.act("update_settings", HOST, {"approveJoins": True})
         self.clock.tick()
-        jib = self.s.join(None, {"name": "Jib"})["pid"]
+        jib = self.s.join(None, {"key": self.key(), "name": "Jib"})["pid"]
         waiting = self.inbox(HOST, "waiting")
         self.assertEqual(sorted(waiting), sorted([f"run:{r1}", f"share:{xid}", "merge:G1", "report:F1", f"join:{jib}"]))
         self.assertEqual(self.inbox(HOST, "mine"), {})
@@ -3356,9 +3413,10 @@ class TestSnapshots(SessionCase):
         return next(c for c in snap["cards"]["Q1"] if c["ref"] == ref)
 
     def test_the_anonymous_view_has_exactly_three_keys(self):
-        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": False})
-        self.act("rotate_guest_link", HOST, {})
-        self.assertTrue(self.s.anonymous_view()["joinNeedsKey"])
+        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": True})
+        with self.s._tx() as st:  # a session from before every new one had a guest key
+            st["session"]["guestKey"] = ""
+        self.assertFalse(self.s.anonymous_view()["joinNeedsKey"])
 
     def test_a_removed_person_reads_nothing(self):
         self.act("set_removed", HOST, {"pid": self.cy, "on": True})
@@ -4181,7 +4239,7 @@ class TestApproveJoins(SessionCase):
     def test_join_waits_when_approval_on(self):
         self.act("update_settings", HOST, {"approveJoins": True})
         self.clock.tick()
-        out = self.s.join(None, {"name": "Jib"})
+        out = self.s.join(None, {"key": self.key(), "name": "Jib"})
         self.assertTrue(out["waiting"])
         for read in (lambda: self.s.resolve(secret=out["secret"]), lambda: self.s.snapshot(out["pid"])):
             with self.assertRaises(session.DomainError) as ctx:
@@ -4230,7 +4288,7 @@ class TestApproveJoins(SessionCase):
 
     def test_approval_is_off_and_absent_until_the_owner_sets_it(self):
         self.assertNotIn("approveJoins", self.disk()["session"]["settings"])
-        out = self.s.join(None, {"name": "Ann"})
+        out = self.s.join(None, {"key": self.key(), "name": "Ann"})
         self.assertNotIn("waiting", out)
         self.assertEqual(self.s.snapshot(out["pid"])["me"]["pid"], out["pid"])
         self.refused("bad-field", "update_settings", HOST, {"approveJoins": "yes"}, http=400)
@@ -4705,32 +4763,32 @@ class TestWaitingList(SessionCase):
     def test_the_owner_sees_join_order_and_a_device_hint(self):
         self.act("update_settings", HOST, {"approveJoins": True})
         self.clock.tick()
-        self.s.join(None, {"name": "Jib", "device": "phone", "browser": "safari"})
+        self.s.join(None, {"key": self.key(), "name": "Jib", "device": "phone", "browser": "safari"})
         self.clock.tick()
-        self.s.join(None, {"name": "Kai"})
+        self.s.join(None, {"key": self.key(), "name": "Kai"})
         self.clock.tick()
-        self.s.join(None, {"name": "Lu", "device": "computer", "browser": "netscape"})
+        self.s.join(None, {"key": self.key(), "name": "Lu", "device": "computer", "browser": "netscape"})
         got = [(j["name"], j["n"], j.get("device"), j.get("browser")) for j in self.s.snapshot(HOST)["joinRequests"]]
         self.assertEqual(got, [("Jib", 1, "phone", "safari"), ("Kai", 2, None, None), ("Lu", 3, "computer", "other")])
 
     def test_at_most_20_wait_and_a_21st_is_told_why(self):
         self.act("update_settings", HOST, {"approveJoins": True})
         for i in range(20):
-            self.s.join(None, {"name": f"W{i}"}, address=f"198.51.100.{i}")
+            self.s.join(None, {"key": self.key(), "name": f"W{i}"}, address=f"198.51.100.{i}")
         with self.assertRaises(session.DomainError) as ctx:
-            self.s.join(None, {"name": "One more"}, address="198.51.100.99")
+            self.s.join(None, {"key": self.key(), "name": "One more"}, address="198.51.100.99")
         self.assertEqual((ctx.exception.http, ctx.exception.code), (503, "waiting-full"))
         self.assertIn("let", ctx.exception.message)
 
     def test_a_full_session_evicts_an_idle_guest_never_a_waiting_one(self):
         with mock.patch.object(session, "MAX_PEOPLE", 4):
             self.act("update_settings", HOST, {"approveJoins": True})
-            jib = self.s.join(None, {"name": "Jib"})["pid"]  # the least recently joined: the old rule's pick
-            kai = self.s.join(None, {"name": "Kai"})["pid"]
+            jib = self.s.join(None, {"key": self.key(), "name": "Jib"})["pid"]  # the least recently joined: the old rule's pick
+            kai = self.s.join(None, {"key": self.key(), "name": "Kai"})["pid"]
             self.act("update_settings", HOST, {"approveJoins": False})
-            idle = self.s.join(None, {"name": "Idle"})["pid"]  # active, never seen, holds nothing
+            idle = self.s.join(None, {"key": self.key(), "name": "Idle"})["pid"]  # active, never seen, holds nothing
             self.clock.tick()
-            self.s.join(None, {"name": "Lu"})
+            self.s.join(None, {"key": self.key(), "name": "Lu"})
             people = self.s.state["people"]
             self.assertIn(jib, people)
             self.assertIn(kai, people)
@@ -4978,6 +5036,130 @@ class TestWatcherKey(SessionCase):
     def test_the_owner_cannot_take_a_watcher_key(self):
         self.refused("guests-only", "issue_watcher", HOST, {}, http=403)
         self.assertEqual(self.s.state["credentials"].get("watchers", {}), {})
+
+
+class TestOwnerDevices(SessionCase):
+    """Signing the owner in on another device. Expected values come from the owner's decision: a single-use code that
+    lasts about 2 minutes with throttled tries, traded for the device's own owner credential, stored hashed, revocable
+    on its own, all of them ended by rotating the owner link; and from a guest's limits, which it must never pass."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.ann_secret = self.join("Ann")
+
+    def redeem(self, code, address="203.0.113.5", **body):
+        self.clock.tick()
+        return self.s.redeem_pairing(None, {"code": code, **body}, address=address)
+
+    def refused_redeem(self, code, want, address="203.0.113.5"):
+        with self.assertRaises(session.DomainError) as ctx:
+            self.redeem(code, address)
+        self.assertEqual(ctx.exception.code, want, ctx.exception.message)
+
+    def device(self, **body):
+        return self.redeem(self.act("pair_device", HOST, {})["code"], **body)
+
+    def test_only_the_owner_makes_a_code_and_it_is_short_enough_to_type(self):
+        self.refused("owner-only", "pair_device", self.ann, {}, http=403)
+        code = self.act("pair_device", HOST, {})["code"]
+        self.assertRegex(code, r"^[0-9A-Z]{8}$")
+        self.assertNotIn(code, self.path.read_text(encoding="utf-8"))
+
+    def test_a_code_signs_in_one_device_once_with_a_credential_of_its_own(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        out = self.redeem(f"{code[:4].lower()}-{code[4:]}", device="phone", browser="safari")
+        self.assertNotEqual(out["token"], self.owner_token)
+        self.assertEqual(self.s.resolve(owner_token=out["token"]), HOST)
+        self.assertEqual(self.s.resolve(owner_token=self.owner_token), HOST)
+        self.assertNotIn(out["token"], self.path.read_text(encoding="utf-8"))
+        self.assertEqual(self.disk()["credentials"]["devices"], {session.sha256(out["token"]): {"id": out["id"], "at": self.clock.t, "device": "phone", "browser": "safari"}})
+        self.refused_redeem(code, "bad-pair-code", address="198.51.100.7")
+        self.assertEqual(len(self.disk()["credentials"]["devices"]), 1)
+
+    def test_a_code_works_for_about_two_minutes(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        self.clock.tick(60)
+        self.assertEqual(self.s.resolve(owner_token=self.redeem(code)["token"]), HOST)
+        code = self.act("pair_device", HOST, {})["code"]
+        self.clock.tick(180)
+        self.refused_redeem(code, "bad-pair-code")
+
+    def test_a_new_code_replaces_the_last(self):
+        old = self.act("pair_device", HOST, {})["code"]
+        new = self.act("pair_device", HOST, {})["code"]
+        self.refused_redeem(old, "bad-pair-code")
+        self.redeem(new, address="198.51.100.7")
+
+    def test_tries_are_throttled_per_address_and_five_misses_shut_out_only_that_address(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        wrong = "22222222" if code != "22222222" else "33333333"
+        self.refused_redeem(wrong, "bad-pair-code", address="203.0.113.5")
+        with self.assertRaises(session.DomainError) as ctx:  # the same second, the same address
+            self.s.redeem_pairing(None, {"code": code}, address="203.0.113.5")
+        self.assertEqual((ctx.exception.http, ctx.exception.code), (429, "slow-down"))
+        for _ in range(4):  # five wrong tries in all from this address
+            self.refused_redeem(wrong, "bad-pair-code", address="203.0.113.5")
+        self.refused_redeem(code, "bad-pair-code", address="203.0.113.5")  # shut out, even with the right code
+        self.assertNotIn("devices", self.disk()["credentials"])
+
+    def test_a_strangers_misses_never_stop_the_host_signing_in(self):
+        code = self.act("pair_device", HOST, {})["code"]
+        wrong = "22222222" if code != "22222222" else "33333333"
+        for n in range(5):
+            for _ in range(5):
+                self.refused_redeem(wrong, "bad-pair-code", address=f"198.51.100.{n}")
+        self.assertEqual(self.s.resolve(owner_token=self.redeem(code, address="203.0.113.5")["token"]), HOST)
+
+    def test_signing_out_one_device_ends_it_at_once_and_leaves_the_others(self):
+        phone, laptop = self.device(device="phone"), self.device(address="198.51.100.7", device="computer")
+        self.assertEqual([d["id"] for d in self.s.snapshot(HOST)["ownerDevices"]], [phone["id"], laptop["id"]])
+        self.assertNotIn("ownerDevices", self.s.snapshot(self.ann))
+        self.act("revoke_device", HOST, {"id": phone["id"]})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(owner_token=phone["token"])
+        self.assertEqual(ctx.exception.http, 401)
+        self.assertEqual(self.s.resolve(owner_token=laptop["token"]), HOST)
+        self.refused("not-found", "revoke_device", HOST, {"id": phone["id"]}, http=404)
+        self.refused("owner-only", "revoke_device", self.ann, {"id": laptop["id"]}, http=403)
+
+    def test_rotating_the_owner_link_signs_out_every_device(self):
+        tokens = [self.device()["token"], self.device(address="198.51.100.7")["token"]]
+        self.act("rotate_owner_link", HOST, {})
+        for token in tokens:
+            with self.assertRaises(session.DomainError) as ctx:
+                self.s.resolve(owner_token=token)
+            self.assertEqual(ctx.exception.http, 401)
+        self.assertNotIn("devices", self.disk()["credentials"])
+
+    def test_closing_the_session_signs_out_every_device_and_reopening_brings_none_back(self):
+        token = self.device()["token"]
+        self.act("end_session", HOST, {"on": True})
+        with self.assertRaises(session.DomainError) as ctx:
+            self.s.resolve(owner_token=token)
+        self.assertEqual(ctx.exception.http, 401)
+        self.assertNotIn("devices", self.disk()["credentials"])
+        self.act("end_session", HOST, {"on": False})
+        with self.assertRaises(session.DomainError):
+            self.s.resolve(owner_token=token)
+        self.assertEqual(self.s.resolve(owner_token=self.owner_token), HOST)
+
+    def test_a_new_owner_link_at_start_signs_out_every_device(self):
+        token = self.device()["token"]
+        self.assertTrue(self.s.reset_owner_token("tok-newer", self.clock.t + 1))
+        with self.assertRaises(session.DomainError):
+            self.s.resolve(owner_token=token)
+
+    def test_a_guest_cannot_make_a_code_or_use_its_secret_as_one(self):
+        self.refused("owner-only", "pair_device", self.ann, {}, http=403)
+        self.refused_redeem(self.ann_secret, "bad-pair-code")
+        self.act("pair_device", HOST, {})
+        self.refused_redeem(self.ann_secret, "bad-pair-code", address="198.51.100.7")
+        self.assertNotIn("devices", self.disk()["credentials"])
+
+    def test_devices_have_a_cap(self):
+        for n in range(session.MAX_DEVICES):
+            self.device(address=f"198.51.100.{n}")
+        self.refused("devices-full", "pair_device", HOST, {}, http=409)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -5407,6 +5589,21 @@ class TestAttachmentsEverywhere(UploadCase):
         self.assertNotIn("carried", mine[own])
         self.act("act_on_upload", HOST, {"id": own, "action": "remove"})  # the chip's x on a received draft
         self.assertEqual(self.refused("not-found", "upload_image", HOST, {"id": own}).http, 404)
+
+    def test_the_chips_draft_only_remove_is_refused_once_a_post_carried_the_file(self):
+        # #8615: a stale page's chip x must not take a just-sent file off the post that carries it
+        sent, kept = self.received_on_q1(self.ann, "a.png"), self.received_on_q1(self.ann, "b.png")
+        self.act("answer", self.ann, {"qid": "Q1", "text": "See it.", "view": "focus", "attachments": [sent]})
+        e = self.refused("wrong-status", "act_on_upload", self.ann, {"id": sent, "action": "remove", "draftOnly": True})
+        self.assertEqual((e.http, e.details["status"]), (409, "carried"))
+        self.assertEqual(self.upload(sent)["status"]["kind"], "done")
+        self.assertEqual(next(c for c in self.s.state["cards"]["Q1"] if c.get("pid") == self.ann)["attachments"], [sent])
+        self.refused("wrong-status", "act_on_upload", self.ann, {"id": sent, "action": "withdraw", "draftOnly": True})
+        # still a draft: the flag changes nothing
+        self.assertEqual(self.act("act_on_upload", self.ann, {"id": kept, "action": "remove", "draftOnly": True})["status"], "removed")
+        # without the flag, an explicit Remove of a received file still ends it
+        self.assertEqual(self.act("act_on_upload", self.ann, {"id": sent, "action": "remove"})["status"], "removed")
+        self.refused("bad-field", "act_on_upload", self.ann, {"id": sent, "action": "remove", "draftOnly": "yes"})
 
     def test_a_hidden_record_that_goes_away_leaves_its_picture_hidden(self):
         pic, said = self.received_on_q1(self.ann, "a.png"), self.received_on_q1(self.ann, "b.png")
@@ -5996,6 +6193,51 @@ class TestReports(SessionCase):
                 self.refused(code, "report", self.ann, {"text": "x", "ctx": CTX, "image": image}, http=http)
         self.assertEqual((self.s.state.get("reports", {}), (self.tmp / "reports").exists()), ({}, False))
         self.file(self.ann, image=data_url("jpeg", b"\xff\xd8\xff" + b"\x00" * (512 * 1024 - 3)))  # exactly 512 KB
+
+    def test_up_to_four_pictures_go_with_one_report_in_order_and_the_owner_reads_each(self):
+        """The owner's ask (2026-10-21): several screenshots in the first send, at most four, each a checked picture."""
+        webp = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 16
+        jpeg = b"\xff\xd8\xff" + b"\x01" * 20
+        pics = [("png", PNG_BYTES), ("webp", webp), ("jpeg", jpeg), ("png", PNG_BYTES + b"\x02")]
+        fid = self.file(self.ann, images=[data_url(k, b) for k, b in pics])
+        rec = self.s.state["reports"][fid]
+        self.assertEqual((rec["image"], rec["moreImages"]), ("reports/F1.png", ["reports/F1-p2.webp", "reports/F1-p3.jpg", "reports/F1-p4.png"]))
+        self.assertEqual([(self.tmp / n).read_bytes() for n in [rec["image"], *rec["moreImages"]]], [b for _, b in pics])
+        self.assertEqual([(r["image"], r["images"]) for r in self.s.snapshot(HOST)["reports"]], [(True, 4)])
+        self.assertEqual([(r["image"], r["images"]) for r in self.s.snapshot(self.ann)["myReports"]], [(True, 4)])
+        self.assertNotIn("moreImages", json.dumps(self.s.snapshot(HOST)["reports"]))
+        got = [self.s.report_image(HOST, {"id": fid, **({"pic": str(n)} if n else {})})["image"] for n in (None, 2, 3, 4)]
+        self.assertEqual(got, [data_url(k, b) for k, b in pics])
+        self.refused("not-found", "report_image", HOST, {"id": fid, "add": "1"}, http=404)  # pictures sent with it are no additions
+        self.act("act_on_report", HOST, {"id": fid, "action": "ask"})
+        ev = self.events("report-filed")[0]
+        self.assertEqual((ev["images"], ev["addImages"]), (4, 0))
+        self.assertIsNone(support_event_error(ev))
+        self.assertIsNone(session.document_error(self.disk()))
+        session.Session.load(self.s.path, validate_writes=True)
+
+    def test_a_fifth_picture_a_bad_one_or_image_beside_images_refuses_the_report_and_keeps_no_file(self):
+        good = data_url("png", PNG_BYTES)
+        for body, code in (({"images": [good] * 5}, "bad-field"), ({"images": [good, data_url("png", b"GIF89a" + b"\x00" * 30)]}, "file-type"),
+                           ({"images": [good, ""]}, "bad-field"), ({"images": good}, "bad-field"), ({"image": good, "images": [good]}, "bad-field")):
+            with self.subTest(code=code, keys=sorted(body)):
+                self.clock.tick(session.REPORT_INTERVAL)
+                self.refused(code, "report", self.ann, {"text": "x", "ctx": CTX, **body})
+        self.assertEqual((self.s.state.get("reports", {}), (self.tmp / "reports").exists()), ({}, False))
+
+    def test_a_report_from_before_keeps_its_one_picture_and_a_name_the_server_never_makes_does_not_load(self):
+        fid = self.file(self.ann, image=data_url("png", PNG_BYTES))
+        self.assertNotIn("moreImages", self.s.state["reports"][fid])  # one picture: the shape a report always had
+        self.assertEqual(self.s.snapshot(HOST)["reports"][0]["images"], 1)
+        for more in (["reports/F1-p3.png"], ["reports/F1-2.png"], ["../x.png"], [], ["reports/F1-p2.png"] * 4):
+            with self.subTest(more=more):
+                doc = self.disk()
+                doc["reports"][fid]["moreImages"] = more
+                self.assertIsNotNone(session.document_error(doc))
+        doc = self.disk()
+        del doc["reports"][fid]["image"]
+        doc["reports"][fid]["moreImages"] = ["reports/F1-p2.png"]
+        self.assertIsNotNone(session.document_error(doc))
 
     def test_text_is_required_and_the_context_takes_only_the_listed_fields(self):
         self.refused("empty", "report", self.ann, {"text": " ", "ctx": CTX})
