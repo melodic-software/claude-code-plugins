@@ -124,6 +124,11 @@ on:
       claude-api-key:
         description: The role's Claude Console API key, for a PR-mode skill's first call.
         required: false
+      # Read only by the scan job's decode step, under its environment, which
+      # supplies the value; a caller passes it by name, never inherit.
+      scan-carrier-private-key:
+        description: The scan-carrier private key, SCAN_CARRIER_PRIVATE_KEY, passed by name.
+        required: true
     # Patch output mode. In PR mode the scan job sets the patch and reply
     # outputs from what it scanned; in issue mode the run job, where head
     # code ran. Either way the job that applies the patch checks it against
@@ -1529,6 +1534,13 @@ jobs:
   # generation and rotation: .github/actions/open-lane-output/README.md; the
   # owner's line, offline from the repository root:
   #   { node .github/actions/open-lane-output/keygen.mjs --private-key-fd 3 >.github/lane-keys/scan-carrier.pub; } 3>&1 | gh secret set SCAN_CARRIER_PRIVATE_KEY --env pr-pipeline-scan-carrier
+  # then scripts/check-scan-carrier-secret-shadow.sh <owner/repo>, since a
+  # repository or organization secret of that name would reach every other
+  # job of the run through the callers' by-name pass. The environment admits
+  # main only. Callers run this file on issues (default branch) and on
+  # workflow_dispatch, which anyone with write access can send on any ref:
+  # off main the environment refuses this job, so the run fails closed and
+  # publishes nothing.
   scan:
     needs: run
     if: >-
@@ -1581,7 +1593,7 @@ jobs:
         if: steps.base.outcome == 'success'
         uses: ./.base/.github/actions/open-lane-output # zizmor: ignore[self-repository]
         with:
-          private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+          private-key: ${{ secrets.scan-carrier-private-key }}
           expected-key-ids: ${{ steps.key.outputs.id }}
           job-id: run
           max-bytes: |

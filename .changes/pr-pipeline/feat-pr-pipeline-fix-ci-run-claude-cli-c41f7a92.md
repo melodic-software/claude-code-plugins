@@ -31,7 +31,9 @@ bump: minor
   `seal-lane-output` to the committed `.github/lane-keys/scan-carrier.pub`, each with its byte
   count, with the patch capped at 256 KiB. The scan job runs with `contents: read`, no `id-token`,
   and in the `pr-pipeline-scan-carrier` environment, whose `SCAN_CARRIER_PRIVATE_KEY` its
-  `open-lane-output` step alone reads. It fails closed on a withheld, oversize, mismatched or
+  `open-lane-output` step alone reads; each caller passes it by name as `scan-carrier-private-key`,
+  and `scripts/check-scan-carrier-secret-shadow.sh` fails when a repository or organization
+  secret shares the name. It fails closed on a withheld, oversize, mismatched or
   unopenable output, scans against a fresh checkout of the gated head, and is the only job that
   uploads the reply, patch and verdict
   ([pr-run-activity.md, The scan job](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#the-scan-job)).

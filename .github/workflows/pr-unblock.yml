@@ -382,6 +382,7 @@ jobs:
       timeout-minutes: 60
     secrets:
       claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The subscription fallback, as a second call on new VMs: it runs only when
   # fix-ci's key leg hit a credit stop or its key is empty, which fix-ci then
@@ -416,6 +417,7 @@ jobs:
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The push job: apply-patch.mjs, a script with no model that runs no head
   # code. It checks the patch against the model job's SHA-256 and head,

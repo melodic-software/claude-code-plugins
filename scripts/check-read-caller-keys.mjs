@@ -38,12 +38,16 @@ const ALLOWED_SECRETS = new Set([
   "github_token",
 ]);
 const KEY = "references the App key";
-// The one other secret a read run may name: the scan-carrier private key,
-// only as the private-key input of the read workflow's scan-job step that
-// uses open-lane-output, and the one environment, only on that job.
+// The one other secret a read run may name: the scan-carrier private key. In
+// the read workflow, only as the private-key input of the scan job's step that
+// uses open-lane-output (and its workflow_call declaration, a key); in a
+// caller, only as the scan-carrier-private-key entry of the secrets map of a
+// job that calls the read workflow. The one environment, only on that job.
 const CARRIER_JOB = "scan";
 const CARRIER_SECRET = "scan_carrier_private_key";
-const CARRIER_VALUE = "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}";
+const CARRIER_VALUE = "${{ secrets.scan-carrier-private-key }}";
+const CARRIER_INPUT = "scan-carrier-private-key";
+const CARRIER_PASS = "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}";
 const CARRIER_ACTION = "./.base/.github/actions/open-lane-output";
 const CARRIER_ENVIRONMENT = "pr-pipeline-scan-carrier";
 
@@ -180,7 +184,7 @@ function secretFindings(expression, carrier = false) {
       } else if (name.toLowerCase().replaceAll("-", "_") === CARRIER_SECRET) {
         if (!carrier) {
           findings.push(
-            `reads secrets.${name} outside the read workflow's ${CARRIER_JOB}-job open-lane-output private-key input`,
+            `reads secrets.${name} outside the read workflow's ${CARRIER_JOB}-job open-lane-output private-key input and the ${CARRIER_INPUT} entry a read-workflow call passes`,
           );
         }
       } else if (
@@ -239,6 +243,30 @@ function carrierPairOf(file, doc) {
     }
   }
   return pairs.length === 1 ? pairs[0] : null;
+}
+
+// In any file, the scan-carrier-private-key pairs of the secrets map of a job
+// that calls the read workflow, valued exactly CARRIER_PASS.
+function carrierPassesOf(doc) {
+  const passes = new Set();
+  const jobs = doc.get("jobs", true);
+  for (const job of yaml.isMap(jobs) ? jobs.items : []) {
+    if (!yaml.isMap(job.value) || callee(job.value.get("uses")) !== READ_WORKFLOW) {
+      continue;
+    }
+    const secrets = job.value.get("secrets", true);
+    for (const pair of yaml.isMap(secrets) ? secrets.items : []) {
+      if (
+        yaml.isScalar(pair.key) &&
+        pair.key.value === CARRIER_INPUT &&
+        yaml.isScalar(pair.value) &&
+        pair.value.value === CARRIER_PASS
+      ) {
+        passes.add(pair.value);
+      }
+    }
+  }
+  return passes;
 }
 
 const CHECKOUT_WITH = new Set(["ref", "path", "persist-credentials"]);
@@ -300,6 +328,7 @@ function check(file) {
   const { doc, lineCounter } = files.get(file);
   const checkJob = checkJobOf(file, doc);
   const carrierPair = carrierPairOf(file, doc);
+  const carrierPasses = carrierPassesOf(doc);
   const carrierEnvironment =
     file === READ_WORKFLOW
       ? doc.getIn(["jobs", CARRIER_JOB], true)?.get?.("environment", true)
@@ -385,7 +414,9 @@ function check(file) {
         report(lineAt(node, text, keyHit.index), KEY);
       }
       for (const [at, expression] of expressions(text)) {
-        const carrier = node === carrierPair?.value && text === CARRIER_VALUE;
+        const carrier =
+          (node === carrierPair?.value && text === CARRIER_VALUE) ||
+          carrierPasses.has(node);
         for (const what of secretFindings(expression, carrier)) {
           report(lineAt(node, text, at), what);
         }

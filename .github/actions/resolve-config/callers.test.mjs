@@ -571,7 +571,7 @@ test("work-resolve-issue.yml: the resolve-issue model job receives no App token 
   assert.equal(resolve.uses, "./.github/workflows/pr-run-activity-read.yml");
   assert.equal(resolve.with.activity, "resolve-issue");
   assert.equal(resolve.with["output-mode"], undefined, "patch mode comes from the activity's applied-by");
-  assert.deepEqual(Object.keys(resolve.secrets), ["claude-code-oauth-token"], "only the issue lane's Claude credential");
+  assert.deepEqual(Object.keys(resolve.secrets), ["claude-code-oauth-token", "scan-carrier-private-key"], "only the issue lane's Claude credential, and the scan-carrier key by name");
   assert.equal(resolve.secrets["claude-code-oauth-token"], "${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}");
 
   const read = workflow("pr-run-activity-read.yml");
@@ -785,13 +785,14 @@ const workflowFiles = () => readdirSync(new URL("../../workflows/", import.meta.
 const CLAUDE_SECRETS = { "claude-api-key": "CLAUDE_API_KEY", "claude-code-oauth-token": "CLAUDE_CODE_OAUTH_TOKEN" };
 const atStep = (expression, context) => evaluate(String(expression).replaceAll("always()", "true"), context);
 
-test("every read-runner caller job passes exactly one Claude secret, named for its role", () => {
+test("every read-runner caller job passes exactly one Claude secret, named for its role, beside the scan-carrier key", () => {
   const callers = [];
   for (const file of workflowFiles()) {
     for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
       if (job?.uses !== READ_RUNNER) continue;
       callers.push(`${file} ${id}`);
-      const names = Object.keys(job.secrets ?? {});
+      const names = Object.keys(job.secrets ?? {}).filter((name) => name !== "scan-carrier-private-key");
+      assert.equal(job.secrets["scan-carrier-private-key"], "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}", `${file} ${id}`);
       assert.equal(names.length, 1, `${file} ${id} passes ${names.join(", ")}`);
       const [name] = names;
       assert.ok(Object.hasOwn(CLAUDE_SECRETS, name), `${file} ${id} passes ${name}`);
@@ -990,8 +991,9 @@ test("pr-unblock.yml: fix-ci-subscription runs only on fix-ci's credit stop or e
   const sub = jobs["fix-ci-subscription"];
   assert.deepEqual(sub.needs, ["fix-ci-context", "fix-ci"]);
   assert.equal(sub.uses, READ_RUNNER);
-  assert.deepEqual(first.secrets, { "claude-api-key": "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}" });
-  assert.deepEqual(sub.secrets, { "claude-code-oauth-token": "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" });
+  const carrier = { "scan-carrier-private-key": "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}" };
+  assert.deepEqual(first.secrets, { "claude-api-key": "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}", ...carrier });
+  assert.deepEqual(sub.secrets, { "claude-code-oauth-token": "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}", ...carrier });
   assert.equal(first.with.role, "automations");
   assert.equal(first.with.fallback, undefined);
   const { fallback, ...same } = sub.with;
@@ -1129,7 +1131,7 @@ test("pr-run-activity-read.yml: the scan job holds only the scan-carrier key, in
   assert.equal(scan.needs, "run");
   assert.deepEqual(scan.permissions, { contents: "read" });
   assert.equal(scan.environment, "pr-pipeline-scan-carrier");
-  assert.deepEqual(stepSecrets(scan), ["SCAN_CARRIER_PRIVATE_KEY"], "the one secret in the job");
+  assert.deepEqual(stepSecrets(scan), ["scan-carrier-private-key"], "the one secret in the job");
   assert.deepEqual(scan.steps.filter((step) => stepSecrets(step).length > 0).map((step) => step.id), ["open"], "read in the decode step alone");
   assert.doesNotMatch(JSON.stringify(scan), /id-token|ACTIONS_ID_TOKEN/);
   // The one action from a checkout is the opener, from the run job's base SHA.
@@ -1239,7 +1241,10 @@ const COLLECT = fileURLToPath(new URL("../../scripts/read-patch/collect-patch.sh
 // left behind, then the scan job's scan. headRepo, given the checkout and a
 // scratch directory, returns the repository the scan reads the head's
 // objects from (the scan job's own checkout); by default the run's checkout.
-async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {}, headRepo = (work) => work } = {}) {
+// source, given the run's temp directory once the patch is collected, returns
+// the directory the scan reads the reply, run fields and patch from (the scan
+// job's opened payloads); by default the run's own.
+async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {}, headRepo = (work) => work, source = (temp) => ({ reply: join(temp, "skill-reply"), patch: join(temp, "patch", "patch.diff") }) } = {}) {
   const root = mkdtempSync(join(tmpdir(), "leak-scan-test-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const work = join(root, "work");
@@ -1260,6 +1265,7 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), 
   const collected = spawnSync("bash", [COLLECT, head, join(temp, "patch", "patch.diff")], { cwd: work, encoding: "utf8" });
   assert.equal(collected.status, 0, collected.stderr);
   afterCollect({ work, temp, head });
+  const { reply: replyDir, patch: patchFile } = source(temp);
   const outputs = {};
   let failed = null;
   const warnings = [];
@@ -1277,8 +1283,8 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), 
   const env = {
     BASE_SHA: "b".repeat(40),
     HEAD_SHA: head,
-    REPLY_DIR: join(temp, "skill-reply"),
-    PATCH_FILE: join(temp, "patch", "patch.diff"),
+    REPLY_DIR: replyDir,
+    PATCH_FILE: patchFile,
     GITHUB_WORKSPACE: headRepo(work, root),
     HOME: process.env.HOME,
   };
@@ -1659,7 +1665,8 @@ const outputLines = (file) => Object.fromEntries(readFileSync(file, "utf8").spli
 // The kernel refuses one environment string over 131072 bytes (MAX_ARG_STRLEN).
 const ENV_STRING_MAX = 131072;
 const CARRY_RUN_ID = "77";
-const CARRIER_SECRET = "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}";
+const CARRIER_SECRET = "${{ secrets.scan-carrier-private-key }}";
+const CARRIER_PASS = "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}";
 // A test key pair, generated in-process; the committed key file is a placeholder.
 const CARRIER = (() => {
   const { publicLine, privateText } = generateCarrierKey();
@@ -1804,7 +1811,7 @@ function openStep(t, runOutputs, { privateText = CARRIER.privateText, runId = CA
   if (!ran) return { ran, status: 0, log: "", output: "", env: "", dir: "" };
   const temp = mkdtempSync(join(tmpdir(), "open-"));
   t.after(() => rmSync(temp, { recursive: true, force: true }));
-  const values = { "runner.temp": temp, "steps.key.outputs.id": CARRIER.keyId, "secrets.SCAN_CARRIER_PRIVATE_KEY": privateText };
+  const values = { "runner.temp": temp, "steps.key.outputs.id": CARRIER.keyId, "secrets.scan-carrier-private-key": privateText };
   for (const [name, expression] of Object.entries(step.with)) {
     const output = OUTPUT_EXPRESSION.exec(String(expression));
     if (output) values[`needs.run.outputs.${output[1]}`] = runOutputs[output[1]] ?? "";
@@ -1915,12 +1922,21 @@ test("scan job: a re-run at another attempt of the same run opens; a bundle from
   const rerun = await scanIn(t, outputs, { runAttempt: "2" });
   assert.equal(rerun.open.status, 0, rerun.open.log);
   assert.deepEqual(rerun.files, { "reply.txt": Buffer.from("done\n") });
-  for (const [name, options] of Object.entries({ "another run": { runId: "78" }, "another key": { privateText: generateCarrierKey().privateText }, "no key": { privateText: "" } })) {
+  for (const [name, options] of Object.entries({ "another run": { runId: "78" }, "another key": { privateText: generateCarrierKey().privateText } })) {
     const { open } = await scanIn(t, outputs, options);
     assert.equal(open.status, 1, name);
-    assert.match(open.log, /^::error::(sealed-mismatch|no-key): /m, name);
+    assert.match(open.log, /^::error::sealed-mismatch: /m, name);
     assert.doesNotMatch(open.log, /rotate/, name);
     assert.equal(open.dir, "", name);
+  }
+  // A caller that passed nothing, or an environment whose secret is unset or malformed: one fixed
+  // message with no key material, no rotation line, nothing opened, and the check step never runs.
+  for (const privateText of ["", "  ", "bm90IGEga2V5", CARRIER.privateText.slice(0, 30)]) {
+    const result = await scanIn(t, outputs, { privateText });
+    assert.equal(result.open.status, 1, JSON.stringify(privateText));
+    assert.equal(result.open.log, "::error::no-key: the private key is missing or malformed; no payload opened\n");
+    assert.equal(result.open.dir, "");
+    assert.deepEqual(result.files, {});
   }
 });
 
@@ -1984,18 +2000,33 @@ test("scan job: every run job output set after head code must be in its closed s
   }
 });
 
-test("pr-run-activity-read.yml: the scan-carrier key is named once in the repository's workflows, as the scan job's open step's private-key, and its environment on that job alone", () => {
+test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each read-runner caller, read by the scan job's decode step alone, and its environment is on that job alone", () => {
   const files = workflowFiles();
-  const named = files.filter((file) => read(`../../workflows/${file}`).includes("SCAN_CARRIER_PRIVATE_KEY"));
-  assert.deepEqual(named, ["pr-run-activity-read.yml"]);
-  assert.equal(read("../../workflows/pr-run-activity-read.yml").split("SCAN_CARRIER_PRIVATE_KEY").length - 1, 2, "the step and the keygen line in the scan job's header comment");
-  const { jobs } = workflow("pr-run-activity-read.yml");
-  for (const [id, job] of Object.entries(jobs)) {
-    const steps = (job.steps ?? []).filter((step) => JSON.stringify(step).includes("SCAN_CARRIER_PRIVATE_KEY"));
-    assert.equal(steps.length, id === "scan" ? 1 : 0, id);
+  const read = workflow("pr-run-activity-read.yml");
+  assert.deepEqual(read.on.workflow_call.secrets["scan-carrier-private-key"].required, true);
+  // Every job that calls the read runner passes it by name in its secrets map, and nothing else names it.
+  let callers = 0;
+  for (const file of files) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (job.uses === READ_RUNNER) {
+        callers += 1;
+        assert.notEqual(job.secrets, "inherit", `${file} ${id}`);
+        assert.equal(job.secrets["scan-carrier-private-key"], CARRIER_PASS, `${file} ${id}`);
+        const rest = { ...job, secrets: { ...job.secrets, "scan-carrier-private-key": undefined } };
+        assert.doesNotMatch(JSON.stringify(rest), /SCAN_CARRIER_PRIVATE_KEY|scan-carrier-private-key/i, `${file} ${id}`);
+      } else if (file !== "pr-run-activity-read.yml") {
+        assert.doesNotMatch(JSON.stringify(job), /SCAN_CARRIER_PRIVATE_KEY|scan-carrier-private-key/i, `${file} ${id}`);
+      }
+    }
   }
-  const open = jobs.scan.steps.find((s) => s.id === "open");
-  assert.deepEqual(stepSecrets(open), ["SCAN_CARRIER_PRIVATE_KEY"]);
+  assert.equal(callers, 3, "fix-ci, fix-ci-subscription and resolve-issue");
+  // In the read runner, one step of one job.
+  for (const [id, job] of Object.entries(read.jobs)) {
+    const steps = (job.steps ?? []).filter((step) => /scan-carrier-private-key|SCAN_CARRIER_PRIVATE_KEY/i.test(JSON.stringify(step)));
+    assert.deepEqual(steps.map((step) => step.id), id === "scan" ? ["open"] : [], id);
+  }
+  const open = read.jobs.scan.steps.find((s) => s.id === "open");
+  assert.deepEqual(stepSecrets(open), ["scan-carrier-private-key"]);
   assert.equal(open.with["private-key"], CARRIER_SECRET);
   assert.equal(open.env, undefined);
   assert.equal(open.uses, "./.base/.github/actions/open-lane-output");
@@ -2125,4 +2156,37 @@ test("scan job: every gate, skip and launcher class value the runner sets passes
     const { failed } = await decode(t, decodeEnv({ ...good, [name]: value }));
     assert.equal(failed, null, `${name}=${value}`);
   }
+});
+
+test("scan job: patch-sha256 is the SHA-256 of exactly the bytes opened, scanned and uploaded", async (t) => {
+  const { createHash } = await import("node:crypto");
+  const steps = scanSteps();
+  const step = (id) => steps.find((s) => s.id === id);
+  // The wiring: the scan reads the check step's dir, which is the open step's
+  // directory; the patch upload reads the scan's copy; the job output is the scan's hash.
+  assert.equal(step("leak-scan").env.PATCH_FILE, "${{ steps.decode.outputs.dir }}/patch.diff");
+  assert.equal(step("leak-scan").env.REPLY_DIR, "${{ steps.decode.outputs.dir }}");
+  assert.match(step("decode").with.script, /core\.setOutput\('dir', env\.OPEN_DIR\)/);
+  assert.equal(step("patch-upload").with.path, "${{ steps.leak-scan.outputs.dir }}/patch.diff");
+  assert.equal(workflow("pr-run-activity-read.yml").jobs.scan.outputs["patch-sha256"], "${{ steps.patch-upload.outcome == 'success' && steps.leak-scan.outputs.patch-sha256 || '' }}");
+  // The run: the collected patch, sealed by the run job, opened by the scan job, then scanned.
+  let opened = null;
+  const viaCarrier = (temp) => {
+    const files = { "patch/patch.diff": readFileSync(join(temp, "patch", "patch.diff")), "skill-reply/reply.txt": readFileSync(join(temp, "skill-reply", "reply.txt")) };
+    const open = openStep(t, runOutputsAfterCarry(t, files));
+    assert.equal(open.status, 0, open.log);
+    opened = open.dir;
+    return { reply: open.dir, patch: join(open.dir, "patch.diff") };
+  };
+  const clean = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "changed\n"), undefined, { source: viaCarrier });
+  assert.equal(clean.clean, "true", clean.failed);
+  const scannedFrom = readFileSync(join(opened, "patch.diff"));
+  const uploaded = readFileSync(join(clean.outputs.dir, "patch.diff"));
+  assert.deepEqual(uploaded, scannedFrom, "the upload holds the opened bytes");
+  assert.equal(clean.outputs["patch-sha256"], createHash("sha256").update(uploaded).digest("hex"));
+  // The scan reads those same bytes: a key in them, through the carrier, blocks.
+  const hit = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${KEY}\n`), undefined, { source: viaCarrier });
+  assert.equal(hit.clean, "false");
+  assert.match(hit.failed, /^leak-scan: Anthropic key; nothing is uploaded or summarized/);
+  for (const dir of [clean.outputs.dir, hit.outputs.dir]) if (dir) rmSync(dir, { recursive: true, force: true });
 });

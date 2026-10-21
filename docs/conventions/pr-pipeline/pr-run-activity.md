@@ -1040,8 +1040,8 @@ refusal, such as `ci-context`'s `instruction-path`.
 
 Read file: runs after the run job when it succeeded or failed, unless the run was cancelled or the
 call handed off, on a fresh `ubuntu-24.04` VM, in the `pr-pipeline-scan-carrier` environment. It
-holds `contents: read`, one secret (`SCAN_CARRIER_PRIVATE_KEY`, that environment's, read by its
-open step alone), no `id-token`, no cache, and nothing from the run job but its outputs. run-claude-cli's
+holds `contents: read`, one secret (`SCAN_CARRIER_PRIVATE_KEY`, that environment's, which each
+caller passes by name as `scan-carrier-private-key`, read by its open step alone), no `id-token`, no cache, and nothing from the run job but its outputs. run-claude-cli's
 contract puts the reporting and uploads of a lane that grants unrestricted Bash in a downstream
 job that validates its inputs
 ([`action.yml`](https://github.com/melodic-software/ci-workflows/blob/7b362428c76085a160e28656cd2c75c3147a69ff/.github/actions/run-claude-cli/action.yml)).
@@ -1225,9 +1225,18 @@ token), `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
 job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
 is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
 other than `${{ github.event.repository.default_branch }}` or a `with` key other than `ref`,
-`path` and `persist-credentials`. One exception: the read file's `scan` job may hold one step that
-uses `./.base/.github/actions/open-lane-output` with `private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}`
-exactly, and only that job may name an `environment`, `pr-pipeline-scan-carrier`.
+`path` and `persist-credentials`. One exception, the scan-carrier key: the read file declares
+`scan-carrier-private-key` (required) and its `scan` job may hold one step that uses
+`./.base/.github/actions/open-lane-output` with `private-key: ${{ secrets.scan-carrier-private-key }}`
+exactly; a job that calls the read file passes it by name only,
+`scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}` in its `secrets` map; and only
+the `scan` job may name an `environment`, `pr-pipeline-scan-carrier`. GitHub gives an environment
+secret to a reusable workflow only when the caller passes it by name, and the value it then holds
+is the environment's only in the job that names the environment
+([Reuse workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)).
+Everywhere else in the run the name resolves to a repository or organization secret of that name,
+so none may exist: [`scripts/check-scan-carrier-secret-shadow.sh`](../../../scripts/check-scan-carrier-secret-shadow.sh)
+`<owner/repo>` lists both by name and exits 1 on one.
 
 The read file stays alongside the broker: its guarantee, no key and no OIDC token in a job that
 runs head code, is structural, while the write file's comes from the broker.

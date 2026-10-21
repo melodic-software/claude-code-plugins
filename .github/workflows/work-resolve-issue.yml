@@ -194,6 +194,7 @@ jobs:
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
     secrets:
       claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The commit job: a script with no model that runs nothing from the patch.
   # It checks the patch against the model job's SHA-256, applies it to the
