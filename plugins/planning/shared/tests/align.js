@@ -136,11 +136,12 @@ async function main() {
   const CFG = { sizes: sizes.length ? sizes : SIZES, views: list(process.env.ALIGN_VIEWS) };
   const results = [], details = [];
   try {
-    const A = await s.start("align"), E = await s.start("empty");
+    const A = await s.start("align"), E = await s.start("empty"), C = await s.start("crowd");
     try { await seed(s, A); s.ok("seed the varied session", true); } catch (e) { s.ok("seed the varied session", false, e.message); throw e; }
+    try { await crowd(s, C); s.ok("seed the crowd session", true); } catch (e) { s.ok("seed the crowd session", false, e.message); throw e; }
     const ctx = await browser.newContext({ reducedMotion: "reduce" });
     const page = await ctx.newPage();
-    const VIEWS = views(page, { emptyHost: E.ownerUrl, emptyGuest: E.localUrl });
+    const VIEWS = views(page, { emptyHost: E.ownerUrl, emptyGuest: E.localUrl, crowdHost: C.ownerUrl });
     const unknown = CFG.views.filter(v => !VIEWS[v]);
     if (unknown.length) throw new Error(`ALIGN_VIEWS names no such view: ${unknown.join(", ")}; known: ${Object.keys(VIEWS).join(", ")}`);
     const names = CFG.views.length ? CFG.views : Object.keys(VIEWS);
@@ -168,7 +169,7 @@ async function main() {
             details.push(`FAIL ${tag}  (${path.basename(file)})\n    ` + f.slice(0, MAX_DETAIL).map(x => `[${x.rule}] ${x.msg}`).join("\n    ") + (f.length > MAX_DETAIL ? `\n    …${f.length - MAX_DETAIL} more` : ""));
           }
         }
-        if (v.startsWith("empty-")) loaded = false; // these leave the seeded page
+        if (/^(empty|crowd)-/.test(v)) loaded = false; // these leave the seeded page
       }
     }
   } catch (e) {
@@ -184,6 +185,16 @@ async function main() {
   console.log(`runtime ${Math.round((Date.now() - t0) / 1000)} s`);
   console.log(`PASS ${pass} / ${results.length}`);
   return code || pass !== results.length || !results.length ? 1 : 0;
+}
+
+/** A session of 13 guests and the host with one question open (the Host view needs a round), so the Host view's people list is past its compact cutoff (#8698). */
+async function crowd(s, C) {
+  s.apply(C.dir, [{ op: "open-round", questions: [q("Q1", "Which loot rule should the first playable use?")] }]);
+  const base = C.localUrl.replace(/\/$/, "");
+  for (let i = 1; i <= 13; i++) {
+    const r = await fetch(base + "/api/join", { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": `198.51.100.${i}` }, body: JSON.stringify({ name: `Guest ${i}`, device: "computer" }) });
+    if (!r.ok) throw new Error(`join Guest ${i} -> ${r.status}`);
+  }
 }
 
 /** Resolves once the page holds still, so the check measures what a person sees and not a passing frame: fonts
@@ -330,6 +341,8 @@ function views(page, CFG) {
     "pick-thumbs": async () => { await gotoQ("Q11"); return page.evaluate(() => { const a = document.querySelector(".vf-alist .vf-pickthumb:not([hidden])"); a?.scrollIntoView({ block: "center" }); return !!a; }); },
     "more": async () => ((await phone()) ? clickIn(".vf-tab", "More") : "skip"),
     // last: these leave the seeded page; the next view reloads it
+    // #8698: past 12 people the Host view's people rows are compact, one line each
+    "crowd-host": async () => { await page.goto(CFG.crowdHost); await page.reload(); await joinIfAsked("Kyle"); return mode("host"); },
     "empty-host": async () => { await page.goto(CFG.emptyHost); await page.reload(); await joinIfAsked("Kyle"); return true; },
     "empty-guest": async () => { await page.goto(CFG.emptyGuest); await page.evaluate(() => localStorage.clear()); await page.reload(); await joinIfAsked(`Sam${++guests}`); return true; },
   };

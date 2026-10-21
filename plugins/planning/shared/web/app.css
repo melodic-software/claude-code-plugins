@@ -1786,6 +1786,12 @@
 .app .vf-hp-meta { color: var(--faint); font-size: 12px; }
 .app .vf-hp-acts { grid-column: 2; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-start; }
 .app .vf-hperson-gone { opacity: 0.7; }
+/* #8698: past 12 people, one line per person: dot, name, state and the menu button; the details move to the card */
+.app :is(.vf-hp-state, .vf-hp-more) { display: none; }
+.app .vf-hpeople-compact .vf-hperson { grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; padding-block: 2px; }
+.app .vf-hpeople-compact :is(.vf-hp-meta, .vf-hp-acts, .vf-hp-rename) { display: none; }
+.app .vf-hpeople-compact .vf-hp-state { display: inline; color: var(--faint); font-size: 12px; white-space: nowrap; }
+.app .vf-hpeople-compact .vf-hp-more:not([hidden]) { display: inline-flex; }
 .app .vf-role-removed { background: var(--review-soft); color: var(--review); }
 .app .vf-role-trusted { background: var(--raise); color: var(--text); }
 .app .vf-toggle[aria-pressed="true"] { color: var(--text); background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent) 55%, transparent); }

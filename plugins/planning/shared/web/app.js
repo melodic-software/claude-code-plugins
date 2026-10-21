@@ -6668,6 +6668,9 @@
         b.hidden = (k === "removed" && noRemoved) || (k === "behind" && noBehind);
       }
       pFind.hidden = ppl.length <= 12;
+      // #8698: past 12 people (the search box's cutoff) each person is one compact line: dot, name, state, and a menu
+      // button opening their card with the host's actions
+      peopleList.classList.toggle("vf-hpeople-compact", !pFind.hidden);
       const find = pFind.hidden ? "" : ui.peopleFind.trim().toLowerCase();
       const pShown = ppl.filter(p => inFilter[ui.peopleFilter](p) && (!find || disp(p.name).toLowerCase().includes(find)));
       peopleEmpty.hidden = pShown.length > 0;
@@ -6680,7 +6683,10 @@
         const li = E("li", "vf-hperson");
         const avBox = E("span", "vf-hp-av"), mid = E("div", "vf-hp-mid"), nm = E("span", "vf-hp-name"), meta = E("span", "vf-hp-meta");
         const role = E("span", "vf-role"), ctxB = E("span", "vf-ctx"); ctxB.hidden = true;
-        const nameRow = E("span", "vf-hp-namerow"); nameRow.append(nm, role, ctxB);
+        const state = E("span", "vf-hp-state");
+        const nameRow = E("span", "vf-hp-namerow"); nameRow.append(nm, role, ctxB, state);
+        const more = ibtn("vf-tbtn vf-icon-btn vf-tbtn-quiet vf-hp-more", "more", "Actions"); more.setAttribute("aria-haspopup", "dialog");
+        more.onclick = () => { more.dataset.pid = li._p.pid; more.dataset.name = li._p.name; showCard(more, true); delete more.dataset.pid; delete more.dataset.name; };
         mid.append(nameRow, meta);
         const acts = E("div", "vf-hp-acts");
         // The owner renames anyone here, with the same form as their own name in the person card.
@@ -6699,8 +6705,8 @@
             .catch(fail).finally(() => { rsave.disabled = false; });
         };
         acts.append(pa.rename, pa.view, pa.lead, pa.trust, pa.merge, pa.remove);
-        li.append(avBox, mid, acts);
-        li._k = { avBox, nm, meta, role, ctxB, ...pa, rform, nameIn, acts, avKey: "" };
+        li.append(avBox, mid, more, acts);
+        li._k = { avBox, nm, meta, role, ctxB, state, more, ...pa, rform, nameIn, acts, avKey: "" };
         return li;
       }, (li, p) => {
         const k = li._k, h = here.get(p.pid), rl = roleOf(p.pid), isGone = gone.has(p.pid), me2 = isMe(p.pid);
@@ -6722,7 +6728,9 @@
         li.dataset.presence = presState(h);
         li.classList.toggle("vf-hperson-gone", isGone);
         const can = owner && !me2 && rl !== "Host";
-        k.acts.hidden = !can;
+        k.acts.hidden = k.more.hidden = !can;
+        k.state.textContent = isGone ? "" : { active: "Active", away: "Away", offline: "Offline" }[presState(h)];
+        k.more.setAttribute("aria-label", `Actions for ${disp(p.name)}`);
         paintPersonActs(k, p.pid, "row");
         k.nameIn.setAttribute("aria-label", `New name for ${disp(p.name)}`);
         if (!can || isGone) k.rform.hidden = true;

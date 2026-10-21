@@ -103,6 +103,8 @@ async function main() {
       return { pid: a.dataset.pid, st: a.dataset.presence, dot: !!a.querySelector(".vf-pres"), label: a.getAttribute("aria-label"), meta: li.querySelector(".vf-hp-meta").textContent, dimmed: dim(a) || dim(nm) };
     }));
     ok("each person's avatar carries their state and a dot", rows.length === 5 && rows.every(r => r.dot && r.st === states[r.pid]), JSON.stringify(rows));
+    ok("with 12 people or fewer each row keeps its full form, the status line under the name (#8698)", await owner.evaluate(() => !document.querySelector(".vf-hpeople").classList.contains("vf-hpeople-compact")
+      && [...document.querySelectorAll(".vf-hpeople .vf-hp-meta")].every(m => getComputedStyle(m).display !== "none")));
     ok("no name or avatar is dimmed, offline and away included", rows.every(r => !r.dimmed), JSON.stringify(rows.filter(r => r.dimmed)));
     const by = Object.fromEntries(rows.map(r => [r.pid, r]));
     ok("avatar labels name the state", by[boPid]?.label === "Bo, active, show details" && /^Cai, away( \d+ (?:min|h|d))?, show details$/.test(by[caiPid]?.label || "") && by[evePid]?.label === "Eve, offline, show details",
