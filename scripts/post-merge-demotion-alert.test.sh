@@ -98,6 +98,11 @@ if [[ "$method" != GET && "${STUB_DISPATCH_FAIL:-}" == 1 && "$endpoint" == */dis
   printf '%s\n' "${fields[@]}" >"$STUB_DIR/post.$n"
   exit 1
 fi
+if [[ "$method" == DELETE && -n "${STUB_DELETE:-}" ]]; then
+  echo '{"message": "x"}'
+  echo "gh: Label failed (HTTP $STUB_DELETE)" >&2
+  exit 1
+fi
 # A write answers with issue number 900 + its log line, through --jq as gh does.
 if [[ "$method" != GET ]]; then
   printf '%s\n' "${fields[@]}" >"$STUB_DIR/post.$n"
@@ -216,7 +221,7 @@ run_step() {
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
-    STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
+    STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_DELETE="${DELETE_STATUS:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
@@ -916,6 +921,22 @@ if [[ "$RC" -eq 0 && "$(fixes)" -eq 0 && -n "$c_line" && -n "$d_line" && -n "$p_
   ok "a closed fix issue for the check is reopened with the new range, back to triage, not filed again"
 else
   fail "closed fix issue: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+DELETE_STATUS=404 run_step "$FULL" schedule failure main o/r "$SHA" \
+  "[$(issue 60 "<!-- post-merge-fix check=test-bash -->" '' closed completed)]"
+if [[ "$RC" -eq 0 && "$(dispatches)" -eq 1 ]] && grep -qx 'PATCH repos/o/r/issues/60' <<<"$LOG"; then
+  ok "a closed fix issue without agent-ready (a 404 on its removal) is still reopened"
+else
+  fail "agent-ready 404: rc=$RC log='$LOG' out='$OUT'"
+fi
+JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" DELETE_STATUS=403 run_step "$FULL" schedule failure main o/r "$SHA" \
+  "[$(issue 60 "<!-- post-merge-fix check=test-bash -->" '' closed completed)]"
+if [[ "$RC" -ne 0 && "$(fixes)" -eq 1 && "$(dispatches)" -eq 1 && "$OUT" == *"::error::could not reopen fix issue #60 for test-bash"* ]] &&
+  ! grep -qx 'PATCH repos/o/r/issues/60' <<<"$LOG"; then
+  ok "a failed agent-ready removal leaves the issue closed, fails the job, and the other checks still file"
+else
+  fail "agent-ready 403: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 for reason in not_planned duplicate; do
