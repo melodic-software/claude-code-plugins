@@ -1,5 +1,6 @@
 """Tests for trace_to_sqlite.py. Expected counts are hand-counted from the fixtures."""
 
+import base64
 import contextlib
 import gzip
 import importlib.util
@@ -285,6 +286,19 @@ JWT_SEGMENT = "FAKE-not_a_token" * 10
 JWT = ".".join([JWT_SEGMENT] * 3)
 STATELESS_TOKEN = "ghs" + "_123456_" + JWT
 JWT_TOKEN = "ghs" + "_" + JWT
+
+
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+# A real RS256 JWT header encodes to 36 alphanumerics, the length gh[pousr]_ accepts,
+# so a token built from it shows whether the redactor takes the whole JWT or only ghs_
+# plus its header. Payload and signature are fake.
+RS256_HEADER = b64url(b'{"alg":"RS256","typ":"JWT"}')
+FAKE_PAYLOAD = b64url(b'{"sub":"FAKE-not-a-real-token","iat":0}')
+FAKE_SIGNATURE = b64url(b"\xfb\xff\xfeFAKE signature, not a real token" * 8)
+RS256_JWT = f"{RS256_HEADER}.{FAKE_PAYLOAD}.{FAKE_SIGNATURE}"
 AWS_KEY = "AKIA" + "MNBVCXZLKJHGFDSA"
 
 
@@ -302,7 +316,10 @@ class RedactsEveryStringField(TempDirCase):
                     {
                         "name": "RunTask",
                         "ph": "X",
-                        "args": {"t": f"x {STATELESS_TOKEN} y", "u": f"x {JWT_TOKEN} y"},
+                        "args": {
+                            "t": f"x {STATELESS_TOKEN} y",
+                            "u": f"x {JWT_TOKEN} y",
+                        },
                     }
                 ]
             },
@@ -312,6 +329,36 @@ class RedactsEveryStringField(TempDirCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("FAKE-not_a_token", dump(out))
         self.assertIn("<REDACTED>", dump(out))
+
+    def test_rs256_installation_token_leaves_no_payload_or_signature(self):
+        tokens = {
+            "plain": "ghs" + "_" + RS256_JWT,
+            "app_id": "ghs" + "_123456_" + RS256_JWT,
+        }
+        path = self.write_json(
+            "rs256.json",
+            {
+                "traceEvents": [
+                    {
+                        "name": "RunTask",
+                        "ph": "X",
+                        "args": {k: f"x {v} y" for k, v in tokens.items()},
+                    }
+                ]
+            },
+        )
+        out = self.tmp / "rs256.db"
+        result = run("--in", path, "--out", out)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        text = dump(out)
+        for fragment in (
+            FAKE_PAYLOAD,
+            FAKE_SIGNATURE,
+            FAKE_PAYLOAD[:12],
+            FAKE_SIGNATURE[-12:],
+        ):
+            self.assertNotIn(fragment, text)
+        self.assertEqual(text.count("x <REDACTED> y"), 2)
 
     def test_trace_event_phase_and_pid(self):
         path = self.write_json(
