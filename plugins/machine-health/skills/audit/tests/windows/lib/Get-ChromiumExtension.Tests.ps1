@@ -2,8 +2,9 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 <#
 .DESCRIPTION
-Synthetic cases from the probe findings: Edge keeps location-less stub entries
-for most extensions, and one extension's state can be split across
+The fixtures are synthetic shapes from a 2026-10-21 read of a Windows 11
+host's Edge and Chrome profiles, with every value redacted: Edge keeps
+location-less stub entries, and one extension's state can be split across
 Preferences and Secure Preferences.
 #>
 

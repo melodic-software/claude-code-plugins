@@ -149,15 +149,24 @@ $CheckBody = {
     }
     $items = @($items | Sort-Object { $_.browser }, { $_.profile }, { $_.ext_id })
 
+    $readable = @('ok', 'absent')
+    $unreadableSources = [System.Collections.Generic.List[string]]::new()
+    foreach ($read in $browserReads) {
+        $badProfiles = @($read.Profiles | Where-Object { $_.ReadState -notin $readable })
+        foreach ($p in $badProfiles) { $unreadableSources.Add("$($read.Browser)/$(Format-MachineText $p.ProfileDir)") }
+        if ($read.ReadState -notin $readable -and $badProfiles.Count -eq 0) { $unreadableSources.Add($read.Browser) }
+    }
+    if ($policy.ReadState -notin $readable) { $unreadableSources.Add('policy') }
+
     $readStates = @($browserReads | ForEach-Object { $_.ReadState }) + @($policy.ReadState)
-    $unreadable = @($readStates | Where-Object { $_ -notin @('ok', 'absent') }).Count
     $severity = Get-UnmutedSeverity -Items $items -ReadState $readStates
-    # A source that could not be read can hide anything, so no item verdict stands.
-    if ($unreadable -gt 0) { $severity = 'UNKNOWN' }
+    # A source that could not be read can hide anything, so no item verdict stands;
+    # the check still ran, and every source it could read is listed.
+    if ($unreadableSources.Count -gt 0) { $severity = 'UNKNOWN' }
 
     $flagged = @($items | Where-Object { -not $_.muted -and $_.severity -eq 'WARN' }).Count
     $summary = "$($items.Count) browser extension(s), $flagged flagged, $($policyEntries.Count) forcelist entr$($policyEntries.Count -eq 1 ? 'y' : 'ies')."
-    if ($unreadable -gt 0) { $summary += " $unreadable source(s) could not be read." }
+    if ($unreadableSources.Count -gt 0) { $summary += " $($unreadableSources.Count) source(s) could not be read." }
 
     $detail = @{
         extension_count      = $items.Count
@@ -168,6 +177,7 @@ $CheckBody = {
         items_count          = $items.Count
         muted_count          = @($items | Where-Object muted).Count
         domain_read_state    = $policy.DomainState
+        unreadable_sources   = @($unreadableSources)
         browsers             = @($browserReads | ForEach-Object {
                 [ordered]@{
                     browser = $_.Browser; profile_count = $_.ProfileCount; read_state = $_.ReadState
@@ -181,11 +191,7 @@ $CheckBody = {
         items                = $items
     }
 
-    $failure = @{}
-    if ($unreadable -gt 0) {
-        $failure = @{ RanSuccessfully = $false; ErrorMessage = "$unreadable extension source(s) could not be read." }
-    }
     $result = New-HealthResult -Id $id -Category $category -Os 'windows' -Severity $severity `
-        -Summary $summary -Commands $commands -Detail $detail -NeedsAdmin $false @failure
+        -Summary $summary -Commands $commands -Detail $detail -NeedsAdmin $false
 }
 . (Join-Path $PSScriptRoot '..\lib\Invoke-HealthCheckEnvelope.ps1')

@@ -1068,7 +1068,10 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   - `INFO`: extensions are listed and none of the above holds. Policy entries are always `INFO`.
   - `OK`: no extensions and every source read.
   - `UNKNOWN`: any browser, profile file or policy key could not be read, even when items are
-    listed: an unread source can hide anything. `ran_successfully` is false.
+    listed: an unread source can hide anything. The check still ran: `ran_successfully` stays
+    true, every readable profile's items stay listed, `detail.unreadable_sources` names what
+    could not be read (`<browser>`, `<browser>/<profile folder>` or `policy`), and the summary
+    counts them.
   - A muted item stays in `detail.items[]` and does not raise the level. Never `CRIT`.
 
 - **Policy entries:** `install_state` is `listed-off-store` for a forcelist entry whose update URL
@@ -1083,9 +1086,9 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   [ExtensionInstallForcelist, Description](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/extensioninstallforcelist#description)
   and [Registry settings](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/extensioninstallforcelist#registry-settings);
   Chromium
-  [`policy_loader_common.cc`](https://source.chromium.org/chromium/chromium/src/+/main:components/policy/core/common/policy_loader_common.cc)
+  [`policy_loader_common.cc`, `FilterSensitiveExtensionsInstallForcelist`](https://chromium.googlesource.com/chromium/src/+/681d1503162defa0f779565615b64173cda5cc04/components/policy/core/common/policy_loader_common.cc#50)
   and
-  [`manifest.mojom`](https://source.chromium.org/chromium/chromium/src/+/main:extensions/common/mojom/manifest.mojom).
+  [`manifest.mojom`, `ManifestLocation`](https://chromium.googlesource.com/chromium/src/+/681d1503162defa0f779565615b64173cda5cc04/extensions/common/mojom/manifest.mojom#18).
   As of 2026-10-21. Recheck when the Learn page changes the policy path or the off-domain rule, a
   host shows a forced extension under another key, or Chromium changes its location enum or how it
   marks off-store entries.
@@ -1110,7 +1113,9 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 
 - **What it lists:** one item per listening program, protocol and port (FindingKey kind
   `listener`: executable path, protocol, port). One program bound to several addresses on a port is
-  one item at its widest bind (`any`, then `specific`, then `loopback`). How a port's owner is
+  one item at its widest bind (`any`, then `specific`, then `loopback`). A kernel-owned listener
+  (process id 4 with no request-queue owner, such as SMB or NetBIOS) has no executable path, so
+  its key uses the fixed identity `system` in place of the path. How a port's owner is
   resolved, in which order, and how http.sys ports are traced to their request queue owner is
   documented in `Get-ListenerOwner.ps1`; `path_source` and `via_http_sys` say which step answered.
 

@@ -38,7 +38,8 @@ BeforeAll {
         param([string] $Browser, [object[]] $Extensions = @(), [string] $ReadState = 'ok', [int] $Stubs = 0)
         [pscustomobject]@{
             Browser = $Browser; ReadState = $ReadState; ProfileCount = 1; StubsSkipped = $Stubs
-            Profiles = @([pscustomobject]@{ ProfileDir = 'Default'; ReadState = $ReadState }); Extensions = $Extensions
+            # A browser-level failure (Local State unread) lists no profiles, as the adapter does.
+            Profiles = @(if ($ReadState -eq 'ok') { [pscustomobject]@{ ProfileDir = 'Default'; ReadState = 'ok' } }); Extensions = $Extensions
         }
     }
 
@@ -176,23 +177,39 @@ Describe 'Test-BrowserExtensions' -Tag 'check' {
         $r = Invoke-BrowserExtensionsAsObject
         { Assert-CheckResult $r } | Should -Not -Throw
         $r.severity | Should -Be 'UNKNOWN'
-        $r.ran_successfully | Should -BeFalse
+        $r.ran_successfully | Should -BeTrue -Because 'the check ran; one unread source makes it UNKNOWN, not failed'
+        $r.error | Should -BeNullOrEmpty
+        @($r.detail.unreadable_sources) | Should -Be @('chrome')
+        $r.summary | Should -Match '1 source\(s\) could not be read'
     }
 
-    It 'reports UNKNOWN when a profile file failed, even with flagged and listed items' {
-        Register-FakeRead -ChromeState 'error' -Chrome @(
+    It 'keeps the other profiles items when one profile is malformed, and reads UNKNOWN' {
+        Register-FakeRead -Chrome @(
             (Get-TestExtension -Kind 'unpacked' -FromWebstore $false)
             (Get-TestExtension -ExtId 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
         )
+        $chrome = Get-FakeRead 'chrome'
+        $chrome.ReadState = 'error'
+        $chrome.Profiles = @(
+            [pscustomobject]@{ ProfileDir = 'Default'; ReadState = 'ok' }
+            [pscustomobject]@{ ProfileDir = 'Profile 2'; ReadState = 'error' }
+        )
         $r = Invoke-BrowserExtensionsAsObject
+        { Assert-CheckResult $r } | Should -Not -Throw
         $r.severity | Should -Be 'UNKNOWN'
+        $r.ran_successfully | Should -BeTrue
+        $r.error | Should -BeNullOrEmpty
         $r.detail.items_count | Should -Be 2
-        $r.detail.browsers[0].profiles[0].read_state | Should -Be 'error'
+        @($r.detail.items.ext_id) | Should -Be @('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+        @($r.detail.unreadable_sources) | Should -Be @('chrome/Profile 2')
+        ($r.detail.browsers | Where-Object browser -eq 'chrome').profiles[1].read_state | Should -Be 'error'
     }
 
     It 'reports UNKNOWN when the policy keys could not be read, even with items' {
         Register-FakeRead -Edge @(Get-TestExtension -Browser 'edge') -Policy (Get-TestPolicy -ReadState 'error')
-        (Invoke-BrowserExtensionsAsObject).severity | Should -Be 'UNKNOWN'
+        $r = Invoke-BrowserExtensionsAsObject
+        $r.severity | Should -Be 'UNKNOWN'
+        @($r.detail.unreadable_sources) | Should -Be @('policy')
     }
 
     It 'keeps machine text out of the summary and sanitizes it in titles and fields' {

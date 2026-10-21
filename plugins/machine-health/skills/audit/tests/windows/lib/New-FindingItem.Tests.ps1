@@ -210,6 +210,8 @@ Describe 'Format-MachineText' -Tag 'lib' {
         @{ Name = 'a C1 control'; Char = [char]0x85 }
         @{ Name = 'a right-to-left override'; Char = [char]0x202E }
         @{ Name = 'a first-strong isolate'; Char = [char]0x2068 }
+        @{ Name = 'a line separator'; Char = [char]0x2028 }
+        @{ Name = 'a paragraph separator'; Char = [char]0x2029 }
     ) {
         Format-MachineText "a$($Char)b" | Should -Be 'a b'
     }
@@ -219,11 +221,16 @@ Describe 'Format-MachineText' -Tag 'lib' {
         Format-MachineText $text | Should -Be $text
     }
 
-    It 'caps text at the held length, ending it with an ellipsis' {
-        $long = 'x' * ($script:MachineTextMaxLength + 50)
-        $out = Format-MachineText $long
-        $out.Length | Should -Be $script:MachineTextMaxLength
-        $out | Should -BeLike '*...'
+    It 'caps text at 300 characters, ending it with an ellipsis' {
+        # 300 is the judgment cap the New-FindingItem.ps1 header comment for
+        # machine text documents; this literal is that decision, not a read of the code.
+        $out = Format-MachineText ('x' * 350)
+        $out.Length | Should -Be 300
+        $out | Should -Be (('x' * 297) + '...')
+    }
+
+    It 'leaves text of exactly 300 characters whole' {
+        Format-MachineText ('y' * 300) | Should -Be ('y' * 300)
     }
 
     It 'passes $null through' {

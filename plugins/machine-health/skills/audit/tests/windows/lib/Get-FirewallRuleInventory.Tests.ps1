@@ -2,10 +2,12 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 <#
 .DESCRIPTION
-Synthetic cases from the foreign-firewall probe findings: SystemDefaults names
-mark built-in rules, Test-Path writes an access-denied record for an existing
-file under an untraversable folder, and the unelevated bulk port-filter read
-stops partway with a PermissionDenied error.
+The fixtures are synthetic shapes from a 2026-10-21 unelevated read of a
+Windows 11 host's firewall stores, with every value redacted: SystemDefaults
+names mark built-in rules, Test-Path writes an access-denied record for an
+existing file under an untraversable folder, and the bulk port-filter read
+stops partway with a PermissionDenied error. The rules themselves are in
+check-catalog.md section 25 and Get-FirewallRuleInventory.ps1.
 #>
 
 BeforeAll {

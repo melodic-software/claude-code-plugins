@@ -44,7 +44,7 @@ function Get-FindingKey {
 # capped at this length, with control, escape and bidi-override characters
 # replaced so it cannot add lines or reorder what a reader sees.
 $script:MachineTextMaxLength = 300
-$script:MachineTextUnsafe = '[\x00-\x1F\x7F-\x9F\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]'
+$script:MachineTextUnsafe = '[\x00-\x1F\x7F-\x9F\u061C\u200E\u200F\u2028\u2029\u202A-\u202E\u2066-\u2069]'
 
 function Format-MachineText {
     [CmdletBinding()]

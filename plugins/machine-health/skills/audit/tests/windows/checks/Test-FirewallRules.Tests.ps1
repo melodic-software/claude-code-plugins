@@ -3,9 +3,10 @@
 <#
 .SYNOPSIS
 Tests for scripts/windows/checks/Test-FirewallRules.ps1, with
-Get-FirewallRuleInventory mocked. The plan fixes the check at INFO in every
-case, including a failed read; items are keyed by rule Name, or by version
-pattern, direction, protocol and port for per-version rules.
+Get-FirewallRuleInventory mocked. Expected values follow check-catalog.md
+section 25: INFO in every case, including a failed read; items keyed by rule
+Name, or by version pattern, direction, protocol and port for per-version
+rules.
 #>
 
 BeforeAll {
