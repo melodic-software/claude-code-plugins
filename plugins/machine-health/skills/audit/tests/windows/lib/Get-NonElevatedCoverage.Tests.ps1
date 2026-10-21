@@ -9,16 +9,15 @@ BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Get-NonElevatedCoverage.ps1'
 
     $script:Catalog = @(
-        [pscustomobject]@{ id = 'zeta-check'; enabled = $true; needs_admin = $false }
-        [pscustomobject]@{ id = 'admin-check'; enabled = $true; needs_admin = $true }
-        [pscustomobject]@{ id = 'disabled-check'; enabled = $false; needs_admin = $false }
-        [pscustomobject]@{ id = 'my-custom-check'; enabled = $true; needs_admin = $false }
-        [pscustomobject]@{ id = 'alpha-check'; enabled = $true; needs_admin = $false }
+        [pscustomobject]@{ id = 'zeta-check'; needs_admin = $false }
+        [pscustomobject]@{ id = 'admin-check'; needs_admin = $true }
+        [pscustomobject]@{ id = 'my-custom-check'; needs_admin = $false }
+        [pscustomobject]@{ id = 'alpha-check'; needs_admin = $false }
     )
 }
 
 Describe 'Get-NonElevatedCoverage' -Tag 'lib' {
-    It 'lists enabled non-admin entries in catalog order' {
+    It 'lists the non-admin entries of the run set in catalog order' {
         $labels = @(Get-NonElevatedCoverage -Catalog $script:Catalog)
         ($labels -join '|') | Should -BeExactly 'zeta-check|my-custom-check|alpha-check'
     }

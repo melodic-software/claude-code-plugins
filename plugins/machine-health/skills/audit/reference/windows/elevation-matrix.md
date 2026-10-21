@@ -11,7 +11,7 @@ Which Windows capabilities the skill can and cannot exercise when the process is
 
 ## Capabilities that require elevation
 
-`scripts/windows/lib/Get-ElevationMatrix.ps1` is the one list: each row names the feature, the check that consumes it, the fields it populates when elevated, and the reason elevation is required. The pre-run banner and the report's elevation-coverage block render from it. The banner's "Covered non-elevated" list is derived from the catalog: enabled entries with `needs_admin: false`.
+See `Get-ElevationMatrix` (`scripts/windows/lib/Get-ElevationMatrix.ps1`) for the admin-gated capabilities, and `Get-NonElevatedCoverage` (`scripts/windows/lib/Get-NonElevatedCoverage.ps1`) for the banner's "Covered non-elevated" list.
 
 ## How to run elevated
 

@@ -18,8 +18,9 @@ function Format-CheckLabel {
     [OutputType([string])]
     param(
         [Parameter(Mandatory = $true)] [string] $Id,
+        [Parameter(Mandatory = $true)]
         [AllowEmptyCollection()]
-        [string[]] $CustomIds = @()
+        [string[]] $CustomIds
     )
     return ($CustomIds -contains $Id) ? "$Id [custom]" : $Id
 }
