@@ -21,7 +21,7 @@ Known inventory keys (by check.id):
                       + detail.upgrades (list of name/id/current/available)
     drivers         : detail.code_integrity_events (time/provider/id/message)
                       + detail.oldest_drivers (list of name/version/date)
-    services        : detail.startup_inventory + detail.stopped_auto_services
+    services        : detail.stopped_auto_services
     event-log-errors: detail.top_sources (provider_and_id/count/first/last)
     windows-update  : detail.recent_hotfixes
 #>
@@ -168,29 +168,15 @@ function Get-DriverAppendix {
 
 function Get-ServicesAppendix {
     param([Parameter(Mandatory)] $Detail)
-    $sections = [System.Collections.Generic.List[string]]::new()
-
     $stopped = @(Get-AppendixInventory -Detail $Detail -Key 'stopped_auto_services')
-    if ($stopped.Count -gt 0) {
-        $rows = foreach ($s in $stopped) {
-            $delayed = $s.delayed_auto_start ? 'delayed' : 'auto'
-            "| ``$($s.name)`` | $($s.display_name) | $delayed |"
-        }
-        $sections.Add((Format-AppendixDetail -Summary "stopped automatic services ($($stopped.Count))" `
-                    -Column @('Name', 'Display', 'StartType') -Row @($rows)))
-    }
+    if ($stopped.Count -eq 0) { return $null }
 
-    $startup = @(Get-AppendixInventory -Detail $Detail -Key 'startup_inventory')
-    if ($startup.Count -gt 0) {
-        $rows = foreach ($s in $startup) {
-            "| $($s.Name) | $($s.User) | $($s.Location) |"
-        }
-        $sections.Add((Format-AppendixDetail -Summary "startup items ($($startup.Count))" `
-                    -Column @('Name', 'User', 'Location') -Row @($rows)))
+    $rows = foreach ($s in $stopped) {
+        $delayed = $s.delayed_auto_start ? 'delayed' : 'auto'
+        "| ``$($s.name)`` | $($s.display_name) | $delayed |"
     }
-
-    if ($sections.Count -eq 0) { return $null }
-    return ($sections -join "`n`n")
+    return Format-AppendixDetail -Summary "stopped automatic services ($($stopped.Count))" `
+        -Column @('Name', 'Display', 'StartType') -Row @($rows)
 }
 
 function Get-EventLogAppendix {

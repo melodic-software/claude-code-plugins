@@ -138,8 +138,6 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   Get-CimInstance Win32_Service | Where-Object { $_.StartMode -eq 'Auto' }
   # DelayedAutoStart exists on Win32_Service
 
-  Get-CimInstance Win32_StartupCommand | Select-Object Name, Command, Location, User
-
   # System uptime for the delayed-start exception
   (Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
   ```
@@ -149,7 +147,8 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   - `INFO`: Automatic-delayed-start service stopped AND system uptime <10 minutes (still starting).
   - `OK`: no stopped Automatic services.
 
-- **Notes:** Startup items are **inventory only**. They don't drive severity here, but the list goes in the report appendix for human review. **Remediation allowed:** one `Start-Service` attempt per stopped Automatic service (see `remediation-policy.md`).
+- **Notes:** The startup inventory lives in [21. Startup items](#21-startup-items); this check
+  reads services only. **Remediation allowed:** one `Start-Service` attempt per stopped Automatic service (see `remediation-policy.md`).
 
 ---
 

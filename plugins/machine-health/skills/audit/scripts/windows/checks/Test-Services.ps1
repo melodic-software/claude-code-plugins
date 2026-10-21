@@ -1,7 +1,7 @@
 #Requires -Version 7.4
 <#
 .SYNOPSIS
-Check: Services + startup items. Emits a CheckResult JSON on stdout.
+Check: Services. Emits a CheckResult JSON on stdout.
 
 See reference/windows/check-catalog.md#4-services--startup-items for rubric.
 #>
@@ -20,7 +20,6 @@ $category = 'services'
 $commands = @(
     "Get-Service | Where-Object { `$_.StartType -eq 'Automatic' -and `$_.Status -ne 'Running' }"
     "Get-CimInstance Win32_Service | Where-Object { `$_.StartMode -eq 'Auto' }"
-    'Get-CimInstance Win32_StartupCommand | Select-Object Name, Command, Location, User'
 )
 
 $FailureSummary = 'Services check failed.'
@@ -89,14 +88,6 @@ $CheckBody = {
         }
     }
 
-    $startupInventory = @()
-    try {
-        $startupInventory = @(Get-CimInstance -ClassName Win32_StartupCommand -ErrorAction Stop |
-                Select-Object Name, Command, Location, User)
-    } catch {
-        Write-Verbose "Test-Services: Win32_StartupCommand query failed. $($_.Exception.Message)"
-    }
-
     $severity = 'OK'
     $summary = 'No unexpected stopped Automatic services.'
     if ($unexpectedStopped.Count -gt 0) {
@@ -115,7 +106,6 @@ $CheckBody = {
         stopped_auto_services = $unexpectedStopped
         trigger_start_stopped = $triggerStartStopped
         delayed_pending       = $delayedPending
-        startup_inventory     = $startupInventory
         uptime_minutes        = $uptime ? [int]$uptime.TotalMinutes : $null
     }
 
