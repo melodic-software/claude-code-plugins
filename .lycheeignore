@@ -71,3 +71,6 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 
 # x.com status in a vendored upstream snapshot we cannot edit: 503 on the runner (online run 39417117475), 200 to a browser User-Agent from a workstation (verified 2026-10-21).
 ^https://x\.com/bcherny/status/2063792263067754658$
+
+# Runner-IP throttling: 429 or timeout on GitHub runners in 3 of the last 11 online runs (38155110861, 38161413154, 38392690745) despite per-host pacing; the GNU standards page is live.
+^https://www\.gnu\.org/prep/standards/html_node/Command_002dLine-Interfaces\.html$
