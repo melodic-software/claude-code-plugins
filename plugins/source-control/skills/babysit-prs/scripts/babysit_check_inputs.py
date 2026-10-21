@@ -150,6 +150,8 @@ def changed_since_merge_base(
     head: str,
     branch: str,
     roots: Iterable[Path] | None = None,
+    *,
+    extra: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Which of `paths` (git pathspecs) the base branch changed since its
     merge base with `head`.
@@ -159,8 +161,13 @@ def changed_since_merge_base(
     (`reason` says why). The base tip is the clone's
     `origin/<branch>`, which the pr-merge lane's checkout fetched at the start
     of its run.
+
+    `extra` (the default branch head's own list) is listed in a diff of its
+    own and its paths joined to `paths`', so neither list's excludes or bad
+    entries reach the other's; when only its diff fails, `paths`' result
+    stands and `headInputsError` says so.
     """
-    if not paths:
+    if not paths and not extra:
         return {"state": "off"}
     if not SHA_RE.fullmatch(head) or not BRANCH_RE.fullmatch(branch):
         return {"state": "unknown", "reason": "the head or base is not a plain name"}
@@ -179,15 +186,32 @@ def changed_since_merge_base(
     base = (_git(root, "merge-base", head, tip) or "").strip()
     if not SHA_RE.fullmatch(base):
         return {"state": "unknown", "reason": "no merge base with the base tip"}
-    out = _git(
-        root, "diff", "--name-only", "--no-renames", "-z", base, tip, "--", *paths
-    )
-    if out is None:
+
+    def listed(pathspecs: Sequence[str]) -> list[str] | None:
+        if not pathspecs:
+            return []
+        out = _git(
+            root, "diff", "--name-only", "--no-renames", "-z", base, tip, "--",
+            *pathspecs,
+        )  # fmt: skip
+        return None if out is None else _names(out)
+
+    changed = listed(paths)
+    if changed is None:
         return {"state": "unknown", "reason": "the base's changes could not be listed"}
-    changed = _names(out)
     report: dict[str, Any] = {"mergeBase": base, "baseTip": tip}
+    head_changed = listed(extra)
+    if head_changed is None:
+        report["headInputsError"] = (
+            "the default branch head's check-inputs could not be listed"
+        )
+    else:
+        changed = [*changed, *(p for p in head_changed if p not in changed)]
     scoped = [p for p in changed if p in SCOPED_INPUTS]
-    registry = _matches_at(root, tip, REGISTRY, paths)
+    registry = any(
+        lists and _matches_at(root, tip, REGISTRY, lists)
+        for lists in (paths, () if head_changed is None else extra)
+    )
     touched: set[str] = set()
     if scoped or registry:
         own = _git(root, "diff", "--name-only", "--no-renames", "-z", base, head)
