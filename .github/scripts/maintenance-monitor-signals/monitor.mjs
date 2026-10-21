@@ -50,7 +50,8 @@ export async function writePlan({ plan, existing, call, repo, labels, runUrl, wa
   }
   // The comment carries the new evidence; the marker then records its
   // fingerprint, so a failed comment is retried on the next run. A reopen
-  // sets the state in the same PATCH, then sends the issue back to triage.
+  // sends the issue back to triage first and sets the state in that same
+  // last PATCH, so a failed label call leaves it closed and retried too.
   const writes = [
     ...plan.update.map((u) => ({ ...u, reopen: false, into: done.updated })),
     ...plan.reopen.map((r) => ({ ...r, reopen: true, into: done.reopened })),
@@ -63,9 +64,9 @@ export async function writePlan({ plan, existing, call, repo, labels, runUrl, wa
     try {
       await wait();
       await call("POST", `/repos/${repo}/issues/${number}/comments`, { body: renderComment(finding, runUrl) });
+      if (reopen) await retriage({ call, repo, number, labels, wait });
       await wait();
       await call("PATCH", `/repos/${repo}/issues/${number}`, { ...state, body: [marker, ...rest].join("\n") });
-      if (reopen) await retriage({ call, repo, number, labels, wait });
       into.push(number);
     } catch (error) {
       done.failed.push({ target: `#${number}`, error: error.message });

@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { droppedLine, prepareItems, writeAll } from "./file-findings.mjs";
+import { planFiling } from "./findings.mjs";
 import { parseJudgeOutput } from "./write-findings.mjs";
 
 const finding = (over = {}) => ({
@@ -108,7 +109,7 @@ test("one failed write is recorded and the rest still file", async () => {
   });
 });
 
-test("a reopen comments with the checked claims, then sets the state open as reopened", async () => {
+test("a reopen comments with the checked claims, re-triages, then sets the state open as reopened", async () => {
   const calls = [];
   const call = async (method, path, body) => {
     calls.push([method, path, body]);
@@ -123,16 +124,16 @@ test("a reopen comments with the checked claims, then sets the state open as reo
     calls.map(([method, path]) => `${method} ${path}`),
     [
       "POST /repos/o/r/issues/12/comments",
-      "PATCH /repos/o/r/issues/12",
       "POST /repos/o/r/issues/12/labels",
       "DELETE /repos/o/r/issues/12/labels/agent-ready",
+      "PATCH /repos/o/r/issues/12",
     ],
   );
   assert.equal(waits, 4);
   assert.match(calls[0][2].body, /https:\/\/run\/1/);
   assert.match(calls[0][2].body, /```text\na\.yml:1: if: true\n```/);
-  assert.deepEqual(calls[1][2], { state: "open", state_reason: "reopened" });
-  assert.deepEqual(calls[2][2], { labels });
+  assert.deepEqual(calls[1][2], { labels });
+  assert.deepEqual(calls[3][2], { state: "open", state_reason: "reopened" });
 });
 
 test("a reopen with no filing labels skips the label POST, and a 404 on agent-ready is not a failure", async () => {
@@ -147,20 +148,33 @@ test("a reopen with no filing labels skips the label POST, and a 404 on agent-re
   assert.deepEqual(result, { filed: [], commented: [], reopened: [12], failed: [] });
   assert.deepEqual(calls, [
     "POST /repos/o/r/issues/12/comments",
-    "PATCH /repos/o/r/issues/12",
     "DELETE /repos/o/r/issues/12/labels/agent-ready",
+    "PATCH /repos/o/r/issues/12",
   ]);
 });
 
-test("a failed label removal other than 404 is recorded", async () => {
-  const call = async (method, path) => {
+test("a failed label removal other than 404 is recorded and leaves the issue closed for the next run", async () => {
+  const fp = "0123456789abcdef";
+  const issue = { number: 12, state: "closed", state_reason: "completed", body: `x\n<!-- lane-sweep:fp=${fp} -->` };
+  const calls = [];
+  const call = async (method, path, body) => {
+    calls.push(`${method} ${path}`);
     if (method === "DELETE") throw Object.assign(new Error(`${method} ${path}: HTTP 500`), { status: 500 });
+    if (method === "PATCH") Object.assign(issue, body);
     return {};
   };
-  const plan = { file: [], comment: [], reopen: [{ number: 12, fingerprint: "cccc", finding: finding() }] };
+  const items = [{ fingerprint: fp, finding: finding() }];
+  const plan = planFiling({ items, existing: [issue], openNumbers: new Set() });
   const result = await writeAll({ plan, call, repo: "o/r", labels: [], runUrl: "u", wait: async () => {} });
   assert.deepEqual(result.reopened, []);
   assert.deepEqual(result.failed, [{ target: "#12", error: "DELETE /repos/o/r/issues/12/labels/agent-ready: HTTP 500" }]);
+  assert.ok(!calls.includes("PATCH /repos/o/r/issues/12"));
+  assert.equal(issue.state, "closed");
+  assert.equal(issue.body, `x\n<!-- lane-sweep:fp=${fp} -->`);
+  assert.deepEqual(
+    planFiling({ items, existing: [issue], openNumbers: new Set() }).reopen.map((r) => r.number),
+    [12],
+  );
 });
 
 test("a failed reopen comment skips its PATCH and is recorded", async () => {

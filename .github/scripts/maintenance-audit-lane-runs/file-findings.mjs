@@ -99,15 +99,14 @@ export async function writeAll({ plan, call, repo, labels, runUrl, wait = () => 
     }
   }
   // The marker is the fingerprint, which a reopen leaves unchanged, so the
-  // PATCH sets the state only and keeps any rewrite a person made. The issue
-  // then goes back to triage: the filing labels that exist return, and
-  // agent-ready comes off; a 404 means it was not on the issue.
+  // PATCH sets the state only and keeps any rewrite a person made. Before it,
+  // the issue goes back to triage: the filing labels that exist return, and
+  // agent-ready comes off (a 404 means it was not on the issue). The PATCH
+  // runs last, so a failed label call leaves the issue closed and retried.
   for (const { number, finding } of plan.reopen) {
     try {
       await wait();
       await call("POST", `/repos/${repo}/issues/${number}/comments`, { body: renderReopenComment(finding, runUrl) });
-      await wait();
-      await call("PATCH", `/repos/${repo}/issues/${number}`, { state: "open", state_reason: "reopened" });
       if (labels.length > 0) {
         await wait();
         await call("POST", `/repos/${repo}/issues/${number}/labels`, { labels });
@@ -116,6 +115,8 @@ export async function writeAll({ plan, call, repo, labels, runUrl, wait = () => 
       await call("DELETE", `/repos/${repo}/issues/${number}/labels/agent-ready`).catch((error) => {
         if (error.status !== 404) throw error;
       });
+      await wait();
+      await call("PATCH", `/repos/${repo}/issues/${number}`, { state: "open", state_reason: "reopened" });
       reopened.push(number);
     } catch (error) {
       failed.push({ target: `#${number}`, error: error.message });

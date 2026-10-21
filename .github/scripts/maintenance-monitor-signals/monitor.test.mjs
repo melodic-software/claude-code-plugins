@@ -155,9 +155,9 @@ for (const [signal, first, changed] of CASES) {
     assert.equal(s.issues.length, 1);
     assert.deepEqual(s.calls.slice(-4), [
       "POST /repos/o/r/issues/100/comments",
-      "PATCH /repos/o/r/issues/100",
       "POST /repos/o/r/issues/100/labels",
       "DELETE /repos/o/r/issues/100/labels/agent-ready",
+      "PATCH /repos/o/r/issues/100",
     ]);
     assert.deepEqual(s.issues[0].labels, ["needs-triage"]);
     assert.equal(s.issues[0].state, "open");
@@ -193,12 +193,14 @@ test("a reopen of an issue without agent-ready takes the 404 as done, and a 500 
   const t = store();
   await runOnce(t, CASES[2][1]);
   Object.assign(t.issues[0], { state: "closed", state_reason: "completed" });
+  const oldBody = t.issues[0].body;
   const failing = async (method, path, body) => {
     if (method === "DELETE") throw Object.assign(new Error(`DELETE ${path}: HTTP 500`), { status: 500 });
     return t.call(method, path, body);
   };
+  const findings = detect({ now, windowStart, ...CASES[2][2] });
   const done = await writePlan({
-    plan: planIssues({ findings: detect({ now, windowStart, ...CASES[2][2] }), existing: [...t.issues] }),
+    plan: planIssues({ findings, existing: [...t.issues] }),
     existing: [...t.issues],
     call: failing,
     repo: "o/r",
@@ -209,6 +211,13 @@ test("a reopen of an issue without agent-ready takes the 404 as done, and a 500 
   assert.deepEqual(done.reopened, []);
   assert.deepEqual(done.failed, [{ target: "#100", error: "DELETE /repos/o/r/issues/100/labels/agent-ready: HTTP 500" }]);
   assert.ok(!t.calls.includes("POST /repos/o/r/issues/100/labels"));
+  assert.ok(!t.calls.includes("PATCH /repos/o/r/issues/100"));
+  assert.equal(t.issues[0].state, "closed");
+  assert.equal(t.issues[0].body, oldBody);
+  assert.deepEqual(
+    planIssues({ findings, existing: [...t.issues] }).reopen.map((r) => r.number),
+    [100],
+  );
 });
 
 test("a key closed as not planned or duplicate writes nothing on new evidence", async () => {
