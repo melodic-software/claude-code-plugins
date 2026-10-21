@@ -79,6 +79,8 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Merge-CatalogOverlay.ps1')
 . (Join-Path $libRoot 'Get-CheckSelection.ps1')
 . (Join-Path $libRoot 'Get-CheckArgument.ps1')
+. (Join-Path $libRoot 'Get-MutedFindingKey.ps1')
+. (Join-Path $libRoot 'Invoke-CheckWithTimeout.ps1')
 
 $runStart = Get-Date
 $runId = $runStart.ToString('o')
@@ -314,51 +316,6 @@ foreach ($sk in @($selection.skipped)) {
 }
 $windowsChecks = @($selection.due)
 
-function Invoke-CheckWithTimeout {
-    [CmdletBinding()]
-    [OutputType([hashtable])]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute(
-        'PSUseUsingScopeModifierInNewRunspaces', '',
-        Justification = 'Parameter passed via -ArgumentList is bound via param block.')]
-    param(
-        [Parameter(Mandatory = $true)] [string] $ScriptPath,
-        [int] $TimeoutSec = 90,
-        [hashtable] $Arguments = @{}
-    )
-    $jobSw = [System.Diagnostics.Stopwatch]::StartNew()
-    # Splat per-check arguments across the job boundary. -ArgumentList serializes
-    # the hashtable; @ArgMap binds it to the check's named params. An empty map
-    # (the common case) runs the check argument-less.
-    $job = Start-Job -ScriptBlock {
-        param($ScriptToRun, $ArgMap) & $ScriptToRun @ArgMap
-    } -ArgumentList $ScriptPath, $Arguments
-    $completed = Wait-Job -Job $job -Timeout $TimeoutSec
-    $jobSw.Stop()
-    if (-not $completed) {
-        Stop-Job -Job $job -ErrorAction SilentlyContinue | Out-Null
-        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue | Out-Null
-        return @{ ok = $false; reason = 'timeout'; elapsed_ms = [int]$jobSw.ElapsedMilliseconds }
-    }
-    $outputLines = Receive-Job -Job $job -ErrorAction SilentlyContinue
-    Remove-Job -Job $job -Force -ErrorAction SilentlyContinue | Out-Null
-    $joined = ($outputLines | Where-Object { $_ }) -join "`n"
-    if ([string]::IsNullOrWhiteSpace($joined)) {
-        return @{ ok = $false; reason = 'no_output'; elapsed_ms = [int]$jobSw.ElapsedMilliseconds }
-    }
-    try {
-        $parsed = $joined | ConvertFrom-Json -ErrorAction Stop
-        return @{ ok = $true; result = $parsed; elapsed_ms = [int]$jobSw.ElapsedMilliseconds }
-    } catch {
-        return @{
-            ok         = $false
-            reason     = 'invalid_json'
-            raw_output = $joined
-            error      = $_.Exception.Message
-            elapsed_ms = [int]$jobSw.ElapsedMilliseconds
-        }
-    }
-}
-
 function New-UnknownCheckResult {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -400,6 +357,8 @@ $checkResults = [System.Collections.Generic.List[object]]::new()
 # Surface Assert-CatalogEntry failures through the normal reporting path first
 # so a registered-but-invalid check cannot silently vanish from the report.
 $checkResults.AddRange($invalidCatalogResults)
+# Mutes reach checks only as an argument; checks never read mutes.json.
+$muteState = Get-MuteState -StateDir $stateDir
 foreach ($entry in $windowsChecks) {
     $scriptPath = Join-Path $skillRoot $entry.script
     if (-not (Test-Path -LiteralPath $scriptPath)) {
@@ -416,7 +375,9 @@ foreach ($entry in $windowsChecks) {
         continue
     }
 
-    $checkArgs = Get-CheckArgument -CheckId $entry.id -RunLog $runLog -BatteryReportPath $batteryReportPath
+    $muted = Get-MutedFindingKey -State $muteState -CheckId $entry.id
+    $checkArgs = Get-CheckArgument -CheckId $entry.id -ScriptPath $scriptPath -RunLog $runLog `
+        -BatteryReportPath $batteryReportPath -MutedKeys $muted
     Write-MachineHealthLog "check_dispatch id=$($entry.id) script=$($entry.script)"
     $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec 90 -Arguments $checkArgs
 
