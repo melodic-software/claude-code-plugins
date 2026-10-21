@@ -82,6 +82,17 @@ async function main() {
       const fresh = (window.Core.state.ideas || []).filter(i => i.status === "new"); return fresh.length === 1 && fresh[0].text === t;
     }, LATE));
     ok("a guest is never offered Approve all", await ann.evaluate(() => !document.querySelector(".vf-prop-all")?.getClientRects().length));
+    // Round 3 now holds 2 of its 8 (session.py MAX_ROUND), so 6 fit; the server refuses all of a batch that does not.
+    const propose = async n => { for (let i = 0; i < n; i++) { await ann.waitForTimeout(1100); await ann.evaluate(t => window.Core.idea(t), `Extra proposal ${i} of ${n}`); } };
+    await propose(5);
+    ok("with 6 new proposals and room for 6, Approve all 6 can be pressed", await until(owner, () => {
+      const b = document.querySelector(".vf-prop-all"); return b?.textContent === "Approve all 6" && !b.disabled;
+    }), await owner.evaluate(() => `${document.querySelector(".vf-prop-all")?.textContent} disabled=${document.querySelector(".vf-prop-all")?.disabled}`));
+    await propose(1);
+    ok("  with 7 it cannot, and says the round has room for 6", await until(owner, () => {
+      const b = document.querySelector(".vf-prop-all"), why = document.querySelector(".vf-prop-all-why");
+      return b?.textContent === "Approve all 7" && b.disabled && !!why?.getClientRects().length && /room for 6\b/.test(why.textContent);
+    }), await owner.evaluate(() => `${document.querySelector(".vf-prop-all")?.textContent} disabled=${document.querySelector(".vf-prop-all")?.disabled} why=${document.querySelector(".vf-prop-all-why")?.textContent}`));
     await owner.keyboard.press("Escape");
 
     // ---------- the rail: one label x, a check or a ring in every slot ----------

@@ -974,13 +974,17 @@
     const propMore = showMore("proposals", 20);
     PP.list.after(propMore.foot);
     // X42: the owner's Approve all makes every new proposal a question at once, behind a confirm that counts them; the
-    // server places only the ones counted, so one that arrives meanwhile waits
-    const propAllRow = E("div", "vf-pp-actions"), propAll = btn("vf-btn vf-btn-primary vf-btn-sm vf-prop-all");
-    propAllRow.append(propAll); PP.note.after(propAllRow);
+    // server places only the ones counted, so one that arrives meanwhile waits. All or none: while they do not all fit
+    // in the next round, it is off and says how many do.
+    const MAX_ROUND = 8; // questions a round holds (session.py MAX_ROUND)
+    const nextRoom = () => { const n = Core.state.rounds.length + 1; return Math.max(0, MAX_ROUND - Core.state.questions.filter(q => q.round === n).length); };
+    const propAllRow = E("div", "vf-pp-actions"), propAll = btn("vf-btn vf-btn-primary vf-btn-sm vf-prop-all"), propAllWhy = E("p", "vf-pop-note vf-prop-all-why");
+    propAllRow.append(propAll, propAllWhy); PP.note.after(propAllRow);
     let propAllIds = [];
     propAll.onclick = guarded(() => {
       propAllIds = Core.state.ideas.filter(i => i.status === "new").map(i => i.id);
       const n = propAllIds.length;
+      if (n > nextRoom()) { propAllIds = []; render(); return null; }
       return n && { title: `Approve all ${n} proposal${n === 1 ? "" : "s"}?`, ok: `Approve ${n}`,
         body: "Each becomes a question in the next round, as Make it a question does, and its author hears so. Claude does not place them.", danger: false };
     }, () => {
@@ -7112,6 +7116,10 @@
       propParkBtn.setAttribute("aria-pressed", String(ui.propFilter === "parked"));
       propAllRow.hidden = !me.isOwner || ui.propFilter !== "new" || !props.length;
       propAll.textContent = `Approve all ${props.length}`;
+      const room = nextRoom();
+      propAll.disabled = props.length > room;
+      propAllWhy.hidden = !propAll.disabled;
+      propAllWhy.textContent = room ? `Round ${S.rounds.length + 1} has room for ${room} more, not all ${props.length}. Park some or make them questions one by one.` : `Round ${S.rounds.length + 1} is full.`;
       const joins = v8() ? nextN : preparing ? nextN : cur;
       PP.note.textContent = ui.propFilter === "new"
         ? `These go to Claude with round ${cur}${preparing ? " (already sent; they wait for the next send)" : ""}. Claude places each one. A question you make now joins round ${joins}.`
