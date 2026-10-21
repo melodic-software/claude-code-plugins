@@ -317,6 +317,19 @@
       "added_on": "2026-10-21",
       "crash_count": 0,
       "identical_streak": 0
+    },
+    {
+      "id": "network-listeners",
+      "category": "security",
+      "os": ["windows"],
+      "script": "scripts/windows/checks/Test-NetworkListeners.ps1",
+      "severity_rules": "reference/windows/check-catalog.md#24-network-listeners",
+      "needs_admin": false,
+      "enabled": true,
+      "deprecated": false,
+      "added_on": "2026-10-21",
+      "crash_count": 0,
+      "identical_streak": 0
     }
   ]
 }
