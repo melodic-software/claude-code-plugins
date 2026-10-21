@@ -84,6 +84,18 @@
 #   morning-brief.sh --allowed-collaborators A,B
 #                                             direct collaborators besides org admins (default: none)
 #   morning-brief.sh --workflow-read-limit N  cap on workflow files read for secret triggers (default 300)
+#   morning-brief.sh --config-home DIR        convention home holding harness-ops.yaml (default: the
+#                                             checkout's docs/conventions)
+#
+# Cost settings. Each cost flag above is also a key under `morning_brief:` in
+# <home>/harness-ops.yaml (team, tracked) and <home>/harness-ops.local.yaml
+# (personal, gitignored): org, subscription, actions_included_minutes,
+# actions_included_storage_gb, usage_alert_percent, log_cap_alert_percent,
+# forecast_alert, required_budgets and allowed_collaborators (lists),
+# anomaly_alert, expiry_days, workflow_read_limit. A flag beats the personal
+# file, which beats the team file, which beats the default. An invalid value is
+# named on stderr and its key takes the default, never a lower layer's value
+# (docs/conventions/config-cascade/README.md).
 #   morning-brief.sh --help
 #
 # Fixture flags (skip the network; used by the test suite and for reuse):
@@ -187,14 +199,15 @@ ORG_ARG=""
 ORG_SCAN_JSON=""
 ACTIONS_INCLUDED_MINUTES=""
 ACTIONS_INCLUDED_STORAGE_GB=""
-USAGE_ALERT_PERCENT=50
-LOG_CAP_ALERT_PERCENT=50
+USAGE_ALERT_PERCENT=""
+LOG_CAP_ALERT_PERCENT=""
 FORECAST_ALERT=""
 REQUIRED_BUDGETS_ARG=""
 ANOMALY_ALERT=""
-EXPIRY_DAYS=30
+EXPIRY_DAYS=""
 ALLOWED_COLLABORATORS_ARG=""
-WORKFLOW_READ_LIMIT=300
+WORKFLOW_READ_LIMIT=""
+CONFIG_HOME_ARG=""
 SUBSCRIPTION_ARG=""
 BILLING_USAGE_JSON=""
 BILLING_BUDGETS_JSON=""
@@ -375,6 +388,11 @@ while (($# > 0)); do
     BILLING_BUDGETS_JSON="$2"
     shift 2
     ;;
+  --config-home)
+    require_value "$1" "${2:-}"
+    CONFIG_HOME_ARG="$2"
+    shift 2
+    ;;
   --org-scan-json)
     require_value "$1" "${2:-}"
     require_file "$1" "$2"
@@ -501,6 +519,94 @@ have jq || {
   printf 'morning-brief: jq required\n' >&2
   exit 4
 }
+
+# --- Cost settings: flag, then personal file, then team file, then default ---
+# The convention home is --config-home, else docs/conventions in the checkout's
+# git root; a root that is $HOME, or no git root, has no home.
+CONFIG_SOURCES=()
+config_home() {
+  local root
+  if [[ -n "$CONFIG_HOME_ARG" ]]; then
+    printf '%s' "$CONFIG_HOME_ARG"
+    return
+  fi
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [[ -n "$root" && "$root" != "$HOME" ]] || return 1
+  printf '%s/docs/conventions' "$root"
+}
+# config_layer FILE: the file's morning_brief keys as `key<TAB>value` lines, or
+# nothing (and a stderr note) when it cannot be parsed. A symlinked layer is
+# skipped, so a link cannot point the brief at a file outside the home.
+config_layer() {
+  local file="$1" out
+  [[ -f "$file" ]] || return 0
+  if [[ -L "$file" ]]; then
+    printf 'morning-brief: %s is a symlink; that layer is skipped\n' "$file" >&2
+    return 0
+  fi
+  if ! out="$(awk -f "${BASH_SOURCE[0]%/*}/lib/yaml-subset.awk" "$file" 2>/dev/null)"; then
+    printf 'morning-brief: %s could not be parsed (%s); that layer is skipped\n' "$file" "$(cut -f2- <<<"$out" | tr '\t' ' ')" >&2
+    return 0
+  fi
+  CONFIG_SOURCES+=("${file##*/}")
+  awk -F'\t' '$1 ~ /^morning_brief\./ { sub(/^morning_brief\./, "", $1); print $1 "\t" $2 }' <<<"$out"
+}
+CONFIG_TEAM=""
+CONFIG_LOCAL=""
+if CONFIG_HOME="$(config_home)"; then
+  CONFIG_TEAM="$(config_layer "$CONFIG_HOME/harness-ops.yaml")"
+  CONFIG_LOCAL="$(config_layer "$CONFIG_HOME/harness-ops.local.yaml")"
+fi
+COST_SETTING_LAYERS=()
+# config_value VAR KEY KIND DEFAULT: sets VAR to the value KEY resolves to. KIND
+# is text, uint, amount or list. VAR already holds the flag's value, if any; a
+# list is read from KEY.0, KEY.1 and so on and comma-joined.
+config_value() {
+  local var="$1" key="$2" kind="$3" default="$4" layer value file
+  if [[ -n "${!var}" ]]; then
+    COST_SETTING_LAYERS+=("$key=flag")
+    return
+  fi
+  for layer in local team; do
+    if [[ "$layer" == local ]]; then value="$CONFIG_LOCAL" file="harness-ops.local.yaml"; else value="$CONFIG_TEAM" file="harness-ops.yaml"; fi
+    if [[ "$kind" == list ]]; then
+      value="$(awk -F'\t' -v k="$key" '
+        index($1, k ".") == 1 && substr($1, length(k) + 2) ~ /^[0-9]+$/ { printf "%s%s", (n++ ? "," : ""), $2 }
+        $1 == k || (index($1, k ".") == 1 && substr($1, length(k) + 2) !~ /^[0-9]+$/) { bad = 1 }
+        END { if (bad) printf "\001" }' <<<"$value")"
+    else
+      value="$(awk -F'\t' -v k="$key" '$1 == k { print $2; found = 1 } index($1, k ".") == 1 { print "\001"; found = 1 } END { if (!found) exit 1 }' <<<"$value")" || continue
+    fi
+    [[ -n "$value" ]] || continue
+    case "$kind" in
+    uint) [[ "$value" =~ ^[0-9]+$ ]] ;;
+    amount) [[ "$value" =~ ^[0-9]+(\.[0-9]+)?$ ]] ;;
+    *) [[ "$value" != *[[:cntrl:]]* ]] ;;
+    esac || {
+      printf 'morning-brief: %s: morning_brief.%s has an invalid value (%q); the default is used\n' "$file" "$key" "${value//$'\001'/}" >&2
+      COST_SETTING_LAYERS+=("$key=default (invalid in $file)")
+      printf -v "$var" '%s' "$default"
+      return
+    }
+    COST_SETTING_LAYERS+=("$key=$file")
+    [[ "$kind" == uint ]] && value="$((10#$value))"
+    printf -v "$var" '%s' "$value"
+    return
+  done
+  printf -v "$var" '%s' "$default"
+}
+config_value ORG_ARG org text ""
+config_value SUBSCRIPTION_ARG subscription text ""
+config_value ACTIONS_INCLUDED_MINUTES actions_included_minutes amount ""
+config_value ACTIONS_INCLUDED_STORAGE_GB actions_included_storage_gb amount ""
+config_value USAGE_ALERT_PERCENT usage_alert_percent uint 50
+config_value LOG_CAP_ALERT_PERCENT log_cap_alert_percent uint 50
+config_value FORECAST_ALERT forecast_alert amount ""
+config_value REQUIRED_BUDGETS_ARG required_budgets list ""
+config_value ANOMALY_ALERT anomaly_alert text ""
+config_value EXPIRY_DAYS expiry_days uint 30
+config_value ALLOWED_COLLABORATORS_ARG allowed_collaborators list ""
+config_value WORKFLOW_READ_LIMIT workflow_read_limit uint 300
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -2272,6 +2378,12 @@ cost_azure() {
 
 print_cost() {
   echo "== Cost (GitHub and Azure: charges, included usage, budgets and alerts, secret triggers, posture) =="
+  # Which layer set each cost setting that is not a default.
+  if ((${#COST_SETTING_LAYERS[@]})); then
+    echo "  settings: ${COST_SETTING_LAYERS[*]}"
+  else
+    echo "  settings: defaults (no harness-ops.yaml read)"
+  fi
   cost_github
   cost_azure
   local row status source label detail unread=0 line

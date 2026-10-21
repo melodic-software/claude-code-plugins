@@ -33,6 +33,10 @@ fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+# The brief reads cost settings from the checkout it runs in. The suite runs
+# outside any checkout, so no repository's own settings reach a case; the
+# settings cases build their own.
+cd "$TMP" || exit 1
 
 FAILED=0
 CASE_NUM=0
@@ -1886,6 +1890,72 @@ assert_contains "unreadable: a failed collaborator read names the repo" "$COST_S
   "UNREADABLE GitHub collaborators: app-private collaborators: Not Found (HTTP 404)"
 assert_contains "unreadable: the live usage lines still print beside it" "$COST_SCAN_FAIL" \
   "ALERT      GitHub usage 2026-07 actions: net 3.46"
+
+# --- Cost settings: flag, personal file, team file, default ----------------------
+# A checkout whose team file sets every key, a personal file that overrides two
+# and holds one invalid value, and a flag that overrides one.
+if have git; then
+  CFG="$TMP/cfg-repo"
+  mkdir -p "$CFG/docs/conventions"
+  git -C "$CFG" init -q 2>/dev/null
+  cat >"$CFG/docs/conventions/harness-ops.yaml" <<'EOF'
+morning_brief:
+  org: team-org
+  actions_included_minutes: 3000
+  actions_included_storage_gb: 2
+  usage_alert_percent: 10
+  forecast_alert: 50
+  required_budgets:
+    - budget-example
+  anomaly_alert: anomaly-example
+  expiry_days: 30
+EOF
+  CFG_BRIEF=(--now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --behind-json "$TMP/behind.json"
+    --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json"
+    --lane-runs-json "$TMP/lanes-empty.json" --billing-usage-json "$TMP/billing-usage-clear.json"
+    --billing-budgets-json "$TMP/billing-budgets-clear.json" --org-scan-json "$TMP/org-scan-clear.json" --azure-json "$TMP/azure-clear.json")
+  COST_TEAM="$(section "$(cd "$CFG" && bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)" "== Cost")"
+  assert_contains "settings: the team file's values apply" "$COST_TEAM" \
+    "ALERT      GitHub Actions minutes 2026-07, private repos: 400 of 3000 minutes included (13%)"
+  assert_contains "settings: a team list applies" "$COST_TEAM" \
+    "OK         Azure budget and anomaly alerts: budget budget-example ends 2030-01-01"
+  assert_contains "settings: the layer of each value is reported" "$COST_TEAM" \
+    "settings: org=harness-ops.yaml actions_included_minutes=harness-ops.yaml"
+  cat >"$CFG/docs/conventions/harness-ops.local.yaml" <<'EOF'
+morning_brief:
+  usage_alert_percent: 90
+  actions_included_minutes: lots
+EOF
+  OUT_LOCAL="$(cd "$CFG" && bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)"
+  COST_LOCAL="$(section "$OUT_LOCAL" "== Cost")"
+  assert_contains "settings: the personal file beats the team file" "$COST_LOCAL" \
+    "OK         GitHub Actions storage 2026-07, private repos: 100 of 1488 GB-hours included (7%)"
+  assert_contains "settings: an invalid personal value is named" "$OUT_LOCAL" \
+    "morning-brief: harness-ops.local.yaml: morning_brief.actions_included_minutes has an invalid value (lots); the default is used"
+  assert_contains "settings: an invalid value takes the default, never the team file's" "$COST_LOCAL" \
+    "INFO       GitHub Actions minutes 2026-07, private repos: 400 minutes used; included amount not configured"
+  COST_FLAG="$(section "$(cd "$CFG" && bash "$BRIEF" "${CFG_BRIEF[@]}" --usage-alert-percent 5 --actions-included-minutes 4000 2>&1)" "== Cost")"
+  assert_contains "settings: a flag beats both files" "$COST_FLAG" \
+    "ALERT      GitHub Actions minutes 2026-07, private repos: 400 of 4000 minutes included (10%)"
+  assert_contains "settings: a flag is reported as the flag" "$COST_FLAG" "usage_alert_percent=flag"
+  printf 'morning_brief:\n  org: [unclosed\n' >"$CFG/docs/conventions/harness-ops.local.yaml"
+  OUT_BROKEN="$(cd "$CFG" && bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)"
+  assert_contains "settings: a file that cannot be parsed is named and skipped" "$OUT_BROKEN" \
+    "harness-ops.local.yaml could not be parsed"
+  assert_contains "settings: the team file still applies beside it" "$(section "$OUT_BROKEN" "== Cost")" \
+    "of 3000 minutes included"
+  rm "$CFG/docs/conventions/harness-ops.local.yaml"
+  printf 'morning_brief:\n  required_budgets: budget-example\n' >"$TMP/cfg-scalar.yaml"
+  mkdir -p "$TMP/cfg-home"
+  cp "$TMP/cfg-scalar.yaml" "$TMP/cfg-home/harness-ops.yaml"
+  OUT_SCALAR="$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$TMP/cfg-home" 2>&1)"
+  assert_contains "settings: a list key given a scalar is invalid" "$OUT_SCALAR" \
+    "morning_brief.required_budgets has an invalid value"
+  assert_contains "settings: --config-home names the home" "$(section "$(bash "$BRIEF" "${CFG_BRIEF[@]}" --config-home "$CFG/docs/conventions" 2>&1)" "== Cost")" \
+    "settings: org=harness-ops.yaml"
+  assert_contains "settings: outside a checkout no file is read" "$(section "$(bash "$BRIEF" "${CFG_BRIEF[@]}" 2>&1)" "== Cost")" \
+    "settings: defaults (no harness-ops.yaml read)"
+fi
 
 # --- Summary ------------------------------------------------------------------
 echo

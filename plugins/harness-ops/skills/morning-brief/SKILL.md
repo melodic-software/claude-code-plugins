@@ -11,7 +11,7 @@ metadata:
   cadence: daily
 ---
 
-**Arguments.** `[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--stale-hours N] [--pr-limit N]`. Full form: [--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] [--stranded-days N] [--pr-limit N] [--lane-workflows A,B] [--lane-read-limit N] [--max-turns-hits N] [--org ORG] [--subscription ID] [--actions-included-minutes N] [--actions-included-storage-gb N] [--usage-alert-percent N] [--log-cap-alert-percent N] [--forecast-alert N] [--required-budgets A,B] [--anomaly-alert NAME] [--expiry-days N] [--allowed-collaborators A,B] [--workflow-read-limit N]. `--org` defaults to the repo's owner, `--subscription` to az's current subscription; the Cost section's other settings are described under "What each section reports". Read-only on GitHub and Azure; omit to view the current repo
+**Arguments.** `[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--stale-hours N] [--pr-limit N]`. Full form: [--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] [--stranded-days N] [--pr-limit N] [--lane-workflows A,B] [--lane-read-limit N] [--max-turns-hits N] [--org ORG] [--subscription ID] [--actions-included-minutes N] [--actions-included-storage-gb N] [--usage-alert-percent N] [--log-cap-alert-percent N] [--forecast-alert N] [--required-budgets A,B] [--anomaly-alert NAME] [--expiry-days N] [--allowed-collaborators A,B] [--workflow-read-limit N] [--config-home DIR]. `--org` defaults to the repo's owner, `--subscription` to az's current subscription; the Cost section's other settings are described under "What each section reports". Read-only on GitHub and Azure; omit to view the current repo
 
 ## Pre-computed context
 
@@ -221,6 +221,16 @@ of the probe below:
 - **As of**: 2026-10-17
 - **Recheck trigger**: a pipeline lane's model-usage rows show only the lane name, or GitHub
   documents how it names a reusable workflow's jobs.
+
+Each Cost setting is a flag and a key under `morning_brief:` in `harness-ops.yaml` in the
+convention home (`--config-home`, else the checkout's `docs/conventions`), the team layer, and in
+`harness-ops.local.yaml` beside it, the gitignored personal layer. A flag beats the personal file,
+which beats the team file, which beats the default; an invalid value is named on stderr and its key
+takes the default, never a lower layer's value; a file that cannot be parsed is named and skipped.
+The section's `settings:` line names the layer that set each value. The keys and their meaning are
+in the plugin's `schemas/harness-ops.schema.json`; the layering is the config-cascade contract
+(`docs/conventions/config-cascade/README.md` in the marketplace repository). Keep the subscription out of
+a public repository's team file: pass `--subscription` or set it in the personal file.
 
 The Cost section's reads are meant to cost nothing and change nothing. Microsoft's pricing for these
 services, and the ways a Defender plan starts billing: the pointers below. The activity line watches
