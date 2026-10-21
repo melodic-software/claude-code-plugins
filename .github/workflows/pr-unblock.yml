@@ -406,6 +406,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
