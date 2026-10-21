@@ -390,7 +390,7 @@ rc=$?
 log="$(cat "$LOG")"
 assert_eq "an outsider's newer sentinel comment: exits 0" 0 "$rc"
 assert_contains "an outsider's newer sentinel comment: my own comment is updated" "$log" "method=PATCH url=repos/$REPO/issues/comments/801"
-assert_not_contains "an outsider's newer sentinel comment is never PATCHed" "$log" "comments/802"
+assert_not_contains "an outsider's newer sentinel comment is never patched" "$log" "comments/802"
 
 # Only an outsider carries the sentinel: it is ignored and a new comment created.
 cat >"$TMP/outsider-only.json" <<JSON
@@ -405,7 +405,7 @@ rc=$?
 log="$(cat "$LOG")"
 assert_eq "only an outsider's sentinel comment: exits 0" 0 "$rc"
 assert_contains "only an outsider's sentinel comment: a new comment is created" "$log" "method=POST url=repos/$REPO/issues/502/comments"
-assert_not_contains "only an outsider's sentinel comment: it is never PATCHed" "$log" "method=PATCH"
+assert_not_contains "only an outsider's sentinel comment: it is never patched" "$log" "method=PATCH"
 
 # A comment list that does not parse is not an empty list: creating a comment
 # then would duplicate the one the list failed to show.
