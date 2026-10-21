@@ -10,7 +10,8 @@ name: work-resolve-issue
 # with no write token, and leaves its change as a patch, or stops and says why.
 # apply-issue-patch, a script in pr-run-activity-write.yml, commits that patch
 # to a new branch. report-outcome then opens a ready PR from that branch, or
-# comments on the issue and labels it needs-human. The agent-ready label alone
+# comments on the issue and labels it needs-human; an issue its dimensions
+# skip gets the same hand-back from report-skip. The agent-ready label alone
 # admits the issue; the hold labels and the go-live time are in
 # docs/conventions/pr-pipeline.yaml. The kill switch, the labeler check (a
 # listed human, or the lanes App) and the token broker run inside each
@@ -114,6 +115,7 @@ jobs:
       capped: ${{ steps.wip.outputs.capped }}
       timeout-minutes: ${{ steps.dimensions.outputs.timeout-minutes }}
       issue-dimensions: ${{ steps.dimensions.outputs.issue-dimensions }}
+      skip-reason: ${{ steps.dimensions.outputs.skip-reason }}
     steps:
       # When the WIP cap check pauses the lane (over the WIP cap on or after
       # wip.pause-from; the held cap only alerts), resolve-issue is skipped: no
@@ -196,6 +198,35 @@ jobs:
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
     secrets:
       claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # An issue its Size, Complexity and Uncertainty fields skip (pick-slot's
+  # resolve) takes no model turn, so the run leaves no outcome and every job
+  # below skips. This job reports it instead: report-outcome, with the
+  # lanes App token, labels the issue needs-human, removes agent-ready and
+  # comments the next step. It needs no slot and runs at the WIP cap too.
+  report-skip:
+    needs: [admit, pick-slot]
+    if: >-
+      github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
+      && (needs.pick-slot.outputs.skip-reason == 'split-required'
+      || needs.pick-slot.outputs.skip-reason == 'research-first'
+      || needs.pick-slot.outputs.skip-reason == 'probe-first'
+      || needs.pick-slot.outputs.skip-reason == 'not-assessed')
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: work-resolve-issue
+      role: issue-lane
+      activity: report-outcome
+      issue-number: ${{ format('{0}', github.event.issue.number) }}
+      trusted-base: default-tip
+      app-label: agent-ready
+      dimension-skip: ${{ needs.pick-slot.outputs.skip-reason }}
 
   # The commit job: a script with no model that runs nothing from the patch.
   # It checks the patch against the model job's SHA-256, applies it to the

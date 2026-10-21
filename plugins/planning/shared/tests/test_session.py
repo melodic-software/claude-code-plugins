@@ -5550,6 +5550,21 @@ class TestAttachmentsEverywhere(UploadCase):
         self.act("act_on_upload", HOST, {"id": own, "action": "remove"})  # the chip's x on a received draft
         self.assertEqual(self.refused("not-found", "upload_image", HOST, {"id": own}).http, 404)
 
+    def test_the_chips_draft_only_remove_is_refused_once_a_post_carried_the_file(self):
+        # #8615: a stale page's chip x must not take a just-sent file off the post that carries it
+        sent, kept = self.received_on_q1(self.ann, "a.png"), self.received_on_q1(self.ann, "b.png")
+        self.act("answer", self.ann, {"qid": "Q1", "text": "See it.", "view": "focus", "attachments": [sent]})
+        e = self.refused("wrong-status", "act_on_upload", self.ann, {"id": sent, "action": "remove", "draftOnly": True})
+        self.assertEqual((e.http, e.details["status"]), (409, "carried"))
+        self.assertEqual(self.upload(sent)["status"]["kind"], "done")
+        self.assertEqual(next(c for c in self.s.state["cards"]["Q1"] if c.get("pid") == self.ann)["attachments"], [sent])
+        self.refused("wrong-status", "act_on_upload", self.ann, {"id": sent, "action": "withdraw", "draftOnly": True})
+        # still a draft: the flag changes nothing
+        self.assertEqual(self.act("act_on_upload", self.ann, {"id": kept, "action": "remove", "draftOnly": True})["status"], "removed")
+        # without the flag, an explicit Remove of a received file still ends it
+        self.assertEqual(self.act("act_on_upload", self.ann, {"id": sent, "action": "remove"})["status"], "removed")
+        self.refused("bad-field", "act_on_upload", self.ann, {"id": sent, "action": "remove", "draftOnly": "yes"})
+
     def test_a_hidden_record_that_goes_away_leaves_its_picture_hidden(self):
         pic, said = self.received_on_q1(self.ann, "a.png"), self.received_on_q1(self.ann, "b.png")
         self.act("answer", self.ann, {"qid": "Q1", "text": "Ann's", "view": "focus", "attachments": [pic]})
