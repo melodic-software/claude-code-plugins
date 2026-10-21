@@ -21,6 +21,8 @@
 - [17. Claude Code temp root](#17-claude-code-temp-root)
 - [18. Environment and PATH health](#18-environment-and-path-health)
 - [19. Drive-root litter](#19-drive-root-litter)
+- [21. Startup items](#21-startup-items)
+- [22. App last-use](#22-app-last-use)
 
 Per-check rubrics for Windows. Section numbers follow the order of `catalog/checks.jsonc`. Each
 number is the anchor a catalog entry's `severity_rules` points at, so renumbering breaks those
@@ -855,3 +857,96 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   `inaccessible_count`, `skipped_reparse_dirs`, `skipped_sync_roots`, `items_count`,
   `muted_count`. `detail.roots[]` gives each root's `status` (`scanned`, `absent`,
   `inaccessible`, `reparse` or `cloud-sync-root`), totals and `reclaim_hint`.
+
+---
+
+## 21. Startup items
+
+- **Script:** `scripts/windows/checks/Test-StartupItems.ps1`
+- **Category:** `services`
+- **Needs admin:** no. Without elevation `Get-ScheduledTask` lists only part of the task store, so
+  `tasks_complete` is false and named in `admin_fields`; every other source reads the same either
+  way.
+- **Remediation:** none. The check lists; turning an entry off is the owner's action in Task
+  Manager or Settings.
+- **Commands:**
+
+  ```powershell
+  Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run   # and RunOnce; HKLM; HKLM WOW6432Node
+  Get-ChildItem ([Environment]::GetFolderPath('Startup'))           # and CommonStartup
+  Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run
+  Get-ScheduledTask   # tasks with a logon trigger
+  ```
+
+- **What it lists:** one FindingItem per Run and RunOnce value (HKCU, HKLM, HKLM WOW6432Node), per
+  file in the user and common Startup folders, and per scheduled task with a logon trigger. A
+  Startup-folder shortcut is listed by its path; it is never opened, so its target is not resolved.
+  The registry keys and folders are read directly rather than through `Win32_StartupCommand`,
+  because StartupApproved is keyed by those same locations.
+- **Approved state:** Explorer's StartupApproved keys record whether the owner turned an entry off.
+  `approved_state` is `enabled`, `disabled` (with `disabled_at` when the value carries a time),
+  `unknown` (with the value's first byte in `approved_raw_byte`), or `none` when the entry has no
+  StartupApproved value or, like RunOnce, has no StartupApproved key. A logon task reads `enabled` or
+  `disabled` from its task state. The decoding table lives in
+  `scripts/windows/lib/Read-StartupApproved.ps1`; Microsoft does not document the encoding, and the
+  fleet hosts carry first bytes the table leaves `unknown`. **As of**: 2026-10-21. **Recheck
+  trigger**: a probe ties one of those bytes to an observed Task Manager state, or Microsoft
+  documents the key.
+- **Severity rubric:**
+  - `UNKNOWN`: any unmuted item in the `unknown` approved state, or any location that read as
+    `denied`, `masked`, `false-zero` or `error` (named in `unreadable_sources`).
+  - `INFO`: any unmuted item otherwise.
+  - `OK`: nothing starts at logon, or every item is muted.
+  - Startup entries are inventory, never `WARN` or `CRIT`.
+- **Notes:** each item's key is `startup:` over scope and name, or `task:` over task path and
+  name, so muting one survives reordering. `enabled_count` counts what starts at logon: entries
+  `enabled` or `none`.
+
+---
+
+## 22. App last-use
+
+- **Script:** `scripts/windows/checks/Test-AppLastUse.ps1`
+- **Category:** `config`
+- **Needs admin:** no. UserAssist, the source every verdict rests on, is readable un-elevated.
+  Prefetch and BAM refuse a standard token; un-elevated, `prefetch_state` and `bam_state` read
+  `denied` and are named in `admin_fields`, and elevated they add launch times.
+- **Remediation:** none. The check never uninstalls anything.
+- **Commands:**
+
+  ```powershell
+  Get-ChildItem HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall | Get-ItemProperty   # and WOW6432Node, HKCU
+  Get-AppxPackage
+  Get-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\UserAssist\*\Count
+  ```
+
+- **Installed apps:** Uninstall entries with a display name that are neither system components nor
+  updates, plus the user's packaged apps that are not framework, resource or system packages.
+  `Win32_Product` is never queried: enumerating it can start Windows Installer repairs.
+- **Evidence window:** `evidence_start` is the later of the OS install date and the profile's
+  creation time; no launch record predates either. The window is whatever the host has, so it is
+  reported as a date, never converted to a length of time.
+- **Verdicts:**
+  - `launched`: a launch record names the app: its AppUserModelID for a packaged app; for a Win32
+    app, its DisplayIcon executable or a path under its install folder (a folder only one level
+    below a drive root holds many apps and never matches).
+  - `no-launch-recorded`: UserAssist read, the app could have appeared in it, and did not. Shown
+    as "no launch recorded since <evidence_start>".
+  - `no-evidence`: UserAssist did not read, or nothing could name the app in it: a packaged app
+    with no UserAssist entry, or a Win32 app with neither an install folder nor a DisplayIcon
+    executable.
+  - UserAssist records shell launches only, so `no-launch-recorded` means no recorded launch, not
+    proof the app was never run. The record layout is decoded in
+    `scripts/windows/lib/Read-UserAssist.ps1`; Microsoft does not document it, and a host whose
+    values no longer fit reads `userassist_state` `error`. **As of**: 2026-10-21. **Recheck
+    trigger**: `userassist_state` reads `error` on a fleet host, or `launched_count` reads 0 where
+    apps are in daily use.
+- **Severity rubric:**
+  - `UNKNOWN`: `userassist_state` is `denied`, `masked`, `false-zero` or `error`; or every
+    unmuted app is `launched` while another source read anything but `ok` or `absent`.
+  - `INFO`: any unmuted app with verdict `no-launch-recorded` or `no-evidence`.
+  - `OK`: every unmuted app `launched` and every source read.
+  - App use is inventory, never `WARN` or `CRIT`.
+- **Notes:** items are keyed `app:` over the Uninstall subkey name or the package family name.
+  `launched_count` and `userassist_state` show whether the decode works on this host; `apps_count`
+  cannot, since a broken decode leaves it unchanged.
