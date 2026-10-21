@@ -75,9 +75,9 @@ special-case.
    directory holds no entry other than a regular file or directory
    (`find <holdout>/phase-N ! -type f ! -type d` prints nothing; a symlink is the case this
    catches). A difference it did not make itself (step 6, which records a new hash) is a Major
-   divergence and stops the run. It then creates a detached throwaway worktree at
-   the phase head, never reusing a worker's worktree, and the `phase-verifier` dispatch carries
-   that path, the holdout path, the exact run command, and the criterion each test maps to. When
+   divergence and stops the run. It then creates the throwaway worktree that SKILL.md "Phase
+   boundaries" describes (the full phase state; never a worker's worktree). The `phase-verifier`
+   dispatch carries that path, the holdout path, the exact run command, and the criterion each test maps to. When
    the ecosystem needs the tests inside the tree to build, the orchestrator copies them into the
    throwaway worktree, never into a worker's. It removes the throwaway worktree after the verdict.
 
@@ -88,7 +88,10 @@ special-case.
    never through a package script. For example, `pytest --noconftest -c <holdout>/pytest.ini
    --rootdir <holdout> -p no:cacheprovider`, `vitest run --config <holdout>/vitest.config.ts`, or
    `jest --config <holdout>/jest.config.js`. A runner configuration or test setup file the phase
-   diff adds or changes is a verifier finding (SKILL.md, Dispatch cadence item 1.13).
+   diff adds or changes without sanction is a verifier FAIL under the rule SKILL.md, Dispatch
+   cadence item 1.13, quotes; a sanctioned one is still a finding. The throwaway worktree is not
+   holdout-only: SKILL.md, Phase boundaries, creates it whenever the phase diff touches a test or
+   check file, so the verifier can re-run the check with those paths restored from base.
 
    - **Pointer**: the runners' own flag references:
      [pytest command-line flags](https://docs.pytest.org/en/stable/reference/reference.html#command-line-flags),

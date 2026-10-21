@@ -137,7 +137,8 @@ a plan asks for it. Both reviews run in a fresh-context subagent, never in the a
 hand it the pull request's diff
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-diff)) and
 the acceptance criteria, not the author's reasoning. Each bullet names its `pre_ready` step; skip
-a step the list disabled or `--skip` removed, after any built-in skip it has.
+a step the list disabled or `--skip` removed, after any built-in skip it has. The commit and the
+verify record after the bullets are not steps: they run every time.
 
 Before the reviews, read the review venue again ([review-venue.md](review-venue.md)); a lane can
 fail between prep and the flip. A review whose lane reads `ci` is skipped as a built-in condition:
@@ -186,14 +187,35 @@ The bullets below are the steps.
   repository's `REVIEW.md` names (trust boundaries, injection, credential exposure, authorization
   gaps, Actions and hook permissions).
 - **The verify gate of [prep.md](prep.md) §1.5 (`verify`), last.** The merge moved HEAD, so the gate that ran
-  in prep no longer covers the commit that ships. Commit whatever the reviews changed first;
-  nothing that edits the tree runs after the gate. When the repository ships
-  `scripts/check-affected.sh`, run `scripts/check-affected.sh --tests` first as the
-  deterministic gate; exit 1 stops the flip.
+  in prep no longer covers the commit that ships. It runs after the commit below; nothing that
+  edits the tree runs after the gate. Its last part is deterministic: `scripts/check-affected.sh
+  --tests` when the repository ships it, otherwise §1.5's ecosystem-native commands. That part
+  runs inside the record command below, so the result comes from its exit status.
+
+**Commit, then record the verify result.** Both run in every repository and every run, whatever
+`pre_ready` or `--skip` says; neither is a step either can name. First commit whatever the reviews
+changed, so the gate and the record cover the head 2.5.4 flips. Then record one result for
+`git rev-parse HEAD`. 2.5.4 reads it: prose cannot stop the flip, a script in the flip's own shell
+command can.
+
+- `verify` ran: after the rest of §1.5, run its deterministic last part and the record as one
+  shell command, so `pass` is never typed by hand:
+
+  ```bash
+  if bash scripts/check-affected.sh --tests; then R=pass; else R=fail; fi; bash "<skill-dir>/scripts/verify-gate.sh" record --head "$(git rev-parse HEAD)" --result "$R"
+  ```
+
+  Without `scripts/check-affected.sh`, the `if` holds §1.5's ecosystem-native commands joined
+  with `&&`. When an earlier part of §1.5 already failed, record `--result fail` directly. A
+  recorded `fail` stops the flip.
+- `verify` did not run: record `--result skipped` when the `parse-ready-skip.sh` output has a
+  `skip verify` line or the `read-pre-ready.sh` output has a `verify disabled` line. The report
+  still names the skip or the disabling (2.5.6).
 
 Completion criterion, for each step that ran: any review evidence the plan asks for is linked,
 the findings of each review that ran are fixed or recorded, and the verify gate is clean on
-`git rev-parse HEAD`.
+`git rev-parse HEAD`. In every run, a result is recorded for `git rev-parse HEAD`: `pass` or
+`fail` from the gate's exit status, or `skipped`.
 
 ## 2.5.4 Flip to ready
 
@@ -228,7 +250,9 @@ When nothing was pushed, skip the wait and flip as before.
 Then run the hold check of 2.5.1 again
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)),
 since a hold can land during the reviews; on any exit but 0, leave the PR in draft, report the
-check's output, and stop. Otherwise, when `--skip` removed a step, post the skip comment (see
+check's output, and stop. The flip's own shell command also runs `verify-gate.sh check` for the
+head being flipped and goes on only on exit 0: a `fail`, or no result recorded for that head (a
+commit after the record voids it), refuses the flip and the PR stays a draft. Otherwise, when `--skip` removed a step, post the skip comment (see
 "Skip a step for this run"), then mark the PR ready
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#flip-to-ready)).
 
