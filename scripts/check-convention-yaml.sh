@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Validate every tracked <home>/<concern>.yaml against its JSON Schema
 # (ADR 0064 Decisions 6 and 7). <home> is the convention home the repository
-# binds in the pointer region of AGENTS.md or CLAUDE.md as committed at the
-# merge base with the base branch, read with lib/resolve-convention-home.sh
-# (ADR 0075 fix 3); docs/conventions when the
+# binds in the pointer region of AGENTS.md or CLAUDE.md, read with
+# lib/resolve-convention-home.sh (ADR 0075 fix 3) both at the merge base with
+# the base branch and in the working tree; docs/conventions when the
 # repository binds none or declined a home.
 #
 #   scripts/check-convention-yaml.sh          validate; list every finding
@@ -74,42 +74,71 @@ if [[ ! -f "$resolver" ]]; then
   printf 'check-convention-yaml: %s is required to find the convention home\n' "$resolver" >&2
   exit 2
 fi
-# The pointer is read as committed at the merge base with the base branch, not
-# from this checkout: a pull request that edits the region would otherwise move
-# the directory this gate checks. The base branch is origin/$GITHUB_BASE_REF on
-# a pull request, else origin's default branch (origin/HEAD, then origin/main).
-# Where none of those resolves (a clone with no origin, a fixture repository),
-# the working tree's pointer is read, as before.
-base_args=()
+# Two pointers are read, and the YAML under both homes is checked: the one
+# committed at the merge base with the base branch, so a pull request that
+# edits the region cannot move the gate off the home it is checked against, and
+# the working tree's, so the home the change itself binds is checked too. The
+# base branch is origin/$GITHUB_BASE_REF on a pull request, else origin's
+# default branch (origin/HEAD, then origin/main). Where none resolves (a clone
+# with no origin, a fixture repository) only the working tree's pointer is
+# read; in CI (GITHUB_ACTIONS=true or a GITHUB_BASE_REF) that is exit 2.
 base_branch="origin/${GITHUB_BASE_REF:-}"
 if [[ -z "${GITHUB_BASE_REF:-}" ]]; then
   base_branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" || base_branch=origin/main
 fi
-if git rev-parse --verify --quiet --end-of-options "$base_branch^{commit}" >/dev/null 2>&1 &&
-  merge_base="$(git merge-base HEAD "$base_branch" 2>/dev/null)"; then
-  base_args=(--ref "$merge_base")
+merge_base=""
+if git rev-parse --verify --quiet --end-of-options "$base_branch^{commit}" >/dev/null 2>&1; then
+  merge_base="$(git merge-base HEAD "$base_branch" 2>/dev/null)" || merge_base=""
 fi
-home=docs/conventions
-resolved_rc=0
-resolved="$(bash "$resolver" --root . ${base_args+"${base_args[@]}"} 2>/dev/null)" || resolved_rc=$?
-case "$resolved_rc" in
-0) home="$resolved" ;;
-1 | 4 | 5) ;;
-3)
-  # The resolver's own message says which region is broken.
-  bash "$resolver" --root . ${base_args+"${base_args[@]}"} 2>&1 >/dev/null | sed 's/^/check-convention-yaml: /' >&2 || true
-  exit 1
-  ;;
-*)
-  printf 'check-convention-yaml: %s failed with exit %s\n' "$resolver" "$resolved_rc" >&2
+if [[ -z "$merge_base" && ("${GITHUB_ACTIONS:-}" == true || -n "${GITHUB_BASE_REF:-}") ]]; then
+  printf 'check-convention-yaml: no merge base with %s to read the convention-home pointer at\n' "$base_branch" >&2
   exit 2
-  ;;
-esac
+fi
+
+# resolve_home <label> [resolver args...]: print the home, docs/conventions when
+# the root binds none or declined one; return the resolver's exit 3 or other
+# failure code with its message on stderr.
+resolve_home() {
+  local label="$1" out rc=0
+  shift
+  out="$(bash "$resolver" --root . "$@" 2>/dev/null)" || rc=$?
+  case "$rc" in
+  0) printf '%s\n' "$out" ;;
+  1 | 4 | 5) printf 'docs/conventions\n' ;;
+  3)
+    # The resolver's own message says which region is broken.
+    bash "$resolver" --root . "$@" 2>&1 >/dev/null | sed "s/^/check-convention-yaml: $label: /" >&2 || true
+    return 3
+    ;;
+  *)
+    printf 'check-convention-yaml: %s: %s failed with exit %s\n' "$label" "$resolver" "$rc" >&2
+    return 2
+    ;;
+  esac
+}
+
+rc=0
+# shellcheck disable=SC2310  # resolve_home returns its codes itself; set -e has nothing to catch
+head_home="$(resolve_home 'working tree')" || rc=$?
+((rc == 3)) && exit 1
+((rc == 0)) || exit 2
+homes=("$head_home")
+if [[ -n "$merge_base" ]]; then
+  rc=0
+  # shellcheck disable=SC2310  # resolve_home returns its codes itself; set -e has nothing to catch
+  base_home="$(resolve_home "merge base $merge_base" --ref "$merge_base")" || rc=$?
+  # A broken pointer at the base is a warning: failing on it would fail every
+  # later change, the one that repairs it included.
+  ((rc == 0 || rc == 3)) || exit 2
+  [[ $rc -eq 0 && "$base_home" != "$head_home" ]] && homes+=("$base_home")
+fi
 
 files=()
-while IFS= read -r -d '' path; do
-  files+=("$path")
-done < <(git ls-files -z -- ":(glob)$home/*.yaml")
+for home in "${homes[@]}"; do
+  while IFS= read -r -d '' path; do
+    files+=("$path")
+  done < <(git ls-files -z -- ":(glob)$home/*.yaml")
+done
 
 findings=0
 checked=0
@@ -120,7 +149,7 @@ for path in ${files+"${files[@]}"}; do
   # with it every plain --merge. It reads no other file here, so only that one
   # is held to it. Read byte-wise as the policy's reader runs (LC_ALL=C); only
   # LF and a line-ending CR, which the reader strips, are allowed.
-  if [[ "$path" == "$home/pr-pipeline.yaml" ]] &&
+  if [[ "${path##*/}" == pr-pipeline.yaml ]] &&
     separator="$(LC_ALL=C awk '/[\001-\011\013\014\016-\037\177]|\015./ || /\302[\200-\237]|\342\200[\250\251]/ { print NR; exit }' "$path")" &&
     [[ -n "$separator" ]]; then
     printf '%s: line %s carries a control or line-separator character the unattended merge policy refuses\n' "$path" "$separator" >&2
@@ -135,7 +164,7 @@ for path in ${files+"${files[@]}"}; do
   stem="${path##*/}"
   stem="${stem%.yaml}"
   plugin_schema="plugins/$stem/schemas/$stem.schema.json"
-  convention_schema="$home/$stem/$stem.schema.json"
+  convention_schema="${path%/*}/$stem/$stem.schema.json"
   if [[ -f "$plugin_schema" ]]; then
     schema="$plugin_schema"
   elif [[ -f "$convention_schema" ]]; then
@@ -155,4 +184,5 @@ if ((findings > 0)); then
   printf 'check-convention-yaml: %d finding(s) across %d file(s) checked\n' "$findings" "$checked" >&2
   exit 1
 fi
-printf 'check-convention-yaml: %d %s YAML file(s) parse and validate against their schemas\n' "$checked" "$home"
+homes_text="${homes[*]}"
+printf 'check-convention-yaml: %d %s YAML file(s) parse and validate against their schemas\n' "$checked" "${homes_text// / and }"

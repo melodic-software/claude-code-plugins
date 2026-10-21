@@ -347,7 +347,7 @@ recipe::convention_yaml() { # <clean|violation>
   [[ "$1" == violation ]] || printf '{}\n' >"$f/plugins/alpha/schemas/alpha.schema.json"
   git_test_config "$f" add -A >/dev/null || return 2
   git_test_config "$f" commit -qm seed >/dev/null || return 2
-  capture run_in "$f" env CHECK_JSONSCHEMA_BIN=true bash scripts/check-convention-yaml.sh --check
+  capture run_in "$f" env -u GITHUB_ACTIONS -u GITHUB_BASE_REF CHECK_JSONSCHEMA_BIN=true bash scripts/check-convention-yaml.sh --check
 }
 
 recipe::adr_numbers() { # <clean|violation>
