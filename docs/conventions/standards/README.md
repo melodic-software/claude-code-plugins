@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.1.0
+standards-contract: 1.1.1
 ---
 
 # Standards Convention
@@ -127,6 +127,11 @@ of working the way out from the code each time.
   advisory finding. The discipline plugin's `reuse-or-replace` skill reads
   the file on demand as the record of the established way. Planning resolves
   the row like any other.
+- **Writer and readers:** `reuse-or-replace` is the one skill that writes
+  entries, and only after the user says yes; other skills propose entries to
+  it. The planning plugin's `plan`, the implementation plugin's `implement`
+  (which reads only the entries for the concerns the paths it edits touch)
+  and review are the readers.
 - **No default content:** no plugin ships paved paths. An index with no
   `paved-path` row gives the readers nothing to apply, and they report
   nothing about it.

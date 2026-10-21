@@ -538,6 +538,20 @@
         "Appends a human-decision entry for the PDF export to DEVIATIONS.md",
         "Completes the CSV export the plan calls for"
       ]
+    },
+    {
+      "id": 41,
+      "name": "reads-only-the-paved-path-entries-for-edited-paths",
+      "narration": true,
+      "prompt": "/implementation:implement feature add a nightly export job under jobs/. The repository's docs/standards/README.md has a paved-path row pointing at docs/standards/paved-paths.md, which lists three concerns: scheduled jobs (jobs/ registry with the shared retry wrapper), new API routes (routes/ template) and table column changes (migrations/ generator). There is no .claude/standards.yaml.",
+      "expected_output": "Before the first edit, resolves the standards index at docs/standards/README.md (no standards_dir override), finds the paved-path row, and reads only the scheduled-jobs entry because the job under jobs/ touches that concern alone. It does not load the API-route or column-change entries. It builds the job through the jobs/ registry and the shared retry wrapper. A plan's per-phase criteria lines, if present, still win over the entry.",
+      "files": [],
+      "expectations": [
+        "Resolves docs/standards/README.md as the index because no standards_dir is set",
+        "Reads the scheduled-jobs paved-path entry before the first edit",
+        "Does NOT read the API-route or column-change entries, which the edited paths do not touch",
+        "Builds the job through the registry and shared retry wrapper the entry names"
+      ]
     }
   ]
 }
