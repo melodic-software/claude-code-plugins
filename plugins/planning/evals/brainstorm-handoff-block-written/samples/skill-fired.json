@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:brainstorm", "args": "topic onboarding-dropoff"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "brainstorm"}}], "why": "unqualified name"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview"}}], "why": "a different planning skill"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

@@ -95,6 +95,7 @@ Spend the first turn grounding yourself, in parallel:
 - `git log --oneline -20` for recent product direction
 - List the project's own rules files that govern the area (architecture, modules, conventions)
 - Note what `<memory_dir>/<topic-slug>/` (default `.work/`) already contains: prior PRD, PLAN, design, exploration and research artifacts
+- When `<memory_dir>/<topic-slug>/brainstorm.md` exists, read its `## Handoff` block as seeds the rounds confirm: `Problem` and `Intent (why, in the user's words)` seed the Problem, `Vision (where this heads)` the Goals `Vision:` line (`not stated` becomes `none stated`), and `Chosen direction` with `Rejected options` stay context for the rounds, not requirements, since the PRD records the problem and its success, not the solution
 
 If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; PRD.md is never committed, so the restart note is its only history, carried by the copy pasted into the pull request body or linked issue).
 
@@ -110,7 +111,7 @@ If not specified in `$ARGUMENTS`, surface the tier choice (card only under the `
 | **2. Consumer-feature** | User-facing app feature with metrics, 1-2 user stories, risk surface. ~1 page. Full sections. |
 | **3. B2B-internal** | Internal/B2B feature with stakeholders, compliance, integration, rollout, change-management. ~2 pages. Full sections + stakeholders, rollout, dependencies/integrations. |
 
-Tier governs section depth, not section presence: all three tiers cover the same seven required sections (problem, goals, non-goals, users + user stories, success metrics, dependencies/risks, open questions).
+Tier governs section depth, not section presence: all three tiers cover the same eight required sections (problem, goals with a vision line, non-goals, users + user stories, success metrics, dependencies/risks, assumptions, open questions).
 
 Full templates: [`context/templates.md`](context/templates.md). Read on demand.
 
@@ -137,13 +138,14 @@ Question shapes that recur, in priority order:
 | Section | Highest-value surfacing question |
 |---------|----------------------------------|
 | Problem | "Whose problem is this, and what do they currently do instead?" |
-| Goals | "If we ignore implementation, what changes for the user when this ships?" Then, once for the feature: "Which shortcut in building this would cost users something, and do we take it or not?" |
+| Goals | "If we ignore implementation, what changes for the user when this ships?" Then, once for the feature: "Which shortcut in building this would cost users something, and do we take it or not?" And for the Vision line: "Past this release, where do you want this to head?" |
 | Non-goals | "What is explicitly out of scope so we don't drift?" Then: "For every new option, control or setting: what is it for?" Any that no one can explain lands in this section. |
 | Users | "Who is the primary user. One persona or many? Walk me through their day before and after." |
 | User stories | "Pick the one most-important journey: as a `<role>` I want to `<action>` so that `<outcome>`." |
 | Success metrics | "How will we know it worked? Name the metric and the threshold. Adoption %, conversion %, time saved, error rate." Then: "Which repeated task that brings users back does this improve, and does the metric measure that task?" |
 | Acceptance-criteria coverage | Asked once, per "Acceptance-criteria capture" below. Never one question per criterion. |
 | Dependencies / risks | "What outside this team must exist or change for this to ship? What's the biggest risk?" |
+| Assumptions | "What are we taking as true without proof, and what would show it false?" |
 | Open questions | "What is genuinely undecided that `/planning:plan` needs an answer to?" |
 
 Stop asking once every required section has either a resolved answer or an explicit "open question with revisit trigger".
@@ -168,18 +170,19 @@ updated: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 Required sections (every tier; verbosity varies):
 
 1. **Problem**. What is broken, missed, or unmet for users today
-2. **Goals**. Outcome-level, not implementation-level
+2. **Goals**. Outcome-level, not implementation-level, plus one `Vision:` line on where the user wants this to head (`none stated` when they gave none)
 3. **Non-goals**. Explicit out-of-scope items, including any setting, control or option with no stated reason. Asking for a reason never cuts an option the consuming project keeps configurable on purpose: there the option stays and its reason is recorded
 4. **Users**. Primary persona(s) + 1-2 user stories in `as a <role>, I want <action>, so that <outcome>` form
 5. **Success metrics**. Named metric + threshold + measurement window, tied to the repeated task users come back for; when the metric does not measure that task, say so
 6. **Dependencies / risks**. Outside-team dependencies + top 1-3 risks with mitigations
-7. **Open questions**. Anything genuinely undecided that `/planning:plan` needs answered
+7. **Assumptions**. What the PRD takes as true without proof, each with what would show it false; `/planning:interview` carries them into the Brief's Captured assumptions
+8. **Open questions**. Anything genuinely undecided that `/planning:plan` needs answered
 
 Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
 **Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers; the PRD should still be accurate after a refactor.
 
-**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that discipline inline. The seven required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
+**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that discipline inline. The eight required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
 
 **Non-goals graduation edge.** A non-goal that is a permanent, deliberate rejection, not a deferral, graduates to the consuming repo's rejected-concept ledger at `docs/out-of-scope/<concept>.md`, one file per concept, accreting a "Prior requests" log entry each time the concept resurfaces, so future proposals are answered by the ledger instead of relitigated. Create the file lazily on first permanent rejection; when the consumer keeps no ledger, the plain Non-goals list suffices.
 
@@ -233,7 +236,7 @@ Resolve `acceptance_criteria_format` per the ladder below. Under `free-text`, th
 
 The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, and `optional-feature`. A downstream reader matches the literal name, so a variant spelling (`unwanted_behavior`, `unwanted`, `event`) is an untagged criterion that looks tagged and fails silently.
 
-**Scope.** The seven required sections carry no acceptance-criteria list of their own, and this skill adds none: the **Success metrics** table is a measurement with a threshold and a window, not an EARS pattern, and it stays a table under both formats. Tags attach to acceptance criteria this run writes as plain bullets; the durable home for tagged criteria is the Brief `/planning:interview` locks downstream. This skill owes the coverage question, the exact vocabulary, and the same resolution, so a PRD-then-interview pipeline does not change its answer halfway through.
+**Scope.** The eight required sections carry no acceptance-criteria list of their own, and this skill adds none: the **Success metrics** table is a measurement with a threshold and a window, not an EARS pattern, and it stays a table under both formats. Tags attach to acceptance criteria this run writes as plain bullets; the durable home for tagged criteria is the Brief `/planning:interview` locks downstream. This skill owes the coverage question, the exact vocabulary, and the same resolution, so a PRD-then-interview pipeline does not change its answer halfway through.
 
 ### Resolution ladder for `acceptance_criteria_format`
 
@@ -269,7 +272,7 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 When invoked with `review`:
 
 1. Locate the topic's `PRD.md` (slug derivation above)
-2. Evaluate against the seven required sections. Flag any missing or fuzzy
+2. Evaluate against the eight required sections. Flag any missing or fuzzy
 3. Evaluate against skip-conditions. If engineering-internal, recommend supersession with a `/planning:interview` brief
 4. Check goals are *outcomes*, not implementations (the most common failure mode)
 5. Check success metrics have a *measurement window* and *threshold*, not vague language

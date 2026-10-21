@@ -66,7 +66,7 @@ Beyond the correctors, the plugin ships four **declared further species**: skill
 | `/discipline:sweep-all` | Composed runbook | Runs the whole bundle as one pass. Fans out an audit-only subagent per in-scope corrector, then applies the corrections on the main thread in a fixed order; at session start it reports a cheap posture digest instead |
 | `/discipline:wait-what` | One-shot communication repair | User-invoked only. Type it when the last message did not land; the model re-pitches it with the missing context, in ASD-STE100 Simplified Technical English, using the project's ubiquitous language. Never model-invoked, never in the batch |
 | `/discipline:hold-my-hand` | Standing session posture | Partitions the remaining work into phases and presents only the current one, never the phases after it beyond a one-line count. Each phase names where to be, its numbered steps and exact commands, the expected output, the common failure, who performs each step, and the exact reply that advances. Never in the batch |
-| `/discipline:be-ambitious` | One-shot request raise | User-invoked only. Shows one request beside a raised version (the goal behind it, expert methods and an outside check, more than one field), fenced to the scope you accept, and executes nothing until you answer. Never model-invoked, never in the batch |
+| `/discipline:be-ambitious` | One-shot request raise | User-invoked only. Shows one request beside a raised version (the goal behind it, expert methods and an outside check, more than one field), fenced to the scope you accept, and executes nothing until you answer. Typed after work, it deepens and redoes that work, pausing on a goal or scope change or a decision only you can make. Never model-invoked, never in the batch |
 
 ## What each skill does
 
@@ -401,15 +401,25 @@ specialist's work instead of a persona). A crew or a red team appears only as
 a proposal. A hard target appears only when you opt in, and then always with
 an abort line. Every raised version ends with a scope fence, and nothing runs
 until you accept; a request already the right size gets a one-line "no
-change". It carries no `discipline-batch` tier.
+change". Typed after work, alone or with feedback such as "too shallow", it
+deepens that work instead: it answers the four depth questions, rewrites the
+brief, and redoes the work from rawer material, reporting what an outside
+check showed. It pauses only when the goal or scope changes, when the work
+needs a decision, money or access that only you can give, or before
+anything destructive or hard to undo. A leading
+`depth` argument applies Depth and the outside check only. It carries no
+`discipline-batch` tier.
 
 Its eval cases in `evals/` list Write, Edit and Bash so the no-plugin arm can act
 on the request. Run them with `--allow-tools Write,Edit,Bash`; without the
 grant those tools are removed and the cases' "executes nothing" graders pass
-whatever the model does.
+whatever the model does. Add `--scaffold`: the in-progress cases seed the
+earlier work on disk, and without it they run on an empty workspace.
 
 ```shell
 /discipline:be-ambitious Make me a personal website   # raise this request
+/discipline:be-ambitious depth Parse our export dates # deeper, not bigger
+/discipline:be-ambitious This is too shallow         # deepen the work just done
 ```
 
 ## Consumer conventions

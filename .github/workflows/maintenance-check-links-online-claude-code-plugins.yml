@@ -1,0 +1,38 @@
+name: maintenance-check-links-online-claude-code-plugins
+
+# SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.
+# Source of truth: melodic-software/standards,
+# components/lychee-online/targets/claude-code-plugins.yml (the
+# `lychee-online-claude-code-plugins` component in
+# distribution/sync-manifest.yml). Downstream edits are overwritten by the next
+# sync PR; change the component upstream, or move the component to
+# `locally-owned` in the manifest to customize.
+#
+# Weekly online link check through the ci-workflows reusable
+# maintenance-check-links-online.yml: lychee with the network on, this
+# repository's lychee.toml and .lycheeignore, the report in the job summary, a
+# red run on a broken link, and only the GITHUB_TOKEN. Informational: not in
+# `ci-status`. A scheduled run checks only while this repository's
+# `link-check-online` property is true; a dispatched run always checks.
+#
+# The cron minute and day belong to this repository alone, so opted-in
+# repositories do not hit the same hosts at once
+# (components/lychee-online/README.md lists every slot in use).
+on:
+  schedule:
+    - cron: "37 11 * * 2"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check-links:
+    permissions:
+      contents: read
+    uses: melodic-software/ci-workflows/.github/workflows/maintenance-check-links-online.yml@3a2c748fdef9cfb9ceec5a66289e21842189689f # v0.55.0
+    with:
+      runner: ubuntu-24.04
+      # Test data, not links to check: intentionally broken fixtures.
+      extra-args: >-
+        --exclude-path '(^|/)plugins/attribution/skills/audit/evals/fixtures/golden/'
+        --exclude-path '(^|/)scripts/fixtures/hooks-lifecycle-table\.md$'

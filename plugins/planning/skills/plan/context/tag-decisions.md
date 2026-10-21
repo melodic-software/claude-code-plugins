@@ -1,10 +1,11 @@
 # Tag unilateral decisions (Step 4.6)
 
-Full taxonomy for `/planning:plan` Step 4.6. Before Step 5 approval, walk the PLAN body + Handoff section and classify every decision NOT explicit in the brief. Four categories:
+Full taxonomy for `/planning:plan` Step 4.6. Before Step 5 approval, walk the PLAN body + Handoff section and classify every decision NOT explicit in the brief. Five categories:
 
 | Category | Definition | Tag |
 |---|---|---|
-| **Briefed** | The Brief / interview locked this decision (acceptance criteria, constraints, out-of-scope items, deferred questions with `arbiter: /planning:plan`) | (no tag, assumed approved) |
+| **Briefed** | The Brief / interview locked this decision (acceptance criteria, constraints, out-of-scope items) | (no tag, assumed approved) |
+| **Deferred question** | A Brief `### Deferred questions` entry with `arbiter: /planning:plan` that the plan resolves, under the confidence gate below | No tag: a row in the "Decisions made (gate-passed)" table with Source `deferred Q<N>`, its first column carrying no id |
 | **Execution-shape** | /planning:plan's discretion within briefed scope: orchestration shape (parallel/sequential), sub-topic promotion, technique selection, per-phase ordering, sanity-check criteria | **Tag: `[EXEC-SHAPE]`** in the PLAN body |
 | **Fallback-for-edge-case** | A /planning:plan-invented contingency for scenarios the brief did NOT anticipate: follow-up work items, alignment-check protocols between parallel agents, retry mechanisms, mid-flight pivot defaults | **Tag: `[FALLBACK]`** in the PLAN body, for the user to confirm or override |
 | **Adopted mitigation** | A `/planning:devils-advocate` mitigation, reviewer fix, or research update the plan took on after the Brief | `[EXEC-SHAPE]` or `[FALLBACK]` by its nature, EXCEPT when it (a) displaces a user answer or (b) adds a remote write, irreversible action, or externally visible artifact: then it never passes the confidence gate and goes to Step 5's "Displaced answers and new external effects" block, with kind (a) setting its register row to `superseded-by-plan` |
@@ -26,7 +27,7 @@ Surface every decided tag at Step 5 in a "Decisions made (gate-passed)" subsecti
 
 | Decision | What it changes in the plan | Basis (evidence) | Source |
 |---|---|---|---|
-| D1 <one line> | <phase + concrete delta: what the reader would diff> | <source read this session> | <`plan`, `reviewer fix`, `research update`, or `stress-test finding`> |
+| D1 <one line> | <phase + concrete delta: what the reader would diff> | <source read this session> | <`plan`, `reviewer fix`, `research update`, `stress-test finding`, or `deferred Q<N>`> |
 
 **Decision ids.** Give each decision an id (`D1`, `D2`, ...) and write it in the tag, `[EXEC-SHAPE D1]` or `[FALLBACK D2]`, and at the start of the row's first column, as above. Do not add a leading column: the gate finds the table by its `| Decision | What it changes` header. A tag carries one id. Several tags may cite one row when one decision applies in several phases. `check-plan-outcome.sh` fails a tag id with no row and a row id no tag cites, and prints `mapped=<n>`. A bare `[EXEC-SHAPE]` / `[FALLBACK]` with no id still passes, with a `warning=bare-tag` line; ids are not required, so plans written before this form keep passing, but a bare tag leaves the tag-to-row check to a reviewer.
 

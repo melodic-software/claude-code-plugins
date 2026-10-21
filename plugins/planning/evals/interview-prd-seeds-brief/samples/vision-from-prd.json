@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "### Goal\nA picker opens the current pick list on the floor.\n- Intent (why, in the user's words): none stated\n- Vision (where this heads): every floor task a picker gets arrives on the device in their hand, not on paper\n- When goals conflict, prefer: none stated\n\n### Work size\n",
+      "why": "the PRD's Vision line carried into the Goal"
+    },
+    {
+      "answer": "### Goal\nPick lists on the floor.\n- Vision (where this heads): all picker work on the handheld device (from PRD)\n",
+      "why": "a paraphrase that keeps the device"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no Brief written"
+    },
+    {
+      "answer": "### Goal\nPick lists on the floor.\n- Vision (where this heads): none stated\n",
+      "why": "the PRD's vision was dropped"
+    },
+    {
+      "answer": "### Goal\nPick lists on the floor.\n\n### Captured assumptions\n- Vision (where this heads): every floor task arrives on the device in their hand\n",
+      "why": "the line sits outside the Goal section"
+    }
+  ]
+}

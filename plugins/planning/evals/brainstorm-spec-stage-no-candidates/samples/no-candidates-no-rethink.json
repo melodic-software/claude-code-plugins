@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Problem: CSV exports time out for accounts over 50,000 rows (observed: logs/export-timeouts.log, 38 timeouts across 6 accounts last week). Is that the problem? yes/no\n\nQ1: How should the streamed file reach the user? My recommendation: a chunked HTTP response, so the 30s limit counts time to first byte.",
+      "why": "restates the problem and asks a detail question about the streaming change"
+    },
+    {
+      "answer": "Q1: Which encoding should the stream write? My recommendation: UTF-8 with a BOM, since the current export opens in spreadsheet tools.\nQ2: What should happen when the source query fails mid-stream? My recommendation: end the file with an error row.",
+      "why": "detail questions only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here are some options for the timeouts:\n1. Stream the export (your idea).\n2. A background export job that emails a link.\n3. Paginate the export.\n\nWhich of these resonate?",
+      "why": "turns the stated fix into a candidate list"
+    },
+    {
+      "answer": "Problem: exports over 50,000 rows time out (observed). Before details, Q1: keep streaming the export, or move to a background job instead? My recommendation: the background job.",
+      "why": "reopens the stated mechanism"
+    }
+  ]
+}

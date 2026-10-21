@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: plan-brief-assumption-carried
+description: A locked Brief with one captured assumption gets a plan whose Load-bearing assumptions table carries it with a falsifying check and a response tier
+tags: [plan, brief, assumptions, scaffold]
+expected_outcome: The plan skill fires and writes the plan into .work/invoice-export/PLAN.md with a Load-bearing assumptions table holding the replica-lag assumption from the Brief, its Source (the Brief), a falsifying check that names a phase Sanity Check, and a response of Minor, Moderate or Major. The Goal names the Brief's Problem and quotes its Intent, Vision and When-goals-conflict lines.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/planning:plan The Brief in .work/invoice-export/PLAN.md is locked and the design gate has its early-exit record. Write the plan into that PLAN.md through the Step 4.7 draft, then show me the plan's Load-bearing assumptions section and stop before asking for approval."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: names-assumption
+    type: regex
+    pattern: 'Load-bearing assumptions[\s\S]{0,3000}\b(?:replica|lag\w*)\b[\s\S]{0,600}\b(?:Minor|Moderate|Major)\b'
+    flags: i
+    arm: both
+  - name: assumption-row-judge
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer shows a Load-bearing assumptions table (or quotes the PLAN.md section) with a row for the Brief's captured assumption that the reporting replica lags the primary by under five minutes, naming the Brief as its source, a falsifying check that names a phase Sanity Check, and a response of Minor, Moderate or Major. FAIL if the assumption is missing, if the row has no falsifying check or no response tier, or if the answer writes no plan."

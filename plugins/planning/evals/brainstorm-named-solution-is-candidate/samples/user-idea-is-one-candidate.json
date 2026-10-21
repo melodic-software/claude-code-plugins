@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Problem: nightly ETL finishes after 9am, so the morning dashboards are a day stale (reported). Cheapest to most ambitious:\n\n1. **Batch the inserts.** `etl/config.py` sets `BATCH_SIZE = 1` and `etl/load.py` commits per row. Effort: Small.\n2. **Replace the customer linear scan** in `etl/transform.py` with a dict. Effort: Small.\n3. **Start the job earlier** (non-code). `ops/crontab.txt` runs it at 1am. Effort: Small.\n4. **Your idea: a bigger warehouse.** More compute for the load step. Effort: Medium.\n5. **Load incrementally** instead of `TRUNCATE fact_orders` each night. Effort: Medium.\n\nWhich of these resonate?",
+      "why": "the user's idea is one numbered candidate among other kinds of fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A bigger warehouse is the way to go. To get the most from it, also:\n\n1. Raise `BATCH_SIZE`.\n2. Replace the linear scan.\n\nShall I scope the warehouse upgrade?",
+      "why": "adopts the named solution and frames the rest as add-ons"
+    },
+    {
+      "answer": "1. Batch the inserts in `etl/load.py`.\n2. Replace the linear scan in `etl/transform.py`.\n3. Load incrementally.\n\nA bigger warehouse would not help, so I left it out. Which of these resonate?",
+      "why": "dismisses the user's idea without listing it"
+    }
+  ]
+}

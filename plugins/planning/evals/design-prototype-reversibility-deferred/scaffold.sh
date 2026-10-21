@@ -41,7 +41,7 @@ to five testers, then deleted.
 
 ### Captured assumptions
 - Quality bar: prototype
-- Intent: second variant = speculative; existing structure: one Flask list route, no storage; upstream: none
+- Variation intent: second variant = speculative; existing structure: one Flask list route, no storage; upstream: none
 - Quality requirements deferred (prototype): revisit if it heads for production
 MD
 

@@ -337,7 +337,13 @@ configured `Acceptance criteria` heading is then filled from the change like any
 heading, so the §2.4.2 gate still finds it. This is the
 section `/verification:confirm` reads as the pull request's acceptance criteria.
 
-The content inside those headings is prose a reviewer reads: plain language, bottom line first, no filler, by invoking `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It rewords section content only, so the closing-keyword line, the resolved `${REQUIRED_SECTIONS[@]}` headings, `${REFS_LINES}`, and the acceptance criteria copied from the plan are untouched and the §2.4.2 gate sees the same shape either way.
+**Problem and intent from the plan.** When the same lookup finds a plan, the `Summary` section's
+first line is one prose line naming the Brief's `### Problem` and quoting its Goal's
+`Intent (why, in the user's words):` line, shaped `Problem: <one clause>. Intent: "<the user's words>"`.
+Scrub it as the criteria are scrubbed. A Brief with no Problem or no Intent line drops that half;
+with neither, no plan, or no `Summary` heading in `${SECTION_ORDER[@]}`, add no line.
+
+The content inside those headings is prose a reviewer reads: plain language, bottom line first, no filler, by invoking `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It rewords section content only, so the closing-keyword line, the resolved `${REQUIRED_SECTIONS[@]}` headings, `${REFS_LINES}`, the acceptance criteria copied from the plan, and the quoted Intent in the Problem and intent line are untouched and the §2.4.2 gate sees the same shape either way.
 
 **Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under `summary-test-plan`) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. The PR create command has no option that uploads a file ([GitHub](../../../reference/providers/github/pull-request/create.md#body-overrides-the-template)), so the section lists each capture's local path and asks the person to drag the files into the PR description on GitHub; when no media could be captured, it says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
 

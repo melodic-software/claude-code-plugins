@@ -1,18 +1,30 @@
 ---
-description: "Raises one request before work starts: shows the original beside a version with a higher goal, deeper methods and wider range, fenced to a scope the user accepts, and waits. Typed by the user who suspects they asked for less than they want; only the user knows that."
-argument-hint: "[request]"
+description: "Raises one request before work starts: shows the original beside a version with a higher goal, deeper methods and wider range, fenced to a scope the user accepts, and waits. After work, deepens and redoes it with an outside check. Typed by the user who suspects they asked for, or got, less than they want; only the user knows that."
+argument-hint: "[depth] [request|feedback]"
 user-invocable: true
 disable-model-invocation: true
 metadata:
   workflow-stage: anytime
-  summary: Raise one request's goal, depth and range, fenced and checkable, then wait for the user to accept
+  summary: Raise a request before work and wait, or deepen finished work and redo it with an outside check
 ---
 
 # Be ambitious
 
-The request is the text after the command. With none, it is my previous
-message; with neither, ask me for one. Raise it, show the raise, and stop.
-Write no file, run no command and invoke no skill until I answer.
+First strip a leading `depth` argument: it applies only Depth and the outside
+check, whichever case follows; say Altitude and Range were skipped because I
+asked for depth only. Then read the remaining text after the command and pick
+one case. Work means files, commands or a deliverable you produced; a plan or
+proposal you only offered is not work.
+
+- **A request not yet started.** Raise it, show the raise, and stop. Write no
+  file, run no command and invoke no skill until I answer. Sections 1 to 5.
+- **Feedback on work you did in this conversation** ("too shallow", "not good
+  enough"), or no text when the last thing here is work you did: deepen that
+  work. Section 6.
+- **No text, otherwise.** The request is my previous message. When that
+  message is an aside or a side question while an earlier request of mine
+  still waits on my answer, raise the waiting request. With neither, ask me
+  for one.
 
 ## 1. Size it
 
@@ -28,8 +40,8 @@ after I do.
 
 ## 2. Raise it
 
-Apply all three axes and say which you applied. Skip one only when it plainly
-does not fit, and then say which and why.
+Apply all three axes, or Depth alone under `depth`, and say which you applied.
+Skip one only when it plainly does not fit, and then say which and why.
 
 **Altitude.** State the goal behind the goal, then one purpose line: "This is
 for ...". Screen the fit: creative or taste work is a weaker fit (say so, do
@@ -92,11 +104,33 @@ Reply "accept", edit the raised version, or keep the original.
 My reply is the go-ahead; ask for no second confirmation. Once I answer, this
 skill ends and the session works the accepted request normally.
 
+## 6. Deepen work in progress
+
+The goal is already set, so Altitude and Range do not apply; a bigger goal is
+a reason to pause under step 3 below. Sections 3 and 4 still apply, and the
+project's own instructions still govern.
+
+1. Answer, in a few lines each, for that work: what a top practitioner would
+   do that I did not ask for; the rawest material they would start from
+   instead of what the first pass used; the methods and tools, each named;
+   and the outside check.
+2. Rewrite the brief: my original request plus my feedback, deepened by those
+   answers. Show it.
+3. Pause only when the new brief changes the goal, widens the scope, needs a
+   decision, money or access that only I can give, or would do something
+   destructive or hard to undo. Say which, and wait; my reply is the
+   go-ahead.
+4. Otherwise carry on without waiting. Redo the work to the new brief,
+   starting from the raw material in step 1 and using its methods. Before you
+   report, run the outside check and say what it showed. A fresh-context
+   review stays a proposal under section 3.
+
 ## A declared species in this plugin: NOT a corrector
 
 The correctors re-anchor a standing discipline. This skill is a one-shot,
-user-fired request raise: only the user knows they want more than they asked,
-so the model never fires it, and it carries no `discipline-batch` tier.
+user-fired raise or deepen: only the user knows they want more than they
+asked for or got, so the model never fires it, and it carries no
+`discipline-batch` tier.
 Nearest siblings, for routing: `/planning:brainstorm` when the user wants
 options rather than one raised request, and `/discipline:scrutinize-dont-coast`
 when the question is whether finished work is sound.
