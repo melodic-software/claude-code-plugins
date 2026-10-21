@@ -1,6 +1,6 @@
 ---
 description: "Seven standing imperatives that arm the current session for an orchestration-heavy task (delegate and fan out, spec every spawn, fresh-context verify, run workers well, nested subagents, surface drift, calibrate to conditions), optionally exported as a brief for a worker. Use when: 'orchestrate', 'orchestration brief', 'prime this session', 'arm for orchestration', 'about to do heavy delegation', 'worker spawn prompt', 'delegation preamble'."
-argument-hint: "[<task>|handoff [compact]|worker [compact]]"
+argument-hint: "[<task>|handoff [compact]|worker [compact]|coordinator [<area>]]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -31,6 +31,7 @@ Pointers behind each imperative: `context/sources.md`; observed failure modes:
 | *(default. Optional `<task>`)* | **Prime THIS session.** The standing instructions below are now active for the upcoming task; respond with a terse acknowledgment and, if `<task>` is given, one line orienting to it. Do NOT re-emit the imperatives. Loading them IS the priming. |
 | `handoff [compact]` | **Export** the imperatives as a paste-ready dashed-rail brief framed for a fresh session. `compact` = headlines only. |
 | `worker [compact]` | **Export** framed for a spawned worker (prepends the did-not-inherit-context line). `compact` = headlines only. |
+| `coordinator [<area>]` | **Arm THIS session as the one coordinator for `<area>`** to delegate that area's work to workers. The coordinator keeps no store of its own: state lives in the tracker and the repository's durable files, so it creates no store file. It runs on whatever surface the user chooses, a plain CLI session included, because a Claude Project is tied to one account and account rotation must not strand it. Respond with a terse acknowledgment that names the area and where state lives. |
 
 ## Orchestration imperatives. Standing instructions
 
@@ -323,6 +324,10 @@ Discipline: [the Discipline line above, verbatim]
 - `compact`. Emit only the seven numbered HEADLINES (`1. DELEGATE / FAN OUT`, `2. SPEC EVERY
   SPAWN`, …) plus the closing Discipline line; drop every sub-clause. `worker compact` also keeps the
   `worker` did-not-inherit and waiting lines; compact drops neither.
+
+## Next
+
+/planning:draft-goal-condition turns the coordinated work into a completion condition.
 
 ## What this skill does NOT do
 
