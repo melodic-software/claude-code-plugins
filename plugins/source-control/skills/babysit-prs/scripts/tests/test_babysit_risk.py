@@ -2119,8 +2119,9 @@ def _manifest_change(path, before, after, **kw):
 
 
 class ManifestTests(unittest.TestCase):
-    """A plugin or marketplace manifest leaves the floor unless its parsed
-    change hits one of the five review classes."""
+    """A plugin or marketplace manifest leaves the floor only when every
+    parsed difference is on the allow-list; anything else, including the five
+    review classes, holds as manifest-review-required."""
 
     REVIEW = "manifest-review-required"
 
