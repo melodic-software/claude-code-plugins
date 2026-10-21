@@ -1334,8 +1334,10 @@ jobs:
       # gate's findSecret. The model could edit the checkout and its .git, so
       # lib/publish-gate.mjs comes from the API at the trusted base SHA, with
       # the job's read-only token, into a fresh directory, and must import
-      # only node: builtins. A hit fails the step naming the pattern, never
-      # the value; every upload and summary after it needs clean == 'true'.
+      # only node: builtins. A credential format fails the step naming the
+      # pattern, never the value, and says to rotate it; every upload and
+      # summary after it needs clean == 'true'. The one broad label, a
+      # password or secret assignment, is a warning naming the file only.
       - name: Scan the outputs for credentials
         id: leak-scan
         if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
@@ -1357,6 +1359,8 @@ jobs:
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
             const { BASE_SHA, HEAD_SHA, EXECUTION_FILE, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
+            // The one findSecret label that warns instead of blocking (owner decision, 2026-10-21).
+            const WARN_ONLY = 'password or secret assignment';
             // A scratch index, as collect-patch.sh uses: the checkout's own index
             // is the model's to write (assume-unchanged, skip-worktree).
             const index = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-index-')), 'index');
@@ -1387,23 +1391,68 @@ jobs:
               if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');
               const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
               fs.writeFileSync(path.join(dir, 'publish-gate.mjs'), source);
-              const { findSecret } = await import(pathToFileURL(path.join(dir, 'publish-gate.mjs')).href);
+              const { findSecret, SECRET_PATTERNS } = await import(pathToFileURL(path.join(dir, 'publish-gate.mjs')).href);
+              // A credential format blocks. The one broad label, an assignment
+              // that may be a test fixture, only warns. Each line is judged on
+              // its own: every blocking pattern on the raw line, then findSecret
+              // (which adds the gate's normalized copy). When findSecret names
+              // the assignment first, its raw matches are blanked and the line
+              // is read again, and each match is read again with its = and :
+              // blanked, so the assignment never hides a credential; an
+              // assignment that survives the blanking (normalized only) blocks.
+              const blocking = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
+              const warnPattern = SECRET_PATTERNS.find(([label]) => label === WARN_ONLY)?.[1];
+              const warnAll = warnPattern && new RegExp(warnPattern.source, warnPattern.flags.includes('g') ? warnPattern.flags : `${warnPattern.flags}g`);
+              const classifyLine = (line) => {
+                const raw = blocking.find(([, re]) => re.test(line));
+                if (raw) return { block: raw[0] };
+                const first = findSecret(line);
+                if (!first) return {};
+                if (first[0] !== WARN_ONLY || !warnAll) return { block: first[0] };
+                const again = findSecret(line.replace(warnAll, (match) => ' '.repeat(match.length)));
+                if (again) return { block: again[0] };
+                for (const [match] of line.matchAll(warnAll)) {
+                  const inside = findSecret(match.replace(/[:=]/g, ' '));
+                  if (inside) return { block: inside[0] };
+                }
+                return { warn: true };
+              };
+              const classify = (text) => {
+                let warn = false;
+                for (const line of text.split(/\r?\n/)) {
+                  const result = classifyLine(line);
+                  if (result.block) return result;
+                  warn ||= Boolean(result.warn);
+                }
+                return { warn };
+              };
               const paths = ['--', ':(top)', ':(top,exclude).lane'];
               git('read-tree', HEAD_SHA);
               git('add', '-A', ...paths);
               const names = git('diff', '--cached', '--name-only', '--no-renames', '-z', HEAD_SHA, ...paths).toString('latin1').split('\0').filter(Boolean);
-              const files = [`${REPLY_DIR}/reply.txt`, `${REPLY_DIR}/act-turns.json`, PATCH_FILE, EXECUTION_FILE, ...names.map((name) => path.join(GITHUB_WORKSPACE, name))];
-              for (const file of files) {
+              const sources = [
+                ['reply.txt', `${REPLY_DIR}/reply.txt`],
+                ['act-turns.json', `${REPLY_DIR}/act-turns.json`],
+                ['patch.diff', PATCH_FILE],
+                ['the execution file', EXECUTION_FILE],
+                ...names.map((name) => [name, path.join(GITHUB_WORKSPACE, name)]),
+              ];
+              for (const [source, file] of sources) {
                 const bytes = read(file);
-                hit = bytes && findSecret(bytes.toString('latin1'));
-                if (hit) break;
+                if (!bytes) continue;
+                const { block, warn } = classify(bytes.toString('latin1'));
+                if (block) {
+                  hit = { label: block, credential: true };
+                  break;
+                }
+                if (warn) core.warning(`leak-scan: ${WARN_ONLY} in ${source}; not blocking, check it is no real credential`);
               }
             } catch (error) {
-              hit = [`no finished scan (${error.name})`];
+              hit = { label: `no finished scan (${error.name})`, credential: false };
             }
             core.setOutput('clean', hit ? 'false' : 'true');
             if (hit) {
-              core.setFailed(`leak-scan: ${hit[0]}; nothing is uploaded or summarized\nrotate this credential`);
+              core.setFailed(`leak-scan: ${hit.label}; nothing is uploaded or summarized${hit.credential ? '\nrotate this credential' : ''}`);
             }
 
       # After the scan: model text and run fields, as data. Issue mode has no

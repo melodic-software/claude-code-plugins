@@ -1285,7 +1285,8 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs")) 
   plant({ work, temp });
   const outputs = {};
   let failed = null;
-  const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) };
+  const warnings = [];
+  const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message), warning: (message) => warnings.push(message) };
   const github = {
     rest: {
       repos: {
@@ -1314,7 +1315,7 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs")) 
     { repo: { owner: "o", repo: "r" } },
     { env },
   );
-  return { clean: outputs.clean, failed, work };
+  return { clean: outputs.clean, failed, work, warnings };
 }
 
 test("leak scan: a clean run is clean", async (t) => {
@@ -1351,16 +1352,93 @@ test("leak scan: a missing base or head, or a gate that imports beyond node buil
   const script = runSteps().find((s) => s.id === "leak-scan").with.script;
   await new AsyncFunction("require", "core", "github", "context", "process", script)(
     createRequire(import.meta.url),
-    { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) },
+    { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message), warning: () => {} },
     {},
     { repo: {} },
     { env: {} },
   );
   assert.equal(outputs.clean, "false");
   assert.match(failed, /no finished scan/);
+  assert.doesNotMatch(failed, /rotate/, "no credential was found");
   // A gate that loads and passes everything, but imports beyond node builtins, is refused.
   const evil = 'import "data:text/javascript,export default 1";\nexport const findSecret = () => null;\n';
   const refused = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), "clean\n"), evil);
   assert.equal(refused.clean, "false");
   assert.match(refused.failed, /^leak-scan: no finished scan \(Error\)/);
+});
+
+// One sample per credential format the gate names, built at run time.
+const CREDENTIALS = {
+  "private key": ["-----BEGIN", "RSA PRIVATE KEY-----"].join(" "),
+  "AWS access key": `AKIA${"ABCDEFGHIJKLMNOP"}`,
+  "GitHub token": `${"ghp"}_${"a1".repeat(18)}`,
+  "Anthropic key": KEY,
+  "OpenAI key": `${"sk"}-proj-${"A".repeat(24)}`,
+  "Slack token": `${"xox"}b-${"1234567890ab"}`,
+  "Stripe key": `${"sk"}_live_${"0123456789ab"}`,
+  "R2 key pair": `${"0".repeat(32)} ${"f".repeat(64)}`,
+  "Azure client secret": ` abc1Q~${"x".repeat(32)}`,
+  "Cloudflare API token": `${"cfut"}_${"A".repeat(40)}`,
+  "upload token": `${"pgup"}_${"A".repeat(20)}`,
+};
+// Single quotes, so the JSON execution file keeps the quote the pattern needs.
+const ASSIGNMENT = `password = '${["hunter2", "zz9"].join("-")}'`;
+
+test("leak scan: every credential format the gate names blocks and asks for rotation", async (t) => {
+  const { SECRET_PATTERNS } = await import("../../../lib/publish-gate.mjs");
+  const blocking = SECRET_PATTERNS.map(([label]) => label).filter((label) => label !== "password or secret assignment");
+  assert.deepEqual(Object.keys(CREDENTIALS).toSorted(), blocking.toSorted(), "one sample per blocking label");
+  for (const [label, sample] of Object.entries(CREDENTIALS)) {
+    const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `x ${sample} y\n`));
+    assert.equal(clean, "false", label);
+    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized\nrotate this credential`, label);
+  }
+  // A credential inside an assignment still blocks: the broad label never hides it.
+  const wrapped = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `token: "${CREDENTIALS["Cloudflare API token"]}"\n`));
+  assert.equal(wrapped.clean, "false");
+  assert.match(wrapped.failed, /^leak-scan: Cloudflare API token; .*\nrotate this credential$/);
+});
+
+test("leak scan: a password or secret assignment warns, naming the file and not the value, and does not block", async (t) => {
+  const plants = {
+    "tracked.txt": ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`),
+    "the execution file": ({ temp }) => writeFileSync(join(temp, "execution.json"), JSON.stringify([{ type: "user", text: ASSIGNMENT }])),
+  };
+  for (const [source, plant] of Object.entries(plants)) {
+    const { clean, failed, warnings } = await scanWith(t, plant);
+    assert.deepEqual({ clean, failed }, { clean: "true", failed: null }, source);
+    assert.deepEqual(warnings, [`leak-scan: password or secret assignment in ${source}; not blocking, check it is no real credential`], source);
+    assert.ok(!warnings[0].includes("hunter2"), source);
+  }
+});
+
+test("leak scan: an assignment never hides a credential the gate finds only in its normalized copy", async (t) => {
+  const cases = {
+    // An early assignment line, then a key split by an HTML tag.
+    "a tag-split key after an assignment line": [`${ASSIGNMENT}\nnotes ${KEY.slice(0, 7)}<i></i>${KEY.slice(7)}\n`, "Anthropic key"],
+    // One line: an assignment, then an entity-escaped token later in the gate's order.
+    "an entity-escaped token on the assignment's line": [`${ASSIGNMENT} &#x63;${CREDENTIALS["Cloudflare API token"].slice(1)}\n`, "Cloudflare API token"],
+    // The escaped token is the assignment's own value.
+    "an entity-escaped token as the assignment's value": [`token = '&#x63;${CREDENTIALS["Cloudflare API token"].slice(1)}'\n`, "Cloudflare API token"],
+    // A second assignment only the normalized copy shows fails closed.
+    "a tag-split second assignment": [`${ASSIGNMENT} secret=<b></b>'abcdefgh1'\n`, "password or secret assignment"],
+  };
+  for (const [name, [text, label]] of Object.entries(cases)) {
+    const { clean, failed } = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), text));
+    assert.equal(clean, "false", name);
+    assert.equal(failed, `leak-scan: ${label}; nothing is uploaded or summarized\nrotate this credential`, name);
+  }
+  const plain = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${ASSIGNMENT}\n`));
+  assert.deepEqual({ clean: plain.clean, failed: plain.failed, warnings: plain.warnings.length }, { clean: "true", failed: null, warnings: 1 });
+});
+
+test("leak scan: a gate whose labels lack the warning label still blocks its credentials", async (t) => {
+  const gate = [
+    'export const SECRET_PATTERNS = Object.freeze([["Anthropic key", /\\bsk-ant-[A-Za-z0-9_-]{20,}/]]);',
+    "export const findSecret = (text) => (SECRET_PATTERNS[0][1].test(text) ? [SECRET_PATTERNS[0][0], 1] : null);",
+  ].join("\n");
+  assert.deepEqual((await scanWith(t, () => {}, gate)).clean, "true");
+  const hit = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `${KEY}\n`), gate);
+  assert.equal(hit.clean, "false");
+  assert.match(hit.failed, /^leak-scan: Anthropic key; .*\nrotate this credential$/);
 });

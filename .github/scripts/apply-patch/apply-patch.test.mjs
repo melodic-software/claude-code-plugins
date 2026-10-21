@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { checkRow, loadRules, main, push, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { checkRow, loadRules, main, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
 
 // The registry as committed: the rows these tests hold apply-patch to.
 const REPO_ROOT = join(import.meta.dirname, "../../..");
@@ -644,8 +644,9 @@ test("an empty patch file is invalid in select and in the push", async (t) => {
 });
 
 // A patch that changes README.md and changes it back applies and leaves the
-// head's tree: the row's empty reason, as an empty patch-state gives.
-test("a patch that applies but changes nothing escalates ci-fix-empty", async (t) => {
+// head's tree. The producer said it wrote a change, so fix-ci calls it
+// invalid, as apply-ci-fix.mjs did (origin/main:.github/scripts/pr-unblock/apply-ci-fix.mjs:148-149).
+test("a patch that applies but changes nothing escalates ci-fix-invalid", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
   const forward = readFileSync(fix.patchFile, "utf8");
   writeFileSync(join(fix.repo, "README.md"), "# s\n");
@@ -653,7 +654,7 @@ test("a patch that applies but changes nothing escalates ci-fix-empty", async (t
   git(fix.repo, ["checkout", "-q", "README.md"]);
   writeFileSync(fix.patchFile, forward + back);
   const api = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await ciPush(fix, api, { patchSha256: sha256(forward + back) }), { outcome: "escalate", escalationReason: "ci-fix-empty" });
+  assert.deepEqual(await ciPush(fix, api, { patchSha256: sha256(forward + back) }), { outcome: "escalate", escalationReason: "ci-fix-invalid" });
   assert.deepEqual(api.calls, []);
 });
 
@@ -669,6 +670,30 @@ test("a branch that does not read back as the new commit after the write fails t
   const api = fakeApi(fix.repo, fix.head, { afterWrite: "e".repeat(40) });
   await assert.rejects(ciPush(fix, api), /reads e{40} after the write/);
   assert.ok(api.calls.some((call) => call.updateRef));
+});
+
+// The script step in pr-run-activity-write.yml fails on a reason outside its
+// case list, so every reason the push can write for fix-ci is in it.
+test("every reason the push writes for the ci-context row is one the write runner's script step accepts", () => {
+  const source = readFileSync(join(REPO_ROOT, ".github/scripts/apply-patch/apply-patch.mjs"), "utf8");
+  const pushBody = source.slice(source.indexOf("export async function push("), source.indexOf("\nexport", source.indexOf("export async function push(") + 1));
+  const kinds = new Set([...pushBody.matchAll(/escalate\("([a-z-]+)"/g)].map((match) => match[1]));
+  for (const name of row("ci-context").refuse) kinds.add(REFUSALS[name].kind);
+  assert.ok(kinds.has("empty") && kinds.has("not-applied") && kinds.has("protected-path") && kinds.has("invalid"), [...kinds].join(" "));
+  const reasons = new Set([...kinds].map((kind) => pushReason(row("ci-context"), kind)));
+  const write = readFileSync(join(REPO_ROOT, ".github/workflows/pr-run-activity-write.yml"), "utf8");
+  const line = write.split("\n").find((text) => text.includes(":ci-fix-invalid |"));
+  const accepted = new Set([...line.matchAll(/:(ci-fix-[a-z-]+)/g)].map((match) => match[1]));
+  assert.deepEqual([...reasons].sort(), [...accepted].sort());
+});
+
+test("an empty patch-state whose report escalated a check names ci-fix-escalated", (t) => {
+  const reportDir = scratch(t);
+  writeFileSync(join(reportDir, "reply.txt"), "lint-shell: escalated not-reproducible needs a secret\n");
+  const head = "a".repeat(40);
+  const base = { row: row("ci-context"), patchState: "empty", patchSha256: "", patchHeadSha: head, headSha: head, patchDir: scratch(t) };
+  assert.deepEqual(select({ ...base, reportDir }), { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" });
+  assert.equal(select({ ...base, reportDir: scratch(t) }).escalationReason, "ci-fix-empty");
 });
 
 // --- select and main ---

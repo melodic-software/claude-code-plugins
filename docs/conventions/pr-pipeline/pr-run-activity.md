@@ -632,8 +632,10 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    off, an empty token on the fallback call included.
 6. Before any upload or step summary, `leak-scan` runs the base's `findSecret`
    (`lib/publish-gate.mjs`, read through the API at the base SHA, never from the checkout) over the
-   reply, the run fields, the patch, every changed or untracked file and the execution file; a hit
-   fails the run naming the pattern, uploads and summarizes nothing, and leaves `patch-state` empty.
+   reply, the run fields, the patch, every changed or untracked file and the execution file. A
+   credential format fails the run naming the pattern and asking for rotation, uploads and
+   summarizes nothing, and leaves `patch-state` empty; a `password or secret assignment` only
+   warns, naming the file.
 
 The issue lane's skill stays on claude-code-action.
 
@@ -1007,7 +1009,8 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
    `instruction-path` refusal (`CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`, `.gitmodules`
    or `CODEOWNERS` at any depth, a `.claude` or `.claude-plugin` directory, a plugin's `hooks/`,
    `monitors/` or `bin/`), escalating `ci-fix-protected-path`; more than the row's `max-files`
-   (300) paths, a credential shape or an oversized blob escalates `ci-fix-invalid`. It then
+   (300) paths, a credential shape, an oversized blob or a patch that changes nothing (the row's
+   `empty-at-push`) escalates `ci-fix-invalid`. It then
    re-reads the pull request and its labels, throws unless the head is this repository's, stops
    uncommitted (`awaiting-human`) on a draft or a hold label, fails when
    `git/ref heads/<head ref>` is no longer the gated head, uploads the changed blobs, creates the
