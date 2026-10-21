@@ -92,13 +92,7 @@ function Get-UnmutedSeverity {
 
     $worst = Get-WorstSeverity -Levels @($Items | Where-Object { $_.muted -eq $false } | ForEach-Object { $_.severity })
     foreach ($state in $ReadState) {
-        [void](Assert-ReadState $state)
-        $floor = switch ($state) {
-            'ok' { 'OK' }
-            'absent' { 'OK' }
-            default { 'UNKNOWN' }
-        }
-        if ($floor -ne 'OK' -and $worst -eq 'OK') { $worst = $floor }
+        if (-not (Test-ReadStateUsable $state) -and $worst -eq 'OK') { $worst = 'UNKNOWN' }
     }
     return $worst
 }
