@@ -434,6 +434,7 @@ lib/hook-utils.sh plugins/guardrails/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/harness-ops/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/markdown-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/rate-limit-guard/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/repo-hygiene/skills/clean/scripts/hook-utils.sh
 lib/hook-utils.sh plugins/ruff-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/source-control/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/speech/hooks/hook-utils.sh
@@ -474,6 +475,9 @@ lib/yaml-subset.mjs plugins/user-experience/scripts/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/user-interface/scripts/lib/yaml-subset.mjs
 lib/config-cascade.mjs plugins/user-experience/scripts/lib/config-cascade.mjs
 lib/config-cascade.mjs plugins/user-interface/scripts/lib/config-cascade.mjs
+lib/config-cascade.mjs plugins/domain-driven-design/scripts/lib/config-cascade.mjs
+lib/yaml-subset.mjs plugins/domain-driven-design/scripts/lib/yaml-subset.mjs
+lib/resolve-convention-home.sh plugins/domain-driven-design/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh
 lib/lane-push.sh plugins/source-control/scripts/lane-push.sh
 lib/lane-push.sh plugins/work-items/scripts/lane-push.sh

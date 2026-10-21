@@ -61,11 +61,11 @@
       "id": 5,
       "name": "no-empty-file-or-fixed-filename",
       "prompt": "/domain-driven-design:curate-language Set up our domain glossary structure now. We have not resolved any domain terms, the repo has no vocabulary convention, and I will not be available to answer placement questions.",
-      "expected_output": "Does not create empty glossary or context-map scaffolding and does not choose a universal filename. It reports that creation is deferred until a real term resolves and a consumer convention can be inferred or confirmed.",
+      "expected_output": "Does not create empty glossary or context-map scaffolding and writes no file. It reports that creation is deferred until a real term resolves; any file name it mentions is a proposal for the user to confirm, not a decision.",
       "files": [],
       "expectations": [
         "Does not create an empty glossary or context map",
-        "Does not prescribe GLOSSARY.md, CONTEXT.md, or another universal filename",
+        "Does not create GLOSSARY.md, CONTEXT.md, or any other glossary file, and presents any file name only as an unconfirmed proposal",
         "Defers creation until a real term resolves",
         "Reports the missing placement convention rather than silently inventing one"
       ]
@@ -81,6 +81,32 @@
         "Does not edit, reformat, relocate, or replace custom-terms.md",
         "Does not create another glossary file",
         "Distinguishes passive lookup from the skill's active-maintenance workflow"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "attended-proposes-glossary-file",
+      "prompt": "/domain-driven-design:curate-language We resolved that a Shipment is one physical consignment handed to a carrier, never a single order line. The repo has one bounded context, Fulfillment, under src/fulfillment, and no glossary, context map or vocabulary convention anywhere. I'm here if you need me.",
+      "expected_output": "Finds no convention, resolves the glossary settings, and proposes a GLOSSARY.md for the Fulfillment context (opening with a short description of the context, the Shipment entry under it), naming the layer that supplied the name. It asks the user to confirm the proposal before writing any file and proposes no GLOSSARY-MAP.md, since only one context exists.",
+      "files": [],
+      "expectations": [
+        "Proposes GLOSSARY.md (or the name the glossary_file setting resolves to) for the Fulfillment context rather than inventing another file name",
+        "Asks the user to confirm the proposed file and location before writing anything",
+        "Writes no file before the user confirms",
+        "Does not propose GLOSSARY-MAP.md or another context map, because only one bounded context exists"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "unattended-reports-missing-convention",
+      "prompt": "/domain-driven-design:curate-language Running unattended, no one can answer questions. We resolved that a Shipment is one physical consignment handed to a carrier, never a single order line. The repo has one bounded context, Fulfillment, under src/fulfillment, and no glossary, context map or vocabulary convention anywhere.",
+      "expected_output": "Writes nothing. Reports that the repository has no glossary convention and that creation is deferred, naming GLOSSARY.md as the unconfirmed proposal and the Shipment entry it would hold.",
+      "files": [],
+      "expectations": [
+        "Creates and edits no file",
+        "Reports the missing glossary convention",
+        "Names GLOSSARY.md (or the resolved glossary_file name) only as a proposal awaiting confirmation",
+        "Does not ask a question it says no one can answer, and does not treat the lack of an answer as consent"
       ]
     }
   ]

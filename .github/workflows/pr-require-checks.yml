@@ -887,6 +887,9 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/typos@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
         with:
           config: _typos.toml
+          # typos skips hidden directories; naming .changes checks the
+          # changelog fragments without pulling in .github and .claude.
+          paths: . .changes
           # A pack's vendored baseline is replaced verbatim from upstream by its
           # own update script, which reports drift by hashing the committed file
           # against the fetched one, so any spelling correction here would read
@@ -3085,6 +3088,64 @@ jobs:
             exit 1
           fi
           echo "Broker-fetched change:$touched; paired pin pull request: $pin"
+      # A BODY LINE MUST NOT START A SQUASH MESSAGE LINE WITH `committer `.
+      # GitHub builds the squash message from the body (squash_merge_commit_message
+      # PR_BODY) and wraps it: a line of at most 72 characters is kept as
+      # written, a longer one is split on runs of spaces and tabs and filled
+      # greedily to 72 (19,174 of 19,174 body lines across the 400 squash commits
+      # on main before 2026-10-20 match this). A message line starting with
+      # `committer ` is read as a header when GitHub signs the commit, so the
+      # signature verifies invalid, the signed-commit rule refuses the push, and
+      # the queue removes the pull request as `branch_protection_failure`
+      # (#7279, #7360). Only that word is checked: squash messages with lines
+      # starting `author ` (#8489) and `parent ` (#7933) verified valid, and the
+      # other header words have no evidence either way. Fenced code wraps the same
+      # way, so it is checked too. On a pull request the body is wrapped by that
+      # rule; in a merge group the squash commit's own message (its subject
+      # dropped) is read, which catches a body edited after enqueue. Pinned by
+      # scripts/ci-squash-header-lines.test.sh, which runs this body.
+      - name: Fail a body line that would break the squash signature
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          TEXT: ${{ github.event.merge_group.head_commit.message || github.event.pull_request.body }}
+          # Bash measures ${#line} in characters only under a UTF-8 locale.
+          LC_ALL: C.UTF-8
+        run: |
+          text=${TEXT//$'\r'/}
+          where='pull request body line'
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            where='merge-group commit message line'
+            case $text in *$'\n'*) text=${text#*$'\n'} ;; *) text= ;; esac
+            offset=1
+          fi
+          n=${offset:-0} found=0
+          while IFS= read -r line || [ -n "$line" ]; do
+            n=$((n + 1))
+            rows=("$line")
+            if [ "${#line}" -gt 72 ]; then
+              rows=() cur=
+              IFS=$' \t' read -ra words <<<"$line"
+              for w in "${words[@]}"; do
+                if [ -z "$cur" ]; then
+                  cur=$w
+                elif [ $((${#cur} + 1 + ${#w})) -le 72 ]; then
+                  cur="$cur $w"
+                else
+                  rows+=("$cur")
+                  cur=$w
+                fi
+              done
+              [ -z "$cur" ] || rows+=("$cur")
+            fi
+            for row in "${rows[@]}"; do
+              if [[ $row == 'committer '* ]]; then
+                found=1
+                echo "::error::$where $n puts '${row//%/%25}' at the start of a squash commit message line, and that line starts with 'committer '. GitHub's signer reads such a line as the commit's committer header, so the squash commit's signature fails and the merge queue removes this pull request. Reword so no line, as GitHub wraps it at 72 characters, starts with 'committer '."
+              fi
+            done
+          done <<<"$text"
+          [ "$found" -eq 0 ] || exit 1
+          echo "No squash message line starts with 'committer '."
       # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
       # and tested nothing, and the aggregate below passes those skips. A green
       # draft cannot admit a merge: a draft cannot merge, and the merge-queue

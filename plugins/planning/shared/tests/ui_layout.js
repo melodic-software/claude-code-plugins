@@ -255,7 +255,8 @@ async function main() {
       await seed.locator("#vf-answer").fill(answer);
       await seed.press("#vf-answer", "Control+Enter");
     }
-    await until(seed, () => Object.keys(window.Core.snapshot()?.cards || {}).length >= 2);
+    // both answers in before the seed leaves: Q1's option cards alone already make two keys
+    await until(seed, () => ["Q2", "Q3"].every(id => (window.Core.snapshot()?.cards?.[id] || []).some(c => c.kind === "person")), null, 10000);
     await seed.context().close();
 
     let n = 0;
@@ -523,7 +524,8 @@ async function main() {
         return { text: c.textContent, start: b.textContent, inView: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
       });
       ok(`${label}: a new guest's first view shows the goal, the host's ask and "Start here: question 1" without scrolling`,
-        card && facts.text.includes(`Goal: ${GOAL}`) && /asks you to answer 3 questions/.test(facts.text) && facts.start === "Start here: question 1" && facts.inView, JSON.stringify(facts));
+        // sweep S2: the count is what this guest owes; Seed answered Q2 and Q3, which leaves them optional (triage row 42)
+        card && facts.text.includes(`Goal: ${GOAL}`) && /asks you to answer 1 question\./.test(facts.text) && facts.start === "Start here: question 1" && facts.inView, JSON.stringify(facts));
       await g.locator(".vf-orient-start").click();
       ok(`${label}: Start here focuses question 1's first option, the primary control`, await until(g, t => document.querySelector(".vf-qtext")?.textContent === t
         && document.activeElement?.matches(".vf-optchoose") && /Card/.test(document.activeElement.closest(".vf-opt").textContent), CHOICE));
@@ -565,10 +567,11 @@ async function main() {
       const save = document.querySelector(".vf-sheetsave").getBoundingClientRect(), cancel = [...document.querySelectorAll(".vf-sheethead button")].find(b => b.textContent === "Cancel").getBoundingClientRect();
       const vv = visualViewport;
       return { full: c.top <= vv.offsetTop + 1 && c.bottom >= vv.offsetTop + vv.height - 1 && c.left <= 0 && c.right >= innerWidth - 1,
-        onTop: save.bottom <= t.top && cancel.bottom <= t.top, tall: t.height >= vv.height / 2, value: document.querySelector("#vf-answer").value };
+        cancelTop: cancel.bottom <= t.top, saveLow: save.top >= t.bottom - 1 && save.bottom <= vv.offsetTop + vv.height + 1 && save.height >= 44,
+        tall: t.height >= vv.height / 2, value: document.querySelector("#vf-answer").value };
     });
-    ok("390x844: editing a saved answer opens a full-height sheet, text pre-filled, Cancel and Save above the field",
-      sheet && geo.full && geo.onTop && geo.tall && geo.value === "Below the total.", JSON.stringify(geo));
+    ok("390x844: editing a saved answer opens a full-height sheet, text pre-filled, Cancel above the field and a 44 px Save under it, in thumb reach (O114)",
+      sheet && geo.full && geo.cancelTop && geo.saveLow && geo.tall && geo.value === "Below the total.", JSON.stringify(geo));
     await pia.keyboard.insertText(" Always.");
     await pia.locator(".vf-sheethead button", { hasText: "Cancel" }).tap();
     ok("390x844: Cancel closes the sheet and keeps the saved answer", await until(pia, () => !document.querySelector(".vf-composer-sheet") && document.querySelector("#vf-answer").value === "Below the total."));

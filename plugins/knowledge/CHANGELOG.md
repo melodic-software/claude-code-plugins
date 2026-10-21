@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.27.0] - 2026-10-20
+
+### Added
+
+- `docpage-digest` has a `check-prose-terms.py` standing gate that fails a digest whose prose (outside fences) names pipeline vocabulary, `unit NN` or `SOURCES.md`, reporting file, section and term.
+
+### Changed
+
+- `docpage-digest`'s mechanism-only rule now covers every prose section, "Open questions for interview" included, and names skills, plugins and conventions visible in the digest agent's own session as consuming-org context.
+
 ## [0.26.1] - 2026-10-20
 
 ### Fixed

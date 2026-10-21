@@ -160,8 +160,8 @@ async function main() {
       const c = document.querySelector(".vf-orient .vf-catchup");
       return c && !c.hidden && c.textContent === `${l} Catch up on round 1`;
     }, line, 10000), await maude.evaluate(() => document.querySelector(".vf-orient .vf-catchup")?.textContent));
-    ok("  and so does the line above the current round in the rail", await maude.evaluate(l => {
-      const c = document.querySelector(".vf-round-cur > .vf-catchup");
+    ok("  and so does the line in round 1's block in the rail, not the current round's", await maude.evaluate(l => {
+      const c = document.querySelector('.vf-round[data-round="1"] > .vf-catchup');
       return !!c && !c.hidden && c.textContent.startsWith(l);
     }, line));
     await maude.locator(".vf-orient .vf-catchup .vf-lbtn").click();

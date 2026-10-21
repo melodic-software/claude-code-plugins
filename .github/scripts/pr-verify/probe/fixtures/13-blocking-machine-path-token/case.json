@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\nThe upload helper has its endpoint compiled in, so it cannot point at the staging server.\n\n## Fix\n\n`upload()` reads the endpoint from `SAMPLE_KIT_UPLOAD_URL` and the token from `SAMPLE_KIT_UPLOAD_TOKEN`. When either is unset it throws `set SAMPLE_KIT_UPLOAD_URL and SAMPLE_KIT_UPLOAD_TOKEN`.\n\n## Done when\n\n- [ ] Both values come from the environment, with no fallback.\n- [ ] A test covers a missing variable."
+  },
+  "pr": {
+    "title": "feat(sample-kit): read the upload endpoint and token from the environment",
+    "body": "Reads the upload endpoint and token from the environment, with a test for a missing variable."
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "class": "control",
+  "expected": "pass",
+  "scored": "main",
+  "defect": "none: the wording fix the issue asks for, with its test",
+  "mentions": []
+}

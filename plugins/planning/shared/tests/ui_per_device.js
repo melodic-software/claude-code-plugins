@@ -2,7 +2,8 @@
 // A question asked once per device (answerScope "device", follow-up 47), against `share.sh ensure-running` with the
 // fake cloudflared: a guest answers it on a computer, opens the session on a phone with their personal link, sees that
 // they answered on their computer and are asked for this phone too, and answers again; the owner then reads one card
-// per device, each named with its device. A phone turned to landscape is still the phone; a tablet is its own device.
+// per device, each named with its device. A phone turned to landscape is still the phone; a tablet is its own device;
+// two devices answering within the server's one-a-second limit both land.
 //   node plugins/planning/shared/tests/ui_per_device.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from Q94 (one answer per device, a prompt on a new device) and the texts this suite writes,
@@ -89,6 +90,15 @@ async function main() {
     await tab.evaluate(() => window.Core.answerCiting("Q1", "Reading on the sofa.", []));
     ok("  and its answer is a third card", await until(owner, pid => (window.Core.snapshot()?.cards?.Q1 || []).filter(c => c.pid === pid).map(c => c.device).sort().join() === "computer,phone,tablet", annPid, 10000),
       JSON.stringify(await owner.evaluate(() => window.Core.snapshot()?.cards?.Q1)));
+    // The server takes one answer a second per person (session.py _throttle) and each page spaces only its own: two of
+    // her devices answering at once both land, the refused one sent again a moment later (core.js send). First wait out
+    // the tablet's answer above, so these two are the only writes inside one second.
+    await tab.waitForTimeout(1100);
+    const both = await Promise.allSettled([land, tab].map((p, i) => p.evaluate(t => window.Core.answerCiting("Q1", t, []), ["On the bus, at once.", "Reading on the sofa, at once."][i])));
+    ok("two of her devices answering within a second both land", both.every(r => r.status === "fulfilled") && await until(owner, pid => {
+      const mine = (window.Core.snapshot()?.cards?.Q1 || []).filter(c => c.pid === pid).map(c => `${c.device}:${c.text}`).sort().join("|");
+      return mine === "computer:My laptop, mostly.|phone:On the bus, at once.|tablet:Reading on the sofa, at once.";
+    }, annPid, 10000), both.map(r => r.status === "fulfilled" ? "ok" : String(r.reason?.message || r.reason).slice(0, 160)).join(" | "));
     ok("the owner reads one card per device, each named with its device", await until(owner, () => {
       const names = [...document.querySelectorAll(".vf-alist .vf-card")].map(c => c.textContent);
       return names.some(t => t.includes("Ann, computer") && t.includes("My laptop")) && names.some(t => t.includes("Ann, phone") && t.includes("On the bus")) && names.some(t => t.includes("Ann, tablet"));

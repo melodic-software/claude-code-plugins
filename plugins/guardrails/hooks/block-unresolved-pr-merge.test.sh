@@ -63,6 +63,7 @@ graphql)
   ;;
 */ccr/review_threads) f=ccr.json ;;
 */reviews\?*) f=reviews.json ;;
+*/check-runs/[0-9]*/annotations*) f="annotations_$(cut -d/ -f5 <<<"$endpoint").json" ;;
 */check-runs\?*) f=checks.json ;;
 */status\?*) f=status.json ;;
 */pulls\?*) f=pulls_list.json ;;
@@ -155,6 +156,34 @@ J
   merge-other-app-pending) echo '{"total_count":1,"check_runs":[{"id":902,"name":"merge","app":{"id":999,"slug":"other-ci"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
   matrix-failed-then-leg) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"failure"},{"id":903,"name":"test (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   matrix-leg-skipped) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"skipped"}]}' >"$FIX/checks.json" ;;
+  # A contract-only ci-status (run 5002) that failed as superseded by a full run
+  # (run 5001) in flight on the head (#8716), with the full run's ci-status
+  # success, failed or not yet created, or the marker naming another head. The
+  # first shape gives the superseded run the higher id, a constructed race; on
+  # #8715 the full run's job did not exist yet, the absent shape. The mixed shape
+  # also carries a contract step's own error, which the full run cannot clear;
+  # the garbled shape a second, malformed marker. The other-check shape puts the
+  # marker on a check that is not ci-status, where any step could have printed it.
+  ci-superseded-full-success | ci-superseded-full-failed | ci-superseded-full-absent | ci-superseded-other-sha | ci-superseded-mixed | ci-superseded-garbled | ci-superseded-other-check)
+    local full='' sha=abc123 extra='' name=ci-status app='{"id":15368,"slug":"github-actions"}'
+    [[ "$3" == *-other-check ]] && name='test'
+    local sup='{"id":903,"name":"'"$name"'","app":'"$app"',"check_suite":{"id":3},"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5002/job/3"}'
+    case "$3" in
+    *-full-success | *-other-sha | *-mixed | *-garbled) full='{"id":902,"name":"ci-status","app":'"$app"',"check_suite":{"id":2},"status":"completed","conclusion":"success","details_url":"https://github.com/acme/widgets/actions/runs/5001/job/2"},' ;;
+    *-full-failed) full='{"id":902,"name":"ci-status","app":'"$app"',"check_suite":{"id":2},"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5001/job/2"},' ;;
+    *) ;; # the full run's ci-status is not created yet
+    esac
+    [[ "$3" == *-other-sha ]] && sha=def456
+    [[ "$3" == *-mixed ]] && extra='{"annotation_level":"failure","message":"#42 carries the '\''do-not-merge'\'' label; the merge queue removes it."},'
+    [[ "$3" == *-garbled ]] && extra='{"annotation_level":"failure","message":"superseded by full run garbage; real error"},'
+    echo '{"total_count":3,"check_runs":[{"id":901,"name":"ci-status","app":'"$app"',"check_suite":{"id":1},"status":"completed","conclusion":"success","details_url":"https://github.com/acme/widgets/actions/runs/5000/job/1"},'"$full$sup"']}' >"$FIX/checks.json"
+    echo '['"$extra"'{"annotation_level":"failure","message":"Process completed with exit code 1."},{"annotation_level":"failure","message":"superseded by full run https://github.com/acme/widgets/actions/runs/5001 in flight on '"$sha"': its own ci-status check run is newer than this one and decides the merge gate."}]' >"$FIX/annotations_903.json"
+    ;;
+  # A lone failed ci-status whose annotations carry no superseded marker.
+  ci-failed-plain)
+    echo '{"total_count":1,"check_runs":[{"id":903,"name":"ci-status","app":{"id":15368},"check_suite":{"id":3},"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5002/job/3"}]}' >"$FIX/checks.json"
+    echo '[{"annotation_level":"failure","message":"Process completed with exit code 1."}]' >"$FIX/annotations_903.json"
+    ;;
   matrix-same-suite-sibling) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":902,"name":"build (arm64)","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   *) return 1 ;;
   esac
@@ -278,6 +307,36 @@ assert_contains "names the regressed check" "$ERR" "Failing checks: ci-status"
 scenario none none regressed-early green
 run "newer failure that finished before the older success" 'gh pr merge 42 --squash' 2
 assert_contains "names the early-finishing failure" "$ERR" "Failing checks: ci-status"
+# A ci-status run that failed as superseded by a full run does not count; the
+# named full run's ci-status decides, and is pending until it exists (#8716).
+scenario none none ci-superseded-full-success green
+run "superseded contract-only run, full run succeeded" 'gh pr merge 42 --squash' 0
+assert_eq "superseded, full success -> no stderr" "" "$ERR"
+assert_contains "superseded -> its annotations were read" "$(calls)" "repos/acme/widgets/check-runs/903/annotations"
+scenario none none ci-superseded-full-failed green
+run "superseded contract-only run, full run failed" 'gh pr merge 42 --squash' 2
+assert_contains "superseded, full failed -> names ci-status" "$ERR" "Failing checks: ci-status"
+scenario none none ci-superseded-full-absent green
+run "superseded contract-only run, full run not reported" 'gh pr merge 42 --squash' 2
+assert_contains "superseded, full absent -> pending" "$ERR" "Pending checks (use --auto to merge once they pass): ci-status"
+assert_absent "superseded, full absent -> not failing" "$ERR" "Failing checks"
+scenario none none ci-superseded-full-absent green
+run "superseded contract-only run, full run not reported, --auto" 'gh pr merge 42 --auto --squash' 0
+scenario none none ci-superseded-other-sha green
+run "superseded marker naming another head" 'gh pr merge 42 --squash' 2
+assert_contains "other head -> still failing" "$ERR" "Failing checks: ci-status"
+scenario none none ci-superseded-mixed green
+run "superseded marker beside a contract error, full run succeeded" 'gh pr merge 42 --squash' 2
+assert_contains "superseded beside a contract error -> failing" "$ERR" "Failing checks: ci-status"
+scenario none none ci-superseded-garbled green
+run "valid marker beside a malformed one, full run succeeded" 'gh pr merge 42 --squash' 2
+assert_contains "malformed marker -> failing" "$ERR" "Failing checks: ci-status"
+scenario none none ci-superseded-other-check green
+run "marker on a check that is not ci-status, --auto" 'gh pr merge 42 --auto --squash' 2
+assert_contains "marker on another check -> failing" "$ERR" "Failing checks: test"
+scenario none none ci-failed-plain green
+run "lone failed ci-status" 'gh pr merge 42 --squash' 2
+assert_contains "lone failure -> names ci-status" "$ERR" "Failing checks: ci-status"
 scenario none none newer-pending green
 run "newer pending run over an older success" 'gh pr merge 42 --squash' 2
 assert_contains "names the newer pending run" "$ERR" "Pending checks (use --auto to merge once they pass): ci-status"
@@ -477,6 +536,120 @@ scenario unresolved none green green
 touch "$FIX/fail"
 run "literal node id that cannot be read: fails closed" 'gh api graphql -f query='"'"'mutation{mergePullRequest(input:{pullRequestId:"PR_kwDOabc"}){clientMutationId}}'"'"'' 2
 assert_contains "unreadable node -> names the node" "$ERR" "PR_kwDOabc"
+# --- 8c. a merge whose target is not literal FAILS CLOSED (#8598) ------------
+# The PR is clean, so a guard that let these through would exit 0.
+unresolvable() { # <label> <command> [ENV=value ...]
+  local label="$1" command="$2"
+  shift 2
+  scenario none none green green
+  run "$label" "$command" 2 "$@"
+  assert_contains "$label -> names the literal form" "$ERR" "gh pr merge <number> -R owner/repo"
+  assert_absent "$label -> never asked gh" "$(calls)" "pulls/"
+}
+unresolvable "repo from \$R" 'gh pr merge 42 -R $R --squash --match-head-commit abc123'
+unresolvable "repo from \${R}" 'gh pr merge 42 -R ${R} --squash'
+unresolvable "repo from a quoted \$R" 'gh pr merge 42 -R "$R" --squash'
+unresolvable "repo from --repo=\$R" 'gh pr merge 42 --repo=$R'
+unresolvable "repo from \$R before the subcommand" 'gh pr -R $R merge 42'
+unresolvable "repo from \$(...)" 'gh pr merge 42 -R $(cat repo) --squash'
+unresolvable "repo from backticks" 'gh pr merge 42 -R `cat repo` --squash'
+unresolvable "number from \$(...)" 'gh pr merge $(gh pr list --json number -q .[0].number) -R acme/widgets --squash'
+unresolvable "number from a quoted \$(...)" 'gh pr merge "$(cat n)" -R acme/widgets'
+unresolvable "number from backticks" 'gh pr merge `cat n` -R acme/widgets --squash'
+unresolvable "number from a loop variable" 'for n in 41 42; do gh pr merge $n -R acme/widgets --squash; done'
+unresolvable "number from a quoted variable" 'gh pr merge "$N" -R acme/widgets'
+unresolvable "REST merge, repo from \$R" 'gh api -X PUT repos/$R/pulls/42/merge'
+unresolvable "REST merge, number from \$n" 'gh api -X PUT "repos/acme/widgets/pulls/$n/merge"'
+unresolvable "curl merge, number from \$n" 'curl -sS -X PUT "https://api.github.com/repos/acme/widgets/pulls/$n/merge"'
+NOREPO="$TEST_TMPDIR/norepo"
+mkdir -p "$NOREPO"
+scenario none none green green
+invoke "$(jq -n --arg c 'gh pr merge --squash' --arg d "$NOREPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')"
+assert_exit "bare merge, no branch to read" 2 "$RC"
+assert_contains "bare merge, no branch -> names the literal form" "$ERR" "gh pr merge <number> -R owner/repo"
+scenario none none green green
+echo '[]' >"$FIX/pulls_list.json"
+invoke "$(jq -n --arg c 'gh pr merge --squash' --arg d "$REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')"
+assert_exit "bare merge, no open PR for the branch" 2 "$RC"
+assert_contains "bare merge, no PR -> names the literal form" "$ERR" "gh pr merge <number> -R owner/repo"
+scenario none none green green
+echo '[]' >"$FIX/pulls_list.json"
+run "fork branch named bare (looked up under the base owner)" 'gh pr merge feat/x -R acme/widgets --squash' 2
+assert_contains "fork branch named bare -> names the owner:branch form" "$ERR" "<fork-owner>:<branch>"
+
+# MUST stay quiet: a literal target is checked as usual, whatever else is a variable.
+scenario none none green green
+run "literal repo and number" 'gh pr merge 42 -R acme/widgets --squash --match-head-commit abc123' 0
+assert_contains "literal -> reads that PR" "$(calls)" "repos/acme/widgets/pulls/42"
+scenario none none green green
+run "literal target, head sha from a variable" 'gh pr merge 42 -R acme/widgets --squash --match-head-commit "$HEAD_SHA"' 0
+scenario none none green green
+run "literal target, body from \$(...)" 'gh pr merge 42 -R acme/widgets --squash --body "$(cat notes.md)"' 0
+scenario none none green green
+run "literal target, subject from a variable" 'gh pr merge 42 -R acme/widgets --squash -t $SUBJECT' 0
+scenario none none green green
+run "bare number, repo from the cwd" 'gh pr merge 42 --squash' 0
+assert_contains "bare number -> placeholder repo" "$(calls)" "repos/{owner}/{repo}/pulls/42"
+scenario none none green green
+run "literal branch name" 'gh pr merge feat/x -R acme/widgets --squash' 0
+assert_contains "branch -> looked up" "$(calls)" "head=acme:feat/x"
+scenario none none green green
+run "fork branch as owner:branch" 'gh pr merge contributor:feat/x -R acme/widgets --squash' 0
+assert_contains "owner:branch -> looked up under the fork owner" "$(calls)" "head=contributor:feat/x"
+scenario none none green green
+invoke "$(jq -n --arg c 'gh pr merge --squash' --arg d "$REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')"
+assert_exit "bare merge on a branch with an open PR" 0 "$RC"
+quiet "--disable-auto with a variable repo" 'gh pr merge 42 -R $R --disable-auto'
+
+# --- 8d. any backtick, or more than one merge, FAILS CLOSED -----------------
+# A backtick substitution is split off by the tokenizer, so the target the guard
+# reads need not be the one the shell runs: `5`echo 0`` checks #5 and merges #50.
+# Quoting is not judged: a comment or heredoc apostrophe would open a quote the
+# shell never opens, and a merge inside the backticks must not be hidden either.
+unresolvable "backtick glued to the number" 'gh pr merge 5`echo 0` -R acme/widgets --squash'
+unresolvable "backtick after the repo" 'gh pr merge 42 -R acme/widgets`echo x` --squash'
+unresolvable "REST merge with a backtick" 'gh api -X PUT repos/acme/widgets/pulls/4`echo 2`/merge'
+unresolvable "backtick inside double quotes" 'gh pr merge 42 -R acme/widgets --body "`cat notes`"'
+assert_contains "backtick -> says why" "$ERR" "backtick"
+unresolvable "apostrophe in a comment, then a backtick" $'# don\'t\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "apostrophe in a heredoc, then a backtick" $'cat <<EOF\ndon\'t\nEOF\ngh pr merge 5`echo 0` -R acme/widgets'
+unresolvable "line continuation between pr and merge, then a backtick" $'gh pr \\\nmerge 5`echo 0` -R acme/widgets'
+# A backslash-newline in merge-shaped text is refused, never joined: bash does not
+# join inside a comment, a quoted heredoc or after an escaped backslash.
+unresolvable "continuation between pr and merge" $'gh pr \\\nmerge 5 -R acme/widgets'
+unresolvable "continuation inside 'merge'" $'gh pr mer\\\nge 5 -R acme/widgets'
+unresolvable "continuation inside a REST route" $'gh api -X PUT repos/acme/widgets/pulls/\\\n5/merge'
+unresolvable "comment ending in a backslash, merge on the next line" $'# note \\\ngh pr merge 5 -R acme/widgets --admin'
+unresolvable "escaped backslash before the newline, merge on the next line" $'echo x \\\\\ngh pr merge 5 -R acme/widgets'
+unresolvable "quoted heredoc line ending in a backslash, then a merge" $'cat <<\'EOF\'\nfoo\\\nEOF\ngh pr merge 5 -R acme/widgets'
+scenario unresolved none green green
+run "continuation inside a double-quoted GraphQL mutation name" $'gh api graphql -f query="mutation{merge\\\nPullRequest(input:{pullRequestId:\\"PR_kwDOabc\\"}){clientMutationId}}"' 2
+quiet "continuation in a command that is not a merge" $'git commit -m "tidy" \\\n  -m "merge the two helpers"'
+unresolvable "merge inside backticks, echoed" 'echo `gh pr merge 42 -R acme/widgets`'
+unresolvable "merge inside backticks, assigned" 'x=`gh pr merge 42 -R o/r`'
+unresolvable "single-quoted body with a backtick" 'gh pr merge 42 -R acme/widgets --squash --body '"'"'see `notes.md`'"'"''
+assert_contains "single-quoted backtick -> names --body-file" "$ERR" "--body-file"
+unresolvable "escaped backtick" 'gh pr merge 42 -R acme/widgets --squash --body "see \`notes\`"'
+# Only one merge per command can be checked, so a second one is refused.
+multi() { # <label> <command>
+  unresolvable "$1" "$2"
+  assert_contains "$1 -> says to run each merge alone" "$ERR" "run each merge as its own command"
+}
+multi "two literal merges with &&" 'gh pr merge 1 -R acme/widgets --squash && gh pr merge 2 -R acme/widgets --squash'
+multi "two literal merges with ;" 'gh pr merge 1 -R acme/widgets; gh pr merge 2 -R acme/widgets'
+multi "a literal merge, then a variable merge" 'gh pr merge 1 -R acme/widgets && gh pr merge $n -R acme/widgets'
+multi "gh pr merge, then a REST merge" 'gh pr merge 1 -R acme/widgets && gh api -X PUT repos/acme/widgets/pulls/2/merge'
+
+# MUST stay quiet: --disable-auto is not a merge, and a backtick refuses only
+# in merge-shaped text, so commit messages that mention merge pass.
+quiet "backtick in git merge-base" 'git merge-base HEAD `git rev-parse origin/main`'
+quiet "heredoc commit mentioning merge in backticks" $'git commit -F - <<\'EOF\'\nfix(guardrails): tighten the `merge` path\n\nThe `merge` guard reads `pulls/`.\nEOF'
+quiet "commit -m mentioning merge in backticks" 'git commit -m "fix the merge path in `foo.sh`"'
+quiet "commit -m with pulls/ before merge, no merge route" 'git commit -m "fix `pulls/` parsing, then merge"'
+quiet "--disable-auto, then gh pr view" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr view 42'
+scenario none none green green
+run "--disable-auto, then one merge" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr merge 42 -R acme/widgets --squash' 0
+
 scenario unresolved none green green
 rm "$FIX/graphql_threads.json" "$FIX/ccr.json"
 run "no thread source answers: fails open" 'gh pr merge 42' 0
@@ -563,6 +736,8 @@ scenario unresolved none green green
 run_ps "PowerShell: gh pr merge" 'gh pr merge 42 --squash' 2
 scenario unresolved none green green
 run_ps "PowerShell: gh.exe pr merge after ;" 'Set-Location C:\repo; gh.exe pr merge 42' 2
+scenario none none green green
+run_ps "PowerShell: a backtick escape is not a substitution" 'gh pr merge 42 -R acme/widgets --body "line`nnext"' 0
 scenario unresolved requested failed failed
 run_ps "PowerShell: merge in a quoted Write-Host" 'Write-Host "gh pr merge 42"' 0
 assert_eq "PowerShell quoted mention -> no gh call" "" "$(calls)"

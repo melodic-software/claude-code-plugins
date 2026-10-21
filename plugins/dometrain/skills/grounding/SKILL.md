@@ -16,8 +16,8 @@ Usage guidance adapted from Dometrain's own official Claude Code plugin
 (github.com/Dometrain/mcp, MIT licensed). Cite what shaped the answer with a timestamped deep link
 so the user can watch the source.
 
-The tools below come from a Dometrain MCP server that this plugin does not ship: the
-`dometrain-mcp` plugin supplies one, or the user configures a user-scope server named `dometrain`.
+The tools below come from a Dometrain MCP server that this plugin does not ship: the user
+configures a user-scope server named `dometrain`.
 Find them in the tool inventory by the `dometrain` server segment of the name and the tool name
 (for example `search_dometrain`), whatever prefix Claude Code gives them. When no such tool is
 present, say so and point to `/dometrain:setup`.

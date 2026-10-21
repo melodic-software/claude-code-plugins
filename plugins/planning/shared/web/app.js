@@ -6,6 +6,8 @@
     const E = Core.el;
     const phone = matchMedia("(max-width: 720px)");
     const coarse = matchMedia("(pointer: coarse)");
+    /** "Tap" on a touch screen, "Click" with a mouse. */
+    const tapW = () => (coarse.matches ? "Tap" : "Click");
     const lightOS = matchMedia("(prefers-color-scheme: light)");
     const store = {
       get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -316,7 +318,7 @@
       return a;
     };
     /** Avatar sizes: one set for the whole page. */
-    const AV = { s: 16, m: 22, l: 26, xl: 34 };
+    const AV = { s: 20, m: 22, l: 26, xl: 34 }; // the smallest still reads its initials (sweep S25)
     /** A person as the page names them: "You" for me, else their shown name. */
     const youOr = (cid, name) => (isMe(cid) ? "You" : disp(name || "Someone"));
     /** F14: avatar, name and time, drawn the same everywhere. The avatar opens the person card: focusable, except
@@ -462,6 +464,8 @@
       return p;
     }
     const optionsOf = q => q?.options || [];
+    /** Every pick format's one line while results wait for my vote. */
+    const RESULTS_HINT = "Everyone's votes show once you vote.";
     /** A question that takes a pick (its options are the vote), not a written answer. */
     const isChoice = q => ["choice", "confirm", "multi", "scale", "rank"].includes(q?.format);
     const isFormat = q => ["multi", "scale", "rank"].includes(q?.format);
@@ -521,7 +525,17 @@
 
     // ---------- safe rich text: paragraphs, "- " lists and bare http(s) links, built as DOM nodes ----------
     const LINK = /\bhttps?:\/\/[^\s<>"']+/g;
+    /** One line's safe inline markdown: **bold** and `code`, each as an element with text only; links and mentions
+     *  inside bold still render. */
     function inline(parent, line) {
+      for (const part of line.split(/(\*\*[^*\n]+?\*\*|`[^`\n]+`)/)) {
+        if (!part) continue;
+        if (part.length > 4 && part.startsWith("**") && part.endsWith("**")) { const b = E("strong"); links(b, part.slice(2, -2)); parent.append(b); }
+        else if (part.length > 2 && part[0] === "`" && part.endsWith("`")) parent.append(E("code", "vf-code", part.slice(1, -1)));
+        else links(parent, part);
+      }
+    }
+    function links(parent, line) {
       let i = 0;
       for (const m of line.matchAll(LINK)) {
         const url = m[0].replace(/[).,;:!?]+$/, "");
@@ -554,13 +568,20 @@
       }
       if (i < s.length) parent.append(s.slice(i));
     }
+    /** Text as safe markdown, built from elements and text nodes only: paragraphs, "#" headings (a bold line, never a
+     *  page heading), bullet and numbered lists, and inline's bold and code. */
     function rich(text) {
       const f = document.createDocumentFragment();
       for (const block of String(text || "").replace(/\r/g, "").split(/\n\s*\n/)) {
         let p = null, ul = null;
         for (const raw of block.split("\n")) {
-          const m = raw.match(/^\s*[-*•]\s+(.*)$/);
-          if (m) { p = null; if (!ul) { ul = E("ul", "vf-ul"); f.append(ul); } const li = E("li"); inline(li, m[1]); ul.append(li); }
+          const h = raw.match(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/), m = raw.match(/^\s*[-*•]\s+(.*)$/), n = raw.match(/^\s*\d{1,3}[.)]\s+(.*)$/);
+          if (h) { p = ul = null; const hd = E("p", "vf-mdh"); inline(hd, h[1]); f.append(hd); }
+          else if (m || n) {
+            p = null; const tag = m ? "ul" : "ol";
+            if (ul?.tagName.toLowerCase() !== tag) { ul = E(tag, m ? "vf-ul" : "vf-ol"); f.append(ul); }
+            const li = E("li"); inline(li, (m || n)[1]); ul.append(li);
+          }
           else if (raw.trim()) { ul = null; if (p) p.append(E("br")); else { p = E("p"); f.append(p); } inline(p, raw); }
         }
       }
@@ -615,7 +636,7 @@
       const oneLine = f.tagName === "INPUT" || f.rows === 1;
       const k = { f, send, escape, mentions, draftKey, oneLine, from: cut ? counterFrom ?? Math.ceil(f.maxLength * 0.75) : Infinity, key: null };
       k.count = E("span", "vf-count-txt"); k.count.setAttribute("aria-live", "polite");
-      k.hint = send && !oneLine ? E("span", "vf-hint", `${MOD_KEY} + Enter to ${verb}`) : null;
+      k.hint = send && !oneLine ? E("span", "vf-hint vf-keyhint", `${MOD_KEY} + Enter to ${verb}`) : null;
       if (mentions) for (const [a, v] of [["aria-autocomplete", "list"], ["aria-haspopup", "listbox"], ["aria-expanded", "false"]]) f.setAttribute(a, v);
       KIT.set(f, k);
       if (!kitBooted) KITS.add(k);
@@ -909,9 +930,10 @@
     const repRow = E("div", "vf-crow"), repCancel = btn("vf-btn vf-btn-ghost", "Cancel");
     const repSend = E("button", "vf-btn vf-btn-primary", "Send report"); repSend.type = "submit";
     repRow.append(repCount, repK.hint, repCancel, repSend);
-    reportPop.append(E("h2", "vf-pop-title", "Report a problem"), repLabel, repTa, repRow,
+    // the screenshot and what goes with the report come before Send, which ends the form within thumb reach
+    reportPop.append(E("h2", "vf-pop-title", "Report a problem"), repLabel, repTa,
       E("p", "vf-pop-note", "Take a screenshot first, then add or paste it here. Only the host and Claude see your report."),
-      E("h3", "vf-pop-sub", "Sent with this report"), repSent, repErr);
+      E("h3", "vf-pop-sub", "Sent with this report"), repSent, repErr, repRow);
 
     // Follow-up item 3: Your reports, the person's own problem reports in this session with where each stands. While one
     // is not fixed they can add a line or a screenshot to it (the same screenshot path and caps). Only they and the host
@@ -1048,6 +1070,8 @@
     forBtn.onclick = () => { ui.forOpen = ui.forOpen === ui.cur ? "" : ui.cur; render(); };
     qMeta.append(qPos, qPurpose, purposeSel.w, qFor, forBtn, qFrom, qDeps, qSug, qHost);
     const qText = E("h1", "vf-qtext"); qText.tabIndex = -1;
+    // F:30: the background Claude wrote for the question (its stored `context`), under the question, clamped like any long text
+    const qCtx = clampBox("vf-qctx"); qCtx.hidden = true;
     const reviewRow = E("div", "vf-reviewrow");
     const reviewTag = E("span", "vf-review"); const reviewTxt = E("span");
     reviewTag.append(icon("alert"), reviewTxt);
@@ -1071,7 +1095,7 @@
     orRow.append(orStart, orWhyBtn, orTour);
     // Follow-up item 6: this is the welcome card, shown once per person on each device until Skip or Start here; Skip
     // closes it and the tour offer at once. "Show the tour again" in the person's settings brings both back.
-    const orLead = E("p", "vf-orient-lead", "Enter your name to join, then answer this round's questions.");
+    const orLead = E("p", "vf-orient-lead", "You're in. Answer this round's questions.");
     const orHide = btn("vf-btn vf-btn-ghost vf-btn-sm vf-orient-x", "Skip"); orHide.setAttribute("aria-label", "Skip the welcome and the tour");
     const orCatch = catchUpEl(() => { ui.orientHidden = true; });
     orient.append(orHide, orLead, orH, orGoal, orAsk, orCatch, orRow, orWhy);
@@ -1130,7 +1154,11 @@
     const askSend = E("button", "vf-btn vf-btn-primary", "Send request"); askSend.type = "submit";
     const askK = composer(askTa, { send: () => askForm.requestSubmit(), escape: () => askCancel.click(), mentions: true, draftKey: () => "ask:" + ui.cur });
     askRow.append(askK.count, askK.hint, askCancel, askSend);
-    askForm.append(askHead, askTa, askAud,
+    // the same switch as the Ask Claude panel's: a guest's request can run on their own Claude
+    const askSelfSw = btn("vf-sw-row vf-askself"); askSelfSw.setAttribute("role", "switch");
+    askSelfSw.append(E("span", "vf-sw-txt vf-sw-label", "Run it on my own Claude"), E("span", "vf-switch"));
+    askSelfSw.onclick = () => { ui.askSelf = !ui.askSelf; render(); };
+    askForm.append(askHead, askTa, askSelfSw, askAud,
       E("p", "vf-pop-note vf-asknote", "The host runs it; the result lands on this question. Your request text shows on the result for everyone."), askRow);
     // Q77: the question's Claude thread, requests and results in time order.
     const thList = E("ul", "vf-thlist"); thList.setAttribute("role", "list"); thList.setAttribute("aria-label", "Claude thread");
@@ -1236,7 +1264,9 @@
     fmtRes.append(fmtResHead, fmtResSum, fmtResList);
     // Q98: a prototype question shows a preview tile and opens its own page, where the variants run and take notes.
     const protoBox = E("section", "vf-proto"); protoBox.setAttribute("aria-label", "Prototype");
-    const protoTile = E("div", "vf-proto-tile"), protoInfo = E("div", "vf-proto-info");
+    // the tile opens the prototype too (a mouse shortcut; the named link below is the one keyboards and screen readers get)
+    const protoTile = E("a", "vf-proto-tile"), protoInfo = E("div", "vf-proto-info");
+    protoTile.target = "_blank"; protoTile.rel = "noopener noreferrer"; protoTile.tabIndex = -1; protoTile.setAttribute("aria-hidden", "true");
     const protoMeta = E("p", "vf-proto-meta"), protoOpen = E("a", "vf-btn vf-btn-primary vf-btn-sm vf-proto-open", "Open prototype");
     protoOpen.target = "_blank"; protoOpen.rel = "noopener noreferrer";
     protoInfo.append(protoMeta, protoOpen);
@@ -1342,11 +1372,12 @@
     const citeChips = E("ul", "vf-citechips"); citeChips.setAttribute("aria-label", "Cited results");
     const upStrip = E("ul", "vf-upstrip"); upStrip.setAttribute("aria-label", "Your files on this question");
     cRow.append(attachBtn, citeBtn, cHint, clearBtn, sendBtn);
-    // The phone sheet's head (triage 18): Cancel, what is being answered, Save. Hidden outside the sheet.
+    // The phone sheet (triage 18): Cancel and what is being answered on top; Save ends the row under the field, right on
+    // the keyboard, in thumb reach (O114). Both show only in the sheet.
     const sheetHead = E("div", "vf-sheethead");
     const sheetCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), sheetTitle = E("span", "vf-sheettitle");
     const sheetSave = E("button", "vf-btn vf-btn-primary vf-btn-sm vf-sheetsave", "Save"); sheetSave.type = "submit";
-    sheetHead.append(sheetCancel, sheetTitle, sheetSave);
+    sheetHead.append(sheetCancel, sheetTitle); cRow.append(sheetSave);
     cForm.append(sheetHead, upStrip, citeChips, ta, cRow);
     function closeSheet() {
       if (!cForm.classList.contains("vf-composer-sheet")) return;
@@ -1375,7 +1406,7 @@
     const passLine = E("div", "vf-passline"); passLine.append(passNote, passBtn, passUndo);
     passBox.append(passLine, passForm, passWho);
     passBtn.onclick = () => { ui.passOpen = ui.cur; passErr.textContent = ""; render(); passIn.focus(); };
-    passCancel.onclick = () => { ui.passOpen = ""; render(); passBtn.focus(); };
+    passCancel.onclick = () => { ui.passOpen = ""; render(); if (!passBtn.hidden) passBtn.focus(); };
     passForm.onsubmit = e => {
       e.preventDefault();
       const qid = ui.cur, reason = passIn.value.trim();
@@ -1394,7 +1425,7 @@
     // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
     // Follow-up 47: a question asked once per device, answered from another kind of device, asks again on this one.
     const devNote = E("p", "vf-devnote"); devNote.hidden = true;
-    scroll.append(orient, goalBack, qMeta, forBox, qText, refBox, qPicBox, reviewRow, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
+    scroll.append(orient, goalBack, qMeta, forBox, qText, qCtx, refBox, qPicBox, reviewRow, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
     focusV.append(scroll);
 
     // Compare view
@@ -1864,6 +1895,11 @@
     // An answer card's reactions stay apart: on an answer they stand in for a vote, so they never join this menu.
     const msgMenu = E("div", "vf-pop vf-menu vf-msgmenu"); msgMenu.setAttribute("role", "menu"); msgMenu.setAttribute("aria-label", "Message actions"); msgMenu.hidden = true;
     msgMenu.dataset.kind = "pop"; // beside the ⋯ (or the long-pressed message) that opened it
+    msgMenu.dataset.phone = "sheet"; // a bottom sheet on a phone (O114)
+    // the finger that held a message open lifts over the sheet: that release is no tap on a menu row; a tap that starts
+    // on the sheet is
+    for (const ev of ["pointerdown", "keydown"]) msgMenu.addEventListener(ev, () => { ui.menuHeld = false; }, true);
+    msgMenu.addEventListener("click", e => { if (ui.menuHeld) { ui.menuHeld = false; e.preventDefault(); e.stopPropagation(); } }, true);
     const mmPropose = lbtn("vf-menu-item vf-menu-plain", "forward", "Propose as question");
     const mmAsk = lbtn("vf-menu-item vf-menu-plain", "sparkle", "Ask Claude about this");
     const mmCopy = lbtn("vf-menu-item vf-menu-plain", "copy", "Copy");
@@ -2100,7 +2136,8 @@
     const apWeb = webChip();
     apWeb.onclick = () => { ui.apWeb = !ui.apWeb; render(); };
     const apAud = audPick(k => { ui.apAud = k; render(); });
-    apForm.append(apQWrap.w, apLabel, apTa, apWeb, apSelf, apAud, apNote, apRow);
+    const apLHead = E("div", "vf-askhead"); apLHead.append(apLabel, apWeb);
+    apForm.append(apQWrap.w, apLHead, apTa, apSelf, apAud, apNote, apRow);
     const apConnect = E("section", "vf-apconnect"); apConnect.setAttribute("aria-labelledby", "vf-apc-h");
     const apcHead = E("h3", "vf-pop-sub", "Connect your Claude"); apcHead.id = "vf-apc-h";
     const apcLinks = E("div", "vf-acts vf-apc-links");
@@ -2354,6 +2391,7 @@
     function closePop() {
       if (!ui.pop) return;
       if (ui.pop === pcard) { ui.pcard = null; ui.renaming = false; }
+      if (ui.pop === msgMenu) ui.menuHeld = false; // a held-open menu closed without a release click: the next tap counts
       ui.pop.hidden = true; ui.pop._anchor?.setAttribute?.("aria-expanded", "false");
       if (ui.pop === bellPop) root.classList.remove("vf-inboxon");
       ui.pop._kbRead = false; // the next open logs its keyboard readout again
@@ -2650,6 +2688,9 @@
     const askGeneral = () => (apQWrap.s.value || ui.askQ) === Core.GENERAL;
     /** The kind a request goes as: the owner's pick, else ask, or research with "Use the web" on. */
     const guestKind = (picked, web) => (Core.me.isOwner ? picked : web ? "research" : "ask");
+    /** Both Ask boxes' placeholder: the same words for the same kind of request. */
+    const askPh = (kind, general) => (general && kind !== "explore" ? "A question about the whole session"
+      : { ask: "A question for Claude, answered on the question", research: "What to look up, compare or verify", explore: "Something in the answers, the chat or the linked project" }[kind]);
     /** An Ask box's note: who runs the request, and who sees Claude's answer where. */
     function askNoteText(aud, where, web) {
       const how = `Claude works out how to answer${web ? ", looking on the web," : ""} and says what it did`;
@@ -2725,7 +2766,7 @@
 
     // ---------- Phase 4c: chat reactions ----------
     const reactPop = E("div", "vf-pop vf-reactpop"); reactPop.setAttribute("role", "dialog"); reactPop.setAttribute("aria-label", "Add a reaction"); reactPop.hidden = true;
-    reactPop.dataset.kind = "pop";
+    reactPop.dataset.kind = "pop"; reactPop.dataset.phone = "sheet";
     const rpQuick = E("div", "vf-rp-quick"); rpQuick.setAttribute("role", "group"); rpQuick.setAttribute("aria-label", "Quick reactions");
     const rpMore = btn("vf-btn vf-btn-ghost vf-btn-sm vf-rp-more", "More"); rpMore.setAttribute("aria-expanded", "false");
     const rpGrid = E("div", "vf-rp-grid"); rpGrid.setAttribute("role", "group"); rpGrid.setAttribute("aria-label", "More reactions"); rpGrid.hidden = true;
@@ -2790,7 +2831,7 @@
     function msgMenuOpeners(bubble, more, get) {
       more.onclick = () => openMsgMenu(...get());
       let pressT = 0;
-      bubble.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") return; clearTimeout(pressT); pressT = setTimeout(() => { pressT = -1; openMsgMenu(...get()); }, 500); });
+      bubble.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") return; clearTimeout(pressT); pressT = setTimeout(() => { pressT = -1; ui.menuHeld = true; openMsgMenu(...get()); }, 500); });
       for (const ev of ["pointerup", "pointercancel", "pointerleave"]) bubble.addEventListener(ev, () => { if (pressT !== -1) clearTimeout(pressT); });
       bubble.addEventListener("contextmenu", e => { if (pressT === -1) { e.preventDefault(); pressT = 0; } });
     }
@@ -2942,7 +2983,7 @@
       return { x, r, label: x ? ansLabel(x) : r ? rstat(r) : "" };
     }
     /** What became of an answer, as its request's line says it. */
-    const ansLabel = x => (x.takenDown ? "Taken down by the host" : x.private ? (isMe(x.byCid) ? "Answered, just for you" : "Answered, just for the asker") : x.published === false ? "Answered, waiting for the host to share" : "Answered");
+    const ansLabel = x => (x.takenDown ? "Taken down by the host" : x.private ? (isMe(x.byCid) ? "Answered, just for you" : "Answered, just for the asker") : x.published === false ? (Core.me.isOwner ? "Answered, waiting for you to share" : "Answered, waiting for the host to share") : "Answered");
     /** Ask Claude on "About the whole session", with one answer ("x:<id>") or request ("r:<id>") of it in view. */
     function openGeneral(key) {
       if (key?.startsWith("x:")) ui.resClosed.delete(key.slice(2));
@@ -3021,7 +3062,7 @@
       if (mine) { k.chip.textContent = IX_STAT[i.status] || i.status; k.chip.dataset.stat = i.status; }
       k.what.textContent = ixText(i, S);
       const x = i.result ? (S.research?.[i.qid || Core.GENERAL] || []).find(y => y.id === i.result) : null;
-      const sub = i.status === "unshared" ? "Waiting for the host to share" : i.status === "failed" ? i.reason || ""
+      const sub = i.status === "unshared" ? (Core.me.isOwner ? "Waiting for you to share" : "Waiting for the host to share") : i.status === "failed" ? i.reason || ""
         : i.status === "answered" && !Core.me.isOwner ? (x?.own ? "Only you see it until the host shares it" : x?.takenDown ? "The host took it down; only you and the host see it" : "Just me: only you and the host see it") : "";
       k.sub.textContent = sub; k.sub.hidden = !sub;
       k.tm.textContent = since(mine ? i.changedTs : i.ts); k.tm.hidden = !i.ts;
@@ -3030,7 +3071,7 @@
       li.dataset.key = i.key; li.dataset.stat = i.status || i.kind;
       const where = i.qid ? `${i.qid}. ` : i.scope ? `${GEN_LABEL}. ` : "";
       const when = !i.ts ? "" : ` ${k.tm.textContent.replace(/^j/, "J")}.`;
-      k.b.setAttribute("aria-label", `${i.unread ? "Unread. " : ""}${where}${k.what.textContent}${mine ? ` ${i.status === "unshared" ? "Answered, waiting for the host to share" : IX_STAT[i.status]}${sub && i.status !== "unshared" ? `: ${sub}` : ""}.` : ""}${when}`);
+      k.b.setAttribute("aria-label", `${i.unread ? "Unread. " : ""}${where}${k.what.textContent}${mine ? ` ${i.status === "unshared" ? (Core.me.isOwner ? "Answered, waiting for you to share" : "Answered, waiting for the host to share") : IX_STAT[i.status]}${sub && i.status !== "unshared" ? `: ${sub}` : ""}.` : ""}${when}`);
     }
 
     // ---------- what each tab lists ----------
@@ -3628,7 +3669,7 @@
     adForm.append(adTitle, adSeg, ...Object.values(adF), adNote, adMineHead, adMine, adErr, adRow);
     attDlg.append(adForm);
     root.append(attDlg);
-    const AD = { kind: "link", qid: "", ref: false, taken: [], onAdd: null, from: null };
+    const AD = { kind: "link", qid: "", ref: false, taken: [], onAdd: null, from: null, title: "" };
     /** Which tabs the picker shows. A reference takes a link or a quote. Every form people write in takes an upload,
      *  and only while Uploads is on. Pictures come from Claude's add-asset. */
     function attKinds(ref) {
@@ -3640,7 +3681,7 @@
       .sort((a, b) => b.ts - a.ts);
     const adFirst = () => ({ file: adFile, image: adImg, link: adUrl, quote: adQText })[AD.kind];
     function openAttach(o) {
-      Object.assign(AD, { qid: "", ref: false, taken: [], onAdd: null, from: null }, o);
+      Object.assign(AD, { qid: "", ref: false, taken: [], onAdd: null, from: null, title: "" }, o);
       const ok = attKinds(AD.ref);
       if (!ok[AD.kind]) AD.kind = Object.keys(ok).find(k => ok[k]) || "link";
       for (const x of [adFile, adImg, adCap, adUrl, adLTitle, adQText, adQSrc, adQUrl]) x.value = "";
@@ -3651,7 +3692,7 @@
     }
     function paintAttach() {
       const ok = attKinds(AD.ref), k = AD.kind, owner = Core.me.isOwner, trusted = owner || Core.me.isTrusted;
-      adTitle.textContent = AD.ref ? "Add a reference" : "Attach to this";
+      adTitle.textContent = AD.ref ? "Add a reference" : AD.title || "Attach a file";
       for (const [kk, b] of Object.entries(adKinds)) { b.hidden = !ok[kk]; b.setAttribute("aria-pressed", String(kk === k)); }
       adSeg.hidden = Object.values(ok).filter(Boolean).length < 2;
       adF.file.hidden = k !== "file"; adF.image.hidden = adF.cap.hidden = k !== "image";
@@ -3721,7 +3762,7 @@
       const chips = E("ul", "vf-reflist vf-attlist vf-attdraft"); chips.setAttribute("aria-label", "Attached, not sent yet"); chips.hidden = true;
       let own = [];
       const slot = { btn: b, chips, qid: getQid, get: store?.get || (() => own), set: store?.set || (l => { own = l; }) };
-      slot.put = l => { slot.set(l); paintSlot(slot); };
+      slot.put = l => { slot.set(l); paintSlot(slot); render(); }; // render: the answer's file rows drop a picture its tile now shows (S17)
       /** After a send: only the files it carried leave the form, on the question it was sent from. */
       slot.sent = ex => {
         const ids = ex?.attachments || [], q = ex?.from?.qid, mine = store?.getFor ? store.getFor(q) : slot.get();
@@ -3732,11 +3773,11 @@
       /** The draft list of the question in view now, kept for a paste that finishes after the reader moved on. */
       slot.here = () => {
         const q = ui.cur;
-        return store?.getFor ? { get: () => store.getFor(q), put: l => { store.setFor(q, l); paintSlot(slot); } } : { get: slot.get, put: slot.put };
+        return store?.getFor ? { get: () => store.getFor(q), put: l => { store.setFor(q, l); paintSlot(slot); render(); } } : { get: slot.get, put: slot.put };
       };
       b.onclick = () => {
         if (slot.get().length >= 4) return flash("Four files at most go with one post.");
-        openAttach({ qid: getQid(), taken: slot.get().map(a => a.upload), from: b, onAdd: att => slot.put([...slot.get(), att]) });
+        openAttach({ qid: getQid(), taken: slot.get().map(a => a.upload), from: b, title: slot.title, onAdd: att => slot.put([...slot.get(), att]) });
       };
       if (field) on(field, "paste", e => {
         const pics = [...(e.clipboardData?.files || [])].filter(f => /^image\/(png|jpeg|webp|gif)$/.test(f.type));
@@ -4127,15 +4168,20 @@
     cForm.insertBefore(cSlot.chips, ta);
     const apSlot = attSlot(() => (askGeneral() ? "" : apQWrap.s.value || ui.cur), apAttach, null, apTa, () => !selfAsk());
     apForm.insertBefore(apSlot.chips, apNote);
-    const askSlot = attSlot(() => ui.cur, null, perQuestion(), askTa);
+    const askOwn = () => !Core.me.isOwner && !!ui.askSelf; // the question's ask box runs on my own Claude: it carries no files
+    const askSlot = attSlot(() => ui.cur, null, perQuestion(), askTa, () => !askOwn());
     askRow.prepend(askSlot.btn); askForm.insertBefore(askSlot.chips, askForm.querySelector(".vf-asknote"));
     const sugSlot = attSlot(() => ui.cur, null, perQuestion(), sugTa);
     sugRow.prepend(sugSlot.btn); sugForm.insertBefore(sugSlot.chips, sugRow);
     const chatSlot = attSlot(() => "", null, null, mInput);
+    // the attach dialog names what the file goes with (sweep S26)
+    for (const [sl, t] of [[cSlot, "Attach to your answer"], [apSlot, "Attach to your request"], [askSlot, "Attach to your request"], [sugSlot, "Attach to your suggestion"],
+      [chatSlot, "Attach to your message"]]) sl.title = t;
     mForm.prepend(chatSlot.btn); chat.insertBefore(chatSlot.chips, mForm);
     const discSlot = attSlot(() => ui.cur, null, perQuestion(), discTa);
     discRow.prepend(discSlot.btn); discForm.insertBefore(discSlot.chips, discRow);
     const propSlot = attSlot(() => "", null, null, propTa);
+    discSlot.title = "Attach to your comment"; propSlot.title = "Attach to your proposal";
     propRowB.prepend(propSlot.btn); proposePop.insertBefore(propSlot.chips, propRowB);
     const sameAtt = qid => attKey(ui.attDraft[qid] ?? (myRec(qid)?.att || [])) === attKey(myRec(qid)?.att || []);
 
@@ -4253,11 +4299,13 @@
       if (S.youWaiting) { // Approve new joins: one card, the title, the intro and the wait; nothing to read or do until let in
         evTitle.textContent = S.title || "Interview";
         evIntroT.textContent = S.intro || "";
-        evNote.textContent = "Waiting for the host to let you in. This page opens by itself; keep it open.";
+        evNote.textContent = `${renamedLine()}Waiting for the host to let you in. This page opens by itself; keep it open.`;
         evNext.hidden = evPropose.hidden = evHere.hidden = evShare.hidden = evGoalNow.hidden = true;
       }
     }
 
+    /** Sweep S22: the name the server gave when the one typed was taken (by someone here or offline), said once. */
+    const renamedLine = () => (Core.renamedFrom && Core.me.name ? `You joined as ${Core.me.name}: the name ${Core.renamedFrom} was taken. ` : "");
     // ---------- events ----------
     qPrev.onclick = () => step(-1);
     qNext.onclick = () => step(1);
@@ -4407,13 +4455,15 @@
     askForm.onsubmit = e => {
       e.preventDefault();
       const text = askTa.value.trim(), qid = ui.cur; if (!text) return askTa.focus();
-      if (attWaits(askSlot)) return;
+      const own = askOwn();
+      if (!own && attWaits(askSlot)) return;
       askSend.disabled = true;
       const aud = ui.askAud || "everyone";
-      const ex = attExtra(askSlot);
-      Core.request(qid, guestKind(ui.askKind, ui.askWeb), text, ex, "host", aud).then(() => {
-        kitSent(askTa, "ask:" + qid); askSlot.sent(ex); ui.askOpen = false; ui.askWeb = false; ui.askAud = null; renderAsk();
-        flash(Core.me.isOwner ? `Sent to Claude. The answer shows on the question${aud === "me" ? ", for you alone," : ""} and in your Inbox.` : "Sent to the host. It runs once they press Run.");
+      const ex = own ? undefined : attExtra(askSlot);
+      Core.request(qid, guestKind(ui.askKind, ui.askWeb), text, ex, own ? "self" : "host", own ? undefined : aud).then(() => {
+        kitSent(askTa, "ask:" + qid); if (ex) askSlot.sent(ex); ui.askOpen = false; ui.askWeb = false; ui.askAud = null; renderAsk();
+        flash(own ? "Added to your requests. Run it on your own Claude from Ask Claude."
+          : Core.me.isOwner ? `Sent to Claude. The answer shows on the question${aud === "me" ? ", for you alone," : ""} and in your Inbox.` : "Sent to the host. It runs once they press Run.");
       }).catch(fail).finally(() => { askSend.disabled = false; });
     };
     on(board, "scroll", edges, { passive: true });
@@ -4450,6 +4500,7 @@
     const REP = { ctx: null, image: "", size: null };
     function paintSent() {
       const c = REP.ctx;
+      if (!c) return; // the form has not opened yet: a screenshot picked or cleared before it has nothing to list (sweep S30)
       const rows = [...ctxLines(c),
         c.errors.length ? `Recent errors: ${c.errors.join("; ")}` : "Recent errors: none",
         ...(REP.image ? [`Your screenshot, ${REP.size.w} × ${REP.size.h}`] : []),
@@ -4517,7 +4568,7 @@
     }
     const repShot = shotSlot(repTa, err => { REP.image = repShot.image; REP.size = repShot.size; repErr.textContent = err || ""; paintSent(); });
     const repShotRow = E("div", "vf-crow vf-rep-shotrow"); repShotRow.append(repShot.btn);
-    reportPop.insertBefore(repShot.chips, repRow); repRow.after(repShotRow); reportPop.append(repShot.input);
+    repTa.after(repShot.chips, repShotRow); reportPop.append(repShot.input);
     const dropShot = () => { repShot.clear(); REP.image = ""; REP.size = null; paintSent(); };
     const repBack = () => { const r = reportPop._return || reportPop._anchor; closePop(); if (r?.isConnected && r.offsetParent) r.focus({ preventScroll: true }); };
     repCancel.onclick = repBack;
@@ -5279,19 +5330,21 @@
       const locked = lockedQ || ro || pollWait || ownOpt;
       ta.disabled = !qid || locked;
       if (ta.disabled) closeSheet();
-      ta.placeholder = S.youRemoved ? "The host removed you from this session."
+      // a phone's composer is one line between the paperclip and send, so every placeholder there fits it whole (sweep S24)
+      ta.placeholder = S.youRemoved ? (phone.matches ? "The host removed you" : "The host removed you from this session.")
         : S.ended && !Core.me.isOwner ? "This session has ended."
-        : q && notOpenYet(q) ? `Round ${roundOf(q)} opens after round ${curRound().current}. You can answer then.`
-        : ro ? `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Suggest a change above." : ""}`
-        : lockedQ ? (Core.canModerate() ? "This question is locked. Edit or unlock it above." : "This question is locked. Suggest a change above.")
-        : ownOpt ? "Your own option is your answer here. Change it above."
+        : q && notOpenYet(q) ? (phone.matches ? `Opens after round ${curRound().current}` : `Round ${roundOf(q)} opens after round ${curRound().current}. You can answer then.`)
+        // no "above" or "below": where Edit, Unlock and Suggest a change sit differs by width; a phone gets the short form
+        : ro ? (phone.matches ? "Read-only: sent to Claude" : `Round ${roundOf(q)} went to Claude, so this question is read-only.${lockedQ && !Core.canModerate() ? " Use Suggest a change." : ""}`)
+        : lockedQ ? (phone.matches ? "Locked" : Core.canModerate() ? "This question is locked. Use Edit or Unlock." : "This question is locked. Use Suggest a change.")
+        : ownOpt ? (phone.matches ? "Your own option is your answer" : "Your own option is your answer here. Change it above.")
         // A phone's composer is one line: the first half alone, so it is never cut mid-word.
         : pollWait ? (q?.format === "choice" && otherOf(q) ? "Pick an option first" : q?.format === "rank" ? "Save your ranking first" : "Pick first")
           + (phone.matches ? "" : ", then add a comment if you like.")
         : early ? "Add a comment (optional)…" + (phone.matches ? "" : " It goes in with your pick.")
-        : q?.format === "choice" ? (picked ? "Add a comment (optional)…" : "Pick an option, or write your own answer…")
+        : q?.format === "choice" ? (picked ? "Add a comment (optional)…" : phone.matches ? "Or answer in your own words…" : "Pick an option, or answer in your own words…")
         : isFormat(q) ? "Add a comment (optional)…"
-        : q?.format === "confirm" ? (picked && q.purpose === "poll" ? "Add a comment (optional)…" : "Not exactly? Say what you meant…")
+        : q?.format === "confirm" ? (picked && q.purpose === "poll" ? "Add a comment (optional)…" : phone.matches ? "Not exactly? What did you mean…" : "Not exactly? Say what you meant…")
         : "Write your answer…";
       cForm.classList.toggle("vf-composer-locked", locked);
       const commenting = (q?.format === "choice" || isFormat(q) || q?.purpose === "poll") && (picked || early);
@@ -5299,6 +5352,8 @@
       ta.setAttribute("aria-label", commenting ? "Comment on your pick" : q?.format === "confirm" ? "Not exactly: what you meant" : "Your answer");
       sendBtn.setAttribute("aria-disabled", String(locked || (ta.value.trim() === mine && sameCites(qid) && sameAtt(qid)) || !qid));
       clearBtn.hidden = !ta.value || locked;
+      // a comment written before the picks goes in with Save my picks (or Save my ranking): one primary button, not two
+      sendBtn.hidden = early && ["multi", "rank"].includes(q?.format);
       cRow.hidden = locked;
     }
     function renderAsk() {
@@ -5309,11 +5364,15 @@
       const kind = guestKind(ui.askKind, ui.askWeb);
       askSeg.hidden = !Core.me.isOwner; askWeb.hidden = Core.me.isOwner;
       askWeb.setAttribute("aria-pressed", String(!!ui.askWeb));
-      askTa.placeholder = kind === "ask" ? "A question for Claude about this, answered on the question" : "What to look up, compare or verify";
+      askTa.placeholder = askPh(kind, false);
+      const ownIn = askOwn();
+      askSelfSw.hidden = Core.me.isOwner; askSelfSw.setAttribute("aria-checked", String(ownIn));
+      askAud.hidden = ownIn;
       askLabel.textContent = kind === "ask" ? "What should Claude answer?" : "What should Claude find out?";
       askAud._paint(ui.askAud || "everyone");
       const askNote = askForm.querySelector(".vf-asknote");
-      if (askNote) askNote.textContent = askNoteText(ui.askAud || "everyone", "on this question", ui.askWeb);
+      if (askNote) askNote.textContent = ownIn ? "Only you see this request. Your own Claude runs it; the host reviews its answer before anyone else sees it."
+        : askNoteText(ui.askAud || "everyone", "on this question", ui.askWeb);
       if (ui.askOpen) grow(askTa);
     }
     function reviewText(q) { return q.needsReview ? `Needs review: ${q.needsReview.because} changed` : ""; }
@@ -5406,7 +5465,8 @@
     const KIND_REQ = { ask: "Ask", research: "Research", explore: "Explore", design: "Design", prototype: "Prototype" };
     const RSTAT = { pending: "Waiting for the host", running: "Running", declined: "Declined", done: "Done", failed: "Failed" };
     const RSTAT_SELF = { pending: "Waiting for your Claude", running: "Your Claude is on it" };
-    const rstat = r => (r.runner === "self" && RSTAT_SELF[r.status]) || RSTAT[r.status] || r.status;
+    // the host reads their own turn: the request waits for them, not for "the host"
+    const rstat = r => (r.runner === "self" && RSTAT_SELF[r.status]) || (r.status === "pending" && Core.me.isOwner ? "Waiting for you to run it" : RSTAT[r.status]) || r.status;
     function threadItems(S, q) {
       const res = (S.research?.[q.id] || []).map(x => ({ t: "res", id: "x:" + x.id, ts: x.ts, x }));
       const reqs = new Map();
@@ -5473,7 +5533,7 @@
       ask.after(fromDisc);
       li.append(head, bodyR);
       head.onclick = () => { const id = li._x.id; ui.resClosed.has(id) ? ui.resClosed.delete(id) : ui.resClosed.add(id); render(); };
-      full.onclick = () => openReader(`${KIND_LABEL[li._x.kind] || "Research"} report`, `${li._x.skill}, ${li._q.id}: ${li._q.text}`, li._x.report, full);
+      full.onclick = () => openReader(`${KIND_LABEL[li._x.kind] || "Research"} report`, `${li._x.skill ? li._x.skill + ", " : ""}${li._q.id}: ${li._q.text}`, li._x.report, full);
       li._k = { head, ttl, via, isNew, tm, bodyR, ask, sum, srcs, full, citedBy, share, shareNote, discard, publish, takeDown, fromDisc, useRow };
       return li;
     }
@@ -5485,7 +5545,7 @@
       k.ttl.textContent = x.own ? `${x.kind === "ask" ? "Answer" : KIND_LABEL[x.kind] || "Answer"} from ${isMe(x.byCid) ? "your" : `${disp(x.by || "someone")}'s`} own Claude`
         : x.kind === "ask" ? "Claude's answer" : KIND_LABEL[x.kind] || "Research";
       li.classList.toggle("vf-res-own", !!x.own);
-      k.via.textContent = `via ${x.skill}`;
+      k.via.textContent = x.skill ? `via ${x.skill}` : ""; k.via.hidden = !x.skill; // nothing named: no "via Claude" under "Claude's answer"
       k.via.title = x.why || ""; // C37: why Claude routed it there
       // Shared, held for the owner's Share, or out to its asker alone (private: Just me, or taken down by the owner).
       const draft = x.published === false, owner = Core.me.isOwner, asker = isMe(x.byCid), who = disp(x.by || "the person who asked");
@@ -5520,7 +5580,7 @@
       k.ask.hidden = !x.ask;
       fillFromDisc(k.fromDisc, Core.state, q, x.requestId);
       li.classList.toggle("vf-qa-noask", !x.ask);
-      fillClamp(k.sum, "x:" + x.id, x.summary, k.ttl.textContent, `${x.skill}, ${q.id}: ${q.text}`);
+      fillClamp(k.sum, "x:" + x.id, x.summary, k.ttl.textContent, `${x.skill ? x.skill + ", " : ""}${q.id}: ${q.text}`);
       const sk = JSON.stringify(x.sources);
       if (k.srcs._sk !== sk) {
         k.srcs._sk = sk;
@@ -5599,18 +5659,20 @@
       if (thList._q !== q.id) { resetList(thList); thList._q = q.id; }
       sync(thList, items, i => i.id, i => (i.t === "res" ? makeRes() : i.t === "note" ? makeThNote() : makeThReq()),
         (li, i) => (i.t === "res" ? fillRes(li, i.x, q) : i.t === "note" ? fillThNote(li, i.a, q) : fillThReq(li, i.r, q)));
-      thEmpty.hidden = items.length > 0;
       const mineOpen = (S.myRequests || []).filter(r => r.qid === q.id && r.runner !== "self" && (r.status === "pending" || r.status === "running")).length;
       const others = Math.max(0, (S.requestCounts?.byQ?.[q.id] || 0) - (Core.me.isOwner ? (S.requests || []).filter(r => r.qid === q.id && (r.status === "pending" || r.status === "running")).length : mineOpen));
       reqChip.textContent = others ? `${others} more open with the host` : "";
       reqChip.hidden = !others;
+      // with others' requests open, the head and the empty line say so, never "Nothing asked yet" beside the count
+      thEmpty.hidden = items.length > 0;
+      thEmpty.textContent = others ? "Others asked Claude about this question. Answers show here once the host runs them." : "Nothing asked yet. Ask Claude about this question, or have it research something.";
       const res = items.filter(i => i.t === "res"), reqs = items.filter(i => i.t === "req"), nNotes = items.length - res.length - reqs.length;
       const nNew = res.filter(i => resNew(i.x, q)).length;
       const nRun = reqs.filter(i => i.r.status === "running").length, nWait = reqs.filter(i => i.r.status === "pending").length;
       const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
       clNew.textContent = nNew ? `${nNew} new` : ""; clNew.hidden = !nNew;
       clCounts.textContent = [res.length && plural(res.length, "answer"), nRun && `${nRun} running`, nWait && `${nWait} waiting`, nNotes && plural(nNotes, "note")]
-        .filter(Boolean).join(" · ") || "Nothing asked yet";
+        .filter(Boolean).join(" · ") || (others ? "" : "Nothing asked yet");
       return nNew;
     }
     function showResult(qid, xid) {
@@ -5753,7 +5815,7 @@
         const b = li.firstChild, on2 = (ui.cites[q.id] || []).includes(x.id);
         b.setAttribute("aria-pressed", String(on2));
         b.firstChild.textContent = `${KIND_LABEL[x.kind] || "Research"} ${x.id}${x.by ? `, asked by ${isMe(x.byCid) ? "you" : disp(x.by)}` : ""}`;
-        b.lastChild.textContent = `via ${x.skill}, ${since(x.ts)}`;
+        b.lastChild.textContent = x.skill ? `via ${x.skill}, ${since(x.ts)}` : since(x.ts);
       });
       const shown = picked.filter(id => res.some(x => x.id === id));
       sync(citeChips, ro ? [] : shown, id => id, id => {
@@ -5778,11 +5840,11 @@
       if (protoTile._key !== key) {
         protoTile._key = key;
         if (pic) { const im = E("img"); im.alt = ""; im.loading = "lazy"; im.src = assetUrl(pic.asset); protoTile.replaceChildren(im); }
-        else protoTile.replaceChildren(E("span", null, "Interactive prototype"));
+        else protoTile.replaceChildren(icon("open", "vf-i vf-proto-ico"), E("span", null, `${vs.length} interactive variant${vs.length === 1 ? "" : "s"}`));
       }
       const n = (Core.state.annotations || []).filter(a => a.qid === q.id).length;
       protoMeta.textContent = `${vs.length} variants: ${vs.map(v => v.label).join(", ")}. ${n ? `${n} note${n === 1 ? "" : "s"} pinned so far.` : "Try them and pin notes on any part."}`;
-      protoOpen.href = Core.pageLink(`/proto/${q.id}`);
+      protoOpen.href = protoTile.href = Core.pageLink(`/proto/${q.id}`);
       protoOpen.setAttribute("aria-label", `Open prototype for ${q.id} in a new tab`);
     }
 
@@ -5863,14 +5925,14 @@
           k.lockB.hidden = !!o.other || !!lk || !Core.canModerate() || q.purpose === "gather" || q.purpose === "poll";
         });
         const picked = optionsOf(q).find(o => o.id === rec?.pick);
-        fmtHint.textContent = (optionsOf(q).some(o => o.image) ? "Tap a picture to see it bigger. " : "") + "Pick one option. You can change your pick later.";
+        fmtHint.textContent = (optionsOf(q).some(o => o.image) ? `${tapW()} a picture to see it bigger. ` : "") + "Pick one option. You can change your pick later.";
         fmtHint.hidden = ro;
         fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
           : picked?.other ? "You wrote your own option. It shows in Answers, where others can back it."
           : picked ? `You chose ${picked.label}. Add a comment below if you like.`
-          : hideResults ? "Pick one to see how everyone voted." : "Your choice is your vote. You can add a comment below.";
+          : hideResults ? RESULTS_HINT : "Your choice is your vote. You can add a comment below.";
       } else {
-        fmtHint.textContent = "Tap the picture to see it bigger.";
+        fmtHint.textContent = `${tapW()} the picture to see it bigger.`;
         fmtHint.hidden = false;
         if (confirmImg._src !== q.image) { confirmImg._src = q.image; confirmImg.src = assetUrl(q.image); }
         const r = markRect(confirmMark, q.rect || { x: 0, y: 0, w: 100, h: 100 });
@@ -5884,6 +5946,7 @@
           b.setAttribute("aria-pressed", String(mine));
           b.disabled = ro;
           b.lastChild.textContent = hideResults ? "" : String(cnt);
+          b.lastChild.hidden = hideResults; // no empty count box before the results show
           b.hidden = !id && q.purpose === "poll"; // a poll takes a pick, not a written answer
           b.dataset.lead = String(!!id && lead === id);
           b.dataset.locked = String(!!id && lk?.answerCid === id);
@@ -6019,7 +6082,7 @@
         });
         fmtHint.textContent = "Pick every option that fits, then save. Your picks are your vote.";
         fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
-          : rec?.picks?.length ? `You picked ${rec.picks.length}. Add a comment below if you like.` : hideResults ? "Pick to see how everyone voted." : "";
+          : rec?.picks?.length ? `You picked ${rec.picks.length}. Add a comment below if you like.` : hideResults ? RESULTS_HINT : "";
       } else if (q.format === "scale") {
         const v = draftOf(q, rec), labels = q.labels || {}, mid = (q.min + q.max) % 2 === 0 ? (q.min + q.max) / 2 : null;
         const named = n => (n === q.min ? labels.min : n === q.max ? labels.max : n === mid ? labels.mid : "") || "";
@@ -6039,9 +6102,9 @@
         });
         scaleMin.textContent = `${q.min}: ${labels.min}`; scaleMax.textContent = `${q.max}: ${labels.max}`;
         scaleMid.textContent = labels.mid ? (mid != null ? `${mid}: ${labels.mid}` : labels.mid) : ""; // kept empty, it holds the middle column
-        fmtHint.textContent = `Tap a number from ${q.min} to ${q.max}, or use the arrow keys. It saves by itself.`;
+        fmtHint.textContent = `${tapW()} a number from ${q.min} to ${q.max}, or use the arrow keys. It saves by itself.`;
         fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The choice is decided.") : ro ? "Read-only now."
-          : rec?.value != null ? `You chose ${rec.value}. Add a comment below if you like.` : hideResults ? "Choose to see how everyone voted." : "";
+          : rec?.value != null ? `You chose ${rec.value}. Add a comment below if you like.` : hideResults ? RESULTS_HINT : "";
       } else {
         const order = draftOf(q, rec), n = order.length;
         if (rankList._q !== q.id) { resetList(rankList); rankList._q = q.id; }
@@ -6062,7 +6125,7 @@
         const saved = !!rec?.order?.length, dirty = !sameList(order, rec?.order) || ownChanged(q, rec);
         fmtNote.textContent = lk ? (q.purpose === "poll" ? "The poll is closed." : "Locked. The order is decided.") : ro ? "Read-only now."
           : saved && !dirty ? "Your ranking is saved. Add a comment below if you like." : saved ? "Not saved yet: save to update your ranking."
-          : hideResults ? "Save your ranking to see everyone's." : "Not saved yet.";
+          : hideResults ? RESULTS_HINT : "Not saved yet.";
       }
       fmtHint.hidden = ro;
       paintFmtActs(q, rec, ro);
@@ -6087,7 +6150,7 @@
       } else fmtClear.textContent = "Clear my choice";
       fmtClear.hidden = !saved;
     }
-    const fmtOwn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-fmt-own", "Add your own option");
+    const fmtOwn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-fmt-own", "Write your own"); // the choice card's words
     fmtActs.insertBefore(fmtOwn, fmtActs.children[1]);
     fmtOwn.onclick = () => openOther(ui.cur);
     function toggleMulti(o, checked) {
@@ -6327,12 +6390,12 @@
       if (apQWrap.s._k !== qk) {
         apQWrap.s._k = qk;
         const gen = E("option", null, "About the whole session"); gen.value = Core.GENERAL; // pinned first: no question needed
-        apQWrap.s.replaceChildren(gen, ...qs.map(q => { const o = E("option", null, `${q.id}: ${q.text.length > 70 ? q.text.slice(0, 70).trimEnd() + "…" : q.text}`); o.value = q.id; return o; }));
+        apQWrap.s.replaceChildren(gen, ...qs.map(q => { const o = E("option", null, `${q.id}: ${q.text.length > 70 ? q.text.slice(0, 70).replace(/\s+\S*$/, "") + "…" : q.text}`); o.value = q.id; return o; }));
       }
       if (apQWrap.s.value !== want && document.activeElement !== apQWrap.s) apQWrap.s.value = want;
       const general = askGeneral();
       apLabel.textContent = { ask: "What should Claude answer?", research: "What should Claude find out?", explore: "What should Claude look for in this session?" }[mode];
-      apTa.placeholder = general && mode !== "explore" ? "A question about the whole session" : { ask: "A question Claude answers on the question", research: "What to look up, compare or verify", explore: "Something in the answers, the chat or the linked project" }[mode];
+      apTa.placeholder = askPh(mode, general);
       const own = selfAsk();
       apSelf.hidden = Core.me.isOwner || general;
       apSelf.setAttribute("aria-checked", String(!!ui.askSelf));
@@ -6677,7 +6740,13 @@
       // round changes: a toast with a way to go there; the view moves only for people following the host
       if (Core.live) {
         const flash = (me.isOwner || popsUp("round")) ? flashNow : () => {}; // round 11: a guest's round pop-up, theirs to turn off
-        if (ui.round == null) { ui.round = cur; ui.rstat = R.status; }
+        // the baseline is what a person first sees once in (sweep S32): no "Round 2 is here." on arriving in round 2
+        const inNow = !!S.me && !S.youWaiting;
+        if (ui.round == null || !ui.roundIn) {
+          ui.round = cur; ui.rstat = R.status;
+          if (inNow && !ui.roundIn && Core.renamedFrom) flashNow(renamedLine().trim());
+          ui.roundIn = inNow;
+        }
         else if (cur > ui.round) {
           ui.round = cur; ui.rstat = R.status; ui.freshRound = cur; ui.cmpRound = null;
           const first = S.questions.find(q => roundOf(q) === cur);
@@ -6797,7 +6866,10 @@
 
       // rail
       const answered = S.questions.filter(q => myState(q.id) !== "open" || Core.lockOf(q.id)).length;
-      railMeta.textContent = `${S.questions.filter(q => myState(q.id) !== "open").length} of ${S.questions.length} answered`;
+      // per person, the complement of catchUp's count: what I answered or took part in, or what is decided; someone else's
+      // answer does not make it mine
+      const mineDone = x => ["answered", "took"].includes(myState(x.id)) || !!Core.lockOf(x.id);
+      railMeta.textContent = `${S.questions.filter(mineDone).length} of ${S.questions.length} answered`;
       const byRound = new Map(), shownQs = shownQuestions(), cuNow = catchUp();
       for (const x of shownQs) { const r = roundOf(x); if (!byRound.has(r)) byRound.set(r, []); byRound.get(r).push(x); }
       const roundNums = [...new Set([...qs.map(roundOf), cur])].sort((a, b) => a - b);
@@ -6828,8 +6900,9 @@
         head.append(toggle, curHead);
         const ul = E("ul", "vf-qlist"); ul.setAttribute("role", "list");
         if (ui.freshRound === n) ul._primed = true; // a round that opened while we watched animates its questions in
-        const cu = catchUpEl(); // shown above the current round only
-        g.append(cu, head, ul);
+        const cu = catchUpEl(); // shown in the round it is about, under its head
+        g.dataset.round = String(n);
+        g.append(head, cu, ul);
         g._k = { toggle, tLabel, check, curHead, name, meta, prog, send, readyNote, ul, cu };
         return g;
       }, (g, n) => {
@@ -6837,11 +6910,11 @@
         const decided = inRound.filter(x => Core.lockOf(x.id)).length, all = inRound.length > 0 && decided === inRound.length;
         const expanded = isCur || openRounds().has(n);
         g.classList.toggle("vf-round-cur", isCur);
-        k.cu._paint(isCur ? cuNow : null);
+        k.cu._paint(cuNow?.n === n ? cuNow : null);
         k.toggle.hidden = isCur; k.curHead.hidden = !isCur;
         k.toggle.setAttribute("aria-expanded", String(expanded));
         // ux-review-2 #7: guests count what they answered; "decided" is the moderators' word.
-        const done = mod ? decided : inRound.filter(x => myState(x.id) !== "open").length, word = mod ? "decided" : "answered";
+        const done = mod ? decided : inRound.filter(mineDone).length, word = mod ? "decided" : "answered";
         k.tLabel.textContent = n > cur ? `Round ${n}, opens after round ${cur}` : `Round ${n}, ${done} of ${inRound.length} ${word}`;
         k.check.hidden = !done;
         k.name.textContent = `Round ${n}`;
@@ -6900,7 +6973,7 @@
         const acts = E("div", "vf-acts");
         const pa = proposalActs(() => li._i);
         const why = E("p", "vf-why");
-        acts.append(pa.question, pa.restore, pa.later, pa.park);
+        acts.append(pa.park, pa.later, pa.restore, pa.question); // the Inbox row's order: the primary last
         const att = attRowEl();
         li.append(t, why, from, att, acts);
         li._k = { t, att, why, from, ...pa };
@@ -7020,13 +7093,19 @@
       if (!goalBack.hidden) goalBackTxt.textContent = `Goal: ${S.goal}`;
       if (!orient.hidden) {
         const inCur = S.questions.filter(x => roundOf(x) === cur), target = inCur.find(x => isOpenForMe(x.id)) || inCur[0] || S.questions[0];
-        const nQ = inCur.length || S.questions.length, hostName = disp(nameOf(S.ownerPid, "The host"));
+        // the questions this person owes, by the server's rule (session.py _owes) as the rail and catch-up count them: open
+        // for me (asked of me, or nobody else answered yet), not locked, not read-only
+        const nQ = inCur.filter(x => myState(x.id) === "open" && !Core.lockOf(x.id) && !readOnly(x)).length;
+        const hostName = disp(nameOf(S.ownerPid, "The host"));
         orH.textContent = me.name ? `Welcome, ${me.name}` : "Welcome";
         orGoal.textContent = S.goal ? `Goal: ${S.goal}` : ""; orGoal.hidden = !S.goal;
         const how = "On each one, pick an option, or type your answer in the box under the question. Chat is for people; start a message with @Claude to ask Claude.";
         // On a phone the how-to sentence folds in with the intro, so the card stays short.
-        orAsk.textContent = `${hostName} asks you to answer ${nQ} question${nQ === 1 ? "" : "s"}.${phone.matches ? "" : " " + how}`;
-        orStart.textContent = `Start here: question ${Math.max(1, inCur.indexOf(target) + 1)}`; orStart._q = target?.id;
+        orAsk.textContent = `${nQ ? `${hostName} asks you to answer ${nQ} question${nQ === 1 ? "" : "s"}.` : `${hostName} has no questions waiting for you right now.`}${phone.matches ? "" : " " + how}`;
+        // past round 1 the step names its round, so it reads apart from a catch-up link to an earlier one
+        const tRound = target ? roundOf(target) : cur, tPos = Math.max(1, S.questions.filter(x => roundOf(x) === tRound).indexOf(target) + 1);
+        orStart.textContent = tRound > 1 ? `Start here: round ${tRound}, question ${tPos}` : `Start here: question ${tPos}`; orStart._q = target?.id;
+        orStart.hidden = !nQ; // nothing waiting: no "Start here" beside it
         orCatch._paint(catchUp());
         if (ui.introOpen == null) { ui.introOpen = !phone.matches && !store.get(INTRO_SEEN(), false); store.put(INTRO_SEEN(), true); }
         const hasWhy = !!S.intro || phone.matches;
@@ -7080,19 +7159,22 @@
           : !canPass ? ""
           : mineNow === "soft" ? (q.purpose === "poll" ? `${disp(other.name)} answered. Pick if you have a view, or Pass.` : `${disp(other.name)} answered. 👍 if you agree, or Pass.`)
           : mineNow === "open" && askedOfMe(q.id) ? "This question is asked of you." : "";
-        passBtn.hidden = !canPass || !!myPass || mineNow === "answered" || mineNow === "took";
+        const passable = canPass && !myPass && mineNow !== "answered" && mineNow !== "took";
         passUndo.hidden = !canPass || !myPass;
-        passForm.hidden = passBtn.hidden || ui.passOpen !== q.id;
+        passForm.hidden = !passable || ui.passOpen !== q.id;
+        passBtn.hidden = !passable || !passForm.hidden; // the open form has its own Pass and Cancel
         passBtn.setAttribute("aria-expanded", String(!passForm.hidden));
-        passLbl.textContent = askedOfMe(q.id) ? "Why you pass (needed: it is asked of you)" : "Why you pass (optional)";
+        passLbl.textContent = askedOfMe(q.id) ? "Your reason for passing (needed: this is asked of you)" : "Your reason for passing (optional)";
         const passed = me.isOwner ? Object.entries(S.passes[q.id] || {}) : [];
         passWho.textContent = passed.length ? `Passed: ${passed.map(([p, r]) => disp(nameOf(p)) + (r.reason ? ` (${r.reason})` : "")).join(", ")}` : "";
         passWho.hidden = !passed.length;
-        passBox.hidden = !passNote.textContent && passBtn.hidden && passUndo.hidden && passWho.hidden;
+        passBox.hidden = !passNote.textContent && passBtn.hidden && passForm.hidden && passUndo.hidden && passWho.hidden;
         qDeps.textContent = q.dependsOn?.length ? `Depends on ${q.dependsOn.join(", ")}` : ""; qDeps.hidden = !qDeps.textContent;
         const nSug = openSugs(q.id).length;
         qSug.textContent = mod && lk && nSug ? `${nSug} suggestion${nSug > 1 ? "s" : ""}` : ""; qSug.hidden = !qSug.textContent;
         if (qText.textContent !== q.text) qText.textContent = q.text;
+        qCtx.hidden = !q.context;
+        if (q.context) fillClamp(qCtx, "qc:" + q.id, q.context, `Background to ${q.id}`, q.text);
         reviewTxt.textContent = reviewText(q);
         reviewRow.hidden = !q.needsReview;
         reviewClear.hidden = !mod;
@@ -7117,11 +7199,13 @@
         renderCite(S, q);
         ansPane.hidden = false; clSec.hidden = false; discSec.hidden = false;
         // my files on this question
-        const myUps = (S.myUploads || []).filter(u => u.qid === q.id && !["withdrawn"].includes(u.status)).sort((a, b) => a.ts - b.ts);
+        // a picture the answer already carries shows once, as its tile there; its row would repeat it
+        const tiled = new Set([...(cSlot.get() || []), ...(myRec(q.id)?.att || [])].filter(a => a.kind === "file" && a.upload && picWaits(a)).map(a => a.upload));
+        const myUps = (S.myUploads || []).filter(u => u.qid === q.id && !["withdrawn"].includes(u.status) && !tiled.has(u.id)).sort((a, b) => a.ts - b.ts);
         sync(upStrip, myUps, u => u.id, () => makeUpRow(false), fillUpRow);
         upStrip.hidden = !myUps.length;
         paintSlot(cSlot, readOnly(q) || !!Core.lockOf(q.id));
-        paintSlot(askSlot, readOnly(q));
+        paintSlot(askSlot, readOnly(q) || askOwn());
         paintSlot(sugSlot);
 
         // lock block
@@ -7241,7 +7325,7 @@
         agreeTxt.textContent = s.signoff && !lk && topA && !poll ? `${agreeN} of ${here.length} agree` : "";
         agreeTxt.classList.toggle("vf-agree-all", !!topA && agreeN === here.length);
       } else {
-        qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = true; qText.textContent = "No questions yet";
+        qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = qCtx.hidden = true; qText.textContent = "No questions yet";
         qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
         onItTxt.textContent = ""; ansCount.textContent = ""; aEmpty.hidden = true; lockBox.hidden = true; lockBtn.hidden = true;
         reviewRow.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;

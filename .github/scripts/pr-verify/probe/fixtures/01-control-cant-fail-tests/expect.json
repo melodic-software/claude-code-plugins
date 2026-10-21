@@ -1,0 +1,7 @@
+{
+  "class": "control",
+  "expected": "pass",
+  "scored": "main",
+  "defect": "none: both can't-fail tests now assert the values the issue states",
+  "mentions": []
+}

@@ -3,6 +3,39 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.15.3] - 2026-10-20
+
+### Changed
+
+- The babysit merge gate's high-path floor now also holds plugin git hooks (`plugins/*/git-hooks/**`), any `scripts/` directory at any depth under `plugins/`, and two skill-run scripts outside one (`net-probe.sh`, `preflight.mjs`) out of unattended merge.
+
+## [1.15.2] - 2026-10-20
+
+### Changed
+
+- The babysit merge gate's dequeue report names the reason the merge queue removed the pull request, and for `branch_protection_failure` names the likely cause: a body line GitHub's 72-character squash wrap starts with the word `committer` and a space, which breaks the squash commit's signature.
+
+## [1.15.1] - 2026-10-20
+
+### Fixed
+
+- pr-merge's review evidence no longer lets a later clean review of the same head clear a finding an earlier review of that head reported. Each head on the covering chain counts the most summary findings, and the most inline findings left without a thread, that any completed review of it, whole or incremental, reported; a resolved thread closes on a clean covering review only when no such review reported a finding. A finding clears only by a new head (a fix) or a human resolution, so re-running a review until it comes back clean closes nothing ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [1.15.0] - 2026-10-20
+
+### Added
+
+- The `comments --ci` review-thread tool's `check-paths` and `record` now also allow a file in a
+  kept thread's `named_paths` (a same-plugin file a write-access fix request named) when it is in
+  that thread's `plugins/<p>/` directory, in plain ASCII normal form, and not an instruction path.
+
+### Fixed
+
+- `check-paths` and `record` no longer allow a plugin's `.mcp.json`, `.lsp.json`, `.gitmodules`,
+  `CODEOWNERS`, `monitors/` or `bin/`, a `hooks` or `.claude` segment with nothing after it, a
+  `.bash`, `.zsh`, `.ps1`, `.cjs`, `.mts` or `.cts` file, or any path with a character outside
+  ASCII letters, digits and `_@+.-` through the plugin-wide part of a thread's scope.
+
 ## [1.14.3] - 2026-10-20
 
 ### Fixed

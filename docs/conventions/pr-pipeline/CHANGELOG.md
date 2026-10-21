@@ -1,5 +1,54 @@
 # Changelog for the PR pipeline convention
 
+## [2.20.4] - 2026-10-20
+
+### Fixed
+
+- The lost-run reconciler lists pr-verify runs once per lost conclusion and per not-yet-completed status instead of all runs of the day, so a day with more than 500 runs no longer fails the page cap.
+
+## [2.20.3] - 2026-10-20
+
+### Fixed
+
+- `check-trusted-trigger` matches the re-runner by account id on every path instead of by login: it reads this run's own record (`GET /actions/runs/{run_id}`) and checks `triggering_actor.id` against the trusted-actor list, so a released login re-registered by someone else no longer passes. A failed or malformed read, or a record for another run or attempt, stops with `untrusted-rerunner`. The App-label re-runner must still be the listed lanes App or a listed human. `pr-unblock-dispatch.yml` now passes the job token to the gate so it can read its run.
+
+## [2.20.2] - 2026-10-20
+
+### Fixed
+
+- The lost-run reconciler pages through a day of pr-verify runs instead of failing when there are more than 100, says how many listings failed instead of "nothing lost", and explains an exit 1 in the act step.
+
+## [2.20.1] - 2026-10-20
+
+### Fixed
+
+- The finding-closure paragraph states that a finding any review of a head reported, whole or incremental, clears only by a new head (a fix) or a human resolution: each head on the covering chain counts the summary and thread-less inline findings any review of it reported, and a later clean review of the same head never clears one ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+- The code review, security review and intake triage callers now honor the lane kill switches. A `kill-switch` job ahead of each reusable call runs `check-kill-switch` on `CLAUDE_LANES_DISABLED` and `CLAUDE_LANES_REPO_DISABLED`, which fail closed, and the call runs only when it says proceed. The code review lane also stops when `CLAUDE_REVIEW_DISABLED` is `true`, and the security review lane when `CLAUDE_SECURITY_REVIEW_DISABLED` is `true`. Intake has no switch of its own. The pinned ci-workflows reusables still read none of these variables.
+
+## [2.20.0] - 2026-10-20
+
+### Added
+
+- address-feedback: a fix request by a trusted person with write access may name files to add to
+  its thread's scope. The select step reads each file-shaped word of the request outside fenced
+  code and quoted lines, from the repository root when it holds a `/` and from the thread path's
+  directory when it does not, and records it in the thread's `named_paths` when it is in the same
+  `plugins/<p>/` directory as the thread's path, in normal form, not under `.github/`, not an
+  instruction path, and a regular file at the gated head (ten per thread at most). The promote
+  step and the reply job accept changes to those files.
+
+### Fixed
+
+- A plugin's `.mcp.json`, `.gitmodules` or `CODEOWNERS` is no longer in the plugin-wide part of a
+  kept thread's scope.
+- The instruction paths `apply-ci-fix` and address-feedback refuse now also cover a `hooks`,
+  `.claude` or `.claude-plugin` segment with nothing after it, a plugin's `monitors/` and `bin/`,
+  and `.lsp.json`; a thread's plugin-wide scope also refuses `.bash`, `.zsh`, `.ps1`, `.cjs`,
+  `.mts` and `.cts` files and any path with a character outside ASCII letters, digits and `_@+.-`.
+- The address-feedback promote step moves the PR branch only when every path the lane branch
+  adds or changes is a regular file at its tip, not a symbolic link or gitlink.
+
 ## [2.19.5] - 2026-10-20
 
 ### Fixed

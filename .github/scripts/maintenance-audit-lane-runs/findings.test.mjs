@@ -1,7 +1,7 @@
 // The filer's rules from docs/conventions/pr-pipeline/README.md, "The lane
 // sweep": a claim must match main at its path and line, the fingerprint
 // ignores run numbers, SHAs and times, model text cannot plant a marker, and
-// dedup comments, skips or files by the matching issue's state.
+// dedup comments, skips, reopens or files by the matching issue's state.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -107,7 +107,6 @@ test("model text renders only inside fences, so no link, image or reference work
   );
 });
 
-const NOW = new Date("2026-10-18T06:00:00Z");
 const issue = (number, over = {}) => ({
   number,
   state: "open",
@@ -122,7 +121,7 @@ const item = (fp, over = {}) => ({
   ...over,
 });
 
-test("an open match gets one comment, not-planned is skipped, a recent fix is linked", () => {
+test("an open match gets one comment, not-planned and duplicate are skipped, a completed match is reopened at any age", () => {
   const plan = planFiling({
     items: [
       item("00000000000000f1"),
@@ -130,6 +129,8 @@ test("an open match gets one comment, not-planned is skipped, a recent fix is li
       item("00000000000000f2"),
       item("00000000000000f3"),
       item("00000000000000f4"),
+      item("00000000000000f5"),
+      item("00000000000000f6"),
     ],
     existing: [
       issue(10, { fp: "00000000000000f1" }),
@@ -149,11 +150,16 @@ test("an open match gets one comment, not-planned is skipped, a recent fix is li
         fp: "00000000000000f4",
         state: "closed",
         state_reason: "completed",
-        closed_at: "2026-09-01T00:00:00Z",
+        closed_at: "2025-01-01T00:00:00Z",
+      }),
+      issue(14, {
+        fp: "00000000000000f5",
+        state: "closed",
+        state_reason: "duplicate",
+        closed_at: "2026-10-01T00:00:00Z",
       }),
     ],
     openNumbers: new Set([10]),
-    now: NOW,
   });
   assert.deepEqual(
     plan.comment.map((c) => c.number),
@@ -161,15 +167,36 @@ test("an open match gets one comment, not-planned is skipped, a recent fix is li
   );
   assert.deepEqual(
     plan.skip.map((s) => s.reason),
-    ["duplicate-in-run", "not-planned"],
+    ["duplicate-in-run", "not-planned", "closed-duplicate"],
   );
   assert.deepEqual(
-    plan.file.map((f) => [f.fingerprint, f.regressionOf]),
+    plan.reopen.map((r) => [r.number, r.fingerprint]),
     [
-      ["00000000000000f3", 12],
-      ["00000000000000f4", null],
+      [12, "00000000000000f3"],
+      [13, "00000000000000f4"],
     ],
   );
+  assert.deepEqual(
+    plan.file.map((f) => f.fingerprint),
+    ["00000000000000f6"],
+  );
+});
+
+test("reopens do not count against the five new issues", () => {
+  const closed = ["1", "2", "3", "4", "5"].map((c, i) =>
+    issue(20 + i, { fp: c.repeat(16), state: "closed", state_reason: "completed", closed_at: "2026-10-01T00:00:00Z" }),
+  );
+  const items = ["1", "2", "3", "4", "5", "a", "b", "c", "d", "e"].map((c) => item(c.repeat(16)));
+  const plan = planFiling({ items, existing: closed, openNumbers: new Set() });
+  assert.deepEqual(
+    plan.reopen.map((r) => r.number),
+    [20, 21, 22, 23, 24],
+  );
+  assert.deepEqual(
+    plan.file.map((f) => f.fingerprint[0]),
+    ["a", "b", "c", "d", "e"],
+  );
+  assert.deepEqual(plan.skip, []);
 });
 
 test("at most five new issues, and an open covering item skips the finding", () => {
@@ -180,7 +207,6 @@ test("at most five new issues, and an open covering item skips the finding", () 
     items,
     existing: [],
     openNumbers: new Set([7]),
-    now: NOW,
   });
   assert.deepEqual(
     plan.file.map((f) => f.fingerprint[0]),

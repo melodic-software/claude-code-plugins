@@ -475,7 +475,9 @@ plugin's skill by its `/plugin:skill` invocation instead, or promote the shared 
 convention doc both plugins can cite. A third-party skill's URL, such as a route row's external
 `pointer`, is a citation for a reader and stays allowed. The same limit applies to
 anything outside `plugins/`: `docs/**` and `.claude/rules/**` cite skills by slash invocation, never
-by path.
+by path. An upstream record under `docs/upstream/` is exempt: it may cite our plugin files by path
+and line as provenance evidence for its mapping rows, because no agent loads it at runtime and it
+records the tree as of its audit (`scripts/check-line-citations.py` leaves it unchecked on purpose).
 
 Heading anchors are never a citation target, in either direction. A heading is body structure, and
 renaming one is exactly the refactor a skill must stay free to make.

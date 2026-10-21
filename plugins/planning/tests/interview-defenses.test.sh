@@ -101,6 +101,9 @@ EVALS="$PLUGIN_DIR/skills/interview/evals/evals.json"
 FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 
 ATTENDED_ONLY="Recomputing a pin or digest is attended-only: an unattended run reports this pin and the git diff, then stops."
+# Appended to the digest-pin failures only: repin.sh rewrites a sha256 literal, so the exact-line
+# pins and the boundary failure have nothing for it to recompute.
+REPIN_HINT="After reading the diff, a person re-pins this digest by running, in their own terminal (a Claude Code ! line has no terminal): bash plugins/planning/tests/repin.sh '<pin label text>' '<justification>'"
 PASS=0
 FAIL=0
 fail() {
@@ -249,7 +252,7 @@ pin_section() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the section between \"$open\" and \"$close\" in ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Anything added inside this section can qualify the defense it houses WITHOUT touching a pinned line. Re-read the section, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY}"
+    fail "$label — the section between \"$open\" and \"$close\" in ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Anything added inside this section can qualify the defense it houses WITHOUT touching a pinned line. Re-read the section, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
   fi
 }
 
@@ -269,7 +272,7 @@ pin_frontmatter() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the YAML frontmatter of ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Frontmatter is loaded before any section, so a qualifier in ANY key here reaches every invocation. Re-read it, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY}"
+    fail "$label — the YAML frontmatter of ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). Frontmatter is loaded before any section, so a qualifier in ANY key here reaches every invocation. Re-read it, confirm neither defense was weakened, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
   fi
 }
 
@@ -287,7 +290,7 @@ pin_case_digest() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — eval case \"$name\" changed (want $want, got $got). A criterion may have been added that contradicts one already pinned. Re-read the case, confirm it still rejects the silent capture, then update the digest. ${ATTENDED_ONLY}"
+    fail "$label — eval case \"$name\" changed (want $want, got $got). A criterion may have been added that contradicts one already pinned. Re-read the case, confirm it still rejects the silent capture, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
   fi
 }
 
@@ -304,7 +307,7 @@ pin_file() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). This fixture IS the case's plant: if it no longer plants a genuinely-open decision (case A) or a resolved-but-one context (case B), the case grades nothing. Re-read it, confirm the plant survives, then update the digest. ${ATTENDED_ONLY}"
+    fail "$label — ${file#"$PLUGIN_DIR/"} changed (want $want, got $got). This fixture IS the case's plant: if it no longer plants a genuinely-open decision (case A) or a resolved-but-one context (case B), the case grades nothing. Re-read it, confirm the plant survives, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
   fi
 }
 
@@ -324,7 +327,7 @@ pin_case_set() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest. ${ATTENDED_ONLY}"
+    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest. ${ATTENDED_ONLY} ${REPIN_HINT}"
   fi
 }
 
@@ -446,9 +449,10 @@ declares_both_fixtures B "$CASE_B"
 # Both defenses are body prose, each covered by its own section digest below; no
 # frontmatter key states or qualifies either. `argument-hint` is the slot list
 # `[me|lock|scope|share] [topic]`, with the invocation examples in the body's `Arguments.` line.
+# Adds idea-shaped trigger phrases
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "c7cdb6ad399bfc71c4645d8448ab54e040588034d97fa617ffc895c97ba5120a"
+  "f89db949cdbfbf49e51d4724ecd22b3d0c35d22dd0c5c16e4ea29f9d2c3a4bac"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
 # the top of SKILL.md, where a compaction's re-attach still reaches (#5332;
@@ -500,11 +504,12 @@ done
 # The surface sentence now names the lane table instead of the two "Question surface" rules; it only names where a round is asked.
 # The emoji paragraph states its setting once with an inline fallback for an unexpanded token;
 # it changes how the option is read, not what any round resolves.
+# Idea-stage routing, brainstorm handoff, problem first, withheld why question
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "4e257051ae23cc252fc57d3eef8b7cc47cdc276a3c24d1bc5a91a6755cc665dc"
+  "ce08c11a748528b1b3ae3037f2ba56ca01fa8ca198a6e5f11a21307d0cc10976"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -658,11 +663,12 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # a requirement and resolves nothing new.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The constraint ledger's Re-check bullet revises an open recommendation a new row changes; it resolves no row.
+# PRD seeds the Brief; Variation intent rename
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "b2f8bc7e6c49d500b5efc2ad019d79fe322e9aeef710fe094fc0a3719f8f99f9"
+  "106bd557fc1336e3faf59a833f98ed4d6ea5c4461d818df8f600f026bdab2c7c"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.

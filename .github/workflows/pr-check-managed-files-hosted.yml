@@ -54,6 +54,7 @@ on:
       - .github/standards/runner-policy/runner-policy.mjs
       - .github/standards/trusted-actors/trusted-actors.json
       - .github/standards/trusted-actors/trusted-actors.schema.json
+      - .github/workflows/maintenance-check-links-online-claude-code-plugins.yml
       - .github/workflows/pr-check-managed-files-hosted.yml
       - .github/workflows/pr-review-hosted.yml
       - .github/workflows/pr-review-security-hosted.yml
@@ -112,7 +113,7 @@ jobs:
         # now contains that commit, so the pin-comment takes the convention's
         # release-tag form rather than the short-SHA fallback
         # (components/managed-files-guard/README.md).
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@96b50d451c4483c476f2f963674e0a3ba9d50fe3 # v0.48.0
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@3a2c748fdef9cfb9ceec5a66289e21842189689f # v0.55.0
         with:
           # `main` for the soak, per the action's own input contract ("Pin to
           # a full SHA in callers once soak completes"): the guard must read

@@ -2336,6 +2336,101 @@ assert_contains "audit remedies: the project-scope enable remedy is unprefixed" 
   "  - project-scope enable gap: (cd \"/w/repo\" && claude plugin enable p@m -s project)"
 
 # ============================================================================
+# Case: the pending-enable record. An `ask` pick is journaled before its install
+# and cleared after its enable, so a run cut off in between is finished by the
+# next sync, and a `false` the user set (no record) is never re-enabled.
+# ============================================================================
+pending_fixture() {
+  local case_dir="$1"
+  catalog_plugin "$case_dir" market1 alpha 0.1.0
+  catalog_plugin "$case_dir" market1 beta 0.1.0
+  write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]}
+}'
+  write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+  write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+  write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+  setup_case "$case_dir"
+}
+
+# A pick whose install landed and whose enable never ran: recorded, installed, off.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+pending_fixture "$case_dir"
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}],
+              "beta@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]}
+}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": false}}'
+printf 'beta@market1\n' >"$case_dir/pending-enable.txt"
+EXTRA_ENV=(CLAUDE_STUB_SETTINGS_STATE=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
+assert_exit "pending-enable: exit 0" 0 $?
+assert_eq "pending-enable: the leftover pick is enabled at user scope" "1" \
+  "$(grep -c 'plugin enable beta@market1 -s user' "$case_dir/claude.log")"
+assert_eq "pending-enable: the digest names it" "beta@market1 enabled" \
+  "$(jq -r '.marketplaces[0].pending_enable[] | "\(.id) \(.outcome)"' <<<"$out")"
+assert_eq "pending-enable: the settings entry is now true" "true" \
+  "$(jq -r '.enabledPlugins["beta@market1"]' "$case_dir/user_settings.json")"
+assert_eq "pending-enable: the record is cleared" "0" "$(wc -c <"$case_dir/pending-enable.txt" | tr -d ' ')"
+
+# The same state with no record is the user's own opt-out: left alone.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+pending_fixture "$case_dir"
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}],
+              "beta@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]}
+}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": false}}'
+EXTRA_ENV=(CLAUDE_STUB_SETTINGS_STATE=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
+assert_exit "opt-out: exit 0" 0 $?
+assert_eq "opt-out: nothing is enabled" "0" "$(grep -c 'plugin enable' "$case_dir/claude.log")"
+assert_eq "opt-out: the digest reports no recovery" "0" "$(jq -r '.marketplaces[0].pending_enable | length' <<<"$out")"
+assert_eq "opt-out: the user's false stays" "false" \
+  "$(jq -r '.enabledPlugins["beta@market1"]' "$case_dir/user_settings.json")"
+
+# A record for a pick whose install never landed is dropped, not enabled.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+pending_fixture "$case_dir"
+printf 'beta@market1\n' >"$case_dir/pending-enable.txt"
+EXTRA_ENV=(CLAUDE_STUB_SETTINGS_STATE=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "pending-enable: an uninstalled pick is not enabled" "0" "$(grep -c 'plugin enable' "$case_dir/claude.log")"
+assert_eq "pending-enable: and its record is cleared" "0" "$(wc -c <"$case_dir/pending-enable.txt" | tr -d ' ')"
+
+# End to end: the re-entry journals the pick, the enable fails (the cut-off),
+# the record survives, and the next sync finishes the pick.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+pending_fixture "$case_dir"
+EXTRA_ENV=(CLAUDE_STUB_SETTINGS_STATE=1 CLAUDE_STUB_INSTALL_DISABLED=beta@market1 CLAUDE_STUB_ENABLE_FAIL_ID=beta@market1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
+run_dir=$(jq -r '.run_dir' <<<"$out")
+run_sync "$case_dir" --only-install beta@market1 --run-dir "$run_dir" >/dev/null
+assert_eq "interrupted: the pick stays recorded when its enable did not land" "beta@market1" \
+  "$(tr -d '\n' <"$case_dir/pending-enable.txt")"
+assert_eq "interrupted: and the CLI left it off" "false" \
+  "$(jq -r '.enabledPlugins["beta@market1"]' "$case_dir/user_settings.json")"
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}],
+              "beta@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]}
+}'
+EXTRA_ENV=(CLAUDE_STUB_SETTINGS_STATE=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
+assert_eq "interrupted: the next sync enables the pick" "beta@market1 enabled" \
+  "$(jq -r '.marketplaces[0].pending_enable[] | "\(.id) \(.outcome)"' <<<"$out")"
+assert_eq "interrupted: now true in settings" "true" \
+  "$(jq -r '.enabledPlugins["beta@market1"]' "$case_dir/user_settings.json")"
+assert_eq "interrupted: the record is cleared" "0" "$(wc -c <"$case_dir/pending-enable.txt" | tr -d ' ')"
+
+# ============================================================================
 # Case: audit, in-repo record of a marketplace whose directory source is the
 # repo the run stands in: read live, so no update is predicted. A git-sourced
 # marketplace with the same record still predicts one.

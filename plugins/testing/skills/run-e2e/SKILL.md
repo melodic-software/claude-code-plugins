@@ -145,6 +145,11 @@ Five keys govern this run: `recording` (`video | gif | off`), `browser_mode` (`h
   being the file that set it, `userConfig`, or `default`, and names on stderr any value it
   rejected. Use the printed values; a rejected value has already resolved to the default.
   `feature_map_dir` has no `userConfig` option and is never read from the user-global file.
+- `browser_driver` (the command name of the browser tool a `playwright` drive uses, default
+  `playwright-cli`): run
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" e2e --user 'browser_driver=${user_config.browser_driver}'`
+  as a separate Bash call and use its `browser_driver` line, `<key> <tab> <value> <tab> <source>`;
+  the other lines it prints repeat the call above. [context/e2e-config.md](context/e2e-config.md) owns the key.
 - An explicit instruction in the session prompt overrides every layer for that run; the keys are defaults only. The precedence ladders are in [context/e2e-config.md](context/e2e-config.md).
 
 ## Step 3: Drive the run (subagent-isolated)
@@ -153,6 +158,15 @@ Delegate the drive loop to a subagent: it starts the app, navigates, interacts, 
 
 The launch, on whichever path the one-launch-path rule in the Boundary section selects, happens
 inside this subagent, and the evidence output it returns opens with the Native step result block.
+
+Before the first drive, once the driver for the run is known: when it is `playwright`, whether
+`e2e_driver` pins it or `auto` picks it, run
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-browser-driver.sh" --user 'browser_driver=${user_config.browser_driver}'`
+as one Bash call. It exits non-zero when the resolved `browser_driver` command is not on PATH, and
+its message names the setting, the value, where the value came from, and the two ways forward
+(install that tool, or set `browser_driver` to a browser tool you have). On a non-zero exit, STOP
+before driving anything and write the gap report from Step 1 with that message. No other browser
+tool is a silent substitute, and the run never switches tools partway through.
 
 Pass the resolved config through to the executor:
 

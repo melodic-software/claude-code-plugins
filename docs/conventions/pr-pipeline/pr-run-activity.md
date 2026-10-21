@@ -155,9 +155,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
 3. [`check-kill-switch`](../../../.github/actions/check-kill-switch/README.md), then
    [`check-trusted-trigger`](../../../.github/actions/check-trusted-trigger/README.md). Neither has
    `continue-on-error`. A stop at either ends the job green with no token minted and no head
-   checked out; the check is neutral, with one exception. Both files pass
-   `github.triggering_actor`, so a re-run started by an account not on the list, by a denied
-   account, or with no triggering actor stops with `untrusted-rerunner`, and that check is a
+   checked out; the check is neutral, with one exception. The gate reads the re-runner's id from
+   the run's own record, so a re-run started by an account not on the list, by a denied account,
+   or with no readable triggering actor stops with `untrusted-rerunner`, and that check is a
    failure: a re-run cannot turn an earlier red check on the same SHA neutral. The write file also
    denies `AUTOMATION_LANES_APP_SENDER_ID`, so the lanes App bot as sender or `workflow_run` actor
    stops it with `bot-actor` (neutral) and one write activity never chains into the next. The read
@@ -203,9 +203,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
    then re-reads the PR branch from `GET git/ref/heads/<head ref>` (`GET /pulls` can lag a push);
    when it no longer points at the gated head the activity skips with `superseded-sha`, mints
    nothing and runs no model turn. Other effects never write the branch and keep the gated head.
-   In issue mode a skill run's `issue-prior` step then checks for an earlier run's work
-   ([Issue mode](#issue-mode)); when it reuses a branch it skips the rest of the run, mints
-   nothing and runs no model turn in this job, and the [summary job](#the-summary-job) runs next.
+   In issue mode the read file's `issue-prior` step then checks for an earlier run's work
+   ([Issue mode](#issue-mode)); when it reuses a branch it skips the rest of the run and runs no
+   model turn in this job, and the [summary job](#the-summary-job) runs next.
 6. Write file only:
    [`request-lane-token`](../../../.github/actions/request-lane-token/README.md) gets the lane
    token from the broker ([below](#the-lane-token-broker)), before `select-trusted-text` and before
@@ -709,16 +709,24 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    kept threads, checks paths, and records a reply: it refuses a disposition file outside the
    scratch directory or off the template, and a `VALID` reply whose fix is not on the lane branch
    or whose lane branch changes a file outside every kept thread's scope or any `.github/` path.
-   A thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except
-   one under `hooks/`, `.claude-plugin/` or a `.claude/` directory, a `CLAUDE.md` or `AGENTS.md`,
-   or a `.sh`, `.py`, `.mjs`, `.js` or `.ts` file; and a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
-   directory. It posts nothing. The promote step then moves the PR branch only when every path the
+   Every path must be plain ASCII letters, digits and `_@+.-` in `/`-separated segments. A
+   thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except an
+   instruction path (the list `apply-ci-fix` refuses below) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
+   `.py`, `.mjs`, `.cjs`, `.js`, `.ts`, `.mts` or `.cts` file; a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
+   directory; and its `named_paths`. The select step sets those from the thread's fix requests by a
+   trusted person with write access: each file-shaped word outside fenced code and quoted lines,
+   read from the repository root when it holds a `/` and from the thread path's directory when it
+   does not, kept when it is in the thread path's `plugins/<p>/` directory, in normal form, not
+   under `.github/` and not an instruction path (the same list `apply-ci-fix` refuses below), and
+   a regular file, not a symbolic link or gitlink, at the gated head (ten per thread
+   at most). It posts nothing. The promote step then moves the PR branch only when every path the
    lane branch changes is in a kept thread's scope, none under `.github/`, in fewer than 300
    files, judged by a copy of the base's `thread-scope.mjs` taken before the head checkout and
-   imported only when its SHA-256 matches.
+   imported only when its SHA-256 matches, and every path it adds or changes is a regular file
+   (mode `100644` or `100755`) at the lane branch's tip.
 3. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
-   `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths and
-   comment ids, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
+   `github-script` step writes `run.json` (the gated head and the kept threads' ids, paths,
+   comment ids and named paths, from the thread file) beside a copy of the tool's `replies.jsonl`, and the job
    uploads both as `feedback-replies-<run attempt>`. Its `feedback-round` output is then `true`,
    `feedback-run-sha256` is the SHA-256 of that `run.json`, and `feedback-run-attempt` is the
    attempt in the artifact's name.
@@ -931,7 +939,8 @@ passes the model job's `patch-state`, `patch-sha256`, `patch-attempt`, `head-sha
    head with `git diff-tree -r --no-renames`. A path under `.github/` (thread-scope.mjs's
    `isProtectedPath`, the rule the review-threads mode applies), or an agent instruction path at
    any depth and in any case (`CLAUDE.md`, `AGENTS.md`, a `.claude/` or `.claude-plugin/` directory,
-   a plugin's `hooks/`, `.mcp.json`, `.gitmodules`, `CODEOWNERS`), escalates
+   a plugin's `hooks/`, `monitors/` or `bin/`, `.mcp.json`, `.lsp.json`, `.gitmodules`,
+   `CODEOWNERS`), escalates
    `ci-fix-protected-path` and pushes none of the patch, whatever the report escalated; a mode `120000` or `160000` on either side, or no change, escalates
    `ci-fix-invalid`. It then re-reads the pull request and its labels and stops uncommitted
    (`awaiting-human`) on a draft or a hold label, fails when `git/ref heads/<head ref>` is no
@@ -944,6 +953,25 @@ passes the model job's `patch-state`, `patch-sha256`, `patch-attempt`, `head-sha
 The run's `escalation-reason` output is the script's reason, else the select step's. The runner
 accepts the script's three reasons only in this mode.
 
+In issue mode the same leaf is `apply-issue-patch`, which runs
+[`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) with `PATCH_TARGET=issue`
+and the `issue` row of `patch-rules.json`. The caller passes `patch-base-sha` and
+`patch-resume-tip` instead of `patch-head-sha`; the start commit is the resume tip, else the base,
+which a step before the mint checks is on the default branch. The select step and the script run
+from the base with that start commit as both heads, so a patch made on another commit is refused
+`patch-invalid`, never applied with `--3way`. The hold-label step also outputs the activity's
+`applies-when.labels` (`agent-ready`). After the universal checks, the script re-reads the issue's
+labels and stops uncommitted (`awaiting-human`) when a hold label is on it or `agent-ready` is
+gone, creates the commit `Resolve issue #<n>` with the trailer
+`Lane-Activity: work-resolve-issue/resolve-issue`, creates the branch (which fails if it exists,
+so no branch is ever moved), reads it back, and outputs `commit` and `branch`. The row's
+`max-files` (300) bounds its blob uploads. On a resume it checks out the full history and also
+holds every change the final tree makes since the commit the resume tip forked from
+`patch-base-sha` to the refusals, so an earlier lane commit cannot carry a refused path onto the
+new branch. Every target refuses `patch-invalid` a patched blob over 5 MiB, or patched blobs over
+20 MiB in all, by `git cat-file -s` before any is read. The script's base copy imports `thread-scope.mjs`, and
+reads `patch-rules.json` from a copy the write file makes before the checkout.
+
 The rules each producer's patch is to be held to are registered in
 [`patch-rules.json`](../../../.github/actions/resolve-config/patch-rules.json), one row per
 producer prepare mode ([README.md, Patch rules](README.md#patch-rules)): the refusals every row
@@ -953,9 +981,9 @@ own fixed refusal and does not read the registry.
 
 ## The summary job
 
-Write file, issue mode only: runs after the run job, unless the run was cancelled, when the run
-job's `reuse-branch` output is not empty. It holds `contents: read` and nothing else, so no model
-turn runs where `id-token: write` is granted, and it times out after 20 minutes. Every step is
+Read file, issue mode only: runs after the run job, unless the run was cancelled, when the run
+job's `reuse-branch` output is not empty. It holds `contents: read` and nothing else, and it
+times out after 20 minutes. Every step is
 `continue-on-error` and runs only when the one before it succeeded, so a failed or limit-stopped
 pass turns no job red and leaves no summary. In order:
 
@@ -1230,23 +1258,36 @@ Step 14 revokes the token as soon as the activity is done. Residuals:
 
 ## Issue mode
 
-The write file's `issue-number` input runs a lane on an issue instead of a PR. Its one caller is
+The `issue-number` input of both files runs a lane on an issue instead of a PR. Its one caller is
 [`work-resolve-issue.yml`](../../../.github/workflows/work-resolve-issue.yml): the `agent-ready`
-label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), then
-`report-outcome` (a script) in a second run job. At most three `resolve-issue` jobs run at once:
+label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`) in the read file
+with `output-mode: patch`, so the model job holds no write token, then `apply-issue-patch` and
+`report-outcome` (scripts) in the write file. The write file refuses an issue skill red
+(`issue-skill-in-write-runner`). The model job's run job holds `contents: read` and
+`pull-requests: read` only; `claude-code-action` needs a GitHub token and exports it to the
+CLI's environment, so that job's read-only `GITHUB_TOKEN` is the one token it holds. Before any job that
+gets the lane's Claude credential, the caller's `admit` job runs `check-trusted-trigger` from the
+default branch tip, with `contents: read` and no secret (`require-pr: false`, `require-kind:
+human`, `app-label: agent-ready`, the lanes App id): `pick-slot` and `resolve-issue` need it and
+run only on its `proceed` output `true`, so an unlisted account's label on an issue anyone can
+open starts no credentialed job. The read file's own trigger gate checks the same again. At most three `resolve-issue` jobs run at once:
 a `pick-slot` job takes the issue number modulo `SLOTS` (3), and `resolve-issue` joins the
 `work-resolve-issue-slot-<n>` concurrency group with `queue: max`, so a burst of admissions waits
 in line, holding no runner, instead of spending the lanes App's hourly API quota at once.
-`report-outcome` takes no slot. A waiting run keeps the workflow files of its label event, so when
-a change to either lane workflow file merges while it waits, the broker would refuse its mint as
-`workflow-modified`. Before the mint, the `workflow-current` step compares both files' blobs at
-`github.workflow_sha` with the default branch checkout, the broker's rule, and on a difference
-fails red `workflow-stale` with no token request and no outcome marker; work-unblock's hourly sweep
-re-fires such a failed run on main's files. What changes from the PR flow:
+`report-outcome` takes no slot; `apply-issue-patch` joins `work-resolve-issue-write-<n>` with
+`queue: max`. A waiting run keeps the workflow files of its label event, so when a change to the
+caller or the write file merges while it waits, the broker would refuse the apply job's mint
+as `workflow-modified`. Before any model turn, the read file's `workflow-current` step compares
+the caller's and the write file's blobs at `github.workflow_sha` with the default branch checkout, the broker's
+rule, and on a difference fails red `workflow-stale` with no model turn and no outcome marker;
+work-unblock's hourly sweep re-fires such a failed run on main's files. What changes from the PR
+flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
-  `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty, and unless a
-  non-empty `reuse-branch` is this issue's `work-resolve-issue/issue-<n>-<run id>-<attempt>`.
+  `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read
+  file unless `output-mode` is `patch`, and in the write file unless a non-empty `reuse-branch` is
+  this issue's `work-resolve-issue/issue-<n>-<run id>-<attempt>` and `patch-base-sha` and
+  `patch-resume-tip` are commit ids or empty.
 - The trigger gate runs with `require-pr: false` and `require-kind: human`: the account that
   applied the label, and any re-runner, must be listed as a human. The one exception is the
   caller's `app-label` (`agent-ready` for `work-resolve-issue.yml`): the lanes App may apply it,
@@ -1254,13 +1295,15 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   App's other labels never start a run, and no step of the lane adds `agent-ready`. `check-trusted-base` trusts the
   default branch tip, and that commit is the head the job checks out.
 - `resolve-config` reads the issue's labels now, for the hold labels, and `labeled-after`, the
-  lane's go-live time, from the issue's update time. The token request sends `issue_number`.
+  lane's go-live time, from the issue's update time. The read file passes
+  `applied-by-supported: patch work-outcome`. The write file's token request sends
+  `issue_number`.
 - Each issue is worked once. In a skill run, the `issue-prior` step (`report-outcome.mjs
-  --find-prior`) runs after `resolve-config` and before the mint, with the job's read-only
+  --find-prior`) runs after `resolve-config` and before any model turn, with the job's read-only
   `GITHUB_TOKEN`, and reads the issue's lane branches (`git/matching-refs` on
   `work-resolve-issue/issue-<n>-`), their PRs, their tip commits, their commits ahead of the
   default branch, the issue's open closing PRs and the lanes App's outcome markers on it. It skips
-  the run `not-applicable`, with no lane token, no model and no comment, when a lanes-App PR from a
+  the run `not-applicable`, with no model and no comment, when a lanes-App PR from a
   lane branch is open, or when an open PR in this repository closes the issue and the lanes App or
   a listed human (`trusted-actors.json`) opened it; anyone's other closing PR is ignored. It also
   skips `not-applicable` and sets the `reuse-branch` output to the first lane branch, newest run
@@ -1279,8 +1322,8 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   run's branch is gone or fails a check, the run starts from the default branch, never from an
   older run's branch: `issue-prior`
   outputs `resume-branch`, `resume-tip` (the tip it read) and `resume-cause`, and the job checks
-  out that tip and makes its lane branch there instead of at the default branch tip. Any failed
-  read, or an answer of the wrong shape, fails the step, so nothing is minted.
+  out that tip, so its patch is made there instead of on the default branch tip. Any failed
+  read, or an answer of the wrong shape, fails the step, so no model runs.
 - Before the skill, the runner writes the issue's number, title, body and labels to `issue.json`
   in the skill's scratch directory, with only the comments `select-trusted-text`'s author and edit
   rules keep (`write-issue.mjs`), oldest first, so a listed maintainer's recorded decision reaches
@@ -1293,12 +1336,20 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   comment created or edited after that is left out, and a title or body changed since fails the
   step, so text edited after admission does not steer the run. On a resume, `issue.json` also
   carries `resume`: the branch, the cause, the tip, the subject of each commit ahead of the trusted
-  base and each changed file with its line counts, from `GET /compare`. The skill commits to a new branch,
-  `<lane>/issue-<n>-<run id>-<attempt>`, which is kept only when it holds commits. The skill's
-  `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty, and on a resume the
-  resumed branch) are uploaded as the
-  `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
-  was minted.
+  base and each changed file with its line counts, from `GET /compare`. The skill leaves its
+  change uncommitted; the read file collects it as a patch against the commit it checked out
+  ([Patch output mode](#patch-output-mode)), also after a failed skill step (a turn cap or a usage
+  limit), so partial work reaches a branch a resumed run continues. A failed skill step fails the
+  job unless it is only the turn cap on a successful result. The skill's `work-outcome.json` and
+  the runner's `lane.json` (no branch yet, and on a resume the resumed branch) are uploaded as the
+  `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the run chose
+  to run the skill, before any model turn. The read file also outputs `base-sha` and
+  `resume-tip`, the commit the patch was made on.
+- `apply-issue-patch` runs when the patch is `written` ([prepare: apply-patch](#prepare-apply-patch),
+  issue target): it makes `<lane>/issue-<n>-<run id>-<attempt>` (the attempt the patch's), with one
+  commit, at `patch-resume-tip` or else `patch-base-sha`, which must be on the default branch,
+  writes that branch into `lane.json` and uploads `work-outcome-<n>` again. An empty patch makes
+  no branch, as a run with no commit kept none.
 - `report-outcome` downloads that artifact. A `done` run that committed nothing on a resume opens its PR from the
   resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals
   the `resume-branch` `issue-prior` output), every check passed and at least one ran, the branch is still at the tip
@@ -1334,7 +1385,7 @@ re-fires such a failed run on main's files. What changes from the PR flow:
   within `limits.reset-clamp-min` and `reset-clamp-max`; with no date a person restarts it. The
   status reads "Stopped on the lane's funding.". The next run resumes a funding-stopped run's
   branch like a `limited` one's.
-- On a reuse the skill run mints nothing, and the [summary job](#the-summary-job) has a read-only
+- On a reuse the skill run runs no model, and the [summary job](#the-summary-job) has a read-only
   model pass describe the branch from its diff and the issue, as the `reuse-summary-<n>` artifact.
 - A non-empty `reuse-branch` also starts `report-outcome` and `report-statuses`, and reaches the
   script as `REUSE_BRANCH`; `report-outcome` also downloads `reuse-summary-<n>`. The downloaded

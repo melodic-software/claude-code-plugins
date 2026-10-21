@@ -232,7 +232,7 @@ for shape in 'ghs_1_-:50000' 'ghs_1_eyJ:30000' 'ghs_1_eyJa.:30000' 'ghs_1_eyJ-:3
   expect_eq "validating '$unit' x$count finishes" finished "$([[ $rc -ne 124 ]] && echo finished || echo "timed out")"
 done
 refuse "a credential key is refused" '{"key":"api_token","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
-refuse "a sensitive userConfig key is refused" '{"key":"dometrain-mcp.dometrain_api_key","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+refuse "a sensitive userConfig key is refused" '{"key":"example-plugin.example_api_key","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "an AWS access key value is refused" '{"key":"k","value":"AKIA'"IOSFODNN7EXAMPLE"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a Slack token value is refused" '{"key":"k","value":"xoxb-123456789012-abcdefghij","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a URL with an embedded password is refused" '{"key":"k","value":"postgres://admin:Sup3rPassw0rd@host/db","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
