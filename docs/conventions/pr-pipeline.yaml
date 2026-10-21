@@ -518,7 +518,7 @@ wip:
   # Over the WIP cap or the held cap the lane pauses from this date.
   # The owner clears it to only alert. Empty: over a cap the lane alerts and
   # keeps starting runs.
-  pause-from: "2026-10-18"
+  pause-from: ""
 
 # The red-main revert rule (owner decision 2026-10-20). post-merge-demotion-
 # alert.yml's report job reads it after a scheduled or dispatched
