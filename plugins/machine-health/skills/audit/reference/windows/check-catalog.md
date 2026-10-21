@@ -876,7 +876,8 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   CPUs) x 100. System counters (CPU total, processor queue length, committed memory, available
   memory, disk latency) are read with `Get-Counter` during that same window, so the check takes
   about one window. `detail.items[]` lists the top processes by CPU share plus the top by private
-  bytes, once each; items carry no `key` and cannot be muted.
+  bytes, once each. Each item's `process` key is its lowercased image file name, so muting one
+  covers every instance of that program; a muted item stays listed.
 - **Severity rubric:** the bands are Microsoft Learn's, published for Windows Server, and
   `detail.thresholds_label` says so on every result. Values live in the script's `$band` table.
   - Learn's Critical band reads `WARN`; its Warning band reads `INFO`. CPU in the Warning band

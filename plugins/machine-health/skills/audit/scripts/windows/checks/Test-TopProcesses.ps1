@@ -10,12 +10,14 @@ Samples processes and system counters over -SampleSeconds (Get-ProcessSample)
 and grades the system counters against Microsoft Learn's published bands. Those
 bands are written for Windows Server, and the result says so. Disk latency is
 graded only when the window is long enough to call it sustained. The listed
-processes are context: they never raise the severity.
+processes are context: they never raise the severity, and a muted one stays
+listed with muted = $true.
 #>
 [CmdletBinding()]
 param(
     [switch]$Human,
-    [int]$SampleSeconds = 15
+    [int]$SampleSeconds = 15,
+    [string[]]$MutedKeys = @()
 )
 
 Set-StrictMode -Version 3.0
@@ -96,21 +98,19 @@ $CheckBody = {
     $byMemory = @($sample.Processes | Sort-Object -Property @{ Expression = 'PrivateBytes'; Descending = $true }, Name |
             Select-Object -First $topCount)
     $seen = [System.Collections.Generic.HashSet[int]]::new()
-    # Not mutable: there is no FindingKey kind for a process, so the item carries no key.
+    # Keyed by image file name, so a mute covers every instance of that program in every run.
     $items = @(foreach ($p in @($byCpu) + @($byMemory)) {
             if (-not $seen.Add($p.Id)) { continue }
-            [pscustomobject][ordered]@{
-                key            = $null
-                severity       = 'OK'
-                muted          = $false
-                title          = $p.Name
-                name           = $p.Name
-                path           = $p.Path
-                path_state     = $p.PathState
-                cpu_pct        = $p.CpuPct
-                private_mb     = [math]::Round($p.PrivateBytes / 1MB, 1)
-                working_set_mb = [math]::Round($p.WorkingSetBytes / 1MB, 1)
-            }
+            $image = $p.Path ? [System.IO.Path]::GetFileName($p.Path) : "$($p.Name).exe"
+            New-FindingItem -Kind 'process' -Identity @($image.ToLowerInvariant()) -Severity 'OK' -Title $p.Name `
+                -MutedKeys $MutedKeys -Fields @{
+                    name           = $p.Name
+                    path           = $p.Path
+                    path_state     = $p.PathState
+                    cpu_pct        = $p.CpuPct
+                    private_mb     = [math]::Round($p.PrivateBytes / 1MB, 1)
+                    working_set_mb = [math]::Round($p.WorkingSetBytes / 1MB, 1)
+                }
         })
 
     $floor = switch ($sample.ReadState) {

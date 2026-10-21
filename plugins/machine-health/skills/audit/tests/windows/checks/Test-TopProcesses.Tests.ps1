@@ -33,8 +33,10 @@ BeforeAll {
     }
 
     function Invoke-TopProcessCheck {
-        param([int] $SampleSeconds = 0)
-        $raw = $SampleSeconds ? (& $script:ScriptPath -SampleSeconds $SampleSeconds) : (& $script:ScriptPath)
+        param([int] $SampleSeconds = 0, [string[]] $MutedKeys = @())
+        $splat = @{ MutedKeys = $MutedKeys }
+        if ($SampleSeconds) { $splat.SampleSeconds = $SampleSeconds }
+        $raw = & $script:ScriptPath @splat
         return ConvertFrom-CheckOutput $raw
     }
 }
@@ -156,6 +158,28 @@ Describe 'Test-TopProcesses' -Tag 'check' {
             $first.private_mb | Should -Be 1
             $first.working_set_mb | Should -Be 2
             $first.path_state | Should -Be 'denied'
+        }
+
+        It 'keys each process by its lowercased image file name' {
+            $script:Result.detail.items[0].key | Should -Be 'process:6c0d9878c023d072'
+        }
+
+        It 'takes the image name from the path when the path is readable' {
+            $steady = [pscustomobject]@{
+                Name = 'Steady'; Id = 7; CpuPct = 1.0; WorkingSetBytes = 1MB; PrivateBytes = 1MB
+                Path = 'C:\app\Steady.exe'; PathState = 'ok'
+            }
+            Mock Get-ProcessSample { New-Sample -Processes @($steady) }
+            (Invoke-TopProcessCheck).detail.items[0].key | Should -Be 'process:d3a7acaf61ee999a'
+        }
+
+        It 'keeps a muted process listed, marked muted, without raising severity' {
+            $result = Invoke-TopProcessCheck -MutedKeys @('process:015bd59a85288114')
+            $p2 = @($result.detail.items | Where-Object name -EQ 'p2')
+            $p2.Count | Should -Be 1
+            $p2[0].muted | Should -BeTrue
+            $result.detail.muted_count | Should -Be 1
+            $result.severity | Should -Be 'OK'
         }
 
         It 'never raises severity or mutes a listed process' {
