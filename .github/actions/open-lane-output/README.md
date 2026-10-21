@@ -56,6 +56,30 @@ A record re-read at another run attempt of the same run opens, so re-running a f
 - One key pair per repository, its private key in one environment secret; never share it across an
   organization.
 
+## Setup order
+
+Set up the opening job's environment in this order, from the repository root (`gh api` fills in
+`{owner}/{repo}` from the current repository; `$ENVIRONMENT` is the environment the opening job
+names):
+
+1. Create the environment, with custom deployment branch policies:
+
+   ```bash
+   gh api -X PUT "repos/{owner}/{repo}/environments/$ENVIRONMENT" -F 'deployment_branch_policy[protected_branches]=false' -F 'deployment_branch_policy[custom_branch_policies]=true'
+   ```
+
+2. Admit the default branch only (here `main`):
+
+   ```bash
+   gh api -X POST "repos/{owner}/{repo}/environments/$ENVIRONMENT/deployment-branch-policies" -f name=main -f type=branch
+   ```
+
+3. Only then set the private key on it, with the [key generation](#key-generation) line.
+4. Rerun the shadow check described under key generation.
+
+The order matters: a secret set before the branch policy reaches a job dispatched from any branch,
+and that branch's modified copy of the workflow could print it.
+
 ## Key generation
 
 The owner runs `keygen.mjs` offline, never on a runner. It prints the public key file's one line,
@@ -79,8 +103,9 @@ none, 1 one exists, 2 a listing it cannot read). It reads secret names only.
 
 ## Rotation
 
-1. Run the key generation line above. It replaces the secret and rewrites the public key file.
-   Run the shadow check after it.
+1. Confirm the environment still admits the default branch only (setup steps 1 and 2), then run
+   the key generation line above. It replaces the secret and rewrites the public key file. Run
+   the shadow check after it.
 2. Merge the new public key file at once. A run that sealed under the old key and opens under the
    new secret fails closed (`sealed-mismatch`, unknown key id or wrong key, no rotation line);
    re-run it after the merge.

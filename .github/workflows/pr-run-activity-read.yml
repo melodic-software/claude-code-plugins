@@ -1535,13 +1535,20 @@ jobs:
   # summary, and is the only job that uploads the reply, patch and verdict
   # artifacts. In issue mode it writes only the verdict. A handoff skips it:
   # the fallback call's artifacts take the same names. The key pair's
-  # generation and rotation: .github/actions/open-lane-output/README.md; the
-  # owner's line, offline from the repository root:
-  #   { node .github/actions/open-lane-output/keygen.mjs --private-key-fd 3 >.github/lane-keys/scan-carrier.pub; } 3>&1 | gh secret set SCAN_CARRIER_PRIVATE_KEY --env pr-pipeline-scan-carrier
-  # then scripts/check-scan-carrier-secret-shadow.sh <owner/repo>, since a
-  # repository or organization secret of that name would reach every other
-  # job of the run through the callers' by-name pass. The environment admits
-  # main only. Callers run this file on issues (default branch) and on
+  # generation and rotation: .github/actions/open-lane-output/README.md.
+  # Setup, in this order (the owner, offline from the repository root):
+  #   1. Create the environment, with custom branch policies:
+  #      gh api -X PUT repos/melodic-software/claude-code-plugins/environments/pr-pipeline-scan-carrier -F 'deployment_branch_policy[protected_branches]=false' -F 'deployment_branch_policy[custom_branch_policies]=true'
+  #   2. Admit main only:
+  #      gh api -X POST repos/melodic-software/claude-code-plugins/environments/pr-pipeline-scan-carrier/deployment-branch-policies -f name=main -f type=branch
+  #   3. Only then set the key on it with keygen:
+  #      { node .github/actions/open-lane-output/keygen.mjs --private-key-fd 3 >.github/lane-keys/scan-carrier.pub; } 3>&1 | gh secret set SCAN_CARRIER_PRIVATE_KEY --env pr-pipeline-scan-carrier
+  #   4. Rerun scripts/check-scan-carrier-secret-shadow.sh melodic-software/claude-code-plugins.
+  # A key set before the branch policy would reach a dispatch from any
+  # branch, whose modified copy of this workflow could print it. Step 4
+  # matters because a repository or organization secret of that name would
+  # reach every other job of the run through the callers' by-name pass.
+  # Callers run this file on issues (default branch) and on
   # workflow_dispatch, which anyone with write access can send on any ref:
   # off main the environment refuses this job, so the run fails closed and
   # publishes nothing.
