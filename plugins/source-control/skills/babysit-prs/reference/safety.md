@@ -1019,7 +1019,10 @@ any refusal is the blocker `unattended merge refused: <reason>`:
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
    Only LOW merges. Adding only `disable-model-invocation: true` to a plugin skill no agent
    preloads, and a non-script file under `plugins/<plugin>/evals/`, take no hold from the floor
-   entries `babysit_risk.py`'s docstring names. A C3 pull request also needs a LOW blast-radius rating, which nothing supplies
+   entries `babysit_risk.py`'s docstring names. A plugin or marketplace manifest takes no floor
+   hold; its parsed change scores HIGH as `manifest-review-required` only for the classes that
+   docstring lists (a `userConfig` default or removal, an `options` enum, a code-running key, a
+   marketplace `source`, or a side that cannot be read or parsed). A C3 pull request also needs a LOW blast-radius rating, which nothing supplies
    yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With

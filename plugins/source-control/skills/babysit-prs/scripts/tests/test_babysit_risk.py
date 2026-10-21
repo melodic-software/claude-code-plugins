@@ -307,10 +307,10 @@ class HighReasonTests(unittest.TestCase):
                 "high-path:plugins/autonomy/reference/guardrails/**",
             ),
             (
-                "plugins/foo/.claude-plugin/plugin.json",
+                "plugins/foo/.claude-plugin/notes.md",
                 "high-path:**/.claude-plugin/**",
             ),
-            (".claude-plugin/marketplace.json", "high-path:**/.claude-plugin/**"),
+            (".claude-plugin/plugin.json", "high-path:**/.claude-plugin/**"),
             ("lib/parse-concern-value.sh", "high-path:lib/**"),
             (
                 "plugins/source-control/lib/yaml-subset.awk",
@@ -2093,6 +2093,138 @@ class EvalDataTests(unittest.TestCase):
             reasons.get("high-path:plugins/review/**"),
             "plugins/review/skills/x/notes.md",
         )
+
+
+MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
+MARKETPLACE = ".claude-plugin/marketplace.json"
+PLUGIN_BASE = (
+    '{"name": "foo", "version": "1.0.0", "description": "Foo.",'
+    ' "userConfig": {"guard_enabled": {"type": "boolean", "default": true}}}'
+)
+MARKET_BASE = (
+    '{"name": "m", "plugins": [{"name": "foo", "source": "./plugins/foo",'
+    ' "category": "dev"}]}'
+)
+
+
+def _manifest_change(path, before, after, **kw):
+    return _file(path, contents=(before, after), **kw)
+
+
+class ManifestTests(unittest.TestCase):
+    """A plugin or marketplace manifest leaves the floor unless its parsed
+    change hits one of the five review classes."""
+
+    REVIEW = "manifest-review-required"
+
+    def _codes(self, path, before, after, **kw):
+        return _codes(
+            score(_input(files=(_manifest_change(path, before, after, **kw),)))
+        )
+
+    def test_metadata_changes_clear(self):
+        for after in (
+            PLUGIN_BASE.replace("1.0.0", "1.1.0"),
+            PLUGIN_BASE.replace("Foo.", "Foo, reworded."),
+            PLUGIN_BASE.replace(
+                '"userConfig": {',
+                '"userConfig": {"mode": {"type": "string", "default": "x"}, ',
+            ),
+            PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "keywords": ["a"],'),
+        ):
+            with self.subTest(after=after):
+                self.assertEqual(self._codes(MANIFEST, PLUGIN_BASE, after), ())
+        renamed = MARKET_BASE.replace('"dev"', '"tools"')
+        self.assertEqual(self._codes(MARKETPLACE, MARKET_BASE, renamed), ())
+
+    def test_each_review_class_holds(self):
+        for after in (
+            PLUGIN_BASE.replace('"default": true', '"default": false'),
+            PLUGIN_BASE.replace(
+                '{"guard_enabled": {"type": "boolean", "default": true}}', "{}"
+            ),
+            PLUGIN_BASE.replace(
+                '"userConfig": {',
+                '"userConfig": {"mode": {"type": "string", "options": ["a", "b"]}, ',
+            ),
+            PLUGIN_BASE.replace(
+                '"default": true', '"default": true, "options": [true, false]'
+            ),
+            PLUGIN_BASE.replace(
+                '"name": "foo",', '"name": "foo", "hooks": "./h.json",'
+            ),
+            PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "mcpServers": {},'),
+            PLUGIN_BASE.replace(
+                '"name": "foo",', '"name": "foo", "dependencies": ["bar"],'
+            ),
+            PLUGIN_BASE.replace(
+                '"name": "foo",', '"name": "foo", "experimental": {"monitors": []},'
+            ),
+        ):
+            with self.subTest(after=after):
+                self.assertEqual(
+                    self._codes(MANIFEST, PLUGIN_BASE, after), (self.REVIEW,)
+                )
+
+    def test_a_marketplace_source_change_or_addition_holds(self):
+        for after in (
+            MARKET_BASE.replace("./plugins/foo", "https://example.com/foo.git"),
+            MARKET_BASE.replace("]}", ', {"name": "bar", "source": "./plugins/bar"}]}'),
+            MARKET_BASE.replace(
+                '"name": "m",', '"name": "m", "metadata": {"pluginRoot": "x"},'
+            ),
+        ):
+            with self.subTest(after=after):
+                self.assertEqual(
+                    self._codes(MARKETPLACE, MARKET_BASE, after), (self.REVIEW,)
+                )
+
+    def test_unreadable_malformed_or_duplicate_sides_hold(self):
+        duplicate = PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "name": "x",')
+        nested = PLUGIN_BASE.replace(
+            '"default": true', '"default": true, "default": false'
+        )
+        for before, after in (
+            (PLUGIN_BASE, "{"),
+            ("not json", PLUGIN_BASE),
+            (PLUGIN_BASE, duplicate),
+            (PLUGIN_BASE, nested),
+            (PLUGIN_BASE, None),
+            (PLUGIN_BASE, "[]"),
+        ):
+            with self.subTest(before=before, after=after):
+                self.assertEqual(self._codes(MANIFEST, before, after), (self.REVIEW,))
+        errored = dataclasses.replace(
+            _manifest_change(MANIFEST, PLUGIN_BASE, PLUGIN_BASE),
+            contents=None,
+            contents_error="status 502",
+        )
+        self.assertEqual(_codes(score(_input(files=(errored,)))), (self.REVIEW,))
+
+    def test_an_added_plugin_manifest_is_judged_against_nothing(self):
+        added = dict(status="added", previous_mode=None)
+        self.assertEqual(self._codes(MANIFEST, None, PLUGIN_BASE, **added), ())
+        hooked = PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "hooks": {},')
+        self.assertEqual(self._codes(MANIFEST, None, hooked, **added), (self.REVIEW,))
+
+    def test_other_claude_plugin_files_keep_the_floor_hold(self):
+        for path in (
+            "plugins/foo/.claude-plugin/extra.json",
+            "plugins/foo/evals/case/stub/.claude-plugin/plugin.json",
+            "plugins/foo/.claude-plugin/marketplace.json",
+        ):
+            with self.subTest(path):
+                codes = self._codes(path, PLUGIN_BASE, PLUGIN_BASE)
+                self.assertIn("high-path:**/.claude-plugin/**", codes)
+
+    def test_a_mixed_change_holds_on_the_other_file(self):
+        manifest = _manifest_change(
+            MANIFEST, PLUGIN_BASE, PLUGIN_BASE.replace("1.0.0", "1.1.0")
+        )
+        files = (manifest, _file("plugins/foo/scripts/run.sh"))
+        codes = _codes(score(_input(files=files)))
+        self.assertIn("high-path:plugins/*/scripts/**", codes)
+        self.assertNotIn(self.REVIEW, codes)
 
 
 if __name__ == "__main__":

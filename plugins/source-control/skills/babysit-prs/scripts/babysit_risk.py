@@ -38,6 +38,16 @@ file, of no mode 100755, and under no declared path; it also takes no hold from
 the floor entries in `_EVALS_FLOOR` that no denied path repeats. Every other
 floor entry (a `.claude-plugin/` manifest, `**/CLAUDE.md`, `**/.claude/**` and
 the rest) still holds it.
+A plugins/<plugin>/.claude-plugin/plugin.json or the top-level
+.claude-plugin/marketplace.json takes no `**/.claude-plugin/**` hold. Its base
+and head JSON are compared instead, and it rates HIGH as
+`manifest-review-required` when a `userConfig` entry is removed or its
+`default` changes, an `options` enum is added or changed, `hooks`,
+`mcpServers`, `lspServers`, `monitors` (also under `experimental`) or
+`dependencies` change (in a marketplace entry too), a marketplace entry's
+`source`, `metadata.pluginRoot` or `allowCrossMarketplaceDependenciesOn`
+changes, or either side cannot be read or parsed or repeats a key. Every other
+manifest change takes the normal path.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -954,6 +964,129 @@ def _eval_data(f: _File, raw: Any, declared: tuple[str, ...]) -> bool:
     return True
 
 
+_MANIFEST_FLOOR = "**/.claude-plugin/**"
+_MANIFEST_CODE = "manifest-review-required"
+_RUN_KEYS = ("hooks", "mcpServers", "lspServers", "monitors", "dependencies")
+_MISSING = object()
+
+
+def is_manifest_path(path: str) -> bool:
+    """plugins/<plugin>/.claude-plugin/plugin.json or the top-level
+    .claude-plugin/marketplace.json, matched case-sensitively."""
+    parts = path.split("/")
+    return parts == [".claude-plugin", "marketplace.json"] or (
+        len(parts) == 4
+        and parts[0] == "plugins"
+        and parts[2:] == [".claude-plugin", "plugin.json"]
+    )
+
+
+def _no_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    keys = [k for k, _ in pairs]
+    if len(set(keys)) != len(keys):
+        raise ValueError("duplicate key")
+    return dict(pairs)
+
+
+def _manifest(text: Any) -> dict[str, Any] | None:
+    """The parsed object, None when unreadable, malformed or a key repeats."""
+    if not isinstance(text, str):
+        return None
+    try:
+        data = json.loads(text, object_pairs_hook=_no_duplicates)
+    except (ValueError, RecursionError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _object(data: dict[str, Any], key: str) -> Any:
+    """A key's value: {} when absent, None when present and not an object."""
+    value = data.get(key, {})
+    return value if isinstance(value, dict) else None
+
+
+def _run_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
+    found = [k for k in _RUN_KEYS if base.get(k, _MISSING) != head.get(k, _MISSING)]
+    before, after = _object(base, "experimental"), _object(head, "experimental")
+    if before is None or after is None:
+        found.append("experimental")
+    elif before.get("monitors", _MISSING) != after.get("monitors", _MISSING):
+        found.append("experimental.monitors")
+    return found
+
+
+def _user_config_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
+    before, after = _object(base, "userConfig"), _object(head, "userConfig")
+    if before is None or after is None:
+        return ["userConfig is not an object"]
+    found = []
+    for key in sorted(set(before) | set(after)):
+        if key not in after:
+            found.append(f"userConfig.{key} removed")
+            continue
+        added = key not in before
+        old, new = before.get(key, {}), after[key]
+        if not (isinstance(old, dict) and isinstance(new, dict)):
+            found.append(f"userConfig.{key} is not an object")
+            continue
+        if not added and old.get("default", _MISSING) != new.get("default", _MISSING):
+            found.append(f"userConfig.{key}.default changed")
+        if old.get("options", _MISSING) != new.get("options", _MISSING):
+            found.append(f"userConfig.{key}.options added or changed")
+    return found
+
+
+def _marketplace_changes(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
+    found = []
+    for key in ("allowCrossMarketplaceDependenciesOn",):
+        if base.get(key, _MISSING) != head.get(key, _MISSING):
+            found.append(key)
+    before, after = _object(base, "metadata"), _object(head, "metadata")
+    if before is None or after is None:
+        found.append("metadata is not an object")
+    elif before.get("pluginRoot", _MISSING) != after.get("pluginRoot", _MISSING):
+        found.append("metadata.pluginRoot")
+    entries = []
+    for data in (base, head):
+        plugins = data.get("plugins", [])
+        named = (
+            {
+                e["name"]: e
+                for e in plugins
+                if isinstance(e, dict) and isinstance(e.get("name"), str)
+            }
+            if isinstance(plugins, list)
+            else None
+        )
+        if named is None or len(named) != len(plugins):
+            return [*found, "plugins is not a list of uniquely named entries"]
+        entries.append(named)
+    for name, entry in entries[1].items():
+        old = entries[0].get(name, {})
+        if old.get("source", _MISSING) != entry.get("source", _MISSING):
+            found.append(f"plugins[{name}].source")
+        found += [f"plugins[{name}].{k}" for k in _run_changes(old, entry)]
+    return found
+
+
+def _manifest_changes(f: _File, raw: Any) -> list[str]:
+    """What in a manifest change needs review (`_MANIFEST_CODE`)."""
+    contents = getattr(raw, "contents", None)
+    if f.status not in ("modified", "added") or f.paths != (f.path,):
+        return [f"{f.status} manifest"]
+    if getattr(raw, "contents_error", None) is not None or not (
+        isinstance(contents, tuple) and len(contents) == 2
+    ):
+        return ["contents unreadable"]
+    before = "{}" if f.status == "added" else contents[0]
+    base, head = _manifest(before), _manifest(contents[1])
+    if base is None or head is None:
+        return ["unreadable, malformed or a repeated key"]
+    if f.path.endswith("marketplace.json"):
+        return _marketplace_changes(base, head)
+    return _run_changes(base, head) + _user_config_changes(base, head)
+
+
 def _high_path_reasons(
     inp: RiskInput, files: list[_File], raw_files: list[Any]
 ) -> list[Reason]:
@@ -980,15 +1113,24 @@ def _high_path_reasons(
         for p in f.paths
     }
     eval_exempt = _EVALS_FLOOR.difference(configured)
+    manifests = {f.path for f in files if on and is_manifest_path(f.path)}
     for pattern in dict.fromkeys((*floor, *configured)):
         hits = [
             path
             for path in paths
             if glob_match(pattern, path)
             and not (pattern in eval_exempt and path in evals)
+            and not (pattern == _MANIFEST_FLOOR and path in manifests)
         ]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
+    review = [
+        f"{f.path}: {', '.join(changes)}"
+        for f, raw in zip(files, raw_files)
+        if f.path in manifests and (changes := _manifest_changes(f, raw))
+    ]
+    if review:
+        reasons.append(Reason(_MANIFEST_CODE, Risk.HIGH, "; ".join(review)))
     if extended:
         reasons.extend(_capability_reasons(files, raw_files, inp.agents, evals))
         reasons.extend(_script_reasons(files, raw_files, scopes))

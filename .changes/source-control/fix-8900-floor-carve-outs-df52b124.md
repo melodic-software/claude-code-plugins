@@ -21,3 +21,17 @@ bump: minor
   `plugins/**/scripts/**` floor entries unless a `denied-paths` glob repeats
   one. Manifests, named files such as `CLAUDE.md` and `.claude/**`, and
   every other floor entry still hold.
+
+- review plugin manifests by their parsed change instead of the blanket floor
+
+  A `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
+  `.claude-plugin/marketplace.json` no longer takes the `**/.claude-plugin/**`
+  hold. `babysit_risk.score` compares its base and head JSON and rates it
+  HIGH as `manifest-review-required` when a `userConfig` entry is removed or
+  its `default` changes, an `options` enum is added or changed, `hooks`,
+  `mcpServers`, `lspServers`, `monitors` or `dependencies` change, a
+  marketplace entry's `source`, `metadata.pluginRoot` or
+  `allowCrossMarketplaceDependenciesOn` changes, or either side cannot be
+  read, does not parse or repeats a key. Version, description, keyword,
+  author and added `userConfig` edits take the normal path. Any other file
+  under `.claude-plugin/`, eval stub manifests included, still holds.

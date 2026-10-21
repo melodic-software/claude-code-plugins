@@ -631,7 +631,15 @@ and its queued entries leave; two different identities, or an unreadable head co
   preload takes no capability hold, and a non-script file under `plugins/<plugin>/evals/` takes no
   capability hold and none from the `plugins/review/**`, `plugins/guardrails/**`,
   `plugins/work-items/**` or `plugins/**/scripts/**` entries; a manifest, a named file such as
-  `CLAUDE.md`, a declared path and `denied-paths` still hold it.
+  `CLAUDE.md`, a declared path and `denied-paths` still hold it. A
+  `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level `.claude-plugin/marketplace.json`
+  leaves the floor: its parsed base and head are compared, and it scores HIGH as
+  `manifest-review-required` only when a `userConfig` entry is removed or its `default` changes, an
+  `options` enum is added or changed, `hooks`, `mcpServers`, `lspServers`, `monitors` or
+  `dependencies` change, a marketplace entry's `source` (or `metadata.pluginRoot` or
+  `allowCrossMarketplaceDependenciesOn`) changes, or either side cannot be read, does not parse or
+  repeats a key. That reason waits for a human like any other HIGH one; every other manifest edit
+  takes the normal path.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.
