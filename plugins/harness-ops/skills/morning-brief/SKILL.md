@@ -1,6 +1,6 @@
 ---
 description: "Operator's read-only morning view of the current GitHub repo in one pass: open counts per queue label, merge-ready PRs, parked decisions with their RECOMMENDED lines, loop-lane telemetry freshness, per CI lane the week's failures by class, limit stops, restarts and turn headroom, and model usage per activity and profile, and whether anything on GitHub or Azure is charging or could start charging; never mutates issues, PRs, labels, comments, or billing and Azure settings. Use when: 'morning brief', 'ops dashboard', 'what needs attention', 'daily standup view', 'how do we monitor lane failures', 'which models do the lanes use', 'are we being charged'."
-argument-hint: "[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--stale-hours N] [--stuck-days N] [--pr-limit N]"
+argument-hint: "[--repo owner/name] [--queue-labels A,B,C] [--stale-hours N] [--stuck-days N] [--pr-limit N]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh\":*)"]
 user-invocable: true
 disable-model-invocation: false
@@ -11,7 +11,7 @@ metadata:
   cadence: daily
 ---
 
-**Arguments.** `[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--stale-hours N] [--stuck-days N] [--pr-limit N]`. Full form: [--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] [--stranded-days N] [--stuck-days N] [--stuck-limit N] [--pr-limit N] [--lane-workflows A,B] [--lane-read-limit N] [--max-turns-hits N] [--org ORG] [--subscription ID] [--actions-included-minutes N] [--actions-included-storage-gb N] [--usage-alert-percent N] [--log-cap-alert-percent N] [--forecast-alert N] [--required-budgets A,B] [--anomaly-alert NAME] [--expiry-days N] [--allowed-collaborators A,B] [--workflow-read-limit N] [--config-home DIR]. `--org` defaults to the repo's owner, `--subscription` to az's current subscription; the Cost section's other settings are described under "What each section reports". Read-only on GitHub and Azure; omit to view the current repo
+**Arguments.** `[--repo owner/name] [--queue-labels A,B,C] [--stale-hours N] [--stuck-days N] [--pr-limit N]`. Full form: [--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] [--stranded-days N] [--stuck-days N] [--stuck-limit N] [--pr-limit N] [--lane-workflows A,B] [--lane-read-limit N] [--max-turns-hits N] [--org ORG] [--subscription ID] [--actions-included-minutes N] [--actions-included-storage-gb N] [--usage-alert-percent N] [--log-cap-alert-percent N] [--forecast-alert N] [--required-budgets A,B] [--anomaly-alert NAME] [--expiry-days N] [--allowed-collaborators A,B] [--workflow-read-limit N] [--config-home DIR]. `--org` defaults to the repo's owner, `--subscription` to az's current subscription; the Cost section's other settings are described under "What each section reports". Read-only on GitHub and Azure; omit to view the current repo
 
 ## Pre-computed context
 
