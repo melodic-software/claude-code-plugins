@@ -2152,10 +2152,14 @@
     const apcKey = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-key", "Copy watcher key");
     const apcRevoke = btn("vf-btn vf-btn-ghost vf-btn-sm vf-apc-revoke", "Revoke watcher key");
     apcLinks.append(apcCode, apcDesk, apcCopyW, apcKey, apcRevoke);
+    const apcAuth = E("a", "vf-apc-auth", "how to sign in with one");
+    apcAuth.href = "https://code.claude.com/docs/en/authentication"; apcAuth.target = "_blank"; apcAuth.rel = "noopener noreferrer";
+    const apcApiKey = E("p", "vf-meta", "No Claude subscription? Claude Code also runs on an Anthropic Console API key: ");
+    apcApiKey.append(apcAuth, ".");
     apConnect.append(apcHead,
       E("p", "vf-pop-note", "Your own Claude, on your own plan, runs these requests; the host's Claude never sees them. The host reviews each answer before anyone else sees it, marked as from your Claude."),
       E("p", "vf-pop-note", "Let Claude Code answer them as they come: open it with the prompt filled in, read it, and press Enter. It asks for your watcher key."),
-      apcLinks,
+      apcLinks, apcApiKey,
       E("p", "vf-meta", "A watcher key only reads and answers your own requests. Copying one replaces the last; revoke it when you are done. Or run one request at a time: copy its prompt below and paste the answer back."));
     const apScroll = E("div", "vf-pscroll vf-apscroll");
     const apReqHead = E("h3", "vf-pop-sub", "Your requests");

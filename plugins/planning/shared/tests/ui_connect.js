@@ -136,6 +136,10 @@ async function main() {
     const codeHref = await ann.page.getAttribute(".vf-apc-code", "href"), deskHref = await ann.page.getAttribute(".vf-apc-desk", "href");
     ok("Claude Code link uses the documented claude-cli://open?q= form", codeHref.startsWith(SCHEMES[0]), codeHref.slice(0, 40));
     ok("Desktop Code tab link uses the documented claude://code/new?q= form", deskHref.startsWith(SCHEMES[1]), deskHref.slice(0, 40));
+    ok("the API-key line links Claude Code's Authentication page in a new tab", await ann.page.evaluate(() => {
+      const a = document.querySelector(".vf-apconnect .vf-apc-auth");
+      return a?.href === "https://code.claude.com/docs/en/authentication" && a.target === "_blank" && a.rel.includes("noopener");
+    }));
     ok("its q stays within Claude Code's 5000 characters", codeHref.length - SCHEMES[0].length <= 5000, codeHref.length);
     const watch = qOf(codeHref);
     ok("both open the same watcher prompt", qOf(deskHref) === watch);

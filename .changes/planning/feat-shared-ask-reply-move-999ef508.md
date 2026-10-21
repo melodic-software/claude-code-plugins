@@ -10,3 +10,4 @@ bump: minor
 
 - A Reply button on every Claude answer opens a new ask that quotes the answer.
 - Move to on a request puts it, with its answer, on another question or the whole session. Only its asker or the owner can move it (`/api/request/act` action `move`).
+- Connect your Claude says Claude Code also runs on an Anthropic Console API key and links Claude Code's Authentication page.
