@@ -75,8 +75,8 @@ special-case.
    directory holds no entry other than a regular file or directory
    (`find <holdout>/phase-N ! -type f ! -type d` prints nothing; a symlink is the case this
    catches). A difference it did not make itself (step 6, which records a new hash) is a Major
-   divergence and stops the run. It then creates a detached throwaway worktree at
-   the phase head, never reusing a worker's worktree, and the `phase-verifier` dispatch carries
+   divergence and stops the run. It then creates the throwaway worktree SKILL.md,
+   Phase boundaries, describes (the full phase state, never reusing a worker's worktree), and the `phase-verifier` dispatch carries
    that path, the holdout path, the exact run command, and the criterion each test maps to. When
    the ecosystem needs the tests inside the tree to build, the orchestrator copies them into the
    throwaway worktree, never into a worker's. It removes the throwaway worktree after the verdict.
