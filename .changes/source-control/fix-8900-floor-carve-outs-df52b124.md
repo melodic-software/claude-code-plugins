@@ -56,4 +56,5 @@ bump: minor
   listed key clears only with its expected type (a string; a list of
   strings for `keywords` and `tags`; a string or an object of strings for
   `author`).
+  The `evals` directory and the `case.yaml` name match in any letter case.
   The base readers now also refuse a base or head that is not a commit SHA.

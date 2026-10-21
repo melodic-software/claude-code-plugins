@@ -45,7 +45,8 @@ the floor entries in `_EVALS_FLOOR` that no denied path repeats. Every other
 floor entry (a `.claude-plugin/` manifest, `**/CLAUDE.md`, `**/.claude/**` and
 the rest) still holds it.
 While the floor applies, a changed path in a directory from
-plugins/<plugin>/evals/ down to its own whose case.yaml, at the base
+plugins/<plugin>/evals/ down to its own (both matched casefolded, as is the
+case file name) whose case.yaml, at the base
 (`RiskInput.eval_cases`) or on either side of the diff, could name a
 `context.scaffold_script` rates HIGH as `eval-scaffold-review-required`: a
 scaffold runs as the operator outside the sandbox under `--scaffold`. A case
@@ -1259,11 +1260,23 @@ _CONTEXT_ITEM = re.compile(r"[ \t]+-(?:[ \t]|$)")
 
 def eval_case_dirs(path: str) -> list[str]:
     """Every directory from plugins/<plugin>/evals down to the file's own
-    that could hold the file's eval case, matched case-sensitively."""
-    parts = path.split("/")
+    that could hold the file's eval case, casefolded, because a
+    case-insensitive host reads `EVALS` as `evals`."""
+    parts = path.casefold().split("/")
     if len(parts) < 4 or parts[0] != "plugins" or parts[2] != "evals":
         return []
     return ["/".join(parts[:end]) for end in range(3, len(parts))]
+
+
+def is_case_file(path: str) -> bool:
+    """An eval case file: any spelling of case.yaml under any spelling of
+    plugins/<plugin>/evals/."""
+    return bool(eval_case_dirs(path)) and path.casefold().endswith(f"/{_CASE_FILE}")
+
+
+def case_dir(path: str) -> str:
+    """The casefolded directory a case file sits in."""
+    return path.casefold().rpartition("/")[0]
 
 
 def _scaffolds(text: Any) -> bool:
@@ -1316,9 +1329,9 @@ def _scaffold_hits(
         pair = _sequence(entry)
         if pair is None or len(pair) != 2 or not isinstance(pair[0], str):
             return [f"{f.path} (case files unreadable)" for f in files]
-        texts.setdefault(pair[0], []).append(pair[1])
+        texts.setdefault(case_dir(pair[0]), []).append(pair[1])
     for f, raw in zip(files, raw_files):
-        if f.status == "removed" or f.path.rsplit("/", 1)[-1] != _CASE_FILE:
+        if f.status == "removed" or not is_case_file(f.path):
             continue
         contents = getattr(raw, "contents", None)
         ok = getattr(raw, "contents_error", None) is None and (
@@ -1329,7 +1342,7 @@ def _scaffold_hits(
             contents = (None,)
         elif f.status == "added":
             contents = contents[1:]
-        texts.setdefault(f.path, []).extend(contents)
+        texts.setdefault(case_dir(f.path), []).extend(contents)
     hits = []
     for f in files:
         if f.path in runnable:
@@ -1339,9 +1352,7 @@ def _scaffold_hits(
             continue
         if base is None:
             hits.append(f"{f.path} (case files not read)")
-        elif any(
-            _scaffolds(t) for d in dirs for t in texts.get(f"{d}/{_CASE_FILE}", ())
-        ):
+        elif any(_scaffolds(t) for d in dirs for t in texts.get(d, ())):
             hits.append(f.path)
     return hits
 

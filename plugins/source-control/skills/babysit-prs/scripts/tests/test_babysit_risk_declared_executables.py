@@ -540,6 +540,27 @@ class BaseReadersKeepTheHoldTests(unittest.TestCase):
                 codes = _codes(result)
                 self.assertEqual("eval-scaffold-review-required" in codes, held, codes)
 
+    def test_eval_cases_at_reads_any_spelling_of_the_case_file(self):
+        case = "plugins/example-plugin/EVALS/c/CASE.YAML"
+        scaffolded = PLAIN_CASE + "context:\n  scaffold_script: fixture\n"
+        changed = ["plugins/example-plugin/Evals/c/fixture", None]
+        cases = self._call(
+            _fake_get(files={case: scaffolded}), policy.eval_cases_at, PR, changed
+        )
+        self.assertEqual(cases, ((case, scaffolded),))
+        codes = _codes(_scored((_changed(changed[0]),), eval_cases=cases))
+        self.assertIn("eval-scaffold-review-required", codes)
+
+    def test_with_capability_contents_reads_any_spelling_of_the_case_file(self):
+        case = "plugins/example-plugin/evals/c/Case.Yaml"
+        with (
+            mock.patch.object(policy, "_file_at", return_value="x: 1\n") as file_at,
+            mock.patch.dict(policy._TEXT_AT, clear=True),
+        ):
+            files = policy.with_capability_contents(REPO, PR, (_changed(case),))
+        self.assertEqual(files[0].contents, ("x: 1\n", "x: 1\n"))
+        self.assertEqual(file_at.call_count, 2)
+
     def test_unreadable_contents_keep_the_manifest_and_scaffold_holds(self):
         bumped = MANIFEST_BASE.replace("1.0.0", "1.1.0")
 

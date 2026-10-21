@@ -2831,6 +2831,27 @@ class EvalScaffoldTests(unittest.TestCase):
         removed = _file(CASE, status="removed", contents=None)
         self.assertIn(self.CODE, self._codes((removed,), ((CASE, SCAFFOLD_CASE),)))
 
+    def test_any_spelling_of_the_case_file_or_evals_counts(self):
+        added = dict(status="added", previous_mode=None)
+        for case, other in (
+            ("plugins/review/evals/new/CASE.YAML", "plugins/review/evals/new/fixture"),
+            ("plugins/foo/evals/new/Case.Yaml", "plugins/foo/evals/new/fixture"),
+            ("plugins/foo/EVALS/new/case.yaml", "plugins/foo/EVALS/new/fixture"),
+        ):
+            files = (
+                _file(case, contents=(None, SCAFFOLD_CASE), **added),
+                _file(other, contents=(None, "echo"), **added),
+            )
+            with self.subTest(case=case, side="diff"):
+                reasons = {
+                    r.code: r.detail
+                    for r in score(_input(files=files, eval_cases=())).reasons
+                }
+                self.assertIn(other, reasons.get(self.CODE, ""))
+            with self.subTest(case=case, side="base"):
+                codes = self._codes((_file(other),), ((case, SCAFFOLD_CASE),))
+                self.assertIn(self.CODE, codes)
+
     def test_a_file_outside_plugin_evals_takes_no_scaffold_hold(self):
         path = "plugins/foo/skills/x/evals/case/setup.txt"
         self.assertNotIn(self.CODE, _codes(score(_input(files=(_file(path),)))))
