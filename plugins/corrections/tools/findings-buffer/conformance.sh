@@ -84,7 +84,7 @@ RC=$?
 miss=""
 for i in 5 6 7 8; do
   for s in a b; do
-    printf '%s\n' "$OUT" | grep -q "\"obs_id\":\"c$i-$s\"" || miss="$miss c$i-$s"
+    grep -q "\"obs_id\":\"c$i-$s\"" <<<"$OUT" || miss="$miss c$i-$s"
   done
 done
 if [[ $RC -eq 0 && -z "$miss" ]]; then
