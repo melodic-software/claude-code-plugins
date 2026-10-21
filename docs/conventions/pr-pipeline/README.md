@@ -626,11 +626,13 @@ and its queued entries leave; two different identities, or an unreadable head co
   `floor-script-scopes` and the capability check (see the pr-merge lane), matched
   case-insensitively. A diff that touches any of them
   scores HIGH and is never merged unattended. A file whose every path is a test (a `*.test.mjs`,
-  `*.test.sh`, `*.test.js` or `test_*.py` name, or a `tests/` or `fixtures/` directory, matched
-  case-sensitively, safe and under no path a plugin declares as run) does not take the floor's
-  `plugins/*/scripts/**`, `plugins/*/skills/*/scripts/**` and `plugins/**/scripts/**` entries,
-  `floor-paths` globs with a `scripts` segment, or `floor-script-scopes`; every other floor entry,
-  every other `floor-paths` glob and `denied-paths` still hold it.
+  `*.test.sh`, `*.test.js` or `test_*.py` name, or a `tests/` or `fixtures/` directory below the
+  path's last `scripts/` directory and below any script scope it is in, matched case-sensitively),
+  safe, under no path a plugin declares as run, and named by no other changed file in the diff,
+  does not take the floor's `plugins/*/scripts/**`, `plugins/*/skills/*/scripts/**` and
+  `plugins/**/scripts/**` entries, `floor-paths` globs that end in a `scripts` directory (such as
+  `plugins/x/scripts/**`), or `floor-script-scopes`; every other floor entry, every other
+  `floor-paths` glob and `denied-paths` still hold it.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.

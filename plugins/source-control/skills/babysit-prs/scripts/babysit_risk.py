@@ -23,10 +23,12 @@ key, adds a `!` command, or changes a line inside a ```! block, compared with
 its base text, or whose text could not be read, rates HIGH as
 `high-capability`.
 A safe file whose every path is a test (a `*.test.mjs`, `*.test.sh`,
-`*.test.js` or `test_*.py` name, or a `tests` or `fixtures` directory, matched
-case-sensitively) under no declared path is left out of the floor's
-script-directory entries, `floor-paths` globs with a `scripts` segment and
-the script scopes; every other entry and every denied path still holds it.
+`*.test.js` or `test_*.py` name, or a `tests` or `fixtures` directory below the
+path's last `scripts` directory and below any script scope it is in, matched
+case-sensitively), under no declared path and named by no other changed file
+(every other file readable), is left out of the floor's script-directory
+entries, `floor-paths` globs whose last segment other than `**` is `scripts`,
+and the script scopes; every other entry and every denied path still holds it.
 `floor_extensions` gates FLOOR_ADDITIONS, `floor-paths`, the script scopes and
 the capability check in every lane. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Claude.md` as
@@ -628,19 +630,73 @@ _TEST_NAMES = ("*.test.mjs", "*.test.sh", "*.test.js", "test_*.py")
 _TEST_DIRS = frozenset({"tests", "fixtures"})
 
 
-def _test_only(f: _File, declared: tuple[str, ...]) -> bool:
-    """Every path of a safe file is a test: a test file name or a directory
-    named tests or fixtures, matched case-sensitively, under no declared path."""
+def _ends_in_scripts(glob: str) -> bool:
+    """Whether the last segment of a glob other than `**` is `scripts`."""
+    segments = [s for s in glob.split("/") if s not in ("", "**")]
+    return bool(segments) and segments[-1] == "scripts"
+
+
+def _scope_depth(scope: str, segments: list[str]) -> int:
+    """How many leading path segments the scope names, without its trailing
+    `**`: 0 when it does not match."""
+    stem = scope.rstrip("/")
+    while stem.endswith("/**"):
+        stem = stem[: -len("/**")]
+    for depth in range(1, len(segments) + 1):
+        if glob_match(stem, "/".join(segments[:depth])):
+            return depth
+    return 0
+
+
+def _test_path(path: str, scopes: tuple[str, ...]) -> bool:
+    """A test file name, or a tests or fixtures directory below the path's last
+    scripts directory and below every script scope it falls in, matched
+    case-sensitively."""
+    *dirs, name = path.split("/")
+    if any(_segment_match(g, name) for g in _TEST_NAMES):
+        return True
+    below = max(
+        [i + 1 for i, d in enumerate(dirs) if d == "scripts"]
+        + [_scope_depth(s, dirs + [name]) for s in scopes if glob_match(s, path)]
+        + [0]
+    )
+    return bool(_TEST_DIRS.intersection(dirs[below:]))
+
+
+def _named(f: _File, files: list[_File], raw_files: list[Any]) -> bool:
+    """Whether another changed file's patch or text names one of this file's
+    names, or one of them cannot be read (fail closed)."""
+    names = {path.rsplit("/", 1)[-1].casefold() for path in f.paths}
+    for other, raw in zip(files, raw_files):
+        if other is f:
+            continue
+        patch = getattr(raw, "patch", None)
+        contents = getattr(raw, "contents", None)
+        texts = [patch] if isinstance(patch, str) else []
+        if isinstance(contents, tuple):
+            texts += [c for c in contents if isinstance(c, str)]
+        if not texts:
+            return True
+        if any(name in text.casefold() for text in texts for name in names):
+            return True
+    return False
+
+
+def _test_only(
+    f: _File,
+    files: list[_File],
+    raw_files: list[Any],
+    declared: tuple[str, ...],
+    scopes: tuple[str, ...],
+) -> bool:
+    """Every path of a safe file is a test (`_test_path`), under no declared
+    path, and no other changed file names it."""
     if f.unsafe or not f.paths:
         return False
     for path in f.paths:
-        *dirs, name = path.split("/")
-        if not (
-            _TEST_DIRS.intersection(dirs)
-            or any(_segment_match(g, name) for g in _TEST_NAMES)
-        ) or any(glob_match(d, path) for d in declared):
+        if not _test_path(path, scopes) or any(glob_match(d, path) for d in declared):
             return False
-    return True
+    return not _named(f, files, raw_files)
 
 
 def _script_reasons(
@@ -875,10 +931,15 @@ def _high_path_reasons(
     if unsafe:
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
     paths = [path for f in files for path in f.paths if path]
-    tests = {p for f in files if _test_only(f, declared) for p in f.paths}
-    # The floor's script entries and floor-paths globs with a scripts segment
-    # exempt tests; a denied path never does.
-    scripted = {g for g in floor_globs if "scripts" in g.split("/")}
+    tests = {
+        p
+        for f in files
+        if _test_only(f, files, raw_files, declared, scopes)
+        for p in f.paths
+    }
+    # The floor's script entries and floor-paths globs ending in a scripts
+    # directory exempt tests; a denied path never does.
+    scripted = {g for g in floor_globs if _ends_in_scripts(g)}
     exempt = _SCRIPT_FLOOR.union(scripted).difference(configured) if on else ()
     for pattern in dict.fromkeys((*floor, *configured)):
         hits = [

@@ -1108,6 +1108,54 @@ class TestOnlyScriptPathTests(unittest.TestCase):
         )
         self.assertIn("high-script", _codes(held))
 
+    def test_a_tests_directory_above_scripts_still_holds(self):
+        for path in (
+            "plugins/foo/skills/tests/scripts/run.sh",
+            "plugins/foo/skills/fixtures/scripts/run.py",
+            "plugins/foo/tests/scripts/run.sh",
+        ):
+            with self.subTest(path):
+                self.assertIn(
+                    "high-path:plugins/**/scripts/**",
+                    _codes(score(_input(files=(_file(path),)))),
+                )
+        low = score(_input(files=(_file("plugins/x/scripts/tests/a.sh"),)))
+        self.assertEqual(low.score, Risk.LOW, _codes(low))
+
+    def test_a_tests_directory_above_a_script_scope_still_holds(self):
+        tool = _file("plugins/foo/tests/tools/run.sh", mode="100755")
+        result = score(
+            _input(files=(tool,), floor_script_scopes=("plugins/foo/tests/**",))
+        )
+        self.assertEqual(_codes(result), ("high-script",))
+        below = _file("plugins/foo/tools/tests/run.sh", mode="100755")
+        result = score(_input(files=(below,), floor_script_scopes=("plugins/foo/**",)))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+    def test_a_test_file_another_changed_file_names_still_holds(self):
+        test = _file("plugins/foo/skills/bar/scripts/preflight.test.sh", status="added")
+        skill = _edit(SKILL, FRONT, FRONT.replace("Body.", "Run preflight.test.sh."))
+        result = score(_input(files=(test, skill)))
+        self.assertIn("high-path:plugins/*/skills/*/scripts/**", _codes(result))
+        other = _edit(SKILL, FRONT, FRONT.replace("Body.", "Body, reworded."))
+        result = score(_input(files=(test, other)))
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+    def test_a_test_file_beside_an_unreadable_change_still_holds(self):
+        test = _file("plugins/foo/scripts/tests/test_run.py")
+        blob = _file("plugins/foo/assets/logo.png", has_patch=False, contents=None)
+        result = score(_input(files=(test, blob)))
+        self.assertIn(self.SCRIPT, _codes(result))
+
+    def test_a_floor_path_glob_below_scripts_still_holds_tests(self):
+        result = score(
+            _input(
+                files=(_file("plugins/x/scripts/tests/test_a.py"),),
+                floor_paths=("plugins/x/scripts/tests/**",),
+            )
+        )
+        self.assertEqual(_codes(result), ("high-path:plugins/x/scripts/tests/**",))
+
     def test_an_executable_test_file_in_a_script_scope_is_low(self):
         scopes = ("plugins/foo/**",)
         test = _file("plugins/foo/scripts/tests/run.test.sh", mode="100755")
