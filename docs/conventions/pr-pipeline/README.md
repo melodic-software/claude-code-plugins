@@ -1047,7 +1047,8 @@ head:
   differs from its change at every `fail`ed head, and those passes decide as below. A change is
   a sha256 digest of the changed lines in the compare diff from its merge base with the branch:
   per file its path, a rename's old and new paths, mode lines, the binary-change line and the `-`
-  and `+` lines with whitespace removed and the marker kept, lines and files sorted. Context lines,
+  and `+` lines with whitespace removed and the marker kept (blank ones and trailing carriage
+  returns dropped), lines and files sorted. A head that only adds blank lines holds. Context lines,
   line numbers and hunk order do not count, so a head that only merges the branch, even one that
   edits a line next to the fix, or adds an empty commit keeps the refusal, as does a diff that
   cannot be read or holds no change. Removing whitespace also keeps the refusal for a change that

@@ -287,13 +287,15 @@ def change_digest(diff: str) -> str | None:
     and line numbers (which a base merge moves or edits) leave it alone.
     Each file contributes its path, the old to new path of a rename, its
     mode lines, its binary-change line, and its `-` and `+` lines with all
-    whitespace removed and the marker kept. Lines within a file and files by
+    whitespace removed and the marker kept, blank ones dropped; a trailing
+    carriage return is dropped from every line. Lines within a file and files by
     path are sorted, so reordering hunks or files changes nothing. None for
     a diff with no change, or one that is not a git diff."""
     files: dict[str, list[str]] = {}
     lines: list[str] | None = None
     in_hunk = False
     for line in diff.split("\n"):
+        line = line.removesuffix("\r")
         header = DIFF_HEADER.fullmatch(line)
         if header:
             lines = files.setdefault(header[2], [])
@@ -304,8 +306,10 @@ def change_digest(diff: str) -> str | None:
         elif line.startswith("@@"):
             in_hunk = True
         elif in_hunk:
-            if line[:1] in ("-", "+"):
-                lines.append(line[0] + "".join(line[1:].split()))
+            # A blank line, added or removed, changes nothing a re-roll
+            # could not add for free.
+            if line[:1] in ("-", "+") and (content := "".join(line[1:].split())):
+                lines.append(line[0] + content)
         elif line.startswith("rename from "):
             lines.append("rename " + line.removeprefix("rename from "))
         elif line.startswith("rename to "):

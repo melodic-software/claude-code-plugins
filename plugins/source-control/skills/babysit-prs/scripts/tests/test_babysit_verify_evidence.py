@@ -725,6 +725,11 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
                         fake.diffs[sha] = ""
                     self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
+    def test_a_head_that_only_adds_blank_lines_refuses(self) -> None:
+        fake = self.earlier_fail()
+        fake.diffs[HEAD] = change("")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
     def test_a_response_that_is_not_a_diff_refuses(self) -> None:
         fake = self.earlier_fail()
         fake.diffs[HEAD] = "<html>rate limited</html>\n"
@@ -808,6 +813,22 @@ class TheChangeDigestKeysOnChangedLines(unittest.TestCase):
                 content.replace("index", "old mode 100644\nnew mode 100755\nindex")
             ),
         )
+
+    def test_added_blank_lines_do_not_count(self) -> None:
+        # A re-roll must not cost one empty line.
+        base = change("x = 2")
+        for blank in ("+", "+    ", "+\t"):
+            with self.subTest(blank=blank):
+                padded = base.replace("+x = 2\n", f"+x = 2\n{blank}\n")
+                self.assertEqual(self.digest(base), self.digest(padded))
+
+    def test_a_diff_of_only_blank_lines_has_no_digest(self) -> None:
+        self.assertIsNone(self.digest(change("")))
+        self.assertIsNone(self.digest(change("   ")))
+
+    def test_crlf_line_ends_do_not_count(self) -> None:
+        diff = change("fix") + rename("old.txt", "new.txt")
+        self.assertEqual(self.digest(diff), self.digest(diff.replace("\n", "\r\n")))
 
     def test_no_change_has_no_digest(self) -> None:
         for diff in ("", "\n", "diff --git a/n.txt b/n.txt\nindex 1..2 100644\n"):
