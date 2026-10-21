@@ -593,6 +593,16 @@ assert_contains "no resolvable issue degrades loudly, naming the fix" "$OUT" "Pa
 assert_not_contains "no resolvable issue means no comment is written anywhere" "$(cat "$GH_NONE")" "--method POST"
 assert_contains "the run itself is unaffected by a missing telemetry issue" "$OUT" "| work | skipped-running |"
 
+# Under an App token `gh api user` fails, so the upsert's fallback tier resolves
+# its write identity only from a forwarded --app-slug; without it, it writes nothing.
+GH_SLUG="$TMP/gh-slug.log"
+OUT="$(GH_LOG="$GH_SLUG" GH_USER_FAIL=1 run_telemetry --telemetry-issue 77 --app-slug lane-app)"
+assert_contains "--app-slug is forwarded to the upsert, which then writes" "$(cat "$GH_SLUG")" "--method POST"
+GH_NOSLUG="$TMP/gh-noslug.log"
+OUT="$(GH_LOG="$GH_NOSLUG" GH_USER_FAIL=1 run_telemetry --telemetry-issue 77)"
+assert_not_contains "with no slug the upsert resolves no identity and writes nothing" "$(cat "$GH_NOSLUG")" "--method POST"
+assert_contains "the failed upsert is reported" "$OUT" "telemetry upsert failed"
+
 # --- 20. The morning-brief discovery literals are verbatim in both files -----
 # Not refactored to a shared source: the two skills are independently
 # installable. This gate is what makes the duplication safe — if the reader's
