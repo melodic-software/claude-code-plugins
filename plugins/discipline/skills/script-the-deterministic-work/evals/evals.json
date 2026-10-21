@@ -148,7 +148,7 @@
       "id": 12,
       "name": "lever-check-migration-codemod-first",
       "narration": true,
-      "prompt": "/discipline:script-the-deterministic-work lever-check migrate 40 call sites from the deprecated fetchUser(id, cb) callback API to the promise-based getUser(id) across a TypeScript monorepo\n\n[No lever_scope option is set and the repository, a git checkout that is not the home directory, has no docs/conventions/discipline.yaml.]",
+      "prompt": "/discipline:script-the-deterministic-work lever-check migrate 40 call sites from the deprecated fetchUser(id) to its renamed replacement getUser(id), same arguments and same return value, across a TypeScript monorepo\n\n[No lever_scope option is set and the repository, a git checkout that is not the home directory, has no docs/conventions/discipline.yaml.]",
       "expected_output": "Resolves lever_scope to the default deterministic and reports the default as the supplying layer. The change moves many sites from one established way to another, so it applies the migration row: it answers build-a-lever and names an established codemod or structural-rewrite tool (for example jscodeshift or ast-grep) first, a written script only if no such tool covers the change, and hand edits last. It tells the caller to pilot on one site and does not edit any file itself.",
       "files": [],
       "expectations": [
