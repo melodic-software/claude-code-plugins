@@ -49,4 +49,11 @@ bump: minor
   `eval-scaffold-review-required`, because `--scaffold` runs that script
   outside the sandbox. The merge wrapper reads those case files at the base
   only when such a path changes; an unread or unparsable case file holds.
+  Any `*.sh`, `*.bash`, `*.py`, `*.mjs`, `*.js`, `*.cjs`, `*.ps1` or mode
+  100755 file under `plugins/*/evals/**`, such as a shared fixture a
+  scaffold sources, takes the same hold whatever the floor says. Manifest
+  values are compared as sorted JSON, so `false` and `0` differ, and a
+  listed key clears only with its expected type (a string; a list of
+  strings for `keywords` and `tags`; a string or an object of strings for
+  `author`).
   The base readers now also refuse a base or head that is not a commit SHA.

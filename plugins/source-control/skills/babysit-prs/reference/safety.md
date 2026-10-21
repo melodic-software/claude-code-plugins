@@ -1026,12 +1026,15 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    Only LOW merges. Adding only `disable-model-invocation: true` to a plugin skill no agent
    preloads, and a non-script file under `plugins/<plugin>/evals/`, take no hold from the floor
    entries `babysit_risk.py`'s docstring names, unless the file sits in an eval case whose
-   `case.yaml` could name a `scaffold_script` (HIGH as `eval-scaffold-review-required`). A plugin
+   `case.yaml` could name a `scaffold_script` (HIGH as `eval-scaffold-review-required`). A script
+   or mode 100755 file anywhere under `plugins/<plugin>/evals/` takes that hold too, floor or not,
+   since a scaffold may source it. A plugin
    or marketplace manifest takes no floor hold; its parsed change clears only when every key that
    differs is on that docstring's allow-lists (version, description and other metadata, or a
    title or description edit on an existing `userConfig` key), and anything else, an added
-   `userConfig` key or a `defaultEnabled` change included, scores HIGH as `manifest-review-required`. A C3 pull request also needs a
-   LOW blast-radius rating, which nothing supplies
+   `userConfig` key or a `defaultEnabled` change included, scores HIGH as
+   `manifest-review-required`, as does a listed key whose value has the wrong type. A C3 pull
+   request also needs a LOW blast-radius rating, which nothing supplies
    yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With

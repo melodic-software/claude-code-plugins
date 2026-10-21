@@ -638,7 +638,9 @@ and its queued entries leave; two different identities, or an unreadable head co
   `CLAUDE.md`, a declared path and `denied-paths` still hold it. Any changed file in an eval case
   directory whose `case.yaml` could name a `context.scaffold_script`, or could not be read, scores
   HIGH as `eval-scaffold-review-required`, since `--scaffold` runs that script outside the
-  sandbox. A `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
+  sandbox; so does any `*.sh`, `*.bash`, `*.py`, `*.mjs`, `*.js`, `*.cjs`, `*.ps1` or mode 100755
+  file under `plugins/*/evals/**`, whatever the floor says, since a scaffold may source it. A
+  `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
   `.claude-plugin/marketplace.json` leaves the floor: its parsed base and head are compared against
   allow-lists, and any difference outside them scores HIGH as `manifest-review-required`. In
   `plugin.json` only `version`, `description`, `keywords`, `author`, `homepage`, `repository`,
@@ -648,8 +650,10 @@ and its queued entries leave; two different identities, or an unreadable head co
   `metadata.description` or `metadata.version` may differ; an existing plugin entry may change only
   `version`, `description`, `keywords`, `author`, `homepage`, `repository`, `license`, `category`
   and `tags`, and an added, removed or renamed entry holds. A side that cannot be read, does not
-  parse or repeats a key holds, and so does a new `plugin.json`. That reason waits for a human like
-  any other HIGH one.
+  parse or repeats a key holds, and so does a new `plugin.json`. Values are compared as sorted
+  JSON, so `false` and `0` differ, and a listed key clears only with the expected type: a string, a
+  list of strings for `keywords` and `tags`, and a string or an object of strings for `author`.
+  That reason waits for a human like any other HIGH one.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.

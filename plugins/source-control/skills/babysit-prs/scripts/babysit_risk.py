@@ -45,7 +45,9 @@ plugins/<plugin>/evals/ down to its own whose case.yaml, at the base
 scaffold runs as the operator outside the sandbox under `--scaffold`. A case
 file is scaffold-free only when the strict frontmatter reader follows it and
 every `context` line is `history_file`, `add_dirs` or a list item; an unread
-case file (`eval_cases` None, or a None text) holds.
+case file (`eval_cases` None, or a None text) holds. Any `_EVAL_RUNNABLE` or
+mode 100755 file under plugins/<plugin>/evals/ also rates HIGH as
+`eval-scaffold-review-required`, floor or not: a scaffold may source it.
 A plugins/<plugin>/.claude-plugin/plugin.json or the top-level
 .claude-plugin/marketplace.json takes no `**/.claude-plugin/**` floor hold
 unless a denied path repeats that pattern. Its base and head JSON are compared
@@ -58,7 +60,9 @@ marketplace.json only `plugins` and `metadata.description`/`version` may
 differ; a plugin entry, matched by name, may change only `_ENTRY_CLEAR` keys,
 and an added, removed or renamed entry holds. A manifest whose side cannot be
 read or parsed, or repeats a key, holds; an added plugin.json is compared with
-`{}`, so it holds.
+`{}`, so it holds. Values are compared as sorted JSON, so `false` and `0`
+differ, and a listed key clears only with the type `_CLEAR_TYPES` names (a
+string otherwise).
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -1050,20 +1054,55 @@ def _object(data: dict[str, Any], key: str) -> Any:
     return value if isinstance(value, dict) else None
 
 
+def _canonical(data: dict[str, Any], key: str) -> str | None:
+    """A key's value as sorted JSON, so `false` and `0` differ; None when
+    absent."""
+    return json.dumps(data[key], sort_keys=True) if key in data else None
+
+
 def _differing(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
     """The keys added, removed or changed between two objects, sorted."""
     return sorted(
         k
         for k in set(before) | set(after)
-        if before.get(k, _MISSING) != after.get(k, _MISSING)
+        if _canonical(before, k) != _canonical(after, k)
     )
+
+
+def _is_str(value: Any) -> bool:
+    return isinstance(value, str)
+
+
+def _string_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(v, str) for v in value)
+
+
+def _author(value: Any) -> bool:
+    return isinstance(value, str) or (
+        isinstance(value, dict) and all(isinstance(v, str) for v in value.values())
+    )
+
+
+# The type a listed key's head value must have to clear; a string otherwise.
+_CLEAR_TYPES = {
+    "keywords": _string_list,
+    "tags": _string_list,
+    "author": _author,
+    "userConfig": lambda value: isinstance(value, dict),
+}
 
 
 def _unlisted(
     prefix: str, before: dict[str, Any], after: dict[str, Any], clear: frozenset
 ) -> list[str]:
-    """Each differing key outside `clear`, and a removed `version`."""
-    found = [f"{prefix}{k}" for k in _differing(before, after) if k not in clear]
+    """Each differing key outside `clear` or whose head value has the wrong
+    type, and a removed `version`."""
+    found = []
+    for k in _differing(before, after):
+        if k not in clear:
+            found.append(f"{prefix}{k}")
+        elif k in after and not _CLEAR_TYPES.get(k, _is_str)(after[k]):
+            found.append(f"{prefix}{k} has the wrong type")
     if "version" in before and "version" not in after:
         found.append(f"{prefix}version removed")
     return found
@@ -1144,6 +1183,8 @@ def _manifest_changes(f: _File, raw: Any) -> list[str]:
 
 
 _EVAL_SCAFFOLD_CODE = "eval-scaffold-review-required"
+_EVALS = "plugins/*/evals/**"
+_EVAL_RUNNABLE = (".sh", ".bash", ".py", ".mjs", ".js", ".cjs", ".ps1")
 _CASE_FILE = "case.yaml"
 # The `context` keys that run nothing; `scaffold_script` runs a script.
 _SAFE_CONTEXT = frozenset({"history_file", "add_dirs"})
@@ -1187,8 +1228,19 @@ def _scaffolds(text: Any) -> bool:
     return False
 
 
+def _eval_runnable(f: _File, raw: Any) -> bool:
+    """A script by name or mode with any path under plugins/<plugin>/evals/."""
+    modes = (getattr(raw, "mode", None), getattr(raw, "previous_mode", None))
+    return any(
+        glob_match(_EVALS, p)
+        and (p.casefold().endswith(_EVAL_RUNNABLE) or _EXECUTABLE_MODE in modes)
+        for p in f.paths
+        if p
+    )
+
+
 def _scaffold_hits(
-    inp: RiskInput, files: list[_File], raw_files: list[Any]
+    inp: RiskInput, files: list[_File], raw_files: list[Any], runnable: set[str]
 ) -> list[str]:
     """Each changed path in an eval case directory whose case.yaml, at the base
     (`RiskInput.eval_cases`) or on either side of this diff, could name a
@@ -1215,6 +1267,8 @@ def _scaffold_hits(
         texts.setdefault(f.path, []).extend(contents)
     hits = []
     for f in files:
+        if f.path in runnable:
+            continue
         dirs = {d for p in f.paths if p for d in eval_case_dirs(p)}
         if not dirs:
             continue
@@ -1275,7 +1329,12 @@ def _high_path_reasons(
     ]
     if review:
         reasons.append(Reason(_MANIFEST_CODE, Risk.HIGH, "; ".join(review)))
-    scaffolded = _scaffold_hits(inp, files, raw_files) if on else []
+    # A script anywhere under evals/ can run outside the sandbox, sourced by a
+    # scaffold under `--scaffold`, so it holds whatever the floor says.
+    runnable = [f.path for f, raw in zip(files, raw_files) if _eval_runnable(f, raw)]
+    scaffolded = runnable + (
+        _scaffold_hits(inp, files, raw_files, set(runnable)) if on else []
+    )
     if scaffolded:
         reasons.append(Reason(_EVAL_SCAFFOLD_CODE, Risk.HIGH, ", ".join(scaffolded)))
     if extended:

@@ -2410,6 +2410,98 @@ class ManifestAllowListTests(unittest.TestCase):
                 self.assertIn(named, detail.get(self.REVIEW, ""))
 
 
+class ManifestTypeTests(unittest.TestCase):
+    """A listed key clears only with the type it should have, and values are
+    compared as JSON, so `false` and `0` differ."""
+
+    REVIEW = "manifest-review-required"
+
+    def _detail(self, path, before, after):
+        result = score(_input(files=(_manifest_change(path, before, after),)))
+        return {r.code: r.detail for r in result.reasons}.get(self.REVIEW, "")
+
+    def test_a_listed_plugin_key_of_the_wrong_type_holds(self):
+        for key, value in (
+            ("homepage", {"hooks": {"Stop": []}}),
+            ("version", {"hooks": {}}),
+            ("license", 123),
+            ("description", ["x"]),
+            ("repository", {"url": "x"}),
+            ("keywords", ["a", 1]),
+            ("keywords", "a"),
+            ("author", {"name": 1}),
+            ("author", ["a"]),
+        ):
+            with self.subTest(key=key, value=value):
+                after = _with(PLUGIN_BASE, **{key: value})
+                detail = self._detail(MANIFEST, PLUGIN_BASE, after)
+                self.assertIn(f"{key} has the wrong type", detail)
+
+    def test_a_listed_marketplace_key_of_the_wrong_type_holds(self):
+        for after, named in (
+            (_entry(category=1), "plugins[foo].category"),
+            (_entry(tags="a"), "plugins[foo].tags"),
+            (_entry(homepage={"hooks": {}}), "plugins[foo].homepage"),
+            (_with(MARKET_BASE, metadata={"description": {}}), "metadata.description"),
+        ):
+            with self.subTest(named):
+                detail = self._detail(MARKETPLACE, MARKET_BASE, after)
+                self.assertIn(f"{named} has the wrong type", detail)
+
+    def test_a_default_changed_between_bool_and_number_holds(self):
+        for before, after in ((False, 0), (1, True)):
+            with self.subTest(before=before, after=after):
+                detail = self._detail(
+                    MANIFEST, _option(default=before), _option(default=after)
+                )
+                self.assertIn("userConfig.guard_enabled.default", detail)
+
+    def test_listed_keys_of_the_right_type_clear(self):
+        for key, value in (
+            ("author", "A"),
+            ("author", {"name": "A", "email": "a@example.com"}),
+            ("keywords", []),
+        ):
+            with self.subTest(key=key):
+                after = _with(PLUGIN_BASE, **{key: value})
+                self.assertEqual(self._detail(MANIFEST, PLUGIN_BASE, after), "")
+
+
+class EvalScriptTests(unittest.TestCase):
+    """A script anywhere under plugins/<plugin>/evals/ holds, floor or not:
+    a scaffold may source it outside the sandbox."""
+
+    CODE = "eval-scaffold-review-required"
+
+    def test_a_script_under_evals_holds_in_any_plugin(self):
+        for name in ("x.sh", "x.bash", "x.py", "x.mjs", "x.js", "x.cjs", "x.PS1"):
+            for floor in (True, False):
+                path = f"plugins/animation/evals/fixtures/{name}"
+                with self.subTest(path=path, floor=floor):
+                    inp = _input(files=(_file(path),), eval_cases=(), high_floor=floor)
+                    self.assertIn(self.CODE, _codes(score(inp)))
+
+    def test_an_executable_file_under_evals_holds(self):
+        changed = _file("plugins/animation/evals/fixtures/seed", mode="100755")
+        self.assertIn(self.CODE, _codes(score(_input(files=(changed,), eval_cases=()))))
+
+    def test_a_script_renamed_out_of_evals_holds(self):
+        moved = _file(
+            "plugins/animation/notes/x.txt",
+            status="renamed",
+            previous_path="plugins/animation/evals/fixtures/x.sh",
+        )
+        self.assertIn(self.CODE, _codes(score(_input(files=(moved,), eval_cases=()))))
+
+    def test_data_beside_a_shared_script_is_low(self):
+        result = score(
+            _input(
+                files=(_file("plugins/animation/evals/fixtures/x.json"),), eval_cases=()
+            )
+        )
+        self.assertEqual(result.score, Risk.LOW, _codes(result))
+
+
 CASE_DIR = "plugins/foo/evals/case"
 CASE = f"{CASE_DIR}/case.yaml"
 PLAIN_CASE = 'schema_version: "1.1"\nname: case\n'
