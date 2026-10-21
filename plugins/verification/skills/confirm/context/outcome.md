@@ -84,6 +84,7 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 - Scope additions: N (M justified)
 - Verifier model: <model passed to the fresh-context verifier> / not matched to the producing model (unknown)
 - Proof level: <path | live | strict> (<layer that supplied it>; any dropped or skipped layer and why)
+- Stand-in: <none | what the proof ran on in place of the real target; each setup step the stand-in did that the target will not, marked unverified>
 - Live workers: <n resolved> (<layer that supplied it>; any dropped layer and why); <n ran> ran (<why fewer, if fewer>); per worker: <entry points> | <result> | <tokens measured> | <wall time measured>; <"live-UI step unverified on this host" on a cloud execution target>
 ```
 
