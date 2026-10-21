@@ -41,6 +41,8 @@ The mechanical pass is a *gate*, not the point. `/toolchain:check` owns build+te
 
 **Quick mechanical-only?** Use `/toolchain:check` (not `/verification:confirm`). **Lint-only?** `/toolchain:lint`. **Tests-only?** `/toolchain:check <ecosystem>`. Reach for `/verification:confirm` when you need outcome confirmation. Proof, not just a green build.
 
+**What kind of proof this is.** This skill proves by tests and observed behavior, not by formal methods such as model checking or proof. A change whose correctness rests on concurrency or protocol invariants should say so in the report, because passing tests and a clean live drive do not establish those invariants.
+
 ## Arguments
 
 `$ARGUMENTS`, optional mode and/or ecosystem filter.
@@ -173,6 +175,11 @@ Read the criterion context file for the dispatched mode, then run the flow below
      - **Pointer**: the `CLAUDE_CODE_REMOTE` row of <https://code.claude.com/docs/en/env-vars>; for the subagent result whose usage each worker line reports, <https://code.claude.com/docs/en/sub-agents>.
      - **As of**: 2026-10-04
      - **Recheck trigger**: the env-vars row changes, or a Claude Code release changes the Agent tool result or its usage format.
+
+   **Three rules for the live drive.**
+   - **Ready means usable.** The app counts as ready only when a user could use it from an empty data directory, migrations and seed data included. A port answering or a health check passing is not enough: a database health check can pass while its init scripts still run.
+   - **Never weaken a user journey to make it pass.** When the seed data lacks a precondition a journey needs, report that journey as failed with that reason. The verdict does not count it as passed, and the journey is not edited to pass.
+   - **Stand-in caveat.** When the proof ran on a stand-in for the real target (a container instead of a fresh machine, a local stack instead of a remote one), the report lists every setup step the stand-in did that the target will not, and marks those unverified.
 2. **Intent retrieval**. Walk the ladder in [context/intent.md](context/intent.md): the PLAN.md Brief, then the pull request body's acceptance criteria, then the linked issue, then the conversation; the report's `Intent source:` line names the one that supplied it. With none, ask; with no one to ask, the verdict is `NOT VERIFIED: no intent source`.
 3. **Implementation inventory**. Changed files, new capabilities, behavior changes, config/infra changes.
 4. **Intent match**. Every requirement has implementation; every implementation traces to a requirement; flag scope additions and gaps (including implicit requirements. Error handling, edge cases, tests). Name the out-of-diff couplings: the existing behavior this change leans on, unchanged code whose contract the diff now depends on. A named coupling is checkable; an implied one is where regressions hide. The report carries them as their own table (see [context/outcome.md](context/outcome.md)).

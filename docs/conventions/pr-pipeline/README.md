@@ -1180,8 +1180,9 @@ labels an issue `agent-ready`, so nothing it files starts work. Its scripts and 
 - **file**, a script with no model and `issues: write`, drops a finding when any quote is not on its
   line in the run's main commit, then de-duplicates it by fingerprint: a hash of the slice, workflow,
   job and the error signature with numbers, SHAs and times removed, kept as the last line of the
-  issue body. An open match gets a "seen again" comment; a match closed as not planned is skipped;
-  a match fixed in the last 14 days is filed again, linked as a possible regression. A finding whose
+  issue body. An open match gets a "seen again" comment; a match closed as not planned or duplicate
+  is skipped; any other closed match, whatever its age, is reopened with a comment carrying the
+  checked claims. A finding whose
   `covered_by` names an open item is skipped. It files at most 5 issues a run, labeled
   `needs-triage` and `source: lane-sweep` where those labels exist, writes 1 s apart, and stops at 50
   calls.
@@ -1228,9 +1229,9 @@ the signal, the owning area and the key, and carries the evidence inside a text 
 The fingerprint changes only when the evidence does: the failure text, the run or PR set, the newest
 failed merge group, the incident status, the last merge, or the day for a ceiling. The newest issue for a key
 decides: open with the same fingerprint, nothing is written; open with a new one, a comment carries
-the evidence and the marker records it; closed as not planned, the key is muted; closed as completed,
-a new issue is filed only on new evidence, or for `main-red` on a failed run that started after the
-close, naming the old one. Issues of every age are read, page by page until a short page, so a quiet key stays open or muted; a run that spends its call budget there stops before writing. It files at most 8 issues a run,
+the evidence and the marker records it; closed as not planned or duplicate, the key is muted; closed
+otherwise, the issue is reopened with a comment carrying the evidence only on new evidence, or for
+`main-red` on a failed run that started after the close. Issues of every age are read, page by page until a short page, so a quiet key stays open or muted; a run that spends its call budget there stops before writing. It files at most 8 issues a run,
 labeled `needs-triage` and `source: factory-monitor` where those labels exist, writes 1 s apart,
 and stops at 250 REST calls. A source it cannot read is listed in the step summary and the other
 signals still run.

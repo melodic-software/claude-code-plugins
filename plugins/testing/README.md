@@ -175,7 +175,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `test_guards_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED` | Ask Claude for a reason when an edit removes or skips tests or assertions. Off by default. |
+| `test_guards_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED` | Adds an advisory note when an edit removes tests or assertions, adds a skip or changes an expected value, and, only with rules test-weaken-block: error, denies an added skip or removed test block that adds no test-change: marker; it never asks, and is off by default. |
 | `e2e_driver` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_E2E_DRIVER` | Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). A repository's docs/conventions/testing.yaml wins. |
 | `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labeled evidence and false stops. docs/conventions/testing.yaml wins. |
 | `browser_driver` | string | `"playwright-cli"` | `CLAUDE_PLUGIN_OPTION_BROWSER_DRIVER` | The command name of the one browser tool a /testing:run-e2e playwright drive uses (letters, digits, . _ -). playwright-cli by default. The run stops, naming this setting, when the command is not on PATH; it never switches tools. A repository's docs/conventions/testing.yaml wins. |
