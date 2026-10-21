@@ -168,7 +168,14 @@ describe.skipIf(process.platform === "win32")("clone groups and an abnormal pare
     expect(liveCloneGroupCount()).toBe(0);
   });
 
-  it.each(["SIGTERM", "SIGINT"])("kills the clone group when the parent gets %s", async (signal) => {
+  // "during spawn" holds the parent busy after the clone starts and before spawn
+  // returns, so the signal lands in the window before the clone could be tracked.
+  it.each([
+    ["SIGTERM", "after spawn", 0],
+    ["SIGINT", "after spawn", 0],
+    ["SIGTERM", "during spawn", 1000],
+    ["SIGINT", "during spawn", 1000],
+  ])("kills the clone group when the parent gets %s %s", async (signal, _when, holdMs) => {
     const pidDir = fs.mkdtempSync(path.join(os.tmpdir(), "clone-parent-"));
     const pidFile = path.join(pidDir, "clone.pid");
     const moduleUrl = new URL("./analyze-harvested-repos.js", import.meta.url).href;
@@ -177,8 +184,11 @@ describe.skipIf(process.platform === "win32")("clone groups and an abnormal pare
       `import fs from "node:fs";`,
       `import { shallowCloneGitHubRepo } from ${JSON.stringify(moduleUrl)};`,
       `const fakeSpawn = (_c, _a, options) => {`,
-      `  const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], options);`,
+      // Outlives the wait below many times over, so only a kill ends it in time.
+      `  const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 120000)"], options);`,
       `  fs.writeFileSync(${JSON.stringify(pidFile)}, String(child.pid));`,
+      `  const until = Date.now() + ${holdMs};`,
+      `  while (Date.now() < until) {}`,
       `  return child;`,
       `};`,
       `await shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", fakeSpawn);`,
@@ -203,9 +213,9 @@ describe.skipIf(process.platform === "win32")("clone groups and an abnormal pare
       const exit = await parentExit;
       expect(exit).toEqual({ code: null, sig: signal });
 
-      const goneBy = Date.now() + 3000;
+      const goneBy = Date.now() + 15_000;
       while (isAlive(clone) && Date.now() < goneBy) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
       expect(isAlive(clone)).toBe(false);
     } finally {
@@ -213,7 +223,7 @@ describe.skipIf(process.platform === "win32")("clone groups and an abnormal pare
       parent.kill("SIGKILL");
       fs.rmSync(pidDir, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 });
 
 describe("analyzeHarvestedRepos clone target", () => {

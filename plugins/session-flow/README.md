@@ -600,6 +600,7 @@ reads it from.
 | `transcript_scope` | string | `"worktree"` | `CLAUDE_PLUGIN_OPTION_TRANSCRIPT_SCOPE` | How far /session-flow:find-handoff and /session-flow:recall read transcripts: worktree widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
 | `retro_lenses` | string | `"1"` | `CLAUDE_PLUGIN_OPTION_RETRO_LENSES` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
 | `cloud_route` | string | `"offer"` | `CLAUDE_PLUGIN_OPTION_CLOUD_ROUTE` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
+| `orient_catch_up_word_cap` | number<br>*min 150* | `250` | `CLAUDE_PLUGIN_OPTION_ORIENT_CATCH_UP_WORD_CAP` | Most words /session-flow:orient catch-up may use in its reply, visuals excluded; default 250, minimum 150. The reply opens with what needs you, then what happened, then each decision. |
 
 ### How to set these
 

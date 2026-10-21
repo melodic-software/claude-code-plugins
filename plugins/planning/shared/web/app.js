@@ -1002,7 +1002,7 @@
 
     // ---------- center ----------
     const center = E("section", "vf-center");
-    // Session-wide notice: ended, removed, or (owner) a new guest link to share.
+    // Session-wide notice: moved, ended, removed, or (owner) a new guest link to share.
     const banner = E("div", "vf-banner"); banner.setAttribute("role", "status"); banner.hidden = true;
     const bannerTxt = E("span", "vf-banner-txt"), bannerAct = btn("vf-btn vf-btn-ghost vf-btn-sm");
     banner.append(icon("alert"), bannerTxt, bannerAct);
@@ -1720,8 +1720,10 @@
     const nativeShare = btn("vf-btn vf-btn-ghost", "Share…");
     shareRow.append(nativeShare, copyBtn);
     const shareNew = E("p", "vf-share-new"); shareNew.hidden = true;
-    sharePop.append(E("h2", "vf-pop-title", "Invite people"), shareNew, shareField, shareRow,
-      E("p", "vf-pop-note", "Anyone with this link can join. The link changes if the tunnel restarts."));
+    // A named tunnel keeps its address across restarts; a quick tunnel gets a new one (share.tunnel, owners and leaders).
+    const linkKeeps = () => Core.state.shareTunnel === "named";
+    const linkNote = E("p", "vf-pop-note");
+    sharePop.append(E("h2", "vf-pop-title", "Invite people"), shareNew, shareField, shareRow, linkNote);
 
     const keysPop = E("div", "vf-pop vf-keys"); keysPop.setAttribute("role", "dialog"); keysPop.setAttribute("aria-label", "Help"); keysPop.hidden = true;
     keysPop.tabIndex = -1;
@@ -2063,7 +2065,7 @@
         at: () => fab },
       { h: "Your Inbox", t: "Claude's answers to your requests, mentions and replies wait here, with what needs you first.", who: "guest",
         at: () => bellBtn },
-      { h: "Share the link", t: "Invite people with the guest link. It changes if the tunnel restarts.", who: "host",
+      { h: "Share the link", get t() { return `Invite people with the guest link. ${linkKeeps() ? "It stays the same when the tunnel restarts." : "It can change after the tunnel restarts."}`; }, who: "host",
         at: () => shareBtn },
       { h: "Needs you", t: "The Inbox lists what waits on you: requests to Claude to Run, and joins, files and merges to Approve.", who: "host",
         at: () => bellBtn },
@@ -4831,8 +4833,8 @@
       const c = ui.pcard; if (!c) return;
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
-      const q = here?.q && qById(here.q);
-      const sig = JSON.stringify([pid, name, role, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const q = here?.q && qById(here.q), ab = owner && !me && S.aboutYou?.[pid]; // follow-up 46: for the owner only
+      const sig = JSON.stringify([pid, name, role, ab, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -4845,6 +4847,9 @@
       const fact = (k, v) => facts.append(E("dt", null, k), E("dd", null, v));
       fact("Now", here ? `${here.away ? `Away${awayFor(here)}. ` : ""}${q ? `${q.id}: ${q.text}` : "Here, between questions"}` : "Offline: not here right now");
       if (joined) fact("Joined", since(joined));
+      // what they said about themselves: the people row drops it once the list goes compact (#8698)
+      if (ab) fact("Tech comfort", COMFORT[ab.techComfort]);
+      if (ab?.note) { fact("Their note", ab.note); facts.lastChild.className = "vf-pc-note"; } // whole, never clamped
       const parts = [head, facts];
       const k = (b, key) => { b.dataset.k = key; return b; };
       if (c.pinned) parts.unshift(k(ibtn("vf-tbtn vf-icon-btn vf-popx", "x", `Close ${me ? "your card" : `${disp(name)}'s card`}`), "x")); // F11: the one close control
@@ -6072,6 +6077,10 @@
       if (!q) return;
       if (!text) { otherTa.focus(); return flash("Write your own option first."); }
       if (ownTooLong(text)) return;
+      // A comment typed before it was its first draft (openOther), and an own option takes none, so it leaves the comment
+      // box; files attached before it go in with it. A file still waiting for the host holds the save back, the box open.
+      const early = q.format === "rank" ? null : earlyOf(q, myRec(qid));
+      if (earlyWaits(qid, early)) return;
       delete useBefore[qid];
       if (q.format === "rank") {
         ui.otherText[qid] = text;
@@ -6082,11 +6091,9 @@
         announce("Your own option is in your ranking. Move it where it belongs, then save your ranking.");
         return fmtSave.focus({ preventScroll: true });
       }
-      // It shows in Answers at once; a refusal reopens the box with the text. A comment typed before it was its first
-      // draft (openOther), and an own option takes none, so it leaves the comment box.
-      const early = earlyOf(q, myRec(qid));
+      // It shows in Answers at once; a refusal reopens the box with the text.
       delete ui.otherText[qid]; ui.otherOpen[qid] = false;
-      Core.pick(qid, "other", "", { other: text }).then(() => { if (early?.comment) sentEarly(qid, { comment: early.comment }); flash("Your own option is in Answers, where others can back it."); })
+      Core.pickWith(qid, { option: "other" }, { other: text, attachments: early?.attachments }).then(() => { if (early) sentEarly(qid, early); flash("Your own option is in Answers, where others can back it."); })
         .catch(e => { if (ui.otherText[qid] == null) { ui.otherText[qid] = text; ui.otherOpen[qid] = true; } fail(e); render(); });
     };
     /** Follow-up 29: the asker of an ask on a choice, pick-many or ranking question may make Claude's answer their own
@@ -6239,13 +6246,15 @@
       if (own != null && ownTooLong(own)) return;
       const fields = q.format === "multi" ? { options: list } : { order: list };
       // A file still waiting for the host holds the save back, the picks kept as drafted.
-      const early = own == null ? earlyOf(q, rec) : null;
+      const early = earlyOf(q, rec);
       if (earlyWaits(qid, early)) return;
       // The saved pick shows at once; a refusal puts the draft back.
       const draft = ui.fdraft[qid], ownDraft = ui.otherText[qid];
       delete useBefore[qid]; delete ui.fdraft[qid]; delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
-      Core.pickWith(qid, fields, own != null ? { other: own } : early || { comment: commentOf(rec) })
-        .then(() => { if (early) sentEarly(qid, early); flash(q.format === "multi" ? `Your picks are saved${early?.comment ? " with your comment" : ""}.` : `Your ranking is saved${early?.comment ? " with your comment" : ""}.`); })
+      // An own option takes no comment, so only the files written before it go in with it.
+      const sent = own != null ? early?.attachments && { attachments: early.attachments } : early;
+      Core.pickWith(qid, fields, own != null ? { other: own, attachments: sent?.attachments } : early || { comment: commentOf(rec) })
+        .then(() => { if (sent) sentEarly(qid, sent); flash(q.format === "multi" ? `Your picks are saved${sent?.comment ? " with your comment" : ""}.` : `Your ranking is saved${sent?.comment ? " with your comment" : ""}.`); })
         .catch(e => { if (draft && !ui.fdraft[qid]) ui.fdraft[qid] = draft; if (ownDraft != null && ui.otherText[qid] == null) ui.otherText[qid] = ownDraft; fail(e); render(); });
     };
     fmtClear.onclick = () => {
@@ -6923,6 +6932,7 @@
       ownerTheme._paint();
       const url = Core.guestLink();
       if (shareField.value !== url) shareField.value = url;
+      linkNote.textContent = `Anyone with this link can join. ${linkKeeps() ? "The link stays the same when the tunnel restarts." : "The link can change after the tunnel restarts."}`;
       nativeShare.hidden = !(navigator.share && phone.matches);
       // A new tunnel address since the last start: the old guest link is dead until shared again.
       const reshare = mod && !!S.shareChanged && store.get("vf-share-ack", "") !== url;
@@ -6941,12 +6951,14 @@
         return li;
       }, (li, p) => { li._p = p; li.firstChild.textContent = disp(nameOf(p)); paintPersonActs(li._k, p, "removed"); });
 
-      // session banner: removed, ended, a link to share again, or (follow-up 45) a social app's browser, which never
-      // blocks the page (a waiting person's card says it all: no banner)
+      // session banner: moved, removed, ended, a link to share again, or (follow-up 45) a social app's browser, which
+      // never blocks the page (a waiting person's card says it all: no banner)
       const inApp = Core.inApp();
       root.toggleAttribute("data-waiting", !!S.youWaiting);
       if (S.youWaiting && (ui.mode !== "focus" || (phone.matches && ui.tab !== "answer"))) { if (phone.matches) setTab("answer"); else setMode("focus"); return; }
-      const bn = S.youMerged ? ["This browser was merged into the owner. Open your owner link here.", null]
+      const bn = Core.movedTo ? ["This session moved to a new address. Send or copy what you are writing first: unsent text does not move with you, and this address stops working in about 10 minutes.",
+        ["Go to the new address", () => Core.moveNow()]]
+        : S.youMerged ? ["This browser was merged into the owner. Open your owner link here.", null]
         : S.youWaiting ? null
         : S.youRemoved ? ["The host removed you from this session. You can still read it.", null]
         : S.ended ? [me.isOwner ? "You ended this session. Guests see it read-only, with the final tree." : "This session has ended. Here is what it decided.",
@@ -7645,6 +7657,9 @@
     };
     on(window, "pagehide", saveUnsent);
     Core.onReload(() => { saveUnsent(); markSeen(ui.cur); sendPrefsNow(); });
+    // A move to the session's new address (core.js moveTo) waits while any of that text is unsent: the banner offers it.
+    Core.keepUnsent(() => !!unsent || (!!ui.cur && !!ta.value && ta.value !== Core.myAnswer(ui.cur))
+      || Object.entries(ui.drafts).some(([q, t]) => q !== ui.cur && t && t !== Core.myAnswer(q)) || Object.values(kitStore()).some(Boolean));
     kitBooted = true;
     kitSwap();
     Core.subscribe(() => render());

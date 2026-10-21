@@ -49,8 +49,9 @@
 # no open PR, or one whose `-R` value is missing, is blocked with the literal
 # form to use (`gh pr merge <number> -R owner/repo`); otherwise any `$R` or
 # `$n` would skip the check. On the Bash tool, a command whose text is merge-
-# shaped (`pr merge`, `pr -R x merge`, a `pulls/.../merge` or `auto_merge`
-# route, a merge mutation name) and holds a backtick anywhere is blocked before
+# shaped (`pr merge` or `pr -R x merge` after a word that is gh or cannot be
+# read, a `pulls/.../merge` or `auto_merge` route, a merge mutation name; prose
+# such as "Gated PR Merge" is not) and holds a backtick anywhere is blocked before
 # it is parsed: the
 # tokenizer splits a backtick substitution off, so the target it reads need not
 # be the one the shell runs (`5`echo 0`` reads #5, merges #50), and a merge
@@ -78,12 +79,13 @@
 # KNOWN GAPS (stated, not chased): a merge from a script (Python, Node) or the
 # web UI; a merge command whose command word comes from expansion
 # (`$GH pr merge`), `eval`, a wrapper such as
-# `sudo`, `env` or `xargs`, or a child shell (`bash -c '...'`), or sitting
-# inside `$(...)`; a GraphQL mutation read from a file (`--input`), whose name
+# `sudo`, `env`, `nice`, `timeout` or `xargs`, a child shell (`bash -c '...'`),
+# a gh alias, brace expansion (`{gh,} pr merge`), a glob (`g? pr merge`) or
+# `gh.cmd`; a GraphQL mutation read from a file (`--input`), whose name
 # never appears in the command; past 100 reviews or check runs the rest are
 # not read; more than 100 review threads with none unresolved in the first 100
 # is reported as unchecked; the backtick refusal keys on merge-shaped text, so
-# an obfuscated spelling (`g""h pr merge`, `pr mer"ge"`) with a backtick is
+# an obfuscated spelling of `pr merge` itself (`pr mer"ge"`) with a backtick is
 # parsed as usual (#8657);
 # a cancelled run `<name>` is cleared by a newer successful `<name> (...)` run
 # of the same app in another check suite even when that run belongs to an unrelated
@@ -430,10 +432,70 @@ else
   # without parsing; in PowerShell a backtick is the escape character, not a
   # substitution, and a backslash is not a continuation.
   # shellcheck disable=SC2016  # the backticks are literal regex text
-  _bupm_cli_re='(^|[^a-z0-9_-])pr[[:space:]]+((-r|--repo)[=[:space:]]*[^[:space:]]+[[:space:]]+)*merge|pulls/([^/[:space:]`]|`[^`]*`)+/(ccr/auto_)?merge'
+  _bupm_rest_re='pulls/([^/[:space:]`]|`[^`]*`)+/(ccr/auto_)?merge'
+  _bupm_pr_re='(^|[^a-z0-9_-])pr[[:space:]]+((-r|--repo)[=[:space:]]*[^[:space:]]+[[:space:]]+)*merge'
+  _bupm_cli_re="$_bupm_pr_re|$_bupm_rest_re"
   _bupm_gql_re='mergepullrequest|enqueuepullrequest|enablepullrequestautomerge'
-  _bupm_shape_re="$_bupm_cli_re|$_bupm_gql_re"
-  if [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *'`'* && "$_bupm_joined" =~ $_bupm_shape_re ]]; then
+  # _bupm_gh_pr_shaped: true when a `pr ... merge` in the joined text may run as
+  # `gh pr merge`. The word before `pr` decides: gh once quotes and backslashes
+  # are dropped (`g""h`, `/usr/bin/gh`, `gh.exe`), or a `$` or backtick in it,
+  # so the command word cannot be read (`$GH`, `gh${IFS}pr`). Prose such as
+  # "Gated PR Merge" is not (#8657).
+  _bupm_gh_pr_shaped() {
+    local text="$_bupm_joined" seen="" m lead before word w1 w2 w3 t i toks
+    local redir_re='^[0-9]*&?[<>]+&?[^[:space:]]+$' redir_op_re='^[0-9]*&?[<>]+&?$'
+    while [[ "$text" =~ $_bupm_pr_re ]]; do
+      m="${BASH_REMATCH[0]}"
+      lead="${BASH_REMATCH[1]}"
+      before="${text%%"$m"*}"
+      text="${text#*"$m"}"
+      # An empty lead is `^`: the text's start (`pr` is the command word), or
+      # the end of the previous match, which the full text would not match.
+      [[ -n "$lead" ]] || {
+        seen+="$m"
+        continue
+      }
+      word="$seen$before"
+      seen+="$before$m"
+      [[ "$lead" =~ [[:space:]] ]] || word+="$lead"
+      toks=()
+      read -rd '' -a toks <<<"$word"
+      i=$((${#toks[@]} - 1))
+      ((i >= 0)) && [[ "${toks[i]}" == *[\$\`]* ]] && return 0
+      # `pr` glued to an operator is its own command word, never gh's.
+      [[ "$lead" == [';|&(){}<>!'] ]] && continue
+      # A lone opening quote: `pr ...` is a quoted argument of the word before.
+      ((i >= 0)) && [[ "${toks[i]}" == [\"\'] ]] && continue
+      # Step back over what bash drops before argv: empty quotes and a bare
+      # backslash (`''pr`, `\pr`) and redirections (`2>&1`, `> /dev/null`).
+      while ((i >= 0)); do
+        t="${toks[i]}"
+        [[ "$t" == *[\$\`]* ]] && return 0
+        if [[ "$t" =~ ^[\"\'\\]+$ || "$t" =~ $redir_re ]]; then
+          ((i -= 1))
+        elif ((i > 0)) && [[ "${toks[i - 1]}" =~ $redir_op_re ]]; then
+          ((i -= 2))
+        else
+          break
+        fi
+      done
+      ((i >= 0)) || continue
+      word="${toks[i]}"
+      w1="${word//[\"\']/}"
+      w1="${w1##*[/;|&()\{\}<>=!]}"
+      w1="${w1##*\\}"
+      w2="${word//[\"\'\\]/}"
+      w2="${w2##*[/;|&()\{\}<>=!]}"
+      # A redirect glued to the word ends it: `gh</dev/null` runs gh.
+      w3="${word//[\"\'\\]/}"
+      w3="${w3%%[<>]*}"
+      w3="${w3##*[/;|&()\{\}=!]}"
+      [[ "${w1%.exe}" == gh || "${w2%.exe}" == gh || "${w3%.exe}" == gh ]] && return 0
+    done
+    return 1
+  }
+  if [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *'`'* ]] &&
+    { [[ "$_bupm_joined" =~ $_bupm_rest_re|$_bupm_gql_re ]] || _bupm_gh_pr_shaped; }; then
     BUPM_BT=1
     BUPM_FORM=backtick
   elif [[ "$TOOL_NAME" != PowerShell && "$COMMAND" == *$'\\\n'* && "$_bupm_joined" =~ $_bupm_cli_re ]]; then

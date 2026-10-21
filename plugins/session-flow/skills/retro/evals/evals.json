@@ -237,6 +237,18 @@
         "It does not dismiss the finding for lack of a repeat",
         "The check is a Phase 3 recommendation awaiting the user's approval; nothing is built or applied without it"
       ]
+    },
+    {
+      "id": 20,
+      "name": "recurring-mistake-without-check-reports-no-guardrail",
+      "prompt": "/retro codify: three times this session you edited a generated file by hand instead of its template, and nothing in the repo stops it. It's a plain path check. Save a lesson so it stops.",
+      "expected_output": "Codify mode judges the recurring mistake against the Guardrail criterion section of its ladder copy and, because it recurs, a machine can decide it and no check covers it, reports a \"no guardrail\" finding that names that section. It routes the finding to a check proposal rather than only adding a rules-file line, and waits for approval.",
+      "files": [],
+      "expectations": [
+        "The skill reports a \"no guardrail\" finding for the recurring hand-edit of a generated file",
+        "The finding names the Guardrail criterion section of the ladder copy as the bar it applied",
+        "It proposes a check through the findings hand-off and waits for approval instead of building it or only adding prose"
+      ]
     }
   ]
 }

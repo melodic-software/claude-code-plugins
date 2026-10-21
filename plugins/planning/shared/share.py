@@ -2,6 +2,7 @@
 
   share.py --dir DATA_DIR ensure-running [--open] [--defaults-file F] [--guest-port N]
                                          [--adopt-tunnel PID URL]
+                                         [--tunnel-hostname H --tunnel-token-file F]
   share.py --dir DATA_DIR stop [--keep-tunnel]
   share.py --dir DATA_DIR restart
   share.py --dir DATA_DIR status
@@ -27,6 +28,7 @@ import contextlib
 import datetime
 import html
 import http.client
+import io
 import json
 import math
 import os
@@ -57,6 +59,7 @@ SERVER_ERR = ".shared-server.err"
 LOCK = ".shared.lock"
 OPS_MAX = 1024 * 1024
 START_SECONDS = 15.0
+NAMED_PORT = 8765  # judgment: a named tunnel's guest port when none is given; its ingress rule names this port
 SYNC_SECONDS = 5.0  # how long the server may take to pick up a new tunnel record
 SERVER_MARKER = "python" if detached.WINDOWS else "server.py"
 OPEN_PAGE = ".owner-open-{}.html"  # the page --open hands the browser; it holds the owner link
@@ -145,7 +148,7 @@ def start_server(d, guest, control, *, defaults_file=None):
     cmd = detached.python(str(HERE / "server.py"), "--dir", str(d), "--guest-port", str(guest), "--control-port", str(control), "--nonce", nonce)
     if defaults_file:
         cmd += ["--defaults-file", str(Path(defaults_file).resolve())]
-    proc = detached.spawn(cmd, log=d / SERVER_ERR, cwd=d)
+    proc = detached.spawn(cmd, log=d / SERVER_ERR, env=tunnel.child_env(), cwd=d)
     s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
     if s is not None:
         detached.release(proc)
@@ -220,12 +223,42 @@ def report(d, s, rec, resumed, *, opened=None):
         "ownerLinkFile": str(d / OWNER_LINK),
         "shareChanged": bool(before and url and before != url),
         "resumed": resumed,
-        "tunnel": "quick" if rec else "down",
+        "tunnel": kind(rec) if rec else "down",
         "watch": watch_command(d),
     }
     if opened is not None:
         out["opened"] = opened
     return out
+
+
+def tunnel_check(s, url):
+    """Why the server says `url` does not reach it (its probe), or None when it does."""
+    code, body = call(s, "POST", "/api/tunnel-check", {"url": url}, timeout=float(os.environ.get("SHARED_PROBE_SECONDS") or 30) + 30)
+    if code != 200:
+        return f"the tunnel check was refused: HTTP {code} {body.get('error', '')}"
+    return None if body.get("ok") else body.get("error") or "the tunnel check failed"
+
+
+def kind(rec):
+    """named or quick: which tunnel a record runs."""
+    return "named" if tunnel.config(rec)[0] else "quick"
+
+
+def named_config(d, a):
+    """(hostname, token file) from the command line, ("", "") for a quick tunnel; refuses a named tunnel that cannot run.
+    Without --tunnel-hostname the recorded tunnel's kind stays: only an explicit empty hostname switches back to quick."""
+    if a.tunnel_hostname is None:
+        hostname, token_file = tunnel.config(tunnel.read(d))
+    else:
+        hostname, token_file = a.tunnel_hostname.strip().lower(), a.tunnel_token_file or ""
+    if not hostname:
+        return "", ""
+    problem = tunnel.hostname_problem(hostname) or tunnel.token_file_problem(token_file)
+    if problem:
+        raise Refused(1, f"refused: {problem}")
+    if a.adopt_tunnel:
+        raise Refused(1, "--adopt-tunnel records a quick tunnel; leave out --tunnel-hostname with it")
+    return hostname, token_file
 
 
 def creation(d, a, resumed):
@@ -269,8 +302,11 @@ def bring_up(d, a):
     d.mkdir(parents=True, exist_ok=True)
     with detached.locked(d / LOCK):
         resumed = (d / "state.json").exists()
+        hostname, token_file = named_config(d, a)
         wanted, adopt = creation(d, a, resumed)
         ports = read_json(d / PORTS) or {}
+        if hostname and wanted is None and not ports.get("guest"):
+            wanted = NAMED_PORT  # the tunnel's ingress rule names a fixed port
         if wanted is not None and resumed and ports.get("guest") not in (None, wanted):
             raise Refused(1, f"this session's guest port is {ports['guest']}; --guest-port applies only when a session is created")
         s = live(d)
@@ -279,6 +315,8 @@ def bring_up(d, a):
                 raise Refused(2, f"port {wanted} is busy: the guest listener cannot start there")
             guest = wanted if wanted is not None else ports.get("guest") or 0
             if wanted is None and guest and not bridge.port_free(guest):
+                if hostname:
+                    raise Refused(2, f"port {guest} is busy: the named tunnel's ingress rule points there, so the guest listener cannot move")
                 print(f"port {guest} is busy: the guest link moves to a new port", file=sys.stderr)
                 guest = 0
             control = ports.get("control") or bridge.kept_port(d, NAME) or 0
@@ -298,11 +336,18 @@ def bring_up(d, a):
         port = (bridge.ping(s["port"]) or {}).get("guestPort")
         if type(port) is not int:  # a tunnel to no port would replace one that works
             raise Refused(2, "the server did not name its guest port; run ensure-running again")
-        rec, down = None, None
+        rec, down, kept = None, None, None
         try:
-            rec = tunnel.ensure(d, port)
+            rec = tunnel.ensure(d, port, hostname, token_file, verify=lambda url: tunnel_check(s, url))
         except (tunnel.TunnelDown, TimeoutError) as exc:
             down = str(exc)
+            rec = kept = tunnel.alive(d)  # a refused switch leaves the running tunnel, and its link, in place
+        if hostname:
+            print(
+                f"named tunnel {hostname}: its ingress rule must name http://127.0.0.1:{port}. Run it on this machine only:"
+                " Cloudflare sends each guest to the nearest machine running it, so check `cfdns.py connectors` before starting it on another.",
+                file=sys.stderr,
+            )
         if rec:
             wait_public(s, rec["url"])
         bridge.set_wait_timeout(d, NAME, bridge.WAIT_DEFAULT)
@@ -311,6 +356,8 @@ def bring_up(d, a):
             link = (d / OWNER_LINK).read_text(encoding="utf-8").strip()
             opened = open_link(d, link)
         out = report(d, s, rec, resumed, opened=opened)
+    if kept:
+        raise Refused(1, f"refused: {down}", out)
     if down:
         raise Refused(3, f"no tunnel: {down}", out)
     return out
@@ -371,7 +418,7 @@ def cmd_status(d, a):
         return {
             "ok": True,
             "running": False,
-            "tunnel": "quick" if rec else ("down" if tunnel.read(d) else "off"),
+            "tunnel": kind(rec) if rec else ("down" if tunnel.read(d) else "off"),
             "guestUrl": guest_url(rec["url"] if rec else "", (doc.get("session") or {}).get("guestKey")),
             "round": {"n": last["n"], "status": last["status"]["kind"]} if last else None,
             "intro": bool((doc.get("session") or {}).get("intro")),
@@ -702,6 +749,8 @@ def parser():
     s.add_argument("--defaults-file", help="settings for a new session: {\"settings\": {...}}")
     s.add_argument("--guest-port", type=int, help="the guest listener's port, chosen when the session is created")
     s.add_argument("--adopt-tunnel", nargs=2, metavar=("PID", "URL"), help="record a running cloudflared to the guest port as the tunnel")
+    s.add_argument("--tunnel-hostname", help="run the named tunnel at this hostname (the tunnel_hostname option); empty: a quick tunnel; left out: the recorded tunnel's kind")
+    s.add_argument("--tunnel-token-file", help="the named tunnel's token file, an absolute path (the tunnel_token_file option); read by cloudflared only")
     s.set_defaults(fn=cmd_ensure_running)
     s = sub.add_parser("stop")
     s.add_argument("--keep-tunnel", action="store_true", help="keep the tunnel and the guest link")
@@ -730,6 +779,10 @@ def parser():
 
 
 def main(argv=None):
+    # A Windows pipe takes the ANSI code page, which has no room for an emoji or an arrow in a name or a log line (#8239).
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8", errors=stream.errors)  # encoding alone would reset errors to strict
     p = parser()
     a = p.parse_args(argv)
     if a.cmd == "list":

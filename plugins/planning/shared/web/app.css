@@ -975,6 +975,7 @@
 .app .vf-pc-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12.5px; }
 .app .vf-pc-facts dt { color: var(--faint); }
 .app .vf-pc-facts dd { margin: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.app .vf-pc-facts dd.vf-pc-note { display: block; }
 .app .vf-pc-acts { display: grid; border-block-start: 1px solid var(--line); padding-block-start: 6px; }
 .app .vf-menu-item { align-items: center; gap: 8px; min-block-size: 36px; padding-block: 6px; }
 .app .vf-merge { display: grid; gap: 6px; }

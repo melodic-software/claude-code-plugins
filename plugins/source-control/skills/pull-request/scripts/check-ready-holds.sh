@@ -3,7 +3,9 @@
 #
 # The `ready` action runs this before it touches the branch. A pull request is
 # held when it carries the do-not-merge label (any case), its body says "do not
-# merge" or "don't merge", or its title carries WIP as a word. A body line
+# merge" or "don't merge", or its title carries a WIP marker: WIP leading the title
+# or its type prefix (WIP:, wip(scope):, feat: WIP ...), or a [WIP] or (WIP) tag
+# anywhere. A WIP mid-sentence, such as "the WIP cap", holds nothing. A body line
 # starting "Hold:" holds the merge only, so it does not hold the flip. It is
 # superseded when an issue it closes is already closed. With --unattended (no
 # person drives the run: a lane, a loop, a dispatched worker), a body line
@@ -68,13 +70,15 @@ facts=$(gh pr view "$PR" ${repo_args[@]+"${repo_args[@]}"} --json title,body,lab
 
 # The body pattern is the do-not-merge alternative of babysit-prs'
 # BODY_MERGE_HOLD_RE (babysit_merge.py); its `Hold:` line alternative holds the
-# merge only, so it is left out here. The hyphenated label name is not matched,
-# so a body that only names the label holds nothing.
+# merge only, so it is left out here, and a "do not merge" on a Hold: line (any
+# case, after optional spaces or a quote marker) is not read as a flip hold. The
+# hyphenated label name is not matched, so a body that only names the label
+# holds nothing.
 reasons=$(jq -r --argjson unattended "$UNATTENDED" '
   (if $unattended then (.body // "" | [scan("(?mi)^[ \\t>]*Draft:[ \\t]*[^\\r\\n]*")] | first // empty | "draft: a person asked for this draft (\(gsub("[[:cntrl:]]"; ""))); only a person flips it") else empty end),
   ([.labels[]?.name | select(ascii_downcase == "do-not-merge")] | if length > 0 then "label: the pull request carries do-not-merge" else empty end),
-  (.body // "" | if test("\\bdo(?:n['"'"'\u2019]?t| not)\\s+merge\\b"; "i") then "body: it says do not merge" else empty end),
-  (.title // "" | if test("\\bwip\\b"; "i") then "title: a WIP marker in \"\(gsub("[[:cntrl:]]"; ""))\"" else empty end)
+  (.body // "" | gsub("(?mi)^[ \\t>]*Hold:[^\\r\\n]*"; "") | if test("\\bdo(?:n['"'"'\u2019]?t| not)\\s+merge\\b"; "i") then "body: it says do not merge" else empty end),
+  (.title // "" | if test("^\\s*(?:[a-z]+(?:\\([^)]*\\))?!?:\\s*)?wip\\b|[\\[(]wip[\\])]"; "i") then "title: a WIP marker in \"\(gsub("[[:cntrl:]]"; ""))\"" else empty end)
 ' <<<"$facts") || die 2 "cannot parse the pull request facts"
 
 refs=$(jq -r '.closingIssuesReferences[]? | [(.url | capture("^https?://(?<h>[^/]+)/").h), "\(.repository.owner.login)/\(.repository.name)", (.number | tostring)] | @tsv' <<<"$facts") ||
