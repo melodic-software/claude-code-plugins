@@ -8,10 +8,11 @@ BeforeAll {
     $script:InstallSeconds = 1782432000
     $script:InstalledAt = [datetime]::new(2026, 6, 26, 0, 0, 0, [DateTimeKind]::Utc)
     $script:ProfileAt = [datetime]::new(2026, 6, 27, 1, 52, 48, [DateTimeKind]::Utc)
+    $script:EarlyProfileAt = [datetime]::new(2026, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)
 }
 
 Describe 'Get-EvidenceWindow' -Tag 'lib' {
-    It 'starts at the later of the OS install and the profile creation' {
+    It 'starts at the profile creation when the profile is newer than the OS install' {
         Mock Get-ItemProperty { [pscustomobject]@{ InstallDate = $script:InstallSeconds } }
         Mock Get-Item { [pscustomobject]@{ CreationTimeUtc = $script:ProfileAt } }
 
@@ -19,19 +20,16 @@ Describe 'Get-EvidenceWindow' -Tag 'lib' {
 
         $window.ReadState | Should -Be 'ok'
         $window.Start | Should -Be $script:ProfileAt
-        @($window.Sources.Name) | Should -Be @('os-install', 'profile-created')
-        ($window.Sources | Where-Object Name -EQ 'os-install').Start | Should -Be $script:InstalledAt
     }
 
-    It 'counts whole days from the start to now' {
-        $tenAndAHalfDaysAgo = [datetime]::UtcNow.AddDays(-10.5)
-        Mock Get-ItemProperty { [pscustomobject]@{ InstallDate = 0 } }
-        Mock Get-Item ({ [pscustomobject]@{ CreationTimeUtc = $tenAndAHalfDaysAgo } }.GetNewClosure())
+    It 'starts at the OS install when the profile predates it' {
+        Mock Get-ItemProperty { [pscustomobject]@{ InstallDate = $script:InstallSeconds } }
+        Mock Get-Item { [pscustomobject]@{ CreationTimeUtc = $script:EarlyProfileAt } }
 
-        (Get-EvidenceWindow).Days | Should -Be 10
+        (Get-EvidenceWindow).Start | Should -Be $script:InstalledAt
     }
 
-    It 'reports error and keeps the readable source when one input fails' {
+    It 'reports error and keeps the readable input when one input fails' {
         Mock Get-ItemProperty { throw [System.Security.SecurityException]::new('denied') }
         Mock Get-Item { [pscustomobject]@{ CreationTimeUtc = $script:ProfileAt } }
 
@@ -39,10 +37,9 @@ Describe 'Get-EvidenceWindow' -Tag 'lib' {
 
         $window.ReadState | Should -Be 'error'
         $window.Start | Should -Be $script:ProfileAt
-        @($window.Sources).Count | Should -Be 1
     }
 
-    It 'leaves Start and Days empty when neither input reads' {
+    It 'leaves Start empty when neither input reads' {
         Mock Get-ItemProperty { throw 'unreadable' }
         Mock Get-Item { throw 'unreadable' }
 
@@ -50,6 +47,5 @@ Describe 'Get-EvidenceWindow' -Tag 'lib' {
 
         $window.ReadState | Should -Be 'error'
         $window.Start | Should -BeNullOrEmpty
-        $window.Days | Should -BeNullOrEmpty
     }
 }

@@ -39,7 +39,7 @@ BeforeAll {
         $start = $script:Start
         $launched = $script:Launched
         Mock Get-EvidenceWindow ({
-                [pscustomobject]@{ ReadState = 'ok'; Start = $start; Days = 116; Sources = @() }
+                [pscustomobject]@{ ReadState = 'ok'; Start = $start }
             }.GetNewClosure())
         Mock Get-InstalledApp {
             [pscustomobject]@{ ReadState = 'ok'; Apps = @(
@@ -113,7 +113,6 @@ Describe 'Test-AppLastUse' -Tag 'check' {
 
         It 'counts verdicts and reports the UserAssist read state' {
             $detail = (Invoke-AppLastUse).detail
-            $detail.apps_count | Should -Be 6
             $detail.launched_count | Should -Be 2
             $detail.no_launch_count | Should -Be 1
             $detail.no_evidence_count | Should -Be 3

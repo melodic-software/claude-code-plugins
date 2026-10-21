@@ -949,5 +949,4 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   - `OK`: every unmuted app `launched` and every source read.
   - App use is inventory, never `WARN` or `CRIT`.
 - **Notes:** items are keyed `app:` over the Uninstall subkey name or the package family name.
-  `launched_count` and `userassist_state` show whether the decode works on this host; `apps_count`
-  cannot, since a broken decode leaves it unchanged.
+  `launched_count` and `userassist_state` show whether the decode works on this host.
