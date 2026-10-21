@@ -33,8 +33,10 @@ reversal is a bounded revert; verifiability combines deterministic gates with AI
 ### `C4`: structural
 
 Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard,
-so human review and human merge are mandatory, always, and the class escalates for upfront
-plan approval before execution.
+so no merge rung reaches the class: a merge authority that reads the class leaves it to human
+review and human merge, and the class escalates for upfront plan approval before execution.
+A merge authority that reads no class works differently: see [Merge authorities that read no
+class](#merge-authorities-that-read-no-class).
 
 ### `C5`: untrusted-provenance
 
@@ -87,6 +89,16 @@ trusted member closing an issue filed by an outside collaborator is `C5` on the 
 the issue author's association. Classification at triage and admission stamps the bundle the
 tests resolve; the tests are the executable trigger, not a second opinion on a stamped label.
 
+## Merge authorities that read no class
+
+A merge authority may read no class label. The pr-merge lane is one: apart from dependency-manager
+change requests, it merges only a change request its own automation identity opened for exactly
+one closing item, treats it as `C2`, and merges it on the verifier verdict at its head, not on any
+class or promotion evidence. This marketplace defines it in `docs/conventions/pr-pipeline/README.md`,
+sections "The pr-merge lane" and "Verifier verdict". `C5` stays human-merged there too: such an
+authority refuses every fork change request and every change request its automation identity or
+the dependency manager did not open.
+
 ## Promotion and demotion
 
 This promotion apparatus is a numeric predicate, a human-ratified flip, and automatic
@@ -123,7 +135,7 @@ other records a candidate term as deliberately deferred.
 | `C2` auto-merge | ≥ 20 autonomous C2 completions over ≥ 14 days with 100% deterministic-gate pass and 0 human-reverted merges |
 | `C3` auto-merge | ≥ 20 autonomous C2 merges over ≥ 14 days with 0 demotion events, plus ≥ 10 autonomous C3 completions with 100% deterministic-gate pass, 0 human-reverted merges, and 0 human-confirmed missed-blocking AI-review findings |
 | `C3` AI review advisory → blocking | ≥ 30 advisory reviews with 0 human-confirmed missed-blocking findings |
-| `C4` / `C5` merge | never promotes. Human merge always, and no evidence predicate exists for these cells |
+| `C4` / `C5` merge | never promotes. No merge rung reaches these cells, and no evidence predicate exists for them |
 
 **Demotion evidence set** (one event suffices): any post-merge gate failure, any
 human-reverted merge, any verification divergence. Demotion cascades along
@@ -173,7 +185,7 @@ does not have: a population to divide by, a non-merge outcome signal, and a look
 demotion rule. All three are org-scale: none of them exists at the volume a single deployment
 produces. Absent them, "reviewer burden" is a count with nothing to normalize against: it moves with
 volume rather than with trustworthiness, and a term that moves with volume rewards a cell for
-producing less. A metric in name only.
+producing less, so it does not measure trustworthiness.
 
 **Trigger to reconsider:** the volume at which all three requirements are satisfiable is reached,
 and a non-merge outcome signal exists. Reaching only the volume is not the trigger.
