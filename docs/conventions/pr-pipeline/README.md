@@ -824,10 +824,10 @@ it never enqueues. The inputs are the head and `updatedAt`, labels, base SHA, ch
 head, reviews, review threads, comments, closing issues, the verdict artifacts naming the pull request
 or its head, the gate's config and code on the default branch, and the rung cap. Check runs and
 statuses do not move `updatedAt`, so that is never the key alone. Only `risk:MED`, `risk:HIGH` and
-the `verify:` refusals `fail`, `earlier-fail`, `missing`, `too-old`, `spec-changed` and
-`untrusted-spec` are skipped. A refusal whose gate process failed a write or has a review re-run due
-is not. Neither is a pull request in the merge queue, nor `verify:missing` while a PASS artifact
-names the head. `merge.skip-unchanged` bounds each skip: `max-minutes` (default 60) after the
+the `verify:` refusals `fail`, `earlier-fail`, `repeated-fail`, `missing`, `too-old`,
+`spec-changed` and `untrusted-spec` are skipped. A refusal whose gate process failed a write or has a review re-run due
+is not. Neither is a pull request in the merge queue, nor `verify:missing` or `verify:earlier-fail`
+while a PASS artifact names the head. `merge.skip-unchanged` bounds each skip: `max-minutes` (default 60) after the
 refusal was judged, or `max-skips` (default 3) runs in a row, the candidate is gated again. `0` in
 either turns skipping off. When every candidate would be skipped, the first is gated, and any read
 that fails or comes back incomplete gates the candidate (`babysit_merge_skip.py`). The refusals live
@@ -1051,8 +1051,37 @@ head:
 - created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
   repository (the retention maximum and its setting), so an older verdict may be gone;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
+- counted `fail` verdicts at `merge.max-verify-fails` (default 3) or more distinct heads of the pull
+  request, tied as in the next item, refuse (`verify:repeated-fail`) whatever a later pass says. A
+  value that is not a count of 1 or more, an empty or non-scalar one included, is 1, so any
+  earlier `fail` holds. Before a pass decides, the counted `fail` verdicts of every other pull
+  request in this repository, open or closed, that closes one of its closing issues count too, at
+  their own heads, so a new pull request for the same issue does not reset the count; such a
+  `fail` whose run cannot be read refuses `verify:unreadable`, and a cut list of those pull
+  requests refuses the same way. This cap is what bounds pushing until the verifier passes once:
+  the carry-forward below stops only a head that changes nothing of its own, and a one-line edit
+  gives a new change. A pull request that names the issue without closing it, or whose closing
+  reference was removed, is not counted. Closing a newly filed duplicate issue instead starts the
+  count of other pull requests again; a pass then needs that issue written by a trusted human
+  other than the author, as below. More than 50 pull requests that claim to close one issue make
+  every pull request for that issue refuse `verify:unreadable`: a hold, not a way past the cap;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
-  verdict recording its head branch) refuses (`verify:earlier-fail`);
+  verdict recording its head branch) refuses (`verify:earlier-fail`). The refusal stands while a
+  `fail` artifact cannot be read (next item). Otherwise counted `pass` or `pass-notes` verdicts at
+  the head whose runs were all created after every such `fail`'s run clear it, each `created_at`
+  read fresh from GitHub (a missing one keeps the refusal; a re-attempt keeps its run's
+  `created_at` and moves `run_started_at` later, so a re-run of an earlier pass never clears a
+  later `fail`), when the pull request's own change at the head
+  differs from its change at every `fail`ed head, and those passes decide as below. A change is
+  a sha256 digest of the changed lines in the compare diff from its merge base with the branch:
+  per file its path, a rename's old and new paths, mode lines, the binary-change line and the `-`
+  and `+` lines with whitespace removed and the marker kept (blank ones and trailing carriage
+  returns dropped), lines and files sorted. A head that only adds blank lines holds. Context lines,
+  line numbers and hunk order do not count, so a head that only merges the branch, even one that
+  edits a line next to the fix, or adds an empty commit keeps the refusal, as does a diff that
+  cannot be read or holds no change. Removing whitespace also keeps the refusal for a change that
+  only re-indents, which can matter in Python: it holds more than it must, never less. A pass
+  judged before a later `fail` never clears it;
 - a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
   untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be
   downloaded, or any other failed read, refuses (`verify:unreadable`). An untied `fail` whose run
@@ -1077,16 +1106,16 @@ login posts as that owner, so until agent sessions have their own GitHub identit
 acting as that account wrote it. The owner accepts that risk: unattended merge is on
 (`merge.report-only: false`) before that identity exists (#7711).
 
-`verify:fail`, `verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and
-`verify:untrusted-spec` need a human. While `merge.report-only` is false the lane escalates such a
+`verify:fail`, `verify:too-old`, `verify:repeated-fail`, `verify:earlier-fail`,
+`verify:spec-changed` and `verify:untrusted-spec` need a human. While `merge.report-only` is false the lane escalates such a
 refusal on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head, and
 for `verify:fail` quoting as data the first 1500 characters of the `summary` in the newest head
 `fail` verdict when its record can be read and names this pull request. The comment is rewritten
-only when any of these changes. A `verify:fail` whose record cannot be read, or a
-`verify:earlier-fail`, quotes the summary the lane's last such comment quoted, under the head it
-was given at, so a failed read rewrites nothing and the reason outlives a push; an earlier-fail
-whose last quote is a fail at this head stays `verify:fail`. Then the lane adds the tracker's human-gated role label (`needs-human` unless
+only when any of these changes. A `verify:fail` whose record cannot be read, a
+`verify:earlier-fail` or a `verify:repeated-fail` quotes the summary the lane's last such comment
+quoted, under the head it was given at, so a failed read rewrites nothing and the reason outlives
+a push; either of the last two whose last quote is a fail at this head stays `verify:fail`. Then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
 so a label never stands unexplained, and a failed label is added by the next run; a rerun that
 finds both writes nothing. While it is true the refusal is only reported. The

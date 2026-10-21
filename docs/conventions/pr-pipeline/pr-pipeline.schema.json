@@ -813,6 +813,12 @@
           "default": 2,
           "description": "Merge-queue removals for failed checks since the pull request's head last changed (a pushed commit or a force push) at which the unattended merge gate stops enqueuing that head: the queue would eject it again on the same commits. A push resets the count."
         },
+        "max-verify-fails": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3,
+          "description": "Counted pr-verify fail verdicts at this many distinct heads of one pull request refuse it `verify:repeated-fail`, for a human, whatever a later pass says (README.md, Verifier verdict). Any other value is 1, so any earlier fail holds."
+        },
         "risk-escalation-minutes": {
           "type": "integer",
           "minimum": 0,

@@ -287,6 +287,65 @@ class ReadConfigAt(unittest.TestCase):
                     any("max-queue-ejections" in n for n in config.notes), noted
                 )
 
+    def test_max_verify_fails_defaults_to_three_and_a_bad_value_is_one(
+        self,
+    ) -> None:
+        # Owner decision 2026-10-21: 3 by default; a value that is not a
+        # count of at least 1 fails closed, so any earlier FAIL holds.
+        def with_cap(value: str) -> str:
+            return PIPELINE.replace(
+                "merge:\n", f"merge:\n  max-verify-fails: {value}\n"
+            )
+
+        for text, expected, noted in (
+            (PIPELINE, 3, False),
+            (with_cap("1"), 1, False),
+            (with_cap("5"), 5, False),
+            (with_cap("0"), 1, True),
+            (with_cap("-3"), 1, True),
+            (with_cap("three"), 1, True),
+            # Present but empty or not a scalar: the shared reader prints
+            # nothing for these, as for an absent key.
+            (with_cap("''"), 1, True),
+            (with_cap("[]"), 1, True),
+            (with_cap("[3]"), 1, True),
+            (with_cap(""), 1, True),
+            (with_cap("\n    a: 1"), 1, True),
+            (with_cap("\n    - 3"), 1, True),
+            # A key of that name in another mapping is not the setting.
+            (
+                PIPELINE.replace(
+                    "diff-check:\n", "diff-check:\n    max-verify-fails:\n"
+                ),
+                3,
+                False,
+            ),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.max_verify_fails, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(
+                    any("max-verify-fails" in n for n in config.notes), noted
+                )
+
+    def test_a_flow_mapping_max_verify_fails_turns_the_lane_off(self) -> None:
+        # The shared reader's subset rejects any flow mapping, empty or not,
+        # so the whole config is unread and the lane is off.
+        for value in ("{}", "{a: 1}"):
+            with self.subTest(value=value):
+                config_fake(
+                    self,
+                    PIPELINE.replace(
+                        "merge:\n", f"merge:\n  max-verify-fails: {value}\n"
+                    ),
+                )
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(
+                    (config.rung, config.error), ("off", "config-parse-error")
+                )
+
     def test_risk_escalation_minutes_defaults_to_sixty_and_reads_minutes(
         self,
     ) -> None:
@@ -3404,7 +3463,9 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
                 self.assertEqual(details["cap"], 5)
                 self.assertEqual(details["capSource"], "default-branch")
 
-    def test_an_unreadable_head_config_refuses(self) -> None:
+    def test_an_unreadable_head_config_refuses_and_an_unparsable_one_stops(
+        self,
+    ) -> None:
         for answer in (502, file_payload("merge: [unclosed\n")):
             with self.subTest(answer=answer):
                 gh = self.moved(answer)
@@ -3415,8 +3476,14 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
                         )
                     )
                 )
-                with self.assertRaises(policy.PolicyReadError):
-                    self.cap()
+                if answer == 502:
+                    with self.assertRaises(policy.PolicyReadError):
+                        self.cap()
+                    continue
+                self.lane_clear()
+                result = self.lane_assess(post_merge=lambda floor, who: gate())
+                self.assertEqual(result.reason, "default-branch-unreadable")
+                policy.in_flight.assert_not_called()
 
     def test_the_heads_cap_is_shared_per_cache_window_and_a_failure_never(
         self,
@@ -3451,6 +3518,7 @@ merge:
   report-only: false
   require-verifier-verdict: false
   max-queue-ejections: 5
+  max-verify-fails: 4
   risk-escalation-minutes: 90
   check-inputs: ["x/**"]
   dependabot:
@@ -3472,6 +3540,7 @@ merge:
   report-only: true
   require-verifier-verdict: true
   max-queue-ejections: 1
+  max-verify-fails: 2
   risk-escalation-minutes: 10
   check-inputs: ["y/**"]
   dependabot:
@@ -3552,6 +3621,7 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             "dependabot_mode": "report",
             "dependabot_majors": "hold",
             "max_queue_ejections": 1,
+            "max_verify_fails": 2,
             "agent_identity": IDENTITY,
             # Timing only: the base's, whichever side is stricter.
             "risk_escalation_minutes": escalation_minutes,
@@ -3669,12 +3739,21 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         self.assertIs(result.enabled, False)
 
     def test_an_unreadable_main_config_refuses(self) -> None:
-        for main in (502, "merge: [unclosed\n"):
+        self.moved(LOOSE_PIPELINE, 502)
+        self.lane_clear()
+        with self.assertRaises(policy.PolicyReadError):
+            self.lane_assess(post_merge=lambda floor, who: gate())
+
+    def test_an_unparsable_main_config_stops(self) -> None:
+        duplicate = LOOSE_PIPELINE.replace("merge:\n", "merge:\n  rung: C2\n")
+        for main in ("merge: [unclosed\n", duplicate):
             with self.subTest(main=main):
                 self.moved(LOOSE_PIPELINE, main)
                 self.lane_clear()
-                with self.assertRaises(policy.PolicyReadError):
-                    self.lane_assess(post_merge=lambda floor, who: gate())
+                result = self.lane_assess(post_merge=lambda floor, who: gate())
+                self.assertEqual(result.reason, "default-branch-unreadable")
+                self.assertIs(result.enabled, False)
+                self.assertEqual(result.inputs["identity"], IDENTITY)
 
     def test_an_unreadable_main_head_refuses(self) -> None:
         gh = self.moved(LOOSE_PIPELINE, LOOSE_PIPELINE)
@@ -3683,13 +3762,15 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         with self.assertRaises(policy.PolicyReadError):
             self.lane_assess(post_merge=lambda floor, who: gate())
 
-    def test_a_different_identity_on_main_refuses(self) -> None:
+    def test_a_different_identity_on_main_stops(self) -> None:
         self.moved(
             LOOSE_PIPELINE, LOOSE_PIPELINE.replace("agent-lanes[bot]", "other[bot]")
         )
         self.lane_clear()
-        with self.assertRaises(policy.PolicyReadError):
-            self.lane_assess(post_merge=lambda floor, who: gate())
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertEqual(result.reason, "authority-differs")
+        self.assertIs(result.enabled, False)
+        self.assertEqual(result.inputs["identity"], IDENTITY)
 
     def test_the_plain_merge_identity_read_names_both_identities(
         self,

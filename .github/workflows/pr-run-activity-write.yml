@@ -2371,6 +2371,7 @@ jobs:
           pr-head-sha: ${{ steps.pr-head.outputs.sha }}
           can-commit: ${{ needs.run.outputs.can-commit }}
           all-verified: ${{ steps.signed.outputs.all-verified }}
+          unverified: ${{ steps.signed.outputs.unverified }}
           lane-class: ${{ needs.run.outputs.lane-class }}
           lane-resets: ${{ needs.run.outputs.lane-resets }}
           lane-turns: ${{ needs.run.outputs.lane-turns }}

@@ -3018,7 +3018,9 @@ def score_unattended(
         inputs.get("authority") == merge_policy.PR_MERGE
         and config.require_verifier_verdict
     ):
-        reader = verify_evidence.Reader(repo, str(inputs["branch"]))
+        reader = verify_evidence.Reader(
+            repo, str(inputs["branch"]), max_fails=config.max_verify_fails
+        )
         verdict = reader.evidence(number, str(details["headSha"]), pr)
         details["verify"] = verdict.report()
         inputs["verify_reader"] = reader
@@ -3437,17 +3439,19 @@ def escalate_verify(
     inputs: Mapping[str, Any],
     summary: str | None = None,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal. A `verify:fail` or
-    `verify:earlier-fail` with no `summary` (unreadable, or a fail at an
-    earlier head) quotes the last fail summary its comment carried, so an
-    unreadable artifact rewrites nothing and the reason outlives the head.
-    An earlier-fail whose carried quote is a fail at this head is that fail
-    read as unreadable this run: it stays `verify:fail`."""
+    """`escalate` for a needs-human verifier refusal. A `verify:fail`,
+    `verify:earlier-fail` or `verify:repeated-fail` with no `summary`
+    (unreadable, or a fail at an earlier head) quotes the last fail summary
+    its comment carried, so an unreadable artifact rewrites nothing and the
+    reason outlives the head. Either of the last two whose carried quote is a
+    fail at this head is that fail read as unreadable this run: it stays
+    `verify:fail`."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
     carried = None
     if summary is None and refusal in (
         verify_evidence.FAIL,
         verify_evidence.EARLIER_FAIL,
+        verify_evidence.REPEATED_FAIL,
     ):
         comments = inputs.get("comments")
         if comments is None:
@@ -3638,7 +3642,7 @@ def unattended_writes(
             # passing verifier verdict at its head now.
             config = inputs.get("config")
             verifier = inputs.get("verify_reader") or (
-                verify_evidence.Reader(repo, branch)
+                verify_evidence.Reader(repo, branch, max_fails=config.max_verify_fails)
                 if inputs.get("authority") == merge_policy.PR_MERGE
                 and config is not None
                 and config.require_verifier_verdict
