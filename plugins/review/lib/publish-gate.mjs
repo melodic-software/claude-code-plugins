@@ -25,15 +25,15 @@ import { fileURLToPath } from "node:url";
 /**
  * Text shaped like a credential. Conservative: a hit keeps the page local, a miss proves nothing.
  * GitHub prefixes from
- * docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
- * and the stateless ghs_APPID_JWT shape from
- * github.blog/changelog/2026-10-02-stateless-github-app-installation-tokens-rolled-out
- * (as of 2026-10-21; recheck when that section adds a prefix or changes a token's format).
+ * https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+ * and the ghs_ regex GitHub recommends for current and stateless installation tokens from
+ * https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+ * (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
  */
 export const SECRET_PATTERNS = Object.freeze([
   ["private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
   ["AWS access key", /\b(?:AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}\b/],
-  ["GitHub token", /\b(?:gh[pousr]_[0-9A-Za-z]{36}|ghs_[0-9]+_[A-Za-z0-9_.-]{20,}|github_pat_[0-9A-Za-z_]{82})/],
+  ["GitHub token", /\b(?:gh[pousr]_[0-9A-Za-z]{36}|ghs_[A-Za-z0-9._-]{36,}|github_pat_[0-9A-Za-z_]{82})/],
   ["Anthropic key", /\bsk-ant-[A-Za-z0-9_-]{20,}/],
   ["OpenAI key", /\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}/],
   ["Slack token", /\bxox[abposr]-[0-9A-Za-z-]{10,}/],

@@ -42,13 +42,13 @@ FORMATS = ("chrome-trace", "cpuprofile", "heapsnapshot")
 MAX_INPUT_BYTES = 512 * 1024 * 1024
 REDACTED = "<REDACTED>"
 # GitHub prefixes from
-# docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-# and the stateless ghs_APPID_JWT shape from
-# github.blog/changelog/2026-10-02-stateless-github-app-installation-tokens-rolled-out
-# (as of 2026-10-21; recheck when that section adds a prefix or changes a token's format).
+# https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+# and the ghs_ regex GitHub recommends for current and stateless installation tokens from
+# https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+# (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
 SECRET = re.compile(
     r"gh[pousr]_[A-Za-z0-9]{36}"
-    r"|ghs_[0-9]+_[A-Za-z0-9_.-]{20,}"
+    r"|ghs_[A-Za-z0-9._-]{36,}"
     r"|github_pat_[A-Za-z0-9_]{22,}"
     r"|(?:AKIA|ASIA)[0-9A-Z]{16}"
     r"|Bearer\s+[A-Za-z0-9._~+/=-]+"

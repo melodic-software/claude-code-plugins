@@ -109,10 +109,11 @@ cmd_record() {
   # skill can still fix its file: the note holds no control or direction
   # character, no HTML comment, and nothing shaped like a GitHub token. Token
   # shapes from
-  # docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-  # and the stateless ghs_APPID_JWT shape from
-  # github.blog/changelog/2026-10-02-stateless-github-app-installation-tokens-rolled-out
-  # (as of 2026-10-21; recheck when that section adds a prefix or changes a token's format).
+  # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+  # and the stateless installation token (ghs_ then a JWT) from
+  # https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+  # whose header gh[opsur]_[A-Za-z0-9]{20} matches; this prefix check is not GitHub's recommended regex
+  # (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
   local d
   d=$(jq -ec --arg id "$id" '
     def path_line: type == "string" and test("^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*:[1-9][0-9]{0,6}$")

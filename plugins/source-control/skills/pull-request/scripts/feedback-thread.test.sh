@@ -19,10 +19,12 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 HEAD=$(printf 'a%.0s' {1..40})
 FIX=$(printf 'f%.0s' {1..40})
 TOKEN=ghs_secretlanetoken1234567890
-# The stateless installation token is ghs_APPID_JWT, about 520 characters: a numeric app id
-# and three base64url segments joined by '.', each segment obviously fake. Built at run time.
+# The stateless installation token is ghs_ then a JWT of about 520 characters: three
+# base64url segments joined by '.', each segment obviously fake. Built at run time.
 SEG=$(printf 'FAKE-not_a_token%.0s' {1..10})
 STATELESS="ghs""_123456_$SEG.$SEG.$SEG"
+JSEG=$(printf 'eyJGAKEnotAtoken%.0s' {1..10})
+JWT_TOKEN="ghs""_$JSEG.$JSEG.$JSEG"
 
 mkdir -p "$TEST_TMPDIR/bin"
 cat >"$TEST_TMPDIR/bin/gh" <<'STUB_EOF'
@@ -225,6 +227,7 @@ for bad in \
   '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"safe‮evil"}' \
   "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"token $TOKEN\"}" \
   "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"token $STATELESS\"}" \
+  "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"token $JWT_TOKEN\"}" \
   'not json'; do
   setup
   disposition "$bad"

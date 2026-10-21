@@ -278,10 +278,13 @@ class TreatsContentAsData(TempDirCase):
 
 
 GITHUB_TOKEN = "ghp_" + "Zx4" * 12
-# The stateless installation token is ghs_APPID_JWT, about 520 characters: a numeric
-# app id and three base64url segments joined by '.', each segment obviously fake.
+# The stateless installation token is ghs_ then a JWT of about 520 characters: three
+# base64url segments joined by '.', each segment obviously fake, with and without an
+# app-id-like prefix.
 JWT_SEGMENT = "FAKE-not_a_token" * 10
-STATELESS_TOKEN = "ghs" + "_123456_" + ".".join([JWT_SEGMENT] * 3)
+JWT = ".".join([JWT_SEGMENT] * 3)
+STATELESS_TOKEN = "ghs" + "_123456_" + JWT
+JWT_TOKEN = "ghs" + "_" + JWT
 AWS_KEY = "AKIA" + "MNBVCXZLKJHGFDSA"
 
 
@@ -299,7 +302,7 @@ class RedactsEveryStringField(TempDirCase):
                     {
                         "name": "RunTask",
                         "ph": "X",
-                        "args": {"t": f"x {STATELESS_TOKEN} y"},
+                        "args": {"t": f"x {STATELESS_TOKEN} y", "u": f"x {JWT_TOKEN} y"},
                     }
                 ]
             },
