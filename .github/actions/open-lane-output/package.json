@@ -1,0 +1,7 @@
+{
+  "name": "open-lane-output",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
