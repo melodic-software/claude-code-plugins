@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Behavior test: the "Check the skill took a model turn" step in both
 # pr-run-activity files records each permission_denials entry as
-# {tool_name, input} in act-turns.json, and the step summary shows each as
-# `tool: input`. The write file's step writes the summary itself; the read
+# {tool_name, input} in act-turns.json, keeping the first 20 with denied_total
+# counting all, and the step summary shows each as `tool: input`, then
+# `(+N more)` for any cut. A worst-case read-lane file fits its carry cap. The write file's step writes the summary itself; the read
 # file's writes none, and its summary steps (the scan job's, after the leak
 # scan, and issue mode's) render the act-turns.json it wrote. Runs each step's
 # github-script body against a canned execution file with a stub `core` whose
@@ -17,6 +18,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 results=$(
   cd "$ROOT" && node --input-type=module - <<'EOF'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { Buffer } from "node:buffer";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -43,23 +45,9 @@ const expected = [
   { tool_name: "Bash", input: "y".repeat(300) },
 ];
 
-for (const lane of ["write", "read"]) {
-  const wf = YAML.parse(readFileSync(`.github/workflows/pr-run-activity-${lane}.yml`, "utf8"));
-  const step = wf.jobs.run.steps.find((s) => s.id === "act-turns");
-  if (!step?.with?.script) {
-    say(false, `${lane}: the run job has an act-turns step with a script`);
-    continue;
-  }
-  const dir = mkdtempSync(join(tmpdir(), "act-turns-"));
-  const execution = join(dir, "execution.json");
-  writeFileSync(execution, JSON.stringify([
-    { type: "result", subtype: "success", is_error: false, num_turns: 3, duration_ms: 1,
-      modelUsage: { "claude-x": {} }, permission_denials: denials },
-  ]));
-  process.env.EXECUTION_FILE = execution;
-  process.env.REPLY_DIR = join(dir, "reply");
-  process.env.LANE_TOKEN = "";
-  const blocks = [];
+// Runs one github-script body in a fresh directory against an execution file
+// holding `messages`; returns the directory, the code blocks it wrote and any failure.
+const runScript = async (script, env, blocks) => {
   const summary = {
     addHeading: () => summary,
     addCodeBlock: (text) => (blocks.push(text), summary),
@@ -67,47 +55,105 @@ for (const lane of ["write", "read"]) {
   };
   const failed = [];
   const core = { summary, info: () => {}, setOutput: () => {}, setFailed: (m) => failed.push(m) };
+  Object.assign(process.env, env);
   let threw = null;
   try {
-    await new AsyncFunction("require", "core", step.with.script)(require, core);
+    await new AsyncFunction("require", "core", script)(require, core);
   } catch (e) {
     threw = e;
   }
-  say(!threw && failed.length === 0, `${lane}: the step runs without failing (${threw?.message ?? failed.join("; ")})`);
-  let recorded = null;
+  return threw?.message ?? failed.join("; ");
+};
+const runActTurns = async (lane, wf, messages) => {
+  const dir = mkdtempSync(join(tmpdir(), "act-turns-"));
+  const execution = join(dir, "execution.json");
+  writeFileSync(execution, JSON.stringify(messages));
+  const blocks = [];
+  const step = wf.jobs.run.steps.find((s) => s.id === "act-turns");
+  const error = await runScript(step.with.script,
+    { EXECUTION_FILE: execution, REPLY_DIR: join(dir, "reply"), LANE_TOKEN: "" }, blocks);
+  let turns = null;
   try {
-    recorded = JSON.parse(readFileSync(join(dir, "reply", "act-turns.json"), "utf8")).denied;
+    turns = readFileSync(join(dir, "reply", "act-turns.json"), "utf8");
   } catch {}
-  say(JSON.stringify(recorded) === JSON.stringify(expected),
-    `${lane}: act-turns.json denied holds {tool_name, input}: command, file_path, path, pattern, null, cut to 300`);
-  const views = [];
-  if (lane === "write") {
-    views.push(["the act-turns step", blocks.join("\n")]);
-  } else {
-    say(blocks.length === 0, "read: the act-turns step writes no step summary; it shows only after the leak scan");
-    for (const [job, steps] of [["scan", wf.jobs.scan.steps], ["run (issue mode)", wf.jobs.run.steps]]) {
-      const show = steps.find((s) => s.name === "Show the skill's run in the step summary");
-      if (!show?.with?.script) {
-        say(false, `read: the ${job} job has a summary step with a script`);
-        continue;
-      }
-      blocks.length = 0;
-      process.env.REPLY_DIR = join(dir, "reply");
-      await new AsyncFunction("require", "core", show.with.script)(require, core);
-      views.push([`the ${job} summary step`, blocks.join("\n")]);
+  return { dir, blocks, error, turns };
+};
+// The summary views of a run: the write step's own, else the read file's two
+// summary steps rendering the act-turns.json in `dir`.
+const views = async (lane, wf, dir, blocks) => {
+  if (lane === "write") return [["the act-turns step", blocks.join("\n")]];
+  const out = [];
+  for (const [job, steps] of [["scan", wf.jobs.scan.steps], ["run (issue mode)", wf.jobs.run.steps]]) {
+    const show = steps.find((s) => s.name === "Show the skill's run in the step summary");
+    if (!show?.with?.script) {
+      say(false, `read: the ${job} job has a summary step with a script`);
+      continue;
     }
+    const shown = [];
+    await runScript(show.with.script, { REPLY_DIR: join(dir, "reply") }, shown);
+    out.push([`the ${job} summary step`, shown.join("\n")]);
   }
-  rmSync(dir, { recursive: true, force: true });
-  for (const [where, shown] of views) {
-    for (const line of [
-      '"Bash: git push origin HEAD"',
-      '"Read: /etc/&lt;shadow&gt;"',
-      '"Grep: a&amp;b"',
-      '"Glob: /src"',
-      '"WebSearch"',
-    ]) {
-      say(shown.includes(line), `${lane}: ${where} shows ${line} HTML-escaped`);
+  return out;
+};
+const result = (extra) => ({ type: "result", subtype: "success", is_error: false, num_turns: 3, duration_ms: 1,
+  modelUsage: { "claude-x": {} }, ...extra });
+
+for (const lane of ["write", "read"]) {
+  const wf = YAML.parse(readFileSync(`.github/workflows/pr-run-activity-${lane}.yml`, "utf8"));
+  if (!wf.jobs.run.steps.find((s) => s.id === "act-turns")?.with?.script) {
+    say(false, `${lane}: the run job has an act-turns step with a script`);
+    continue;
+  }
+  {
+    const { dir, blocks, error, turns } = await runActTurns(lane, wf, [result({ permission_denials: denials })]);
+    say(!error, `${lane}: the step runs without failing (${error})`);
+    const recorded = turns && JSON.parse(turns);
+    say(JSON.stringify(recorded?.denied) === JSON.stringify(expected),
+      `${lane}: act-turns.json denied holds {tool_name, input}: command, file_path, path, pattern, null, cut to 300`);
+    say(recorded?.denied_total === expected.length, `${lane}: denied_total counts every denial`);
+    if (lane === "read") say(blocks.length === 0, "read: the act-turns step writes no step summary; it shows only after the leak scan");
+    for (const [where, shown] of await views(lane, wf, dir, blocks)) {
+      for (const line of [
+        '"Bash: git push origin HEAD"',
+        '"Read: /etc/&lt;shadow&gt;"',
+        '"Grep: a&amp;b"',
+        '"Glob: /src"',
+        '"WebSearch"',
+      ]) {
+        say(shown.includes(line), `${lane}: ${where} shows ${line} HTML-escaped`);
+      }
+      say(!shown.includes("more)"), `${lane}: ${where} notes no extra denials when all are kept`);
     }
+    rmSync(dir, { recursive: true, force: true });
+  }
+  {
+    // 25 denials: the first 20 are kept, and the summary says 5 more were cut.
+    const many = Array.from({ length: 25 }, (_, n) => ({ tool_name: "Bash", tool_input: { command: `cmd ${n}` } }));
+    const { dir, blocks, turns } = await runActTurns(lane, wf, [result({ permission_denials: many })]);
+    const recorded = turns && JSON.parse(turns);
+    say(JSON.stringify(recorded?.denied?.map((d) => d.input)) === JSON.stringify(many.slice(0, 20).map((d) => d.tool_input.command)),
+      `${lane}: 25 denials keep the first 20 in denied`);
+    say(recorded?.denied_total === 25, `${lane}: 25 denials record denied_total 25`);
+    for (const [where, shown] of await views(lane, wf, dir, blocks)) {
+      say(shown.includes('"(+5 more)"'), `${lane}: ${where} shows "(+5 more)"`);
+      say(shown.includes('"Bash: cmd 19"') && !shown.includes('"Bash: cmd 20"'), `${lane}: ${where} shows denials 0-19 only`);
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+  if (lane === "read") {
+    // Worst case: 100 denials and 6 stderr messages, every character one that
+    // JSON escapes to two bytes; the file must fit the 32768-byte carry cap.
+    const q = '"';
+    const many = Array.from({ length: 100 }, () => ({
+      tool_name: "mcp__github_inline_comment__create_inline_comment",
+      tool_input: { command: q.repeat(1000) },
+    }));
+    const stderr = { type: "user", message: { content: `<local-command-stderr>${q.repeat(5000)}` } };
+    const { dir, turns } = await runActTurns(lane, wf,
+      [...Array(6).fill(stderr), result({ permission_denials: many })]);
+    const bytes = Buffer.byteLength(turns ?? "", "utf8");
+    say(turns !== null && bytes <= 32768, `read: worst-case act-turns.json is ${bytes} bytes, within the 32768-byte carry cap`);
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 EOF

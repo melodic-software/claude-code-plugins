@@ -1157,13 +1157,18 @@ jobs:
                 .filter((text) => text.includes('<local-command-stderr>'))
                 .map((text) => text.slice(0, 2000))
                 .slice(0, 4),
-              // Each call the permission mode denied, with its command, file_path,
-              // path or pattern, so a denial can be diagnosed.
-              denied: (result.permission_denials ?? []).map((d) => {
+              // The first 20 calls the permission mode denied, each with its command,
+              // file_path, path or pattern, so a denial can be diagnosed; denied_total
+              // counts them all. 20 x (300 input characters, 600 bytes when each is
+              // JSON-escaped, + ~110 bytes of name and keys) is ~14 KB; with the read
+              // file's 4 x 2000-character stderr (16 KB escaped) the file stays under
+              // the 32768-byte cap the read file's scan job carries it under.
+              denied: (result.permission_denials ?? []).slice(0, 20).map((d) => {
                 const i = d?.tool_input ?? {};
                 const input = i.command ?? i.file_path ?? i.path ?? i.pattern ?? null;
                 return { tool_name: String(d?.tool_name ?? ''), input: input == null ? null : String(input).slice(0, 300) };
               }),
+              denied_total: (result.permission_denials ?? []).length,
             };
             fs.mkdirSync(REPLY_DIR, { recursive: true });
             // The summary step shows it after the leak scan.
@@ -1459,11 +1464,13 @@ jobs:
             const reply = text('reply.txt');
             if (reply !== null) core.summary.addHeading('Skill reply', 3).addCodeBlock(escape(reply), 'text');
             let turns = text('act-turns.json');
-            // Each denial shows as `tool: input`.
+            // Each denial shows as `tool: input`, then `(+N more)` for any cut.
             try {
               const diag = JSON.parse(turns);
               if (Array.isArray(diag?.denied)) {
                 diag.denied = diag.denied.map((d) => (d?.input == null ? String(d?.tool_name ?? '') : `${d.tool_name}: ${d.input}`));
+                const more = Number(diag.denied_total) - diag.denied.length;
+                if (more > 0) diag.denied.push(`(+${more} more)`);
                 turns = `${JSON.stringify(diag, null, 2)}\n`;
               }
             } catch {}
@@ -2063,11 +2070,13 @@ jobs:
             const reply = text('reply.txt');
             if (reply !== null) core.summary.addHeading('Skill reply', 3).addCodeBlock(escape(reply), 'text');
             let turns = text('act-turns.json');
-            // Each denial shows as `tool: input`.
+            // Each denial shows as `tool: input`, then `(+N more)` for any cut.
             try {
               const diag = JSON.parse(turns);
               if (Array.isArray(diag?.denied)) {
                 diag.denied = diag.denied.map((d) => (d?.input == null ? String(d?.tool_name ?? '') : `${d.tool_name}: ${d.input}`));
+                const more = Number(diag.denied_total) - diag.denied.length;
+                if (more > 0) diag.denied.push(`(+${more} more)`);
                 turns = `${JSON.stringify(diag, null, 2)}\n`;
               }
             } catch {}
