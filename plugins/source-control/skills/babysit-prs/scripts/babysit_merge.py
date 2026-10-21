@@ -4075,7 +4075,14 @@ def unattended_enqueue(
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             step["escalationError"] = str(exc)
         return hold(reason)
-    if inputs_read["state"] == "stale" and eligible_dependabot is None:
+    # A standards-sync head is not written either: the sync App is its only
+    # writer, and a merge commit fails its managed-files guard.
+    stale_update = inputs_read["state"] == "stale" and eligible_dependabot is None
+    owner, name = repo.split("/", 1)
+    labels = inputs["pr"].get("labels")
+    if stale_update and (skip := postmerge.standards_sync_skip(owner, name, labels)):
+        inputs_read.update(updated=False, updateSkipped=skip)
+    elif stale_update:
         stale = (
             f"check-inputs-changed:{','.join(inputs_read['changed'])} changed on "
             f"{branch} since merge base {inputs_read['mergeBase']}"
