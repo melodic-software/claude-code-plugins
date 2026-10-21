@@ -1318,17 +1318,24 @@ jobs:
                 .map((m) => textOf(m.message?.content))
                 .filter((text) => text.includes('<local-command-stderr>'))
                 .map((text) => redact(text).slice(0, 2000)),
-              // The commands the permission mode denied, so a denial can be diagnosed.
-              denied: (result.permission_denials ?? []).map((d) =>
-                redact(String(d?.tool_input?.command ?? d?.tool_name ?? '')).slice(0, 300),
-              ),
+              // Each call the permission mode denied, with its command, file_path,
+              // path or pattern, so a denial can be diagnosed.
+              denied: (result.permission_denials ?? []).map((d) => {
+                const i = d?.tool_input ?? {};
+                const input = i.command ?? i.file_path ?? i.path ?? i.pattern ?? null;
+                return { tool_name: String(d?.tool_name ?? ''), input: input == null ? null : redact(String(input)).slice(0, 300) };
+              }),
             };
             fs.mkdirSync(REPLY_DIR, { recursive: true });
             fs.writeFileSync(`${REPLY_DIR}/act-turns.json`, `${JSON.stringify(diag, null, 2)}\n`);
+            const shown = {
+              ...diag,
+              denied: diag.denied.map((d) => (d.input == null ? d.tool_name : `${d.tool_name}: ${d.input}`)),
+            };
             await core.summary
               .addHeading('Skill run', 3)
               // addCodeBlock does not escape its text.
-              .addCodeBlock(JSON.stringify(diag, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), 'json')
+              .addCodeBlock(JSON.stringify(shown, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), 'json')
               .write();
             // JSON escapes newlines, so no field can start a workflow command.
             core.info(JSON.stringify({ subtype: diag.subtype, is_error: diag.is_error, num_turns: diag.num_turns, models: diag.models.length }));

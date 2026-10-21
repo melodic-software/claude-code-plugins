@@ -497,7 +497,7 @@ or under a separate design that judges their result in a job head code never tou
 
 The job's step summary shows the skill's final reply (at most 4000 characters, backticks
 neutralized) for audit. It is model output, printed as data. The same text is uploaded as the
-artifact `skill-reply-<lane>-<activity>-<run_attempt>` (7-day retention) whenever the skill step
+artifact `skill-reply-<lane>-<activity>-<run_attempt>` (3-day retention) whenever the skill step
 ran, as audit evidence, because the REST API cannot read step summaries. Nothing in the workflow
 reads that artifact.
 
@@ -506,8 +506,10 @@ reports success, but the skill did nothing. A skill pre-compute (`` !`...` ``) l
 that matches no `allowed-tools` grant does this under `--permission-mode dontAsk`. A step after the
 skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` is empty. It writes
 `subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, any `<local-command-stderr>`
-text, and `denied`, each command the permission mode denied cut to 300 characters (in the write
-file, lane token cut out of both) to the step summary and to `act-turns.json` in the same artifact. The
+text, and `denied`, one `{tool_name, input}` per call the permission mode denied, where `input` is
+the call's `command`, else `file_path`, else `path`, else `pattern` (null when it has none), cut to
+300 characters. It writes them to `act-turns.json` in the same artifact and to the step summary,
+where each denial shows as `tool: input`; in the write file the lane token is cut out of both. The
 full execution file is not uploaded: it holds head text and tool output.
 
 ### Script activities
