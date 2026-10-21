@@ -19,14 +19,16 @@ BeforeAll {
     # Outside every user-writable folder (TestDrive sits under TEMP, which is one).
     $script:SignedPath = Join-Path $env:ProgramFiles 'Vendor\server.exe'
 
+    $script:ResolvedSources = @('process', 'process-reported', 'service')
+
     function Get-TestListener {
         param([string] $Protocol = 'tcp', [int] $Port = 8080, [string] $Scope = 'any', [int] $ProcessId = 100,
             [string] $Name = 'server', [string] $Path = $script:SignedPath, [string] $Source = 'process',
             [string] $Status = 'Valid')
         [pscustomobject]@{
             Protocol = $Protocol; LocalAddress = ''; Port = $Port; BindScope = $Scope; Pid = $ProcessId
-            ProcessName = $Name; Path = ($Source -in @('process', 'service') ? $Path : $null); PathSource = $Source
-            SignatureStatus = ($Source -in @('process', 'service') ? $Status : $null); IsOsBinary = $false
+            ProcessName = $Name; Path = ($Source -in $script:ResolvedSources ? $Path : $null); PathSource = $Source
+            HttpSys = $false; SignatureStatus = ($Source -in $script:ResolvedSources ? $Status : $null); IsOsBinary = $false
         }
     }
 
@@ -121,6 +123,45 @@ Describe 'Test-NetworkListeners' -Tag 'check' {
         $r.detail.items[0].muted | Should -BeTrue
         $r.detail.muted_count | Should -Be 1
         $r.severity | Should -Be 'OK'
+    }
+
+    It 'records why an unresolved listener has no key' {
+        Register-FakeOwner -Listeners @(Get-TestListener -Source 'unresolved' -Name 'mystery' -Port 7000)
+        (Invoke-NetworkListenersAsObject).detail.items[0].unkeyed_reason | Should -Not -BeNullOrEmpty
+    }
+
+    It 'keys a process-reported path the same as a kernel-reported one' {
+        Register-FakeOwner -Listeners @(Get-TestListener -Source 'process')
+        $first = (Invoke-NetworkListenersAsObject).detail.items[0].key
+        Register-FakeOwner -Listeners @(Get-TestListener -Source 'process-reported')
+        (Invoke-NetworkListenersAsObject).detail.items[0].key | Should -Be $first
+    }
+
+    It 'reports UNKNOWN when the service list could not be read, even with resolved and warned items' {
+        Register-FakeOwner -ServiceState 'denied' -Listeners @(
+            (Get-TestListener -Status 'NotSigned')
+            (Get-TestListener -Port 9000 -Scope 'loopback')
+        )
+        $r = Invoke-NetworkListenersAsObject
+        { Assert-CheckResult $r } | Should -Not -Throw
+        $r.severity | Should -Be 'UNKNOWN'
+        $r.detail.items_count | Should -Be 2
+        $r.detail.service_read_state | Should -Be 'denied'
+    }
+
+    It 'reports UNKNOWN when the socket table failed partway, even with items read' {
+        Register-FakeOwner -ReadState 'error' -Listeners @(Get-TestListener)
+        $r = Invoke-NetworkListenersAsObject
+        $r.severity | Should -Be 'UNKNOWN'
+        $r.ran_successfully | Should -BeFalse
+    }
+
+    It 'sanitizes machine text in the title and fields and keeps it out of the summary' {
+        Register-FakeOwner -Listeners @(Get-TestListener -Name "evil$([char]0x1B)[2Jname")
+        $r = Invoke-NetworkListenersAsObject
+        $r.summary | Should -Not -Match 'evil'
+        $r.detail.items[0].process_name | Should -Not -Match ([char]0x1B)
+        $r.detail.items[0].title | Should -Not -Match ([char]0x1B)
     }
 
     It 'reports UNKNOWN, never OK, when the socket table cannot be read' {

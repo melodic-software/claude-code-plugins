@@ -1097,41 +1097,43 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 - **Script:** `scripts/windows/checks/Test-NetworkListeners.ps1`
 - **Category:** `security`
 - **Needs admin:** no, but an unelevated run cannot open other accounts' processes, so a listener
-  that neither its process nor `Win32_Service` resolves stays unresolved. On the probed hosts a
-  few always do, so an unelevated run usually reads `UNKNOWN`.
+  whose program neither the process nor its service resolves stays unresolved and the check reads
+  `UNKNOWN`. The elevated pass decides how that changes.
 - **Commands:**
 
   ```powershell
   Get-NetTCPConnection -State Listen | Select-Object LocalAddress, LocalPort, OwningProcess
   Get-NetUDPEndpoint | Select-Object LocalAddress, LocalPort, OwningProcess
   Get-CimInstance Win32_Service | Select-Object Name, ProcessId, PathName
+  & "$env:SystemRoot\System32\netsh.exe" http show servicestate view=requestq
   ```
 
 - **What it lists:** one item per listening program, protocol and port (FindingKey kind
-  `listener`: executable path, protocol, port). The owning process id resolves to a binary through
-  the process path, then the hosting service's `PathName`, else stays unresolved; process ids 0
-  and 4 are the kernel. A service command line is reduced to its executable path so the key does
-  not change with elevation. Each unique binary gets one Authenticode check. One program bound to
-  several addresses on a port is one item at its widest bind (`any`, then `specific`, then
-  `loopback`). Reads are contained in `Get-ListenerOwner.ps1`.
+  `listener`: executable path, protocol, port). One program bound to several addresses on a port is
+  one item at its widest bind (`any`, then `specific`, then `loopback`). How a port's owner is
+  resolved, in which order, and how http.sys ports are traced to their request queue owner is
+  documented in `Get-ListenerOwner.ps1`; `path_source` and `via_http_sys` say which step answered.
 
 - **Severity rubric** (owner-approved judgment rules):
   - `WARN`: an unmuted listener bound beyond loopback whose binary's signature is not `Valid`, or
     whose binary sits under `%LOCALAPPDATA%`, `%APPDATA%`, `%TEMP%` or the profile's `Downloads`
     (`user_writable_path`).
-  - `INFO`: every other resolved listener, loopback-only ones included, and kernel listeners.
-  - `OK`: no listeners and the socket table read.
-  - `UNKNOWN`: an unresolved listener (no key, not mutable: its identity differs by elevation and a
-    process name can be spoofed), or the socket table or the service list could not be read
-    (`read_state`, `service_read_state`). A failed socket read sets `ran_successfully` false.
+  - `INFO`: every other resolved listener, loopback-only ones included, and kernel listeners with
+    no request queue.
+  - `OK`: no listeners and every source read.
+  - `UNKNOWN`: an unresolved listener (listed with no key and `unkeyed_reason`, so it cannot be
+    muted: its identity differs by elevation and a process name can be spoofed), or the socket
+    table or the service list could not be read (`read_state`, `service_read_state`), even when
+    items are listed. A failed socket read sets `ran_successfully` false.
   - A muted item stays in `detail.items[]` and does not raise the level. Never `CRIT`.
 
 - **Notes:** `established_count` counts established TCP connections for context only. UDP
   endpoints include ephemeral ports, which can change between runs. Pointers:
-  [Get-NetTCPConnection](https://learn.microsoft.com/en-us/powershell/module/nettcpip/get-nettcpconnection),
-  [Get-AuthenticodeSignature](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/get-authenticodesignature).
-  As of 2026-10-21. Recheck when an unelevated run starts resolving every listener, or the
-  signature status values change.
+  [QueryFullProcessImageNameW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-queryfullprocessimagenamew#parameters),
+  [Netsh http commands](https://learn.microsoft.com/en-us/windows-server/networking/technologies/netsh/netsh-http#show-servicestate),
+  [Get-AuthenticodeSignature](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/get-authenticodesignature#outputs).
+  As of 2026-10-21. Recheck when an unelevated run starts resolving every listener, the netsh
+  request-queue view changes shape, or the signature status values change.
 
 ---
 

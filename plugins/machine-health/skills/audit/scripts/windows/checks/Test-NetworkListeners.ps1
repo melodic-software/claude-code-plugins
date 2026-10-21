@@ -34,6 +34,7 @@ $commands = @(
     'Get-NetTCPConnection -State Listen | Select-Object LocalAddress, LocalPort, OwningProcess'
     'Get-NetUDPEndpoint | Select-Object LocalAddress, LocalPort, OwningProcess'
     'Get-CimInstance Win32_Service | Select-Object Name, ProcessId, PathName'
+    '& "$env:SystemRoot\System32\netsh.exe" http show servicestate view=requestq'
 )
 
 # Binding order, widest first: a program listening on several addresses is as
@@ -55,6 +56,7 @@ $CheckBody = {
     foreach ($l in $read.Listeners) {
         $identity = switch ($l.PathSource) {
             'process' { $l.Path }
+            'process-reported' { $l.Path }
             'service' { $l.Path }
             'kernel' { 'system' }
             default { $null }
@@ -79,9 +81,10 @@ $CheckBody = {
             protocol           = $l.Protocol
             bind_scope         = $g.Scope
             port               = $l.Port
-            process_name       = $l.ProcessName
-            binary_path        = $l.Path
+            process_name       = Format-MachineText $l.ProcessName
+            binary_path        = Format-MachineText $l.Path
             path_source        = $l.PathSource
+            via_http_sys       = $l.HttpSys
             signature_status   = $l.SignatureStatus
             is_os_binary       = $l.IsOsBinary
             user_writable_path = $writable
@@ -90,10 +93,9 @@ $CheckBody = {
         $title = "$label $($l.Protocol)/$($l.Port) ($($g.Scope))"
 
         if (-not $g.Identity) {
-            # Unresolved: no stable identity to key or mute, and no way to judge it.
-            $item = [ordered]@{ key = $null; severity = 'UNKNOWN'; muted = $false; title = $title }
-            foreach ($k in $fields.Keys) { $item[$k] = $fields[$k] }
-            [pscustomobject]$item
+            # No stable identity to key or mute, and no binary to judge.
+            New-FindingItem -NoKey -NoKeyReason 'owning program could not be resolved without elevation' `
+                -Severity 'UNKNOWN' -Title $title -Fields $fields
             continue
         }
 
@@ -104,7 +106,10 @@ $CheckBody = {
     }
     $items = @($items | Sort-Object { $_.protocol }, { $_.port }, { $_.process_name })
 
-    $severity = Get-UnmutedSeverity -Items $items -ReadState @($read.ReadState, $read.ServiceState)
+    $readStates = @($read.ReadState, $read.ServiceState)
+    $severity = Get-UnmutedSeverity -Items $items -ReadState $readStates
+    # An unread socket table or service list can hide any listener, so no item verdict stands.
+    if (@($readStates | Where-Object { $_ -notin @('ok', 'absent') }).Count -gt 0) { $severity = 'UNKNOWN' }
     $unresolved = @($items | Where-Object { $null -eq $_.key }).Count
     $warned = @($items | Where-Object { $_.severity -eq 'WARN' }).Count
     $mutedCount = @($items | Where-Object muted).Count
