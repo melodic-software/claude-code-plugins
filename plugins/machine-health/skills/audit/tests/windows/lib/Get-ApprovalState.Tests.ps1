@@ -95,6 +95,22 @@ Describe 'Get-ApprovalState' -Tag 'lib' {
         }
     }
 
+    Context 'reading while another process holds the file' {
+        It 'reads while another handle holds the file with ReadWrite' {
+            New-Item -ItemType Directory -Path $script:stateDir -Force | Out-Null
+            $payload = '{"schema_version":"1.0","remediations":{"clear-temp-files":{"approved":true}}}'
+            Set-Content -LiteralPath $script:approvalsPath -Value $payload -Encoding utf8
+            $holder = [System.IO.File]::Open($script:approvalsPath, 'Open', 'ReadWrite', 'ReadWrite')
+            try {
+                $state = Get-ApprovalState -StateDir $script:stateDir -WarningVariable warned -WarningAction SilentlyContinue
+            } finally {
+                $holder.Dispose()
+            }
+            $warned | Should -BeNullOrEmpty
+            $state.remediations.'clear-temp-files'.approved | Should -BeTrue
+        }
+    }
+
     Context 'migration from legacy TODO.md' {
         It 'writes approvals.json when TODO.md has [x] checkboxes and approvals.json is missing' {
             $todo = @'
