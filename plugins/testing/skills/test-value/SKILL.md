@@ -194,3 +194,17 @@ Also judgment only:
   source: a change detector, unless the list is an external contract (`cant-fail-ok: <why>`), and a
   capability flag is tested by exercising what it promises;
 - a test kept alive only to preserve an export, global or wrapper that no production caller uses.
+- an absence check with no paired presence case: every assertion checks that a value the subject
+  returns or changes is empty or missing (`toEqual([])`, `toBeUndefined`, `is None`,
+  `Assert.Empty`), and no case in the test (or its table) shows the same code producing it for
+  another input, so a do-nothing implementation passes. Fix: add the paired case, where a different
+  input produces the value and the test asserts it exactly, such as
+  `expect(validateOrder(valid).errors).toEqual([])` beside
+  `expect(validateOrder(noSku).errors).toEqual(['sku required'])`. When the absence is the contract
+  and a paired presence case already exists, keep the test; do not delete or rewrite an absence
+  assertion for its shape alone. A mock-interaction absence stays under `rule-mock-only-oracle` and
+  §2.
+- assertions that never reach the subject: the subject is never called, or it is called but every
+  assertion reads only values the test built (its own literals, fixtures or mocks). Fix: assert what
+  the subject returns or changes. `/testing:write`'s hollow-out run shows it: swap the subject's
+  functions for ones that return nothing and expect red.

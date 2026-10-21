@@ -4,8 +4,8 @@ description: >
   repository with serial searches on the job's own token; derive the issue
   lane's WIP cap from the merge rate and the default branch's pr-pipeline.yaml
   `wip` block; count held pull requests apart; and publish the status. Set
-  `capped` to `true` only when the lane pauses (over the WIP cap on or after
-  `wip.pause-from`; the held cap only alerts). A read that fails never caps.
+  `capped` to `true` only when the lane pauses (over the WIP cap or the held
+  cap on or after `wip.pause-from`). A read that fails never caps.
   Run it from the default branch checkout, before any slot or lane token.
 
 inputs:
@@ -20,7 +20,7 @@ inputs:
 
 outputs:
   capped:
-    description: "`true` only while the lane pauses (over the WIP cap on or after `wip.pause-from`; the held cap only alerts); otherwise `false`, including when a read fails."
+    description: "`true` only while the lane pauses (over the WIP cap or the held cap on or after `wip.pause-from`); otherwise `false`, including when a read fails."
     value: ${{ steps.check.outputs.capped }}
   wip:
     description: "The status as one flat JSON object: countable_lane_prs, held_lane_prs, held_oldest_age_hours, held_over_alarm_count, wip_cap, wip_cap_source and the rest (pr-pipeline README, WIP cap)."
