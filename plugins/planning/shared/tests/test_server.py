@@ -913,7 +913,7 @@ class TestSnapshot(ServerCase):
 
 
 class TestSnapshotContract(unittest.TestCase):
-    """The snapshot names the page's core.js reads, per .work/shared-interview-ui/snapshot-map.md
+    """The snapshot names the page's core.js reads, per plugins/planning/shared/snapshot-map.md
     (the page reads the prototype's names; core.js builds them from these). A key the server drops
     or renames fails here before it blanks part of the page."""
 
