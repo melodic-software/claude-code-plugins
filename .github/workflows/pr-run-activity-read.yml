@@ -105,12 +105,21 @@ on:
       head-sha:
         description: >-
           The PR head the caller gated in a job that ran no head code (pr-unblock's
-          fix-ci-context or address-feedback-select). The report job posts the check only on it, the event's
-          PR head, or the PR's head read from the API; a run job head-sha that is
-          none of these posts failure on the trusted head instead.
+          fix-ci-context, fix-docs-head or address-feedback-select). The report job
+          posts the check only on it, the event's PR head, or the PR's head read
+          from the API; a run job head-sha that is none of these posts failure
+          on the trusted head instead.
         required: false
         type: string
         default: ""
+      post-decline:
+        description: >-
+          Whether a run that stops before its trigger gate passes posts neutral
+          not-assessed on the caller's head. fix-docs, dispatched once per PR,
+          passes false, so a decline posts nothing and the PR is dispatched again.
+        required: false
+        type: boolean
+        default: true
       ci-context-attempt:
         description: >-
           For a prepare: ci-context activity, the run attempt whose
@@ -2676,7 +2685,9 @@ jobs:
       # neutral not-assessed on that gated head, which babysit passes and
       # fix-ci-dispatch reads as the head's run, so it is not re-dispatched
       # there. A trigger decline cannot be told from a forged empty head
-      # here, so both take that neutral. A handoff never reaches this job:
+      # here, so both take that neutral. A caller passing post-decline false
+      # (fix-docs, dispatched once per PR) posts nothing instead, so the PR is
+      # dispatched again. A handoff never reaches this job:
       # the fallback call posts that check.
       - name: Choose the head the check is posted on
         id: head
@@ -2688,13 +2699,14 @@ jobs:
           API_HEAD: ${{ steps.pr-head.outputs.sha }}
           PR_MISMATCH: ${{ steps.pr-head.outputs.pr-mismatch }}
           TRUSTED_SKIP: ${{ needs.broker-check.outputs.allowed != 'true' }}
+          POST_DECLINE: ${{ inputs.post-decline }}
         run: |
           out() { printf 'post=true\nsha=%s\nforged=%s\n' "$1" "$2" >>"$GITHUB_OUTPUT"; }
           valid() { [[ $1 =~ ^[0-9a-f]{40}$ ]]; }
           if [ -z "$RUN_HEAD" ] && [ "$PR_MISMATCH" != true ]; then
             gated=$CALLER_HEAD
             valid "$gated" || gated=$EVENT_HEAD
-            if [ "$TRUSTED_SKIP" = true ] || ! valid "$gated"; then
+            if [ "$TRUSTED_SKIP" = true ] || [ "$POST_DECLINE" = false ] || ! valid "$gated"; then
               out "" false
             else
               out "$gated" false

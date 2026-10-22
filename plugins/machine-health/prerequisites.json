@@ -78,7 +78,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the SDK-version check skips Node.js; the other runtimes are still checked.",
+      "degrade": "Without node, no decision page; markdown report only. The SDK-version check also skips Node.js; the other runtimes are still checked.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",

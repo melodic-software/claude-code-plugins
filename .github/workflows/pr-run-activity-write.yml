@@ -109,7 +109,9 @@ on:
       escalation-reason:
         description: >-
           For a report-escalation script activity, the escalation-reason output
-          of the run that escalated; exported to the script as ESCALATION_REASON.
+          of the run that escalated; in issue mode, for report-outcome,
+          apply-issue-patch's (a patch-* reason). Exported to the script as
+          ESCALATION_REASON.
         required: false
         type: string
         default: ""
@@ -324,7 +326,8 @@ on:
           dependency-security-close or dependency-escalate; for apply-patch, before the mint,
           ci-fix-empty, ci-fix-invalid or ci-fix-escalated, and from its
           script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
-          empty otherwise.
+          for issue-mode apply-patch, patch-empty, patch-invalid,
+          patch-not-applied or patch-protected-path; empty otherwise.
           Set only by runner steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
       rung-up:
@@ -516,6 +519,12 @@ jobs:
             dependency-fix-refused) ;;
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied) ;;
+            patch-empty | patch-invalid | patch-not-applied | patch-protected-path)
+              if [ -z "$ISSUE_NUMBER" ]; then
+                echo "::error::a patch-* escalation-reason input is for issue mode only"
+                exit 1
+              fi
+              ;;
             *)
               echo "::error::the escalation-reason input is not a known escalation reason"
               exit 1

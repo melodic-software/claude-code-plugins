@@ -3,6 +3,24 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.93.0] - 2026-10-22
+
+### Added
+
+- A shared interview can hold live prototypes, recorded but not yet started by any process. With "Live prototypes" on in the Host settings, Claude's `add-live` op records one (`L<N>`, pending) for a build folder under the data folder's `staging/` or a port on 127.0.0.1 other than the session's own, and a prototype variant links it with `live: {id, path}`. The owner approves or stops each entry from the prototype page (`POST /api/live/approve`, `POST /api/live/stop`), and a server on a port needs the owner's sample-data attestation. Until the owner approves an entry and it runs, no guest or leader receives its url. Stopping it, turning live prototypes off, or ending the session ends every entry it covers and keeps no url. The prototype page offers "Open live prototype" in a new tab with `rel="noopener noreferrer"` only while the entry runs, shows guests "Live version waiting for the host" while it is pending, and never frames a live prototype. A link path holding a fragment, `%23`, `//`, a scheme or a backslash is refused. This build starts no process, so Approve answers 503 `live-unavailable` and the entry stays pending. A session holding `lives` or a variant with a live link does not load in an earlier build.
+
+## [0.92.0] - 2026-10-22
+
+### Changed
+
+- Both interview lanes refuse an alternative that repeats or contains the recommendation (whole words, either way): `round.sh add`, `add-round` and `apply` now refuse what they only warned about, as `reply` and `revise` already did, and the shared session refuses such an alternative in Claude's question input. A `Withheld:` recommendation has nothing to repeat.
+- A file written before this keeps loading: the page server flags each restating alternative and the 1:1 page folds it into Accept, now by the same whole-word rule, so an alternative that contains the recommendation folds too.
+- A shared session state saved before this keeps loading too: an alternative it holds that restates the recommendation shows no card, as the 1:1 page folds it, unless someone voted for, reacted to or locked it; the saved state is unchanged.
+
+### Fixed
+
+- A shared session question whose recommendation is withheld no longer shows a "Claude recommends" card: its alternatives stay as cards and its `Withheld:` text shows as the question's open note.
+
 ## [0.91.1] - 2026-10-22
 
 ### Fixed

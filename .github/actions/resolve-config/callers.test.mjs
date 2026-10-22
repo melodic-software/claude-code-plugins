@@ -1172,7 +1172,7 @@ test("pr-run-activity-read.yml: the fallback call's lane record names why it ran
 // call ran the activity.
 const PATCH_LANES = [
   ["pr-unblock.yml", "fix-ci", "fix-ci-subscription", ["fix-ci-context"], { "needs.fix-ci-context.outputs.proceed": "true" }, "apply-patch"],
-  ["pr-unblock.yml", "fix-docs", "fix-docs-subscription", [], {}, "apply-docs-patch"],
+  ["pr-unblock.yml", "fix-docs", "fix-docs-subscription", ["fix-docs-head"], {}, "apply-docs-patch"],
   // apply-feedback-patch stays out of report-escalation: every refusal leaves
   // no fix commit, and publish-feedback escalates feedback-not-landed
   // (publish-feedback.test.mjs).
@@ -1190,7 +1190,7 @@ const APPLY_ACTIVITY = { "fix-ci": "apply-patch", "fix-docs": "apply-patch", "ad
 const CARRIER_SECRETS = { "scan-carrier-private-key": "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}" };
 // The head apply-patch holds the patch to, per producer. fix-ci's push job
 // takes the head fix-ci-context gated, from a job that ran no head code.
-// fix-docs has no such job, so its push job takes the run job's head-sha
+// fix-docs's push job takes the run job's head-sha
 // output from whichever call ran; apply-patch applies onto the head its own
 // gate reads either way.
 const PATCH_HEAD = {
@@ -1365,6 +1365,62 @@ test("pr-unblock.yml: fix-docs runs only on a fix-docs dispatch with a PR number
   assert.equal(starts({ pr: "" }), false);
   assert.equal(starts({ sender: "2" }), false, "the lanes App's own dispatch");
   assert.equal(existsSync(new URL("../../workflows/pr-refine.yml", import.meta.url)), false, "pr-refine.yml and its pull_request trigger are gone");
+});
+
+// The read report job posts on the run's head only when it equals a head the
+// caller or event gated; with neither it trusts the PR head read at report
+// time, so a push mid-run made a finished run look forged and posted failure
+// on the new head (#9207). Runs the report job's head step with the head-sha
+// each pr-unblock call passes.
+test("pr-unblock.yml: a read activity whose PR head moved mid-run posts on its own head, never on the new one", () => {
+  const old = "1".repeat(40);
+  const moved = "2".repeat(40);
+  const { jobs } = workflow("pr-unblock.yml");
+  const read = workflow("pr-run-activity-read.yml");
+  const step = read.jobs.report.steps.find((s) => s.name === "Choose the head the check is posted on");
+  const choose = (callerHead, runHead, postDecline = true) => {
+    const dir = mkdtempSync(join(tmpdir(), "w9207-"));
+    try {
+      const output = join(dir, "output");
+      writeFileSync(output, "");
+      spawnSync("bash", ["-c", step.run], {
+        env: {
+          PATH: process.env.PATH,
+          GITHUB_OUTPUT: output,
+          RUN_HEAD: runHead,
+          CALLER_HEAD: callerHead,
+          EVENT_HEAD: "",
+          API_HEAD: moved,
+          PR_MISMATCH: "",
+          TRUSTED_SKIP: "false",
+          POST_DECLINE: String(postDecline),
+        },
+      });
+      return Object.fromEntries(readFileSync(output, "utf8").trim().split("\n").map((line) => line.split("=")));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const callers = Object.entries(jobs).filter(([, job]) => job.uses === "./.github/workflows/pr-run-activity-read.yml");
+  assert.ok(callers.some(([id]) => id === "fix-docs"));
+  for (const [id, job] of callers) {
+    const given = job.with["head-sha"] ?? "";
+    const callerHead = given === "" ? "" : evaluate(given, Object.fromEntries([...given.matchAll(/needs\.[\w-]+\.outputs\.head-sha/g)].map(([ref]) => [ref, old])));
+    assert.equal(callerHead, old, `${id} passes the head a base job read`);
+    assert.deepEqual(choose(callerHead, old), { post: "true", sha: old, forged: "false" }, id);
+    assert.deepEqual(choose(callerHead, "3".repeat(40)), { post: "true", sha: old, forged: "true" }, `${id}: a foreign run head still fails`);
+    // A run that declines before its trigger gate leaves an empty head:
+    // fix-ci posts neutral not-assessed so fix-ci-dispatch moves on; fix-docs,
+    // dispatched once per PR, posts nothing so it is dispatched again.
+    const postDecline = job.with["post-decline"] ?? true;
+    assert.equal(postDecline, !id.startsWith("fix-docs"), `${id} post-decline`);
+    assert.deepEqual(
+      choose(callerHead, "", postDecline),
+      postDecline ? { post: "true", sha: old, forged: "false", "not-run-reason": "not-assessed" } : { post: "true", sha: "", forged: "false" },
+      `${id}: a declined run`,
+    );
+  }
+  assert.equal(read.on.workflow_call.inputs["post-decline"].default, true);
 });
 
 test("pr-run-activity-read.yml: with output-mode gone, issue mode still refuses an activity that hands on no patch", () => {
@@ -2766,12 +2822,11 @@ test("report job: the PR number comes from the caller or the event, a run job pr
   assert.equal(steps.filter((s) => String(s.uses ?? "").startsWith("actions/checkout@")).length, 1);
   assert.doesNotMatch(JSON.stringify(steps), /base-sha/, "no step reads the run job's base-sha");
   assert.equal(steps.findIndex((s) => s.name === "Assert the default branch is set"), 0);
-  // pr-unblock passes fix-ci-context's head to both fix-ci calls.
+  // pr-unblock passes the head a job that ran no head code read to both calls
+  // of each activity.
   const { jobs } = workflow("pr-unblock.yml");
   for (const id of ["fix-ci", "fix-ci-subscription"]) assert.equal(jobs[id].with["head-sha"], "${{ needs.fix-ci-context.outputs.head-sha }}", id);
-  // fix-docs gates no head before the model job, so the report job takes the
-  // PR's head read from the API.
-  for (const id of ["fix-docs", "fix-docs-subscription"]) assert.equal(jobs[id].with["head-sha"], undefined, id);
+  for (const id of ["fix-docs", "fix-docs-subscription"]) assert.equal(jobs[id].with["head-sha"], "${{ needs.fix-docs-head.outputs.head-sha }}", id);
 });
 
 test("scan job: an empty default branch fails closed before the opener is checked out", (t) => {
@@ -3361,6 +3416,40 @@ test("pr-run-activity-write.yml: the reply job reads run.json from the select jo
   // The longer name first, so "inputs.review-replies" is not replaced inside it.
   const base = (attempt) => ({ "inputs.review-replies-attempt": attempt, "steps.lane-token.outputs.token": "t", "inputs.review-replies": true, "steps.config.outputs.kind": "script" });
   assert.equal(evaluate(record.if, { ...base(""), "inputs.review-run-attempt": "1" }), true);
-  assert.equal(evaluate(replies.if, base("")), false, "no replies uploaded: the script refuses feedback-invalid");
+  assert.equal(evaluate(replies.if, base("")), false, "no replies uploaded: none is downloaded");
   assert.equal(evaluate(replies.if, base("2")), true);
+});
+
+// work-resolve-issue.yml: report-outcome gets apply-issue-patch's escalation
+// reason, so a refused patch is handed back with its reason; the write
+// runner takes a patch-* reason in issue mode only, so pr-unblock's
+// report-escalation still takes none.
+test("work-resolve-issue.yml: report-outcome passes apply-issue-patch's escalation reason", () => {
+  const job = workflow("work-resolve-issue.yml").jobs["report-outcome"];
+  assert.ok(job.needs.includes("apply-issue-patch"));
+  const context = (reason) => ({ "needs.apply-issue-patch.outputs.escalation-reason": reason });
+  assert.equal(evaluate(job.with["escalation-reason"], context("patch-protected-path")), "patch-protected-path");
+  assert.equal(evaluate(job.with["escalation-reason"], context("")), "");
+});
+
+test("pr-run-activity-write.yml: a patch-* escalation reason passes the input check in issue mode only", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.name?.startsWith("Assert the lanes App sender id"));
+  const status = (reason, issueMode) =>
+    spawnSync("bash", ["-c", step.run], {
+      env: {
+        PATH: process.env.PATH,
+        APP_SENDER_ID: "1",
+        DEFAULT_BRANCH: "main",
+        ESCALATION_REASON: reason,
+        ...(issueMode
+          ? { ISSUE_NUMBER: "7", EVENT_NAME: "issues", EVENT_ISSUE: "7", TRUSTED_BASE: "default-tip" }
+          : { EVENT_NAME: "workflow_dispatch", PR_NUMBER: "42", TRUSTED_BASE: "pr-base" }),
+      },
+    }).status;
+  for (const reason of ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]) {
+    assert.equal(status(reason, true), 0, `${reason} in issue mode`);
+    assert.equal(status(reason, false), 1, `${reason} in PR mode`);
+  }
+  assert.equal(status("", false), 0, "the PR-mode control passes with no reason");
+  assert.equal(status("patch-unknown", true), 1);
 });

@@ -35,7 +35,7 @@ scanner; remaining real cite relocated.
 | `docs/conventions/hook-observability/README.md` | clean |
 | `docs/conventions/hook-telemetry/README.md` | clean |
 | `plugins/ai-briefing/skills/generate/references/build-pipeline.md` | clean |
-| `plugins/ai-briefing/skills/generate/references/slide-generation.md` | clean |
+| `plugins/ai-briefing/skills/generate/reference/slide-generation.md` | clean |
 | `plugins/architecture/CHANGELOG.md` | basename-exempt |
 | `plugins/harness-ops/skills/known-issues/context/registry-schema.md` | clean (pointer-converted in #2695, re-verified present) |
 | `plugins/disk-hygiene/CHANGELOG.md` | basename-exempt |
