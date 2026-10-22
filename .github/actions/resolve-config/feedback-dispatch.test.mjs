@@ -189,3 +189,24 @@ test("a disabled address-feedback slot dispatches nothing", async () => {
   assert.deepEqual(dispatched, []);
   assert.match(lines.at(-1), /no enabled address-feedback and publish-feedback slots/);
 });
+
+// The live address-feedback hands on a patch and its replies; the dispatcher
+// resolves it as the read runner does, and still refuses a key neither hands on.
+test("an address-feedback that hands on its patch and replies dispatches; one handing on another key is refused", async () => {
+  const readSlot = (appliedBy) =>
+    config("      - activity: address-feedback\n      - activity: apply-feedback-patch\n        needs: [address-feedback]")
+      .replace(
+        "    prepare: review-threads\n    effect: mutate-branch\n",
+        `    prepare: review-threads\n    effect: read\n    applied-by:\n${appliedBy}`,
+      )
+      .replace(
+        "  publish-feedback:\n",
+        "  apply-feedback-patch:\n    script: .github/scripts/apply-patch/apply-patch.mjs\n    prepare: apply-patch\n    effect: mutate-branch\n    gating: advisory\n    reads-untrusted: true\n    inputs: [pr, head-sha]\n  publish-feedback:\n",
+      );
+  const supported = await run(null, readSlot("      patch: apply-feedback-patch\n      feedback-replies: publish-feedback\n"));
+  assert.equal(supported.dispatched.length, 1);
+  await assert.rejects(
+    run(null, readSlot("      patch: apply-feedback-patch\n      work-outcome: publish-feedback\n")),
+    (error) => error.name === "Rejection" && error.code === "applied-by-unsupported",
+  );
+});

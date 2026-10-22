@@ -37,9 +37,10 @@
 // the refusals measure from) (issue), HEAD_SHA, PATCH_HEAD_SHA, HEAD_REF (the
 // PR branch, or the new `<lane>/issue-<n>-<run id>-<attempt>` branch), LANE,
 // PATCH_ACTIVITY, PATCH_FILE, PATCH_SHA256, HOLD_LABELS, SKIP_REASON_FILE,
-// ESCALATION_REASON_FILE; optional BASE_REF, KEPT_THREADS_FILE (a JSON list of
-// paths), DEPENDENCY_VERDICT and GITHUB_OUTPUT (gets commit=<sha> and
-// branch=<ref>).
+// ESCALATION_REASON_FILE; optional BASE_REF, KEPT_THREADS_FILE (the select
+// job's threads.json, whose threads' path and named_paths the kept-threads
+// predicate reads), DEPENDENCY_VERDICT and GITHUB_OUTPUT (gets commit=<sha>
+// and branch=<ref>).
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -661,15 +662,24 @@ function need(env, keys) {
   }
 }
 
-function keptThreadsFrom(file) {
+// The kept threads of a threads.json: each a path and, when a fix request
+// named files, its named_paths.
+export function keptThreadsFrom(file) {
   if (!file) {
     return undefined;
   }
-  const paths = JSON.parse(readFileSync(file, "utf8"));
-  if (!Array.isArray(paths) || !paths.every((path) => typeof path === "string")) {
-    throw new Error("KEPT_THREADS_FILE is not a JSON list of paths");
+  const threads = JSON.parse(readFileSync(file, "utf8"))?.threads;
+  const plain = (value) => typeof value === "string" && value !== "";
+  if (
+    !Array.isArray(threads) ||
+    !threads.every(
+      (thread) =>
+        plain(thread?.path) && (thread.named_paths === undefined || (Array.isArray(thread.named_paths) && thread.named_paths.every(plain))),
+    )
+  ) {
+    throw new Error("KEPT_THREADS_FILE is not a thread file of paths and named_paths");
   }
-  return new Set(paths);
+  return { paths: new Set(threads.map((thread) => thread.path)), threads: threads.map(({ path, named_paths }) => ({ path, named_paths })) };
 }
 
 function labelList(env, key) {

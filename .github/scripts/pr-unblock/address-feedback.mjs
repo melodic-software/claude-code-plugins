@@ -2,8 +2,8 @@
 // job's runner step and the reply job's script (publish-feedback.mjs). It runs
 // no PR head code and hands the model no decision.
 //
-//   select  run by .github/workflows/pr-run-activity-write.yml around a
-//           `prepare: review-threads` skill, before the head checkout and any
+//   select  run by .github/workflows/pr-unblock.yml's address-feedback-select
+//           job, which runs only base code, before the model job and any
 //           model turn, with the job's read-only token: keeps the unresolved
 //           review threads the reviewer bot opened in a review on a head a
 //           review lane's marker confirms, when every comment is the bot's,
@@ -13,7 +13,8 @@
 //           the configured number of rounds already ran and no write-access
 //           fix request came after the newest one) or proceed, writing the thread file
 //           the skill's review-thread tool reads, with the same-plugin files
-//           a write-access fix request names (namedPaths). On a PR carrying the
+//           a write-access fix request names (namedPaths), and run.json, the
+//           record the reply job checks the replies against (runRecord). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
 //           awaiting-human when there are none.
@@ -456,8 +457,25 @@ export async function select({
     rounds,
     fixRequested: gated,
     threads: worked,
-    file: { version: 1, repository, pr, head_sha: headSha, lane_branch: laneBranch, threads: worked },
+    file: { version: 1, repository, pr, head_sha: headSha, ...(laneBranch ? { lane_branch: laneBranch } : {}), threads: worked },
   };
+}
+
+// run.json, as its bytes: the gated head and the kept threads with the comment
+// ids the model is shown, a pure function of the thread file. publish-feedback.mjs
+// checks the model's replies against it.
+export function runRecord(file) {
+  const run = {
+    version: 1,
+    head_sha: file.head_sha,
+    threads: file.threads.map((t) => ({
+      id: t.id,
+      path: t.path,
+      comment_ids: t.comments.map((c) => c.id),
+      ...(t.named_paths ? { named_paths: t.named_paths } : {}),
+    })),
+  };
+  return `${JSON.stringify(run)}\n`;
 }
 
 // The kept threads of a PR as they are now: the reply job's re-read.
@@ -730,12 +748,12 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     });
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
   if (command === "select") {
-    need(env, ["LANE_BRANCH", "THREAD_FILE", "TRUSTED_ACTORS"]);
+    need(env, ["THREAD_FILE", "RUN_FILE", "TRUSTED_ACTORS"]);
     const result = await select({
       api: client,
       pr,
       headSha: env.HEAD_SHA,
-      laneBranch: env.LANE_BRANCH,
+      laneBranch: env.LANE_BRANCH ?? "",
       repository: env.GITHUB_REPOSITORY,
       appId,
       reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
@@ -745,6 +763,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     });
     if (result.file) {
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
+      writeFileSync(env.RUN_FILE, runRecord(result.file));
     }
     output("proceed", String(result.decision === "proceed"));
     // The write runner drops the human-gated label from the hold list only

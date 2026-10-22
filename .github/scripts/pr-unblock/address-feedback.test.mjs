@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createGitHubApi, currentThreads, main, maxRoundsFrom, select, trustedHumansFrom } from "./address-feedback.mjs";
+import { createGitHubApi, currentThreads, main, maxRoundsFrom, runRecord, select, trustedHumansFrom } from "./address-feedback.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
 // GitHub users API (github-actions[bot] is 41898282).
@@ -64,7 +64,6 @@ const run = (api) =>
     api,
     pr: 42,
     headSha: HEAD,
-    laneBranch: "lane-commits/x",
     repository: "o/r",
     appId: APP,
     reviewerId: REVIEWER,
@@ -79,7 +78,6 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
     repository: "o/r",
     pr: 42,
     head_sha: HEAD,
-    lane_branch: "lane-commits/x",
     threads: [
       {
         id: "PRRT_1",
@@ -442,7 +440,7 @@ test("a configured cap of 3 allows a third round and escalates on the fourth", a
     ...Array.from({ length: n }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}` })),
   ];
   const withCap = (n) =>
-    select({ api: fakeApi({ issueComments: markers(n) }), pr: 42, headSha: HEAD, laneBranch: "lane-commits/x", repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3 });
+    select({ api: fakeApi({ issueComments: markers(n) }), pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3 });
   assert.equal((await withCap(2)).decision, "proceed");
   const capped = await withCap(3);
   assert.equal(capped.decision, "escalate");
@@ -486,7 +484,7 @@ function pastCap({ user = HUMAN, minute = 20, body = REQUEST, rounds = 3, roundA
     ...Array.from({ length: rounds }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}`, created_at: roundAt })),
   ];
   const api = fakeApi({ reviewComments, issueComments, threads: [thread("PRRT_1", [100, 101]), thread("PRRT_2", [200])], checks, permissions });
-  return select({ api, pr: 42, headSha: HEAD, laneBranch: "lane-commits/x", repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), maxRounds: 3 });
+  return select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), maxRounds: 3 });
 }
 
 test("at the cap, a write-access fix request newer than the last round runs one more round on its thread only", async () => {
@@ -558,13 +556,21 @@ test("main select writes outputs and the thread file; escalation writes no threa
     PR_NUMBER: "42",
     HEAD_SHA: HEAD,
     APP_SENDER_ID: String(APP),
-    LANE_BRANCH: "lane-commits/x",
     THREAD_FILE: join(dir, `${name}.json`),
+    RUN_FILE: join(dir, `${name}.run.json`),
     TRUSTED_ACTORS: actors,
   });
   await main(["select"], env("ok"), { api: fakeApi(), log: () => {} });
   assert.equal(readFileSync(join(dir, "ok.out"), "utf8"), "proceed=true\nfix-requested=false\nskip-reason=\nescalation-reason=\n");
-  assert.equal(JSON.parse(readFileSync(join(dir, "ok.json"), "utf8")).threads[0].id, "PRRT_1");
+  const okFile = JSON.parse(readFileSync(join(dir, "ok.json"), "utf8"));
+  assert.equal(okFile.threads[0].id, "PRRT_1");
+  // No lane branch: the model job commits nothing.
+  assert.equal(Object.hasOwn(okFile, "lane_branch"), false);
+  // run.json's bytes, in the shape the write runner's collect step wrote.
+  assert.equal(
+    readFileSync(join(dir, "ok.run.json"), "utf8"),
+    `{"version":1,"head_sha":"${HEAD}","threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}]}\n`,
+  );
 
   // The people on the list come from TRUSTED_ACTORS.
   await main(["select"], env("decided"), { api: fakeApi(escalated()), log: () => {} });
@@ -587,6 +593,35 @@ test("main select writes outputs and the thread file; escalation writes no threa
     "proceed=false\nfix-requested=false\nskip-reason=awaiting-human\nescalation-reason=feedback-protected-path\n",
   );
   assert.throws(() => readFileSync(join(dir, "esc.json")));
+  assert.throws(() => readFileSync(join(dir, "esc.run.json")), "an escalation writes no run.json");
+});
+
+test("main select needs RUN_FILE beside THREAD_FILE, and no LANE_BRANCH", async () => {
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(tmpdir(), "unused"),
+    PR_NUMBER: "42",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    THREAD_FILE: join(tmpdir(), "unused.json"),
+    TRUSTED_ACTORS: join(tmpdir(), "unused-actors.json"),
+  };
+  await assert.rejects(main(["select"], env, { api: fakeApi() }), /RUN_FILE is not set/);
+});
+
+test("run.json carries each kept thread's named_paths and no comment body", () => {
+  const file = {
+    head_sha: HEAD,
+    threads: [
+      { id: "PRRT_1", path: "plugins/p/a.md", comments: [{ id: 100, body: INJECTION }, { id: 101, body: "x" }], named_paths: ["plugins/p/b.md"] },
+      { id: "PRRT_2", path: "src/a.js", comments: [{ id: 200, body: "y" }] },
+    ],
+  };
+  assert.equal(
+    runRecord(file),
+    `{"version":1,"head_sha":"${HEAD}","threads":[{"id":"PRRT_1","path":"plugins/p/a.md","comment_ids":[100,101],"named_paths":["plugins/p/b.md"]},{"id":"PRRT_2","path":"src/a.js","comment_ids":[200]}]}\n`,
+  );
 });
 
 test("main refuses bad inputs and any subcommand but select", async () => {

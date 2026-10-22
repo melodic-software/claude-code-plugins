@@ -395,8 +395,11 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
       EVENT_NAME: "workflow_dispatch",
       PR_NUMBER: String(number),
       HEAD_SHA: head,
-      // Only reading: the dispatched write runner performs the prepare step.
+      // Only reading: the dispatched runners perform the prepare step and
+      // hand on what the read runner's address-feedback leaves (its patch
+      // and its replies), as that runner's applied-by-supported names them.
       PREPARE_SUPPORTED: "true",
+      APPLIED_BY_SUPPORTED: "patch feedback-replies",
       GITHUB_TOKEN: env.GITHUB_TOKEN,
       GITHUB_API_URL: env.GITHUB_API_URL,
       REPOSITORY: env.GITHUB_REPOSITORY,
