@@ -1166,12 +1166,12 @@ if [[ "$RC" -eq 0 && "$confirm_wait" =~ ^[0-9]+$ &&
 else
   fail "dispatched run wait: confirm-wait=$confirm_wait rc=$RC polls=$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG") out='$OUT'"
 fi
-# No re-run within the wait: a newer pr-require-checks run on main that
-# passed means main already recovered, so nothing is filed or reported.
-# newer_run <id> <created_at> [branch] [head-repo] -> one successful run
+# While the re-run is pending, a newer full run on main that passed means
+# main already recovered: the wait ends early and nothing is filed or reported.
+# newer_run <id> <created_at> [branch] [head-repo] [event] -> one successful run
 newer_run() {
-  jq -n --argjson id "$1" --arg t "$2" --arg b "${3:-main}" --arg r "${4:-o/r}" \
-    '{id: $id, event: "workflow_dispatch", conclusion: "success", head_branch: $b,
+  jq -n --argjson id "$1" --arg t "$2" --arg b "${3:-main}" --arg r "${4:-o/r}" --arg e "${5:-workflow_dispatch}" \
+    '{id: $id, event: $e, conclusion: "success", head_branch: $b,
       head_repository: {full_name: $r}, head_sha: "fedcba9876543210fedcba9876543210fedcba98", created_at: $t}'
 }
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" VIA=workflow_dispatch STARTER='github-actions[bot]' \
@@ -1187,8 +1187,8 @@ fi
 
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" NEWER_FROM=3 VIA=workflow_dispatch STARTER='github-actions[bot]' \
   ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 3 && "$(posts)" -eq 0 ]] &&
-  grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then
+if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 3 ]] &&
+  ! grep -qv '^GET ' <<<"$LOG" && grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then
   ok "a dispatched run keeps waiting until a newer run on main passes, then files nothing"
 else
   fail "dispatched run, main recovers at poll 3: rc=$RC log='$LOG' out='$OUT'"
@@ -1213,6 +1213,26 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)$(dispatches)" == 11 && "$OUT"
   ok "a dispatched run with no re-run still files when no newer run on this repository's main passed"
 else
   fail "dispatched run, main still red: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z main o/r pull_request)" \
+  VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never \
+  run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq "$confirm_wait" && "$(posts)" -eq 1 ]] &&
+  [[ "$OUT" != *"already recovered"* ]] && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+  ok "a newer pull_request run with head branch main is not a recovery of main"
+else
+  fail "dispatched run, newer pull_request run on main: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
+fi
+
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ATTEMPT=1 RERUN=never \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 20 ]] &&
+  grep -qx 'POST repos/o/r/issues' <<<"$LOG" && ! grep -q 'status=success&per_page=20$' <<<"$LOG" &&
+  ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+  ok "a workflow_run event waits its full 20 polls without the newer-run lookup, then files"
+else
+  fail "workflow_run event, newer run on main: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
 fi
 
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" NEWER_FROM=2 VIA=workflow_dispatch STARTER='github-actions[bot]' \
