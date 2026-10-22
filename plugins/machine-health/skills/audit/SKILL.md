@@ -71,7 +71,7 @@ Routing table:
 
 ## High-level procedure
 
-1. **Verify preconditions.** PowerShell 7.4+ (enforced by the orchestrator's `#Requires`; individual checks that need a still-newer cmdlet return UNKNOWN rather than aborting). The report and state roots are writable. Record elevation state via `scripts/<os>/lib/Test-IsElevated.ps1`. Never prompt for UAC.
+1. **Verify preconditions.** PowerShell 7.4+ (enforced by the orchestrator's `#Requires`; individual checks that need a still-newer cmdlet return UNKNOWN rather than aborting). The report and state roots are writable. Record elevation state via `scripts/<os>/lib/Test-IsElevated.ps1`. The run never prompts for UAC; the [elevated pass](#elevated-pass) is the only route to admin.
 2. **Load and filter the catalog.** The orchestrator reads the shipped `catalog/checks.jsonc`, merges the machine-local overlay at `<StateBase>/catalog/checks.local.jsonc` when present (see `reference/shared/catalog-overlay.md`), and keeps entries whose `os` list contains the current OS and where `enabled: true` and `deprecated: false`.
 3. **Load trend context.** Read the tail of `<StateBase>/state/history.jsonl` (last 8 weeks) for each check. Pass the slice to each check script over stdin so checks can annotate deltas, but checks remain stateless themselves.
 4. **Invoke the OS orchestrator.** Pass `OutputBase`, `StateBase`, and `RunMode`. The orchestrator dispatches checks under per-check 90s timeouts, collects JSON results, applies the upward-only trend adjustments and the custom-check clamp, and, on non-dry runs, dispatches authorized remediations with before/after logging.
@@ -81,6 +81,33 @@ Routing table:
    When the severity spread or trend deltas would read better visually, also generate a self-contained static HTML view of that report (color-coded CRIT/WARN/UNKNOWN, no remote fetch). The markdown `.md` report stays the durable record.
 7. **Update state.** Write `<StateBase>/state/latest.json`. Append one compact line to `<StateBase>/state/history.jsonl`, the trend source of truth.
 8. **Verify and summarize.** Confirm the report exists. Print CRIT/WARN counts + report path to session output. A clean run may still include `UNKNOWN` findings. Call those out too.
+
+## Elevated pass
+
+Optional, after step 8, on Windows, when the run was not elevated. It fills in the admin-gated
+checks (`scripts/windows/lib/Get-ElevationMatrix.ps1`) by running one shown command under the
+owner's UAC approval. What each step checks is in
+[elevation-matrix.md, "How to run elevated"](reference/windows/elevation-matrix.md#how-to-run-elevated).
+
+1. **Offer it only to someone present.** Never offer it when the skill was invoked with
+   `--scheduled`: nobody is there to read the script or answer UAC. Otherwise offer it once,
+   naming the checks the report marks `needs_admin`.
+2. **Prepare.** On interest, run through the PowerShell tool:
+   `. '<skill-root>\scripts\windows\lib\New-ElevatedLaunch.ps1'; New-ElevatedLaunch -OutputBase '<report-root>' -StateBase '<state-root>' | ConvertTo-Json`
+3. **Show and ask.** Show the owner the full text of the file at `ScriptPath` and the full
+   `ScriptSha256`, then ask for an explicit yes in this session. Anything else, or no answer, ends
+   the pass. A `-p` run has no one to answer, so it never launches.
+4. **Launch.** On yes, run through the PowerShell tool
+   `Start-Process pwsh -Verb RunAs -Wait -ArgumentList '<ArgumentString>'`, passing the returned
+   string as one single-quoted literal with every `'` in it doubled. The owner approves the UAC
+   prompt. Launch nothing else elevated, and never retry with a changed script or string: prepare
+   again and ask again.
+5. **Import.** When it returns, run the orchestrator as in step 4 of the procedure with
+   `-RunMode on-demand -ElevatedResultPath '<ResultPath>'`, then summarize as in step 8, naming
+   the checks listed in `latest.json`'s `elevated_checks`, or the `elevated-pass` result when the
+   file was refused.
+
+The result file is machine-derived data under [Untrusted data](#untrusted-data).
 
 ## Untrusted data
 
@@ -130,5 +157,5 @@ The skill grows itself within narrow, auditable bounds:
 ## Not in scope for this skill
 
 - **Scheduling.** A separate routine creates the scheduled task. This skill is stateless about cadence.
-- **Elevation prompts.** If admin is needed, report `UNKNOWN` and let the human decide whether to rerun elevated.
+- **Elevation prompts.** The run never raises one. When admin-gated checks read `UNKNOWN`, the session may offer the [elevated pass](#elevated-pass); the owner approves its UAC prompt.
 - **Cross-machine aggregation.** This skill is single-host. Multi-host dashboards are a separate concern.
