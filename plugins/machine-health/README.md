@@ -21,7 +21,9 @@ Each run dispatches the enabled catalog checks (90s per-check timeout, 15m total
 schema-validated JSON results, adjusts severity against the last 8 weeks of history, correlates
 related findings, and renders `reports/health-<UTC-timestamp>.md` with CRIT/WARN/INFO/OK/UNKNOWN
 sections, reproduction commands, and trend deltas. State is append-only (`history.jsonl`);
-elevation is never prompted for. Admin-gated checks return UNKNOWN with a `needs_admin` marker.
+a run never prompts for elevation: admin-gated checks return UNKNOWN with a `needs_admin` marker,
+and the session may offer an optional elevated pass, shown in full, that the owner approves at the
+UAC prompt.
 
 Remediations are deliberately narrow (restart a stopped Automatic service, clear aged temp files),
 default to **not approved**, and only run when explicitly approved in the machine's

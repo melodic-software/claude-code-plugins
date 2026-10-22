@@ -37,7 +37,6 @@ plugins/machine-health/skills/audit/README.md
 plugins/machine-health/skills/audit/reference/shared/discovery-guide.md
 plugins/machine-health/skills/audit/reference/shared/testing.md
 plugins/machine-health/skills/audit/reference/windows/check-catalog.md
-plugins/machine-health/skills/audit/reference/windows/elevation-matrix.md
 plugins/machine-health/skills/audit/reference/windows/remediation-policy.md
 plugins/playwright/skills/playwright/reference/snapshots-and-refs.md
 plugins/skill-quality/skills/check/reference/fresh-eyes-declarations.md
