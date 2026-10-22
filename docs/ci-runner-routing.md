@@ -3,7 +3,8 @@
 This repository is public, so every lane runs on GitHub-hosted runners, free for
 public repositories: `ubuntu-24.04` for all of them except the informational
 Windows lane `test-windows`, which runs `windows-2025` in its own workflow,
-`.github/workflows/pr-test-windows.yml`. The organization's
+`.github/workflows/pr-test-windows.yml`, and that workflow's informational
+`test-macos-planning-shared` job, which runs `macos-26`. The organization's
 runner-policy engine refuses a governed fleet label here outright, reporting
 `public-self-hosted-routing`. There is no observer credential and no
 self-hosted exception inventory in this repository.

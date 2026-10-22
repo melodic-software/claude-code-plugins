@@ -333,8 +333,8 @@ class TestShippedSchemas(unittest.TestCase):
             return {"questions": [{"id": "Q1", "short": "s", "title": "t", "alternatives": alts, **q}]}
 
         questions = schema.load("questions")
-        self.assertIsNone(schema.first_error(doc(short="x" * 80), questions))
-        self.assertIn("at most 80", schema.first_error(doc(short="x" * 81), questions))
+        self.assertIsNone(schema.first_error(doc(short="x" * 500), questions))
+        self.assertIn("at most 500", schema.first_error(doc(short="x" * 501), questions))
         self.assertIn("at most 2000", schema.first_error(doc(title="x" * 2001), questions))
         self.assertIn("expected array", schema.first_error(doc(dependsOn="Q0"), questions))
         bad = doc()

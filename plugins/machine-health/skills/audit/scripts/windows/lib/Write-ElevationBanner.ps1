@@ -33,8 +33,9 @@ Banner structure:
           <Reason>
 
     To run elevated:
-      Open Windows Terminal as Administrator, then:
-        pwsh -NoProfile -Command "Start-Transcript -Path '<StateBase>\logs\elevated-run-<date>.log' -Force | Out-Null; & '<skill>\scripts\windows\Invoke-MachineHealthCheck.ps1' -OutputBase '<OutputBase>' -StateBase '<StateBase>'; Stop-Transcript | Out-Null"
+      Ask the session that ran this audit for the elevated pass. It shows
+      a one-command script and its SHA-256, and launches it behind UAC
+      only after you say yes.
 
     Suppress this banner with -SkipBanner.
    ================================================================
@@ -46,12 +47,6 @@ function Write-ElevationBanner {
         [Parameter(Mandatory = $true)] [bool] $Elevated,
         [Parameter(Mandatory = $true)] [string] $HostName,
         [Parameter(Mandatory = $true)] [string] $UserName,
-        [Parameter(Mandatory = $true)] [string] $OutputBase,
-        # Resolved state root. The elevated rerun command must pin it explicitly:
-        # an elevated terminal usually lacks CLAUDE_PLUGIN_DATA, so an unpinned
-        # rerun would fall back to OutputBase and split state across two roots.
-        [string] $StateBase,
-        [Parameter(Mandatory = $true)] [string] $SkillRoot,
         [Parameter(Mandatory = $true)]
         [AllowEmptyCollection()]
         [object[]] $Matrix,
@@ -88,15 +83,10 @@ function Write-ElevationBanner {
         $lines.Add('')
     }
 
-    $invokeScript = Join-Path $SkillRoot 'scripts\windows\Invoke-MachineHealthCheck.ps1'
-    $logBase = if ($StateBase) { $StateBase } else { $OutputBase }
-    $transcript = "$($logBase.TrimEnd('\'))\logs\elevated-run-$(Get-Date -Format 'yyyy-MM-dd').log"
-    $rerunArgs = "-OutputBase '$OutputBase'"
-    if ($StateBase) { $rerunArgs += " -StateBase '$StateBase'" }
-    $lines.Add(' To run elevated (the calling session cannot read an elevated console, so the run writes a transcript):')
-    $lines.Add('   Open Windows Terminal as Administrator, then:')
-    $lines.Add("     pwsh -NoProfile -Command ""Start-Transcript -Path '$transcript' -Force | Out-Null; & '$invokeScript' $rerunArgs; Stop-Transcript | Out-Null""")
-    $lines.Add("   Transcript of the run's output stream, without its stderr banners: $transcript")
+    $lines.Add(' To run elevated:')
+    $lines.Add('   Ask the session that ran this audit for the elevated pass. It shows')
+    $lines.Add('   a one-command script and its SHA-256, and launches it behind UAC')
+    $lines.Add('   only after you say yes.')
     $lines.Add('')
     $lines.Add(' Suppress this banner with -SkipBanner.')
     $lines.Add($sep)
@@ -141,7 +131,7 @@ function Get-ElevationCoverageMarkdown {
         $body.Add("| $($m.Feature) | $($m.CheckId) | $($m.Fields -join ', ') | $($m.Reason) |")
     }
     $body.Add('')
-    $body.Add('To populate these: re-run the skill from an elevated Windows Terminal. The run banner prints the command; it writes a transcript of the run''s output stream (the summary lines, not the stderr banners) to `<StateBase>/logs/elevated-run-<date>.log`, which the calling session can read.')
+    $body.Add('To populate these: ask the audit session for the elevated pass. It shows a one-command script and its SHA-256, launches it behind UAC only after the owner says yes, and imports its results into a standard run.')
     $body.Add('</details>')
     return ($body -join "`n")
 }

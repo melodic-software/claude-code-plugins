@@ -1,6 +1,7 @@
 name: pr-test-windows
 
-# The informational Windows lane, in its own workflow.
+# The informational Windows lane, in its own workflow, and the one macOS job
+# (`test-macos-planning-shared`), which shares its selection and its standing.
 #
 # WHY IT LEFT pr-require-checks.yml. It is not in `ci-status.needs` and is not a required
 # check, so nothing waits on it — but it is the longest job in the run at 355 to
@@ -156,7 +157,7 @@ jobs:
   #
   # HOST-SKIP SUITES (#3683). Three suites probe the host at run time and two
   # print a SKIP line when they cannot pin their cases, so their Windows
-  # behaviour is read from this lane's log, not asserted from a Linux run:
+  # behavior is read from this lane's log, not asserted from a Linux run:
   #   markdown-format — four PATH-probed cases print a counted SKIP when cygpath
   #     rewrites a POSIX mktemp path. The symlink-escape case prints an uncounted
   #     SKIP line and an `ok ... SKIPPED` line that counts as PASS.
@@ -474,4 +475,67 @@ jobs:
         run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_s*.py'
       - name: Test the shared session tunnel on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_server.py')
+        run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_tunnel.py'
+
+  # The planning shared-session suites on macOS, the third platform
+  # plugins/planning/shared/README.md names. detached.py's POSIX branches, file
+  # modes and the bash-run fake cloudflared run here as on Linux, but on Darwin:
+  # no /proc (the cases that read it SKIP), BSD userland, and the macOS ps and
+  # socket behavior. Same informational standing and selection as the Windows
+  # jobs: each step runs when the change selects its module.
+  #
+  # Pinned to macos-26, the arm64 image macos-latest points to; free on a public
+  # repository like the Windows jobs. Each step's timeout is three times the
+  # module's Linux median in scripts/suite-seconds.txt, at least 2 minutes:
+  # the Windows run of test_server, test_session and test_share took 1.4 times
+  # their Linux sum.
+  test-macos-planning-shared:
+    needs: [select-tests-windows]
+    if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-macos-planning-shared') }}
+    runs-on: macos-26
+    timeout-minutes: 32
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      - name: Test test_cfdns on macOS
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_cfdns.py')
+        timeout-minutes: 2
+        run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_cfdns.py'
+      - name: Test test_load on macOS
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_load.py')
+        timeout-minutes: 2
+        run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_load.py'
+      - name: Test test_owner_ops on macOS
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_owner_ops.py')
+        timeout-minutes: 2
+        run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_owner_ops.py'
+      - name: Test test_people_proposals on macOS
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_people_proposals.py')
+        timeout-minutes: 2
+        run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_people_proposals.py'
+      - name: Test test_schema_shapes on macOS
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_schema_shapes.py')
+        timeout-minutes: 2
+        run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_schema_shapes.py'
+      - name: Test test_server on macOS
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_server.py')
+        timeout-minutes: 7
+        run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_server.py'
+      - name: Test test_session on macOS
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_session.py')
+        timeout-minutes: 2
+        run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_session.py'
+      - name: Test test_share on macOS
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_share.py')
+        timeout-minutes: 7
+        run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_share.py'
+      - name: Test test_tunnel on macOS
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/planning/shared/tests/test_tunnel.py')
+        timeout-minutes: 3
         run: python -m unittest discover -v -s plugins/planning/shared/tests -p 'test_tunnel.py'

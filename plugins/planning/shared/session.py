@@ -48,6 +48,7 @@ if str(HERE) not in sys.path:
 if str(HERE.parent / "surface") not in sys.path:
     sys.path.append(str(HERE.parent / "surface"))
 schema = importlib.import_module("schema")
+question_shape = importlib.import_module("question_shape")
 detached = importlib.import_module("detached")
 
 HOST = "host"
@@ -685,6 +686,17 @@ def ref_author(ref):
 
 
 # -- input parsing: every route and op body goes through these before any state changes ------
+
+
+def _question_view(q):
+    """A question as the snapshot sends it: the stored one, plus the question_shape flags the page reads
+    (`withheld`, `alternatives[i].restates`) on a copy, so state.json never holds them."""
+    rec = q.get("recommendation")
+    held = question_shape.withheld(rec)
+    alts = [{**a, "restates": True} if question_shape.restates(a["text"], rec) else a for a in q["alternatives"]]
+    if not held and all(x is a for x, a in zip(alts, q["alternatives"])):
+        return q
+    return {**q, "alternatives": alts, **({"withheld": True} if held else {})}
 
 
 def _bad(field, message):
@@ -2439,6 +2451,8 @@ class Session:
             if tradeoff:
                 alt["tradeoff"] = tradeoff
             q["alternatives"].append(alt)
+            if question_shape.restates(alt["text"], rec):
+                raise _bad(f"{field}.alternatives[{i}].text", f"Alternative ({a['key']}) repeats or contains the recommendation, or the recommendation contains it.")
         if rec:
             q["recommendation"] = rec
         deps = qi["dependsOn"]
@@ -2557,9 +2571,10 @@ class Session:
         now = self.now()
         if q["format"]["kind"] == "text":
             cards = []
-            if q.get("recommendation"):
+            rec = q.get("recommendation")
+            if rec and not question_shape.withheld(rec):  # a withheld recommendation is asked open, never on a card
                 cards.append({"kind": "claude", "key": "rec", "at": now})
-                cards += [{"kind": "claude", "key": a["key"], "at": now} for a in q["alternatives"]]
+            cards += [{"kind": "claude", "key": a["key"], "at": now} for a in q["alternatives"]]
         else:
             cards = [{"kind": "option", "option": o} for o in self._options(q)]
         st["cards"][q["id"]] = cards
@@ -3848,7 +3863,7 @@ class Session:
         """The questions every guest is sent, built once per rev (every page polls)."""
         st = self.state
         if not (self._guest_q_cache and self._guest_q_cache[0] == st["rev"]):
-            self._guest_q_cache = (st["rev"], _guest_questions(st["questions"], prototype_tiers(st["session"]["settings"])))
+            self._guest_q_cache = (st["rev"], _guest_questions([_question_view(q) for q in st["questions"]], prototype_tiers(st["session"]["settings"])))
         return self._guest_q_cache[1]
 
     def asset_hidden(self, pid, name):
@@ -6141,7 +6156,13 @@ class Session:
         if self._base_cache and self._base_cache[0] == st["rev"]:
             return self._base_cache[1]
         active = {p for p in st["people"] if self._active(p)}
-        cards = {qid: [self._public_card(qid, c, active) for c in lst if self._shown(c)] for qid, lst in st["cards"].items()}
+        # an alternative a state saved before the refusal holds that restates the recommendation folds away, as on the 1:1
+        # page, unless someone backs it: then it stays, so the page and the tally agree on the leader
+        folded = {q["id"]: {a["key"] for a in q["alternatives"] if question_shape.restates(a["text"], q.get("recommendation"))} for q in st["questions"]}
+        cards = {
+            qid: [self._public_card(qid, c, active) for c in lst if self._shown(c) and not (c["kind"] == "claude" and c["key"] in folded.get(qid, ()) and not self._backed(qid, card_ref(c)))]
+            for qid, lst in st["cards"].items()
+        }
         suggestions = {}
         for qid, lst in st["suggestions"].items():
             by = st["suggestionVotes"].get(qid, {})
@@ -6161,7 +6182,7 @@ class Session:
             "settings": st["session"]["settings"],
             "rounds": st["rounds"],
             "round": {"n": cur["n"], "status": cur["status"]["kind"]} if cur else None,
-            "questions": st["questions"],
+            "questions": [_question_view(q) for q in st["questions"]],
             "cards": cards,
             "locks": st["locks"],
             "suggestions": suggestions,
@@ -6252,6 +6273,14 @@ class Session:
         if u["id"] in self._public_uploads:
             return True
         return me["role"] == "leader" and self._active(u["pid"]) and any(u["id"] in p.get("attachments", ()) for p in self.state["proposals"])
+
+    def _backed(self, qid, ref):
+        """Whether anyone stands behind card `ref`: a vote or backing, a reaction, or the question's lock."""
+        st = self.state
+        return (any(r == ref for r in st["votes"].get(qid, {}).values())
+                or any(ref in refs for refs in st.get("backs", {}).get(qid, {}).values())
+                or any(st["reactions"].get(qid, {}).get(ref, {}).values())
+                or (st["locks"].get(qid) or {}).get("source", {}).get("card") == ref)
 
     def _public_card(self, qid, c, active):
         """One card as people read it: never `view`, `deviceInfo` or `history`; with its ref, the

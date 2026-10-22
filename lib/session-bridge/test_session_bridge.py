@@ -539,11 +539,20 @@ class TestControlServer(unittest.TestCase):
         server.socket = FakeSocket()
         with unittest.mock.patch.object(sb.os, "name", "nt"), unittest.mock.patch.object(
             sb.socket, "SO_EXCLUSIVEADDRUSE", 0x80000004, create=True
-        ), unittest.mock.patch.object(
-            sb.ThreadingHTTPServer, "server_bind", lambda self: None
-        ):
+        ), unittest.mock.patch.object(sb, "bind_without_lookup", lambda server: None):
             server.server_bind()
         self.assertEqual(calls, [(sb.socket.SOL_SOCKET, 0x80000004, 1)])
+
+    def test_the_bind_looks_up_no_host_name(self):
+        """HTTPServer.server_bind resolves its address with socket.getfqdn, which took about 35 s on a macOS
+        runner: longer than share.py waits for a server to start."""
+        with unittest.mock.patch.object(
+            sb.socket, "getfqdn", side_effect=AssertionError("getfqdn called")
+        ):
+            server = sb.ControlServer(("127.0.0.1", 0), sb.LoopbackHandler)
+        self.addCleanup(server.server_close)
+        port = server.socket.getsockname()[1]
+        self.assertEqual((server.server_name, server.server_port), ("127.0.0.1", port))
 
 
 ENTRY = "plugin:toy@market"
