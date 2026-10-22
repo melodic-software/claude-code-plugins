@@ -1265,6 +1265,10 @@
     reviewTag.append(icon("alert"), reviewTxt);
     const reviewClear = btn("vf-btn vf-btn-ghost vf-btn-sm", "Mark reviewed");
     reviewRow.append(reviewTag, reviewClear);
+    // The owner's history of this question's decision (Core.state.decisions), folded until opened.
+    const qHist = E("details", "vf-qhist"), qHistList = E("ol", "vf-history");
+    qHistList.setAttribute("aria-label", "Decision history");
+    qHist.append(E("summary", "vf-qhist-sum", "History"), qHistList); qHist.hidden = true;
     const onIt = E("div", "vf-onit");
     const onItAv = E("span", "vf-avrow"), onItTxt = E("span"), onItDots = dots();
     onIt.append(onItAv, onItTxt, onItDots);
@@ -1615,7 +1619,7 @@
     // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
     // Follow-up 47: a question asked once per device, answered from another kind of device, asks again on this one.
     const devNote = E("p", "vf-devnote"); devNote.hidden = true;
-    scroll.append(orient, goalBack, qMeta, forBox, qText, qCtx, refBox, qPicBox, reviewRow, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
+    scroll.append(orient, goalBack, qMeta, forBox, qText, qCtx, refBox, qPicBox, reviewRow, qHist, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
     focusV.append(scroll);
 
     // Compare view
@@ -1920,7 +1924,8 @@
       ["follow", "forward", "Follow host", "", "more"], ["share", "link", "Share", "", "more"], ["settings", "gear", "Settings", "", "more help"],
       ["host", "host", "Host view", "", "more"], ["tour", "help", "Show me around", "A one-minute tour", "more help"], ["intro", "doc", "Why you're here", "", "more help"],
       ["report", "alert", "Report a problem", "Tell the host something is broken", "more help"],
-      ["myreps", "doc", "Your reports", "What you reported and where it stands", "more help"], ["records", "doc", "What this page records", "", "more"]];
+      ["myreps", "doc", "Your reports", "What you reported and where it stands", "more help"], ["records", "doc", "What this page records", "", "more"],
+      ["decisions", "doc", "Decisions", "Every decision and what moved it, for you only", "more help"]];
     const msList = E("div", "vf-mslist"), helpList = E("div", "vf-mslist vf-helplist"), menu = { more: {}, help: {} };
     for (const [k, ico, label, desc, on] of MENU) for (const where of on.split(" ")) {
       const b = btn(where === "help" ? `vf-hitem vf-help-${k}` : `vf-msitem vf-ms-${k}`), t = E("span", "vf-ms-l", label), d = E("span", "vf-ms-d", desc);
@@ -1939,6 +1944,29 @@
     const ipEdit = btn("vf-btn vf-btn-ghost vf-btn-sm", "Edit in Host view");
     introPop.append(ipH, ipText, ipGoal, ipEdit);
     const introBtn = ibtn("vf-tbtn vf-icon-btn vf-introbtn", "doc", "Why you're here"); introBtn.setAttribute("aria-haspopup", "dialog");
+
+    // The owner's decision timeline: every lock, change, unlock, closed or reopened poll, late Disagree and Keep decision.
+    const decPop = E("div", "vf-pop vf-decpop"); decPop.setAttribute("role", "dialog"); decPop.setAttribute("aria-labelledby", "vf-decpop-h"); decPop.hidden = true;
+    const dpH = E("h2", "vf-pop-title", "Decisions"); dpH.id = "vf-decpop-h";
+    const dpList = E("ol", "vf-history"); dpList.setAttribute("aria-label", "Decisions, oldest first");
+    const dpEmpty = E("p", "vf-pop-note", "No decision yet.");
+    decPop.append(dpH, E("p", "vf-pop-note", "Only you see this, oldest first."), dpList, dpEmpty);
+    const DECIDED = { lock: e => `Locked: ${e.text}`, "lock-change": e => `Changed the locked answer: ${e.text}`, unlock: () => "Unlocked",
+      "poll-close": () => "Closed the poll", "poll-reopen": () => "Reopened the poll",
+      "late-disagree": e => `Disagreed after the round closed, so it may be reopened: ${e.reason}`,
+      withdrawn: () => "Took back the last late Disagree, so it is no longer reopened", kept: () => "Kept the decision" };
+    /** A decision list, oldest first: who and when (the time in full on hover), then what happened. */
+    function fillDecisions(ol, list, withQ) {
+      const sig = JSON.stringify([list.map(e => [e.ts, e.kind, e.by, e.text, e.reason]), withQ, Math.floor(Date.now() / 60000)]);
+      if (ol._sig === sig) return;
+      ol._sig = sig;
+      ol.replaceChildren(...list.map(e => {
+        const li = E("li", "vf-hist"); li.title = new Date(e.ts * 1000).toLocaleString();
+        li.append(E("span", "vf-hist-who", `${withQ ? `${e.qid} · ` : ""}${e.cid === "host" ? "The host" : disp(e.by)}, ${since(e.ts)}`), E("span", "vf-hist-t", DECIDED[e.kind]?.(e) || e.kind));
+        return li;
+      }));
+    }
+    function openDecisions(anchor) { fillDecisions(dpList, Core.state.decisions, true); dpEmpty.hidden = Core.state.decisions.length > 0; openSurface(decPop, anchor); }
 
     // Phase 4c: the owner edits one answer's text; every earlier version, with who and when, shows only here.
     const editPop = E("div", "vf-pop vf-editpop"); editPop.setAttribute("role", "dialog"); editPop.setAttribute("aria-labelledby", "vf-editpop-h"); editPop.hidden = true;
@@ -2401,10 +2429,10 @@
     pairPop.append(E("h2", "vf-pop-title", "Sign in on another device"), pairNote, pairQr, pairCode, pairWhen, pairRow, E("h3", "vf-pop-sub", "Signed-in devices"), pairList);
 
     keysBtn.before(introBtn);
-    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, tiePop, proposePop, reportPop, myRepPop, citePop, msgMenu, askPanel, devicePop,
+    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, decPop, editPop, personPop, PP.pop, tiePop, proposePop, reportPop, myRepPop, citePop, msgMenu, askPanel, devicePop,
       pairPop, bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
     // F11: the surfaces made without a close control get the one x, named for what it closes; the forms keep Cancel too.
-    for (const [pop, name, ph] of [[settingsPop, "Session settings"], [sharePop, "Invite people"], [keysPop, "Help"], [introPop, "Why you're here"],
+    for (const [pop, name, ph] of [[settingsPop, "Session settings"], [sharePop, "Invite people"], [keysPop, "Help"], [introPop, "Why you're here"], [decPop, "Decisions"],
       [citePop, "Cite a result"], [tiePop, "Tied on votes"], [devicePop, "Use on another device"], [pairPop, "Sign in on another device"], [editPop, "Edit this answer"],
       [proposePop, "Propose a question", "sheet"], [reportPop, "Report a problem", "sheet"], [myRepPop, "Your reports", "sheet"]]) {
       pop.dataset.kind = "pop"; pop.dataset.phone = ph || "pop";
@@ -3254,7 +3282,7 @@
         const S = Core.state;
         if (i.kind === "run" || i.kind === "fail") return openReview("r:" + i.id);
         if (i.kind === "share") { const row = revRows(S).find(r => r.x?.id === i.id); return openReview(row?.key || "x:" + i.id); }
-        return openReview({ report: "f:", merge: "m:", join: "j:", people: "c:" }[i.kind] + i.id);
+        return openReview({ report: "f:", merge: "m:", join: "j:", people: "c:", reopen: "o:" }[i.kind] + i.id);
       }
       closePop();
       if (i.unread) Core.readInbox([i.key], { [i.key]: i.status }).catch(() => {});
@@ -3342,7 +3370,7 @@
       return { q, ix };
     }
     const CHIP_WORD = { waiting: "Waiting", running: "Running", failed: "Failed", unshared: "Not shared", private: "Just me", shared: "Shared", answered: "Answered",
-      declined: "Declined", picture: "Pictures", file: "Files", report: "Problems", join: "Joins", merge: "Merges", people: "From Claude", proposal: "Proposals", suggestion: "Suggestions",
+      declined: "Declined", picture: "Pictures", file: "Files", report: "Problems", join: "Joins", merge: "Merges", people: "From Claude", reopen: "Possibly reopened", proposal: "Proposals", suggestion: "Suggestions",
       ready: "Rounds", answer: "Answers", question: "Questions for you", mention: "Mentions", reply: "Replies", request: "Requests", round: "New rounds",
       role: "Roles", votes: "Agreement", reaction: "Reactions", discussion: "Discussions", queue: "Queue" };
     /** This tab's filter chips, one per kind of item it holds, with counts; a chip turned off hides its kind, remembered on this device. */
@@ -3610,6 +3638,7 @@
       report: from => openReport(from),
       myreps: from => openSurface(myRepPop, from),
       records: () => { closePop(); Core.telemetry.openRecords(); },
+      decisions: from => { closePop(); openDecisions(from); },
     };
     for (const [where, m] of Object.entries(menu)) for (const [k, b] of Object.entries(m)) {
       b.onclick = () => { const from = where === "more" ? tabBtns.more : keysBtn.offsetParent ? keysBtn : gear.offsetParent ? gear : top; MENU_RUN[k](from); };
@@ -3619,6 +3648,8 @@
       menuShow("ask", !askTop.hidden);
       menuShow("share", mod);
       menuShow("host", mod);
+      menuShow("decisions", Core.me.isOwner);
+      if (ui.pop === decPop) { fillDecisions(dpList, S.decisions, true); dpEmpty.hidden = S.decisions.length > 0; }
       msFollow.hidden = Core.me.isOwner || !S.settings.follow;
       menu.help.settings.hidden = Core.me.isOwner; // the owner's settings are behind the gear; a guest's are their own card
       msFollow._l.textContent = Core.owner() ? `Follow ${disp(Core.owner().name)}` : "Follow host";
@@ -5643,10 +5674,10 @@
         // On a question with options, Lock this one sits on the option itself; a person's own option is a card, so it locks here.
         // A poll closes only as a whole (Close poll), never by locking one answer.
         k.lockThis.hidden = locked || !Core.canModerate() || (isChoice(q) && q.format !== "confirm" && !k.other) || gather || q?.purpose === "poll";
-        // Disagree: decide questions only, never on my own answer.
-        const dis = Core.disagreementsOn(qid, k.ref);
+        // Disagree: decide questions only, never on my own answer; a locked one takes it only once its round closed.
+        const dis = Core.disagreementsOn(qid, k.ref), shut = locked && !(q && roundStatus(roundOf(q)) === "closed");
         k.myDis = dis.find(d => d.cid && isMe(d.cid)) || null;
-        k.disBtn.hidden = q?.purpose !== "decide" || isMe(a.cid) || locked || ro || !!Core.state.youRemoved;
+        k.disBtn.hidden = q?.purpose !== "decide" || isMe(a.cid) || shut || ro || !!Core.state.youRemoved;
         k.disBtn.textContent = k.myDis ? "Change why I disagree" : "Disagree";
         if (k.disBtn.hidden) k.disForm.hidden = true;
         const dKey = JSON.stringify(dis.map(d => [d.cid, d.name, d.reason]));
@@ -5655,7 +5686,7 @@
           k.disList.replaceChildren(...dis.map(d => {
             const li2 = E("li", "vf-dis"), mineD = !!d.cid && isMe(d.cid);
             li2.append(E("span", "vf-dis-who", mineD ? "You disagree:" : `${d.cid ? disp(d.name) : "Someone"} disagrees:`), E("span", "vf-dis-why", d.reason));
-            if (mineD && !ro && !locked) {
+            if (mineD && !ro && !shut) {
               const back = btn("vf-lbtn vf-dis-back", "Take back");
               back.setAttribute("aria-label", "Take back your disagreement");
               back.onclick = () => Core.disagree(qid, k.ref, "", false).then(() => flash("Disagreement taken back.")).catch(fail);
@@ -5724,13 +5755,16 @@
         : askNoteText(ui.askAud || "everyone", "on this question", ui.askWeb);
       if (ui.askOpen) grow(askTa);
     }
-    function reviewText(q) { return q.needsReview ? `Needs review: ${q.needsReview.because} changed` : ""; }
+    function reviewText(q) {
+      const r = q.needsReview;
+      return !r ? "" : `Needs review: ${r.because} ${r.why === "possibly-reopened" ? "may be reopened" : "changed"}`;
+    }
 
     function renderTree(S, mod, cur) {
       const parked = mod ? S.ideas.filter(i => i.status === "parked") : [];
       const later = S.ideas.filter(i => i.status === "later");
       const shownT = shownQuestions(), T = tb();
-      const sig = JSON.stringify([S.questions.map(q => [q.id, q.text, roundOf(q), q.needsReview?.because, Core.lockOf(q.id)?.text, Core.answersFor(q.id).length]), parked.map(i => [i.id, i.text]),
+      const sig = JSON.stringify([S.questions.map(q => [q.id, q.text, roundOf(q), q.needsReview?.because, q.needsReview?.why, Core.lockOf(q.id)?.text, Core.answersFor(q.id).length]), parked.map(i => [i.id, i.text]),
         later.map(i => [i.id, i.text, i.reason]), ui.cur, cur, st().showNames, shownT.map(q => q.id), [...ui.treeClosed], T.round]);
       if (tree._sig === sig) return;
       tree._sig = sig;
@@ -6850,10 +6884,11 @@
       if (owner) for (const c of S.claudeProposals || []) out.push({ t: "people", id: "c:" + c.id, ts: c.ts, c });
       if (owner) for (const u of S.uploads || []) if (["offered", "accepted", "uploading"].includes(u.status) || (u.status === "done" && u.image && !u.shown && !isMe(u.cid))) out.push({ t: "upload", id: "u:" + u.id, ts: u.ts, u });
       if (owner) for (const f of S.reports || []) out.push({ t: "report", id: "f:" + f.id, ts: f.ts, f });
+      if (owner) for (const i of inbox()) if (i.kind === "reopen") out.push({ t: "reopen", id: "o:" + i.qid, ts: i.ts, qid: i.qid, o: i });
       if (R.ready && R.status === "open") out.push({ t: "ready", id: "ready:" + R.current, ts: R.ready.ts, ready: R.ready });
       return out.sort((a, b) => a.ts - b.ts);
     }
-    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join", report: "Problem", people: "Claude suggests" };
+    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join", report: "Problem", people: "Claude suggests", reopen: "Possibly reopened" };
     /** Why Claude proposes a merge or an admit, in the host's words (ops.schema.json personReasons). */
     const WHY_WORD = { "same-name": "the same name", "was-offline": "the earlier one was offline when this one joined", "same-device": "the same kind of device", expected: "you told Claude to expect them" };
     /** What Claude proposes, why, and for a merge the fix for next time: the earlier person's own link. */
@@ -6868,6 +6903,14 @@
       const hint = [j.device, BROWSER_NAME[j.browser]].filter(Boolean).join(" · ");
       return j.n ? ` (${ordinal(j.n)} waiting${hint ? `; ${hint}` : ""})` : "";
     };
+    /** A possibly reopened decision: the locked answer, and the reason each person who disagreed late holds now. */
+    function reopenText(qid, n, card) {
+      const who = new Set();
+      for (const e of Core.state.decisions) if (e.qid === qid) { if (e.kind === "late-disagree") who.add(e.cid); else who.clear(); }
+      const said = new Map(Core.answersFor(qid).map(a => [a.ref, a.text]));
+      return `${n} late Disagree${n === 1 ? "" : "s"}. Locked: ${Core.lockOf(qid)?.text || ""}\nThe decision stands until you keep it or unlock it.`
+        + (Core.state.disagreements[qid] || []).filter(d => who.has(d.cid) && d.card === card).map(d => `\n${disp(d.name)} disagrees with "${said.get(d.card) ?? "an answer"}": ${d.reason}`).join("");
+    }
     function makeQItem(it) {
       const li = E("li", "vf-qitem");
       li.dataset.t = it.t;
@@ -6898,7 +6941,7 @@
       k.chip.textContent = QT[it.t];
       k.chip.className = "vf-chip " + ({ request: "vf-chip-accent", ready: "vf-chip-brass", merge: "vf-chip-quiet", upload: "vf-chip-quiet" }[it.t] || "vf-chip-quiet");
       const person = it.r ? [it.r.cid, it.r.name] : it.i ? [it.i.cid, it.i.name] : it.x ? [it.x.cid, it.x.name] : it.m ? [it.m.from, it.m.fromName] : it.u ? [it.u.cid, it.u.by] : it.f ? [it.f.cid, it.f.name]
-        : it.j ? [it.j.pid, it.j.name] : it.c ? [it.c.cid, it.c.name] : [it.ready.cid, it.ready.by];
+        : it.j ? [it.j.pid, it.j.name] : it.c ? [it.c.cid, it.c.name] : it.o ? [it.o.byCid, it.o.by] : [it.ready.cid, it.ready.by];
       const wk = person.join("|") + it.ts;
       if (k.who._k !== wk) {
         k.who._k = wk;
@@ -6911,7 +6954,7 @@
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
         : it.m ? `${it.m.fromName} says they were ${it.m.toName} before. Approve to join them: ${it.m.fromName}'s answers and votes move to ${it.m.toName}.`
         : it.ready ? `${youOr(it.ready.cid, it.ready.by)} marked round ${curRound().current} ready to send.`
-        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.c ? proposalText(it.c) : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.asked ? "Asked Claude. " : ""}${it.f.text}` : "";
+        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.c ? proposalText(it.c) : it.o ? reopenText(it.qid, it.o.n, it.o.card) : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.asked ? "Asked Claude. " : ""}${it.f.text}` : "";
       k.text.hidden = !txt;
       if (txt) fillClamp(k.text, "q:" + it.id, txt, `${QT[it.t]} from ${disp(person[1] || "someone")}`, q ? `${q.id}: ${q.text}` : "");
       if (k.up) fillUpRow(k.up, it.u);
@@ -6974,6 +7017,9 @@
         ...(!it.f.asked ? [qAct("Ask Claude about this report", "vf-btn-ghost vf-rep-ask", guarded(REPORT_ASK, () => Core.reportAct(li._it.f.id, "ask").then(() => flash("Asked. Claude proposes a fix in the terminal.")).catch(fail)))] : []),
         ...(it.f.status === "open" ? [qAct("Seen", "vf-btn-ghost", () => Core.reportAct(li._it.f.id, "seen").then(() => flash("Marked seen. The reporter is told.")).catch(fail))] : []),
         qAct("Resolved", "vf-btn-primary", () => Core.reportAct(li._it.f.id, "resolved").then(() => flash("Resolved. The reporter is told.")).catch(fail)));
+      if (it.t === "reopen" && owner) a.push(
+        qAct("Unlock", "vf-btn-ghost", () => Core.unlock(li._it.qid).then(() => flash(`${li._it.qid} is unlocked. Questions that depend on it are marked for review.`)).catch(fail)),
+        qAct("Keep decision", "vf-btn-primary", () => Core.keepDecision(li._it.qid).then(() => flash("Decision kept.")).catch(fail)));
       if (it.t === "ready" && owner) a.push(qAct("Send round to Claude", "vf-btn-primary", e => roundAction(e.currentTarget)));
       if (it.t === "join" && owner) a.push(
         qAct("Decline", "vf-btn-ghost", guarded(() => ({ title: `Turn ${li._it.j.name} away?`, ok: "Decline", body: `${li._it.j.name} is not let in. You can restore them from Settings.` }),
@@ -7632,6 +7678,9 @@
         reviewTxt.textContent = reviewText(q);
         reviewRow.hidden = !q.needsReview;
         reviewClear.hidden = !mod;
+        const hist = me.isOwner ? S.decisions.filter(e => e.qid === q.id) : [];
+        qHist.hidden = !hist.length;
+        fillDecisions(qHistList, hist, false);
         const others = Core.others(q.id), typers = others.filter(p => p.typing);
         avStack(onItAv, others, 5);
         onItTxt.textContent = typers.length ? `${names(typers)} ${typers.length > 1 ? "are" : "is"} typing` : others.length ? `${names(others)} ${others.length > 1 ? "are" : "is"} on this question` : "";
@@ -7784,7 +7833,7 @@
         qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = qCtx.hidden = true; qText.textContent = "No questions yet";
         qTools.hidden = qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
         onItTxt.textContent = ""; ansCount.textContent = ""; aEmpty.hidden = true; lockBox.hidden = true; lockBtn.hidden = true;
-        reviewRow.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;
+        reviewRow.hidden = qHist.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;
       }
       tools.hidden = !q;
       paintSpeech(!!q);

@@ -366,8 +366,11 @@ lanes:
       # failed.
       - activity: fix-ci
       # Started by pr-unblock-dispatch.yml once per ready PR that changes a
-      # Markdown file.
+      # Markdown file. Paused: under run-claude-cli's subprocess env scrub
+      # the CLI forces the default permission mode instead of auto, so every
+      # run fails its mode check after a model leg (#8964 follow-up).
       - activity: fix-docs
+        enabled: false
       # Runs after fix-ci or fix-docs, in its own job with its own token.
       - activity: apply-patch
         needs: [fix-ci, fix-docs]

@@ -229,7 +229,22 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   `people.answered` counts who took part.
 - **Late acts.** A vote, back, reaction, Disagree or Pass on a closed round's question is stamped in
   `lateActs` (`{qid: {pid: {round, at}}}`), and the next digest's `late` lists what that person
-  holds there, each with `act`.
+  holds there, each with `act`. A locked question takes none of them (409 `locked`; Suggest a change
+  proposes new text) except a Disagree once its round closed.
+- **Possibly reopened.** The first late Disagree each person gives with the locked answer of a
+  `decide` question (the answer it was locked on, or the one its locked text was edited from or
+  reworded; a lock taken from a suggestion has none) raises "possibly reopened": the owner's Inbox
+  gets a `reopen:` item with Keep decision and Unlock, the digest lists it under `possiblyReopened`
+  (the locked text, and each Disagree with the locked answer the people who disagreed late hold
+  now), and every question whose `dependsOn` names it gets a `possibly-reopened` review
+  flag, which everyone sees as "Needs review: Q1 may be reopened". The question, its lock and its
+  answers never change on their own. A poll never raises it: a closed poll chose no answer.
+  `POST /api/decision/keep {qid}` (owner) keeps the decision: the item goes, so do the
+  `possibly-reopened` flags it raised, and the log records it; 409 `not-reopened` when nothing is
+  raised. Unlock is the usual unlock, which flags the dependents `unlocked`; Unlock or a change to the
+  locked text also ends it, with those flags, and so does taking back the last of those Disagrees
+  (logged `withdrawn`). A late Disagree with a rejected alternative is kept and raises nothing. A
+  newer late Disagree raises the item again, unread.
 - **Digest.** `multi` reports picks per option; `scale` the count per value, the mean (two places)
   and the median; `rank` Borda totals (with n options a first place scores n-1, a last 0) and how
   many gave each full order. Each lists people's own options with their backers, and the comments.
@@ -267,6 +282,7 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `/api/proposal/all` | `{ids}` | Approve all in Proposed: each listed proposal, the new ones the owner's confirm counted, becomes a question in the next round as Make it a question makes one, and its author is told. All or none: one no longer new is 409 `wrong-status`, more than the round has room for 409 `round-full` (with `room`), so a proposal that arrived after the confirm stays in New |
 | `/api/claude-proposal/act` | `{id, action: approve\|dismiss}` | Carries out or dismisses one of [Claude's merge and admit proposals](#claudes-merge-and-admit-proposals) (409 `wrong-status` once answered) |
 | `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, every mention of `from` names `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
+| `/api/decision/keep` | `{qid}` | Keeps a possibly reopened decision ([Answering](#answering), "Possibly reopened") |
 | `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open or seen report and writes `report-filed` for Claude (409 `wrong-status` on one that is resolved or already asked) |
 | `GET /api/report/image?id=[&pic=P\|&add=N]` | | One report's first screenshot, its `P`th sent with it (`P` 1 to 4), or its Nth addition's (`N` 1 to 999); else, or with both, 400 `bad-field`. As `{id, image}`, a data: URL |
 
@@ -298,6 +314,15 @@ notification's body) never splits one. A rename shows in every mention of the pe
 points the merged person's mentions at the kept one. Claude never reads a token: every event in
 the log, and a guest's own Claude through `/api/mine/requests`, gets "@Name", or "@someone" where
 `digestNames` is off (for a guest's own Claude, where names are masked to that guest).
+
+**Decision history.** `decisions` in `state.json` is an append-only log, oldest first, of each
+lock (with its text), change to the locked text (`lock-change`, with the answer when it only
+rewords it), `unlock`, `poll-close`,
+`poll-reopen`, late Disagree with the locked answer (`late-disagree`, with the answer and reason),
+the last of them taken back (`withdrawn`) and Keep decision (`kept`), each with when, the question and who. A question's decision is possibly
+reopened while `late-disagree` entries follow its last other entry. Only the owner reads it, in the
+owner's snapshot as `decisions`: a History fold under each question and Decisions in Help (More on
+a phone). A session saved before the log starts with none.
 
 There is no device or address blocking (C35): Remove stops a person's secret, and Approve new joins
 or a new guest link stops a removed person rejoining under a new name.
@@ -370,8 +395,9 @@ filter chips by status or kind that the device remembers, like the tab:
 - Needs you: what needs this person now. Everyone sees the answers to their requests they have not opened and the
   questions they are asked to answer; a leader adds proposals and suggestions to place and a round to mark ready; the
   owner adds requests to run, answers to share, requests Claude failed (until opened), files offered, pictures to
-  approve, open problem reports not yet asked about, merge and join requests, Claude's merge and admit proposals, and a round marked ready, with Run,
-  Share, Approve and the rest on the rows. Only the owner's actions do anything: the server refuses them from anyone
+  approve, open problem reports not yet asked about, merge and join requests, Claude's merge and admit proposals, a round
+  marked ready, and decisions a late Disagree may have reopened, with Run, Share, Approve, Keep decision, Unlock and the
+  rest on the rows. Only the owner's actions do anything: the server refuses them from anyone
   else.
 - My requests: this person's requests that wait, run or have news, with the status they see: `waiting`, `running`,
   `answered` (an answer only its asker and the owner see), `unshared` (shown as "Answered, waiting for the host to
@@ -382,7 +408,8 @@ filter chips by status or kind that the device remembers, like the tab:
 
 The snapshot's `inbox` carries a person's own requests and, for the owner, what waits on them (`run:`, `share:`,
 `fail:` for a guest's request Claude failed, `report:` for an open report not yet asked about, `merge:`, `join:`, `people:` for a
-proposal of Claude's),
+proposal of Claude's, and `reopen:<qid>:<n>` for a possibly reopened decision, `n` the newest late Disagree's place in
+the decision log),
 built by `session.py` for the viewer alone (never another person's request or a result its requester cannot see).
 `inboxSeen` in `state.json` keeps, per person, the status each item had when they opened it; an item whose status
 moved since is unread, and only `POST /api/inbox/read {keys}` (keys of the caller's own Inbox; others mark nothing)
@@ -1017,6 +1044,7 @@ node plugins/planning/shared/tests/ui_welcome.js
 node plugins/planning/shared/tests/ui_per_device.js
 node plugins/planning/shared/tests/ui_review.js
 node plugins/planning/shared/tests/ui_rail_header.js
+node plugins/planning/shared/tests/ui_reopen.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -1056,6 +1084,11 @@ chips and the Inbox tab kept over a reload.
 `ui_inbox_page.js` checks the Inbox page: Needs you holding a request Claude failed until it is opened but never one
 the owner discarded or cancelled, nor a report already asked about; History holding them; rows opening where they
 happened and closing the page; a leader's proposals to place and the server refusing a leader's Run.
+
+`ui_reopen.js` checks a late Disagree on a locked answer once its round closed: the owner's Possibly reopened row
+with the locked answer, the reason, Keep decision and Unlock; a guest reading "Needs review: Q1 may be reopened" on
+the dependent question with no row, History or Decisions; the owner's History under the question and Decisions
+timeline; Keep decision clearing the row and badge, a newer Disagree raising it again, and Unlock.
 
 `ui_rail_header.js` checks, at 1440x900 and on a 390x844 phone, that every round's label in the rail starts at one x,
 with a check once something in the round is done and an empty ring before, both aria-hidden; that the phone's question

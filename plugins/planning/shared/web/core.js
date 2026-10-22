@@ -133,7 +133,9 @@
     const proposals = s.proposals || [];
     const reqText = new Map([...(s.requests || []), ...(s.myRequests || [])].map(r => [r.id, r]));
     view.questions = (s.questions || []).map(q => {
-      const f = q.format || { kind: "text" }, flag = (q.needsReview || []).at(-1);
+      // the newest flag, except that a change not yet reviewed outranks a later possibly-reopened on the same question (as the digest)
+      const f = q.format || { kind: "text" }, nr = q.needsReview || [], last = nr.at(-1);
+      const flag = last?.why?.kind === "possibly-reopened" ? nr.findLast(x => x.because === last.because && x.why?.kind !== "possibly-reopened") || last : last;
       const { format: _, ...rest } = q, out = { ...rest, text: plain(q.text), purpose: q.purpose || "decide" };
       if (f.kind === "choice") { out.format = "choice"; out.options = f.options; }
       // Q98: a prototype's variants pick like options here; the question links its own page (/proto/<qid>) to try them.
@@ -146,7 +148,7 @@
       }
       if (q.context) out.context = plain(q.context); // a mention in it reads as @Name, as the question's text does
       out.formatKind = f.kind;
-      out.needsReview = flag ? { because: flag.because, ts: flag.at, ...(flag.why?.suggestion ? { suggestion: flag.why.suggestion } : {}) } : null;
+      out.needsReview = flag ? { because: flag.because, ts: flag.at, why: flag.why?.kind, ...(flag.why?.suggestion ? { suggestion: flag.why.suggestion } : {}) } : null;
       if (!flag) delete out.needsReview;
       if (q.origin?.kind === "proposal") { const p = proposals.find(x => x.id === q.origin.proposal); out.proposal = q.origin.proposal; if (p) out.from = nameOf(p.pid); }
       if (q.origin?.kind === "host") { out.proposal = q.origin.proposal; out.addedBy = nameOf(q.origin.by); out.byHost = q.origin.by === "host"; }
@@ -272,6 +274,9 @@
     view.questionPics = s.questionPics || {};
     // Passes and their reasons (owner only): qid -> pid -> {reason?, ts}.
     view.passes = s.passes || {};
+    // The decision log, the owner's alone: locks, changes, unlocks, closed and reopened polls, late Disagrees on a
+    // lock and Keep decision, oldest first.
+    view.decisions = (s.decisions || []).map(e => ({ ...e, ts: e.at, cid: e.by, by: nameOf(e.by), ...(e.text ? { text: plain(e.text) } : {}) }));
     // Present people are active or away (with since when); a person with no heartbeat for a while is absent: offline.
     view.presence = (s.presence || []).map(p => ({ cid: p.pid, name: nameOf(p.pid), q: p.q, typing: p.typing, chatTyping: p.chatTyping,
       away: p.state === "away", ...(p.state === "away" ? { awaySince: p.since } : {}),
@@ -683,6 +688,8 @@
     setTitle: title => act("/api/session/title", { title }),
     merge: (from, to) => act("/api/person/merge", { from, to }),
     clearReview: qid => act("/api/review/clear", { qid }),
+    /** Owner: keep a decision a late Disagree may have reopened; the dependents' flags it raised go. */
+    keepDecision: qid => act("/api/decision/keep", { qid }),
     markReady: on => act("/api/round/ready", { on }),
     cancelRound: () => act("/api/round/cancel", {}),
     /** Owner: a round stuck with Claude working goes back to open; Claude's late preparation is refused. */

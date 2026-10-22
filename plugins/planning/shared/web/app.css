@@ -2113,6 +2113,7 @@
 
 /* ---------- Q86: More sheet (phones) ---------- */
 .app .vf-mslist { display: grid; padding: 4px 8px 12px; grid-template-columns: minmax(0, 1fr); }
+.app .vf-moresheet > .vf-mslist { min-block-size: 0; overflow: auto; } /* the sheet stops at 86% of a phone's height; its list scrolls */
 .app :is(.vf-msitem, .vf-hitem) {
   all: unset; box-sizing: border-box; cursor: pointer; inline-size: 100%;
   display: grid; grid-template-columns: 22px minmax(0, 1fr); grid-template-areas: "i l" ". d"; column-gap: 14px; align-items: center;
@@ -2549,6 +2550,14 @@
 .app .vf-hist-who { font-size: 11.5px; color: var(--muted); }
 .app .vf-hist-t { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .app :is(.vf-history, .vf-hintro-shown)[hidden], .app .vf-pop-sub[hidden] { display: none; }
+/* The owner's decision history: folded under a question, and the session's Decisions timeline. */
+.app .vf-qhist { margin-block-start: 12px; }
+.app .vf-qhist[hidden] { display: none; }
+.app .vf-qhist-sum { cursor: pointer; font-size: 13px; color: var(--muted); }
+.app .vf-qhist > .vf-history { margin-block-start: 8px; }
+/* Folded, the list is not rendered at all: a closed details' content never runs its theme transitions to the end. */
+.app .vf-qhist:not([open]) > .vf-history { display: none; }
+.app .vf-decpop { inline-size: min(420px, calc(100vw - 24px)); }
 .app .vf-personpop { inline-size: min(480px, calc(100vw - 24px)); }
 .app .vf-ppv-body { display: grid; gap: 12px; max-block-size: min(70vh, 640px); overflow: auto; }
 .app .vf-ppv-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
