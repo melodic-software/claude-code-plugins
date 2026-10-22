@@ -150,6 +150,13 @@ concurrency:
 # serves that ref alone: on 2026-10-09, 169 of 190 entries were, with the
 # repository at 10.67 GB against the 10 GB cap. The setup-node and setup-python
 # `cache:` input always saves, so neither step sets it.
+#
+# NO AUDIT OR FUND REQUEST ON INSTALL. `npm ci` otherwise posts an audit report
+# to the registry after installing, and a stalled request held jobs for npm's
+# fetch timeout. https://docs.npmjs.com/cli/v10/using-npm/config#audit
+env:
+  npm_config_audit: "false"
+  npm_config_fund: "false"
 jobs:
   # Single resolution of the diff scope. Every gated step reads a
   # `needs.select-tests.outputs.*` row instead of re-running the detector, so the
