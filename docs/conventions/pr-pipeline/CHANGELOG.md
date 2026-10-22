@@ -1,5 +1,34 @@
 # Changelog for the PR pipeline convention
 
+## [3.5.1] - 2026-10-22
+
+### Fixed
+
+- pr-merge's `post-merge-dispatch` job re-runs a red full run it dispatched once before the
+  demotion alert judges it, when the run was created within `red-main.confirm-wait-minutes` plus
+  50 minutes (90 by default) and demotes by the affected-set rule, not only inside a lane merge's
+  attribution window. The alert demotes only when that re-run fails too.
+
+## [3.5.0] - 2026-10-22
+
+### Changed
+
+- resolve-config accepts `merge-base`, `review-threads` and `dependency-review` on a `read` skill
+  that hands its change on as a patch (`applied-by.patch`), as the Activities section already
+  describes, so those activities can move to the read runner. Without `applied-by.patch` the
+  shape is still refused
+  ([README.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [3.4.2] - 2026-10-22
+
+### Fixed
+
+- work-unblock's sweep re-fires an `agent-ready` issue whose work-resolve-issue run was cancelled
+  in `pick-slot` (its timeout while it waited in the WIP cap step) after `admit` passed and before
+  `resolve-issue` ran, like a failed run and under the same once-per-workflow-version re-fire
+  record ([run 39711139895](https://github.com/melodic-software/claude-code-plugins/actions/runs/39711139895)).
+  A run a newer `agent-ready` run replaced while it waited ran no job and is still not re-fired.
+
 ## [3.4.1] - 2026-10-22
 
 ### Fixed

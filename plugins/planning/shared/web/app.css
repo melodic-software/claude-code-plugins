@@ -201,7 +201,8 @@
 .app .vf-vote .vf-i { inline-size: 14px; block-size: 14px; }
 @media (hover: hover) and (pointer: fine) {
   .app .vf-btn-ghost:hover:not(:disabled), .app .vf-tbtn:hover, .app .vf-propose:hover { background: var(--raise); color: var(--text); }
-  .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--accent) 88%, white); }
+  /* Toward --text, away from the label in every light and dark pairing but light amber, which keeps margin: 4.5:1 (ui_contrast.js). */
+  .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
   .app .vf-btn-brass:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--brass) 88%, white); }
   .app .vf-q:hover { background: var(--raise); color: var(--text); }
   .app .vf-vote:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }

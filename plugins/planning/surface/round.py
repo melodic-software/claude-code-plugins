@@ -118,10 +118,11 @@ START_SECONDS = 3
 FINISH_SECONDS = 1
 REC_BUDGET = 200
 ACTIVITY_CAP = 200
-# Free-text caps: one-line fields (a title, a short label, a recommendation, an alternative, a
+# Free-text caps: one-line fields (a title, a recommendation, an alternative and its tradeoff, a
 # commitment, a hold, a status, an activity entry, a reason) and markdown fields (facts, a
 # basis, a revision reason, a group summary, a thread reply, a note, a terminal answer, a
-# restatement section).
+# restatement section). The short label's cap is the shared question shape's, which the schema
+# check in `prepare` enforces.
 TEXT_CAP = 20000
 REQUIRED_FIELDS = (
     ("id", "the Q<N> id on the session's one counter"),
@@ -130,7 +131,6 @@ REQUIRED_FIELDS = (
 )
 QUESTION_CAPS = (
     ("title", LINE_CAP),
-    ("short", LINE_CAP),
     ("recommendation", LINE_CAP),
     ("facts", TEXT_CAP),
     ("basis", TEXT_CAP),
@@ -251,7 +251,10 @@ def find(doc, qid):
 
 def split_alt(s):
     if isinstance(s, dict):
-        return {"key": str(s.get("key", "")).strip(), "text": str(s.get("text", ""))}
+        alt = {"key": str(s.get("key", "")).strip(), "text": str(s.get("text", ""))}
+        if s.get("tradeoff"):
+            alt["tradeoff"] = str(s["tradeoff"])
+        return alt
     key, sep, text = s.partition(":")
     if not sep:
         sys.exit(f"--alt needs key:text, got {s!r}")
@@ -377,6 +380,7 @@ def checked_alts(q, alts):
     alts = [split_alt(s) for s in alts]
     for alt in alts:
         capped(f"{q['id']} alternative {alt['key']}", alt["text"], LINE_CAP)
+        capped(f"{q['id']} alternative {alt['key']} tradeoff", alt.get("tradeoff"), LINE_CAP)
     check_alt_count(q["id"], len(alts), q)
     return alts
 
@@ -423,6 +427,8 @@ def add_question(doc, q, repoint=False, latest=None):
     for i, alt in enumerate(alts, 1):
         text = alt.get("text") if isinstance(alt, dict) else alt
         capped(f"{q['id']} alternative {i}", text, LINE_CAP)
+        if isinstance(alt, dict):
+            capped(f"{q['id']} alternative {i} tradeoff", alt.get("tradeoff"), LINE_CAP)
     for i, c in enumerate(q.get("commits") or [], 1):
         capped(f"{q['id']} commitment {i}", c, LINE_CAP)
     if any(x.get("id") == q["id"] for x in doc["questions"]):
@@ -1013,7 +1019,6 @@ def op_revise(d, doc, a):
     q = find(doc, a.id)
     for field, val, cap in (
         ("title", a.title, LINE_CAP),
-        ("short", a.short, LINE_CAP),
         ("rec", a.rec, LINE_CAP),
         ("facts", a.facts, TEXT_CAP),
         ("basis", a.basis, TEXT_CAP),

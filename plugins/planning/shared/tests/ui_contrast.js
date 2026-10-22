@@ -13,8 +13,9 @@
 // Expected values come from WCAG 2.2 (https://www.w3.org/TR/WCAG22/#contrast-minimum and #non-text-contrast) and the
 // relative-luminance formula it defines; the self-checks use WebAIM's published ratios (#777 on white is 4.48:1).
 // Each palette is picked in the owner's settings and in a guest's own card and applies on the page; per palette, mode and
-// accent, the accent's text reaches 4.5:1 on every surface and text on the accent 4.5:1, and the ten person colors keep
-// their AA ratios (initials 4.5:1 on the color, the color 3:1 on the page).
+// accent, the accent's text reaches 4.5:1 on every surface and text on the accent 4.5:1, a hovered primary button's label
+// 4.5:1 on its hover fill, and the ten person colors keep their AA ratios (initials 4.5:1 on the color, the color 3:1 on
+// the page).
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
@@ -32,12 +33,22 @@ function tokenMatrix([palettes, accents]) {
   const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
   const app = document.getElementById("app"), was = { ...app.dataset }, out = [], bgs = {}, hc = {};
   const tok = n => getComputedStyle(app).getPropertyValue(n).trim();
+  const hb = document.querySelector(".hover-probe"), hover = { out: [], hovered: 0, min: null };
   for (const palette of palettes) for (const theme of ["dark", "light"]) for (const accent of accents) {
     Object.assign(app.dataset, { palette, theme, accent });
     const tag = `${palette} ${theme} ${accent}`, need = (what, r, n) => { if (r + 0.005 < n) out.push(`${tag}: ${what} ${r.toFixed(2)}:1 < ${n}`); };
     bgs[`${palette} ${theme}`] = rgb(tok("--bg")).join(",");
     for (const s of ["--bg", "--sunk", "--pane", "--raise"]) need(`--accent-text on ${s}`, ratio(tok("--accent-text"), tok(s)), 4.5);
     need("--on-accent on --accent", ratio(tok("--on-accent"), tok("--accent")), 4.5);
+    // The hovered primary button (the caller holds the pointer on it): its label 4.5:1 on its hover fill, which must differ from the resting fill.
+    if (hb?.isConnected && hb.matches(":hover")) {
+      const cs = getComputedStyle(hb), r = ratio(cs.color, cs.backgroundColor);
+      hover.hovered++;
+      for (const c of [cs.color, cs.backgroundColor]) { cx.fillStyle = "#000"; cx.fillStyle = c; if (cx.fillStyle === "#000000") hover.out.push(`${tag}: the canvas could not read ${c}`); }
+      if (!hover.min || r < hover.min.r) hover.min = { tag, r: +r.toFixed(2) };
+      if (rgb(cs.backgroundColor).join() === rgb(tok("--accent")).join()) hover.out.push(`${tag}: hover fill equals --accent`);
+      if (r + 0.005 < 4.5) hover.out.push(`${tag}: ${r.toFixed(2)}:1 < 4.5`);
+    }
     if (palette === "contrast") (hc[theme] ||= new Set()).add(["--accent", "--accent-text", "--on-accent"].map(tok).join("|"));
     if (accent !== accents[0]) continue;
     for (let i = 1; i <= 10; i++) {
@@ -49,7 +60,7 @@ function tokenMatrix([palettes, accents]) {
     }
   }
   for (const k of ["palette", "theme", "accent"]) if (was[k] === undefined) delete app.dataset[k]; else app.dataset[k] = was[k];
-  return { out, bgs, hcAccents: Object.values(hc).map(s => s.size) };
+  return { out, bgs, hcAccents: Object.values(hc).map(s => s.size), hover };
 }
 
 /** In the page: every contrast failure under #app as [{what, ratio, need, fg, bg}], plus how many runs were measured. */
@@ -201,8 +212,16 @@ async function main() {
     await ann.keyboard.press("Escape");
 
     // ---------- per palette, mode and accent: the accent and person colors keep their AA ratios ----------
+    await owner.evaluate(() => { const b = document.createElement("button"); b.className = "vf-btn vf-btn-primary hover-probe"; b.textContent = "Send";
+      Object.assign(b.style, { position: "fixed", top: "50%", left: "50%", zIndex: "2147483647", transition: "none" }); document.getElementById("app").append(b); });
+    await owner.hover(".hover-probe");
     const m = await owner.evaluate(tokenMatrix, [PALETTES, ACCENTS]);
+    await owner.evaluate(() => document.querySelector(".hover-probe").remove());
+    await owner.mouse.move(0, 0);
     ok(`every palette, mode and accent: accent text 4.5:1 on each surface, text on the accent 4.5:1, person colors AA`, m.out.length === 0, m.out.slice(0, MAX_LIST).join("; ") + (m.out.length > MAX_LIST ? ` and ${m.out.length - MAX_LIST} more` : ""));
+    const combos = PALETTES.length * 2 * ACCENTS.length, h = m.hover;
+    ok(`every palette, mode and accent: a hovered primary button's label reaches 4.5:1 on its hover fill (lowest ${h.min?.r}:1, ${h.min?.tag})`,
+      h.hovered === combos && h.out.length === 0, `hovered in ${h.hovered} of ${combos}; ` + h.out.join("; "));
     ok("High contrast keeps one accent per mode whatever the accent setting", JSON.stringify(m.hcAccents) === "[1,1]", JSON.stringify(m.hcAccents));
     ok("each palette and mode paints its own page background", new Set(Object.values(m.bgs)).size === PALETTES.length * 2, JSON.stringify(m.bgs));
 
