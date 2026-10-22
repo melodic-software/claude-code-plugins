@@ -5,8 +5,8 @@ activities:
     effect: read
     gating: gate
     reads-untrusted: false
-  fix-docs:
-    script: scripts/fix-docs.sh
+  fix-prose:
+    script: scripts/fix-prose.sh
     effect: mutate-branch
     gating: advisory
     reads-untrusted: false
@@ -15,8 +15,8 @@ lanes:
     stage: verify
     slots:
       - activity: run-tests
-        needs: [fix-docs]
+        needs: [fix-prose]
   pr-refine:
     stage: refine
     slots:
-      - activity: fix-docs
+      - activity: fix-prose

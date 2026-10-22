@@ -21,9 +21,9 @@ argument tier, so the skill builds it whatever the policy says.
 Whatever the policy, the digest never posts to the pull request, never comments on it, and never
 sets a check status. It does not gate merge.
 
-Marking a pull request ready also starts the `pr-refine` lane. That lane can push a docs-fix
-commit to the branch, so a digest built at that moment may describe a head that is about to
-change.
+After a pull request is ready, the next push to the default branch can start `pr-unblock`'s
+`fix-docs`, once per pull request. It can push a docs-fix commit to the branch, so a digest built
+then may describe a head that is about to change.
 
 ## The triggers
 

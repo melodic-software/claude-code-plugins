@@ -80,7 +80,9 @@ inputs:
       the CI context, a scratch directory and the prompt file are staged in
       $RUNNER_TEMP/lane-stage for the runner to copy to .lane/ after the head
       checkout, and the tool rules name them there. It takes a read skill
-      only (ci-context included), never a gate or an issue lane.
+      only (ci-context included, and one with no prepare mode that hands on
+      a patch), never a gate, an issue lane or an activity with checks,
+      self-checks or verify-scripts.
     required: false
     default: claude-code-action
 
@@ -217,8 +219,11 @@ runs:
         # preamble would not expand.
         if [ "$LAUNCHER" = run-claude-cli ]; then
           [ -z "${ISSUE_NUMBER:-}" ] || fail "run-claude-cli: an issue lane runs on claude-code-action"
-          [ "$edits" = read ] || fail "run-claude-cli: only a read skill, ci-context included, runs on the launcher"
+          [ "$edits" = read ] || { [ "$edits" = patch ] && [ -z "$PREPARE" ]; } ||
+            fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one with no prepare mode that hands on a patch"
           [ "$GATING" = advisory ] || fail "run-claude-cli: a gate skill's verdict is not read from the launcher"
+          jq -e '[.selected.checks, .selected["self-checks"], .selected["verify-scripts"]] | all(. == null or . == [])' "$RESOLVED" >/dev/null ||
+            fail "run-claude-cli: checks, self-checks and verify-scripts have no wrapper on the launcher"
           [[ $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ && $STAGE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
             fail "the workspace or the stage directory has a name a rule cannot carry"
           plugin=${SKILL%%:*}
@@ -252,6 +257,42 @@ runs:
             denied+=("Edit(./.lane/ci/**)" "Write(./.lane/ci/**)")
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The context file is $lane/ci/context.json. Leave every fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
           fi
+          # A skill that hands on a patch with no prepare mode (fix-docs) gets
+          # Bash for the scripts its own frontmatter grants, which alone run
+          # under dontAsk: no Bash rule here. The base deny rules keep the git
+          # directory unread.
+          plugin_dirs=(".lane/plugins/$plugin")
+          if [ "$edits" = patch ]; then
+            tools+=(Bash Edit Write Agent)
+            allowed+=(Edit Write Agent)
+            preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. Leave every change uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
+            # web-access `any` only: the research plugins load from .lane/
+            # too, read-only like the skill's own. The docs scripts are not
+            # staged, so the run reads pages with WebFetch.
+            if [ "$(jq -r '.selected["web-access"].enabled // false' "$RESOLVED")" = true ]; then
+              jq -e '.selected["web-access"].domains == "any"' "$RESOLVED" >/dev/null ||
+                fail "run-claude-cli: web-access takes domains: any"
+              for research in discovery knowledge; do
+                [ -d "$BASE_PATH/plugins/$research" ] || fail "web-access: the $research plugin is not in the base"
+                [ -d "$STAGE/plugins/$research" ] || cp -R "$BASE_PATH/plugins/$research" "$STAGE/plugins/"
+                # Each plugin dir is an --add-dir too, so it gets the empty
+                # server list the skill's own copy gets.
+                mcp=$STAGE/plugins/$research/.mcp.json
+                [ -e "$mcp" ] || [ -L "$mcp" ] || printf '{"mcpServers":{}}\n' >"$mcp"
+                [ "$research" = "$plugin" ] || plugin_dirs+=(".lane/plugins/$research")
+              done
+              [ -z "$(find "$STAGE/plugins" -type l -print -quit)" ] || fail "a research plugin holds a symbolic link"
+              tools+=(WebFetch WebSearch)
+              allowed+=("WebFetch(domain:*)" WebSearch "Skill(discovery:read-docs)" "Skill(discovery:research)" "Skill(knowledge:docpage-digest)" "Skill(knowledge:map-corpus)")
+              # A deny rule beats an allow rule.
+              kept=()
+              for rule in "${denied[@]}"; do
+                [[ $rule == WebFetch || $rule == WebSearch ]] || kept+=("$rule")
+              done
+              denied=("${kept[@]}")
+              preamble="$preamble This run may search the web and read any page with WebFetch; the docs scripts the research skills use are not available, so read each page with WebFetch, and cite each page you read."
+            fi
+          fi
           skill_args=$(jq -r '.selected.args // ""' "$RESOLVED")
           for target in "${targets[@]}"; do
             skill_args="${skill_args:+$skill_args }$target"
@@ -269,7 +310,8 @@ runs:
             printf '%s\n' "${allowed[@]}" "$delimiter"
             echo "disallowed-tools<<$delimiter"
             printf '%s\n' "${denied[@]}" "$delimiter"
-            echo "plugin-dirs=.lane/plugins/$plugin"
+            echo "plugin-dirs<<$delimiter"
+            printf '%s\n' "${plugin_dirs[@]}" "$delimiter"
             echo "preamble=$preamble"
           } >>"$GITHUB_OUTPUT"
           exit 0

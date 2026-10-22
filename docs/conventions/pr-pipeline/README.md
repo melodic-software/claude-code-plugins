@@ -109,13 +109,13 @@ reader applies.
 
 | Lane | Starts on |
 |---|---|
-| `pr-refine` | a PR opened, reopened or marked ready, or a `workflow_dispatch`; not each push, so a docs change pushed after its first run waits for a reopen or a dispatch |
+| `pr-refine` | no caller today; `fix-docs` runs in `pr-unblock` |
 | `pr-run-checks` | dispatch from `pr-refine` |
 | `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR and each unreviewed review-tier Dependabot PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR, each unreviewed review-tier Dependabot PR, each failing lanes App PR and each ready PR a person opened that changes Markdown and never had `fix-docs` after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
@@ -239,6 +239,31 @@ and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
 concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
+`pr-unblock`'s `fix-docs` runs the same way in three jobs of `pr-unblock.yml`: `fix-docs` (a
+`read` skill in patch output mode with no prepare mode, on run-claude-cli with the automations
+role's API key) runs `ai-slop:audit fix` on the PR's changed Markdown files;
+`fix-docs-subscription` runs the same on the role's OAuth token, only after a credit stop or with
+the key empty; and `apply-docs-patch` runs the `apply-patch` activity on a `written` patch,
+pushing it as one commit under `patch-rules.json`'s `default` row, which refuses the universal
+set, every agent instruction path and more than 300 paths. No change is the common case, so an
+`empty` patch runs no push job. `report-escalation` does not follow `fix-docs`: a refused or
+unappliable patch posts the `pr-unblock / apply-patch` check neutral `awaiting-human` and labels
+nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
+to the `docs-fix` profile ([Models](#models)).
+
+The same `pr-unblock-dispatch.yml` run starts `fix-docs` once per pull request, as a PR opening
+ready or turning ready used to: one GraphQL query per page of 50 open pull requests, its
+`rateLimit.cost` logged, lists the non-draft, same-repository ones into `main` that a person
+opened (a `User` author, so no lanes App or other bot PR), with no `do-not-merge` or
+`needs-human` label, that change at least one `.md` file, and whose head has no
+`pr-unblock / fix-docs` check run from the GitHub Actions app. For each, lowest number first, one
+more query reads the check runs on its last 50 commits, and a PR with a `fix-docs` run on any of
+them is skipped for good; the dispatch record keeps its head so the next run skips that read. A
+run older than 50 commits, or a force-push that dropped its commit, costs one more run. It sends
+at most `limits.fix-docs-per-run` per run, none for a PR whose `fix-docs` run is still queued or
+going, and the run ids join the dispatched-runs record. A PR that turns ready waits for the next
+push to the default branch.
+
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
 Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
@@ -322,8 +347,8 @@ Each leaf declares:
   `applied-by-supported` to `resolve-config` (`pr-run-activity-read.yml` passes `patch`); an
   applying leaf with any other key fails red before the head checkout. A skill that hands on a
   patch gets the same edit tools as a write skill and commits nothing. The read runner collects
-  its uncommitted change as a patch when `applied-by.patch` names its applier (`fix-ci` and
-  `resolve-issue`). Those edit tools and the `changed-paths` filter key on "an effect other than
+  its uncommitted change as a patch when `applied-by.patch` names its applier (`fix-docs`,
+  `fix-ci` and `resolve-issue`). Those edit tools and the `changed-paths` filter key on "an effect other than
   `read`, or `applied-by.patch`"; the effect half goes once the last skill leaves
   `pr-run-activity-write.yml`.
 - `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
@@ -355,6 +380,11 @@ Each leaf declares:
   those domains, and run the research skills, wherever the runner gives it its edit tools
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). An activity that turns it on must
   set `reads-untrusted: true`.
+- `permission-mode` (optional, `skill` only): `dontAsk` (the default) or `auto`, the Claude Code
+  permission mode of a PR-mode skill on the read runner's launcher; other runners run `dontAsk`.
+  The run job fails red unless the CLI reports the mode asked for
+  ([`pr-run-activity.md`](pr-run-activity.md#two-calls-on-one-credential-each);
+  [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md)).
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a
@@ -362,7 +392,7 @@ Each leaf declares:
   activity that runs head code (tests, linters, builds) takes effect `read`, because a
   write-effect activity must not execute head code. To change the branch it hands its change on
   to a `prepare: apply-patch` script with no model and no head code, named in its
-  `applied-by.patch`, as fix-ci does with `apply-patch`.
+  `applied-by.patch`, as fix-docs and fix-ci do with `apply-patch`.
 - `gating`: `gate` feeds `ci-status`; `advisory` is reported only. `ci-status` stays the only
   required check. A `gate` skill activity must not execute head code, since its verdict is read
   in the same job after the skill ran; tests, linters and builds that gate run as a `script`
@@ -378,7 +408,7 @@ Each leaf declares:
   paths `.github/CODEOWNERS` lists
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities); `changedPathTargets` in
   [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs)). When nothing is left, the
-  activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
+  activity skips with `not-applicable-paths`: `pr-unblock / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
   classes, events, `mergeable`, `draft`, `labeled-after`, `admission`). `mergeable` is `conflicting` or `clean`,
@@ -436,8 +466,8 @@ of what one `prepare: apply-patch` script is to admit from a producer's patch, r
 trusted base: one row per prepare mode a patch-producing skill uses (`ci-context`,
 `review-threads`, `dependency-review`, `merge-base`), `default` for one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
-[`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's
-and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
+[`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's,
+fix-docs's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
 [`patch-rules.schema.json`](../../../.github/actions/resolve-config/patch-rules.schema.json) closes
 each row to these keys:
 
@@ -450,7 +480,7 @@ each row to these keys:
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default) or `invalid` (`ci-context`, as the producer said it wrote a change). |
-| `skip-moved-head` | Optional; `true` (`ci-context`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. |
+| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
 Every row refuses `.github/**` in any case and through any `..` segment, `.claude/**` at any depth,
@@ -458,8 +488,8 @@ the root `.mcp.json`, `.gitmodules`, `**/settings*.json`, a symbolic link, a git
 executable bit on a file not already executable, and a rename into any of those. Plugin hooks,
 `.claude-plugin/`, `lib/`, `scripts/`, `CLAUDE.md` and `AGENTS.md` are admitted: the
 [HIGH path floor](#merge-authority) holds a pull request that touches them for a human merge.
-The `ci-context` row also names the optional `instruction-path` refusal, so fix-ci still pushes
-none of them.
+The `ci-context` and `default` rows also name the optional `instruction-path` refusal, so fix-ci
+and fix-docs push none of them, and both cap a patch at 300 paths.
 `checkPatchRules` in
 [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name
@@ -1268,9 +1298,10 @@ before it reaches the default branch. Residuals, accepted by the owner:
   branch is the list above and whoever merges it;
 - the model can read its token (`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until the job revokes
   it;
-- a skill's `Bash` grant can be wider than its job: `ai-slop:audit`, which `fix-docs` runs,
-  allows `Bash(git:*)` with no subcommand bound, and claude-code-action puts the token in the
-  origin URL. A run, including one steered by untrusted text it reads, can then push to any branch
+- a skill's `Bash` grant can be wider than its job: a skill that allows `Bash(git:*)` with no
+  subcommand bound (`ai-slop:audit` does; `fix-docs` now runs it on the read runner, with no write
+  token), in a write lane, where claude-code-action puts the token in the origin URL. A run,
+  including one steered by untrusted text it reads, can then push to any branch
   no ruleset protects (the token is scoped to the repository, not the PR branch; rulesets cover
   the default branch and `release/plugins`), run any shell command through `git -c
   core.hooksPath=<dir>` or `git -c alias.<name>='!<command>'`, and push unsigned commits that skip
@@ -1456,7 +1487,7 @@ key, and `check-intent-subscription` runs on the token, on a new runner, only af
 `check-intent`'s handoff with no permission denial or when the key is empty; its lane record is
 `pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. Each lane's workflow names its role as a
 literal, and the runner policy admits it; no config key records it. `intake`, `pr-unblock`,
-`fix-ci`, `pr-verify` and `pr-refine` take `automations`; `claude-review` and
+`fix-ci`, `fix-docs` and `pr-verify` take `automations`; `claude-review` and
 `claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
 
 `intake` and `pr-verify` run on `run-claude-cli` today. Every other lane runs claude-code-action
@@ -1494,6 +1525,7 @@ with defaults.
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome hands the issue to a person; at most 5, and 0 never restarts. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
+| `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
 

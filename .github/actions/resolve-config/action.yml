@@ -149,6 +149,12 @@ outputs:
   applied-by-patch:
     description: The activity that applies the selected activity's patch (its applied-by.patch); empty when it hands on none.
     value: ${{ steps.resolve.outputs.applied-by-patch }}
+  permission-mode:
+    description: >
+      A skill activity's launcher permission mode, `dontAsk` (the default)
+      or `auto`, for run-claude-cli's `permission-mode` input; empty for a
+      script.
+    value: ${{ steps.resolve.outputs.permission-mode }}
   issue-dimensions:
     description: >
       `<size>/<complexity>/<uncertainty>` as models.issue-dimensions reads

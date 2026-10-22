@@ -5,6 +5,22 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.0.0] - 2026-10-22
+
+### Added
+
+- `/harness-config:audit-automation-gaps` now points at the ladder copy's "Guardrail criterion" section as the bar a proposed check meets before a PASS verdict.
+
+### Changed
+
+- The bundled enforcement ladder copy is now 2.0.0: four tiers, a "runs at" column, renamed and added rung ids (`shared-helper`, `harness-setting`, `action-guard`, `scaffold`, `automated-review`, `instruction`, `skill`, `human-review`) and the guardrail criterion.
+
+- `/harness-config:audit-automation-gaps` names the weakest ladder rung `automated-review`, the ladder 2.0.0 id, instead of `llm-only`.
+
+### Security
+
+- The settings audit matches stateless GitHub App installation tokens (`ghs_` followed by a JWT, with no app id) with GitHub's recommended `ghs_` regex.
+
 ## [1.16.0] - 2026-10-20
 
 ### Added

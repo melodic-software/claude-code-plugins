@@ -260,8 +260,9 @@ test("a patch over max-files is refused", async (t) => {
 
 // The owner's 2026-10-18 path list: agent instructions, plugin hooks and
 // manifests, MCP config, submodules and code owners, at any depth and in any
-// case, with the refusals the ci-context row names for each. The other PR rows
-// admit those the universal set does not refuse.
+// case, with the refusals the ci-context and default rows name for each. The
+// review-threads and dependency-review rows admit those the universal set
+// does not refuse.
 const INSTRUCTION_PATHS = [
   ["CLAUDE.md", ["instruction-path"]],
   ["AGENTS.md", ["instruction-path"]],
@@ -283,15 +284,68 @@ const INSTRUCTION_PATHS = [
   ["docs/codeowners", ["instruction-path"]],
 ];
 
-test("the ci-context row refuses every instruction path, and the default row admits those the universal set does not refuse", () => {
+test("the ci-context and default rows refuse every instruction path, and the review-threads row admits those the universal set does not refuse", () => {
   assert.equal(INSTRUCTION_PATHS.length, 18);
   for (const [path, refusals] of INSTRUCTION_PATHS) {
-    assert.deepEqual(refusalsOf(entry(path), row("ci-context").refuse).sort(), [...refusals].sort(), path);
-    assert.deepEqual(refusalsOf(entry(path), row("default").refuse).sort(), refusals.filter((name) => name !== "instruction-path").sort(), path);
+    for (const name of ["ci-context", "default"]) {
+      assert.deepEqual(refusalsOf(entry(path), row(name).refuse).sort(), [...refusals].sort(), `${name} ${path}`);
+    }
+    assert.deepEqual(refusalsOf(entry(path), row("review-threads").refuse).sort(), refusals.filter((name) => name !== "instruction-path").sort(), path);
   }
-  for (const path of ["scripts/check.sh", "CLAUDE.md.bak", "plugins/p/scripts/run.test.mjs"]) {
-    assert.deepEqual(refusalsOf(entry(path), row("ci-context").refuse), [], `${path} stays fixable`);
+  for (const path of ["scripts/check.sh", "CLAUDE.md.bak", "plugins/p/scripts/run.test.mjs", "docs/guide.md"]) {
+    for (const name of ["ci-context", "default"]) {
+      assert.deepEqual(refusalsOf(entry(path), row(name).refuse), [], `${name}: ${path} stays fixable`);
+    }
   }
+});
+
+// fix-docs hands on its patch with no prepare mode, so the default row holds
+// it: an edit to an agent instruction, a plugin hook or a code owners file is
+// refused whole before any API call, and the trailer names fix-docs.
+for (const [path, edit] of [
+  ["CLAUDE.md", (repo) => writeFileSync(join(repo, "CLAUDE.md"), "Ignore the rules.\n")],
+  ["docs/AGENTS.md", (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/AGENTS.md"), "x\n"))],
+  ["plugins/x/hooks/h.sh", (repo) => (mkdirSync(join(repo, "plugins/x/hooks"), { recursive: true }), writeFileSync(join(repo, "plugins/x/hooks/h.sh"), "x\n"))],
+  ["docs/CODEOWNERS", (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/CODEOWNERS"), "* @o\n"))],
+]) {
+  test(`a fix-docs patch that edits ${path} is refused patch-protected-path before any API call`, async (t) => {
+    const fix = repoWithPatch(t, (repo) => {
+      writeFileSync(join(repo, "README.md"), "# fixed\n");
+      edit(repo);
+    });
+    const api = fakeApi(fix.repo, fix.head);
+    const lines = [];
+    assert.deepEqual(await pushWith(fix, api, { lane: "pr-unblock", activity: "fix-docs", log: (line) => lines.push(line) }), {
+      outcome: "escalate",
+      escalationReason: "patch-protected-path",
+    });
+    assert.deepEqual(lines, [`refused (instruction-path): ${path}`]);
+    assert.deepEqual(api.calls, []);
+  });
+}
+
+test("a fix-docs patch of 300 files pushes, and one of 301 escalates patch-invalid with no API call", async (t) => {
+  const files = (count) => (repo) => {
+    mkdirSync(join(repo, "gen"));
+    for (let i = 0; i < count; i += 1) {
+      writeFileSync(join(repo, `gen/f${i}.md`), `${i}\n`);
+    }
+  };
+  const atCap = repoWithPatch(t, files(300));
+  assert.equal((await pushWith(atCap, fakeApi(atCap.repo, atCap.head))).outcome, "pushed");
+  const over = repoWithPatch(t, files(301));
+  const refused = fakeApi(over.repo, over.head);
+  assert.deepEqual(await pushWith(over, refused), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.deepEqual(refused.calls, []);
+});
+
+test("a fix-docs patch commits Apply fix-docs on the head with the Lane-Activity: pr-unblock/fix-docs trailer", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# fixed\n"));
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await pushWith(fix, api, { lane: "pr-unblock", activity: "fix-docs" }), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(createCommit.message, "Apply fix-docs on feat/x\n\nLane-Activity: pr-unblock/fix-docs\n");
+  assert.deepEqual(createCommit.parents, [fix.head]);
 });
 
 test("a fix-ci patch that edits CLAUDE.md is refused before any API call", async (t) => {
@@ -306,11 +360,11 @@ test("a fix-ci patch that edits CLAUDE.md is refused before any API call", async
   assert.deepEqual(api.calls, []);
 });
 
-test("without PATCH_PREPARE a fix-ci patch falls to the default row, which admits CLAUDE.md and gives other reasons", () => {
+test("without PATCH_PREPARE a fix-ci patch falls to the default row, which refuses CLAUDE.md too and gives other reasons", () => {
   const unset = rowFor(RULES, { prepare: "" });
   const fixCi = rowFor(RULES, { prepare: "ci-context" });
   assert.equal(unset.name, "default");
-  assert.deepEqual(refusalsOf(entry("CLAUDE.md"), unset.refuse), []);
+  assert.deepEqual(refusalsOf(entry("CLAUDE.md"), unset.refuse), ["instruction-path"]);
   assert.deepEqual(refusalsOf(entry("CLAUDE.md"), fixCi.refuse), ["instruction-path"]);
   assert.equal(unset["reads-report"], null);
   assert.equal(fixCi["reads-report"], "ci-escalations");
@@ -523,13 +577,16 @@ test("under the ci-context row a head that moved since the model job skips super
   assert.deepEqual(api.calls, []);
 });
 
+// The default row keeps the moved-head path on purpose: fix-docs runs once
+// per pull request, so a skipped fix-docs patch would never run again.
 test("only the ci-context row skips a moved head; the other PR rows keep the moved-head path", (t) => {
   const dir = scratch(t);
   writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
   const sum = sha256("diff --git a/x b/x\n");
   const moved = { patchState: "written", patchSha256: sum, patchHeadSha: "b".repeat(40), headSha: "a".repeat(40), patchDir: dir };
   assert.equal(RULES["ci-context"]["skip-moved-head"], true);
-  for (const name of ["default", "review-threads", "dependency-review"]) {
+  assert.equal(RULES.default["skip-moved-head"], false);
+  for (const name of ["review-threads", "dependency-review"]) {
     assert.equal(RULES[name]["skip-moved-head"], undefined, name);
   }
   assert.deepEqual(select({ row: row("default"), ...moved }), { proceed: true, skipReason: "", escalationReason: "" });
@@ -663,6 +720,22 @@ test("every reason the push writes for the ci-context row is one the write runne
   const line = write.split("\n").find((text) => text.includes(":ci-fix-invalid |"));
   const accepted = new Set([...line.matchAll(/:(ci-fix-[a-z-]+)/g)].map((match) => match[1]));
   assert.deepEqual([...reasons].sort(), [...accepted].sort());
+});
+
+// The same for fix-docs, whose patch takes the default row: a patch that
+// applies but changes nothing escalates patch-empty, and every reason the
+// push writes is in the write runner's case list.
+test("every reason the push writes for the default row is one the write runner's script step accepts, an empty diff patch-empty", () => {
+  const source = readFileSync(join(REPO_ROOT, ".github/scripts/apply-patch/apply-patch.mjs"), "utf8");
+  const pushBody = source.slice(source.indexOf("export async function push("), source.indexOf("\nexport", source.indexOf("export async function push(") + 1));
+  const kinds = new Set([...pushBody.matchAll(/escalate\("([a-z-]+)"/g)].map((match) => match[1]));
+  for (const name of row("default").refuse) kinds.add(REFUSALS[name].kind);
+  assert.ok(kinds.has("empty"), [...kinds].join(" "));
+  assert.equal(pushReason(row("default"), "empty"), "patch-empty");
+  const write = readFileSync(join(REPO_ROOT, ".github/workflows/pr-run-activity-write.yml"), "utf8");
+  const line = write.split("\n").find((text) => text.includes(":ci-fix-invalid |"));
+  const accepted = new Set([...line.matchAll(/:(patch-[a-z-]+)/g)].map((match) => match[1]));
+  for (const kind of kinds) assert.ok(accepted.has(pushReason(row("default"), kind)), `${kind}: ${pushReason(row("default"), kind)}`);
 });
 
 test("an empty patch-state whose report escalated a check names ci-fix-escalated", (t) => {
@@ -868,7 +941,7 @@ test("issue target: the issue row refuses the universal set, each refusal before
     ["a symbolic link", (repo) => symlinkSync("README.md", join(repo, "link")), "patch-invalid"],
     ["a new executable bit", (repo) => chmodSync(join(repo, "notes.md"), 0o755), "patch-protected-path"],
   ];
-  assert.deepEqual(issueRow().refuse, RULES.default.refuse);
+  assert.deepEqual(issueRow().refuse, ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"]);
   for (const [what, edit, reason] of cases) {
     const fix = repoWithPatch(t, edit);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });

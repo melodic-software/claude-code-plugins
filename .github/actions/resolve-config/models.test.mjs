@@ -88,7 +88,6 @@ const DEFAULT_RUN = {
 };
 
 for (const [lane, activity] of [
-  ["pr-refine", "fix-docs"],
   ["pr-unblock", "resolve-conflicts"],
   ["pr-unblock", "address-feedback"],
   ["pr-unblock", "review-dependency"],
@@ -314,7 +313,7 @@ test("live config: the live issue-dimensions maps every org option and runs a kn
 });
 
 test("live config: an activity with no issue input takes no dimensions", () => {
-  const slot = liveSlot("pr-refine", "fix-docs");
+  const slot = liveSlot("pr-unblock", "fix-docs");
   assert.equal(slot["issue-dimensions"], undefined);
   assert.equal(slot["timeout-minutes"], undefined);
 });
@@ -376,10 +375,10 @@ const LADDER = {
     p3: { model: "opus", effort: "xhigh", "max-turns": 5 },
   },
   "default-profile": "p3",
-  routes: { "fix-docs": "p1" },
+  routes: { "fix-prose": "p1" },
 };
 const rungSlot = (models, rung) =>
-  resolve(withModels(models), { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: { event: "synchronize", changedPaths: ["src/app.js"] }, rung });
+  resolve(withModels(models), { lane: "pr-refine", activity: "fix-prose", configPath: CONFIG_PATH, basePath: ".base", facts: { event: "synchronize", changedPaths: ["src/app.js"] }, rung });
 
 test("models: rung 1 climbs one rung, p1 to p2, never on to p3", () => {
   assert.equal(rungSlot(LADDER, 1).selected.models.profile, "p2");
@@ -387,11 +386,11 @@ test("models: rung 1 climbs one rung, p1 to p2, never on to p3", () => {
 });
 
 test("models: rung 1 on a profile with no rung above is refused, so a retry never reruns the same model", () => {
-  assertRejected(() => rungSlot({ ...LADDER, routes: { "fix-docs": "p3" } }, 1), "no-rung-up");
+  assertRejected(() => rungSlot({ ...LADDER, routes: { "fix-prose": "p3" } }, 1), "no-rung-up");
 });
 
 test("models: rung 1 leaves every slot but the selected one at its own profile", () => {
-  const { lane, selected } = rungSlot({ ...LADDER, routes: { "fix-docs": "p1" } }, 1);
+  const { lane, selected } = rungSlot({ ...LADDER, routes: { "fix-prose": "p1" } }, 1);
   for (const slot of lane.slots.filter((entry) => entry.models !== null && entry.name !== selected.name)) {
     assert.equal(slot.models.profile, "p3", slot.name);
   }
@@ -457,6 +456,22 @@ test("live config: fix-ci runs as a worker on code, opus at the verifier's effor
   assert.equal(modelArgs(slot.models), "--model opus --max-turns 75 --effort high");
 });
 
+// The role map's worker runs mechanical work on sonnet at its own effort,
+// medium; the profile keeps standard's 75 turns.
+test("live config: fix-docs runs as a mechanical worker, sonnet at the worker's effort, 75 turns", () => {
+  const slot = liveSlot("pr-unblock", "fix-docs");
+  assert.deepEqual(slot.models, {
+    profile: "docs-fix",
+    role: "worker",
+    workload: "mechanical",
+    model: "sonnet",
+    effort: "medium",
+    "subagent-model": "inherit",
+    "max-turns": 75,
+  });
+  assert.equal(modelArgs(slot.models), "--model sonnet --max-turns 75 --effort medium");
+});
+
 // Every route the live config names runs on a routed alias: never empty,
 // `default`, `inherit`, a model ID, or the frontier tier (fable, best).
 test("live config: every route resolves to a model alias, never empty, default or a model ID", () => {
@@ -483,7 +498,7 @@ const ROLE_PROFILES = {
 };
 const roleSlot = (roleMap, profile = "coder") =>
   fixtureSlot({
-    ...withModels({ profiles: ROLE_PROFILES, "default-profile": "fallback", routes: { "fix-docs": profile } }),
+    ...withModels({ profiles: ROLE_PROFILES, "default-profile": "fallback", routes: { "fix-prose": profile } }),
     roleMap,
   }).models;
 const roleMapWith = (worker, extra = "") =>
@@ -548,7 +563,7 @@ for (const [why, profile] of [
   ["a role profile with no max-turns", { role: "worker" }],
 ]) {
   test(`the schema rejects a route profile with ${why}`, () => {
-    const models = { profiles: { p: profile, q: { model: "opus", "max-turns": 5 } }, "default-profile": "q", routes: { "fix-docs": "p" } };
+    const models = { profiles: { p: profile, q: { model: "opus", "max-turns": 5 } }, "default-profile": "q", routes: { "fix-prose": "p" } };
     assertRejected(() => fixtureSlot(withModels(models)), "invalid-config");
   });
 }
@@ -561,7 +576,7 @@ const withModels = (models) => {
   }
   return { ...FIXTURE, config: stringify(doc) };
 };
-const fixtureSlot = (files, lane = "pr-refine", activity = "fix-docs") =>
+const fixtureSlot = (files, lane = "pr-refine", activity = "fix-prose") =>
   resolve(files, { lane, activity, configPath: CONFIG_PATH, basePath: ".base", facts: { event: "synchronize", changedPaths: ["src/app.js"] } })
     .selected;
 const PROFILES = {
@@ -570,7 +585,7 @@ const PROFILES = {
 };
 
 test("a route picks its profile, and every other skill activity takes default-profile", () => {
-  const files = withModels({ profiles: PROFILES, "default-profile": "wide", routes: { "fix-docs": "light" } });
+  const files = withModels({ profiles: PROFILES, "default-profile": "wide", routes: { "fix-prose": "light" } });
   assert.deepEqual(fixtureSlot(files).models, {
     profile: "light",
     model: "sonnet",
@@ -594,7 +609,7 @@ test("a config with no models block takes the built-in standard profile: no --mo
 });
 
 test("a profile becomes --model, --max-turns and --effort, and its subagent model becomes settings env", () => {
-  const files = withModels({ profiles: PROFILES, "default-profile": "wide", routes: { "fix-docs": "light" } });
+  const files = withModels({ profiles: PROFILES, "default-profile": "wide", routes: { "fix-prose": "light" } });
   assert.equal(modelArgs(fixtureSlot(files).models), "--model sonnet --max-turns 40 --effort medium");
   const wide = fixtureSlot(files, "pr-run-checks", "measure-coverage").models;
   assert.equal(modelArgs(wide), "--model opus --max-turns 120");
@@ -620,7 +635,7 @@ for (const [why, models] of [
 test("the schema rejects the removed activity model and max-turns keys and merge.verifier-model", () => {
   for (const extra of [{ model: "opus" }, { "max-turns": 30 }]) {
     const doc = parse(FIXTURE.config);
-    Object.assign(doc.activities["fix-docs"], extra);
+    Object.assign(doc.activities["fix-prose"], extra);
     assertRejected(() => fixtureSlot({ ...FIXTURE, config: stringify(doc) }), "invalid-config");
   }
   const doc = parse(FIXTURE.config);
@@ -638,7 +653,7 @@ test("a default-profile or route naming no profile is undefined-profile", () => 
   const profiles = { p: { model: "opus", "max-turns": 5 } };
   assertRejected(() => fixtureSlot(withModels({ profiles, "default-profile": "q" })), "undefined-profile");
   assertRejected(
-    () => fixtureSlot(withModels({ profiles, "default-profile": "p", routes: { "fix-docs": "q" } })),
+    () => fixtureSlot(withModels({ profiles, "default-profile": "p", routes: { "fix-prose": "q" } })),
     "undefined-profile",
   );
 });

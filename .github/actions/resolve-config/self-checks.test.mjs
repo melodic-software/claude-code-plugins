@@ -27,10 +27,10 @@ const resolveDoc = (doc, request) =>
   );
 const run = (fixDocs) => {
   const doc = parse(read("./fixtures/valid.yaml"));
-  Object.assign(doc.activities["fix-docs"], fixDocs);
+  Object.assign(doc.activities["fix-prose"], fixDocs);
   return resolveDoc(doc, {
     lane: "pr-refine",
-    activity: "fix-docs",
+    activity: "fix-prose",
     facts: { event: "synchronize", changedPaths: ["README.md"], labels: [], workClasses: [] },
   });
 };

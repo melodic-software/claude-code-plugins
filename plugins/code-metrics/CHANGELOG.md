@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2] - 2026-10-22
+
+### Fixed
+
+- The `audit-suppressions` pointers use the live ESLint `disable-rules` fragment and the Pyright `comments.md` source page, which resolve in the online link check.
+
 ## [0.7.1] - 2026-10-20
 
 ### Fixed
