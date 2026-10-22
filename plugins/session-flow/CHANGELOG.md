@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [1.0.1] - 2026-10-22
+
+### Fixed
+
+- Correct the README skill count from eighteen to nineteen.
+
 ## [1.0.0] - 2026-10-22
 
 ### Added

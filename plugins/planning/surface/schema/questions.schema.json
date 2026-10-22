@@ -252,7 +252,7 @@
       }
     },
     "question": {
-      "description": "The page lane's question. `id`, `short`, `title` (the shared shape's `text`), `recommendation`, `dependsOn` and each alternative's `text` and `tradeoff` take their types and limits from the shared question shape; `facts` and `basis` keep the page's markdown cap.",
+      "description": "The page lane's question. `id`, `title` (the shared shape's `text`), `recommendation`, `dependsOn` and each alternative's `text` and `tradeoff` take their types and limits from the shared question shape, and round.py holds a new or changed `short` to the shared shape's cap; `facts` and `basis` keep the page's markdown cap.",
       "type": "object",
       "required": ["id", "short", "title"],
       "additionalProperties": false,
@@ -269,7 +269,7 @@
           "description": "A yes/no question: true lets it carry one alternative instead of two."
         },
         "stage": {"type": "string"},
-        "short": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"},
+        "short": {"$comment": "500, the cap before the shared shape's, so sessions written under it keep loading; writes hold a new or changed short to the shared shape's cap.", "type": "string", "maxLength": 500},
         "title": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/text"},
         "facts": {"type": "string"},
         "recommendation": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/recommendation"},

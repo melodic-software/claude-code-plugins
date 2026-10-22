@@ -1055,6 +1055,77 @@ class TestQuestionParsing(SessionCase):
         self.open_round(text_q("Q1"))
         self.assertEqual([session.card_ref(c) for c in self.s.state["cards"]["Q1"]], ["c:rec", "c:a", "c:b"])
 
+    def test_an_alternative_restating_the_recommendation_is_refused(self):
+        for text in ("recommended for q1", "Recommended for Q1, but only on weekdays"):
+            q = text_q("Q1")
+            q["alternatives"][1]["text"] = text
+            err = self.refused_ops("bad-field", {"op": "open-round", "questions": [q]})
+            self.assertIn("alternatives[1]", err.details["field"])
+        self.assertEqual(self.s.state["questions"], [])
+
+    def test_a_withheld_question_keeps_its_alternative_cards_and_gets_no_rec_card(self):
+        q = text_q("Q1", recommendation="Withheld: the load test on Q1 would settle it.")
+        q["alternatives"][0]["text"] = "Load test on Q1"
+        self.open_round(q)
+        self.assertEqual([session.card_ref(c) for c in self.s.state["cards"]["Q1"]], ["c:a", "c:b"])
+        self.assertEqual(self.question("Q1")["recommendation"], "Withheld: the load test on Q1 would settle it.")
+
+    def test_the_snapshot_flags_a_withheld_question_and_leaves_state_unflagged(self):
+        self.open_round(text_q("Q1", recommendation="Withheld: the load test would settle it."), text_q("Q2"))
+        snap = {q["id"]: q for q in self.s.snapshot(HOST)["questions"]}
+        self.assertIs(snap["Q1"].get("withheld"), True)
+        self.assertNotIn("withheld", snap["Q2"])
+        self.assertNotIn("withheld", self.question("Q1"))
+        self.assertNotIn("withheld", json.dumps(self.disk()))
+
+    def test_the_snapshot_flags_a_stored_alternative_that_restates_the_recommendation(self):
+        self.open_round(text_q("Q1"))
+        self.question("Q1")["alternatives"][0]["text"] = "Recommended for Q1"  # a state saved before the refusal
+        self.s._base_cache = None
+        (q,) = self.s.snapshot(HOST)["questions"]
+        self.assertEqual([a.get("restates") for a in q["alternatives"]], [True, None])
+        self.assertNotIn("restates", self.question("Q1")["alternatives"][0])
+
+    def test_an_old_state_shows_no_card_for_a_restating_alternative_and_keeps_state_json(self):
+        self.open_round(text_q("Q1"))
+        old = self.disk()
+        old["questions"][0]["alternatives"][0]["text"] = "Recommended for Q1"  # saved before the refusal
+        self.path.write_text(json.dumps(old), encoding="utf-8")
+        before = self.path.read_bytes()
+        s = session.Session.load(self.path, clock=self.clock, ids=self.ids)
+        self.assertEqual([c["ref"] for c in s.snapshot(HOST)["cards"]["Q1"]], ["c:rec", "c:b"])
+        self.assertEqual([session.card_ref(c) for c in s.state["cards"]["Q1"]], ["c:rec", "c:a", "c:b"])
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_a_guests_snapshot_flags_a_withheld_question(self):
+        ann, _ = self.join("Ann")
+        self.open_round(text_q("Q1", recommendation="Withheld: the load test would settle it."))
+        (q,) = self.s.snapshot(ann)["questions"]
+        self.assertIs(q.get("withheld"), True)
+        self.assertNotIn("withheld", self.question("Q1"))
+
+    def legacy_restating(self, vote):
+        """A state saved before the refusal, its alternative (a) restating the recommendation, loaded again."""
+        ann, _ = self.join("Ann")
+        self.open_round(text_q("Q1"))
+        if vote:
+            self.act("vote", ann, {"qid": "Q1", "card": "c:a", "on": True})
+        old = self.disk()
+        old["questions"][0]["alternatives"][0]["text"] = "Recommended for Q1"
+        self.path.write_text(json.dumps(old), encoding="utf-8")
+        return session.Session.load(self.path, clock=self.clock, ids=self.ids)
+
+    def test_a_restating_legacy_card_with_a_vote_still_shows_and_leads_the_lock(self):
+        s = self.legacy_restating(vote=True)
+        self.assertEqual([c["ref"] for c in s.snapshot(HOST)["cards"]["Q1"]], ["c:rec", "c:a", "c:b"])
+        self.clock.tick()
+        s.lock(HOST, {"qid": "Q1"})
+        self.assertEqual(s.state["locks"]["Q1"]["source"]["card"], "c:a")
+
+    def test_a_restating_legacy_card_without_support_is_hidden(self):
+        s = self.legacy_restating(vote=False)
+        self.assertEqual([c["ref"] for c in s.snapshot(HOST)["cards"]["Q1"]], ["c:rec", "c:b"])
+
     def test_a_choice_question_gets_one_option_card_per_option(self):
         self.open_round(choice_q("Q1"))
         self.assertEqual([session.card_ref(c) for c in self.s.state["cards"]["Q1"]], ["o:opt-1", "o:opt-2", "o:opt-3"])

@@ -161,6 +161,7 @@ SHA="$(sha_of "$BINDING" | cut -c1-12)"
 # shellcheck disable=SC2016 # jq program, not shell expansion
 EVAL='
 def deny: "(\\.github|\\b(hooks?|guard(rail)?s?|permissions?|(allow|deny)[- ]?lists?|workflows?|rulesets?|codeowners|secrets?|tokens?|credentials?|pins?|pinned|pinning|sha(s|1|256)?|checksums?|admission|work-class(es)?|label-provenance|autonomy|security|merg(e|es|ed|ing)|sandbox(es|ed|ing)?|auto[- ]mode|bindings?|trust(ed|s|ing)?|ci)\\b)";
+def cost: "\\b(costs?|billing|billed|spend(ing)?|pricing|paid|subscriptions?|skus?|quotas?|retention|(larger|hosted|self-hosted)[- ]runners?|macos minutes)\\b";
 def row($verdict; $rule; $proposed; $reason):
   {issue: $n, verdict: $verdict, rule: ($rule.id // null), work_class: ($rule.work_class // null),
    constraint: (if $rule == null then null else "human-merge" end),
@@ -173,6 +174,7 @@ def trusted: . == "OWNER" or . == "MEMBER";
 | ((($lc.body // "") | split("\n") | .[1] // "") as $line
    | ($line | capture("^Proposed work class: (?<c>work-class: [a-z0-9-]+)$").c? // "")) as $proposed
 | ((($issue.title // "") + "\n" + ($issue.body // "")) | [match(deny; "gi").string | ascii_downcase] | unique) as $hits
+| ((($issue.title // "") + "\n" + ($issue.body // "")) | [match(cost; "gi").string | ascii_downcase] | unique) as $cost_hits
 | ([$labels[] | select(. == "provenance: signal" or . == "area: security" or . == "do-not-merge" or . == "work-map"
      or startswith("status:") or startswith("wayfind:"))]) as $owner_step
 | if $issue.pull_request != null then refuse("not an issue")
@@ -180,6 +182,7 @@ def trusted: . == "OWNER" or . == "MEMBER";
   elif ($labels | index("needs-human")) then refuse("needs-human present")
   elif ($labels | index("area: security")) then refuse("trust-surface hit: area: security label")
   elif ($hits | length) > 0 then refuse("trust-surface hit in title or body: " + ($hits | join(", ")))
+  elif ($cost_hits | length) > 0 then refuse("cost hit in title or body: " + ($cost_hits | join(", ")) + "; a charge needs an owner decision")
   elif any($labels[]; startswith("work-class:")) then refuse("a work-class label is already present; left untouched")
   elif ($issue.author_association | trusted | not) then refuse("issue author association is " + ($issue.author_association // "unknown"))
   elif any($comments[]; ((.author_association // "") | trusted | not)

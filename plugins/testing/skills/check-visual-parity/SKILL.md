@@ -36,21 +36,30 @@ re-captures it, and it never edits a capture harness or the app's styles to make
    visual-regression suite (a Playwright `toHaveScreenshot` spec, a Storybook visual test, a
    screenshot test in its unit runner), run it at each checkpoint and report its verdict as the
    result for the states it covers. Capture here only the states it does not cover.
-2. **A driver that writes PNG files.** Capture only through the Playwright CLI
+2. **A driver that writes PNG files.** When `/app-control:drive` is among the available skills,
+   capture each state with `/app-control:drive capture --kind screenshot --out <the baseline or
+   after directory>`, and use the result only when drive reports a PNG file at that path that is
+   not empty. Drive names its files for the feature and a step number
+   (`checkout-cart-02-screenshot.png`), and compare pairs images by filename, so rename or copy each
+   drive PNG to its state name (`invoice-list-empty.png`) in the baseline or after directory, and
+   record that state name in `baseline-routes.txt`. When drive reports `screenshot` as a capability gap, or writes no PNG, fall through
+   to the next choice. Otherwise capture only through the Playwright CLI
    (`/playwright:playwright`, when it is among the available skills) or through the repository's
    own harness when that harness writes PNG files. Any other driver, including one that returns
    screenshots only into the conversation, cannot feed a pixel count: stop with the gap report
    (what to hold, which driver resolved, and that a PNG-writing driver is needed).
-3. **One launch path.** Start and restart the app the way `/testing:run-e2e` starts it, through
-   its launch path (its orchestrator rule, the bundled `run` skill, or the already-running app).
-   Never start a second instance beside the one that path starts.
+3. **One launch path.** When drive captures, drive's own launch is the one launch path: do not
+   also start the app the way `/testing:run-e2e` starts it. For the other routes, start and
+   restart the app the way `/testing:run-e2e` starts it, through its launch path (its
+   orchestrator rule, the bundled `run` skill, or the already-running app). Never start a second
+   instance beside the one that path starts.
 
 This step is done when each listed state has a route: the repository's suite, a PNG-writing
 driver, or the gap report.
 
-Fix the capture settings before the baseline and keep them for every compare: the browser and its
-version, the viewport, the device scale factor, and the same seed data, clock and fonts the app
-renders with. Freeze or hide anything that changes on its own (a clock, a spinner, a caret).
+Fix the capture settings before the baseline and keep them for every compare, on the drive route
+too: the browser and its version, the viewport, the device scale factor, and the same seed data,
+clock and fonts the app renders with. Freeze or hide anything that changes on its own (a clock, a spinner, a caret).
 
 ## Step 2: Resolve the tolerance
 
@@ -81,7 +90,10 @@ Before the first edit of the change:
 1. Launch the app through the route in Step 1 and capture each listed state as one PNG in
    `<memory_dir>/<branch-slug>/visual-parity/baseline/` (`<memory_dir>` is `.work/` unless the
    project's instructions name another root). Name each file for its state, such as
-   `invoice-list-empty.png`.
+   `invoice-list-empty.png`. Write the route that captured each state to
+   `<memory_dir>/<branch-slug>/visual-parity/baseline-routes.txt`, one `<image name>: <route>` line per
+   state (`drive`, `playwright` or `harness`), outside the baseline directory so the manifest does not
+   hash it. `compare` reads it there and reuses each route.
 2. Record the manifest:
 
    ```bash
@@ -96,7 +108,12 @@ Before the first edit of the change:
 
 At each green checkpoint:
 
-1. Capture the same states, on the same host with the same settings, into
+1. Capture each state through the route that captured its baseline (read it from `baseline-routes.txt`). When
+   that route is unavailable now, for example drive reports a capability gap or writes an empty
+   PNG, do not fall through to another route: two renderers differ in browser build, font
+   rasterisation and scale factor, so the count would measure the renderer change. Stop that
+   state with the gap report and name the route it needs. Capture the same states, on the same
+   host with the same settings, into
    `<memory_dir>/<branch-slug>/visual-parity/after/<checkpoint>/`, and run `manifest` on that
    directory with the same `--browser`, `--viewport` and `--scale`.
 2. Compare:
@@ -120,7 +137,8 @@ in a new directory, never by overwriting this one.
 
 Per checkpoint: the `pixel_tolerance` line from Step 2; each image's
 `differing=<n> tolerance=<t> verdict=<pass|fail> name=<image>` line; the diff image path for each
-failure; the visual suite's verdict when Step 1 ran one; and the capture cost, as the number of
+failure; the visual suite's verdict when Step 1 ran one; the route that captured each state (drive, the
+Playwright CLI or the repository's harness); and the capture cost, as the number of
 images captured and the seconds the capture and compare took.
 
 ## Upstream facts this rests on

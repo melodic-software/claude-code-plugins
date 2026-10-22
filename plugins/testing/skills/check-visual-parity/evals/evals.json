@@ -51,6 +51,20 @@
         "Captures and compares only the settings page itself",
         "Does not capture duplicate screenshots for the invoice list or editor"
       ]
+    },
+    {
+      "id": 5,
+      "name": "drive-route-captures-first",
+      "narration": true,
+      "prompt": "/testing:check-visual-parity baseline invoice list (empty). The project has .claude/skills/control-web/SKILL.md, whose Capture section names a screenshot tool, and both /app-control:drive and /playwright:playwright are among the available skills.",
+      "expected_output": "It captures the state through /app-control:drive capture --kind screenshot, writing the PNG into the baseline directory, rather than through the Playwright CLI. It does not also start the app the /testing:run-e2e way, and its report names the drive route as the one that captured the state.",
+      "files": [],
+      "expectations": [
+        "Captures through /app-control:drive capture --kind screenshot",
+        "Does not capture through the Playwright CLI while drive writes the PNG",
+        "Does not start the app a second way beside drive's launch",
+        "Names the drive route in its report"
+      ]
     }
   ]
 }

@@ -24,6 +24,7 @@ import time
 from pathlib import Path, PureWindowsPath
 from urllib.parse import quote
 
+from question_shape import restates, withheld
 from session_bridge import (
     MAX_STREAMS,  # noqa: F401  # the stream limits, read through this module by its tests
     PING_SECONDS,  # noqa: F401
@@ -887,6 +888,13 @@ class Hub(LoopbackWatcher):
                             "decision"
                         )
                     )
+                if isinstance(x, dict):
+                    rec = x.get("recommendation")
+                    if withheld(rec):
+                        x["withheld"] = True
+                    for a in x.get("alternatives") or []:
+                        if isinstance(a, dict) and restates(a.get("text"), rec):
+                            a["restates"] = True
             self._last_state = {
                 "questions": q,
                 "responses": r,

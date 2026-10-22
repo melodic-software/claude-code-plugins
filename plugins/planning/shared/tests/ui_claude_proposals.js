@@ -2,7 +2,8 @@
 // Claude proposes, the owner approves, in a real browser against `share.sh ensure-running` with the fake
 // cloudflared: a second "Ann" joins while the first is not here, the server tells Claude (person-joined), Claude's
 // propose-merge lands in the owner's Host view and Inbox with its reasons, a guest never sees it, nothing merges
-// until the owner taps Merge, and Merge folds the new browser into the earlier Ann as the owner's own merge does.
+// until the owner taps Merge, and Merge folds the new browser into the earlier Ann as the owner's own merge does. A
+// withheld recommendation gets no card: its alternatives stay and its Withheld text is the question's open note.
 //   node plugins/planning/shared/tests/ui_claude_proposals.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the issue's acceptance list, the owner's decision on it, and the texts this suite
@@ -10,9 +11,10 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, snap } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
 
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
+const HELD = "Withheld: the team calendar would settle it."; // a withheld recommendation: asked open, never on a card
 
 async function post(base, route, body, headers = {}) {
   const r = await fetch(new URL(route, base), { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
@@ -27,7 +29,7 @@ async function main() {
   const s = suite("ui_claude_proposals"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("proposals");
-    s.apply(A.dir, [{ op: "set-title", title: "Offsite" }, { op: "open-round", questions: [q("Q1", "Where should we go?")] }]);
+    s.apply(A.dir, [{ op: "set-title", title: "Offsite" }, { op: "open-round", questions: [q("Q1", "Where should we go?"), { ...q("Q2", "Which week suits?"), recommendation: HELD, alternatives: [{ key: "a", text: "The first week" }, { key: "b", text: "The last week" }] }] }]);
     const owner = await rec.open(A.ownerUrl);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
 
@@ -84,6 +86,20 @@ async function main() {
       && !document.querySelector('.vf-qitem[data-t="people"]'), twinPid));
     ok("the phone carries on as the earlier Ann", await until(twin, p => window.Core.snapshot()?.me?.pid === p, annPid, 10000), await twin.evaluate(() => window.Core.snapshot()?.me?.pid));
     ok("  and the phone's chat is the earlier Ann's now", await until(twin, p => window.Core.snapshot().chat.some(m => m.pid === p && m.text === "Hi from my phone"), annPid));
+
+    // A withheld recommendation is asked open: no "Claude recommends" card, the alternatives stay, and the Withheld text is the open note.
+    const held = await rec.open(A.ownerUrl);
+    await until(held, () => window.Core.snapshot()?.me?.role === "owner");
+    ok("a withheld question gets its alternative cards and no recommendation card", await until(held, () => (window.Core.snapshot().cards.Q2 || []).map(c => c.ref).join() === "c:a,c:b"),
+      await held.evaluate(() => JSON.stringify((window.Core.snapshot().cards.Q2 || []).map(c => c.ref))));
+    await held.locator(".vf-q", { hasText: "Which week suits?" }).first().click();
+    ok("  and its Withheld text shows as the question's open note", await until(held, t => { const n = document.querySelector(".vf-qopen"); return !!n && !n.hidden && n.textContent === t; }, HELD),
+      await held.evaluate(() => document.querySelector(".vf-qopen")?.textContent));
+    const guest = await rec.open(A.localUrl);
+    await joinAs(guest, "Gil");
+    await guest.locator(".vf-q", { hasText: "Which week suits?" }).first().click();
+    ok("  and a guest sees the same open note", await until(guest, t => { const n = document.querySelector(".vf-qopen"); return !!n && !n.hidden && n.textContent === t; }, HELD),
+      await guest.evaluate(() => document.querySelector(".vf-qopen")?.textContent));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
