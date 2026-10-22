@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Claude proposes, the owner approves (issue #8697), in a real browser against `share.sh ensure-running` with the fake
+// Claude proposes, the owner approves, in a real browser against `share.sh ensure-running` with the fake
 // cloudflared: a second "Ann" joins while the first is not here, the server tells Claude (person-joined), Claude's
 // propose-merge lands in the owner's Host view and Inbox with its reasons, a guest never sees it, nothing merges
 // until the owner taps Merge, and Merge folds the new browser into the earlier Ann as the owner's own merge does.
