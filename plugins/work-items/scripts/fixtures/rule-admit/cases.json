@@ -256,6 +256,24 @@
       "source": "rules admit issues only",
       "issue": { "pull_request": { "url": "https://example.invalid/pr/1" } },
       "expect": { "verdict": "refuse", "reason": "not an issue" }
+    },
+    {
+      "name": "title naming a retention change refuses as a cost hit",
+      "source": "owner decision 2026-10-22 (relayed by GitHub Security & Cost): work that adds or raises a charge waits for the owner",
+      "issue": { "title": "Raise the artifact retention to 90 days" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: retention" }
+    },
+    {
+      "name": "body naming a larger runner refuses as a cost hit",
+      "source": "owner decision 2026-10-22 (relayed by GitHub Security & Cost)",
+      "issue": { "body": "Move the slow leg to a larger runner." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: larger runner" }
+    },
+    {
+      "name": "plain docs wording with no charge term still admits",
+      "source": "the cost list stays narrow so ordinary work is not refused",
+      "issue": { "title": "Fix the plan step wording in the README" },
+      "expect": { "verdict": "admit", "rule": "R2" }
     }
   ]
 }

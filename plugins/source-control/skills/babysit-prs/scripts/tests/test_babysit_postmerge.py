@@ -204,6 +204,9 @@ class FakeGh:
         self.pin_reviews: Any = []
         # Artifacts by name, and single workflow runs by id (GET .../runs/<id>).
         self.artifacts: dict[str, list[dict[str, Any]]] = {}
+        # Artifact listings by name, served in order, one per read, before
+        # `artifacts` answers: a listing that changes between reads.
+        self.artifact_pages: dict[str, list[list[dict[str, Any]]]] = {}
         self.run_records: dict[int, dict[str, Any]] = {}
         # Jobs by (run id, attempt); unset, an attempt failed one test job.
         self.jobs: dict[tuple[int, int], list[dict[str, Any]]] = {}
@@ -322,7 +325,8 @@ class FakeGh:
             return completed()
         if "/actions/artifacts?" in endpoint:
             name = endpoint.split("name=")[1].split("&")[0]
-            artifacts = self.artifacts.get(name, [])
+            pages = self.artifact_pages.get(name)
+            artifacts = pages.pop(0) if pages else self.artifacts.get(name, [])
             return completed({"total_count": len(artifacts), "artifacts": artifacts})
         if endpoint.split("/actions/runs/")[-1].isdigit():
             run_id = int(endpoint.rsplit("/", 1)[1])
@@ -1084,6 +1088,307 @@ class LaneDispatch(CheckCase):
             dispatch_run(11, actor=by("maintainer"), triggering_actor=by("maintainer"))
         ]
         self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+
+class EmptyLaneRecordListing(CheckCase):
+    """An artifact listing that answers empty for a run the lane dispatched
+    (a degraded API) must not read as "not the lane's run": the listing is
+    read once more, and a second empty read past the deadline leaves the
+    verdict unreadable instead of a dispatch failure."""
+
+    LATE = datetime(2026, 10, 12, 16, 1, tzinfo=UTC)
+    RECORD = "pr-merge-dispatched-11"
+    LANE_RUN = LaneDispatch.LANE_RUN
+    lane_dispatch = LaneDispatch.lane_dispatch
+
+    def record_reads(self) -> int:
+        return sum(
+            f"actions/artifacts?name={self.RECORD}&" in " ".join(c)
+            for c in self.gh.calls
+        )
+
+    def test_an_empty_listing_on_both_reads_makes_the_verdict_unreadable(
+        self,
+    ) -> None:
+        self.lane_dispatch()
+        self.gh.artifacts.clear()
+        verdict = self.check(pinned=None, now=self.LATE)
+        self.assertFalse(verdict.readable)
+        self.assertTrue(verdict.reason.startswith("unreadable:"), verdict.reason)
+        self.assertIn("run 11", verdict.reason)
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(self.record_reads(), 2)
+
+    def test_a_record_on_the_second_read_counts_the_run_as_the_lanes(
+        self,
+    ) -> None:
+        self.lane_dispatch()
+        self.gh.artifact_pages[self.RECORD] = [[]]
+        verdict = self.check(pinned=None, now=self.LATE)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual(verdict.failures, ())
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertEqual(self.record_reads(), 2)
+
+    def test_another_actors_dispatch_still_fails_at_the_deadline(self) -> None:
+        self.lane_dispatch()
+        self.gh.artifacts.clear()
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(11, actor=by("maintainer"), triggering_actor=by("maintainer"))
+        ]
+        verdict = self.check(pinned=None, now=self.LATE)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+    def test_a_record_from_another_workflow_still_fails_at_the_deadline(
+        self,
+    ) -> None:
+        self.lane_dispatch(path=".github/workflows/pr-unblock-dispatch.yml")
+        verdict = self.check(pinned=None, now=self.LATE)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+        self.assertEqual(self.record_reads(), 1)
+
+
+class UnlistedRecordRecovery(CheckCase):
+    """Owner decision Q676, under Security & Cost's conditions: an unlisted
+    record hold (the lane's dispatch by the deadline whose record listing read
+    empty twice) asks pr-merge for a fresh full run, and clears only on a
+    recorded github-actions[bot] run on main, created after the deadline,
+    that contains the merge and passes. Every other later run leaves the
+    verdict unreadable."""
+
+    AFTER = datetime(2026, 10, 12, 17, 30, tzinfo=UTC)
+    BOT = by("github-actions[bot]")
+    LATE_RUN = 12
+    lane_dispatch = LaneDispatch.lane_dispatch
+    LANE_RUN = LaneDispatch.LANE_RUN
+
+    def unlisted_hold(self) -> None:
+        """Run 11, dispatched by the bot in time, whose record never lists."""
+        self.lane_dispatch()
+        self.gh.artifacts.clear()
+
+    def late_run(
+        self, conclusion: str = "success", *, recorded: bool = True, **fields: Any
+    ) -> None:
+        """Run 12, created after the deadline (16:00) on main at LATER_SHA."""
+        overrides: dict[str, Any] = {
+            "created_at": "2026-10-12T16:30:00Z",
+            "actor": self.BOT,
+            "triggering_actor": self.BOT,
+        }
+        overrides.update(fields)
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(self.LATE_RUN, conclusion, **overrides),
+        )
+        if recorded:
+            name = f"pr-merge-dispatched-{self.LATE_RUN}"
+            self.gh.artifacts[name] = [
+                {"id": 13, "name": name, "workflow_run": {"id": self.LANE_RUN}}
+            ]
+
+    def test_the_hold_alone_is_unreadable_and_asks_for_a_dispatch(self) -> None:
+        self.unlisted_hold()
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertFalse(verdict.readable)
+        self.assertIn("run 11", verdict.reason)
+        self.assertTrue(verdict.needs_dispatch)
+        self.assertIs(verdict.report()["needsDispatch"], True)
+
+    def test_the_hold_reaches_pr_merge_as_exit_3_with_needs_dispatch(self) -> None:
+        # pr-merge.yml reads `.needsDispatch` from the JSON whatever the exit;
+        # the real clock is long past the merge's deadline.
+        self.unlisted_hold()
+        out = io.StringIO()
+        with (
+            contextlib.redirect_stdout(out),
+            mock.patch.object(pm, "_default_is_human", return_value=human),
+        ):
+            code = pm.main(
+                [
+                    "--repo",
+                    REPO,
+                    "--agent-identity",
+                    IDENTITY,
+                    "--since",
+                    SINCE.isoformat(),
+                ]
+            )
+        self.assertEqual(code, 3)
+        self.assertIs(json.loads(out.getvalue())["needsDispatch"], True)
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_a_later_recorded_green_bot_run_on_main_clears_the_hold(self) -> None:
+        self.unlisted_hold()
+        self.late_run()
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual(verdict.failures, ())
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertFalse(verdict.needs_dispatch)
+
+    def test_a_later_run_failing_a_condition_leaves_the_hold(self) -> None:
+        maintainer = by("maintainer")
+        cases = {
+            # The one recovery dispatch is spent: no second one, a loud hold.
+            "unrecorded": ({"recorded": False}, (False, "recovery-unrecorded")),
+            "another actor": (
+                {"actor": maintainer, "triggering_actor": maintainer},
+                (True, "unlisted-record"),
+            ),
+            "the agent identity, not the lane": (
+                {"actor": by(IDENTITY), "triggering_actor": by(IDENTITY)},
+                (True, "unlisted-record"),
+            ),
+            "not containing the merge": (
+                {"head_sha": OTHER_SHA},
+                (True, "unlisted-record"),
+            ),
+        }
+        for name, (fields, (dispatch, hold)) in cases.items():
+            with self.subTest(name):
+                self.setUp()
+                self.unlisted_hold()
+                self.late_run(**fields)
+                verdict = self.check(pinned=None, now=self.AFTER)
+                self.assertFalse(verdict.readable)
+                self.assertIn("run 11", verdict.reason)
+                self.assertEqual(verdict.failures, ())
+                self.assertIs(verdict.needs_dispatch, dispatch)
+                self.assertEqual(verdict.report()["hold"], hold)
+
+    def test_failing_record_uploads_spend_one_recovery_dispatch(self) -> None:
+        # Each sweep sees the bot runs dispatched before it, none recorded.
+        self.unlisted_hold()
+        dispatched = 0
+        holds = []
+        for sweep in range(6):
+            minute = 30 + sweep * 5
+            verdict = self.check(
+                pinned=None, now=datetime(2026, 10, 12, 17, minute, tzinfo=UTC)
+            )
+            self.assertFalse(verdict.readable)
+            holds.append(verdict.report()["hold"])
+            if verdict.needs_dispatch:
+                dispatched += 1
+                self.gh.add_runs(
+                    "pr-require-checks.yml",
+                    "workflow_dispatch",
+                    dispatch_run(
+                        100 + sweep,
+                        created_at=f"2026-10-12T17:{minute}:30Z",
+                        actor=self.BOT,
+                        triggering_actor=self.BOT,
+                    ),
+                )
+        self.assertEqual(dispatched, 1)
+        self.assertEqual(holds, ["unlisted-record"] + ["recovery-unrecorded"] * 5)
+
+    def test_a_readable_verdict_carries_no_hold(self) -> None:
+        self.unlisted_hold()
+        self.late_run()
+        self.assertIsNone(self.check(pinned=None, now=self.AFTER).report()["hold"])
+
+    def red_late_rerun(self) -> None:
+        """Run 12, red on attempt 1 and on the lane's recorded attempt 2."""
+        self.late_run("failure", run_attempt=2)
+        self.gh.attempts[(self.LATE_RUN, 1)] = dispatch_run(
+            self.LATE_RUN,
+            "failure",
+            created_at="2026-10-12T16:30:00Z",
+            actor=self.BOT,
+            triggering_actor=self.BOT,
+        )
+        name = f"pr-merge-rerun-{self.LATE_RUN}-attempt-2"
+        self.gh.artifacts[name] = [
+            {"id": 14, "name": name, "workflow_run": {"id": self.LANE_RUN}}
+        ]
+
+    def test_a_later_recorded_red_run_with_regressions_is_a_failure(self) -> None:
+        # A completed recorded lane run containing the merge is a complete read.
+        self.unlisted_hold()
+        self.red_late_rerun()
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual(
+            [(f.signal, f.run_url) for f in verdict.failures],
+            [("dispatch", f"{RUN_URL}/{self.LATE_RUN}/attempts/2")],
+        )
+        self.assertIn("newly failing: test-bash", verdict.failures[0].detail)
+        self.assertFalse(verdict.needs_dispatch)
+
+    def test_a_later_recorded_red_run_without_regressions_clears_the_hold(
+        self,
+    ) -> None:
+        # test-bash already failed on the newest dispatch run before the merge.
+        maintainer = by("maintainer")
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                10,
+                "failure",
+                head_sha=HEAD_SHA,
+                created_at="2026-10-12T09:30:00Z",
+                actor=maintainer,
+                triggering_actor=maintainer,
+            ),
+        )
+        self.gh.jobs[(10, 1)] = [failed_job(101, "test-bash", "Run the bash tests")]
+        self.unlisted_hold()
+        self.red_late_rerun()
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual(verdict.failures, ())
+        self.assertFalse(verdict.needs_dispatch)
+
+    def test_a_later_recorded_red_attempt_1_awaits_the_lanes_rerun(self) -> None:
+        # Readable, so pr-merge's re-run step can name it (exit 5).
+        self.unlisted_hold()
+        self.late_run("failure")
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(pm.verdict_exit(verdict), pm.EXIT_UNVERIFIED)
+        self.assertEqual(
+            [(r.run_id, r.lane) for r in verdict.reruns], [(self.LATE_RUN, True)]
+        )
+        self.assertFalse(verdict.needs_dispatch)
+
+    def test_a_recorded_later_run_still_running_asks_for_no_second_dispatch(
+        self,
+    ) -> None:
+        self.unlisted_hold()
+        self.late_run(status="in_progress", conclusion=None)
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertFalse(verdict.readable)
+        self.assertFalse(verdict.needs_dispatch)
+
+    def test_no_dispatch_at_all_still_fails_at_the_deadline(self) -> None:
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+    def test_a_later_recorded_green_run_without_the_hold_still_fails(self) -> None:
+        # Only the hold is recoverable: no dispatch by the deadline stays a failure.
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.run_records[self.LANE_RUN] = {
+            "id": self.LANE_RUN,
+            "path": ".github/workflows/pr-merge.yml",
+            "event": "schedule",
+            "head_branch": "main",
+            "head_sha": LATER_SHA,
+            "repository": {"full_name": REPO},
+            "head_repository": {"full_name": REPO},
+        }
+        self.late_run()
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
 
 
 class LaneRerun(LaneDispatch):

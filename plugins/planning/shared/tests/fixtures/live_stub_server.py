@@ -1,5 +1,6 @@
 """server.py with a stand-in live starter, for the live prototype browser suite (ui_proto_live.js): Approve answers a
-fixed quick-tunnel origin per entry and starts no process. Takes server.py's arguments.
+fixed quick-tunnel origin per entry and starts no process; one entry, labeled Broken build, always fails to start. Takes
+server.py's arguments.
 
     python live_stub_server.py --dir DATA_DIR --guest-port P --control-port 0 --nonce N
 """
@@ -13,7 +14,13 @@ import server  # noqa: E402  (two folders up; sys.path is set just above)
 
 
 class StubLiveStarter:
+    """An entry labeled FAILS never starts: its every Approve answers 502, the same error each time."""
+
+    FAILS = "Broken build"
+
     def start(self, entry):
+        if entry["label"] == self.FAILS:
+            raise RuntimeError("the stand-in starter fails this entry")
         return f"https://fake-live-{entry['id'].lower()}.trycloudflare.com"  # the suite reads links only, never opens one
 
     def stop(self, entry):

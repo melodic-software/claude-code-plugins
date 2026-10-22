@@ -539,7 +539,20 @@ const check = (page, theme) => page.evaluate(theme => {
   } else if (pill && vis(pill)) fail("live-pill", `${name(pill)} shows with no title row beside it`);
   // toast: centered on the center pane ±1px, text centered, clear of composer, tab bar, chat button and chat
   const toast = app.querySelector(".vf-toast.vf-on");
-  if (toast && vis(toast)) {
+  // the modal chat covers the page (on a phone the whole screen): the toast sits inside it, centered on it, in a slot
+  // clear of its head, messages, typing line and message box
+  const modalChat = app.querySelector('.vf-chat[aria-modal="true"]');
+  if (toast && vis(toast) && modalChat && vis(modalChat)) {
+    const tb = toast.getBoundingClientRect(), mb = modalChat.getBoundingClientRect(), mid = (tb.left + tb.right) / 2;
+    if (tb.left < mb.left || tb.right > mb.right || tb.top < mb.top || tb.bottom > mb.bottom) fail("toast", "toast is outside the open modal chat");
+    if (Math.abs(mid - (mb.left + mb.right) / 2) > 1) fail("toast", `toast center x ${mid.toFixed(1)} vs chat center ${((mb.left + mb.right) / 2).toFixed(1)}`);
+    if (getComputedStyle(toast).textAlign !== "center") fail("toast", "toast text is not centered");
+    for (const el of modalChat.querySelectorAll(".vf-chat-head, .vf-mscroll, .vf-mtyping, .vf-mform, textarea")) {
+      if (!vis(el)) continue;
+      const b = el.getBoundingClientRect();
+      if (b.left < tb.right && b.right > tb.left && b.top < tb.bottom && b.bottom > tb.top) fail("toast", `toast overlaps ${name(el)}`);
+    }
+  } else if (toast && vis(toast)) {
     const tb = toast.getBoundingClientRect(), mid = (tb.left + tb.right) / 2;
     const cp = app.querySelector(".vf-center"), C = cp && vis(cp) ? cp.getBoundingClientRect() : { left: 0, right: innerWidth };
     const chEl = [app.querySelector(".vf-chat"), app.querySelector(".vf-drawer")].find(e => e && vis(e) && !matchMedia("(max-width: 720px)").matches) || app.querySelector(".vf-chat");

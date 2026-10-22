@@ -322,10 +322,12 @@ test("every ci-workflows action is pinned to one release", () => {
   assert.equal(new Set(refs).size, 1, `one pin: ${[...new Set(refs)].join(", ")}`);
 });
 
-test("the resolver reads adoption.owner-ids from main's pipeline config in both jobs", () => {
+test("the resolver reads the trusted-actor list from main in both jobs", () => {
   for (const job of JOBS) {
     const block = step("Resolve the pull request", job);
-    assert.match(block, /OWNER_IDS=\$\(yq '\.adoption\."owner-ids" \/\/ \[\] \| \.\[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)/, job);
-    assert.match(block, /export VERIFY_AUTHORS LANE_IDENTITY OWNER_IDS\n/, job);
+    assert.match(block, /TRUSTED_ACTORS_PATH: \.base\/\.github\/standards\/trusted-actors\/trusted-actors\.json\n/, job);
+    assert.match(block, /SPEC_FROM_BODY_APPS=\$\(yq '\.adoption\."spec-from-body-apps" \/\/ \[\] \| \.\[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);
+    assert.match(block, /export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS\n/, job);
+    assert.match(step("Write the verdict", job), /SPEC_TEXT_FILE: \$\{\{ github\.workspace \}\}\/pr-verify-data\/spec-text\.json\n/, job);
   }
 });

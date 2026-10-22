@@ -4,6 +4,18 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.24.1] - 2026-10-22
+
+### Fixed
+
+- Point the `boris` favorites "See also" link at Section 7: Hooks, the section's real number in `foundations.md`.
+
+## [0.24.0] - 2026-10-22
+
+### Changed
+
+- Make `repo-sweep` model-invocable (`disable-model-invocation: false`); its approval steps are unchanged.
+
 ## [0.23.8] - 2026-10-22
 
 ### Fixed

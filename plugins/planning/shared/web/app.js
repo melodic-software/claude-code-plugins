@@ -943,6 +943,20 @@
         toast.style.setProperty("--toast-room", Rt - L - 32 + "px");
         return toast.offsetWidth;
       };
+      // The modal chat covers the page: the toast takes a slot the chat opens between its messages and its composer,
+      // so it hides no message, the close button or the message box.
+      if (activeSheet() === chat) {
+        L = R.right - chat.offsetWidth; Rt = R.right; fit();
+        const h = toast.offsetHeight;
+        chat.style.setProperty("--toast-slot", h ? h + 16 + "px" : "0px");
+        // measured from the typing line under the slot: the messages' margin may still be mid-transition
+        toast.style.insetBlockStart = "auto";
+        toast.style.insetBlockEnd = R.bottom - mTyping.getBoundingClientRect().top + 8 + "px";
+        return;
+      }
+      chat.style.removeProperty("--toast-slot");
+      // docked beside the page, the chat's column is never under the toast (its layout box: the entrance slide moves it)
+      if (!chat.hidden) Rt = Math.min(Rt, R.right - chat.offsetWidth - 8);
       let w = fit();
       // only when the open chat panel would sit under it, center it on the part of the pane the chat leaves
       if (ch && ch.left > L + 200 && ch.left < (L + Rt) / 2 + w / 2) { Rt = ch.left - 8; w = fit(); }
@@ -960,7 +974,7 @@
     }
     function hideToast() {
       const was = toast._tag;
-      toast.classList.remove("vf-on"); toast._tag = "";
+      toast.classList.remove("vf-on"); toast._tag = ""; chat.style.removeProperty("--toast-slot");
       if (was !== "alert" && ui.alertOpen) { flash(alertToast, null, "alert"); return; } // an urgent pop-up another toast covered comes back
       clearT = setTimeout(() => { toastTxt.textContent = ""; toastAct.hidden = true; }, 250);
     }
@@ -1262,6 +1276,8 @@
     const qText = E("h1", "vf-qtext"); qText.tabIndex = -1;
     // F:30: the background Claude wrote for the question (its stored `context`), under the question, clamped like any long text
     const qCtx = clampBox("vf-qctx"); qCtx.hidden = true;
+    // a withheld recommendation is asked open: its Withheld: text shows here as the question's open note, never on a card
+    const qOpen = E("p", "vf-qctx vf-qopen"); qOpen.hidden = true;
     const reviewRow = E("div", "vf-reviewrow");
     const reviewTag = E("span", "vf-review"); const reviewTxt = E("span");
     reviewTag.append(icon("alert"), reviewTxt);
@@ -1625,7 +1641,7 @@
     // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
     // Follow-up 47: a question asked once per device, answered from another kind of device, asks again on this one.
     const devNote = E("p", "vf-devnote"); devNote.hidden = true;
-    scroll.append(orient, goalBack, qMeta, forBox, qText, qCtx, refBox, qPicBox, reviewRow, qHist, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
+    scroll.append(orient, goalBack, qMeta, forBox, qText, qCtx, qOpen, refBox, qPicBox, reviewRow, qHist, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
     focusV.append(scroll);
 
     // Compare view
@@ -4873,6 +4889,9 @@
     };
     on(board, "scroll", edges, { passive: true });
     on(window, "resize", () => { edges(); if (toast.classList.contains("vf-on")) placeToast(); if (ui.pop === PP.pop) placePanel(ui.pop); measureAll(); });
+    // the pane the toast centers on also changes width without a window resize (the chat docking, the waiting room)
+    const toastPane = new ResizeObserver(() => { if (toast.classList.contains("vf-on")) placeToast(); });
+    toastPane.observe(center); offs.push(() => toastPane.disconnect());
     arrL.onclick = () => board.scrollBy({ left: -colStep(), behavior: smooth() });
     arrR.onclick = () => board.scrollBy({ left: colStep(), behavior: smooth() });
     fab.onclick = () => setChat(!ui.chatOpen);
@@ -7838,6 +7857,8 @@
         if (qText.textContent !== q.text) qText.textContent = q.text;
         qCtx.hidden = !q.context;
         if (q.context) fillClamp(qCtx, "qc:" + q.id, q.context, `Background to ${q.id}`, q.text);
+        qOpen.hidden = !q.withheld;
+        qOpen.textContent = q.withheld ? q.recommendation || "" : "";
         reviewTxt.textContent = reviewText(q);
         reviewRow.hidden = !q.needsReview;
         reviewClear.hidden = !mod;
@@ -7993,7 +8014,7 @@
         agreeTxt.textContent = s.signoff && !lk && topA && !poll ? `${agreeN} of ${here.length} agree` : "";
         agreeTxt.classList.toggle("vf-agree-all", !!topA && agreeN === here.length);
       } else {
-        qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = qCtx.hidden = true; qText.textContent = "No questions yet";
+        qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = qCtx.hidden = qOpen.hidden = true; qText.textContent = "No questions yet";
         qTools.hidden = qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
         onItTxt.textContent = ""; ansCount.textContent = ""; aEmpty.hidden = true; lockBox.hidden = true; lockBtn.hidden = true;
         reviewRow.hidden = qHist.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;

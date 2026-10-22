@@ -9,6 +9,7 @@
 // per GitHub's documented ghp_ prefix and 36-character body; an AWS access key
 // id, AKIA plus 16; a PEM private key header, RFC 7468) writes nothing.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -41,6 +42,7 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
       base_sha: BASE,
       head_ref: "feat/x",
       linked_issues: [ISSUE],
+      intent: "issues",
       verdict,
       summary: "s",
       notes: ["n"],
@@ -94,6 +96,18 @@ test("linked issues outside their schema throw", () => {
     assert.throws(() => buildVerdict({ ...ids, linkedIssues, output: ok }), undefined, JSON.stringify(linkedIssues));
   }
   assert.deepEqual(buildVerdict({ ...ids, linkedIssues: [], output: ok }).linked_issues, []);
+  // The intent source: the pull request's own title and body when the spec
+  // text holds them (resolve-pr.mjs), else its closing issues.
+  const own = [{ number: 41, source: "pull-request", body: "t\n\nb", comments: [] }];
+  assert.equal(buildVerdict({ ...ids, linkedIssues: [], specText: own, output: ok }).intent, "pull-request");
+  // The hash of the title and body judged, which the gate compares live.
+  assert.equal(
+    buildVerdict({ ...ids, linkedIssues: [], specText: own, output: ok }).intent_sha256,
+    createHash("sha256").update("t\n\nb").digest("hex"),
+  );
+  assert.equal(buildVerdict({ ...ids, output: ok }).intent_sha256, undefined);
+  assert.equal(buildVerdict({ ...ids, linkedIssues: [], specText: [], output: ok }).intent, "issues");
+  assert.equal(buildVerdict({ ...ids, output: ok }).intent, "issues");
   const edited = { ...ISSUE, last_edited_at: "2026-10-14T00:00:00Z", editor_login: "lanes", editor_id: 200, editor_type: "Bot" };
   assert.deepEqual(buildVerdict({ ...ids, linkedIssues: [edited], output: ok }).linked_issues, [edited]);
 });
