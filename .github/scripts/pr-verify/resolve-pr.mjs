@@ -12,10 +12,9 @@
 // - under merge.verify-authors `lane` (the default) the lanes App opened it:
 //   a Bot account whose login is merge.agent-identity, compared as the
 //   pr-merge lane does (babysit_merge_policy._lane_authored); under
-//   `lane-or-owner` that App or an owner account, a User whose id is in
-//   adoption.owner-ids (OWNER_IDS; unset, none; never matched by login),
-//   whose PRs the pr-merge lane adopts
-//   once idle (babysit_merge_policy.adoption_refusal); under `any` anyone may
+//   `lane-or-owner` that App or a User or Bot whose id is on the trusted
+//   list (never matched by login), whose PRs the pr-merge lane adopts
+//   (babysit_merge_policy.adoption_refusal); under `any` anyone may
 //   have; any other value judges nothing;
 // - the head has no counted verdict yet: a FAIL at it under this PR's number
 //   or another the commit's pull requests carry, or a PASS or PASS-NOTES for
@@ -41,12 +40,6 @@ export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
 // babysit_classify.DEPENDENCY_MANAGER_LOGINS: the pr-merge lane refuses these
 // Bot accounts' pull requests before reading a verdict.
 export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
-// The OWNER_IDS value pr-verify.yml reads from adoption.owner-ids, one id per
-// line: unset or empty is none, and an entry that is not an id adopts none.
-export const ownerIds = (value = "") => {
-  const ids = value.split(/\s+/).filter(Boolean);
-  return ids.every((id) => /^[1-9][0-9]*$/.test(id)) ? ids.map(Number) : [];
-};
 const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -85,7 +78,7 @@ export const isDependencyManager = (user) =>
 const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
 const laneAuthored = (user, laneIdentity) =>
   loginKey(laneIdentity) !== "" && user?.type === "Bot" && loginKey(user.login) === loginKey(laneIdentity);
-const ownerAuthored = (user, ids) => user?.type === "User" && ids.includes(user.id);
+const ownerAuthored = (user, ids) => (user?.type === "User" || user?.type === "Bot") && ids.includes(user.id);
 
 // Every artifact with exactly this name; a read that fails throws.
 async function artifactsNamed(github, repository, name) {
@@ -290,15 +283,16 @@ export async function main(env = process.env, { github } = {}) {
       throw new Error(`${key} is not set`);
     }
   }
+  const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
   const result = await resolvePull({
     github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
     repository: env.GITHUB_REPOSITORY,
     upstreamRunId: env.UPSTREAM_RUN_ID,
-    humans: loadTrustedList(env.TRUSTED_ACTORS_PATH).humans,
+    humans: trusted.humans,
     // pr-verify.yml reads both from main's pr-pipeline.yaml; unset is `lane`.
     verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
     laneIdentity: env.LANE_IDENTITY,
-    ownerIds: ownerIds(env.OWNER_IDS),
+    ownerIds: [...trusted.ids],
   });
   if (result.proceed && !/^[A-Za-z0-9._/-]+$/.test(result.headRef)) {
     throw new Error("the head branch has a name the outputs cannot carry");
@@ -318,7 +312,7 @@ export async function main(env = process.env, { github } = {}) {
   appendFileSync(env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
   const summary = {
     "author-not-lane": "skipped: author not the lanes App",
-    "author-not-lane-or-owner": "skipped: author neither the lanes App nor the owner account",
+    "author-not-lane-or-owner": "skipped: author neither the lanes App nor a trusted actor",
     "verify-authors-invalid": "skipped: verify-authors value is invalid",
   }[result.reason];
   if (summary && env.GITHUB_STEP_SUMMARY) {

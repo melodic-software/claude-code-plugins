@@ -3265,9 +3265,17 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 }
                 self.assertEqual(self.refusal(owner_pr(user=spoof)), "author-not-owner")
 
-    def test_the_owner_id_on_a_bot_account_is_not_adopted(self) -> None:
-        user = {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "Bot"}
-        self.assertEqual(self.refusal(owner_pr(user=user)), "author-not-owner")
+    def test_a_listed_app_is_adopted_with_no_idle_wait(self) -> None:
+        # Owner decision 2026-10-22: a trusted App's PR (the release App's)
+        # is adopted at once; only a person may still be working on theirs.
+        app = {"login": "melodic-plugin-release[bot]", "id": 337859524, "type": "Bot"}
+        fresh = owner_pr(user=app, updated_at=FRESH)
+        self.assertIsNone(
+            self.refusal(fresh, committed=FRESH, owner_ids=(OWNER_ID, 337859524))
+        )
+        self.assertEqual(self.refusal(fresh, committed=FRESH), "author-not-owner")
+        org = {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "Organization"}
+        self.assertEqual(self.refusal(owner_pr(user=org)), "author-not-owner")
 
     def test_a_recent_update_is_not_adopted(self) -> None:
         self.assertEqual(self.refusal(owner_pr(updated_at=FRESH)), "updated-fresh")
@@ -3568,7 +3576,8 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
 
     def test_idle_hours_default_to_24_and_read_the_setting(self) -> None:
         for text, expected, noted in (
-            (PIPELINE, 24, False),
+            # No setting, no adoption, as in fix-ci.
+            (PIPELINE, None, False),
             (PIPELINE + "adoption:\n  idle-hours: 48\n", 48, False),
             (PIPELINE + "adoption:\n  idle-hours: 1\n", 1, False),
             (PIPELINE + "adoption:\n  idle-hours: 720\n", 720, False),
@@ -3578,7 +3587,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             (PIPELINE + "adoption:\n  idle-hours: soon\n", None, True),
             (PIPELINE + "adoption:\n  idle-hours: -1\n", None, True),
             # Under merge it is another key, not the setting.
-            (PIPELINE.replace("merge:\n", "merge:\n  idle-hours: 1\n"), 24, False),
+            (PIPELINE.replace("merge:\n", "merge:\n  idle-hours: 1\n"), None, False),
         ):
             with self.subTest(text=text):
                 config_fake(self, text)
@@ -3587,30 +3596,29 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(config.rung, "C2")
                 self.assertEqual(any("idle-hours" in n for n in config.notes), noted)
 
-    def test_owner_ids_read_the_setting_and_absent_adopts_none(self) -> None:
-        for text, expected, noted in (
-            (PIPELINE, (), False),
-            (PIPELINE + "adoption:\n  idle-hours: 24\n", (), False),
-            (PIPELINE + "adoption:\n  owner-ids:\n", (), False),
-            (PIPELINE + f"adoption:\n  owner-ids: [{OWNER_ID}]\n", (OWNER_ID,), False),
-            (PIPELINE + "adoption:\n  owner-ids: [5, 77]\n", (5, 77), False),
-            (PIPELINE + "adoption:\n  owner-ids: []\n", (), False),
-            (PIPELINE + "adoption:\n  owner-ids: [5, kyle]\n", (), True),
+    def test_the_adoptable_ids_are_every_trusted_actor_by_id(self) -> None:
+        # Owner decision 2026-10-22: the trusted-actor list, people and Apps.
+        listing = {
+            "version": 1,
+            "actors": [
+                {"id": 5, "login": "a-person", "kind": "human"},
+                {"id": 77, "login": "an-app[bot]", "kind": "bot"},
+            ],
+        }
+        endpoint = f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref=trunk"
+        for payload, expected in (
+            (file_payload(json.dumps(listing)), (5, 77)),
+            (file_payload(json.dumps({"version": 2, "actors": []})), ()),
+            (file_payload(json.dumps({"version": 1, "actors": [{"id": "5"}]})), ()),
+            (file_payload("{not json"), ()),
+            (502, ()),
         ):
-            with self.subTest(text=text):
-                config_fake(self, text)
-                config = policy.read_config_at(REPO, SHA)
-                self.assertEqual(config.adoption_owner_ids, expected)
-                self.assertEqual(config.rung, "C2")
-                self.assertEqual(any("owner-ids" in n for n in config.notes), noted)
-
-    def test_the_default_branch_head_decides_owner_ids(self) -> None:
-        base = policy.PipelineConfig(SHA, "C2", None, IDENTITY, None, (), None)
-        combined = policy.stricter_config(
-            dataclasses.replace(base, adoption_owner_ids=(5,)),
-            dataclasses.replace(base, adoption_owner_ids=(7,)),
-        )
-        self.assertEqual(combined.adoption_owner_ids, (7,))
+            with self.subTest(payload=payload):
+                policy._TRUSTED_IDS.clear()
+                gh = GhFake().install(self)
+                gh.rest[endpoint] = payload
+                gh.rest[f"repos/{REPO}/contents?ref=trunk"] = []
+                self.assertEqual(policy.trusted_actor_ids(REPO, "trunk"), expected)
 
     def test_the_default_branch_head_decides_idle_hours(self) -> None:
         base = policy.PipelineConfig(SHA, "C2", None, IDENTITY, None, (), None)
@@ -3621,6 +3629,64 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     dataclasses.replace(base, adoption_idle_hours=main),
                 )
                 self.assertEqual(combined.adoption_idle_hours, main)
+
+
+class ForeignPaths(unittest.TestCase):
+    """Owner decision 2026-10-22: an adopted pull request's floor scores only
+    the paths someone other than its author touched."""
+
+    def commit(self, sha: str, author: Any, parents: int = 1) -> dict[str, Any]:
+        return {
+            "sha": sha,
+            "author": author,
+            "parents": [{"sha": "p"}] * parents,
+        }
+
+    def paths(self, commits: list[Any], files: dict[str, Any]) -> Any:
+        def get(endpoint: str) -> tuple[int, Any]:
+            sha = endpoint.rsplit("/", 1)[1]
+            return (200, {"files": files[sha]}) if sha in files else (502, None)
+
+        with (
+            mock.patch.object(policy, "_paginated", return_value=commits),
+            mock.patch.object(policy, "_get", side_effect=get),
+        ):
+            return policy.foreign_paths(REPO, owner_pr())
+
+    def test_only_other_authors_non_merge_commits_count(self) -> None:
+        commits = [
+            self.commit("a1", {"id": OWNER_ID}),
+            self.commit("l1", {"id": 337595936}),
+            self.commit("m1", {"id": 337595936}, parents=2),
+            self.commit("n1", None),
+        ]
+        files = {
+            "l1": [{"filename": ".github/a.yml", "previous_filename": ".github/o.yml"}],
+            "n1": [{"filename": "scripts/x.sh"}],
+        }
+        self.assertEqual(
+            self.paths(commits, files),
+            frozenset({".github/a.yml", ".github/o.yml", "scripts/x.sh"}),
+        )
+        self.assertEqual(self.paths(commits[:1], {}), frozenset())
+
+    def test_an_app_authors_own_lines_still_score(self) -> None:
+        # The owner's answer covers a person's own lines, not an App's.
+        app = {"login": "an-app[bot]", "id": OWNER_ID, "type": "Bot"}
+        with mock.patch.object(
+            policy, "_paginated", side_effect=AssertionError("read")
+        ):
+            self.assertIsNone(policy.foreign_paths(REPO, owner_pr(user=app)))
+
+    def test_a_listing_that_may_be_cut_off_or_fails_scores_every_path(self) -> None:
+        lane = self.commit("l1", {"id": 337595936})
+        self.assertIsNone(self.paths([lane], {}))
+        self.assertIsNone(self.paths([lane], {"l1": [{"filename": "x"}] * 300}))
+        self.assertIsNone(self.paths([self.commit("a", {"id": OWNER_ID})] * 250, {}))
+        with mock.patch.object(
+            policy, "_paginated", side_effect=policy.PolicyReadError("502")
+        ):
+            self.assertIsNone(policy.foreign_paths(REPO, owner_pr()))
 
 
 class LaneEnabledSince(unittest.TestCase):
@@ -3705,7 +3771,21 @@ class LaneAssess(unittest.TestCase):
     def test_adoption_settings_reach_the_lane_and_the_report(self) -> None:
         gh = self.unreadable_variables()
         gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = file_payload(
-            LANE_PIPELINE + "adoption:\n  idle-hours: 48\n  owner-ids: [5, 77]\n"
+            LANE_PIPELINE + "adoption:\n  idle-hours: 48\n"
+        )
+        policy._TRUSTED_IDS.clear()
+        gh.rest[f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref=trunk"] = (
+            file_payload(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "actors": [
+                            {"id": 5, "login": "a", "kind": "human"},
+                            {"id": 77, "login": "b[bot]", "kind": "bot"},
+                        ],
+                    }
+                )
+            )
         )
         lane = self.lane_clear()
         lane.return_value = policy.Eligibility(

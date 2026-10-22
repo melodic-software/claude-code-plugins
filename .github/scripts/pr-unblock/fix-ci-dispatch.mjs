@@ -1,6 +1,7 @@
 // Starts the pr-unblock lane's fix-ci activity for each open pull request the
-// lanes App opened, or an adoptable owner opened and left idle (the base
-// config's `adoption` section), whose head's ci-status failed, from the same
+// lanes App opened, or a trusted actor opened (an App's at once, a person's
+// once idle; the base config's `adoption` section), whose head's ci-status
+// failed, from the same
 // dispatcher run
 // as dispatch.mjs (pr-unblock-dispatch.yml), so the trigger gate and the
 // broker check it as they check a resolve-conflicts dispatch.
@@ -57,7 +58,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
     pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
       nodes {
         number isDraft isCrossRepository baseRefName headRefOid updatedAt body
-        author { login ... on Bot { databaseId } ... on User { databaseId } }
+        author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
         commits(last: 1) {
           nodes {
@@ -94,8 +95,12 @@ function headChecks(node, actionsAppId) {
 }
 
 // An owner PR is idle when neither it nor its head commit changed in the last
-// idleHours; an unreadable date is not idle.
+// idleHours; an unreadable date is not idle. An App's PR never waits: only a
+// person may still be working on it.
 function ownerIdle(node, idleHours, now) {
+  if (node.author?.__typename === "Bot") {
+    return true;
+  }
   const commit = node.commits?.nodes?.[0]?.commit;
   const since = now - idleHours * 3_600_000;
   return commit?.oid === node.headRefOid && Date.parse(node.updatedAt) <= since && Date.parse(commit.committedDate) <= since;

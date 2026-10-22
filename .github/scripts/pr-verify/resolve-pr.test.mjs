@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { main, ownerIds, resolvePull } from "./resolve-pr.mjs";
+import { main, resolvePull } from "./resolve-pr.mjs";
 
 const REPO = "example-org/example-repo";
 const HEAD = "a".repeat(40);
@@ -202,8 +202,11 @@ test("verify-authors lane-or-owner judges the owner account's PRs and the lane's
   // Matched by account id, never login.
   const spoof = pull({ user: { id: OWNER_ID + 1, login: "kyle-sexton", type: "User" } });
   assert.equal(await reason({ pulls: [spoof] }, opts), "author-not-lane-or-owner", "owner login, other id");
-  const botId = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "Bot" } });
-  assert.equal(await reason({ pulls: [botId] }, opts), "author-not-lane-or-owner", "a Bot with the id");
+  // A listed App (the release App) is judged too (owner decision 2026-10-22).
+  const app = pull({ user: { id: OWNER_ID, login: "melodic-plugin-release[bot]", type: "Bot" } });
+  assert.equal(await reason({ pulls: [app] }, opts), "ok", "a listed Bot");
+  const org = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "Organization" } });
+  assert.equal(await reason({ pulls: [org] }, opts), "author-not-lane-or-owner", "another account type");
   assert.equal(await reason({ pulls: [HUMAN_PR] }, opts), "author-not-lane-or-owner", "another human");
   // A draft stays unjudged.
   assert.equal(await reason({ pulls: [{ ...owner, draft: true }] }, opts), "draft", "owner draft");
@@ -219,12 +222,33 @@ test("lane-or-owner reads the owner ids it is given", async () => {
   assert.equal(await reason({ pulls: [owner] }, { verifyAuthors: "lane-or-owner" }), "author-not-lane-or-owner", "not given");
 });
 
-test("the owner ids come from adoption.owner-ids, none when unset", () => {
-  assert.deepEqual(ownerIds(undefined), []);
-  assert.deepEqual(ownerIds("5\n77\n"), [5, 77]);
-  assert.deepEqual(ownerIds(""), []);
-  // An entry that is not an account id adopts nothing.
-  assert.deepEqual(ownerIds("5\nkyle\n"), []);
+test("main judges every trusted-actors.json account under lane-or-owner, a Bot included", async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const output = path.join(dir, "out");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(
+    actors,
+    JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }, { id: 77, login: "a-release[bot]", kind: "bot" }] }),
+  );
+  t.mock.method(console, "log", () => {});
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_OUTPUT: output,
+    UPSTREAM_RUN_ID: String(RUN),
+    SPEC_FILE: path.join(dir, "spec.json"),
+    SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+    TRUSTED_ACTORS_PATH: actors,
+    LANE_IDENTITY: LANE,
+    VERIFY_AUTHORS: "lane-or-owner",
+  };
+  const release = pull({ user: { id: 77, login: "a-release[bot]", type: "Bot" } });
+  await main(env, { github: fake({ pulls: [release] }) });
+  assert.match(readFileSync(output, "utf8"), /^proceed=true\nreason=ok\n/);
+  writeFileSync(output, "");
+  const stranger = pull({ user: { id: 78, login: "stranger", type: "User" } });
+  await main(env, { github: fake({ pulls: [stranger] }) });
+  assert.match(readFileSync(output, "utf8"), /^proceed=false\nreason=author-not-lane-or-owner\n/);
 });
 
 test("an unknown verify-authors value judges nothing", async () => {

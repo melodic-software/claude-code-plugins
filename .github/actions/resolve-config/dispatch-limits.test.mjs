@@ -29,7 +29,11 @@ const STOPPED = {
 
 function baseWith(text) {
   const base = mkdtempSync(join(tmpdir(), "dispatch-limits-base-"));
-  for (const file of ["docs/conventions/pr-pipeline/pr-pipeline.schema.json", ".github/standards/github-actions-conventions/vocabulary.json"]) {
+  for (const file of [
+    "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
+    ".github/standards/github-actions-conventions/vocabulary.json",
+    ".github/standards/trusted-actors/trusted-actors.json",
+  ]) {
     mkdirSync(dirname(join(base, file)), { recursive: true });
     cpSync(join(ROOT, file), join(base, file));
   }
@@ -141,8 +145,22 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   owner.author = { databaseId: 153232337 };
   owner.updatedAt = idle;
   owner.commits.nodes[0].commit.committedDate = idle;
-  assert.deepEqual(parse(LIVE).adoption, { "idle-hours": 24, "owner-ids": [153232337] }, "the live config adopts the owner after 24 hours");
+  assert.deepEqual(parse(LIVE).adoption, { "idle-hours": 24 }, "the live config adopts a trusted person after 24 hours");
   assert.deepEqual(await run(LIVE, [owner]), { code: 0, dispatched: ["40", "61"] });
+  // Every trusted-actors.json entry is adoptable: the release App, a Bot, at once.
+  const release = ciFixPull(65);
+  release.author = { __typename: "Bot", databaseId: 337859524 };
+  release.updatedAt = "2026-10-17T11:59:00Z";
+  assert.deepEqual(await run(LIVE, [release]), { code: 0, dispatched: ["40", "65"] });
+  // Dependabot's red PR is review-dependency's, never fix-ci's.
+  const dependabot = ciFixPull(67);
+  dependabot.author = { __typename: "Bot", databaseId: 49699333 };
+  assert.deepEqual(await run(LIVE, [dependabot]), { code: 0, dispatched: ["40"] });
+  const stranger = ciFixPull(66);
+  stranger.author = { __typename: "User", databaseId: 4242 };
+  stranger.updatedAt = idle;
+  stranger.commits.nodes[0].commit.committedDate = idle;
+  assert.deepEqual(await run(LIVE, [stranger]), { code: 0, dispatched: ["40"] });
   const without = LIVE.replace(/^adoption:\n( {2}.*\n)*/m, "");
   assert.doesNotMatch(without, /^adoption:/m);
   assert.deepEqual(await run(without, [owner]), { code: 0, dispatched: ["40"] });
@@ -160,7 +178,7 @@ test("the base tracker config's human-gated label holds an adopted PR from fix-c
   assert.deepEqual(await run(LIVE, [owner]), { code: 0, dispatched: ["40", "62"] }, "with no tracker file the label is needs-human");
 });
 
-test("an unreadable base tracker config holds adopted owner PRs only, and no owner-ids skips the read", async () => {
+test("an unreadable base tracker config holds adopted owner PRs only, and no adoption section skips the read", async () => {
   const idle = "2026-10-16T11:00:00Z";
   const owner = ciFixPull(64);
   owner.author = { databaseId: 153232337 };

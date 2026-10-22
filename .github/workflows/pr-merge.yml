@@ -524,19 +524,20 @@ jobs:
             exit 1
           fi
           authors=("app/$slug")
-          # The owner accounts (adoption.owner-ids; absent or null, none),
-          # each looked up by account id: the gate adopts their idle pull
-          # requests (babysit_merge_policy.adoption_refusal) and checks the id
-          # again. A failed lookup lists none of that account's PRs.
-          for owner_id in $(yq '.adoption."owner-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml); do
-            if [[ $owner_id =~ ^[1-9][0-9]*$ ]] &&
-              owner_login=$(gh api "user/$owner_id" --jq .login) &&
-              [[ $owner_login =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]]; then
-              authors+=("$owner_login")
-            else
-              echo "::warning::the owner account's login is unreadable; no owner PR is a candidate this run"
-            fi
-          done
+          # With an adoption section, each trusted-actors.json account, a
+          # person by login and an App as app/<slug>: the gate adopts their
+          # pull requests (babysit_merge_policy.adoption_refusal) and checks
+          # the id again. Dependabot is listed below, by its own switch.
+          if [ "$(yq '.adoption | tag' .base/docs/conventions/pr-pipeline.yaml)" = '!!map' ]; then
+            while IFS= read -r login; do
+              author=$login
+              [[ $login =~ ^(.*)\[bot\]$ ]] && author="app/${BASH_REMATCH[1]}"
+              if [[ $author =~ ^(app/)?[A-Za-z0-9][A-Za-z0-9-]*$ ]] &&
+                [ "$author" != "app/$slug" ] && [ "$author" != app/dependabot ]; then
+                authors+=("$author")
+              fi
+            done < <(jq -r '.actors[].login' .base/.github/standards/trusted-actors/trusted-actors.json)
+          fi
           # The gate resolves the same label through babysit_postmerge._role_label.
           human_gated=needs-human
           if [ -f .base/.work-item-tracker.json ]; then

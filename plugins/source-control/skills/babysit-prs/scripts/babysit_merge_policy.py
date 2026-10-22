@@ -117,10 +117,12 @@ BODY_MERGE_HOLD_RE = re.compile(
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
 MERGE_HOLD_LABELS = ("do-not-merge",)
-# `adoption.idle-hours` when absent; a value outside 1 to
-# `MAX_ADOPTION_IDLE_HOURS` adopts nothing.
-ADOPTION_IDLE_HOURS = 24
+# An `adoption.idle-hours` value outside 1 to `MAX_ADOPTION_IDLE_HOURS`, or
+# none, adopts nothing.
 MAX_ADOPTION_IDLE_HOURS = 720
+# Whose pull requests the pr-merge lane adopts: every account on this list,
+# by id (`trusted_actor_ids`).
+TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 RUNG_CAP_VARIABLE = "CLAUDE_LANES_MERGE_RUNG_CAP"
 ORG_SWITCH = "CLAUDE_LANES_DISABLED"
 REPO_SWITCH = "CLAUDE_LANES_REPO_DISABLED"
@@ -568,17 +570,12 @@ class PipelineConfig:
     # The default branch head's `merge.check-inputs` not in `check_inputs`,
     # set by `stricter_config` and read on its own.
     head_check_inputs: tuple[str, ...] = ()
-    # `adoption.idle-hours`: how long an owner pull request's update and head
-    # commit must be idle before the pr-merge lane adopts it
-    # (`adoption_refusal`). Absent is `ADOPTION_IDLE_HOURS`; anything but a
-    # whole number from 1 to `MAX_ADOPTION_IDLE_HOURS` is None, which adopts
-    # nothing. `stricter_config` takes the
-    # default branch head's.
-    adoption_idle_hours: int | None = ADOPTION_IDLE_HOURS
-    # `adoption.owner-ids`: the account ids whose pull requests may be
-    # adopted. Absent, null, empty, or a list with an entry that is not a
-    # whole number is empty, which adopts nothing. The default branch head's.
-    adoption_owner_ids: tuple[int, ...] = ()
+    # `adoption.idle-hours`: how long a person's pull request's update and
+    # head commit must be idle before the pr-merge lane adopts it
+    # (`adoption_refusal`). Absent, or anything but a whole number from 1 to
+    # `MAX_ADOPTION_IDLE_HOURS`, is None, which adopts nothing.
+    # `stricter_config` takes the default branch head's.
+    adoption_idle_hours: int | None = None
     # `merge.quarantine-days`: days a quarantined suite's failures on the
     # default branch stop demoting (`babysit_postmerge`). Absent, or anything
     # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
@@ -723,7 +720,6 @@ def read_config_at(
             ("merge.max-verify-fails", False),
             ("merge.check-inputs", True),
             ("adoption.idle-hours", False),
-            ("adoption.owner-ids", True),
             ("merge.quarantine-days", False),
         ],
     )
@@ -810,7 +806,7 @@ def read_config_at(
         )
         verify_fails = "1"
     idle_text = scalar("adoption.idle-hours")
-    idle_hours: int | None = ADOPTION_IDLE_HOURS
+    idle_hours: int | None = None
     if idle_text is not None:
         idle_hours = (
             int(idle_text) if re.fullmatch(r"[1-9][0-9]{0,2}", idle_text) else None
@@ -821,13 +817,6 @@ def read_config_at(
                 f"to {MAX_ADOPTION_IDLE_HOURS}; nothing is adopted"
             )
             idle_hours = None
-    owner_ids = tuple(values["adoption.owner-ids"])
-    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in owner_ids):
-        notes.append(
-            f"adoption.owner-ids {list(owner_ids)!r} holds an entry that is not an "
-            "account id; nothing is adopted"
-        )
-        owner_ids = ()
     quarantine_days = scalar("merge.quarantine-days")
     if quarantine_days is not None and not (
         re.fullmatch(r"[1-9][0-9]?", quarantine_days)
@@ -864,7 +853,6 @@ def read_config_at(
         max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
         check_inputs=tuple(values["merge.check-inputs"]),
         adoption_idle_hours=idle_hours,
-        adoption_owner_ids=tuple(int(i) for i in owner_ids),
         quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
     )
 
@@ -941,7 +929,6 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         max_in_flight=min(base.max_in_flight, main.max_in_flight),
         # Read at main (owner decision Q22).
         adoption_idle_hours=main.adoption_idle_hours,
-        adoption_owner_ids=main.adoption_owner_ids,
     )
 
 
@@ -1012,8 +999,6 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                 or count(c.adoption_idle_hours, 1)
                 and c.adoption_idle_hours <= MAX_ADOPTION_IDLE_HOURS
             )
-            and isinstance(c.adoption_owner_ids, tuple)
-            and all(count(i, 1) for i in c.adoption_owner_ids)
         )
     except (TypeError, ValueError):
         return None
@@ -1860,6 +1845,30 @@ def _denied_path_refusal(
 
 
 AUTHOR_NOT_OWNER = "author-not-owner"
+# `trusted_actor_ids` by (repo, ref), read once a run.
+_TRUSTED_IDS: dict[tuple[str, str], tuple[int, ...]] = {}
+
+
+def trusted_actor_ids(repo: str, ref: str) -> tuple[int, ...]:
+    """Every account id on `TRUSTED_ACTORS_PATH` at `ref`, people and Apps
+    alike: whose pull requests the lane adopts. A list that cannot be read
+    or does not match its schema is empty, which adopts nothing."""
+    key = (repo, ref)
+    if key not in _TRUSTED_IDS:
+        owner, name = _split_repo(repo)
+        try:
+            listing = json_object(
+                json.loads(_file_at(owner, name, TRUSTED_ACTORS_PATH, ref) or "{}")
+            )
+        except (PolicyReadError, ValueError):
+            listing = {}
+        actors = [json_object(a) for a in json_array(listing.get("actors"))]
+        ids = tuple(a.get("id") for a in actors)
+        valid = listing.get("version") == 1 and all(
+            type(i) is int and i > 0 for i in ids
+        )
+        _TRUSTED_IDS[key] = ids if valid else ()
+    return _TRUSTED_IDS[key]
 
 
 def adoption_refusal(
@@ -1873,17 +1882,19 @@ def adoption_refusal(
     queued_at_head: Callable[[], bool] = lambda: False,
 ) -> str | None:
     """Why the pr-merge lane does not adopt this REST pull request, or None
-    when it does (owner decision Q22): not a draft; opened by an owner
-    account, a User whose id is in `owner_ids` (never matched by login); its
-    `updated_at` and its head commit's committer date, `head_committed()`,
-    read last, both at least `idle_hours` old, an unreadable one not idle;
-    and no hold: a `MERGE_HOLD_LABELS` label, the resolved `human_gated` role
-    label, or a body hold (`BODY_MERGE_HOLD_RE`). A fresh `updated_at` is
-    excused while `queued_at_head()` (`lane_queued_at_head`), read only
-    then: the lane's own pin comment and enqueue refresh it."""
+    when it does (owner decisions Q22 and 2026-10-22): not a draft; opened by
+    a User or Bot whose id is in `owner_ids` (`trusted_actor_ids`; never
+    matched by login); for a User, its `updated_at` and its head commit's
+    committer date, `head_committed()`, read last, both at least
+    `idle_hours` old, an unreadable one not idle; and no hold: a
+    `MERGE_HOLD_LABELS` label, the resolved `human_gated` role label, or a
+    body hold (`BODY_MERGE_HOLD_RE`). A fresh `updated_at` is excused while
+    `queued_at_head()` (`lane_queued_at_head`), read only then: the lane's
+    own pin comment and enqueue refresh it."""
     user = json_object(pr.get("user"))
     uid = user.get("id")
-    if user.get("type") != "User" or type(uid) is not int or uid not in owner_ids:
+    kind = user.get("type")
+    if kind not in ("User", "Bot") or type(uid) is not int or uid not in owner_ids:
         return AUTHOR_NOT_OWNER
     if pr.get("draft") is not False:
         return "draft"
@@ -1909,6 +1920,8 @@ def adoption_refusal(
         except PolicyReadError:
             return False
 
+    if kind == "Bot":
+        return None
     if not idle(lambda: pr.get("updated_at")) and not queued_at_head():
         return "updated-fresh"
     if not idle(head_committed):
@@ -3198,6 +3211,47 @@ def changed_files(
     )
 
 
+def foreign_paths(repo: str, pr: Mapping[str, Any]) -> frozenset[str] | None:
+    """The paths, both sides of a rename, that the pull request's non-merge
+    commits by anyone but its author (by account id) touched: what an
+    adopted pull request's floor scores (owner decision 2026-10-22: a
+    person's own lines need no person, a lane's fix still does). A commit
+    with no linked account counts as another's. A merge commit is left out,
+    so main's files an update brings in score nothing. None, which scores
+    every path, for an author that is not a `User` or when a listing may be
+    cut off or cannot be read."""
+    owner, name = _split_repo(repo)
+    user = json_object(pr.get("user"))
+    author = user.get("id")
+    if user.get("type") != "User":
+        return None
+    try:
+        commits = _paginated(
+            f"repos/{owner}/{name}/pulls/{pr.get('number')}/commits?per_page=100",
+            f"#{pr.get('number')} commits",
+        )
+        if type(author) is not int or len(commits) >= 250:
+            return None
+        paths: set[str] = set()
+        for commit in commits:
+            by = json_object(commit.get("author")).get("id")
+            if len(json_array(commit.get("parents"))) != 1 or by == author:
+                continue
+            status, payload = _get(f"repos/{owner}/{name}/commits/{commit.get('sha')}")
+            files = json_array(json_object(payload).get("files"))
+            if status != 200 or len(files) >= 300:
+                return None
+            for entry in map(json_object, files):
+                paths.update(
+                    p
+                    for p in (entry.get("filename"), entry.get("previous_filename"))
+                    if isinstance(p, str) and p
+                )
+    except PolicyReadError:
+        return None
+    return frozenset(paths)
+
+
 # Capability file text by (owner, name, path, sha): a SHA pins the text, so a
 # run reads each side of each file once.
 _TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
@@ -4081,7 +4135,11 @@ def assess(
             pr=pr,
             denied_paths=config.denied_paths,
             adoption_idle_hours=config.adoption_idle_hours,
-            adoption_owner_ids=config.adoption_owner_ids,
+            adoption_owner_ids=(
+                trusted_actor_ids(repo, base_ref)
+                if config.adoption_idle_hours is not None
+                else ()
+            ),
             human_gated=human_gated,
             queued_at_head=lambda: lane_queued_at_head(
                 repo,

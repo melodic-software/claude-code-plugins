@@ -584,16 +584,15 @@ red-main:
   # repairs main (owner decision W-51, 2026-10-21).
   remedy: rollback
 
-# Owner PRs the lanes adopt (owner decision Q22, 2026-10-22): a non-draft PR
-# one of these accounts opened, with no hold label and no `Hold:` body line,
-# whose last update and head commit are both idle-hours old. fix-ci fixes its
-# failed ci-status; pr-merge merges it under its usual gates once its adoption
-# path lands.
+# PRs the lanes adopt (owner decisions Q22 and 2026-10-22): a non-draft PR an
+# account on .github/standards/trusted-actors/trusted-actors.json opened (by
+# id, a person or an App), with no hold label and no `Hold:` body line, and,
+# for a person's PR, whose last update and head commit are both idle-hours
+# old. fix-ci fixes its failed ci-status; pr-merge merges it under its usual
+# gates. Without this section nothing is adopted.
 adoption:
-  # 24: a day with no push, comment or label change means the owner left it.
+  # 24: a day with no push, comment or label change means the person left it.
   idle-hours: 24
-  # kyle-sexton (.github/standards/trusted-actors/trusted-actors.json).
-  owner-ids: [153232337]
 
 # The daily branch cleanup (owner decisions W-7, 2026-10-21, and #8958): a
 # branch lives as long as its issue is open. maintenance-delete-stale-branches.yml
