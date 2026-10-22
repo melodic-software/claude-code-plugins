@@ -80,6 +80,22 @@ two engines still differ at the edges (`\\w` and `\\b` on non-ASCII letters,
 read together with the grader-types table of the eval-suite reference page.
 AS OF: 2026-10-01. Recheck on the next Claude Code release.
 
+Drift record. CLAIM: a regex grader whose pattern uses `\\A`, `\\Z`, `\\z`, a
+possessive quantifier, an atomic group, a `(?P<name>` group, a `(?P=name)`
+backreference, a `(?#` comment or a `(?(` conditional is a FAIL naming the
+grader and the token. Where `node` is on PATH, every regex grader is also
+compiled with JavaScript's `RegExp` and its samples are graded by it, so a
+pattern that does not compile, or a sample the JavaScript verdict sorts the
+other way, is a FAIL; with no `node`, only the token check runs. BASIS: the
+grader's regex engine, from the regex row of
+https://code.claude.com/docs/en/plugin-evals#grader-types; how that engine
+reads each token, identity escapes under the `u` and `v` flags included, from
+https://tc39.es/ecma262/#sec-patterns and its non-Unicode-mode amendment
+https://tc39.es/ecma262/#sec-regular-expressions-patterns; and the #8331 paid
+run, where a `\\A` pattern sorted every sample correctly under `re` and failed
+every with-plugin run. AS OF: 2026-10-22. Recheck when the grader-types row
+names a different engine, or an ECMAScript edition changes either section.
+
 Python 3.8+, standard library only: these scripts run from a consumer checkout
 where no third-party package is provisioned.
 """
@@ -88,6 +104,8 @@ import argparse
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 
 MIN_PYTHON = (3, 8)
@@ -227,6 +245,52 @@ COUNT_MATCH = re.compile(r"^count:([0-9]+)$")
 JS_NAMED_GROUP = re.compile(r"\(\?<(?![=!])")
 JS_NAMED_BACKREF = re.compile(r"\\k<([A-Za-z_][A-Za-z0-9_]*)>")
 GLOB_SPECIAL = frozenset(".+^${}()|[]\\")
+
+# Python-only regex syntax, found by `python_only_tokens`.
+PY_ONLY_ESCAPES = frozenset("AZz")
+PY_ONLY_GROUPS = (
+    ("(?>", "atomic group (?>"),
+    ("(?P<", "named group (?P<"),
+    ("(?P=", "named backreference (?P="),
+    ("(?P>", "named group call (?P>"),
+    ("(?#", "comment group (?#"),
+    ("(?(", "conditional group (?("),
+)
+BRACE_QUANTIFIER = re.compile(r"\{[0-9]+(?:,[0-9]*)?\}")
+
+# Run once per case with the case's regex graders as JSON on stdin; prints one
+# result per grader: a compile error, or per answer whether it matched and how
+# many global matches it holds.
+NODE_TIMEOUT_SECONDS = 30
+NODE_PROBE = r"""
+let raw = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => (raw += chunk));
+process.stdin.on("end", () => {
+  const results = JSON.parse(raw).map((job) => {
+    let regex;
+    let counter;
+    try {
+      regex = new RegExp(job.pattern, job.flags);
+      const flags = job.flags.includes("g") ? job.flags : job.flags + "g";
+      counter = new RegExp(job.pattern, flags);
+    } catch (error) {
+      return { error: String(error.message) };
+    }
+    return {
+      answers: job.answers.map((answer) => {
+        regex.lastIndex = 0;
+        const found = regex.test(answer);
+        counter.lastIndex = 0;
+        let count = 0;
+        for (const _ of answer.matchAll(counter)) count += 1;
+        return { found, count };
+      }),
+    };
+  });
+  process.stdout.write(JSON.stringify(results));
+});
+"""
 
 
 class ParseError(Exception):
@@ -805,6 +869,37 @@ def check_grader(case, path, options, findings):
         )
 
 
+def check_grader_syntax(case, path, name, options, findings):
+    """Python-only syntax in every pattern a grader hands to JavaScript."""
+    kind = options.get("type")
+    if kind == "regex":
+        check_js_syntax(
+            case,
+            path,
+            name,
+            "pattern",
+            options.get("pattern"),
+            findings,
+            options.get("flags") or "",
+        )
+    elif kind == "tool_used":
+        check_js_syntax(
+            case, path, name, "input_match", options.get("input_match"), findings
+        )
+    elif kind == "tool_order":
+        for side in ("before", "after"):
+            spec = options.get(side)
+            if isinstance(spec, dict):
+                check_js_syntax(
+                    case,
+                    path,
+                    name,
+                    "%s input_match" % side,
+                    spec.get("input_match"),
+                    findings,
+                )
+
+
 def collect_graders(case_dir, case, yaml_data, findings):
     """The union of the case.yaml grader list and graders/*.md, in that order."""
     graders = []
@@ -876,6 +971,194 @@ def collect_graders(case_dir, case, yaml_data, findings):
 # --------------------------------------------------------------------------
 # Sample answers: deterministic graders run offline
 # --------------------------------------------------------------------------
+
+
+def python_only_tokens(pattern, flags=""):
+    """The Python-only regex tokens in `pattern`, in order and without repeats.
+
+    Under the `u` or `v` flag JavaScript rejects `[\\A]` as an invalid escape, so
+    a class escape is flagged there; without them it is a literal letter.
+    """
+    strict_classes = "u" in flags or "v" in flags
+    tokens = []
+
+    def add(token):
+        if token not in tokens:
+            tokens.append(token)
+
+    index, in_class = 0, False
+    while index < len(pattern):
+        char = pattern[index]
+        if char == "\\":
+            following = pattern[index + 1 : index + 2]
+            if following in PY_ONLY_ESCAPES and (strict_classes or not in_class):
+                add("\\" + following)
+            index += 2
+            if following in "upP" and pattern[index : index + 1] == "{":
+                # `\u{41}` and `\p{L}` carry a brace body, not a quantifier.
+                close = pattern.find("}", index)
+                index = len(pattern) if close == -1 else close + 1
+            continue
+        if in_class:
+            in_class = char != "]"
+            index += 1
+            continue
+        if char == "[":
+            in_class = True
+            index += 1
+            continue
+        if char == "(":
+            for opener, label in PY_ONLY_GROUPS:
+                if pattern.startswith(opener, index):
+                    add(label)
+            # Skip the `?` so it is not read as a quantifier.
+            index += 2 if pattern.startswith("(?", index) else 1
+            continue
+        quantifier = None
+        end = index + 1
+        if char in "*+?":
+            quantifier = char
+        elif char == "{":
+            match = BRACE_QUANTIFIER.match(pattern, index)
+            if match:
+                quantifier, end = match.group(0), match.end()
+        if quantifier is not None and pattern[end : end + 1] == "+":
+            add('possessive quantifier "%s+"' % quantifier)
+            end += 1
+        index = end
+    return tokens
+
+
+def check_js_syntax(case, path, name, field, pattern, findings, flags=""):
+    """FAIL each Python-only token a pattern uses: JavaScript rejects or misreads it."""
+    if not isinstance(pattern, str):
+        return
+    for token in python_only_tokens(pattern, flags if isinstance(flags, str) else ""):
+        findings.append(
+            Finding(
+                "FAIL",
+                case,
+                path,
+                'grader "%s" %s uses Python-only syntax %s; JavaScript, which '
+                "runs it, rejects it or reads it differently" % (name, field, token),
+            )
+        )
+
+
+def run_node_probe(jobs):
+    """Run `jobs` through node's RegExp. Returns (results, None) or (None, reason)."""
+    node = shutil.which("node")
+    if node is None:
+        return None, None
+    try:
+        done = subprocess.run(
+            [node, "-e", NODE_PROBE],
+            input=json.dumps(jobs),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=NODE_TIMEOUT_SECONDS,
+        )
+        if done.returncode != 0:
+            return None, (
+                done.stderr.strip().splitlines() or ["exit %d" % done.returncode]
+            )[-1]
+        results = json.loads(done.stdout)
+    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+        return None, str(error) or type(error).__name__
+    if not isinstance(results, list) or len(results) != len(jobs):
+        return None, "unexpected output"
+    return results, None
+
+
+def check_js_engine(case, graders, samples, findings):
+    """Compile each regex grader with JavaScript's RegExp and grade its samples
+    there, the engine `claude plugin eval` uses. Skipped when node is absent."""
+    jobs = []
+    for name, options, grader_path in graders:
+        if not isinstance(options, dict) or options.get("type") != "regex":
+            continue
+        pattern, flags = options.get("pattern"), options.get("flags") or ""
+        if not isinstance(pattern, str) or not isinstance(flags, str):
+            continue
+        mode = options.get("match", "contains")
+        count = COUNT_MATCH.match(str(mode))
+        if mode not in ("contains", "not_contains") and not count:
+            continue  # the Python check already reports the unknown mode
+        entries = []
+        sample_path = None
+        if name in samples:
+            sample_path, data = samples[name]
+            for key in SAMPLE_KEYS:
+                for number, item in enumerate(data.get(key) or [], start=1):
+                    if isinstance(item["answer"], str):
+                        entries.append((key, number, item))
+        jobs.append(
+            (name, grader_path, sample_path, mode, count, entries, pattern, flags)
+        )
+    if not jobs:
+        return
+    results, problem = run_node_probe(
+        [
+            {
+                "pattern": job[6],
+                "flags": job[7],
+                "answers": [e[2]["answer"] for e in job[5]],
+            }
+            for job in jobs
+        ]
+    )
+    if results is None:
+        if problem:
+            findings.append(
+                Finding(
+                    "WARN",
+                    case,
+                    "graders/",
+                    "regex graders not checked under JavaScript: node failed (%s)"
+                    % problem,
+                )
+            )
+        return
+    for job, result in zip(jobs, results):
+        name, grader_path, sample_path, mode, count, entries, _, _ = job
+        if "error" in result:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    case,
+                    grader_path,
+                    'grader "%s" pattern does not compile under JavaScript (%s)'
+                    % (name, result["error"]),
+                )
+            )
+            continue
+        for (key, number, item), seen in zip(entries, result["answers"]):
+            if count:
+                passed = seen["count"] == int(count.group(1))
+            elif mode == "contains":
+                passed = seen["found"]
+            else:
+                passed = not seen["found"]
+            if passed == (key == "pass"):
+                continue
+            label = "must-%s sample %d" % (key, number)
+            if item.get("why"):
+                label += ' ("%s")' % item["why"]
+            findings.append(
+                Finding(
+                    "FAIL",
+                    case,
+                    sample_path,
+                    '%s %s grader "%s" under JavaScript (%d matches)'
+                    % (
+                        label,
+                        "fails" if key == "pass" else "passes",
+                        name,
+                        seen["count"],
+                    ),
+                )
+            )
 
 
 def js_regex(pattern, flags=""):
@@ -1283,6 +1566,7 @@ def analyze_case(case_dir, case, findings):
             findings.append(Finding("FAIL", case, path, TYPE_MESSAGE))
             continue
         check_grader(case, path, options, findings)
+        check_grader_syntax(case, path, name, options, findings)
         kinds.append(options.get("type"))
         if options.get("type") == "file_exists":
             file_exists_sites.append(path)
@@ -1303,7 +1587,9 @@ def analyze_case(case_dir, case, findings):
                 )
             )
 
-    check_samples(case, graders, load_samples(case_dir, case, findings), findings)
+    samples = load_samples(case_dir, case, findings)
+    check_samples(case, graders, samples, findings)
+    check_js_engine(case, graders, samples, findings)
 
     if kinds and all(kind in JUDGE_TYPES for kind in kinds):
         findings.append(

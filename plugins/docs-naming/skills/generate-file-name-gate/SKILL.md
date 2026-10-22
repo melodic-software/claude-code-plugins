@@ -2,7 +2,7 @@
 description: "Emit the file-name gate into a consuming repository: a standalone bash checker plus its own test suite, with the casing rule, roots, and exemptions inlined from the resolved docs-naming configuration, and optionally the path-scoped rule file. The emitted pair carries no dependency on this plugin at run time. Refuses to overwrite without --force, and states the wiring it deliberately leaves to the consumer. Use when: 'generate the file-name gate', 'add a CI check for doc filenames', 'enforce the naming rule', 'emit the naming checker', 'we need a gate for this convention', 'write the file-names rule file', or after docs-naming:setup apply has written the configuration."
 argument-hint: "[--out-dir <dir>] [--rule] [--force]"
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/emit-gate.sh:*)", "Bash(git rev-parse:*)", "Bash(git status --porcelain:*)", "Read"]
 shell: bash
 ---
