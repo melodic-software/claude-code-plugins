@@ -5,6 +5,8 @@
 // Identity, polling and actions come from core.js.
 // A variant is untrusted: an html one runs framed from /assets/ in a sandbox with no same origin, and only the pin
 // helper inside it (proto-pin.js) talks to this page, by postMessage; every message is checked here before use.
+// A variant shows its views (Core.viewsOf): an html snapshot, and one to four screenshots shown one under another, each
+// with its own pins; a note on screenshot k (k > 1) is pinned at "img:nth-of-type(k)", on the first at "img".
 (() => {
   const Core = window.Core;
   const qid = (location.pathname.match(/^\/proto\/(Q[1-9][0-9]{0,5})$/) || [])[1] || "";
@@ -16,9 +18,9 @@
   const okRect = r => !!r && typeof r === "object" && ["x", "y", "w", "h"].every(k => typeof r[k] === "number" && Number.isFinite(r[k]) && r[k] >= 0)
     && r.w > 0 && r.h > 0 && r.x + r.w <= 100 && r.y + r.h <= 100;
   const WHOLE = { x: 0, y: 0, w: 100, h: 100 };
-  const isHtml = v => /\.html$/.test(v?.asset || "");
+  const views = v => Core.viewsOf(v), hasView = v => !!(views(v).snapshot || views(v).shots.length);
   const params = new URLSearchParams(location.hash.slice(1));
-  const ui = { variant: params.get("v") || "", with: params.get("with") || "", annotate: false, draft: null, active: params.get("n") || "", ready: false, pinsKey: "", listKey: "" };
+  const ui = { variant: params.get("v") || "", view: "", with: params.get("with") || "", annotate: false, draft: null, active: params.get("n") || "", ready: false, pinsKey: "", listKey: "" };
   Core.context = () => ({ view: "prototype" });
 
   // ---------- the page ----------
@@ -33,7 +35,15 @@
   const annotateBtn = btn("vf-btn vf-btn-ghost vp-annotate", "Annotate");
   annotateBtn.setAttribute("aria-pressed", "false");
   const chooseBtn = btn("vf-btn vf-btn-primary vp-choose");
-  bar.append(tabs, E("span", "vf-spacer"), annotateBtn, chooseBtn);
+  // Where to look, above the tabs: the question's lookAt, then the shown variant's own line when it has one.
+  const look = E("p", "vp-look"), lookQ = E("span", "vp-look-q"), lookV = E("span", "vp-look-v");
+  look.append(lookQ, lookV);
+  // A variant with both an html snapshot and screenshots shows one of the two at a time.
+  const viewSeg = E("div", "vp-viewseg"); viewSeg.setAttribute("role", "group"); viewSeg.setAttribute("aria-label", "Views of this variant");
+  const snapBtn = btn("vf-seg-btn vp-viewbtn", "HTML snapshot"), shotsBtn = btn("vf-seg-btn vp-viewbtn", "Screenshots");
+  snapBtn.dataset.view = "snapshot"; shotsBtn.dataset.view = "shots";
+  viewSeg.append(snapBtn, shotsBtn);
+  bar.append(look, tabs, viewSeg, E("span", "vf-spacer"), annotateBtn, chooseBtn);
   const hint = E("p", "vp-hint"); hint.id = "vp-hint";
   const body = E("div", "vp-body");
   const stage = E("section", "vp-stage"); stage.id = "vp-stage"; stage.setAttribute("role", "tabpanel");
@@ -47,6 +57,7 @@
   stage.append(cmpPane, mainPane);
   const side = E("aside", "vp-side"); side.setAttribute("aria-label", "Notes");
   const qText = E("p", "vp-qtext");
+  const offNote = E("p", "vp-offnote"); offNote.hidden = true; // the owner's: which views guests do not get (prototypeTiers)
   const versNav = E("nav", "vp-versions"), versH = E("h2", "vf-h2 vp-versions-h"), versList = E("ol", "vp-vers");
   versNav.append(versH, versList); versNav.hidden = true;
   const composer = E("form", "vp-composer"); composer.hidden = true; composer.setAttribute("aria-label", "New note");
@@ -63,19 +74,35 @@
   const notesH = E("h2", "vf-h2 vp-notes-h");
   const notes = E("ol", "vp-notes"); notes.setAttribute("aria-label", "Notes on this variant");
   const empty = E("p", "vf-empty vp-empty");
-  side.append(qText, versNav, wholeBtn, composer, notesH, notes, empty);
+  side.append(qText, offNote, versNav, wholeBtn, composer, notesH, notes, empty);
   body.append(stage, side);
   const missing = E("p", "vf-empty vp-missing"); missing.hidden = true;
   root.append(top, bar, hint, body, missing);
 
-  // The stage: an iframe for an html variant, a picture with its own pin layer for an image one.
-  let frame = null, img = null, layer = null, shownVariant = "", readySeen = false;
+  // The stage: an iframe for an html view, each picture with its own pin layer, a notice for a variant whose views the
+  // session switched off (its state then holds none).
+  let frame = null, layers = [], shownVariant = "", readySeen = false;
+  const OFF_TEXT = "This view is off in this session. You can still choose this variant.";
+  const OFF_NAME = { screenshot: "screenshots are off", snapshot: "HTML snapshots are off" };
   const send = m => frame?.contentWindow?.postMessage(m, "*"); // the sandboxed frame has no origin to name
 
   // ---------- state ----------
   const S = () => Core.state;
   const question = () => (S().questions || []).find(q => q.id === qid && q.formatKind === "prototype") || null;
   const variants = q => q?.variants || [];
+  /** The view of `v` on the stage: its snapshot unless the person picked its screenshots, or it has none. */
+  const shownView = v => (views(v).snapshot && !(ui.view === "shots" && views(v).shots.length) ? "snapshot" : "shots");
+  /** The screenshot (0-based) a note is pinned on, -1 for the snapshot, or null when this viewer holds no such view, so
+   *  a note on a view switched off is drawn nowhere: "img" is the first screenshot, "img:nth-of-type(k)" the k-th; any
+   *  other path is on the snapshot, except on a one-picture variant written as `asset`, where an earlier build's
+   *  free-form note sits on the picture. A variant written with `shots` is this build's, whose picture notes are
+   *  always img paths. */
+  const shotOf = (v, selector) => {
+    const { shots, snapshot } = views(v), k = selector === "img" ? 1 : +((selector.match(/^img:nth-of-type\(([1-9][0-9]*)\)$/) || [])[1] || 0);
+    if (k) return k <= shots.length ? k - 1 : null;
+    return snapshot ? -1 : v.asset && shots.length ? 0 : null;
+  };
+  const shotSelector = k => (k ? `img:nth-of-type(${k + 1})` : "img");
   const current = q => variants(q).find(v => v.id === ui.variant) || variants(q)[0] || null;
   const notesOn = vid => (S().annotations || []).filter(a => a.qid === qid && a.variant === vid);
   const mine = () => Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.claude && !a.option);
@@ -102,7 +129,7 @@
   function selectVariant(vid, { focus = false } = {}) {
     if (vid === ui.variant) return;
     closeComposer(); // its spot was on the variant being left
-    ui.variant = vid; ui.active = ""; ui.with = ""; // another variant has its own versions
+    ui.variant = vid; ui.view = ""; ui.active = ""; ui.with = ""; // another variant has its own views and versions
     const h = new URLSearchParams(location.hash.slice(1)); h.set("v", vid); h.delete("n"); h.delete("with");
     history.replaceState(null, "", location.pathname + "#" + h);
     render();
@@ -136,12 +163,17 @@
   }
 
   // ---------- the stage and its pins ----------
+  for (const b of [snapBtn, shotsBtn]) b.onclick = () => { if (shownView(current(question())) !== b.dataset.view) { ui.view = b.dataset.view; closeComposer(); render(); } };
   function mountStage(v) {
-    if (shownVariant === v.id) return;
-    shownVariant = v.id; ui.ready = false; ui.pinsKey = ""; readySeen = false;
-    frame = img = layer = null;
+    const { shots, snapshot } = views(v), kind = shownView(v);
+    const key = `${v.id}|${kind}|${snapshot}|${shots.join(",")}`; // a view switched off or back on mounts afresh
+    if (shownVariant === key) return;
+    shownVariant = key; ui.ready = false; ui.pinsKey = ""; readySeen = false;
+    frame = null; layers = [];
     stage.setAttribute("aria-label", `Variant ${v.label}`);
-    if (isHtml(v)) {
+    if (!hasView(v)) {
+      mainView.replaceChildren(E("p", "vp-left vp-off", OFF_TEXT));
+    } else if (kind === "snapshot") {
       const f = frame = E("iframe", "vp-frame");
       f.setAttribute("sandbox", "allow-scripts"); // plus the asset's own CSP sandbox; never allow-same-origin
       f.setAttribute("referrerpolicy", "no-referrer");
@@ -150,22 +182,30 @@
       // frame now shows some other page: drop it, and stop talking to it, before it can pass for the variant.
       let loads = 0;
       f.addEventListener("load", () => { if (++loads > 1 && frame === f) leftPage(v); });
-      f.src = `/assets/${v.asset}?pin=1`;
+      f.src = `/assets/${snapshot}?pin=1`;
       mainView.replaceChildren(f);
     } else {
-      const wrap = E("div", "vp-imgwrap");
-      img = E("img", "vp-img"); img.alt = `Prototype variant ${v.label}`; img.src = `/assets/${v.asset}`;
-      layer = E("div", "vp-layer"); layer.setAttribute("aria-hidden", "true");
-      wrap.append(img, layer);
-      wrap.addEventListener("click", e => {
-        if (!ui.annotate || ui.draft) return; // a new spot waits until the open note is saved or cancelled
-        const b = img.getBoundingClientRect();
-        if (!b.width || !b.height) return;
-        const px = ((e.clientX - b.left) / b.width) * 100, py = ((e.clientY - b.top) / b.height) * 100;
-        const x = Math.min(94, Math.max(0, Math.round((px - 3) * 100) / 100)), y = Math.min(94, Math.max(0, Math.round((py - 3) * 100) / 100));
-        openComposer({ selector: "img", rect: { x, y, w: 6, h: 6 } }, "this spot on the picture");
-      });
-      mainView.replaceChildren(wrap);
+      // One picture shows as it always has; two or more stack, each captioned.
+      mainView.replaceChildren(...shots.map((asset, k) => {
+        const wrap = E("div", "vp-imgwrap");
+        const img = E("img", "vp-img"); img.src = `/assets/${asset}`;
+        img.alt = shots.length > 1 ? `Prototype variant ${v.label}, screenshot ${k + 1} of ${shots.length}` : `Prototype variant ${v.label}`;
+        const layer = E("div", "vp-layer"); layer.setAttribute("aria-hidden", "true");
+        wrap.append(img, layer);
+        layers.push(layer);
+        wrap.addEventListener("click", e => {
+          if (!ui.annotate || ui.draft) return; // a new spot waits until the open note is saved or cancelled
+          const b = img.getBoundingClientRect();
+          if (!b.width || !b.height) return;
+          const px = ((e.clientX - b.left) / b.width) * 100, py = ((e.clientY - b.top) / b.height) * 100;
+          const x = Math.min(94, Math.max(0, Math.round((px - 3) * 100) / 100)), y = Math.min(94, Math.max(0, Math.round((py - 3) * 100) / 100));
+          openComposer({ selector: shotSelector(k), rect: { x, y, w: 6, h: 6 } }, shots.length > 1 ? `this spot on screenshot ${k + 1}` : "this spot on the picture");
+        });
+        if (shots.length < 2) return wrap;
+        const fig = E("figure", "vp-shot"), cap = E("figcaption", "vp-shot-cap", `Screenshot ${k + 1} of ${shots.length}`);
+        fig.append(cap, wrap);
+        return fig;
+      }));
     }
   }
   function leftPage(v) {
@@ -215,14 +255,17 @@
    *  it posts is read; an html one runs in the same sandbox as the variant, and one that leaves its page is dropped. */
   let cmpShown = "";
   function mountCompare(other) {
-    const key = other ? `${other.qid}.${other.variant}.${other.asset}` : "";
+    const { shots = [], snapshot = "" } = other?.views || {};
+    const key = other ? `${other.qid}.${other.variant}.${snapshot}.${shots.join(",")}` : "";
     if (other) cmpCap.firstChild.textContent = vname(other) + (other.current ? " · Current" : "");
     if (cmpShown === key) return;
     cmpShown = key;
     stage.dataset.split = String(!!other);
     cmpPane.hidden = mainCap.hidden = !other;
     if (!other) { cmpView.replaceChildren(); return; }
-    if (isHtml(other)) {
+    if (!snapshot && !shots.length) {
+      cmpView.replaceChildren(E("p", "vp-left vp-off", "This view is off in this session."));
+    } else if (snapshot) {
       const f = E("iframe", "vp-cmp-frame");
       f.setAttribute("sandbox", "allow-scripts"); // plus the asset's own CSP sandbox; never allow-same-origin
       f.setAttribute("referrerpolicy", "no-referrer");
@@ -231,11 +274,14 @@
       f.addEventListener("load", () => {
         if (++loads > 1 && f.isConnected) cmpView.replaceChildren(E("p", "vp-left", "This version tried to leave its page, so it is not shown."));
       });
-      f.src = `/assets/${other.asset}`;
+      f.src = `/assets/${snapshot}`;
       cmpView.replaceChildren(f);
     } else {
-      const im = E("img", "vp-cmp-img"); im.alt = `Version ${other.n}: ${other.label}`; im.src = `/assets/${other.asset}`;
-      cmpView.replaceChildren(im);
+      cmpView.replaceChildren(...shots.map((asset, k) => {
+        const im = E("img", "vp-cmp-img"); im.src = `/assets/${asset}`;
+        im.alt = `Version ${other.n}: ${other.label}` + (shots.length > 1 ? `, screenshot ${k + 1} of ${shots.length}` : "");
+        return im;
+      }));
     }
   }
   cmpClose.onclick = () => {
@@ -253,25 +299,27 @@
     render();
   });
   /** Numbered pins for the shown variant's notes (1 is the oldest), plus the draft's while a note is being written. */
+  /** The notes' pins on the shown variant (numbered across it, 1 the oldest), plus the draft's while a note is being
+   *  written, each with the screenshot it sits on (`shot`, -1 for the snapshot). */
   function pinsFor(v) {
     const list = notesOn(v.id).map((a, i) => ({ n: i + 1, selector: a.selector, rect: a.rect || WHOLE, active: a.id === ui.active }));
     if (ui.draft) list.push({ n: list.length + 1, selector: ui.draft.selector, rect: ui.draft.rect, active: true });
-    return list;
+    return list.map(p => ({ ...p, shot: shotOf(v, p.selector) }));
   }
   function drawPins(v) {
-    const pins = pinsFor(v), key = JSON.stringify([pins, ui.annotate, ui.ready]);
+    const pins = pinsFor(v), key = JSON.stringify([pins, ui.annotate, ui.ready, shownVariant]);
     if (key === ui.pinsKey) return;
     ui.pinsKey = key;
     if (frame) {
       if (!ui.ready) return;
       send({ type: "mode", on: ui.annotate });
-      send({ type: "pins", pins: pins.map(p => ({ n: p.n, selector: p.selector, rect: p.rect, active: p.active })) });
-    } else if (layer) {
-      layer.replaceChildren(...pins.map(p => {
+      send({ type: "pins", pins: pins.filter(p => p.shot < 0).map(p => ({ n: p.n, selector: p.selector, rect: p.rect, active: p.active })) });
+    } else {
+      layers.forEach((layer, k) => layer.replaceChildren(...pins.filter(p => p.shot === k).map(p => {
         const b = E("span", "vp-pin" + (p.active ? " vp-pin-on" : ""), String(p.n));
         b.style.left = `${p.rect.x + p.rect.w / 2}%`; b.style.top = `${p.rect.y + p.rect.h / 2}%`;
         return b;
-      }));
+      })));
     }
   }
   window.addEventListener("message", e => {
@@ -309,7 +357,7 @@
   }
   wholeBtn.onclick = () => {
     const v = current(question());
-    if (v) openComposer({ selector: isHtml(v) ? "html" : "img", rect: { ...WHOLE } }, "the whole variant");
+    if (v) openComposer({ selector: shownView(v) === "snapshot" ? "html" : "img", rect: { ...WHOLE } }, "the whole variant");
   };
   cancel.onclick = () => { closeComposer(); render(); annotateBtn.focus(); };
   composer.addEventListener("submit", e => {
@@ -370,10 +418,19 @@
     const v = current(q);
     if (!v) return;
     if (ui.variant !== v.id) ui.variant = v.id;
+    if (!hasView(v) && ui.annotate) { ui.annotate = false; closeComposer(); } // nothing to pin a note to
     document.title = `${q.id}: ${q.short || q.text}`;
     title.textContent = `${q.id}: ${q.short || q.text}`;
     qText.textContent = q.text;
+    look.hidden = !q.lookAt && !v.lookAt;
+    lookQ.replaceChildren(...(q.lookAt ? [E("span", "vp-look-h", "Where to look: "), q.lookAt] : []));
+    lookV.replaceChildren(...(v.lookAt ? [E("span", "vp-look-h", `${v.label}: `), v.lookAt] : []));
     renderTabs(q, v);
+    const w = views(v), kind = shownView(v);
+    viewSeg.hidden = !(w.snapshot && w.shots.length);
+    snapBtn.setAttribute("aria-pressed", String(kind === "snapshot"));
+    shotsBtn.setAttribute("aria-pressed", String(kind === "shots"));
+    shotsBtn.textContent = `Screenshots (${w.shots.length})`;
     mountStage(v);
     const line = Core.versionsOf(qid, v.id), me = line.length > 1 ? line.find(x => x.qid === qid && x.variant === v.id) : null;
     const [wq, wv] = ui.with.split("."), other = me ? line.find(x => x !== me && x.qid === wq && x.variant === wv) || null : null;
@@ -383,10 +440,14 @@
     annotateBtn.setAttribute("aria-pressed", String(ui.annotate));
     annotateBtn.textContent = ui.annotate ? "Annotate: on" : "Annotate";
     root.dataset.annotate = String(ui.annotate);
-    hint.textContent = ui.annotate
+    hint.textContent = !hasView(v) ? OFF_TEXT : ui.annotate
       ? `${matchMedia("(pointer: coarse)").matches ? "Tap" : "Click"} the part of ${v.label} your note is about. Esc turns Annotate off.`
       : "Try each variant. Turn on Annotate to pin a note to any part of it.";
     wholeBtn.hidden = !ui.annotate || !!ui.draft;
+    annotateBtn.hidden = !hasView(v);
+    const hidden = Core.me.isOwner ? variants(q).filter(x => Core.viewsOff(x).length) : [];
+    offNote.hidden = !hidden.length;
+    offNote.textContent = hidden.length ? `Hidden from guests: ${hidden.map(x => `${x.label} (${Core.viewsOff(x).map(t => OFF_NAME[t]).join(", ")})`).join(", ")}.` : "";
     const ro = readOnly(q), rec = mine(), chosen = rec?.pick === v.id;
     chooseBtn.textContent = chosen ? `You chose ${v.label}` : `Choose ${v.label}`;
     chooseBtn.setAttribute("aria-pressed", String(chosen));

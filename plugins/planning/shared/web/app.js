@@ -1,11 +1,13 @@
 // The shared interview page: top bar, question rail and a Focus | Compare | Tree | Host center, with votes,
 // reactions, locks and suggestions, Claude's cards, requests, roles, owner settings, per-viewer themes and a
-// floating side chat. It reads the state core.js builds (the prototype's names) and acts only through Core.
+// docked side chat. It reads the state core.js builds (the prototype's names) and acts only through Core.
 (() => {
     const Core = window.Core, root = document.getElementById("app");
     const E = Core.el;
     const phone = matchMedia("(max-width: 720px)");
     const coarse = matchMedia("(pointer: coarse)");
+    /** Wide enough that the open chat panel pushes the page over (app.css); narrower, it covers the page and is modal. */
+    const docked = matchMedia("(min-width: 1100px)");
     /** "Tap" on a touch screen, "Click" with a mouse. */
     const tapW = () => (coarse.matches ? "Tap" : "Click");
     const lightOS = matchMedia("(prefers-color-scheme: light)");
@@ -941,6 +943,20 @@
         toast.style.setProperty("--toast-room", Rt - L - 32 + "px");
         return toast.offsetWidth;
       };
+      // The modal chat covers the page: the toast takes a slot the chat opens between its messages and its composer,
+      // so it hides no message, the close button or the message box.
+      if (activeSheet() === chat) {
+        L = R.right - chat.offsetWidth; Rt = R.right; fit();
+        const h = toast.offsetHeight;
+        chat.style.setProperty("--toast-slot", h ? h + 16 + "px" : "0px");
+        // measured from the typing line under the slot: the messages' margin may still be mid-transition
+        toast.style.insetBlockStart = "auto";
+        toast.style.insetBlockEnd = R.bottom - mTyping.getBoundingClientRect().top + 8 + "px";
+        return;
+      }
+      chat.style.removeProperty("--toast-slot");
+      // docked beside the page, the chat's column is never under the toast (its layout box: the entrance slide moves it)
+      if (!chat.hidden) Rt = Math.min(Rt, R.right - chat.offsetWidth - 8);
       let w = fit();
       // only when the open chat panel would sit under it, center it on the part of the pane the chat leaves
       if (ch && ch.left > L + 200 && ch.left < (L + Rt) / 2 + w / 2) { Rt = ch.left - 8; w = fit(); }
@@ -958,7 +974,7 @@
     }
     function hideToast() {
       const was = toast._tag;
-      toast.classList.remove("vf-on"); toast._tag = "";
+      toast.classList.remove("vf-on"); toast._tag = ""; chat.style.removeProperty("--toast-slot");
       if (was !== "alert" && ui.alertOpen) { flash(alertToast, null, "alert"); return; } // an urgent pop-up another toast covered comes back
       clearT = setTimeout(() => { toastTxt.textContent = ""; toastAct.hidden = true; }, 250);
     }
@@ -1463,7 +1479,11 @@
     const protoMeta = E("p", "vf-proto-meta"), protoOpen = E("a", "vf-btn vf-btn-primary vf-btn-sm vf-proto-open", "Open prototype");
     protoOpen.target = "_blank"; protoOpen.rel = "noopener noreferrer";
     const protoVers = E("div", "vf-proto-versions"); protoVers.hidden = true;
-    protoInfo.append(protoMeta, protoVers, protoOpen);
+    // Where to look (the question's lookAt), beside Open prototype: the area the variants change and the step that shows it.
+    const protoGo = E("div", "vf-proto-go"), protoLook = E("p", "vf-proto-look"), protoLookText = E("span");
+    protoLook.append(E("span", "vf-proto-look-h", "Where to look: "), protoLookText);
+    protoGo.append(protoOpen, protoLook);
+    protoInfo.append(protoMeta, protoVers, protoGo);
     protoBox.append(protoTile, protoInfo);
     fmtBox.append(fmtHint, protoBox, optGrid, multiList, scaleBox, rankList, confirmFig, cfRow, otherBox, fmtActs, fmtNote, fmtRes);
     // Layout A: Answers, then "Claude on this question", one column at every width. The Claude section starts folded to its
@@ -1855,6 +1875,20 @@
       b.append(txt, E("span", "vf-switch"));
       b.onclick = () => Core.saveSettings({ [k]: !st()[k] }).catch(fail);
       settingsPop.append(b); switches[k] = b;
+    }
+    // Which prototype views guests get (the prototypeTiers setting): each switch saves the list with its own view toggled.
+    // Live prototypes are only stored for now; nothing starts one yet.
+    const TIERS = [["screenshot", "Screenshots", "Picture variants of a prototype question"],
+      ["snapshot", "HTML snapshots", "Self-contained HTML variants, run in a sandbox"],
+      ["live", "Live prototypes", "A linked prototype server guests click around in; off by default"]];
+    const tierRows = {};
+    settingsPop.append(E("h3", "vf-pop-sub", "Prototypes"));
+    for (const [k, label, desc] of TIERS) {
+      const b = btn("vf-sw-row"); b.setAttribute("role", "switch"); b.dataset.tier = k;
+      const txt = E("span", "vf-sw-txt"); txt.append(E("span", "vf-sw-label", label), E("span", "vf-sw-desc", desc));
+      b.append(txt, E("span", "vf-switch"));
+      b.onclick = () => { const on = new Set(st().prototypeTiers); on.has(k) ? on.delete(k) : on.add(k); Core.saveSettings({ prototypeTiers: TIERS.map(([kk]) => kk).filter(kk => on.has(kk)) }).catch(fail); };
+      settingsPop.append(b); tierRows[k] = b;
     }
     const MODES = [["system", "System"], ["light", "Light"], ["dark", "Dark"]];
     const ACCENTS = [["teal", "Teal"], ["indigo", "Indigo"], ["violet", "Violet"], ["amber", "Amber"]];
@@ -2654,12 +2688,15 @@
       ui.pop = null;
       syncModal();
     }
-    /** On a phone a chat or panel sheet covers the page: everything behind it goes inert, and Tab stays inside. */
-    const activeSheet = () => (phone.matches ? (ui.chatOpen ? chat : ui.pop?.dataset.phone === "sheet" ? ui.pop : null) : null);
+    /** The chat panel covers the page below 1100px wide, as does a phone's panel sheet: everything behind it goes inert,
+     *  and Tab stays inside. Docked beside the page, the chat is a region Tab moves in and out of. */
+    const activeSheet = () => (ui.chatOpen && !docked.matches ? chat : phone.matches && ui.pop?.dataset.phone === "sheet" ? ui.pop : null);
     function syncModal() {
       const sheet = activeSheet(), page = ui.pop === bellPop; // the Inbox page stands in for the session below the top bar
       for (const el of [top, body, tabs, fab]) el.inert = !!sheet || (page && el !== top);
       chat.inert = page;
+      if (sheet === chat) { chat.setAttribute("role", "dialog"); chat.setAttribute("aria-modal", "true"); }
+      else { chat.removeAttribute("role"); chat.removeAttribute("aria-modal"); }
       if (toast.classList.contains("vf-on")) placeToast(); // a chat or panel opened or closed under it
     }
     function setChat(open) {
@@ -4850,6 +4887,9 @@
     };
     on(board, "scroll", edges, { passive: true });
     on(window, "resize", () => { edges(); if (toast.classList.contains("vf-on")) placeToast(); if (ui.pop === PP.pop) placePanel(ui.pop); measureAll(); });
+    // the pane the toast centers on also changes width without a window resize (the chat docking, the waiting room)
+    const toastPane = new ResizeObserver(() => { if (toast.classList.contains("vf-on")) placeToast(); });
+    toastPane.observe(center); offs.push(() => toastPane.disconnect());
     arrL.onclick = () => board.scrollBy({ left: -colStep(), behavior: smooth() });
     arrR.onclick = () => board.scrollBy({ left: colStep(), behavior: smooth() });
     fab.onclick = () => setChat(!ui.chatOpen);
@@ -5415,7 +5455,8 @@
       if (dlgOpen() || !tour.hidden) return; // a confirm or attach dialog, or the tour, handles its own keys
       // Tab stays inside an open phone sheet, and inside an open panel or the chat while focus is in it.
       const inside = el => !!el && !el.hidden && el.contains(document.activeElement) && el;
-      const sheet = e.key === "Tab" && (activeSheet() || inside(ui.pop) || (ui.chatOpen && inside(chat)));
+      // a popover focused over the modal chat (reactions, the message menu) keeps Tab before the chat does
+      const sheet = e.key === "Tab" && (inside(ui.pop) || activeSheet());
       if (sheet) { trapTab(e, sheet); return; }
       if (e.key === "Escape") {
         if (toast._tag === "alert" && toast.classList.contains("vf-on")) { ui.alertOpen = false; hideToast(); return; } // an urgent pop-up goes first
@@ -5423,7 +5464,8 @@
         if (!reader.hidden) { closeReader(); return; }
         if (ui.pop) { closeSurface(); return; }
         if (ui.pcard) { hideCard(); return; }
-        if (ui.chatOpen) { setChat(false); fab.focus(); }
+        // docked beside the page, the chat stays open while Escape is pressed in the page
+        if (ui.chatOpen && (!docked.matches || chat.contains(document.activeElement))) { setChat(false); fab.focus(); }
         return;
       }
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
@@ -5467,6 +5509,9 @@
     });
     const mqOff = () => { closePop(); closeSheet(); render(); syncModal(); };
     phone.addEventListener("change", mqOff); offs.push(() => phone.removeEventListener("change", mqOff));
+    // narrowed below 1100px with the chat open, it becomes a modal: focus moves into it (WAI-ARIA APG dialog pattern)
+    const onDock = () => { syncModal(); if (activeSheet() === chat && !chat.contains(document.activeElement)) (coarse.matches ? chatClose : mInput).focus({ preventScroll: true }); };
+    docked.addEventListener("change", onDock); offs.push(() => docked.removeEventListener("change", onDock));
 
     // ---------- requests ----------
     async function saveOpenEdit(li) {
@@ -6342,19 +6387,28 @@
       citeChips.hidden = !citeChips.children.length;
     }
 
-    /** Q98: the preview tile (the first picture variant, else a plain tile) and the link to the prototype's own page. */
+    const OFF_NAME = { screenshot: "screenshots off", snapshot: "HTML snapshots off" };
+    /** Q98: the preview tile (the first picture variant, else a plain tile) and the link to the prototype's own page.
+     *  With every view off for this guest (prototypeTiers) the question shows as text with a note; the owner, who still
+     *  sees every view, is told which ones guests do not get. */
     function renderProtoTile(q) {
       protoBox.hidden = q.formatKind !== "prototype";
       if (protoBox.hidden) return;
-      const vs = q.variants || [], pic = vs.find(v => !/\.html$/.test(v.asset));
-      const key = `${q.id}|${pic?.asset || ""}`;
+      const vs = q.variants || [], views = vs.map(v => Core.viewsOf(v)), pic = views.map(w => w.shots[0]).find(Boolean) || "";
+      const off = !views.some(w => w.shots.length || w.snapshot), hidden = Core.me.isOwner ? vs.filter(v => Core.viewsOff(v).length) : [];
+      protoTile.hidden = protoGo.hidden = off;
+      protoLook.hidden = !q.lookAt;
+      protoLookText.textContent = q.lookAt || "";
+      const key = `${q.id}|${pic}`;
       if (protoTile._key !== key) {
         protoTile._key = key;
-        if (pic) { const im = E("img"); im.alt = ""; im.loading = "lazy"; im.src = assetUrl(pic.asset); protoTile.replaceChildren(im); }
+        if (pic) { const im = E("img"); im.alt = ""; im.loading = "lazy"; im.src = assetUrl(pic); protoTile.replaceChildren(im); }
         else protoTile.replaceChildren(icon("open", "vf-i vf-proto-ico"), E("span", null, `${vs.length} interactive variant${vs.length === 1 ? "" : "s"}`));
       }
       const n = (Core.state.annotations || []).filter(a => a.qid === q.id).length;
-      protoMeta.textContent = `${vs.length} variants: ${vs.map(v => v.label).join(", ")}. ${n ? `${n} note${n === 1 ? "" : "s"} pinned so far.` : "Try them and pin notes on any part."}`;
+      protoMeta.textContent = `${vs.length} variants: ${vs.map(v => v.label).join(", ")}. ` + (off ? "Prototype views are off in this session."
+        : `${n ? `${n} note${n === 1 ? "" : "s"} pinned so far.` : "Try them and pin notes on any part."}`
+        + (hidden.length ? ` Hidden from guests: ${hidden.map(v => `${v.label} (${Core.viewsOff(v).map(t => OFF_NAME[t]).join(", ")})`).join(", ")}.` : ""));
       protoOpen.href = protoTile.href = Core.pageLink(`/proto/${q.id}`);
       protoOpen.setAttribute("aria-label", `Open prototype for ${q.id} in a new tab`);
       renderProtoVersions(q, vs);
@@ -7426,6 +7480,7 @@
 
       // popovers
       for (const [k, b] of Object.entries(switches)) b.setAttribute("aria-checked", String(k === "hideClaude" ? s[k] !== false : !!s[k]));
+      for (const [k, b] of Object.entries(tierRows)) b.setAttribute("aria-checked", String(s.prototypeTiers.includes(k)));
       switches.signoff.disabled = !s.voting;
       switches.hideClaude.hidden = !v8();
       const nLater = laterItems().length;
@@ -8027,7 +8082,7 @@
       // chat
       chat.classList.toggle("vf-off", !s.chat);
       fab.hidden = !s.chat;
-      if (!s.chat && ui.chatOpen) { ui.chatOpen = false; chat.hidden = true; }
+      if (!s.chat && ui.chatOpen) { ui.chatOpen = false; chat.hidden = true; fab.setAttribute("aria-expanded", "false"); syncModal(); } // the page it covered goes live again
       const msgs = S.chat, newest = mark(msgs.at(-1));
       if (ui.seenChat === null && Core.live) ui.seenChat = newest;
       if (ui.chatOpen) ui.seenChat = newest;

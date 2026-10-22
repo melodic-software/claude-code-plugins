@@ -63,7 +63,7 @@ Hooks run logic at specific points in the agent lifecycle:
 - **Recheck trigger**: that section adds, renames or removes a hook event, or a Claude Code release
   note touches one.
 
-See also: [Section 6: Hooks](foundations.md)
+See also: [Section 7: Hooks](foundations.md)
 
 Source: https://x.com/bcherny/status/2038454343519932844
 

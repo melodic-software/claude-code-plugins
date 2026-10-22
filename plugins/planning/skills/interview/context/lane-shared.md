@@ -113,6 +113,7 @@ Resolve each key once, before the first `ensure-running`, through the layers in 
 | `shared_session.chat` | `true`, `false` | `true` | `chat` |
 | `shared_session.follow` | `true`, `false` | `true` | `follow` |
 | `shared_session.accent` | `teal`, `indigo`, `violet`, `amber` | `teal` | `theme.accent` |
+| `shared_session.prototype_tiers` | a list of `screenshot`, `snapshot`, `live`, each at most once | `[screenshot, snapshot]` | `prototypeTiers` |
 | userConfig `shared_session_open_browser` | `true`, `false` | `true` | none: adds `--open` |
 | userConfig `tunnel_hostname` | a hostname, or empty | empty | none: `--tunnel-hostname` (a named tunnel) |
 | userConfig `tunnel_token_file` | an absolute path | empty | none: `--tunnel-token-file` |
@@ -180,6 +181,16 @@ each revised variant `previous: {qid, variant}`, naming the variant it replaces 
 and shows two side by side. Notes stay on the version they were pinned to, so a digest note's
 `qid` and `variant` say which version it is about. Each variant is revised once, so name the
 newest version; a second variant naming the same one is refused (400 `bad-field`).
+
+**A prototype question.** Give its `format` a `lookAt`: one line of at most 200 characters naming
+the area the variants change and the step that shows it ("Open the chat with the round button at
+bottom right, then switch variants"). The page shows it on the question card beside Open prototype
+and above the variant tabs; an op without it is refused (400 `bad-field`). Give each variant its
+views: `shots`, one to four pictures in the order to view them, and `snapshot`, one self-contained
+HTML file, at least one of the two; a variant may add its own `lookAt` when where to look differs
+for it. `asset` (one picture or HTML file) is still taken in place of both, never beside them. A
+note pinned on a variant's k-th screenshot reaches the digest with element `img:nth-of-type(k)`
+(`img` for the first).
 
 **In-flight work.** When a lookup or a guest's request is still running, ask the rest of the
 frontier now; hold only the questions that pending async work can change.

@@ -65,7 +65,6 @@ plugins/planning/surface/watch.test.sh
 plugins/playbooks/skills/boris/scripts/update.test.sh
 plugins/playbooks/skills/repo-sweep/scripts/tick.sh
 plugins/plugin-quality/lib/check-retirements.sh
-plugins/plugin-quality/scripts/packet-seal.test.sh
 plugins/plugin-quality/skills/audit/scripts/collect-standards.sh
 plugins/rate-limit-guard/hooks/record-rate-limit-stop.test.sh
 plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.sh

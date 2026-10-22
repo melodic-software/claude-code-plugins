@@ -34,6 +34,7 @@ import support  # noqa: E402  (beside this file; imported after session so its s
 HOST = "host"
 PNG = "0123456789abcdef.png"
 HTML = "fedcba9876543210.html"
+LOOK = "The payment step: open the basket, then press Pay."  # a prototype question's look-at line
 
 
 class Clock:
@@ -1147,7 +1148,7 @@ class TestQuestionParsing(SessionCase):
             **text_q("Q1", rec=False),
             "purpose": "gather",
             "answerScope": "device",
-            "format": {"kind": "prototype", "variants": [{"id": "v-1", "label": "A", "asset": HTML}, {"id": "v-2", "label": "B", "asset": PNG}]},
+            "format": {"kind": "prototype", "lookAt": LOOK, "variants": [{"id": "v-1", "label": "A", "asset": HTML}, {"id": "v-2", "label": "B", "asset": PNG}]},
         }
         self.refused_ops("bad-field", {"op": "open-round", "questions": [q]})
         q["answerScope"] = "person"
@@ -1271,7 +1272,7 @@ class TestQuestionBehavior(SessionCase):
 
     def test_a_rect_holding_nan_infinity_or_pixels_is_refused(self):
         variants = [{"id": "v-1", "label": "A", "asset": HTML}, {"id": "v-2", "label": "B", "asset": PNG}]
-        self.open_round({**text_q("Q1", rec=False), "purpose": "gather", "format": {"kind": "prototype", "variants": variants}})
+        self.open_round({**text_q("Q1", rec=False), "purpose": "gather", "format": {"kind": "prototype", "lookAt": LOOK, "variants": variants}})
         for raw in ('{"x": NaN, "y": 0, "w": 10, "h": 10}', '{"x": 0, "y": 0, "w": Infinity, "h": 10}', '{"x": 600, "y": 700, "w": 120, "h": 40}'):
             rect = json.loads(raw)
             anchor = {"selector": "html > body:nth-of-type(1) > button:nth-of-type(1)", "rect": rect}
@@ -2297,7 +2298,7 @@ class TestWriteLimits(SessionCase):
         variants = [{"id": "v-1", "label": "A", "asset": HTML}, {"id": "v-2", "label": "B", "asset": PNG}]
         self.send()
         self.ack(1)
-        self.open_round({**text_q("Q4", rec=False), "purpose": "gather", "format": {"kind": "prototype", "variants": variants}})
+        self.open_round({**text_q("Q4", rec=False), "purpose": "gather", "format": {"kind": "prototype", "lookAt": LOOK, "variants": variants}})
         anchor = {"selector": "html > body:nth-of-type(1)", "rect": {"x": 0, "y": 0, "w": 10, "h": 10}}
 
         def body(text):
@@ -5064,7 +5065,7 @@ class TestAnnotations(SessionCase):
         super().setUp()
         self.ann, self.bo = self.people("Ann", "Bo")
         self.variants = [{"id": "v-1", "label": "One page", "asset": HTML}, {"id": "v-2", "label": "Two steps", "asset": PNG}]
-        self.open_round({**text_q("Q1", rec=False), "purpose": "decide", "format": {"kind": "prototype", "variants": self.variants}}, text_q("Q2"))
+        self.open_round({**text_q("Q1", rec=False), "purpose": "decide", "format": {"kind": "prototype", "lookAt": LOOK, "variants": self.variants}}, text_q("Q2"))
 
     def note(self, pid, text="The total is hard to find.", *, qid="Q1", variant="v-1", selector=BUTTON, rect=AREA):
         return self.act("annotate", pid, {"qid": qid, "variant": variant, "text": text, "anchor": {"selector": selector, "rect": rect}})
@@ -5130,7 +5131,7 @@ class TestAnnotations(SessionCase):
         self.act("lock", HOST, {"qid": "Q2", "card": "c:rec"})
         self.send()
         self.ack(1)
-        later = {**text_q("Q4", rec=False), "format": {"kind": "prototype", "variants": self.variants}}
+        later = {**text_q("Q4", rec=False), "format": {"kind": "prototype", "lookAt": LOOK, "variants": self.variants}}
         self.open_round(text_q("Q3"), placements=[{"proposal": prop, "as": "later-round", "after": ["Q3"], "question": later}])
         self.assertEqual(self.question("Q4")["round"], 3)
         self.refused("round-not-open", "annotate", self.ann, {"qid": "Q4", "variant": "v-1", "text": "x", "anchor": {"selector": "html", "rect": self.AREA}}, http=409)
@@ -5162,7 +5163,7 @@ class TestAnnotations(SessionCase):
 def proto_q(qid, *variants):
     """A prototype question; each variant is (id, label, asset) or (id, label, asset, previous)."""
     vs = [{"id": v[0], "label": v[1], "asset": v[2], **({"previous": v[3]} if len(v) > 3 else {})} for v in variants]
-    return {**text_q(qid, rec=False), "format": {"kind": "prototype", "variants": vs}}
+    return {**text_q(qid, rec=False), "format": {"kind": "prototype", "lookAt": LOOK, "variants": vs}}
 
 
 class TestPrototypeVersions(SessionCase):
@@ -5253,6 +5254,176 @@ class TestPrototypeVersions(SessionCase):
                 doc = json.loads(json.dumps(good))
                 change(doc)
                 self.assertIsNotNone(session.document_error(doc))
+
+
+class TestPrototypeTiers(SessionCase):
+    """The `prototypeTiers` setting: which prototype views the session offers (screenshot, snapshot, live). Absent,
+    screenshots and HTML snapshots are on and live is off. A tier switched off leaves the stored question whole; only
+    what guests are sent changes: an image variant's asset leaves their state while screenshots are off, an html one
+    while snapshots are off, and the owner still sees both."""
+
+    OPT_PIC, REF_PIC = "1111222233334444.png", "aaaabbbbccccdddd.webp"  # not the variant's picture, so each check is its own
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.lee = self.people("Ann", "Lee")
+        self.act("set_role", HOST, {"pid": self.lee, "role": "leader"})
+        pick = {**choice_q("Q2"), "format": {"kind": "choice", "options": [{"id": "opt-1", "label": "Card", "image": self.OPT_PIC}, {"id": "opt-2", "label": "Saved"}]}}
+        self.open_round(proto_q("Q1", ("v-1", "One page", HTML), ("v-2", "Two steps", PNG)), pick, text_q("Q3", references=[{"kind": "image", "asset": self.REF_PIC}]))
+
+    def variants(self, pid):
+        return next(q for q in self.s.snapshot(pid)["questions"] if q["id"] == "Q1")["format"]["variants"]
+
+    def test_absent_means_screenshots_and_snapshots_and_stays_absent_until_the_owner_sets_it(self):
+        self.assertNotIn("prototypeTiers", self.disk()["session"]["settings"])
+        self.assertEqual(session.prototype_tiers(self.s.state["session"]["settings"]), ["screenshot", "snapshot"])
+        self.assertEqual([v.get("asset") for v in self.variants(self.ann)], [HTML, PNG])
+        out = self.act("update_settings", HOST, {"prototypeTiers": ["live", "snapshot", "screenshot"]})
+        self.assertEqual(out["settings"]["prototypeTiers"], ["screenshot", "snapshot", "live"])  # canonical order
+        self.assertEqual(self.disk()["session"]["settings"]["prototypeTiers"], ["screenshot", "snapshot", "live"])
+        self.assertEqual(self.act("update_settings", HOST, {"prototypeTiers": []})["settings"]["prototypeTiers"], [])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_tier_twice_an_unknown_tier_or_not_a_list_is_refused_and_only_the_owner_sets_it(self):
+        for bad in (["live", "live"], ["video"], "live", [1], None, {"live": True}):
+            with self.subTest(bad=bad):
+                self.refused("bad-field", "update_settings", HOST, {"prototypeTiers": bad}, http=400)
+        self.refused("owner-only", "update_settings", self.lee, {"prototypeTiers": []})
+        self.assertNotIn("prototypeTiers", self.disk()["session"]["settings"])
+
+    def test_screenshots_off_takes_picture_variants_out_of_guests_state_only(self):
+        self.act("update_settings", HOST, {"prototypeTiers": ["snapshot"]})
+        for pid in (self.ann, self.lee):
+            snap = self.s.snapshot(pid)
+            self.assertEqual(self.variants(pid), [{"id": "v-1", "label": "One page", "asset": HTML}, {"id": "v-2", "label": "Two steps"}])
+            self.assertNotIn(PNG, json.dumps(snap))
+            q2, q3 = (next(q for q in snap["questions"] if q["id"] == i) for i in ("Q2", "Q3"))
+            self.assertEqual(q2["format"]["options"][0]["image"], self.OPT_PIC)  # option pictures stay
+            self.assertEqual(q3["references"][0]["asset"], self.REF_PIC)  # and references
+        self.assertEqual([v.get("asset") for v in self.variants(HOST)], [HTML, PNG])
+        self.assertEqual(self.question("Q1")["format"]["variants"][1]["asset"], PNG)  # the record stays whole
+        self.assertFalse(self.s.asset_hidden(self.ann, PNG))  # pictures are shared with options and references
+
+    def test_snapshots_off_takes_html_variants_out_of_guests_state_and_hides_html_assets_from_them(self):
+        self.act("update_settings", HOST, {"prototypeTiers": ["screenshot"]})
+        self.assertEqual(self.variants(self.ann), [{"id": "v-1", "label": "One page"}, {"id": "v-2", "label": "Two steps", "asset": PNG}])
+        self.assertEqual([v.get("asset") for v in self.variants(HOST)], [HTML, PNG])
+        self.assertEqual([self.s.asset_hidden(p, HTML) for p in (self.ann, self.lee, HOST)], [True, True, False])
+        self.act("update_settings", HOST, {"prototypeTiers": ["screenshot", "snapshot"]})
+        self.assertFalse(self.s.asset_hidden(self.ann, HTML))
+        self.assertEqual([v.get("asset") for v in self.variants(self.ann)], [HTML, PNG])
+
+    def test_every_tier_off_leaves_the_question_and_its_picks(self):
+        self.act("update_settings", HOST, {"prototypeTiers": []})
+        self.assertEqual(self.variants(self.ann), [{"id": "v-1", "label": "One page"}, {"id": "v-2", "label": "Two steps"}])
+        self.act("pick", self.ann, {"qid": "Q1", "option": "v-2", "view": "focus"})
+        self.assertEqual([c["pick"] for c in self.s.snapshot(self.ann)["cards"]["Q1"] if c.get("pid") == self.ann], ["v-2"])
+
+
+class TestPrototypeViews(SessionCase):
+    """A variant's views: one to four screenshots (`shots`, pictures) and an HTML snapshot (`snapshot`), at least one of
+    them; `asset` (one picture or one html file) is the earlier shape and stays valid. A variant with one view is written
+    as `{id, label, asset}`, the earlier shape exactly, so a build from before `shots` and `snapshot` still reads that
+    variant; only a variant with more than one view is written with `shots` and `snapshot`. Every new prototype question
+    says where to look (`format.lookAt`); a variant may add its own line."""
+
+    SHOT2, SHOT3 = "1111222233334444.png", "aaaabbbbccccdddd.webp"
+
+    def setUp(self):
+        super().setUp()
+        (self.ann,) = self.people("Ann")
+
+    def proto(self, *variants, qid="Q1", look=LOOK):
+        return {**text_q(qid, rec=False), "format": {"kind": "prototype", **({"lookAt": look} if look is not None else {}), "variants": list(variants)}}
+
+    def stored(self, qid="Q1"):
+        return next(q for q in self.disk()["questions"] if q["id"] == qid)["format"]
+
+    def variants(self, pid, qid="Q1"):
+        return next(q for q in self.s.snapshot(pid)["questions"] if q["id"] == qid)["format"]["variants"]
+
+    def test_a_one_view_variant_is_written_byte_for_byte_as_the_earlier_shape(self):
+        self.open_round(
+            self.proto({"id": "v-1", "label": "One page", "shots": [PNG]}, {"id": "v-2", "label": "Two steps", "snapshot": HTML}),
+            self.proto({"id": "v-1", "label": "One page", "asset": PNG}, {"id": "v-2", "label": "Two steps", "asset": HTML}, qid="Q2"),
+        )
+        earlier = ['{"id": "v-1", "label": "One page", "asset": "0123456789abcdef.png"}', '{"id": "v-2", "label": "Two steps", "asset": "fedcba9876543210.html"}']
+        raw = self.path.read_text(encoding="utf-8")
+        for qid in ("Q1", "Q2"):
+            with self.subTest(qid):
+                self.assertEqual([json.dumps(v, ensure_ascii=False) for v in self.stored(qid)["variants"]], earlier)
+        self.assertEqual(raw.count(earlier[0]), 2)
+        self.assertEqual(self.stored()["lookAt"], LOOK)
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_variant_with_two_shots_and_a_snapshot_keeps_them_and_its_own_look_at_line(self):
+        flow = {"id": "v-1", "label": "Flow", "shots": [PNG, self.SHOT2], "snapshot": HTML, "lookAt": "  The second picture is step two.  "}
+        self.open_round(self.proto(flow, {"id": "v-2", "label": "Single", "shots": [self.SHOT3]}))
+        want = [{"id": "v-1", "label": "Flow", "shots": [PNG, self.SHOT2], "snapshot": HTML, "lookAt": "The second picture is step two."},
+                {"id": "v-2", "label": "Single", "asset": self.SHOT3}]
+        self.assertEqual(self.stored()["variants"], want)
+        self.assertEqual(self.variants(self.ann), want)
+        self.assertIsNone(session.document_error(self.disk()))
+        reloaded = session.Session.load(self.path, validate_writes=True)
+        self.assertEqual(reloaded.state["questions"][0]["format"]["variants"], want)
+
+    def test_a_variant_with_no_view_a_mixed_shape_or_a_wrong_kind_of_file_is_refused(self):
+        base = {"id": "v-1", "label": "One page"}
+        bad = {
+            "no view": {},
+            "asset and shots": {"asset": PNG, "shots": [PNG]},
+            "asset and snapshot": {"asset": HTML, "snapshot": HTML},
+            "no shots": {"shots": []},
+            "five shots": {"shots": [PNG, self.SHOT2, self.SHOT3, PNG, self.SHOT2]},
+            "a shot twice": {"shots": [PNG, PNG]},
+            "an html file as a shot": {"shots": [HTML]},
+            "a picture as the snapshot": {"snapshot": PNG},
+            "an asset never added": {"shots": ["9999999999999999.png"]},
+            "a live link, which this build does not take": {"shots": [PNG], "live": {"id": "L1", "path": "/"}},
+        }
+        before = self.disk()
+        for why, views in bad.items():
+            with self.subTest(why):
+                exc = self.refused_ops("bad-field", {"op": "open-round", "questions": [self.proto({**base, **views}, {"id": "v-2", "label": "B", "asset": PNG})]})
+                self.assertEqual(exc.http, 400)
+        self.assertEqual(self.disk(), before)
+
+    def test_a_prototype_question_says_where_to_look(self):
+        variants = ({"id": "v-1", "label": "A", "asset": HTML}, {"id": "v-2", "label": "B", "asset": PNG})
+        before = self.disk()
+        exc = self.refused_ops("bad-field", {"op": "open-round", "questions": [self.proto(*variants, look=None)]})
+        self.assertEqual((exc.http, exc.details["field"]), (400, "questions[0].format.lookAt"))
+        self.refused_ops("empty", {"op": "open-round", "questions": [self.proto(*variants, look="   ")]})
+        self.refused_ops("too-long", {"op": "open-round", "questions": [self.proto(*variants, look="x" * 201)]})
+        self.refused_ops("too-long", {"op": "open-round", "questions": [self.proto({**variants[0], "lookAt": "x" * 201}, variants[1])]})
+        self.assertEqual(self.disk(), before)
+        self.open_round(self.proto(*variants, look="  The chat: open it with the round button.  "))
+        self.assertEqual(self.stored()["lookAt"], "The chat: open it with the round button.")
+
+    def test_the_tiers_gate_shots_and_snapshot_as_they_gate_an_earlier_asset(self):
+        flow = {"id": "v-1", "label": "Flow", "shots": [PNG, self.SHOT2], "snapshot": HTML}
+        self.open_round(self.proto(flow, {"id": "v-2", "label": "Single", "asset": self.SHOT3}))
+        stored = self.stored()
+        cases = {
+            ("snapshot",): [{"id": "v-1", "label": "Flow", "snapshot": HTML}, {"id": "v-2", "label": "Single"}],
+            ("screenshot",): [{"id": "v-1", "label": "Flow", "shots": [PNG, self.SHOT2]}, {"id": "v-2", "label": "Single", "asset": self.SHOT3}],
+            (): [{"id": "v-1", "label": "Flow"}, {"id": "v-2", "label": "Single"}],
+        }
+        for tiers, guest in cases.items():
+            with self.subTest(tiers=tiers):
+                self.act("update_settings", HOST, {"prototypeTiers": list(tiers)})
+                self.assertEqual(self.variants(self.ann), guest)
+                self.assertEqual(self.variants(HOST), stored["variants"])
+                self.assertEqual(self.s.asset_hidden(self.ann, HTML), "snapshot" not in tiers)
+                self.assertEqual(self.stored(), stored)  # the record stays whole
+
+    def test_the_document_check_reads_shots_and_snapshot(self):
+        self.open_round(self.proto({"id": "v-1", "label": "Flow", "shots": [PNG, self.SHOT2], "snapshot": HTML}, {"id": "v-2", "label": "B", "asset": PNG}))
+        for key, value in (("shots", [PNG, "../x.png"]), ("snapshot", "fedcba9876543210.png"), ("snapshot", "fedcba98765432.html")):
+            with self.subTest(key=key, value=value):
+                doc = self.disk()
+                doc["questions"][0]["format"]["variants"][0][key] = value
+                self.assertIn(f"questions[Q1].format.variants.{key}", session.document_error(doc))
 
 
 class TestImageReferenceRect(SessionCase):
@@ -5520,6 +5691,7 @@ class TestStateFromF6f1318Versions(StateFixtureCase):
         s = self.load("state-written-f6f1318.json")
         old = s.state["questions"][0]
         self.assertEqual((old["format"]["kind"], [v.get("previous") for v in old["format"]["variants"]]), ("prototype", [None, None]))
+        self.assertNotIn("lookAt", old["format"])  # from before the look-at line: it still loads, and shows none
         for v in old["format"]["variants"]:
             (s.path.parent / "assets" / v["asset"]).write_bytes(b"x")
         html = old["format"]["variants"][0]["asset"]
@@ -5528,6 +5700,17 @@ class TestStateFromF6f1318Versions(StateFixtureCase):
         reloaded = session.Session.load(s.path, validate_writes=True)
         self.assertEqual(reloaded.state["questions"][-1]["format"]["variants"][0]["previous"], {"qid": "Q1", "variant": "v-1"})
         self.assertNotIn("previous", reloaded.state["questions"][0]["format"]["variants"][0])
+
+    def test_a_state_from_before_prototype_tiers_round_trips_byte_equal_and_shows_both_views(self):
+        raw = (FIXTURES / "state-written-f6f1318.json").read_text(encoding="utf-8")
+        s = self.load("state-written-f6f1318.json")
+        self.assertNotIn("prototypeTiers", s.state["session"]["settings"])
+        self.assertEqual(json.dumps(s.state, ensure_ascii=False) + "\n", raw)  # written back as it was read
+        guest = next(p for p in s.state["people"] if p != HOST)
+        shown = [v.get("asset") for v in s.snapshot(guest)["questions"][0]["format"]["variants"]]
+        self.assertEqual(shown, [v["asset"] for v in s.state["questions"][0]["format"]["variants"]])
+        s.update_settings(HOST, {"names": "initials"})  # another setting leaves prototypeTiers absent
+        self.assertNotIn("prototypeTiers", json.loads(s.path.read_text(encoding="utf-8"))["session"]["settings"])
 
 
 class TestStateFrom3153973(StateFixtureCase):
@@ -7641,7 +7824,7 @@ class TestMentionPointers(SessionCase):
         variants = [{"id": "v-1", "label": "One page", "asset": HTML}, {"id": "v-2", "label": "Two steps", "asset": PNG}]
         self.open_round(
             text_q("Q1", rec=False, purpose="gather"),
-            {**text_q("Q2", rec=False), "format": {"kind": "prototype", "variants": variants}},
+            {**text_q("Q2", rec=False), "format": {"kind": "prototype", "lookAt": LOOK, "variants": variants}},
             text_q("Q3"),
         )
         self.act("lock", HOST, {"qid": "Q3", "card": "c:rec"})
