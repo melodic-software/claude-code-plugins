@@ -124,6 +124,13 @@ on:
         required: false
         type: string
         default: ""
+      model-rung:
+        description: >-
+          The model rung the activity's profile runs at: empty or 0 its own,
+          1 its escalate-to (fix-ci's one retry one rung up).
+        required: false
+        type: string
+        default: ""
     # A caller passes one of the two: PR mode's first call the API key, its
     # fallback call and issue mode the OAuth token.
     secrets:
@@ -500,6 +507,7 @@ jobs:
           pr-number: ${{ steps.gate.outputs.pr-number }}
           head-sha: ${{ steps.gate.outputs.head-sha }}
           issue-dimensions: ${{ inputs.issue-dimensions }}
+          model-rung: ${{ inputs.model-rung }}
           # This file performs prepare: ci-context (the context steps below)
           # and refuses every other mode.
           prepare-supported: "true"

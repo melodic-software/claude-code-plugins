@@ -65,6 +65,8 @@ permissions, and passes no App key.
 | `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, that job's `head-sha` output, passed to the gate and the broker (step 3) |
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-attempt` output, which names the replies artifact so a re-run of the reply job alone still finds it |
 | `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop` or `no-key` for its fallback call, on `claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
+| `model-rung` | `''` | Read file only: the model rung the activity's profile runs at, resolve-config's `model-rung` (`1` takes its `escalate-to`) |
+| `patch-model-rung` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the rung the patch's producer ran at; at `0` (or empty) an empty fix-ci patch may skip `rung-up` |
 | `ci-context-attempt`, `ci-context-sha256` | `''` | Read file only: for [`prepare: ci-context`](#prepare-ci-context), the attempt naming the `ci-context-<attempt>` artifact and its file's SHA-256 |
 | `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity`, `patch-prepare`, `reply-attempt` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the read model job's outputs, its activity name and that activity's prepare mode, which picks the `patch-rules.json` row (empty: `default`) |
 
@@ -1001,7 +1003,9 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
 1. Before the mint, the write file downloads `patch-<lane>-<patch-activity>-<patch-attempt>`
    and the model job's reply, and runs the script's `select` with no token. A gated head other
    than `patch-head-sha` skips `superseded-sha` (the row's `skip-moved-head`), and the script checks it again. An `empty` patch escalates `ci-fix-empty`
-   (`ci-fix-escalated` when the report escalated a check). A `patch-state` other than `written`
+   (`ci-fix-escalated` when the report escalated a check), except that at `patch-model-rung` 0 a
+   report whose every escalated check is `unfixed` or `not-reproducible` skips `rung-up` with no
+   escalation, for the dispatcher's one retry at `model-rung` 1. A `patch-state` other than `written`
    or `empty`, or an artifact that is not exactly one regular `patch.diff` of at most 1 MiB with
    that SHA-256 and no credential shape, escalates `ci-fix-invalid`. Each skips `awaiting-human`
    with nothing minted. A report that escalated a check sets `ci-fix-escalated` and proceeds, so

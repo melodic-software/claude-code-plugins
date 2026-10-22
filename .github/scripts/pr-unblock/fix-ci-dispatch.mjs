@@ -19,6 +19,9 @@ export const DEFAULTS = Object.freeze({
   workflow: "pr-unblock.yml",
   activity: "fix-ci",
   checkName: "pr-unblock / fix-ci",
+  // apply-patch's check when a fix-ci run stopped for a retry one model rung
+  // up (apply-patch.mjs select): its neutral title names the skip reason.
+  rungUpCheck: Object.freeze({ name: "pr-unblock / apply-patch", title: "Skipped: rung-up" }),
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
@@ -69,8 +72,11 @@ function headChecks(node, actionsAppId) {
   );
 }
 
-// Why a listed PR is not dispatched, or "" when it is a candidate.
-export function skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts }) {
+// Why a listed PR is not dispatched, or "" when it is a candidate. On a
+// rung-up head (see rungFor) the run that stopped for the retry is the only
+// fix-ci run allowed to have done more than fail, and the failures stay
+// within `restarts`, so the head gets one retry plus its outage restarts.
+export function skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, rungUpCheck = DEFAULTS.rungUpCheck }) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
   }
@@ -94,10 +100,28 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   if (runs.length === 0) {
     return "";
   }
+  if (rungFor(checks, rungUpCheck) === "1") {
+    // Only the run that stopped for the retry may have done more than fail.
+    const failed = runs.filter((run) => run.status === "COMPLETED" && run.conclusion === "FAILURE").length;
+    if (runs.length - failed !== 1) {
+      return `head's rung-up retry of ${checkName} already ran or is running`;
+    }
+    return failed <= restarts ? "" : `head's rung-up ${checkName} failed ${failed} time(s), past ${restarts} restart(s)`;
+  }
   if (runs.some((run) => run.status !== "COMPLETED" || run.conclusion !== "FAILURE")) {
     return `head already has a ${checkName} check run`;
   }
   return runs.length <= restarts ? "" : `head's ${checkName} failed ${runs.length} time(s), past ${restarts} restart(s)`;
+}
+
+// "1" when the head's apply-patch check says its fix-ci run stopped for a
+// retry one model rung up, else "". Only the GitHub Actions app's checks reach here.
+export function rungFor(checks, rungUpCheck = DEFAULTS.rungUpCheck) {
+  return checks.some(
+    (run) => run.name === rungUpCheck.name && run.status === "COMPLETED" && run.conclusion === "NEUTRAL" && run.title === rungUpCheck.title,
+  )
+    ? "1"
+    : "";
 }
 
 export async function dispatchCiFixes({
@@ -164,11 +188,17 @@ export async function dispatchCiFixes({
       continue;
     }
     sent += 1;
+    const rung = rungFor(headChecks(node, actionsAppId));
     try {
       const { workflowRunId } = await api.dispatchWorkflow({
         workflow,
         ref: `refs/heads/${base}`,
-        inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) },
+        inputs: {
+          "pr-number": String(node.number),
+          activity,
+          "dispatcher-run-id": String(runId),
+          ...(rung === "1" ? { "model-rung": rung } : {}),
+        },
       });
       const id = String(workflowRunId);
       if (!RUN_ID.test(id)) {
@@ -177,7 +207,7 @@ export async function dispatchCiFixes({
         continue;
       }
       dispatched.push({ number: node.number, workflowRunId: id });
-      log(`dispatched fix-ci #${node.number} head ${node.headRefOid} workflow_run_id=${id}`);
+      log(`dispatched fix-ci #${node.number} head ${node.headRefOid}${rung ? ` model-rung=${rung}` : ""} workflow_run_id=${id}`);
     } catch (error) {
       failed += 1;
       log(`::error::#${node.number}: dispatch failed: ${error.message}`);

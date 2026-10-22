@@ -222,6 +222,80 @@ test("live config: resolve-issue keeps the standard profile's model, its turns f
   assert.equal(modelSettings(slot.models), "");
 });
 
+// Owner decision Q21 (2026-10-22): an issue's Complexity picks the starting
+// profile. High runs Opus at effort xhigh; low, medium and unset keep the
+// activity's default (resolve-issue has no route, so standard). The turn cap
+// still comes from the dimensions.
+const liveIssueSlot = (dims, pinnedDimensions) =>
+  resolve(LIVE, {
+    lane: "work-resolve-issue",
+    activity: "resolve-issue",
+    configPath: CONFIG_PATH,
+    basePath: ".base",
+    facts: { ...LIVE_FACTS, ...fieldFacts(dims) },
+    pinnedDimensions,
+  }).selected;
+
+test("live config: a high-Complexity issue runs resolve-issue on Opus at effort xhigh", () => {
+  const slot = liveIssueSlot({ size: "small", complexity: "high", uncertainty: "known" });
+  assert.equal(slot.applies, true);
+  assert.equal(slot.models.model, "opus");
+  assert.equal(slot.models.effort, "xhigh");
+  assert.match(modelArgs(slot.models), /^--model opus --max-turns \d+ --effort xhigh$/);
+});
+
+test("live config: pinned high-Complexity dimensions pick the same Opus xhigh profile", () => {
+  const read = liveIssueSlot({ size: "small", complexity: "high", uncertainty: "known" });
+  const pinned = liveIssueSlot({ size: "small", complexity: "low", uncertainty: "known" }, "small/high/known");
+  assert.deepEqual(pinned.models, read.models);
+});
+
+for (const complexity of ["low", "medium"]) {
+  test(`live config: a ${complexity}-Complexity issue keeps resolve-issue's default profile`, () => {
+    const slot = liveIssueSlot({ size: "small", complexity, uncertainty: "known" });
+    assert.equal(slot.applies, true);
+    assert.equal(slot.models.profile, "standard");
+    assert.equal(slot.models.model, "default");
+    assert.equal(slot.models.effort, null);
+  });
+}
+
+test("live config: an issue with no Complexity keeps the default profile (and is not assessed)", () => {
+  const slot = liveIssueSlot({ size: "small", uncertainty: "known" });
+  assert.equal(slot["skip-reason"], "not-assessed");
+  assert.equal(slot.models.profile, "standard");
+});
+
+// fix-ci's retry one rung up (owner decision Q21): rung 1 takes code-fix's
+// escalate-to profile, Opus at effort xhigh; rung 0 keeps code-fix.
+const fixCiSlot = (rung) =>
+  resolve(LIVE, { lane: "pr-unblock", activity: "fix-ci", configPath: CONFIG_PATH, basePath: ".base", facts: LIVE_FACTS, rung })
+    .selected.models;
+
+test("live config: fix-ci one rung up runs Opus at effort xhigh", () => {
+  const up = fixCiSlot(1);
+  assert.equal(up.model, "opus");
+  assert.equal(up.effort, "xhigh");
+  assert.notEqual(up.profile, "code-fix");
+  assert.equal(fixCiSlot(0).profile, "code-fix");
+  assert.deepEqual(fixCiSlot(undefined), fixCiSlot(0));
+});
+
+test("live config: the rung-up profile has no rung above it, so a rung cannot climb twice", () => {
+  const doc = parse(LIVE.config);
+  const up = fixCiSlot(1).profile;
+  assert.equal(doc.models.profiles[up]["escalate-to"], undefined);
+});
+
+// Fable is owner-gated pending a per-week allowance: no live profile names
+// the frontier tier, so no route, rung or Complexity can reach it.
+test("live config: no profile names fable or best", () => {
+  for (const [name, profile] of Object.entries(parse(LIVE.config).models.profiles)) {
+    assert.ok(!["fable", "best"].includes(profile.model), name);
+    assert.ok(!["fable", "best"].includes(profile["subagent-model"]), name);
+  }
+});
+
 // The live tuning is checked for shape only: it loads, every org option is
 // mapped, and an assessed, known issue of a size that runs applies.
 test("live config: the live issue-dimensions maps every org option and runs a known small issue", () => {
@@ -268,6 +342,28 @@ for (const [why, dims, code] of [
   test(`issue-dimensions: ${why} is rejected`, () => {
     const profiles = { p: { model: "opus", "max-turns": 5 } };
     assertRejected(() => fixtureSlot(withModels({ profiles, "default-profile": "p", "issue-dimensions": dims })), code);
+  });
+}
+
+for (const [why, models, code] of [
+  [
+    "an escalate-to naming no profile",
+    { profiles: { p: { model: "opus", "max-turns": 5, "escalate-to": "nope" } }, "default-profile": "p" },
+    "undefined-profile",
+  ],
+  [
+    "a complexity profile naming no profile",
+    { profiles: { p: { model: "opus", "max-turns": 5 } }, "default-profile": "p", "issue-dimensions": { ...DIMS, "complexity-profiles": { low: "nope" } } },
+    "undefined-profile",
+  ],
+  [
+    "a complexity profile keyed by no complexity",
+    { profiles: { p: { model: "opus", "max-turns": 5 } }, "default-profile": "p", "issue-dimensions": { ...DIMS, "complexity-profiles": { huge: "p" } } },
+    "undefined-dimension",
+  ],
+]) {
+  test(`models: ${why} is rejected`, () => {
+    assertRejected(() => fixtureSlot(withModels(models)), code);
   });
 }
 

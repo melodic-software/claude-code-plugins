@@ -133,20 +133,39 @@ export const credentialIn = (text) => CREDENTIALS.find((credential) => credentia
 const REASONS = "not-reproducible|flaky|protected-path|weaken-required|unfixed";
 const ESCALATED_LINE = new RegExp(`^(.+?): escalated (?:${REASONS})(?: |$)`);
 
+const ESCALATED_REASON = new RegExp(`^.+?: escalated (${REASONS})(?: |$)`);
+// The reasons a fix-ci retry one model rung up may answer (owner decision
+// Q21); protected-path, weaken-required and flaky stay with a person.
+const RUNG_UP_REASONS = new Set(["unfixed", "not-reproducible"]);
+
+const reportLines = (text) => String(text).split("\n").map((line) => line.replace(/\r$/, ""));
+
 // The checks a report escalated, one per `<check>: escalated <reason>
 // <sentence>` line. The report is model output: only this shape is read.
 export function escalatedChecks(text) {
-  return String(text)
-    .split("\n")
-    .map((line) => ESCALATED_LINE.exec(line.replace(/\r$/, ""))?.[1])
+  return reportLines(text)
+    .map((line) => ESCALATED_LINE.exec(line)?.[1])
     .filter(Boolean);
 }
 
-// The producer reports a row may read: each says whether the model escalated.
+// Whether a report escalated at least one check and every escalation is one
+// a stronger model may answer.
+export function rungUpEscalation(text) {
+  const reasons = reportLines(text).flatMap((line) => ESCALATED_REASON.exec(line)?.[1] ?? []);
+  return reasons.length > 0 && reasons.length === escalatedChecks(text).length && reasons.every((reason) => RUNG_UP_REASONS.has(reason));
+}
+
+const reportText = (reportDir) => {
+  const file = reportDir ? join(reportDir, "reply.txt") : "";
+  return Boolean(file) && existsSync(file) && lstatSync(file).isFile() ? readFileSync(file, "utf8") : "";
+};
+
+// The producer reports a row may read: each says whether the model escalated,
+// and whether a retry one model rung up may answer every escalation.
 const REPORTS = {
-  "ci-escalations": (reportDir) => {
-    const file = reportDir ? join(reportDir, "reply.txt") : "";
-    return Boolean(file) && existsSync(file) && lstatSync(file).isFile() && escalatedChecks(readFileSync(file, "utf8")).length > 0;
+  "ci-escalations": {
+    escalated: (reportDir) => escalatedChecks(reportText(reportDir)).length > 0,
+    rungUp: (reportDir) => rungUpEscalation(reportText(reportDir)),
   },
 };
 
@@ -316,10 +335,14 @@ export function patchProblem(file, expected) {
   return credential ? `the patch carries a ${credential} shape` : "";
 }
 
-export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir }) {
+// `rung` is the producer's model rung (0 or 1): at 0, an empty patch whose
+// report escalated only checks a stronger model may answer skips rung-up, and
+// the dispatcher retries it once at rung 1, instead of escalating.
+export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0 }) {
   checkRow(row);
   const decide = (proceed, skipReason, escalationReason) => ({ proceed, skipReason, escalationReason });
-  const escalated = row["reads-report"] !== null && REPORTS[row["reads-report"]](reportDir);
+  const report = row["reads-report"] === null ? null : REPORTS[row["reads-report"]];
+  const escalated = report !== null && report.escalated(reportDir);
   if (patchState !== "written" && patchState !== "empty") {
     return decide(false, "awaiting-human", reasonFor(row, "invalid"));
   }
@@ -327,6 +350,9 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
     return decide(false, "superseded-sha", "");
   }
   if (patchState === "empty") {
+    if (escalated && rung === 0 && report.rungUp(reportDir)) {
+      return decide(false, "rung-up", "");
+    }
     return decide(false, "awaiting-human", reasonFor(row, escalated ? "escalated" : "empty"));
   }
   let names = [];
@@ -618,6 +644,15 @@ function labelList(env, key) {
   return labels;
 }
 
+// The producer's model rung from MODEL_RUNG: empty or 0 is the route's own
+// profile, 1 the rung above it; anything else is refused.
+function modelRung(value = "") {
+  if (!["", "0", "1"].includes(value)) {
+    throw new Error("MODEL_RUNG must be empty, 0 or 1");
+  }
+  return value === "1" ? 1 : 0;
+}
+
 export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = (line) => console.log(line) } = {}) {
   const row = rowFor(loadRules(env.BASE_DIR), { prepare: env.PATCH_PREPARE ?? "", target: env.PATCH_TARGET || "pr" });
   const target = TARGETS[row.target];
@@ -631,6 +666,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
       headSha: env.HEAD_SHA,
       patchDir: env.PATCH_DIR ?? "",
       reportDir: env.REPORT_DIR ?? "",
+      rung: modelRung(env.MODEL_RUNG),
     });
     appendFileSync(env.GITHUB_OUTPUT, `proceed=${result.proceed}\nskip-reason=${result.skipReason}\nescalation-reason=${result.escalationReason}\n`);
     log(`select (${row.name}): proceed=${result.proceed} skip=${result.skipReason || "none"} escalation=${result.escalationReason || "none"}`);

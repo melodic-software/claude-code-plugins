@@ -297,6 +297,10 @@ function filesUnderBase(basePath, configPath, readRules = readOwn) {
   };
 }
 
+// MODEL_RUNG as resolve()'s rung: empty is none, 0 or 1 that rung; anything
+// else is passed on for resolve() to refuse.
+const modelRung = (value) => (value === undefined || value === "" ? undefined : /^[01]$/.test(value) ? Number(value) : value);
+
 // The ResolvedConfig for the request env names, or a throw: a Rejection
 // (with its code) for a config or request the resolver refuses. `event` is the
 // payload; by default it is read from EVENT_PATH. With `absentAsNull`, a valid
@@ -314,6 +318,7 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
     configPath,
     basePath,
     pinnedDimensions: env.ISSUE_DIMENSIONS || undefined,
+    rung: modelRung(env.MODEL_RUNG),
   };
   if (absentAsNull && !laneHasActivity(files, request)) {
     return null;

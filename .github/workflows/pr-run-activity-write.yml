@@ -207,6 +207,15 @@ on:
         required: false
         type: string
         default: ""
+      patch-model-rung:
+        description: >-
+          apply-patch: the model rung the patch's producer ran at, empty or 0
+          its profile's, 1 the rung above. At 0 an empty fix-ci patch whose
+          report escalated only unfixed or not-reproducible checks skips
+          rung-up, for the dispatcher's one retry, instead of escalating.
+        required: false
+        type: string
+        default: ""
       patch-base-sha:
         description: >-
           Issue mode, apply-patch: the model job's base-sha output, the default
@@ -680,7 +689,9 @@ jobs:
       # against the model job's SHA-256 and head, and reads its report. Under
       # a skip-moved-head row (ci-context) a moved head skips superseded-sha,
       # and the script takes it with --3way otherwise; an empty or invalid patch escalates
-      # with nothing minted; an escalated check in the report escalates after
+      # with nothing minted, unless at patch-model-rung 0 every check it
+      # escalated is unfixed or not-reproducible, which skips rung-up for one
+      # retry a rung up; an escalated check in the report escalates after
       # the push. An issue patch's head is its start commit.
       - name: Select the patch
         id: patch-select
@@ -696,6 +707,7 @@ jobs:
           HEAD_SHA: ${{ inputs.issue-number != '' && steps.issue-start.outputs.sha || steps.gate.outputs.head-sha }}
           PATCH_DIR: ${{ runner.temp }}/lane-patch
           REPORT_DIR: ${{ runner.temp }}/lane-patch-report
+          MODEL_RUNG: ${{ inputs.patch-model-rung }}
         run: node ".base/$SCRIPT" select
 
       # A read activity belongs in pr-run-activity-read.yml, whose run holds no

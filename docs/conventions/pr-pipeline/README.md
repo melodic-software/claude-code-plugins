@@ -218,7 +218,11 @@ universal set, an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` o
 `.gitmodules`, `CODEOWNERS`), or more than 300 paths
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
-unappliable patch, or a check the model escalated, goes to `report-escalation`. The same
+unappliable patch, or a check the model escalated, goes to `report-escalation`, with one
+exception: a run at `model-rung` 0 that changed nothing and escalated only `unfixed` or
+`not-reproducible` checks skips `apply-patch` with `rung-up` and labels nothing, so the
+dispatcher retries it once at `model-rung` 1 ([Models](#models)); `protected-path`,
+`weaken-required` and `flaky` still go to a person, and so does any escalation of the retry. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), with no `do-not-merge`
@@ -226,7 +230,10 @@ or `needs-human` label, whose head's `ci-status` check run from the GitHub Actio
 `failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
 untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
 and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
-lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
+lowest number first. A head whose `pr-unblock / apply-patch` check is neutral `Skipped: rung-up`
+is dispatched with `model-rung` 1 while the run that stopped for it is its only `fix-ci` run that
+did more than fail, and its failed runs stay within `limits.fix-ci-restarts`: one retry per head,
+never a loop. Their run ids join the dispatched-runs record. The dispatcher job's
 concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
@@ -527,7 +534,8 @@ missed), `prerequisite-missing` (among others, mergeability still unknown at the
 bounded re-reads), `cost-gated`, `awaiting-human` (among others, a `labels-absent` label is on the
 PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no same-repository PR, or an
 actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
-write lane's mint for a workflow file the PR itself changes), or, for an issue run under
+write lane's mint for a workflow file the PR itself changes), `rung-up` (a fix-ci run's patch is
+held back for one retry one model rung up, [Lanes](#lanes)), or, for an issue run under
 `models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
 account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
 `split`). Issue mode posts no check, so work-resolve-issue.yml reports those four dimension skips
@@ -1338,6 +1346,9 @@ Each profile under `models.profiles` names:
   through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
   definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
+- `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
+  (resolve-config's `model-rung` input) takes it in place of this one; at most one rung, so the
+  target's own `escalate-to` is never followed. Only fix-ci's retry passes `model-rung` 1.
 
 A role profile names a multi-agent role in place of `model`, and never both: `role`, `workload`
 and `effort-role`, plus `max-turns`. It has no `model` or `effort` key, so it can name neither
@@ -1382,7 +1393,16 @@ its slot cannot give it more turns than its timeout allows; without `issue-dimen
 timeout is 25 minutes. This repository's budgets are owner-approved starting values, tuned in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.issue-dimensions`) from per-run measures. Large
 is `split`, and Uncertainty Known, Knowable and Unknown map to `run`, `research-first` and
-`probe-first`. No model name is set here.
+`probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
+in place of its route's; the dimensions' turn cap still replaces that profile's `max-turns`. A
+complexity with no entry, or an issue not assessed, keeps the route's profile. The config
+reader rejects a key that is not a complexity and a value that is not a profile.
+
+Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
+triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
+(`code-xhigh`) for a high-Complexity issue and fix-ci's one retry, and Fable above it. The Fable
+rung is off: no profile names `fable` or `best`, so no route, rung or Complexity reaches it; it
+waits on an owner decision and a per-week Fable allowance for the lanes.
 
 ## Funding
 
