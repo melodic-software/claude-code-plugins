@@ -577,13 +577,40 @@ jobs:
       patch-model-rung: "1"
       reply-attempt: ${{ needs.fix-ci-rung-up-subscription.outputs.reply-attempt || needs.fix-ci-rung-up.outputs.reply-attempt }}
 
-  # fix-docs is three jobs, so no model ever holds a write token. The model
+  # The PR head fix-docs's report posts its check on, read by a job that runs
+  # no head code, as fix-ci-context's is for fix-ci. Without it the report
+  # trusts only the head read at report time, so a push mid-run posts failure
+  # on the new head.
+  fix-docs-head:
+    if: >-
+      inputs.pr-number != '' && inputs.activity == 'fix-docs'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      head-sha: ${{ steps.head.outputs.sha }}
+    steps:
+      - name: Read the PR's head SHA
+        id: head
+        env:
+          PR_NUMBER: ${{ inputs.pr-number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]] || { echo "::error::pr-number is not a PR number"; exit 1; }
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::no PR head SHA read"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
+  # fix-docs is four jobs, so no model ever holds a write token. The model
   # job: a read activity with no write token and no OIDC token in the job that
   # runs head code. The skill fixes the changed Markdown files; the runner
   # uploads its uncommitted edits as a patch. It runs on the automations
   # role's API key alone. Drafts and held PRs skip in the config's
   # applies-when, before any model turn.
   fix-docs:
+    needs: fix-docs-head
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-docs'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
@@ -604,6 +631,8 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
+      head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      post-decline: false
       timeout-minutes: 60
     secrets:
       claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
@@ -614,7 +643,7 @@ jobs:
   # only those two outputs, each compared to a fixed string, and holds the
   # OAuth token alone.
   fix-docs-subscription:
-    needs: fix-docs
+    needs: [fix-docs-head, fix-docs]
     if: >-
       ${{ !cancelled() && (needs.fix-docs.outputs.lane-class == 'credit-stop'
       || needs.fix-docs.outputs.credential-present == 'false') }}
@@ -636,6 +665,8 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
+      head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      post-decline: false
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
