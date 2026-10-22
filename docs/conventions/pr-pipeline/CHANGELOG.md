@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [3.3.2] - 2026-10-22
+
+### Fixed
+
+- The verifier verdict rules say a failed read of a verify record, run time or diff refuses `verify:unreadable` rather than keeping `verify:earlier-fail`, except a diff GitHub answers with 404, which still keeps it (#9063).
+
+- fix-docs runs again, now in the read runner's default `dontAsk` mode instead of `auto`, which
+  run-claude-cli's subprocess env scrub forced back to the default mode
+  ([run 39723040443](https://github.com/melodic-software/claude-code-plugins/actions/runs/39723040443)).
+  Its Bash runs only explicit allow rules: each `ai-slop:audit` script by absolute path under
+  `.lane/plugins`, bare and double-quoted, plus `sha256sum` and `mkdir -p` in `.lane/scratch`
+  for the fix flow's digests, and `Edit(./.lane/scratch/**)` so a redirect into the scratch
+  directory is approved. It denies `git`, the `user-scope.sh` script, `NotebookEdit` on the
+  staged plugin and the write lanes' shell deny set. The staging step also makes `.lane/prompt.md`
+  and `.lane/` read-only, so a script's `--out` lands only in `.lane/scratch`.
+- Write lanes also deny `wc`, a read-only command that runs with no allow rule and can print
+  file contents in its errors.
+
 ## [3.3.1] - 2026-10-22
 
 ### Fixed

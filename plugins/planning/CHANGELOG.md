@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.88.0] - 2026-10-22
+
+### Added
+
+- GIFs in chat and answers on the shared interview page: a pasted or picked GIF goes with only its frames, their timing and the loop count (no comment, plain text, application or unknown extension), up to 512 KB, through the owner-approved picture path. An animated GIF shows as its still first frame with a Play GIF button, on its tile and in the viewer.
+
+### Fixed
+
+- The host's urgent pop-up no longer writes its words back into the pop-up area while another message waits to show there, so a screen reader no longer hears the same problem report announced twice.
+
 ## [0.87.1] - 2026-10-22
 
 ### Fixed
