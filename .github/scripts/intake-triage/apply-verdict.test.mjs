@@ -155,6 +155,7 @@ describe("planWrites", () => {
       fields,
       dimensionsConfig: DIMS,
       appId: LANES_APP,
+      humans,
       classSetters,
     });
 
@@ -262,6 +263,19 @@ describe("planWrites", () => {
         result.fieldWrites.map(({ key }) => key),
         ["complexity", "uncertainty"],
       );
+    });
+  }
+
+  for (const [name, setter, ready] of [
+    ["the lanes App", LANES_APP, true],
+    ["a listed human", HUMAN, true],
+    ["an unlisted account", OUTSIDER, false],
+    ["an unreadable setter", null, false],
+  ]) {
+    test(`a field already holding the verdict's value, set by ${name}, ${ready ? "counts" : "holds the issue"}`, () => {
+      const result = plan(laneBody(), { fields: { 15462270: { option: 27053568, setter } } });
+      assert.equal(result.ready, ready);
+      assert.ok(!result.fieldWrites.some(({ key }) => key === "size"), "a matching value is not rewritten");
     });
   }
 

@@ -164,7 +164,7 @@ export function parseVerdict(body, dimensionsConfig, classes) {
 // either way) is the lanes App's; never for an unknown id or App.
 const isApp = (id, appId) => appId !== undefined && id !== undefined && id !== null && String(id) === String(appId);
 
-export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, classSetters = {} }) {
+export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, humans = new Set(), classSetters = {} }) {
   const reasons = [...verdict.problems];
   const add = [];
   const remove = [];
@@ -202,6 +202,10 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, c
       const current = fields[String(fieldId)];
       if (current && String(current.option) !== optionId && !isApp(current.setter, appId)) {
         reasons.push(`${DIMENSIONS[key]} was set to another value by someone other than the lanes App`);
+      } else if (current && !isApp(current.setter, appId) && !humans.has(Number(current.setter))) {
+        // The value matches, but the work lanes count it only when a listed
+        // human or the lanes App set it (resolve-config dimensions.mjs).
+        reasons.push(`${DIMENSIONS[key]} holds the verdict's value, but from a setter the work lanes do not count`);
       } else if (!current || String(current.option) !== optionId) {
         fieldWrites.push({
           key,
@@ -334,6 +338,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, log = c
     fields,
     dimensionsConfig,
     appId,
+    humans,
     classSetters: await classSetters(github, base, labels),
   });
 
