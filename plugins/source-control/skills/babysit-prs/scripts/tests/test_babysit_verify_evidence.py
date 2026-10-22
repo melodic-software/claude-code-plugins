@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
@@ -202,6 +203,7 @@ class FakeGitHub:
         self.calls: list[list[str]] = []
         self.envs: list[tuple[list[str], Any]] = []
         self.fail: set[str] = set()
+        self.fail_status = 502
         # The PR's closing issues now: (number, repository).
         self.closing: list[tuple[int, str]] = [(7, REPO)]
         self.closing_total: int | None = None
@@ -272,7 +274,9 @@ class FakeGitHub:
         path = next(a for a in args if a.startswith("repos/"))
         kind = next((k for k in self.fail if k in path), None)
         if kind:
-            return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
+            return subprocess.CompletedProcess(
+                args, 1, "", f"gh: boom (HTTP {self.fail_status})"
+            )
         if path == f"repos/{REPO}/actions/artifacts?per_page=100":
             pages = [
                 self.artifacts[i : i + 2] for i in range(0, len(self.artifacts), 2)
@@ -299,6 +303,18 @@ class FakeGitHub:
             sha = path[len(compare) :].split("...")[0]
             return ok({"status": "ahead" if sha in self.on_main else "diverged"})
         raise AssertionError(f"unexpected gh call: {args}")
+
+
+class OrderedSet(set[str]):
+    """A set that iterates in the order given, standing in for whatever order
+    another process's string hashing gives."""
+
+    def __init__(self, items: list[str]):
+        super().__init__(items)
+        self.order = items
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.order)
 
 
 def passing(*extra: dict[str, Any], runs: dict[int, Any] | None = None) -> FakeGitHub:
@@ -639,10 +655,12 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
         )
         self.assertEqual(read(fake).refusal, "verify:untrusted-spec")
 
-    def test_an_unreadable_tied_fail_keeps_the_earlier_fail(self) -> None:
+    def test_an_unreadable_tied_fail_refuses_without_a_human(self) -> None:
         # Run 7 is not in the fake, so the tied FAIL at the head is unread.
         fake = self.earlier_fail(OLDER_START, artifact(named(HEAD, "fail"), 7))
-        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertFalse(evidence.needs_human)
 
 
 class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
@@ -650,7 +668,8 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
     change at the head (the stable patch id of its diff from the merge base
     with main) differs from its change at every FAILed head: a head that only
     merges main, or adds an empty commit, keeps the FAIL (owner decision
-    2026-10-21), and a change that cannot be read keeps it too."""
+    2026-10-21), and a diff that holds no change keeps it too; one that
+    cannot be read refuses `verify:unreadable`."""
 
     earlier_fail = staticmethod(ACountedPassAtTheHeadClearsAnEarlierFail.earlier_fail)
 
@@ -714,16 +733,38 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
         fake.diffs[IN_PR] = fake.diffs[HEAD]
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
-    def test_a_change_that_cannot_be_read_refuses(self) -> None:
+    def test_a_change_with_no_lines_keeps_the_fail(self) -> None:
         for sha in (EARLIER, HEAD):
-            for broken in ("unread", "empty"):
-                with self.subTest(sha=sha, broken=broken):
-                    fake = self.earlier_fail()
-                    if broken == "unread":
-                        del fake.diffs[sha]
-                    else:
-                        fake.diffs[sha] = ""
-                    self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+            with self.subTest(sha=sha):
+                fake = self.earlier_fail()
+                fake.diffs[sha] = ""
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_head_github_no_longer_has_keeps_the_fail_for_a_human(self) -> None:
+        # A compare that answers 404 (a garbage-collected or force-pushed-away
+        # head) holds no readable change, which no later read will find.
+        for sha in (EARLIER, HEAD):
+            with self.subTest(sha=sha):
+                fake = self.earlier_fail()
+                del fake.diffs[sha]
+                evidence = read(fake)
+                self.assertEqual(evidence.refusal, "verify:earlier-fail")
+                self.assertTrue(evidence.needs_human)
+
+    def test_the_verdict_does_not_depend_on_the_order_of_failed_heads(self) -> None:
+        # EARLIER holds the head's own change; UNRELATED's read fails.
+        fake = self.earlier_fail()
+        fake.diffs[EARLIER] = fake.diffs[HEAD]
+        fake.fail = {f"compare/main...{UNRELATED}"}
+        outcomes = set()
+        for order in ([EARLIER, UNRELATED], [UNRELATED, EARLIER]):
+            with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+                reader = ve.Reader(REPO, "main", now=NOW)
+                try:
+                    outcomes.add(reader._change_differs(HEAD, OrderedSet(order)))
+                except ve._Unreadable:
+                    outcomes.add("unreadable")
+        self.assertEqual(len(outcomes), 1, outcomes)
 
     def test_a_head_that_only_adds_blank_lines_refuses(self) -> None:
         fake = self.earlier_fail()
@@ -1055,6 +1096,74 @@ class UnreadableReadsBlock(unittest.TestCase):
         capped = passing()
         capped.commits = [f"{i:040x}" for i in range(250)]
         self.assertEqual(read(capped).refusal, "verify:unreadable")
+
+
+class AFailedReadRefusesWithoutAHuman(unittest.TestCase):
+    """Issue #9063: a read that fails (a rate limit, pr-merge run
+    39725996983) refuses `verify:unreadable`, which the next run re-derives,
+    never `verify:earlier-fail`, which holds the head for a human."""
+
+    earlier_fail = staticmethod(ACountedPassAtTheHeadClearsAnEarlierFail.earlier_fail)
+
+    @staticmethod
+    def foreign_fail(fake: FakeGitHub) -> FakeGitHub:
+        """Adds another pull request's FAIL (run 3) whose record cannot be
+        read."""
+        fake.artifacts.append(artifact(named(UNRELATED, "fail", 99), 3))
+        fake.runs[3] = run(3)
+        return fake
+
+    def test_an_unreadable_foreign_record_beside_a_cleared_fail(self) -> None:
+        fake = self.foreign_fail(self.earlier_fail())
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertFalse(evidence.needs_human)
+        # The next run reads the record and the cleared FAIL merges.
+        fake.records[named(UNRELATED, "fail", 99)] = record(
+            99, UNRELATED, verdict="fail", head_ref="feat/y"
+        )
+        self.assertIsNone(read(fake).refusal)
+
+    def test_an_uncleared_earlier_fail_still_goes_to_a_human(self) -> None:
+        fake = self.foreign_fail(
+            FakeGitHub([artifact(named(EARLIER, "fail"), 2)], {2: run(2)})
+        )
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail")
+        self.assertTrue(evidence.needs_human)
+
+    def test_a_fail_at_the_head_still_goes_to_a_human(self) -> None:
+        fake = self.foreign_fail(
+            FakeGitHub([artifact(named(HEAD, "fail"), 2)], {2: run(2)})
+        )
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertTrue(evidence.needs_human)
+
+    def test_a_failed_run_time_read(self) -> None:
+        # A second gate process counts the FAIL from the shared run record,
+        # then reads its run again for the time, under a rate limit.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        cache = str(pathlib.Path(tmp.name, "run.json"))
+        fake = self.earlier_fail()
+        with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": cache}):
+            self.assertIsNone(read(fake).refusal)
+            fake.fail = {"actions/runs/2"}
+            evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertFalse(evidence.needs_human)
+
+    def test_a_failed_change_read(self) -> None:
+        for sha in (EARLIER, HEAD):
+            for status in (403, 502):
+                with self.subTest(sha=sha, status=status):
+                    fake = self.earlier_fail()
+                    fake.fail = {f"compare/main...{sha}"}
+                    fake.fail_status = status
+                    evidence = read(fake)
+                    self.assertEqual(evidence.refusal, "verify:unreadable")
+                    self.assertFalse(evidence.needs_human)
 
 
 class AnOldPullRequestGoesToAHuman(unittest.TestCase):
