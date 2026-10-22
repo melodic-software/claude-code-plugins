@@ -1868,12 +1868,18 @@ def _dependabot_content(
     `dependabot-content:<x>`, names a diff that is not only covered manifests,
     lock files and `uses:` repins (`content_refusal`, per
     `.github/dependabot.yml` at the base); it sends the pull request to tier
-    `review`. The paths a version-bump or lanes App fix commit touched count
-    as checked; a fix commit touching `.github/`, or one whose file list cannot
-    be read whole, is the refusal. The changed paths (either side of a rename)
-    are None when the files listing was not read whole. Raises
-    `PolicyReadError` on a read failure."""
+    `review`. The paths a version-bump commit touched count as checked once
+    it passes the bump rule (only plugin.json's `version` and CHANGELOG.md;
+    else `dependabot-bump-content:<why>`); any other commit that is not
+    Dependabot's (a lanes App fix) must pass the fix rule
+    (`_fix_commit_refusal`), else `dependabot-fix-content:<why>` is the
+    refusal, as is a commit whose file list cannot be read whole. The changed
+    paths (either side of a rename) are None when the files listing was not
+    read whole. Raises `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
+    config = dependabot.parse_config(
+        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
+    )
     extra: set[str] = set()
     for item in commits:
         if dependabot.is_dependabot_commit(item):
@@ -1883,14 +1889,12 @@ def _dependabot_content(
         if touched is None:
             # Unreadable (or past the listing cap) is not "touches nothing".
             return None, f"unreadable: commit files {sha[:12]}", None
-        if not dependabot.is_actions_commit(item):
-            gated = [p for p in touched if p == ".github" or p.startswith(".github/")]
-            if gated:
-                return None, f"dependabot-fix-content:{gated[0]}", None
+        bump = dependabot.is_actions_commit(item)
+        refusal = _fix_commit_refusal(owner, name, sha, config, bump=bump)
+        if refusal:
+            kind = "bump" if bump else "fix"
+            return None, f"dependabot-{kind}-content:{refusal}", None
         extra.update(touched)
-    config = dependabot.parse_config(
-        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
-    )
     if config is None:
         return "dependabot-config-unreadable", None, None
     listing = _paginated(
@@ -1906,6 +1910,87 @@ def _dependabot_content(
         if p
     ]
     return dependabot.content_refusal(listing, config, extra), None, paths
+
+
+FIX_TREE = """
+query FixTree($o: String!, $r: String!, $e: String!) {
+  repository(owner: $o, name: $r) {
+    object(expression: $e) { ... on Tree { entries { name type mode } } }
+  }
+}
+"""
+
+
+def _raw_at(owner: str, name: str, path: str, sha: str) -> str | None:
+    """The file's text at `sha` through the raw media type, which serves
+    files over 1 MB (docs.github.com/en/rest/repos/contents#get-repository-content,
+    as of 2026-10-21; recheck when that section changes its size limits);
+    None when absent. Raises `PolicyReadError` on any other failure."""
+    endpoint = f"repos/{owner}/{name}/contents/{quote(path)}?ref={sha}"
+    try:
+        proc = gh_capture(
+            ["api", endpoint, "-H", "Accept: application/vnd.github.raw+json"]
+        )
+    except (RuntimeError, ValueError, OSError) as exc:
+        raise PolicyReadError(f"{path} at {sha}: {exc}") from exc
+    if proc.returncode != 0:
+        if gh_http_status(proc.stderr or "") == 404:
+            return None
+        raise PolicyReadError(f"{path} at {sha} could not be read")
+    return proc.stdout
+
+
+def _fix_commit_refusal(
+    owner: str,
+    name: str,
+    sha: str,
+    config: list[tuple[str, str]] | None,
+    *,
+    bump: bool = False,
+) -> str | None:
+    """Why a lanes App commit is not a fix the lane may merge with
+    (`babysit_dependabot.fix_refusal` against its one parent), or, with
+    `bump`, the version-bump commit more than a version bump (`bump_refusal`),
+    or None. The commit's files, modes and both sides' text are read here; a
+    read that fails is a refusal."""
+    status, payload = _get(f"repos/{owner}/{name}/commits/{sha}")
+    detail = json_object(payload)
+    listing = detail.get("files")
+    parents = json_array(detail.get("parents"))
+    if (
+        status != 200
+        or not is_json_array(listing)
+        or not listing
+        or len(listing) >= COMMIT_FILES_LIMIT
+    ):
+        return f"commit-files-unreadable:{sha[:12]}"
+    parent = str(json_object(parents[0]).get("sha") or "") if parents else ""
+    if len(parents) != 1 or not SHA_RE.fullmatch(parent):
+        return f"commit-parents:{sha[:12]}"
+    trees: dict[str, list[Any]] = {}
+
+    def entry(path: str) -> Any:
+        folder = posixpath.dirname(path)
+        if folder not in trees:
+            data = _graphql(
+                FIX_TREE, f"{sha[:12]} tree", o=owner, r=name, e=f"{sha}:{folder}"
+            )
+            tree = json_object(json_object(data.get("repository")).get("object"))
+            trees[folder] = json_array(tree.get("entries"))
+        base = posixpath.basename(path)
+        return next(
+            (e for e in trees[folder] if json_object(e).get("name") == base), None
+        )
+
+    def text(side: str, path: str) -> str | None:
+        return _raw_at(owner, name, path, parent if side == "before" else sha)
+
+    try:
+        if bump:
+            return dependabot.bump_refusal(listing, entry, text)
+        return dependabot.fix_refusal(listing, config, entry, text)
+    except PolicyReadError as exc:
+        return f"fix-unreadable:{str(exc)[:120]}"
 
 
 def _dependabot_policy(owner: str, name: str, base_sha: str) -> Any:

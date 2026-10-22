@@ -36,6 +36,7 @@ Describe 'Get-ElevationMatrix' -Tag 'lib' {
     It 'names the fields <CheckId> fills only when elevated' -ForEach @(
         @{ CheckId = 'startup-items'; Fields = @('tasks_complete') }
         @{ CheckId = 'app-last-use'; Fields = @('prefetch_state', 'bam_state') }
+        @{ CheckId = 'backup-status'; Fields = @('restore_points', 'system_image') }
     ) {
         $entry = Get-ElevationMatrix | Where-Object { $_.CheckId -eq $CheckId }
         @($entry).Count | Should -Be 1

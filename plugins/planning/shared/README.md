@@ -580,7 +580,12 @@ nothing.
 
 What carries files (C44, at most four, each an upload of the writer's own the owner accepted, each
 once): `attachments` on `POST /api/answer` and `POST /api/pick` replaces the list, left out it is
-kept; on `/api/chat`, `/api/request`, `/api/suggest`, `/api/propose` and `/api/discussion` it is
+kept. On `POST /api/answer`, empty `text` with `attachments` saves a picture-only answer, shown and
+voted on like any other and listed in the digest with its `attachments` (so are a lock of it,
+and a late vote, back, reaction or Disagree on it); changing an answer's files after votes marks it
+edited after votes, as a text change does; empty `text` with
+`attachments` left out or empty clears the answer, and so does declining or removing the last file
+of an answer with no text or pick, unless its question is locked or its round went to Claude. On `/api/chat`, `/api/request`, `/api/suggest`, `/api/propose` and `/api/discussion` it is
 optional and refused (403 `uploads-off`) while Uploads is off, and on `/api/request` with `runner:
 self` (400 `bad-field`). A request filed by "@Claude" in chat or a comment carries that message's
 files, a proposal forwarded from chat its message's, and `request-run` lists a request's

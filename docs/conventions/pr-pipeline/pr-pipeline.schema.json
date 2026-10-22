@@ -136,26 +136,19 @@
           "default": 1,
           "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
         },
-        "admission-window-hours": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 720,
-          "default": 24,
-          "description": "Hours of issue-lane admissions the admitted backlog (open issues labeled agent-ready) may hold before new agent-ready labels pause. Admissions are open while that backlog is under the admission factor times lane merges per hour times this window."
-        },
         "admission-factor": {
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 1,
           "default": 0.8,
-          "description": "Share of the issue lane's hourly merge rate (lanes App PRs merged in the last 24 hours, divided by 24) admitted per hour. The release point is this factor times hourly merges times admission-window-hours."
+          "description": "Share of the issue lane's merge rate (lanes App PRs merged per hour over wip.merge-rate-window-hours) admitted per hour. The queued cap is the larger of this share and admission-min-per-hour, times wip.merge-rate-window-hours."
         },
         "admission-min-per-hour": {
           "type": "number",
           "minimum": 0,
           "maximum": 100,
           "default": 1,
-          "description": "Admissions per hour the release point never falls below: it is at least this rate times admission-window-hours, so a day with no lane merges cannot hold admissions shut. 0 removes the floor."
+          "description": "Admissions per hour the queued cap never falls below: it is at least this rate times wip.merge-rate-window-hours, so a day with no lane merges cannot hold admissions shut. 0 removes the floor."
         }
       }
     },
@@ -250,6 +243,20 @@
           "enum": ["rollback", "fail-forward"],
           "default": "rollback",
           "description": "How a pinned culprit is repaired. rollback: the revert rule decides who reverts it. fail-forward: no revert is planned, and a person or a fix pull request repairs main."
+        }
+      }
+    },
+    "branch-cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The scheduled branch cleanup: how many branches it deletes in one run. Contract: README.md, Branch cleanup.",
+      "properties": {
+        "max-deletes-per-run": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 25,
+          "description": "Branches one run deletes at most; the rest wait for the next run. 0 deletes none."
         }
       }
     },
