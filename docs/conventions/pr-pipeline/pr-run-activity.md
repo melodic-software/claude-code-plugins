@@ -1631,7 +1631,9 @@ step under an `outcome=<reason>` marker. What changes from the PR flow:
   commit, at `patch-resume-tip` or else `patch-base-sha`, which must be on the default branch,
   writes that branch into `lane.json` and uploads `work-outcome-<n>` again. An empty patch makes
   no branch, as a run with no commit kept none.
-- `report-outcome` downloads that artifact. A `done` run that committed nothing on a resume opens its PR from the
+- `report-outcome` downloads that artifact and takes `apply-issue-patch`'s escalation reason. A `done` run whose
+  patch it refused (`patch-protected-path`, `patch-invalid` or `patch-not-applied`) hands the issue to a person naming
+  that reason, and opens no PR, from a resumed branch either. A `done` run that committed nothing on a resume opens its PR from the
   resumed branch only when `run-checks` checked that whole branch (it checks one only when `lane.json`'s `resume` equals
   the `resume-branch` `issue-prior` output), every check passed and at least one ran, the branch is still at the tip
   checked (the compare reads that SHA, and a new PR whose head is another commit is closed), and every commit on it ahead of the default branch is verified, authored by the lanes App

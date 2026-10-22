@@ -10,6 +10,7 @@ adhd
 ai-briefing
 ai-slop
 animation
+app-control
 architecture
 attribution
 autonomy
@@ -23,6 +24,7 @@ computer-use
 context-budget
 context-guard
 context7
+corrections
 coupling
 debugging
 desktop-notification
