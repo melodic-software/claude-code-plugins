@@ -43,6 +43,11 @@ name: work-unblock
 # comment, unless the issue is held, has an open lane PR or a lane run in
 # flight. These share the five-a-run cap.
 #
+# New agent-ready labels are paced by the issue lane's queued cap
+# (check-wip-cap): past its room an issue gets admission-deferred instead, and
+# each hourly sweep admits the deferred issues oldest first. Restarts,
+# re-fires and relabels are never paced.
+#
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label a person removed.
 
@@ -73,6 +78,7 @@ jobs:
     permissions:
       contents: read # check out main
       pull-requests: read # count the lanes App's pull requests
+      issues: read # count the queued agent-ready issues
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
