@@ -1096,6 +1096,35 @@ class TestQuestionParsing(SessionCase):
         self.assertEqual([session.card_ref(c) for c in s.state["cards"]["Q1"]], ["c:rec", "c:a", "c:b"])
         self.assertEqual(self.path.read_bytes(), before)
 
+    def test_a_guests_snapshot_flags_a_withheld_question(self):
+        ann, _ = self.join("Ann")
+        self.open_round(text_q("Q1", recommendation="Withheld: the load test would settle it."))
+        (q,) = self.s.snapshot(ann)["questions"]
+        self.assertIs(q.get("withheld"), True)
+        self.assertNotIn("withheld", self.question("Q1"))
+
+    def legacy_restating(self, vote):
+        """A state saved before the refusal, its alternative (a) restating the recommendation, loaded again."""
+        ann, _ = self.join("Ann")
+        self.open_round(text_q("Q1"))
+        if vote:
+            self.act("vote", ann, {"qid": "Q1", "card": "c:a", "on": True})
+        old = self.disk()
+        old["questions"][0]["alternatives"][0]["text"] = "Recommended for Q1"
+        self.path.write_text(json.dumps(old), encoding="utf-8")
+        return session.Session.load(self.path, clock=self.clock, ids=self.ids)
+
+    def test_a_restating_legacy_card_with_a_vote_still_shows_and_leads_the_lock(self):
+        s = self.legacy_restating(vote=True)
+        self.assertEqual([c["ref"] for c in s.snapshot(HOST)["cards"]["Q1"]], ["c:rec", "c:a", "c:b"])
+        self.clock.tick()
+        s.lock(HOST, {"qid": "Q1"})
+        self.assertEqual(s.state["locks"]["Q1"]["source"]["card"], "c:a")
+
+    def test_a_restating_legacy_card_without_support_is_hidden(self):
+        s = self.legacy_restating(vote=False)
+        self.assertEqual([c["ref"] for c in s.snapshot(HOST)["cards"]["Q1"]], ["c:rec", "c:b"])
+
     def test_a_choice_question_gets_one_option_card_per_option(self):
         self.open_round(choice_q("Q1"))
         self.assertEqual([session.card_ref(c) for c in self.s.state["cards"]["Q1"]], ["o:opt-1", "o:opt-2", "o:opt-3"])

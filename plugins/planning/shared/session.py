@@ -3839,7 +3839,7 @@ class Session:
         """The questions every guest is sent, built once per rev (every page polls)."""
         st = self.state
         if not (self._guest_q_cache and self._guest_q_cache[0] == st["rev"]):
-            self._guest_q_cache = (st["rev"], _guest_questions(st["questions"], prototype_tiers(st["session"]["settings"])))
+            self._guest_q_cache = (st["rev"], _guest_questions([_question_view(q) for q in st["questions"]], prototype_tiers(st["session"]["settings"])))
         return self._guest_q_cache[1]
 
     def asset_hidden(self, pid, name):
@@ -6132,10 +6132,11 @@ class Session:
         if self._base_cache and self._base_cache[0] == st["rev"]:
             return self._base_cache[1]
         active = {p for p in st["people"] if self._active(p)}
-        # an alternative a state saved before the refusal holds that restates the recommendation folds away, as on the 1:1 page
+        # an alternative a state saved before the refusal holds that restates the recommendation folds away, as on the 1:1
+        # page, unless someone backs it: then it stays, so the page and the tally agree on the leader
         folded = {q["id"]: {a["key"] for a in q["alternatives"] if question_shape.restates(a["text"], q.get("recommendation"))} for q in st["questions"]}
         cards = {
-            qid: [self._public_card(qid, c, active) for c in lst if self._shown(c) and not (c["kind"] == "claude" and c["key"] in folded.get(qid, ()))]
+            qid: [self._public_card(qid, c, active) for c in lst if self._shown(c) and not (c["kind"] == "claude" and c["key"] in folded.get(qid, ()) and not self._backed(qid, card_ref(c)))]
             for qid, lst in st["cards"].items()
         }
         suggestions = {}
@@ -6248,6 +6249,14 @@ class Session:
         if u["id"] in self._public_uploads:
             return True
         return me["role"] == "leader" and self._active(u["pid"]) and any(u["id"] in p.get("attachments", ()) for p in self.state["proposals"])
+
+    def _backed(self, qid, ref):
+        """Whether anyone stands behind card `ref`: a vote or backing, a reaction, or the question's lock."""
+        st = self.state
+        return (any(r == ref for r in st["votes"].get(qid, {}).values())
+                or any(ref in refs for refs in st.get("backs", {}).get(qid, {}).values())
+                or any(st["reactions"].get(qid, {}).get(ref, {}).values())
+                or (st["locks"].get(qid) or {}).get("source", {}).get("card") == ref)
 
     def _public_card(self, qid, c, active):
         """One card as people read it: never `view`, `deviceInfo` or `history`; with its ref, the
