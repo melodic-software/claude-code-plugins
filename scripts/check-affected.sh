@@ -16,7 +16,9 @@
 # tree, untracked files and file modes included, through a temporary index and
 # object directory, checks that commit out in a scratch repository, and runs
 # the checks there. Nothing is written under .git, so the checkout's HEAD,
-# index and worktree list stay as they are.
+# index and worktree list stay as they are. With CHECK_AFFECTED_SCRIPT_EXEC_BIT=1
+# (the issue lane's patch run) that commit makes each new or changed .sh or #!
+# file executable, as apply-patch will.
 #
 # Each check calls the script or tool CI calls; none restates a check's logic.
 # The changed set is <merge-base of HEAD and the base>..HEAD, committed work
@@ -132,6 +134,14 @@ if ((uncommitted)); then
   done < <(git ls-files -z --modified --others --exclude-standard)
   if ((${#paths[@]})); then
     printf '%s\0' "${paths[@]}" | git add -A --pathspec-from-file=- --pathspec-file-nul || exit 2
+    # An issue lane's patch is committed by apply-patch, which makes each new
+    # or changed .sh or #! file executable, so the snapshot does the same.
+    if [[ ${CHECK_AFFECTED_SCRIPT_EXEC_BIT:-} == 1 ]]; then
+      for f in "${paths[@]}"; do
+        [[ -f "$f" && ! -L "$f" ]] || continue
+        if [[ "$f" == *.sh || "$(head -c 2 -- "$f")" == '#!' ]]; then git update-index --chmod=+x -- "$f" || exit 2; fi
+      done
+    fi
   fi
   tree="$(git write-tree)" || exit 2
   commit="$(git -c user.name=check-affected -c user.email=check-affected@localhost \

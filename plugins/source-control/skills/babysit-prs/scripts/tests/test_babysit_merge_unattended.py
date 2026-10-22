@@ -3740,5 +3740,36 @@ class DependabotMajorEscalation(unittest.TestCase):
                 self.assertNotIn("majorEscalation", out)
 
 
+class AdoptionHoldLabel(unittest.TestCase):
+    """The pr-merge lane passes the tracker's resolved human-gated label to
+    the policy, which holds an adopted owner pull request on it."""
+
+    def run_assess(self, authority: str, label: Any) -> mock.Mock:
+        assess = mock.Mock(return_value="policy")
+        with (
+            mock.patch.object(merge.merge_policy, "assess", assess),
+            mock.patch.object(merge, "human_gated_label", label),
+            mock.patch.object(merge, "score_unattended", lambda *a: a[2]),
+        ):
+            merge.assess_unattended(
+                "o/r", 7, self_logins=frozenset(), authority=authority
+            )
+        return assess
+
+    def test_the_lane_passes_the_resolved_label(self) -> None:
+        assess = self.run_assess(policy.PR_MERGE, mock.Mock(return_value="awaiting"))
+        self.assertEqual(assess.call_args.kwargs["human_gated"], "awaiting")
+
+    def test_an_unreadable_label_adopts_nothing(self) -> None:
+        unreadable = mock.Mock(side_effect=postmerge.PostMergeReadError("x"))
+        assess = self.run_assess(policy.PR_MERGE, unreadable)
+        self.assertIsNone(assess.call_args.kwargs["human_gated"])
+
+    def test_the_local_lane_reads_no_label(self) -> None:
+        label = mock.Mock(side_effect=AssertionError)
+        assess = self.run_assess(policy.LOCAL_BABYSIT, label)
+        self.assertIsNone(assess.call_args.kwargs["human_gated"])
+
+
 if __name__ == "__main__":
     unittest.main()

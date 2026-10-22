@@ -44,6 +44,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { fixRequesters, humanGatedLabelFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, permanentlyHandles } from "./limit-stop.mjs";
@@ -273,7 +274,7 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
   }
 }`;
 
-export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch = globalThis.fetch }) {
+export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch = globalThis.fetch, attemptTimeoutMs }) {
   const [owner, name] = repository.split("/");
   const repo = `${apiUrl}/repos/${owner}/${name}`;
   const headers = {
@@ -282,11 +283,12 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
-  async function request(url, method = "GET", body) {
+  async function request(url, method = "GET", body, signal) {
     const response = await fetch(url, {
       method,
       headers: body === undefined ? headers : { ...headers, "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
     });
     if (!response.ok) {
       throw new Error(`${method} ${url} returned ${response.status}`);
@@ -294,8 +296,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     return response.status === 204 ? {} : response.json();
   }
 
-  async function graphql(query, variables) {
-    const result = await request(graphqlUrl, "POST", { query, variables });
+  async function graphql(query, variables, signal) {
+    const result = await request(graphqlUrl, "POST", { query, variables }, signal);
     if (result.errors?.length) {
       throw new Error(`GraphQL: ${result.errors.map((error) => error.message).join("; ")}`);
     }
@@ -303,7 +305,14 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
   }
 
   return {
-    pullsForCommit: (sha) => request(`${repo}/commits/${sha}/pulls`),
+    pullsForCommit: (sha) =>
+      commitPulls({
+        repository,
+        sha,
+        readRest: () => request(`${repo}/commits/${sha}/pulls`),
+        readGraphQL: graphql,
+        timeoutMs: attemptTimeoutMs,
+      }),
     // Metadata read, which every token holds. A 404 (not a collaborator) is none.
     async getPermission(login) {
       const url = `${repo}/collaborators/${encodeURIComponent(login)}/permission`;

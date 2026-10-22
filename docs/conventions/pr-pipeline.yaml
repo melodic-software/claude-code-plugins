@@ -17,10 +17,6 @@ activities:
     # Head markdown can quote issue, PR or web text.
     reads-untrusted: true
     inputs: [changed-paths]
-    # The auto-mode classifier approves tool calls no rule allows, so the
-    # skill's own scripts run without a Bash rule per command; the run fails
-    # red unless the CLI reports the mode (ADR 0049).
-    permission-mode: auto
     applies-when:
       paths: ["**/*.md"]
       labels-absent: [do-not-merge, needs-human]
@@ -366,11 +362,8 @@ lanes:
       # failed.
       - activity: fix-ci
       # Started by pr-unblock-dispatch.yml once per ready PR that changes a
-      # Markdown file. Paused: under run-claude-cli's subprocess env scrub
-      # the CLI forces the default permission mode instead of auto, so every
-      # run fails its mode check after a model leg (#8964 follow-up).
+      # Markdown file.
       - activity: fix-docs
-        enabled: false
       # Runs after fix-ci or fix-docs, in its own job with its own token.
       - activity: apply-patch
         needs: [fix-ci, fix-docs]
@@ -672,9 +665,10 @@ merge:
   # suite was already red before the merge. 7 is judgment (owner decision
   # Q645 left the default to planning); at most 30.
   quarantine-days: 7
-  # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
-  # judges every author's.
-  verify-authors: lane
+  # pr-verify.yml judges PRs the lanes App (agent-identity) opened and, so an
+  # idle owner PR the pr-merge lane adopts has a verdict (owner decision Q22),
+  # the owner account's; `lane` judges the App's alone, `any` every author's.
+  verify-authors: lane-or-owner
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge

@@ -178,7 +178,7 @@ jobs:
     concurrency:
       group: intake-triage-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@82ca5ca9be6e18a1addb7986eae15689339aedbc # v0.60.0
     with:
       runner: ubuntu-24.04
       role: automations
@@ -189,7 +189,21 @@ jobs:
       # Re-entry after a recorded decision (intake-reenter.yml). The marker is
       # the first line isDecisionComment in select-trusted-text.mjs matches. An
       # escalated run posts only the reusable's fixed note, so the quote and
-      # new questions survive only on a run that does not set needs_human.
+      # new questions survive only on a run that does not set needs_human, so
+      # allowed-labels lets the run apply `needs-human` as a plain label (the
+      # reusable's defaults plus that label).
+      allowed-labels: |
+        priority: critical
+        priority: high
+        priority: medium
+        priority: low
+        status: needs-info
+        status: needs-decision
+        question
+        area: security
+        good first issue
+        help wanted
+        needs-human
       instructions: |
         RE-ENTRY AFTER A RECORDED DECISION. Apply this section only when a comment's first line is
         exactly `**Decision recorded.**` and whose author login does not end in `[bot]`; the newest
@@ -209,8 +223,9 @@ jobs:
            After the quote, ask each as a numbered new question with a `RECOMMENDED:` answer and its
            basis. Never fill one with a default of your own or treat a recommendation as decided.
         d. When the remaining work needs a person (a host, spend, a trust-boundary call, or an
-           attended run), set needs_human true, even when (c) also applies. The decision comment
-           stays on the issue for the person who picks it up.
+           attended run), apply the `needs-human` label and keep needs_human false, even when (c)
+           also applies, so your comment with the quote and new questions is kept. The decision
+           comment stays on the issue for the person who picks it up.
         e. When the decision settles every open question and no person is needed, apply no status
            label, quote the decision, say in one sentence that it settles the open questions, and ask
            nothing again. Triage the rest as usual.

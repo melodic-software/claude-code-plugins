@@ -61,12 +61,122 @@ export class GitHubError extends Error {
   }
 }
 
+// Wraps a fetch so a GET attempt is aborted after attemptTimeoutMs, and a GET
+// that GitHub answers 5xx, answers 200 with an empty body or with JSON that
+// does not parse, or that fails on the network (a timeout, "fetch failed", an
+// error with a cause code) is sent again after 2 s, 4 s and 8 s, each with
+// equal jitter (half fixed, half random). The time failed attempts took plus
+// the waits, summed over every call through one wrapper, is capped at 60 s: a
+// wait past the cap is not taken. With 20 s attempts, retrying adds at most
+// about 80 s to a client, inside the shortest step that runs one (3 minutes,
+// pr-merge.yml's gate-check and clear-escalations). The last answer is
+// returned, or the last error thrown. Only GETs are idempotent; a 4xx is the
+// caller's to handle, a rate limit is request-budget.mjs's, and any other
+// thrown error is raised at once. A retry line names an error's name and cause
+// code only: undici puts a whole header value, the token included, in some
+// messages. createGitHub and budgetedFetch both use it.
+const SERVER_RETRY_DELAYS_MS = [2000, 4000, 8000];
+const SERVER_RETRY_BUDGET_MS = 60_000;
+const ATTEMPT_TIMEOUT_MS = 20_000;
+const networkFailure = (error) =>
+  error?.name === "TimeoutError" ||
+  error?.name === "AbortError" ||
+  (error?.name === "TypeError" && error.message === "fetch failed") ||
+  typeof error?.cause?.code === "string";
+// An error's name and cause code, never its message.
+export const errorLabel = (error) =>
+  [error?.name ?? "Error", typeof error?.cause?.code === "string" ? error.cause.code : null].filter(Boolean).join(" ");
+// A 200 whose body is empty, or is labeled JSON and does not parse: no REST
+// read answers 200 with nothing.
+async function brokenBody(response) {
+  if (response.status !== 200) {
+    return false;
+  }
+  const text = await response.clone().text();
+  if (text === "") {
+    return true;
+  }
+  if (!/json/i.test(response.headers.get("content-type") ?? "")) {
+    return false;
+  }
+  try {
+    JSON.parse(text);
+    return false;
+  } catch {
+    return true;
+  }
+}
+export function retryServerErrors(
+  fetchImpl,
+  {
+    sleep = defaultSleep,
+    random = Math.random,
+    log = (line) => console.log(line),
+    now = () => Date.now(),
+    attemptTimeoutMs = ATTEMPT_TIMEOUT_MS,
+  } = {},
+) {
+  let spent = 0;
+  return async function send(url, init = {}) {
+    const method = init.method ?? "GET";
+    for (let attempt = 0; ; attempt += 1) {
+      // Only a GET is timed out: a write GitHub accepted slowly must not look
+      // failed, so writes keep only the caller's signal.
+      const timeout = method === "GET" ? AbortSignal.timeout(attemptTimeoutMs) : undefined;
+      const signal = timeout && init.signal ? AbortSignal.any([init.signal, timeout]) : (timeout ?? init.signal);
+      const started = now();
+      let response;
+      let error;
+      let broken = false;
+      try {
+        response = await fetchImpl(url, { ...init, signal });
+        broken = method === "GET" && (await brokenBody(response));
+      } catch (thrown) {
+        error = thrown;
+      }
+      const failed = error !== undefined ? networkFailure(error) && !init.signal?.aborted : response.status >= 500 || broken;
+      spent += failed ? now() - started : 0;
+      const delay = SERVER_RETRY_DELAYS_MS[attempt];
+      const wait = delay === undefined ? 0 : Math.round(delay / 2 + (random() * delay) / 2);
+      if (!failed || method !== "GET" || delay === undefined || spent + wait > SERVER_RETRY_BUDGET_MS) {
+        if (error !== undefined) {
+          throw error;
+        }
+        return response;
+      }
+      await response?.body?.cancel().catch(() => {});
+      const what =
+        error !== undefined
+          ? `failed (${errorLabel(error)})`
+          : broken
+            ? `answered ${response.status} with an empty or unparsable body`
+            : `answered ${response.status}`;
+      log(`::warning::GET ${url} ${what}; sending it again in ${wait} ms (retry ${attempt + 1} of ${SERVER_RETRY_DELAYS_MS.length})`);
+      spent += wait;
+      await sleep(wait);
+    }
+  };
+}
+
 // One function every API read and write goes through; tests replace it.
 // keepGraphQLErrors returns a GraphQL answer with its errors for the caller to
-// judge, instead of raising on any.
-export function createGitHub({ token, apiUrl = "https://api.github.com", fetchImpl = fetch, onResponse, keepGraphQLErrors = false }) {
-  return async function github(method, apiPath, body, headers = {}) {
-    const response = await fetchImpl(`${apiUrl}${apiPath}`, {
+// judge, instead of raising on any. A GET answered 5xx is sent again
+// (retryServerErrors).
+export function createGitHub({
+  token,
+  apiUrl = "https://api.github.com",
+  fetchImpl = fetch,
+  onResponse,
+  keepGraphQLErrors = false,
+  sleep,
+  random,
+  log,
+  now,
+  attemptTimeoutMs,
+}) {
+  const send = retryServerErrors(fetchImpl, { sleep, random, log, now, attemptTimeoutMs });
+  return async function github(method, apiPath, body, headers = {}, { signal } = {}) {
+    const response = await send(`${apiUrl}${apiPath}`, {
       method,
       headers: {
         Accept: "application/vnd.github+json",
@@ -76,6 +186,7 @@ export function createGitHub({ token, apiUrl = "https://api.github.com", fetchIm
         ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
     });
     onResponse?.(response);
     if (!response.ok) {
@@ -93,6 +204,91 @@ export function createGitHub({ token, apiUrl = "https://api.github.com", fetchIm
     return json;
   };
 }
+
+// A commit's pull requests through GraphQL, for when GET
+// /commits/{sha}/pulls still fails after retryServerErrors (it answered 200
+// with an empty body while this query read the PR, 2026-10-22). Both list the
+// same set: the PR that merged the commit, plus open ones while it is off the
+// default branch. commitPullsFromGraphQL maps the answer to the REST fields
+// the lane scripts read; more than 100 PRs or labels is a failed read.
+export const COMMIT_PULLS_QUERY = `query($owner: String!, $name: String!, $oid: GitObjectID!) {
+  repository(owner: $owner, name: $name) {
+    object(oid: $oid) {
+      ... on Commit {
+        associatedPullRequests(first: 100) {
+          pageInfo { hasNextPage }
+          nodes {
+            number state isDraft headRefName headRefOid baseRefName baseRefOid
+            headRepository { nameWithOwner }
+            author { __typename login ... on User { databaseId } ... on Bot { databaseId } }
+            labels(first: 100) { nodes { name } pageInfo { hasNextPage } }
+          }
+        }
+      }
+    }
+  }
+}`;
+
+export function commitPullsFromGraphQL(data) {
+  const list = data?.repository?.object?.associatedPullRequests;
+  if (
+    !Array.isArray(list?.nodes) ||
+    list.pageInfo?.hasNextPage !== false ||
+    list.nodes.some((node) => !Array.isArray(node?.labels?.nodes) || node.labels.pageInfo?.hasNextPage !== false)
+  ) {
+    throw new Error("the commit's pull requests could not be read through GraphQL");
+  }
+  return list.nodes.map((node) => ({
+    number: node.number,
+    state: node.state === "OPEN" ? "open" : "closed",
+    draft: node.isDraft,
+    // REST spells an App's login `app[bot]`; GraphQL spells it `app`.
+    user: node.author
+      ? {
+          id: node.author.databaseId ?? null,
+          login: node.author.__typename === "Bot" ? `${node.author.login}[bot]` : node.author.login,
+          type: node.author.__typename,
+        }
+      : null,
+    labels: node.labels.nodes.map((label) => ({ name: label.name })),
+    head: { sha: node.headRefOid, ref: node.headRefName, repo: node.headRepository ? { full_name: node.headRepository.nameWithOwner } : null },
+    base: { ref: node.baseRefName, sha: node.baseRefOid },
+  }));
+}
+
+// The commit's pull requests: readRest's list, else COMMIT_PULLS_QUERY sent
+// through readGraphQL(query, variables), which returns the answer's data.
+// Throws when both fail, or at once on an error readRest marks
+// `fallback: false` (a list too long to read, which GraphQL cannot read
+// either). The query is a read sent as a POST, so readGraphQL gets a signal
+// that aborts it after timeoutMs, as a GET attempt is.
+export async function commitPulls({
+  repository,
+  sha,
+  readRest,
+  readGraphQL,
+  log = (line) => console.log(line),
+  timeoutMs = ATTEMPT_TIMEOUT_MS,
+}) {
+  try {
+    const pulls = await readRest();
+    if (Array.isArray(pulls)) {
+      return pulls;
+    }
+    throw new Error("the answer is not a list");
+  } catch (error) {
+    if (error?.fallback === false) {
+      throw error;
+    }
+    log(`::warning::the REST read of ${sha}'s pull requests failed (${errorLabel(error)}${Number.isInteger(error?.status) ? ` ${error.status}` : ""}); reading them through GraphQL`);
+    const [owner, name] = repository.split("/");
+    return commitPullsFromGraphQL(await readGraphQL(COMMIT_PULLS_QUERY, { owner, name, oid: sha }, AbortSignal.timeout(timeoutMs)));
+  }
+}
+
+// readGraphQL for a createGitHub client.
+export const graphQLReader = (github) => async (query, variables, signal) =>
+  (await github("POST", "/graphql", { query, variables }, {}, { signal }))?.data;
 
 // Reads every page of a list endpoint (100 per page).
 export async function paginate(github, apiPath, maxPages = 50) {
@@ -230,13 +426,19 @@ async function fetchPull(github, repository, number, sleep) {
 
 // The PR a workflow_run belongs to. An empty `pull_requests` array is not a
 // fork signal, so the PR is always looked up from the run's head SHA.
-async function resolveRunPull(github, repository, run) {
+async function resolveRunPull(github, repository, run, attemptTimeoutMs) {
   if (!/^[0-9a-f]{40}$/.test(run.head_sha ?? "")) {
     throw new Stop("no-pr");
   }
   let pulls;
   try {
-    pulls = await github("GET", `/repos/${repository}/commits/${run.head_sha}/pulls`);
+    pulls = await commitPulls({
+      repository,
+      sha: run.head_sha,
+      readRest: () => github("GET", `/repos/${repository}/commits/${run.head_sha}/pulls`),
+      readGraphQL: graphQLReader(github),
+      timeoutMs: attemptTimeoutMs,
+    });
   } catch {
     throw new Stop("no-pr");
   }
@@ -725,6 +927,7 @@ export async function evaluateTrigger({
   dispatchedWorkflow = "",
   github,
   sleep = defaultSleep,
+  attemptTimeoutMs,
 }) {
   const { ids } = list;
   if (typeof repository !== "string" || !repository.includes("/")) {
@@ -757,7 +960,7 @@ export async function evaluateTrigger({
       throw new Stop("fork");
     }
     actors = [event.sender, run.actor, run.triggering_actor];
-    pull = await resolveRunPull(github, repository, run);
+    pull = await resolveRunPull(github, repository, run, attemptTimeoutMs);
   } else {
     throw new Stop("no-pr");
   }
@@ -839,7 +1042,7 @@ function stopped(reason) {
   };
 }
 
-export async function main({ env = process.env, github, sleep = defaultSleep } = {}) {
+export async function main({ env = process.env, github, sleep = defaultSleep, attemptTimeoutMs } = {}) {
   let result;
   try {
     let list;
@@ -879,6 +1082,7 @@ export async function main({ env = process.env, github, sleep = defaultSleep } =
       reconcilerWorkflow: env.RECONCILER_WORKFLOW ?? "",
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
       sleep,
+      attemptTimeoutMs,
     });
   } catch (error) {
     if (!(error instanceof Stop)) {

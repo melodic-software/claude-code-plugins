@@ -423,8 +423,14 @@ Every activity whose effect is not `read`, and a read skill that hands on a patc
 `--disallowedTools` rules for the shell commands that can print a file or the environment,
 including read-only ones that run with no allow rule (`echo`, `printf`, `cat`, `head`, `tail`,
 `grep`, `find`, `env`, `printenv`, `strings`, `od`, `xxd`, `diff`, `sed`, `awk`, `sort`, `cut`,
-`tr`, `base64`, `nl`, `tac`, `rev`, `uniq`, `fold`, `column`, `jq`, `xargs`, `more`, `less`, each as
+`tr`, `base64`, `nl`, `tac`, `rev`, `uniq`, `fold`, `column`, `jq`, `xargs`, `more`, `less`, `wc`, each as
 `Bash(<command> *)`), and `Read(//proc/**)`; the skill reads files with `Read`, `Grep` and `Glob`.
+Every activity whose effect is not `read` also gets `Bash(git *)`: it reaches git only through
+the base wrappers. In `merge-base` mode, whose skill resolves the merge with git, the rules instead
+deny git's global options, the subcommands that read config or reach a remote, absolute and parent
+paths, quotes, and the flags (in any prefix form) or commands that read a file outside the index
+(including `blame` and `grep`) or run a diff or text-conversion program. Rules match command text,
+so that list is best-effort; it goes when `resolve-conflicts` moves to the read runner.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
@@ -639,10 +645,17 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    (`fix-docs`), and fails red on any other prepare mode with a patch and on `checks`,
    `self-checks` or `verify-scripts`, which have no wrapper there. The no-prepare patch skill gets
    the tools `Read`, `Glob`, `Grep`, `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules
-   name its skill, `Grep`, `Glob`, `Edit`, `Write` and `Agent` but no `Bash` rule, so Bash runs
-   only what the skill's own frontmatter grants; it adds no deny rule, since the base set already
-   denies `Read(./.git/**)`; and the preamble says to keep scratch files in `.lane/scratch` and leave every change
-   uncommitted. With `web-access` (`domains: any` only; a domain list fails red) it also gets the
+   name its skill, `Grep`, `Glob`, `Edit`, `Write`, `Agent` and `Edit(./.lane/scratch/**)`, which
+   approves a shell redirect into the scratch directory, and for `ai-slop:audit` each of
+   its scripts by absolute path under `.lane/plugins`, bare and double-quoted, plus
+   `Bash(sha256sum *)` and `Bash(mkdir -p <workspace>/.lane/scratch/*)` for the fix flow's
+   digests; no other `Bash` rule, and the lane does not rely on the skill's frontmatter grants. It
+   adds the deny rules `Bash(git *)`, the `user-scope.sh` script, `NotebookEdit(./.lane/plugins/**)`
+   and the write lanes' shell deny set to the base set, which already denies `Read(./.git/**)`
+   and `Read(//proc/**)`. The preamble says to keep scratch files in `.lane/scratch`, leave every
+   change uncommitted, and run one plain command per call, redirecting only into `.lane/scratch`.
+   The staging step makes `.lane/prompt.md` and `.lane/` itself read-only, so a script's `--out`
+   lands only in `.lane/scratch`. With `web-access` (`domains: any` only; a domain list fails red) it also gets the
    `WebFetch` and `WebSearch` tools, no longer denied, the rules `WebFetch(domain:*)`, `WebSearch`
    and the four research skills, and the `discovery` and `knowledge` plugins staged read-only
    beside its own, one `plugin-dirs` line each. The docs scripts are not staged, so the preamble

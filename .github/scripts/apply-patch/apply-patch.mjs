@@ -60,6 +60,7 @@ const SHA = /^[0-9a-f]{40}$/;
 const NAME = /^[a-z][a-z0-9-]*$/;
 const SYMLINK = "120000";
 const GITLINK = "160000";
+const REGULAR = "100644";
 const EXECUTABLE = "100755";
 const ZERO = /^0+$/;
 
@@ -290,6 +291,10 @@ export function checkRow(row) {
   if (!Object.hasOwn(TARGETS, String(row.target))) {
     fail(`names an unknown target: ${row.target}`);
   }
+  // A plugin's hooks and bin run, so the bit is set only where they are refused.
+  if (row["script-exec-bit"] === true && !row.refuse.includes("instruction-path")) {
+    fail("sets script-exec-bit without refusing instruction-path");
+  }
   return row;
 }
 
@@ -413,6 +418,13 @@ function applyOnto(git, sha, patchFile, threeWay) {
   }
 }
 
+// A script by the exec-bit rule: a regular file that ends in .sh or whose
+// blob starts with #!. The mode is checked first, so no gitlink's commit or
+// symlink is read as a blob.
+const isScript = (git, entry) =>
+  [REGULAR, EXECUTABLE].includes(entry.newMode) &&
+  (entry.path.endsWith(".sh") || git(["cat-file", "blob", entry.newSha]).subarray(0, 2).toString("latin1") === "#!");
+
 const hasCommit = (git, sha) => {
   try {
     git(["cat-file", "-e", `${sha}^{commit}`]);
@@ -497,7 +509,7 @@ export async function push({
       return { outcome: "superseded" };
     }
   }
-  const tree = applyOnto(git, headSha, patchFile, moved);
+  let tree = applyOnto(git, headSha, patchFile, moved);
   if (!tree) {
     return escalate("not-applied", "the patch does not apply to the gated head");
   }
@@ -519,10 +531,21 @@ export async function push({
   const reaching = from === headSha ? entries : changes(git(["diff-tree", "-r", "-z", "--no-renames", from, tree]));
   const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", from, tree]));
   // One refused entry refuses the whole patch, before anything is written.
-  // A rename is checked as one first; every entry then meets the rest.
-  const checks = [...renames.map((entry) => [entry, ["rename-into-refused"]]), ...reaching.map((entry) => [entry, [...row.refuse, ...ALWAYS]])];
-  for (const [entry, names] of checks) {
-    const [refusal] = refusalsOf(entry, names);
+  // A rename is checked as one first; every entry then meets the rest. Under
+  // script-exec-bit, a script's executable bit that only the start commit
+  // carries is the one an earlier apply set, so only the patch's own bits meet
+  // new-executable.
+  const refuse = [...row.refuse, ...ALWAYS];
+  const inherited = row["script-exec-bit"] === true ? refuse.filter((name) => name !== "new-executable") : refuse;
+  // Each list is read only when its entry's turn comes, after the patch's own
+  // entries have passed.
+  const checks = [
+    ...renames.map((entry) => [entry, () => ["rename-into-refused"]]),
+    ...entries.map((entry) => [entry, () => refuse]),
+    ...(reaching === entries ? [] : reaching.map((entry) => [entry, () => (isScript(git, entry) ? inherited : refuse)])),
+  ];
+  for (const [entry, namesOf] of checks) {
+    const [refusal] = refusalsOf(entry, namesOf());
     if (refusal) {
       return escalate(REFUSALS[refusal].kind, `refused (${refusal}): ${entry.path}`);
     }
@@ -547,6 +570,19 @@ export async function push({
   const leaked = blobs.find(({ bytes }) => credentialIn(bytes.toString("latin1")));
   if (leaked) {
     return escalate("invalid", `the patched ${leaked.entry.path} carries a credential shape`);
+  }
+  // The model sets no file mode (new-executable refused any it did), so under
+  // script-exec-bit each new or changed script, a .sh file or one starting
+  // with #!, is made executable here, in the index the patch was applied to.
+  if (row["script-exec-bit"] === true) {
+    const scripts = blobs.filter(({ entry }) => entry.newMode !== EXECUTABLE && isScript(git, entry));
+    if (scripts.length > 0) {
+      git(["update-index", ...scripts.flatMap(({ entry }) => ["--cacheinfo", EXECUTABLE, entry.newSha, entry.path])]);
+      tree = git(["write-tree"]).toString("utf8").trim();
+      for (const { entry } of scripts) {
+        entry.newMode = EXECUTABLE;
+      }
+    }
   }
   // A hold set while the model worked stops the commit.
   if (await target.held(api, number, { holds: new Set(holdLabels), required: requiredLabels, repository })) {

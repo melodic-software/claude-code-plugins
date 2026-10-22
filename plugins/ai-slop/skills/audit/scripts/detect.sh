@@ -209,7 +209,7 @@ done
 
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-}"
 if [[ -z "$REPO_ROOT" ]]; then
-  REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  REPO_ROOT="$(git -c core.fsmonitor= -c core.hooksPath=/dev/null rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
 
 # Config-cascade step 2: a home or non-repo root has no team or overlay layer, and
