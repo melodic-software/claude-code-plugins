@@ -98,7 +98,11 @@ check "invalid team: stderr names the key and the team file" grep -q 'team (.*co
 # 6. A pointer line moves the convention home.
 new_repo
 mkdir -p "$R/conventions"
-printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `conventions`.\n<!-- END GENERATED: convention-home -->\n' >"$R/AGENTS.md"
+cat >"$R/AGENTS.md" <<'EOF'
+<!-- BEGIN GENERATED: convention-home -->
+Team conventions live in `conventions`.
+<!-- END GENERATED: convention-home -->
+EOF
 setting "$R/conventions/corrections.yaml" 4
 run "$R"
 DETAIL="exit $RC; out: $OUT; stderr: $ERR; AGENTS.md: $(cat "$R/AGENTS.md")"
