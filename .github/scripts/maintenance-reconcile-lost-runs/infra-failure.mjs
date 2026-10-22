@@ -36,6 +36,36 @@ export function infraCause(job) {
   return INSTALL_STEP.test(String(first.name ?? "")) ? "install" : "";
 }
 
+// True for a contract-only run, which a label or edit event starts: every lane
+// skipped and the aggregate alone ran (pr-require-checks run 39716948399).
+export function contractOnly(jobs) {
+  if (!Array.isArray(jobs)) {
+    return false;
+  }
+  const lanes = jobs.filter((job) => !AGGREGATE_JOBS.has(job?.name));
+  return lanes.length > 0 && lanes.length < jobs.length && lanes.every((job) => job?.conclusion === "skipped");
+}
+
+// A failed contract-only run can land on the head seconds after the run that
+// tested it, so the run whose failures count is the newest one that is not a
+// failed contract-only run. runs is one workflow's runs on the head, newest
+// first; readJobs(run) reads a run's latest jobs. Returns { run, jobs } (jobs
+// read only for a run that ended failure, else null), or undefined when the
+// STEP_BACK newest runs are all failed contract-only runs.
+export const STEP_BACK = 5;
+export async function testedRun(runs, readJobs) {
+  for (const run of runs.slice(0, STEP_BACK)) {
+    if (run?.status !== "completed" || run.conclusion !== "failure") {
+      return { run, jobs: null };
+    }
+    const jobs = await readJobs(run);
+    if (!contractOnly(jobs)) {
+      return { run, jobs };
+    }
+  }
+  return undefined;
+}
+
 // True when the run's failed jobs exist and every one is infra.
 export function infraOnly(jobs) {
   if (!Array.isArray(jobs)) {

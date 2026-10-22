@@ -24,6 +24,7 @@
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
@@ -303,23 +304,24 @@ export function createGitHubApi({
       return result.check_runs;
     },
     // fix-ci-dispatch.mjs's infra check: the latest jobs of the newest
-    // pr-require-checks pull_request run on the head, or [] when it has none.
+    // pr-require-checks pull_request run on the head that tested it
+    // (infra-failure.mjs testedRun), or [] when there is none.
     async listRequiredRunJobs(sha) {
       if (!/^[0-9a-f]{40}$/.test(sha)) {
         throw new Error("not a commit SHA");
       }
       const listing = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`);
-      const newest = (listing.workflow_runs ?? [])
+      const runs = (listing.workflow_runs ?? [])
         .filter((run) => run.path === ".github/workflows/pr-require-checks.yml")
-        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id)[0];
-      if (newest === undefined) {
-        return [];
-      }
-      const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${newest.id}/jobs?filter=latest&per_page=100`);
-      if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
-        throw new Error(`run ${newest.id}'s job listing is not one complete page`);
-      }
-      return jobs.jobs;
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
+      const tested = await testedRun(runs, async (run) => {
+        const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
+        if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
+          throw new Error(`run ${run.id}'s job listing is not one complete page`);
+        }
+        return jobs.jobs;
+      });
+      return tested?.jobs ?? [];
     },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.

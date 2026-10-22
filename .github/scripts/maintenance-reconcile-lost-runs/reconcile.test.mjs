@@ -615,3 +615,11 @@ test("an infra-only run re-run since the listing is left alone", async () => {
   const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1))], github: rerunSinceListing(101) });
   assert.deepEqual(failedJobReruns, []);
 });
+
+test("a failed contract-only run on top of an infra-only run does not hide it", async () => {
+  // Head 60eae294 on 2026-10-22: run 39710654665 hit its time limits and
+  // contract-only run 39710676298 failed 14 seconds after it was created.
+  const contract = failed(102, sha(1), { jobs: fixture("jobs-39716948399.json").jobs, created: "2026-10-19T18:59:57Z" });
+  const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1)), contract] });
+  assert.deepEqual(failedJobReruns, [101]);
+});

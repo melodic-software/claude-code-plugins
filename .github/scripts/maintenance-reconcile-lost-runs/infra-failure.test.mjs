@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { infraCause, infraOnly } from "./infra-failure.mjs";
+import { contractOnly, infraCause, infraOnly, testedRun } from "./infra-failure.mjs";
 
 const recorded = (id) => JSON.parse(readFileSync(new URL(`./fixtures/jobs-${id}.json`, import.meta.url), "utf8")).jobs;
 const MIXED = recorded(39710654665);
@@ -60,4 +60,28 @@ test("a run with no failed job, or no job listing, is not infra-only", () => {
   assert.equal(infraOnly([{ name: "lint-repo", conclusion: "success", steps: [] }]), false);
   assert.equal(infraOnly([]), false);
   assert.equal(infraOnly(undefined), false);
+});
+
+test("a run where only ci-status ran is contract-only; a tested run is not", () => {
+  assert.equal(contractOnly(recorded(39716948399)), true);
+  assert.equal(contractOnly(MIXED), false);
+  assert.equal(contractOnly([{ name: "ci-status", conclusion: "failure" }]), false);
+});
+
+test("the tested run steps past failed contract-only runs, and stops at any other run", async () => {
+  const jobsOf = new Map([
+    [3, recorded(39716948399)],
+    [2, MIXED],
+  ]);
+  const read = [];
+  const readJobs = async (r) => {
+    read.push(r.id);
+    return jobsOf.get(r.id);
+  };
+  const failedRun = (id) => ({ id, status: "completed", conclusion: "failure" });
+  assert.deepEqual(await testedRun([failedRun(3), failedRun(2), failedRun(1)], readJobs), { run: failedRun(2), jobs: MIXED });
+  assert.deepEqual(read, [3, 2]);
+  const green = { id: 4, status: "completed", conclusion: "success" };
+  assert.deepEqual(await testedRun([green, failedRun(2)], readJobs), { run: green, jobs: null });
+  assert.equal(await testedRun(Array.from({ length: 6 }, () => failedRun(3)), readJobs), undefined);
 });

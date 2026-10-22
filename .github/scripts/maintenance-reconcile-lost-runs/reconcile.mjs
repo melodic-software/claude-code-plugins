@@ -50,7 +50,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { infraOnly } from "./infra-failure.mjs";
+import { infraOnly, testedRun } from "./infra-failure.mjs";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
 // A failed run's failed jobs are re-run only while both pages show indicator none.
@@ -109,16 +109,27 @@ async function fetchStatus(url) {
 export const actionsStatus = (page) =>
   Array.isArray(page?.components) ? page.components.find((c) => c?.name === "Actions" && c.group !== true)?.status : undefined;
 
+const newerFirst = (a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id;
+
 // The newest run of each workflow on one head.
 function newestByWorkflow(runs) {
   const newest = new Map();
   for (const r of runs) {
     const seen = newest.get(r.path);
-    if (!seen || Date.parse(r.created_at) > Date.parse(seen.created_at) || (r.created_at === seen.created_at && r.id > seen.id)) {
+    if (!seen || newerFirst(r, seen) < 0) {
       newest.set(r.path, r);
     }
   }
   return [...newest.values()];
+}
+
+// Each CI workflow's pull_request runs on one head, newest first.
+function ciRunsByWorkflow(runs) {
+  const byPath = new Map();
+  for (const r of runs.filter((run) => CI_WORKFLOWS.has(run.path) && run.event === "pull_request")) {
+    byPath.set(r.path, [...(byPath.get(r.path) ?? []), r]);
+  }
+  return [...byPath.values()].map((list) => list.sort(newerFirst));
 }
 
 const isLost = (r, since) => r.status === "completed" && LOST.has(r.conclusion) && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
@@ -142,14 +153,13 @@ const lostNow = (item, r, since) => {
   return item.kind === "lane" ? isLostLane(r, since) : isLost(r, since);
 };
 
-// What one PR's head holds: CI runs to re-run, failed CI runs whose failed jobs
-// may be re-run, lost lane runs, and whether a CI re-run is already in flight.
-export function classify(runs, since, now = Date.now()) {
+// What one PR's head holds: CI runs to re-run, lost lane runs, and whether a
+// CI re-run is already in flight.
+export function classify(runs, since) {
   const newest = newestByWorkflow(runs);
   const ci = newest.filter((r) => CI_WORKFLOWS.has(r.path));
   return {
     rerun: ci.filter((r) => r.event === "pull_request" && isLost(r, since)),
-    failed: ci.filter((r) => r.event === "pull_request" && isRetryable(r, since, now)),
     lane: newest.filter((r) => !CI_WORKFLOWS.has(r.path) && isLost(r, since)),
     inFlight: ci.some((r) => r.status !== "completed" && r.run_attempt > 1),
   };
@@ -212,7 +222,7 @@ async function plan({ repo, call, say, since, now, readStatus }) {
       if (!Array.isArray(listing?.workflow_runs) || listing.total_count > 100) {
         throw new Error("its run listing is not one complete page");
       }
-      const { rerun, failed: red, lane, inFlight: busy } = classify(listing.workflow_runs, since, now);
+      const { rerun, lane, inFlight: busy } = classify(listing.workflow_runs, since);
       inFlight += busy ? 1 : 0;
       for (const r of lane) {
         say(`#${pull.number}: lane run ${r.id} (${r.path}) ended ${r.conclusion}; a re-run of this lane needs a person`);
@@ -221,12 +231,16 @@ async function plan({ repo, call, say, since, now, readStatus }) {
         continue;
       }
       const set = rerun.map((r) => ({ kind: "ci", pr: pull.number, id: r.id, path: r.path, conclusion: r.conclusion, head: pull.head.sha }));
-      for (const r of red) {
-        const jobs = await call("GET", `/repos/${repo}/actions/runs/${r.id}/jobs?filter=latest&per_page=100`);
-        if (!Array.isArray(jobs?.jobs) || jobs.total_count > 100) {
-          throw new Error(`run ${r.id}'s job listing is not one complete page`);
-        }
-        if (!infraOnly(jobs.jobs)) {
+      for (const runs of ciRunsByWorkflow(listing.workflow_runs)) {
+        const tested = await testedRun(runs, async (r) => {
+          const listed = await call("GET", `/repos/${repo}/actions/runs/${r.id}/jobs?filter=latest&per_page=100`);
+          if (!Array.isArray(listed?.jobs) || listed.total_count > 100) {
+            throw new Error(`run ${r.id}'s job listing is not one complete page`);
+          }
+          return listed.jobs;
+        });
+        const r = tested?.run;
+        if (!tested?.jobs || !isRetryable(r, since, now) || !infraOnly(tested.jobs)) {
           continue;
         }
         const hold = await upstreamHold();

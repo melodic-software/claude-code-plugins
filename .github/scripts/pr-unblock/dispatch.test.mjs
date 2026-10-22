@@ -709,18 +709,26 @@ test("the GitHub adapter calls the documented endpoints", async () => {
   );
 });
 
-test("the required-run jobs read takes the newest pr-require-checks run on the head", async () => {
+test("the required-run jobs read takes the newest pr-require-checks run that tested the head", async () => {
   const head = "c".repeat(40);
   const urls = [];
+  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure" });
+  // Run 14 is a contract-only run (only ci-status ran), stepped past.
+  const contractOnly = [
+    { name: "ci-status", conclusion: "failure" },
+    { name: "lint-repo", conclusion: "skipped" },
+  ];
   const responses = [
     {
-      total_count: 3,
+      total_count: 4,
       workflow_runs: [
-        { id: 11, path: ".github/workflows/pr-require-checks.yml", created_at: "2026-10-22T02:00:00Z" },
-        { id: 12, path: ".github/workflows/pr-require-checks.yml", created_at: "2026-10-22T03:00:00Z" },
-        { id: 13, path: ".github/workflows/pr-test-windows.yml", created_at: "2026-10-22T04:00:00Z" },
+        failed(11, ".github/workflows/pr-require-checks.yml", "2026-10-22T02:00:00Z"),
+        failed(12, ".github/workflows/pr-require-checks.yml", "2026-10-22T03:00:00Z"),
+        failed(13, ".github/workflows/pr-test-windows.yml", "2026-10-22T04:00:00Z"),
+        failed(14, ".github/workflows/pr-require-checks.yml", "2026-10-22T03:00:14Z"),
       ],
     },
+    { total_count: 2, jobs: contractOnly },
     { total_count: 1, jobs: [{ name: "test-node", conclusion: "cancelled" }] },
     { total_count: 0, workflow_runs: [] },
   ];
@@ -737,6 +745,7 @@ test("the required-run jobs read takes the newest pr-require-checks run on the h
   assert.deepEqual(await api.listRequiredRunJobs(head), [{ name: "test-node", conclusion: "cancelled" }]);
   assert.deepEqual(urls, [
     `https://api.example/repos/octo/repo/actions/runs?head_sha=${head}&event=pull_request&per_page=100`,
+    "https://api.example/repos/octo/repo/actions/runs/14/jobs?filter=latest&per_page=100",
     "https://api.example/repos/octo/repo/actions/runs/12/jobs?filter=latest&per_page=100",
   ]);
   assert.deepEqual(await api.listRequiredRunJobs(head), []);
