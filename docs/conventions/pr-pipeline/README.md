@@ -1574,7 +1574,13 @@ The job reads the leaf through the base checkout's resolve-config (`redMainFromB
 the resolver refuses fails it. It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`,
 `contents` and `pull-requests` read, `issues: write`), reads REST only, 300 ms apart and within 300
 calls, and stops on any failed read. A range of more than 25 merges pins no culprit. The kill switch stops it, and it skips an event the lanes App
-sent. Owner decision 2026-10-20: `dry-run` stays true for 3 days of reports with no wrong blame
+sent. Reports run one at a time in one repository-wide concurrency group, which keeps one pending
+report and cancels the one before it. The next report names every red full run since the last
+green one that has no report on the log, and its range covers their merges, so a cancelled report
+re-decides there instead of dropping. The log is the oldest `github-actions[bot]` issue (user id
+41898282) carrying the log marker, and only that account's comments on it count toward the cap and
+the dedupe. Any workflow's `GITHUB_TOKEN` posts as that account, so a comment there can still use
+up the cap, which only sends a culprit to a person. Owner decision 2026-10-20: `dry-run` stays true for 3 days of reports with no wrong blame
 before any revert merges.
 
 ## Planning lane work
