@@ -919,7 +919,7 @@
   // ---------- telemetry: what this page records so the host can fix problems (README "Logs") ----------
   // Faults go to server.log under this person's pid the first time each fingerprint shows: script errors, unhandled
   // rejections, actions that never reached the server (send above; the server logs its own refusals), and layout
-  // anomalies. Repeats, action timings and rollbacks, reconnect gaps, INP and LCP, and taps counted by control wait
+  // anomalies; a repeat is not sent. Action timings and rollbacks, reconnect gaps, INP and LCP, and taps counted by control wait
   // for one summary, sent with no pid when the page hides; the server adds up its counts per batch. Only once joined: the server refuses an anonymous entry. Never typed text, answers, chat,
   // names, the address or its fragment, text on the page, or a credential. There is no switch: it always runs.
   const cut = (text, n) => Array.from(String(text)).slice(0, n).join(""); // by code point, as the server counts
@@ -927,7 +927,7 @@
   const LAT_EDGES = [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]; // ms, upper bucket edges; share.py LAT_EDGES
   const SUMMARY_MAX = 500; // the server's message limit: what does not fit waits for the next summary
   const tel = {
-    seen: new Set(), rep: new Map(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(), use: new Map(), rage: new Map(), dead: new Map(),
+    seen: new Set(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(), use: new Map(), rage: new Map(), dead: new Map(),
     pv: [...crypto.getRandomValues(new Uint8Array(4))].map(b => b.toString(16).padStart(2, "0")).join(""), // this page view, no one's id
     inp: "", lcp: "", sentInp: "", sentLcp: "", missing: "", sentMissing: false, vitals: false,
   };
@@ -952,7 +952,7 @@
     delete body.noted;
     if (!joined()) return;
     const fp = fnv(key || [kind, body.message, body.source || "", kind === "api" ? body.route : ""].join("|"));
-    if (tel.seen.has(fp)) { bump(tel.rep, fp); return; }
+    if (tel.seen.has(fp)) return;
     tel.seen.add(fp);
     post({ ...body, fp }).catch(() => tel.seen.delete(fp));
   }
@@ -973,7 +973,6 @@
     if (tel.gaps.length) { const g = tel.gaps.splice(0); items.push([`gap=${g.join(",")}`, () => {}, () => tel.gaps.unshift(...g)]); }
     for (const [route, b] of tel.lat) { const n = b.findLastIndex(x => x > 0); items.push([`lat:${route}=${b.slice(0, n + 1).join(",")}`, () => tel.lat.delete(route)]); }
     for (const [route, n] of tel.rb) items.push([`rb:${route}=${n}`, () => tel.rb.delete(route)]);
-    for (const [fp, n] of tel.rep) items.push([`rep:${fp}=${n}`, () => tel.rep.delete(fp)]);
     for (const k of ["use", "rage", "dead"]) for (const [c, n] of tel[k]) items.push([`${k}:${c}=${n}`, () => tel[k].delete(c)]);
     let message = base;
     for (const [t, sent, keep] of items) {
@@ -1140,9 +1139,9 @@
   const RECORDED = ["Script errors on this page, and actions that never reached the host", "How long each action takes to get an answer, and how often one is undone",
     "How long the page takes to catch up when you come back to it", "Layout problems: something too wide for the screen, a field the keyboard covers, the header pushed off screen",
     "How fast the page answers a tap and shows its main content", "Your device type and browser family, such as phone and Safari",
-    "How often each control is tapped, tapped three times in a second, or tapped with nothing changing, by the control's name only, added up for everyone every 10 minutes"];
+    "How often each control is tapped, tapped three times in a second, or tapped with nothing changing, by the control's name only, added up for everyone every 10 minutes, or, when you are the only guest, for your session once it ends, which the host can tell is yours"];
   const NEVER = ["What you type: your answers, chat and requests", "Your name, or this page's address", "Any text shown on the page"];
-  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id. It all stays on the host's computer.";
+  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id, though when you are the only guest the host can tell your session's counts are yours. It all stays on the host's computer.";
   function openRecords() {
     const dlg = Core.el("dialog", "core-records"), h = Core.el("h2", null, "What this page records");
     h.id = "core-records-h"; dlg.setAttribute("aria-labelledby", h.id);
