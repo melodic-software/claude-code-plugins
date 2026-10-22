@@ -22,10 +22,12 @@ function Assert-ScheduleRoot {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string] $PluginRoot,
-        [string] $StateBase
+        [string] $StateBase,
+        [string] $ReportRoot
     )
 
-    foreach ($root in @{ Name = 'plugin root'; Value = $PluginRoot }, @{ Name = 'state folder'; Value = $StateBase }) {
+    foreach ($root in @{ Name = 'plugin root'; Value = $PluginRoot }, @{ Name = 'state folder'; Value = $StateBase },
+        @{ Name = 'report folder'; Value = $ReportRoot }) {
         if ($root.Value -match "[\x00-\x1f\x7f'\u2018-\u201b]") {
             throw "The $($root.Name) holds a single quote (' or U+2018 to U+201B), a control character or a line break, which a scheduled run cannot type inside single quotes."
         }

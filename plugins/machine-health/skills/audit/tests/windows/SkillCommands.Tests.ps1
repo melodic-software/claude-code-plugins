@@ -76,7 +76,7 @@ BeforeAll {
     $script:AuditBlocks = Get-PowerShellBlock (Join-Path $script:SkillRoot 'SKILL.md')
     $script:AuditTokens = @('${CLAUDE_PLUGIN_ROOT}', '${CLAUDE_PLUGIN_DATA}', '${user_config.report_dir}')
     $script:SetupBlocks = Get-PowerShellBlock (Join-Path $script:SkillRoot '..\setup\SKILL.md')
-    $script:SetupTokens = @('${CLAUDE_PLUGIN_ROOT}', '${CLAUDE_PLUGIN_DATA}', '<payload file>')
+    $script:SetupTokens = @('${CLAUDE_PLUGIN_ROOT}', '${CLAUDE_PLUGIN_DATA}', '${user_config.report_dir}', '<payload file>')
 }
 
 Describe 'audit SKILL.md command templates' -Tag 'skill' {
@@ -146,7 +146,7 @@ Describe 'setup SKILL.md command templates' -Tag 'skill' {
     It 'holds the roots block and eight commands' {
         $script:SetupBlocks.Count | Should -Be 9
         foreach ($token in $script:SetupTokens) { $script:SetupBlocks[0] | Should -BeLike "*$token*" }
-        @($script:SetupBlocks[0].Trim() -split '\n').Count | Should -Be 5
+        @($script:SetupBlocks[0].Trim() -split '\n').Count | Should -Be 6
         foreach ($command in $script:SetupBlocks[1..8]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
     }
 
@@ -161,7 +161,7 @@ Describe 'setup SKILL.md command templates' -Tag 'skill' {
             @{ Name = 'picks write'; Index = 4
                 Expected = @('.', 'Get-Content', 'Join-Path', 'Write-CheckupPick')
             }
-            @{ Name = 'schedule roots'; Index = 5; Expected = @('.', 'Assert-ScheduleRoot', 'Join-Path') }
+            @{ Name = 'schedule roots'; Index = 5; Expected = @('.', 'Assert-ScheduleRoot', 'Join-Path', 'Join-Path') }
             @{ Name = 'schedule sync root'; Index = 6; Expected = @('.', 'Assert-StateBaseLocation', 'Join-Path') }
             @{ Name = 'schedule install'; Index = 7
                 Expected = @('.', 'Get-Command', 'Install-MonthlyRun', 'Join-Path', 'schtasks', 'Select-Object')
@@ -184,13 +184,14 @@ Describe 'setup SKILL.md command templates' -Tag 'skill' {
             Push-Location -LiteralPath $TestDrive
             try {
                 $roots = Invoke-RootsBlock (Format-RootTemplate -Text $script:SetupBlocks[0] -Token $script:SetupTokens -Value $Root) `
-                    '[pscustomobject]@{ Plugin = $pluginRoot; State = $stateRoot; Payload = $payloadPath }'
+                    '[pscustomobject]@{ Plugin = $pluginRoot; State = $stateRoot; Report = $reportRoot; Payload = $payloadPath }'
             } finally {
                 Pop-Location
             }
 
             $roots.Plugin | Should -BeExactly $Root
             $roots.State | Should -BeExactly $Root
+            $roots.Report | Should -BeExactly $Root
             $roots.Payload | Should -BeExactly $Root
             Test-Path -LiteralPath (Join-Path $TestDrive 'canary') | Should -BeFalse
         }
@@ -200,5 +201,11 @@ Describe 'setup SKILL.md command templates' -Tag 'skill' {
         $text = $script:SetupBlocks[0].Replace('${CLAUDE_PLUGIN_ROOT}', 'D:\plugins\machine-health')
 
         { Invoke-RootsBlock $text '$stateRoot' } | Should -Throw '*did not resolve*'
+    }
+
+    It 'leaves the report root empty when the report option is unset' {
+        $text = $script:SetupBlocks[0].Replace('${CLAUDE_PLUGIN_DATA}', 'D:\data\machine-health')
+
+        Invoke-RootsBlock $text '$reportRoot' | Should -BeExactly ''
     }
 }

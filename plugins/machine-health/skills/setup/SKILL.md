@@ -67,24 +67,26 @@ data, and this skill neither relocates nor removes files.
 
 **Roots block.** Every PowerShell command in this skill that names a plugin path is this block,
 copied unchanged, with the command appended to its last line after a semicolon, run through the
-PowerShell tool. Never type a path into a quoted string. The two tokens are filled in as the
+PowerShell tool. Never type a path into a quoted string. The three tokens are filled in as the
 pointer below records; each value lands on its own line inside a single-quoted here-string,
 behind a `|` that no closing quote can follow, so no character in a path (`'`, U+2018 to U+201B,
 `$( )`) reaches the parser as code. In `picks`, replace `<payload file>` with the saved payload's
 path; elsewhere leave that line as it is. The block throws when the data folder did not resolve,
-the stop the section above requires. A path holding a line break is not a path: stop and report
-it.
+the stop the section above requires, and leaves `$reportRoot` empty when the `report_dir` option
+is unset. A path holding a line break is not a path: stop and report it.
 
 ```powershell
-$pluginRoot, $stateRoot, $payloadPath = @'
+$pluginRoot, $stateRoot, $reportRoot, $payloadPath = @'
 |${CLAUDE_PLUGIN_ROOT}
 |${CLAUDE_PLUGIN_DATA}
+|${user_config.report_dir}
 |<payload file>
-'@ -split '\r?\n' | ForEach-Object { $_.Substring(1) }; if ($stateRoot -match '^(\$\{|[ \t]*$)') { throw 'The plugin data folder did not resolve; setup reads and writes nothing.' }
+'@ -split '\r?\n' | ForEach-Object { $_.Substring(1) }; $unset = '^(\$\{|[ \t]*$)'; if ($stateRoot -match $unset) { throw 'The plugin data folder did not resolve; setup reads and writes nothing.' }; if ($reportRoot -match $unset) { $reportRoot = '' }
 ```
 
-- **Pointer**: skill content substitution of the plugin paths is in
-  [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
+- **Pointer**: skill content substitution of the plugin paths and of `${user_config.KEY}` is in
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  and [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value).
   **As of**: 2026-10-22. **Recheck trigger**: that section stops substituting in skill content or
   starts exporting the variables to the Bash or PowerShell tool.
 
@@ -297,17 +299,19 @@ every rule that grants a shell, file-write or network action beside the proposed
 `$f = Join-Path ($env:CLAUDE_CONFIG_DIR ?? (Join-Path $HOME '.claude')) 'settings.json'; if (Test-Path -LiteralPath $f) { @((Get-Content -Raw -LiteralPath $f | ConvertFrom-Json).permissions.allow) -match '^(Bash|PowerShell|Monitor|Edit|Write|NotebookEdit|WebFetch|WebSearch|Agent|Workflow|mcp__)' } else { 'no user settings file' }`
 Quote the rules as data. Never edit the settings file: narrowing a rule is the owner's change.
 
-**The scheduled audit types two roots.** Under `--scheduled` the audit types the plugin root and
-`<StateBase>` inside single quotes, where a permission rule can match them (audit SKILL.md,
-`--scheduled`). Before step 1 of either route, run, appended to the
+**The scheduled audit types its roots.** Under `--scheduled` the audit types the plugin root,
+`<StateBase>` and the `report_dir` option, when set, inside single quotes, where a permission rule
+can match them (audit SKILL.md, `--scheduled`); with the option unset it leaves the report folder
+to the orchestrator's default. Before step 1 of either route, run, appended to the
 [roots block](#resolving-the-state-root):
 
 ```powershell
-. (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); Assert-ScheduleRoot -PluginRoot $pluginRoot -StateBase $stateRoot
+. (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); Assert-ScheduleRoot -PluginRoot $pluginRoot -StateBase $stateRoot -ReportRoot $reportRoot; if ($reportRoot) { $reportRoot } else { Join-Path $env:USERPROFILE 'Documents\MachineHealth' }
 ```
 
-It throws when either holds a single quote (`'` or U+2018 to U+201B), a control character or a line
-break; then report its message and offer neither route.
+It throws when any of them holds a single quote (`'` or U+2018 to U+201B), a control character or
+a line break; then report its message and offer neither route. Otherwise it prints the report
+folder the monthly runs will write to: show it to the owner with the task.
 
 **Desktop task** (recommended where the Claude Desktop app is open on the first of the month):
 

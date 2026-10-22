@@ -132,12 +132,19 @@ Routing table:
    & (Join-Path $skillRoot 'scripts/windows/Invoke-MachineHealthCheck.ps1') -OutputBase $reportRoot -StateBase $stateRoot -RunMode weekly
    ```
 
-   Under `--scheduled`, run this instead through the Bash tool, with the resolved roots and run
-   mode typed in (see `--scheduled` above):
+   Under `--scheduled`, run this instead through the Bash tool, with the run mode and the roots
+   typed in as Claude Code substituted them into this file (see `--scheduled` above):
 
    ```text
    pwsh -NoProfile -File '${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/windows/Invoke-MachineHealthCheck.ps1' -OutputBase '<report-root>' -StateBase '<state-root>' -RunMode <mode> -SampleSeconds 60 -SkipBanner
    ```
+
+   `<state-root>` is the substituted `${CLAUDE_PLUGIN_DATA}`; when that token is unexpanded, stop
+   and report it: the state-root fallback needs the roots block, which a scheduled run cannot run.
+   `<report-root>` is the substituted `${user_config.report_dir}`; when that option is unset, leave
+   out `-OutputBase '<report-root>'` entirely, and the orchestrator applies the same default as the
+   roots block. Never type an environment variable or a guessed path: inside single quotes it stays
+   literal text.
 
    The orchestrator dispatches checks under per-check 90s timeouts, collects JSON results, applies the upward-only trend adjustments and the custom-check clamp, and, on non-dry runs, dispatches authorized remediations with before/after logging.
 5. **Receive the structured result.** When the run reports a `state-location` result, its state folder sits under a cloud sync root and nothing was written there: write no `TODO.md` and no custom check, and go to step 6. Otherwise run discovery per `reference/shared/discovery-guide.md`. Propose 1–3 OS-appropriate new checks. Straightforward read-only ones may be implemented as custom checks (script under `<StateBase>/scripts/<os>/checks/`, registered in the catalog overlay), except under `--scheduled`, where every proposal goes to `<StateBase>/TODO.md` and nothing is authored or registered; anything needing new permissions or remediation lands in `<StateBase>/TODO.md` for human approval. Checks broadly useful to every consumer are best contributed to the plugin itself.

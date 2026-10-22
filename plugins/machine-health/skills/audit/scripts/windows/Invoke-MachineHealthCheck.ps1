@@ -21,7 +21,9 @@ Responsibilities (per SKILL.md High-level procedure):
  9. Return the full run snapshot as JSON on stdout (unless -Human is set).
 
 .PARAMETER OutputBase
-Root folder for reports/. Created on first run.
+Root folder for reports/. Created on first run. When omitted or blank:
+$env:USERPROFILE\Documents\MachineHealth, the default the audit SKILL.md's
+roots block applies, for a scheduled run that cannot read the environment.
 
 .PARAMETER StateBase
 Root folder for state/ and logs/ (history, approvals, run logs). Resolution:
@@ -60,7 +62,7 @@ The file ID New-ElevatedLaunch recorded for -ResultPath.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Standard')]
 param(
-    [Parameter(Mandatory = $true)] [string] $OutputBase,
+    [string] $OutputBase,
     [string] $StateBase,
     [ValidateSet('weekly', 'on-demand', 'first-run')] [string] $RunMode = 'weekly',
     [Parameter(ParameterSetName = 'Standard')] [switch] $DryRun,
@@ -139,6 +141,7 @@ $osVersion = try { (Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).Ver
 
 # Normalize and prepare output roots. Reports are user-facing and live under
 # OutputBase; state and logs are machine state and live under StateBase.
+if ([string]::IsNullOrWhiteSpace($OutputBase)) { $OutputBase = Join-Path $env:USERPROFILE 'Documents\MachineHealth' }
 $OutputBase = [System.IO.Path]::GetFullPath($OutputBase)
 if ([string]::IsNullOrWhiteSpace($StateBase)) {
     $StateBase = if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PLUGIN_DATA)) {

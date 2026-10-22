@@ -323,3 +323,29 @@ Describe 'Invoke-MachineHealthCheck run artifacts in latest.json' -Tag 'orchestr
         $script:Snapshot['cadence_deferred_count'].GetValue[int]() | Should -Be 2
     }
 }
+
+Describe 'Invoke-MachineHealthCheck without -OutputBase' -Tag 'orchestrator' {
+    BeforeAll {
+        $script:root = New-MachineHealthTempDir -Prefix 'machine-health-orch-default'
+        $script:stateBase = Initialize-QuietStateBase (Join-Path $script:root 'state-base')
+        $script:profile = Join-Path $script:root 'profile'
+        # A scheduled run omits -OutputBase when the report option is unset; the default must be
+        # the one the audit SKILL.md roots block applies.
+        $roots = (Get-Content -LiteralPath (Join-Path $script:SkillRoot 'SKILL.md') -Raw) -match "Join-Path \`$env:USERPROFILE '([^']+)'"
+        $roots | Should -BeTrue
+        $script:Expected = Join-Path $script:profile $Matches[1]
+        $command = "`$env:USERPROFILE = '$script:profile'; & '$script:Orchestrator' -StateBase '$script:stateBase' " +
+            '-RunMode on-demand -DryRun -SkipBanner | Out-Null'
+        & pwsh -NoProfile -NonInteractive -Command $command 2>$null
+        $script:ExitCode = $LASTEXITCODE
+    }
+
+    AfterAll {
+        Remove-MachineHealthTempDir -Path $script:root
+    }
+
+    It 'writes the report under the roots block default' {
+        $script:ExitCode | Should -Be 0
+        @(Get-ChildItem -LiteralPath (Join-Path $script:Expected 'reports') -File).Count | Should -Be 1
+    }
+}

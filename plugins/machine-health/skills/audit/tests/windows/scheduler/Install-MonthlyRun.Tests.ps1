@@ -47,6 +47,18 @@ Describe 'Assert-ScheduleRoot' -Tag 'lib' {
         { Assert-ScheduleRoot -PluginRoot $script:Root -StateBase "C:/Profile/a$($Char)b" } | Should -Throw '*state folder*'
     }
 
+    It 'refuses a report folder holding <Case>' -ForEach @(
+        @{ Case = 'U+2018'; Char = [string][char]0x2018 }
+        @{ Case = 'a line feed'; Char = "`n" }
+    ) {
+        { Assert-ScheduleRoot -PluginRoot $script:Root -StateBase 'C:/data' -ReportRoot "C:/Profile/a$($Char)b" } |
+            Should -Throw '*report folder*'
+    }
+
+    It 'accepts an empty report folder, which the scheduled run leaves to the orchestrator' {
+        { Assert-ScheduleRoot -PluginRoot $script:Root -StateBase 'C:/data' -ReportRoot '' } | Should -Not -Throw
+    }
+
     It 'leaves no scheduler folder when Install-MonthlyRun refuses the state folder' {
         $base = Join-Path $TestDrive "bad$([char]0x2019)base"
         { Install-MonthlyRun -PluginRoot $script:Root -StateBase $base } | Should -Throw '*state folder*'
