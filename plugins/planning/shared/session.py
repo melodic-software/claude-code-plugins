@@ -1955,6 +1955,10 @@ class Session:
             lst[:] = sorted(kept.values(), key=lambda d: d["at"])
         for qid in [q for q, lst in st.get("disagreements", {}).items() if not lst]:
             st["disagreements"].pop(qid)
+        for e in st.get("decisions", ()):
+            e["by"] = swap(e["by"])
+            if "card" in e:
+                e["card"] = moved.get((e["qid"], e["card"]), e["card"])
         for key in ("passes", "lateActs"):  # the kept person's own record wins
             for by in st.get(key, {}).values():
                 rec = by.pop(src, None)
@@ -2144,14 +2148,15 @@ class Session:
             raise DomainError(404, "no-such-question", f"No question {qid}.")
         return q
 
-    def _answerable(self, q):
-        """Refuse unless people may answer, vote, pick or react on q; returns `late` for a closed round."""
-        if q["id"] in self.state["locks"]:
-            raise DomainError(409, "locked", f"Question {q['id']} is locked; suggest a change instead.")
+    def _answerable(self, q, *, late_on_lock=False):
+        """Refuse unless people may answer, vote, pick or react on q; returns `late` for a closed round. With
+        `late_on_lock` (a Disagree) a locked question of a closed round is answerable too."""
         r = self._round(q["round"])
+        kind = r["status"]["kind"] if r else None
+        if q["id"] in self.state["locks"] and not (late_on_lock and kind == "closed"):
+            raise DomainError(409, "locked", f"Question {q['id']} is locked; suggest a change instead.")
         if r is None:
             raise DomainError(409, "round-not-open", f"Round {q['round']} has not opened yet.")
-        kind = r["status"]["kind"]
         if kind in ("sent", "working"):
             raise DomainError(409, "round-sent", "This round went to Claude, so it is read-only; suggest a change instead.")
         return {"round": q["round"]} if kind == "closed" else None
@@ -3035,7 +3040,7 @@ class Session:
             q = self._question(body.get("qid"))
             if q["purpose"] != "decide":
                 raise DomainError(409, "wrong-purpose", "Disagree is for decide questions; react or pick instead.")
-            late = self._answerable(q)
+            late = self._answerable(q, late_on_lock=True)
             self._card(q["id"], ref)
             if ref_author(ref) == pid:
                 raise DomainError(400, "cannot-vote-own", "You cannot disagree with your own answer.")
@@ -3044,6 +3049,9 @@ class Session:
             kept = [d for d in by_q.get(q["id"], []) if not (d["pid"] == pid and d["card"] == ref)]
             if on:
                 kept.append({"pid": pid, "card": ref, "reason": reason, "at": self.now()})
+                if q["id"] in st["locks"] and pid not in {e["by"] for _, e in self._reopened(q["id"])}:
+                    self._decided(q["id"], "late-disagree", pid, card=ref, reason=reason)
+                    self._flag(q["id"], {"kind": "possibly-reopened"})
             if kept:
                 by_q[q["id"]] = kept
             else:
@@ -3121,6 +3129,29 @@ class Session:
                 flagged.append(d["id"])
         return flagged
 
+    def _decided(self, qid, kind, by, **fields):
+        """Append one entry to the decision log (`decisions`, the owner's alone): a lock, a change to the locked
+        text, an unlock, a poll closed or reopened, a late Disagree on a lock, or the owner keeping the decision. Any
+        entry but a late Disagree ends a possibly reopened decision, so the `possibly-reopened` flags it put on
+        dependents go; returns how many went."""
+        cleared = 0
+        if kind != "late-disagree" and self._reopened(qid):
+            for d in self.state["questions"]:
+                kept = [f for f in d["needsReview"] if not (f["because"] == qid and f["why"] == {"kind": "possibly-reopened"})]
+                cleared += len(d["needsReview"]) - len(kept)
+                d["needsReview"] = kept
+        self.state.setdefault("decisions", []).append({"at": self.now(), "qid": qid, "kind": kind, "by": by, **fields})
+        return cleared
+
+    def _reopened(self, qid):
+        """(log index, entry) of each late Disagree logged on qid since its decision was last made, changed, unlocked or kept: while there
+        is one, the owner's Inbox and the digest say the decision is possibly reopened."""
+        out = []
+        for i, e in enumerate(self.state.get("decisions", ())):
+            if e["qid"] == qid:
+                out = [*out, (i, e)] if e["kind"] == "late-disagree" else []
+        return out
+
     def _lock_changed(self, q, text):
         prev = q.get("lockedText")
         q["lockedText"] = text
@@ -3146,6 +3177,7 @@ class Session:
                     raise DomainError(409, "wrong-purpose", "A poll closes as a whole; no single answer is locked.")
                 self._answerable(q)
                 st["locks"][qid] = {"at": now, "by": pid, "source": {"kind": "poll"}}
+                self._decided(qid, "poll-close", pid)
                 return {"closed": True, "flagged": []}
             self._answerable(q)
             tally = self._tally(qid)
@@ -3170,6 +3202,7 @@ class Session:
             card = self._card(qid, target)
             edited = {"editedBy": HOST} if "edited" in card else {}  # the locked text is the owner's, not its author's
             st["locks"][qid] = {"at": now, "by": pid, "source": {"kind": "card", "card": target, "text": text, **edited}}
+            self._decided(qid, "lock", pid, text=text)
             flagged = self._lock_changed(q, text)
             return {"text": text, "flagged": flagged}
 
@@ -3190,6 +3223,7 @@ class Session:
                     s["status"] = {"kind": "closed", "by": "unlock", "at": now}
                     closed += 1
             flagged = self._flag(q["id"], {"kind": "unlocked"})
+            self._decided(q["id"], "poll-reopen" if q["purpose"] == "poll" else "unlock", pid)
             return {"closed": closed, "flagged": flagged}
 
     def _suggestion(self, qid, sid):
@@ -3248,6 +3282,7 @@ class Session:
                     raise DomainError(409, "wrong-purpose", "A closed poll keeps its counts; no answer replaces them.")
                 st["locks"][q["id"]] = {"at": now, "by": pid, "source": {"kind": "suggestion", "suggestion": sid, "text": s["text"]}}
                 s["status"] = {"kind": "used", "at": now}
+                self._decided(q["id"], "lock-change", pid, text=s["text"])
                 flagged = self._lock_changed(q, s["text"])
             else:
                 s["status"] = {"kind": "dismissed", "at": now}
@@ -3275,7 +3310,19 @@ class Session:
             st["locks"][q["id"]] = {"at": now, "by": pid, "source": {"kind": "edited", "text": text, "from": source}}
             if used is not None and used["status"]["kind"] == "open":
                 used["status"] = {"kind": "used", "at": now}
+            self._decided(q["id"], "lock-change", pid, text=text)
             return {"flagged": self._lock_changed(q, text)}
+
+    def keep_decision(self, pid, body):
+        """POST /api/decision/keep: the owner keeps a decision a late Disagree may have reopened. The Inbox item goes,
+        and so do the `possibly-reopened` flags it put on dependents; the log records it. A newer late Disagree raises
+        the item again."""
+        with self._tx() as st:
+            self._owner(pid)
+            q = self._question(_body(body).get("qid"))
+            if q["id"] not in st["locks"] or not self._reopened(q["id"]):
+                raise DomainError(409, "not-reopened", "No late Disagree has reopened this decision.")
+            return {"cleared": self._decided(q["id"], "kept", pid)}
 
     def clear_review(self, pid, body):
         """POST /api/review/clear: drop Needs review flags, all of them or those naming `because`."""
@@ -4881,10 +4928,22 @@ class Session:
                   for m in st["mergeRequests"] if m["status"]["kind"] == "pending"),
                 *({"key": "join:" + v["pid"], "kind": "join", "id": v["pid"], "by": v["pid"], "at": v["status"]["at"]}
                   for v in st["people"].values() if v["status"]["kind"] == "waiting"),
+                *self._reopen_items(),
             ]
             out += [{**w, "group": "waiting", "changed": w["at"], "status": "open"} for w in waiting]
         for i in out:
             i["unread"] = seen.get(i["key"]) != i["status"]
+        return out
+
+    def _reopen_items(self):
+        """The owner's `reopen:` Inbox items: a locked decision someone disagreed with late. The key names the newest
+        such Disagree's place in the log, so each new one makes the item unread again."""
+        out = []
+        for qid in self.state["locks"]:
+            acts = self._reopened(qid)  # a removed person's too: the flags they raised stay until Keep or Unlock
+            if acts:
+                i, last = acts[-1]
+                out.append({"key": f"reopen:{qid}:{i}", "kind": "reopen", "id": qid, "qid": qid, "by": last["by"], "at": last["at"], "n": len(acts)})
         return out
 
     @staticmethod
@@ -5027,15 +5086,25 @@ class Session:
         review = []
         for q in st["questions"]:
             newest = {}
-            for f in q["needsReview"]:
-                newest[f["because"]] = f
+            for f in q["needsReview"]:  # a change not yet reviewed outranks a later possibly-reopened on the same question
+                if f["why"]["kind"] != "possibly-reopened" or newest.get(f["because"], f)["why"]["kind"] == "possibly-reopened":
+                    newest[f["because"]] = f
             for because, f in newest.items():
                 lk = st["locks"].get(because)
                 now_ = {"kind": "locked", "text": lk["source"].get("text", "")} if lk else {"kind": "unlocked"}  # a closed poll has no text
                 item = {"id": q["id"], "because": because, "now": now_}
                 if f["why"]["kind"] == "suggested":
                     item["suggestion"] = f["why"]["suggestion"]
+                if f["why"]["kind"] == "possibly-reopened":
+                    item["possiblyReopened"] = True
                 review.append(item)
+        reopened = []
+        for i in self._reopen_items():
+            q = self._question(i["qid"])
+            raised = list(dict.fromkeys(e["by"] for _, e in self._reopened(q["id"])))  # each reason as it is now; a take-back drops it
+            held = [d for p in raised if self._active(p) for d in st.get("disagreements", {}).get(q["id"], []) if d["pid"] == p]
+            lines = [{"text": t, "reason": d["reason"], **by(d["pid"])} for d in held if (t := self._card_text_or_none(q, d["card"])) is not None]
+            reopened.append({"id": q["id"], "locked": st["locks"][q["id"]]["source"]["text"], "disagreements": lines})
         results, more, chars = [], 0, 0
         for r in (r for lst in st["results"].values() for r in lst if self._result_shown(r) and r.get("publishedAt", r["at"]) > prev):
             chars += len(r["summary"])
@@ -5058,6 +5127,7 @@ class Session:
             "questions": questions,
             "late": late,
             "needsReview": review,
+            "possiblyReopened": reopened,
             "results": results,
             **({"resultsMore": f"{more} more on the page"} if more else {}),
             "proposals": proposals,
@@ -5085,6 +5155,12 @@ class Session:
         if "value" in c:
             return labels[str(c["value"])]
         return labels.get(c.get("pick"), "")
+
+    def _card_text_or_none(self, q, ref):
+        try:
+            return self._card_text(q, ref)
+        except DomainError:
+            return None
 
     def _digest_disagreements(self, q, by):
         """Who disagreed with which answer of q and why, while that answer and its disagreer remain."""
@@ -5953,6 +6029,7 @@ class Session:
                 snap["reports"] = [self._report_view(f, r) for f, r in st.get("reports", {}).items() if r["status"] != "resolved"]
                 snap["passes"] = {q: {p: dict(r) for p, r in by.items() if self._active(p)} for q, by in st.get("passes", {}).items()}
                 snap["aboutYou"] = copy.deepcopy(st["aboutYou"])
+                snap["decisions"] = copy.deepcopy(st.get("decisions", []))
                 snap["ownerDevices"] = sorted((dict(d) for d in st["credentials"].get("devices", {}).values()), key=lambda d: d["at"])
                 snap["removed"] = [
                     {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")} for v in st["people"].values() if v["status"]["kind"] == "removed"

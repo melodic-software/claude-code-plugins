@@ -250,7 +250,30 @@
                   }
                 ]
               },
-              "suggestion": {"type": "string"}
+              "suggestion": {"type": "string"},
+              "possiblyReopened": {"enum": [true], "description": "The question this one rests on is locked, and a late Disagree may reopen it; the owner has not yet kept, changed or unlocked it. Not a change."}
+            }
+          }
+        },
+        "possiblyReopened": {
+          "description": "Locked decisions someone disagreed with after their round closed, until the owner keeps, changes or unlocks each: the locked text, and each Disagree the people who disagreed late hold now, with the answer it names (`by` with digestNames). The decision stands. Absent in a digest from before this field.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "locked", "disagreements"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {"$ref": "#/$defs/qid"},
+              "locked": {"type": "string"},
+              "disagreements": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["text", "reason"],
+                  "additionalProperties": false,
+                  "properties": {"text": {"type": "string"}, "reason": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
+                }
+              }
             }
           }
         },
