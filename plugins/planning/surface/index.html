@@ -402,7 +402,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   .bar{width:80px}
   .hrow2{min-height:0;gap:4px 8px}
   .cline{white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
-  .cline:not(.wline){display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;text-overflow:ellipsis} /* the full line is in Activity; two lines keep the question title on the first screen */
+  .cline:not(.wline){display:flex;align-items:flex-start;overflow:hidden}
+  .cline:not(.wline) #clText{min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;text-overflow:ellipsis}
+  .cline:not(.wline) .age{flex:none} /* only the text is clamped, so the age stays inline beside it; the full line is in Activity; two lines keep the question title on the first screen */
   .cline[hidden]{display:none}
   button.act,.choice{min-height:44px}
   .notice{max-width:100%}
