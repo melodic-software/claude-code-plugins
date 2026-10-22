@@ -628,8 +628,8 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    `self-checks` or `verify-scripts`, which have no wrapper there. The no-prepare patch skill gets
    the tools `Read`, `Glob`, `Grep`, `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules
    name its skill, `Grep`, `Glob`, `Edit`, `Write` and `Agent` but no `Bash` rule, so Bash runs
-   only what the skill's own frontmatter grants; its deny rules add `Read(./.git/**)` to the base
-   set; and the preamble says to keep scratch files in `.lane/scratch` and leave every change
+   only what the skill's own frontmatter grants; it adds no deny rule, since the base set already
+   denies `Read(./.git/**)`; and the preamble says to keep scratch files in `.lane/scratch` and leave every change
    uncommitted. With `web-access` (`domains: any` only; a domain list fails red) it also gets the
    `WebFetch` and `WebSearch` tools, no longer denied, the rules `WebFetch(domain:*)`, `WebSearch`
    and the four research skills, and the `discovery` and `knowledge` plugins staged read-only
