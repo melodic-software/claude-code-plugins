@@ -943,6 +943,20 @@
         toast.style.setProperty("--toast-room", Rt - L - 32 + "px");
         return toast.offsetWidth;
       };
+      // The modal chat covers the page: the toast takes a slot the chat opens between its messages and its composer,
+      // so it hides no message, the close button or the message box.
+      if (activeSheet() === chat) {
+        L = R.right - chat.offsetWidth; Rt = R.right; fit();
+        const h = toast.offsetHeight;
+        chat.style.setProperty("--toast-slot", h ? h + 16 + "px" : "0px");
+        // measured from the typing line under the slot: the messages' margin may still be mid-transition
+        toast.style.insetBlockStart = "auto";
+        toast.style.insetBlockEnd = R.bottom - mTyping.getBoundingClientRect().top + 8 + "px";
+        return;
+      }
+      chat.style.removeProperty("--toast-slot");
+      // docked beside the page, the chat's column is never under the toast (its layout box: the entrance slide moves it)
+      if (!chat.hidden) Rt = Math.min(Rt, R.right - chat.offsetWidth - 8);
       let w = fit();
       // only when the open chat panel would sit under it, center it on the part of the pane the chat leaves
       if (ch && ch.left > L + 200 && ch.left < (L + Rt) / 2 + w / 2) { Rt = ch.left - 8; w = fit(); }
@@ -960,7 +974,7 @@
     }
     function hideToast() {
       const was = toast._tag;
-      toast.classList.remove("vf-on"); toast._tag = "";
+      toast.classList.remove("vf-on"); toast._tag = ""; chat.style.removeProperty("--toast-slot");
       if (was !== "alert" && ui.alertOpen) { flash(alertToast, null, "alert"); return; } // an urgent pop-up another toast covered comes back
       clearT = setTimeout(() => { toastTxt.textContent = ""; toastAct.hidden = true; }, 250);
     }
@@ -4875,6 +4889,9 @@
     };
     on(board, "scroll", edges, { passive: true });
     on(window, "resize", () => { edges(); if (toast.classList.contains("vf-on")) placeToast(); if (ui.pop === PP.pop) placePanel(ui.pop); measureAll(); });
+    // the pane the toast centers on also changes width without a window resize (the chat docking, the waiting room)
+    const toastPane = new ResizeObserver(() => { if (toast.classList.contains("vf-on")) placeToast(); });
+    toastPane.observe(center); offs.push(() => toastPane.disconnect());
     arrL.onclick = () => board.scrollBy({ left: -colStep(), behavior: smooth() });
     arrR.onclick = () => board.scrollBy({ left: colStep(), behavior: smooth() });
     fab.onclick = () => setChat(!ui.chatOpen);
