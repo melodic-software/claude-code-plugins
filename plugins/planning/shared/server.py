@@ -155,7 +155,7 @@ SUMMARY_BATCH_SECONDS = 600  # judgment: summaries held per batch; long enough t
 SUMMARY_BATCH_BYTES = 100_000  # judgment: the most one batch entry holds; a summary past it is counted as dropped
 SUMMARY_MIN_SENDERS = 2  # judgment: a batch is written only once this many guests sent to it (or only the owner did),
 # so its counts and pairs are never one guest's; below it a batch waits for the next, and at shutdown is only counted,
-# except in a session only one guest ever sent to (one on one), whose held counts, and no pair, are written at shutdown
+# except in a session only one guest ever joined (one on one), whose held counts, and no pair, are written at shutdown
 # A summary's count tokens, added up per batch and never left in its pair: a component's taps (use, rage, dead) are no
 # one's. Any other token with one of these prefixes is dropped, so no text rides along; that includes an older page's
 # `rep:<fp>` repeat, whose fingerprint is also on its fault entry, which names the person.
@@ -1014,7 +1014,6 @@ class App:
         self.image_bucket = Bucket(IMAGE_PER_MINUTE / 60, IMAGE_PER_MINUTE)  # GET /api/upload/image, keyed by pid
         self.summary_bucket = Bucket(SUMMARY_PER_MINUTE / 60, SUMMARY_PER_MINUTE)  # keyed by pid, kept in memory only
         self._summary_lock, self._summaries, self._counts, self._senders, self._summary_bytes, self._dropped = threading.Lock(), [], collections.Counter(), set(), 0, 0
-        self._guests = set()  # every guest pid that sent a summary this session, in memory only: is it one on one?
         self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
@@ -1076,25 +1075,31 @@ class App:
                 self._summary_bytes += size
                 if sender:
                     self._senders.add(sender)
-                    self._guests.add(sender)
 
     def flush_summaries(self, stopping=False):
         """One summary-batch entry (README "Logs") for the summaries held since the last, sorted so their arrival order
         is gone too, and their counts; none when there were none. Summaries from 1 to SUMMARY_MIN_SENDERS - 1 guests
-        wait for the next batch, or at shutdown are only counted, as dropped; when this whole session had one guest,
-        that batch's counts are written then, and its pairs, one page view's record each, only counted as dropped."""
+        wait for the next batch, or at shutdown are only counted, as dropped; when only one guest ever joined the
+        session (one_guest), that batch's counts are written then, and its pairs, one page view's record each, only
+        counted as dropped."""
+        one_guest = stopping and self.one_guest()
         with self._summary_lock:
             self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
             few = 0 < len(self._senders) < SUMMARY_MIN_SENDERS
-            one_on_one = few and len(self._guests) == 1
             if few and not stopping:
                 return
             items, counts, dropped = sorted(self._summaries), dict(sorted(self._counts.items())), self._dropped
             self._summaries, self._counts, self._senders, self._summary_bytes, self._dropped = [], collections.Counter(), set(), 0, 0
         if few:
-            items, counts, dropped = [], counts if one_on_one else {}, dropped + len(items)
+            items, counts, dropped = [], counts if one_guest else {}, dropped + len(items)
         if items or counts or dropped:
             self.log.info("summary-batch summaries=%d dropped=%d counts=%s data=%s", len(items), dropped, batch_json(counts), batch_json(items))
+
+    def one_guest(self):
+        """True when the session's people (kept in state.json across restarts, waiting ones included) hold exactly one
+        person besides the owner: one on one. Who sent a summary is no test: another guest's page may never have hidden."""
+        with self.session._lock:
+            return sum(1 for p in self.session.state["people"] if p != session.HOST) == 1
 
     def asset_sign(self, pid, exp):
         return hmac.new(self._asset_key, f"{pid}.{exp}".encode(), hashlib.sha256).hexdigest()

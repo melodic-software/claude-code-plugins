@@ -1676,39 +1676,47 @@ class TestClientLog(LogCase):
         self.assertNotIn("firefox", line)
         self.assertNotIn(pid, line)
 
-    def summary_batches(self, d):
-        return [x for x in (d / "server.log").read_text(encoding="utf-8").splitlines() if " summary-batch " in x]
+    def summary_batches(self):
+        return [x for x in self.log_text().splitlines() if " summary-batch " in x]
 
     def test_a_one_on_one_session_writes_its_counts_once_at_shutdown_and_no_pair(self):
-        """One guest: no batch reaches two guests, so the session's counts are written once, at shutdown, with no
-        pair (each one page view's record), no fingerprint and no pid; the owner's counts join them."""
-        d = tmpdir(self)
-        app = server.App(d, watch_tunnel=False)
-        self.addCleanup(app.shutdown)
-        app.hold_summary("pv=0a1b2c3d gap=5 use:vf-chat=1 rage:vf-vote=1", "safari phone", "pidAnn001")
-        app.flush_summaries()  # a 10-minute tick: one guest's batch waits
-        app.hold_summary("pv=0a1b2c3d gap=6 rep:1a2b3c4d=1 use:vf-chat=2 dead:vf-pencil=1", "safari phone", "pidAnn001")
-        app.hold_summary("pv=cccc0000 owner=1 use:vf-gear=1", "chrome computer")
-        self.assertEqual(self.summary_batches(d), [])
-        app.shutdown()
-        lines = self.summary_batches(d)
+        """One guest joined: no batch reaches two guests, so the session's counts are written once, at shutdown, with
+        no pair (each one page view's record), no fingerprint and no pid; the owner's counts join them."""
+        pid, ann = self.join("Ann")
+        for msg in ("pv=0a1b2c3d gap=5 use:vf-chat=1 rage:vf-vote=1", "pv=0a1b2c3d gap=6 rep:1a2b3c4d=1 use:vf-chat=2 dead:vf-pencil=1"):
+            self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": msg}, ann)[0], 200)
+            self.app.flush_summaries()  # a 10-minute tick: one guest's batch waits
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=cccc0000 owner=1 use:vf-gear=1"}, self.owner)[0], 200)
+        self.assertEqual(self.summary_batches(), [])
+        self.app.flush_summaries(stopping=True)  # what shutdown() runs
+        lines = self.summary_batches()
         self.assertEqual(len(lines), 1, lines)
         self.assertIn(' summary-batch summaries=0 dropped=3 counts={"dead:vf-pencil":1,"rage:vf-vote":1,"use:vf-chat":3,"use:vf-gear":1} data=[]', lines[0])
-        for leak in ("pidAnn001", "1a2b3c4d", "0a1b2c3d", "gap=", "safari", "phone"):
+        for leak in (pid, "1a2b3c4d", "0a1b2c3d", "gap=", "safari", "phone"):
             self.assertNotIn(leak, lines[0])
 
+    def test_two_joined_guests_and_one_sender_write_no_counts_at_shutdown(self):
+        """One on one is who joined, not who sent: a second guest whose page never hid still makes the one sender's
+        counts theirs alone, so at shutdown they are only counted as dropped."""
+        _, ann = self.join("Ann")
+        self.join("Bo")
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 use:vf-chat=1"}, ann)[0], 200)
+        self.app.flush_summaries(stopping=True)
+        lines = self.summary_batches()
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn(" summary-batch summaries=0 dropped=1 counts={} data=[]", lines[0])
+
     def test_one_guests_trailing_batch_is_still_dropped_when_the_session_had_two(self):
-        """The one-on-one exception is the session's, not the batch's: once two guests sent, a last batch holding one
-        guest's summaries is theirs, so at shutdown it is only counted."""
-        d = tmpdir(self)
-        app = server.App(d, watch_tunnel=False)
-        self.addCleanup(app.shutdown)
-        app.hold_summary("pv=aaaa0000 use:vf-chat=1", "safari phone", "pidAnn001")
-        app.hold_summary("pv=bbbb0000 use:vf-chat=2", "safari phone", "pidBo00001")
-        app.flush_summaries()
-        app.hold_summary("pv=aaaa0000 use:vf-vote=4", "safari phone", "pidAnn001")
-        app.shutdown()
-        lines = self.summary_batches(d)
+        """Once two guests sent, a last batch holding one guest's summaries is theirs, so at shutdown it is only
+        counted."""
+        _, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        for msg, who in (("pv=aaaa0000 use:vf-chat=1", ann), ("pv=bbbb0000 use:vf-chat=2", bo)):
+            self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": msg}, who)[0], 200)
+        self.app.flush_summaries()
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 use:vf-vote=4"}, ann)[0], 200)
+        self.app.flush_summaries(stopping=True)
+        lines = self.summary_batches()
         self.assertEqual(len(lines), 2, lines)
         self.assertIn(' counts={"use:vf-chat":3} ', lines[0])
         self.assertIn(" summary-batch summaries=0 dropped=1 counts={} data=[]", lines[1])

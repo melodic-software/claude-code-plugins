@@ -743,7 +743,7 @@ quoted when it holds a space, so only a newline ends an entry; `logs` splits on 
 |---|---|---|
 | `request` | INFO for 2xx/3xx, WARNING for 4xx, ERROR for 5xx | `method route status ms` and `pid` (the acting person's id, once known); a refusal adds `code field message` (its error body); a 5xx adds `trace`, the last 8000 characters of the traceback of the bug or of the session's refusal where it was raised. The one exception is 503 `busy`, answered before any request is read: `method=- route=- status=503 ms=0.0 code=busy message=...`, no pid, no trace. A `summary` the server takes gets no entry |
 | `client` | WARNING | `pid kind message source route code ua fp`, as the page sent them: a fault |
-| `summary-batch` | INFO | `summaries dropped counts data`: every `summary` taken since the last batch, written every 10 minutes and when the server stops, if there was one and it came from at least 2 guests or only the owner, or at shutdown of a session only one guest sent summaries to (counts only, see below). `counts` is a JSON object of the summaries' `use:`, `rage:` and `dead:` counts added up; `data` is a JSON array of `[message, device]` pairs, the rest of each summary, sorted; both in ASCII with each space as `\u0020`. `dropped` counts summaries past the batch's 100,000 bytes, and at shutdown those from a single guest, or a one-guest session's pairs (see below). No pid, and no time but the batch's |
+| `summary-batch` | INFO | `summaries dropped counts data`: every `summary` taken since the last batch, written every 10 minutes and when the server stops, if there was one and it came from at least 2 guests or only the owner, or at shutdown of a session only one guest ever joined (counts only, see below). `counts` is a JSON object of the summaries' `use:`, `rage:` and `dead:` counts added up; `data` is a JSON array of `[message, device]` pairs, the rest of each summary, sorted; both in ASCII with each space as `\u0020`. `dropped` counts summaries past the batch's 100,000 bytes, and at shutdown those from a single guest, or a one-guest session's pairs (see below). No pid, and no time but the batch's |
 
 ```text
 2026-10-17 13:21:56,794 WARNING request method=POST route=/api/person/role status=400 ms=0.5 pid=host code=bad-field field=role message="role must be one of leader, guest."
@@ -797,7 +797,8 @@ and at shutdown its summaries are only counted as `dropped`. So no pair holds a 
 browser that would match it to a fault entry's pid, and in a session with two or more guests no
 batch's counts are one guest's.
 
-A one-on-one session (only one guest ever sent a summary) would otherwise record nothing, so its
+A one-on-one session (one person besides the owner ever joined, waiting ones included; a second
+guest who never sent a summary still counts) would otherwise record nothing, so its
 held batch is written at shutdown with its `counts` only, the session's totals, and its pairs, each
 one page view's record, counted as `dropped`. In one on one the host knows who the guest is, so
 these totals are that guest's: what keeps them unlinked is that they carry no pid, fingerprint,
