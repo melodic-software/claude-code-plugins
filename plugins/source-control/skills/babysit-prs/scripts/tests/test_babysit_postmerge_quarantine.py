@@ -14,6 +14,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -23,12 +24,27 @@ from datetime import UTC, datetime
 from typing import Any
 from unittest import mock
 
+# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
+# fixtures' identity writes into the caller's repository
+# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-import babysit_merge_policy as policy
-import babysit_postmerge as pm
-from test_babysit_postmerge import (
+import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
+import babysit_postmerge as pm  # noqa: E402
+from test_babysit_postmerge import (  # noqa: E402
     FIXTURES,
     IDENTITY,
     LATER_SHA,
