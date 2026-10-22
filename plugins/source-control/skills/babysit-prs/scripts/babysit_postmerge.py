@@ -398,12 +398,23 @@ def _write(args: list[str], label: str) -> Any:
     return _call(args, label, PostMergeWriteError)
 
 
+# A filtered workflow-run listing returns at most this many runs per search:
+# https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
+# (as of 2026-10-22; recheck when that page's result limit changes).
+RUN_SEARCH_CAP = 1000
+
+
 def _paginated(
-    endpoint: str, label: str, items_key: str | None = None
+    endpoint: str,
+    label: str,
+    items_key: str | None = None,
+    capped: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Every item of a paginated listing. An object listing whose
     `total_count` exceeds the items its pages carried answered short (a
-    degraded API can), so it raises rather than read as complete."""
+    degraded API can), so it raises rather than read as complete. Past
+    RUN_SEARCH_CAP the search is short by design: given `capped`, the listing
+    reads and a `listing-capped` warning goes there instead."""
     payload = _read(["api", endpoint, "--paginate", "--slurp"], label)
     try:
         items = flatten_paginated_items(payload, label, items_key=items_key)
@@ -415,7 +426,9 @@ def _paginated(
             (p["total_count"] for p in pages if isinstance(p.get("total_count"), int)),
             default=0,
         )
-        if total > len(items):
+        if total > len(items) and total > RUN_SEARCH_CAP and capped is not None:
+            capped.append(f"listing-capped: {label} total_count {total}")
+        elif total > len(items):
             raise PostMergeReadError(
                 f"{label}: total_count {total}, but {len(items)} returned"
             )
@@ -570,8 +583,28 @@ class Run:
         )
 
 
+def _run_rows(
+    items: Iterable[dict[str, Any]], event: str, owner: str, name: str
+) -> list[Run]:
+    """The rows of a run listing that are runs of `event` from this
+    repository itself; a row the filter let through otherwise is dropped."""
+    return [
+        Run.from_api(item)
+        for item in items
+        if item.get("event") == event
+        and json_object(item.get("head_repository")).get("full_name")
+        == f"{owner}/{name}"
+    ]
+
+
 def _runs(
-    owner: str, name: str, workflow: str, event: str, branch: str, since: datetime
+    owner: str,
+    name: str,
+    workflow: str,
+    event: str,
+    branch: str,
+    since: datetime,
+    capped: list[str] | None = None,
 ) -> list[Run]:
     created = quote(
         f">={since.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
@@ -580,10 +613,12 @@ def _runs(
         f"repos/{owner}/{name}/actions/workflows/{workflow}/runs"
         f"?event={event}&branch={quote(branch, safe='')}&created={created}&per_page=100"
     )
-    runs = [
-        Run.from_api(item)
-        for item in _paginated(endpoint, f"{workflow} {event} runs", "workflow_runs")
-    ]
+    runs = _run_rows(
+        _paginated(endpoint, f"{workflow} {event} runs", "workflow_runs", capped),
+        event,
+        owner,
+        name,
+    )
     return [r for r in runs if r.created_at >= since and r.head_branch == branch]
 
 
@@ -807,28 +842,80 @@ class _Context:
     quarantine_issues: dict[str, dict[str, Any]] | None = None
     # Excused failing suites, by (suite, sighting).
     quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
-    # The ids of the branch's dispatch runs at each merge commit, read by SHA.
-    dispatch_at_cache: dict[str, frozenset[int]] = field(default_factory=dict)
+    # Warnings for the verdict, such as a listing past the search cap.
+    warnings: list[str] = field(default_factory=list)
+    # The branch's dispatch runs at each commit, read by SHA, and
+    # each merge commit's descendants on the branch with their commit dates.
+    dispatch_at_cache: dict[str, dict[int, Run]] = field(default_factory=dict)
+    descendants_cache: dict[str, list[tuple[str, datetime]]] = field(
+        default_factory=dict
+    )
 
-    def dispatch_runs_at(self, commit: str) -> frozenset[int]:
-        """The ids of the branch's full-run dispatches at `commit`, read by
-        head SHA with no created filter: a check independent of the dated
+    def dispatch_runs_through(self, commit: str, deadline: datetime) -> dict[int, Run]:
+        """The branch's full-run dispatches, by id, at `commit` or at any
+        descendant on the branch committed by `deadline`: every run that
+        could cover the merge in time, read independently of the dated
         listing. A failed or short read raises."""
-        if commit not in self.dispatch_at_cache:
-            self.dispatch_at_cache[commit] = frozenset(
-                r.id
-                for r in map(
-                    Run.from_api,
-                    _paginated(
-                        f"repos/{self.owner}/{self.name}/actions/workflows/{FULL_RUN_WORKFLOW}"
-                        f"/runs?event=workflow_dispatch&branch={quote(self.branch, safe='')}"
-                        f"&head_sha={commit}&per_page=100",
-                        f"{FULL_RUN_WORKFLOW} dispatch runs at {commit[:12]}",
-                        "workflow_runs",
+        shas = [commit] + [
+            sha for sha, date in self._descendants(commit) if date <= deadline
+        ]
+        return {
+            run.id: run
+            for sha in dict.fromkeys(shas)
+            for run in self.dispatch_runs_at(sha).values()
+        }
+
+    def _descendants(self, commit: str) -> list[tuple[str, datetime]]:
+        """The commits from `commit` to the branch tip, with commit dates."""
+        if commit not in self.descendants_cache:
+            tip = self._branch_tip()
+            compare = json_object(
+                _read(
+                    [
+                        "api",
+                        f"repos/{self.owner}/{self.name}/compare/{commit}...{tip}",
+                    ],
+                    f"compare {commit[:12]}...{tip[:12]}",
+                )
+            )
+            commits = [json_object(c) for c in json_array(compare.get("commits"))]
+            total = compare.get("total_commits")
+            if not isinstance(total, int) or total > len(commits):
+                raise PostMergeReadError(
+                    f"compare {commit[:12]}...{tip[:12]}: total_commits {total}, "
+                    f"but {len(commits)} listed"
+                )
+            self.descendants_cache[commit] = [
+                (
+                    str(c.get("sha")),
+                    _time(
+                        json_object(json_object(c.get("commit")).get("committer")).get(
+                            "date"
+                        )
                     ),
                 )
-                if r.head_branch == self.branch
+                for c in commits
+            ]
+        return self.descendants_cache[commit]
+
+    def dispatch_runs_at(self, commit: str) -> dict[int, Run]:
+        """The branch's full-run dispatches at `commit`, by id, read by head
+        SHA with no created filter: a check independent of the dated
+        listing. A failed or short read raises."""
+        if commit not in self.dispatch_at_cache:
+            rows = _paginated(
+                f"repos/{self.owner}/{self.name}/actions/workflows/{FULL_RUN_WORKFLOW}"
+                f"/runs?event=workflow_dispatch&branch={quote(self.branch, safe='')}"
+                f"&head_sha={commit}&per_page=100",
+                f"{FULL_RUN_WORKFLOW} dispatch runs at {commit[:12]}",
+                "workflow_runs",
+                self.warnings,
             )
+            self.dispatch_at_cache[commit] = {
+                r.id: r
+                for r in _run_rows(rows, "workflow_dispatch", self.owner, self.name)
+                if r.head_branch == self.branch
+            }
         return self.dispatch_at_cache[commit]
 
     def regressions(self, signal: str, run: Run, merged_at: datetime) -> frozenset[str]:
@@ -1468,10 +1555,20 @@ def _judge(
     deadline = merged_at + DISPATCH_DEADLINE
     if not any(r.created_at <= deadline for r in own) and now > deadline:
         # A listing can answer without runs it holds, so the absence is read
-        # again by the merge commit: a run there the listing lacked proves the
-        # listing incomplete, and the verdict is unreadable, not a failure.
+        # again by the merge commit and each descendant committed in time: a
+        # run there the listing lacked proves the listing incomplete, and the
+        # verdict is unreadable, not a failure.
+        # Only a run that could have counted as the identity's in time can
+        # prove that.
         listed = {r.id for signal, r in full_runs if signal == SIGNAL_DISPATCH}
-        if ctx.dispatch_runs_at(commit) - listed:
+        missing = [
+            run
+            for run_id, run in ctx.dispatch_runs_through(commit, deadline).items()
+            if run_id not in listed
+            and run.created_at <= deadline
+            and run.actor in (LANE_DISPATCH_ACTOR, ctx.identity)
+        ]
+        if missing:
             raise PostMergeReadError(
                 f"#{merge.number}: the dispatch listing lacked a run at {commit[:12]}"
             )
@@ -1505,6 +1602,7 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
             "workflow_dispatch",
             ctx.branch,
             now - ctx.lane_rerun_lookback(),
+            ctx.warnings,
         )
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
             if (
@@ -1582,7 +1680,7 @@ def check(
             return PostMergeVerdict(
                 True,
                 reruns=tuple(tally.reruns.values()),
-                warnings=tuple(warnings),
+                warnings=tuple(warnings + ctx.warnings),
                 branch=branch,
             )
         floor = (
@@ -1592,16 +1690,24 @@ def check(
         )
         full_runs = [
             (SIGNAL_SCHEDULE, r)
-            for r in _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor)
+            for r in _runs(
+                owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, ctx.warnings
+            )
         ] + [
             (SIGNAL_DISPATCH, r)
             for r in _runs(
-                owner, name, FULL_RUN_WORKFLOW, "workflow_dispatch", branch, floor
+                owner,
+                name,
+                FULL_RUN_WORKFLOW,
+                "workflow_dispatch",
+                branch,
+                floor,
+                ctx.warnings,
             )
         ]
         full_runs.sort(key=lambda item: item[1].created_at)
         canary_runs = sorted(
-            _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor),
+            _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, ctx.warnings),
             key=lambda r: r.created_at,
         )
         states = tuple(
@@ -1627,7 +1733,7 @@ def check(
         reruns=tuple(tally.reruns.values()),
         flakes=tuple(tally.flakes),
         unattributed=tuple(tally.unattributed),
-        warnings=tuple(warnings),
+        warnings=tuple(warnings + ctx.warnings),
         branch=branch,
         quarantines=tuple(ctx.quarantines.values()),
     )
@@ -2000,21 +2106,6 @@ def _recorded(failure: Failure, record: dict[str, Any], notes: Iterable[Any]) ->
     return any(note in _lines(body) for body in notes)
 
 
-def _record_of(
-    failure: Failure, issues: Iterable[dict[str, Any]]
-) -> dict[str, Any] | None:
-    """The record among `issues` holding `failure`: its marker, or the same run."""
-    return next(
-        (
-            i
-            for i in issues
-            if _first_line(i.get("body")) == failure.marker
-            or _same_run(failure, i.get("body"))
-        ),
-        None,
-    )
-
-
 def _same_run(failure: Failure, body: Any) -> bool:
     """Whether a demotion record names the same failing run, any attempt. The
     alert workflow keys its marker on the run's head SHA and this check on the
@@ -2279,16 +2370,15 @@ def remediate(
             if (failure.marker, _sighting(failure)) in seen:
                 continue
             seen.add((failure.marker, _sighting(failure)))
-            match = records.get(failure.marker) or _record_of(failure, existing)
-            if match is None:
-                # A listing can answer without a record filed minutes ago, so
-                # it is read again just before a new record is filed.
-                match = _record_of(
-                    failure,
-                    _demotion_issues(owner, name, (agent_identity, *DEMOTION_FILERS)),
-                )
-                if match is not None:
-                    existing.append(match)
+            match = records.get(failure.marker) or next(
+                (
+                    i
+                    for i in existing
+                    if _first_line(i.get("body")) == failure.marker
+                    or _same_run(failure, i.get("body"))
+                ),
+                None,
+            )
             if match is None:
                 # The record names every merge this run charges; those merges
                 # then find it by run below.

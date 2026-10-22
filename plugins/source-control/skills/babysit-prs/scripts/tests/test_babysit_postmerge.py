@@ -209,10 +209,10 @@ class FakeGh:
         # listing's total_count where it differs from the runs it serves.
         self.unlisted: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self.total_counts: dict[tuple[str, str], int] = {}
-        # Issues a creator's listing omits for its next reads, as a listing
-        # that lags a record filed minutes ago does.
-        self.late_issues: list[dict[str, Any]] = []
-        self.late_reads: dict[str, int] = {}
+        # The commits a compare from a merge commit to main's tip lists, and
+        # its total_count where it differs from them.
+        self.tip_commits: list[dict[str, Any]] = []
+        self.tip_total: int | None = None
 
     def add_runs(self, workflow: str, event: str, *runs: dict[str, Any]) -> None:
         self.runs.setdefault((workflow, event), []).extend(runs)
@@ -292,14 +292,22 @@ class FakeGh:
                 reach = self.on_main
                 if head == "main" and self.bare_main is not None:
                     reach = self.bare_main
-                return completed({"status": "ahead" if base in reach else "diverged"})
+                return completed(
+                    {
+                        "status": "ahead" if base in reach else "diverged",
+                        "total_commits": len(self.tip_commits)
+                        if self.tip_total is None
+                        else self.tip_total,
+                        "commits": self.tip_commits,
+                    }
+                )
             return completed(
                 {"status": "ahead" if head in self.descendants else "diverged"}
             )
-        if endpoint == f"repos/{REPO}/git/ref/heads/main":
-            return completed(
-                {"ref": "refs/heads/main", "object": {"sha": self.main_tip}}
-            )
+        if endpoint.startswith(f"repos/{REPO}/git/ref/heads/"):
+            # Every branch a test judges has main's tip.
+            ref = endpoint.split("/git/ref/")[1]
+            return completed({"ref": f"refs/{ref}", "object": {"sha": self.main_tip}})
         if "/actions/runs/" in endpoint and endpoint.endswith("/rerun-failed-jobs"):
             return completed()
         if "/actions/artifacts?" in endpoint:
@@ -328,13 +336,9 @@ class FakeGh:
             creator = endpoint.split("creator=")[1].split("&")[0]
             from urllib.parse import unquote
 
-            creator = unquote(creator)
-            issues = self.issues
-            if self.late_reads.get(creator, 0) > 0:
-                self.late_reads[creator] -= 1
-            else:
-                issues = issues + self.late_issues
-            return completed([[i for i in issues if i["user"]["login"] == creator]])
+            return completed(
+                [[i for i in self.issues if i["user"]["login"] == unquote(creator)]]
+            )
         if endpoint == f"repos/{REPO}/issues":
             return completed({"number": 9001})
         if "/collaborators/" in endpoint and endpoint.endswith("/permission"):
@@ -767,6 +771,136 @@ class DroppedDispatchListing(CheckCase):
                 for c in self.gh.calls
             )
         )
+
+    def descendant_merge(self, committed: str) -> None:
+        """A second merge at LATER_SHA, a descendant of the first, committed
+        at `committed`, with the only lane dispatch at it dropped."""
+        self.gh.merged = [
+            merged_pr(),
+            merged_pr(
+                number=7002,
+                url=f"https://github.com/{REPO}/pull/7002",
+                mergedAt="2026-10-12T10:02:00Z",
+                updatedAt="2026-10-12T10:02:05Z",
+                mergeCommit={"oid": LATER_SHA},
+            ),
+        ]
+        self.unlisted_lane_dispatch()
+        self.gh.unlisted[("pr-require-checks.yml", "workflow_dispatch")][0][
+            "head_sha"
+        ] = LATER_SHA
+        self.gh.tip_commits = [
+            {"sha": LATER_SHA, "commit": {"committer": {"date": committed}}}
+        ]
+
+    def test_a_dropped_run_at_a_descendant_makes_the_verdict_unreadable(
+        self,
+    ) -> None:
+        self.descendant_merge("2026-10-12T10:02:00Z")
+        verdict = self.check(now=self.LATE)
+        self.assertFalse(verdict.readable)
+        self.assertIn("lacked a run", verdict.reason)
+        self.assertEqual(verdict.failures, ())
+
+    def test_a_descendant_committed_after_the_deadline_is_not_read(self) -> None:
+        self.gh.tip_commits = [
+            {
+                "sha": LATER_SHA,
+                "commit": {"committer": {"date": "2026-10-12T16:00:01Z"}},
+            }
+        ]
+        self.check(now=self.LATE)
+        self.assertFalse(
+            any(f"head_sha={LATER_SHA}" in " ".join(c) for c in self.gh.calls)
+        )
+        self.assertTrue(
+            any(f"head_sha={MERGE_SHA}" in " ".join(c) for c in self.gh.calls)
+        )
+
+    def test_a_compare_short_of_its_total_commits_is_unreadable(self) -> None:
+        self.gh.tip_total = 300
+        verdict = self.check(now=self.LATE)
+        self.assertFalse(verdict.readable)
+        self.assertIn("total_commits", verdict.reason)
+        self.assertEqual(verdict.failures, ())
+
+    def test_a_dropped_run_after_the_deadline_leaves_the_failure_standing(
+        self,
+    ) -> None:
+        self.unlisted_lane_dispatch()
+        self.gh.unlisted[("pr-require-checks.yml", "workflow_dispatch")][0][
+            "created_at"
+        ] = "2026-10-12T16:00:01Z"
+        verdict = self.check(now=datetime(2026, 10, 12, 17, 0, tzinfo=UTC))
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+    def test_a_dropped_run_by_another_actor_leaves_the_failure_standing(
+        self,
+    ) -> None:
+        self.gh.unlisted[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(
+                11,
+                head_sha=MERGE_SHA,
+                actor=by("maintainer"),
+                triggering_actor=by("maintainer"),
+            )
+        ]
+        verdict = self.check(now=self.LATE)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+    def test_a_dropped_row_of_another_event_leaves_the_failure_standing(
+        self,
+    ) -> None:
+        self.unlisted_lane_dispatch()
+        self.gh.unlisted[("pr-require-checks.yml", "workflow_dispatch")][0]["event"] = (
+            "schedule"
+        )
+        verdict = self.check(now=self.LATE)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+    def test_a_listed_row_of_another_event_or_head_repository_is_dropped(
+        self,
+    ) -> None:
+        for mismatch in (
+            {"event": "schedule"},
+            {"head_repository": {"full_name": "outsider/example-repo"}},
+        ):
+            with self.subTest(mismatch=mismatch):
+                self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+                    dispatch_run(11, **mismatch)
+                ]
+                self.assertFalse(self.check().merges[0].verified)
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(11)
+        ]
+        self.assertTrue(self.check().merges[0].verified)
+
+    def test_a_listing_over_the_search_cap_reads_with_a_warning(self) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.runs[("post-merge-detect-silent-revert.yml", "push")] = [
+            canary_run(21 + i) for i in range(1000)
+        ]
+        self.gh.total_counts[("post-merge-detect-silent-revert.yml", "push")] = 1500
+        verdict = self.check()
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertIn(
+            "listing-capped: post-merge-detect-silent-revert.yml push runs "
+            "total_count 1500",
+            verdict.warnings,
+        )
+
+    def test_a_listing_under_the_search_cap_and_short_is_unreadable(self) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.runs[("post-merge-detect-silent-revert.yml", "push")] = [
+            canary_run(21 + i) for i in range(40)
+        ]
+        self.gh.total_counts[("post-merge-detect-silent-revert.yml", "push")] = 50
+        verdict = self.check()
+        self.assertFalse(verdict.readable)
+        self.assertIn("total_count 50", verdict.reason)
 
     def test_a_failed_read_by_the_merge_commit_is_unreadable(self) -> None:
         self.gh.fail_reads.add(f"head_sha={MERGE_SHA}")
@@ -1583,32 +1717,6 @@ class Remediation(CheckCase):
         self.assertEqual(events, [1])
         self.assertEqual(report["dequeued"], [7010])
         self.assertEqual(report["telemetry"], {"demotion_events": 1})
-
-    def test_a_record_the_first_listing_lacked_is_matched_not_filed_again(
-        self,
-    ) -> None:
-        verdict = self.failing_verdict()
-        marker = f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=read-back -->"
-        self.gh.late_issues = [
-            {
-                "number": 8010,
-                "state": "open",
-                "body": f"{marker}\n- Detail: {verdict.failures[0].detail}",
-                "user": {"login": IDENTITY},
-            }
-        ]
-        self.gh.late_reads = {IDENTITY: 1}
-        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
-        self.assertNotIn(
-            f"repos/{REPO}/issues", [w[3] for w in self.gh.writes() if len(w) > 3]
-        )
-        self.assertEqual(report["issues"], [])
-        self.assertEqual(report["errors"], [])
-
-    def test_a_record_absent_from_both_listings_is_filed(self) -> None:
-        verdict = self.failing_verdict()
-        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
-        self.assertEqual(report["issues"], [9001])
 
     def test_remediate_never_dequeues_another_actors_entry(self) -> None:
         verdict = self.failing_verdict()
