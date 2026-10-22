@@ -1281,6 +1281,16 @@ class JavaScriptSyntax(ValidatorTestCase):
         )
         self.assertNotIn("Python-only", self.validate().stdout)
 
+    def test_brace_escapes_and_class_members_are_not_flagged(self):
+        # `\u{41}+` is a code point escape then a quantifier, and `[\A]` holds a
+        # literal A in JavaScript; neither is Python-only syntax.
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={"g": regex_grader("\\\\u{41}+\\\\p{L}+[\\\\A]", "flags: u\n")},
+        )
+        self.assertNotIn("Python-only", self.validate().stdout)
+
     @unittest.skipUnless(HAS_NODE, "node is not installed")
     def test_a_sample_javascript_sorts_the_other_way_fails(self):
         # Python reads `\A` as the start of the text; JavaScript as a literal A.

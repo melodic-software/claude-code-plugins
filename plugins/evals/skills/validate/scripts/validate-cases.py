@@ -976,9 +976,13 @@ def python_only_tokens(pattern):
         char = pattern[index]
         if char == "\\":
             following = pattern[index + 1 : index + 2]
-            if following in PY_ONLY_ESCAPES:
+            if following in PY_ONLY_ESCAPES and not in_class:
                 add("\\" + following)
             index += 2
+            if following in "upP" and pattern[index : index + 1] == "{":
+                # `\u{41}` and `\p{L}` carry a brace body, not a quantifier.
+                close = pattern.find("}", index)
+                index = len(pattern) if close == -1 else close + 1
             continue
         if in_class:
             in_class = char != "]"
