@@ -2972,17 +2972,17 @@ test("pr-unblock.yml: the apply and reply jobs take every model-call input from 
   };
   for (const [subResult, from] of [["skipped", "first"], ["success", "sub"], ["failure", "sub"]]) {
     const context = legs(subResult, from === "sub" ? full("sub") : {}, from === "first" ? full("first") : {});
-    for (const [input, [withs, output]] of Object.entries(inputs)) {
+    for (const [input, [block, output]] of Object.entries(inputs)) {
       const want = output === "scan-patch-state" ? "written" : `${from}:${output}`;
-      assert.equal(evaluate(withs[input], context), want, `${input} when the fallback call is ${subResult}`);
+      assert.equal(evaluate(block[input], context), want, `${input} when the fallback call is ${subResult}`);
     }
     assert.equal(evaluate(apply.if, context), true, `a written patch with replies when the fallback call is ${subResult}`);
   }
   // The fallback call ran and left a field empty: nothing comes from the first call.
   const mixed = legs("success", { "feedback-attempt": "2", "feedback-sha256": "s" }, full("first"));
-  for (const [input, [withs]] of Object.entries(inputs)) {
+  for (const [input, [block]] of Object.entries(inputs)) {
     if (!["review-replies-attempt", "review-replies-sha256"].includes(input)) {
-      assert.equal(evaluate(withs[input], mixed), "", `${input} never falls through to the first call`);
+      assert.equal(evaluate(block[input], mixed), "", `${input} never falls through to the first call`);
     }
   }
   assert.equal(evaluate(apply.if, mixed), false, "the first call's patch never pairs with the fallback call's replies");
