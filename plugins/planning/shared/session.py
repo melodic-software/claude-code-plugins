@@ -2820,7 +2820,7 @@ class Session:
                     votes = len(self._votes_on(qid, card_ref(mine)))
                     if mine.get("editedAfterVotes"):
                         card["editedAfterVotes"] = mine["editedAfterVotes"]
-                    if votes and old_text != text:
+                    if votes and (old_text != text or mine.get("attachments") != card.get("attachments")):
                         card["editedAfterVotes"] = votes
                 if info or (mine and mine.get("deviceInfo")):
                     card["deviceInfo"] = info or mine["deviceInfo"]
@@ -3304,7 +3304,7 @@ class Session:
             text = self._card_text(q, target)
             card = self._card(qid, target)
             edited = {"editedBy": HOST} if "edited" in card else {}  # the locked text is the owner's, not its author's
-            st["locks"][qid] = {"at": now, "by": pid, "source": {"kind": "card", "card": target, "text": text, **edited}}
+            st["locks"][qid] = {"at": now, "by": pid, "source": {"kind": "card", "card": target, "text": text, **_files(card), **edited}}
             flagged = self._lock_changed(q, text)
             return {"text": text, "flagged": flagged}
 
@@ -4313,6 +4313,12 @@ class Session:
                 if not c["attachments"]:
                     c.pop("attachments")
                     emptied.add(id(c))
+        for lk in self.state["locks"].values():  # a lock keeps its answer's files only while they last
+            src = lk["source"]
+            if uid in src.get("attachments", []):
+                src["attachments"].remove(uid)
+                if not src["attachments"]:
+                    src.pop("attachments")
         for qid, cards in self.state["cards"].items():
             for c in [c for c in cards if id(c) in emptied and not c["text"] and not {"pick", "picks", "value", "order"} & c.keys()]:
                 try:
@@ -5234,17 +5240,23 @@ class Session:
             return labels[str(c["value"])]
         return labels.get(c.get("pick"), "")
 
+    def _named(self, q, ref):
+        """How the digest names the answer `ref` of q: its text, and its files, so an answer of pictures alone is
+        still told apart; None when that answer is gone."""
+        try:
+            return {"text": self._card_text(q, ref), **_files(self._card(q["id"], ref))}
+        except DomainError:
+            return None
+
     def _digest_disagreements(self, q, by):
         """Who disagreed with which answer of q and why, while that answer and its disagreer remain."""
         out = []
         for d in self.state.get("disagreements", {}).get(q["id"], []):
             if not self._active(d["pid"]):
                 continue
-            try:
-                text = self._card_text(q, d["card"])
-            except DomainError:
-                continue
-            out.append({"text": text, "reason": d["reason"], **by(d["pid"])})
+            named = self._named(q, d["card"])
+            if named is not None:
+                out.append({**named, "reason": d["reason"], **by(d["pid"])})
         return out
 
     def _digest_turns(self, q, by):
@@ -5273,19 +5285,16 @@ class Session:
         st, qid, out = self.state, q["id"], []
 
         def about(ref):
-            try:
-                return self._card_text(q, ref)
-            except DomainError:
-                return None
+            return self._named(q, ref)
 
         ref = st["votes"].get(qid, {}).get(pid)
         if ref and not ref.startswith("o:") and about(ref) is not None:
-            out.append({"act": "vote", "text": about(ref)})
-        out += [{"act": "back", "text": about(r)} for r in st.get("backs", {}).get(qid, {}).get(pid, []) if about(r) is not None]
+            out.append({"act": "vote", **about(ref)})
+        out += [{"act": "back", **about(r)} for r in st.get("backs", {}).get(qid, {}).get(pid, []) if about(r) is not None]
         for r, held in st["reactions"].get(qid, {}).items():
             if pid in held and about(r) is not None:
-                out.append({"act": "reaction", "text": about(r), "reactions": list(held[pid])})
-        out += [{"act": "disagree", "text": about(d["card"]), "reason": d["reason"]} for d in st.get("disagreements", {}).get(qid, []) if d["pid"] == pid and about(d["card"]) is not None]
+                out.append({"act": "reaction", **about(r), "reactions": list(held[pid])})
+        out += [{"act": "disagree", **about(d["card"]), "reason": d["reason"]} for d in st.get("disagreements", {}).get(qid, []) if d["pid"] == pid and about(d["card"]) is not None]
         mine = st.get("passes", {}).get(qid, {}).get(pid)
         if mine is not None:
             out.append({"act": "pass", "text": "", **({"reason": mine["reason"]} if "reason" in mine else {})})
@@ -5322,7 +5331,7 @@ class Session:
             return {"kind": "poll", "closed": lk is not None, "counts": counts}
         if lk:
             src = lk["source"]
-            out = {"kind": "locked", "text": src["text"]}
+            out = {"kind": "locked", "text": src["text"], **_files(src)}
             if src["kind"] == "card":
                 ref = src["card"]
                 out["source"] = {"p": "person", "o": "option"}.get(ref[0]) or ("claude-rec" if ref == "c:rec" else "claude-alt")

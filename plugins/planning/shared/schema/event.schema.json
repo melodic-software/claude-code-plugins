@@ -400,7 +400,7 @@
             "type": "object",
             "required": ["text", "reason"],
             "additionalProperties": false,
-            "properties": {"text": {"type": "string"}, "reason": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
+            "properties": {"text": {"type": "string"}, "attachments": {"$ref": "#/$defs/answerFiles"}, "reason": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
           }
         },
         "outcome": {
@@ -412,6 +412,7 @@
               "properties": {
                 "kind": {"enum": ["locked"]},
                 "text": {"type": "string"},
+                "attachments": {"$ref": "#/$defs/answerFiles"},
                 "source": {"enum": ["person", "claude-rec", "claude-alt", "option", "edited", "suggestion"]},
                 "by": {"$ref": "#/$defs/by"},
                 "edited": {"$ref": "#/$defs/edited"}

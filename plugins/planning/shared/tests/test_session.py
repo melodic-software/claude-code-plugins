@@ -5580,6 +5580,7 @@ class TestPictureOnlyAnswer(UploadCase):
         self.act("lock", HOST, {"qid": "Q1", "card": f"p:{self.ann}"})
         self.act("act_on_upload", self.ann, {"id": uid, "action": "withdraw"})
         self.assertEqual(self.card("Q1", self.ann)["text"], "")
+        self.assertNotIn("attachments", self.s.state["locks"]["Q1"]["source"])
         self.assertIsNone(session.document_error(self.disk()))
 
     def test_a_picture_only_answer_in_a_sent_round_stays_when_its_picture_goes(self):
@@ -5603,6 +5604,39 @@ class TestPictureOnlyAnswer(UploadCase):
         self.apply({"op": "open-round", "questions": [text_q("Q7")]})
         self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
         self.assertEqual(digest_of(self)["late"], [{"id": "Q1", "round": 1, "text": "", "attachments": [uid]}])
+
+    def test_a_locked_picture_only_answer_carries_its_files_to_the_digest(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.act("lock", HOST, {"qid": "Q1", "card": f"p:{self.ann}"})
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"]["attachments"], [uid])
+        outcome = {q["id"]: q for q in digest_of(self)["questions"]}["Q1"]["outcome"]
+        self.assertEqual((outcome["kind"], outcome["text"], outcome["attachments"]), ("locked", "", [uid]))
+
+    def test_a_disagreement_with_a_picture_only_answer_names_its_files(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.act("disagree", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "reason": "Wrong box"})
+        q1 = {q["id"]: q for q in digest_of(self)["questions"]}["Q1"]
+        self.assertEqual(q1["disagreements"], [{"text": "", "reason": "Wrong box", "attachments": [uid]}])
+
+    def test_a_late_vote_on_a_picture_only_answer_names_its_files(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.send()
+        self.ack(1)
+        self.apply({"op": "open-round", "questions": [text_q("Q7")]})
+        self.act("vote", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.assertIn({"id": "Q1", "round": 1, "act": "vote", "text": "", "attachments": [uid]}, digest_of(self)["late"])
+
+    def test_changing_a_picture_only_answers_pictures_after_votes_marks_it_edited(self):
+        first, second = self.offered_and_accepted(self.ann), self.offered_and_accepted(self.ann, name="back.pdf")
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [first]})
+        self.act("vote", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [first]})
+        self.assertNotIn("editedAfterVotes", self.card("Q1", self.ann))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [second]})
+        self.assertEqual(self.card("Q1", self.ann)["editedAfterVotes"], 1)
 
     def test_backing_an_own_option_keeps_a_picture_only_card(self):
         uid = self.offered_and_accepted(self.ann)
