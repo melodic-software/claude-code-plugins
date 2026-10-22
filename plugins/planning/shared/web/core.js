@@ -143,7 +143,11 @@
       const { format: _, ...rest } = q, out = { ...rest, text: plain(q.text), purpose: q.purpose || "decide" };
       if (f.kind === "choice") { out.format = "choice"; out.options = f.options; }
       // Q98: a prototype's variants pick like options here; the question links its own page (/proto/<qid>) to try them.
-      else if (f.kind === "prototype") { out.format = "choice"; out.options = f.variants.map(v => ({ id: v.id, label: v.label })); out.variants = f.variants; }
+      // lookAt: where to look (the area the variants change, the step that shows it); a question from before it has none.
+      else if (f.kind === "prototype") {
+        out.format = "choice"; out.options = f.variants.map(v => ({ id: v.id, label: v.label })); out.variants = f.variants;
+        if (f.lookAt) out.lookAt = f.lookAt;
+      }
       else if (f.kind === "confirm") { out.format = "confirm"; out.image = f.image; out.rect = f.rect; out.options = [{ id: "opt-yes", label: "Yes" }, { id: "opt-no", label: "No" }]; }
       else if (f.kind === "multi" || f.kind === "rank") { out.format = f.kind; out.options = f.options.map(o => ({ ...o, id: optIn(o.id) })); }
       else if (f.kind === "scale") {
@@ -483,15 +487,25 @@
     canModerate: () => Core.me.isOwner || Core.me.isLeader,
     lockOf: qid => Core.state.locks[qid] || null,
     suggestionsFor: qid => Core.state.suggestions[qid] || [],
-    /** Which of a prototype variant's views the session switched off (prototypeTiers): "screenshot" for a picture,
-     *  "snapshot" for an html file, "off" when this viewer's state left the view out (a guest's), "" while it shows. */
-    viewOff: v => (!v?.asset ? "off" : (t => (Core.state.settings.prototypeTiers.includes(t) ? "" : t))(/\.html$/.test(v.asset) ? "snapshot" : "screenshot")),
+    /** A prototype variant's views as this viewer's state holds them: {shots: [pictures], snapshot: html file or ""}.
+     *  A variant with one view is written as `asset` (the shape earlier builds read), taken here by its file's kind. */
+    viewsOf: v => (v?.asset ? (/\.html$/.test(v.asset) ? { shots: [], snapshot: v.asset } : { shots: [v.asset], snapshot: "" })
+      : { shots: v?.shots || [], snapshot: v?.snapshot || "" }),
+    /** Which of a prototype variant's views the session switched off (prototypeTiers), in order: "screenshot" for its
+     *  pictures, "snapshot" for its html file; ["off"] when this viewer's state holds none of them (a guest's with them
+     *  off); [] while every view shows. */
+    viewsOff(v) {
+      const { shots, snapshot } = Core.viewsOf(v), on = Core.state.settings.prototypeTiers;
+      if (!shots.length && !snapshot) return ["off"];
+      return [...(shots.length && !on.includes("screenshot") ? ["screenshot"] : []), ...(snapshot && !on.includes("snapshot") ? ["snapshot"] : [])];
+    },
     /** One prototype variant's versions, oldest first, along the `previous` links between prototype questions:
-     *  [{qid, variant, label, asset, round, n, current}], `current` on the newest. Empty for a variant not in the session. */
+     *  [{qid, variant, label, views, round, n, current}] (views as viewsOf), `current` on the newest. Empty for a variant
+     *  not in the session. */
     versionsOf(qid, vid) {
       const at = new Map(), next = new Map(), key = (q, v) => `${q}/${v}`;
       for (const q of Core.state.questions) for (const v of q.formatKind === "prototype" ? q.variants || [] : []) {
-        at.set(key(q.id, v.id), { qid: q.id, variant: v.id, label: v.label, asset: v.asset, round: q.round, previous: v.previous });
+        at.set(key(q.id, v.id), { qid: q.id, variant: v.id, label: v.label, views: Core.viewsOf(v), round: q.round, previous: v.previous });
         if (v.previous) next.set(key(v.previous.qid, v.previous.variant), key(q.id, v.id));
       }
       if (!at.has(key(qid, vid))) return [];
