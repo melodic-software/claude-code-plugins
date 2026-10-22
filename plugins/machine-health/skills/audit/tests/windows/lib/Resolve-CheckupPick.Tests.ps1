@@ -17,7 +17,9 @@ BeforeAll {
         format = 'checkup-ids/1'; run_id = '2026-10-21T07:00:00.0000000-05:00'; built_at = 'x'; page_sha256 = 'x'
         rows   = @{
             'areas-1-items-1-mute-1' = @{ action = 'mute'; check_id = 'browser-extensions'; finding_key = $script:KeyA; label = "Bad`nExtension" }
-            'areas-2-items-1-mute-1' = @{ action = 'mute'; check_id = 'defender-exclusions'; finding_key = $script:KeyX; label = 'C:\Tools' }
+            'areas-2-items-1-mute-1' = @{ action = 'mute'; check_id = 'defender-exclusions'; finding_key = $script:KeyX; label = '(exclusion value withheld) path' }
+            'areas-2-items-2-mute-1' = @{ action = 'mute'; check_id = 'services'; finding_key = $script:KeyX; label = 'x' }
+            'areas-2-items-3-mute-1' = @{ action = 'mute'; check_id = 'not-a-check'; finding_key = $script:KeyX; label = 'x' }
             'areas-3-items-1-mute-1' = @{ action = 'mute'; check_id = 'not-a-check'; finding_key = $script:KeyA; label = 'x' }
             'areas-4-items-1-mute-1' = @{ action = 'mute'; check_id = 'services'; finding_key = 'svc:nothex'; label = 'x' }
             'remediations-1'         = @{ action = 'approve'; remediation_id = 'clear-temp-files' }
@@ -59,10 +61,28 @@ Describe 'Resolve-CheckupPick' -Tag 'lib' {
             $p.Refused | Should -BeNullOrEmpty
         }
 
-        It 'mutes an exclusion key under both defender and defender-exclusions' {
+        It 'mutes an exclusion key under every check that builds exclusion items' {
+            # The owners are the shipped checks whose script dot-sources New-DefenderExclusionItem.ps1.
+            $catalog = Get-Content -LiteralPath (Join-Path $script:SkillRoot 'catalog\checks.jsonc') -Raw | ConvertFrom-Jsonc
+            $owners = @($catalog.checks | Where-Object {
+                    Select-String -LiteralPath (Join-Path $script:SkillRoot $_.script) -SimpleMatch 'New-DefenderExclusionItem.ps1' -Quiet
+                } | ForEach-Object { [string]$_.id } | Sort-Object)
+            $owners.Count | Should -BeGreaterThan 1
+
             $p = @(Resolve-CheckupPick -ViewsDir $script:Views -Payload (Get-Payload 'areas-2-items-1-mute-1'))
-            $p.CheckId | Should -Be @('defender', 'defender-exclusions')
-            $p.FindingKey | Should -Be @($script:KeyX, $script:KeyX)
+            @($p.CheckId | Sort-Object) | Should -Be $owners
+            @($script:DefenderExclusionCheckIds | Sort-Object) | Should -Be $owners
+            $p.FindingKey | Sort-Object -Unique | Should -Be $script:KeyX
+            $p.Refused | Where-Object { $_ } | Should -BeNullOrEmpty
+        }
+
+        It 'resolves an id of the older map with that map''s run' {
+            $p = @(Resolve-CheckupPick -ViewsDir $script:Views -Payload (Get-Payload 'areas-9-items-9-mute-1' -Run '2026-10-20t120000000z'))
+            $p.Count | Should -Be 1
+            $p[0].RunId | Should -Be 'run-b'
+            $p[0].CheckId | Should -Be 'services'
+            $p[0].Label | Should -Be 'only in B'
+            $p[0].Refused | Should -BeNullOrEmpty
         }
 
         It 'keeps a multi-line note whole and never reads a run: or picked: line inside it' {
@@ -92,6 +112,25 @@ Describe 'Resolve-CheckupPick' -Tag 'lib' {
         It 'refuses an id present only in another kept map' {
             $p = Resolve-CheckupPick -ViewsDir $script:Views -Payload (Get-Payload 'areas-9-items-9-mute-1')
             $p.Refused | Should -Match 'not a row'
+        }
+
+        It 'refuses a row of the newer map when the payload names the older run' {
+            $p = Resolve-CheckupPick -ViewsDir $script:Views -Payload (Get-Payload 'remediations-1' -Run '2026-10-20t120000000z')
+            $p.Refused | Should -Be 'not a row of run 2026-10-20T120000000Z'
+            $p.Action | Should -BeNullOrEmpty
+        }
+
+        It 'refuses an exclusion key under a check that does not build exclusion items' {
+            $p = @(Resolve-CheckupPick -ViewsDir $script:Views -Payload (Get-Payload 'areas-2-items-2-mute-1'))
+            $p.Count | Should -Be 1
+            $p[0].CheckId | Should -Be 'services'
+            $p[0].Refused | Should -Match 'exclusion key'
+        }
+
+        It 'refuses an exclusion key under a check that is not shipped' {
+            $p = @(Resolve-CheckupPick -ViewsDir $script:Views -Payload (Get-Payload 'areas-2-items-3-mute-1'))
+            $p.Count | Should -Be 1
+            $p[0].Refused | Should -Match "'not-a-check' is not a shipped check"
         }
 
         It 'refuses an id that does not match the row id pattern' -ForEach @(
@@ -137,6 +176,12 @@ Describe 'Resolve-CheckupPick' -Tag 'lib' {
             @{ Why = 'an uppercase run stamp'; Text = "checkup-picks`npicked: none`nrun: 2026-10-21T120000000Z" }
         ) {
             { Resolve-CheckupPick -ViewsDir $script:Views -Payload $Text } | Should -Throw '*payload refused*'
+        }
+
+        It 'refuses a run stamp with a non-ASCII digit as not a run stamp' {
+            # U+0662 ARABIC-INDIC DIGIT TWO matches \d but is not a run stamp digit.
+            $text = "checkup-picks`npicked: none`nrun: $([char]0x0662)026-10-21t120000000z"
+            { Resolve-CheckupPick -ViewsDir $script:Views -Payload $text } | Should -Throw '*not a run stamp*'
         }
 
         It 'refuses a map that is not a checkup-ids/1 map' {

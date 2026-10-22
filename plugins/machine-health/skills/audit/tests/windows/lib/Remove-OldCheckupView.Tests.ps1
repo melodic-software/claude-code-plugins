@@ -48,6 +48,24 @@ Describe 'Remove-OldCheckupView' -Tag 'lib' {
         Join-Path $script:Views 'checkup-2026-01-01T000000000Z.html.bak' | Should -Exist
     }
 
+    It 'counts no file whose stamp holds a non-ASCII digit as a run, and never deletes it' {
+        # U+0662 ARABIC-INDIC DIGIT TWO matches \d; ordinally it sorts after every ASCII digit,
+        # so counted as a run it would be the newest and push run 3 out of the kept 12.
+        $odd = Join-Path $script:Views "checkup-$([char]0x0662)026-01-15T000000000Z.html"
+        Set-Content -LiteralPath $odd -Value 'keep me'
+
+        $deleted = @(Remove-OldCheckupView -ViewsDir $script:Views -CurrentStamp (Get-Stamp 14))
+
+        $deleted.Count | Should -Be 6
+        $odd | Should -Exist
+        Join-Path $script:Views "checkup-$(Get-Stamp 3).html" | Should -Exist
+    }
+
+    It 'refuses a current stamp with a non-ASCII digit' {
+        { Remove-OldCheckupView -ViewsDir $script:Views -CurrentStamp "$([char]0x0662)026-01-14T000000000Z" } |
+            Should -Throw '*CurrentStamp*'
+    }
+
     It 'deletes nothing when the current run has no complete page (the build failed)' {
         Remove-Item -LiteralPath (Join-Path $script:Views "checkup-$(Get-Stamp 14).html")
 

@@ -25,7 +25,7 @@ function Remove-OldCheckupView {
     [OutputType([string])]
     param(
         [Parameter(Mandatory = $true)] [string] $ViewsDir,
-        [Parameter(Mandatory = $true)] [ValidatePattern('^\d{4}-\d{2}-\d{2}T\d{9}Z$')] [string] $CurrentStamp,
+        [Parameter(Mandatory = $true)] [ValidatePattern('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{9}Z$')] [string] $CurrentStamp,
         [ValidateRange(1, 1000)] [int] $Keep = 12
     )
 
@@ -37,9 +37,9 @@ function Remove-OldCheckupView {
 
     $stamps = [System.Collections.Generic.SortedSet[string]]::new([StringComparer]::Ordinal)
     foreach ($file in Get-ChildItem -LiteralPath $ViewsDir -File) {
-        if ($file.Name -cmatch '^checkup-(\d{4}-\d{2}-\d{2}T\d{9}Z)\.(html|json|ids\.json)$') { [void]$stamps.Add($Matches[1]) }
+        if ($file.Name -cmatch '^checkup-([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{9}Z)\.(html|json|ids\.json)$') { [void]$stamps.Add($Matches[1]) }
     }
-    $older = @($stamps | Sort-Object -Descending | Select-Object -Skip $Keep | Where-Object { $_ -cne $CurrentStamp })
+    $older = @($stamps.Reverse() | Select-Object -Skip $Keep | Where-Object { $_ -cne $CurrentStamp })
     foreach ($stamp in $older) {
         foreach ($path in & $pathsOf $stamp) {
             if ((Test-Path -LiteralPath $path -PathType Leaf) -and $PSCmdlet.ShouldProcess($path, 'Remove')) {
