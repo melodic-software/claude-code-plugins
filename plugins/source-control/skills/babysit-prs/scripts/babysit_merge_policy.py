@@ -464,6 +464,10 @@ def _rest_actor(actor: Any) -> dict[str, Any] | None:
 # run, so a review still running at the head (scored MED, evidence unbound)
 # finishes before its refusal is labeled (judgment).
 RISK_ESCALATION_MINUTES = 60
+# `merge.quarantine-days` when absent or not a whole number from 1 to
+# `MAX_QUARANTINE_DAYS`.
+QUARANTINE_DAYS = 7
+MAX_QUARANTINE_DAYS = 30
 # The default `merge.max-verify-fails`: three heads' FAILs is a pull request
 # the verifier keeps refusing, not one noisy verdict (owner decision
 # 2026-10-21).
@@ -548,6 +552,10 @@ class PipelineConfig:
     # The default branch head's `merge.check-inputs` not in `check_inputs`,
     # set by `stricter_config` and read on its own.
     head_check_inputs: tuple[str, ...] = ()
+    # `merge.quarantine-days`: days a quarantined suite's failures on the
+    # default branch stop demoting (`babysit_postmerge`). Absent, or anything
+    # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
+    quarantine_days: int = QUARANTINE_DAYS
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -687,6 +695,7 @@ def read_config_at(
             ("merge.risk-escalation-minutes", False),
             ("merge.max-verify-fails", False),
             ("merge.check-inputs", True),
+            ("merge.quarantine-days", False),
         ],
     )
     if values is None:
@@ -771,6 +780,16 @@ def read_config_at(
             f"merge.max-verify-fails {verify_fails!r} is not a count of 1 or more"
         )
         verify_fails = "1"
+    quarantine_days = scalar("merge.quarantine-days")
+    if quarantine_days is not None and not (
+        re.fullmatch(r"[1-9][0-9]?", quarantine_days)
+        and int(quarantine_days) <= MAX_QUARANTINE_DAYS
+    ):
+        notes.append(
+            f"merge.quarantine-days {quarantine_days!r} is not a count from 1 to "
+            f"{MAX_QUARANTINE_DAYS}"
+        )
+        quarantine_days = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -796,6 +815,7 @@ def read_config_at(
         else RISK_ESCALATION_MINUTES,
         max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
         check_inputs=tuple(values["merge.check-inputs"]),
+        quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
     )
 
 

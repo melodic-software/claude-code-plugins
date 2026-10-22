@@ -614,6 +614,12 @@ merge:
   # whatever a later pass says, so pushing until the verifier passes once
   # does not merge it (owner decision 2026-10-21).
   max-verify-fails: 3
+  # Days a suite failing on main outside the merges' affected set stays
+  # quarantined: its quarantine issue excuses its failures from demotion
+  # until it closes or is this old, then they demote again, even when the
+  # suite was already red before the merge. 7 is judgment (owner decision
+  # Q645 left the default to planning); at most 30.
+  quarantine-days: 7
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane
