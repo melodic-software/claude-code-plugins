@@ -7,12 +7,13 @@ Merge an elevated pass's result file into a standard run's check results.
 .DESCRIPTION
 The acceptance rules are in reference/windows/elevation-matrix.md, "How to run
 elevated". A refused file changes no result and adds one UNKNOWN
-'elevated-pass' result naming why. An accepted file replaces the result for
-each check id both the run and -AllowedCheckIds hold; a result for an id
-outside -AllowedCheckIds is dropped and counted in one INFO 'elevated-pass'
-result.
+'elevated-pass' result naming why. An accepted file replaces the run's result
+for each check id in -AllowedCheckIds and appends the ones the run lacks; a
+result for an id outside -AllowedCheckIds is dropped and counted in one INFO
+'elevated-pass' result. A file whose ran_at is more than -MaxAge before
+-RunStart is refused.
 
-Returns Results (the merged list), ElevatedChecks (the ids replaced), Rejected
+Returns Results (the merged list), ElevatedChecks (the ids imported), Rejected
 (the refusal reason, or $null) and Log (the document's log lines, each one
 line and capped, at most 200; empty when refused).
 #>
@@ -30,7 +31,9 @@ function Import-ElevatedResult {
         [Parameter(Mandatory = $true)] [string] $Path,
         [AllowEmptyCollection()] [object[]] $CheckResults = @(),
         [string[]] $AllowedCheckIds = @(Get-ElevationMatrix | ForEach-Object { [string]$_.CheckId } | Select-Object -Unique),
-        [string] $CurrentUserSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        [string] $CurrentUserSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value,
+        [datetime] $RunStart = (Get-Date),
+        [timespan] $MaxAge = [timespan]::FromHours(24)
     )
 
     $fullPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
@@ -57,7 +60,8 @@ function Import-ElevatedResult {
         }
         $sid = & $field 'user_sid'
         if ($sid -isnot [string] -or $sid -cne $CurrentUserSid) {
-            throw "user_sid '$sid' is not this user's SID."
+            throw ('the result was written by another account: UAC ran the pass with a different ' +
+                "administrator's credentials, so its per-user readings describe that account (user_sid '$sid').")
         }
 
         $ranAtValue = & $field 'ran_at'
@@ -71,6 +75,9 @@ function Import-ElevatedResult {
         if ($null -eq $ranAt) { throw 'ran_at is missing or not a date-time.' }
         if ($ranAt.UtcDateTime -le $createdUtc) {
             throw "ran_at $($ranAt.ToString('o')) is not later than the file's creation time $($createdUtc.ToString('o'))."
+        }
+        if ($ranAt.UtcDateTime -lt $RunStart.ToUniversalTime().Subtract($MaxAge)) {
+            throw "ran_at $($ranAt.ToString('o')) is more than $($MaxAge.TotalHours) hours before this run started."
         }
 
         $results = & $field 'results'
@@ -105,15 +112,23 @@ function Import-ElevatedResult {
         }
     }
 
-    $replaced = [System.Collections.Generic.List[string]]::new()
+    $imported = [System.Collections.Generic.List[string]]::new()
     $merged = [System.Collections.Generic.List[object]]::new()
     foreach ($result in $CheckResults) {
         $id = [string]$result.id
-        if ($elevatedById.Contains($id)) {
-            $replaced.Add($id)
+        if ($elevatedById.Contains($id) -and -not $imported.Contains($id)) {
+            $imported.Add($id)
             $merged.Add($elevatedById[$id])
         } else {
             $merged.Add($result)
+        }
+    }
+    # A matrix check the run did not dispatch (switched off, or deferred by cadence)
+    # still gets the elevated reading.
+    foreach ($id in $elevatedById.Keys) {
+        if (-not $imported.Contains($id)) {
+            $imported.Add($id)
+            $merged.Add($elevatedById[$id])
         }
     }
     if ($droppedIds.Count -gt 0) {
@@ -127,7 +142,7 @@ function Import-ElevatedResult {
     }
     return [pscustomobject]@{
         Results        = $merged.ToArray()
-        ElevatedChecks = [string[]]$replaced.ToArray()
+        ElevatedChecks = [string[]]$imported.ToArray()
         Rejected       = $null
         Log            = [string[]]$log.ToArray()
     }

@@ -109,6 +109,7 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Assert-StateBaseLocation.ps1')
 . (Join-Path $libRoot 'New-RunSnapshot.ps1')
 . (Join-Path $libRoot 'Import-ElevatedResult.ps1')
+. (Join-Path $libRoot 'Get-RanCheckId.ps1')
 . (Join-Path $libRoot 'New-UnknownCheckResult.ps1')
 
 # stderr keeps stdout clean for the JSON snapshot.
@@ -544,7 +545,7 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
     # analysis, so the trend and the report read the elevated reading.
     $elevatedChecks = @()
     if ($ElevatedResultPath) {
-        $import = Import-ElevatedResult -Path $ElevatedResultPath -CheckResults $checkResults.ToArray()
+        $import = Import-ElevatedResult -Path $ElevatedResultPath -CheckResults $checkResults.ToArray() -RunStart $runStart
         $checkResults = [System.Collections.Generic.List[object]]::new([object[]]$import.Results)
         $elevatedChecks = @($import.ElevatedChecks)
         $importOutcome = if ($import.Rejected) { "rejected reason=$($import.Rejected)" } else { "imported checks=$($elevatedChecks -join ',')" }
@@ -552,18 +553,8 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         foreach ($line in $import.Log) { Write-MachineHealthLog "elevated: $line" }
     }
 
-    # Ids of dispatched checks whose final result (after any import) ran
-    # successfully: history.jsonl checks_ran, the last-run signal cadence selection
-    # and trend annotation read. A failed result (ran_successfully false, a timeout,
-    # no output, invalid JSON) is no cadence signal: counting it would defer a
-    # monthly check ~27 days instead of retrying it next run.
-    $dispatchedIds = @($windowsChecks | ForEach-Object { [string]$_.id })
-    $ranCheckIds = [System.Collections.Generic.List[string]]::new()
-    foreach ($r in $checkResults) {
-        if ($r.ran_successfully -and [string]$r.id -cin $dispatchedIds -and -not $ranCheckIds.Contains([string]$r.id)) {
-            $ranCheckIds.Add([string]$r.id)
-        }
-    }
+    $ranCheckIds = @(Get-RanCheckId -CheckResults $checkResults.ToArray() `
+            -DispatchedIds @($windowsChecks | ForEach-Object { [string]$_.id }) -ImportedIds $elevatedChecks)
 
     # Trend-aware severity adjustment + annotation per severity-rubric.md. Trend
     # reads the recent slice (last ~8 runs); cadence uses the full depth above.

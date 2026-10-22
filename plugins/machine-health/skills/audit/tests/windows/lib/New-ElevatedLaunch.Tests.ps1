@@ -13,6 +13,8 @@ BeforeAll {
 
     $script:Pwsh = (Get-Process -Id $PID).Path
     $script:SavedOneDrive = $env:OneDrive
+    # The session token of an administrator under UAC; a case below overrides it.
+    Mock Get-TokenElevationType { 'Limited' }
 
     # Run the launch string in a child pwsh; returns its exit code and the parameters
     # the stub orchestrator wrote to bound.json (UTF-8, so no console code page alters
@@ -50,6 +52,7 @@ param($OutputBase, $StateBase, $RunMode, [switch] $SkipBanner, $ResultPath, $Res
     OutputBase = $OutputBase; StateBase = $StateBase; RunMode = $RunMode; SkipBanner = $SkipBanner.IsPresent
     ResultPath = $ResultPath; ResultFileId = $ResultFileId
 } | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'bound.json') -Encoding utf8
+exit 5
 '@
         # Characters PowerShell would read as code outside a single-quoted literal.
         $script:root = $root
@@ -123,12 +126,12 @@ param($OutputBase, $StateBase, $RunMode, [switch] $SkipBanner, $ResultPath, $Res
         $statements[3].Extent.Text | Should -BeExactly 'exit $LASTEXITCODE'
     }
 
-    It 'round-trips the paths through Start-Process and pwsh -Command' {
+    It 'round-trips the paths through Start-Process and pwsh -Command and returns the orchestrator''s exit code' {
         $launch = New-ElevatedLaunch -OutputBase $script:outputBase -StateBase $script:stateBase -SkillRoot $script:skillRoot
 
         $run = Invoke-LaunchString -ArgumentString $launch.ArgumentString -WorkDir $script:work -BoundPath $script:boundPath
 
-        $run.ExitCode | Should -Be 0
+        $run.ExitCode | Should -Be 5
         $run.Bound.StateBase | Should -BeExactly $script:stateBase
         $run.Bound.OutputBase | Should -BeExactly $script:outputBase
         $run.Bound.ResultPath | Should -BeExactly $launch.ResultPath
@@ -175,6 +178,31 @@ param($OutputBase, $StateBase, $RunMode, [switch] $SkipBanner, $ResultPath, $Res
             Should -Throw '*single quote*'
     }
 
+    It 'stamps the file names with the Gregorian UTC year under a culture with another calendar' {
+        $saved = [cultureinfo]::CurrentCulture
+        [cultureinfo]::CurrentCulture = 'th-TH'
+        try {
+            $launch = New-ElevatedLaunch -OutputBase $script:outputBase -StateBase $script:stateBase -SkillRoot $script:skillRoot
+        } finally {
+            [cultureinfo]::CurrentCulture = $saved
+        }
+
+        $year = (Get-Date).ToUniversalTime().Year
+        (Split-Path -Leaf $launch.ResultPath) | Should -BeLike "elevated-result-$year-*"
+        (Split-Path -Leaf $launch.ScriptPath) | Should -BeLike "elevated-run-$year-*"
+    }
+
+    It 'refuses a session token with a <Type> elevation type and creates nothing' -ForEach @(
+        @{ Type = 'Default' }
+        @{ Type = 'Full' }
+    ) {
+        Mock Get-TokenElevationType { $Type }
+
+        { New-ElevatedLaunch -OutputBase $script:outputBase -StateBase $script:stateBase -SkillRoot $script:skillRoot } |
+            Should -Throw "*elevation type is $Type*"
+        Test-Path -LiteralPath $script:stateBase | Should -BeFalse
+    }
+
     It 'refuses a state folder under a OneDrive root and creates nothing there' {
         $env:OneDrive = Split-Path -Parent $script:stateBase
         try {
@@ -205,6 +233,14 @@ Describe 'Get-ElevatedLaunch' -Tag 'lib' {
         }
     }
 
+    It 'refuses a script whose name carries another stamp than its result path' {
+        $renamed = Join-Path (Split-Path -Parent $script:launch.ScriptPath) 'elevated-run-2000-01-01T000000000Z.ps1'
+        Move-Item -LiteralPath $script:launch.ScriptPath -Destination $renamed
+
+        { Get-ElevatedLaunch -StateBase $script:stateBase -ScriptSha256 $script:launch.ScriptSha256 } |
+            Should -Throw '*elevated-result-2000-01-01T000000000Z.json*'
+    }
+
     It 'finds nothing once the script no longer hashes to the shown value' {
         Add-Content -LiteralPath $script:launch.ScriptPath -Value ' ' -NoNewline
 
@@ -222,14 +258,17 @@ Describe 'Start-ElevatedLaunch' -Tag 'lib' {
         $script:launch = New-ElevatedLaunch -OutputBase (Join-Path $root 'out') -StateBase (Join-Path $root 'state') `
             -SkillRoot $script:skillRoot
         $script:received = [System.Collections.Generic.List[string]]::new()
-        $script:fakeLauncher = { param($ArgumentString) $script:received.Add($ArgumentString); 7 }
+        $script:receivedFile = [System.Collections.Generic.List[string]]::new()
+        $script:fakeLauncher = { param($FilePath, $ArgumentString)
+            $script:receivedFile.Add($FilePath); $script:received.Add($ArgumentString); 7 }
     }
 
-    It 'hands the launcher the record''s exact argument string and returns its exit code' {
+    It 'hands the launcher this session''s own pwsh and the record''s exact argument string, and returns its exit code' {
         $code = Start-ElevatedLaunch -Launch $script:launch -Launcher $script:fakeLauncher
 
         $code | Should -Be 7
         @($script:received) | Should -Be @($script:launch.ArgumentString)
+        @($script:receivedFile) | Should -Be @($script:Pwsh)
     }
 
     It 'refuses a record whose argument string was changed' {

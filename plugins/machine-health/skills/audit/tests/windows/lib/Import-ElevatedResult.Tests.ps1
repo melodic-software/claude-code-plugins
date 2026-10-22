@@ -77,14 +77,27 @@ Describe 'Import-ElevatedResult' -Tag 'lib' {
         @(Get-Note $import).Count | Should -Be 0
     }
 
-    It 'drops an elevated result for a check the standard run does not hold' {
+    It 'appends an elevated result for a matrix check the standard run did not dispatch and lists it' {
         $extra = Get-CheckResultFixture -Id 'tpm-bitlocker' -Category 'security' -Severity 'OK' -Summary 'not in this run'
-        $path = Write-ElevatedResultFixture -Results @($extra)
+        $path = Write-ElevatedResultFixture -Results @($extra, $script:elevatedDisk)
 
         $import = Import-ElevatedResult -Path $path -CheckResults $script:standard
 
-        @($import.Results.id) | Should -Be @('disk-space', 'services')
-        @($import.ElevatedChecks).Count | Should -Be 0
+        $import.Rejected | Should -BeNullOrEmpty
+        @($import.Results.id) | Should -Be @('disk-space', 'services', 'tpm-bitlocker')
+        ($import.Results | Where-Object id -EQ 'tpm-bitlocker').summary | Should -BeExactly 'not in this run'
+        @($import.ElevatedChecks) | Should -Be @('disk-space', 'tpm-bitlocker')
+        @(Get-Note $import).Count | Should -Be 0
+    }
+
+    It 'accepts a result written 23 hours before the importing run started' {
+        $path = Write-ElevatedResultFixture -Results @($script:elevatedDisk)
+        $runStart = [System.IO.File]::GetCreationTimeUtc($path).AddHours(23)
+
+        $import = Import-ElevatedResult -Path $path -CheckResults $script:standard -RunStart $runStart
+
+        $import.Rejected | Should -BeNullOrEmpty
+        @($import.ElevatedChecks) | Should -Be @('disk-space')
     }
 
     It 'drops a result for a check with no elevation-matrix row and counts it in one INFO note' {
@@ -123,7 +136,7 @@ Describe 'Import-ElevatedResult' -Tag 'lib' {
             @{ Case = 'a result failing Assert-CheckResult'; Format = 'elevated-result/1'; OffsetSeconds = 5; Elevated = $true; Sid = 'current'; Bad = $true; Reason = '*severity*' }
             @{ Case = 'elevated false'; Format = 'elevated-result/1'; OffsetSeconds = 5; Elevated = $false; Sid = 'current'; Bad = $false; Reason = '*elevated is not true*' }
             @{ Case = 'elevated as the string true'; Format = 'elevated-result/1'; OffsetSeconds = 5; Elevated = 'true'; Sid = 'current'; Bad = $false; Reason = '*elevated is not true*' }
-            @{ Case = 'another user''s SID'; Format = 'elevated-result/1'; OffsetSeconds = 5; Elevated = $true; Sid = 'S-1-5-18'; Bad = $false; Reason = '*user_sid*' }
+            @{ Case = 'another user''s SID'; Format = 'elevated-result/1'; OffsetSeconds = 5; Elevated = $true; Sid = 'S-1-5-18'; Bad = $false; Reason = '*written by another account*describe that account*' }
         ) {
             $results = @($script:elevatedDisk)
             if ($Bad) {
@@ -155,6 +168,17 @@ Describe 'Import-ElevatedResult' -Tag 'lib' {
 
             @(Get-Note $import).Count | Should -Be 1
             $import.Rejected | Should -BeLike '*empty*'
+        }
+
+        It 'refuses a result written more than 24 hours before the importing run started' {
+            $path = Write-ElevatedResultFixture -Results @($script:elevatedDisk)
+            $runStart = [System.IO.File]::GetCreationTimeUtc($path).AddHours(25)
+
+            $import = Import-ElevatedResult -Path $path -CheckResults $script:standard -RunStart $runStart
+
+            @(Get-Note $import).Count | Should -Be 1
+            $import.Rejected | Should -BeLike '*more than 24 hours*'
+            @($import.ElevatedChecks).Count | Should -Be 0
         }
 
         It 'refuses a missing file' {
