@@ -1190,6 +1190,26 @@ jobs:
                 .filter((text) => text.includes('<local-command-stderr>'))
                 .map((text) => text.slice(0, 2000))
                 .slice(0, 4),
+              // The first 20 calls the permission mode denied, each with its command,
+              // file_path, path or pattern, so a denial can be diagnosed; denied_total
+              // counts them all. Entries drop from the end until denied serializes
+              // to at most 8192 bytes (a JSON-escaped control character is 6 bytes),
+              // keeping it within the 32768-byte cap the read file's scan job carries
+              // it under; local_command_stderr's own escaped size is tracked in #8942.
+              denied: (() => {
+                const kept = (result.permission_denials ?? []).slice(0, 20).map((d) => {
+                  const i = d?.tool_input ?? {};
+                  const input = i.command ?? i.file_path ?? i.path ?? i.pattern ?? null;
+                  return { tool_name: String(d?.tool_name ?? ''), input: input == null ? null : String(input).slice(0, 300) };
+                });
+                while (kept.length > 0 && Buffer.byteLength(JSON.stringify(kept), 'utf8') > 8192) {
+                  const last = kept.at(-1);
+                  if (kept.length === 1 && last.input) last.input = last.input.slice(0, last.input.length >> 1);
+                  else kept.pop();
+                }
+                return kept;
+              })(),
+              denied_total: (result.permission_denials ?? []).length,
             };
             fs.mkdirSync(REPLY_DIR, { recursive: true });
             // The summary step shows it after the leak scan.
@@ -1484,7 +1504,17 @@ jobs:
             const escape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const reply = text('reply.txt');
             if (reply !== null) core.summary.addHeading('Skill reply', 3).addCodeBlock(escape(reply), 'text');
-            const turns = text('act-turns.json');
+            let turns = text('act-turns.json');
+            // Each denial shows as `tool: input`, then `(+N more)` for any cut.
+            try {
+              const diag = JSON.parse(turns);
+              if (Array.isArray(diag?.denied)) {
+                diag.denied = diag.denied.map((d) => (d?.input == null ? String(d?.tool_name ?? '') : `${d.tool_name}: ${d.input}`));
+                const more = Number(diag.denied_total) - diag.denied.length;
+                if (more > 0) diag.denied.push(`(+${more} more)`);
+                turns = `${JSON.stringify(diag, null, 2)}\n`;
+              }
+            } catch {}
             if (turns !== null) core.summary.addHeading('Skill run', 3).addCodeBlock(escape(turns), 'json');
             await core.summary.write();
 
@@ -1501,7 +1531,7 @@ jobs:
           path: |
             ${{ runner.temp }}/skill-reply/reply.txt
             ${{ runner.temp }}/skill-reply/act-turns.json
-          retention-days: 3
+          retention-days: 7
           if-no-files-found: error
 
       - name: Upload the patch
@@ -2080,7 +2110,17 @@ jobs:
             const escape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const reply = text('reply.txt');
             if (reply !== null) core.summary.addHeading('Skill reply', 3).addCodeBlock(escape(reply), 'text');
-            const turns = text('act-turns.json');
+            let turns = text('act-turns.json');
+            // Each denial shows as `tool: input`, then `(+N more)` for any cut.
+            try {
+              const diag = JSON.parse(turns);
+              if (Array.isArray(diag?.denied)) {
+                diag.denied = diag.denied.map((d) => (d?.input == null ? String(d?.tool_name ?? '') : `${d.tool_name}: ${d.input}`));
+                const more = Number(diag.denied_total) - diag.denied.length;
+                if (more > 0) diag.denied.push(`(+${more} more)`);
+                turns = `${JSON.stringify(diag, null, 2)}\n`;
+              }
+            } catch {}
             if (turns !== null) core.summary.addHeading('Skill run', 3).addCodeBlock(escape(turns), 'json');
             await core.summary.write();
 
@@ -2095,7 +2135,7 @@ jobs:
           path: |
             ${{ steps.leak-scan.outputs.dir }}/reply.txt
             ${{ steps.leak-scan.outputs.dir }}/act-turns.json
-          retention-days: 3
+          retention-days: 7
           if-no-files-found: error
           overwrite: false
 

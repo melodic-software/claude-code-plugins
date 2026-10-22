@@ -25,6 +25,7 @@ const GATE_SKIP_REASONS = {
   "list-unreadable": "prerequisite-missing",
   fork: "untrusted-trigger",
   "no-pr": "untrusted-trigger",
+  "head-lag": "superseded-sha",
   "bot-actor": "untrusted-trigger",
   "untrusted-actor": "untrusted-trigger",
   "untrusted-author": "untrusted-trigger",
@@ -296,6 +297,15 @@ test("a verdict gate stop with an empty reason posts failure", () => {
 test("an untrusted-rerunner trigger stop posts failure, not neutral", () => {
   const { verdict: v, inputs: i } = stoppedAt("untrusted-rerunner");
   assert.equal(posted(decide(v, i)).conclusion, "failure");
+});
+
+// The gated head is not the branch's current head, and the push that moved
+// the branch is gated by its own run, so the stop is a superseded-sha skip.
+test("a head-lag trigger stop posts neutral with superseded-sha", () => {
+  const { verdict: v, inputs: i } = stoppedAt("head-lag");
+  const report = posted(decide(v, i));
+  assert.equal(report.conclusion, "neutral");
+  assert.match(report.output.summary, /superseded-sha/);
 });
 
 test("a gate reason mapped outside the skip-reason enum posts failure", () => {
