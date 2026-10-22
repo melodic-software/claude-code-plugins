@@ -1163,6 +1163,8 @@
         "tour": {"$ref": "#/$defs/pref"},
         "toolbar": {"$ref": "#/$defs/pref"},
         "autoAdvance": {"$ref": "#/$defs/pref"},
+        "readAloud": {"$ref": "#/$defs/pref"},
+        "dictate": {"$ref": "#/$defs/pref"},
         "popups": {"$ref": "#/$defs/pref"}
       }
     },

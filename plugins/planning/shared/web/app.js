@@ -174,6 +174,8 @@
       plus: ["M12 5v14M5 12h14"],
       at: ["M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z", "M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.6 7.2"],
       help: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8", "M12 17h.01"],
+      speaker: ["M4.5 9.5h3l4.5-4v13l-4.5-4h-3a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1z", "M15.5 9a4 4 0 0 1 0 6", "M18 6.5a7.5 7.5 0 0 1 0 11"],
+      mic: ["M12 3.5a3 3 0 0 1 3 3V12a3 3 0 0 1-6 0V6.5a3 3 0 0 1 3-3z", "M5.5 11.5a6.5 6.5 0 0 0 13 0", "M12 18v3"],
     };
     function icon(name, cls = "vf-i") {
       const s = document.createElementNS(SVG, "svg");
@@ -718,6 +720,134 @@
       if (send && (k.oneLine || e.ctrlKey || e.metaKey)) { e.preventDefault(); k.send(); }
       else if (e.key === "Escape" && k.escape) { e.preventDefault(); e.stopPropagation(); k.escape(); }
     }, true);
+
+    // ---------- read aloud and dictation: the browser's own Web Speech API, each off until the person turns it on ----------
+    // Read aloud speaks what this person's page shows of the question: its text, then the option labels on screen, read
+    // from the page itself, never from state, so nothing hidden from them is spoken. Dictate fills its own box for review
+    // and never sends. Where the browser offers on-device recognition (processLocally), a press asks for it first; words
+    // heard that way confirm it, and a device that cannot take the language falls back at once to the browser's own
+    // service, which the settings line discloses until on-device is confirmed. SpeechRecognition.available() is never
+    // called: a Chromium build without Chrome's handler for it ends the page's process. No language pack is installed
+    // from here either: that would be a download the page starts.
+    const TTS = "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance === "function" ? window.speechSynthesis : null;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    const SPEECH = { reading: false, qid: null, rec: null, btn: null, local: null };
+    const speechLang = () => document.documentElement.lang || navigator.language || "en";
+    const readOn = () => !!TTS && !!pref("readAloud", false);
+    const dictOn = () => !!SR && !!pref("dictate", false);
+    const readBtn = ibtn("vf-tbtn vf-tbtn-quiet vf-icon-btn vf-readbtn", "speaker", "Read the question aloud");
+    readBtn.setAttribute("aria-pressed", "false"); readBtn.hidden = true;
+    function paintRead() {
+      const label = SPEECH.reading ? "Stop reading aloud" : "Read the question aloud";
+      readBtn.setAttribute("aria-pressed", String(SPEECH.reading)); readBtn.setAttribute("aria-label", label); readBtn.title = label;
+    }
+    /** The question's text, then its option labels, as this person's page shows them now. */
+    function spokenParts() {
+      const shown = el => el.getClientRects().length > 0;
+      const opts = [...fmtBox.querySelectorAll(".vf-optlabel, .vf-check-l, .vf-rank-l, .vf-pickbtn .vf-pick-l, .vf-scale-end")];
+      return [qText, ...opts].filter(shown).map(el => el.textContent.trim()).filter(Boolean);
+    }
+    function stopReading() {
+      if (!SPEECH.reading) return;
+      SPEECH.reading = false; SPEECH.qid = null;
+      TTS.cancel(); paintRead();
+    }
+    function readAloud() {
+      if (SPEECH.reading) return stopReading();
+      const parts = spokenParts(); if (!parts.length) return;
+      TTS.cancel();
+      // a voice on the device first, so the words are not sent to a voice service either
+      const lang = speechLang().toLowerCase().split("-")[0];
+      const voice = TTS.getVoices().find(v => v.localService && v.lang.toLowerCase().startsWith(lang)) || null;
+      SPEECH.reading = true; SPEECH.qid = ui.cur;
+      parts.forEach((t, i) => {
+        const u = new SpeechSynthesisUtterance(t);
+        if (voice) u.voice = voice;
+        if (i === parts.length - 1) u.onend = () => { if (SPEECH.reading) { SPEECH.reading = false; SPEECH.qid = null; paintRead(); } };
+        u.onerror = () => stopReading();
+        TTS.speak(u);
+      });
+      paintRead();
+    }
+    readBtn.onclick = readAloud;
+    // Escape stops reading or dictation wherever focus is; it runs before the fields' own Escape, and that press does
+    // nothing else.
+    on(window, "keydown", e => {
+      if (e.key !== "Escape" || (!SPEECH.reading && !SPEECH.rec)) return;
+      e.preventDefault(); e.stopPropagation(); stopReading(); stopDictation();
+    }, true);
+    const CAN_LOCAL = !!SR && "processLocally" in SR.prototype;
+    const DICT_ERR = {
+      "not-allowed": "Dictation needs the microphone. Allow it for this page in the browser, then try again.",
+      "service-not-allowed": "This browser will not run dictation here.",
+      "language-not-supported": "This browser cannot dictate in this language.",
+      "audio-capture": "No microphone found.",
+      network: "Dictation could not reach the browser's speech service.",
+    };
+    function stopDictation() { const r = SPEECH.rec; if (r) { SPEECH.rec = null; r.abort(); paintDict(); } }
+    function paintDict() {
+      for (const b of root.querySelectorAll(".vf-dictate")) {
+        const on = SPEECH.btn === b && !!SPEECH.rec, label = on ? "Stop dictating" : b._label;
+        b.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-label", label); b.title = label;
+      }
+    }
+    /** Put the words at the box's caret, within its limit, and tell the box it changed; nothing is sent. */
+    function dictInto(f, words) {
+      const start = f.selectionStart ?? f.value.length, end = f.selectionEnd ?? start;
+      const before = f.value.slice(0, start), sep = before && !/\s$/.test(before) ? " " : "";
+      const room = (f.maxLength > 0 ? f.maxLength : Infinity) - (f.value.length - (end - start));
+      const text = (sep + words).slice(0, Math.max(0, room));
+      if (!text.trim()) return;
+      f.focus({ preventScroll: true });
+      f.setRangeText(text, start, end, "end");
+      f.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    /** A Dictate button for field f: press to start, press again to stop. */
+    function dictBtn(f, label) {
+      const b = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-dictate", "mic", label);
+      b._label = label; b.hidden = true; b.setAttribute("aria-pressed", "false");
+      b.onpointerdown = e => e.preventDefault(); // the box keeps focus, so a phone's composer stays open
+      b.onclick = () => {
+        const was = SPEECH.btn === b && !!SPEECH.rec;
+        stopDictation();
+        if (!was && dictOn()) listen(f, b, CAN_LOCAL && SPEECH.local !== false);
+      };
+      return b;
+    }
+    /** One recognition session into field f, on the device when local. */
+    function listen(f, b, local) {
+      const r = new SR();
+      r.lang = speechLang(); r.interimResults = false; r.continuous = false; r.maxAlternatives = 1;
+      if (local) r.processLocally = true;
+      let heard = false, fallback = false;
+      r.onresult = e => {
+        const res = e.results[e.results.length - 1];
+        if (res?.isFinal === false || !res?.[0]) return;
+        heard = true;
+        if (local && SPEECH.local !== true) { SPEECH.local = true; fillPcard(); }
+        dictInto(f, res[0].transcript.trim());
+      };
+      r.onerror = e => {
+        if (local && !heard && (e.error === "language-not-supported" || e.error === "service-not-allowed")) { SPEECH.local = false; fallback = true; return; }
+        if (e.error !== "aborted" && e.error !== "no-speech") flash(DICT_ERR[e.error] || "Dictation stopped.");
+      };
+      r.onend = () => {
+        if (SPEECH.rec !== r) return;
+        if (fallback) return listen(f, b, false);
+        SPEECH.rec = null; paintDict();
+      };
+      SPEECH.rec = r; SPEECH.btn = b;
+      try { r.start(); } catch { SPEECH.rec = null; flash("Dictation could not start."); }
+      paintDict();
+    }
+    /** Each render: the controls show only with their pref on and the API there; what runs stops when it should. */
+    function paintSpeech(hasQ) {
+      readBtn.hidden = !readOn() || !hasQ;
+      if (SPEECH.reading && (readBtn.hidden || SPEECH.qid !== ui.cur)) stopReading();
+      const d = dictOn();
+      for (const b of root.querySelectorAll(".vf-dictate")) b.hidden = !d;
+      if (!d) stopDictation();
+    }
 
     /** Textareas grow with their text up to ~40% of the pane they sit in, then scroll inside. */
     function grow(t) {
@@ -1372,7 +1502,7 @@
     discTa.setAttribute("aria-describedby", discHint.id);
     const discPost = E("button", "vf-btn vf-btn-primary vf-btn-sm vf-disc-post", "Post"); discPost.type = "submit";
     const discK = composer(discTa, { send: () => discForm.requestSubmit(), mentions: "claude", draftKey: () => "disc:" + ui.cur, verb: "post" });
-    const discRow = E("div", "vf-crow"); discRow.append(discK.count, discHint, discK.hint, discPost);
+    const discRow = E("div", "vf-crow"); discRow.append(discK.count, dictBtn(discTa, "Dictate a comment"), discHint, discK.hint, discPost);
     discForm.append(discTa, discRow);
     discBody.append(discList, discEmpty, discForm);
     discSec.append(discH, discBody);
@@ -1413,7 +1543,7 @@
     // On phones the on-it avatars sit in this row, before the arrows, so presence costs the question no height.
     const qOnIt = E("span", "vf-qonit"), qOnItAv = E("span", "vf-avrow");
     qOnIt.setAttribute("role", "img"); qOnIt.append(qOnItAv);
-    qMeta.append(qOnIt, qNav);
+    qMeta.append(qOnIt, readBtn, qNav);
     const cForm = E("form", "vf-composer");
     const ta = E("textarea", "vf-ta"); ta.rows = 3; ta.setAttribute("aria-label", "Your answer"); ta.maxLength = 2000; ta.id = "vf-answer";
     const cRow = E("div", "vf-crow");
@@ -1430,7 +1560,7 @@
     const attachBtn = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach a file");
     const citeChips = E("ul", "vf-citechips"); citeChips.setAttribute("aria-label", "Cited results");
     const upStrip = E("ul", "vf-upstrip"); upStrip.setAttribute("aria-label", "Your files on this question");
-    cRow.append(attachBtn, citeBtn, cHint, clearBtn, sendBtn);
+    cRow.append(attachBtn, dictBtn(ta, "Dictate your answer"), citeBtn, cHint, clearBtn, sendBtn);
     // The phone sheet (triage 18): Cancel and what is being answered on top; Save ends the row under the field, right on
     // the keyboard, in thumb reach (O114). Both show only in the sheet.
     const sheetHead = E("div", "vf-sheethead");
@@ -4945,7 +5075,7 @@
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
       const q = here?.q && qById(here.q), ab = owner && !me && S.aboutYou?.[pid]; // follow-up 46: for the owner only
-      const sig = JSON.stringify([pid, name, role, ab, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const sig = JSON.stringify([pid, name, role, ab, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, !!prefs().readAloud, !!prefs().dictate, SPEECH.local, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -4995,7 +5125,26 @@
         adv.onclick = () => { setPrefs({ autoAdvance: !advOn }); if (advOn) stopAdvance(); fillPcard(); };
         const again = k(lbtn("vf-menu-item vf-menu-plain vf-tour-again", "help", "Show the tour again"), "tourAgain");
         again.onclick = showWelcomeAgain;
-        parts.push(adv, again);
+        parts.push(adv);
+        // Read aloud and Dictate: off until turned on; a switch shows only where the browser has the API.
+        const sw = (key, cls, isOn, text, flip) => {
+          const b = k(btn(`vf-sw-row ${cls}`), key);
+          b.setAttribute("role", "switch"); b.setAttribute("aria-checked", String(isOn));
+          b.append(E("span", "vf-sw-txt vf-sw-label", text), E("span", "vf-switch"));
+          b.onclick = () => { setPrefs(flip); fillPcard(); render(); };
+          return b;
+        };
+        if (TTS) { const isOn = !!prefs().readAloud; parts.push(sw("read", "vf-readsw", isOn, "Read questions aloud", { readAloud: !isOn })); }
+        if (SR) {
+          const isOn = !!prefs().dictate, d = sw("dict", "vf-dictsw", isOn, "Dictate answers and comments", { dictate: !isOn });
+          parts.push(d);
+          if (isOn && SPEECH.local !== true) {
+            const note = E("p", "vf-pop-note vf-dictnote", "Your browser may send what you say to its maker's speech service to turn it into text.");
+            note.id = "vf-dictnote"; d.setAttribute("aria-describedby", note.id);
+            parts.push(note);
+          }
+        }
+        parts.push(again);
         if (c.pinned && !owner) {
           // Follow-up 46: optional, for the host and Claude only, so questions can be worded for me.
           const a = S.myAbout || {}, aseg = E("div", "vf-seg vf-seg-sm vf-about"); aseg.setAttribute("role", "group"); aseg.setAttribute("aria-label", "How comfortable are you with tech?");
@@ -7637,6 +7786,7 @@
         reviewRow.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;
       }
       tools.hidden = !q;
+      paintSpeech(!!q);
       if (!ui.dirty && document.activeElement !== ta && q && ta.value !== Core.myAnswer(q.id)) { ta.value = Core.myAnswer(q.id); grow(ta); }
       renderComposer();
 

@@ -214,6 +214,11 @@ function helpers(page) {
       for (const t of document.querySelectorAll("#vf-answer, .vf-minput")) if (t.value) { t.value = ""; t.dispatchEvent(new Event("input", { bubbles: true })); }
       document.activeElement?.blur?.();
     });
+    // the speech views turn Read aloud and Dictate on: every other view starts with them off, as a new person has them
+    if (await page.evaluate(() => { const p = window.Core?.state?.me?.prefs || {}; return "readAloud" in p || "dictate" in p; })) {
+      await page.evaluate(() => window.Core.savePrefs({ readAloud: null, dictate: null }));
+      await page.waitForFunction(() => !document.querySelector(".vf-readbtn:not([hidden])"), null, { timeout: 5000 }).catch(() => {});
+    }
   };
   // phones reach Ask Claude, Share, Settings and Host through the More sheet
   const more = async label => { if (!(await clickIn(".vf-tab", "More"))) return false; await page.waitForTimeout(120); return clickIn(".vf-msitem", label); };
@@ -241,6 +246,10 @@ function views(page, CFG) {
   const gotoQ = async id => { await mode("tree"); const ok = await clickIn(`[data-tkey="q:${id}"]`); await mode("focus"); return ok; };
   const railTab = async () => { if (await phone()) await clickIn(".vf-tab", "Questions"); };
   const W = ms => page.waitForTimeout(ms);
+  const speechOn = async () => {
+    await page.evaluate(() => window.Core.savePrefs({ readAloud: true, dictate: true }));
+    return page.waitForFunction(() => !!document.querySelector(".vf-readbtn:not([hidden])") && !!document.querySelector("#vf-answer ~ .vf-crow .vf-dictate:not([hidden])"), null, { timeout: 5000 }).then(() => true).catch(() => false);
+  };
   let guests = 0;
   return {
     "focus-q1-short": () => gotoQ("Q1"),
@@ -320,6 +329,9 @@ function views(page, CFG) {
     "confirm-unlock": async () => { await gotoQ("Q4"); return clickIn(".vf-lock .vf-btn", "Unlock"); },
     "confirm-remove": async () => { await mode("host"); return clickIn(".vf-hpeople .vf-btn-danger", "Remove"); },
     "pick-thumbs": async () => { await gotoQ("Q11"); return page.evaluate(() => { const a = document.querySelector(".vf-alist .vf-pickthumb:not([hidden])"); a?.scrollIntoView({ block: "center" }); return !!a; }); },
+    // Read aloud on the question's row and Dictate in the answer box, both on: the choice question, then the answer box open
+    "speech-choice": async () => { await gotoQ("Q11"); return speechOn(); },
+    "speech-answer": async () => { await gotoQ("Q9"); if (!(await speechOn())) return false; await page.click("#vf-answer"); await W(150); return true; },
     "more": async () => ((await phone()) ? clickIn(".vf-tab", "More") : "skip"),
     // last: these leave the seeded page; the next view reloads it
     // #8698: past 12 people the Host view's people rows are compact, one line each

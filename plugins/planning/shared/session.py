@@ -340,6 +340,8 @@ PREFS = {
     "tour": lambda v: v in ("done", "skipped"),
     "toolbar": lambda v: v in ("simple", "full"),
     "autoAdvance": lambda v: isinstance(v, bool),
+    "readAloud": lambda v: isinstance(v, bool),
+    "dictate": lambda v: isinstance(v, bool),
     "popups": lambda v: isinstance(v, list) and all(isinstance(k, str) and k in POPUP_KINDS for k in v) and all(v.count(k) == 1 for k in v),
 }
 

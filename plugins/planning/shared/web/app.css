@@ -461,6 +461,9 @@
 .app .vf-qctx { margin-block: 8px 4px; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .app .vf-onit { display: flex; align-items: center; gap: 8px; margin-block: 12px 24px; color: var(--muted); font-size: 12px; min-block-size: 20px; }
 .app .vf-qonit { display: none; }
+/* Read aloud ends the question's row; its negative block margin keeps the row's height, so turning it on moves nothing */
+.app .vf-readbtn { flex: none; margin-inline-start: auto; margin-block: -5px; }
+.app :is(.vf-readbtn, .vf-dictate)[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 
 /* locked block: the one loud element */
 .app .vf-lock {
@@ -1699,10 +1702,10 @@
 .app .vf-citeopt-t { font-weight: 650; font-size: 12.5px; }
 .app .vf-citeopt-s { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .app .vf-citebtn .vf-i { margin-inline-end: 4px; }
-.app .vf-crow > .vf-attach, .app .vf-crow > .vf-citebtn { flex: none; }
+.app .vf-crow > :is(.vf-attach, .vf-citebtn, .vf-dictate) { flex: none; }
 /* Attach is one square icon button wherever it sits: the answer box, Discussion, chat, Ask Claude (44 px on a phone) */
-.app .vf-attach { --att: 32px; inline-size: var(--att); block-size: var(--att); padding: 0; border-radius: var(--r-sm); }
-.app .vf-attach .vf-i { margin: 0; }
+.app :is(.vf-attach, .vf-dictate) { --att: 32px; inline-size: var(--att); block-size: var(--att); padding: 0; border-radius: var(--r-sm); }
+.app :is(.vf-attach, .vf-dictate) .vf-i { margin: 0; }
 /* the file field's button looks like the page's own buttons, not the browser's "Choose File" */
 .app .vf-filein { padding: 4px; font-size: 12.5px; color: var(--muted); }
 .app .vf-filein::file-selector-button {
@@ -1931,7 +1934,7 @@
   .app .vf-pickbtn { min-block-size: 44px; }
   .app .vf-msgmore { inline-size: 36px; block-size: 36px; }
   .app .vf-citechip { min-block-size: 36px; }
-  .app .vf-attach { --att: 44px; }
+  .app :is(.vf-attach, .vf-dictate) { --att: 44px; }
   .app .vf-hostv { padding: 12px 10px 24px; }
   .app .vf-hsec { padding: 12px; }
   .app .vf-tab { flex-direction: column; gap: 3px; }
@@ -2271,7 +2274,7 @@
   .app .vf-composer > .vf-crow > * { pointer-events: auto; }
   .app .vf-composer:not(:focus-within) > .vf-crow > :is(.vf-citebtn, .vf-btn-ghost:not(.vf-attach), .vf-count-txt) { display: none; }
   .app .vf-composer > .vf-crow > .vf-citebtn { block-size: 32px; }
-  .app .vf-composer > .vf-crow > .vf-btn-ghost:not(.vf-attach, .vf-citebtn) { block-size: 32px; }
+  .app .vf-composer > .vf-crow > .vf-btn-ghost:not(.vf-attach, .vf-citebtn, .vf-dictate) { block-size: 32px; }
   .app .vf-composer .vf-sendbtn {
     margin-inline-start: auto; inline-size: 44px; block-size: 44px; padding: 0; border-radius: 22px;
     background: radial-gradient(circle closest-side, var(--accent) 16px, transparent 16.5px);
