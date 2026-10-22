@@ -33,6 +33,12 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 }
 
 FILE="$ROOT/.work/buffer/findings.jsonl"
+for p in "$ROOT/.work" "$ROOT/.work/buffer" "$FILE"; do
+  if [[ -L "$p" ]]; then
+    echo "read.sh: $p is a symlink; the buffer must be a plain directory in the repository" >&2
+    exit 2
+  fi
+done
 [[ -f "$FILE" ]] || exit 0
 
 if [[ -z "$SINCE" ]]; then

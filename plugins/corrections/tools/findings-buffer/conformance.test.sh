@@ -205,6 +205,51 @@ else
 fi
 rm -rf "$REPO/.work/buffer/.lockdir"
 
+# the buffer is git-ignored, and symlinks never redirect rows or truncate the lock
+LREPO="$TEST_TMPDIR/links"
+git init -q -b main "$LREPO" >/dev/null 2>&1
+la() { (cd "$LREPO" && bash "$LOCAL/append.sh" >/dev/null 2>&1); }
+printf '{"obs_id":"g","ts":"2026-10-21T00:00:00Z"}\n' | la
+if [[ "$(cat "$LREPO/.work/buffer/.gitignore" 2>/dev/null)" == "*" \
+  && -z "$(git -C "$LREPO" status --porcelain --untracked-files=all)" ]]; then
+  pass "first append writes .work/buffer/.gitignore with *, so git sees no rows"
+else
+  fail "first append writes .work/buffer/.gitignore with *, so git sees no rows"
+fi
+if command -v flock >/dev/null 2>&1; then
+  printf 'keep\n' >"$LREPO/.work/buffer/.lock"
+  printf '{"obs_id":"g2","ts":"2026-10-21T00:00:00Z"}\n' | la
+  if [[ "$(cat "$LREPO/.work/buffer/.lock")" == "keep" ]]; then
+    pass "the flock path does not truncate .lock"
+  else
+    fail "the flock path does not truncate .lock"
+  fi
+fi
+OUTSIDE="$TEST_TMPDIR/outside.jsonl"
+: >"$OUTSIDE"
+mv "$LREPO/.work/buffer/findings.jsonl" "$LREPO/.work/buffer/real.jsonl"
+ln -s "$OUTSIDE" "$LREPO/.work/buffer/findings.jsonl"
+printf '{"obs_id":"s1","ts":"2026-10-21T00:00:00Z"}\n' | la
+RC=$?
+if [[ $RC -eq 2 && ! -s "$OUTSIDE" ]]; then
+  pass "append.sh refuses a symlinked findings.jsonl and stores nothing"
+else
+  fail "append.sh refuses a symlinked findings.jsonl and stores nothing" "exit $RC"
+fi
+(cd "$LREPO" && bash "$LOCAL/read.sh" >/dev/null 2>&1)
+expect_exit 2 $? "read.sh refuses a symlinked findings.jsonl"
+OUTDIR="$TEST_TMPDIR/outside-dir"
+mkdir -p "$OUTDIR"
+rm -rf "$LREPO/.work/buffer"
+ln -s "$OUTDIR" "$LREPO/.work/buffer"
+printf '{"obs_id":"s2","ts":"2026-10-21T00:00:00Z"}\n' | la
+RC=$?
+if [[ $RC -eq 2 && -z "$(ls -A "$OUTDIR")" ]]; then
+  pass "append.sh refuses a symlinked .work/buffer and writes nothing there"
+else
+  fail "append.sh refuses a symlinked .work/buffer and writes nothing there" "exit $RC"
+fi
+
 # outside a repository
 NOREPO="$TEST_TMPDIR/norepo"
 mkdir -p "$NOREPO"

@@ -41,10 +41,33 @@ if ! jq -nRc '
   exit 2
 fi
 
-mkdir -p "$DIR" || exit 1
 [[ -s "$TMP" ]] || exit 0
 
+# refuse_links: the buffer stays a plain directory inside the repository, so a
+# symlink can never redirect rows (or the lock file) elsewhere.
+refuse_links() {
+  local p
+  for p in "$ROOT/.work" "$DIR" "$DIR/.lock" "$LOCKDIR" "$FILE"; do
+    if [[ -L "$p" ]]; then
+      echo "append.sh: $p is a symlink; the buffer must be a plain directory in the repository" >&2
+      return 1
+    fi
+  done
+}
+refuse_links || exit 2
+if [[ ! -d "$DIR" ]]; then
+  mkdir -p "$DIR" || exit 1
+  # Rows never leave the machine: keep the buffer out of git.
+  printf '*\n' >"$DIR/.gitignore" || exit 1
+fi
+REAL_DIR="$(cd "$DIR" && pwd -P)" && REAL_ROOT="$(cd "$ROOT" && pwd -P)" || exit 1
+if [[ "$REAL_DIR" != "$REAL_ROOT/.work/buffer" ]]; then
+  echo "append.sh: $DIR resolves outside the repository" >&2
+  exit 2
+fi
+
 write_rows() {
+  refuse_links || return 1
   cat "$TMP" >>"$FILE" || return 1
   sync "$FILE" 2>/dev/null || true
 }
@@ -75,7 +98,7 @@ if command -v flock >/dev/null 2>&1; then
   (
     flock -x 9 || exit 1
     write_rows
-  ) 9>"$DIR/.lock" || exit 1
+  ) 9>>"$DIR/.lock" || exit 1
 else
   take_mkdir_lock || exit 1
   write_rows || exit 1
