@@ -610,7 +610,7 @@ file is deleted, and `upload-removed` (`upload`, `file`) tells Claude never to r
 arriving, approved or ended touches the chat messages carrying it (`chatTouched`), so a page holding
 older messages reads them again.
 
-1. `POST /api/upload/offer` `{file, size, type, qid?, thumb?}` (96 KB) records the offer; the file
+1. `POST /api/upload/offer` `{file, size, type, qid?, thumb?, avatar?}` (96 KB) records the offer; the file
    stays in the browser (IndexedDB, or memory where a private window refuses it) until the owner
    accepts. The owner's own offer is accepted at once.
 2. The owner accepts or declines in the Host queue (`POST /api/upload/act`); the uploader can
@@ -670,6 +670,29 @@ through the Read-only `upload-reader` agent. Each start deletes pending files no
 on their way from someone no longer in the session, and cuts a partial file back to the pieces its
 record counts. A state whose upload id, extension or received name is not one the server makes
 does not load.
+
+### Profile pictures
+
+A person may show a profile picture on their avatar in place of their initials. They pick it on
+their own person card (Your picture: Choose a picture, Replace picture, Remove picture); the
+browser redraws the middle square at 256 px at most, as WebP where it writes it, else JPEG, and
+offers it with `avatar: true` through the upload path above, so the first piece's magic-number
+check applies. It needs no accept: it is small, and others see it only once approved. A guest's
+follows the Uploads switch (403 `uploads-off`, "The host has pictures off in this session."); the
+owner's own does not. An avatar offer must name a PNG, JPEG or
+WebP (415 `file-type`), be 256 KB at most (413 `upload-too-large`), and name no `qid`; no post may
+carry it (409 `wrong-status`). Once it arrives it replaces the person's last one, which is removed
+and deleted, and a new offer withdraws one still on its way. Neither event goes to Claude
+(`upload-received` and `upload-removed` are left out for it). The person and the owner remove it with
+`POST /api/upload/act {id, action: "remove"}`.
+
+The owner's own picture shows at once; a guest's shows to others only once the owner approves it,
+as any received picture (Approve picture on the guest's card or in the Host queue). Until then,
+and after a replace until the new one is approved, everyone but its uploader and the owner sees
+initials, `people[].avatar` (the upload id) is left out, and `GET /api/upload/image` answers them
+404. While names are hidden (Show names off), the snapshot of a guest leaves `avatar` out, the image
+read answers them 404, and every page shows initials. `myUploads` and `uploads` mark the upload
+`avatar`. The page reads each picture once and shows it as a circle crop over the initials.
 
 ## Problem reports
 

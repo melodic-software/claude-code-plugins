@@ -535,6 +535,11 @@ def _approved(u):
     return u["pid"] == HOST or u.get("shown") is True
 
 
+def _avatars(uploads):
+    """pid -> that person's profile picture: their newest received upload offered as one (`avatar`)."""
+    return {u["pid"]: u for u in uploads if u.get("avatar") and _shows_as_image(u)}
+
+
 def _attaching(doc):
     """(where, record) for every record that may carry `attachments`: answers, chat messages, requests, suggestions,
     proposals and Discussion comments."""
@@ -1005,6 +1010,8 @@ OOXML_KINDS, OPENDOC_KINDS = {"docx", "xlsx", "pptx"}, {"odt", "ods", "odp"}
 _WINDOWS = os.name == "nt"
 THUMB_KINDS = {"png", "jpg", "jpeg", "gif", "webp"}
 IMAGE_KINDS = THUMB_KINDS  # a received upload of one of these, its bytes that kind, reads back as a picture: never SVG or HTML
+AVATAR_KINDS = {"png", "jpg", "jpeg", "webp"}  # the owner's choice: a profile picture is a PNG, JPEG or WebP
+AVATAR_MAX = 256 * 1024  # the owner's choice: bytes of a profile picture, which the page redraws small first
 
 
 def _file_name(body):
@@ -3030,6 +3037,8 @@ class Session:
                 raise DomainError(404, "no-such-upload", f"No upload {uid[:40]}.")
             if u["status"]["kind"] not in UPLOAD_ACCEPTED:
                 raise DomainError(409, "wrong-status", "Attach a file once the host has accepted it.", status=u["status"]["kind"])
+            if u.get("avatar"):
+                raise DomainError(409, "wrong-status", "A profile picture goes with no post.", status="avatar")
         for uid in ids:  # carried from now on: never a loose picture again (a refused write restores the state)
             u = self._upload(uid)
             u.pop("draft", None)
@@ -4537,13 +4546,21 @@ class Session:
         ext = ext if FILE_EXT.fullmatch(ext) else ""
         thumb = _thumb(body.get("thumb"), ext)
         qid = body.get("qid") or None
+        avatar = _bool(body, "avatar")
+        if avatar and ext not in AVATAR_KINDS:
+            raise DomainError(415, "file-type", "A profile picture must be a PNG, JPEG or WebP picture.", field="file")
+        if avatar and size > AVATAR_MAX:
+            raise DomainError(413, "upload-too-large", "A profile picture is 256 KB at most.", field="size", max=AVATAR_MAX)
+        if avatar and qid is not None:
+            raise _bad("qid", "A profile picture belongs to no question.")
+        doomed = []
         with self._write_as(pid, "upload-offer") as st:
             person = st["people"][pid]
-            if not st["session"]["settings"]["uploads"]:
-                raise DomainError(403, "uploads-off", "Uploads are off in this session.")
+            owner = pid == HOST
+            if not st["session"]["settings"]["uploads"] and not (avatar and owner):  # the owner's own picture needs no switch
+                raise DomainError(403, "uploads-off", "The host has pictures off in this session." if avatar else "Uploads are off in this session.")
             if qid is not None:
                 qid = self._question(qid)["id"]
-            owner = pid == HOST
             if ext not in GUEST_KINDS and not (owner or person["trusted"]):
                 raise DomainError(415, "file-type", "Guests can send pictures, PDF, text, CSV and Office files.")
             held = [u for u in st["uploads"] if u["status"]["kind"] in UPLOAD_HELD]
@@ -4558,15 +4575,27 @@ class Session:
             uid = f"{self._next('U')}-{self.ids.hex(4)}"
             mime = UPLOAD_KINDS[ext][0] if ext in UPLOAD_KINDS else "application/octet-stream"
             # a draft until something carries it: a form offers it before its post is sent
-            rec = {"id": uid, "pid": pid, "at": self.now(), "qid": qid, "file": name, "ext": ext, "mime": mime, "size": size, "chunks": -(-size // CHUNK_SIZE), "draft": True}
+            rec = {"id": uid, "pid": pid, "at": self.now(), "qid": qid, "file": name, "ext": ext, "mime": mime, "size": size, "chunks": -(-size // CHUNK_SIZE)}
+            if avatar:  # a new profile picture replaces one still on its way
+                rec["avatar"] = True
+                for u in held:
+                    if u["pid"] == pid and u.get("avatar") and u["status"]["kind"] in UPLOAD_LIVE:
+                        doomed.append(self._end_upload(u, {"kind": "withdrawn", "at": rec["at"]}))
+            else:
+                rec["draft"] = True
             shown = [(u["pid"], len(u["thumb"])) for u in st["uploads"] if "thumb" in u]
             if thumb and sum(n for p, n in shown if p == pid) + len(thumb) <= PERSON_THUMB_MAX and sum(n for _, n in shown) + len(thumb) <= SESSION_THUMB_MAX:
                 rec["thumb"] = thumb  # past either bound the offer keeps no preview; the owner sees its icon
-            rec["status"] = {"kind": "accepted", "tmp": self.ids.hex(16)} if owner else {"kind": "offered"}
+            # the owner's own, and a profile picture (small, and shown to others only once approved), need no accept
+            rec["status"] = {"kind": "accepted", "tmp": self.ids.hex(16)} if owner or avatar else {"kind": "offered"}
             st["uploads"].append(rec)
             if not owner:
                 self._queue_note([HOST], pid)
-            return {"id": uid, "status": rec["status"]["kind"], "chunks": rec["chunks"], "chunkSize": CHUNK_SIZE}
+            out = {"id": uid, "status": rec["status"]["kind"], "chunks": rec["chunks"], "chunkSize": CHUNK_SIZE}
+        for f in doomed:
+            if f:
+                self._discard(f)
+        return out
 
     def _session_upload_total(self):
         """Bytes the session has said yes to (accepted, uploading or done): what SESSION_UPLOAD_MAX bounds."""
@@ -4606,7 +4635,8 @@ class Session:
             if action == "remove":
                 stored = u["status"]["stored"]
                 self._end_upload(u, {"kind": "removed", "at": now, "by": pid})
-                self._event("upload-removed", upload=uid, file=u["file"])
+                if not u.get("avatar"):  # Claude never heard of a profile picture
+                    self._event("upload-removed", upload=uid, file=u["file"])
                 doomed = self.path.parent / stored if STORED_PATH.fullmatch(stored) else None
             if action == "accept":
                 if not self._active(u["pid"]):
@@ -4715,6 +4745,7 @@ class Session:
                     if u["status"]["kind"] in ("accepted", "uploading"):
                         self._end_upload(u, {"kind": "failed", "reason": failure[1]})
                 raise failure[0]
+            replaced = []
             try:
                 with self._tx():
                     u = self._upload(uid)
@@ -4722,7 +4753,13 @@ class Session:
                         raise DomainError(409, "wrong-status", f"That file is {u['status']['kind']}.", status=u["status"]["kind"])
                     if last:
                         self._end_upload(u, {"kind": "done", "stored": stored, "sha256": digest})
-                        self._event("upload-received", upload=uid, file=u["file"], stored=stored, qid=u["qid"])
+                        if u.get("avatar"):  # a profile picture is no file for Claude; it replaces the sender's last one
+                            old = [x for x in self.state["uploads"] if x is not u and x["pid"] == pid and x.get("avatar") and x["status"]["kind"] == "done"]
+                            for x in old:
+                                replaced.append(x["status"]["stored"])
+                                self._end_upload(x, {"kind": "removed", "at": now, "by": pid})
+                        else:
+                            self._event("upload-received", upload=uid, file=u["file"], stored=stored, qid=u["qid"])
                     else:
                         u["status"] = {"kind": "uploading", "tmp": tmp.name, "received": m["index"] + 1, "bytes": offset + len(data)}
             except BaseException:
@@ -4732,6 +4769,9 @@ class Session:
                     if self._upload(uid)["status"]["kind"] not in ("accepted", "uploading"):
                         self._discard(tmp)
                 raise
+            for stored_old in replaced:
+                if STORED_PATH.fullmatch(stored_old):
+                    self._discard(self.path.parent / stored_old)
         finally:
             self._sending.discard(uid)
         return {"received": m["index"] + 1, "status": u["status"]["kind"]}
@@ -4780,6 +4820,8 @@ class Session:
         """An upload as the page reads it: never `tmp`, `stored` or any path; the preview to the owner only; `image` on a
         received picture GET /api/upload/image reads back."""
         out = {k: u[k] for k in ("id", "pid", "at", "qid", "file", "ext", "size", "chunks")}
+        if u.get("avatar"):
+            out["avatar"] = True
         if _shows_as_image(u):
             out["image"] = True
             if _approved(u):
@@ -6045,6 +6087,8 @@ class Session:
         cur = self._current_round()
         chat = self._visible_chat(active)
         discussions = self._discussions_for(None, active)
+        # a profile picture everyone may see: the owner's at once, a guest's once the owner approved it
+        avatars = {p: u["id"] for p, u in _avatars(st["uploads"]).items() if _approved(u)}
         base = {
             "rev": st["rev"],
             "title": st["session"]["title"],
@@ -6065,7 +6109,7 @@ class Session:
             "discussions": discussions,
             "annotations": [a for a in st["annotations"] if a["pid"] in active],
             "people": [
-                {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")}
+                {**{k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")}, **({"avatar": avatars[v["pid"]]} if v["pid"] in avatars else {})}
                 for v in st["people"].values()
                 if v["pid"] in active
             ],
@@ -6140,6 +6184,9 @@ class Session:
             return True
         if not _approved(u):
             return False
+        if u.get("avatar"):  # what people lists show: hidden with the names, and never a picture since replaced
+            names = "full" if me["role"] in ("owner", "leader") else self.state["session"]["settings"]["names"]
+            return names == "full" and any(p.get("avatar") == u["id"] for p in self._base()["people"])
         if u["id"] in self._public_uploads:
             return True
         return me["role"] == "leader" and self._active(u["pid"]) and any(u["id"] in p.get("attachments", ()) for p in self.state["proposals"])
@@ -6255,7 +6302,7 @@ class Session:
             if owner or any(c["pid"] == pid and "hidden" in c for lst in st["discussions"].values() for c in lst):
                 snap["discussions"] = self._discussions_for(pid, {p["pid"] for p in base["people"]})
             if mode != "full":
-                snap["people"] = [{**p, "name": initials(p["name"]) if mode == "initials" else "Someone"} for p in base["people"]]
+                snap["people"] = [{**{k: v for k, v in p.items() if k != "avatar"}, "name": initials(p["name"]) if mode == "initials" else "Someone"} for p in base["people"]]
                 snap["mentions"] = {p: initials(n) if mode == "initials" else "Someone" for p, n in base["mentions"].items()}
                 snap["cards"] = {q: [{**c, "votes": [v if v == pid else "" for v in c["votes"]]} for c in lst] for q, lst in snap["cards"].items()}
                 snap["chat"] = self._masked_chat(base["chat"], pid)
