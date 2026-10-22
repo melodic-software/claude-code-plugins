@@ -844,59 +844,37 @@ class _Context:
     quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
     # Warnings for the verdict, such as a listing past the search cap.
     warnings: list[str] = field(default_factory=list)
-    # The branch's dispatch runs at each commit, read by SHA, and
-    # each merge commit's descendants on the branch with their commit dates.
+    # The branch's dispatch runs at each commit, read by SHA.
     dispatch_at_cache: dict[str, dict[int, Run]] = field(default_factory=dict)
-    descendants_cache: dict[str, list[tuple[str, datetime]]] = field(
-        default_factory=dict
-    )
 
-    def dispatch_runs_through(self, commit: str, deadline: datetime) -> dict[int, Run]:
+    def dispatch_runs_through(
+        self, commit: str, merged_at: datetime, deadline: datetime
+    ) -> dict[int, Run]:
         """The branch's full-run dispatches, by id, at `commit` or at any
-        descendant on the branch committed by `deadline`: every run that
-        could cover the merge in time, read independently of the dated
-        listing. A failed or short read raises."""
+        commit the branch gained between `merged_at` and `deadline` that
+        descends from it: every run that could cover the merge in time, read
+        independently of the dated listing. A failed read raises."""
+        window = "&".join(
+            f"{key}={quote(t.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'), safe='')}"
+            for key, t in (("since", merged_at), ("until", deadline))
+        )
+        listed = _paginated(
+            f"repos/{self.owner}/{self.name}/commits"
+            f"?sha={quote(self.branch, safe='')}&{window}&per_page=100",
+            f"{self.branch} commits after {commit[:12]}",
+        )
         shas = [commit] + [
-            sha for sha, date in self._descendants(commit) if date <= deadline
+            sha
+            for sha in (c.get("sha") for c in listed)
+            if isinstance(sha, str)
+            and _FULL_SHA.fullmatch(sha)
+            and self.contains(commit, sha)
         ]
         return {
             run.id: run
             for sha in dict.fromkeys(shas)
             for run in self.dispatch_runs_at(sha).values()
         }
-
-    def _descendants(self, commit: str) -> list[tuple[str, datetime]]:
-        """The commits from `commit` to the branch tip, with commit dates."""
-        if commit not in self.descendants_cache:
-            tip = self._branch_tip()
-            compare = json_object(
-                _read(
-                    [
-                        "api",
-                        f"repos/{self.owner}/{self.name}/compare/{commit}...{tip}",
-                    ],
-                    f"compare {commit[:12]}...{tip[:12]}",
-                )
-            )
-            commits = [json_object(c) for c in json_array(compare.get("commits"))]
-            total = compare.get("total_commits")
-            if not isinstance(total, int) or total > len(commits):
-                raise PostMergeReadError(
-                    f"compare {commit[:12]}...{tip[:12]}: total_commits {total}, "
-                    f"but {len(commits)} listed"
-                )
-            self.descendants_cache[commit] = [
-                (
-                    str(c.get("sha")),
-                    _time(
-                        json_object(json_object(c.get("commit")).get("committer")).get(
-                            "date"
-                        )
-                    ),
-                )
-                for c in commits
-            ]
-        return self.descendants_cache[commit]
 
     def dispatch_runs_at(self, commit: str) -> dict[int, Run]:
         """The branch's full-run dispatches at `commit`, by id, read by head
@@ -1563,7 +1541,9 @@ def _judge(
         listed = {r.id for signal, r in full_runs if signal == SIGNAL_DISPATCH}
         missing = [
             run
-            for run_id, run in ctx.dispatch_runs_through(commit, deadline).items()
+            for run_id, run in ctx.dispatch_runs_through(
+                commit, merged_at, deadline
+            ).items()
             if run_id not in listed
             and run.created_at <= deadline
             and run.actor in (LANE_DISPATCH_ACTOR, ctx.identity)

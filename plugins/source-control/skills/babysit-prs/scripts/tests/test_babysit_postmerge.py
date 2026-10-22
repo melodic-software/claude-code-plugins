@@ -135,6 +135,11 @@ def schedule_run(
     return run(**fields)
 
 
+def commit_on_main(sha: str, committed: str) -> dict[str, Any]:
+    """A commit as the commits API lists it."""
+    return {"sha": sha, "commit": {"committer": {"date": committed}}}
+
+
 def failed_job(job_id: int, name: str, *failed_steps: str) -> dict[str, Any]:
     """A failed job of the jobs API, its named steps failed."""
     steps = [{"name": "Set up job", "conclusion": "success"}]
@@ -209,10 +214,8 @@ class FakeGh:
         # listing's total_count where it differs from the runs it serves.
         self.unlisted: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self.total_counts: dict[tuple[str, str], int] = {}
-        # The commits a compare from a merge commit to main's tip lists, and
-        # its total_count where it differs from them.
-        self.tip_commits: list[dict[str, Any]] = []
-        self.tip_total: int | None = None
+        # Commits on main, as the commits API lists them by committer date.
+        self.branch_commits: list[dict[str, Any]] = []
 
     def add_runs(self, workflow: str, event: str, *runs: dict[str, Any]) -> None:
         self.runs.setdefault((workflow, event), []).extend(runs)
@@ -292,17 +295,24 @@ class FakeGh:
                 reach = self.on_main
                 if head == "main" and self.bare_main is not None:
                     reach = self.bare_main
-                return completed(
-                    {
-                        "status": "ahead" if base in reach else "diverged",
-                        "total_commits": len(self.tip_commits)
-                        if self.tip_total is None
-                        else self.tip_total,
-                        "commits": self.tip_commits,
-                    }
-                )
+                return completed({"status": "ahead" if base in reach else "diverged"})
             return completed(
                 {"status": "ahead" if head in self.descendants else "diverged"}
+            )
+        if endpoint.startswith(f"repos/{REPO}/commits?"):
+            from urllib.parse import parse_qs, urlsplit
+
+            query = parse_qs(urlsplit(endpoint).query)
+            since = query.get("since", [""])[0]
+            until = query.get("until", ["9999"])[0]
+            return completed(
+                [
+                    [
+                        c
+                        for c in self.branch_commits
+                        if since <= c["commit"]["committer"]["date"] <= until
+                    ]
+                ]
             )
         if endpoint.startswith(f"repos/{REPO}/git/ref/heads/"):
             # Every branch a test judges has main's tip.
@@ -789,9 +799,7 @@ class DroppedDispatchListing(CheckCase):
         self.gh.unlisted[("pr-require-checks.yml", "workflow_dispatch")][0][
             "head_sha"
         ] = LATER_SHA
-        self.gh.tip_commits = [
-            {"sha": LATER_SHA, "commit": {"committer": {"date": committed}}}
-        ]
+        self.gh.branch_commits = [commit_on_main(LATER_SHA, committed)]
 
     def test_a_dropped_run_at_a_descendant_makes_the_verdict_unreadable(
         self,
@@ -802,26 +810,44 @@ class DroppedDispatchListing(CheckCase):
         self.assertIn("lacked a run", verdict.reason)
         self.assertEqual(verdict.failures, ())
 
-    def test_a_descendant_committed_after_the_deadline_is_not_read(self) -> None:
-        self.gh.tip_commits = [
-            {
-                "sha": LATER_SHA,
-                "commit": {"committer": {"date": "2026-10-12T16:00:01Z"}},
-            }
-        ]
-        self.check(now=self.LATE)
-        self.assertFalse(
-            any(f"head_sha={LATER_SHA}" in " ".join(c) for c in self.gh.calls)
-        )
-        self.assertTrue(
-            any(f"head_sha={MERGE_SHA}" in " ".join(c) for c in self.gh.calls)
-        )
+    def reads_by_sha(self, sha: str) -> bool:
+        return any(f"head_sha={sha}" in " ".join(c) for c in self.gh.calls)
 
-    def test_a_compare_short_of_its_total_commits_is_unreadable(self) -> None:
-        self.gh.tip_total = 300
+    def test_a_descendant_in_the_window_is_read_by_sha(self) -> None:
+        self.gh.branch_commits = [commit_on_main(LATER_SHA, "2026-10-12T15:00:00Z")]
+        verdict = self.check(now=self.LATE)
+        self.assertTrue(self.reads_by_sha(LATER_SHA))
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+    def test_a_descendant_committed_after_the_deadline_is_not_read(self) -> None:
+        self.gh.branch_commits = [commit_on_main(LATER_SHA, "2026-10-12T16:00:01Z")]
+        self.check(now=self.LATE)
+        self.assertFalse(self.reads_by_sha(LATER_SHA))
+        self.assertTrue(self.reads_by_sha(MERGE_SHA))
+
+    def test_a_window_commit_not_descending_from_the_merge_is_not_read(
+        self,
+    ) -> None:
+        self.gh.branch_commits = [commit_on_main(OTHER_SHA, "2026-10-12T15:00:00Z")]
+        verdict = self.check(now=self.LATE)
+        self.assertFalse(self.reads_by_sha(OTHER_SHA))
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+    def test_more_than_250_later_commits_read_without_raising(self) -> None:
+        shas = [f"{i:040x}" for i in range(1, 301)]
+        self.gh.descendants |= set(shas)
+        self.gh.branch_commits = [
+            commit_on_main(sha, "2026-10-12T12:00:00Z") for sha in shas
+        ]
+        verdict = self.check(now=self.LATE)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertTrue(self.reads_by_sha(shas[-1]))
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+    def test_a_failed_window_listing_is_unreadable(self) -> None:
+        self.gh.fail_reads.add(f"repos/{REPO}/commits?")
         verdict = self.check(now=self.LATE)
         self.assertFalse(verdict.readable)
-        self.assertIn("total_commits", verdict.reason)
         self.assertEqual(verdict.failures, ())
 
     def test_a_dropped_run_after_the_deadline_leaves_the_failure_standing(
