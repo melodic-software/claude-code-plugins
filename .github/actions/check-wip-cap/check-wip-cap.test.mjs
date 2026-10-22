@@ -34,15 +34,16 @@ const pr = ({ labels = [], body = "", ageHours = 1 } = {}) => ({
 });
 
 // A search API that answers by query: the open listing pages through `open`,
-// the merged and opened counts answer `merged` and `admitted`; an Error
+// the queued issue listing through `queued` (issues as { number }), the
+// merged and opened counts answer `merged` and `admitted`; an Error
 // answer throws. Each path is recorded.
-function searchApi({ open = [], merged = 0, admitted = 0, incomplete = false } = {}) {
+function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplete = false } = {}) {
   const paths = [];
   const github = async (method, path) => {
     paths.push(`${method} ${path}`);
     const url = new URL(path, "https://api.github.com");
     const q = url.searchParams.get("q");
-    const answer = q.includes("is:merged") ? merged : q.includes("created:") ? admitted : open;
+    const answer = q.includes("is:issue") ? queued : q.includes("is:merged") ? merged : q.includes("created:") ? admitted : open;
     if (answer instanceof Error) {
       throw answer;
     }
@@ -75,7 +76,7 @@ test("near misses do not hold a PR", () => {
   assert.equal(isHeld({ labels: null, body: null }), false);
 });
 
-test("the reads are three serial searches over the lanes App's PRs in this repository", async () => {
+test("the reads are four serial searches: the lanes App's PRs, then the open agent-ready issues not held", async () => {
   const { github, paths } = searchApi({ open: [pr()], merged: 5, admitted: 3 });
   await readLaneWip(github, { repo: REPO, now: NOW, windowHours: 24 });
   const queries = paths.map((path) => new URL(path.slice("GET ".length), "https://api.github.com"));
@@ -86,6 +87,7 @@ test("the reads are three serial searches over the lanes App's PRs in this repos
       `repo:${REPO} is:pr is:open ${AUTHOR}`,
       `repo:${REPO} is:pr is:merged ${AUTHOR} merged:>=2026-10-17T12:00:00Z`,
       `repo:${REPO} is:pr ${AUTHOR} created:>=2026-10-17T12:00:00Z`,
+      `repo:${REPO} is:issue is:open label:agent-ready -label:needs-human -label:needs-owner-decision -label:"status: needs-decision"`,
     ],
   );
 });
@@ -95,12 +97,12 @@ test("the open listing pages until a short page", async () => {
   const { github, paths } = searchApi({ open });
   const reads = await readLaneWip(github, { repo: REPO, now: NOW, windowHours: 24 });
   assert.equal(reads.open.length, 150);
-  assert.equal(paths.filter((path) => path.includes("is%3Aopen")).length, 2);
+  assert.equal(paths.filter((path) => path.includes("is%3Apr%20is%3Aopen")).length, 2);
 });
 
 test("a search that answers incomplete results is an unknown read", async () => {
   const reads = await read({ open: [pr()], merged: 0, admitted: 3, incomplete: true });
-  assert.deepEqual(reads, { open: null, merged: null, admitted: null });
+  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: null });
 });
 
 test("no read is made once the rate limit has nothing left; those reads are unknown", async () => {
@@ -111,6 +113,7 @@ test("no read is made once the rate limit has nothing left; those reads are unkn
   assert.equal(reads.open.length, 1);
   assert.equal(reads.merged, null);
   assert.equal(reads.admitted, null);
+  assert.equal(reads.queued, null);
 });
 
 test("countable PRs are the open ones not held; held ones are counted apart", async () => {
@@ -177,6 +180,79 @@ test("admissions may reach the admission factor times the merges, no more", asyn
   assert.equal(over.admission_over, true);
   assert.equal(over.alert, true);
   assert.equal(status(await read({ merged: 10, admitted: 9 }), { "opened-to-merged-ratio": 1 }).admission_over, false);
+});
+
+// Queued work (owner decision 2026-10-21, #8794): open agent-ready issues no
+// open lane PR names on its first body line (`Closes #n` or `Refs: #n`, as
+// report-outcome writes it), plus held lane PRs. The queued cap is
+// max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
+// x wip.target-lead-time-hours. Over it, on or after pause-from, new
+// admissions pause; runs never pause on it.
+const issues = (...numbers) => numbers.map((number) => ({ number }));
+
+test("queued work is the agent-ready issues no open lane PR names first, plus the held lane PRs", async () => {
+  const open = [
+    pr({ body: "Closes #1\n\n## Summary" }),
+    pr({ body: "Refs: #2\r\nHold: a human merges this" }),
+    pr({ body: "Closes #99" }),
+    pr({ body: "## Summary\nCloses #3" }),
+    pr({ labels: ["needs-human"], body: "Closes #4x" }),
+  ];
+  const result = status(await read({ open, merged: 24, queued: issues(1, 2, 3, 4) }));
+  assert.equal(result.queued_issues, 2);
+  assert.equal(result.held_lane_prs, 2);
+  assert.equal(result.queued_total, 4);
+});
+
+test("the queued cap is max(factor x merges per hour, the floor) x the target lead time", async () => {
+  const cases = [
+    // 48 merged in 24 h: 2/h x 0.8 = 1.6/h over the floor of 1; x 2 h.
+    [{ merged: 48 }, {}, {}, 3.2],
+    // No merges: the floor of 1/h x 2 h.
+    [{ merged: 0 }, {}, {}, 2],
+    [{ merged: 48 }, { "admission-factor": 1, "admission-min-per-hour": 0 }, {}, 4],
+    [{ merged: 12 }, {}, { "target-lead-time-hours": 8 }, 8],
+    [{ merged: 48 }, { "admission-factor": 0.5 }, { "merge-rate-window-hours": 12 }, 4],
+    // No merged count: the floor alone.
+    [{ merged: null }, { "admission-factor": 1 }, {}, 2],
+  ];
+  for (const [answers, limits, wip, cap] of cases) {
+    const result = status(await read(answers, { windowHours: wip["merge-rate-window-hours"] ?? 24 }), wip, { ...LIMITS, ...limits });
+    assert.equal(result.queued_cap, cap, JSON.stringify([answers, limits, wip]));
+  }
+});
+
+test("over the queued cap new admissions pause only on or after pause-from, and runs do not", async () => {
+  // 48 merged: a queued cap of 3.2.
+  const over = await read({ open: [pr({ labels: ["needs-human"] })], merged: 48, queued: issues(1, 2, 3) });
+  for (const [pauseFrom, open] of [["", true], ["2026-10-19", true], ["2026-10-18", false]]) {
+    const result = status(over, { "pause-from": pauseFrom });
+    assert.equal(result.queued_total, 4, pauseFrom);
+    assert.equal(result.queued_over, true, pauseFrom);
+    assert.equal(result.alert, true, pauseFrom);
+    assert.equal(result.admission_open, open, pauseFrom);
+    assert.equal(result.admission_reason, open ? null : "queued", pauseFrom);
+    assert.equal(result.admission_room, open ? null : 0, pauseFrom);
+    assert.equal(result.paused, false, pauseFrom);
+  }
+  const under = status(await read({ merged: 48, queued: issues(1, 2, 3) }), { "pause-from": "2026-10-01" });
+  assert.equal(under.queued_over, false);
+  assert.equal(under.admission_open, true);
+  // 3 queued under 3.2: room for one more.
+  assert.equal(under.admission_room, 1);
+  assert.equal(status(await read({ merged: 0 }), { "pause-from": "2026-10-01" }).admission_room, 2);
+});
+
+test("a queued read that fails leaves admissions open and touches no run pause", async () => {
+  const failed = new Error("GET /search/issues failed with status 502");
+  for (const answers of [{ queued: failed }, { open: failed }]) {
+    const result = status(await read({ merged: 48, ...answers }), { "pause-from": "2026-10-01" });
+    assert.equal(result.queued_total, null);
+    assert.equal(result.admission_open, true);
+    assert.equal(result.admission_room, null);
+    assert.equal(result.admission_basis, "fail-open");
+  }
+  assert.equal(status(await read({ merged: 48 })).admission_basis, "read");
 });
 
 test("the held buffer has its own cap from config", async () => {
@@ -277,7 +353,7 @@ async function runMain(answers, extraEnv = {}, config) {
   await main({ env: { GITHUB_REPOSITORY: REPO, BASE_PATH: base, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, ...extraEnv }, github, now: NOW, log: (line) => logs.push(line) });
   const text = readFileSync(output, "utf8");
   const value = (name) => new RegExp(`${name}<<(\\S+)\\n([\\s\\S]*?)\\n\\1`).exec(text)?.[2];
-  return { capped: value("capped"), wip: JSON.parse(value("wip")), summary: readFileSync(summary, "utf8"), logs };
+  return { capped: value("capped"), admissionOpen: value("admission-open"), wip: JSON.parse(value("wip")), summary: readFileSync(summary, "utf8"), logs };
 }
 
 test("main publishes the status as one flat JSON object in the output, the step summary and the log", async (t) => {
@@ -425,7 +501,7 @@ test("the state is saved only from work-unblock's schedule, and pick-slot only r
   assert.deepEqual(savers.map(({ file, name }) => `${file}:${name}`), ["work-unblock.yml:wip-state"]);
   const saver = yamlAt(".github/workflows/work-unblock.yml").jobs["wip-state"];
   assert.match(saver.if, /github\.event_name == 'schedule'/);
-  assert.deepEqual(saver.permissions, { contents: "read", "pull-requests": "read" });
+  assert.deepEqual(saver.permissions, { contents: "read", "pull-requests": "read", issues: "read" });
   assert.ok(!JSON.stringify(saver).includes("secrets."));
   const pickSlot = yamlAt(".github/workflows/work-resolve-issue.yml").jobs["pick-slot"];
   assert.equal(pickSlot["cache-mode"], "read");
@@ -468,4 +544,29 @@ test("main's warning before pause-from says the pause date is not reached", asyn
   assert.equal(held.capped, "false");
   const warning = held.logs.find((line) => line.startsWith("::warning title=check-wip-cap::"));
   assert.ok(warning?.includes("the lane keeps running (pause-from not reached)"), warning);
+});
+
+test("main pauses new admissions over this repository's queued cap past pause-from, and not the run", async () => {
+  // This repository's limits (factor 0.8, floor 1/h) and lead time of 2 h:
+  // 24 merged is 0.8/h under the floor, so the cap is 2. Three queued issues
+  // and one held PR make 4.
+  const open = [pr({ labels: ["needs-human"], body: "Closes #9" })];
+  const over = await runMain({ open, merged: 24, queued: issues(5, 6, 7) }, {}, pastConfig());
+  assert.equal(over.capped, "false");
+  assert.equal(over.admissionOpen, "false");
+  assert.equal(over.wip.queued_cap, 2);
+  const line = "admission paused: reason=queued queued=3 held=1 cap=2";
+  assert.ok(over.logs.includes(`::notice title=admission paused::${line}`), over.logs.join("\n"));
+  assert.ok(over.summary.includes(`\n${line}\n`));
+  const under = await runMain({ open, merged: 24, queued: [] }, {}, pastConfig());
+  assert.equal(under.admissionOpen, "true");
+  assert.ok(!under.logs.some((l) => l.includes("admission paused")));
+});
+
+test("a queued read that fails keeps the run's read basis and leaves admissions open", async () => {
+  const failed = new Error("GET /search/issues failed with status 502");
+  const result = await runMain({ open: [pr()], merged: 24, queued: failed }, { WIP_STATE: stateFile() }, pastConfig());
+  assert.equal(result.wip.pause_basis, "read");
+  assert.equal(result.admissionOpen, "true");
+  assert.equal(result.wip.admission_basis, "fail-open");
 });

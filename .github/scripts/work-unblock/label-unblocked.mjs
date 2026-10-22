@@ -6,6 +6,15 @@
 // agent-ready. Every fact is read from the API now, never from the event
 // payload. No model.
 //
+// Each new agent-ready is paced: at or over the issue lane's queued cap
+// (check-wip-cap.mjs, on or after wip.pause-from) a ready issue gets
+// `admission-deferred` instead, and with room for k admissions only the first
+// k ready issues are labeled. Every sweep revisits the open deferred issues
+// oldest first, before the closed ones: one still ready is labeled agent-ready
+// within the room and loses admission-deferred, a held one stays deferred, and
+// any other loses admission-deferred. Restarts, re-fires and relabels below
+// re-run admitted issues and are never paced.
+//
 // On `schedule` it sweeps instead: every issue closed in the last
 // LOOKBACK_HOURS goes through the same rules, so an issue a bot closed (a
 // pull request merge), which starts no close run, is still picked up. A
@@ -93,13 +102,14 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
+import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
 const TRIAGE_LABEL = "needs-triage";
+const DEFERRED_LABEL = "admission-deferred";
 // The lane's caller and the write runner: the broker refuses a run whose copy
 // of either differs from main's.
 const LANE_WORKFLOWS = [".github/workflows/pr-run-activity-write.yml", ".github/workflows/work-resolve-issue.yml"];
@@ -179,19 +189,18 @@ function isRestart(events, index, markers, bot) {
   return next !== undefined && isLabel(next, "labeled") && next.actor?.login === bot;
 }
 
-// Why `number` is not promoted, or null when it is ready.
-async function refusal({ github, repo, number, humans, closes, bot = DEFAULT_BOT }) {
-  const base = `/repos/${repo}/issues/${number}`;
-  const current = await github("GET", base);
-  if (current.state !== "open") {
-    return "not open";
-  }
-  const labels = (current.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
-  const lower = labels.map((label) => String(label).toLowerCase());
+// Why `number` is not promoted (`reason`, null when it is ready), whether a
+// hold label is the reason, and whether it carries admission-deferred.
+async function refusal(args) {
+  const base = `/repos/${args.repo}/issues/${args.number}`;
+  const current = await args.github("GET", base);
+  const lower = (current.labels ?? []).map((label) => String(typeof label === "string" ? label : label.name).toLowerCase());
   const held = lower.find((label) => HOLDS.has(label));
-  if (held) {
-    return `held by ${held}`;
-  }
+  const reason = current.state !== "open" ? "not open" : held ? `held by ${held}` : await readiness({ ...args, base, lower });
+  return { reason, held: current.state === "open" && Boolean(held), deferred: lower.includes(DEFERRED_LABEL) };
+}
+
+async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base, lower }) {
   if (lower.includes(LABEL)) {
     return `already ${LABEL}`;
   }
@@ -292,9 +301,83 @@ async function isTrustedClose(github, repo, closedIssue, humans) {
   return here && (by.__typename === "Commit" || (by.__typename === "PullRequest" && by.merged === true));
 }
 
-// Labels each issue `closed` blocked that is ready, each at most once per run.
-// Returns how many reads or writes failed.
-async function labelUnblocked({ github, repo, closed, sweep, humans, bot }) {
+// The admission pace for one run: `take()` answers whether one more issue may
+// get agent-ready now, reading the issue lane's status the first time it is
+// asked and counting each admission against its room.
+function admissionGate(status) {
+  let room;
+  return {
+    take: async () => {
+      if (room === undefined) {
+        const s = await status();
+        room = s.admission_room ?? Number.POSITIVE_INFINITY;
+        if (!s.admission_open) {
+          console.log(`::notice title=admission paused::${escapeCommand(admissionLine(s))}`);
+        }
+      }
+      if (room <= 0) {
+        return false;
+      }
+      room -= 1;
+      return true;
+    },
+  };
+}
+
+// Adds agent-ready to a ready issue within the gate's room, else defers it.
+async function admit({ github, repo, number, gate, deferred }) {
+  const base = `/repos/${repo}/issues/${number}`;
+  if (!(await gate.take())) {
+    if (!deferred) {
+      await github("POST", `${base}/labels`, { labels: [DEFERRED_LABEL] });
+    }
+    console.log(`label-unblocked: #${number} admission deferred: queued work is at the queued cap`);
+    return;
+  }
+  await github("POST", `${base}/labels`, { labels: [LABEL] });
+  if (deferred) {
+    await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
+  }
+  console.log(`label-unblocked: #${number} labeled ${LABEL}`);
+}
+
+// Revisits the open admission-deferred issues, oldest first. Returns how many
+// reads or writes failed.
+async function admitDeferred({ github, repo, humans, bot, gate }) {
+  let waiting;
+  try {
+    waiting = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${DEFERRED_LABEL}&sort=created&direction=asc`)).filter(
+      (item) => !item.pull_request && NUMBER.test(String(item.number)),
+    );
+  } catch (error) {
+    reportError("deferred", error);
+    return 1;
+  }
+  const closes = new Map();
+  let failed = 0;
+  for (const item of waiting) {
+    const number = Number(item.number);
+    try {
+      const { reason, held, deferred } = await refusal({ github, repo, number, humans, closes, bot });
+      if (reason === null) {
+        await admit({ github, repo, number, gate, deferred });
+      } else if (held) {
+        console.log(`label-unblocked: #${number} stays deferred: ${reason}`);
+      } else {
+        await github("DELETE", `/repos/${repo}/issues/${number}/labels/${DEFERRED_LABEL}`);
+        console.log(`label-unblocked: #${number} deferral dropped: ${reason}`);
+      }
+    } catch (error) {
+      failed += 1;
+      reportError(number, error);
+    }
+  }
+  return failed;
+}
+
+// Labels each issue `closed` blocked that is ready, each at most once per run,
+// within the gate's room. Returns how many reads or writes failed.
+async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate }) {
   const seen = new Set();
   const closes = new Map();
   let failed = 0;
@@ -323,13 +406,12 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot }) {
       }
       seen.add(number);
       try {
-        const reason = await refusal({ github, repo, number, humans,closes, bot });
+        const { reason, deferred } = await refusal({ github, repo, number, humans, closes, bot });
         if (reason !== null) {
           console.log(`label-unblocked: #${number} not labeled: ${reason}`);
           continue;
         }
-        await github("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [LABEL] });
-        console.log(`label-unblocked: #${number} labeled ${LABEL}`);
+        await admit({ github, repo, number, gate, deferred });
       } catch (error) {
         failed += 1;
         reportError(number, error);
@@ -723,7 +805,7 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
 
 // Restarts, re-fires or hands off up to `cap` issues, longest-waiting first.
 // Returns how many reads or writes failed.
-async function restartLimited({ github, actions, repo, bot, humans, now, limits, wip, remaining, cap = limits["restarts-per-run"] }) {
+async function restartLimited({ github, actions, repo, bot, humans, now, limits, status, cap = limits["restarts-per-run"] }) {
   let failed = 0;
   const ready = [];
   // Main's blob SHAs of the lane workflow files, read once per run.
@@ -740,9 +822,8 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
       }
       return shas.join("-");
     })());
-  // The issue lane's pause, read once per run; a read that fails never pauses.
-  let capped;
-  const wipCapped = () => (capped ??= checkWip(github, { repo, bot, now, limits, wip, remaining }).then((status) => status.paused));
+  // The issue lane's run pause; a read that fails never pauses.
+  const wipCapped = () => status().then((s) => s.paused);
   // The unfinished lane runs, read once per run and only for a reopened fix
   // issue; null with no Actions token.
   let flight;
@@ -892,11 +973,18 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       console.log(`label-unblocked: ${closed.length} issue(s) closed in the last ${LOOKBACK_HOURS} hours`);
     }
     const bot = env.LANES_BOT_LOGIN || DEFAULT_BOT;
-    let failed = await labelUnblocked({ github, repo, closed, sweep, humans, bot });
+    const resolved = env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`;
+    const limits = readLimits(resolved);
+    const wip = readWip(resolved);
+    // The issue lane's status, read once per run and only when asked.
+    let read;
+    const status = () => (read ??= checkWip(github, { repo, bot, now, limits, wip, remaining: rate.remaining }));
+    const gate = admissionGate(status);
+    let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate }) : 0;
+    failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate });
     if (sweep) {
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
-      const resolved = env.RESOLVED_CONFIG || `${env.RUNNER_TEMP ?? ""}/resolved-config.json`;
-      failed += await restartLimited({ github, actions, repo, bot, humans, now, limits: readLimits(resolved), wip: readWip(resolved), remaining: rate.remaining });
+      failed += await restartLimited({ github, actions, repo, bot, humans, now, limits, status });
     }
     return failed === 0 ? 0 : 1;
   } catch (error) {

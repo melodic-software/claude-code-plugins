@@ -303,7 +303,9 @@ activities:
     # a merge, meaning a merged PR or a commit (a pull request blocker:
     # merged; another repository's: never), that carries no
     # hold label, and whose agent-ready label was never removed. The label
-    # starts resolve-issue. Hourly it also hands an agent-ready issue whose
+    # starts resolve-issue. At the issue lane's queued cap (check-wip-cap) it
+    # labels such an issue admission-deferred instead, and each hourly sweep
+    # admits the deferred ones oldest first within the room. Hourly it also hands an agent-ready issue whose
     # lanes-App PR merged with `Refs:` or closed unmerged to triage
     # (needs-triage on, agent-ready off), lifting only the needs-human
     # report-outcome set for a merged Refs PR. A script, no model.
@@ -490,14 +492,13 @@ limits:
   # 1: one capped run resumes from its pushed branch before a person is asked
   # again. Raise it further only with a security review (#7677).
   turn-cap-restarts: 1
-  # Hours of issue-lane admissions the admitted backlog (open issues with
-  # agent-ready) may hold before new agent-ready labels pause.
-  admission-window-hours: 24
-  # Share of the lane's hourly merge rate admitted per hour; the release point
-  # is this factor times hourly merges times admission-window-hours.
+  # Share of the lane's hourly merge rate admitted per hour. The queued cap
+  # (check-wip-cap) is the larger of this rate and admission-min-per-hour,
+  # times wip.target-lead-time-hours; at it, past wip.pause-from, new
+  # agent-ready labels pause.
   admission-factor: 0.8
-  # Admissions per hour the release point never falls below, so a day with
-  # no lane merges cannot hold admissions shut (owner decision 2026-10-21).
+  # Admissions per hour the queued cap never falls below, so a day with no
+  # lane merges cannot hold admissions shut (owner decision 2026-10-21).
   admission-min-per-hour: 1
 
 wip:
@@ -508,14 +509,15 @@ wip:
   min-cap: 12
   merge-rate-window-hours: 24
   # Lane PRs opened in the window may be at most this share of those merged
-  # in it (not limits.admission-factor, which sizes the agent-ready backlog).
+  # in it (not limits.admission-factor, which sizes the queued cap).
   opened-to-merged-ratio: 0.8
   # Held lane PRs (needs-human, do-not-merge, or a "Hold: a human merges
   # this" body line) count here, not against the cap; at this many the lane
   # pauses (owner decision 2026-10-21).
   held-cap: 10
   held-alarm-hours: 24
-  # Over the WIP cap or the held cap the lane pauses from this date.
+  # Over the WIP cap or the held cap runs pause from this date, and over the
+  # queued cap new admissions do.
   # The owner clears it to only alert. Empty: over a cap the lane alerts and
   # keeps starting runs.
   pause-from: "2026-10-18"

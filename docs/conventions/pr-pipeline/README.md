@@ -1434,9 +1434,8 @@ with defaults.
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome hands the issue to a person; at most 5, and 0 never restarts. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
-| `admission-window-hours` | 24 | Hours of issue-lane admissions the admitted backlog (open issues labeled `agent-ready`) may hold before new `agent-ready` labels pause. |
-| `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour; greater than 0, at most 1. |
-| `admission-min-per-hour` | 1 | Admissions per hour the release point never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
+| `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
+| `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
@@ -1444,34 +1443,30 @@ config themselves. A config the resolver refuses fails the two dispatchers befor
 the WIP cap check keeps the last known pause ([WIP cap](#wip-cap)). This repository's values are in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`limits` and `wip`).
 
-`node .github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are
-open: the admitted backlog is under `admission-factor` times lane merges per hour (the last 24
-hours), or `admission-min-per-hour` when that is higher, times `admission-window-hours`. It prints one line and exits 0 open, 1 held, 2 on error.
-No lane reads it yet.
-
 ## WIP cap
 
 The optional `wip` block sizes the issue lane's work in progress from the lane merge rate. The WIP
 cap check (`.github/actions/check-wip-cap`) runs before work-resolve-issue takes a slot, and
-work-unblock's sweep runs it before a re-fire. It reads, one request at a time and none once
-`x-ratelimit-remaining` reaches 0, the lanes App's open pull requests, those merged in the window
-and those opened in it.
+work-unblock runs it before a re-fire and before adding `agent-ready`. It reads, one request at a
+time and none once `x-ratelimit-remaining` reaches 0, the lanes App's open pull requests, those
+merged in the window, those opened in it, and the open `agent-ready` issues that carry no hold
+label (`needs-human`, `needs-owner-decision`, `status: needs-decision`).
 
 | Key | Default | What it sets |
 |---|---|---|
 | `target-lead-time-hours` | 2 | Target open-to-merge hours. The WIP cap is merged lane PRs per hour times this, rounded up, at least `min-cap`. |
 | `min-cap` | 1 | Floor under the computed WIP cap, so a day with few merges cannot shrink the cap until the lane stalls. This repository's value is in `docs/conventions/pr-pipeline.yaml` `wip`. |
 | `merge-rate-window-hours` | 24 | Rolling window for the merged and opened counts. |
-| `opened-to-merged-ratio` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. Not `limits.admission-factor`, which sizes the agent-ready backlog. |
+| `opened-to-merged-ratio` | 0.8 | Lane PRs opened in the window may be at most this share of those merged in it. Not `limits.admission-factor`, which sizes the queued cap. |
 | `held-cap` | 60 | Held lane PRs at or above which the held buffer is over its cap; on or after `pause-from` the lane pauses there. This repository sets 10. |
 | `held-alarm-hours` | 24 | Age past which a held lane PR raises the alarm. |
-| `pause-from` | empty | UTC date or date-time from which the lane pauses over the WIP cap or the held cap; empty never pauses. |
+| `pause-from` | empty | UTC date or date-time from which runs pause over the WIP cap or the held cap, and new admissions over the queued cap; empty never pauses. |
 
 A held lane PR carries `needs-human` or `do-not-merge`, or has a body line exactly
 `Hold: a human merges this`. Held PRs never count against the WIP cap; countable PRs are the open
 lane PRs that are not held. Over the WIP cap (countable at or above it), over the held cap, over
-the admission share, or with a held PR past the alarm age, the check writes a warning annotation.
-Over the WIP cap or the held cap on or after `pause-from` it pauses the lane: work-resolve-issue
+the admission share, at or over the queued cap, or with a held PR past the alarm age, the check
+writes a warning annotation. Over the WIP cap or the held cap on or after `pause-from` it pauses runs: work-resolve-issue
 starts no run, work-unblock re-fires none, and the log and step summary carry one line
 `admission paused: reason=<wip|held-cap|wip,held-cap> countable=<n> wip_cap=<n> held=<n> held_cap=<n>`
 (a `::notice` annotation titled `admission paused`). When the open listing or the base config
@@ -1485,8 +1480,30 @@ longer pauses (`pause-from` cleared or in the future); with no saved state (none
 or the cache evicted it), the check fails open and the run starts. Without a merged count the
 cap is `limits.wip-cap`. A held PR's age runs from when it opened.
 
+Queued work is the open `agent-ready` issues no open lane PR names on its first body line
+(`Closes #<n>` or `Refs: #<n>`, as report-outcome writes it), plus the held lane PRs. The lane
+branch is not matched: the search answer carries no head ref. The queued cap is
+`max(limits.admission-factor × lane merges per hour, limits.admission-min-per-hour) ×
+target-lead-time-hours`, with the floor alone when the merged count cannot be read. At or over it,
+on or after `pause-from`, new admissions pause: the step output `admission-open` is `false`, and
+the log and step summary carry one line
+`admission paused: reason=queued queued=<issues> held=<held PRs> cap=<cap>` (a `::notice`
+annotation titled `admission paused`). Under it, `admission_room` is how many more issues may be
+admitted now. The queued cap gates only new `agent-ready` labels, never a run: a queued issue
+leaves the count only by running, so pausing runs on it would hold the count shut. A queued read
+that fails leaves admissions open (`admission_basis: fail-open`) and changes no run pause.
+
+work-unblock is the one lane that adds `agent-ready` to a new issue. Past the room it labels a
+ready issue `admission-deferred` instead, and each hourly sweep revisits the open
+`admission-deferred` issues oldest first, before the issues closed in its window: one still ready
+gets `agent-ready` within the room and loses `admission-deferred`, a held one stays deferred, and
+any other loses it. Restarts, re-fires and relabels re-run issues already admitted and are never
+paced. This queued cap replaces the admission window (`limits.admission-window-hours`) and owner
+decisions Q2, Q17 and Q22 of the 2026-10-21 lane-flow interview.
+
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
-and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane pauses.
+and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause;
+`admission-open` is `false` only while new admissions pause.
 
 | Field | Meaning |
 |---|---|
@@ -1500,11 +1517,15 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane
 | `held_cap`, `held_alarm_hours` | The held buffer's cap and alarm age. |
 | `merged_lane_prs_window`, `merge_rate_per_hour`, `merge_rate_window_hours`, `target_lead_time_hours` | The merge rate and its inputs. |
 | `admitted_lane_prs_window`, `admission_cap`, `opened_to_merged_ratio` | Lane PRs opened in the window and their cap. |
-| `wip_over`, `held_over`, `admission_over`, `held_alarm` | Which limit is crossed. |
-| `alert` | Any of the four. |
+| `queued_issues`, `queued_total` | Queued issues with no open lane PR, and those plus the held lane PRs; null when a read failed. |
+| `queued_cap`, `admission_factor`, `admission_min_per_hour` | The queued cap and its inputs. |
+| `wip_over`, `held_over`, `admission_over`, `queued_over`, `held_alarm` | Which limit is crossed. |
+| `alert` | Any of the five. |
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |
 | `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
 | `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
+| `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
+| `admission_basis` | `read`, or `fail-open` when the queued count could not be read. |
 
 ## Red main
 
