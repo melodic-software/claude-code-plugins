@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.90.1] - 2026-10-22
+
+### Fixed
+
+- Shared interview page: a hovered primary button (Send, Propose, Save) now keeps its label at WCAG AA contrast (4.5:1) in every palette, accent and mode; light-mode teal measured 3.93:1 before.
+
+- `share.sh ensure-running --open` starts the 30-second clock that deletes the owner's open page only after the browser has been handed the page, so an opener that takes time to start (such as one named by `SHARED_BROWSER`) still finds it.
+
 ## [0.90.0] - 2026-10-22
 
 ### Changed
