@@ -228,13 +228,22 @@ test("lane-or-owner reads the owner ids it is given", async () => {
 test("a trusted PR with no closing issue here is its own spec, unless a model wrote its body", async () => {
   const RELEASE = 337859524;
   const CLAUDE = 209825114;
-  const opts = { verifyAuthors: "lane-or-owner", ownerIds: [OWNER_ID, RELEASE, CLAUDE], specFromBodyApps: [RELEASE] };
+  // cursoragent is a GitHub User the trusted list marks kind bot: a model
+  // writes its bodies, so only a kind human id counts as a person.
+  const CURSORAGENT = 199161495;
+  const opts = {
+    verifyAuthors: "lane-or-owner",
+    humans: new Set([100, OWNER_ID]),
+    ownerIds: [OWNER_ID, RELEASE, CLAUDE, CURSORAGENT],
+    specFromBodyApps: [RELEASE],
+  };
   const own = (user) => pull({ user, title: "chore: release", body: "Bumps the versions." });
   const spec = [{ number: 41, source: "pull-request", body: "chore: release\n\nBumps the versions.", comments: [] }];
   for (const [user, expected] of [
     [{ id: OWNER_ID, login: "kyle-sexton", type: "User" }, spec],
     [{ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" }, spec],
     [{ id: CLAUDE, login: "claude[bot]", type: "Bot" }, []],
+    [{ id: CURSORAGENT, login: "cursoragent", type: "User" }, []],
     [{ id: 337595936, login: LANE, type: "Bot" }, []],
   ]) {
     const result = await resolve({ pulls: [own(user)], issues: [] }, opts);

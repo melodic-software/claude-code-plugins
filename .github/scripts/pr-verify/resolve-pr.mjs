@@ -263,9 +263,9 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
   // of an App whose bodies a script writes (adoption.spec-from-body-apps),
   // are the spec. A model-written body, the lanes App's included, never is:
   // the run that wrote the diff would have written its spec too.
-  const bodyIsIntent =
-    (pull.user?.type === "User" && owners.includes(pull.user.id)) ||
-    (pull.user?.type === "Bot" && specFromBodyApps.includes(pull.user.id));
+  // A person is a kind human id on the trusted list, not a GitHub User: a
+  // model's account may be a User (babysit_merge_policy.lane_eligibility's twin).
+  const bodyIsIntent = humans.has(pull.user?.id) || specFromBodyApps.includes(pull.user?.id);
   if (spec.linkedIssues.length === 0 && bodyIsIntent) {
     const body = `${String(pull.title ?? "")}\n\n${String(pull.body ?? "")}`;
     spec.specText = [{ number: pull.number, source: "pull-request", body, comments: [] }];

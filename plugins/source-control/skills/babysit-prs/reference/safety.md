@@ -1020,7 +1020,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    an unheld, ready pull request of a trusted-actor-list account, matched by account id, a
    person's once idle (`adoption_refusal`; owner decisions Q22 and 2026-10-22; the pr-pipeline
    README's "The pr-merge lane"). The decision records why as `eligibility.adoption`; its path
-   floor scores only paths another account's commits touched (`foreign_paths`). The lane's
+   floor scores only changed paths a commit not the author's own (verified, author and, for a
+   person, committer) touched (`foreign_paths`). The lane's
    own queue entry at the current head (`lane_queued_at_head`) keeps adoption though its pin
    comment refreshed `updated_at`, until anyone else comments or reviews after that pin.
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.

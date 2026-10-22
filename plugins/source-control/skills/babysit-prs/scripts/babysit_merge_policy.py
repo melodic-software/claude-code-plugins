@@ -1866,14 +1866,16 @@ def _denied_path_refusal(
 
 
 AUTHOR_NOT_OWNER = "author-not-owner"
-# `trusted_actor_ids` by (repo, ref), read once a run.
-_TRUSTED_IDS: dict[tuple[str, str], tuple[int, ...]] = {}
+# `trusted_actors` by (repo, ref), read once a run.
+_TRUSTED_IDS: dict[tuple[str, str], tuple[tuple[int, ...], tuple[int, ...]]] = {}
 
 
-def trusted_actor_ids(repo: str, ref: str) -> tuple[int, ...]:
+def trusted_actors(repo: str, ref: str) -> tuple[tuple[int, ...], tuple[int, ...]]:
     """Every account id on `TRUSTED_ACTORS_PATH` at `ref`, people and Apps
-    alike: whose pull requests the lane adopts. A list that cannot be read
-    or does not match its schema is empty, which adopts nothing."""
+    alike (whose pull requests the lane adopts), and the ids of kind
+    `human` (the people; a GitHub User may be a model's account). A list
+    that cannot be read or does not match its schema is empty, which adopts
+    nothing."""
     key = (repo, ref)
     if key not in _TRUSTED_IDS:
         owner, name = _split_repo(repo)
@@ -1888,7 +1890,8 @@ def trusted_actor_ids(repo: str, ref: str) -> tuple[int, ...]:
         valid = listing.get("version") == 1 and all(
             type(i) is int and i > 0 for i in ids
         )
-        _TRUSTED_IDS[key] = ids if valid else ()
+        humans = tuple(a["id"] for a in actors if a.get("kind") == "human")
+        _TRUSTED_IDS[key] = (ids, humans) if valid else ((), ())
     return _TRUSTED_IDS[key]
 
 
@@ -1997,7 +2000,7 @@ def lane_eligibility(
     permission: Permission | None = None,
     adoption_idle_hours: int | None = None,
     adoption_owner_ids: Collection[int] = (),
-    spec_from_body_apps: Collection[int] = (),
+    spec_from_body_ids: Collection[int] = (),
     human_gated: str | None = None,
     now: datetime | None = None,
     queued_at_head: Callable[[], bool] = lambda: False,
@@ -2048,12 +2051,11 @@ def lane_eligibility(
             issue_number = issue["number"]
         # An adopted pull request closing no issue here is its own intent,
         # the verifier judging its title and body (owner decision 2026-10-22),
-        # when a person or a script wrote them: a model-written App body
-        # would be the spec the same run grades itself against.
-        author = json_object(pr.get("user"))
-        body_is_intent = (
-            author.get("type") == "User" or author.get("id") in spec_from_body_apps
-        )
+        # when a person or a script wrote them (`spec_from_body_ids`: the
+        # trusted list's kind human ids and adoption.spec-from-body-apps); a
+        # model-written body would be the spec the same run grades itself
+        # against, whatever the account's GitHub type.
+        body_is_intent = json_object(pr.get("user")).get("id") in spec_from_body_ids
         if refusal is None or adoption and body_is_intent and refusal in NO_ISSUE_HERE:
             refusal = _base_refusal(owner, name, node, shared=True)
         if refusal is None:
@@ -3244,29 +3246,49 @@ def changed_files(
     )
 
 
-def foreign_paths(repo: str, pr: Mapping[str, Any]) -> frozenset[str] | None:
-    """The paths, both sides of a rename, that the pull request's non-merge
-    commits by anyone but its author (by account id) touched: what an
-    adopted pull request's floor scores (owner decision 2026-10-22: a
-    trusted author's own lines, a person's or an App's, need no person; a
-    lane's fix still does, and the lanes App's own pull requests, never
-    adopted, are scored whole). A commit with no linked account counts as
-    another's. A merge commit is left out, so main's files an update brings
-    in score nothing. None, which scores every path, when a listing may be
-    cut off or cannot be read."""
+def _own_commit(commit: Mapping[str, Any], user: Mapping[str, Any]) -> bool:
+    """Whether a pull request commit is its author's own: GitHub verified
+    its signature, its author account is the pull request's author, and,
+    for a person, so is its committer. The author account alone comes from
+    the git author email, which anyone can set. An App commits through the
+    API, which GitHub's web-flow commits, so its own commits rest on the
+    author and the signature alone: the weaker case."""
+    author = json_object(commit.get("author")).get("id")
+    committer = json_object(commit.get("committer")).get("id")
+    verified = json_object(
+        json_object(json_object(commit.get("commit")).get("verification"))
+    ).get("verified")
+    return (
+        verified is True
+        and author == user.get("id")
+        and (user.get("type") == "Bot" or committer == author)
+    )
+
+
+def foreign_paths(
+    repo: str, pr: Mapping[str, Any], changed: Collection[str]
+) -> frozenset[str] | None:
+    """The `changed` paths (the pull request's, both sides of a rename) that
+    a commit not its author's own (`_own_commit`) touched: what an adopted
+    pull request's floor scores (owner decision 2026-10-22: a trusted
+    author's own lines, a person's or an App's, need no person; a lane's fix
+    still does, and the lanes App's own pull requests, never adopted, are
+    scored whole). A merge commit counts too, intersected with `changed`, so
+    main's incoming files outside the pull request's diff score nothing
+    while a conflict resolved inside it scores. None, which scores every
+    path, when a listing may be cut off or cannot be read."""
     owner, name = _split_repo(repo)
-    author = json_object(pr.get("user")).get("id")
+    user = json_object(pr.get("user"))
     try:
         commits = _paginated(
             f"repos/{owner}/{name}/pulls/{pr.get('number')}/commits?per_page=100",
             f"#{pr.get('number')} commits",
         )
-        if type(author) is not int or len(commits) >= 250:
+        if type(user.get("id")) is not int or len(commits) >= 250:
             return None
         paths: set[str] = set()
         for commit in commits:
-            by = json_object(commit.get("author")).get("id")
-            if len(json_array(commit.get("parents"))) != 1 or by == author:
+            if _own_commit(commit, user):
                 continue
             status, payload = _get(f"repos/{owner}/{name}/commits/{commit.get('sha')}")
             files = json_array(json_object(payload).get("files"))
@@ -3280,7 +3302,7 @@ def foreign_paths(repo: str, pr: Mapping[str, Any]) -> frozenset[str] | None:
                 )
     except PolicyReadError:
         return None
-    return frozenset(paths)
+    return frozenset(paths.intersection(changed))
 
 
 # Capability file text by (owner, name, path, sha): a SHA pins the text, so a
@@ -4160,18 +4182,23 @@ def assess(
         }
     elif lane:
         promo = Promotion(None, "not-read-in-pr-merge-lane")
+        # The trusted list at the default branch head, as its config is read
+        # (owner decision Q22): a stacked pull request's base is its author's.
+        trusted: tuple[tuple[int, ...], tuple[int, ...]] = ((), ())
+        if config.adoption_idle_hours is not None:
+            try:
+                head = _default_branch_config(repo, default).base_sha
+                trusted = trusted_actors(repo, head)
+            except (PolicyReadError, StopReadError):
+                pass
         eligible = lane_eligibility(
             repo,
             number,
             pr=pr,
             denied_paths=config.denied_paths,
             adoption_idle_hours=config.adoption_idle_hours,
-            adoption_owner_ids=(
-                trusted_actor_ids(repo, base_ref)
-                if config.adoption_idle_hours is not None
-                else ()
-            ),
-            spec_from_body_apps=config.spec_from_body_apps,
+            adoption_owner_ids=trusted[0],
+            spec_from_body_ids=(*trusted[1], *config.spec_from_body_apps),
             human_gated=human_gated,
             queued_at_head=lambda: lane_queued_at_head(
                 repo,

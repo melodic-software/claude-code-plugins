@@ -3046,14 +3046,11 @@ def score_unattended(
         )
     # An adopted pull request's trusted author: the path floor holds only
     # paths someone else's commits touched, a lane's fix among them.
-    others = merge_policy.foreign_paths(repo, pr) if eligible.adoption else None
-    own = (
-        frozenset(
-            p for f in files for p in (f.path, f.previous_path) if p and p not in others
-        )
-        if others is not None
-        else frozenset()
+    changed = frozenset(p for f in files for p in (f.path, f.previous_path) if p)
+    others = (
+        merge_policy.foreign_paths(repo, pr, changed) if eligible.adoption else None
     )
+    own = changed - others if others is not None else frozenset()
     if config.high_path_floor:
         # The capability check compares base and head text (the floor only).
         files = merge_policy.with_capability_contents(repo, pr, files)

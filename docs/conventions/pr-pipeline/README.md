@@ -1701,19 +1701,24 @@ person opened. A PR is adopted when all of these hold:
   at least `idle-hours` old. Neither one alone is enough. An App's PR does not wait.
 
 An adopted PR that closes no issue in this repository is judged against its own title and body
-when a person opened it or an App in `spec-from-body-apps` did (an App whose bodies a script
-writes): resolve-pr gives the verifier that text as the spec, the verdict records `intent:
+when a person (a `kind: human` id on the trusted list, not merely a GitHub `User`) opened it or
+an App in `spec-from-body-apps` did (an App whose bodies a script writes): resolve-pr gives the verifier that text as the spec, the verdict records `intent:
 pull-request`, and the pr-merge gate accepts it with no closing issue. Any other App, the lanes
 App included, still needs a closing issue a trusted person wrote: a model that wrote the diff
 would also have written the spec it is graded against.
 
 In the pr-merge lane, for an adopted PR, the HIGH path floor and the manifest review score only
-the paths that non-merge commits by someone other than its author touched (a lane's fix among
-them): a trusted author's own lines, a person's or an App's, need no person. The lanes App's own
-PRs are never adopted and stay scored whole. A commit list or commit that cannot be read whole
-scores every path. The capability check, the security-review lane's findings and every other gate still apply.
-A merge commit is left out, so a conflict a lane resolves in one is judged by the verifier and the
-review lanes, not the floor. Dependabot keeps its own paths, `review-dependency` for a red PR and
+the PR's changed paths that a commit not its author's own touched (a lane's fix among them): a
+trusted author's own lines, a person's or an App's, need no person. A commit is the author's own
+only when GitHub verified its signature and its author account is the PR's author, and, for a
+person, its committer account too; the author account alone comes from the git author email,
+which anyone can set. An App's commits go through the API and GitHub's web-flow commits them, so
+an App's own commits rest on the author account and the signature alone, the weaker case. A merge
+commit not the author's own scores its files that the PR also changed, so a conflict a lane
+resolves inside a PR-changed file holds while main's other incoming files score nothing. The lanes
+App's own PRs are never adopted and stay scored whole. A commit list or commit that cannot be read
+whole scores every path. The trusted list is read at the default branch head. The capability
+check, the security-review lane's findings and every other gate still apply. Dependabot keeps its own paths, `review-dependency` for a red PR and
 its own tier in pr-merge ([Dependabot pull requests](#dependabot-pull-requests)), and is never
 dispatched `fix-ci`.
 
