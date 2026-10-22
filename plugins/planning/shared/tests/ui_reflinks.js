@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Issue references and repository paths on the shared page link to the session's repository (issue #8250), against
+// Issue references and repository paths on the shared page link to the session's repository, against
 // `share.sh ensure-running` with the fake cloudflared. With no repository set, `#123` and `plugins/x.py:10` in a
 // question's background stay plain text; `set-repo` with a repository links `#N` only; with a commit too, a path links
 // to the file at that commit; an empty repository unlinks both again. A guest's answer gets the same rendering, and
@@ -16,7 +16,7 @@ const REPO = "octo-org/demo", SHA = "0123456789abcdef0123456789abcdef01234567";
 const ISSUE = n => `https://github.com/${REPO}/issues/${n}`;
 const BLOB = (p, line) => `https://github.com/${REPO}/blob/${SHA}/${p}${line ? `#L${line}` : ""}`;
 const URL_IN_TEXT = "https://example.com/docs/a.html#12";
-const CONTEXT = `Background: see #123 and plugins/x.py:10. Also (plugins/w.py), docs/a.md:3-5, \`plugins/y.py\` and ${URL_IN_TEXT}; not and/or, w/e.g. this, client/server.Then, 1/2.5, /home/u/x.py or example.com/x.html.`;
+const CONTEXT = `Background: see #123 and plugins/x.py:10. Also (plugins/w.py), docs/a.md:3-5, \`plugins/y.py\` and ${URL_IN_TEXT}; not and/or, w/e.g. this, client/server.Then, 1/2.5, /srv/x.py or example.com/x.html.`;
 const ANSWER = "<b>bold?</b> fixes #7 in plugins/z.md";
 
 /** In the page: the links in the rendered text holding `marker`, and whether that text has a <b> element. */
