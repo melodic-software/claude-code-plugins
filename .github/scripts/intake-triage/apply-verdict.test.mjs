@@ -684,6 +684,56 @@ describe("run", () => {
 		);
 	});
 
+	test("replaces the lanes App's own earlier class and field values given real-shaped ids", async () => {
+		// The REST events API answers actor.id as a number; GraphQL answers
+		// databaseId as a number, here passed as a string to prove the type
+		// does not matter.
+		const fake = fakeGitHub({
+			issue: { labels: [{ name: "work-class: mechanical" }] },
+			comments: [laneComment()],
+			events: [
+				{
+					event: "labeled",
+					label: { name: "work-class: mechanical" },
+					actor: {
+						id: 337595936,
+						login: "melodic-automation-lanes[bot]",
+						type: "Bot",
+					},
+				},
+			],
+			fieldRows: [
+				{
+					issue_field_id: 15462270,
+					data_type: "single_select",
+					single_select_option: { id: 27053566, name: "Large", color: "red" },
+				},
+			],
+		});
+		const result = await run({
+			env: ENV,
+			github: fake.github,
+			dimensionsConfig: DIMS,
+			fieldSetters: async () => ({ 15462270: "337595936" }),
+			log: () => {},
+		});
+		assert.equal(result.outcome, "ready");
+		const done = writes(fake.calls);
+		assert.ok(
+			done.some(
+				({ method, path }) =>
+					method === "DELETE" &&
+					path ===
+						`/repos/o/r/issues/7/labels/${encodeURIComponent("work-class: mechanical")}`,
+			),
+		);
+		const post = done.find(({ path }) => path.endsWith("/issue-field-values"));
+		assert.deepEqual(post.body.issue_field_values[0], {
+			field_id: 15462270,
+			value: "Small",
+		});
+	});
+
 	test("keeps a class a listed human added last", async () => {
 		const fake = fakeGitHub({
 			issue: { labels: [{ name: "work-class: structural" }] },

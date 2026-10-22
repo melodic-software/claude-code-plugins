@@ -190,6 +190,14 @@ export function parseVerdict(body, dimensionsConfig, classes) {
 
 // The writes the verdict calls for, given the issue's labels and its current
 // field values ({fieldId: {option, setter}}). Pure.
+// Whether an account id (a REST number, a GraphQL databaseId, or a string
+// either way) is the lanes App's; never for an unknown id or App.
+const isApp = (id, appId) =>
+	appId !== undefined &&
+	id !== undefined &&
+	id !== null &&
+	String(id) === String(appId);
+
 export function planWrites(
 	verdict,
 	{ labels, fields, dimensionsConfig, appId, classSetters = {} },
@@ -215,8 +223,7 @@ export function planWrites(
 		} else if (
 			held.length === 1 &&
 			!HOLD_CLASSES.has(held[0]) &&
-			appId !== undefined &&
-			classSetters[held[0]] === appId
+			isApp(classSetters[held[0]], appId)
 		) {
 			// Only the lanes App's own earlier class gives way; anyone else's,
 			// or one no event names, is kept.
@@ -239,7 +246,7 @@ export function planWrites(
 			if (
 				current &&
 				String(current.option) !== optionId &&
-				(appId === undefined || current.setter !== appId)
+				!isApp(current.setter, appId)
 			) {
 				reasons.push(
 					`${DIMENSIONS[key]} was set to another value by someone other than the lanes App`,
