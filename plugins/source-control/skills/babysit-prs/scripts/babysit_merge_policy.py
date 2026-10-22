@@ -3541,6 +3541,9 @@ def assess(
         )
     if config.error:
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha}: {config.error}")
+    # The commit whose config history sets the post-merge floor: the base, or
+    # the default branch head the config fell back to.
+    history_sha = config.base_sha
     identity = config.agent_identity
     lane = authority == PR_MERGE
     # A Dependabot pull request in the lane answers to its own switch.
@@ -3639,7 +3642,7 @@ def assess(
             repo,
             shared,
             branch=default,
-            base_sha=base_sha,
+            base_sha=history_sha,
             identity=resolved.login,
             self_logins=self_logins,
             lane=lane,
@@ -3669,7 +3672,7 @@ def assess(
         floor = reuse.floor
     else:
         try:
-            floor = merged_since_floor(repo, base_sha, demotion, authority)
+            floor = merged_since_floor(repo, history_sha, demotion, authority)
         except PolicyReadError as exc:
             return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
     details["mergedSince"] = floor.isoformat()
@@ -3688,7 +3691,7 @@ def assess(
         and gate.report.get("readable") is True
     ):
         try:
-            config_sha = newest_config_commit(repo, base_sha)
+            config_sha = newest_config_commit(repo, history_sha)
         except PolicyReadError:
             config_sha = None
         if config_sha:

@@ -561,6 +561,8 @@ class Unattended(unittest.TestCase):
         # check's): a config, or an exception to raise. Empty reads
         # `self.config`.
         self.head_configs: list[Any] = []
+        # True runs the real `enabled_since` over the stubbed reads.
+        self.real_enabled_since = False
 
     def _dependabot_eligibility(self, *args: Any, **kwargs: Any) -> Any:
         self.dependabot_kwargs.append(kwargs)
@@ -684,10 +686,16 @@ class Unattended(unittest.TestCase):
                 policy, "permission_reader", side_effect=self.permission_reader
             ),
             mock.patch.object(policy, "read_demotion", return_value=self.demotion),
-            mock.patch.object(
-                policy,
-                "enabled_since",
-                return_value=datetime(2026, 10, 1, tzinfo=UTC),
+            *(
+                []
+                if self.real_enabled_since
+                else [
+                    mock.patch.object(
+                        policy,
+                        "enabled_since",
+                        return_value=datetime(2026, 10, 1, tzinfo=UTC),
+                    )
+                ]
             ),
             mock.patch.object(postmerge, "check", self.post_check),
             mock.patch.object(policy, "read_rung_cap", self.read_cap),
@@ -1783,6 +1791,25 @@ class BaseConfigParseError(Unattended):
             f"read at the default branch head {self.main_head}",
         )
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_the_floor_is_read_from_the_default_branch_head_history(self) -> None:
+        # The real `enabled_since` walks the history of the commit the config
+        # came from; the base's own history holds only unparsable configs.
+        self.real_enabled_since = True
+        local = mock.patch.object(policy, "_local_history", return_value=None)
+        local.start()
+        self.addCleanup(local.stop)
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out.get("blockers"))
+        self.assertIsNone(out["unattended"]["reason"])
+        self.assertEqual(out["unattended"]["mergedSince"], "2026-10-01T00:00:00+00:00")
+
+    def _get(self, endpoint: str) -> tuple[int | None, Any]:
+        if endpoint.startswith("repos/owner/repo/commits?sha="):
+            sha = endpoint.split("sha=", 1)[1].split("&", 1)[0]
+            commit = {"committer": {"date": "2026-10-01T00:00:00Z"}}
+            return 200, [{"sha": sha, "commit": commit}]
+        return super()._get(endpoint)
 
     def test_an_unparsable_default_branch_config_too_refuses(self) -> None:
         self.main_read = dataclasses.replace(self.main_read, error="config-parse-error")
