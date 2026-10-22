@@ -64,6 +64,13 @@ inputs:
       them instead of reading the issue's fields again.
     required: false
     default: ""
+  model-rung:
+    description: >
+      The model rung of a skill activity's run: empty or 0 takes its profile,
+      1 the profile's escalate-to (fix-ci's one retry one rung up). Any other
+      value fails the step.
+    required: false
+    default: ""
   prepare-supported:
     description: >
       `true` only from a runner that performs a leaf's `prepare` step. An
@@ -202,6 +209,7 @@ runs:
         PREPARE_SUPPORTED: ${{ inputs.prepare-supported }}
         APPLIED_BY_SUPPORTED: ${{ inputs.applied-by-supported }}
         ISSUE_DIMENSIONS: ${{ inputs.issue-dimensions }}
+        MODEL_RUNG: ${{ inputs.model-rung }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |
