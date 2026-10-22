@@ -16,6 +16,7 @@ import babysit_merge_policy as policy
 REPO = "owner/repo"
 LINK = "https://github.com/owner/repo/issues/40#issuecomment-7"
 IDENTITY = "agent-lanes[bot]"
+PR_CREATED = "2026-10-22T10:00:00Z"
 
 
 def _comment(**changes: Any) -> dict[str, Any]:
@@ -25,6 +26,7 @@ def _comment(**changes: Any) -> dict[str, Any]:
         "performed_via_github_app": None,
         "body": "**Decision recorded.** Cost: approve the larger runner.",
         "node_id": "IC_7",
+        "created_at": "2026-10-22T12:00:00Z",
     } | changes
 
 
@@ -39,7 +41,9 @@ class CostDecision(unittest.TestCase):
         edited: Any = None,
         issue: int | None = 40,
         node: Any = ...,
+        created: Any = None,
     ) -> str | None:
+        created = PR_CREATED if created is None else created
         self.reads: list[str] = []
 
         def get(endpoint: str) -> tuple[int, Any]:
@@ -54,7 +58,7 @@ class CostDecision(unittest.TestCase):
         ):
             return policy.cost_decision(
                 REPO,
-                {"number": 99, "body": body},
+                {"number": 99, "body": body, "created_at": created},
                 issue,
                 permission=lambda login: permission,
                 agent_identity=IDENTITY,
@@ -116,6 +120,14 @@ class CostDecision(unittest.TestCase):
                 body=f"Closes #40\n<!--\n{LINK}\n"
             ),
             "a null node": dict(node=None),
+            "a decision older than the pull request": dict(
+                comment=_comment(created_at="2026-10-21T09:00:00Z")
+            ),
+            "a decision at the pull request's creation": dict(
+                comment=_comment(created_at=PR_CREATED)
+            ),
+            "no comment time": dict(comment=_comment(created_at=None)),
+            "no pull request time": dict(created=""),
             "no lastEditedAt key": dict(node={}),
         }
         for name, change in cases.items():
@@ -132,7 +144,7 @@ class CostDecision(unittest.TestCase):
         ):
             decision = policy.cost_decision(
                 REPO,
-                {"number": 99, "body": LINK},
+                {"number": 99, "body": LINK, "created_at": PR_CREATED},
                 40,
                 permission=refuse,
                 agent_identity=IDENTITY,
