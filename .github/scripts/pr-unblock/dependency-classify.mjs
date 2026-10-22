@@ -373,10 +373,12 @@ const LOCK_VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$/;
 const INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
 
 // Why one `packages` entry is not a registry tarball of its own name and
-// version, or null.
-function lockEntryRefusal(key, entry) {
+// version, or null. Its alias `name` is the before side's (`was`): a fix
+// never adds, drops or changes one, so it cannot repoint a key.
+function lockEntryRefusal(key, entry, was) {
   const at = LOCK_KEY.exec(key);
   if (!at || !isObject(entry)) return `lock-key:${key}`;
+  if (canonical(isObject(was) ? was.name : undefined) !== canonical(entry.name)) return `lock-name:${key}`;
   const name = entry.name ?? at[1];
   if (typeof name !== "string" || !PACKAGE_NAME.test(name) || typeof entry.version !== "string" || !LOCK_VERSION.test(entry.version)) {
     return `lock-entry:${key}`;
@@ -401,7 +403,7 @@ export function lockRefusal(before, after) {
   const keys = Object.keys(now.packages).sort();
   if (canonical(keys) !== canonical(Object.keys(old.packages).sort())) return "lock-packages-changed";
   for (const key of keys) {
-    const why = key === "" ? null : lockEntryRefusal(key, now.packages[key]);
+    const why = key === "" ? null : lockEntryRefusal(key, now.packages[key], old.packages[key]);
     if (why) return why;
   }
   const stack = [now];

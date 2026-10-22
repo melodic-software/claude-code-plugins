@@ -1239,6 +1239,50 @@ FIX_VECTORS: list[tuple[str, str, str, str | None]] = [
     ),
     (
         "package-lock.json",
+        _lock({"node_modules/a": _reg("a", "1.0.0")}),
+        _lock({"node_modules/a": _reg("evilpkg", "6.6.6", name="evilpkg")}),
+        "lock-name:node_modules/a",
+    ),
+    (
+        "package-lock.json",
+        _lock({"node_modules/x/node_modules/a": _reg("a", "1.0.0")}),
+        _lock(
+            {"node_modules/x/node_modules/a": _reg("evilpkg", "6.6.6", name="evilpkg")}
+        ),
+        "lock-name:node_modules/x/node_modules/a",
+    ),
+    (
+        "package-lock.json",
+        _lock(
+            {
+                "node_modules/a": _reg(
+                    "real", "6.6.6", name="real", hasInstallScript=True
+                )
+            }
+        ),
+        _lock(
+            {
+                "node_modules/a": _reg(
+                    "evilpkg", "6.6.6", name="evilpkg", hasInstallScript=True
+                )
+            }
+        ),
+        "lock-name:node_modules/a",
+    ),
+    (
+        "package-lock.json",
+        _lock({"node_modules/alias": _reg("real", "1.0.0", name="real")}),
+        _lock({"node_modules/alias": _reg("alias", "1.0.1")}),
+        "lock-name:node_modules/alias",
+    ),
+    (
+        "package-lock.json",
+        _lock({"node_modules/alias": _reg("real", "1.0.0", name="real")}),
+        _lock({"node_modules/alias": _reg("other", "1.0.1", name="other")}),
+        "lock-name:node_modules/alias",
+    ),
+    (
+        "package-lock.json",
         _lock(_X1),
         _lock({**_X2, "node_modules/evilpkg": _reg("evilpkg", "1.0.0")}),
         "lock-packages-changed",

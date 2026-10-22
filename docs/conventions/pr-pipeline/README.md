@@ -882,7 +882,7 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   existing dependency entry's plain, bounded semver range (no `*` or lower bound alone); in a
   lock the same package keys as the Dependabot commit's lock, each entry's `resolved` exactly
   `https://registry.npmjs.org/<name>/-/<unscoped name>-<version>.tgz` for its own name (or
-  alias `name`) and version with a `sha512-` integrity, and no install-script change; in
+  alias `name`, which must be the Dependabot commit's) and version with a `sha512-` integrity, and no install-script change; in
   requirements only added `name==version` pins of projects the fix also unpins, and
   `--hash=sha256:` continuations); anything else keeps the fix off the
   branch and hands the pull request to a person. The verdict job posts no merge marker unless

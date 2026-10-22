@@ -972,12 +972,19 @@ def package_json_refusal(before: Any, after: Any) -> str | None:
     return None
 
 
-def _lock_entry_refusal(key: str, entry: Any) -> str | None:
+_ABSENT = object()
+
+
+def _lock_entry_refusal(key: str, entry: Any, was: Any) -> str | None:
     """Why one `packages` entry is not the registry tarball of its own name
-    and version with a sha512 integrity, or None."""
+    and version with a sha512 integrity, or None. Its alias `name` is the
+    before side's (`was`): a fix never adds, drops or changes one."""
     at = _LOCK_KEY.fullmatch(key)
     if not at or not isinstance(entry, dict):
         return f"lock-key:{key}"
+    old_name = was.get("name", _ABSENT) if isinstance(was, dict) else _ABSENT
+    if old_name != entry.get("name", _ABSENT):
+        return f"lock-name:{key}"
     name = entry.get("name", at.group(1))
     version = entry.get("version")
     if not (
@@ -1013,7 +1020,11 @@ def lock_refusal(before: Any, after: Any) -> str | None:
     if sorted(now["packages"]) != sorted(old["packages"]):
         return "lock-packages-changed"
     for key in sorted(now["packages"]):
-        why = None if key == "" else _lock_entry_refusal(key, now["packages"][key])
+        why = (
+            None
+            if key == ""
+            else _lock_entry_refusal(key, now["packages"][key], old["packages"][key])
+        )
         if why:
             return why
     stack: list[Any] = [now]

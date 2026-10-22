@@ -24,7 +24,7 @@ bump: patch
   whose content changes more than a version: in `package.json` only existing dependency entries'
   plain, bounded semver ranges may change; a lock keeps the Dependabot commit's package keys, and
   each entry resolves to exactly its own `https://registry.npmjs.org/<name>/-/<name>-<version>.tgz`
-  with a `sha512-` integrity and no install-script change; and requirements lines may add only
+  with a `sha512-` integrity, the same alias `name` as before, and no install-script change; and requirements lines may add only
   `name==version` pins of projects the fix also unpins, with `--hash=sha256:` continuations. The
   repository's version-bump commit is admitted only when its `plugin.json` changes nothing but
   `version`. The verdict job's `merge` path now checks every commit that
