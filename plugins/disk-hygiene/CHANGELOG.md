@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.20] - 2026-10-22
+
+### Changed
+
+- The safety model records the interactive bypassPermissions and auto-mode probes of the apply guard: its `ask` reaches a person or is denied in every probed mode, so no mode-independent gate is added (#5609).
+
 ## [0.43.19] - 2026-10-22
 
 ### Changed
