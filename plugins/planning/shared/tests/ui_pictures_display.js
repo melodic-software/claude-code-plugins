@@ -6,7 +6,8 @@
 // uploader (with Remove), and to another guest only once approved; the round-ready note names "You" by person, not by name, so a second
 // person of the same name reads the first one's initial; an avatar on a proposal's who line is focusable and opens the
 // person card; the unread dot, inline link button and counter each use their one class, at the sizes they had; and a
-// picture pasted into an empty answer box and sent is an answer, its card showing the picture.
+// picture pasted into an empty answer box and sent is an answer, its card showing the picture; locked, it shows in the
+// locked view to the owner, and to a guest once approved.
 //   node plugins/planning/shared/tests/ui_pictures_display.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the follow-ups (32, B5, B7, F14, F15) and the texts this suite writes, never from the page.
@@ -14,7 +15,7 @@
 const fs = require("fs"), path = require("path");
 const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
 
-const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "gather", format: { kind: "text" } });
+const q = (id, text, purpose = "gather") => ({ id, text, alternatives: [], dependsOn: [], purpose, format: { kind: "text" } });
 const DESK = { context: { viewport: { width: 1440, height: 900 } } };
 const IDEA = "Ask which cart default people expect.";
 
@@ -47,7 +48,7 @@ async function main() {
   const s = suite("ui_pictures_display"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("pictures-display");
-    s.apply(A.dir, [{ op: "set-title", title: "Checkout" }, { op: "open-round", questions: [q("Q1", "Where should the order summary sit?"), q("Q2", "What should the cart remember?")] }]);
+    s.apply(A.dir, [{ op: "set-title", title: "Checkout" }, { op: "open-round", questions: [q("Q1", "Where should the order summary sit?"), q("Q2", "What should the cart remember?"), q("Q3", "Which box art goes on the shelf?", "decide")] }]);
     let owner = await rec.open(A.ownerUrl, DESK);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     await owner.evaluate(() => window.Core.saveSettings({ uploads: true, names: "initials" }));
@@ -166,6 +167,17 @@ async function main() {
     ok("Send saves his card holding the picture and no text", await until(bo, id => window.Core.snapshot().cards.Q1?.some(c => c.kind === "person" && c.pid === window.Core.snapshot().me.pid
       && c.text === "" && (c.attachments || []).includes(id)), boPic, 10000), JSON.stringify((await snap(bo)).cards.Q1));
     ok("  and his card shows the picture", await until(bo, () => !!document.querySelector(".vf-card.vf-mine .vf-attlist .vf-uppic img")?.getAttribute("src")?.startsWith("data:image/"), null, 10000));
+
+    // ---------- a locked picture-only answer shows its picture in the locked view, by the approval rule ----------
+    await bo.evaluate(id => window.Core.answerCiting("Q3", "", [], { attachments: [id] }), boPic);
+    await owner.evaluate(pid => window.Core.lock("Q3", `p:${pid}`), (await snap(bo)).me.pid);
+    const lockPic = page => until(page, () => !!document.querySelector(".vf-lock:not([hidden]) .vf-attlist .vf-uppic img")?.getAttribute("src")?.startsWith("data:image/"), null, 10000);
+    for (const page of [owner, ann]) { await page.keyboard.press("Escape"); await page.locator(".vf-q", { hasText: "Which box art" }).first().click(); }
+    ok("the owner sees the locked picture-only answer's picture in the locked view", await lockPic(owner),
+      await owner.evaluate(() => document.querySelector(".vf-lock")?.outerHTML.slice(0, 300)));
+    ok("  a guest sees no picture there before the owner approves it", !(await ann.evaluate(() => !!document.querySelector(".vf-lock:not([hidden]) .vf-attlist .vf-uppic img"))));
+    await owner.evaluate(id => window.Core.uploadAct(id, "approve"), boPic);
+    ok("  and once approved, the guest sees it in the locked view", await lockPic(ann), await ann.evaluate(() => document.querySelector(".vf-lock")?.outerHTML.slice(0, 300)));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource|Failed to fetch|ERR_CONNECTION/.test(m));

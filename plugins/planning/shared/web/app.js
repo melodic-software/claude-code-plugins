@@ -1228,6 +1228,7 @@
     const editBtn = btn("vf-btn vf-btn-ghost vf-btn-sm", "Edit");
     lockTop.append(lockBadge, lockBy, E("span", "vf-spacer"), editBtn, unlockBtn);
     const lockText = clampBox("vf-lock-text");
+    const lockAtts = E("ul", "vf-reflist vf-attlist"); lockAtts.setAttribute("aria-label", "Attachments"); lockAtts.hidden = true; // the locked answer's files
     const lockFrom = E("div", "vf-lock-from");
     const editForm = E("form", "vf-edit"); editForm.hidden = true;
     const editTa = E("textarea", "vf-ta"); editTa.rows = 3; editTa.setAttribute("aria-label", "Locked answer text"); editTa.maxLength = 2000;
@@ -1253,7 +1254,7 @@
     sugForm.append(sugTa, sugNote, sugRow);
     const sList = E("ul", "vf-slist"); sList.setAttribute("role", "list");
     const sugMore = showMore("sugs", 10);
-    lockBox.append(lockTop, lockText, lockFrom, editForm, sugHead, sugForm, sList, sugMore.foot);
+    lockBox.append(lockTop, lockText, lockAtts, lockFrom, editForm, sugHead, sugForm, sList, sugMore.foot);
 
     const ansHead = E("div", "vf-anshead");
     const ansTitle = E("h2", "vf-h2", "Answers"), ansCount = E("span", "vf-meta");
@@ -7469,6 +7470,8 @@
           const lname = lk.name === "Claude" && String(lk.answerCid).startsWith("claude") ? "Claude" : disp(lk.name);
           // A closed poll chose no answer: it names no author and has no locked text to edit.
           fillClamp(lockText, "l:" + q.id, lk.poll ? "The poll is closed. The counts are final." : lk.text, lk.poll ? "Closed poll" : `Locked answer`, `${q.id}: ${q.text}`);
+          lockText.hidden = !lk.poll && !lk.text && !!lk.att; // a locked answer of pictures alone shows them, not an empty line
+          fillAtts(lockAtts, lk.poll ? [] : lk.att, `Locked answer on ${q.id}`);
           const lkey = lk.poll ? "poll" : lk.answerCid + "|" + lname + "|" + lk.hostEdited;
           if (lockFrom._k !== lkey) {
             lockFrom._k = lkey;
