@@ -5,7 +5,7 @@
 // instruction to commit, except in merge-base mode, where the runner commits.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
@@ -1390,7 +1390,8 @@ test("run-claude-cli refuses an issue lane, a writing skill, a patch-producing s
   for (const [overrides, message] of [
     [{ ISSUE_NUMBER: "7" }, /an issue lane runs on claude-code-action/],
     [{ EFFECT: "mutate-branch", CAN_COMMIT: "true" }, /only a read skill/],
-    [{ RESOLVED: appliedBy, PREPARE: "review-threads" }, /only a read skill/],
+    [{ PREPARE: "review-threads" }, /only a read skill/],
+    [{ PREPARE: "merge-base" }, /only a read skill/],
     [{ RESOLVED: appliedBy, PREPARE: "dependency-review" }, /only a read skill/],
     [{ RESOLVED: appliedBy, PREPARE: "merge-base" }, /only a read skill/],
     [{ GATING: "gate" }, /a gate skill's verdict is not read from the launcher/],
@@ -1453,6 +1454,120 @@ test("run-claude-cli: a patch-producing skill with no prepare mode gets Bash, Ed
   assert.equal(run.promptFile, "Call the Skill tool with skill source-control:pull-request and args fix, then follow the skill instructions to the end.\n");
   assert.equal(run.args, "", "no claude_args for the launcher");
   assert.deepEqual(run.plugins, []);
+});
+
+// address-feedback on the launcher: the patch tool set, the review-thread
+// tool's wrapper as its one Bash rule (bare and quoted), the thread files
+// staged read-only and denied to the file tools, and state/ left writable for
+// the replies file. pr-run-activity.md, "prepare: review-threads".
+function launchThreads({ workspace = WORKSPACE, runFile = true } = {}) {
+  const feedbackDir = mkdtempSync(path.join(root, "launch-feedback-"));
+  writeFileSync(path.join(feedbackDir, "threads.json"), '{"threads":[]}\n');
+  if (runFile) writeFileSync(path.join(feedbackDir, "run.json"), '{"version":1}\n');
+  const scripts = path.join(base, "plugins", "source-control", "skills", "pull-request", "scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(
+    path.join(scripts, "feedback-thread.sh"),
+    'echo "threads=$FEEDBACK_THREADS log=$FEEDBACK_LOG scratch=$FEEDBACK_SCRATCH ws=$FEEDBACK_WORKSPACE args=$*"\n',
+  );
+  return launch({ RESOLVED: launchResolved({ "applied-by": { patch: "apply-feedback-patch", "feedback-replies": "publish-feedback" } }), PREPARE: "review-threads", FEEDBACK_DIR: feedbackDir, SKILL: "source-control:pull-request", WORKSPACE: workspace });
+}
+
+const FEEDBACK_TOOL = `${WORKSPACE}/.lane/feedback/bin/feedback-thread`;
+const FEEDBACK_FILE_DENIED = ["threads.json", "run.json", "feedback-thread.sh", "bin/**"].flatMap((file) =>
+  ["Edit", "Write", "NotebookEdit"].map((tool) => `${tool}(./.lane/feedback/${file})`),
+);
+
+test("run-claude-cli: review-threads gets the patch tool set and the review-thread wrapper as its one Bash rule", () => {
+  const run = launchThreads();
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.tools.toSorted(), ["Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill", "Write"]);
+  assert.deepEqual(run.allowedTools.toSorted(), [
+    "Agent",
+    `Bash("${FEEDBACK_TOOL}" *)`,
+    `Bash(${FEEDBACK_TOOL} *)`,
+    "Edit",
+    "Edit(./.lane/scratch/**)",
+    "Glob",
+    "Grep",
+    "Skill(source-control:pull-request)",
+    "Write",
+  ]);
+  for (const rule of [...FEEDBACK_FILE_DENIED, "Bash(git *)", "Bash(wc *)", "Bash(cat *)", "Read(./.git/**)", "Read(//proc/**)", "NotebookEdit(./.lane/plugins/**)", "WebFetch", "WebSearch"]) {
+    assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
+  }
+  // A deny rule beats an allow rule: none names the wrapper or state/.
+  assert.ok(!run.deniedTools.some((rule) => rule.includes("feedback-thread *") || rule.includes("bin/feedback-thread")), run.deniedTools.join(" | "));
+  assert.ok(!run.deniedTools.some((rule) => rule.includes("feedback/state")), run.deniedTools.join(" | "));
+  assert.equal(run.args, "", "no claude_args for the launcher");
+});
+
+test("run-claude-cli: the preamble names the review-thread tool's path and subcommands, byte for byte the allow rule's path", () => {
+  const run = launchThreads();
+  assert.equal(run.status, 0, run.stdout);
+  const sentence =
+    `The review-thread tool is ${FEEDBACK_TOOL}: run it by exactly this path as ${FEEDBACK_TOOL} list, ` +
+    `${FEEDBACK_TOOL} check-paths <path>... and ${FEEDBACK_TOOL} record <thread-id> <file>, with each disposition file in ${WORKSPACE}/.lane/scratch. ` +
+    "The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record.";
+  assert.ok(run.preamble.endsWith(sentence), run.preamble);
+  assert.ok(run.preamble.includes(UNCOMMITTED_SENTENCE), run.preamble);
+  const named = /The review-thread tool is (\S+):/.exec(run.preamble)[1];
+  assert.ok(run.allowedTools.includes(`Bash(${named} *)`), `the allow rule names ${named}`);
+});
+
+test("run-claude-cli: review-threads stages the thread file, run.json, the tool copy, its wrapper and an empty state/ for .lane/", () => {
+  const run = launchThreads();
+  assert.equal(run.status, 0, run.stdout);
+  const feedback = path.join(run.stageDir, "feedback");
+  assert.deepEqual(readdirSync(feedback).toSorted(), ["bin", "feedback-thread.sh", "run.json", "state", "threads.json"]);
+  assert.equal(readFileSync(path.join(feedback, "threads.json"), "utf8"), '{"threads":[]}\n');
+  assert.equal(readFileSync(path.join(feedback, "run.json"), "utf8"), '{"version":1}\n');
+  assert.deepEqual(readdirSync(path.join(feedback, "state")), []);
+  const lane = `${WORKSPACE}/.lane`;
+  assert.equal(
+    readFileSync(path.join(feedback, "bin", "feedback-thread"), "utf8"),
+    "#!/usr/bin/env bash\n" +
+      `export FEEDBACK_THREADS=${lane}/feedback/threads.json FEEDBACK_LOG=${lane}/feedback/state/replies.jsonl FEEDBACK_SCRATCH=${lane}/scratch FEEDBACK_WORKSPACE=${WORKSPACE}\n` +
+      `exec bash ${lane}/feedback/feedback-thread.sh "$@"\n`,
+  );
+});
+
+test("run-claude-cli: the staged wrapper, copied to .lane/ as the runner copies it, runs the tool copy with the environment fixed", () => {
+  const workspace = path.join(mkdtempSync(path.join(root, "ws-")), "repo");
+  mkdirSync(workspace);
+  const run = launchThreads({ workspace });
+  assert.equal(run.status, 0, run.stdout);
+  cpSync(run.stageDir, path.join(workspace, ".lane"), { recursive: true });
+  const tool = path.join(workspace, ".lane", "feedback", "bin", "feedback-thread");
+  const result = spawnSync(tool, ["list", "x y"], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  const lane = path.join(workspace, ".lane");
+  assert.equal(
+    result.stdout.trim(),
+    `threads=${lane}/feedback/threads.json log=${lane}/feedback/state/replies.jsonl scratch=${lane}/scratch ws=${workspace} args=list x y`,
+  );
+});
+
+test("run-claude-cli: review-threads without the thread file or run.json fails red before any output", () => {
+  const run = launchThreads({ runFile: false });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout, /::error::review-threads: the runner wrote no thread file/);
+  assert.deepEqual(run.tools, []);
+  assert.equal(run.promptFile, "");
+});
+
+test("run-claude-cli: fix-ci and fix-docs get no review-thread wrapper and stage no feedback directory", () => {
+  const ciDir = mkdtempSync(path.join(root, "ci-no-feedback-"));
+  writeFileSync(path.join(ciDir, "context.json"), "{}");
+  for (const run of [
+    launch({ RESOLVED: launchResolved(PATCH), PREPARE: "ci-context", CI_DIR: ciDir, SKILL: "source-control:pull-request" }),
+    launch({ RESOLVED: launchResolved(PATCH), SKILL: "source-control:pull-request" }),
+  ]) {
+    assert.equal(run.status, 0, run.stdout);
+    assert.ok(!run.allowedTools.some((rule) => rule.includes("feedback-thread")), run.allowedTools.join(" | "));
+    assert.doesNotMatch(run.preamble, /review-thread tool/);
+    assert.ok(!readdirSync(run.stageDir).includes("feedback"));
+  }
 });
 
 // fix-docs runs ai-slop:audit under dontAsk: Bash runs exactly the skill's

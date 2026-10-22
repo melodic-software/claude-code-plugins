@@ -80,9 +80,9 @@ inputs:
       the CI context, a scratch directory and the prompt file are staged in
       $RUNNER_TEMP/lane-stage for the runner to copy to .lane/ after the head
       checkout, and the tool rules name them there. It takes a read skill
-      only (ci-context included, and one with no prepare mode that hands on
-      a patch), never a gate, an issue lane or an activity with checks,
-      self-checks or verify-scripts.
+      only (ci-context included, and one that hands on a patch with no
+      prepare mode or with review-threads), never a gate, an issue lane or an
+      activity with checks, self-checks or verify-scripts.
     required: false
     default: claude-code-action
 
@@ -226,8 +226,9 @@ runs:
         # preamble would not expand.
         if [ "$LAUNCHER" = run-claude-cli ]; then
           [ -z "${ISSUE_NUMBER:-}" ] || fail "run-claude-cli: an issue lane runs on claude-code-action"
-          [ "$edits" = read ] || { [ "$edits" = patch ] && [ -z "$PREPARE" ]; } ||
-            fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one with no prepare mode that hands on a patch"
+          { [ "$edits" = read ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = ci-context ]; }; } ||
+            { [ "$edits" = patch ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = review-threads ]; }; } ||
+            fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one that hands on a patch with no prepare mode or with review-threads"
           [ "$GATING" = advisory ] || fail "run-claude-cli: a gate skill's verdict is not read from the launcher"
           jq -e '[.selected.checks, .selected["self-checks"], .selected["verify-scripts"]] | all(. == null or . == [])' "$RESOLVED" >/dev/null ||
             fail "run-claude-cli: checks, self-checks and verify-scripts have no wrapper on the launcher"
@@ -296,6 +297,30 @@ runs:
                 ;;
             esac
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. Leave every change uncommitted in the working tree: the runner turns it into a patch that a later job pushes. Run each shell command as one plain command per call, a script by the absolute path the skill names: no variables, cd, ;, &&, a pipe, a command substitution or an interpreter, and redirect output only into $lane/scratch."
+            # review-threads: the skill reads the thread file the runner
+            # checked, and records its replies to those threads, only through
+            # the review-thread tool: a base copy of feedback-thread.sh behind
+            # a wrapper that fixes its environment. The runner makes the
+            # copies under .lane/feedback/ read-only, denied to the file tools
+            # too, except state/, where the tool writes the replies file the
+            # runner seals for the scan job; publish-feedback.mjs holds that
+            # file to the template. run.json is staged for the record:
+            # nothing in this job reads it.
+            if [ "$PREPARE" = review-threads ]; then
+              { [ -f "$FEEDBACK_DIR/threads.json" ] && [ -f "$FEEDBACK_DIR/run.json" ]; } || fail "review-threads: the runner wrote no thread file"
+              mkdir -p "$STAGE/feedback/bin" "$STAGE/feedback/state"
+              cp "$FEEDBACK_DIR/threads.json" "$FEEDBACK_DIR/run.json" "$STAGE/feedback/"
+              cp "$BASE_PATH/plugins/source-control/skills/pull-request/scripts/feedback-thread.sh" "$STAGE/feedback/feedback-thread.sh"
+              tool=$lane/feedback/bin/feedback-thread
+              printf '#!/usr/bin/env bash\nexport FEEDBACK_THREADS=%q FEEDBACK_LOG=%q FEEDBACK_SCRATCH=%q FEEDBACK_WORKSPACE=%q\nexec bash %q "$@"\n' \
+                "$lane/feedback/threads.json" "$lane/feedback/state/replies.jsonl" "$lane/scratch" "$WORKSPACE" "$lane/feedback/feedback-thread.sh" >"$STAGE/feedback/bin/feedback-thread"
+              chmod +x "$STAGE/feedback/bin/feedback-thread"
+              allowed+=("Bash($tool *)" "Bash(\"$tool\" *)")
+              for file in threads.json run.json feedback-thread.sh "bin/**"; do
+                denied+=("Edit(./.lane/feedback/$file)" "Write(./.lane/feedback/$file)" "NotebookEdit(./.lane/feedback/$file)")
+              done
+              preamble="$preamble The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $lane/scratch. The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record."
+            fi
             # web-access `any` only: the research plugins load from .lane/
             # too, read-only like the skill's own. The docs scripts are not
             # staged, so the run reads pages with WebFetch.
