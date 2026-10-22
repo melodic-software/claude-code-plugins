@@ -1217,8 +1217,11 @@ head:
 The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
 login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
 `agent-ready` label from a trusted account counts as the owner's authority, including when an agent
-acting as that account wrote it. The owner accepts that risk: unattended merge is on
-(`merge.report-only: false`) before that identity exists (#7711).
+acting as that account wrote it. Since the pull request's author counts (owner decision,
+2026-10-22), that includes a session that opens both the issue and the pull request as the owner:
+once the pull request is idle for `adoption.idle-hours`, the lane can merge it against that spec. The
+owner accepts that risk: unattended merge is on (`merge.report-only: false`) before that identity
+exists (#7711).
 
 `verify:fail`, `verify:too-old`, `verify:repeated-fail`, `verify:earlier-fail`,
 `verify:spec-changed` and `verify:untrusted-spec` need a human. While `merge.report-only` is false the lane escalates such a
