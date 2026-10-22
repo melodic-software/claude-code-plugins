@@ -1,5 +1,6 @@
 """server.py with a stand-in live starter, for the live prototype browser suite (ui_proto_live.js): Approve answers a
-fixed https origin per entry and starts no process; one entry, labeled Broken build, always fails to start. Takes server.py's arguments.
+fixed quick-tunnel origin per entry and starts no process; one entry, labeled Broken build, always fails to start. Takes
+server.py's arguments.
 
     python live_stub_server.py --dir DATA_DIR --guest-port P --control-port 0 --nonce N
 """
@@ -20,7 +21,7 @@ class StubLiveStarter:
     def start(self, entry):
         if entry["label"] == self.FAILS:
             raise RuntimeError("the stand-in starter fails this entry")
-        return f"https://live-{entry['id'].lower()}.example.test"
+        return f"https://fake-live-{entry['id'].lower()}.trycloudflare.com"  # the suite reads links only, never opens one
 
     def stop(self, entry):
         pass

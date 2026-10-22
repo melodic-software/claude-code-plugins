@@ -29,6 +29,8 @@ import server
 import session
 import tunnel
 
+os.environ["SHARED_CLOUDFLARED"] = FAKE  # an App's live starter runs cloudflared: never a real one from PATH
+
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 SECURITY = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"}
 HTML_ASSET_CSP = (
@@ -2152,18 +2154,23 @@ class TestLiveRoutes(ServerCase):
             entry = self.lives(who)[lid]
             self.assertEqual((entry["status"]["kind"], entry["url"]), ("running", "https://quiet-fox.trycloudflare.com"))
 
-    def test_with_no_starter_approve_answers_503_and_the_entry_still_waits(self):
+    def test_with_no_cloudflared_approve_answers_503_and_the_entry_still_waits(self):
         self.live_on()
         lid = self.add()
-        self.app.live_starter = server.LIVE_STARTER
-        code, _, out = self.post("/api/live/approve", {"id": lid}, self.owner)
+        self.app.live_starter = server.QuickTunnelStarter(self.app)
+        with mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": "", "PATH": str(self.d)}):
+            code, _, out = self.post("/api/live/approve", {"id": lid}, self.owner)
         self.assertEqual((code, out["error"]), (503, "live-unavailable"), out)
+        self.assertIn("cloudflared", out["message"])
         self.assertEqual(self.app.session.state["lives"][0]["status"], {"kind": "pending"})
+        self.assertFalse((self.d / tunnel.LIVE_DIR / f"{lid}.json").exists())
 
     def test_a_starter_that_fails_or_answers_a_bad_url_leaves_the_entry_waiting_and_stops_what_it_began(self):
         self.live_on()
         lid = self.add()
-        for stub in (StubLiveStarter(url="http://quiet-fox.trycloudflare.com/x"), StubLiveStarter(fail=RuntimeError("boom"))):
+        bad = ("http://quiet-fox.trycloudflare.com/x", "https://a.example", "https://127.0.0.1", "https://api.trycloudflare.com",
+               "https://x.trycloudflare.com.evil.example", "https://quiet-fox.trycloudflare.com:8443")  # only a quick tunnel's origin
+        for stub in (*(StubLiveStarter(url=u) for u in bad), StubLiveStarter(fail=RuntimeError("boom"))):
             with self.subTest(url=stub.url, fail=stub.fail):
                 self.app.live_starter = stub
                 code, _, out = self.post("/api/live/approve", {"id": lid}, self.owner)

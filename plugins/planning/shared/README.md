@@ -10,17 +10,18 @@ and the session-bridge watcher. Python 3 standard library only.
 | File | Job |
 |---|---|
 | `share.sh` | Launcher: runs `share.py` with the first Python 3 that runs. The session-bridge `CONTROL` script and the only file the skill calls |
-| `share.py` | The CLI: `ensure-running`, `stop`, `restart`, `status`, `url`, `list`, `apply`, `lease` |
+| `share.py` | The CLI: `ensure-running`, `stop`, `live-stop`, `restart`, `status`, `url`, `list`, `apply`, `lease` |
 | `server.py` | One process, two 127.0.0.1 listeners: the guest listener (the page and `/api/*`) and the control listener (session-bridge). Routes, auth, caps, headers and the snapshot; no domain rules |
 | `session.py` | The domain rules over `state.json` (people, rounds, questions, votes, locks, proposals, requests, results, uploads, digest, ops) |
-| `tunnel.py` | cloudflared: start (quick or named), address parse, reattach, adopt, exit detection, a switch's retired tunnel, stop. The only file that runs cloudflared |
+| `tunnel.py` | cloudflared: start (quick or named), address parse, reattach, adopt, exit detection, a switch's retired tunnel, stop; a live prototype's own quick tunnel by record path (`.shared-live/<id>.json`), its end and the sweep. The only file that runs cloudflared |
+| `liveserve.py` | A live prototype's static server (127.0.0.1, GET and HEAD only) and the build-folder walk `add-live` and the start run; see [Live transport](#live-transport) |
 | `cfdns.py` | The owner's Cloudflare checks for a named tunnel: the zone listing, the planned DNS record and its confirm-gated write, the machines running the tunnel |
 | `detached.py` | Processes that outlive their starter, and liveness and stop by pid, on Windows, macOS and Linux |
 | `session_bridge.py`, `watch.sh`, `wake.sh` | Generated copies of `lib/session-bridge/` (`scripts/sync-shared-copies.sh`); edit the canonical, never these |
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_speech.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_server_live.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_speech.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -34,9 +35,10 @@ Every command prints one JSON line on stdout and diagnostics on stderr. On Windo
 | Command | Args | Output |
 |---|---|---|
 | `ensure-running` | `[--open] [--defaults-file F] [--guest-port N] [--adopt-tunnel PID URL] [--tunnel-hostname H --tunnel-token-file F]` | `{ok, guestUrl, localUrl, ownerLinkFile, shareChanged, resumed, tunnel, watch}`: starts or reuses the server and the tunnel; `tunnel` is `quick`, `named` or `down`. `--tunnel-hostname`: see [A stable guest link](#a-stable-guest-link-the-named-tunnel). A new session's `state.json` comes from `defaults.json` (`{"settings": {...}}`, state.schema field names). `--guest-port` applies only when the session is created; later starts reuse the recorded ports. `--adopt-tunnel`: see [Adopting a running cloudflared](#adopting-a-running-cloudflared) |
-| `stop` | `[--keep-tunnel]` | `{ok, stopped}`: ends the armed watcher, the server and cloudflared (an adopted cloudflared keeps running; see [Adopting a running cloudflared](#adopting-a-running-cloudflared)); keeps the ports and the state. `--keep-tunnel` keeps the guest link for the next start |
+| `stop` | `[--keep-tunnel]` | `{ok, stopped, lives?}`: ends every live prototype (`lives`, their ids), the armed watcher, the server and cloudflared (an adopted cloudflared keeps running; see [Adopting a running cloudflared](#adopting-a-running-cloudflared)); keeps the ports and the state. `--keep-tunnel` keeps the guest link for the next start |
+| `live-stop` | `ID` | `{ok, ended}`: ends one live prototype, its tunnel and the static server the plugin started, through the server when it runs, else from its record. A server the owner runs on a port keeps running, and stderr says so. Exit 1 for no such id |
 | `restart` | | Stops and starts the server only, on the same ports, with the same control token: the tunnel, the guest link, the state and an armed watcher all survive. Open pages see the new build and reload |
-| `status` | | `{ok, running, tunnel, guestUrl, round, intro, people, queue, unhandled, lease}`; `intro` is true once "Why you're here" is set |
+| `status` | | `{ok, running, tunnel, guestUrl, round, intro, people, queue, unhandled, lease, lives}`; `intro` is true once "Why you're here" is set; `lives` is `[{id, label, status, url?, port?}]`, and with the server down `[{id, label, status, processes}]` from `state.json` and the records |
 | `url` | `[--owner]` | `{guestUrl}`, or `{ownerUrl}` (a credential, printed only on request) |
 | `list` | `--root '<memory_dir>'` (no `--dir`) | `{sessions: [{dir, title, running, guestUrl, round, ended}]}` |
 | `apply` | `--file F` | `{ok, results}`; deletes `F` once it applies. A missing `F` is a no-op, so `wake.sh` re-arms with nothing to write |
@@ -183,7 +185,7 @@ the refused op's index).
 | `fail-request` | `request`, `reason` | `running` -> `failed` |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | |
 | `add-asset` | `path`, `as?`, `scale?` | Copies a PNG, JPEG, WebP, SVG or HTML file (by its bytes, at most 10 MB) from the data folder, where captures go in `staging/`, into `assets/<16 hex>.<ext>`, named by its content; returns `{id, kind, bytes, at, scale}`. Usable from the next apply; a refused apply removes the files it copied and puts back any sidecar it rewrote |
-| `add-live` | `label`, `folder` or `port`, `note?` | Records a live prototype, pending until the owner's Approve; starts nothing. `folder`: an absolute path to a build folder inside the data folder's `staging/` with no hidden part; `port`: 1..65535 on 127.0.0.1, never the session's own guest or control port (`.shared-ports.json`; 503 `live-unavailable` when that file cannot be read). 403 `live-off` while the live tier is off, 409 `wrong-status` once the session ended, 409 `lives-full` with 20 not ended. Returns `{id: L<N>, status: pending}`; a variant links it as `live: {id, path}` |
+| `add-live` | `label`, `folder` or `port`, `note?` | Records a live prototype, pending until the owner's Approve; starts nothing. `folder`: an absolute path to a build folder inside the data folder's `staging/` with no hidden part, holding regular files and folders only (no link, hard link, hidden name or special file; at most 2000 files and 50 MB); `port`: 1..65535 on 127.0.0.1, never the session's own guest or control port (`.shared-ports.json`; 503 `live-unavailable` when that file cannot be read). 403 `live-off` while the live tier is off, 409 `wrong-status` once the session ended, 409 `lives-full` with 20 not ended. Returns `{id: L<N>, status: pending}`; a variant links it as `live: {id, path}` |
 | `set-purpose` | `qid`, `purpose` | The owner's `/api/question/purpose` rules |
 | `set-for` | `qid`, `for` | Who must answer, by name or pid; `[]` asks everyone. The owner's `/api/question/for` takes the same body. A question in `open-round` takes `for` too |
 | `make-question-from` | `proposal`, `question` | |
@@ -296,7 +298,7 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `/api/decision/keep` | `{qid}` | Keeps a possibly reopened decision ([Answering](#answering), "Possibly reopened") |
 | `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open or seen report and writes `report-filed` for Claude (409 `wrong-status` on one that is resolved or already asked) |
 | `GET /api/report/image?id=[&pic=P\|&add=N]` | | One report's first screenshot, its `P`th sent with it (`P` 1 to 4), or its Nth addition's (`N` 1 to 999); else, or with both, 400 `bad-field`. As `{id, image}`, a data: URL |
-| `/api/live/approve` | `{id, attest?}` | Starts a pending live prototype ([Prototype page](#prototype-page), "Live"): `starting`, then `running` with the https origin the server's live starter answers. A port needs `attest: true` (400 `bad-field`, field `attest`). 403 `live-off` while the live tier is off, 409 `wrong-status` unless it is pending or once the session ended, 404 `not-found` for no such entry; 503 `live-unavailable` while no starter can start one (it stays pending), 502 `live-failed` when the start fails or answers no https origin (it stays pending, and what began is stopped) |
+| `/api/live/approve` | `{id, attest?}` | Starts a pending live prototype ([Prototype page](#prototype-page), "Live"): `starting`, then `running` with the https origin the server's live starter answers. A port needs `attest: true` (400 `bad-field`, field `attest`). 403 `live-off` while the live tier is off, 409 `wrong-status` unless it is pending or once the session ended, 404 `not-found` for no such entry; 503 `live-unavailable` while cloudflared is missing (it stays pending), 400 `bad-field` for a build folder that gained a link or hidden name or a refused port ([Live transport](#live-transport)), 502 `live-failed` when the start fails or answers no https origin (it stays pending, and what began is stopped) |
 | `/api/live/stop` | `{id}` | Ends a live prototype, started or not: `ended`, reason `stopped`, its url gone; the server stops what its starter began. 409 `wrong-status` once ended |
 
 `POST /api/chat/react {id, emoji, on}` (any person) adds or takes back one's own emoji on a chat
@@ -425,10 +427,47 @@ for a free-form selector an earlier build took.
   "Open live prototype" (a new tab, `rel="noopener noreferrer"`, no referrer) only for a running
   entry, never frames one, shows guests "Live version waiting for the host" while it is pending,
   and gives the owner Approve (with the sample-data attestation for a port) and Stop.
+  [Live transport](#live-transport) says what runs behind it.
 - **Owner token.** Links to session pages (`Core.pageLink`) never hold it. The page keeps it in
   the tab's `sessionStorage`, takes it out of the address bar, and uses it again only on a reload
   or Back in that tab; when the owner follows a session link, `core.js` opens the page with
   `#owner=` in its fragment (a new tab with `noopener`), and that page takes it out in turn.
+
+## Live transport
+
+[ADR 0083](../../../docs/adr/0083-expose-a-live-prototype-through-its-own-quick-tunnel.md). A live
+prototype never rides the session tunnel: on Approve the server's live starter (`QuickTunnelStarter`)
+gives it its own quick tunnel, a trycloudflare.com host, which is a site of its own and so never
+reaches the interview page's storage. Its url must be such a host (`session.LIVE_URL`).
+
+- **Folder (the default).** `add-live` refuses a build folder holding a link, a junction, a hidden
+  name, a hard link or a special file, or more than 2000 files or 50 MB. Approve copies it again, with the same
+  walk, into `<data_dir>/live/<id>/`, and `liveserve.py` serves only that copy on 127.0.0.1: GET and
+  HEAD (405 otherwise), no folder listing, no dotfile, a path that resolves outside the copy 404, and
+  every answer with `Content-Security-Policy: default-src 'self'; connect-src 'self'; form-action
+  'self'; frame-ancestors 'none'; base-uri 'none'`, `Referrer-Policy: no-referrer`, `nosniff` and
+  `Cross-Origin-Opener-Policy: same-origin`. CSP cannot stop the page navigating itself elsewhere, so
+  a prototype holds sample data only. A request with a body gets its answer and a closed connection;
+  at most 16 files are sent at once (503 past a 10 s wait). A change to `staging/` after Approve is
+  not served.
+- **Port.** Needs the owner's attestation. Refused (400 `bad-field`, field `port`) on the session's
+  own ports and on a port that answers the session-bridge ping as a control listener does. Checked
+  again on every start and restart, and once nothing listens on the port the entry ends (`failed`),
+  so whatever binds it next never inherits the address. Only the tunnel is the plugin's: Stop, `share.sh stop` and
+  `live-stop` never stop that server, and `share.sh` says it keeps running.
+- **Records.** `<data_dir>/.shared-live/<id>.json` (0600, the folder 0700): the tunnel's pid, url,
+  port, marker and process start, as the session record holds them, plus `server` for the static
+  server; on an end, `endedAt` and `reason`. The session tunnel's `.shared-tunnel.json` is unchanged.
+- **Watch.** Once a second, apart from the session tunnel's watch: an exited tunnel is restarted to
+  the same port, an exited static server is restarted on the same copy behind a new tunnel. The new
+  url replaces the old on the running entry with no new Approve. A record ended as `stopped` from
+  outside the server (`share.sh`) is never restarted; its entry ends. After 5 failed restarts in a row
+  (2 s backoff, doubling to 32 s), the entry ends with reason `failed`.
+- **Ends.** Stop, live off, end session, `share.sh stop` and `share.sh live-stop <id>` each stop
+  both processes. A server restart keeps a running live prototype and takes it back. The server's
+  start ends an entry whose processes are gone and puts a `starting` one back to pending.
+  `ensure-running` (with the server down) and the server's shutdown sweep the records: one whose
+  processes are gone, or every one once the session ended, ends.
 
 ## Inbox
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Live prototypes on the prototype page, in real browsers, against server.py with a stand-in live starter
-// (fixtures/live_stub_server.py: Approve answers https://live-<id>.example.test and starts nothing): the owner and a
+// (fixtures/live_stub_server.py: Approve answers https://fake-live-<id>.trycloudflare.com, which no step opens, and starts nothing): the owner and a
 // guest on a desktop, in separate browser contexts. Covered: a guest never sees a pending entry's link, only "Live
 // version waiting for the host", and the owner sees Approve and Stop; Approve makes the entry run, and both then get
 // "Open live prototype" in a new tab with no opener and no referrer, at the entry's origin plus the variant's path; a
@@ -20,7 +20,7 @@ const path = require("node:path");
 const { loadPlaywright, suite, recorder, until, snap, joinAs, png, upOnSparePort, guestKey } = require("./browser_harness");
 
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
-const ORIGIN = id => `https://live-${id.toLowerCase()}.example.test`;
+const ORIGIN = id => `https://fake-live-${id.toLowerCase()}.trycloudflare.com`;
 
 /** server.py through the stand-in starter, on a spare port: {dir, proc, localUrl, ownerUrl, guestKey}. */
 async function startStub(tmp) {
@@ -86,8 +86,8 @@ async function main() {
     let guest = await rec.openIn(gctx, `${A.localUrl}proto/Q1`);
     await joined.close();
     await until(guest, () => !!document.querySelector(".vp-livebox:not([hidden]) .vp-live-wait"));
-    const leaked = page => page.evaluate(() => ({ links: [...document.querySelectorAll("a[href]")].map(a => a.href).filter(h => /example\.test|127\.0\.0\.1:5173/.test(h)),
-      state: /example\.test/.test(JSON.stringify(window.Core.snapshot())), urls: (window.Core.snapshot().lives || []).filter(e => "url" in e).length }));
+    const leaked = page => page.evaluate(() => ({ links: [...document.querySelectorAll("a[href]")].map(a => a.href).filter(h => /fake-live-|127\.0\.0\.1:5173/.test(h)),
+      state: /fake-live-/.test(JSON.stringify(window.Core.snapshot())), urls: (window.Core.snapshot().lives || []).filter(e => "url" in e).length }));
     const pend = await guest.evaluate(() => ({ wait: document.querySelector(".vp-live-wait")?.textContent || "", open: !!document.querySelector(".vp-live-open"),
       approve: !!document.querySelector(".vp-live-approve"), stop: !!document.querySelector(".vp-live-stop") }));
     ok("a guest sees Live version waiting for the host, and no link, Approve or Stop", pend.wait === "Live version waiting for the host" && !pend.open && !pend.approve && !pend.stop, JSON.stringify(pend));
@@ -113,7 +113,7 @@ async function main() {
     await guest.locator(".vp-tab", { hasText: "Roomy" }).click();
     await until(guest, () => document.querySelector(".vp-live-open")?.getAttribute("href")?.endsWith("variant=B"));
     const roomy = await guest.evaluate(() => ({ href: document.querySelector(".vp-live-open")?.getAttribute("href"), stage: document.querySelector(".vp-live-only")?.textContent || "",
-      frames: [...document.querySelectorAll("iframe")].map(f => f.src).filter(s => /example\.test/.test(s)).length }));
+      frames: [...document.querySelectorAll("iframe")].map(f => f.src).filter(s => /fake-live-/.test(s)).length }));
     ok("a live-only variant links its own path, says it opens in its own tab, and is never framed",
       roomy.href === `${ORIGIN("L1")}/?variant=B` && /opens in its own tab/.test(roomy.stage) && roomy.frames === 0, JSON.stringify(roomy));
     ok("the main page's question tile still offers Open prototype for a live-only question", await (async () => {
@@ -151,7 +151,7 @@ async function main() {
     ok("the guest gets no look at the owner's machine", !(await guest.evaluate(() => !!document.querySelector(".vp-live-local") || /127\.0\.0\.1/.test(JSON.stringify(window.Core.snapshot().lives)))));
     await oproto.locator(".vp-live-attest input").check();
     await oproto.locator(".vp-live-approve").click();
-    await until(guest, () => document.querySelector(".vp-live-open")?.getAttribute("href") === `https://live-l2.example.test/`, undefined, 10000);
+    await until(guest, () => document.querySelector(".vp-live-open")?.getAttribute("href") === `https://fake-live-l2.trycloudflare.com/`, undefined, 10000);
     ok("with the attestation Approve runs it, and the guest gets its link", (await openOf(guest))?.href === `${ORIGIN("L2")}/`, JSON.stringify(await openOf(guest)));
 
     // ---------- a start that fails twice with the same error: Approve comes back, the error shows ----------
@@ -181,7 +181,7 @@ async function main() {
     const csp = await rec.cspViolations();
     ok("no CSP violation", csp.length === 0, csp.join(" | "));
     ok("no 429", rec.too.length === 0, rec.too.join(" | "));
-    ok("the owner's state ends with no url anywhere", !/example\.test/.test(JSON.stringify(await snap(owner))));
+    ok("the owner's state ends with no url anywhere", !/fake-live-/.test(JSON.stringify(await snap(owner))));
   } catch (e) {
     ok("the suite ran to the end", false, String(e && e.stack || e));
   } finally {

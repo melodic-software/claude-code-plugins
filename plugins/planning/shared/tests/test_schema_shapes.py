@@ -288,6 +288,7 @@ class TestFormatsReactionsPresence(unittest.TestCase):
             {**entry, "id": "L2", "target": port, "note": "Sample data only.", "status": {"kind": "starting", "approvedAt": 2.0, "attested": True}},
             {**entry, "id": "L3", "status": {"kind": "running", "approvedAt": 2.0, "startedAt": 3.0, "url": "https://quiet-fox.trycloudflare.com"}},
             {**entry, "id": "L4", "status": {"kind": "ended", "endedAt": 4.0, "reason": "session-ended", "approvedAt": 2.0}},
+            {**entry, "id": "L5", "status": {"kind": "ended", "endedAt": 4.0, "reason": "failed", "approvedAt": 2.0}},
         ]
         state["lives"] = oks
         self.assertIsNone(schema.first_error(state, STATE))
