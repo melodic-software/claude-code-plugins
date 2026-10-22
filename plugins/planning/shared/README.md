@@ -391,6 +391,14 @@ for a free-form selector an earlier build took.
   nothing it posts is read, and dropped if it leaves its page. Notes stay on the version they were
   pinned to. The toolbar's Prototypes filter lists every round's prototype questions and opens the
   rounds that hold them.
+- **Views.** The `prototypeTiers` setting (Host settings, Prototypes; `[screenshot, snapshot]` when
+  absent) names the views guests get. A view switched off stays in the question; guests' state
+  leaves out a picture variant's `asset` while `screenshot` is off and an html variant's while
+  `snapshot` is off, and while `snapshot` is off `/assets/<id>.html` answers a guest 404 as if the
+  file were missing (pictures stay served: options, references and confirm questions share them).
+  The owner sees every view, each hidden one named. A guest's page shows "This view is off" for
+  such a variant, and with no view left the question shows as text with a note; the picks still
+  work. `live` is stored and shown only: nothing starts a live prototype yet.
 - **Owner token.** Links to session pages (`Core.pageLink`) never hold it. The page keeps it in
   the tab's `sessionStorage`, takes it out of the address bar, and uses it again only on a reload
   or Back in that tab; when the owner follows a session link, `core.js` opens the page with

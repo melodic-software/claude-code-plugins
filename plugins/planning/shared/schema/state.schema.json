@@ -224,6 +224,7 @@
         "approveJoins": {"description": "New joins wait for the owner's admit; absent is off.", "type": "boolean"},
         "reviewAnswers": {"description": "Every answer waits for the owner's Share. A new session writes it off; absent (a session from before it) is on.", "type": "boolean"},
         "guestPopups": {"description": "The pop-ups a guest starts with, set by the owner; a guest's own popups pref wins. Absent, all three are on.", "type": "array", "maxItems": 3, "items": {"enum": ["request", "mention", "round"]}},
+        "prototypeTiers": {"description": "The prototype views the session offers guests: screenshots, HTML snapshots, live prototypes, each at most once. Absent, screenshots and HTML snapshots are on and live is off.", "type": "array", "maxItems": 3, "uniqueItems": true, "items": {"enum": ["screenshot", "snapshot", "live"]}},
         "theme": {
           "type": "object",
           "required": ["mode", "accent"],
@@ -395,15 +396,16 @@
       }
     },
     "format": {
+      "description": "A stored question's format. A choice, multi or rank question holds Claude's options (session.py OPTION_COUNTS) plus the Something else option the server adds, and on a multi question asking for it, None of these; ops.schema.json `format` is the input form.",
       "oneOf": [
-        {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["text"]}}},
+        {"$ref": "#/$defs/textFormat"},
         {
           "type": "object",
           "required": ["kind", "options"],
           "additionalProperties": false,
           "properties": {
             "kind": {"enum": ["choice"]},
-            "options": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"$ref": "#/$defs/option"}}
+            "options": {"type": "array", "minItems": 3, "maxItems": 5, "items": {"$ref": "#/$defs/option"}}
           }
         },
         {
@@ -412,51 +414,54 @@
           "additionalProperties": false,
           "properties": {
             "kind": {"enum": ["multi"]},
-            "options": {"type": "array", "minItems": 2, "maxItems": 10, "items": {"$ref": "#/$defs/option"}},
-            "none": {"description": "In an open-round op only: asks the server to add None of these; the stored question holds the option instead.", "enum": [true]}
+            "options": {"type": "array", "minItems": 3, "maxItems": 10, "items": {"$ref": "#/$defs/option"}}
           }
         },
-        {
-          "type": "object",
-          "required": ["kind", "min", "max", "labels"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": {"enum": ["scale"]},
-            "min": {"enum": [1]},
-            "max": {"type": "integer", "minimum": 3, "maximum": 10},
-            "labels": {
-              "type": "object",
-              "required": ["min", "max"],
-              "additionalProperties": false,
-              "properties": {"min": {"$ref": "#/$defs/scaleLabel"}, "max": {"$ref": "#/$defs/scaleLabel"}, "mid": {"$ref": "#/$defs/scaleLabel"}}
-            }
-          }
-        },
+        {"$ref": "#/$defs/scaleFormat"},
         {
           "type": "object",
           "required": ["kind", "options"],
           "additionalProperties": false,
           "properties": {
             "kind": {"enum": ["rank"]},
-            "options": {"type": "array", "minItems": 3, "maxItems": 7, "items": {"$ref": "#/$defs/option"}}
+            "options": {"type": "array", "minItems": 4, "maxItems": 7, "items": {"$ref": "#/$defs/option"}}
           }
         },
-        {
-          "type": "object",
-          "required": ["kind", "image", "rect"],
-          "additionalProperties": false,
-          "properties": {"kind": {"enum": ["confirm"]}, "image": {"$ref": "#/$defs/assetId"}, "rect": {"$ref": "#/$defs/rect"}}
-        },
-        {
-          "type": "object",
-          "required": ["kind", "variants"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": {"enum": ["prototype"]},
-            "variants": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"$ref": "#/$defs/variant"}}
-          }
-        }
+        {"$ref": "#/$defs/confirmFormat"},
+        {"$ref": "#/$defs/prototypeFormat"}
       ]
+    },
+    "textFormat": {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["text"]}}},
+    "scaleFormat": {
+      "type": "object",
+      "required": ["kind", "min", "max", "labels"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["scale"]},
+        "min": {"enum": [1]},
+        "max": {"type": "integer", "minimum": 3, "maximum": 10},
+        "labels": {
+          "type": "object",
+          "required": ["min", "max"],
+          "additionalProperties": false,
+          "properties": {"min": {"$ref": "#/$defs/scaleLabel"}, "max": {"$ref": "#/$defs/scaleLabel"}, "mid": {"$ref": "#/$defs/scaleLabel"}}
+        }
+      }
+    },
+    "confirmFormat": {
+      "type": "object",
+      "required": ["kind", "image", "rect"],
+      "additionalProperties": false,
+      "properties": {"kind": {"enum": ["confirm"]}, "image": {"$ref": "#/$defs/assetId"}, "rect": {"$ref": "#/$defs/rect"}}
+    },
+    "prototypeFormat": {
+      "type": "object",
+      "required": ["kind", "variants"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["prototype"]},
+        "variants": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"$ref": "#/$defs/variant"}}
+      }
     },
     "reference": {
       "oneOf": [

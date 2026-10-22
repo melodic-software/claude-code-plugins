@@ -10,7 +10,8 @@
     "kind": "choice",
     "options": [
       {"id": "opt-1", "label": "Card"},
-      {"id": "opt-2", "label": "Saved method"}
+      {"id": "opt-2", "label": "Saved method"},
+      {"id": "other", "label": "Something else…", "other": true}
     ]
   },
   "answerScope": "person",
