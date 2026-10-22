@@ -809,7 +809,7 @@ class ConfirmWaitConfig(unittest.TestCase):
                 self.assertEqual(config.confirm_wait_minutes, 40)
                 self.assertTrue(any("confirm-wait-minutes" in n for n in config.notes))
 
-    def test_the_repositorys_config_gives_a_90_minute_lane_rerun_lookback(
+    def test_the_tracked_config_gives_a_90_minute_lane_rerun_lookback(
         self,
     ) -> None:
         root = pathlib.Path(__file__).resolve().parents[6]
