@@ -204,6 +204,9 @@ class FakeGh:
         self.pin_reviews: Any = []
         # Artifacts by name, and single workflow runs by id (GET .../runs/<id>).
         self.artifacts: dict[str, list[dict[str, Any]]] = {}
+        # Artifact listings by name, served in order, one per read, before
+        # `artifacts` answers: a listing that changes between reads.
+        self.artifact_pages: dict[str, list[list[dict[str, Any]]]] = {}
         self.run_records: dict[int, dict[str, Any]] = {}
         # Jobs by (run id, attempt); unset, an attempt failed one test job.
         self.jobs: dict[tuple[int, int], list[dict[str, Any]]] = {}
@@ -322,7 +325,8 @@ class FakeGh:
             return completed()
         if "/actions/artifacts?" in endpoint:
             name = endpoint.split("name=")[1].split("&")[0]
-            artifacts = self.artifacts.get(name, [])
+            pages = self.artifact_pages.get(name)
+            artifacts = pages.pop(0) if pages else self.artifacts.get(name, [])
             return completed({"total_count": len(artifacts), "artifacts": artifacts})
         if endpoint.split("/actions/runs/")[-1].isdigit():
             run_id = int(endpoint.rsplit("/", 1)[1])
@@ -1084,6 +1088,66 @@ class LaneDispatch(CheckCase):
             dispatch_run(11, actor=by("maintainer"), triggering_actor=by("maintainer"))
         ]
         self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+
+class EmptyLaneRecordListing(CheckCase):
+    """An artifact listing that answers empty for a run the lane dispatched
+    (a degraded API) must not read as "not the lane's run": the listing is
+    read once more, and a second empty read past the deadline leaves the
+    verdict unreadable instead of a dispatch failure."""
+
+    LATE = datetime(2026, 10, 12, 16, 1, tzinfo=UTC)
+    RECORD = "pr-merge-dispatched-11"
+    LANE_RUN = LaneDispatch.LANE_RUN
+    lane_dispatch = LaneDispatch.lane_dispatch
+
+    def record_reads(self) -> int:
+        return sum(
+            f"actions/artifacts?name={self.RECORD}&" in " ".join(c)
+            for c in self.gh.calls
+        )
+
+    def test_an_empty_listing_on_both_reads_makes_the_verdict_unreadable(
+        self,
+    ) -> None:
+        self.lane_dispatch()
+        self.gh.artifacts.clear()
+        verdict = self.check(pinned=None, now=self.LATE)
+        self.assertFalse(verdict.readable)
+        self.assertTrue(verdict.reason.startswith("unreadable:"), verdict.reason)
+        self.assertIn("run 11", verdict.reason)
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(self.record_reads(), 2)
+
+    def test_a_record_on_the_second_read_counts_the_run_as_the_lanes(
+        self,
+    ) -> None:
+        self.lane_dispatch()
+        self.gh.artifact_pages[self.RECORD] = [[]]
+        verdict = self.check(pinned=None, now=self.LATE)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual(verdict.failures, ())
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertEqual(self.record_reads(), 2)
+
+    def test_another_actors_dispatch_still_fails_at_the_deadline(self) -> None:
+        self.lane_dispatch()
+        self.gh.artifacts.clear()
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(11, actor=by("maintainer"), triggering_actor=by("maintainer"))
+        ]
+        verdict = self.check(pinned=None, now=self.LATE)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+    def test_a_record_from_another_workflow_still_fails_at_the_deadline(
+        self,
+    ) -> None:
+        self.lane_dispatch(path=".github/workflows/pr-unblock-dispatch.yml")
+        verdict = self.check(pinned=None, now=self.LATE)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+        self.assertEqual(self.record_reads(), 1)
 
 
 class LaneRerun(LaneDispatch):
