@@ -416,7 +416,8 @@ class TestOpen(ShareCase):
         seen = stub / "opened.json"
         script = stub / "opener.py"
         script.write_text(
-            "import json, os, stat, sys, urllib.parse, urllib.request\n"
+            "import json, os, stat, sys, time, urllib.parse, urllib.request\n"
+            "time.sleep(1.5)\n"  # outlast the 1 s window: the page must stay until the browser has it
             "page = urllib.request.url2pathname(urllib.parse.urlparse(sys.argv[1]).path)\n"
             f"json.dump({{'argv': sys.argv[1:], 'page': page, 'mode': stat.S_IMODE(os.stat(page).st_mode), 'html': open(page, encoding='utf-8').read()}}, open({str(seen)!r}, 'w'))\n",
             encoding="utf-8",
@@ -430,6 +431,7 @@ class TestOpen(ShareCase):
             opener.chmod(0o700)
         code, out, err = share(self.d, "ensure-running", "--open", environ=env(SHARED_BROWSER=str(opener), SHARED_OPEN_SECONDS="1"))
         self.assertEqual(code, 0, err)
+        self.assertIs(out.get("opened"), True, err)
         link = (self.d / ".owner-link").read_text(encoding="utf-8").strip()
         token = link.split("#owner=", 1)[1]
         got = json.loads(seen.read_text(encoding="utf-8"))
