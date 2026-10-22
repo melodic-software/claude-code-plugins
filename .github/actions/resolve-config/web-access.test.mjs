@@ -14,7 +14,7 @@ const json = (relative) => JSON.parse(read(relative));
 
 const run = (fixDocs) => {
   const doc = parse(read("./fixtures/valid.yaml"));
-  Object.assign(doc.activities["fix-docs"], fixDocs);
+  Object.assign(doc.activities["fix-prose"], fixDocs);
   return resolve(
     {
       config: stringify(doc),
@@ -26,7 +26,7 @@ const run = (fixDocs) => {
     },
     {
       lane: "pr-refine",
-      activity: "fix-docs",
+      activity: "fix-prose",
       configPath: "docs/conventions/pr-pipeline.yaml",
       basePath: ".base",
       facts: { event: "synchronize", changedPaths: ["README.md"], labels: [], workClasses: [] },
@@ -78,9 +78,14 @@ for (const domains of ["all", [], ["*"], ["any"], ["code.claude.com,x"], ["Code.
   });
 }
 
-// Only the write runner grants the web, so a read skill cannot ask for it.
-test("web-access on with effect read fails the schema", () => {
+// Only the runner that stages edit tools grants the web, so a read skill that
+// hands on no patch cannot ask for it (README.md, Activities, web-access).
+test("web-access on with effect read and no applied-by.patch fails the schema", () => {
   rejected({ effect: "read", "reads-untrusted": true, "web-access": { enabled: true, domains: "any" } });
+});
+
+test("web-access off with effect read validates", () => {
+  assert.doesNotThrow(() => selected({ effect: "read", "web-access": { enabled: false } }));
 });
 
 test("web-access with an unknown key fails the schema", () => {

@@ -161,6 +161,18 @@ for leaf in ${duplicate_leaves[@]+"${duplicate_leaves[@]}"}; do
   failed=1
 done
 
+# Entries stay sorted by leaf name, so two branches adding different names
+# insert at different lines instead of both appending at the end.
+prev=""
+for leaf in ${registered_leaves[@]+"${registered_leaves[@]}"}; do
+  if [[ -n "$prev" ]] && [[ "$(printf '%s\n%s\n' "$prev" "$leaf" | LC_ALL=C sort | head -n1)" != "$prev" ]]; then
+    printf 'FAIL: %s lists %s after %s. Keep the entries sorted by leaf name.\n' \
+      "$registry" "$leaf" "$prev" >&2
+    failed=1
+  fi
+  prev="$leaf"
+done
+
 for leaf in $(printf '%s\n' ${collision_leaves[@]+"${collision_leaves[@]}"} | sort); do
   # shellcheck disable=SC2206
   owners=(${collisions[$leaf]})

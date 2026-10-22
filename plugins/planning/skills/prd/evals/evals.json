@@ -5,10 +5,10 @@
       "id": 1,
       "name": "consumer-feature-happy-path",
       "prompt": "/planning:prd synthesize consumer-feature add a saved-searches feature to the jobs board so users can re-run a filter set with one tap. Primary user: active job seekers who run the same filter set repeatedly. Desired outcome: they stop re-entering filters every visit. Success metric: raise the share of returning seekers who re-run a saved filter to 30% within 30 days of launch. Non-goals: no shared/team searches and no email alerts in v1. I've told you enough — write it.",
-      "expected_output": "A consumer-feature-tier PRD synthesized from the provided context, covering the seven required sections — problem, goals (as outcomes), non-goals, users + a user story, success metrics with the given threshold (30%) and window (30 days), dependencies/risks, and open questions — persisted to PRD.md. It stays product-intent and does not specify architecture, files, or code. Any genuinely missing detail is noted as an open question rather than fabricated.",
+      "expected_output": "A consumer-feature-tier PRD synthesized from the provided context, covering the eight required sections — problem, goals (as outcomes), non-goals, users + a user story, success metrics with the given threshold (30%) and window (30 days), dependencies/risks, assumptions, and open questions — persisted to PRD.md. It stays product-intent and does not specify architecture, files, or code. Any genuinely missing detail is noted as an open question rather than fabricated.",
       "files": [],
       "expectations": [
-        "Output covers the seven required PRD sections: problem, goals, non-goals, users with a user story, success metrics, dependencies/risks, open questions",
+        "Output covers the eight required PRD sections: problem, goals, non-goals, users with a user story, success metrics, dependencies/risks, assumptions, open questions",
         "Success metrics name a measurable threshold AND a measurement window, not vague language like 'increase engagement'",
         "Output does NOT specify implementation architecture, file changes, or code shapes"
       ]
@@ -41,7 +41,7 @@
       "id": 4,
       "name": "review-mode-critiques-existing-prd",
       "prompt": "/planning:prd review — here is the PRD to review:\nProblem: users can't get their data out of the app.\nGoals: add a CSV export button to the reports screen.\nUsers: analysts.\nSuccess metrics: increase the number of exports.\nThat's the whole PRD — critique it.",
-      "expected_output": "Review mode critiques the provided PRD against the seven required sections and skip-conditions — flagging that the goal is written as an implementation ('add a CSV export button') rather than an outcome, that the success metric has no threshold or measurement window, and that non-goals, user stories, dependencies/risks, and open questions are missing — rather than authoring a new PRD or writing code.",
+      "expected_output": "Review mode critiques the provided PRD against the eight required sections and skip-conditions — flagging that the goal is written as an implementation ('add a CSV export button') rather than an outcome, that the success metric has no threshold or measurement window, and that non-goals, user stories, dependencies/risks, assumptions, and open questions are missing — rather than authoring a new PRD or writing code.",
       "files": [],
       "expectations": [
         "Output evaluates an existing PRD against the required sections rather than authoring a new one",
@@ -65,10 +65,10 @@
       "id": 6,
       "name": "tier-governs-verbosity-not-sections",
       "prompt": "/planning:prd synthesize one-pager let signed-in users export their listening history as CSV. Primary user: data-minded listeners who want their history outside the app. Success metric: 5% of signed-in users export at least once within the first 60 days. Non-goals: no scheduled/recurring exports in v1. I've told you enough — write it.",
-      "expected_output": "A tier-1 one-pager synthesized from the provided context that keeps all seven required sections present (one line each) rather than dropping sections to save space — tier governs verbosity, not which sections exist. Success metrics retain the given threshold (5%) and window (60 days).",
+      "expected_output": "A tier-1 one-pager synthesized from the provided context that keeps all eight required sections present (one line each) rather than dropping sections to save space — tier governs verbosity, not which sections exist. Success metrics retain the given threshold (5%) and window (60 days).",
       "files": [],
       "expectations": [
-        "Output retains all seven required sections even at one-pager tier",
+        "Output retains all eight required sections even at one-pager tier",
         "The one-pager compresses sections to roughly one line each rather than omitting any required section",
         "Success metrics still include a threshold and window despite the terse tier"
       ]
@@ -94,7 +94,7 @@
       "expectations": [
         "Every one of the four options (color picker, push-notification toggle, sort-by-aisle switch, font choice) has a stated reason or is explicitly flagged as lacking one",
         "Does NOT remove options only to ship less; the platform's keep-it-configurable rule is honored",
-        "Adds no new section beyond the seven required ones (no separate Scope or Options section)"
+        "Adds no new section beyond the eight required ones, Assumptions among them (no separate Scope or Options section)"
       ]
     },
     {

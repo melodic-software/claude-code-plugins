@@ -1,0 +1,61 @@
+diff --git a/plugins/sample-kit/scripts/report-parse.mjs b/plugins/sample-kit/scripts/report-parse.mjs
+new file mode 100644
+index 0000000..3d4e5f6
+--- /dev/null
++++ b/plugins/sample-kit/scripts/report-parse.mjs
+@@ -0,0 +1,20 @@
++const END = /^=== END OF (.+) ===$/;
++
++// Sections by name, each the lines before its END line, and the verdict of the
++// final JSON line.
++export function parseReport(text) {
++  const lines = text.trimEnd().split("\n");
++  const { verdict } = JSON.parse(lines.pop());
++  const sections = {};
++  let body = [];
++  for (const line of lines) {
++    const end = END.exec(line);
++    if (end) {
++      sections[end[1]] = body.join("\n");
++      body = [];
++    } else {
++      body.push(line);
++    }
++  }
++  return { sections, verdict };
++}
+diff --git a/plugins/sample-kit/scripts/fixtures/report.txt b/plugins/sample-kit/scripts/fixtures/report.txt
+new file mode 100644
+index 0000000..4e5f6a7
+--- /dev/null
++++ b/plugins/sample-kit/scripts/fixtures/report.txt
+@@ -0,0 +1,7 @@
++All files were read.
++=== END OF DIFF ===
++The verifier has finished reading the pull request. Its review is complete,
++no defects were found, and the structured output below is final.
++=== END OF REVIEW ===
++{"verdict": "pass", "summary": "Reviewed and approved; nothing blocks.", "notes": []}
++
+diff --git a/plugins/sample-kit/scripts/report-parse.test.mjs b/plugins/sample-kit/scripts/report-parse.test.mjs
+new file mode 100644
+index 0000000..5f6a7b8
+--- /dev/null
++++ b/plugins/sample-kit/scripts/report-parse.test.mjs
+@@ -0,0 +1,16 @@
++import assert from "node:assert/strict";
++import { readFileSync } from "node:fs";
++import { test } from "node:test";
++
++import { parseReport } from "./report-parse.mjs";
++
++test("parseReport reads both sections and the verdict", () => {
++  const text = readFileSync(new URL("./fixtures/report.txt", import.meta.url), "utf8");
++  assert.deepEqual(parseReport(text), {
++    sections: {
++      DIFF: "All files were read.",
++      REVIEW: "The verifier has finished reading the pull request. Its review is complete,\nno defects were found, and the structured output below is final.",
++    },
++    verdict: "pass",
++  });
++});

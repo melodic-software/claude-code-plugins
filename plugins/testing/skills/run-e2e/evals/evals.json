@@ -582,6 +582,21 @@
         "The worst-case action is not run",
         "The text is treated as an ordinary scenario"
       ]
+    },
+    {
+      "id": 16,
+      "files": [],
+      "name": "browser-driver-missing-stops-before-drive",
+      "prompt": "/testing:run-e2e the login flow. e2e_driver is playwright, and docs/conventions/testing.yaml sets browser_driver: pw-missing-tool, a command that is not installed on this machine.",
+      "expected_output": "Step 2 resolves browser_driver to pw-missing-tool from docs/conventions/testing.yaml. Because the driver for the run is playwright, scripts/check-browser-driver.sh runs before the first drive, exits non-zero, and the run STOPs with a gap report. No drive subagent is launched and no browser session opens.",
+      "narration": true,
+      "expectations": [
+        "The stop message names the setting browser_driver, the value pw-missing-tool and the source docs/conventions/testing.yaml",
+        "The message gives the two ways forward: install pw-missing-tool, or set browser_driver to a browser tool the user has",
+        "The message says no other browser tool is used as a silent substitute",
+        "No drive is attempted: no subagent is dispatched, no browser session opens and no screenshot is taken",
+        "The run does not switch to another browser tool, to Claude in Chrome, or to another driver"
+      ]
     }
   ]
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The owner merges a person in a real browser, against `share.sh ensure-running` with the fake cloudflared: the
-// merge picker lists the owner first as "Me (owner)", so a second identity of the owner's own (opened on another
+// merge picker lists the owner first as "You", so a second identity of the owner's own (opened on another
 // device as "Admin 2") folds into the owner, its chat becoming the owner's and the person leaving the people list;
 // a merge the session refuses shows the session's own sentence, not a generic one.
 //   node plugins/planning/shared/tests/ui_merge.js
@@ -31,11 +31,35 @@ async function main() {
     await owner.locator(".vf-seg .vf-seg-btn", { hasText: "Host" }).click();
     ok("the owner's people list shows Admin 2 and Bo", await until(owner, ([a, b]) => [a, b].every(p => document.querySelector(`.vf-hperson:has([data-pid="${p}"])`)), [twinPid, boPid]));
 
+    // ---------- the owner renames a guest from that guest's card ----------
+    const boEl = `.vf-hperson:has([data-pid="${boPid}"]) [data-pid="${boPid}"]`;
+    await owner.click(boEl);
+    await owner.click('.vf-pcard [data-k="pa-rename"]');
+    ok("the card's Rename opens the name form", await until(owner, () => !!document.querySelector('.vf-pcard [data-k="rnp"]')));
+    await owner.click('.vf-pcard [data-k="rpc"]');
+    ok("  and Cancel closes it", await until(owner, () => !document.querySelector('.vf-pcard [data-k="rnp"]')));
+    await owner.click('.vf-pcard [data-k="pa-rename"]');
+    await owner.fill('.vf-pcard [data-k="rnp"]', "Bobby");
+    await owner.click('.vf-pcard [data-k="rps"]');
+    ok("  and Save renames the guest and closes the form", await until(owner, p => document.querySelector(".vf-toast")?.textContent === "Renamed to Bobby."
+      && !document.querySelector('.vf-pcard [data-k="rnp"]') && window.Core.snapshot().people.some(x => x.pid === p && x.name === "Bobby"), boPid));
+    await owner.click('.vf-pcard [data-k="pa-rename"]');
+    await owner.fill('.vf-pcard [data-k="rnp"]', "Half typed");
+    // The taller card with its form open can cover the row's avatar, so these two clicks go to it directly.
+    await owner.locator(boEl).dispatchEvent("click");
+    await until(owner, () => document.querySelector(".vf-pcard")?.hidden);
+    await owner.locator(boEl).dispatchEvent("click");
+    await owner.click('.vf-pcard [data-k="pa-rename"]');
+    ok("  and a draft left unsaved does not come back when the card opens again", await until(owner, () => document.querySelector('.vf-pcard [data-k="rnp"]')?.value === "Bobby"),
+      await owner.evaluate(() => document.querySelector('.vf-pcard [data-k="rnp"]')?.value));
+    await owner.locator(boEl).dispatchEvent("click");
+    await until(owner, () => document.querySelector(".vf-pcard")?.hidden);
+
     // ---------- the picker offers the owner ----------
     await owner.locator(`.vf-hperson:has([data-pid="${twinPid}"]) .vf-hp-acts button`, { hasText: "Merge…" }).click();
-    ok("the merge picker lists the owner first, as \"Me (owner)\"", await until(owner, () => {
+    ok("the merge picker lists the owner first, as \"You\"", await until(owner, () => {
       const items = [...document.querySelectorAll(".vf-pcard .vf-merge-item")];
-      return items[0]?.dataset.k === "m:host" && items[0].querySelector(".core-avatar + span")?.textContent === "Me (owner)";
+      return items[0]?.dataset.k === "m:host" && items[0].querySelector(".core-avatar + span")?.textContent === "You";
     }), await owner.evaluate(() => [...document.querySelectorAll(".vf-pcard .vf-merge-item")].map(b => `${b.dataset.k}=${b.textContent}`).join(" | ")));
 
     // ---------- a refusal shows the session's sentence ----------

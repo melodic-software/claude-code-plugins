@@ -3,6 +3,26 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-10-20
+
+### Changed
+
+- `/dometrain:setup` checks for the user-scope server alone: its disabled and failed states point to the README and `claude mcp list`, its headless path installs and enables `dometrain` only, and its evals drop the expectations for the deleted plugin.
+
+### Removed
+
+- **Breaking:** the companion `dometrain-mcp` plugin is deleted from the marketplace, so the README, the setup skill and the grounding skill no longer name it as a way to get the tools. Register a user-scope `dometrain` server with `claude mcp add-json` per the README's "Getting the MCP server" section, then uninstall `dometrain-mcp`. Permission rules written against `mcp__plugin_dometrain-mcp_dometrain__*` need the user-scope tool names.
+
+## [0.7.0] - 2026-10-20
+
+### Changed
+
+- `/dometrain:sync`'s `scripts/update.sh` follows the shared drift-check exit-code contract: 0 no drift, 1 drift (including a missing baseline), 2 unverifiable (a missing tool, a failed fetch or write, or an unknown mode). Drift used to exit 2 and an unverifiable state 1. (#6493)
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.6.9] - 2026-10-16
 
 ### Changed

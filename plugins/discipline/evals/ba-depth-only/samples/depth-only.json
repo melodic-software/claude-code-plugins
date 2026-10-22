@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Original: a Python function that parses the dates in the nightly CSV export.\nRaised: the same function, built from real rows. Take a sample of last month's exports and list every date format they contain, including empty cells and time-zone suffixes. Parse with datetime.fromisoformat for ISO values and an explicit format list for the rest, and reject anything else with the row number. Write pytest cases from the real sample.\nAxes applied: Depth. Altitude and Range skipped: you asked for depth only.\nCheck: run the function over a full night's export and count failures; it must be zero or each failure listed.",
+      "why": "deepens with raw rows, methods and a check, and keeps the goal"
+    },
+    {
+      "answer": "Depth only, as asked.\n\nA careful data engineer would first collect the real formats from several exports, not assume one. Raw material: the CSV files themselves. Methods: dateutil is out; use explicit formats with datetime.strptime, plus hypothesis to fuzz edge dates. Check: parse every date in last week's exports and diff the count of parsed values against the row count.",
+      "why": "covers the depth content with no bigger goal or other field"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Raised: the goal behind the parser is trustworthy reporting, so build a data-quality pipeline that validates every column of the export, alerts on drift, and publishes a dashboard. Bring in a data-governance view as well.",
+      "why": "raises the goal and brings in another field"
+    },
+    {
+      "answer": "Raised: a robust date parser for the export. Axes applied: Depth. The function should handle errors well and be tested.",
+      "why": "omits the depth content: no raw material, methods or check"
+    }
+  ]
+}

@@ -10,8 +10,8 @@
 // and opens in a reader, and chat shows a character count; the owner and leaders get a Host view (people, queue, round
 // status, links, goal, Later) and a guest does not; IF the server drops, pages show "Reconnecting…", keep unsent text
 // and recover; IF the tunnel restarts with a new address, the owner view shows "New guest link, share again"; after
-// Send a round shows Waiting for Claude (Cancel works, and guests see it reopen), then Claude is working (no cancel; the
-// owner alone can reset it from the Host view behind a confirm, and guests see it reopen),
+// Send a round shows Waiting for Claude (Cancel works, and guests see it reopen), then Claude is working (no cancel; after
+// a while it says for how long; the owner alone can reset it from the Host view behind a confirm, and guests see it reopen),
 // then a "Round N is here" toast on the owner's and a guest's page, moving nobody unless Follow is on; a proposal Claude marks "Not placed" shows its
 // author the reason; WHILE a session is ended guests see a read-only Tree and new joins are refused; Focus, Compare and
 // Tree show the same live data and Compare marks off-screen columns; new answers are announced; answers stay visible at
@@ -23,7 +23,7 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs } = require("./browser_harness");
 
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
 const DESK = { viewport: { width: 1440, height: 900 } };
@@ -57,15 +57,17 @@ async function main() {
     // ---------- join dialog ----------
     const gus = await rec.open(A.localUrl);
     await gus.waitForSelector("dialog.core-name[open]");
+    await until(gus, () => !!document.getElementById("core-name-sub")?.textContent.trim()); // the title comes with the first poll
     const parts = await gus.evaluate(() => {
       const d = document.querySelector("dialog.core-name");
       const shown = [...d.querySelectorAll("form > *")].filter(e => e.offsetParent && (e.matches("input, button") || e.textContent.trim()));
       return { shown: shown.map(e => e.matches("input") ? `input:${e.type}` : `${e.localName}:${e.textContent.trim()}`),
+        links: [...d.querySelectorAll("a")].map(a => a.textContent.trim()),
         extra: d.querySelectorAll("a, input[type=checkbox], [role=switch]").length };
     });
-    ok("join dialog: shows only the heading, the invite line, the name prompt, the name box and Join",
-      parts.shown.join("|") === "h2:Join the session|p:You are invited to answer a few questions: Offsite|label:What should everyone call you?|input:text|button:Join"
-      && parts.extra === 0, JSON.stringify(parts));
+    ok("join dialog: shows only the heading, the invite line, the name prompt, the name box, Join and the host's sign-in link",
+      parts.shown.join("|") === "h2:Join the session|p:You are invited to answer a few questions: Offsite|label:What should everyone call you?|input:text|button:Join|a:Are you the host? Sign in with a code"
+      && JSON.stringify(parts.links) === JSON.stringify(["Are you the host? Sign in with a code"]) && parts.extra === 1, JSON.stringify(parts));
     const gusPid = await joinAs(gus, "Gus");
 
     // ---------- refused join: the reason and a retry ----------
@@ -188,33 +190,39 @@ async function main() {
 
     // ---------- answers, then "Claude on this question" below them: one column at 1440x900 and 390x844, no tabs ----------
     await railQ(ivy, Q1T).click();
-    const column = page => page.evaluate(() => {
+    await until(ivy, t => document.querySelector(".vf-qtext")?.textContent === t, Q1T);
+    const column = async page => ({ still: await settled(page, { rects: true }), ...await page.evaluate(() => {
       const r = s => document.querySelector(s)?.getBoundingClientRect(), a = r(".vf-anspane"), c = r(".vf-clsec"), comp = r(".vf-composer");
       return { tabs: document.querySelectorAll(".vf-splittabs, .vf-split, .vf-thpane, [role=tablist][aria-label='Answers or Claude']").length,
         below: !!a && !!c && a.width > 0 && c.top >= a.bottom - 1 && Math.abs(a.left - c.left) < 2 && Math.abs(a.width - c.width) < 2 && comp.bottom <= a.top + 1,
         open: document.querySelector(".vf-cltoggle").getAttribute("aria-expanded"), body: !document.querySelector(".vf-clbody").hidden,
         title: document.querySelector(".vf-cltitle")?.textContent };
-    });
+    }) });
     const c1 = await column(ivy);
     ok("one column: at 1440x900 no Answers | Claude tabs or split exist", c1.tabs === 0, JSON.stringify(c1));
-    ok("one column: the composer, then the answers, then \"Claude on this question\" at the answers' width", c1.below && c1.title === "Claude on this question", JSON.stringify(c1));
+    ok("one column: the composer, then the answers, then \"Claude on this question\" at the answers' width", c1.still && c1.below && c1.title === "Claude on this question", JSON.stringify(c1));
     ok("one column: the Claude section starts folded to its head", c1.open === "false" && !c1.body, JSON.stringify(c1));
     const pho = await rec.open(A.localUrl, { context: PHONE });
     await joinAs(pho, "Pho");
     await until(pho, () => !!document.querySelector(".vf-qtext")?.offsetParent);
     const p1 = await column(pho);
-    ok("one column: at 390x844 the same order, no tabs, Claude folded", p1.tabs === 0 && p1.below && p1.open === "false", JSON.stringify(p1));
+    ok("one column: at 390x844 the same order, no tabs, Claude folded", p1.still && p1.tabs === 0 && p1.below && p1.open === "false", JSON.stringify(p1));
     await pho.locator(".vf-cltoggle").tap();
-    const p2 = await pho.evaluate(() => new Promise(res => setTimeout(() => {
+    // The section scrolls its head into view a frame after it opens: wait for that, then for the page to hold still.
+    await until(pho, () => { const sc = document.querySelector(".vf-scroll").getBoundingClientRect(), h = document.querySelector(".vf-clhead").getBoundingClientRect();
+      return !document.querySelector(".vf-clbody").hidden && h.top >= sc.top - 1 && h.bottom <= sc.bottom + 1; });
+    const p2 = { still: await settled(pho, { rects: true }), ...await pho.evaluate(() => {
       const sc = document.querySelector(".vf-scroll").getBoundingClientRect(), h = document.querySelector(".vf-clhead").getBoundingClientRect();
-      res({ body: !document.querySelector(".vf-clbody").hidden, ans: !!document.querySelector(".vf-anspane").offsetParent, comp: !!document.querySelector(".vf-composer").offsetParent,
-        inView: h.top >= sc.top - 1 && h.bottom <= sc.bottom + 1 });
-    }, 700)));
-    ok("opening it pushes the page: the composer and answers stay, and its head scrolls into view", p2.body && p2.ans && p2.comp && p2.inView, JSON.stringify(p2));
+      return { body: !document.querySelector(".vf-clbody").hidden, ans: !!document.querySelector(".vf-anspane").offsetParent, comp: !!document.querySelector(".vf-composer").offsetParent,
+        inView: h.top >= sc.top - 1 && h.bottom <= sc.bottom + 1 };
+    }) };
+    ok("opening it pushes the page: the composer and answers stay, and its head scrolls into view", p2.still && p2.body && p2.ans && p2.comp && p2.inView, JSON.stringify(p2));
     await pho.locator(".vf-cltoggle").tap();
 
     // ---------- phone 390x844: header one row, composer one line with send inside, question and answers >= 70% ----------
     await pho.evaluate(() => document.activeElement?.blur());
+    await until(pho, () => document.querySelector(".vf-clbody").hidden);
+    const geoStill = await settled(pho, { rects: true });
     const geo = await pho.evaluate(() => {
       const vis = e => e.offsetParent && e.getBoundingClientRect().width > 0 && getComputedStyle(e).visibility !== "hidden";
       const kids = [...document.querySelector(".vf-top").children].filter(vis).map(e => e.getBoundingClientRect());
@@ -227,9 +235,9 @@ async function main() {
         sendIn: !!send.offsetParent && sr.left >= comp.left - 1 && sr.right <= comp.right + 1 && sr.top >= comp.top - 1 && sr.bottom <= comp.bottom + 1 && sr.top < tr.bottom && sr.bottom > tr.top,
         region: region.height / innerHeight };
     });
-    ok("phone 390x844: the header is one row", geo.kids > 1 && geo.rows, JSON.stringify(geo));
-    ok("phone 390x844: the composer is one line with send inside it", geo.oneLine && geo.sendIn, JSON.stringify(geo));
-    ok("phone 390x844: the question and answers take at least 70% of the height with nothing focused", geo.region >= 0.7, geo.region.toFixed(3));
+    ok("phone 390x844: the header is one row", geoStill && geo.kids > 1 && geo.rows, JSON.stringify({ still: geoStill, ...geo }));
+    ok("phone 390x844: the composer is one line with send inside it", geoStill && geo.oneLine && geo.sendIn, JSON.stringify({ still: geoStill, ...geo }));
+    ok("phone 390x844: the question and answers take at least 70% of the height with nothing focused", geoStill && geo.region >= 0.7, `${geo.region.toFixed(3)}${geoStill ? "" : ", not settled"}`);
 
     // ---------- locked question: composer disabled, says how to suggest a change ----------
     await owner.evaluate(() => window.Core.lock("Q1", "c:rec"));
@@ -263,6 +271,15 @@ async function main() {
     const own = await hostPane(owner);
     ok("host view: the owner's shows people, the queue, round status, links, goal and Later",
       !!own && ["People", "Queue", "Round", "Links and settings", "Later"].every(k => own.secs.includes(k)) && own.people.includes("Gus") && /Round 1/.test(own.round) && own.goal === GOAL, JSON.stringify(own));
+    // The owner renames a guest from that guest's row; the guest's own page takes the new name.
+    const gusRow = owner.locator(".vf-hpeople .vf-hperson", { has: owner.locator(`[data-pid="${gusPid}"]`) });
+    await gusRow.locator(".vf-pa-rename").click();
+    await gusRow.locator(".vf-hp-rename input").fill("Gustavo");
+    await gusRow.locator(".vf-hp-rename button[type=submit]").click();
+    ok("host view: the owner renames a guest from their row, and the guest's page shows the new name",
+      (await until(owner, p => /Gustavo/.test(document.querySelector(`.vf-hpeople [data-pid="${p}"]`)?.closest("li")?.querySelector(".vf-hp-name")?.textContent || ""), gusPid, 10000))
+      && (await toastHas(owner, /Renamed to Gustavo\./)) && (await until(gus, () => window.Core.snapshot()?.me?.name === "Gustavo", null, 10000)));
+    ok("host view: the owner's own row offers no Rename", await owner.evaluate(() => ![...document.querySelectorAll(".vf-hperson")].some(li => /^You$/.test(li.querySelector(".vf-hp-name")?.textContent || "") && li.querySelector(".vf-pa-rename")?.offsetParent)));
     await owner.evaluate(p => window.Core.setLeader(p, true), piaPid);
     // Until the page shows it, not only knows it: the promotion swaps View options for the view switch, and a click on
     // View options read before that swap waits for a button that is gone.
@@ -270,7 +287,12 @@ async function main() {
     const lead = await hostPane(pia);
     ok("host view: a leader's shows people, the queue, round status, goal and Later",
       !!lead && ["People", "Queue", "Round", "Later"].every(k => lead.secs.includes(k)) && lead.people.includes("Gus") && /Round 1/.test(lead.round) && lead.goal === GOAL, JSON.stringify(lead));
+    ok("host view: a leader's rows offer no Rename", await pia.evaluate(() => document.querySelectorAll(".vf-hperson").length > 0 && ![...document.querySelectorAll(".vf-pa-rename")].some(b => b.offsetParent)));
     ok("host view: a plain guest has none", (await hostPane(gus)) === null && !(await gus.evaluate(() => [...document.querySelectorAll(".vf-msitem")].some(m => m.offsetParent && /Host view/.test(m.textContent)))));
+
+    // ---------- the share popover says what a restart does to the link: a quick tunnel's can change ----------
+    ok("share popover: a quick tunnel's link can change after a restart", await until(owner, () => (document.querySelector(".vf-share .vf-pop-note")?.textContent || "")
+      === "Anyone with this link can join. The link can change after the tunnel restarts."));
 
     // ---------- new tunnel address ----------
     const recFile = path.join(A.dir, ".shared-tunnel.json");
@@ -296,11 +318,18 @@ async function main() {
     await railQ(cy, Q2T).click();
     await railQ(host, Q1T).click();
     await host.locator(".vf-round-cur .vf-send").click();
-    const sendAnyway = host.locator(".vf-confirm button", { hasText: "Send anyway" });
+    const sendAnyway = host.locator("dialog.vf-cdlg[open] button", { hasText: "Send anyway" });
     if (await sendAnyway.isVisible().catch(() => false)) await sendAnyway.click();
     ok("round lifecycle: after Send, guests see Waiting for Claude", await until(bo, () => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent === "Waiting for Claude"), await curStep(bo));
     const cancelBtn = host.locator(".vf-cancel-send").first();
     ok("round lifecycle: the owner gets Cancel while it waits", await cancelBtn.waitFor({ timeout: 8000 }).then(() => true, () => false));
+    // Follow-up 33 review: Claude acks and opens the next round in one apply, so while it waits it may already be reading
+    ok("round lifecycle: while it waits the owner reads that Claude may already be reading it and Cancel still works", await until(host, () =>
+      /Claude may already be reading it; you can still cancel\./.test(document.querySelector(".vf-next .vf-step-note")?.textContent || "")), await host.evaluate(() => document.querySelector(".vf-next .vf-step-note")?.textContent));
+    const waitLater = async route => { const r = await route.fetch(); const j = await r.json().catch(() => null); return j?.serverTime ? route.fulfill({ response: r, json: { ...j, serverTime: j.serverTime + 300 } }) : route.fulfill({ response: r }); };
+    await bo.route("**/api/state?*", waitLater);
+    ok("round lifecycle: five minutes after Send, the step says how long it has waited", await until(bo, () => /^Waiting for Claude · 5 min$/.test(document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent || ""), null, 15000), await curStep(bo));
+    await bo.unroute("**/api/state?*", waitLater);
     await cancelBtn.click();
     await host.locator("dialog[open] button", { hasText: "Cancel sending" }).click();
     ok("round lifecycle: Cancel works, and guests see the round open again", await toastHas(bo, /cancelled\. It is open again/)
@@ -312,6 +341,11 @@ async function main() {
     ok("round lifecycle: once Claude picks it up, the page shows Claude is working", await until(bo, () => document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent === "Claude is working"), await curStep(bo));
     ok("round lifecycle: while Claude is working the owner has no Cancel", await until(host, () => window.Core.snapshot().round.status === "working"
       && ![...document.querySelectorAll("button")].some(b => b.offsetParent && /^Cancel sending$/.test(b.textContent.trim()))));
+    // Follow-up 33: after a while in working, the step says how long (the server's clock read 5 minutes later)
+    const later = async route => { const r = await route.fetch(); const j = await r.json().catch(() => null); return j?.serverTime ? route.fulfill({ response: r, json: { ...j, serverTime: j.serverTime + 300 } }) : route.fulfill({ response: r }); };
+    await bo.route("**/api/state?*", later);
+    ok("round lifecycle: five minutes into working, the step says how long", await until(bo, () => /^Claude is working · 5 min$/.test(document.querySelector(".vf-next .vf-steps [aria-current=step]")?.textContent || ""), null, 15000), await curStep(bo));
+    await bo.unroute("**/api/state?*", later);
     // A stalled preparation: the owner resets it from the Host view behind a confirm step; guests never get the control.
     const toView = async (page, label) => {
       const b = page.locator(".vf-bar .vf-seg-btn", { hasText: label }), more = page.locator(".vf-viewopts");
@@ -413,11 +447,12 @@ async function main() {
     await seg(vg, "Focus");
     await railQ(vg, "View question 2?").click();
     await vg.fill("#vf-answer", Array.from({ length: 60 }, (_, i) => `line ${i + 1}`).join("\n"));
+    const grownStill = await settled(vg, { rects: true });
     const grown = await vg.evaluate(() => {
       const t = document.getElementById("vf-answer"), pane = t.closest(".vf-center");
       return { h: t.getBoundingClientRect().height, pane: pane.clientHeight, line: parseFloat(getComputedStyle(t).lineHeight) || 20 };
     });
-    ok("long text: the answer box grows with its text up to 40% of its pane", grown.h > 3 * grown.line && grown.h <= grown.pane * 0.4 + 2, JSON.stringify(grown));
+    ok("long text: the answer box grows with its text up to 40% of its pane", grownStill && grown.h > 3 * grown.line && grown.h <= grown.pane * 0.4 + 2, JSON.stringify({ still: grownStill, ...grown }));
     await vg.fill("#vf-answer", "");
     ok("announced: the toast is a status region, so screen readers hear it",
       await vg.evaluate(() => { const t = document.querySelector(".vf-toast"); return t.getAttribute("role") === "status" || t.getAttribute("aria-live") === "polite"; }));

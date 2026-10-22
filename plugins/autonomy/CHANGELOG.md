@@ -3,6 +3,39 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0] - 2026-10-22
+
+### Changed
+
+- Synced the shared `exec-bash.mjs` launcher, which gains an opt-in `--fail-closed` flag. This plugin's hooks do not pass it, so their behavior is unchanged.
+
+- The isolation ladder names the CI-lane surface on provider-hosted runners: while its five conditions hold it runs unattended without default-deny egress, and every other surface keeps the `L2` floor.
+- The work-class contract states that no merge rung reaches `C4` or `C5`, and that a merge authority reading no class, such as the pr-merge lane, merges on the verifier verdict and still refuses `C5`.
+
+### Deprecated
+
+- `executor_class` in the security binding is optional and ignored. A binding that still carries it stays valid, and `check-signal-envelope.mjs` no longer requires it.
+
+### Removed
+
+- The vendor-hosted merge cap. `check-security-binding.mjs` accepts `merge_policy` `"auto"` under `executor_class: vendor-hosted`, and promotion ratification and checker unanimity now apply to every binding. The trigger contract, the runner pack and the routine leaves no longer state the cap.
+
+## [0.29.3] - 2026-10-20
+
+### Changed
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- The README now points at the live hooks-guide section for Claude Code's cap on consecutive Stop-hook continuations, with an as-of date and recheck trigger.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.29.2] - 2026-10-18
 
 ### Fixed

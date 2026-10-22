@@ -1,6 +1,6 @@
 # PRD templates: three tiers
 
-All three tiers cover the same seven required sections. Tier governs verbosity, not section presence. Loaded on demand by `/planning:prd` once tier is chosen.
+All three tiers cover the same eight required sections. Tier governs verbosity, not section presence. Loaded on demand by `/planning:prd` once tier is chosen.
 
 **Prototype snippet exception:** if a logic prototype (e.g. `/prototype:pressure-test`, if enabled) left behind code that pins down a design decision better than a paragraph could (a transition table, a data schema, a type definition), copy only the parts that carry the decision into the Open questions section and say which prototype they came from. The PRD defers implementation details to `/planning:plan`, but prototype-validated design constraints are product-level, so they belong here.
 
@@ -28,6 +28,7 @@ updated: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 ## Goals
 - <outcome statement>
 - <outcome statement>
+- Vision: <where the user wants this to head, or none stated>
 
 ## Non-goals
 - <thing explicitly out of scope>
@@ -42,6 +43,9 @@ updated: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 
 ## Dependencies / risks
 - <dependency or risk>: <mitigation or owner>
+
+## Assumptions
+- <what we take as true>: revisit if <what would show it false>
 
 ## Open questions
 - <question that /planning:plan needs answered>
@@ -65,6 +69,7 @@ Artists track upcoming gigs in spreadsheets and Google Calendar separately from 
 ## Goals
 - Artists see all upcoming gigs at a glance on their dashboard
 - Conflicts with rehearsals or song-prep deadlines surface visually
+- Vision: the dashboard becomes the one place an artist plans their month
 
 ## Non-goals
 - Booking workflow (existing tool)
@@ -82,6 +87,9 @@ Solo and band artists who play 2+ gigs/month.
 ## Dependencies / risks
 - Reuses the existing `Calendar` domain term, so confirm semantics with the owning module's vocabulary
 - Risk: overlapping with planned rehearsal-scheduling feature → coordinate with that PRD
+
+## Assumptions
+- Gig dates already in the platform are accurate enough to plan against: revisit if artists report stale dates
 
 ## Open questions
 - Show full month or rolling 14-day window? (/planning:plan to evaluate based on data density)
@@ -112,6 +120,7 @@ updated: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 - <Outcome-level. "Users can <X>" or "<metric> moves from A to B".>
 - <Outcome-level.>
 - <Outcome-level.>
+- Vision: <Where the user wants this to head past this release, or none stated.>
 
 ## Non-goals
 - <Explicit out-of-scope item with one-line reason.>
@@ -140,6 +149,9 @@ Each metric must have a measurement window and a numeric or qualitative threshol
 - **Dep**: <outside-team dependency>, <owner / status>
 - **Risk**: <top risk>, <mitigation or accepted with reasoning>
 - **Risk**: <top risk>, <mitigation>
+
+## Assumptions
+- <What we take as true without proof>: revisit if <what would show it false>
 
 ## Open questions
 - <Question /planning:plan needs answered before a plan is realistic.>
@@ -180,6 +192,7 @@ updated: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 - <Outcome-level statement.>
 - <Outcome-level statement.>
 - <Outcome-level statement.>
+- Vision: <Where the sponsor and users want this to head past this release, or none stated.>
 
 ## Non-goals
 - <Out-of-scope item with one-line reason.>
@@ -229,6 +242,9 @@ Each metric named with owner, because "who watches the dashboard" matters in tie
 - **Feature flag / gate**: <name + decommission criteria>
 - **Backout plan**: <how to revert if metrics regress>
 - **Communication**: <who is notified, when, with what runbook>
+
+## Assumptions
+- <What we take as true without proof>: revisit if <what would show it false>
 
 ## Open questions
 - <Question /planning:plan needs answered.>

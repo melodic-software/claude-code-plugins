@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Presence dots in a real browser, against `share.sh ensure-running` with the fake cloudflared, on the owner's page:
-// the header row, the empty view's row of who is here and the Host view's people list each show a dot at the
+// the header row (its count says "Only you here" when no one else is), the empty view's row of who is here and the Host view's people list each show a dot at the
 // avatar's bottom-right (Active filled --ok, Away filled --away with a clock hand, Offline a hollow --faint ring)
 // in a ring of the surface it sits on; no name or avatar is dimmed; the people list runs you, Active, Away, then
 // Offline with the most recently seen first; the header shows present people only; avatar labels name the state;
@@ -57,6 +57,9 @@ async function main() {
     const A = await s.start("dots");
     const owner = await rec.open(A.ownerUrl);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
+    // The header count with no one else here: a bare "1 here" read as a guest count to the owner (S10:5), so it says who.
+    ok("alone on the page, the header count says only you are here", await until(owner, () => document.querySelector(".vf-here")?.textContent === "Only you here"),
+      await owner.evaluate(() => document.querySelector(".vf-here")?.textContent));
     // Fay leaves first and Eve a few seconds later, so Eve is the more recently seen of the two offline people.
     const fay = await rec.open(A.localUrl), fayPid = await joinAs(fay, "Fay");
     const eve = await rec.open(A.localUrl), evePid = await joinAs(eve, "Eve");
@@ -100,11 +103,13 @@ async function main() {
       return { pid: a.dataset.pid, st: a.dataset.presence, dot: !!a.querySelector(".vf-pres"), label: a.getAttribute("aria-label"), meta: li.querySelector(".vf-hp-meta").textContent, dimmed: dim(a) || dim(nm) };
     }));
     ok("each person's avatar carries their state and a dot", rows.length === 5 && rows.every(r => r.dot && r.st === states[r.pid]), JSON.stringify(rows));
+    ok("with 12 people or fewer each row keeps its full form, the status line under the name (#8698)", await owner.evaluate(() => !document.querySelector(".vf-hpeople").classList.contains("vf-hpeople-compact")
+      && [...document.querySelectorAll(".vf-hpeople .vf-hp-meta")].every(m => getComputedStyle(m).display !== "none")));
     ok("no name or avatar is dimmed, offline and away included", rows.every(r => !r.dimmed), JSON.stringify(rows.filter(r => r.dimmed)));
     const by = Object.fromEntries(rows.map(r => [r.pid, r]));
-    ok("avatar labels name the state", by[boPid]?.label === "Bo, active, show details" && /^Cai, away( \d+[mhd])?, show details$/.test(by[caiPid]?.label || "") && by[evePid]?.label === "Eve, offline, show details",
+    ok("avatar labels name the state", by[boPid]?.label === "Bo, active, show details" && /^Cai, away( \d+ (?:min|h|d))?, show details$/.test(by[caiPid]?.label || "") && by[evePid]?.label === "Eve, offline, show details",
       JSON.stringify(rows.map(r => r.label)));
-    ok("the status text stays: Away, and Offline with when they were last active", by[caiPid]?.meta.startsWith("Away") && /^Offline, last active \d+[mhd] ago/.test(by[evePid]?.meta || "") && by[boPid]?.meta.startsWith("Active"),
+    ok("the status text stays: Away, and Offline with when they were last active", by[caiPid]?.meta.startsWith("Away") && /^Offline, last active \d+ (?:min|h|d) ago/.test(by[evePid]?.meta || "") && by[boPid]?.meta.startsWith("Active"),
       JSON.stringify(rows.map(r => r.meta)));
     good("each people-list dot is 3:1 against its ring and its surface, dark and light, offline a hollow ring", Object.values(await owner.evaluate(measure, ".vf-hpeople")).flat());
 
@@ -112,8 +117,9 @@ async function main() {
     const head = await owner.evaluate(() => [...document.querySelectorAll(".vf-people .vf-person")].map(b => ({ pid: b.dataset.pid, label: b.getAttribute("aria-label"), st: b.firstChild?.dataset.presence, dot: !!b.querySelector(".vf-pres"),
       dimmed: [b, b.firstChild].some(e => getComputedStyle(e).opacity !== "1" || getComputedStyle(e).filter !== "none") })));
     ok("the header shows present people only, Active before Away", head.map(h => h.pid).join() === ["host", boPid, caiPid].join(), JSON.stringify(head));
+    ok("  and the count beside it says 3 here", await owner.evaluate(() => document.querySelector(".vf-here")?.textContent) === "3 here", await owner.evaluate(() => document.querySelector(".vf-here")?.textContent));
     ok("  each with its dot and state, none dimmed", head.every(h => h.dot && h.st === states[h.pid] && !h.dimmed), JSON.stringify(head));
-    ok("  and the state in its label", /^Cai, away( \d+[mhd])?\. Show details$/.test(head.find(h => h.pid === caiPid)?.label || "") && head.find(h => h.pid === boPid)?.label === "Bo, active. Show details", JSON.stringify(head.map(h => h.label)));
+    ok("  and the state in its label", /^Cai, away( \d+ (?:min|h|d))?\. Show details$/.test(head.find(h => h.pid === caiPid)?.label || "") && head.find(h => h.pid === boPid)?.label === "Bo, active. Show details", JSON.stringify(head.map(h => h.label)));
     good("each header dot is 3:1 against its ring and its surface, dark and light", Object.values(await owner.evaluate(measure, ".vf-people")).flat());
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);

@@ -3,6 +3,45 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-10-22
+
+### Changed
+
+- The bundled enforcement ladder copy is now 2.0.0: four tiers, a "runs at" column, renamed and added rung ids (`shared-helper`, `harness-setting`, `action-guard`, `scaffold`, `automated-review`, `instruction`, `skill`, `human-review`) and the guardrail criterion.
+
+## [0.26.1] - 2026-10-20
+
+### Changed
+
+- **`/architecture:improve` deepening reads `GLOSSARY.md`.** The domain-glossary lookup names the nearest `GLOSSARY.md` (or the domain-driven-design `glossary_file` setting) and `GLOSSARY-MAP.md` in a multi-context repository, in place of `UBIQUITOUS-LANGUAGE.md`.
+
+## [0.26.0] - 2026-10-20
+
+### Added
+
+- `/architecture:map-deployment` lists a Kubernetes `CronJob` and `Job` under `## Unmapped resources` instead of dropping them. Their containers and parameters are not placed, and a repository of only those kinds is refused as `no-mapped-container`.
+- `--diff` compares compute nodes (clusters, service plans, node pools) of the Terraform, Bicep, ARM, CloudFormation and Pulumi readers: a node in one environment only (`compute-added`, `compute-removed`) or of a different resource type (`compute`). Nodes are matched by resource address, so a per-environment name alone is not a difference.
+
+## [0.25.0] - 2026-10-20
+
+### Added
+
+- Shared `resolve-convention-home.sh` synced: `--ref` (a 40-hex commit id or `origin/<name>`) reads the pointer and the home as committed, `-` reads the region from stdin, a `declined` line in the region exits 4 so the caller does not ask again, and a root that is `$HOME`, an ancestor of it or outside a git work tree exits 5 (not applicable).
+
+### Changed
+
+- `/architecture:improve`'s `## Next` now routes coupling-shaped findings to `/coupling:reduce`.
+
+- `/architecture:record-decision` gains a `## Next` section naming `/planning:plan`.
+
+- With no `--root`, `resolve-convention-home.sh` reads the git toplevel of `CLAUDE_PROJECT_DIR` (else of the current directory): one home per git root.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+- A `CLAUDE.md` symlinked to `AGENTS.md`, or the reverse, no longer prints a `duplicate:` notice.
+
 ## [0.24.1] - 2026-10-16
 
 ### Changed

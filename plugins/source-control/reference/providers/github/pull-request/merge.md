@@ -93,10 +93,34 @@ done
 [MergeStateStatus enum](https://docs.github.com/graphql/reference/enums#mergestatestatus), as of
 2026-10-13; recheck when that enum changes.
 
+## Merge command
+
+Merge with `gh pr merge <pr_number> -R <owner>/<repo>` plus the flags the repository needs:
+`--squash` for a squash merge (none behind a merge queue, where the queue sets the strategy),
+`--auto` on a merge-queue or auto-merge base, and `--admin` only where a required code-owner review
+or a merge queue blocks an otherwise ready merge and the consumer's own policy allows an admin
+merge for that repository. Write the PR number and `-R <owner>/<repo>` literally, never as a
+variable, command substitution or loop: the guardrails merge guard reads the target from them and
+blocks a merge whose target it cannot resolve. `--match-head-commit <sha>`, with the sha written
+literally, makes GitHub refuse the merge if the head moved. It is optional for an immediate merge
+and required with `--auto`, so auto-merge is armed only on the head the session reviewed. The pin
+does not hold after arming: a push by anyone with write access keeps auto-merge armed, and where the
+AI review checks are not required checks the new head can merge on `ci-status` alone. An armed
+auto-merge is therefore reported, as [confirm queue entry](#confirm-queue-entry) does. Before
+pushing to a PR with auto-merge armed, disarm it with
+`gh pr merge <pr_number> -R <owner>/<repo> --disable-auto`, and re-arm it only after the reviews
+pass on the new head. Making the AI review checks required in rulesets is tracked in
+[melodic-software/github-iac#734](https://github.com/melodic-software/github-iac/issues/734).
+
+GitHub's rulesets and required checks, and the guardrails merge guard, are the merge gate. A merge
+that GitHub or the permission layer refuses is reported with its error text, and the session moves
+on to other work: never hand the user the command to run, and never retry the merge in another
+shape.
+
 ## Squash merge in a regular checkout
 
 ```bash
-gh pr merge <pr_number> --squash --delete-branch --match-head-commit "$HEAD_SHA"
+gh pr merge <pr_number> -R <owner>/<repo> --squash --delete-branch
 ```
 
 ## Squash merge in a linked worktree
@@ -105,13 +129,17 @@ Omit `--delete-branch`: on older gh it tries to check out the default branch loc
 while another worktree holds it, and exits 1 even though the merge succeeded.
 
 ```bash
-gh pr merge <pr_number> --squash --match-head-commit "$HEAD_SHA" && {
-  if [ "$(gh pr view <pr_number> --json state -q .state)" = MERGED ]; then
-    REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push '<branch>') && git push "$REMOTE" --delete --end-of-options '<branch>'
-  else
-    echo 'PR not merged yet (merge queue or auto-merge); delete the head branch once it reads MERGED' >&2
-  fi
-}
+gh pr merge <pr_number> -R <owner>/<repo> --squash
+```
+
+Then, as its own command, delete the remote head branch once the PR reads `MERGED`:
+
+```bash
+if [ "$(gh pr view <pr_number> -R <owner>/<repo> --json state -q .state)" = MERGED ]; then
+  REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push '<branch>') && git push "$REMOTE" --delete --end-of-options '<branch>'
+else
+  echo 'PR not merged yet (merge queue or auto-merge); delete the head branch once it reads MERGED' >&2
+fi
 ```
 
 Verified 2026-09-29 against [cli/cli#14007](https://github.com/cli/cli/pull/14007), which ships in
@@ -142,7 +170,8 @@ status.
 ## Merge after AI review
 
 ```bash
-[ "$(gh repo view --json owner --jq .owner.login)" = melodic-software ] \
+REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner) || exit 1
+[ "${REPO%%/*}" = melodic-software ] \
   || { echo 'not a melodic-software repository: wait for the user' >&2; exit 1; }
 : "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 RULES=$(gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/<baseRefName>" | jq 'add')
@@ -165,41 +194,16 @@ for _ in $(seq 5); do
   sleep 60
 done
 [ "$S" = clean ] || { echo "PR reads ${S:-nothing} at the pinned head, not clean: hold" >&2; exit 1; }
-if jq -e 'any(.[]; .type == "merge_queue")' <<<"$RULES" >/dev/null; then
-  echo "merge-ready $HEAD_SHA queue"
-else
-  echo "merge-ready $HEAD_SHA squash"
-fi
+MODE=squash
+jq -e 'any(.[]; .type == "merge_queue")' <<<"$RULES" >/dev/null && MODE=queue
+echo "merge-ready $HEAD_SHA $MODE"
 ```
 
-The script does not merge. When it prints `merge-ready <sha> <queue|squash>`, run the merge as its
-own Bash command in the shape below, with nothing chained before it and every value written
-literally: the PR number, `-R <owner>/<repo>`, your own login (`gh api user --jq .login`) and the
-full 40-character sha the script printed, never a variable, a command substitution or a loop. The
-guard re-checks the head, author, fork, draft, changed files, review checks (none failed) and
-`ci-status` inside the command that merges, so an auto-mode allow entry that requires that guard
-can match it, and a check rerun after the script cannot slip a failed review or an armed auto-merge
-past it. Add `--squash` only
-when the script printed `squash`; behind a merge queue the queue sets the strategy. Keep each
-`|not` clause in its parentheses: jq's `|` binds looser than `and`, so without them a wrong head
-would pass.
-
-```bash
-gh pr view <pr_number> -R <owner>/<repo> --json headRefOid,author,isCrossRepository,isDraft,files,statusCheckRollup --jq '.headRefOid=="<sha>" and .author.login=="<login>" and (.isCrossRepository|not) and (.isDraft|not) and ([.files[].path|select(test("^\\.github/(workflows|actions)/|(^|/)\\.claude/|(^|/)dot_claude/|^\\.chezmoi(data|templates)/|(^|/)(CLAUDE|AGENTS)\\.md(\\.tmpl)?$"))]|length==0) and ([.statusCheckRollup[]|select((.name//"")|test("review"))] as $r|($r|length>0) and ($r|all(.status=="COMPLETED")) and ($r|group_by(.workflowName)|all(any(.[]; .conclusion!="SKIPPED")))) and ([.statusCheckRollup[]|select((.name//"")|test("review"))]|all(.conclusion|IN("SUCCESS","SKIPPED"))) and ([.statusCheckRollup[]|select(.name=="ci-status")]|length>0 and (max_by(.completedAt).conclusion=="SUCCESS"))' | grep -qx true && gh pr merge <pr_number> -R <owner>/<repo> --squash --match-head-commit <sha>
-```
-
-Where the user's own instructions authorize an admin merge for that repository (a required
-code-owner review or a merge queue blocks an otherwise ready merge), use this form instead, and
-only it. It carries exactly `--squash`, `--admin` and `--match-head-commit`, never
-`--delete-branch`:
-
-```bash
-gh pr view <pr_number> -R <owner>/<repo> --json headRefOid,mergeStateStatus,statusCheckRollup,files --jq '.headRefOid=="<sha>" and .mergeStateStatus!="DIRTY" and ([.statusCheckRollup[]|select(.name=="ci-status")]|length>0 and (max_by(.completedAt).conclusion=="SUCCESS")) and all(.statusCheckRollup[]; (.status//"COMPLETED")=="COMPLETED" and (.state//"")!="PENDING") and ([.files[].path|select(test("^\\.github/(workflows|actions)/|(^|/)\\.claude/|(^|/)dot_claude/|^\\.chezmoi(data|templates)/|(^|/)(CLAUDE|AGENTS)\\.md(\\.tmpl)?$"))]|length==0) and ([.statusCheckRollup[]|select((.name//"")|test("review"))] as $r|($r|length>0) and ($r|group_by(.workflowName)|all(any(.[]; .conclusion!="SKIPPED"))) and ($r|all(.conclusion|IN("SUCCESS","SKIPPED")))) and all(.statusCheckRollup[]; (.conclusion//.state//"")|IN("SUCCESS","SKIPPED","NEUTRAL"))' | grep -qx true && gh pr merge <pr_number> -R <owner>/<repo> --squash --admin --match-head-commit <sha>
-```
-
-A merge the permission layer refuses in this shape is a hand-off to the user, not a retry in
-another shape. `grep -qx true` exits non-zero when the guard fails, which is a hold: re-read the PR
-before anything else.
+The script does not merge. After `merge-ready <sha> <queue|squash>`, run the
+[merge command](#merge-command) as its own Bash command with the PR number and repository written
+in: `--squash` when the script printed `squash`, no strategy flag when it printed `queue`. To pin
+the merge to the head the script checked, add `--match-head-commit` with the printed sha; with
+`--auto` the pin is required.
 
 Behind a merge queue `gh pr merge` should enqueue and return; had required checks not passed it
 would arm auto-merge instead. It has also been seen to return with a `CLEAN` PR left out of the
@@ -231,16 +235,18 @@ done
 ```
 
 - **Pointer**: how `gh pr merge` behaves on a merge-queue base and what `--match-head-commit` does:
-  [gh pr merge](https://cli.github.com/manual/gh_pr_merge); `isInMergeQueue`:
+  [gh pr merge](https://cli.github.com/manual/gh_pr_merge); who keeps auto-merge armed by pushing:
+  [About auto-merge](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request#about-auto-merge)
+  (read 2026-10-21); `isInMergeQueue`:
   [GraphQL PullRequest object](https://docs.github.com/graphql/reference/objects#pullrequest).
   The queue events: `GET repos/{owner}/{repo}/issues/{n}/events` returned `added_to_merge_queue`
   and `removed_from_merge_queue` for a queue-merged PR (melodic-software/claude-code-plugins#7771,
   read 2026-10-17), though [issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types)
   does not list them.
-- **As of**: 2026-10-09; queue events 2026-10-17
+- **As of**: 2026-10-09; queue events 2026-10-17; About auto-merge 2026-10-21
 - **Recheck trigger**: a gh release that changes `gh pr merge` flags or merge-queue handling, a
-  rename of the AI review lanes' check names, or the events endpoint no longer returning the queue
-  events.
+  rename of the AI review lanes' check names, the events endpoint no longer returning the queue
+  events, or About auto-merge changing whether a push keeps auto-merge armed.
 
 ## Confirm queue entry
 
@@ -259,7 +265,7 @@ PR=$(gh api graphql -F owner='{owner}' -F name='{repo}' -F number=<pr_number> -f
       id state isInMergeQueue mergeStateStatus headRefOid autoMergeRequest { enabledAt } } } }' \
   --jq '.data.repository.pullRequest') || exit 1
 AUTO=$(jq -r '.autoMergeRequest != null' <<<"$PR")
-[ "$AUTO" = true ] && echo 'auto-merge is armed on this PR; tell the user (4.2.1 never arms it)' >&2
+[ "$AUTO" = true ] && echo 'auto-merge is armed on this PR; report it' >&2
 hold() {
   echo "$1" >&2
   [ "$AUTO" = true ] && echo 'auto-merge is still armed: a later push could merge on ci-status alone.

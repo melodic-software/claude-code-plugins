@@ -49,7 +49,11 @@
 #
 # E2E: `resolve-config.sh e2e` resolves /testing:run-e2e's keys instead, each
 # top-level in the same files: e2e_driver (auto | harness | run | playwright |
-# chrome) and reuse_running_instance (auto | true | false), both default auto.
+# chrome) and reuse_running_instance (auto | true | false), both default auto,
+# and browser_driver, the command name of the one browser tool a playwright
+# drive uses (A-Z a-z 0-9 . _ -; default playwright-cli; any other value is
+# named on stderr and the default stands). check-browser-driver.sh, beside this
+# script, stops when that command is not on PATH.
 # It prints `<key> <tab> <value> <tab> <source>` per key, the source being the
 # layer file, userConfig, or default. Highest first: the overlay,
 # docs/conventions/testing.yaml, the user-global file, then the --user value
@@ -167,8 +171,8 @@ while [[ $# -gt 0 ]]; do
     [[ "$MODE" == e2e ]] || die "--user is an e2e option"
     [[ $# -gt 1 && "$2" == *=* ]] || die "--user takes <key>=<value>"
     case "${2%%=*}" in
-    e2e_driver | reuse_running_instance) users+=("$2") ;;
-    *) die "--user names a run-e2e key: e2e_driver or reuse_running_instance" ;;
+    e2e_driver | reuse_running_instance | browser_driver) users+=("$2") ;;
+    *) die "--user names a run-e2e key: e2e_driver, reuse_running_instance or browser_driver" ;;
     esac
     shift
     ;;
@@ -260,13 +264,15 @@ map_dir_refusal() {
 
 # e2e: print each run-e2e key's value and source (header, E2E). Exit 0.
 e2e() {
-  local key val shown written q src def f u raw lines allowed why files=() user_driver="" user_reuse=""
+  local key val shown written q src def f u raw lines allowed why files=() user_driver="" user_reuse="" user_browser=""
+  local tool_re='^[A-Za-z0-9._-]+$'
   for u in ${users[@]+"${users[@]}"}; do
     val="${u#*=}"
     # shellcheck disable=SC2016 # the literal an unrendered option leaves
     [[ "$val" != '${user_config.'* ]] || val=""
     case "${u%%=*}" in
     e2e_driver) user_driver="$val" ;;
+    browser_driver) user_browser="$val" ;;
     *) user_reuse="$val" ;;
     esac
   done
@@ -281,10 +287,11 @@ e2e() {
       files+=("$f")
     fi
   done
-  for key in e2e_driver reuse_running_instance feature_map_dir; do
+  for key in e2e_driver reuse_running_instance feature_map_dir browser_driver; do
     case "$key" in
     e2e_driver) allowed="auto harness run playwright chrome" u="$user_driver" def=auto ;;
     reuse_running_instance) allowed="auto true false" u="$user_reuse" def=auto ;;
+    browser_driver) allowed="" u="$user_browser" def=playwright-cli ;;
     *) allowed="" u="" def=.claude/skills/feature-map ;;
     esac
     val="" src="" raw=""
@@ -315,7 +322,9 @@ e2e() {
         warn "$src: $key: refused value '$written' ($why); using the default, $def"
         src=""
       fi
-    elif [[ -n "$src" ]] && ! in_list "$val" $allowed; then
+    elif [[ -n "$src" ]] && {
+      if [[ "$key" == browser_driver ]]; then [[ ! "$val" =~ $tool_re ]]; else ! in_list "$val" $allowed; fi
+    }; then
       if [[ -n "$val$raw" ]]; then
         warn "$src: $key: unknown value '${val:-$raw}'; using the default, $def"
       else

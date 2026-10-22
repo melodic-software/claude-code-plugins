@@ -54,6 +54,7 @@ async function main() {
 
     // ---------- a notification to a message outside the window ----------
     await gus.click(".vf-bell");
+    await gus.click(".vf-ixtabs [data-k=notes]");
     await gus.locator(".vf-nitem", { hasText: "mentioned you in chat." }).click();
     const ringedM1 = () => {
       const li = [...document.querySelectorAll(".vf-mlist > .vf-msg")].find(x => x._m?.id === "M1"), box = document.querySelector(".vf-mscroll").getBoundingClientRect();
@@ -113,7 +114,7 @@ async function main() {
 
     // ---------- someone else's reaction on a loaded message outside the window reaches it ----------
     const reacter = { "Content-Type": "application/json", "CF-Connecting-IP": "198.51.100.40" };
-    reacter["X-Session-Secret"] = (await (await fetch(`${A.localUrl}api/join`, { method: "POST", headers: reacter, body: JSON.stringify({ name: "Reacter", device: "computer" }) })).json()).secret;
+    reacter["X-Session-Secret"] = (await (await fetch(`${A.localUrl}api/join`, { method: "POST", headers: reacter, body: JSON.stringify({ name: "Reacter", device: "computer", key: A.guestKey }) })).json()).secret;
     const reacted = await fetch(`${A.localUrl}api/chat/react`, { method: "POST", headers: reacter, body: JSON.stringify({ id: "M5", emoji: "👍", on: true }) });
     ok("another person reacts to M5, outside the window", reacted.status === 200, reacted.status);
     ok("  and the page holding M5 shows that reaction", await until(gus, () => (window.Core.state.chat.find(m => m.id === "M5")?.reactions?.["👍"] || []).length === 1),
@@ -123,7 +124,7 @@ async function main() {
     await gus.click(".vf-fab"); // close the chat
     const posters = [];
     for (let i = 1; i <= 6; i++) {
-      const r = await fetch(`${A.localUrl}api/join`, { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": `198.51.100.${i}` }, body: JSON.stringify({ name: `Poster ${i}`, device: "computer" }) });
+      const r = await fetch(`${A.localUrl}api/join`, { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": `198.51.100.${i}` }, body: JSON.stringify({ name: `Poster ${i}`, device: "computer", key: A.guestKey }) });
       posters.push({ "Content-Type": "application/json", "X-Session-Secret": (await r.json()).secret, "CF-Connecting-IP": `198.51.100.${i}` });
     }
     const cdp = await gus.context().newCDPSession(gus);

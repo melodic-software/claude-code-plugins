@@ -6,7 +6,8 @@ named `pr-verify-<pr>-<sha>-<verdict>` counts only through a run of
 `.github/workflows/pr-verify.yml` on main of this repository; a FAIL counts
 whatever the run's conclusion and under any pull request number, a PASS only
 from a completed success at this pull request's head; a FAIL at another head
-of the pull request goes to a human; an unreadable FAIL blocks; a pull request
+of the pull request goes to a human unless a counted pass at the head clears
+every check; an unreadable FAIL blocks; a pull request
 older than 80 days goes to a human; a pass needs every linked issue written
 and last edited by a trusted human other than the author, unchanged since the
 judgment; the Actions reads use the Actions token; a Dependabot pull request
@@ -85,6 +86,7 @@ def comment(
 
 
 RUN_STARTED = "2026-10-15T00:00:00Z"
+OLDER_START = "2026-10-14T00:00:00Z"
 
 
 def pull(**overrides: Any) -> dict[str, Any]:
@@ -124,6 +126,7 @@ def run(run_id: int, **overrides: Any) -> dict[str, Any]:
         "head_branch": "main",
         "head_sha": MAIN_SHA,
         "run_attempt": 1,
+        "created_at": RUN_STARTED,
         "run_started_at": RUN_STARTED,
         "repository": {"full_name": REPO},
         "head_repository": {"full_name": REPO},
@@ -148,8 +151,31 @@ def record(number: int = PR, sha: str = HEAD, **overrides: Any) -> dict[str, Any
     return fields
 
 
+def judged(run_id: int, at: Any, **overrides: Any) -> dict[str, Any]:
+    """A run created, and its one attempt started, at `at`."""
+    return run(run_id, created_at=at, run_started_at=at, **overrides)
+
+
 def named(sha: str, verdict: str, number: int = PR) -> str:
     return f"pr-verify-{number}-{sha}-{verdict}"
+
+
+def change(
+    added: str, at: int = 1, before: str = "one", path: str = "notes.txt"
+) -> str:
+    """A unified diff adding line `added` to `path` at line `at` after the
+    context line `before`, in the form GitHub's compare diff and `git diff`
+    write."""
+    return (
+        f"diff --git a/{path} b/{path}\n"
+        "index 1111111..2222222 100644\n"
+        f"--- a/{path}\n"
+        f"+++ b/{path}\n"
+        f"@@ -{at},2 +{at},3 @@\n"
+        f" {before}\n"
+        f"+{added}\n"
+        " two\n"
+    )
 
 
 class FakeGitHub:
@@ -168,6 +194,10 @@ class FakeGitHub:
         self.records = records or {}
         self.on_main = {MAIN_SHA}
         self.commits = [IN_PR, HEAD]
+        # Each commit's git tree, as the commit list and `git/commits` give it.
+        # The pull request's own change at each commit: the compare diff from
+        # its merge base with main, each unlike the others.
+        self.diffs = {s: change(s[:4]) for s in (HEAD, EARLIER, IN_PR, UNRELATED)}
         self.actors: Any = {"version": 1, "actors": [MAINTAINER, LANES]}
         self.calls: list[list[str]] = []
         self.envs: list[tuple[list[str], Any]] = []
@@ -180,6 +210,10 @@ class FakeGitHub:
         # Each closing issue's comments now, and a totalCount that cuts them.
         self.closing_comments: dict[int, list[dict[str, Any]]] = {}
         self.comments_total: dict[int, int] = {}
+        # The pull requests, open or closed, that close each issue:
+        # (number, repository), and a totalCount that cuts them.
+        self.closers: dict[int, list[tuple[int, str]]] = {}
+        self.closers_total: dict[int, int] = {}
 
     def __call__(
         self, args: list[str], **kwargs: Any
@@ -206,6 +240,15 @@ class FakeGitHub:
                             n, len(self.closing_comments.get(n, []))
                         ),
                         "nodes": self.closing_comments.get(n, []),
+                    },
+                    "closedByPullRequestsReferences": {
+                        "totalCount": self.closers_total.get(
+                            n, len(self.closers.get(n, [(PR, REPO)]))
+                        ),
+                        "nodes": [
+                            {"number": pr, "repository": {"nameWithOwner": repo}}
+                            for pr, repo in self.closers.get(n, [(PR, REPO)])
+                        ],
                     },
                 }
                 for n, repo in self.closing
@@ -240,6 +283,11 @@ class FakeGitHub:
             )
         if path == f"repos/{REPO}/pulls/{PR}/commits?per_page=100":
             return ok([[{"sha": sha} for sha in self.commits]])
+        if "Accept: application/vnd.github.diff" in args:
+            sha = path.removeprefix(f"repos/{REPO}/compare/main...")
+            if sha not in self.diffs:
+                return missing()
+            return subprocess.CompletedProcess(args, 0, self.diffs[sha], "")
         if path.startswith(f"repos/{REPO}/contents/"):
             return ok(self.actors)
         prefix = f"repos/{REPO}/actions/runs/"
@@ -281,11 +329,88 @@ class VerdictAtTheCurrentHead(unittest.TestCase):
         )
         self.assertIsNone(read(fake).refusal)
 
-    def test_a_fail_blocks(self) -> None:
+    def test_a_fail_blocks_for_a_human(self) -> None:
         fake = FakeGitHub([artifact(named(HEAD, "fail"), 1)], {1: run(1)})
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:fail")
-        self.assertFalse(evidence.needs_human)
+        self.assertTrue(evidence.needs_human)
+        self.assertEqual(
+            evidence.report()["headFail"], {"run": 1, "artifact": named(HEAD, "fail")}
+        )
+
+    def summary(self, fake: FakeGitHub, run_id: int, name: str) -> str | None:
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            return ve.Reader(REPO, "main", now=NOW).fail_summary(run_id, name, PR, HEAD)
+
+    def test_the_newest_head_fail_names_the_summary_to_quote(self) -> None:
+        older, newer = named(HEAD, "fail", 7), named(HEAD, "fail")
+        fake = FakeGitHub(
+            [artifact(newer, 5), artifact(older, 2)],
+            {2: run(2), 5: run(5)},
+            {
+                older: record(7, verdict="fail", summary="old"),
+                newer: record(verdict="fail", summary="Spec item 2 is unmet."),
+            },
+        )
+        evidence = read(fake)
+        self.assertEqual(evidence.head_fail, (5, newer))
+        self.assertEqual(self.summary(fake, 5, newer), "Spec item 2 is unmet.")
+
+    def test_another_pull_requests_fail_counts_but_is_not_quoted(self) -> None:
+        other = named(HEAD, "fail", 99)
+        fake = FakeGitHub(
+            [artifact(other, 5)],
+            {5: run(5)},
+            {other: record(99, verdict="fail", summary="PR 99's reason.")},
+        )
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(evidence.head_fail, (5, other))
+        self.assertIsNone(self.summary(fake, 5, other))
+
+    def test_a_newer_head_pass_is_never_the_fail_to_quote(self) -> None:
+        fail, passed = named(HEAD, "fail"), named(HEAD, "pass", 99)
+        fake = FakeGitHub(
+            [artifact(passed, 5), artifact(fail, 2)],
+            {2: run(2), 5: run(5)},
+            {passed: record(99)},
+        )
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(evidence.head_fail, (2, fail))
+
+    def test_a_newer_fail_at_an_earlier_head_is_never_the_fail_to_quote(
+        self,
+    ) -> None:
+        fail, earlier = named(HEAD, "fail"), named(EARLIER, "fail")
+        fake = FakeGitHub(
+            [artifact(earlier, 5), artifact(fail, 2)],
+            {2: run(2), 5: run(5)},
+        )
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(evidence.head_fail, (2, fail))
+
+    def test_an_unreadable_record_is_not_a_record_with_nothing_to_quote(
+        self,
+    ) -> None:
+        name = named(HEAD, "fail")
+        fake = FakeGitHub([artifact(name, 1)], {1: run(1)})
+        with self.assertRaises(ve.SummaryUnreadable):
+            self.summary(fake, 1, name)
+
+    def test_a_foreign_record_quotes_no_summary(self) -> None:
+        name = named(HEAD, "fail")
+        fake = FakeGitHub([artifact(name, 1)], {1: run(1)})
+        for other in (
+            record(99, verdict="fail"),
+            record(sha=EARLIER, verdict="fail"),
+            record(verdict="pass"),
+            record(verdict="fail", summary=7),
+        ):
+            with self.subTest(other):
+                fake.records[name] = other
+                self.assertIsNone(self.summary(fake, 1, name))
 
     def test_a_fail_beside_a_pass_at_the_same_head_blocks(self) -> None:
         fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
@@ -392,14 +517,14 @@ class AFailCountsUnderAnyNumber(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_a_fail_at_one_of_this_prs_commits_under_another_number(self) -> None:
-        fake = passing(artifact(named(IN_PR, "fail", 99), 2), runs={2: run(2)})
+        fake = FakeGitHub([artifact(named(IN_PR, "fail", 99), 2)], {2: run(2)})
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertTrue(evidence.needs_human)
 
     def test_a_fail_recording_this_head_branch_under_another_number(self) -> None:
         name = named(UNRELATED, "fail", 99)
-        fake = passing(artifact(name, 2), runs={2: run(2)})
+        fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
         fake.records[name] = record(99, UNRELATED, verdict="fail")
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
@@ -415,19 +540,413 @@ class AFailCountsUnderAnyNumber(unittest.TestCase):
 
 
 class AnEarlierFailGoesToAHuman(unittest.TestCase):
-    def test_a_fail_at_an_earlier_head_blocks_a_pass_at_the_current_one(self) -> None:
-        fake = passing(artifact(named(EARLIER, "fail"), 2), runs={2: run(2)})
-        evidence = read(fake)
-        self.assertEqual(evidence.refusal, "verify:earlier-fail")
-        self.assertTrue(evidence.needs_human)
-        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
-
     def test_a_fail_at_the_current_head_wins_over_an_earlier_fail(self) -> None:
         fake = FakeGitHub(
             [artifact(named(EARLIER, "fail"), 1), artifact(named(HEAD, "fail"), 2)],
             {1: run(1), 2: run(2)},
         )
         self.assertEqual(read(fake).refusal, "verify:fail")
+
+
+class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
+    """An earlier head's FAIL stops holding once the current head has a
+    counted pass that clears every spec check and whose run started after
+    every earlier FAIL's run; without one it still holds."""
+
+    @staticmethod
+    def earlier_fail(started: Any = OLDER_START, *extra: dict[str, Any]) -> FakeGitHub:
+        """A pass at the head (run 1, started `RUN_STARTED`) and a FAIL at an
+        earlier head (run 2, started `started`)."""
+        return passing(
+            artifact(named(EARLIER, "fail"), 2),
+            *extra,
+            runs={2: judged(2, started)},
+        )
+
+    def test_an_earlier_fail_and_an_allowing_pass_at_the_head_allow(self) -> None:
+        evidence = read(self.earlier_fail())
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+
+    def test_a_fail_started_after_the_pass_refuses(self) -> None:
+        # Head B passed, A was pushed and failed, the branch went back to B.
+        fake = self.earlier_fail("2026-10-15T00:00:01Z")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_re_attempted_earlier_pass_does_not_clear_a_later_fail(self) -> None:
+        # Run 39652492098's record: attempt 2 keeps the run's created_at and
+        # moves run_started_at later. The pass run was created before the
+        # FAIL's and re-attempted after it.
+        fake = self.earlier_fail("2026-10-15T00:00:01Z")
+        fake.runs[1] = run(
+            1,
+            created_at=RUN_STARTED,
+            run_started_at="2026-10-15T00:00:02Z",
+            run_attempt=2,
+        )
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_re_attempt_created_after_the_fail_clears_it(self) -> None:
+        fake = self.earlier_fail()
+        fake.runs[1] = run(1, run_started_at="2026-10-15T00:05:00Z", run_attempt=2)
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_run_record_whose_id_is_true_counts_nothing(self) -> None:
+        # True == 1 in Python, so the id must be an int, not equal to one.
+        fake = self.earlier_fail()
+        fake.runs[1] = {**run(1), "id": True}
+        self.assertNotEqual(read(fake).refusal, None)
+        fake = FakeGitHub(
+            [artifact(named(HEAD, "fail"), 1)], {1: {**run(1), "id": True}}
+        )
+        self.assertEqual(read(fake).refusal, "verify:missing")
+
+    def test_a_fail_started_with_the_pass_refuses(self) -> None:
+        fake = self.earlier_fail(RUN_STARTED)
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_fail_with_no_start_time_refuses(self) -> None:
+        for started in (None, "yesterday"):
+            with self.subTest(started=started):
+                fake = self.earlier_fail(started)
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_an_earlier_fail_with_no_verdict_at_the_head_refuses(self) -> None:
+        fake = FakeGitHub([artifact(named(EARLIER, "fail"), 2)], {2: run(2)})
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail")
+        self.assertTrue(evidence.needs_human)
+
+    def test_a_pass_from_an_unfinished_run_does_not_clear_it(self) -> None:
+        fake = self.earlier_fail()
+        fake.runs[1] = run(1, status="in_progress", conclusion=None)
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_fail_at_the_head_still_refuses_beside_the_pass(self) -> None:
+        fake = self.earlier_fail(OLDER_START, artifact(named(HEAD, "fail"), 3))
+        fake.runs[3] = run(3)
+        self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_pass_on_a_changed_spec_still_refuses(self) -> None:
+        fake = self.earlier_fail()
+        fake.closing = [(8, REPO)]
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+
+    def test_a_pass_on_an_untrusted_spec_still_refuses(self) -> None:
+        fake = self.earlier_fail()
+        fake.records[named(HEAD, "pass")] = record(
+            linked_issues=[{**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}]
+        )
+        self.assertEqual(read(fake).refusal, "verify:untrusted-spec")
+
+    def test_an_unreadable_tied_fail_keeps_the_earlier_fail(self) -> None:
+        # Run 7 is not in the fake, so the tied FAIL at the head is unread.
+        fake = self.earlier_fail(OLDER_START, artifact(named(HEAD, "fail"), 7))
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+
+class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
+    """A pass clears an earlier head's FAIL only when the pull request's own
+    change at the head (the stable patch id of its diff from the merge base
+    with main) differs from its change at every FAILed head: a head that only
+    merges main, or adds an empty commit, keeps the FAIL (owner decision
+    2026-10-21), and a change that cannot be read keeps it too."""
+
+    earlier_fail = staticmethod(ACountedPassAtTheHeadClearsAnEarlierFail.earlier_fail)
+
+    def diff_reads(self, fake: FakeGitHub) -> list[str]:
+        return [c[-1] for c in fake.calls if "Accept: application/vnd.github.diff" in c]
+
+    def test_a_head_that_only_merges_main_still_refuses(self) -> None:
+        fake = self.earlier_fail()
+        # Main's merge moved the hunk down; the change itself is the same.
+        fake.diffs[EARLIER] = change("fix", at=1)
+        fake.diffs[HEAD] = change("fix", at=40)
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail")
+        self.assertTrue(evidence.needs_human)
+
+    def test_a_base_merge_that_edits_a_line_beside_the_fix_still_refuses(
+        self,
+    ) -> None:
+        # Main changed the context line next to the fix; the fix is the same.
+        fake = self.earlier_fail()
+        fake.diffs[EARLIER] = change("fix", before="one")
+        fake.diffs[HEAD] = change("fix", at=40, before="one, edited on main")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_whitespace_only_difference_still_refuses(self) -> None:
+        fake = self.earlier_fail()
+        fake.diffs[EARLIER] = change("x = f(a, b)")
+        fake.diffs[HEAD] = change("x  =  f(a,b) ")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_the_same_lines_in_another_file_allow(self) -> None:
+        fake = self.earlier_fail()
+        fake.diffs[EARLIER] = change("fix")
+        fake.diffs[HEAD] = change("fix", path="other.txt")
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_binary_change_allows(self) -> None:
+        fake = self.earlier_fail()
+        fake.diffs[EARLIER] = change("fix")
+        fake.diffs[HEAD] = change("fix") + (
+            "diff --git a/logo.png b/logo.png\n"
+            "index 3333333..4444444 100644\n"
+            "Binary files a/logo.png and b/logo.png differ\n"
+        )
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_head_with_a_real_change_allows(self) -> None:
+        fake = self.earlier_fail()
+        fake.diffs[EARLIER] = change("fix", at=1)
+        fake.diffs[HEAD] = change("better fix", at=40)
+        self.assertIsNone(read(fake).refusal)
+        self.assertEqual(
+            sorted(self.diff_reads(fake)),
+            sorted(f"repos/{REPO}/compare/main...{s}" for s in (HEAD, EARLIER)),
+        )
+
+    def test_one_failed_head_of_the_same_change_among_others_refuses(self) -> None:
+        fake = self.earlier_fail(OLDER_START, artifact(named(IN_PR, "fail"), 3))
+        fake.runs[3] = judged(3, OLDER_START)
+        self.assertIsNone(read(fake).refusal)
+        fake.diffs[IN_PR] = fake.diffs[HEAD]
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_change_that_cannot_be_read_refuses(self) -> None:
+        for sha in (EARLIER, HEAD):
+            for broken in ("unread", "empty"):
+                with self.subTest(sha=sha, broken=broken):
+                    fake = self.earlier_fail()
+                    if broken == "unread":
+                        del fake.diffs[sha]
+                    else:
+                        fake.diffs[sha] = ""
+                    self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_head_that_only_adds_blank_lines_refuses(self) -> None:
+        fake = self.earlier_fail()
+        fake.diffs[HEAD] = change("")
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_response_that_is_not_a_diff_refuses(self) -> None:
+        fake = self.earlier_fail()
+        fake.diffs[HEAD] = "<html>rate limited</html>\n"
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+
+def rename(old: str, new: str) -> str:
+    """A pure rename as GitHub's compare diff shows it: no hunk."""
+    return (
+        f"diff --git a/{old} b/{new}\n"
+        "similarity index 100%\n"
+        f"rename from {old}\n"
+        f"rename to {new}\n"
+    )
+
+
+class TheChangeDigestKeysOnChangedLines(unittest.TestCase):
+    """`change_digest` hashes what the pull request changed, not where: the
+    expected equalities come from the review's rules (owner decision
+    2026-10-21): context, line numbers, hunk and file order and whitespace
+    leave it alone; a marker, a line, a path, a rename, a mode or a binary
+    change moves it."""
+
+    def digest(self, diff: str) -> str | None:
+        return ve.change_digest(diff)
+
+    def test_context_lines_and_line_numbers_do_not_count(self) -> None:
+        self.assertEqual(
+            self.digest(change("fix", at=1, before="one")),
+            self.digest(change("fix", at=90, before="edited on main")),
+        )
+
+    def test_hunk_and_file_order_do_not_count(self) -> None:
+        a, b = change("fix", path="a.txt"), change("other", path="b.txt")
+        self.assertEqual(self.digest(a + b), self.digest(b + a))
+        hunks = (
+            "diff --git a/n.txt b/n.txt\n--- a/n.txt\n+++ b/n.txt\n"
+            "@@ -1,1 +1,2 @@\n one\n+first\n"
+            "@@ -9,1 +10,2 @@\n nine\n+second\n"
+        )
+        swapped = (
+            "diff --git a/n.txt b/n.txt\n--- a/n.txt\n+++ b/n.txt\n"
+            "@@ -1,1 +1,2 @@\n one\n+second\n"
+            "@@ -9,1 +10,2 @@\n nine\n+first\n"
+        )
+        self.assertEqual(self.digest(hunks), self.digest(swapped))
+
+    def test_a_removal_swapped_for_an_addition_counts(self) -> None:
+        added = change("line")
+        removed = added.replace("+line", "-line")
+        self.assertNotEqual(self.digest(added), self.digest(removed))
+
+    def test_a_pure_rename_counts_and_names_its_paths(self) -> None:
+        first = self.digest(rename("old.txt", "new.txt"))
+        self.assertIsNotNone(first)
+        self.assertNotEqual(first, self.digest(rename("old.txt", "other.txt")))
+        self.assertNotEqual(first, self.digest(rename("was.txt", "new.txt")))
+
+    def test_a_binary_change_carries_its_path(self) -> None:
+        def binary(path: str) -> str:
+            return (
+                f"diff --git a/{path} b/{path}\n"
+                f"Binary files a/{path} and b/{path} differ\n"
+            )
+
+        self.assertIsNotNone(self.digest(binary("a.png")))
+        self.assertNotEqual(self.digest(binary("a.png")), self.digest(binary("b.png")))
+
+    def test_a_mode_change_counts(self) -> None:
+        def mode(old: str, new: str) -> str:
+            return f"diff --git a/run.sh b/run.sh\nold mode {old}\nnew mode {new}\n"
+
+        self.assertIsNotNone(self.digest(mode("100644", "100755")))
+        self.assertNotEqual(
+            self.digest(mode("100644", "100755")), self.digest(mode("100755", "100644"))
+        )
+        content = change("x", path="run.sh")
+        self.assertNotEqual(
+            self.digest(content),
+            self.digest(
+                content.replace("index", "old mode 100644\nnew mode 100755\nindex")
+            ),
+        )
+
+    def test_added_blank_lines_do_not_count(self) -> None:
+        # A re-roll must not cost one empty line.
+        base = change("x = 2")
+        for blank in ("+", "+    ", "+\t"):
+            with self.subTest(blank=blank):
+                padded = base.replace("+x = 2\n", f"+x = 2\n{blank}\n")
+                self.assertEqual(self.digest(base), self.digest(padded))
+
+    def test_a_diff_of_only_blank_lines_has_no_digest(self) -> None:
+        self.assertIsNone(self.digest(change("")))
+        self.assertIsNone(self.digest(change("   ")))
+
+    def test_crlf_line_ends_do_not_count(self) -> None:
+        diff = change("fix") + rename("old.txt", "new.txt")
+        self.assertEqual(self.digest(diff), self.digest(diff.replace("\n", "\r\n")))
+
+    def test_no_change_has_no_digest(self) -> None:
+        for diff in ("", "\n", "diff --git a/n.txt b/n.txt\nindex 1..2 100644\n"):
+            with self.subTest(diff=diff):
+                self.assertIsNone(self.digest(diff))
+
+
+SIBLING = 40  # another pull request, closed, that closes issue 7 too
+SIBLING_HEADS = ("1" * 40, "2" * 40, "3" * 40)
+
+
+class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
+    """A new pull request for the same issue does not reset the cap: counted
+    FAILs of any pull request in this repository, open or closed, that closes
+    one of this pull request's closing issues count toward
+    `merge.max-verify-fails`, at their own heads."""
+
+    @staticmethod
+    def sibling_fails(*shas: str, number: int = SIBLING) -> FakeGitHub:
+        """A pass at the head, and FAILs of pull request `number` (branch
+        feat/old) at `shas`."""
+        runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
+        fake = passing(
+            *(artifact(named(sha, "fail", number), i) for i, sha in zip(runs, shas)),
+            runs=runs,
+        )
+        for sha in shas:
+            fake.records[named(sha, "fail", number)] = record(
+                number, sha, verdict="fail", head_ref="feat/old"
+            )
+        fake.closers[7] = [(SIBLING, REPO), (PR, REPO)]
+        return fake
+
+    def test_three_fails_on_a_closed_pull_request_refuse(self) -> None:
+        evidence = read(self.sibling_fails(*SIBLING_HEADS))
+        self.assertEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertTrue(evidence.needs_human)
+
+    def test_two_there_and_one_here_refuse(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS[:2])
+        fake.artifacts.append(artifact(named(EARLIER, "fail"), 9))
+        fake.runs[9] = judged(9, OLDER_START)
+        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
+
+    def test_two_there_leave_the_pass_to_decide(self) -> None:
+        self.assertIsNone(read(self.sibling_fails(*SIBLING_HEADS[:2])).refusal)
+
+    def test_a_pull_request_closing_another_issue_does_not_count(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS)
+        fake.closers[7] = [(PR, REPO)]
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_pull_request_in_another_repository_does_not_count(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS)
+        fake.closers[7] = [(SIBLING, "example-org/other"), (PR, REPO)]
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_cut_list_of_closing_pull_requests_refuses(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS[:1])
+        fake.closers_total[7] = 60
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+    def test_an_unreadable_fail_run_of_a_sibling_refuses(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS[:2])
+        del fake.runs[3]
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+
+class RepeatedFailsGoToAHuman(unittest.TestCase):
+    """FAILs at `merge.max-verify-fails` (default 3) distinct heads of one
+    pull request hold it for a human whatever a later pass says (owner
+    decision 2026-10-21); fewer leave the pass to decide."""
+
+    @staticmethod
+    def failed_at(*shas: str) -> FakeGitHub:
+        """A pass at the head (run 1) and a FAIL tied to the pull request at
+        each of `shas`, every one judged before the pass."""
+        runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
+        return passing(
+            *(artifact(named(sha, "fail"), i) for i, sha in zip(runs, shas)),
+            runs=runs,
+        )
+
+    def test_fails_at_three_heads_refuse_despite_a_later_pass(self) -> None:
+        evidence = read(self.failed_at(EARLIER, IN_PR, UNRELATED))
+        self.assertEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertTrue(evidence.needs_human)
+        self.assertIn("3", evidence.detail or "")
+
+    def test_fails_at_two_heads_leave_the_pass_to_decide(self) -> None:
+        self.assertIsNone(read(self.failed_at(EARLIER, IN_PR)).refusal)
+
+    def test_fails_at_one_head_count_once(self) -> None:
+        fake = self.failed_at(EARLIER, IN_PR)
+        # A second FAIL at IN_PR, under another number, tied by the commit.
+        fake.artifacts.append(artifact(named(IN_PR, "fail", 99), 4))
+        fake.runs[4] = judged(4, OLDER_START)
+        evidence = read(fake)
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(len([v for v in evidence.verdicts if v.verdict == "fail"]), 3)
+
+    def test_a_fail_at_the_head_stays_verify_fail(self) -> None:
+        fake = self.failed_at(EARLIER, IN_PR, HEAD)
+        self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_the_reader_takes_its_cap_from_the_setting(self) -> None:
+        fake = self.failed_at(EARLIER, IN_PR)
+        for cap, expected in (
+            (2, "verify:repeated-fail"),
+            (1, "verify:repeated-fail"),
+            (3, None),
+        ):
+            with self.subTest(cap=cap):
+                with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+                    reader = ve.Reader(REPO, "main", now=NOW, max_fails=cap)
+                    self.assertEqual(
+                        reader.evidence(PR, HEAD, pull()).refusal, expected
+                    )
 
 
 class AFailCountsWhateverTheRunConcluded(unittest.TestCase):
@@ -1124,9 +1643,10 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         # An overwrite uploads a new id under the same name: the head ref
         # shared for the old id must not stand for the new contents.
         fake = self.other_fail()
-        self.assertIsNone(read(fake).refusal)
+        del fake.artifacts[0]  # no pass, so a tied FAIL refuses
+        self.assertEqual(read(fake).refusal, "verify:missing")
         name = named(self.OTHER, "fail", 99)
-        fake.artifacts[1] = {**fake.artifacts[1], "id": 21}
+        fake.artifacts[0] = {**fake.artifacts[0], "id": 21}
         fake.records[name] = record(99, self.OTHER, head_ref="feat/x")
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
         self.assertEqual(self.downloads(fake, 2), 2)
@@ -1258,16 +1778,29 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
 
     def test_a_forged_head_ref_does_not_untie_an_earlier_fail(self) -> None:
         name = named(UNRELATED, "fail", 99)
-        fake = passing(artifact(name, 2), runs={2: run(2)})
+        fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
         fake.records[name] = record(99, UNRELATED, head_ref="feat/x")
         for section in ("fail-head-ref", "carried-fail-head-ref"):
             with self.subTest(section=section):
                 self.restore({section: {f"{REPO}|20": {"head_ref": "feat/other"}}})
                 self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
+    def test_a_forged_old_start_never_clears_an_earlier_fail(self) -> None:
+        # GitHub says the FAIL's run started after the pass's; the cache
+        # claims it started before.
+        fake = passing(
+            artifact(named(EARLIER, "fail"), 2),
+            runs={2: judged(2, "2026-10-15T00:00:01Z")},
+        )
+        forged = judged(2, "2026-10-01T00:00:00Z")
+        for section in ("run-record", "carried-run-record"):
+            with self.subTest(section=section):
+                self.restore({section: {f"{REPO}|2": forged}})
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
     def test_carried_reads_that_count_a_fail_spare_the_reads(self) -> None:
         name = named(UNRELATED, "fail", 99)
-        fake = passing(artifact(name, 2), runs={2: run(2)})
+        fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
         self.restore(
             {
                 "run-record": {f"{REPO}|2": run(2)},
@@ -1438,8 +1971,16 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
 # --- The --authority pr-merge path ------------------------------------------------
 
 
-def evidence(refusal: str | None) -> ve.Evidence:
-    return ve.Evidence(refusal=refusal, head=unattended.HEAD, verdicts=(), ignored=0)
+def evidence(
+    refusal: str | None, head_fail: tuple[int, str] | None = None
+) -> ve.Evidence:
+    return ve.Evidence(
+        refusal=refusal,
+        head=unattended.HEAD,
+        verdicts=(),
+        ignored=0,
+        head_fail=head_fail,
+    )
 
 
 def changed(path: str, additions: int = 1) -> unattended.ChangedFile:
@@ -1576,6 +2117,14 @@ class LaneRequiresAVerdict(unattended.Unattended):
                     {"label": "added", "comment": "created"},
                 )
 
+    def test_the_gate_reads_verdicts_under_the_configured_cap(self) -> None:
+        self.config = dataclasses.replace(self.config, max_verify_fails=5)
+        with mock.patch.object(ve, "Reader", wraps=ve.Reader) as built:
+            self.lane()
+        self.assertTrue(built.call_args_list)
+        for call in built.call_args_list:
+            self.assertEqual(call.kwargs.get("max_fails"), 5)
+
     def test_the_label_is_the_trackers_human_gated_role(self) -> None:
         self.role_label.return_value = "status: needs-decision"
         self.verdicts[unattended.PR] = evidence("verify:too-old")
@@ -1611,6 +2160,194 @@ class LaneRequiresAVerdict(unattended.Unattended):
         # names the verifier refusal.
         self.assertEqual(out["unattended"]["reason"], "verify:spec-changed")
 
+    FAIL_RUN = (7, f"pr-verify-{unattended.PR}-{unattended.HEAD}-fail")
+
+    def fail_with_summary(self, summary: str | None | Exception) -> mock.Mock:
+        """A `verify:fail` at the head whose verdict records `summary`, or
+        whose record read raises it."""
+        self.verdicts[unattended.PR] = evidence("verify:fail", self.FAIL_RUN)
+        answer = (
+            {"side_effect": summary}
+            if isinstance(summary, Exception)
+            else {"return_value": summary}
+        )
+        patcher = mock.patch.object(ve.Reader, "fail_summary", **answer)
+        read = patcher.start()
+        self.addCleanup(patcher.stop)
+        return read
+
+    def test_a_fail_escalates_quoting_the_verdict_summary(self) -> None:
+        read = self.fail_with_summary("Spec item 2 is unmet.")
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        read.assert_called_once_with(*self.FAIL_RUN, unattended.PR, unattended.HEAD)
+        comment, label = self.escalation_writes()
+        self.assertIn("labels[]=needs-human", label)
+        body = comment[-1].removeprefix("body=")
+        self.assertTrue(body.startswith(merge.VERIFY_ESCALATION_MARKER + "\n"))
+        self.assertIn("`verify:fail`", body)
+        self.assertIn(unattended.HEAD, body)
+        self.assertTrue(body.endswith("```text\nSpec item 2 is unmet.\n```"))
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"],
+            {"label": "added", "comment": "created"},
+        )
+
+    def test_a_fail_rerun_at_the_same_head_writes_nothing(self) -> None:
+        self.fail_with_summary("Spec item 2 is unmet.")
+        self.lane()
+        comment, _ = self.escalation_writes()
+        self.capture.reset_mock()
+        # The next run reads the comment and the label the first one wrote.
+        self.pr_labels = [{"name": "needs-human"}]
+        self.comments = [
+            {
+                "id": 90,
+                "user": {"login": unattended.IDENTITY, "type": "Bot"},
+                "created_at": "2026-10-12T10:00:00Z",
+                "body": comment[-1].removeprefix("body="),
+            }
+        ]
+        _, out = self.lane()
+        self.assertEqual(self.escalation_writes(), [])
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
+    def test_the_quoted_summary_stays_inside_its_fence_and_is_cut(self) -> None:
+        summary = "a```b\r\n@someone\x1b" + "x" * 1500
+        body = merge.verify_escalation_body("verify:fail", unattended.HEAD, summary)
+        quoted = body.split("```text\n", 1)[1]
+        # 1500 characters kept: the 15 of "a'''b\n@someone?" and 1485 x's.
+        self.assertEqual(quoted, "a'''b\n@someone?" + "x" * 1485 + " [cut]\n```")
+
+    def test_a_lone_surrogate_in_the_summary_still_posts(self) -> None:
+        body = merge.verify_escalation_body("verify:fail", unattended.HEAD, "a\ud800b")
+        self.assertTrue(body.endswith("```text\na?b\n```"))
+        body.encode("utf-8")
+
+    def assert_escalates_without_a_quote(self, summary: Any) -> None:
+        self.fail_with_summary(summary)
+        _, out = self.lane()
+        comment, _ = self.escalation_writes()
+        body = comment[-1].removeprefix("body=")
+        self.assertIn("`verify:fail`", body)
+        self.assertNotIn("```", body)
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"]["comment"], "created"
+        )
+
+    def test_a_fail_with_no_summary_to_quote_still_escalates(self) -> None:
+        self.assert_escalates_without_a_quote(None)
+
+    def test_a_fail_whose_record_cannot_be_read_still_escalates(self) -> None:
+        self.assert_escalates_without_a_quote(
+            ve.SummaryUnreadable("gh: boom (HTTP 502)")
+        )
+
+    def test_a_failed_read_keeps_the_quote_a_same_head_comment_carries(self) -> None:
+        quoted = merge.verify_escalation_body(
+            "verify:fail", unattended.HEAD, "Spec item 2 is unmet."
+        )
+        self.fail_with_summary(ve.SummaryUnreadable("gh: boom (HTTP 502)"))
+        self.pr_labels = [{"name": "needs-human"}]
+        self.comments = [
+            {
+                "id": 90,
+                "user": {"login": unattended.IDENTITY, "type": "Bot"},
+                "created_at": "2026-10-12T10:00:00Z",
+                "body": quoted,
+            }
+        ]
+        _, out = self.lane()
+        self.assertEqual(self.escalation_writes(), [])
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
+    def test_a_failed_read_still_rewrites_another_heads_comment(self) -> None:
+        self.fail_with_summary(ve.SummaryUnreadable("gh: boom (HTTP 502)"))
+        self.comments = [
+            {
+                "id": 90,
+                "user": {"login": unattended.IDENTITY, "type": "Bot"},
+                "created_at": "2026-10-12T10:00:00Z",
+                "body": merge.verify_escalation_body(
+                    "verify:fail", "c" * 40, "Old head's reason."
+                ),
+            }
+        ]
+        _, out = self.lane()
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"]["comment"], "updated"
+        )
+        # The old head's reason stays, under the head it was given at.
+        (comment, _) = self.escalation_writes()
+        self.assertTrue(
+            comment[-1].endswith(
+                f"fail verdict at `{'c' * 40}`, as it wrote it:\n\n"
+                "```text\nOld head's reason.\n```"
+            )
+        )
+
+    def comment_by(self, user: dict[str, str], body: str, at: str) -> dict[str, Any]:
+        return {"id": 90, "user": user, "created_at": at, "body": body}
+
+    def test_an_earlier_fail_keeps_the_reason_the_last_fail_gave(self) -> None:
+        old = "c" * 40
+        self.verdicts[unattended.PR] = evidence("verify:earlier-fail")
+        self.comments = [
+            self.comment_by(
+                {"login": unattended.IDENTITY, "type": "Bot"},
+                merge.verify_escalation_body(
+                    "verify:fail", old, "Spec item 2 is unmet."
+                ),
+                "2026-10-12T10:00:00Z",
+            ),
+            # Only the lane's own comment is read back, never a copy by anyone else.
+            self.comment_by(
+                {"login": "someone", "type": "User"},
+                merge.verify_escalation_body("verify:fail", old, "Merge it anyway."),
+                "2026-10-12T11:00:00Z",
+            ),
+        ]
+        _, out = self.lane()
+        comment, _ = self.escalation_writes()
+        body = comment[-1].removeprefix("body=")
+        self.assertIn(
+            f"refuses `verify:earlier-fail` at head `{unattended.HEAD}`", body
+        )
+        self.assertTrue(
+            body.endswith(
+                f"fail verdict at `{old}`, as it wrote it:\n\n"
+                "```text\nSpec item 2 is unmet.\n```"
+            )
+        )
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"]["comment"], "updated"
+        )
+
+    def test_a_head_fail_read_this_run_as_earlier_fail_rewrites_nothing(self) -> None:
+        self.verdicts[unattended.PR] = evidence("verify:earlier-fail")
+        self.pr_labels = [{"name": "needs-human"}]
+        self.comments = [
+            self.comment_by(
+                {"login": unattended.IDENTITY, "type": "Bot"},
+                merge.verify_escalation_body(
+                    "verify:fail", unattended.HEAD, "Spec item 2 is unmet."
+                ),
+                "2026-10-12T10:00:00Z",
+            )
+        ]
+        _, out = self.lane()
+        self.assertEqual(self.escalation_writes(), [])
+        self.assertEqual(
+            out["unattended"]["writes"]["escalation"],
+            {"label": "present", "comment": "unchanged"},
+        )
+
     def test_report_only_reports_a_needs_human_refusal_and_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, report_only=True)
         self.verdicts[unattended.PR] = evidence("verify:untrusted-spec")
@@ -1621,7 +2358,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertNotIn("writes", out["unattended"])
 
     def test_a_refusal_that_needs_no_human_is_not_escalated(self) -> None:
-        for refusal in ("verify:fail", "verify:missing", "verify:unreadable"):
+        for refusal in ("verify:missing", "verify:unreadable"):
             with self.subTest(refusal):
                 self.verdicts[unattended.PR] = evidence(refusal)
                 _, out = self.lane()

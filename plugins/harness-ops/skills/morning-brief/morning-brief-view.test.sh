@@ -53,11 +53,21 @@ printf '[]\n' >"$TMP/empty.json"
 printf '[{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false}, "nodes": []}}}}]\n' >"$TMP/merged.json"
 printf '{"pr-unblock.yml": [{"id": 30, "html_url": "http://x/runs/30", "event": "pull_request", "display_title": "PR A", "head_sha": "a1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"}]}\n' >"$TMP/lane-runs.json"
 printf '{"30": "pr-unblock completed: turns=8 max-turns=40 models=claude-sonnet-5.\\nactivity=resolve-conflicts"}\n' >"$TMP/lane-ann.json"
+# The cost reads, all clear, so the fixture brief reads every section.
+printf '{"usageItems": []}\n' >"$TMP/usage.json"
+printf '{"budgets": [], "has_next_page": false}\n' >"$TMP/budgets.json"
+printf '{"admins": ["owner-example"], "partial": 0, "repos": [{"name": "app", "visibility": "private", "archived": false, "collaborators": [], "workflows": []}]}\n' >"$TMP/scan.json"
+jq -n '{account: {id: "00000000-0000-0000-0000-000000000001", name: "sub-example", state: "Enabled"},
+  budgets: {value: []}, scheduledActions: {value: []}, pricings: {value: []}, workspaces: [], activity: [],
+  defenderCost: {properties: {nextLink: null, columns: [{name: "Cost"}, {name: "ServiceName"}, {name: "MeterCategory"}, {name: "UsageDate"}], rows: []}},
+  secureScores: [], advisorSecurity: [], advisorCost: []}' >"$TMP/azure.json"
 
 if bash "$BRIEF" --now "2026-07-20T08:00Z" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
   --behind-json "$TMP/behind.json" --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/empty.json" --merged-json "$TMP/merged.json" \
-  --lane-runs-json "$TMP/lane-runs.json" --lane-annotations-json "$TMP/lane-ann.json" >"$TMP/brief.txt" 2>&1; then
+  --lane-runs-json "$TMP/lane-runs.json" --lane-annotations-json "$TMP/lane-ann.json" \
+  --billing-usage-json "$TMP/usage.json" --billing-budgets-json "$TMP/budgets.json" --org-scan-json "$TMP/scan.json" \
+  --azure-json "$TMP/azure.json" >"$TMP/brief.txt" 2>&1; then
   pass "the fixture brief renders"
 else
   fail "the fixture brief renders"

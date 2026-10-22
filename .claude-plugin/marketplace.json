@@ -273,6 +273,12 @@
       }
     },
     {
+      "name": "app-control",
+      "source": "./plugins/app-control",
+      "category": "testing",
+      "tags": ["app-control", "drive", "launch", "evidence", "capture", "e2e", "skill"]
+    },
+    {
       "name": "code-tidying",
       "source": "./plugins/code-tidying",
       "category": "maintenance",
@@ -568,13 +574,6 @@
       "defaultEnabled": false
     },
     {
-      "name": "dometrain-mcp",
-      "source": "./plugins/dometrain-mcp",
-      "category": "discovery",
-      "tags": ["dometrain", "mcp", "courses", "dotnet", "csharp", "learning"],
-      "defaultEnabled": false
-    },
-    {
       "name": "autonomy",
       "source": "./plugins/autonomy",
       "category": "autonomy",
@@ -725,6 +724,12 @@
         "audit",
         "skill"
       ]
+    },
+    {
+      "name": "corrections",
+      "source": "./plugins/corrections",
+      "category": "quality",
+      "tags": ["corrections", "codify", "check", "fail-then-pass", "proof", "worktree", "recurring-findings"]
     },
     {
       "name": "writing",

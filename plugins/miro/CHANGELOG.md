@@ -3,6 +3,24 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.14] - 2026-10-20
+
+### Changed
+
+- **Bump hono from 4.13.7 to 4.13.13 in /plugins/miro/server** (#8671).
+
+## [0.6.13] - 2026-10-20
+
+### Changed
+
+- **build(deps-dev): Bump the npm-minor-patch group in /plugins/miro/server with 2 updates** (#8289).
+  - `@vitest/coverage-v8` 5.0.4→5.0.5
+  - `vitest` 5.0.4→5.0.5
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.6.12] - 2026-10-18
 
 ### Changed

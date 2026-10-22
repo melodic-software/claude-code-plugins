@@ -47,7 +47,6 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 if str(HERE.parent / "surface") not in sys.path:
     sys.path.append(str(HERE.parent / "surface"))
-migrate = importlib.import_module("migrate")
 schema = importlib.import_module("schema")
 detached = importlib.import_module("detached")
 
@@ -80,13 +79,19 @@ MAX_MY_PROPOSALS = 10  # judgment: proposals one person has waiting (new) at onc
 MAX_PROPOSALS = 200  # judgment: proposals across the session; at the cap a new one is refused, none dropped
 MAX_DIGEST_PROPOSALS = 30  # judgment: new proposals one digest lists; the rest wait for a later digest
 MAX_DIGEST_CHARS = 30000  # judgment: summary characters one digest lists, seven summaries at their longest
+MAX_CLAUDE_PROPOSALS = 200  # judgment: Claude's merge and admit proposals across the session, as MAX_PROPOSALS
 MAX_OPEN_UPLOADS = 10
 MAX_RUN_IDS = 100
 NOTIFY_CAP = 500
 MAX_INBOX_READ = 100  # judgment: Inbox items one read marks; a person opens one at a time, "all" sends the unread ones
 INBOX_MARKS = ("waiting", "running", "answered", "unshared", "shared", "declined", "failed", "open")  # state.schema.json inboxSeen
 INBOX_STATUS = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}  # a request's Inbox status; done is answered, shared or unshared
+NOT_SHARED = "The owner did not share the result."  # a discarded result's request fails with this reason
+MERGED_NOTE = "The owner joined your two identities: your earlier answers are yours again."  # the kept person's merge notification
 NOTIFY_SHOWN = 100
+# What may pop up the moment it happens (web/app.js POPUP_KINDS, GUEST_POPUPS): the owner's Inbox items and
+# offered files, and a guest's answered request, mention and new round.
+POPUP_KINDS = ("join", "run", "report", "share", "merge", "fail", "upload", "request", "mention", "round")
 MAX_COMMENTS = 200  # judgment: Discussion comments kept on one question; at the cap a new one is refused, none dropped
 MAX_ALL_COMMENTS = 2000  # judgment: comments across the session, as MAX_CHAT; at the cap a new one is refused
 MAX_MY_COMMENTS = 30  # judgment: comments one person keeps on one question, as MAX_MY_NOTES; their hidden ones count too
@@ -112,6 +117,14 @@ JOIN_WINDOW = 60.0
 JOINS_PER_WINDOW = 30
 JOIN_KEY_WINDOW = 600.0
 JOINS_PER_KEY = 60  # judgment: per guest key across all addresses, above JOINS_PER_WINDOW so one office NAT joins at once
+# Signing the owner in on another device: a code typed or scanned once. Its 8 characters from PAIR_ALPHABET (31, no
+# 0/O, 1/I/L) hold about 39.6 bits; after PAIR_MISSES wrong tries an address is refused that code, while other
+# addresses keep it, so a guesser gets PAIR_MISSES tries at 31**8 per address it holds.
+PAIR_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+PAIR_LENGTH = 8
+PAIR_SECONDS = 120.0  # judgment: long enough to pick up a phone and scan
+PAIR_MISSES = 5  # judgment: a few typos; the host makes a new code after
+MAX_DEVICES = 10  # judgment: the owner's other signed-in devices; one more needs one signed out first
 MAX_CHAT = 2000  # the newest messages kept, so chat cannot grow state.json without bound
 CHAT_WINDOW = 50  # judgment: the newest messages a snapshot carries; GET /api/chat pages through the rest
 CHAT_PAGE_MAX = 100  # judgment: the most messages one GET /api/chat returns
@@ -145,7 +158,10 @@ PERSON_THUMB_MAX = 4 * MAX_THUMB  # judgment: preview characters one person's fi
 SESSION_THUMB_MAX = 1_000_000  # judgment: preview characters state.json and the owner's snapshot carry in all
 REPORT_IMAGE_MAX = 512 * 1024  # bytes of a report's screenshot, which the page re-encodes to 1600 px at most
 SHOWN_IMAGE_MAX = REPORT_IMAGE_MAX  # bytes of a received picture GET /api/upload/image reads back, what the page makes of a picked or pasted one; a larger one shows as a file
-REPORT_MAX = BODY_MAX + -(-REPORT_IMAGE_MAX // 3) * 4 + 32  # a report's body: that picture as a data: URL, plus its text
+MAX_REPORT_IMAGES = 4  # judgment (the owner, 2026-10-21): screenshots one report takes when it is sent; an addition takes one
+REPORT_MAX = BODY_MAX + -(-REPORT_IMAGE_MAX // 3) * 4 + 32  # an addition's body: one picture as a data: URL, plus its text
+REPORT_SEND_MAX = BODY_MAX + MAX_REPORT_IMAGES * (-(-REPORT_IMAGE_MAX // 3) * 4 + 32)  # a report's body: up to MAX_REPORT_IMAGES of them
+REPORT_SECONDS = 60.0  # judgment: a report's whole body, REPORT_SEND_MAX (about 2.8 MB), arrives within this on a 0.25 MB/s phone link (about 11 s)
 REPORT_INTERVAL = 10.0  # judgment: seconds between one person's reports
 MAX_OPEN_REPORTS = 5  # judgment: reports one person has waiting for the owner
 MAX_REPORTS = 500  # judgment: reports across the session; at the cap a new one is refused, none dropped
@@ -165,9 +181,9 @@ PURPOSES = ("decide", "gather", "poll")
 FORMATS = ("text", "choice", "multi", "scale", "rank", "confirm", "prototype")
 # Options Claude writes per format (amendment "Reactions and formats"); the server adds Something else.
 OPTION_COUNTS = {"choice": (2, 4), "multi": (2, 8), "rank": (3, 6)}
-OTHER_OPTION = migrate.OTHER_OPTION
+OTHER_OPTION = {"id": "other", "label": "Something else…", "other": True}
 OTHER = OTHER_OPTION["id"]
-MENTION = migrate.MENTION
+MENTION = re.compile(r"<@([A-Za-z0-9_-]{1,32})>")  # how state.json stores a mention: the person's pid
 VIEWS = ("focus", "compare", "tree", "host", "prototype")
 DEVICES = ("phone", "tablet", "computer")
 BROWSERS = ("chrome", "safari", "firefox", "edge", "samsung", "in-app", "other")
@@ -195,7 +211,7 @@ SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")  # a report's tab and build id
 
 QID = re.compile(r"Q[1-9][0-9]{0,5}")
 ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg|html)")
-IMAGE_ASSET = migrate.IMAGE_ASSET
+IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")  # an image asset's file name
 SVG_ASSET = re.compile(r"[0-9a-f]{16}\.svg")
 VARIANT = re.compile(r"v-[1-9][0-9]?")
 # A note's element path (Annotation.anchor.selector), written by the prototype page's pin helper: "img" on an
@@ -215,7 +231,7 @@ TMP_NAME = re.compile(r"[0-9a-f]{32}")
 STORED_NAME = re.compile(r"[0-9]{8}-U[1-9][0-9]{0,8}-[0-9a-f]{8}(?:\.[a-z0-9]{1,10})?")  # in uploads/accepted/
 STORED_DIR = "uploads/accepted/"
 # A done record's `stored`: one plain name in uploads/accepted/. The server writes STORED_NAME; the v1 design fixture
-# (state-v1.json) holds an older shape that must still load, and no name here can leave the folder.
+# (state-sample.json) holds an older shape that must still load, and no name here can leave the folder.
 # A Windows device name (CON, NUL, COM1, ...) with any extension is refused: opening one reaches the device.
 STORED_PATH = re.compile(r"uploads/accepted/(?!(?i:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\..*)?\Z)[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 FILE_EXT = re.compile(r"[a-z0-9]{1,10}")
@@ -231,7 +247,47 @@ def _element(selector):
     return selector if len(selector) <= MAX_SELECTOR and SELECTOR.fullmatch(selector) else None
 
 
-URL = migrate.URL
+URL = re.compile(r"https?://\S+", re.IGNORECASE)  # a link
+REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?!\.\.?$)[A-Za-z0-9._-]{1,100}")  # a GitHub owner/name, never . or ..; also in state.schema.json and web/app.js
+COMMIT = re.compile(r"[0-9a-f]{40}")  # a full commit SHA, which page links pin
+
+
+def tokenize(text, names):
+    """text with every "@Name" of `names` ((name, pid) pairs) as <@pid>, longest name first, so "@Sam 2" is not
+    also "@Sam". A name stands alone: no letter or digit before its @, none (nor _) after it. Tokens stay as they
+    are. A name two people share (casefolded) names nobody and stays text."""
+    if "@" not in text or not names:
+        return text
+    holders = collections.defaultdict(set)
+    for name, pid in names:
+        holders[name.casefold()].add(pid)
+    by = {n: next(iter(pids)) for n, pids in holders.items() if len(pids) == 1}
+    if not by:
+        return text
+    alt = "|".join(re.escape(n) for n in sorted(by, key=len, reverse=True))
+    pattern = re.compile(rf"(?<![^\W_])@({alt})(?!\w)", re.IGNORECASE)
+    parts = MENTION.split(text)  # text, pid, text, pid, ...: only the text between tokens is matched
+    for i in range(0, len(parts), 2):
+        parts[i] = pattern.sub(lambda m: f"<@{by[m.group(1).casefold()]}>" if m.group(1).casefold() in by else m.group(0), parts[i])
+    return "".join(p if i % 2 == 0 else f"<@{p}>" for i, p in enumerate(parts))
+
+
+def mention_texts(doc):
+    """(holder, key) of every text a person wrote that can hold a mention, as state.json keeps it."""
+    out = []
+    people_cards = [c for lst in doc["cards"].values() for c in lst if c.get("kind") == "person"]
+    for c in [*people_cards, *(t for lst in doc.get("cleared", {}).values() for t in lst)]:
+        out += [(c, "text"), *((v, "text") for v in c.get("history", []) if isinstance(v, dict))]
+    out += [(lk["source"], "text") for lk in doc["locks"].values() if "text" in (lk.get("source") or {})]
+    for s in (s for lst in doc["suggestions"].values() for s in lst):
+        out += [(s, "text"), (s, "note")]
+    out += [(q, "text") for q in doc["questions"] if (q.get("origin") or {}).get("kind") == "host"]
+    out += [(r, "text") for key in ("proposals", "chat", "annotations", "requests") for r in doc[key]]
+    out += [(c, "text") for lst in doc["discussions"].values() for c in lst]
+    out += [(m["replyTo"], "excerpt") for m in doc["chat"] if isinstance(m.get("replyTo"), dict)]
+    out += [(n, "body") for lst in doc["notifications"].values() for n in lst if n.get("kind") in ("mention", "reply")]
+    return [(h, k) for h, k in out if isinstance(h, dict) and isinstance(h.get(k), str)]
+
 PREF_ROUND = re.compile(r"all|[1-9][0-9]{0,3}")
 
 DEFAULT_SETTINGS = {
@@ -247,14 +303,23 @@ DEFAULT_SETTINGS = {
 }
 # Settings a session gains only once the owner sets one, so a state file written before them stays as
 # it was (and still loads in the build before them) until then.
-OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True}
+OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None}
+# guestPopups: the pop-ups a guest starts with (round 11), set by the owner; a guest's own `popups` pref wins. Absent,
+# all of GUEST_POPUPS are on.
+GUEST_POPUPS = ("request", "mention", "round")
+LAST_SCHEMA_VERSION = 7  # the last versioned build's file; an older one needs that build's migrations first
 # reviewAnswers: every answer waits for the owner's Share. A new session writes it off; a state file from before it lacks
 # it and so keeps that review-first behavior.
 SETTING_VALUES = {
     "names": ("full", "initials", "someone"),
     "claudeTake": ("answerFirst", "always"),
 }
-THEME_VALUES = {"mode": ("system", "light", "dark"), "accent": ("teal", "indigo", "violet", "amber")}
+# palette is optional: absent is "default", so a theme written before palettes loads and is written back as it was.
+THEME_VALUES = {
+    "mode": ("system", "light", "dark"),
+    "accent": ("teal", "indigo", "violet", "amber"),
+    "palette": ("default", "midnight", "slate", "paper", "contrast"),
+}
 
 
 def _is_int(v):
@@ -264,16 +329,18 @@ def _is_int(v):
 PREFS = {
     "claudeTake": lambda v: v in ("answerFirst", "always"),
     "sort": lambda v: v in ("new", "votes", "unanswered"),
-    "filter": lambda v: v in ("all", "open", "locked", "review", "mine", "research"),
+    "filter": lambda v: v in ("all", "open", "locked", "review", "mine", "research", "proto"),
     "round": lambda v: isinstance(v, str) and PREF_ROUND.fullmatch(v) is not None,
     "expandedRounds": lambda v: isinstance(v, list) and len(v) <= 100 and all(_is_int(n) and 1 <= n <= 9999 for n in v),
     "theme": lambda v: v in THEME_VALUES["mode"],
     "accent": lambda v: v in THEME_VALUES["accent"],
+    "palette": lambda v: v in THEME_VALUES["palette"],
     "follow": lambda v: isinstance(v, bool),
     "mute": lambda v: isinstance(v, list) and len(v) <= len(NOTIFY_KINDS) and all(k in NOTIFY_KINDS for k in v),
     "tour": lambda v: v in ("done", "skipped"),
     "toolbar": lambda v: v in ("simple", "full"),
     "autoAdvance": lambda v: isinstance(v, bool),
+    "popups": lambda v: isinstance(v, list) and all(isinstance(k, str) and k in POPUP_KINDS for k in v) and all(v.count(k) == 1 for k in v),
 }
 
 # Round state machine (Contracts, "Round state machine"): (from status, action) -> (who, to status).
@@ -337,9 +404,29 @@ def wire_error(body, shape):
     return schema.first_error(body, wire["$defs"][shape], "$", wire)
 
 
+def _pair(previous):
+    return previous["qid"], previous["variant"]
+
+
+def _previous(previous, earlier, taken, field):
+    """A new prototype version's `previous`: a variant of an earlier prototype question (one of `earlier`) that no
+    other variant revises yet (`taken`, to which it is added), so one prototype's versions stay a single line."""
+    qid, vid = _pair(previous)
+    q = next((x for x in earlier if x["id"] == qid and x["format"]["kind"] == "prototype"), None)
+    if q is None:
+        raise _bad(f"{field}.qid", f"{qid[:40]} is not an earlier prototype question.")
+    if vid not in {v["id"] for v in q["format"]["variants"]}:
+        raise _bad(f"{field}.variant", f"{qid} has no variant {vid[:40]}.")
+    if (qid, vid) in taken:
+        raise _bad(field, f"{qid} {vid} already has a next version.")
+    taken.add((qid, vid))
+    return {"qid": qid, "variant": vid}
+
+
 def cross_field_errors(doc):
     """The session rules the schema cannot express, each broken one as a sentence: dependsOn names
-    only earlier questions, no two review flags share because and why, a round holds at most 8, a
+    only earlier questions, a prototype variant's previous names a variant of an earlier prototype question that no
+    other variant also names, no two review flags share because and why, a round holds at most 8, a
     question holds at most one Something else option, the one with id `other` and `other: true`, no
     session secret names the owner (only the owner link does), only a poll holds a closed-poll lock, no person holds a
     reaction twice or both thumbs and down on one answer, a comment's id and a report's id and picture are names the server makes, and every link and asset name is one a write route takes
@@ -349,8 +436,22 @@ def cross_field_errors(doc):
         errors.append("A session secret names the owner; only the owner link may.")
     if any(m["status"]["kind"] == "pending" and HOST in (m["from"], m["to"]) for m in doc["mergeRequests"]):
         errors.append("A pending merge request names the owner; the owner cannot be merged.")
+    if any(p["status"]["kind"] == "pending" and HOST in (p.get("from"), p.get("to"), p.get("pid")) for p in doc.get("claudeProposals", [])):
+        errors.append("An open proposal of Claude's names the owner; the owner is never merged or admitted.")
+    for p in doc.get("claudeProposals", []):
+        named = ("from", "to") if p["kind"] == "merge" else ("pid",)
+        if {k for k in ("from", "to", "pid") if k in p} != set(named) or any(p[k] not in p["names"] for k in named):
+            errors.append(f"Proposal {p['id']} ({p['kind']}) must name {' and '.join(named)}, each in names, and no one else.")
     errors += [f"{where} is not a link or asset name a write route takes." for where in _bad_links_and_assets(doc)]
+    earlier, taken = [], set()
     for q in doc["questions"]:
+        for v in q["format"].get("variants", []):
+            if "previous" in v:
+                try:
+                    _previous(v["previous"], earlier, taken, "previous")
+                except DomainError as e:
+                    errors.append(f"{q['id']} {v['id']} previous: {e.message}")
+        earlier.append(q)
         later = [d for d in q["dependsOn"] if d not in seen]
         if later:
             errors.append(f"{q['id']} depends on {', '.join(later)}, not an earlier question.")
@@ -373,6 +474,8 @@ def cross_field_errors(doc):
     errors += [f"A result under {key[:40]} names another place." for key, lst in doc["results"].items() for r in lst if r.get("qid", GENERAL) != key]
     errors += [f"Report {fid[:40]} holds an id or picture name the server never makes." for fid, r in doc.get("reports", {}).items()
                if not REPORT_ID.fullmatch(fid) or not (r.get("image") is None or re.fullmatch(rf"{REPORTS_DIR}/{fid}\.(png|jpg|webp)", r["image"]))
+               or ("moreImages" in r and ("image" not in r or not 0 < len(r["moreImages"]) < MAX_REPORT_IMAGES
+                                         or any(not re.fullmatch(rf"{REPORTS_DIR}/{fid}-p{n}\.(png|jpg|webp)", m) for n, m in enumerate(r["moreImages"], 2))))
                or len(r.get("adds", [])) > MAX_REPORT_ADDS
                or any(not (a.get("image") is None or re.fullmatch(rf"{REPORTS_DIR}/{fid}-{n}\.(png|jpg|webp)", a["image"])) for n, a in enumerate(r.get("adds", []), 1))]
     return errors
@@ -412,6 +515,14 @@ def _flat(by_qid):
     return [x for lst in by_qid.values() for x in lst]
 
 
+def _pics_by_q(uploads):
+    """qid -> the ids of these uploads offered on it, oldest first."""
+    out = {}
+    for u in sorted(uploads, key=lambda u: u["at"]):
+        out.setdefault(u["qid"], []).append(u["id"])
+    return out
+
+
 def _shows_as_image(u):
     """A received upload of a picture kind, small enough to read back; its bytes passed its kind's check on arrival."""
     return u["status"]["kind"] == "done" and u["ext"] in IMAGE_KINDS and u["size"] <= SHOWN_IMAGE_MAX
@@ -442,6 +553,10 @@ def _bad_links_and_assets(doc):
     share = doc["session"]["share"]["url"]
     if share and not URL.fullmatch(share):
         bad.append("session.share.url")
+    sess = doc["session"]
+    bad += [f"session.{k}" for k, pattern in (("repo", REPO), ("commit", COMMIT)) if k in sess and not pattern.fullmatch(sess[k])]
+    if "commit" in sess and "repo" not in sess:
+        bad.append("session.commit")
     for q in doc["questions"]:
         fmt, at = q["format"], f"questions[{q['id']}]"
         checks = [(IMAGE_ASSET, o["image"], f"{at}.format.options.image") for o in fmt.get("options", []) if "image" in o]
@@ -508,6 +623,11 @@ def _edited(card):
     return {"edited": True} if "edited" in card else {}
 
 
+def _files(card):
+    """The digest's list of the uploads an answer carries, so one with no text still says what it holds."""
+    return {"attachments": list(card["attachments"])} if "attachments" in card else {}
+
+
 def card_ref(card):
     if card["kind"] == "person":
         return f"p:{card['pid']}" + (f":{card['device']}" if card.get("device") else "")
@@ -553,8 +673,145 @@ def _body(body):
     return body
 
 
+def _person_name(body, *, empty_ok=False):
+    """A person's name; "Claude" (any case) is refused, since "@Claude" asks Claude and must never name a person."""
+    name = _text(body, "name", limit=MAX_NAME, empty_ok=empty_ok)
+    if _looks_like_claude(name):
+        raise DomainError(400, "reserved-name", "Claude is the AI's name in this session; pick another name.", field="name")
+    return name
+
+
+# What every text field drops: controls but tab and newline, every format character (Cf: the bidi controls of Trojan
+# Source, zero-width spaces, invisible operators, the soft hyphen, tags) but ZWJ and ZWNJ, surrogates, private use,
+# characters that render blank (_BLANK), and VS17-VS256. Tag characters stay only in the three RGI subdivision flags
+# (_RGI_FLAGS); any other run of them can spell hidden words for Claude. ZWJ, ZWNJ and VS1-VS16 stay one at a time
+# (emoji sequences and some scripts need them): a selector after a selector or a joiner, or a joiner after a joiner,
+# is dropped, so no run of them hides bytes after a visible character. Unassigned (Cn) stays: the interpreter's
+# Unicode tables trail new emoji, which read as unassigned until they catch up.
+_RGI_FLAGS = re.compile(
+    "(" + "|".join("\U0001f3f4" + "".join(chr(0xE0000 + ord(c)) for c in code) + "\U000e007f" for code in ("gbeng", "gbsct", "gbwls")) + ")"
+)
+_JOINERS = "\U0000200c\U0000200d"
+_BLANK = frozenset(chr(c) for c in (0x034F, 0x115F, 0x1160, 0x17B4, 0x17B5, *range(0x180B, 0x1810), 0x2800, 0x3164, 0xFFA0))  # nothing shows
+_DROPPED_KINDS = ("Cc", "Cf", "Co", "Cs")
+
+
+def _hidden(c):
+    o = ord(c)
+    return (
+        unicodedata.category(c) in _DROPPED_KINDS
+        or c in _BLANK
+        or 0xE0000 <= o <= 0xE007F  # tags, the unassigned ones too
+        or 0xE0100 <= o <= 0xE01EF  # VS17-VS256
+        or o >= 0xF0000  # private use planes, their noncharacters too
+    )
+
+
+def _visible(v):
+    """v with line breaks as \\n and every hidden character dropped (see above)."""
+    out, last = [], ""
+    for i, part in enumerate(_RGI_FLAGS.split(v.replace("\r\n", "\n").replace("\r", "\n"))):
+        if i % 2:  # one of the RGI subdivision flags, kept whole
+            out.append(part)
+            last = ""
+            continue
+        for c in part:
+            if c in "\t\n":
+                kind = ""
+            elif c in _JOINERS:
+                kind = "j"
+            elif "\U0000fe00" <= c <= "\U0000fe0f":
+                kind = "vs"
+            elif _hidden(c):
+                continue
+            else:
+                kind = ""
+            if (kind == "vs" and last) or (kind == "j" and last == "j"):
+                continue
+            out.append(c)
+            last = kind
+    return "".join(out)
+
+
+def _name_key(name):
+    """What two names are compared by: the name less its joiners, selectors and blank marks (a text field keeps one of
+    each after a visible character), then NFKC and casefold, so a fullwidth or compatibility form of a name is that
+    name."""
+    return _bare(name).casefold()
+
+
+def _bare(name):
+    """name less its joiners, VS1-VS16 and blank marks, in NFKC."""
+    return unicodedata.normalize("NFKC", "".join(c for c in name if c not in _JOINERS and not "\U0000fe00" <= c <= "\U0000fe0f" and c not in _BLANK))
+
+
+# UTS #39 confusables.txt (18.0.0): every single character whose prototype is one of the letters of "claude", either
+# case. Only the reserved-name check reads this, so a name that looks like "Claude" in another script is refused.
+_CLAUDE_LOOKALIKES = {
+    "c": (
+        "\u03f2\u03f9\u0421\u0441\u1004\u105a\u13df\u1c83\u1d04\u2102\u212d\u216d\u217d\u2ca4\u2ca5\ua4da"
+        "\uabaf\uff23\uff43\U000102a2\U00010302\U00010415\U0001043d\U0001051b\U000118e9\U000118f2"
+        "\U0001ccd8\U0001d134\U0001d402\U0001d41c\U0001d436\U0001d450\U0001d46a\U0001d484\U0001d49e"
+        "\U0001d4b8\U0001d4d2\U0001d4ec\U0001d520\U0001d554\U0001d56e\U0001d588\U0001d5a2\U0001d5bc"
+        "\U0001d5d6\U0001d5f0\U0001d60a\U0001d624\U0001d63e\U0001d658\U0001d672\U0001d68c\U0001f74c"
+    ),
+    "l": (
+        "1I|\u0196\u01c0\u0399\u0406\u04c0\u04cf\u05c0\u05d5\u05df\u0627\u0661\u06f1\u07ca\u0964\u104a"
+        "\u13de\u14aa\u16c1\u16d0\u2110\u2111\u2112\u2113\u2160\u216c\u217c\u21bf\u2223\u23fd\u2502\u2503"
+        "\u2c92\u2cd0\u2d4a\u2d4f\ua4e1\ua4f2\ua56f\ua781\ua7ae\ua7fe\ua830\ua8ce\uaa5d\ufe31\ufe8d\ufe8e"
+        "\uff11\uff29\uff2c\uff4c\uff5c\uffe8\U0001028a\U00010309\U00010320\U0001041b\U0001050e\U00010526"
+        "\U00010926\U00010c3e\U00010ca5\U00010cfa\U00011047\U000110c0\U00011141\U000111c5\U000113d4"
+        "\U0001144b\U000115c5\U00011641\U000118a3\U000118b2\U00011c41\U00011dda\U00011de1\U00016d63"
+        "\U00016eaa\U00016f16\U00016f28\U0001ccde\U0001cce1\U0001ccf1\U0001d100\U0001d22a\U0001d377"
+        "\U0001d408\U0001d40b\U0001d425\U0001d43c\U0001d43f\U0001d459\U0001d470\U0001d473\U0001d48d"
+        "\U0001d4c1\U0001d4d8\U0001d4db\U0001d4f5\U0001d50f\U0001d529\U0001d540\U0001d543\U0001d55d"
+        "\U0001d574\U0001d577\U0001d591\U0001d5a8\U0001d5ab\U0001d5c5\U0001d5dc\U0001d5df\U0001d5f9"
+        "\U0001d610\U0001d613\U0001d62d\U0001d644\U0001d647\U0001d661\U0001d678\U0001d67b\U0001d695"
+        "\U0001d6b0\U0001d6ea\U0001d724\U0001d75e\U0001d798\U0001d7cf\U0001d7d9\U0001d7e3\U0001d7ed"
+        "\U0001d7f7\U0001e141\U0001e8c7\U0001ed01\U0001ee00\U0001ee80\U0001fbf1"
+    ),
+    "a": (
+        "\u0251\u0391\u03b1\u0410\u0430\u13aa\u15c5\u237a\ua4ee\uab64\uff21\uff41\U000102a0\U00016f40"
+        "\U0001ccd6\U0001d400\U0001d41a\U0001d434\U0001d44e\U0001d468\U0001d482\U0001d49c\U0001d4b6"
+        "\U0001d4d0\U0001d4ea\U0001d504\U0001d51e\U0001d538\U0001d552\U0001d56c\U0001d586\U0001d5a0"
+        "\U0001d5ba\U0001d5d4\U0001d5ee\U0001d608\U0001d622\U0001d63c\U0001d656\U0001d670\U0001d68a"
+        "\U0001d6a8\U0001d6c2\U0001d6e2\U0001d6fc\U0001d71c\U0001d736\U0001d756\U0001d770\U0001d790"
+        "\U0001d7aa\U0001df5a\U0001df6a"
+    ),
+    "u": (
+        "\u028b\u03c5\u054d\u057d\u1200\u144c\u1d1c\u222a\u22c3\ua4f4\ua79f\uab4e\uab52\uff35\uff55"
+        "\U000104ce\U000104f6\U000118b8\U000118d8\U00016f42\U0001ccea\U0001d414\U0001d42e\U0001d448"
+        "\U0001d462\U0001d47c\U0001d496\U0001d4b0\U0001d4ca\U0001d4e4\U0001d4fe\U0001d518\U0001d532"
+        "\U0001d54c\U0001d566\U0001d580\U0001d59a\U0001d5b4\U0001d5ce\U0001d5e8\U0001d602\U0001d61c"
+        "\U0001d636\U0001d650\U0001d66a\U0001d684\U0001d69e\U0001d6d6\U0001d710\U0001d74a\U0001d784"
+        "\U0001d7be"
+    ),
+    "d": (
+        "\u0501\u13a0\u13e7\u146f\u15de\u15ea\u2145\u2146\u216e\u217e\ua4d2\ua4d3\uff24\uff44\U0001018b"
+        "\U0001ccd9\U0001d403\U0001d41d\U0001d437\U0001d451\U0001d46b\U0001d485\U0001d49f\U0001d4b9"
+        "\U0001d4d3\U0001d4ed\U0001d507\U0001d521\U0001d53b\U0001d555\U0001d56f\U0001d589\U0001d5a3"
+        "\U0001d5bd\U0001d5d7\U0001d5f1\U0001d60b\U0001d625\U0001d63f\U0001d659\U0001d673\U0001d68d"
+    ),
+    "e": (
+        "\u0395\u0415\u0435\u04bd\u13ac\u212e\u212f\u2130\u2147\u22ff\u2d39\ua4f0\ua5cb\uab32\uff25\uff45"
+        "\U00010286\U000118a6\U000118ae\U0001ccda\U0001d404\U0001d41e\U0001d438\U0001d452\U0001d46c"
+        "\U0001d486\U0001d4d4\U0001d4ee\U0001d508\U0001d522\U0001d53c\U0001d556\U0001d570\U0001d58a"
+        "\U0001d5a4\U0001d5be\U0001d5d8\U0001d5f2\U0001d60c\U0001d626\U0001d640\U0001d65a\U0001d674"
+        "\U0001d68e\U0001d6ac\U0001d6e6\U0001d720\U0001d75a\U0001d794\U0001df81"
+    ),
+}
+_LOOKALIKE = {c: letter for letter, chars in _CLAUDE_LOOKALIKES.items() for c in chars}
+
+
+def _looks_like_claude(name):
+    """Whether name, keyed as _name_key and with each confusable letter read as its Latin prototype, is "claude"."""
+    latin = lambda text: "".join(_LOOKALIKE.get(c, c) for c in text)  # noqa: E731
+    return latin(latin(_bare(name)).casefold()) == "claude"
+
+
 def _text(body, field, *, limit=MAX_TEXT, empty_ok=False, optional=False):
-    """A trimmed string of 1..limit characters (0.. with empty_ok); refused when longer, never cut."""
+    """A trimmed string of 1..limit characters (0.. with empty_ok), hidden characters dropped first (_visible);
+    refused when longer, never cut."""
     v = _body(body).get(field)
     if v is None:
         if optional:
@@ -564,7 +821,7 @@ def _text(body, field, *, limit=MAX_TEXT, empty_ok=False, optional=False):
         raise DomainError(400, "empty", f"{field} is empty.", field=field)
     if not isinstance(v, str):
         raise _bad(field, f"{field} must be a string.")
-    v = v.strip()
+    v = _visible(v).strip()
     if not v and not empty_ok:
         raise DomainError(400, "empty", f"{field} is empty.", field=field)
     if len(v) > limit:
@@ -684,7 +941,7 @@ def _asset_type(data, wanted):
     if found is None and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         found = "webp"
     if found is None:
-        head = data[:2048].decode("utf-8", "replace").lstrip("﻿ \t\r\n").lower()
+        head = data[:2048].decode("utf-8", "replace").lstrip("\ufeff \t\r\n").lower()
         if head.startswith(("<!doctype html", "<html")):
             found = "html"
         elif head.startswith(("<svg", "<?xml")) and "<svg" in head:
@@ -777,24 +1034,47 @@ def _thumb(v, ext):
     return v
 
 
-def _report_image(v):
+def _report_image(v, field="image"):
     """A report's screenshot: (bytes, extension) from a data: URL of a PNG, JPEG or WebP whose bytes are that kind,
     at most REPORT_IMAGE_MAX bytes; None for no picture."""
     if v is None or v == "":
         return None
     m = THUMB.fullmatch(v) if isinstance(v, str) else None
     if m is None:
-        raise DomainError(415, "file-type", "A report's picture must be a PNG, JPEG or WebP screenshot.", field="image")
+        raise DomainError(415, "file-type", "A report's picture must be a PNG, JPEG or WebP screenshot.", field=field)
     try:
         data = base64.b64decode(m.group(2), validate=True)
     except ValueError as exc:
-        raise _bad("image", "image is not base64.") from exc
+        raise _bad(field, f"{field} is not base64.") from exc
     if len(data) > REPORT_IMAGE_MAX:
-        raise DomainError(413, "upload-too-large", "That picture is too large.", field="image", max=REPORT_IMAGE_MAX)
+        raise DomainError(413, "upload-too-large", "That picture is too large.", field=field, max=REPORT_IMAGE_MAX)
     kind = {"jpeg": "jpg"}.get(m.group(1), m.group(1))
     if not UPLOAD_KINDS[kind][1](data[:64]):
-        raise DomainError(415, "file-type", f"The picture says {m.group(1)}, but its bytes are not.", field="image")
+        raise DomainError(415, "file-type", f"The picture says {m.group(1)}, but its bytes are not.", field=field)
     return data, kind
+
+
+def _report_images(body):
+    """A new report's screenshots, in order: `images`, a list of at most MAX_REPORT_IMAGES data: URLs, or one `image`
+    as before; never both."""
+    if "images" not in body:
+        one = _report_image(body.get("image"))
+        return [one] if one else []
+    if "image" in body:
+        raise _bad("image", "Send image or images, not both.")
+    v = body["images"]
+    if not isinstance(v, list) or len(v) > MAX_REPORT_IMAGES:
+        raise DomainError(400, "bad-field", f"images lists at most {MAX_REPORT_IMAGES} pictures.", field="images", max=MAX_REPORT_IMAGES)
+    out = [_report_image(x, f"images[{i}]") for i, x in enumerate(v)]
+    if None in out:
+        raise _bad("images", "images lists only pictures.")
+    return out
+
+
+def _report_pics(r):
+    """Where a report's own screenshots are saved, in order: `image`, then `moreImages` (a report from before them has
+    only `image`)."""
+    return ([r["image"]] if "image" in r else []) + r.get("moreImages", [])
 
 
 def _dims(v, field, keys):
@@ -831,7 +1111,7 @@ def _report_ctx(v):
     errors = v.get("errors", [])
     if not isinstance(errors, list) or len(errors) > MAX_REPORT_ERRORS or not all(isinstance(e, str) and len(e) <= MAX_REPORT_ERROR for e in errors):
         raise _bad("ctx.errors", f"ctx.errors lists at most {MAX_REPORT_ERRORS} errors of {MAX_REPORT_ERROR} characters.")
-    out["errors"] = [one_line(e) for e in errors]
+    out["errors"] = [one_line(_visible(e)) for e in errors]
     return out
 
 
@@ -972,6 +1252,7 @@ class Session:
         self.uploads_dir = self.path.parent / "uploads"  # in the private data folder; never under web/ or assets/
         self._sending = set()  # upload ids whose chunk is being written outside the lock
         self.on_owner_token = None  # called with (token, rotatedAt) inside the rotation, before it commits
+        self._pairing = None  # the one live sign-in code: {"hash", "until", "misses": {address: count}}; never persisted
 
     # -- construction and persistence ---------------------------------------------------------
 
@@ -1005,7 +1286,6 @@ class Session:
         name = _text({"name": owner_name}, "name", limit=MAX_NAME)
         token = owner_token or ids.token(32)
         state = {
-            "schemaVersion": migrate.CURRENT,
             "pluginVersion": plugin_version,
             "writtenBy": plugin_version,
             "rev": 0,
@@ -1015,7 +1295,7 @@ class Session:
                 "createdAt": now,
                 "phase": {"kind": "live"},
                 "share": {"url": ""},
-                "guestKey": "",
+                "guestKey": ids.token(9),
                 "settings": _settings_patch({**copy.deepcopy(DEFAULT_SETTINGS), "reviewAnswers": False}, settings or {}),
                 "seq": {k: 0 for k in SEQ_KEYS},
             },
@@ -1060,9 +1340,9 @@ class Session:
         return s, token
 
     @classmethod
-    def load(cls, path, *, plugin_version="", clock=time.time, ids=None, validate_writes=False, assets_dir=None, notes=None):
-        """Parse state.json once, migrating an older schemaVersion (old file kept as state.v<N>.json;
-        the prototype's file, which has none, as state.v0.json). `notes` collects migration notes."""
+    def load(cls, path, *, plugin_version="", clock=time.time, ids=None, validate_writes=False, assets_dir=None):
+        """Parse state.json once. The shape is no longer versioned: the `schemaVersion` the last versioned build wrote
+        (7) is dropped and the next write leaves it out; a file below 7 needs that build's migrations, so it is refused."""
         path = Path(path)
         raw = path.read_text(encoding="utf-8")
         try:
@@ -1071,18 +1351,14 @@ class Session:
             raise DomainError(500, "state-invalid", f"{path.name} is not JSON: {exc}") from exc
         if not isinstance(doc, dict):
             raise DomainError(500, "state-invalid", f"{path.name} is not a JSON object.")
-        old = migrate.version_of(doc)
-        doc = migrate.migrate(doc, notes, float(clock()))
+        version = doc.pop("schemaVersion", None)
+        if _is_int(version) and version < LAST_SCHEMA_VERSION:
+            raise DomainError(500, "state-too-old", f"{path.name} is at schemaVersion {version}, from before this build; it reads only "
+                              f"{LAST_SCHEMA_VERSION}. Start a new session, or restart it under the previous build first so it migrates to {LAST_SCHEMA_VERSION}.")
         err = document_error(doc)
         if err:
             raise DomainError(500, "state-invalid", f"{path.name}: {err}")
-        s = cls(path, doc, clock=clock, ids=ids, validate_writes=validate_writes, assets_dir=assets_dir, plugin_version=plugin_version)
-        if doc["schemaVersion"] != old:
-            backup = path.with_name(f"{path.stem}.v{old}{path.suffix}")
-            if not backup.exists():
-                write_private(backup, raw)
-            s._write_current()
-        return s
+        return cls(path, doc, clock=clock, ids=ids, validate_writes=validate_writes, assets_dir=assets_dir, plugin_version=plugin_version)
 
     def _write_current(self):
         text = json.dumps(self.state, ensure_ascii=False, allow_nan=False)
@@ -1145,7 +1421,8 @@ class Session:
                 self._person(pid)
                 return pid
             if owner_token:
-                if hmac.compare_digest(sha256(owner_token), creds["owner"]["tokenHash"]):
+                h = sha256(owner_token)
+                if hmac.compare_digest(h, creds["owner"]["tokenHash"]) or h in creds.get("devices", {}):
                     return HOST
                 raise DomainError(401, "unknown-session", "This owner link is no longer valid.")
             if secret:
@@ -1158,14 +1435,22 @@ class Session:
                     raise DomainError(401, "merged-into-owner", "This browser was merged into the owner. Open your owner link here.")
             raise DomainError(401, "unknown-session", "Join the session again.")
 
+    def check(self, pid):
+        """`pid` while that person may read: DomainError once they are removed, waiting or gone (server.py's asset
+        cookie names a pid, not a credential)."""
+        with self._lock:
+            self._person(pid)
+        return pid
+
     def _person(self, pid):
         person = self.state["people"].get(pid) if isinstance(pid, str) else None
         if person is None:
             raise DomainError(401, "unknown-session", "Join the session again.")
         if person["status"]["kind"] == "removed":
             raise DomainError(403, "removed", "The owner removed you from this session.")
-        if person["status"]["kind"] == "waiting":
-            raise DomainError(403, "waiting", "The host has not let you in yet.")
+        if person["status"]["kind"] == "waiting":  # the waiting page shows the title and intro, nothing else
+            sess = self.state["session"]
+            raise DomainError(403, "waiting", "The host has not let you in yet.", title=sess["title"], intro=sess.get("intro", ""))
         return person
 
     def _ended(self):
@@ -1248,7 +1533,7 @@ class Session:
     def join(self, pid, body, *, address=""):
         """POST /api/join: `pid` is HOST when the request carried a valid owner token, else None."""
         body = _body(body)
-        name = _text(body, "name", limit=MAX_NAME, empty_ok=True)
+        name = _person_name(body, empty_ok=True)
         key = body.get("key") if isinstance(body.get("key"), str) else ""
         device = _choice(body, "device", DEVICES, optional=True)
         browser = body.get("browser")
@@ -1264,7 +1549,11 @@ class Session:
             if self._ended():
                 raise DomainError(403, "ended", "This session has ended.")
             guest_key = st["session"]["guestKey"]
-            if guest_key and not hmac.compare_digest(key.encode(), guest_key.encode()):
+            try:
+                sent = key.encode()
+            except UnicodeEncodeError:  # a lone surrogate (json.loads takes one): no key is that, and it is never filtered
+                sent = None
+            if guest_key and (sent is None or not hmac.compare_digest(sent, guest_key.encode())):
                 raise DomainError(403, "bad-guest-key", "This invite link is no longer valid; ask the host for the new one.")
             self._prune_joins(now)
             window = (guest_key, address)
@@ -1289,7 +1578,7 @@ class Session:
                     (
                         {"pid": p, "name": v["name"]}
                         for p, v in st["people"].items()
-                        if p != HOST and p not in here and v["status"]["kind"] == "active" and v["name"].casefold() == name.casefold()
+                        if p != HOST and p not in here and v["status"]["kind"] == "active" and _name_key(v["name"]) == _name_key(name)
                     ),
                     None,
                 )
@@ -1307,6 +1596,11 @@ class Session:
             st["credentials"]["secrets"][sha256(secret)] = new
             if waiting:
                 was = None
+            same = self._same_name(name, new, here)
+            if waiting or same:  # Claude may propose an admit or a merge; the owner's tap carries it out
+                names = st["session"]["settings"]["digestNames"]
+                self._event("person-joined", person=new, waiting=bool(waiting), **hint, **({"name": final} if names else {}),
+                            sameName=[{k: v for k, v in m.items() if names or k != "name"} for m in same])
         with self._lock:
             self._joins.pop(window, None)
             self._joins[window] = recent + [now]
@@ -1328,15 +1622,19 @@ class Session:
             if person["status"]["kind"] != "waiting":
                 raise DomainError(409, "wrong-status", "This person is not waiting to join.", status=person["status"]["kind"])
             if action == "admit":
-                person["status"] = {"kind": "active"}
+                self._admit(target)
             else:
                 person["status"] = {"kind": "removed", "at": self.now(), "by": HOST}
                 self._drop_watcher(target)
                 doomed = self._end_uploads_of(target, self.now())
-            self._presence_rev += 1
+                self._presence_rev += 1
         for f in doomed:
             self._discard(f)
         return {"pid": target, "status": person["status"]["kind"]}
+
+    def _admit(self, target):
+        self.state["people"][target]["status"] = {"kind": "active"}
+        self._presence_rev += 1
 
     def _prune_joins(self, now):
         """Forget join records whose windows have passed, least recently joined first."""
@@ -1346,6 +1644,24 @@ class Session:
             self._joins.popitem(last=False)
         for key in [k for k, times in self._key_joins.items() if now - times[-1] >= JOIN_KEY_WINDOW]:
             self._key_joins.pop(key)
+
+    def _same_name(self, name, new, here):
+        """Who else is in under `name`, or under it with the " 2" a taken name gets, and not here now: never the owner."""
+        if not name:
+            return []
+        key = _name_key(name)
+
+        def same(n):
+            n = _name_key(n)
+            return key in (n, re.sub(r" [0-9]+\Z", "", n))
+
+        out = []
+        for p, v in self.state["people"].items():
+            if p not in (HOST, new) and p not in here and self._active(p) and same(v["name"]):
+                seen = self._presence.get(p)
+                out.append({"pid": p, "name": v["name"], **({"device": seen["device"]} if seen and seen.get("device") else {}),
+                            **({"lastSeen": iso(self._seen(seen))} if seen else {})})
+        return out
 
     def _names_hidden_from(self, pid):
         """True when the session shows initials or "someone" and `pid` is not the owner or a leader."""
@@ -1357,9 +1673,9 @@ class Session:
         suffix would tell them the name is taken. Only the owner sees their own, so it keeps the suffix."""
         if self.state["session"]["settings"]["names"] != "full" and pid != HOST:
             return name
-        taken = {v["name"].casefold() for p, v in self.state["people"].items() if p != pid}
+        taken = {_name_key(v["name"]) for p, v in self.state["people"].items() if p != pid}
         out, n = name, 2
-        while out.casefold() in taken:
+        while _name_key(out) in taken:
             suffix = f" {n}"
             out, n = name[: MAX_NAME - len(suffix)] + suffix, n + 1
         return out
@@ -1370,7 +1686,7 @@ class Session:
         n = sum(1 for p in self.state["people"] if p != HOST) + 1
         if self.state["session"]["settings"]["names"] != "full":
             return f"Guest {n}"
-        taken = {v["name"].casefold() for v in self.state["people"].values()}
+        taken = {_name_key(v["name"]) for v in self.state["people"].values()}
         while f"guest {n}" in taken:
             n += 1
         return f"Guest {n}"
@@ -1426,7 +1742,11 @@ class Session:
         own limits, so one person's tabs and devices never refuse each other. A beat that changes
         `visible` or `away` is taken at once, outside the tab's one-a-second limit, since the page
         sends one the moment its visibility changes; such changes have their own one-a-second limit,
-        so flipping visibility cannot flood. A person keeps MAX_TABS tabs, the least recent dropped."""
+        so flipping visibility cannot flood. A reload keeps the tab id, so a new page's first beat can land
+        inside the old page's limits: a too-soon beat that changes nothing is answered without being recorded,
+        and a tab may make two changes inside one interval (the old page's hidden, the new page's visible), so
+        flips still cap at about two a second. A too-soon beat that changes `q` or typing is refused as before.
+        A person keeps MAX_TABS tabs, the least recent dropped."""
         body = _body(body)
         err = wire_error(body, "heartbeat")
         if err:
@@ -1439,6 +1759,8 @@ class Session:
             raise _bad("tab", "tab must name the tab: 1 to 32 letters, digits, - or _.")
         visible = body.get("visible", True)
         away = body.get("away") is True
+        shown = {"q": _visible((body.get("q") or "")[:16]), "typing": body.get("typing") is True, "chatTyping": body.get("chatTyping") is True}
+        identity = lambda p: {"pid": pid, "name": p["name"], "role": p["role"], "trusted": p["trusted"]}  # noqa: E731
         with self._lock:
             person = self._person(pid)
             now = self.now()
@@ -1448,15 +1770,18 @@ class Session:
             old = rec["tabs"].get(tab)
             changed = old is not None and (old["visible"] != visible or (old.get("awayAt") is not None) != away)
             route = f"heartbeat-change:{tab}" if changed else f"heartbeat:{tab}"
-            self._throttle(pid, route, now, HEARTBEAT_INTERVAL)
+            last = self._last_write.get((pid, route), float("-inf"))
+            if now - last < HEARTBEAT_INTERVAL:
+                if not changed and old is not None and all(old[k] == v for k, v in shown.items()):
+                    return identity(person)  # the same beat again: nothing to record
+                if not changed or now - self._last_write.get((pid, f"heartbeat-prev:{tab}"), float("-inf")) < HEARTBEAT_INTERVAL:
+                    raise DomainError(429, "slow-down", "Wait a moment before sending again.")
             recent = rec.setdefault("recent", collections.deque(maxlen=MAX_TABS))
             if len(recent) == MAX_TABS and now - recent[0] < HEARTBEAT_INTERVAL:
                 raise DomainError(429, "slow-down", "Wait a moment before sending again.")
             old = old or {}
             beat = {
-                "q": (body.get("q") or "")[:16],
-                "typing": body.get("typing") is True,
-                "chatTyping": body.get("chatTyping") is True,
+                **shown,
                 "seen": now,
                 "visible": visible,
                 "inputAt": now - body.get("lastInput", 0),
@@ -1474,17 +1799,25 @@ class Session:
             tabs[tab] = beat
             if self._presence_entry(pid, rec, now) != was:  # a beat that changes nothing anyone sees moves no ETag
                 self._presence_rev += 1
+            if changed and last > float("-inf"):
+                self._wrote(pid, f"heartbeat-prev:{tab}", last)
             self._wrote(pid, route, now)
             recent.append(now)
             if changed:
                 self._wrote(pid, f"heartbeat:{tab}", now)
-            return {"pid": pid, "name": person["name"], "role": person["role"], "trusted": person["trusted"]}
+            return identity(person)
 
     def rename(self, pid, body):
-        name = _text(body, "name", limit=MAX_NAME)
-        with self._write_as(pid, "rename") as st:
-            st["people"][pid]["name"] = self._unique_name(name, pid)
-            return {"name": st["people"][pid]["name"]}
+        """POST /api/rename: `{name, pid?}`. Each person renames themselves; the owner alone may name a target `pid`,
+        throttled per target, so the owner can rename several people in a row."""
+        name = _person_name(body)
+        target = _ident(body, "pid", optional=True) or pid
+        route, check = ("rename", None) if target == pid else (f"rename:{target}", self._owner)
+        with self._write_as(pid, route, check=check) as st:
+            if target not in st["people"]:
+                raise DomainError(404, "not-found", "No such person.", field="pid")
+            st["people"][target]["name"] = self._unique_name(name, target)
+            return {"pid": target, "name": st["people"][target]["name"]}
 
     def set_color(self, pid, body):
         color = _choice(body, "color", COLORS)
@@ -1620,8 +1953,96 @@ class Session:
             else:
                 self._merge(m["from"], m["to"])
                 m["status"] = {"kind": "approved", "at": now}
-                self._notify(m["to"], "merge", "The owner joined your two identities: your earlier answers are yours again.", actor=pid)
+                self._notify(m["to"], "merge", MERGED_NOTE, actor=pid)
             return {"status": m["status"]["kind"]}
+
+    # -- Claude's merge and admit proposals: Claude proposes, only the owner's approve acts --------
+
+    def _propose(self, kind, op, **people):
+        st = self.state
+        for field, p in people.items():
+            if p == HOST:
+                raise _bad(field, "The owner is never merged or let in by a proposal.")
+            if p not in st["people"]:
+                raise DomainError(404, "not-found", "No such person.", field=field)
+        if len(set(people.values())) < len(people):
+            raise _bad("to", "Pick two different people.")
+        record = {"kind": kind, **people}
+        if not self._proposal_live(record):
+            raise DomainError(409, "wrong-status", "Only a guest who is in, or for an admit one who waits, and neither a leader nor trusted.")
+        joined = [e for e in st["log"]["events"] if e["kind"] == "person-joined" and e["person"] == people.get("from", people.get("pid"))]
+        if not any(e["waiting"] if kind == "admit" else people["to"] in [m["pid"] for m in e["sameName"]] for e in joined):
+            raise DomainError(409, "not-reported", "Propose only the join a person-joined event reported: its person, and for a merge one of its sameName.")
+        lst = st.setdefault("claudeProposals", [])
+        same = [p for p in lst if {k: p.get(k) for k in record} == record]
+        if any(p["status"]["kind"] == "dismissed" for p in same):
+            raise DomainError(409, "dismissed", "The owner dismissed this proposal already.")
+        if any(p["status"]["kind"] == "pending" and self._proposal_live(p) for p in same):
+            raise DomainError(409, "wrong-status", "This proposal already waits for the owner.", status="pending")
+        open_ = self._open_claude_proposals()
+        if len(open_) >= MAX_CLAUDE_PROPOSALS:
+            raise DomainError(409, "full", f"{MAX_CLAUDE_PROPOSALS} proposals already wait for the owner.")
+        if len(lst) >= MAX_CLAUDE_PROPOSALS:  # the oldest answered or no longer live one makes room; a dismissal is kept
+            old = next((p for p in lst if p not in open_ and p["status"]["kind"] != "dismissed"), None)
+            if old is None:
+                raise DomainError(409, "full", f"{MAX_CLAUDE_PROPOSALS} proposals are kept, each waiting or dismissed.")
+            lst.remove(old)
+        kid = self._next("K")
+        names = {p: st["people"][p]["name"] for p in people.values()}
+        note = _text(op, "note", limit=MAX_NOTE, optional=True)
+        lst.append({"id": kid, **record, "names": names, "reasons": list(dict.fromkeys(op["reasons"])), **({"note": note} if note else {}),
+                    "at": self.now(), "status": {"kind": "pending"}})
+        return {"id": kid}
+
+    def _op_propose_merge(self, op):
+        return self._propose("merge", op, **{"from": op["from"], "to": op["to"]})
+
+    def _op_propose_admit(self, op):
+        return self._propose("admit", op, pid=op["pid"])
+
+    def _proposal_live(self, p):
+        """Still what Claude saw: guests, neither a leader nor trusted, in the status it needs (a merge's both in, as the
+        owner's Merge needs; an admit's waiting), each under the name it had then."""
+        people = self.state["people"]
+        need = {p["pid"]: "waiting"} if p["kind"] == "admit" else {p["from"]: "active", p["to"]: "active"}
+        return all(
+            q in people and people[q]["status"]["kind"] == kind and people[q]["role"] == "guest" and not people[q]["trusted"]
+            and people[q]["name"] == p.get("names", {}).get(q, people[q]["name"])
+            for q, kind in need.items()
+        )
+
+    def _open_claude_proposals(self):
+        """What waits on the owner: pending and still live; one whose people changed drops out, as the owner's tap would refuse it."""
+        return [p for p in self.state.get("claudeProposals", []) if p["status"]["kind"] == "pending" and self._proposal_live(p)]
+
+    def act_on_claude_proposal(self, pid, body):
+        """POST /api/claude-proposal/act: the owner approves one of Claude's proposals, which merges or lets in as the
+        owner's own Merge and Let in do, or dismisses it. One whose people changed since is marked stale, and 409."""
+        action = _choice(body, "action", ("approve", "dismiss"))
+        kid = _ident(body, "id")
+        now = self.now()
+        with self._tx() as st:
+            self._owner(pid)
+            p = next((p for p in st.get("claudeProposals", []) if p["id"] == kid), None)
+            if p is None:
+                raise DomainError(404, "not-found", "No such proposal.")
+            if p["status"]["kind"] != "pending":
+                raise DomainError(409, "wrong-status", "This proposal was already answered.", status=p["status"]["kind"])
+            stale = action == "approve" and not self._proposal_live(p)
+            if stale:
+                p["status"] = {"kind": "stale", "at": now}
+            elif action == "dismiss":
+                p["status"] = {"kind": "dismissed", "at": now}
+            else:
+                p["status"] = {"kind": "approved", "at": now}
+                if p["kind"] == "admit":
+                    self._admit(p["pid"])
+                else:
+                    self._merge(p["from"], p["to"])
+                    self._notify(p["to"], "merge", MERGED_NOTE, actor=pid)
+        if stale:
+            raise DomainError(409, "stale", "The people in this proposal changed since Claude made it. Nothing was merged or let in.")
+        return {"status": p["status"]["kind"]}
 
     def _merge(self, src, dst):
         """Into the owner too: then `src`'s secrets end rather than move (only the owner link names the owner),
@@ -1932,8 +2353,9 @@ class Session:
         title = _text(r, "title", limit=MAX_NOTE, optional=True)
         return {**out, **({"title": title} if title else {})}
 
-    def _parse_question(self, qi, *, round_n, origin, known, field):
-        """A QuestionInput (already schema-valid) checked for the rules the schema cannot express."""
+    def _parse_question(self, qi, *, round_n, origin, known, field, made=()):
+        """A QuestionInput (already schema-valid) checked for the rules the schema cannot express. `made` holds the
+        questions this apply parsed before it, not yet in the session."""
         qid = qi["id"]
         if not QID.fullmatch(qid):
             raise _bad(f"{field}.id", f"{qid} is not a question id like Q12.")
@@ -1977,7 +2399,7 @@ class Session:
         q["purpose"] = purpose
         if purpose == "poll" and fmt["kind"] == "text":
             raise _bad(f"{field}.purpose", "A poll needs options: use a choice, confirm or prototype format.")
-        q["format"] = self._parse_format(fmt, f"{field}.format")
+        q["format"] = self._parse_format(fmt, f"{field}.format", made)
         q["answerScope"] = qi.get("answerScope", "person")
         refs = qi.get("references", [])
         if len(refs) > MAX_REFERENCES:
@@ -1990,7 +2412,7 @@ class Session:
             q["for"] = targets
         return q
 
-    def _parse_format(self, fmt, field):
+    def _parse_format(self, fmt, field, made=()):
         kind = fmt["kind"]
         if kind == "text":
             return {"kind": "text"}
@@ -2016,11 +2438,14 @@ class Session:
             return {"kind": "scale", "min": 1, "max": fmt["max"], "labels": {**labels, **({"mid": mid} if mid else {})}}
         if kind == "confirm":
             return {"kind": "confirm", "image": self._asset(fmt["image"], f"{field}.image", image=True), "rect": _rect(fmt["rect"], f"{field}.rect")}
-        variants = []
+        variants, earlier = [], [*self.state["questions"], *made]
+        taken = {_pair(v["previous"]) for q in earlier for v in q["format"].get("variants", []) if "previous" in v}
         for i, v in enumerate(fmt["variants"]):
             if not VARIANT.fullmatch(v["id"]):
                 raise _bad(f"{field}.variants[{i}].id", "A variant id looks like v-1.")
             variants.append({"id": v["id"], "label": _text(v, "label"), "asset": self._asset(v["asset"], f"{field}.variants[{i}].asset")})
+            if "previous" in v:
+                variants[-1]["previous"] = _previous(v["previous"], earlier, taken, f"{field}.variants[{i}].previous")
         if len({v["id"] for v in variants}) != len(variants):
             raise _bad(f"{field}.variants", "Each variant needs its own id.")
         return {"kind": "prototype", "variants": variants}
@@ -2391,7 +2816,8 @@ class Session:
             return {"pass": on}
 
     def answer(self, pid, body):
-        """POST /api/answer: write, edit or (with empty text) clear one's own answer card."""
+        """POST /api/answer: write, edit or clear one's own answer card. Empty text with `attachments` saves a
+        picture-only card; empty text with `attachments` left out or empty clears the card."""
         text = _text(body, "text", empty_ok=True)
         view = _choice(body, "view", VIEWS)
         info = _device_info(body.get("deviceInfo"))
@@ -2419,7 +2845,7 @@ class Session:
                 published = {r["id"] for r in st["results"].get(qid, []) if self._result_shown(r)}
                 if any(c not in published for c in cites):
                     raise _bad("cites", "cites must name results shown on this question.")
-            if not text:
+            if not text and not _body(body).get("attachments"):
                 if mine:
                     self._clear_card(qid, mine)
                 ref = None
@@ -2432,7 +2858,7 @@ class Session:
                     votes = len(self._votes_on(qid, card_ref(mine)))
                     if mine.get("editedAfterVotes"):
                         card["editedAfterVotes"] = mine["editedAfterVotes"]
-                    if votes and old_text != text:
+                    if votes and (old_text != text or mine.get("attachments") != card.get("attachments")):
                         card["editedAfterVotes"] = votes
                 if info or (mine and mine.get("deviceInfo")):
                     card["deviceInfo"] = info or mine["deviceInfo"]
@@ -2580,6 +3006,10 @@ class Session:
                 raise DomainError(404, "no-such-upload", f"No upload {uid[:40]}.")
             if u["status"]["kind"] not in UPLOAD_ACCEPTED:
                 raise DomainError(409, "wrong-status", "Attach a file once the host has accepted it.", status=u["status"]["kind"])
+        for uid in ids:  # carried from now on: never a loose picture again (a refused write restores the state)
+            u = self._upload(uid)
+            u.pop("draft", None)
+            u["carried"] = True
         return list(ids)
 
     def _attachments(self, pid, body):
@@ -2632,7 +3062,7 @@ class Session:
                 moved = votes.get(pid) not in (None, ref)
                 if q["format"]["kind"] == "choice":  # one pick: backing someone's own option moves it
                     for mine in [c for c in st["cards"][qid] if c["kind"] == "person" and c["pid"] == pid]:
-                        if self._is_other(mine) or not mine["text"]:
+                        if self._is_other(mine) or not (mine["text"] or "attachments" in mine):
                             self._clear_card(qid, mine)
                         else:
                             mine.pop("pick", None)
@@ -2912,7 +3342,7 @@ class Session:
             text = self._card_text(q, target)
             card = self._card(qid, target)
             edited = {"editedBy": HOST} if "edited" in card else {}  # the locked text is the owner's, not its author's
-            st["locks"][qid] = {"at": now, "by": pid, "source": {"kind": "card", "card": target, "text": text, **edited}}
+            st["locks"][qid] = {"at": now, "by": pid, "source": {"kind": "card", "card": target, "text": text, **_files(card), **edited}}
             flagged = self._lock_changed(q, text)
             return {"text": text, "flagged": flagged}
 
@@ -3075,23 +3505,7 @@ class Session:
                 n = self._next_round_n()
                 if self._round_size(n) >= MAX_ROUND:
                     raise DomainError(409, "round-full", f"Round {n} already holds {MAX_ROUND} questions.")
-                q = {
-                    "id": self._next_qid(),
-                    "text": prop["text"],
-                    "alternatives": [],
-                    "dependsOn": [],
-                    "round": n,
-                    "purpose": "gather",
-                    "format": {"kind": "text"},
-                    "answerScope": "person",
-                    "references": [],
-                    "origin": {"kind": "host", "proposal": prop["id"], "by": pid},
-                    "needsReview": [],
-                }
-                self._add_question(q)
-                prop["status"] = {"kind": "question", "question": q["id"]}
-                self._notify(prop["pid"], "proposal", f"Your proposal became question {q['id']}, in round {n}.", actor=pid, qid=q["id"])
-                out = {"question": q["id"], "round": n}
+                out = self._proposal_question(pid, prop, n)
             elif action == "park":
                 prop["status"] = {"kind": "parked", "by": pid}
                 self._notify(prop["pid"], "proposal", "Your proposal was parked by a moderator.", actor=pid)
@@ -3101,6 +3515,45 @@ class Session:
                 prop["status"] = {"kind": "later", "reason": reason or "Off this session's goal."}
                 self._notify(prop["pid"], "proposal", "Your proposal was moved to Later.", actor=pid, body=prop["status"]["reason"])
             return {"status": prop["status"]["kind"], **out}
+
+    def _proposal_question(self, pid, prop, n):
+        """Make a proposal a question in round `n`, which has room, and tell its author: Make it a question's one way."""
+        q = {
+            "id": self._next_qid(),
+            "text": prop["text"],
+            "alternatives": [],
+            "dependsOn": [],
+            "round": n,
+            "purpose": "gather",
+            "format": {"kind": "text"},
+            "answerScope": "person",
+            "references": [],
+            "origin": {"kind": "host", "proposal": prop["id"], "by": pid},
+            "needsReview": [],
+        }
+        self._add_question(q)
+        prop["status"] = {"kind": "question", "question": q["id"]}
+        self._notify(prop["pid"], "proposal", f"Your proposal became question {q['id']}, in round {n}.", actor=pid, qid=q["id"])
+        return {"question": q["id"], "round": n}
+
+    def approve_proposals(self, pid, body):
+        """POST /api/proposal/all: the owner's Approve all, `{ids}`, the new proposals their confirm counted, each made a
+        question in the next round as Make it a question makes one. All or none: a proposal no longer new, or more
+        than the round has room for, refuses the lot, so one that arrived after the confirm is never placed unseen."""
+        ids = _body(body).get("ids")
+        if not isinstance(ids, list) or not 0 < len(ids) <= MAX_PROPOSALS or not all(isinstance(i, str) for i in ids) or len(set(ids)) < len(ids):
+            raise _bad("ids", f"ids lists 1 to {MAX_PROPOSALS} proposals, each once.")
+        with self._tx():
+            self._owner(pid)
+            props = [self._proposal(i) for i in ids]
+            for prop in props:
+                if prop["status"]["kind"] != "new":
+                    raise DomainError(409, "wrong-status", f"Proposal {prop['id']} is {prop['status']['kind']}.", status=prop["status"]["kind"])
+            n = self._next_round_n()
+            room = MAX_ROUND - self._round_size(n)
+            if len(props) > room:
+                raise DomainError(409, "round-full", f"Round {n} has room for {max(room, 0)} more questions, not {len(props)}.", room=max(room, 0))
+            return {"round": n, "questions": [self._proposal_question(pid, prop, n)["question"] for prop in props]}
 
     def chat(self, pid, body):
         """POST /api/chat: side chat, never sent to Claude."""
@@ -3521,8 +3974,12 @@ class Session:
 
     def act_on_request(self, pid, body):
         """POST /api/request/act: edit, decline, fail, rerun one request; run the ids the owner saw; publish, discard or
-        take down (`takedown`) a result."""
-        action = _choice(body, "action", ("edit", "decline", "fail", "rerun", "run", "publish", "discard", "takedown"))
+        take down (`takedown`) a result. `move`, its asker's or the owner's, puts one request and its result on `qid` or
+        about the whole session (`scope: session`)."""
+        action = _choice(body, "action", ("edit", "decline", "fail", "rerun", "run", "publish", "discard", "takedown", "move"))
+        if action == "move":
+            with self._write_as(pid, "request-move"):
+                return self._move_request(pid, body)
         now = self.now()
         with self._tx() as st:
             self._owner(pid)
@@ -3554,7 +4011,50 @@ class Session:
                 self._notify(r["pid"], "request", f"Your request {_on(r)} was cancelled.", actor=pid, qid=r.get("qid"))
             else:
                 self._run([r])
+                self._unseen(HOST, "fail:" + r["id"])  # a later failure waits on the owner again
             return {"id": r["id"], "status": r["status"]["kind"]}
+
+    def _move_request(self, pid, body):
+        """Move a request, and its result with it; another person's request reads as 404. A running one stays put: Claude's
+        answer names where it was sent."""
+        r = self._request(_ident(body, "id"), owner_pid=None if pid == HOST else pid)
+        general = _choice(body, "scope", (GENERAL,), optional=True) is not None
+        if general and _body(body).get("qid") is not None:
+            raise _bad("qid", "A request about the whole session names no question.")
+        if general and r["runner"] == "self":
+            raise _bad("scope", "A request about the whole session runs on the host's Claude.")
+        to = None if general else self._question(body.get("qid"))["id"]
+        if r.get("qid") == to:
+            raise DomainError(409, "same-place", f"Request {r['id']} is {_on(r)} already.")
+        if r["status"]["kind"] == "running":
+            raise DomainError(409, "wrong-status", f"Request {r['id']} is running.", status="running")
+        if pid != HOST and r["runner"] == "host" and r["status"]["kind"] != "pending":
+            raise DomainError(409, "taken-up", "The host already took up this request, so only the host can move it.", status=r["status"]["kind"])
+        key, results = r.get("qid", GENERAL), self.state["results"]
+        res = next((x for x in results.get(key, ()) if x["request"] == r["id"]), None)
+        if res and any(res["id"] in c.get("cites", ()) for c in _answers(self.state["cards"])):
+            raise DomainError(409, "cited", "This answer is cited in someone's answer, so it stays where it is.")
+        if res:
+            results[key].remove(res)
+            if not results[key]:
+                results.pop(key)
+            results.setdefault(to or GENERAL, []).append(res)
+        for x in (r, res) if res else (r,):
+            x.pop("qid", None)
+            if to:
+                x["qid"] = to
+        if res and res["published"]:
+            if pid == HOST:
+                self._claude_says(res, r)  # shared on the whole session now: Claude's chat message, as a Share posts
+            else:  # the owner shared it where it was: moved by its asker, it waits on the owner's Share again
+                res["published"] = False
+                res.pop("publishedAt", None)
+                self._unseen(HOST, "share:" + res["id"])
+        if pid != HOST:
+            self._unseen(HOST, "run:" + r["id"])  # the owner reads where it went before pressing Run
+        if pid != r["pid"]:
+            self._notify(r["pid"], "request", f"Your request moved {_on(r)}.", actor=pid, qid=to)
+        return {"id": r["id"], **({"qid": to} if to else {"scope": GENERAL})}
 
     def _decline(self, r, by):
         r["status"] = {"kind": "declined", "at": self.now()}
@@ -3647,7 +4147,7 @@ class Session:
             if not lst:
                 self.state["results"].pop(key)
             if req:
-                req["status"] = {"kind": "failed", "at": self.now(), "reason": "The owner did not share the result.", "cancelled": False}
+                req["status"] = {"kind": "failed", "at": self.now(), "reason": NOT_SHARED, "cancelled": True}  # the owner ended it
                 self._notify(req["pid"], "request", f"Your request {_on(req)} was not shared.", actor=pid, qid=req.get("qid"))
         return {"id": res["id"], "published": action == "publish"}
 
@@ -3686,18 +4186,22 @@ class Session:
         down, or a guest's own Claude's, only the owner shares."""
         rid = _ident(body, "id")
         with self._write_as(pid, "result-share"):
-            try:
-                res = self._find_result(rid)
-            except DomainError:
-                res = None
-            if res is None or (pid != HOST and self._asker(res) != pid) or not self._result_seen_by(res, pid):
-                raise DomainError(404, "not-found", f"No result {rid}.")
-            if res["published"]:
-                raise DomainError(409, "wrong-status", "This answer is already shared.", status="published")
-            if pid != HOST and ("takenDown" in res or res["by"]["kind"] == "guest-claude"):
-                raise DomainError(403, "host-only", "Only the host can share this answer.")
-            self._share(res, next((r for r in self.state["requests"] if r["id"] == res["request"]), None), pid)
-            return {"id": res["id"], "published": True}
+            return self._share_result(pid, rid)
+
+    def _share_result(self, pid, rid):
+        """The one share behind the result-share route and Claude's share-result op."""
+        try:
+            res = self._find_result(rid)
+        except DomainError:
+            res = None
+        if res is None or (pid != HOST and self._asker(res) != pid) or not self._result_seen_by(res, pid):
+            raise DomainError(404, "not-found", f"No result {rid}.")
+        if res["published"]:
+            raise DomainError(409, "wrong-status", "This answer is already shared.", status="published")
+        if pid != HOST and ("takenDown" in res or res["by"]["kind"] == "guest-claude"):
+            raise DomainError(403, "host-only", "Only the host can share this answer.")
+        self._share(res, next((r for r in self.state["requests"] if r["id"] == res["request"]), None), pid)
+        return {"id": res["id"], "published": True}
 
     def _claude_says(self, res, req):
         """A result about the whole session, once shared, is also Claude's chat message (`claude`, written as the host's
@@ -3837,12 +4341,29 @@ class Session:
         return min(CHUNK_SIZE, u["size"] - index * CHUNK_SIZE)
 
     def _detach(self, uid):
-        """Take an upload off every answer, message, request, suggestion, proposal and comment that carries it."""
+        """Take an upload off every answer, message, request, suggestion, proposal and comment that carries it. An
+        answer left with no text, pick or file is cleared, as its author's empty answer would be, while its question
+        still takes answers; on a locked question or a round sent to Claude it stays, as answer() would keep it."""
+        emptied = set()
         for _, c in _attaching(self.state):
             if uid in c.get("attachments", []):
                 c["attachments"].remove(uid)
                 if not c["attachments"]:
                     c.pop("attachments")
+                    emptied.add(id(c))
+        for lk in self.state["locks"].values():  # a lock keeps its answer's files only while they last
+            src = lk["source"]
+            if uid in src.get("attachments", []):
+                src["attachments"].remove(uid)
+                if not src["attachments"]:
+                    src.pop("attachments")
+        for qid, cards in self.state["cards"].items():
+            for c in [c for c in cards if id(c) in emptied and not c["text"] and not {"pick", "picks", "value", "order"} & c.keys()]:
+                try:
+                    self._answerable(self._question(qid))
+                except DomainError:
+                    continue
+                self._clear_card(qid, c)
 
     def _touch_carriers(self, uid):
         """An upload changed how it shows: chat messages carrying it are touched, so a page holding older ones reads
@@ -3875,7 +4396,7 @@ class Session:
 
     @staticmethod
     def _discard(path):
-        """Delete one file of ours; a failure (Windows holds open files) leaves it for the next start's sweep."""
+        """Delete one file of ours; a failure (Windows holds open files) leaves it on disk, unreferenced and never served."""
         with contextlib.suppress(OSError):
             Path(path).unlink(missing_ok=True)
 
@@ -3915,7 +4436,8 @@ class Session:
                 raise DomainError(413, "upload-too-large", "This session holds no more files.", max=SESSION_UPLOAD_MAX, left=max(0, SESSION_UPLOAD_MAX - total))
             uid = f"{self._next('U')}-{self.ids.hex(4)}"
             mime = UPLOAD_KINDS[ext][0] if ext in UPLOAD_KINDS else "application/octet-stream"
-            rec = {"id": uid, "pid": pid, "at": self.now(), "qid": qid, "file": name, "ext": ext, "mime": mime, "size": size, "chunks": -(-size // CHUNK_SIZE)}
+            # a draft until something carries it: a form offers it before its post is sent
+            rec = {"id": uid, "pid": pid, "at": self.now(), "qid": qid, "file": name, "ext": ext, "mime": mime, "size": size, "chunks": -(-size // CHUNK_SIZE), "draft": True}
             shown = [(u["pid"], len(u["thumb"])) for u in st["uploads"] if "thumb" in u]
             if thumb and sum(n for p, n in shown if p == pid) + len(thumb) <= PERSON_THUMB_MAX and sum(n for _, n in shown) + len(thumb) <= SESSION_THUMB_MAX:
                 rec["thumb"] = thumb  # past either bound the offer keeps no preview; the owner sees its icon
@@ -3934,9 +4456,11 @@ class Session:
         is refused past SESSION_UPLOAD_MAX. Declining or withdrawing deletes what arrived so far and takes the file off
         every answer; the browser deletes its copy. `remove`, by the owner or the uploader, ends a received file: it
         leaves everything that carries it and is deleted from the data folder. `approve`, the owner's, lets everyone who
-        sees what carries a guest's received picture see the picture (`shown`)."""
+        sees what carries a guest's received picture see the picture (`shown`). `draftOnly` (the attachment chip's x)
+        refuses a withdraw or remove once something sent carries the file, so a stale page never takes it off a post."""
         action = _choice(body, "action", ("accept", "decline", "withdraw", "remove", "approve"))
         uid = _ident(body, "id")
+        draft_only = _bool(body, "draftOnly")
         now = self.now()
         with self._tx():
             if action in ("withdraw", "remove") and pid != HOST:
@@ -3947,6 +4471,8 @@ class Session:
             u = self._upload(uid)
             if (action == "withdraw" or pid != HOST) and u["pid"] != pid:
                 raise DomainError(404, "no-such-upload", f"No upload {uid[:40]}.")
+            if draft_only and action in ("withdraw", "remove") and not u.get("draft"):
+                raise DomainError(409, "wrong-status", "That file went with something you sent, so it stays there.", status="carried")
             kind = u["status"]["kind"]
             if kind not in {"accept": ("offered",), "remove": ("done",), "approve": ("done",)}.get(action, UPLOAD_LIVE):
                 raise DomainError(409, "wrong-status", f"That file is {kind}.", status=kind)
@@ -4146,14 +4672,15 @@ class Session:
     # -- problem reports --------------------------------------------------------------------
 
     def report(self, pid, body):
-        """POST /api/report: tell the owner something is broken, with what the page says about where, and at most one
-        screenshot. Allowed while uploads are off: one checked picture the owner alone sees, saved under reports/
-        in the data folder. One report a REPORT_INTERVAL per person, MAX_OPEN_REPORTS open, MAX_REPORTS in all."""
+        """POST /api/report: tell the owner something is broken, with what the page says about where, and at most
+        MAX_REPORT_IMAGES screenshots. Allowed while uploads are off: checked pictures the owner alone sees, saved under
+        reports/ in the data folder, the first at `image` as a report from before kept it and the rest at `moreImages`.
+        One report a REPORT_INTERVAL per person, MAX_OPEN_REPORTS open, MAX_REPORTS in all."""
         body = _body(body)
         text = _text(body, "text")
         ctx = _report_ctx(body.get("ctx"))
-        image = _report_image(body.get("image"))
-        now, saved = self.now(), None
+        images = _report_images(body)
+        now, saved = self.now(), []
         try:
             with self._tx() as st:
                 self._writer(pid)
@@ -4166,14 +4693,18 @@ class Session:
                     raise DomainError(429, "too-many-pending", f"You have {MAX_OPEN_REPORTS} reports waiting already.")
                 fid = self._next("F")
                 rec = {"by": pid, "text": text, "ctx": ctx, "status": "open", "ts": now}
-                if image:
-                    rec["image"] = f"{REPORTS_DIR}/{fid}.{image[1]}"
-                    saved = self.path.parent / rec["image"]
-                    _write_chunk(saved, 0, image[0])
+                for n, (data, ext) in enumerate(images, 1):
+                    name = f"{REPORTS_DIR}/{fid}.{ext}" if n == 1 else f"{REPORTS_DIR}/{fid}-p{n}.{ext}"
+                    if n == 1:
+                        rec["image"] = name
+                    else:
+                        rec.setdefault("moreImages", []).append(name)
+                    saved.append(self.path.parent / name)
+                    _write_chunk(saved[-1], 0, data)
                 reports[fid] = rec
         except BaseException:
-            if saved:
-                self._discard(saved)
+            for f in saved:
+                self._discard(f)
             raise
         with self._lock:
             self._reported[pid] = now
@@ -4211,6 +4742,7 @@ class Session:
                 adds.append(add)
                 r["status"] = "open"
                 r.pop("asked", None)  # new words from the reporter: the owner may ask Claude again
+                self._unseen(HOST, "report:" + fid)  # and it waits on the owner again, unread
         except BaseException:
             if saved:
                 self._discard(saved)
@@ -4229,35 +4761,42 @@ class Session:
         action = _choice(body, "action", ("seen", "resolved", "ask"))
         with self._tx():
             self._owner(pid)
-            fid = _ident(body, "id")
-            r = self._report(fid)
-            if action == "ask":
-                if r["status"] == "resolved" or "asked" in r:
-                    state = "asked" if "asked" in r else r["status"]
-                    raise DomainError(409, "wrong-status", f"Report {fid} is {state}.", status=state)
-                r["asked"] = self.now()
-                adds = r.get("adds", [])
-                self._event("report-filed", report=fid, qid=r["ctx"].get("qid"), text=r["text"],
-                            adds=[a["text"] for a in adds if "text" in a], addImages=sum(1 for a in adds if "image" in a))
-                return {"id": fid, "status": r["status"], "asked": True}
-            if r["status"] == "resolved" or r["status"] == action:
-                raise DomainError(409, "wrong-status", f"Report {fid} is {r['status']}.", status=r["status"])
-            r["status"] = action
-            said = "saw your problem report" if action == "seen" else "marked your problem report resolved"
-            self._notify(r["by"], "report", f"The host {said}.", actor=pid)
-            return {"id": fid, "status": action}
+            return self._act_on_report(pid, _ident(body, "id"), action)
+
+    def _act_on_report(self, pid, fid, action):
+        """The one report action behind the owner's report route and Claude's resolve-report op."""
+        r = self._report(fid)
+        if action == "ask":
+            if r["status"] == "resolved" or "asked" in r:
+                state = "asked" if "asked" in r else r["status"]
+                raise DomainError(409, "wrong-status", f"Report {fid} is {state}.", status=state)
+            r["asked"] = self.now()
+            adds = r.get("adds", [])
+            self._event("report-filed", report=fid, qid=r["ctx"].get("qid"), text=r["text"], images=len(_report_pics(r)),
+                        adds=[a["text"] for a in adds if "text" in a], addImages=sum(1 for a in adds if "image" in a))
+            return {"id": fid, "status": r["status"], "asked": True}
+        if r["status"] == "resolved" or r["status"] == action:
+            raise DomainError(409, "wrong-status", f"Report {fid} is {r['status']}.", status=r["status"])
+        r["status"] = action
+        said = "saw your problem report" if action == "seen" else "marked your problem report resolved"
+        self._notify(r["by"], "report", f"The host {said}.", actor=pid)
+        return {"id": fid, "status": action}
 
     def report_image(self, pid, body):
-        """GET /api/report/image?id=[&add=N]: owner only. A report's picture, or its Nth addition's, as a data: URL."""
+        """GET /api/report/image?id=[&pic=N|&add=N]: owner only. A report's first picture, its Nth one sent with it, or
+        its Nth addition's, as a data: URL."""
         with self._lock:
             self._owner(pid)
             fid = _ident(_body(body), "id")
             r = self._report(fid)
-            n = body.get("add")
+            n, pic = body.get("add"), body.get("pic")
             if n is not None and not (isinstance(n, str) and re.fullmatch(r"[1-9][0-9]{0,2}", n)):
                 raise _bad("add", "add must name an addition by its number.")
+            if pic is not None and (n is not None or not (isinstance(pic, str) and re.fullmatch(rf"[1-{MAX_REPORT_IMAGES}]", pic))):
+                raise _bad("pic", f"pic must name one of the report's pictures, 1 to {MAX_REPORT_IMAGES}, without add.")
             if n is None:
-                stored = r.get("image", "")
+                pics = _report_pics(r)
+                stored = pics[int(pic or 1) - 1] if int(pic or 1) <= len(pics) else ""
             else:
                 adds = r.get("adds", [])
                 stored = adds[int(n) - 1].get("image", "") if int(n) <= len(adds) else ""
@@ -4269,13 +4808,13 @@ class Session:
 
     def _report_view(self, fid, r):
         """A report as the owner's page reads it: whether it has a picture, never where it is saved."""
-        return {"id": fid, **{k: copy.deepcopy(v) for k, v in r.items() if k not in ("image", "adds")}, "image": "image" in r,
-                "adds": [{**{k: v for k, v in a.items() if k != "image"}, "image": "image" in a} for a in r.get("adds", [])]}
+        return {"id": fid, **{k: copy.deepcopy(v) for k, v in r.items() if k not in ("image", "moreImages", "adds")}, "image": "image" in r,
+                "images": len(_report_pics(r)), "adds": [{**{k: v for k, v in a.items() if k != "image"}, "image": "image" in a} for a in r.get("adds", [])]}
 
     def _my_report_view(self, fid, r):
         """A report as its reporter reads it in Your reports: their words and additions, and its status, never the
         context their page sent or where a picture is saved."""
-        return {"id": fid, "text": r["text"], "status": r["status"], "ts": r["ts"], "image": "image" in r,
+        return {"id": fid, "text": r["text"], "status": r["status"], "ts": r["ts"], "image": "image" in r, "images": len(_report_pics(r)),
                 "adds": [{**{k: v for k, v in a.items() if k != "image"}, "image": "image" in a} for a in r.get("adds", [])]}
 
     # -- settings, prefs, notifications, session ---------------------------------------------
@@ -4397,6 +4936,8 @@ class Session:
             ]
             if on:
                 st["session"]["phase"] = {"kind": "ended", "at": self.now()}
+                st["credentials"].pop("devices", None)  # the owner's other devices sign out with the session; a reopen brings none back
+                self._pairing = None
                 self._event("session-ended", later=later)
             else:
                 st["session"]["phase"] = {"kind": "live"}
@@ -4411,7 +4952,7 @@ class Session:
             return {"guestKey": st["session"]["guestKey"]}
 
     def rotate_owner_link(self, pid, body):
-        """POST /api/link/owner: a new owner token; the old owner link stops working."""
+        """POST /api/link/owner: a new owner token; the old owner link and every other signed-in device stop working."""
         _body(body)
         with self._tx() as st:
             self._owner(pid)
@@ -4420,7 +4961,61 @@ class Session:
             if self.on_owner_token is not None:  # the secrets file holds the token before the hash commits
                 self.on_owner_token(token, at)
             st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": at}
+            st["credentials"].pop("devices", None)
+            self._pairing = None
             return {"token": token}
+
+    def pair_device(self, pid, body):
+        """POST /api/owner/pair: a sign-in code for another device of the owner's, replacing any earlier one. It works
+        once, for PAIR_SECONDS; only its hash is kept, in memory."""
+        _body(body)
+        now = self.now()
+        with self._lock:
+            self._owner(pid)
+            self._throttle(pid, "pair", now)
+            if len(self.state["credentials"].get("devices", {})) >= MAX_DEVICES:
+                raise DomainError(409, "devices-full", f"{MAX_DEVICES} other devices are signed in. Sign one out first.", max=MAX_DEVICES)
+            code = "".join(secrets.choice(PAIR_ALPHABET) for _ in range(PAIR_LENGTH))
+            self._pairing = {"hash": sha256(code), "until": now + PAIR_SECONDS, "misses": {}}
+        self._wrote(pid, "pair", now)
+        return {"code": code, "expiresIn": PAIR_SECONDS}
+
+    def redeem_pairing(self, pid, body, *, address=""):
+        """POST /api/owner/pair/redeem: trade the live sign-in code for this device's own owner credential. One try a
+        second per address, and an address with PAIR_MISSES wrong codes is refused the live one, which stays good for
+        everyone else, so a stranger cannot burn it."""
+        body = _body(body)
+        code = re.sub(r"[^0-9A-Z]", "", body["code"].upper()) if isinstance(body.get("code"), str) else ""
+        device = _choice(body, "device", DEVICES, optional=True)
+        browser = body.get("browser")
+        browser = None if browser is None else browser if browser in BROWSERS else "other"
+        now = self.now()
+        with self._tx() as st:
+            self._throttle(address, "pair-redeem", now)
+            self._wrote(address, "pair-redeem", now)
+            p = self._pairing
+            if p is not None and now >= p["until"]:
+                p = self._pairing = None
+            if p is None or p["misses"].get(address, 0) >= PAIR_MISSES or not hmac.compare_digest(sha256(code), p["hash"]):
+                if p is not None and p["misses"].get(address, 0) < PAIR_MISSES:
+                    p["misses"][address] = p["misses"].get(address, 0) + 1
+                raise DomainError(403, "bad-pair-code", "That code is wrong or has expired. Ask the host for a new one.")
+            self._pairing = None
+            token, did = self.ids.token(32), self.ids.token(6)
+            hint = {k: v for k, v in (("device", device), ("browser", browser)) if v}
+            st["credentials"].setdefault("devices", {})[sha256(token)] = {"id": did, "at": now, **hint}
+            return {"token": token, "id": did}
+
+    def revoke_device(self, pid, body):
+        """POST /api/owner/devices/revoke: one of the owner's other devices is signed out at once."""
+        did = _body(body).get("id")
+        with self._write_as(pid, "device-revoke", check=self._owner) as st:
+            devices = st["credentials"].get("devices", {})
+            h = next((h for h, d in devices.items() if d["id"] == did), None)
+            if h is None:
+                raise DomainError(404, "not-found", "That device is not signed in.")
+            devices.pop(h)
+            return {"id": did}
 
     # -- notifications -----------------------------------------------------------------------
 
@@ -4429,10 +5024,17 @@ class Session:
         if item:
             self.state["inboxSeen"].setdefault(pid, {})[key] = item["status"]
 
+    def _unseen(self, pid, key):
+        """Forget pid's read mark of an Inbox item that left the Inbox, so its return reads as new."""
+        seen = self.state["inboxSeen"].get(pid)
+        if seen and seen.pop(key, None) is not None and not seen:
+            self.state["inboxSeen"].pop(pid)
+
     def _inbox(self, pid):
         """This person's Inbox: their own requests, each with the status they would see, and for the owner what
-        waits on them. `unread`: the status moved since they last opened the item. Never another person's request
-        or a result its requester cannot see."""
+        waits on them: requests to run, answers to share, guests' requests Claude failed (read once opened, then only
+        history), open reports not yet asked about, merges and joins. `unread`: the status moved since they last opened
+        the item. Never another person's request or a result its requester cannot see."""
         st = self.state
         results = {r["id"]: r for lst in st["results"].values() for r in lst}
         seen = st["inboxSeen"].get(pid, {})
@@ -4460,17 +5062,27 @@ class Session:
                   for r in st["requests"] if r["runner"] == "host" and r["status"]["kind"] == "pending" and r["pid"] != HOST and self._active(r["pid"])),
                 *({"key": "share:" + x["id"], "kind": "share", "id": x["id"], **_where(x), **({"by": x["by"]["pid"]} if "pid" in x["by"] else {}), "at": x["at"]}
                   for lst in st["results"].values() for x in lst if self._held(x) and self._from_active(x)),
+                *({"key": "fail:" + r["id"], "kind": "fail", "id": r["id"], **_where(r), "by": r["pid"], "at": r["status"]["at"]}
+                  for r in st["requests"] if r["runner"] == "host" and r["pid"] != HOST and self._active(r["pid"]) and self._claude_failed(r)),
+                # an open report the owner already asked Claude about waits on Claude; the reporter's next addition brings it back
                 *({"key": "report:" + f, "kind": "report", "id": f, "by": rep["by"], "at": max([rep["ts"], *(a["ts"] for a in rep.get("adds", []))])}
-                  for f, rep in st.get("reports", {}).items() if rep["status"] == "open"),
+                  for f, rep in st.get("reports", {}).items() if rep["status"] == "open" and "asked" not in rep),
                 *({"key": "merge:" + m["id"], "kind": "merge", "id": m["id"], "by": m["from"], "at": m["at"]}
                   for m in st["mergeRequests"] if m["status"]["kind"] == "pending"),
                 *({"key": "join:" + v["pid"], "kind": "join", "id": v["pid"], "by": v["pid"], "at": v["status"]["at"]}
                   for v in st["people"].values() if v["status"]["kind"] == "waiting"),
+                *({"key": "people:" + p["id"], "kind": "people", "id": p["id"], "by": p.get("from", p.get("pid")), "at": p["at"]}
+                  for p in self._open_claude_proposals()),
             ]
             out += [{**w, "group": "waiting", "changed": w["at"], "status": "open"} for w in waiting]
         for i in out:
             i["unread"] = seen.get(i["key"]) != i["status"]
         return out
+
+    @staticmethod
+    def _claude_failed(r):
+        """A request Claude failed, which only Run again moves on; not one the owner cancelled or discarded."""
+        return r["status"]["kind"] == "failed" and not r["status"]["cancelled"]
 
     def _moderator_pids(self):
         return [p for p, v in self.state["people"].items() if v["role"] in ("owner", "leader") and v["status"]["kind"] == "active"]
@@ -4510,13 +5122,13 @@ class Session:
             self._notify(p, "queue", f"{k} new item{'' if k == 1 else 's'} in the queue.", actor=actor, rollup="queue")
 
     def _tokenize(self, by, text, field="text", limit=MAX_TEXT):
-        """Text `by` wrote with each "@Name" of an active person as <@pid> (migrate.tokenize), so a rename or a merge
+        """Text `by` wrote with each "@Name" of an active person as <@pid> (tokenize), so a rename or a merge
         shows in it. A token counts toward the field's limit. While names are hidden from `by`, "@Name" stays plain
         text: a token would hand them the pid of the person the name belongs to."""
         if not text:
             return text
         names = [] if self._names_hidden_from(by) else [(v["name"], p) for p, v in self.state["people"].items() if self._active(p)]
-        out = migrate.tokenize(text, names)
+        out = tokenize(text, names)
         if len(out) > limit:
             raise DomainError(400, "too-long", f"{field} allows at most {limit} characters; each mention takes more of them than its name.", field=field, max=limit)
         return out
@@ -4600,7 +5212,7 @@ class Session:
         for q in st["questions"]:
             for c in st["cards"].get(q["id"], []):
                 if c["kind"] == "person" and c.get("late") and c["at"] > prev and self._shown(c):
-                    late.append({"id": q["id"], "round": c["late"]["round"], "text": self._said(q, c), **by(c["pid"]), **_edited(c)})
+                    late.append({"id": q["id"], "round": c["late"]["round"], "text": self._said(q, c), **_files(c), **by(c["pid"]), **_edited(c)})
             for pid, mark in st.get("lateActs", {}).get(q["id"], {}).items():
                 if mark["at"] > prev and self._active(pid):
                     late += [{"id": q["id"], "round": mark["round"], **act, **by(pid)} for act in self._late_acts(q, pid)]
@@ -4666,17 +5278,23 @@ class Session:
             return labels[str(c["value"])]
         return labels.get(c.get("pick"), "")
 
+    def _named(self, q, ref):
+        """How the digest names the answer `ref` of q: its text, and its files, so an answer of pictures alone is
+        still told apart; None when that answer is gone."""
+        try:
+            return {"text": self._card_text(q, ref), **_files(self._card(q["id"], ref))}
+        except DomainError:
+            return None
+
     def _digest_disagreements(self, q, by):
         """Who disagreed with which answer of q and why, while that answer and its disagreer remain."""
         out = []
         for d in self.state.get("disagreements", {}).get(q["id"], []):
             if not self._active(d["pid"]):
                 continue
-            try:
-                text = self._card_text(q, d["card"])
-            except DomainError:
-                continue
-            out.append({"text": text, "reason": d["reason"], **by(d["pid"])})
+            named = self._named(q, d["card"])
+            if named is not None:
+                out.append({**named, "reason": d["reason"], **by(d["pid"])})
         return out
 
     def _digest_turns(self, q, by):
@@ -4705,19 +5323,16 @@ class Session:
         st, qid, out = self.state, q["id"], []
 
         def about(ref):
-            try:
-                return self._card_text(q, ref)
-            except DomainError:
-                return None
+            return self._named(q, ref)
 
         ref = st["votes"].get(qid, {}).get(pid)
         if ref and not ref.startswith("o:") and about(ref) is not None:
-            out.append({"act": "vote", "text": about(ref)})
-        out += [{"act": "back", "text": about(r)} for r in st.get("backs", {}).get(qid, {}).get(pid, []) if about(r) is not None]
+            out.append({"act": "vote", **about(ref)})
+        out += [{"act": "back", **about(r)} for r in st.get("backs", {}).get(qid, {}).get(pid, []) if about(r) is not None]
         for r, held in st["reactions"].get(qid, {}).items():
             if pid in held and about(r) is not None:
-                out.append({"act": "reaction", "text": about(r), "reactions": list(held[pid])})
-        out += [{"act": "disagree", "text": about(d["card"]), "reason": d["reason"]} for d in st.get("disagreements", {}).get(qid, []) if d["pid"] == pid and about(d["card"]) is not None]
+                out.append({"act": "reaction", **about(r), "reactions": list(held[pid])})
+        out += [{"act": "disagree", **about(d["card"]), "reason": d["reason"]} for d in st.get("disagreements", {}).get(qid, []) if d["pid"] == pid and about(d["card"]) is not None]
         mine = st.get("passes", {}).get(qid, {}).get(pid)
         if mine is not None:
             out.append({"act": "pass", "text": "", **({"reason": mine["reason"]} if "reason" in mine else {})})
@@ -4754,7 +5369,7 @@ class Session:
             return {"kind": "poll", "closed": lk is not None, "counts": counts}
         if lk:
             src = lk["source"]
-            out = {"kind": "locked", "text": src["text"]}
+            out = {"kind": "locked", "text": src["text"], **_files(src)}
             if src["kind"] == "card":
                 ref = src["card"]
                 out["source"] = {"p": "person", "o": "option"}.get(ref[0]) or ("claude-rec" if ref == "c:rec" else "claude-alt")
@@ -4778,10 +5393,10 @@ class Session:
             labels = self._options(q)  # multi, scale and rank report through _format_outcome, so a pick is one option
             for c in people:
                 picked = labels.get(c.get("pick"))
-                if c["text"] or picked:
+                if c["text"] or picked or "attachments" in c:
                     ref = card_ref(c)
                     endorsers = [st["people"][v]["name"] for v, held in st["reactions"].get(qid, {}).get(ref, {}).items() if v in active and ENDORSING & set(held)]
-                    answers.append({"text": c["text"], **({"picked": picked} if picked else {}), "reactions": self._reaction_counts(qid, ref, active), "endorsedBy": endorsers if names else len(endorsers), **by(c["pid"]), **_edited(c)})
+                    answers.append({"text": c["text"], **({"picked": picked} if picked else {}), **_files(c), "reactions": self._reaction_counts(qid, ref, active), "endorsedBy": endorsers if names else len(endorsers), **by(c["pid"]), **_edited(c)})
             return {"kind": "gathered", "answers": answers} if answers else {"kind": "unanswered"}
         tally = self._tally(qid)
         ranked = []
@@ -4798,7 +5413,7 @@ class Session:
             entry = {"text": self._card_text(q, ref), "votes": tally[ref], "source": source}
             if self._is_other(c):
                 entry["other"] = True
-            ranked.append(((-tally[ref], ref != "c:rec", c.get("at", 0.0), i), {**entry, **(by(c["pid"]) if c["kind"] == "person" else {}), **_edited(c)}))
+            ranked.append(((-tally[ref], ref != "c:rec", c.get("at", 0.0), i), {**entry, **_files(c), **(by(c["pid"]) if c["kind"] == "person" else {}), **_edited(c)}))
         if not ranked:
             return {"kind": "unanswered"}
         ranked.sort(key=lambda pair: pair[0])
@@ -4885,6 +5500,22 @@ class Session:
         self.state["session"]["goal"] = _text(op, "goal", limit=MAX_GOAL, empty_ok=True)
         return {"goal": self.state["session"]["goal"]}
 
+    def _op_set_repo(self, op):
+        """The session's GitHub repository and pinned commit, which the page links #N and repository paths against.
+        Both are replaced together: no commit removes the old one, and an empty repo removes both."""
+        repo, commit, sess = op["repo"], op.get("commit"), self.state["session"]
+        if repo and not REPO.fullmatch(repo):
+            raise _bad("repo", "repo must be a GitHub owner/name.")
+        if commit is not None and not (repo and COMMIT.fullmatch(commit)):
+            raise _bad("commit", "commit must be a full 40-character lowercase SHA, with a repo.")
+        sess.pop("repo", None)
+        sess.pop("commit", None)
+        if repo:
+            sess["repo"] = repo
+            if commit:
+                sess["commit"] = commit
+        return {"repo": repo, **({"commit": commit} if commit else {})}
+
     def _op_set_intro(self, op):
         """Claude sets "Why you're here" once the owner said yes to its draft in the terminal."""
         return self._put_intro(_text(op, "intro", limit=MAX_INTRO, empty_ok=True))
@@ -4915,7 +5546,7 @@ class Session:
         known = {q["id"] for q in st["questions"]}
         made = []
         for i, qi in enumerate(op["questions"]):
-            q = self._parse_question(qi, round_n=n, origin={"kind": "claude"}, known=known, field=f"questions[{i}]")
+            q = self._parse_question(qi, round_n=n, origin={"kind": "claude"}, known=known, field=f"questions[{i}]", made=made)
             known.add(q["id"])
             made.append(q)
         effects = self._parse_placements(op.get("placements", []), required, n, known, made)
@@ -4977,7 +5608,7 @@ class Session:
                             if d not in known:
                                 raise _bad(f"{field}.after", f"{d} is not a question.")
                         qi["dependsOn"] = list(dict.fromkeys([*qi["dependsOn"], *pl["after"]]))
-                    q = self._parse_question(qi, round_n=round_n, origin=origin, known=known, field=f"{field}.question")
+                    q = self._parse_question(qi, round_n=round_n, origin=origin, known=known, field=f"{field}.question", made=made)
                 else:
                     q = {
                         "id": self._next_qid(known),
@@ -5122,6 +5753,18 @@ class Session:
         self._notify(prop["pid"], "proposal", f"Your proposal became question {q['id']}, in round {n}.", qid=q["id"])
         return {"question": q["id"], "round": n}
 
+    def _op_resolve_report(self, op):
+        """The owner asked in the terminal to mark a problem report seen or resolved, as the owner's page does."""
+        return self._act_on_report(HOST, op["id"], op["action"])
+
+    def _op_share_result(self, op):
+        """The owner asked in the terminal to share an unshared answer with everyone, as the result-share route does."""
+        return self._share_result(HOST, op["id"])
+
+    def _op_take_down_result(self, op):
+        """The owner asked in the terminal to take a shared answer down, as the owner's page does."""
+        return self._act_on_result(HOST, op["id"], "takedown")
+
     def _op_handle(self, op):
         log = self.state["log"]
         for seq in op["seqs"]:
@@ -5148,6 +5791,7 @@ class Session:
                 )
             with self._tx() as st:
                 st["credentials"]["owner"] = {"tokenHash": sha256(token), "rotatedAt": issued_at}
+                st["credentials"].pop("devices", None)  # a new owner link, as a rotation makes
             return True
 
     def is_owner_token(self, token):
@@ -5236,7 +5880,7 @@ class Session:
         """GET /api/state without identity: only what the join dialog needs."""
         with self._lock:
             s = self.state["session"]
-            return {"title": s["title"], "ended": self._ended(), "joinNeedsKey": bool(s["guestKey"]), "schemaVersion": self.state["schemaVersion"]}
+            return {"title": s["title"], "ended": self._ended(), "joinNeedsKey": bool(s["guestKey"])}
 
     def _base(self):
         """The part of every person's snapshot that is the same for all of them; built once per rev."""
@@ -5253,11 +5897,11 @@ class Session:
         chat = self._visible_chat(active)
         discussions = self._discussions_for(None, active)
         base = {
-            "schemaVersion": st["schemaVersion"],
             "rev": st["rev"],
             "title": st["session"]["title"],
             "goal": st["session"]["goal"],
             "intro": st["session"].get("intro", ""),
+            **{k: st["session"][k] for k in ("repo", "commit") if k in st["session"]},
             "ended": self._ended(),
             "settings": st["session"]["settings"],
             "rounds": st["rounds"],
@@ -5283,6 +5927,17 @@ class Session:
         }
         # every upload what everyone reads carries, older chat included: who may read a picture back (upload_image)
         self._public_uploads = {uid for r in [*_answers(cards), *chat, *_flat(discussions), *_flat(suggestions)] for uid in r.get("attachments", [])}
+        # Follow-up 32: received pictures offered on a question that no record ever carried (from before attachments) show
+        # under that question; a form's draft or one a record carried, even one since cleared or deleted, never does
+        # (both marks are server-set: at offer and on the first carrying write).
+        # Everyone sees the approved ones, the owner and each uploader also those waiting for approval (snapshot).
+        self._carried = {u["id"] for u in st["uploads"] if u.get("carried")}
+        self._loose_pics = [u for u in st["uploads"] if u.get("qid") and _shows_as_image(u) and not u.get("draft") and not u.get("carried") and self._active(u["pid"])]
+        approved = [u for u in self._loose_pics if _approved(u)]
+        if approved:
+            base["questionPics"] = _pics_by_q(approved)
+            base["files"].update(self._files_of([{"attachments": [u["id"] for u in approved]}]))
+            self._public_uploads |= {u["id"] for u in approved}
         if len(chat) > CHAT_WINDOW:
             base["chatBefore"] = base["chat"][0]["id"]  # older messages exist: GET /api/chat?before=<it> reads them
             touched = max((self._chat_touch.get(m["id"], 0) for m in chat[:-CHAT_WINDOW]), default=0)
@@ -5295,7 +5950,7 @@ class Session:
     def _mentioned_anywhere(self):
         """Who a text everyone may read mentions; a hidden comment's mentions name no one here."""
         hidden = {id(c) for lst in self.state["discussions"].values() for c in lst if "hidden" in c}
-        return sorted({p for h, k in migrate.mention_texts(self.state) if id(h) not in hidden for p in MENTION.findall(h[k])})
+        return sorted({p for h, k in mention_texts(self.state) if id(h) not in hidden for p in MENTION.findall(h[k])})
 
     def _files_of(self, records):
         """C44: what a viewer reads of the files the records they see carry (the owner accepted each): name, kind, size
@@ -5489,11 +6144,16 @@ class Session:
                 if held and not owner:
                     snap["results"] = {**snap["results"], qid: copy.deepcopy([r for r in lst if self._result_shown(r) or r["id"] in held])}
             snap["myMergeRequests"] = copy.deepcopy([m for m in st["mergeRequests"] if m["from"] == pid])
-            snap["myUploads"] = [self._upload_view(u, owner=owner) for u in st["uploads"] if u["pid"] == pid]
+            # carried: something sent carries it (or did), so taking it off a form leaves the upload alone
+            snap["myUploads"] = [{**self._upload_view(u, owner=owner), **({"carried": True} if u["id"] in self._carried else {})} for u in st["uploads"] if u["pid"] == pid]
             seen = [*(_answers(own) if own else []), *(_flat(snap["discussions"]) if snap["discussions"] is not base["discussions"] else []),
                     *visible, *snap["myRequests"], *(st["requests"] if owner else [])]
             if any("attachments" in r for r in seen):  # what only this viewer reads: hidden answers and comments, proposals, requests
                 snap["files"] = {**base["files"], **self._files_of(seen)}
+            waiting = [u for u in self._loose_pics if not _approved(u) and (owner or u["pid"] == pid)]
+            if waiting:
+                snap["questionPics"] = _pics_by_q([u for u in self._loose_pics if _approved(u) or u in waiting])
+                snap["files"] = {**snap["files"], **self._files_of([{"attachments": [u["id"] for u in waiting]}])}
             if moderator:
                 snap["guestKey"] = st["session"]["guestKey"]
                 snap["behind"] = self._behind()
@@ -5501,10 +6161,12 @@ class Session:
                 snap["requests"] = copy.deepcopy([r for r in st["requests"] if r["runner"] == "host"])
                 snap["results"] = {q: copy.deepcopy(kept) for q, lst in st["results"].items() if (kept := [r for r in lst if self._from_active(r)])}
                 snap["mergeRequests"] = copy.deepcopy([m for m in st["mergeRequests"] if m["status"]["kind"] == "pending"])
+                snap["claudeProposals"] = copy.deepcopy(self._open_claude_proposals())
                 snap["uploads"] = [self._upload_view(u, owner=True) for u in st["uploads"] if self._active(u["pid"])]
                 snap["reports"] = [self._report_view(f, r) for f, r in st.get("reports", {}).items() if r["status"] != "resolved"]
                 snap["passes"] = {q: {p: dict(r) for p, r in by.items() if self._active(p)} for q, by in st.get("passes", {}).items()}
                 snap["aboutYou"] = copy.deepcopy(st["aboutYou"])
+                snap["ownerDevices"] = sorted((dict(d) for d in st["credentials"].get("devices", {}).values()), key=lambda d: d["at"])
                 snap["removed"] = [
                     {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")} for v in st["people"].values() if v["status"]["kind"] == "removed"
                 ]
@@ -5572,7 +6234,11 @@ def _settings_patch(settings, patch):
             raise _bad(k, f"{k} is not a setting.")
         if k == "theme":
             if not isinstance(v, dict) or set(v) - set(THEME_VALUES) or any(v[t] not in THEME_VALUES[t] for t in v):
-                raise _bad("theme", "theme takes mode (system, light, dark) and accent (teal, indigo, violet, amber).")
+                raise _bad("theme", "theme takes mode (" + ", ".join(THEME_VALUES["mode"]) + "), accent (" + ", ".join(THEME_VALUES["accent"])
+                           + ") and palette (" + ", ".join(THEME_VALUES["palette"]) + ").")
+        elif k == "guestPopups":
+            if not isinstance(v, list) or any(x not in GUEST_POPUPS for x in v) or len(set(v)) != len(v):
+                raise _bad(k, f"guestPopups is a list of {', '.join(GUEST_POPUPS)}, each at most once.")
         elif k in SETTING_VALUES:
             if v not in SETTING_VALUES[k]:
                 raise _bad(k, f"{k} must be one of {', '.join(SETTING_VALUES[k])}.")
@@ -5581,6 +6247,8 @@ def _settings_patch(settings, patch):
     for k, v in patch.items():
         if k == "theme":
             settings["theme"] = {**settings["theme"], **v}
+        elif k == "guestPopups":
+            settings[k] = [x for x in GUEST_POPUPS if x in v]
         else:
             settings[k] = v
     return settings

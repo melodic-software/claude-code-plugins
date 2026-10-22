@@ -10,6 +10,7 @@ rule (collect-only keeps observations, a consumed analysis deletes them).
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import importlib.util
 import io
@@ -811,6 +812,26 @@ class AnalysisPrompt(unittest.TestCase):
         self.assertIn("MANDATORY redaction pass", self.prompt)
 
 
+def b64url(data):
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+# A stateless installation token is ghs_ then a JWT of about 520 characters, with
+# no app id. The RS256 header encodes to exactly 36 alphanumerics, the length
+# gh[pousr]_ accepts; the kid header carries a '-' 16 characters in, before any
+# alphanumeric minimum is met. Payload and signature are fake.
+STATELESS_HEADERS = (
+    b64url(b'{"alg":"RS256","typ":"JWT"}'),
+    b64url(b'{"kid":"k?~>","alg":"RS256","typ":"JWT"}'),
+)
+FAKE_PAYLOAD = b64url(b'{"sub":"FAKE-not-a-real-token","iat":0}')
+FAKE_SIGNATURE = b64url(b"\xfb\xff\xfeFAKE signature, not a real token" * 9)
+
+
+def stateless_jwt(header):
+    return f"{header}.{FAKE_PAYLOAD}.{FAKE_SIGNATURE}"
+
+
 class Redaction(unittest.TestCase):
     def test_shapes(self):
         r = observer._redact
@@ -828,6 +849,22 @@ class Redaction(unittest.TestCase):
         self.assertIn("<REDACTED: email>", r("a.b+c@ex.co"))
         self.assertIn("<REDACTED: secret>", r('password: "hunter2hunter2"'))
 
+    def test_stateless_installation_token_is_redacted_whole(self):
+        r = observer._redact
+        for header in STATELESS_HEADERS:
+            for prefix in ("ghs" + "_", "ghs" + "_123456_"):
+                token = prefix + stateless_jwt(header)
+                with self.subTest(header=header[:20], prefix=prefix):
+                    self.assertGreater(len(token), 500)
+                    text = r(f"tok {token} z")
+                    self.assertEqual("tok <REDACTED: GitHub token> z", text)
+                    for fragment in (FAKE_PAYLOAD[:12], FAKE_SIGNATURE[-12:]):
+                        self.assertNotIn(fragment, text)
+
+    def test_token_placeholders_are_not_redacted(self):
+        for text in ("ghs_job", "ghs_lane", "3e7fef0587433cfb07332dbeabf0d79fc0baadf3"):
+            self.assertEqual(text, observer._redact(text))
+
     def test_clean_passthrough(self):
         self.assertEqual(observer._redact("no secrets here"), "no secrets here")
 
@@ -838,7 +875,7 @@ class Redaction(unittest.TestCase):
             for p, marker in observer._REDACTIONS
             if marker == "<REDACTED: GitHub token>"
         ]
-        self.assertEqual(len(github), 2)
+        self.assertEqual(len(github), 1)
         for text in (
             "ghs_1_-" * 50000,
             "ghs_1_eyJ" * 30000,

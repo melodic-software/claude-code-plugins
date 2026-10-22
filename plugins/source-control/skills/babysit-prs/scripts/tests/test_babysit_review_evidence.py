@@ -198,6 +198,7 @@ class ProbeFixtureTests(unittest.TestCase):
                 data["comments"],
                 data["threads"],
                 is_human=is_human,
+                changed_paths=(),
             )
         )
 
@@ -254,6 +255,7 @@ class Base(unittest.TestCase):
         comments: list[dict[str, Any]] | None = None,
         threads: list[dict[str, Any]] | None = (),  # type: ignore[assignment]
         head_file: Any = fixed_head,
+        changed_paths: Any = (),
     ) -> dict[str, Any]:
         return by_lane(
             ev.bind(
@@ -263,6 +265,7 @@ class Base(unittest.TestCase):
                 list(threads) if threads is not None else None,
                 is_human=is_human,
                 head_file=head_file,
+                changed_paths=changed_paths,
             )
         )
 
@@ -285,6 +288,7 @@ class LostEvidenceTests(Base):
                 [],
                 is_human=is_human,
                 base_changed=True,
+                changed_paths=(),
             )
         )
         for lane in LANES:
@@ -308,13 +312,53 @@ class LostEvidenceTests(Base):
         self.assertEqual(result["claude-review"].open_findings, 0)
 
 
+class LaneSourceTests(Base):
+    """A pull request that changes what the review lanes run from its own
+    checkout ran its own copy on its pull_request event, so no lane binds on
+    its records."""
+
+    def bound(self, *paths: str) -> dict[str, Any]:
+        return self.bind([whole(lane, S) for lane in LANES], changed_paths=paths)
+
+    def test_a_change_to_the_security_lane_caller_binds_no_lane(self) -> None:
+        result = self.bound("app.py", ".github/workflows/pr-review-security-hosted.yml")
+        for lane in LANES:
+            self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_a_change_to_a_file_the_lane_runs_from_the_checkout(self) -> None:
+        for path in (
+            ".github/actions/resolve-config/action.yml",
+            ".github/scripts/pr-unblock/feedback-dispatch.mjs",
+            "plugins/review/skills/security-review/SKILL.md",
+            ".claude/settings.json",
+            "plugins/foo/.claude/rules/x.md",
+            ".mcp.json",
+            "plugins/foo/.mcp.json",
+        ):
+            with self.subTest(path):
+                result = self.bound(path)
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_unrelated_changes_bind_as_before(self) -> None:
+        result = self.bound("app.py", "docs/github/x.md", "plugins/reviewer/a.py")
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+            self.assertEqual(result[lane].open_findings, 0)
+
+    def test_unread_changed_files_bind_no_lane(self) -> None:
+        result = self.bind([whole(lane, S) for lane in LANES], changed_paths=None)
+        for lane in LANES:
+            self.assertUnbound(result[lane], "changed-files-unread")
+
+
 class RunSelectionTests(Base):
     def test_both_lanes_whole_reviews_bind(self) -> None:
         result = self.bind([whole(lane, S) for lane in LANES])
         self.assertEqual([r.bound for r in result.values()], [True, True])
 
     def test_result_has_one_entry_per_lane_in_order(self) -> None:
-        result = ev.bind(S, [], [], [], is_human=is_human)
+        result = ev.bind(S, [], [], [], is_human=is_human, changed_paths=())
         self.assertEqual([item.lane for item in result], list(LANES))
 
     def test_no_run_on_the_pinned_head(self) -> None:
@@ -1037,11 +1081,12 @@ class CoveringReviewTests(Base):
         )
         self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 1)
 
-    def test_threadless_inline_finding_of_the_other_kind_at_the_head_drops(
+    def test_threadless_inline_finding_of_the_other_kind_at_the_head_counts(
         self,
     ) -> None:
         # At S: a whole review left a thread-less inline finding, then the
-        # newest run, an incremental review back to the whole one at S0.
+        # newest run, a clean incremental review back to the whole one at S0.
+        # A later review of the same head never clears it.
         runs = [
             whole("claude-review", S0),
             run(
@@ -1057,7 +1102,7 @@ class CoveringReviewTests(Base):
                 created="2026-01-01T02:00:00Z",
             ),
         ]
-        self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 0)
+        self.assertEqual(self.bind(runs, threads=[])["claude-review"].open_findings, 1)
 
     def test_threadless_inline_finding_of_a_same_head_whole_rerun_counts(
         self,
@@ -1091,6 +1136,86 @@ class CoveringReviewTests(Base):
         )
         result = self.bind(runs, threads=self.agent_resolved())
         self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def incremental_then_whole(
+        self, incremental_sha: str, counts: str = "findings=1 inline=1"
+    ) -> list[dict[str, Any]]:
+        # A clean whole review at S0 (00:00-01:00); an incremental review at
+        # `incremental_sha` raised one finding (02:00-03:00), inline by
+        # default; then a clean whole review of the pinned head S (04:00-05:00).
+        return [
+            whole("claude-review", S0),
+            windowed(
+                run(
+                    "claude-review",
+                    incremental_sha,
+                    f"{counts} scope=incremental since={S0}",
+                    created="2026-01-01T02:00:00Z",
+                ),
+                "2026-01-01T02:00:00Z",
+                "2026-01-01T03:00:00Z",
+            ),
+            windowed(
+                run(
+                    "claude-review",
+                    S,
+                    "findings=0 inline=0 scope=whole",
+                    created="2026-01-01T04:00:00Z",
+                ),
+                "2026-01-01T04:00:00Z",
+                "2026-01-01T05:00:00Z",
+            ),
+        ]
+
+    def incremental_thread(self) -> list[dict[str, Any]]:
+        return [
+            thread(
+                resolved=True, resolved_by=self.PUSHER, created="2026-01-01T02:30:00Z"
+            )
+        ]
+
+    def test_a_clean_whole_rerun_does_not_clear_an_incremental_finding_at_the_head(
+        self,
+    ) -> None:
+        # Owner decision 2026-10-20: a finding any review of a head reported
+        # clears only by a new head or a human; re-running the review of the
+        # same head until it comes back clean does not clear it.
+        runs = self.incremental_then_whole(S)
+        result = self.bind(runs, threads=self.incremental_thread())
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_a_clean_whole_review_of_a_new_head_clears_an_incremental_finding(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S1)
+        result = self.bind(runs, threads=self.incremental_thread())
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_a_clean_whole_rerun_keeps_an_incremental_summary_finding_at_the_head(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S, "findings=1 inline=0")
+        result = self.bind(runs, threads=[])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_a_clean_whole_rerun_keeps_an_incremental_threadless_finding_at_the_head(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S)
+        result = self.bind(runs, threads=[])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_a_clean_whole_review_of_a_new_head_clears_an_incremental_summary_finding(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S1, "findings=1 inline=0")
+        result = self.bind(runs, threads=[])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
 
     def test_summary_findings_the_covering_review_reports_still_count(
         self,
@@ -1268,10 +1393,167 @@ class CoveringReviewTests(Base):
         self.assertEqual(result["claude-review"].open_findings, 1)
 
 
+def windowed(item: dict[str, Any], start: str, end: str) -> dict[str, Any]:
+    job = item["attempts"][0]["jobs"][0]
+    job["started_at"], job["completed_at"] = start, end
+    return item
+
+
+class CleanWholeReviewTests(Base):
+    """A clean whole review of the pinned head closes a resolved thread
+    whoever resolved it; a security-lane (HIGH) thread needs the security
+    lane's own clean whole review. An incremental review reads only what
+    changed, so it never closes an unchanged thread (owner decision
+    2026-10-19, narrowed to whole reviews)."""
+
+    LANES_BOT = {"__typename": "Bot", "login": "melodic-lanes"}
+    SECURITY = "finding\n\n`claude-lane: claude-security-review`"
+    CLEAN_WHOLE = "findings=0 inline=0 scope=whole"
+    CLEAN_INCREMENTAL = f"findings=0 inline=0 scope=incremental since={S0}"
+
+    def chain(self, lane: str, head_tail: str, raised: int = 1) -> list[dict[str, Any]]:
+        # A whole review at S0 (00:00-01:00) raised `raised` inline findings;
+        # the review at the pinned head S ran 02:00-03:00.
+        return [
+            run(lane, S0, f"findings={raised} inline={raised} scope=whole"),
+            windowed(
+                run(lane, S, head_tail, created="2026-01-01T02:00:00Z"),
+                "2026-01-01T02:00:00Z",
+                "2026-01-01T03:00:00Z",
+            ),
+        ]
+
+    def security_thread(self) -> list[dict[str, Any]]:
+        return [thread(self.SECURITY, resolved=True, resolved_by=self.LANES_BOT)]
+
+    def test_resolved_security_thread_stays_open_after_a_clean_incremental(
+        self,
+    ) -> None:
+        # The lane resolved an unfixed HIGH thread and an unrelated push was
+        # reviewed incrementally: that review never re-read the flagged line.
+        runs = [
+            *self.chain("claude-review", self.CLEAN_INCREMENTAL, raised=0),
+            *self.chain("claude-security-review", self.CLEAN_INCREMENTAL),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        self.assertEqual(result["claude-review"].open_findings, 0)
+        self.assertEqual(result["claude-security-review"].open_findings, 1)
+
+    def test_resolved_security_thread_closes_on_a_clean_whole_review(
+        self,
+    ) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_WHOLE, raised=0),
+            *self.chain("claude-security-review", self.CLEAN_WHOLE),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+            self.assertEqual(result[lane].open_findings, 0, lane)
+
+    def test_security_thread_needs_the_security_lane_clean(self) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_WHOLE, raised=0),
+            *self.chain("claude-security-review", "findings=1 inline=0 scope=whole"),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        self.assertEqual(result["claude-review"].open_findings, 0)
+        # The security head review's summary finding plus the thread.
+        self.assertEqual(result["claude-security-review"].open_findings, 2)
+
+    def test_clean_whole_review_of_an_older_head_does_not_close(self) -> None:
+        runs = [
+            windowed(
+                run("claude-review", S, "findings=1 inline=1 scope=whole"),
+                "2026-01-01T00:00:00Z",
+                "2026-01-01T01:00:00Z",
+            ),
+            windowed(
+                run(
+                    "claude-review",
+                    S0,
+                    self.CLEAN_WHOLE,
+                    created="2026-01-01T02:00:00Z",
+                ),
+                "2026-01-01T02:00:00Z",
+                "2026-01-01T03:00:00Z",
+            ),
+        ]
+        threads = [thread(resolved=True, resolved_by=self.LANES_BOT)]
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+
+class WholeReviewClearsTests(Base):
+    """`whole_review_clears`: the lane's open findings are all ones a clean
+    whole review of the head would close, and no review of the head has
+    reported a finding or been a whole one."""
+
+    SECURITY = CleanWholeReviewTests.SECURITY
+    CLEAN_INCREMENTAL = CleanWholeReviewTests.CLEAN_INCREMENTAL
+    LANES_BOT = CleanWholeReviewTests.LANES_BOT
+    chain = CleanWholeReviewTests.chain
+    security_thread = CleanWholeReviewTests.security_thread
+
+    def test_older_resolved_thread_under_a_clean_incremental_clears(self) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_INCREMENTAL, raised=0),
+            *self.chain("claude-security-review", self.CLEAN_INCREMENTAL),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        self.assertTrue(result["claude-security-review"].whole_review_clears)
+        # Nothing open: nothing to clear.
+        self.assertFalse(result["claude-review"].whole_review_clears)
+
+    def test_older_summary_finding_under_a_clean_incremental_clears(self) -> None:
+        runs = [
+            run("claude-review", S0, "findings=1 inline=0 scope=whole"),
+            run("claude-review", S, self.CLEAN_INCREMENTAL),
+        ]
+        result = self.bind(runs)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+        self.assertTrue(result["claude-review"].whole_review_clears)
+
+    def test_a_finding_reported_at_the_current_head_does_not_clear(self) -> None:
+        runs = [
+            run("claude-review", S0, "findings=1 inline=0 scope=whole"),
+            run(
+                "claude-review", S, f"findings=1 inline=0 scope=incremental since={S0}"
+            ),
+        ]
+        result = self.bind(runs)
+        self.assertEqual(result["claude-review"].open_findings, 2)
+        self.assertFalse(result["claude-review"].whole_review_clears)
+
+    def test_a_whole_review_already_at_the_head_does_not_clear(self) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_INCREMENTAL, raised=0),
+            *self.chain("claude-security-review", "findings=1 inline=0 scope=whole"),
+        ]
+        result = self.bind(runs, threads=self.security_thread())
+        self.assertFalse(result["claude-security-review"].whole_review_clears)
+
+    def test_an_unresolved_thread_does_not_clear(self) -> None:
+        runs = [
+            *self.chain("claude-review", self.CLEAN_INCREMENTAL, raised=0),
+            *self.chain("claude-security-review", self.CLEAN_INCREMENTAL),
+        ]
+        threads = [thread(self.SECURITY)]
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-security-review"].open_findings, 1)
+        self.assertFalse(result["claude-security-review"].whole_review_clears)
+
+    def test_unbound_never_clears(self) -> None:
+        result = self.bind([])
+        self.assertFalse(result["claude-review"].whole_review_clears)
+
+
 class FailClosedTests(Base):
     def test_garbage_input_never_raises(self) -> None:
         for runs in (None, [None], [{"attempts": "x"}], "runs", [{"id": 1}]):
-            result = ev.bind(S, runs, [None], [None], is_human=is_human)  # type: ignore[arg-type]
+            result = ev.bind(
+                S, runs, [None], [None], is_human=is_human, changed_paths=()
+            )  # type: ignore[arg-type]
             self.assertEqual(len(result), 2)
             for item in result:
                 self.assertFalse(item.bound)
@@ -1282,13 +1564,23 @@ class FailClosedTests(Base):
         import babysit_risk
 
         result = ev.bind(
-            S, [whole(lane, S) for lane in LANES], both_markers(), [], is_human=is_human
+            S,
+            [whole(lane, S) for lane in LANES],
+            both_markers(),
+            [],
+            is_human=is_human,
+            changed_paths=(),
         )
         self.assertTrue(all(isinstance(r, babysit_risk.LaneEvidence) for r in result))
 
     def test_pinned_head_must_be_a_full_sha(self) -> None:
         result = ev.bind(
-            "5e1f", [whole("claude-review", S)], both_markers(), [], is_human=is_human
+            "5e1f",
+            [whole("claude-review", S)],
+            both_markers(),
+            [],
+            is_human=is_human,
+            changed_paths=(),
         )
         for item in result:
             self.assertFalse(item.bound)
@@ -1304,6 +1596,7 @@ class FailClosedTests(Base):
             both_markers(),
             threads,
             is_human=boom,
+            changed_paths=(),
         )
         self.assertFalse(result[0].bound)
 

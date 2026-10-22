@@ -131,6 +131,12 @@ Present the checkpoint findings, then OFFER the forward routes; act only on the 
 - **Codify a durable learning** → `/session-flow:retro codify` (running-retro never edits
   `CLAUDE.md`, rules, or memory itself).
 - **File follow-up work** → offer the consumer's work-item tracker; never file automatically.
+  For each **Skill-fit gap** finding, first fill its `existing issue` field: search the owning
+  plugin's open issues through `/work-items:track search` (the tracker seam; name no provider
+  command), when the `work-items` plugin is enabled, and record the match or `none found`. When
+  it is not enabled, or the owner is `no owner found`, leave `not searched` and say so. List the gap, owning skill, evidence, proposed change and existing
+  issue together, and file only the ones the user says yes to, skipping any that already has an
+  issue. Skill-fit findings are never auto-filed.
 - **Build the new-skill candidate** → read `/playbooks:skill-authoring` for the authoring doctrine
   and draft against it, then gate the result on `/skill-quality:check`, when those are enabled;
   otherwise say the candidate has no authoring route here and leave it recorded. Read the
@@ -223,7 +229,7 @@ counterpart: a `/loop` cannot fire after the session ends, but the observer can.
 
 - **Does not score the session**. The five scored dimensions are `/session-flow:retro`'s.
 - **Does not codify learnings**, capture + route only; codification is `/session-flow:retro codify`.
-- **Does not auto-file tracker issues**; it offers routing; the user decides.
+- **Does not auto-file tracker issues**, skill-fit gaps included; it offers routing; the user decides.
 - **Does not `/clear` or end the session**, unlike `handoff`; the session continues.
 - **Does not run builds, tests, or a code review**, and does not write into the consumer's repo
   beyond the memory-tier ledger and any routing the user approves.

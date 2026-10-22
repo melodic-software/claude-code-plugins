@@ -127,7 +127,11 @@ export function decide(verdict, inputs) {
   }
   // No skip reason can neutralize these.
   if (signedCommits && signedCommits.all_verified !== true) {
-    return failure("A commit on the pull request is not GitHub-verified.");
+    return failure(
+      signedCommits.unverified?.length > 0
+        ? "A commit on the pull request is not GitHub-verified."
+        : "The lane's commits could not be verified.",
+    );
   }
   if (actOutcome === "failure") {
     return failure("The activity step failed.");

@@ -35,6 +35,10 @@ async function upOnSparePort(run) {
     try { return run(await freePort()); } catch (e) { if (tries === 3 || !/Address already in use|is busy/.test(String(e.message))) throw e; }
   }
 }
+/** The guest key of the session in `dir`: a new session has one, and its guest link carries it as #join=. */
+const guestKey = dir => JSON.parse(fs.readFileSync(path.join(dir, "state.json"), "utf8")).session.guestKey;
+const joinKeys = new Map(); // a started session's origin -> its guest key, so a page opened there can join
+
 const fake = path.join(here, "fixtures", process.platform === "win32" ? "fake_cloudflared.py" : "fake-cloudflared.sh");
 
 /** A suite's run: a temp folder, sessions it starts (stopped at the end), and PASS/FAIL lines. */
@@ -47,11 +51,12 @@ function suite(name) {
     return JSON.parse(out.trim().split("\n").filter(l => l.startsWith("{")).pop());
   };
   const apply = (dir, ops) => { const f = path.join(dir, "ops.json"); fs.writeFileSync(f, JSON.stringify({ ops })); return share(dir, "apply", "--file", f); };
-  /** A fresh session on a spare port: {dir, localUrl, ownerUrl}. */
+  /** A fresh session on a spare port: {dir, localUrl, ownerUrl, guestKey}. */
   async function start(slug) {
     const dir = path.join(tmp, "topic", "shared", slug); dirs.push(dir);
     const up = await upOnSparePort(port => share(dir, "ensure-running", "--guest-port", String(port)));
-    return { dir, localUrl: up.localUrl, ownerUrl: fs.readFileSync(up.ownerLinkFile, "utf8").trim() };
+    joinKeys.set(new URL(up.localUrl).origin, guestKey(dir));
+    return { dir, localUrl: up.localUrl, ownerUrl: fs.readFileSync(up.ownerLinkFile, "utf8").trim(), guestKey: guestKey(dir) };
   }
   /** Save bytes in the session's staging folder and add them as an asset; returns its id. */
   function asset(dir, file, bytes) {
@@ -82,8 +87,12 @@ function recorder(browser) {
     if (init) await ctx.addInitScript(init.fn, init.arg);
     return openIn(ctx, url);
   }
-  /** Another tab in the same browser context: it shares the first tab's localStorage, as a second tab does. */
+  /** Another tab in the same browser context: it shares the first tab's localStorage, as a second tab does. A started
+   *  session's page with no fragment gets #join=<its guest key>, as the guest link the host shares has. */
   async function openIn(ctx, url) {
+    const u = new URL(url), key = joinKeys.get(u.origin);
+    if (key && !u.hash) u.hash = `join=${key}`;
+    url = u.href;
     const page = await ctx.newPage();
     page.on("pageerror", e => errors.push(String(e)));
     page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
@@ -100,8 +109,46 @@ function recorder(browser) {
   return { open, openIn, errors, too, cspViolations };
 }
 
+/** True once fn(arg) is truthy in the page, false on timeout. A predicate that throws ends the wait at once and lands in
+ *  the page errors, so one that can run while the page reloads reads window.Core with ?. (it is unset until core.js runs). */
 const until = (page, fn, arg, timeout = 8000) => page.waitForFunction(fn, arg, { timeout }).then(() => true).catch(() => false);
 const snap = page => page.evaluate(() => window.Core.snapshot());
+
+/** In the page (through settled): true once #app's theme is `theme`, no finite animation or transition on the read set
+ *  runs, and the read set's styles (and boxes, with rects) read the same two frames apart; false once `ms` pass first.
+ *  An infinite animation (a shimmer, the typing dots) never ends, so it is not waited for and the element it moves is
+ *  left out of the read. */
+async function settledIn({ theme, sel, styles, rects, ms }) {
+  const end = performance.now() + ms, frame = () => new Promise(r => requestAnimationFrame(() => r()));
+  const want = theme ?? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+  const set = () => new Set(document.querySelectorAll(sel));
+  const moving = () => { const s = set(); return document.getAnimations().filter(a => a.playState === "running" && a.effect?.getComputedTiming().endTime !== Infinity && s.has(a.effect.target)); };
+  const read = () => {
+    const loops = new Set(document.getAnimations().filter(a => a.effect?.getComputedTiming().endTime === Infinity).map(a => a.effect.target));
+    return [...set()].filter(e => !loops.has(e)).map(e => {
+      const c = getComputedStyle(e), r = rects ? e.getBoundingClientRect() : null;
+      return styles.map(p => c[p]).join(" ") + (r ? ` ${r.x},${r.y},${r.width},${r.height}` : "");
+    }).join("|");
+  };
+  const themed = () => theme === false || document.getElementById("app")?.dataset.theme === want;
+  await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, ms))]);
+  while (performance.now() < end) {
+    const run = moving();
+    if (run.length) { await Promise.race([Promise.all(run.map(a => a.finished.catch(() => {}))), new Promise(r => setTimeout(r, Math.max(0, end - performance.now())))]); continue; }
+    if (!themed()) { await frame(); continue; }
+    const before = read();
+    await frame(); await frame();
+    if (themed() && !moving().length && read() === before) return true;
+  }
+  return false;
+}
+/** True once the page holds still (settledIn), false if it has not within `timeout` ms: fold it into the check that reads
+ *  colors or boxes next, so a page that never settles fails that check. A transition's computed value is its start value
+ *  until a frame ticks it, and a sheet or pop-up measures short of its place while it slides or scales in. The theme to
+ *  wait for is the emulated scheme's unless `theme` names one; `theme: false` skips it (a page with no #app). Run it
+ *  after any navigation has been awaited: it is one evaluate, and a reload under it throws. */
+const settled = (page, { theme, sel = "#app, #app *", styles = ["color", "backgroundColor", "borderTopColor", "opacity"], rects = false, timeout = 10000 } = {}) =>
+  page.evaluate(settledIn, { theme, sel, styles, rects, ms: timeout });
 
 /** Join a fresh guest page with a name; resolves to its pid. */
 async function joinAs(page, name) {
@@ -133,4 +180,4 @@ async function openClaude(page) {
   if ((await t.getAttribute("aria-expanded")) !== "true") await t.click();
   return until(page, () => !document.querySelector(".vf-clbody").hidden);
 }
-module.exports = { loadPlaywright, suite, recorder, until, snap, joinAs, png, upOnSparePort, openClaude };
+module.exports = { loadPlaywright, suite, recorder, until, settled, snap, joinAs, png, upOnSparePort, openClaude, guestKey };

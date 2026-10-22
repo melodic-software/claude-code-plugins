@@ -13,7 +13,7 @@ activities:
     reads-untrusted: false
     applies-when:
       paths: ["src/**"]
-  fix-docs:
+  fix-prose:
     skill: ai-slop:audit
     effect: mutate-branch
     gating: advisory
@@ -28,4 +28,4 @@ lanes:
   pr-refine:
     stage: refine
     slots:
-      - activity: fix-docs
+      - activity: fix-prose

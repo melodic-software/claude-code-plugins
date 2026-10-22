@@ -24,8 +24,11 @@ enable-state mismatch (a plugin `true` in one scope's `enabledPlugins` and `fals
 That needs comparing each scope's *raw* `enabledPlugins` map, which `fleet-state.sh` doesn't expose
 today (only the merged effective value, in `enabled`). This is a genuine blind spot, not a deferred
 fix: never claim the report surfaces an enable-state mismatch, and never hand-parse the settings
-files directly to work around the gap. The fix is extending `fleet-state.sh` to expose the raw
-per-scope maps, not something this skill's prompt layer can paper over.
+files directly to work around the gap. The fix for this blind spot is extending `fleet-state.sh` to
+expose the raw per-scope maps, not something this skill's prompt layer can paper over. The one
+sanctioned settings read is the committed-enable check in Step 2: a read-only look at one
+`enabledPlugins` key in a tracked project settings file, which detects no mismatch. It is removed
+when #7458 moves project pin updates into `sync`.
 
 ## Step 1: Detect
 
@@ -49,11 +52,47 @@ Then decide the consolidation strategy:
   `-s local --keep-data`) removes the redundant lower-precedence pin, and scope precedence
   (local > project > user) means the project now loads whatever `user` scope has, always current
   from here on without a standing project pin. `--keep-data` is required: this step removes a
-  scope pin, never the plugin's `${CLAUDE_PLUGIN_DATA}` directory.
+  scope pin, never the plugin's `${CLAUDE_PLUGIN_DATA}` directory. This default holds only for a
+  pin the tracked settings do not mirror: see the committed-enable check below.
 - **A `project`/`local` scope holds the highest version** (including when there's no `user`-scope
   entry at all, only multiple `project`/`local`-scope pins across different repos) → the default
   strategy is to bring every lagging scope, `user` scope included, up to that version:
   `claude plugin update <id> -s <that scope>` for each scope below the highest.
+
+**Before defaulting a `project`-scope row to uninstall, check for a committed enable.**
+`uninstall -s project` always removes the id's `enabledPlugins` entry from the project's
+`.claude/settings.json` ([scope-semantics.md](scope-semantics.md)), and when that file is tracked
+the removal deletes an enable every clone and worktree reads. `update -s project` does not write
+that file (the update exemption in the same file). For each `project`-scope row, in the row's own
+`scopes[].projectPath` (the precondition below applies first):
+
+1. Read `<projectPath>/.claude/settings.json` with the Read tool, never `jq` or a shell capture,
+   and look for an `enabledPlugins` entry for the id. This is the sanctioned exception to the
+   no-hand-parse rule: read-only, one key, tracked project settings file only. Write nothing, and
+   read no other settings file this way.
+2. Run `git -C "<projectPath>" ls-files --error-unmatch .claude/settings.json`. Exit `0` means
+   the file is tracked.
+
+When the file is tracked and holds the entry, the default is `update -s project`, even though
+`user` scope holds the highest version. Offer uninstall only as the non-default option, marked
+with a warning that it removes a committed `enabledPlugins` entry. When the id is absent from the
+tracked settings, or the file is untracked or missing (a pin that exists only in
+`installed_plugins.json`), uninstall stays the default. A check that cannot be read (unparsable
+file, git error other than "not tracked") decides nothing: treat it as a committed enable and
+default to update. Any `enabledPlugins` entry counts, `true` or `false`, since uninstall deletes
+either. `local`-scope rows are exempt, since `-s local` writes `settings.local.json`, which is not
+tracked. The `update` default still takes the catalog-direction check below. When that check
+blocks it, the row is emitted as BLOCKED and uninstall is not offered as a way around it, because
+the warned committed-entry removal is the opposite of a safe fallback.
+
+Every preview row states why its default was chosen, in a `Why:` clause, for example:
+
+```text
+- <id>@<marketplace> (project, <projectPath>): default `update -s project`. Why: the tracked
+  .claude/settings.json has an enabledPlugins entry for <id>, and uninstall would remove it.
+- <id>@<marketplace> (project, <projectPath>): default `uninstall -s project --keep-data`. Why:
+  user scope holds the highest version and <id> is not enabled in tracked project settings.
+```
 
 **Before proposing the update strategy, check the catalog's direction.** `claude plugin update`
 installs the CATALOG version, never the sibling scope's, so when the catalog reads below the
@@ -84,13 +123,57 @@ running the bare form for a row whose `projectPath` isn't the current directory 
 mutate, or fail against, the wrong repo's settings. `--keep-data` applies to `uninstall` only:
 `update` has no such flag, and the uninstall half is a pin removal, never a data deletion.
 
-Two `git worktree` checkouts of one repository pin independently, verified on Claude Code 2.1.228
-by uninstalling one id in a repo's main checkout and observing the worktree's record for the same id
-survive untouched. They share one `.git` and one tracked `.claude/settings.json` yet hold separate
+Two `git worktree` checkouts of one repository pin independently for `uninstall`, verified on Claude
+Code 2.1.228 by uninstalling one id in a repo's main checkout and observing the worktree's record for
+the same id survive untouched. They do not behave independently for `update` (see the linked-worktree
+section below and [scope-semantics.md](scope-semantics.md)). They share one `.git` and one tracked `.claude/settings.json` yet hold separate
 `projectPath` records, so never collapse them into one row and never assume converging one clears
 the other: each needs its own `cd`. Per [scope-semantics.md](scope-semantics.md), the CLI keys
 `projectPath` on the literal cwd while `fleet-state.sh` matches on the checkout root. That gap is a
 blind spot in its own right, recorded in [gotchas.md](gotchas.md).
+
+### Precondition: never emit a command for a projectPath that is a user home directory
+
+Check every `project`/`local` row's `projectPathIsHome` (see [scope-semantics.md](scope-semantics.md))
+before any other precondition. When it is `true`, the row's `projectPath` is `$HOME`, a `/home/<name>`,
+`/Users/<name>` or `C:\Users\<name>` directory, or the WSL view of a Windows home, <!-- portability-ok: a Windows path in prose, not a regex -->
+`/mnt/<drive>/Users/<name>`. Its `.claude/settings.json` is that user's **user** settings, so a
+`-s project` command run from there would remove user-scope enables. Emit the row as **BLOCKED**
+with the reason and **no command at all**, neither the `uninstall` nor the `update` form, whatever
+the strategy and whether or not the path is present:
+
+```text
+- <id>@<marketplace>, BLOCKED: projectPath "<projectPath>" is a user home directory. Its
+  `.claude/settings.json` is user settings, not project settings, so a project-scope command run
+  from there would change user scope. converge emits no command for it.
+```
+
+A path under a home (`/home/<name>/repos/app`) is an ordinary project and is unaffected. Do not offer
+to remove the record: no `claude plugin` verb removes an install record by path. `sync` counts these
+rows in their own `User-home project records` row and leaves them out of its divergence count.
+
+### Linked-worktree rows: no update strategy
+
+A row whose `scopes[].linkedWorktree` is `true` (the git dir differs from the git common dir;
+`fleet-state.sh` reads it from the worktree's `.git` file) never gets the update strategy, proposed or
+run. The record behind that decision, and the trigger to recheck it, are in
+[scope-semantics.md](scope-semantics.md). Emit it as:
+
+```text
+- <id>@<marketplace>: update is not offered here: "<projectPath>" is a linked worktree, and
+  its record is at <version>. The uninstall strategy clears it, and edits that worktree's
+  tracked `.claude/settings.json` (Step 5).
+```
+
+The row keeps the label `fleet-state.sh` gave it, `update ineffective; uninstall clears it`, and stays
+in the divergence count. Offer only the uninstall strategy for it, still confirmed per pin; when the
+highest version is at `project`/`local` scope and no uninstall would bring the row current, report the
+row with this label and offer nothing. When the row also holds a committed enable (the
+committed-enable check under Step 2), neither strategy is the default: update is not offered here,
+and uninstall would delete the committed entry. Report the row with both reasons and offer
+uninstall only as the non-default option with the committed-entry warning, run only on the user's
+explicit choice. A main checkout, and a submodule (its `.git` file points into `modules/`, not
+`worktrees/`), behave as before.
 
 ### Precondition: never emit a `cd` command into a path that is not present
 
@@ -153,15 +236,17 @@ update a sibling worktree's record of the same id instead of the cwd's
   The intended record is still at <version>.
 ```
 
-A record that did not move and no other record that did is reported as "did not move", with the CLI's
-output.
+A record that did not move and no other record that did is a **failure**, never "ok": report it as
+"did not move", with the CLI's output, and count it with the failed rows. This holds whatever the CLI
+printed, including "already at the latest version" and `updated from X to Y`, because the exit status
+and the CLI's line are not evidence that the record changed. The re-read is the only evidence.
 
 ## Step 5: Surface the resulting diff
 
 After all confirmed mutations run, `git diff` (or the equivalent status check) any project's
 committed `.claude/settings.json` that `-s project` mutations touched, every one of them, not only
 the ones expected to change. Per [scope-semantics.md](scope-semantics.md), `claude plugin uninstall
--s project` (this action's actual mechanism) **always** writes that file: it removes the id's
+-s project` (the mechanism for a pin the tracked settings do not mirror) **always** writes that file: it removes the id's
 `enabledPlugins` entry, leaves `"enabledPlugins": {}` when that empties the map, writes the key even
 into a file that never had one, and rewrites the whole file in Claude Code's key order. A clean tree
 after an uninstall is the surprising outcome, not a dirty one. Never predict "no diff" from the

@@ -12,7 +12,7 @@
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from PLAN.md Phase 4c and the texts this suite writes, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs } = require("./browser_harness");
 
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
 const GOAL = "Pick the offsite venue";
@@ -56,6 +56,7 @@ async function main() {
     const onIt = await until(pia, () => [...document.querySelectorAll(":is(.vf-onit, .vf-qonit) .core-avatar")].filter(a => a.offsetParent).length === 2);
     ok("phone: the owner and Gus show as on the question", onIt);
     // The fold is the bottom of the scrolling question pane (the tab bar sits under it).
+    const foldStill = await settled(pia, { rects: true });
     const fold = await pia.evaluate(() => {
       const end = document.querySelector(".vf-scroll").getBoundingClientRect().bottom;
       const at = (sel, whole) => { const el = document.querySelector(sel); if (!el || !el.offsetParent) return `${sel} not shown`; const r = el.getBoundingClientRect(); return r.top >= 0 && (whole ? r.bottom : r.top) < end ? "" : `${sel} at ${r.top.toFixed(0)}-${r.bottom.toFixed(0)}, fold ${end.toFixed(0)}`; };
@@ -64,7 +65,7 @@ async function main() {
         card.height <= innerHeight * 0.15 ? "" : `the card is ${card.height.toFixed(0)} px tall`].filter(Boolean);
     });
     ok("phone 390x844: the card takes at most 15% of the screen; the goal, the ask, Start here and Something else… show whole, and the answer box starts above the fold",
-      first && fold.length === 0, fold.join("; "));
+      first && foldStill && fold.length === 0, (foldStill ? "" : "not settled; ") + fold.join("; "));
     ok("phone: the intro folds behind its toggle", await until(pia, () => document.querySelector(".vf-orient-why").hidden && !document.querySelector(".vf-orient-whybtn").hidden
       && document.querySelector(".vf-orient-whybtn").getAttribute("aria-expanded") === "false"));
     await pia.locator(".vf-orient-whybtn").tap();
@@ -150,13 +151,15 @@ async function main() {
       if (!p || p.hidden) return false;
       const items = [...p.querySelectorAll(".vf-ppv-item")].map(i => i.textContent);
       return items.some(t => t.includes("Q2") && t.includes("A pub crawl") && t.includes("Hide") && t.includes("Edit")) && items.some(t => t.includes("Lunch at noon?"))
-        && /Remove Gus/.test(p.textContent);
+        && !!p.querySelector(".vf-ppv-acts [aria-label='Remove Gus']") && !!p.querySelector(".vf-ppv-acts [aria-label='Leader: Gus']");
     }));
     const clearedRow = owner.locator(".vf-personpop .vf-ppv-item", { hasText: "Q3, cleared" });
     ok("View all lists the hidden answer Gus cleared, marked hidden", await clearedRow.waitFor({ timeout: 8000 }).then(() => clearedRow.textContent()).then(t => /\(hidden\)/.test(t), () => false));
     await clearedRow.getByRole("button", { name: /Show what Gus's cleared answer on Q3 said/ }).click();
     ok("Show what it said fetches its last text for the owner", await until(owner, () => [...document.querySelectorAll(".vf-personpop .vf-ppv-item")]
       .some(i => i.textContent.includes("Q3, cleared") && i.querySelector(".vf-ppv-t").textContent === "Hike, please")));
+    const heads = await owner.evaluate(() => [...document.querySelectorAll(".vf-personpop .vf-ppv-q")].map(h => h.textContent));
+    ok("times read \"just now\" or \"5 min ago\", never \"now ago\"", heads.some(h => /^(just now|\d+ min ago)$/.test(h)) && heads.some(h => /^Q3, cleared (just now|\d+ min ago)/.test(h)) && !heads.some(h => /now ago/.test(h)), JSON.stringify(heads));
     await owner.keyboard.press("Escape");
 
     // ---------- approve new joins ----------
@@ -169,8 +172,39 @@ async function main() {
     await jib.fill("#core-n", "Jib");
     await jib.click("dialog.core-name button");
     ok("a new person waits, and is told so", await until(jib, () => !document.querySelector("dialog.core-name") && window.Core.state.youWaiting === true
-      && document.querySelector(".vf-ev-title")?.textContent === "Waiting for the host to let you in"));
+      && document.querySelector(".vf-ev-note")?.textContent === "Waiting for the host to let you in. This page opens by itself; keep it open."));
     ok("a waiting person reads nothing of the session", await jib.evaluate(() => window.Core.state.questions.length === 0 && !window.Core.snapshot()));
+    // Follow-up 50: one centered card, the title, "Why you're here" and the wait; none of the session's controls.
+    const waitView = page => page.evaluate(() => {
+      const seen = sel => [...document.querySelectorAll(sel)].some(e => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== "hidden");
+      const ev = document.querySelector(".vf-ev"), r = ev.getBoundingClientRect(), mid = (r.left + r.right) / 2;
+      return { title: document.querySelector(".vf-ev-title").textContent, intro: seen(".vf-ev-intro") ? document.querySelector(".vf-ev-intro").textContent : "",
+        centered: Math.abs(mid - innerWidth / 2) < 24,
+        shown: ["banner .vf-banner", "rail .vf-rail", "rounds .vf-round", "Propose .vf-ev > .vf-btn", "Ask Claude .vf-asktop", "Follow .vf-follow", "chat .vf-fab",
+          "here count .vf-here", "people .vf-person", "tabs .vf-tabs", "Help .vf-keysbtn", "goal-line .vf-goalback"].filter(x => seen(x.split(" ").pop())).map(x => x.split(" ")[0]) };
+    });
+    const jw = await waitView(jib);
+    ok("the waiting page is one centered card: the session title and \"Why you're here\" with the host's intro", jw.title === "Offsite" && jw.intro === "Why you're here" + INTRO && jw.centered, JSON.stringify(jw));
+    ok("  with no banner, questions, rounds, Propose, Ask Claude, Follow host, chat button, here count, Help or goal line", jw.shown.length === 0, jw.shown.join(", "));
+    await jib.locator("body").press("?");
+    await jib.waitForTimeout(400);
+    ok("  and ? opens no Help while waiting", await jib.evaluate(() => document.querySelector(".vf-keys").hidden));
+    // Kai waits in Instagram's in-app browser: its banner (follow-up 45) must not show while waiting either.
+    const IG_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 339.0.3.12.91";
+    const kai = await rec.open(A.localUrl, { context: { ...PHONE, userAgent: IG_UA } });
+    await kai.waitForSelector("dialog.core-name[open]");
+    await kai.fill("#core-n", "Kai");
+    await kai.click("dialog.core-name button");
+    await until(kai, () => window.Core.state.youWaiting === true && !!document.querySelector(".vf-ev-intro:not([hidden])"));
+    const kw = await waitView(kai);
+    ok("on a phone in Instagram's browser the same card, with no tab bar or in-app banner", kw.title === "Offsite" && kw.intro === "Why you're here" + INTRO && kw.shown.length === 0, JSON.stringify(kw));
+    // F10: turning someone away affects them, so Decline asks first; Cancel keeps them waiting.
+    const kaiRow = owner.locator(".vf-qitem", { hasText: "Wants to join: Kai" });
+    await kaiRow.waitFor({ timeout: 8000 });
+    await kaiRow.getByRole("button", { name: "Decline" }).click();
+    ok("declining a join asks first", await until(owner, () => /Turn Kai away\?/.test(document.querySelector("dialog.vf-cdlg[open]")?.textContent || "")));
+    await owner.keyboard.press("Escape");
+    ok("  and Escape keeps them waiting", await until(owner, () => !document.querySelector("dialog.vf-cdlg[open]")) && await kai.evaluate(() => window.Core.state.youWaiting === true));
     const gus2 = await rec.openIn(gus.context(), A.localUrl); // a new tab: the stored secret, no join
     ok("a guest already here keeps going in a new tab", await until(gus2, pid => window.Core.snapshot()?.me?.pid === pid && window.Core.state.questions.length === 3, gusPid));
     ok("the owner's queue says \"Wants to join: Jib\", first in line, on a computer in Chrome", await until(owner, () => [...document.querySelectorAll(".vf-qitem")]

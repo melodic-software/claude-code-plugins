@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`sample-kit open` lists archived projects alongside active ones.\n\n## Fix\n\n`collectOpen(projects)` returns only the projects whose `archived` is `false`.\n\n## Done when\n\n- [ ] Archived projects are left out of `collectOpen`'s result.\n- [ ] A test with a mix of archived and active projects checks the result."
+  },
+  "pr": {
+    "title": "fix(sample-kit): leave archived projects out of open",
+    "body": "Filters collectOpen on the archived flag and adds a test with a mix of projects."
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`sample-kit recent` prints entries in insertion order, so the newest work is at the bottom of a long list.\n\n## Fix\n\nSort the entries by `updatedAt`, newest first, before printing.\n\n## Done when\n\n- [ ] `recent` prints entries newest first by `updatedAt`.\n- [ ] A test with three entries checks the order."
+  },
+  "pr": {
+    "title": "feat(sample-kit): sort recent entries",
+    "body": "Sorts the entries `recent` prints, with a test."
+  }
+}

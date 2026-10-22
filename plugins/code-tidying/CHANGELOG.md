@@ -3,6 +3,24 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.4] - 2026-10-22
+
+### Fixed
+
+- The bundled-simplify pointer to the `/code-review` local page targets `code-review-local`, the page that holds that section.
+
+## [0.30.3] - 2026-10-20
+
+### Added
+
+- `## Next` sections on `tidy` and `batch-simplify`, naming each skill's successor.
+
+- An eval case, `bs-no-task-tools-fallback`, runs `batch-simplify` in a session without `TaskCreate`, `TaskUpdate` and `TaskList`, so the skill's no-task-tools path is exercised. It passes only when the run completes, no task tool is called and the files are simplified ([#6872](https://github.com/melodic-software/claude-code-plugins/issues/6872)).
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.30.2] - 2026-10-18
 
 ### Fixed

@@ -74,6 +74,20 @@
         "Offers reuse through the registry, or an open replacement that migrates existing jobs and updates the paved-path entry",
         "Does not accept the cron entry as a parallel way left beside the registry"
       ]
+    },
+    {
+      "id": 7,
+      "name": "drafts-the-paved-path-entry-and-waits-for-a-yes",
+      "prompt": "reuse or replace: we just finished replacing the hand-rolled cron entries with the jobs/ registry and its shared retry wrapper, and all existing jobs are migrated. Our docs/standards/README.md index has a paved-path row pointing at docs/standards/paved-paths.md, whose scheduled-jobs entry still says \"plain cron entry in the deploy config; enforced by none\".",
+      "expected_output": "Recognizes the work openly replaced a listed way and drafts the updated paved-path entry for the scheduled-jobs concern: the concern, the chosen way as a pointer to the jobs/ registry and the shared retry wrapper, and the enforcing check or none. It shows the draft and asks for a yes. It does not write docs/standards/paved-paths.md until the user says yes.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Drafts the entry with the concern, the chosen way as a pointer to the registry and wrapper, and the enforcing check or none",
+        "Changes the existing scheduled-jobs entry instead of adding a second entry for the same concern",
+        "Shows the draft and asks the user to confirm",
+        "Does not write or edit docs/standards/paved-paths.md before the user says yes"
+      ]
     }
   ]
 }

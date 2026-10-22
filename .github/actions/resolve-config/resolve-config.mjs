@@ -14,8 +14,11 @@ import {
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { pipelineEvent } from "./predicate.mjs";
 import {
+  checkAppliedBySupported,
   checkConfigPath,
+  checkPatchRules,
   laneHasActivity,
+  loadConfig,
   modelArgs,
   modelSettings,
   neededFacts,
@@ -33,6 +36,8 @@ const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
 const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
+// The multi-agent role map a role profile resolves through.
+const ROLE_MAP_PATH = "plugins/multi-agent/reference/defaults.yaml";
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -223,7 +228,7 @@ function modelOutputs(models) {
     "settings-json": modelSettings(models),
     "max-turns": String(models["max-turns"]),
     // run-claude-cli inputs: `default` has no --model to pass, so it is empty
-    // and the caller fails on it.
+    // and the caller fails on it. A role profile always resolves an alias.
     model: models.model === "default" ? "" : models.model,
     effort: models.effort ?? "",
   };
@@ -253,7 +258,9 @@ function outputsFor({ lane, selected }) {
     issues: selected.grant.issues,
     // Only a read grant cannot commit; any other value keeps the signed-commit check.
     "can-commit": String(selected.grant.contents !== "read"),
+    ...(selected["applied-by"]?.patch === undefined ? {} : { "applied-by-patch": selected["applied-by"].patch }),
     ...(selected.prepare === undefined ? {} : { prepare: selected.prepare }),
+    ...(selected.kind === "skill" ? { "permission-mode": selected["permission-mode"] ?? "dontAsk" } : {}),
     ...(selected["issue-dimensions"] === undefined
       ? {}
       : { "issue-dimensions": selected["issue-dimensions"], "timeout-minutes": String(selected["timeout-minutes"]) }),
@@ -269,7 +276,8 @@ const escapeCommand = (text) =>
 
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
-function filesUnderBase(basePath, configPath) {
+// `readRules` reads a rule file beside this module; tests replace it.
+function filesUnderBase(basePath, configPath, readRules = readOwn) {
   checkConfigPath(configPath);
   const schema = readJsonUnderBase(basePath, SCHEMA_PATH);
   if (schema === undefined) {
@@ -281,9 +289,12 @@ function filesUnderBase(basePath, configPath) {
     vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
     codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
     trustedActors: readJsonUnderBase(basePath, TRUSTED_ACTORS_PATH),
-    laneRules: readOwn("./lane-rules.json"),
-    effectGrants: readOwn("./effect-grants.json"),
-    activityRules: readOwn("./activity-rules.json"),
+    roleMap: readUnderBase(basePath, ROLE_MAP_PATH),
+    laneRules: readRules("./lane-rules.json"),
+    effectGrants: readRules("./effect-grants.json"),
+    activityRules: readRules("./activity-rules.json"),
+    patchRules: readRules("./patch-rules.json"),
+    patchRulesSchema: readRules("./patch-rules.schema.json"),
   };
 }
 
@@ -291,10 +302,13 @@ function filesUnderBase(basePath, configPath) {
 // (with its code) for a config or request the resolver refuses. `event` is the
 // payload; by default it is read from EVENT_PATH. With `absentAsNull`, a valid
 // config whose lane holds no slot for the activity resolves to null.
-export async function resolveFromBase({ env, github, sleep = wait, event, absentAsNull = false }) {
+export async function resolveFromBase({ env, github, sleep = wait, event, absentAsNull = false, readRules }) {
   const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
   const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
-  const files = filesUnderBase(basePath, configPath);
+  const files = filesUnderBase(basePath, configPath, readRules);
+  // A lane run checks the patch rules before anything else; the token
+  // broker, which calls loadConfig and resolveGrant itself, never reads them.
+  checkPatchRules(files.patchRules, files.patchRulesSchema, loadConfig(files, { configPath }).activities);
   const request = {
     lane: env.LANE,
     activity: env.ACTIVITY || undefined,
@@ -325,6 +339,7 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
       `activity \`${chosen.name}\` sets prepare: ${chosen.prepare}, and this runner does not pass prepare-supported: true`,
     );
   }
+  checkAppliedBySupported(chosen, env.APPLIED_BY_SUPPORTED);
   return resolved;
 }
 
@@ -350,6 +365,25 @@ export function loopFromBase(env) {
   const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
   const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
   return resolveLoop(filesUnderBase(basePath, configPath), { configPath });
+}
+
+// The base config's `red-main` leaf as set and `merge.agent-identity`, after
+// the same file checks as resolve(), for the post-merge red-main report. The
+// leaf's defaults have one copy, in
+// .github/scripts/post-merge-demotion-alert/red-main.mjs, which applies them.
+export function redMainFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  const doc = loadConfig(filesUnderBase(basePath, configPath), { configPath });
+  return { redMain: doc["red-main"] ?? {}, agentIdentity: doc.merge?.["agent-identity"] ?? "" };
+}
+
+// The base config's `branch-cleanup` leaf as set, likewise; its defaults have
+// one copy, in .github/scripts/branch-cleanup/rules.mjs.
+export function branchCleanupFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  return loadConfig(filesUnderBase(basePath, configPath), { configPath })["branch-cleanup"] ?? {};
 }
 
 // A run that is no lane activity resolves only its model route.

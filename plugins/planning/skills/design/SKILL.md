@@ -1,5 +1,5 @@
 ---
-description: "Resolve design decisions (types, contracts, package topology, module boundaries) in discussion rounds before /planning:plan, as design artifacts. Use when: 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', 'what should the types look like', 'how should I structure this', 'where do the module boundaries go', or entering /planning:plan without exploring the design space. Handoff gate: /planning:design-handoff."
+description: "Resolve design decisions (types, contracts, package topology, module boundaries) in discussion rounds before /planning:plan, as design artifacts. Use when: 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', 'what should the types look like', 'how should I structure this', 'where do the module boundaries go', or entering /planning:plan without exploring the design space. Skip when scanning existing code for module friction: /architecture:improve does that, and /planning:design resolves decisions before /planning:plan. Handoff gate: /planning:design-handoff."
 argument-hint: "[library|module|data|integration|system] [status|thread <name>|discuss|terminology|handoff]"
 user-invocable: true
 disable-model-invocation: false
@@ -113,6 +113,12 @@ artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
 
+Read the Brief's `### Problem` before decomposing; absent, start from the `Problem`, `Intent (why,
+in the user's words)` and `Chosen direction` lines of `<memory_dir>/<topic-slug>/brainstorm.md`'s
+`## Handoff` block when it exists; with neither, establish it:
+[`${CLAUDE_PLUGIN_ROOT}/context/problem-framing.md`](../../context/problem-framing.md). Its
+`time_units` user layer is `${user_config.time_units}` (unexpanded means unset).
+
 Scan the whole problem space broadly before diving into any single capability. For each capability
 or concern:
 
@@ -179,7 +185,7 @@ one-offs only). Run the leak test on every abstraction and contained boundary, a
 where the solution's existing architecture style already puts them. Questions, verdicts, leak test,
 autonomy rule, and sources:
 [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md).
-An intent answer from `/planning:interview` is settled, never re-asked.
+A variation-intent answer from `/planning:interview` is settled, never re-asked.
 
 Produce: `design-threads.md`
 

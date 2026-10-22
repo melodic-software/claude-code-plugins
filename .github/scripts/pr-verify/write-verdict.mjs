@@ -2,8 +2,9 @@
 // run-claude-cli's execution file, and writes the verdict file that
 // pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>. The output
 // must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
-// summary a string, notes an array of strings, none shaped like an Anthropic
-// key or OAuth token, since the verdict is uploaded; a run with any permission
+// summary a string, notes an array of strings, none matching the shared
+// credential patterns (lib/publish-gate.mjs findSecret), since the verdict is
+// uploaded; a run with any permission
 // denial writes none. The file also records the head
 // branch and the linked issues with their authors, as the resolver read them
 // (number, author and last body editor login, id and type, last_edited_at;
@@ -17,7 +18,7 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { SECRET_PATTERNS } from "../../../lib/publish-gate.mjs";
+import { findSecret } from "../../../lib/publish-gate.mjs";
 
 export const VERDICTS = Object.freeze(["pass", "pass-notes", "fail"]);
 const SUMMARY_MAX = 4000;
@@ -36,9 +37,6 @@ const specComment = (comment) =>
   typeof comment.updated_at === "string";
 const stringOrNull = (value) => value === null || typeof value === "string";
 const idOrNull = (value) => value === null || Number.isSafeInteger(value);
-
-// Both credential kinds start sk-ant-.
-const ANTHROPIC_KEY = SECRET_PATTERNS.find(([label]) => label === "Anthropic key")[1];
 
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -92,8 +90,11 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
   ) {
     throw new Error("the structured output does not match the verdict schema");
   }
-  if ([parsed.summary, ...parsed.notes].some((text) => ANTHROPIC_KEY.test(text))) {
-    throw new Error("the structured output holds text shaped like an Anthropic credential");
+  for (const text of [parsed.summary, ...parsed.notes]) {
+    const hit = findSecret(text);
+    if (hit) {
+      throw new Error(`the structured output holds text shaped like a credential (${hit[0]})`);
+    }
   }
   return {
     pr: Number(pr),
@@ -124,9 +125,7 @@ export function structuredOutput(messages) {
   return result.structured_output;
 }
 
-// The execution file is the last leg's alone, so a denial on an earlier leg
-// (the key leg, before a credit stop) shows only in run-claude-cli's log, one
-// object per leg.
+// run-claude-cli's log, one object per leg, counts every leg's denials.
 export function earlierDenials(logText) {
   const total = logText
     .split("\n")
@@ -135,6 +134,25 @@ export function earlierDenials(logText) {
   if (total > 0) {
     throw new Error(`the run's legs hit ${total} permission denial(s)`);
   }
+}
+
+// After the key leg hands off, the subscription job judges on a new VM
+// that cannot read this leg's log, so the key job records here whether the
+// leg was free of denials; the subscription job runs only on clean=true.
+export function checkKeyLeg(env = process.env) {
+  for (const key of ["LOG_FILE", "GITHUB_OUTPUT"]) {
+    if (!env[key]) {
+      throw new Error(`${key} is not set`);
+    }
+  }
+  let logText;
+  try {
+    logText = readFileSync(env.LOG_FILE, "utf8");
+  } catch {
+    throw new Error("the run log is unreadable");
+  }
+  earlierDenials(logText);
+  appendFileSync(env.GITHUB_OUTPUT, "clean=true\n");
 }
 
 export const artifactName =(verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
@@ -193,7 +211,11 @@ export function main(env = process.env) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    main();
+    if (process.argv[2] === "check-key-leg") {
+      checkKeyLeg();
+    } else {
+      main();
+    }
   } catch (error) {
     console.log(`::error::no verdict: ${error.message}`);
     process.exitCode = 1;

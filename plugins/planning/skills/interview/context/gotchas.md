@@ -22,7 +22,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Passing `--brief` to the Step 3 gate run:** Step 4 writes PLAN.md, so at Step 3 the file does not exist and a named-but-missing `--brief` exits 2; a first-time interview deadlocks before it can persist anything. Ledger-only at Step 3, `--brief` on the Step 4 re-run.
 
-- **Assuming `lock` never needs a register:** a clean lock synthesis writes none, but its STOP-on-gap and the unattended ladder both produce unresolved questions, and a question outside the register is a question outside the gate.
+- **Assuming `lock` never needs a register:** `lock` always writes its problem row, and its STOP-on-gap and the unattended ladder both produce unresolved questions, and a question outside the register is a question outside the gate.
 
 - **Treating the register gate's exit 2 as a pass:** ungradeable means the check could not see the state (missing register, gapped `Q<N>`, a deferred row absent from the Brief), which is when a silent hole is most likely, not least.
 
@@ -54,7 +54,9 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 ## Shared session
 
-- **Waiting to `ack-round`:** until it lands, the page shows Waiting for Claude and the owner can still cancel. Apply `ack-round` first on every `round-sent`, before recording or thinking about the next round.
+- **A pause after `ack-round`:** once it lands, the page shows Claude is working and the owner can no longer cancel, so a question to the owner before the next `open-round` leaves everyone waiting. Apply `ack-round` with `open-round` or `close-round` in one apply, and ask the owner after it lands.
+
+- **A cancel that beats that apply:** the owner can still cancel a sent round, and then the whole apply fails with `wrong-status` and lands nothing. Re-read `share.sh status` and the events (a `round-cancelled` follows) before preparing again; never retry the same apply.
 
 - **A placement missing:** every pending proposal needs exactly one placement in the `open-round` or `close-round`; a missing or doubled one refuses the whole apply.
 

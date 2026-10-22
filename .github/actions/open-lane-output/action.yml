@@ -1,0 +1,80 @@
+name: Open lane output
+description: >
+  Open a bundle seal-lane-output made in an earlier job of the same run, with
+  the recipient's X25519 private key, into files under a directory the caller
+  names. Writes plaintext only to those files: never to the log, an output,
+  GITHUB_ENV or a mask. A withheld chunk fails with the rotation line; a wrong
+  key, a failed tag, a truncated bundle, an unknown key id, a bad version or a
+  record from another run, job or payload name fails without it, and nothing
+  is written. Needs node 18 or later on PATH.
+
+inputs:
+  private-key:
+    description: The recipient's private key, base64 PKCS#8 DER as keygen.mjs writes it. Pass a secret; this action reads it in one step's env only.
+    required: true
+  expected-key-ids:
+    description: The key ids a record may name, whitespace-separated, normally the committed public key file's.
+    required: true
+  job-id:
+    description: The producing job's key, the job-id the seal step passed.
+    required: true
+  max-bytes:
+    description: "One `name=bytes` line per payload name that may open, with its plaintext cap; any other name fails."
+    required: true
+  directory:
+    description: An absolute path, missing or empty, that receives one file per opened payload, named for it.
+    required: true
+  sealed-length:
+    description: The seal step's sealed-length output.
+    required: false
+    default: ""
+  sealed-1:
+    description: The seal step's sealed-1 output.
+    required: false
+    default: ""
+  sealed-2:
+    description: The seal step's sealed-2 output.
+    required: false
+    default: ""
+  sealed-3:
+    description: The seal step's sealed-3 output.
+    required: false
+    default: ""
+  sealed-4:
+    description: The seal step's sealed-4 output.
+    required: false
+    default: ""
+  sealed-5:
+    description: The seal step's sealed-5 output.
+    required: false
+    default: ""
+  sealed-6:
+    description: The seal step's sealed-6 output.
+    required: false
+    default: ""
+
+outputs:
+  opened:
+    description: The payload names opened, space-separated; never any plaintext.
+    value: ${{ steps.decode.outputs.opened }}
+
+runs:
+  using: composite
+  steps:
+    - name: Decode the sealed payloads
+      id: decode
+      shell: bash
+      env:
+        PRIVATE_KEY: ${{ inputs.private-key }}
+        EXPECTED_KEY_IDS: ${{ inputs.expected-key-ids }}
+        JOB_ID: ${{ inputs.job-id }}
+        MAX_BYTES: ${{ inputs.max-bytes }}
+        DIRECTORY: ${{ inputs.directory }}
+        SEALED_LENGTH: ${{ inputs.sealed-length }}
+        SEALED_1: ${{ inputs.sealed-1 }}
+        SEALED_2: ${{ inputs.sealed-2 }}
+        SEALED_3: ${{ inputs.sealed-3 }}
+        SEALED_4: ${{ inputs.sealed-4 }}
+        SEALED_5: ${{ inputs.sealed-5 }}
+        SEALED_6: ${{ inputs.sealed-6 }}
+      run: node "$GITHUB_ACTION_PATH/open.mjs"

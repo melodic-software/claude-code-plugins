@@ -160,7 +160,7 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 | `shell-portability` | `scripts/check-shell-portability.sh origin/main` | In-repo; `--all` scans the whole tree. A bare run exits 2 with a usage message. |
 | `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/check-machine-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). |
 
-`scripts/check-affected.sh` runs the diff-scoped rows, not the whole hygiene set.
+`scripts/check-affected.sh` runs the rows that apply to a diff, `typos`, `plugin-options-docs`, `changelog-parity` and `markdown` among them, and prints `CI only: <gate>` for every hygiene gate it leaves to CI, `machine-specific-paths` and the whole-repo scanners included. `scripts/check-affected-gates.txt` lists each gate and how it is covered.
 `scripts/aggregate-hygiene-results.sh` consumes CI step outcomes; it does not run the gates.
 
 - **Claim:** every row of the mapping table is a local command; `machine-specific-paths` runs the
@@ -168,8 +168,8 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 - **Basis:** the #3522 owner decision (document running the composite's script from a
   `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
   `EXCLUDE`.
-- **As of:** `ci-workflows` v0.39.8 (`594987abe8657a40bccc13d301f1f0d5cccb5348`), the pin in
-  `.github/workflows/pr-require-checks.yml`, re-verified by hand on 2026-10-10: the `contract-only` default is unchanged.
+- **As of:** `ci-workflows` v0.58.0 (`5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c`), the pin in
+  `.github/workflows/pr-require-checks.yml`, re-verified by hand on 2026-10-21: the `contract-only` default is unchanged.
 - **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
   contract.
 

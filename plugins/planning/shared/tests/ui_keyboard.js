@@ -17,7 +17,7 @@
 // to the invoking element, or where it was when a shortcut opened it), the server contract (session.py pick: one pick
 // per person) and core.js's join dialog rule (it stays open until the join succeeds), never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs } = require("./browser_harness");
 
 const PRESSES = 30;
 const DESK = { viewport: { width: 1440, height: 900 } };
@@ -26,6 +26,16 @@ const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
 
 const describe = () => { const a = document.activeElement; return a ? `${a.tagName.toLowerCase()}.${[...a.classList].join(".")} "${(a.getAttribute("aria-label") || a.textContent || "").trim().replace(/\s+/g, " ").slice(0, 30)}"` : "nothing"; };
+/** In the page: true once the tour ring has stopped moving and is drawn round `sel`, its box the target's grown by 4 px a
+ *  side and kept 4 px inside the page (placeTour), within 2 px. Read in one go, so no re-layout falls between the two. */
+const ringOnTarget = sel => {
+  const g = document.querySelector(".vf-tour-ring"), el = document.querySelector(sel);
+  if (!el || g.getAnimations().length) return false;
+  const ring = g.getBoundingClientRect(), R = document.querySelector(".app").getBoundingClientRect(), r = el.getBoundingClientRect();
+  const near = (a, b) => Math.abs(a - b) <= 2;
+  return near(ring.left, Math.max(R.left + 4, r.left - 4)) && near(ring.top, Math.max(R.top + 4, r.top - 4))
+    && near(ring.right, Math.min(R.right - 4, r.right + 4)) && near(ring.bottom, Math.min(R.bottom - 4, r.bottom + 4));
+};
 const shownSel = sel => { const el = document.querySelector(sel); return !!el && !el.hidden && el.getClientRects().length > 0 && (el.tagName !== "DIALOG" || el.open); };
 
 /** Tab then Shift+Tab, PRESSES each; the first press per direction that leaves the surface, or none. */
@@ -190,7 +200,7 @@ async function main() {
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     await surface(owner, "settings panel", ".vf-settings", { opener: owner.locator(".vf-gear") });
     await surface(owner, "share panel", ".vf-share", { opener: owner.locator(".vf-sharebtn") });
-    await surface(owner, "notifications", ".vf-bellpop", { opener: owner.locator(".vf-bell") });
+    await surface(owner, "Inbox page", ".vf-inboxpage", { opener: owner.locator(".vf-bell") });
     // "?" from a question in the list: focus goes back to that question, where it was.
     await surface(owner, "keyboard shortcuts (?)", ".vf-keys", { opener: owner.locator(".vf-q").first(), key: "?" });
 
@@ -204,7 +214,7 @@ async function main() {
     await until(phoneOwner, () => window.Core.snapshot()?.me?.role === "owner");
     const more = phoneOwner.locator(".vf-tab", { hasText: "More" });
     await surface(phoneOwner, "phone More sheet", ".vf-moresheet", { opener: more });
-    await surface(phoneOwner, "phone Inbox sheet (from More)", ".vf-bellpop", {
+    await surface(phoneOwner, "phone Inbox page (from More)", ".vf-inboxpage", {
       before: async () => { await more.focus(); await more.evaluate(el => el.setAttribute("data-kb-opener", "")); await phoneOwner.keyboard.press("Enter"); await until(phoneOwner, shownSel, ".vf-moresheet", 3000); },
       opener: phoneOwner.locator(".vf-msitem", { hasText: "Inbox" }), expectBack: ".vf-tab[data-kb-opener]",
     });
@@ -276,9 +286,11 @@ async function main() {
     await until(gus, () => (window.Core.snapshot().cards.Q2 || []).some(c => c.ref === "p:host"));
     async function swept(page, name, { scope, open, close } = {}) {
       try { if (open) await open(); } catch (e) { ok(`Tab sweep, ${name}: the view opens`, false, String(e.message).split("\n")[0]); return; }
-      await page.waitForTimeout(250);
+      // Swept once the view holds still: each control's resting look is the baseline its focus ring is told from.
+      const still = await settled(page, { rects: true });
       const r = await sweep(page, scope);
-      ok(`Tab sweep, ${name}: all ${r.total} controls take focus from Tab`, r.total > 0 && r.missed.length === 0, `${r.missed.length} missed: ${r.missed.slice(0, 6).join(", ")}`);
+      ok(`Tab sweep, ${name}: all ${r.total} controls take focus from Tab`, still && r.total > 0 && r.missed.length === 0,
+        `${still ? "" : "not settled; "}${r.missed.length} missed: ${r.missed.slice(0, 6).join(", ")}`);
       ok(`Tab sweep, ${name}: each shows a focus ring`, r.noRing.length === 0, r.noRing.slice(0, 6).join(", "));
       ok(`Tab sweep, ${name}: each is on screen and not covered when focused`, r.hidden.length === 0, r.hidden.slice(0, 6).join(", "));
       if (close) await close();
@@ -302,7 +314,7 @@ async function main() {
     await viewSeg(owner, "Focus")();
     await swept(owner, "settings panel (desktop)", { scope: ".vf-settings", open: () => owner.locator(".vf-gear").click(), close: esc(owner) });
     await swept(owner, "share panel (desktop)", { scope: ".vf-share", open: () => owner.locator(".vf-sharebtn").click(), close: esc(owner) });
-    await swept(owner, "notifications (desktop)", { scope: ".vf-bellpop", open: () => owner.locator(".vf-bell").click(), close: esc(owner) });
+    await swept(owner, "Inbox page (desktop)", { scope: ".vf-inboxpage", open: () => owner.locator(".vf-bell").click(), close: esc(owner) });
     await swept(owner, "keyboard shortcuts (desktop)", { scope: ".vf-keys", open: () => owner.locator(".vf-keysbtn").click(), close: esc(owner) });
     const tab = (page, label) => () => page.locator(".vf-tab", { hasText: label }).click({ timeout: 5000 });
     await swept(pia, "guest Questions tab (phone)", { open: tab(pia, "Questions") });
@@ -310,6 +322,10 @@ async function main() {
     await swept(pia, "chat sheet (phone)", { scope: "section.vf-chat", open: () => pia.locator(".vf-fab").click(), close: esc(pia) });
     await swept(phoneOwner, "More sheet (phone)", { scope: ".vf-moresheet", open: tab(phoneOwner, "More"), close: esc(phoneOwner) });
     await swept(phoneOwner, "owner Host view (phone)", { open: async () => { await tab(phoneOwner, "More")(); await phoneOwner.locator(".vf-msitem", { hasText: "Host view" }).click(); } });
+    // The host's presence names the question of whichever tab beat last, so with this tab on the first question and the
+    // desktop one on another, "The host is on this question" comes and goes on a guest's first question every few seconds.
+    // Closed, so the tour below starts with no one else on that question and moves its target only when it means to.
+    await phoneOwner.close();
 
     // ---------- triage 4: the first-visit tour (optional, skippable, re-opened from Help, remembered by the `tour` pref) ----------
     const tia = await rec.open(A.localUrl, { context: DESK });
@@ -322,29 +338,37 @@ async function main() {
     // transitions), and still lands on the step's target: its box is the target's grown by 4 px a side (paintTour).
     ok("the tour ring transitions translate only, never a layout property", await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty) === "translate",
       await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty));
+    const alone = await until(tia, () => document.querySelector(".vf-onit").hidden, null, 10000); // no one else on this question
     await tia.click(".vf-tour-row .vf-btn-primary");
-    await tia.evaluate(() => Promise.all(document.querySelector(".vf-tour-ring").getAnimations().map(a => a.finished.catch(() => null)))); // the ring's move ends
-    const ringFit = await tia.evaluate(() => {
-      const ring = document.querySelector(".vf-tour-ring").getBoundingClientRect(), R = document.querySelector(".app").getBoundingClientRect();
-      // The target is the element the ring was drawn round: the largest one whose box, grown by 4 px and kept 4 px
-      // inside the page, matches the ring's within 2 px.
-      const near = (a, b) => Math.abs(a - b) <= 2;
-      return [...document.querySelectorAll(".app *")].some(el => {
-        if (el.closest(".vf-tour")) return false;
-        const r = el.getBoundingClientRect();
-        return r.width > 0 && near(ring.left, Math.max(R.left + 4, r.left - 4)) && near(ring.top, Math.max(R.top + 4, r.top - 4))
-          && near(ring.right, Math.min(R.right - 4, r.right + 4)) && near(ring.bottom, Math.min(R.bottom - 4, r.bottom + 4));
-      });
-    });
-    ok("after Next the ring has moved onto the next step's target", ringFit);
+    ok("after Next the ring has moved onto the next step's target", await until(tia, ringOnTarget, ".vf-fmt"));
+    // The ring follows its target when the page re-lays-out under the open tour: another person arriving on this
+    // question shows "is on this question" above the options and pushes them down.
+    const fmtTop = () => tia.evaluate(() => document.querySelector(".vf-fmt").getBoundingClientRect().top);
+    const top0 = await fmtTop();
+    await openQ(gus, await tia.textContent(".vf-qtext"))();
+    const pushed = await until(tia, () => !document.querySelector(".vf-onit").hidden);
+    ok("  and stays on it when the page moves it", alone && pushed && await fmtTop() > top0 && await until(tia, ringOnTarget, ".vf-fmt"),
+      `alone on the question before: ${alone}, "on this question" shown after: ${pushed}`);
     let escaped = 0;
     for (let i = 0; i < PRESSES; i++) { await tia.keyboard.press(i % 2 ? "Shift+Tab" : "Tab"); if (!(await tia.evaluate(c => document.querySelector(c).contains(document.activeElement), card))) escaped++; }
     ok(`${PRESSES} Tab and Shift+Tab presses keep focus inside the tour`, escaped === 0, `${escaped} left it`);
-    let steps = 2; // the ring check above pressed Next once
-    while (steps < 10 && (await tia.evaluate(() => document.querySelector(".vf-tour-row .vf-btn-primary").textContent)) === "Next") { await tia.click(".vf-tour-row .vf-btn-primary"); steps++; }
-    await tia.click(".vf-tour-row .vf-btn-primary"); // Done
-    ok("Done ends the tour and the `tour` pref says done (server state)", await until(tia, () => document.querySelector(".vf-tour").hidden && window.Core.snapshot()?.me?.prefs?.tour === "done"), `${steps} steps`);
-    ok("the tour walks at least the questions, the answer, the answer box, others' answers, the chat and Help", steps >= 6, `${steps} steps`);
+    /** Every step's heading from here to Done, which ends the tour. */
+    const walk = async page => {
+      const seen = [];
+      for (let i = 0; i < 20; i++) {
+        seen.push(await page.textContent(".vf-tour-h"));
+        const last = (await page.textContent(".vf-tour-row .vf-btn-primary")) === "Done";
+        await page.click(".vf-tour-row .vf-btn-primary");
+        if (last) break;
+      }
+      return seen;
+    };
+    const steps = await walk(tia); // from the second step: the ring check above pressed Next once
+    ok("Done ends the tour and the `tour` pref says done (server state)", await until(tia, () => document.querySelector(".vf-tour").hidden && window.Core.snapshot()?.me?.prefs?.tour === "done"), steps.join(" | "));
+    // Follow-up 38: a guest's tour adds the Discussion, Ask Claude (and @Claude), and the Inbox; none of the host's steps.
+    const GUEST_STEPS = ["Your answer box", "Everyone's answers", "Discussion", "Ask Claude", "Chat with people", "Your Inbox", "Help is here"];
+    ok("a guest's tour walks the answer box, others' answers, the Discussion, Ask Claude, the chat, the Inbox and Help", GUEST_STEPS.every(h => steps.includes(h)), steps.join(" | "));
+    ok("  and none of the host's steps", !steps.some(h => ["Share the link", "Needs you", "Send the round"].includes(h)), steps.join(" | "));
     ok("once done, the first view stops offering the tour", await until(tia, () => document.querySelector(".vf-orient-tour").hidden));
     await tia.click(".vf-keysbtn");
     await tia.click(".vf-help-tour");
@@ -352,6 +376,28 @@ async function main() {
     await tia.keyboard.press("Escape");
     ok("Escape skips the tour, the pref says skipped, and focus goes back to the Help button", await until(tia, () => document.querySelector(".vf-tour").hidden
       && window.Core.snapshot()?.me?.prefs?.tour === "skipped" && document.activeElement?.classList.contains("vf-keysbtn")));
+
+    // Follow-up 38: the host's tour, from Help: Share, Needs you (Run and Approve) and Send, each on its real control.
+    await owner.click(".vf-keysbtn");
+    await owner.click(".vf-help-tour");
+    await until(owner, c => !!document.querySelector(c)?.offsetParent, card);
+    const hostSteps = [];
+    for (let i = 0; i < 20; i++) {
+      const h = await owner.textContent(".vf-tour-h");
+      // What the ring is drawn round once it stops moving: the control each host step names.
+      const at = await owner.waitForFunction(() => {
+        const g = document.querySelector(".vf-tour-ring");
+        if (g.getAnimations().length) return null;
+        const ring = g.getBoundingClientRect(), mid = [(ring.left + ring.right) / 2, (ring.top + ring.bottom) / 2];
+        return [[".vf-sharebtn", ".vf-bell", ".vf-round-cur .vf-send"].find(sel => { const r = document.querySelector(sel)?.getBoundingClientRect(); return r && r.width && Math.abs((r.left + r.right) / 2 - mid[0]) < 2 && Math.abs((r.top + r.bottom) / 2 - mid[1]) < 2; }) || ""];
+      }, null, { timeout: 8000 }).then(v => v.jsonValue()).then(v => v[0], () => "(the ring never stopped)");
+      hostSteps.push(`${h}@${at}`);
+      const last = (await owner.textContent(".vf-tour-row .vf-btn-primary")) === "Done";
+      await owner.click(".vf-tour-row .vf-btn-primary");
+      if (last) break;
+    }
+    ok("the host's tour rings Share, the Inbox for Needs you, and the round's Send", ["Share the link@.vf-sharebtn", "Needs you@.vf-bell", "Send the round@.vf-round-cur .vf-send"].every(x => hostSteps.includes(x)), hostSteps.join(" | "));
+    ok("  and skips a guest's Discussion and chat steps", !hostSteps.some(x => /^(Discussion|Chat with people)@/.test(x)), hostSteps.join(" | "));
 
     // animation-audit I4: once the round is sent, the current step's dot breathes a few times and stops (WCAG 2.2.2:
     // no auto-playing motion past 5 s beside other content).

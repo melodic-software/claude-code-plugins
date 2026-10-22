@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`sample-kit sync --help` says `Pushes local changes to the remote.` Sync only pulls.\n\n## Fix\n\nChange the help line to `Pulls remote changes into the local cache.`\n\n## Done when\n\n- [ ] `sync --help` prints the new line.\n\nOut of scope: any change to how sync behaves."
+  },
+  "pr": {
+    "title": "docs(sample-kit): correct the sync help text",
+    "body": "Fixes the sync help line to say it pulls."
+  }
+}

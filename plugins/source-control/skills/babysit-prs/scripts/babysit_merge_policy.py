@@ -32,8 +32,8 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Iterator, Mapping
-from dataclasses import dataclass, field, replace
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -56,7 +56,18 @@ from babysit_gh import (
     pull_request_commits_once,
     record_pull_request_total,
 )
-from babysit_risk import ChangedFile, glob_match, is_capability_path
+from babysit_risk import (
+    AGENT_FILES,
+    DECLARATION_FILES,
+    ChangedFile,
+    declaration_pointers,
+    case_dir,
+    eval_case_dirs,
+    glob_match,
+    is_capability_path,
+    is_case_file,
+    is_manifest_path,
+)
 from babysit_util import (
     is_json_array,
     is_json_object,
@@ -125,6 +136,15 @@ class PolicyReadError(RuntimeError):
     """A policy input could not be read; callers fail closed."""
 
 
+class StopReadError(PolicyReadError):
+    """A read whose failure stops the path (`reason`), so the identity's
+    queued entries leave."""
+
+    def __init__(self, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
 class _SymlinkAt(PolicyReadError):
     """A clone holds a symlink where a file was asked for. The contents API
     follows an in-repository symlink, so the caller reads it there instead."""
@@ -170,9 +190,11 @@ class UnattendedPolicy:
 
 def resolve(repo: str, number: int | None = None) -> UnattendedPolicy:
     """The configured agent identity, for the plain `--merge` refusal: the
-    pipeline config at the pull request's base SHA (the default branch head
-    without a number). It never permits a merge. Raises `PolicyReadError`
-    when the pipeline config cannot be read or parsed."""
+    pipeline config at the pull request's base SHA combined with the default
+    branch head's (the head's alone without a number). It never permits a
+    merge. With a number, `details["agentIdentities"]` names every identity
+    either side sets, so the plain path refuses each one's token. Raises
+    `PolicyReadError` when a pipeline config cannot be read or parsed."""
     if number is None:
         _, sha = _default_branch_head(repo)
     else:
@@ -180,8 +202,21 @@ def resolve(repo: str, number: int | None = None) -> UnattendedPolicy:
     config = read_config_at(repo, sha)
     if config.error:
         raise PolicyReadError(f"{CONFIG_PATH} at {sha}: {config.error}")
+    configs = [config]
+    if number is not None:
+        configs.append(_default_branch_config(repo))
+    identities: list[str] = []
+    for c in configs:
+        login = (c.agent_identity or "").strip()
+        if login and login.casefold() not in {i.casefold() for i in identities}:
+            identities.append(login)
     reason = NOT_ASSESSED if enabled_authority(config) else AUTHORITY_UNCONFIGURED
-    return UnattendedPolicy(reason, config.agent_identity, enabled=False)
+    return UnattendedPolicy(
+        reason,
+        identities[0] if identities else None,
+        {"agentIdentities": identities} if number is not None else None,
+        enabled=False,
+    )
 
 
 # --- Bash, for the shared YAML reader -----------------------------------------
@@ -296,6 +331,31 @@ def _concern_values(
     return values
 
 
+def _merge_names(text: str, key: str) -> bool:
+    """Whether the top-level `merge` mapping holds `key` at all. The shared
+    reader prints nothing for an empty or non-scalar value, as for an absent
+    key; the document already parsed as the block-style subset."""
+    lines = [
+        line
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    base = len(lines[0]) - len(lines[0].lstrip(" ")) if lines else 0
+    entry = re.compile(r"""(\s*)(["']?)([^"':]+)\2\s*:(\s|$)""")
+    inside, child = False, None
+    for line in lines:
+        found = entry.match(line)
+        indent = len(line) - len(line.lstrip(" "))
+        if indent <= base:
+            inside = indent == base and found is not None and found[3] == "merge"
+            child = None
+        elif inside and found is not None:
+            child = indent if child is None else child
+            if indent == child and found[3] == key:
+                return True
+    return False
+
+
 # --- The gh seam ----------------------------------------------------------------
 
 
@@ -398,13 +458,28 @@ def _rest_actor(actor: Any) -> dict[str, Any] | None:
     return {"__typename": actor.get("type"), "login": actor.get("login")}
 
 
-# --- Config at the base SHA -----------------------------------------------------
+# --- Config at the base SHA and the default branch head -----------------------------------------------------
+
+# The default `merge.risk-escalation-minutes`: longer than a review lane's
+# run, so a review still running at the head (scored MED, evidence unbound)
+# finishes before its refusal is labeled (judgment).
+RISK_ESCALATION_MINUTES = 60
+# `merge.quarantine-days` when absent or not a whole number from 1 to
+# `MAX_QUARANTINE_DAYS`.
+QUARANTINE_DAYS = 7
+MAX_QUARANTINE_DAYS = 30
+# The default `merge.max-verify-fails`: three heads' FAILs is a pull request
+# the verifier keeps refusing, not one noisy verdict (owner decision
+# 2026-10-21).
+MAX_VERIFY_FAILS = 3
 
 
 @dataclass(frozen=True)
 class PipelineConfig:
-    """The merge config at one base SHA. `rung` is "off" on any doubt; `error`
-    names a pipeline-file parse error, which leaves every other key unread."""
+    """The merge config at one commit, `base_sha`. `rung` is "off" on any
+    doubt; `error` names a pipeline-file parse error, which leaves every other
+    key unread. The gate combines the base's with the default branch head's
+    (`stricter_config`)."""
 
     base_sha: str
     rung: str
@@ -452,13 +527,35 @@ class PipelineConfig:
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
     # Absent, or anything but a whole number of at least 1, is 1. The gate
-    # reads it at the default branch head instead (`_run_max_in_flight`).
+    # reads it at the default branch head alone (`_run_max_in_flight`).
     max_in_flight: int = 1
     # `merge.max-queue-ejections`: failed-check merge-queue removals since
     # the head last changed at which the gate stops enqueuing that head.
     # Absent, or anything but a whole number from 1 to
     # `MAX_QUEUE_EJECTIONS_LIMIT`, is 2.
     max_queue_ejections: int = 2
+    # `merge.risk-escalation-minutes`: how long a MED or HIGH reasons comment
+    # must have stood unchanged at the head before the gate adds the
+    # human-gated label; 0 is no minimum. Absent, or anything but a whole
+    # number, is `RISK_ESCALATION_MINUTES`.
+    risk_escalation_minutes: int = RISK_ESCALATION_MINUTES
+    # `merge.max-verify-fails`: counted pr-verify FAILs at distinct heads of
+    # one pull request at which it holds for a human whatever a later pass
+    # says (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything
+    # but a whole number of at least 1 is 1, so any earlier FAIL holds.
+    max_verify_fails: int = MAX_VERIFY_FAILS
+    # `merge.check-inputs`: git pathspecs of what the pull request checks
+    # read. When the base changed one since a pull request's merge base, the
+    # pr-merge lane updates its branch from the base instead of enqueuing it
+    # (`babysit_check_inputs`). Absent or empty, nothing is updated.
+    check_inputs: tuple[str, ...] = ()
+    # The default branch head's `merge.check-inputs` not in `check_inputs`,
+    # set by `stricter_config` and read on its own.
+    head_check_inputs: tuple[str, ...] = ()
+    # `merge.quarantine-days`: days a quarantined suite's failures on the
+    # default branch stop demoting (`babysit_postmerge`). Absent, or anything
+    # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
+    quarantine_days: int = QUARANTINE_DAYS
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -595,6 +692,10 @@ def read_config_at(
             ("merge.dependabot.majors", False),
             ("merge.max-in-flight", False),
             ("merge.max-queue-ejections", False),
+            ("merge.risk-escalation-minutes", False),
+            ("merge.max-verify-fails", False),
+            ("merge.check-inputs", True),
+            ("merge.quarantine-days", False),
         ],
     )
     if values is None:
@@ -662,6 +763,33 @@ def read_config_at(
             f"{MAX_QUEUE_EJECTIONS_LIMIT}"
         )
         ejections = None
+    escalation_minutes = scalar("merge.risk-escalation-minutes")
+    if escalation_minutes is not None and not re.fullmatch(
+        r"0|[1-9][0-9]*", escalation_minutes
+    ):
+        notes.append(
+            f"merge.risk-escalation-minutes {escalation_minutes!r} is not a whole "
+            "number of minutes"
+        )
+        escalation_minutes = None
+    verify_fails = scalar("merge.max-verify-fails")
+    if verify_fails is None and _merge_names(text, "max-verify-fails"):
+        verify_fails = ""
+    if verify_fails is not None and not re.fullmatch(r"[1-9][0-9]*", verify_fails):
+        notes.append(
+            f"merge.max-verify-fails {verify_fails!r} is not a count of 1 or more"
+        )
+        verify_fails = "1"
+    quarantine_days = scalar("merge.quarantine-days")
+    if quarantine_days is not None and not (
+        re.fullmatch(r"[1-9][0-9]?", quarantine_days)
+        and int(quarantine_days) <= MAX_QUARANTINE_DAYS
+    ):
+        notes.append(
+            f"merge.quarantine-days {quarantine_days!r} is not a count from 1 to "
+            f"{MAX_QUARANTINE_DAYS}"
+        )
+        quarantine_days = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -682,7 +810,189 @@ def read_config_at(
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
         max_queue_ejections=int(ejections) if ejections else 2,
+        risk_escalation_minutes=int(escalation_minutes)
+        if escalation_minutes is not None
+        else RISK_ESCALATION_MINUTES,
+        max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
+        check_inputs=tuple(values["merge.check-inputs"]),
+        quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
     )
+
+
+# An authority value that enables neither lane (`enabled_authority`): the
+# combined config's when base and main enable different ones.
+AUTHORITY_CONFLICT = "base-and-default-branch-differ"
+# The gate's refusal for it: a stop, so the identity's queued entries leave.
+AUTHORITY_DIFFERS = "authority-differs"
+
+
+def _cap(a: int | None, b: int | None) -> int | None:
+    """The smaller cap, None being no cap."""
+    return b if a is None else a if b is None else min(a, b)
+
+
+def _union(a: tuple[str, ...], b: tuple[str, ...]) -> tuple[str, ...]:
+    return a + tuple(x for x in b if x not in a)
+
+
+def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfig:
+    """The stricter of the config at the pull request's base and at the
+    default branch head, per setting. GitHub never moves a base SHA as the
+    default branch advances, so a tightening on main reaches open pull
+    requests here, and a pull request still cannot drop its base's
+    declaration. The timing-only `risk_escalation_minutes` keeps the base's.
+    An identity set on one side only switches the lane off, as a different
+    authority does; raises `StopReadError` when both are set and differ."""
+    identities = {(c.agent_identity or "").strip().casefold() for c in (base, main)}
+    if "" not in identities and len(identities) > 1:
+        raise StopReadError(
+            AUTHORITY_DIFFERS,
+            f"merge.agent-identity is {base.agent_identity!r} at the base "
+            f"{base.base_sha} and {main.agent_identity!r} at the default branch "
+            f"head {main.base_sha}",
+        )
+
+    def loop_rank(value: str | None) -> int:
+        return RUNG_RANK[LOOP_MERGE_RUNG.get(value or "", "off")]
+
+    return replace(
+        base,
+        rung=min(base.rung, main.rung, key=RUNG_RANK.__getitem__),
+        authority=base.authority
+        if enabled_authority(base) == enabled_authority(main) and len(identities) == 1
+        else AUTHORITY_CONFLICT,
+        max_changed_lines=_cap(base.max_changed_lines, main.max_changed_lines),
+        denied_paths=_union(base.denied_paths, main.denied_paths),
+        loop_merge=min(base.loop_merge, main.loop_merge, key=loop_rank),
+        notes=base.notes + tuple(f"default branch head: {n}" for n in main.notes),
+        report_only=base.report_only or main.report_only,
+        require_verifier_verdict=base.require_verifier_verdict
+        or main.require_verifier_verdict,
+        dependabot_mode=min(
+            base.dependabot_mode, main.dependabot_mode, key=DEPENDABOT_MODES.index
+        ),
+        dependabot_majors="hold"
+        if "hold" in (base.dependabot_majors, main.dependabot_majors)
+        else base.dependabot_majors,
+        high_path_floor=base.high_path_floor or main.high_path_floor,
+        floor_paths=_union(base.floor_paths, main.floor_paths),
+        floor_script_scopes=_union(base.floor_script_scopes, main.floor_script_scopes),
+        c2_contradictions=base.c2_contradictions or main.c2_contradictions,
+        max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
+        max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
+        max_verify_fails=min(base.max_verify_fails, main.max_verify_fails),
+        # Main's own list, read in a `git diff` of its own, so an exclude or a
+        # bad entry on either side cannot cancel the other's paths.
+        head_check_inputs=tuple(
+            p for p in main.check_inputs if p not in base.check_inputs
+        ),
+        # The gate reads it at the head (`_run_max_in_flight`); this is only
+        # the fallback when that read fails, which never exceeds main's.
+        max_in_flight=min(base.max_in_flight, main.max_in_flight),
+    )
+
+
+DEFAULT_BRANCH_CONFIG_SECTION = "default-branch-config"
+# Repositories whose default branch head config this process took from the
+# run cache, with the head it was read at; `unattended_enqueue` reads the
+# head again before an enqueue.
+SHARED_HEAD_CONFIGS: dict[str, str] = {}
+
+
+def _cached_config(value: Any) -> PipelineConfig | None:
+    """A saved config, or None (a miss, read again) for anything a config
+    read could not have produced."""
+    if not isinstance(value, dict):
+        return None
+    try:
+        c = PipelineConfig(
+            **{k: tuple(v) if isinstance(v, list) else v for k, v in value.items()}
+        )
+
+        def texts(t: Any) -> bool:
+            return isinstance(t, tuple) and all(isinstance(x, str) for x in t)
+
+        def count(v: Any, least: int) -> bool:
+            return type(v) is int and v >= least
+
+        ok = (
+            isinstance(c.base_sha, str)
+            and SHA_RE.fullmatch(c.base_sha)
+            and c.error is None
+            and c.rung in RUNG_RANK
+            and all(
+                v is None or isinstance(v, str)
+                for v in (c.authority, c.agent_identity, c.loop_merge)
+            )
+            and all(
+                v is None or count(v, 0)
+                for v in (c.max_changed_lines, c.max_changed_files)
+            )
+            and all(
+                texts(t)
+                for t in (
+                    c.denied_paths,
+                    c.notes,
+                    c.floor_paths,
+                    c.floor_script_scopes,
+                    c.check_inputs,
+                    c.head_check_inputs,
+                )
+            )
+            and all(
+                type(b) is bool
+                for b in (
+                    c.report_only,
+                    c.require_verifier_verdict,
+                    c.high_path_floor,
+                    c.c2_contradictions,
+                )
+            )
+            and c.dependabot_mode in DEPENDABOT_MODES
+            and c.dependabot_majors in DEPENDABOT_MAJORS
+            and count(c.max_in_flight, 1)
+            and count(c.max_queue_ejections, 1)
+            and count(c.risk_escalation_minutes, 0)
+            and count(c.max_verify_fails, 1)
+        )
+    except (TypeError, ValueError):
+        return None
+    return c if ok else None
+
+
+def _default_branch_config(repo: str, branch: str | None = None) -> PipelineConfig:
+    """The config at the default branch head, saved once per cache window
+    (`run_cache.MAX_AGE`) for the run's gate processes, never saving a failed
+    read; saving it saves its `merge.max-in-flight` for `_run_max_in_flight`
+    too. Raises `PolicyReadError` when the head or its config cannot be read,
+    `StopReadError` when the config cannot be parsed."""
+    cached = _cached_config(
+        run_cache.get(DEFAULT_BRANCH_CONFIG_SECTION, repo, run_cache.MAX_AGE)
+    )
+    if cached is not None:
+        SHARED_HEAD_CONFIGS[repo] = cached.base_sha
+        return cached
+    _, head = _default_branch_head(repo, branch)
+    config = read_config_at(repo, head)
+    if config.error:
+        raise StopReadError(
+            DEFAULT_BRANCH_UNREADABLE,
+            f"{CONFIG_PATH} at the default branch head {head}: {config.error}",
+        )
+    run_cache.put(DEFAULT_BRANCH_CONFIG_SECTION, repo, asdict(config))
+    run_cache.put(MAX_IN_FLIGHT_SECTION, repo, config.max_in_flight)
+    return config
+
+
+def with_default_branch(
+    repo: str, base: PipelineConfig, branch: str | None = None
+) -> PipelineConfig:
+    """The config a merge answers to: `stricter_config` of `base` and the
+    config at the head of the default branch (`branch` when already read).
+    Raises `PolicyReadError` when the head's cannot be read, `StopReadError`
+    when it cannot be parsed or the agent identities differ."""
+    main = _default_branch_config(repo, branch)
+    return base if main.base_sha == base.base_sha else stricter_config(base, main)
 
 
 # --- Effective rung ---------------------------------------------------------------
@@ -1578,12 +1888,18 @@ def _dependabot_content(
     `dependabot-content:<x>`, names a diff that is not only covered manifests,
     lock files and `uses:` repins (`content_refusal`, per
     `.github/dependabot.yml` at the base); it sends the pull request to tier
-    `review`. The paths a version-bump or lanes App fix commit touched count
-    as checked; a fix commit touching `.github/`, or one whose file list cannot
-    be read whole, is the refusal. The changed paths (either side of a rename)
-    are None when the files listing was not read whole. Raises
-    `PolicyReadError` on a read failure."""
+    `review`. The paths a version-bump commit touched count as checked once
+    it passes the bump rule (only plugin.json's `version` and CHANGELOG.md;
+    else `dependabot-bump-content:<why>`); any other commit that is not
+    Dependabot's (a lanes App fix) must pass the fix rule
+    (`_fix_commit_refusal`), else `dependabot-fix-content:<why>` is the
+    refusal, as is a commit whose file list cannot be read whole. The changed
+    paths (either side of a rename) are None when the files listing was not
+    read whole. Raises `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
+    config = dependabot.parse_config(
+        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
+    )
     extra: set[str] = set()
     for item in commits:
         if dependabot.is_dependabot_commit(item):
@@ -1593,14 +1909,12 @@ def _dependabot_content(
         if touched is None:
             # Unreadable (or past the listing cap) is not "touches nothing".
             return None, f"unreadable: commit files {sha[:12]}", None
-        if not dependabot.is_actions_commit(item):
-            gated = [p for p in touched if p == ".github" or p.startswith(".github/")]
-            if gated:
-                return None, f"dependabot-fix-content:{gated[0]}", None
+        bump = dependabot.is_actions_commit(item)
+        refusal = _fix_commit_refusal(owner, name, sha, config, bump=bump)
+        if refusal:
+            kind = "bump" if bump else "fix"
+            return None, f"dependabot-{kind}-content:{refusal}", None
         extra.update(touched)
-    config = dependabot.parse_config(
-        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
-    )
     if config is None:
         return "dependabot-config-unreadable", None, None
     listing = _paginated(
@@ -1616,6 +1930,87 @@ def _dependabot_content(
         if p
     ]
     return dependabot.content_refusal(listing, config, extra), None, paths
+
+
+FIX_TREE = """
+query FixTree($o: String!, $r: String!, $e: String!) {
+  repository(owner: $o, name: $r) {
+    object(expression: $e) { ... on Tree { entries { name type mode } } }
+  }
+}
+"""
+
+
+def _raw_at(owner: str, name: str, path: str, sha: str) -> str | None:
+    """The file's text at `sha` through the raw media type, which serves
+    files over 1 MB (docs.github.com/en/rest/repos/contents#get-repository-content,
+    as of 2026-10-21; recheck when that section changes its size limits);
+    None when absent. Raises `PolicyReadError` on any other failure."""
+    endpoint = f"repos/{owner}/{name}/contents/{quote(path)}?ref={sha}"
+    try:
+        proc = gh_capture(
+            ["api", endpoint, "-H", "Accept: application/vnd.github.raw+json"]
+        )
+    except (RuntimeError, ValueError, OSError) as exc:
+        raise PolicyReadError(f"{path} at {sha}: {exc}") from exc
+    if proc.returncode != 0:
+        if gh_http_status(proc.stderr or "") == 404:
+            return None
+        raise PolicyReadError(f"{path} at {sha} could not be read")
+    return proc.stdout
+
+
+def _fix_commit_refusal(
+    owner: str,
+    name: str,
+    sha: str,
+    config: list[tuple[str, str]] | None,
+    *,
+    bump: bool = False,
+) -> str | None:
+    """Why a lanes App commit is not a fix the lane may merge with
+    (`babysit_dependabot.fix_refusal` against its one parent), or, with
+    `bump`, the version-bump commit more than a version bump (`bump_refusal`),
+    or None. The commit's files, modes and both sides' text are read here; a
+    read that fails is a refusal."""
+    status, payload = _get(f"repos/{owner}/{name}/commits/{sha}")
+    detail = json_object(payload)
+    listing = detail.get("files")
+    parents = json_array(detail.get("parents"))
+    if (
+        status != 200
+        or not is_json_array(listing)
+        or not listing
+        or len(listing) >= COMMIT_FILES_LIMIT
+    ):
+        return f"commit-files-unreadable:{sha[:12]}"
+    parent = str(json_object(parents[0]).get("sha") or "") if parents else ""
+    if len(parents) != 1 or not SHA_RE.fullmatch(parent):
+        return f"commit-parents:{sha[:12]}"
+    trees: dict[str, list[Any]] = {}
+
+    def entry(path: str) -> Any:
+        folder = posixpath.dirname(path)
+        if folder not in trees:
+            data = _graphql(
+                FIX_TREE, f"{sha[:12]} tree", o=owner, r=name, e=f"{sha}:{folder}"
+            )
+            tree = json_object(json_object(data.get("repository")).get("object"))
+            trees[folder] = json_array(tree.get("entries"))
+        base = posixpath.basename(path)
+        return next(
+            (e for e in trees[folder] if json_object(e).get("name") == base), None
+        )
+
+    def text(side: str, path: str) -> str | None:
+        return _raw_at(owner, name, path, parent if side == "before" else sha)
+
+    try:
+        if bump:
+            return dependabot.bump_refusal(listing, entry, text)
+        return dependabot.fix_refusal(listing, config, entry, text)
+    except PolicyReadError as exc:
+        return f"fix-unreadable:{str(exc)[:120]}"
 
 
 def _dependabot_policy(owner: str, name: str, base_sha: str) -> Any:
@@ -2271,10 +2666,11 @@ def _default_branch(repo: str, *, shared: bool = False) -> str:
     return branch
 
 
-def _default_branch_head(repo: str) -> tuple[str, str]:
-    """The default branch's name and its head SHA."""
+def _default_branch_head(repo: str, branch: str | None = None) -> tuple[str, str]:
+    """The default branch's name (`branch` when already read) and its head
+    SHA."""
     owner, name = _split_repo(repo)
-    branch = _default_branch(repo)
+    branch = branch or _default_branch(repo)
     status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
     sha = payload.get("sha") if status == 200 and is_json_object(payload) else None
     if not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
@@ -2405,23 +2801,30 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
     return text
 
 
+def _full_history_root(checkout: Path) -> Path | None:
+    """The top of the clone holding `checkout` when it has its whole history
+    (not shallow or partial), else None."""
+    # Pathspecs resolve against the working directory, so run at the top.
+    top = _git(checkout, "rev-parse", "--show-toplevel")
+    if not top or not top.strip():
+        return None
+    root = Path(top.strip())
+    if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
+        return None
+    # A partial clone lacks older blobs, which the read never fetches.
+    promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
+    if _git(root, "config", "--get-regexp", promisor) is not None:
+        return None
+    return root
+
+
 def _clones_holding(sha: str) -> Iterator[Path]:
     """The top of each clone in `_history_checkouts` that holds `sha` with its
-    whole history (not shallow or partial). A commit id names its whole
+    whole history (`_full_history_root`). A commit id names its whole
     ancestry and tree, so any clone holding it answers for the repository."""
     for checkout in _history_checkouts():
-        # Pathspecs resolve against the working directory, so run at the top.
-        top = _git(checkout, "rev-parse", "--show-toplevel")
-        if not top or not top.strip():
-            continue
-        root = Path(top.strip())
-        if _git(root, "rev-parse", "--is-shallow-repository") != "false\n":
-            continue
-        # A partial clone lacks older blobs, which the read never fetches.
-        promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
-        if _git(root, "config", "--get-regexp", promisor) is not None:
-            continue
-        if _git(root, "cat-file", "-e", f"{sha}^{{commit}}") is None:
+        root = _full_history_root(checkout)
+        if root is None or _git(root, "cat-file", "-e", f"{sha}^{{commit}}") is None:
             continue
         yield root
 
@@ -2629,19 +3032,28 @@ def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
 def with_capability_contents(
     repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
 ) -> tuple[ChangedFile, ...]:
-    """Each changed capability file (not removed) with its base text at the
-    base SHA, from its previous path on a rename or copy, and its head text
+    """Each changed capability file, manifest or eval case.yaml (not removed) with its base
+    text at the base SHA, from its previous path on a rename or copy, and its head text
     at the head SHA, or the reason either could not be read."""
     owner, name = _split_repo(repo)
     base = json_object(pr.get("base")).get("sha")
     head = json_object(pr.get("head")).get("sha")
     read = []
     for changed in files:
-        if changed.status == "removed" or not is_capability_path(changed.path):
+        if changed.status == "removed" or not (
+            is_capability_path(changed.path)
+            or is_manifest_path(changed.path)
+            or is_case_file(changed.path)
+        ):
             read.append(changed)
             continue
         try:
-            if not (isinstance(base, str) and base and isinstance(head, str) and head):
+            if not (
+                isinstance(base, str)
+                and SHA_RE.fullmatch(base)
+                and isinstance(head, str)
+                and SHA_RE.fullmatch(head)
+            ):
                 raise PolicyReadError(
                     "the pull request record names no base or head SHA"
                 )
@@ -2661,6 +3073,135 @@ def with_capability_contents(
             )
             read.append(replace(changed, contents_error=reason))
     return tuple(read)
+
+
+_TREE_MODE = "040000"
+
+
+def _base_text(
+    owner: str,
+    name: str,
+    root: Path | None,
+    modes: Mapping[str, str],
+    path: str,
+    base: str,
+) -> str | None:
+    """A file's text at the base SHA, from the clone at `root` when there is
+    one, else the contents API; None when absent, a tree, or unreadable."""
+    if modes.get(path) in (None, _TREE_MODE):
+        return None
+    try:
+        if root is not None:
+            return _git_file_at(root, path, base)
+        return _text_at(owner, name, path, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"base file {path!r}: {type(exc).__name__}", file=sys.stderr)
+        return None
+
+
+def agents_at(
+    repo: str, pr: Mapping[str, Any]
+) -> tuple[tuple[str, str | None], ...] | None:
+    """`babysit_risk.RiskInput.agents`: every `AGENT_FILES` file at the base
+    SHA as (path, text), None for a file that could not be read; None when the
+    base tree cannot be listed."""
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        root = next(_clones_holding(base), None)
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"agents at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return None
+    if modes is None:
+        return None
+    return tuple(
+        (path, _base_text(owner, name, root, modes, path, base))
+        for path in sorted(modes)
+        if modes[path] != _TREE_MODE and glob_match(AGENT_FILES, path)
+    )
+
+
+def eval_cases_at(
+    repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
+) -> tuple[tuple[str, str | None], ...] | None:
+    """`babysit_risk.RiskInput.eval_cases`: each case file (`is_case_file`) at the base SHA in
+    a directory `eval_case_dirs` names for a changed path, as (path, text),
+    None for a file that could not be read; None when the base tree cannot be
+    listed."""
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    wanted = {d for path in changed if path for d in eval_case_dirs(path)}
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        root = next(_clones_holding(base), None)
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"eval cases at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return None
+    if modes is None:
+        return None
+    return tuple(
+        (path, _base_text(owner, name, root, modes, path, base))
+        for path in sorted(modes)
+        if modes[path] != _TREE_MODE and is_case_file(path) and case_dir(path) in wanted
+    )
+
+
+def declarations_at(
+    repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
+) -> tuple[tuple[str, str | None], ...] | None:
+    """`babysit_risk.RiskInput.declarations`: `DECLARATION_FILES` files and
+    the config files their plugin.json points at, at the base SHA as (path,
+    text), with None for a file that could not be read. From a clone holding
+    the base, every plugin's, which costs no API call; else, through the
+    contents API, only those of a plugin directory a changed path sits in: a
+    declared path outside its own plugin is unsafe, so only another plugin's
+    escaping declaration could floor a changed file, and a change outside
+    every plugin reads none. None when the base tree cannot be listed; the
+    scorer holds the floor either way."""
+    plugins = {
+        "/".join(parts[:2]).casefold()
+        for path in changed
+        if isinstance(path, str)
+        and len(parts := path.split("/")) >= 3
+        and parts[0].casefold() == "plugins"
+    }
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        root = next(_clones_holding(base), None)
+        if root is None and not plugins:
+            return ()
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(f"declarations at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return None
+    if modes is None:
+        return None
+
+    def read(path: str) -> str | None:
+        return _base_text(owner, name, root, modes, path, base)
+
+    found = [
+        (path, read(path))
+        for path in sorted(modes)
+        if (root is not None or "/".join(path.split("/")[:2]).casefold() in plugins)
+        and any(glob_match(g, path) for g in DECLARATION_FILES)
+    ]
+    named = {path for path, _ in found}
+    pointers = (
+        q for path, text in list(found) for q in declaration_pointers(path, text)
+    )
+    for pointer in dict.fromkeys(pointers):
+        if pointer not in named:
+            found.append((pointer, read(pointer)))
+    return tuple(found)
 
 
 # --- Promotion evidence -----------------------------------------------------------------------
@@ -3060,10 +3601,13 @@ def assess(
     merges in flight. The
     config at the base must enable that authority (`enabled_authority`).
 
-    Config at the pull request's base SHA (`merge.max-in-flight` alone at
-    the default branch head, `_run_max_in_flight`), then authority, identity, the
+    Config at the pull request's base SHA (the default branch head's alone,
+    reported as `baseConfigFallback`, when the base's cannot be parsed), then
+    authority, identity, the
     credential chokepoint, the kill switch, a base that is the default
-    branch, and the post-merge check: any
+    branch, the config tightened by the default branch head's
+    (`with_default_branch`; `merge.max-in-flight` the head's alone,
+    `_run_max_in_flight`) and its authority, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
     in-flight rule, the promotion evidence and the pull request's
@@ -3081,16 +3625,30 @@ def assess(
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
     promoted. `self_logins` names only lane or bot self identities (see
-    `is_human`). Raises `PolicyReadError` when the pull request or the
+    `is_human`). Raises `PolicyReadError` when the pull request or either
     pipeline config cannot be read, because the agent identity is then
-    unknown.
+    unknown. A default branch head config that cannot be parsed, or names
+    another identity, is a stop (`StopReadError`).
     """
     pr = pull_request(repo, number)
     base_ref = str(json_object(pr.get("base")).get("ref"))
     base_sha = str(json_object(pr.get("base")).get("sha"))
     config = read_config_at(repo, base_sha)
+    fallback = None
+    if config.error == "config-parse-error":
+        # A base older than the reader's grammar answers to the default branch
+        # head's config alone, never the pull request head's; a head config
+        # that cannot be read or parsed raises, as the base's did.
+        config = _default_branch_config(repo)
+        fallback = (
+            f"{CONFIG_PATH} at {base_sha}: config-parse-error; "
+            f"read at the default branch head {config.base_sha}"
+        )
     if config.error:
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha}: {config.error}")
+    # The commit whose config history sets the post-merge floor: the base, or
+    # the default branch head the config fell back to.
+    history_sha = config.base_sha
     identity = config.agent_identity
     lane = authority == PR_MERGE
     # A Dependabot pull request in the lane answers to its own switch.
@@ -3099,6 +3657,8 @@ def assess(
         config.dependabot_mode != "enforce" if dependabot_pr else config.report_only
     )
     details: dict[str, Any] = {"baseSha": base_sha, "reportOnly": report_only}
+    if fallback:
+        details["baseConfigFallback"] = fallback
     inputs: dict[str, Any] = {
         "pr": pr,
         "config": config,
@@ -3157,6 +3717,20 @@ def assess(
         # own entry, queued on that base, leaves.
         inputs["own_refusal"] = f"base-not-default:{base_ref}"
         return replace(stopped, reason=inputs["own_refusal"])
+    # The base's config, tightened by the default branch head's: from here
+    # every setting is the stricter of the two.
+    # A head config that cannot be parsed, or names another identity, stops.
+    try:
+        config = inputs["config"] = with_default_branch(repo, config, default)
+    except StopReadError as exc:
+        details["defaultBranchConfig"] = str(exc)
+        return replace(stopped, reason=exc.reason)
+    report_only = (
+        config.dependabot_mode != "enforce" if dependabot_pr else config.report_only
+    )
+    details["reportOnly"] = report_only
+    if enabled_authority(config) != authority:
+        return replace(stopped, reason=AUTHORITY_DIFFERS)
 
     permission = permission_reader(repo)
     readers = {
@@ -3173,7 +3747,7 @@ def assess(
             repo,
             shared,
             branch=default,
-            base_sha=base_sha,
+            base_sha=history_sha,
             identity=resolved.login,
             self_logins=self_logins,
             lane=lane,
@@ -3203,7 +3777,7 @@ def assess(
         floor = reuse.floor
     else:
         try:
-            floor = merged_since_floor(repo, base_sha, demotion, authority)
+            floor = merged_since_floor(repo, history_sha, demotion, authority)
         except PolicyReadError as exc:
             return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
     details["mergedSince"] = floor.isoformat()
@@ -3222,7 +3796,7 @@ def assess(
         and gate.report.get("readable") is True
     ):
         try:
-            config_sha = newest_config_commit(repo, base_sha)
+            config_sha = newest_config_commit(repo, history_sha)
         except PolicyReadError:
             config_sha = None
         if config_sha:
@@ -3249,7 +3823,7 @@ def assess(
         cap=cap.value,
         demoted=demotion.active,
     )
-    # The one setting not bound to the base; the post-enqueue room check
+    # Read at the default branch head alone; the post-enqueue room check
     # reads it again, uncached.
     flight_cap, cap_source = _run_max_in_flight(
         repo, default, head if isinstance(head, str) else None, config

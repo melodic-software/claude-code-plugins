@@ -1,5 +1,771 @@
 # Changelog for the PR pipeline convention
 
+## [3.1.0] - 2026-10-22
+
+### Added
+
+- A skill activity's `permission-mode` (`dontAsk`, the default, or `auto`) sets the read
+  runner's launcher mode, through `resolve-config`'s new `permission-mode` output. A step after
+  each launcher leg fails the run unless the CLI's init message reports that mode. fix-docs sets
+  `auto`
+  ([ADR 0049](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md)).
+
+### Changed
+
+- fix-docs moves into the `pr-unblock` lane, so its check is `pr-unblock / fix-docs`.
+  `pr-unblock-dispatch.yml` dispatches it on each push to main, once per open, ready pull request
+  a person opened that changes a Markdown file, carries no `do-not-merge` or `needs-human` label
+  and never had a fix-docs run, at most `limits.fix-docs-per-run` (default 2) per run
+  ([README, fix-docs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+- fix-docs runs on the read runner with no write token, on ci-workflows' run-claude-cli and the
+  automations role's API key first. pr-unblock.yml calls the read runner twice, each call with one
+  Claude secret: `fix-docs` passes only `AUTOMATIONS_CLAUDE_API_KEY`, and `fix-docs-subscription`
+  passes only `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN` and runs only after a credit stop or with the
+  key empty. Every fix-docs job trusts the default branch tip
+  ([pr-run-activity.md, Two calls on one credential each](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#two-calls-on-one-credential-each)).
+- fix-docs's change leaves as a patch that the `apply-docs-patch` job pushes as one commit, only
+  when a patch was written. A refused patch posts the `pr-unblock / apply-patch` check neutral and
+  labels nothing
+  ([pr-run-activity.md, prepare: apply-patch](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#prepare-apply-patch)).
+- The `default` row of
+  [`patch-rules.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/resolve-config/patch-rules.json)
+  refuses every agent instruction path, caps a patch at 300 files and takes a moved head with
+  `--3way` (`skip-moved-head: false`).
+- The read runner's launcher takes a skill with no prepare mode that hands on a patch: Bash,
+  Edit, Write and Agent as tools, no Bash allow rule, and `Read(./.git/**)` denied. It fails red
+  on `checks`, `self-checks` and `verify-scripts`.
+- fix-docs routes to the new `docs-fix` profile, a mechanical worker from the multi-agent role
+  map, which resolves to sonnet.
+- The launcher accepts `web-access` (`domains: any` only), staging the research skills and their
+  plugins under `.lane/`. fix-docs leaves it off.
+
+### Removed
+
+- The `pr-refine` lane and `pr-refine.yml`, whose `pull_request` trigger ran the read runner's
+  scan job off main, where the `pr-pipeline-scan-carrier` environment refuses it.
+
+## [3.0.0] - 2026-10-22
+
+### Added
+
+- The optional `red-main` block (`dry-run`, `daily-cap`, `max-culprit-age-hours`, `confirm-wait-minutes`) and the Red main rule: after a full run on `main` fails, `post-merge-demotion-alert.yml`'s report job confirms the red on its one re-run, pins the culprit merge, and reports whether the bot would revert it, in dry-run only ([README.md, Red main](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#red-main)).
+
+- `apply-issue-patch`: a script activity that runs
+  [`apply-patch.mjs`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/apply-patch/apply-patch.mjs)
+  with the `issue` row of
+  [`patch-rules.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/resolve-config/patch-rules.json)
+  (now capped at 300 files, and at 5 MiB per patched blob and 20 MiB in all). It makes a new `work-resolve-issue/issue-<n>-<run id>-<attempt>`
+  branch at the commit the model worked on, with one commit, after re-reading the issue's hold
+  labels and `agent-ready`, and names that branch in the run's `lane.json`. On a resumed run its
+  refusals cover everything the new branch adds since the default branch, not only the patch. resolve-issue sets
+  `applied-by` (`patch: apply-issue-patch`, `work-outcome: report-outcome`), and
+  `activity-rules.json` refuses it any write effect.
+
+- Monitoring lane signal 9, lane stop: a lanes App comment in the window that starts with a work-resolve-issue `outcome=funding`, `outcome=limited` or `outcome=turn-cap` marker files or updates one issue per outcome (`lane-stop:<outcome>`), listing each stopped issue ([README.md, The monitoring lane](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-monitoring-lane)).
+
+- `limits.admission-min-per-hour` (default 1, 0 to 100): the issue lane's queued cap never falls
+  below this rate times `wip.merge-rate-window-hours`, so a day with no lane merges cannot hold
+  admissions shut. 0 removes the floor.
+
+- post-merge-demotion-alert.yml files one fix issue per newly failing check of a red scheduled or
+  dispatched full run on main, at most 5, beside the new demotion or failure record, and dispatches
+  intake triage for each. The issue holds fixed text only (the failing job's name in a checked
+  charset, never an annotation title, hex SHAs, the run link and the record number), carries no
+  label, is locked before intake reads it, and is reopened when its check fails again, keeping
+  `agent-ready` and with no second intake dispatch, so a repeat goes straight back to agents. A fix
+  issue that could not be filed, locked, reopened or sent to intake is named in a comment on the
+  record.
+  The record keeps `needs-human`; closing a fix issue changes nothing on it.
+
+- `merge.max-verify-fails` (default 3): counted fails at that many distinct heads refuse `verify:repeated-fail`, which needs a human, whatever a later pass says. Fails of other open or closed pull requests in the repository that close the same issue count too, so a new pull request does not reset the count. A value that is not a count of 1 or more, empty or non-scalar included, is 1. The escalation comment names the refusal, and skip-unchanged carries it forward like the other verifier refusals.
+
+- **Role profiles in `models`.** A profile may name a multi-agent role (`role`, optional `workload` and `effort-role`) in place of a model. resolve-config takes its model and effort from the base checkout's [multi-agent role map](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/multi-agent/reference/defaults.yaml). The model is `opus` when the role map gives `inherit`, `default`, a model ID or nothing. The schema refuses a `model` or `effort` key on a role profile, so it can name neither `default` nor a model ID.
+- **fix-ci routes to a role profile:** a worker on code at the verifier's effort, with 75 turns as before.
+- **New `applied-by-patch` output** from resolve-config: the activity that applies the selected activity's patch.
+
+- The optional `red-main.remedy` key, `rollback` (default) or `fail-forward`. Under `fail-forward` the red-main report plans no revert: its decision is `human`, naming the remedy, and a person or a fix pull request repairs `main` ([README.md, Red main](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#red-main)).
+
+- A `branch-cleanup` leaf (`max-deletes-per-run`, default 25) and the daily
+  maintenance-delete-stale-branches.yml that applies it: a branch lives as long as its issue is
+  open, and one whose pull request closed or merged and whose linked issue closed is deleted, at
+  most `max-deletes-per-run` a run with the calls those deletes need reserved first, after a re-read of its tip and open pull requests and a
+  ledger line in the step summary and an artifact. A lane run's stop marker does not keep a
+  branch once its issue closed. A branch with an open issue or pull request, and a protected or
+  ruleset branch, are never deleted; a branch that never had a pull request, or whose tip moved
+  after its pull request closed with commits ahead, is listed for a person. A manual run is a
+  dry-run by default.
+
+- `merge.quarantine-days` (default 7, at most 30): days a quarantine issue excuses its suite's out-of-set
+  failures from post-merge demotion. post-merge-demotion-alert.yml now checks out main's tip and,
+  when every newly failing suite is outside the merges' affected set, files no demotion record and
+  runs no red-main report; it files or comments each suite's quarantine issue instead.
+
+### Changed
+
+- resolve-issue runs on the read runner. Its model job holds no write token: only the read-only
+  job `GITHUB_TOKEN`
+  [claude-code-action](https://github.com/anthropics/claude-code-action) needs, and no App token
+  or `id-token`. Its uncommitted change leaves as a patch, collected also after a turn cap or a
+  usage limit so a resumed run continues it. The earlier-work check, the issue file, the reuse
+  path and the reuse summary pass move to the read runner with it
+  ([pr-run-activity.md, Issue mode](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#issue-mode)).
+- work-resolve-issue.yml checks the labeler in an `admit` job, with a read-only token and no
+  secret, before any job that gets the lane's Claude credential: an unlisted account's
+  `agent-ready` starts no credentialed job.
+- The write runner refuses an issue skill, and its apply-patch select step runs the activity's
+  own script from the base.
+
+- The monitoring lane and the lane sweep reopen the closed issue they hold for a key or fingerprint, with a comment carrying the new evidence, instead of filing a new one; a close as not planned or duplicate mutes it, and the lane sweep no longer limits this to a 14-day window ([README.md, The monitoring lane](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-monitoring-lane)).
+
+- The Models and Limits sections point at `pr-pipeline.yaml` (`models.profiles`, `models.routes`, `limits` and `wip`) for this repository's values instead of restating them; the built-in defaults stay.
+
+- The held cap pauses the issue lane like the WIP cap: on or after `wip.pause-from`, at or over
+  `wip.held-cap` held lane PRs, work-resolve-issue starts no run and work-unblock re-fires none.
+  It used to alert only. This repository sets `held-cap: 10` (was 60).
+- check-wip-cap publishes `pause_reason` (`wip`, `held-cap` or `wip,held-cap`) and, on every
+  pause, logs `admission paused: reason=... countable=... wip_cap=... held=... held_cap=...` as a
+  `::notice` and in the step summary, so pauses can be counted.
+- `docs/adr/**` joins this repository's `floor-paths`: a lane PR that changes an ADR scores HIGH
+  and waits for a human.
+
+- pr-verify hands the judgment to the subscription job on run-claude-cli's `handoff` output instead of the `credit-stop` class, so a key the API refuses with status 401 or 402 (class `auth`) also falls back; a 403 still fails the key job. The key-leg warning says whether to replace the key or rotate one in. The subscription job's lane record is plain `pr-verify`, with the reason in `fallback-reason` (`credit-stop`, `auth` or `no-key`). Every ci-workflows action pr-verify uses is pinned to v0.58.0, whose run-claude-cli installs the latest Claude Code release by default.
+
+- The unattended merge reads the `merge:` block and `babysit_loop_merge` at the default branch head as well as at the pull request's base SHA and takes the stricter value of each setting, so a tightening on the default branch reaches pull requests opened before it; the two must name the same agent identity and enable the same authority ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+- Merge authority no longer promises a later C4 rung: `merge.rung` stops at `C3`, and the pr-merge lane merges on the verifier verdict.
+
+- **BREAKING:** `models.profiles`, the `models.issue-dimensions` option maps and `models.issue-dimensions.sizes` are written in block style, one key per line, in `docs/conventions/pr-pipeline.yaml` and in `examples/claude-code-plugins.yaml`. Values and key types are unchanged. The shared YAML-subset reader that `set-dimensions.sh` and `scripts/check-convention-yaml.sh` use now refuses flow mappings, so a consumer's `pr-pipeline.yaml` that writes these maps as `{ ... }` must rewrite them in block style.
+
+- This repository sets `limits.turn-cap-restarts` to 1: one run that reaches its turn cap resumes from its pushed branch per `agent-ready` a listed human adds, then goes to a person. The built-in default stays 0.
+
+- The pr-merge lane no longer holds a pull request for an earlier head's `verify:earlier-fail` once its current head has counted pass or pass-notes verdicts whose runs were all created after every such fail's run (each `created_at` read fresh from GitHub, which a re-attempt keeps), and the pull request's own change at the head differs from its change at every failed head. That change is a digest of the changed lines in the compare diff from the merge base with the base branch, so a head that only merges the base, an empty commit, or an edit that only changes whitespace or adds blank lines keeps the hold, as does a diff that cannot be read. Those passes then decide, so a changed or untrusted spec still refuses. Skip-unchanged no longer carries a `verify:earlier-fail` forward while a pass artifact names the head.
+
+- The HIGH path floor rule and the `floor-paths` and `floor-script-scopes` descriptions say that a test file (a `*.test.mjs`, `*.test.sh`, `*.test.js` or `test_*.py` name; a `tests/` or `fixtures/` directory alone is not one) under a plugin `scripts/` directory, a `floor-paths` glob ending in a `scripts` directory or a script scope, safe, under no declared path and named by no other changed file, no longer holds a pull request for that reason; every other floor entry and `floor-paths` glob, and `denied-paths`, still do.
+
+- fix-ci runs on ci-workflows' run-claude-cli v0.54.0, on the automations role's API key first.
+  pr-unblock.yml calls the read runner twice, each call with one Claude secret: `fix-ci` passes
+  only `AUTOMATIONS_CLAUDE_API_KEY`, and `fix-ci-subscription` passes only
+  `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN` and runs only when the first call's key leg hit a credit
+  stop or its key is empty. A call that hands off uploads nothing, records no lane outcome and
+  posts no check; the fallback call's lane record names why it ran. Both calls queue in the
+  per-PR write group
+  ([pr-run-activity.md, Two calls on one credential each](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#two-calls-on-one-credential-each)).
+- The read runner stages a PR-mode skill's plugin, CI context, scratch directory and prompt
+  under `.lane/` in the checkout, which `--restricted` can read, and leaves `.lane/` out of the
+  patch. A head that already holds `.lane` fails red. A staged plugin with no `.mcp.json` gets
+  an empty server list, and the patch leaves out the CLI's empty scrub stubs; a stub name the
+  head does not track that holds anything else fails the collector, so nothing is collected.
+- fix-ci's patch goes through
+  [`apply-patch.mjs`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/apply-patch/apply-patch.mjs)
+  as the `apply-patch` activity, named in fix-ci's `applied-by`. The `ci-context` row of
+  [`patch-rules.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/resolve-config/patch-rules.json)
+  caps a patch at 300 files and gains the optional `instruction-path` refusal, so fix-ci still
+  pushes no agent instruction path. apply-patch refuses a row with no `requires` list.
+- `collect-patch.sh` runs git against a fresh scratch repository that borrows only the checkout's
+  objects, so no filter, hook, fsmonitor or include the activity planted in `.git` runs. The PR-mode
+  leak scan applies the patch onto the gated head, as apply-patch does, and scans every file it
+  makes; it scans copies of the reply and patch that the uploads then read, and the run's
+  `patch-sha256` is the scanned copy's.
+- The read runner's PR-mode model job uploads nothing and writes no step summary. It hands the
+  reply, the run fields and the patch to a new scan job as job outputs sealed with
+  `seal-lane-output` to the committed `.github/lane-keys/scan-carrier.pub`, each with its byte
+  count, with the patch capped at 256 KiB. The scan job runs with `contents: read`, no `id-token`,
+  and in the `pr-pipeline-scan-carrier` environment, whose `SCAN_CARRIER_PRIVATE_KEY` its
+  `open-lane-output` step alone reads; each caller passes it by name as `scan-carrier-private-key`,
+  and `scripts/check-scan-carrier-secret-shadow.sh` fails when a repository or organization
+  secret shares the name. It fails closed on a withheld, oversize, mismatched or
+  unopenable output, scans against a fresh checkout of the gated head, and is the only job that
+  uploads the reply, patch and verdict
+  ([pr-run-activity.md, The scan job](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#the-scan-job)).
+- The read runner's dirty-tree check runs through `collect-patch.sh` and prints no path, and a
+  PR-mode run removes the workspace's `.git` and `.base/.git` after the collector, so no git
+  config the model planted runs after its legs.
+
+- The HIGH path floor rule says that adding only `disable-model-invocation: true` to a plugin skill's frontmatter that no agent could preload, and a non-script file under `plugins/<plugin>/evals/`, are exempt from the floor entries `babysit_risk.py` names; manifests, named files, declared paths and `denied-paths` still hold them.
+
+- The HIGH path floor rule says a plugin or marketplace manifest leaves the floor and clears only when every key that differs is on its allow-lists (metadata such as `version` and `description`, or a title or description edit on an existing `userConfig` key); any other difference, including an added `userConfig` key, a `defaultEnabled` change and a removed `version`, a new `plugin.json`, an added, removed or renamed marketplace entry, or a side that cannot be read or parsed scores HIGH as `manifest-review-required`.
+
+- The HIGH path floor rule says a changed file in an eval case whose `case.yaml` could name a `scaffold_script`, or could not be read, and any script or mode 100755 file under `plugins/*/evals/**`, scores HIGH as `eval-scaffold-review-required`; a manifest key on the allow-list clears only with its expected type, compared as JSON.
+
+- `publish-feedback` counts a fix commit as touching a review thread on a skill's `SKILL.md` when it changes any file in that skill's directory (its `evals/` and `reference/` included), so a fix to a skill's evals no longer escalates `feedback-not-landed` (#8832). Every other thread still needs its exact path, and the range check is unchanged.
+
+- The skill-run diagnostics in both run-activity files (`act-turns.json` and the step summary) record `denied` as one `{tool_name, input}` for each of the first 20 denied calls, where `input` is the call's command, `file_path`, `path` or `pattern` cut to 300 characters, dropping entries from the end until `denied` serializes to at most 8192 bytes, and `denied_total` as the count of all of them, so a PR-mode read run's sealed `act-turns.json` stays under its 32768-byte carry cap; the read file gains `denied`, and a denied Read, Grep or Glob call now keeps its path or pattern. The step summary shows each as `tool: input`, then `(+N more)` when some were cut. In a PR-mode read run, `denied` travels in the sealed `act-turns.json` and reaches the step summary only after the scan job's leak scan.
+- The `skill-reply-*` artifact is kept 7 days instead of 3 in both run-activity files, matching the patch and dependency-verdict artifacts.
+
+- check-wip-cap is the one admission pacing gate. It counts queued work (open `agent-ready`
+  issues with no hold label that no open lane PR names on its first body line, plus held lane
+  PRs) against the queued cap, `max(limits.admission-factor × lane merges per hour,
+  limits.admission-min-per-hour) × wip.merge-rate-window-hours`. At or over it, on or after
+  `wip.pause-from`, new admissions pause: the action's new `admission-open` output is `false` and
+  it logs `admission paused: reason=queued queued=... held=... cap=...`. Runs never pause on it.
+- work-unblock admits at most the queued cap's room per run. A ready issue past it gets
+  `admission-deferred`, and each hourly sweep revisits those issues oldest first, re-admitting only
+  one whose newest `admission-deferred` the lanes App or a listed human added.
+- The status JSON gains `queued_issues`, `queued_truncated`, `queued_total`, `queued_cap`, `admission_factor`,
+  `admission_min_per_hour`, `queued_over`, `admission_open`, `admission_reason`,
+  `admission_room` and `admission_basis`.
+
+- `wip.pause-from` is empty: over the WIP cap or the held cap the issue lane alerts and keeps starting runs.
+
+### Removed
+
+- The read runner's `output-mode` input: patch mode follows the activity's `applied-by.patch`,
+  and issue mode refuses an activity that names no patch.
+- `apply-ci-fix` and `.github/scripts/pr-unblock/apply-ci-fix.mjs`.
+
+- **Breaking:** `limits.admission-window-hours` is gone from the schema, so a `pr-pipeline.yaml`
+  that still sets it fails validation; delete the key. `admission-window.mjs` is removed with it.
+
+### Fixed
+
+- pr-verify's verdict upload checks the summary and notes against every shared credential pattern (`findSecret` in `lib/publish-gate.mjs`: GitHub, AWS, private keys and the rest), not only Anthropic key shapes, and the error names the matched kind.
+
+- The issue lane's `run-checks` job keeps the base's check scripts but restores the lane branch's own `scripts/` data files (`.txt`, `.json`, `.jsonl`), so a check reads the lists the branch changed, such as a new plugin in `scripts/fragment-plugins.txt`, the same as the pull request's CI.
+
+- `check-signed-commits` reports a pull request it could not check (its head never matched its branch, or its commits could not all be listed) as "could not verify the lane's commits" in its log and escalation comment, instead of "unverified commits" with no commit named. It still fails closed.
+
+- work-unblock's hourly sweep relabels a red-main fix issue that post-merge-demotion-alert.yml
+  reopened on a repeat failure, so work-resolve-issue starts on it. The reopen keeps `agent-ready`
+  but runs on that workflow's `GITHUB_TOKEN`, which starts no run. The sweep matches the issue's
+  `<!-- post-merge-fix check=... -->` first line and the workflow's recurrence comment, both
+  `github-actions[bot]`'s, logs how many match, and has the lanes App post a record naming that
+  comment, then remove and re-add `agent-ready`: once per recurrence comment, inside the
+  five-a-run cap, and only when a listed human or the App added its newest `agent-ready`; never on
+  an issue that is held, has an open lane PR or a lane run in flight,
+  or had `agent-ready` added since the reopen.
+
+- An `agent-ready` issue the issue lane skips on its dimensions (`split-required`, `research-first`, `probe-first`, `not-assessed`) no longer ends the run green and silent: work-resolve-issue.yml's `report-skip` job runs `report-outcome` with the new `dimension-skip` input, which labels the issue `needs-human`, removes `agent-ready`, and comments the next step (`/work-items:decompose`, research, a probe, or setting the fields) with no model run. A later run still resumes the branch an earlier turn-cap or stopped run left ([pr-run-activity.md, Issue mode](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#issue-mode)).
+
+- A red full run pr-merge.yml starts after a merge now reaches post-merge-demotion-alert.yml, so its
+  record, fix issues and red-main report follow the merge instead of waiting for the next scheduled
+  run. The run uses `GITHUB_TOKEN` and raises no `workflow_run` event, so pr-merge's
+  `dispatch-full-run` job sends its run id through `workflow_dispatch`. Red is every conclusion
+  `babysit_postmerge.py` counts as failed (`failure`, `timed_out`, `cancelled`, `startup_failure`,
+  `action_required`), so a run cancelled on a time-budget overrun files its record and fix issues
+  too; the red-main report still takes only `failure`. The alert takes the id only from
+  `github-actions[bot]` or a listed human, never the lanes App, and only for attempt 1 of a red
+  `pr-require-checks.yml` run on this repository's `main` that `github-actions[bot]` dispatched.
+  pr-merge re-runs such a run only inside a lane merge's attribution window, so the alert waits up
+  to `red-main.confirm-wait-minutes` for a re-run and starts none of its own. A dispatched red,
+  whether its re-run failed or never finished, files nothing once a newer `pr-require-checks` run on
+  this repository's `main` has succeeded: `main` already recovered, and the alert logs so and files
+  no record, fix issue or report. The dispatch also sends the run's head SHA, which the alert
+  checks against the run and keys its concurrency group on, so every sighting of one signal and
+  SHA runs one at a time.
+
+- `check-signed-commits` waits up to 60 s, backing off 5, 10, 20 and 25 s, for the pull request's head to match its branch before it gives up, instead of 8 s, since GitHub's pulls API can lag a push by minutes.
+- `report-check-run` posts "The lane's commits could not be verified." when the signed-commit check failed without naming an unverified commit, and keeps "not GitHub-verified" for a named one. It takes the check's `unverified` output as a new input.
+
+- A run record whose id is a boolean no longer stands for run 1.
+
+- check-wip-cap keeps the last known WIP and held-cap pause when the open listing or the base
+  config cannot be read, instead of failing open. work-unblock's hourly sweep saves the
+  status to the Actions cache; work-resolve-issue's pick-slot only restores it
+  (`cache-mode: read`). With no saved state the check still fails open. A kept pause logs
+  `admission paused: reason=<reason> (read-error, kept last state)`, and the status gains
+  `pause_basis` (`read`, `last-state` or `fail-open`).
+
+- `check-trusted-trigger` re-reads a `workflow_dispatch` PR until `GET /pulls` shows the head its branch ref points at, waiting 5, 10, 20 and 25 s (60 s in all), so a job after pr-unblock's model job gates the head that job just pushed instead of the one `/pulls` still reports. When the two never agree, or the branch ref is missing, the lane stops with the new reason `head-lag` instead of gating a stale head, and `report-check-run` posts it as a `superseded-sha` skip, since the push that moved the branch is gated by its own run; a fork is not waited on. `check-signed-commits` now uses the same read from `check-trusted-trigger`.
+
+- review-dependency dispatches again. dependency-dispatch matched Dependabot by the login
+  `dependabot[bot]`, but the GraphQL listing names the Bot `dependabot`, so every Dependabot pull
+  request was dropped and no dependency review ever ran. It now matches the Bot account id
+  (49699333).
+- A review-dependency `fix` lands only when its commits change npm (`package.json`,
+  `package-lock.json`, `npm-shrinkwrap.json`) or pip (`requirements*.txt`/`.in`) manifest and lock
+  files outside `.github/`, in a directory `.github/dependabot.yml` lists for that ecosystem. The
+  promote step checks every changed path against the base's `dependency-classify.mjs` (copied
+  with its SHA-256 before any model turn) and leaves any other fix
+  off the branch, which the verdict job escalates as `dependency-fix-not-landed`; the verdict
+  job checks the same rule on what landed, and the `dependency-review` patch row allows only the
+  new `dependency-manifests` predicate.
+- A `merge` verdict on a Dependabot pull request that changes a workflow or action file posts no
+  merge marker and escalates the new `dependency-workflow-held`, so a person merges it.
+- A lanes App commit on a Dependabot pull request must be a version change. The promote step,
+  the verdict job's `fix` and `merge` paths, and the pr-merge lane refuse a fix file that is not
+  modified in place, not a regular `100644` file (a symbolic link, submodule or executable), or
+  whose content changes more than a version: in `package.json` only existing dependency entries'
+  plain, bounded semver ranges may change; a lock keeps the Dependabot commit's package keys, and
+  each entry resolves to exactly its own `https://registry.npmjs.org/<name>/-/<name>-<version>.tgz`
+  with a `sha512-` integrity, the same alias `name` as before, and no install-script change; and requirements lines may add only
+  `name==version` pins of projects the fix also unpins, with `--hash=sha256:` continuations. The
+  repository's version-bump commit is admitted only when its `plugin.json` changes nothing but
+  `version`. The verdict job's `merge` path now checks every commit that
+  is not Dependabot's own (matched by account id, web-flow and a valid signature), reads the
+  `[ecosystem, directory]` pairs from the base's `.github/dependabot.yml` itself, and requires
+  run.json to name the head the model job's gate passed. A refusal escalates the new
+  `dependency-fix-refused`.
+
+## [2.20.4] - 2026-10-20
+
+### Fixed
+
+- The lost-run reconciler lists pr-verify runs once per lost conclusion and per not-yet-completed status instead of all runs of the day, so a day with more than 500 runs no longer fails the page cap.
+
+## [2.20.3] - 2026-10-20
+
+### Fixed
+
+- `check-trusted-trigger` matches the re-runner by account id on every path instead of by login: it reads this run's own record (`GET /actions/runs/{run_id}`) and checks `triggering_actor.id` against the trusted-actor list, so a released login re-registered by someone else no longer passes. A failed or malformed read, or a record for another run or attempt, stops with `untrusted-rerunner`. The App-label re-runner must still be the listed lanes App or a listed human. `pr-unblock-dispatch.yml` now passes the job token to the gate so it can read its run.
+
+## [2.20.2] - 2026-10-20
+
+### Fixed
+
+- The lost-run reconciler pages through a day of pr-verify runs instead of failing when there are more than 100, says how many listings failed instead of "nothing lost", and explains an exit 1 in the act step.
+
+## [2.20.1] - 2026-10-20
+
+### Fixed
+
+- The finding-closure paragraph states that a finding any review of a head reported, whole or incremental, clears only by a new head (a fix) or a human resolution: each head on the covering chain counts the summary and thread-less inline findings any review of it reported, and a later clean review of the same head never clears one ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+- The code review, security review and intake triage callers now honor the lane kill switches. A `kill-switch` job ahead of each reusable call runs `check-kill-switch` on `CLAUDE_LANES_DISABLED` and `CLAUDE_LANES_REPO_DISABLED`, which fail closed, and the call runs only when it says proceed. The code review lane also stops when `CLAUDE_REVIEW_DISABLED` is `true`, and the security review lane when `CLAUDE_SECURITY_REVIEW_DISABLED` is `true`. Intake has no switch of its own. The pinned ci-workflows reusables still read none of these variables.
+
+## [2.20.0] - 2026-10-20
+
+### Added
+
+- address-feedback: a fix request by a trusted person with write access may name files to add to
+  its thread's scope. The select step reads each file-shaped word of the request outside fenced
+  code and quoted lines, from the repository root when it holds a `/` and from the thread path's
+  directory when it does not, and records it in the thread's `named_paths` when it is in the same
+  `plugins/<p>/` directory as the thread's path, in normal form, not under `.github/`, not an
+  instruction path, and a regular file at the gated head (ten per thread at most). The promote
+  step and the reply job accept changes to those files.
+
+### Fixed
+
+- A plugin's `.mcp.json`, `.gitmodules` or `CODEOWNERS` is no longer in the plugin-wide part of a
+  kept thread's scope.
+- The instruction paths `apply-ci-fix` and address-feedback refuse now also cover a `hooks`,
+  `.claude` or `.claude-plugin` segment with nothing after it, a plugin's `monitors/` and `bin/`,
+  and `.lsp.json`; a thread's plugin-wide scope also refuses `.bash`, `.zsh`, `.ps1`, `.cjs`,
+  `.mts` and `.cts` files and any path with a character outside ASCII letters, digits and `_@+.-`.
+- The address-feedback promote step moves the PR branch only when every path the lane branch
+  adds or changes is a regular file at its tip, not a symbolic link or gitlink.
+
+## [2.19.5] - 2026-10-20
+
+### Fixed
+
+- work-resolve-issue's `post-statuses.mjs` posts a resumed branch's `pipeline/*` statuses only while the branch ref still points at the tip run-checks checked; a branch that moved, or whose ref cannot be read, gets no status, as report-outcome already treats those check results.
+
+## [2.19.4] - 2026-10-20
+
+### Fixed
+
+- The Unattended merge section documents that pr-merge refuses, as `shared-copy-sources-changed:`, a pull request carrying a shared-library canonical that main changed since its merge base, escalates it with the human-gated role label and a `babysit-merge-shared-copy-escalation` comment, and that the fix is merging main and running `scripts/sync-shared-copies.sh`. The head-moved clear removes that label once the head moves ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [2.19.3] - 2026-10-20
+
+### Fixed
+
+- The review-threads round records the SHA-256 of the thread file before the model runs, and the branch move and the reply collection read the file only when it still matches; otherwise the PR branch is not moved and no replies are collected ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+- pr-merge's `gate-check` job writes a `pr-merge / gate` check only at a candidate's current pull request head: its read also fetches each pull request's head, and a row whose head differs, or whose pull request the read reports `NOT_FOUND`, is skipped with a logged reason instead of taking its commit from the summary artifact alone. A missing pull request skips only its own row; any other GraphQL error still leaves the read's candidates unwritten. The job gains `pull-requests: read` for that read.
+
+- pr-merge counts the cap of two whole reviews per lane pull request from the lane identity's conversions to draft on the pull request timeline as well as from the reasons comment's record lines, so editing that comment, which the lane token can do, no longer resets the cap. An unread timeline requests no whole review.
+
+## [2.19.2] - 2026-10-20
+
+### Changed
+
+- Write lanes deny the shell commands that can print a file or the environment (`echo`, `printf`, `cat`, `head`, `tail`, `grep`, `find`, `env`, `printenv`, `strings`, `od`, `xxd`, `diff`, `sed`, `awk`, `sort`, `cut`, `tr`, `base64`, `nl`, `tac`, `rev`, `uniq`, `fold`, `column`, `jq`, `xargs`, `more`, `less`) and `Read` of `/proc`; the skill reads files with `Read`, `Grep` and `Glob`. `resolve-issue` fetches only the Claude Code, Claude platform, GitHub, Node.js and Python docs hosts, and no longer runs `scripts/run-test-file.sh` or `check-skill.sh`; the pull request's CI runs the tests ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+## [2.19.1] - 2026-10-20
+
+### Fixed
+
+- pr-merge holds a stale-input pull request at its old head when the `update-branch` call gets no answer (a timeout, no HTTP status, or a server error), since the update may have landed; only a 4xx refusal enqueues as before. `merge.check-inputs` reads only a clone that is neither shallow nor partial ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [2.19.0] - 2026-10-20
+
+### Added
+
+- pr-merge requests a whole review of a lane pull request held only by findings an incremental review cannot clear: it records the request in the reasons comment, then converts the pull request to a draft and marks it ready, once per head, at most twice per pull request and once per run, only while fewer than 35 jobs run or wait and both tokens have 30% of each rate-limit bucket left ([README.md, Unattended merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [2.18.0] - 2026-10-20
+
+### Changed
+
+- pr-verify runs its model on the automations API key first and on the subscription token only after a key credit stop or when no key is set, as two jobs on run-claude-cli v0.54.0. A permission denial in either job yields no verdict. A key credit stop warns that the automations key needs rotating and leaves one lane record: the subscription job's, named for the stop, or the key job's as rate-limit when a denial on the key leg ends the run. Every ci-workflows action is pinned to v0.54.0.
+
+## [2.17.1] - 2026-10-20
+
+### Fixed
+
+- A resumed `work-resolve-issue` run that reports done with no commit of its own now opens its PR from the branch it resumed instead of stopping for a person. `run-checks` runs the activity's checks over that whole branch, and `report-outcome` opens the PR only when at least one check ran and none failed, the branch is still at the tip checked (the compare and the new PR use that SHA), `lane.json`'s `resume` equals the branch the run resumed, and every commit on it ahead of the default branch is the lanes App's. The PR body's Verification section records this, and the run's `pipeline/*` statuses go on that checked tip; otherwise the run still hands back.
+
+## [2.17.0] - 2026-10-20
+
+### Added
+
+- `intake-reenter.yml` sends an answered issue back to intake: a listed human's `**Decision recorded.**` comment on a `status: needs-decision` issue, or the author's or a listed human's reply on a `status: needs-info` issue, removes the status label, adds `needs-triage` and, for an issue from a listed human or the lanes App, dispatches `intake-triage.yml` once. It never adds `agent-ready`. A dispatched intake run no longer skips a born-triaged issue ([README.md, Stages](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#stages)).
+
+- The monitoring lane (`maintenance-monitor-signals.yml`, "The monitoring lane"): an hourly scripted job on the job token that reads eight factory signals and keeps one deduplicated issue per signal and key.
+
+### Changed
+
+- The finding-closure paragraph states the rule pr-merge applies: a clean whole review of the current head in the thread's own lane closes a resolved thread whoever resolved it, so a HIGH security finding needs the security lane's own clean whole review, and an incremental review never closes an unchanged thread.
+
+## [2.16.0] - 2026-10-20
+
+### Added
+
+- `merge.dependabot.majors` (`hold` or `review`, default `hold`) decides a Dependabot pull request
+  with a major update, or with an update whose version cannot be read (a SHA pin), marked
+  `<name>(unreadable)`, or whose title and commit metadata disagree, marked `<name>(disagree)`.
+  Under `hold` the pr-merge lane refuses it with the reason `dependabot-major-held:<names>`
+  whatever the review verdict says, and escalates it once: a marked comment whose first line is the
+  `<!-- work-items:escalation lane=pr-merge kind=escalated -->` marker, so
+  `/work-items:attend-queue` lists it, then the tracker's human-gated role label. `review` keeps the
+  earlier behavior, where the lanes App's `verdict=merge` marker merges it. This repository sets
+  `hold`. Non-major tiers and the publisher rule are unchanged. `version` stays 2.
+
+- A skill leaf's optional `self-checks`: repository check scripts with fixed flags, the same shape as
+  `checks`, that the skill runs and fixes before it commits through the same wrapper. They are
+  advisory: unlike `checks`, the issue lane's run-checks job never reruns them, so a failure the
+  skill cannot fix still opens the PR and is named in its report. `work-resolve-issue`
+  `resolve-issue` lists `scripts/check-affected.sh --uncommitted`, which checks the work tree as
+  the commit the API would make, with untracked files and file modes included, and leaves the
+  checkout's HEAD and index as they were. `version` stays 2.
+
+- New config: `merge.max-queue-ejections` (default 2, 1 to 20). The unattended merge gate refuses to
+  enqueue a head the merge queue has removed that many times for failed checks since the head last
+  changed (a pushed commit or a force push), and posts one marked comment naming the failing
+  `merge_group` runs; an unreadable timeline, or 20 items with no head change, also refuses.
+  `version` stays 2.
+
+- `funding`, a map from Claude lane id to its funding role (`reviews`, `automations` or
+  `issue-lane`), whose `<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` secrets a lane
+  on ci-workflows' run-claude-cli action passes; intake is the first, and the other entries name
+  the role each lane takes when it moves ([README.md, Funding](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#funding)).
+  `version` stays 2.
+
+- `limits.admission-window-hours` (default 24): the hours of issue-lane admissions the admitted
+  backlog (open issues labeled `agent-ready`) may hold before new `agent-ready` labels pause. This
+  repository sets 24.
+- `limits.admission-factor` (default 0.8, greater than 0 and at most 1): the share of the lane's
+  hourly merge rate admitted per hour.
+- `.github/scripts/work-resolve-issue/admission-window.mjs` reports whether admissions are open
+  from live counts and exits 0 open, 1 held, 2 on error.
+
+- `merge.diff-check.floor-paths` (a list of globs) adds paths to the risk scorer's HIGH path floor
+  while `high-path-floor` applies; a pull request touching one waits for a human, where a denied
+  path makes it ineligible. With the floor, a changed SKILL.md, agents/**/*.md or commands/**/*.md
+  file is compared by its base and head text, each read once: it scores HIGH when its frontmatter
+  gains or changes `hooks`, `allowed-tools`, `tools`, `permissionMode`, `mcpServers`, `memory` or
+  another capability key `babysit_risk.py` lists, when it adds or changes a `!` backtick command or
+  gains a ```` ```! ```` block, when a changed line falls inside a ```` ```! ```` block, or when
+  either side or changed frontmatter cannot be read. `merge.diff-check.floor-script-scopes` (a list
+  of globs) holds a `.ps1` or `.cjs` file, or one with git mode 100755, inside one of them or at the
+  top level the same way. This repository lists `bin/`, `.lsp.json`, `settings*.json` and the
+  scripts of the plugins the CI lanes load as floor paths, with the directories of the scripts a
+  SessionStart or PreToolUse hook runs by path outside its plugin's `hooks/` (`pydeps.py`,
+  `arm_observer.py`, `destructive_guard.py`), held whole so a sibling module cannot shadow an import, and those plugins as script scopes
+  (Q646), and sets `high-path-floor: true` (owner decision 2026-10-18, reversing Q661), so its
+  pr-merge lane holds such a pull request for a human, and the scorer's fixed HIGH floor
+  (`.github/**`, `docs/conventions/**`, agent instructions, hooks, `lib/`, `scripts/`, package
+  manifests and more) now applies there too. The switch governs both lanes: in the local babysit
+  lane, false leaves out `floor-paths`, `floor-script-scopes`, the capability check and the new
+  fixed floor entries (`plugins/*/monitors/**`, `plugins/*/workflows/**`), so a local-lane pull
+  request scores as it did before this release. `version` stays 2.
+
+- A new optional `wip` block derives the issue lane's WIP cap from the lane merge rate: merged
+  lanes-App pull requests per hour over `merge-rate-window-hours` (24) times
+  `target-lead-time-hours` (2), rounded up, at least `min-cap` (default 1; this repository sets
+  12, the earlier fixed cap); `limits.wip-cap` applies only when the merged count cannot be read.
+  Held lane pull requests (`needs-human`, `do-not-merge`, or a body line exactly `Hold: a human
+  merges this`) no longer count against it and form their own buffer, `held-cap` (60), with an
+  alarm past `held-alarm-hours` (24). Lane PRs opened in the window may be at most
+  `opened-to-merged-ratio` (0.8) of those merged. Over a cap the check alerts, and pauses the lane
+  only on or after `pause-from` (empty: never). The check publishes its status as the `wip` step
+  output, the step summary and its log line (README, WIP cap). `version` stays 2.
+
+- New config: `merge.gate-budget-minutes` (a whole number of minutes; absent is no budget). The
+  pr-merge workflow's gate loop starts no further candidate once it has run that long, and the
+  candidate in progress finishes first, so the budget never stops a gate between its check and its
+  merge-queue write. Each run starts after the last candidate the previous loop reached, read from
+  the `pr-merge-gate-cursor` artifact of a scheduled or hand-started `pr-merge.yml` run on the
+  default branch, and wraps
+  round to the lowest PR number, so every candidate is reached across runs. This repository sets
+  10, and the merge job's timeout returns from 55 to 30 minutes as a ceiling above it. `version`
+  stays 2.
+
+- `models.issue-dimensions` budgets a run on an issue from its Size, Complexity and Uncertainty
+  org issue fields, read by field and option id: turn cap = the size's `base-turns` times the
+  complexity factor, rounded up, and the size's `timeout-minutes`. A field with no value, or whose
+  latest setter is neither a listed human nor the lanes App, is not assessed, and an unmapped
+  option fails the resolve (`unmapped-dimension`). New skip reasons, before any model turn:
+  `not-assessed`, `research-first` and `probe-first` (Uncertainty Knowable and Unknown) and
+  `split-required` (Size Large). This repository sets `small` (75 base turns, 50 minutes),
+  `medium` (150, 100), `large` (`split`), and complexity factors 1, 1.5 and 2.
+  work-resolve-issue.yml reads the fields (`issues: read`) and the timeout before its run job
+  starts and passes the new `issue-dimensions` input on, so a field set while the run waits
+  cannot outgrow the timeout, which is 25 minutes without `issue-dimensions`. No lane reads a
+  `size:` label. A run that reaches its turn cap with no outcome of its own now leaves a
+  `turn-cap` marker naming the cap and the branch, and the `pipeline/resolve-issue` status says so.
+  `limits.turn-cap-restarts` (0 to 5, default 0) is how many times work-unblock restarts such an
+  issue since a listed human last added `agent-ready`; past it the issue goes to a person, and this
+  repository sets 0. The next run after a `turn-cap`, `stopped` or `limited` marker resumes from
+  that run's lane branch when every commit on it ahead of the default branch is the lanes App's
+  verified commit, and `issue.json` gains `resume`; a resumed run that reports `done` with no commit
+  of its own opens no PR: the runner checks only the run's own branch, so it goes to a person naming
+  the resumed branch. A run that exits non-zero on a funding stop
+  (`api_error_status` 400 with "regain access on <date>", or 401) leaves a `funding` marker, keeps
+  `agent-ready`, counts toward `limits.limit-stops-per-issue` (not `turn-cap-restarts`), and work-unblock restarts it after
+  the date; `lane.json` gains `failed`, `api-error-status` and `error-text`
+  ([README, Models](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#models); [pr-run-activity.md, Issue mode](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#issue-mode)).
+  `version` stays 2.
+
+- `resolve-config` outputs `model` and `effort` for run-claude-cli callers: `model` is empty for a
+  `default` model, which the launcher cannot pass, and `effort` is empty when the profile sets
+  none.
+
+- On its schedule, `pr-merge` takes off a `needs-human` label the lanes App set for a pr-unblock
+  escalation once every reason it recorded since adding the label no longer holds at the head: `workflow-staged` when main
+  changes nothing under `.github/workflows/` since its merge base with the head, `unresolved-conflict`
+  and `protected-path-conflict` when GitHub reports the PR mergeable, `feedback-protected-path` when
+  the PR changes nothing under `.github/`. It posts one comment naming the reason and the head first,
+  never touches a label a person added, and keeps the label once any account but the lanes App
+  commented or reviewed since it went on. At most five a run. `version` stays 2.
+
+- The pr-merge workflow's merge job uploads each sweep's verdicts as the `pr-merge-summary` artifact
+  (30-day retention): the run, the candidate, enqueued, merged and held counts, refusal counts by
+  reason with PR numbers and run lists stripped so they aggregate, any gate-budget stop, and the
+  per-candidate results. It also logs one `refusal-counts=` line built from that data, so a log
+  search finds it once.
+
+- `merge.skip-unchanged` (`max-minutes`, default 60; `max-skips`, default 3): the pr-merge workflow
+  reports a candidate the last gating run refused on unchanged inputs with that refusal, marked
+  `carried`, instead of gating it again, until the refusal is `max-minutes` old or has been skipped
+  `max-skips` runs in a row. `0` in either turns it off. The `sweep-cost=` line gains `skipped=`, and the
+  `pr-merge-summary` artifact gains `skipped`: its `candidates` stays the listed count and
+  `budget_stop` counts only gated candidates as reached.
+
+- A skill leaf's `applied-by` names what it hands on, keyed by artifact (`patch`,
+  `feedback-replies`, `dependency-verdict`, `work-outcome`), and the script activity that applies
+  each. Only a skill with effect `read` and gating `advisory` sets it. The config reader rejects
+  (`invalid-applied-by`) a target that is not a script activity, a `patch` target without
+  `prepare: apply-patch`, and a lane that holds the producer without the target in a slot that
+  needs it. `resolve-config` emits the map in the resolved activity and takes an
+  `applied-by-supported` input, which `pr-run-activity-read.yml` passes as `patch`. A `read` skill
+  whose `applied-by` sets `patch` gets the edit tools of a write skill, commits nothing, and is not
+  asked to fix instruction surfaces or CODEOWNERS paths. No activity in this repository sets it
+  yet ([README](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#activities)).
+- `.github/actions/resolve-config/patch-rules.json`, with its schema, registers what an apply-patch
+  script is to admit from each producer's patch: one row per prepare mode, plus `default` and `issue`.
+  Every row refuses `.github/**`, `.claude/**`, the root `.mcp.json`, `.gitmodules`,
+  `**/settings*.json`, symbolic links, gitlinks, a new executable bit and a rename into any of
+  those; a row without that set, or a two-parent commit whose `allow` is not exactly `[merge-result]`, is rejected.
+  `resolve-config` checks the registry before every lane resolve and fails closed without it; the
+  lanes token broker does not read it
+  ([README](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#patch-rules)).
+
+- `.github/scripts/apply-patch/apply-patch.mjs`, the one script that applies a read model job's
+  patch to a pull request branch, driven by the
+  [`patch-rules.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/resolve-config/patch-rules.json)
+  row of the producer's prepare mode (`default` when it has none), read from the trusted base
+  checkout. It refuses the whole patch on any change under `.github/` (any case, any `..` segment)
+  or `.claude/`, to the root `.mcp.json`, `.gitmodules` or a `settings*.json`, on a symbolic link,
+  gitlink or new executable bit, on a rename into any of those, on a path holding a backslash, on more paths than the row's
+  `max-files`, on a path its allow predicates refuse, and on an Anthropic API key, OAuth token or
+  GitHub token shape in the patch or a patched blob. A row without the universal refusals, or with
+  an unknown predicate, throws before any write. A head that moved since the model job takes the
+  patch with `git apply --3way` only when the moved commits touch no patched path, else it skips
+  `superseded-sha`. The commit goes through the Git Data API with one blob per changed file plus a
+  tree, a commit and a ref update. No workflow runs it yet
+  ([README](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#patch-rules)).
+
+- The pr-merge workflow shows each candidate's verdict on its head as one `pr-merge / gate` check
+  run: neutral and titled with the top refusal, with the blockers in the summary, or success once
+  enqueued or merged over a refusal already on show. One GraphQL read per 50 candidates, and a write
+  only where the title or conclusion changed. A new `gate-check` job writes it with its own
+  `GITHUB_TOKEN` and is the only job holding `checks: write`; the merge job keeps `checks: read`.
+  The check is never required and is not part of `ci-status`.
+
+- `merge.check-inputs`: git pathspecs the pull request checks read. When main changed one since a
+  pull request's merge base, the pr-merge lane updates the pull request from main instead of
+  enqueuing it. The default lists the shared-copy registry (`scripts/shared-copies.txt`) and the
+  docs-only allowlist (`scripts/docs-only-paths.txt`); the registry counts only for a pull request
+  that touches a path it registers.
+
+- `pr-merge` also takes off a `needs-human` label the lanes App set for one of its own escalations
+  once the head has moved: when the marked App comment written last before the label is pr-merge's
+  and came within a minute of it, and the newest App comment carrying each of
+  `<!-- babysit-merge-verify-escalation -->` and `<!-- babysit-merge-risk -->` names, in its
+  ``at head `<sha>` ``, a head other than the current one, it posts one comment naming
+  `head-moved`, the old head and the new one, then removes the label so pr-merge judges the new head
+  and escalates again if its refusal still holds. A head that does not parse as 40-hex, any other
+  marker (another lane's escalation just before the label included), a label a person added, or a
+  person speaking since the label keeps it.
+
+### Changed
+
+- A pull request that changes this convention adds a changelog fragment under `.changes/pr-pipeline/`
+  (`scripts/new-changelog-fragment.sh pr-pipeline <bump>`) instead of a `CHANGELOG.md` entry, and the
+  release pull request writes the fragments into one entry, so concurrent lane pull requests stop
+  conflicting on this file. `version` stays 2.
+
+- The checks copy also carries the base's `.shellcheckrc`, `.markdownlint-cli2.jsonc` and
+  `.github/requirements-ci.txt`, which `check-affected.sh` and `run-ruff.sh` read. A check's
+  wrapper unsets `GH_TOKEN` and `GITHUB_TOKEN` and pins git config the way a verify-script's wrapper
+  does. A skill with checks is told to fix what a check reports in the working tree and to name
+  anything it could not fix in its report; a skill that commits is told to run the checks, fix,
+  and run them again before it commits.
+
+- The pr-merge workflow's merge job logs its API budget through the shared `log-api-budget` action,
+  for the lane token and the job's own token, at mint and at job end, so the reading also lands on a
+  run that times out. A `sweep-cost=` line (both tokens' spend since mint, candidates listed,
+  candidates reached) goes to the log and the step summary. The action gains a `costs` output.
+- The merge job keeps the verdict reads that never change (FAIL run records of pr-verify origin,
+  FAIL head refs by artifact id, run heads found on main) across runs with `actions/cache`, under a
+  new key per run, restored by prefix. The restored entry is untrusted: each kept read lands in a
+  `carried-*` section the reader uses only to count a FAIL; everything else is dropped
+  (`.github/scripts/pr-merge/carry-run-cache.mjs`).
+
+- The PR pipeline convention says that after main changes a lane workflow, a lane run is
+  re-triggered with a fresh event, not `gh run rerun`, which the token broker denies as
+  `workflow-modified`.
+
+- `pr-verify.yml` judges on ci-workflows' run-claude-cli action as the `automations` role, so its
+  runs spend `AUTOMATIONS_CLAUDE_API_KEY` credits first and fall back to
+  `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN` after a credit stop
+  ([README.md, Funding](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#funding)).
+  The model reads its data files from `pr-verify-data` in the working directory with Read alone,
+  every other path and tool denied. No verdict is written when any leg hit a permission denial,
+  or when the summary or notes hold text shaped like an Anthropic key or OAuth token, and a run
+  that leaves no verdict fails. The
+  artifact name and verdict JSON are unchanged. `version` stays 2.
+
+- `address-feedback` now also works a review thread the lanes App never commented on when a
+  trusted person with write or admin permission replies to the reviewer bot's finding with a fix
+  request (`PR-fix lane: please fix this finding`); every other comment must still be the reviewer
+  bot's or a trusted person's. The select step, the reply job's re-read and
+  `pr-feedback-dispatch.yml` judge threads the same way
+  ([README.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+  A fix request posted after the head's review starts the round when an account on the trusted-actor list runs
+  `gh workflow run pr-unblock.yml -R melodic-software/claude-code-plugins -f pr-number=<n> -f activity=address-feedback`.
+  `version` stays 2.
+
+- `pr-run-activity-write.yml` takes a required `role` input, the funding role whose OAuth token the
+  caller passes, and the lane record names that role's token (`<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`) as
+  the run's credential instead of always `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`.
+  `work-resolve-issue` passes `issue-lane` and its own `ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN`;
+  `pr-refine` and `pr-unblock` pass `automations`.
+
+- `verify:fail` joins the verifier refusals that need a human: while `merge.report-only` is false the pr-merge lane escalates it with the `<!-- babysit-merge-verify-escalation -->` comment, which for `verify:fail` quotes the head `fail` verdict's `summary` as data, and the human-gated role label, so a refused pull request leaves the lane WIP count.
+
+- At the address-feedback round cap (`loop.review-rounds`), a kept thread with a fix request
+  from a write-access trusted person created after the newest counted round (its latest round
+  marker or model check-run completion) runs one more round, on the requested threads only; other
+  kept threads wait, and without such a request the PR still escalates `feedback-round-cap`. A
+  round with no readable time grants none
+  ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+- `pr-merge` now keeps a lanes-App `needs-human` label only when a person commented, reviewed, or
+  left a review or commit comment since it went on. A comment or review by a bot account (an AI
+  review, another lane) no longer blocks the clear. An App comment carrying any marker other than
+  pr-unblock's escalation still keeps the label.
+
+- `checks`, `self-checks`, `verify-scripts` and `web-access` turned on need a skill whose runner
+  stages edit tools: an effect other than `read`, or `applied-by.patch` without
+  `prepare: ci-context`. Before, they needed an effect other than `read` and `checks` had no
+  rule. `web-access` still requires `reads-untrusted: true`. `version` stays 2.
+
+- A `verify:fail` escalation whose verdict record cannot be read, or a `verify:earlier-fail`, quotes
+  the last fail summary the lane's comment carried, under the head it was given at.
+
+- The work-resolve-issue lane's `report-outcome` no longer writes `Hold: a human merges this` on a `Refs:` pull request, and it holds a diff at the compare-listing cap only while `merge.diff-check.denied-paths` lists a path. A trusted `merge: human` label, structural or untrusted-provenance work, a denied-path match and an unreadable denied-path list still hold the pull request.
+
+- A pr-merge `risk:MED` or `risk:HIGH` refusal whose reasons comment has stood unchanged at the head for `merge.risk-escalation-minutes` (new setting, 60) now gets its comment rewritten once to say the refusal persisted and needs a person, then the human-gated role label (the rewrite dates the comment beside the label, so the head-moved clear pairs them), while `merge.report-only` is false, so the pull request leaves the lane WIP count. A LOW score at that head first marks the comment cleared, so the time restarts with the next refusal. The README no longer says only a human removes that label: the `head-moved` clear does once the head moves. The README records the owner's finding-closure decision for #8450 and that the gate does not apply it yet (#8478).
+
+### Removed
+
+- The `funding` map. No workflow read it: each lane's workflow names its funding role as a literal
+  ([README](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#funding)).
+
+### Fixed
+
+- A write lane `pull_request` run on a PR that changes a workflow file the token broker compares no
+  longer fails red. When the broker refuses the mint as `workflow-modified` and GitHub's compare of
+  the default branch with the gated head lists the named file, the run job ends green with no token,
+  its summary names the reason and file, and the check is neutral with the new skip reason
+  `workflow-modified`
+  ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#a-workflow-file-the-pr-changes)).
+  Every other denial, and a refusal of a file the PR does not change, stays red. `version` stays 2.
+
+- `pr-run-activity-read.yml` takes the write file's `trusted-base` input and passes it to
+  `check-trusted-base`, and pr-unblock's `fix-ci` job passes `trusted-base: default-tip`, as every
+  other pr-unblock job does. A lane PR opened before `fix-ci` joined the config kept a base SHA
+  whose config had no `fix-ci` slot, so every dispatched `fix-ci` run on it failed at "Resolve the
+  config". `version` stays 2.
+
+- pr-merge.yml's merge job now files the demotion record when its read-only post-merge check
+  exits 1 (a failed lane merge: a canary or read-back failure, a missed dispatch deadline, or a red
+  full run whose attempt 2 the agent identity did not start). It runs the check again with
+  `--remediate` under the lanes App token, which files (or comments on, reopening) the record and
+  dequeues the lane's merge-queue entries, so a human closing that record re-arms the lane. A full
+  run this workflow dispatched with `GITHUB_TOKEN` raises no `workflow_run` event, so
+  post-merge-demotion-alert.yml never files for it; when a human re-runs such a red run (run
+  39200031682, red attempt 1, human attempt 2), the check reads it red and this step files the record.
+  A red dispatched run that nobody re-runs still waits for its one re-run (exit 5) and files nothing;
+  the lanes App cannot start that re-run.
+- That step judges the remediation by its report, not its exit code: a missing report or a failed
+  record filing or dequeue raises an error annotation, and only the expected refused re-run and
+  dispatch attempts warn.
+- post-merge-demotion-alert.yml also reads records the lanes App filed and treats a record of either
+  filer that names the same failing run as this run's record, so one red run no longer gets two. Its
+  record says the lane stays at rung off while any demotion record is open: fix main first, then close
+  every open record.
+
+- A red full run that pr-merge.yml dispatched now gets its one re-run without a person. The
+  `post-merge-dispatch` job, which already holds `actions: write` under `GITHUB_TOKEN`, starts
+  `rerun-failed-jobs` on attempt 1 of a red lane-dispatched run the post-merge check reports
+  (`laneDispatched` in its `reruns`), one run per job. Once attempt 2 exists it uploads
+  `pr-merge-rerun-<run id>-attempt-2`, which the post-merge check needs before it counts that
+  attempt. Before this, such a run waited for a re-run the lanes App cannot start, every candidate
+  was refused with exit 5, and no demotion record existed for a human to close until a person
+  re-ran it. The lanes App gets no new permission. The re-run step runs only when the check
+  could judge (exit 0, 1 or 5), after the full-run dispatch, and a failure in either leaves the
+  other to run. Once the re-run starts, the step retries reading its attempt for about three
+  minutes, and fails with an error rather than finishing quietly when it cannot confirm attempt 2.
+
+- The held buffer only alerts: over `wip.held-cap` the WIP cap check writes its warning
+  annotation and sets `held_over` and `alert`, but no longer pauses the lane. Only the WIP cap
+  pauses it, on or after `pause-from` (README, WIP cap). Its warning over the held cap alone
+  says only the WIP cap pauses the lane, instead of "pause-from not reached".
+
+- `address-feedback` now works a thread a trusted person's fix request started even when the
+  reviewer bot left the finding in a review of an earlier head than the one the reviewed-head
+  markers name. Threads left by the reviewer bot alone, and threads the lane escalated, still need
+  a review on a marker-confirmed head
+  ([README.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+- The `log-api-budget` action no longer reports a token's cost as `window-rolled` when the reset
+  time moved earlier within one window; it counts `used` at end minus `used` at start, and calls
+  the window rolled only when `used` fell or the reset moved more than 10 minutes later.
+
+- `address-feedback` now works a thread a trusted person answered after the lane escalated it even
+  when the reviewer bot left the finding in a review of an earlier head than the one the
+  reviewed-head markers name, as it already did for a fix request with no escalation. Threads left
+  by the reviewer bot alone still need a review on a marker-confirmed head
+  ([README.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+- `pr-unblock.yml` posts `pr-unblock / fix-ci` neutral `not-applicable` on the head when
+  `fix-ci-context` skips (a closed pull request or no failing check). The skip posted no check,
+  so `fix-ci-dispatch.mjs` sent the same lowest-numbered pull requests again on every run and
+  starved every other red one.
+
+- fix-ci now sees a failed check that a later skipped or neutral run of the same check hides, such as a contract-only run on a head whose `ci-status` stays red on the earlier failure; a later success still clears it.
+
+- The merge-base lane (`pr-unblock` update-branch and resolve-conflicts) no longer escalates
+  `workflow-staged` when the merge only brings in the default branch's own `.github/workflows/`
+  files: `post.sh` lets the merge through when every staged workflow entry is the trusted base's
+  (mode and blob), no head workflow is dropped, and the PR's own diff against every merge base
+  touches no workflow. Every other case still escalates.
+
 ## 2.15.1 - 2026-10-18
 
 `work-resolve-issue` no longer takes the model's word that its checks passed. A new `run-checks`

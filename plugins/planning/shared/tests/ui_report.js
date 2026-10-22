@@ -2,19 +2,22 @@
 // Report a problem in real browsers, against `share.sh ensure-running` with the fake cloudflared, with Uploads off:
 // a guest on a 390x844 phone opens it from More, sees "Sent with this report" listing the view, question, round,
 // device, browser, screen, build and recent errors before Send, adds a 3200x1800 screenshot that her browser
-// re-encodes to 1600 px on its long edge, types with a keyboard up while the field and Send report stay above it, and
-// sends it; the request carries text, context and the picture only, never her answer, the chat, the address or her
-// secret. The desktop owner (1440x900) sees it as a Problem in the Host queue, opens its picture, marks it Seen, which
+// re-encodes to 1600 px on its long edge, then three more picked at once (four at most: the button goes and a fifth
+// pasted one is refused), types with a keyboard up while the field and Send report stay above it, and sends it; the
+// request carries text, context and the four pictures only, never her answer, the chat, the address or her secret.
+// The desktop owner (1440x900) sees it as a Problem in the Host queue, opens its first and fourth pictures, each only on
+// its own Show screenshot, marks it Seen, which
 // tells her, and then asks Claude about it behind a confirm (the report alone wakes nobody; guests never get the control). On a desktop, Help offers Report a problem, and a refused action's toast offers Report this, whose
 // form lists that refusal among the recent errors.
 //   node plugins/planning/shared/tests/ui_report.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved V1 (feedback triage row 38: the entry points, the field list, 1600 px, the
-// png/jpeg/webp types) and the texts and bytes this suite makes, never from the page.
+// png/jpeg/webp types), the owner's ask of 2026-10-21 (up to four pictures in one report) and the texts and bytes this
+// suite makes, never from the page.
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, snap, joinAs, png } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs, png } = require("./browser_harness");
 
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
 const DESK = { viewport: { width: 1440, height: 900 } };
@@ -62,28 +65,56 @@ async function main() {
     await pia.locator(".vf-tab", { hasText: "More" }).tap();
     await pia.locator(".vf-msitem", { hasText: "Report a problem" }).tap();
     ok("More opens Report a problem", await until(pia, () => !!document.querySelector(".vf-reportpop:not([hidden])")));
+    const opened = await settled(pia, { rects: true });
     const list = await pia.evaluate(() => {
       const ul = document.querySelector(".vf-reportpop .vf-rep-sent"), r = ul.getBoundingClientRect();
       return { seen: r.height > 0 && r.top < innerHeight, head: ul.previousElementSibling?.textContent, items: [...ul.children].map(li => li.textContent) };
     });
-    ok("\"Sent with this report\" shows before Send", list.seen && list.head === "Sent with this report", JSON.stringify(list));
+    ok("\"Sent with this report\" shows before Send", opened && list.seen && list.head === "Sent with this report", JSON.stringify({ still: opened, ...list }));
     const want = [/^View: /, /^Question: Q1, round 1$/, /^Device: phone, /, /^Screen: 390 × 844; visible 390 × 844 at 1×$/, /^Page version: \w+/, /^Recent errors: /, /^Not sent: /];
     ok("  it lists the view, question and round, device and browser, screen and visible area, build and recent errors", want.every(re => list.items.some(t => re.test(t))), list.items.join(" | "));
     ok("  and nothing anyone wrote", !list.items.join(" ").includes(ANSWER) && !list.items.join(" ").includes(CHAT));
 
+    // F3: a pasted picture becomes the attachment chip every other form shows; its x takes it off.
+    await pia.evaluate(async () => {
+      const c = document.createElement("canvas"); c.width = 640; c.height = 400; c.getContext("2d").fillRect(0, 0, 640, 400);
+      const dt = new DataTransfer(); dt.items.add(new File([await new Promise(r => c.toBlob(r, "image/png"))], "clip.png", { type: "image/png" }));
+      document.querySelector("#vf-rep-ta").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    });
+    ok("a screenshot pasted into the report's field shows as an attachment chip", await until(pia, () => [...document.querySelectorAll(".vf-reportpop .vf-attdraft .vf-ref")]
+      .some(li => li.textContent.includes("Screenshot, 640 × 400") && li.querySelector(".vf-ref-thumb img")?.getAttribute("src")?.startsWith("data:image/"))));
+    ok("  the sent list names it, and the field keeps no text", (await pia.locator(".vf-reportpop .vf-rep-sent li", { hasText: "Your screenshot, 640 × 400" }).count()) === 1 && (await pia.inputValue("#vf-rep-ta")) === "");
+    await pia.locator(".vf-reportpop .vf-attdraft .vf-ref-x").tap();
+    ok("  its x takes it off", await until(pia, () => document.querySelector(".vf-reportpop .vf-attdraft").hidden && ![...document.querySelectorAll(".vf-reportpop .vf-rep-sent li")].some(li => /screenshot/.test(li.textContent))));
+    await pia.locator(".vf-reportpop .vf-rep-attach").focus(); // picked from its button: the file dialog returns focus there
     await pia.locator(".vf-reportpop input[type=file]").setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: png(3200, 1800, [800, 1000]) });
-    ok("the screenshot shows in the form", await until(pia, () => !!document.querySelector(".vf-reportpop .vf-rep-shot:not([hidden])")?.naturalWidth));
-    const shot = await pia.evaluate(() => { const i = document.querySelector(".vf-reportpop .vf-rep-shot"); return { w: i.naturalWidth, h: i.naturalHeight, src: i.src.slice(0, 30) }; });
+    ok("the screenshot shows in the form", await until(pia, () => !!document.querySelector(".vf-reportpop .vf-attdraft .vf-ref-thumb img")?.naturalWidth));
+    ok("  and Add screenshots stays for more, keeping focus", await until(pia, () => document.activeElement === document.querySelector(".vf-reportpop .vf-rep-attach") && !document.querySelector(".vf-reportpop .vf-rep-attach").hidden),
+      await pia.evaluate(() => document.activeElement?.className));
+    const shot = await pia.evaluate(() => { const i = document.querySelector(".vf-reportpop .vf-attdraft .vf-ref-thumb img"); return { w: i.naturalWidth, h: i.naturalHeight, src: i.src.slice(0, 30) }; });
     ok("  re-encoded in the browser to 1600 px on its long edge", shot.w === 1600 && shot.h === 900, JSON.stringify(shot));
     ok("  as WebP or JPEG", /^data:image\/(webp|jpeg);base64,/.test(shot.src), shot.src);
     ok("  and the sent list names it", (await pia.locator(".vf-reportpop .vf-rep-sent li", { hasText: "Your screenshot, 1600 × 900" }).count()) === 1);
+    // the owner's ask: several pictures in the first send, picked at once, four at most
+    await pia.locator(".vf-reportpop input[type=file]").setInputFiles([800, 640, 320].map((w, i) => ({ name: `more${i}.png`, mimeType: "image/png", buffer: png(w, 400, [100, 200]) })));
+    ok("three more picked at once show as chips in the order picked", await until(pia, () => [...document.querySelectorAll(".vf-reportpop .vf-attdraft .vf-ref-cap")].map(c => c.textContent).join("|")
+      === "Screenshot 1, 1600 × 900|Screenshot 2, 800 × 400|Screenshot 3, 640 × 400|Screenshot 4, 320 × 400"),
+      await pia.evaluate(() => [...document.querySelectorAll(".vf-reportpop .vf-attdraft .vf-ref-cap")].map(c => c.textContent).join("|")));
+    ok("  the sent list names all four", (await pia.locator(".vf-reportpop .vf-rep-sent li", { hasText: /^Your screenshot \d of 4, / }).count()) === 4);
+    ok("  and at four the button goes, focus moving to the last chip", await until(pia, () => document.querySelector(".vf-reportpop .vf-rep-attach").hidden
+      && document.activeElement === document.querySelector(".vf-reportpop .vf-attdraft .vf-ref:last-child .vf-ref-img")), await pia.evaluate(() => document.activeElement?.className));
+    await pia.evaluate(async () => {
+      const c = document.createElement("canvas"); c.width = 200; c.height = 100; c.getContext("2d").fillRect(0, 0, 200, 100);
+      const dt = new DataTransfer(); dt.items.add(new File([await new Promise(r => c.toBlob(r, "image/png"))], "fifth.png", { type: "image/png" }));
+      document.querySelector("#vf-rep-ta").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    });
+    ok("  a fifth pasted one is refused by name of the limit, the four kept", await until(pia, () => /at most 4 screenshots/.test(document.querySelector(".vf-reportpop .vf-rep-err")?.textContent || ""))
+      && (await pia.locator(".vf-reportpop .vf-attdraft .vf-ref").count()) === 4);
 
     await pia.locator("#vf-rep-ta").tap();
     await pia.evaluate(() => window.__kb(true));
     ok("the keyboard comes up", await until(pia, () => "kb" in document.documentElement.dataset));
-    // Measured settled: finite animations done, then two frames.
-    await pia.evaluate(() => Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => null)))
-      .then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
+    const still = await settled(pia, { rects: true });
     const fit = await pia.evaluate(() => {
       const vv = visualViewport, sheet = document.querySelector(".vf-reportpop"), out = [];
       for (const sel of ["#vf-rep-ta", ".vf-reportpop button[type=submit]", ".vf-reportpop .vf-asklabel"]) {
@@ -94,14 +125,15 @@ async function main() {
       if (r.left < -0.5 || r.right > innerWidth + 0.5 || sheet.scrollWidth > sheet.clientWidth + 1) out.push(`sheet ${r.left}..${r.right}, content ${sheet.scrollWidth} in ${sheet.clientWidth}`);
       return out;
     });
-    ok("  the field, its label and Send report sit above it, nothing clipped sideways", fit.length === 0, fit.join("; "));
+    ok("  the field, its label and Send report sit above it, nothing clipped sideways", still && fit.length === 0, (still ? "" : "not settled; ") + fit.join("; "));
     await pia.locator("#vf-rep-ta").fill(TEXT);
     await pia.locator(".vf-reportpop button[type=submit]").tap();
     ok("Send report closes the form", await until(pia, () => document.querySelector(".vf-reportpop").hidden));
     await pia.evaluate(() => window.__kb(false));
     const body = sent[0] ? JSON.parse(sent[0].raw) : {};
     ok("one report went to the server", sent.length === 1, String(sent.length));
-    ok("  carrying only text, context and the picture", JSON.stringify(Object.keys(body).sort()) === JSON.stringify(["ctx", "image", "text"]), Object.keys(body).join(","));
+    ok("  carrying only text, context and the pictures", JSON.stringify(Object.keys(body).sort()) === JSON.stringify(["ctx", "images", "text"]), Object.keys(body).join(","));
+    ok("  four of them, each a data: URL", body.images?.length === 4 && body.images.every(u => /^data:image\/(webp|jpeg);base64,/.test(u)), String(body.images?.length));
     ok("  its context only the allowed fields", Object.keys(body.ctx || {}).every(k => CTX_KEYS.includes(k)) && body.ctx?.qid === "Q1" && body.ctx?.device === "phone", JSON.stringify(body.ctx));
     const raw = sent[0]?.raw || "";
     ok("  never her answer, the chat, the address's fragment or her secret", !raw.includes(ANSWER) && !raw.includes(CHAT) && !raw.includes("#") && !(secret && raw.includes(secret)));
@@ -111,8 +143,13 @@ async function main() {
     const item = owner.locator(".vf-qitem[data-t=report]");
     ok("the owner sees it as a Problem in the Host queue", await until(owner, t => [...document.querySelectorAll(".vf-qitem[data-t=report]")].some(li => li.textContent.includes(t)), TEXT));
     ok("  with its chip and context", (await item.locator(".vf-chip").textContent()) === "Problem" && (await item.locator(".vf-rep-sent li").count()) >= 2);
-    await item.locator("button", { hasText: "Show screenshot" }).click();
-    ok("  and its picture on request", await until(owner, () => document.querySelector(".vf-qitem[data-t=report] .vf-rep-shot")?.naturalWidth === 1600));
+    ok("  with one Show screenshot per picture and no picture loaded yet", (await item.locator(".vf-rep-pics button", { hasText: /^Show screenshot \d of 4$/ }).count()) === 4
+      && await owner.evaluate(() => [...document.querySelectorAll(".vf-qitem[data-t=report] .vf-rep-shot")].every(i => !i.getAttribute("src"))));
+    await item.locator("button", { hasText: "Show screenshot 1 of 4" }).click();
+    ok("  and its first picture on request", await until(owner, () => document.querySelectorAll(".vf-qitem[data-t=report] .vf-rep-shot")[0]?.naturalWidth === 1600));
+    ok("  only that one", await owner.evaluate(() => [...document.querySelectorAll(".vf-qitem[data-t=report] .vf-rep-shot")].slice(1).every(i => !i.getAttribute("src"))));
+    await item.locator("button", { hasText: "Show screenshot 4 of 4" }).click();
+    ok("  then the fourth on its own button", await until(owner, () => document.querySelectorAll(".vf-qitem[data-t=report] .vf-rep-shot")[3]?.naturalWidth === 320));
     await item.locator("button", { hasText: /^Seen$/ }).click();
     ok("Seen tells the reporter", await until(pia, () => (window.Core.snapshot()?.me?.notifications || []).some(n => n.kind === "report")));
     ok("  and the item stays until Resolved", await until(owner, () => !!document.querySelector(".vf-qitem[data-t=report]") && ![...document.querySelectorAll(".vf-qitem[data-t=report] button")].some(b => b.textContent === "Seen")));
@@ -150,6 +187,30 @@ async function main() {
     ok("  which opens the form", await until(bo, () => !!document.querySelector(".vf-reportpop:not([hidden])")));
     const errs = await bo.locator(".vf-reportpop .vf-rep-sent li", { hasText: "Recent errors:" }).textContent();
     ok("  listing that refusal among the recent errors", /api ended: HTTP 403/.test(errs), errs);
+
+    // A screenshot picked while an earlier one still shrinks, then the report sent before either lands: neither may
+    // join the next report. The page's createImageBitmap is held until released, so the first one is still shrinking.
+    await bo.evaluate(() => {
+      const real = window.createImageBitmap.bind(window), held = [];
+      let open = false;
+      window.__held = held; window.__release = () => { open = true; held.splice(0).forEach(go => go()); };
+      window.createImageBitmap = (...a) => (open ? real(...a) : new Promise(r => held.push(() => r(real(...a)))));
+    });
+    const pick = (w, h) => bo.locator(".vf-reportpop input[type=file]").setInputFiles({ name: `s${w}.png`, mimeType: "image/png", buffer: png(w, h, [10, 20]) });
+    await pick(700, 300);
+    await until(bo, () => window.__held.length === 1);
+    await pick(500, 300); // queued behind the first
+    await bo.locator("#vf-rep-ta").fill("Sent while a screenshot shrinks");
+    await bo.locator(".vf-reportpop button[type=submit]").click();
+    await until(bo, () => document.querySelector(".vf-reportpop").hidden);
+    await bo.locator(".vf-keysbtn").click();
+    await bo.locator(".vf-help-report").click();
+    await until(bo, () => !!document.querySelector(".vf-reportpop:not([hidden])"));
+    await bo.evaluate(() => window.__release());
+    await pick(300, 200);
+    const caps = () => bo.evaluate(() => [...document.querySelectorAll(".vf-reportpop .vf-attdraft .vf-ref-cap")].map(c => c.textContent).join("|"));
+    await until(bo, () => [...document.querySelectorAll(".vf-reportpop .vf-attdraft .vf-ref-cap")].some(c => c.textContent.endsWith("300 × 200")));
+    ok("a screenshot queued before the report was sent does not join the next one", (await caps()) === "Screenshot, 300 × 200", await caps());
 
     const pageErrs = rec.errors.filter(m => !/Failed to load resource/.test(m));
     ok("no page error", pageErrs.length === 0, pageErrs.slice(0, 3).join(" | "));

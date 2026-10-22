@@ -70,6 +70,13 @@ inputs:
       applying leaf that sets `prepare` fails the step otherwise.
     required: false
     default: "false"
+  applied-by-supported:
+    description: >
+      The applied-by keys this runner hands on (`patch`), comma- or
+      space-separated. An applying leaf whose applied-by sets any other key
+      fails the step.
+    required: false
+    default: ""
   github-token:
     description: >
       Read-only token, used only when an applies-when predicate needs the
@@ -119,15 +126,28 @@ outputs:
     value: ${{ steps.resolve.outputs.max-turns }}
   model:
     description: >
-      The profile's model alias, for run-claude-cli's `model` input. Empty
-      when the model is `default`, which the launcher cannot pass, so a
-      launcher caller must fail on it; empty for a script.
+      The profile's model alias, for run-claude-cli's `model` input. A role
+      profile takes its role's model from the base's
+      plugins/multi-agent/reference/defaults.yaml, and `opus` when that
+      gives `inherit` or no alias. Empty when the model is `default`, which
+      the launcher cannot pass, so a launcher caller must fail on it; empty
+      for a script.
     value: ${{ steps.resolve.outputs.model }}
   effort:
     description: >
-      The profile's effort, for run-claude-cli's `effort` input; empty when
-      the profile sets none, and for a script.
+      The profile's effort, for run-claude-cli's `effort` input: a role
+      profile's from the role map (its effort-role's, else its role's). Empty
+      when none is set or resolved, and for a script.
     value: ${{ steps.resolve.outputs.effort }}
+  applied-by-patch:
+    description: The activity that applies the selected activity's patch (its applied-by.patch); empty when it hands on none.
+    value: ${{ steps.resolve.outputs.applied-by-patch }}
+  permission-mode:
+    description: >
+      A skill activity's launcher permission mode, `dontAsk` (the default)
+      or `auto`, for run-claude-cli's `permission-mode` input; empty for a
+      script.
+    value: ${{ steps.resolve.outputs.permission-mode }}
   issue-dimensions:
     description: >
       `<size>/<complexity>/<uncertainty>` as models.issue-dimensions reads
@@ -180,9 +200,10 @@ runs:
         PR_NUMBER: ${{ inputs.pr-number }}
         HEAD_SHA: ${{ inputs.head-sha }}
         PREPARE_SUPPORTED: ${{ inputs.prepare-supported }}
+        APPLIED_BY_SUPPORTED: ${{ inputs.applied-by-supported }}
         ISSUE_DIMENSIONS: ${{ inputs.issue-dimensions }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |
-        npm ci --ignore-scripts --omit=dev --prefix "$GITHUB_ACTION_PATH"
+        npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
         node "$GITHUB_ACTION_PATH/resolve-config.mjs"

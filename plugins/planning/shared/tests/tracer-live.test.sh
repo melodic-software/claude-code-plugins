@@ -48,8 +48,8 @@ jget() { "$py" -c 'import json, sys; j = json.loads([x for x in sys.stdin.read()
 reach() { # url seconds
   local end=$((SECONDS + $2)) body
   while [[ $SECONDS -lt $end ]]; do
-    body=$(curl -s --max-time 10 "$1api/state" 2>/dev/null)
-    [[ "$body" == *'"schemaVersion"'* ]] && {
+    body=$(curl -s --max-time 10 "${1%%#*}api/state" 2>/dev/null)
+    [[ "$body" == *'"joinNeedsKey"'* ]] && {
       printf '%s' "$body"
       return 0
     }
@@ -66,7 +66,7 @@ url=$(printf '%s' "$out" | jget 'j["guestUrl"]')
 echo "guest link: $url"
 body=$(reach "$url" 120)
 verdict $? "the guest link loads through the tunnel: $body" "no answer through $url"
-joined=$(curl -s --max-time 15 -H 'Content-Type: application/json' -d '{"name": "Remote", "device": "phone"}' "${url}api/join")
+joined=$(curl -s --max-time 15 -H 'Content-Type: application/json' -d "{\"name\": \"Remote\", \"device\": \"phone\", \"key\": \"${url#*#join=}\"}" "${url%%#*}api/join")
 if [[ "$joined" == *'"secret"'* ]]; then ok "a guest joined through the tunnel"; else bad "join through the tunnel: $joined"; fi
 
 pid=$("$py" -c 'import json, sys; print(json.load(open(sys.argv[1]))["pid"])' "$d/.shared-tunnel.json")
@@ -85,7 +85,7 @@ token=$(sed -n 's/.*#owner=//p' "$d/.owner-link")
 (umask 077 && printf 'X-Owner-Token: %s\n' "$token" >"$tmp/owner.h")
 local_url=$(printf '%s' "$out" | jget 'j["localUrl"]')
 share=$(curl -s --noproxy '*' -H "@$tmp/owner.h" "${local_url}api/state" | jget 'j["share"]')
-if [[ "$share" == *"${new%/}"* && "$share" == *changedAt* ]]; then ok "the owner's view shows the new link as changed: $share"; else bad "owner share: $share"; fi
+if [[ "$share" == *"${new%%/#*}"* && "$share" == *changedAt* ]]; then ok "the owner's view shows the new link as changed: $share"; else bad "owner share: $share"; fi
 
 timeout 60 bash "$shared/share.sh" --dir "$d" stop >/dev/null && ok "stopped"
 echo "PASS=$pass FAIL=$fail"

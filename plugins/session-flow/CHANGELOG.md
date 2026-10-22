@@ -1,5 +1,125 @@
 # Changelog: session-flow plugin
 
+## [1.0.0] - 2026-10-22
+
+### Added
+
+- **`/session-flow:orchestrate coordinator [<area>]`** ([#8642](https://github.com/melodic-software/claude-code-plugins/issues/8642)). Arms a session as the one coordinator for an area, on any surface including a plain CLI session. The coordinator delegates the area's work to workers and keeps no store of its own: state lives in the tracker and the repository's durable files. The skill also gains a `## Next` section naming `/planning:draft-goal-condition`.
+- **The `workflow` continuation router records three rules.** Mid-phase, bulk work goes to subagents before compacting; a cleared conversation stays resumable (with a pointer to the upstream sessions page); handoff and questionnaire files stay in the memory dir.
+
+- The setup apply writer writes the settings file into the repository's convention home, read from the pointer region in AGENTS.md or CLAUDE.md, instead of the fixed docs/conventions. A repository with no region is offered one: with --yes the writer adds the region where the repository already keeps instructions (a new AGENTS.md only when neither file exists) and the overlay ignore line to .gitignore in the same step, and announces both. Without --yes it prints the offer and still creates a missing settings file in docs/conventions; changing an existing file, the region and the ignore line wait for --yes. --home names the home to offer, and --decline records a declined line so the offer is not made again. A home the repository already had lists the settings file in conventions-index.md. --home refuses a value holding a backtick or line break.
+
+- Retro codify now judges a lesson a check could assert against the ladder copy's "Guardrail criterion" section and reports a recurring mistake that meets it but has no check as a "no guardrail" finding. A new eval case covers it.
+
+- **`/session-flow:orient catch-up` answers "what happened since my last message, and what needs me"** ([#8640](https://github.com/melodic-software/claude-code-plugins/issues/8640)). The reply opens with a "Needs you" section (the count of decisions only the user can make), then what happened with what it means, then each decision with why now, options and costs, a recommendation, what happens if unanswered, and what is unknown. It anchors at the user's own last message and re-checks the pull requests, CI runs and agents the chat touched, read-only. The four-part briefing stays the default scope. A new `orient_catch_up_word_cap` setting caps the reply (default 250, minimum 150). Adapted from the pstack [`ketchup`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/ketchup) skill.
+
+### Changed
+
+- **`continue-in-background` launches only with a checkable completion condition** ([#8739](https://github.com/melodic-software/claude-code-plugins/issues/8739)). The launch payload is now `/goal` plus the save-point's goal region, so the detached session works until a fresh evaluator confirms the condition. With no goal applying, the skill drafts one with `/planning:draft-goal-condition`, shows it, and launches only once the user confirms. With no checkable condition it does not launch and says how to supply one. On prompt-only the resume region travels after the goal region, within the condition limit.
+- **The `workflow` continuation router's away-from-keyboard brief carries a checkable completion condition** (`/goal` or a Stop-hook check).
+
+- Synced the shared `exec-bash.mjs` launcher, which gains an opt-in `--fail-closed` flag. This plugin's hooks do not pass it, so their behavior is unchanged.
+
+- The bundled enforcement ladder copy is now 2.0.0: four tiers, a "runs at" column, renamed and added rung ids (`shared-helper`, `harness-setting`, `action-guard`, `scaffold`, `automated-review`, `instruction`, `skill`, `human-review`) and the guardrail criterion.
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line.
+
+### Fixed
+
+- **`continue-in-background --cloud` falls back to a local background session when the CLI refuses the cloud launch for lack of a terminal** ([#8792](https://github.com/melodic-software/claude-code-plugins/issues/8792)). Before, a refused launch ended with the `/clear`-then-paste instruction, which stalled a run meant to continue while the user was away. The goal probe record now holds the refused-launch probe and still marks cloud goal arming as unprobed.
+
+### Security
+
+- The running-retro observer now redacts a stateless GitHub App installation token (`ghs_` followed by a JWT, with no app id) whole, where it used to leave the JWT payload and signature in its output; the save-point secret scan flags it whole. Both use GitHub's recommended `ghs_` regex.
+
+## [0.62.0] - 2026-10-20
+
+### Added
+
+- keep-going prints one environment snapshot block after inspecting real state and before any recovery action: account, 5-hour and 7-day windows, context zone, each off-thread item with its liveness verdict, the gap, and the stop's cause as evidence. A field with no reading says unknown and why.
+
+### Changed
+
+- keep-going's boundary now says the cause line is shown and never used to choose a recovery method.
+
+## [0.61.1] - 2026-10-20
+
+### Changed
+
+- The store gains `stop_hooks.wait_ms_total`, `wait_ms_p50`, `wait_ms_p90` and `time.active_gap_s`; the existing `ms_*` and `active_s` keys keep their meaning. The sweep's `hooks.stop_ms` and `time.active_s` read the new keys, are labeled heuristic, and have no threshold (report-only) until re-derived.
+- The `turn_duration` canaries are replaced by a record-timestamp canary and two invariant canaries (`invariant:active_over_wall`, `invariant:stop_wait_over_sum`); SKILL.md records the direct-parsing decision with a pointer to the sessions page.
+
+- The workflow skill's review step states the fresh-context reviewer preference in its own words and links the Claude Code best-practices section, with an as-of date and a recheck trigger.
+
+### Fixed
+
+- `audit-sessions` measures Stop-hook wait as the slowest hook per Stop run, not the sum of hooks that run in parallel, and active time from the gaps between a session's own records (each capped at 300 s), so a session never reports more active time than its wall clock and one without `turn_duration` records no longer reports 0.
+
+## [0.61.0] - 2026-10-20
+
+### Added
+
+- Two `/session-flow:handoff` eval cases, `ho-task-tools-recreate-calls` and `ho-no-task-tools-says-so`, one for each task-tool branch of the environment section (the Task tools, and neither the Task tools nor `TodoWrite`).
+
+- `running-retro` checkpoint finds skill-fit gaps with six detectors: a skill bypassed or overridden, the same rules re-typed into several briefs, a worker stalled or re-briefed for the same reason, a denial that forced a workaround, a verifier loop stopped by judgment, and the owner asking whether a skill exists. Each finding names its owning plugin and skill and cites its evidence. Before offering to file, the skill searches the owning plugin's open issues through `/work-items:track search`; skill-fit gaps are never auto-filed.
+- Eval case `rr-skill-fit-names-owner`.
+
+- `/session-flow:keep-going` lists the child process tree of each background shell and flags any child waiting on an interactive prompt or stdin, using the new `check-child-input-wait.py` (Linux through `/proc`, macOS through `ps`, Windows through PowerShell). A process the platform gives no signal for reports `unknown`, never "not waiting". Killing a flagged child stays behind the side-effect gate.
+- The shared off-thread reference lists "external CLI processes and their child trees" as a kind.
+
+### Fixed
+
+- `/session-flow:continue-in-background`: the dirty-tree gate reads the effective `worktree.bgIsolation` (managed, local, project, user settings files, in that order; a `--settings` value cannot be read and is reported as not covered). With `none` the background session edits the checkout directly, so the gate launches instead of refusing and the launch report warns that the session edits this checkout in place, alongside the user.
+
+## [0.60.0] - 2026-10-20
+
+### Added
+
+- `## Next` sections on `running-retro` and `show-options`, naming each skill's successor.
+
+- Plugin-eval cases for `/session-flow:workflow` progress tracking: `wf-task-tools-track-stages` (a session with the Task tools keeps its stage list in them) and `wf-no-task-tools-checklist-file` (a session with neither the Task tools nor TodoWrite uses the checklist file as its only tracker).
+
+- keep-going singles out every subagent or workflow agent whose last notification carries a rate-limit error, re-checks the live windows, reads its partial work, resumes it with `SendMessage` when its id resolves (restarting from its trail otherwise), and reports each with its evidence and one action.
+
+- keep-going names the active account (read from `claude auth status`) and the account at the time of a rate-limit stop, and reports changed, unchanged or unknown with the source of each reading, so a captured limit message is not read against a different account. When either identity cannot be established, it reports unknown and asks the operator.
+
+- keep-going measures how long the session was stopped from transcript timestamps with a bundled `measure-stop-gap.py`, states the gap in its report, and re-reads limit windows, leases, PR state and CI runs older than the gap instead of trusting them.
+
+### Changed
+
+- Durable-state gather reference: the `$`-expansion note points to the `/source-control:worktree` accepted-shapes heading instead of restating it, and keeps the braced-form observation ([#5673](https://github.com/melodic-software/claude-code-plugins/issues/5673)).
+
+- `/session-flow:orchestrate worker` and `worker compact` exports now carry a one-line rule against ending the turn to wait on the worker's own background job: poll in the foreground with a bounded loop, or return what you have.
+
+- The retro data-retention pointer and the save-point `/goal` record are re-checked against the live docs: the retention pointer carries a fresh as-of date and a recheck trigger that names what the retro relies on, and the goal record now carries section anchors, an as-of date and a recheck trigger.
+
+- `audit-sessions` markdown report names the worst 5 sessions (or linked PRs) per finding, then how many more there are and that the JSON report holds the full list; the JSON report is unchanged.
+- The metrics table gains a `Statistic` column: `cache.write_5m_share` reads "machine-wide ratio" and `hooks.stop_ms` reads "median of per-session p90" instead of "median".
+- The `audit-sessions` description and opening no longer claim to audit corrections or trends, and the "why am I correcting Claude so often" and "am I getting faster" triggers are removed; the opening now says to compare two `--since`/`--until` runs by hand.
+
+- The orchestrate skill now points its model-inheritance, delegate-bulk-work and tune-effort claims at the upstream sections they rest on, with as-of dates and recheck triggers.
+
+- `handoff` Constraints entries that record a permission or auto-mode refusal, or an owner-reserved step, carry the session, date and verbatim denial text (or the owner's quoted words); a resumed session retries a recorded refusal once in its documented shape before handing the action to the user, and a lifted reservation moves under `Superseded:`.
+- `handoff` Remaining actions list prework (review a peer's PR, check a release, pre-verify the awaited condition) when every action waits on a peer or the owner, instead of a bare "no action owed" line.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+- `sweep.py --write-report` no longer appends to `reports/<scope>/history.jsonl`; nothing read it. Existing files are left in place.
+
+### Fixed
+
+- `/session-flow:orchestrate` no longer caps workers on usage or rate-limit headroom, and picks the cheaper model tier by whether the work is mechanical or judgment, not by fan-out width. Backoff on this session's own rate-limit errors and sibling 429s stays.
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- The shared settings checker behind `/session-flow:setup` validates string and object settings, and reports a setting whose schema shape it does not check instead of stopping with a JavaScript error.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+- `continue-in-background` launches the `claude --bg` session with `--permission-mode auto`, so a permission ask no longer waits for an attach while the user is away. The launch report says auto mode may deny an action and that where a denied action is reported is unverified.
+
 ## [0.59.0] - 2026-10-18
 
 ### Added

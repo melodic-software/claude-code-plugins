@@ -2,12 +2,12 @@
 // The prototype page (Q98) in real browsers, against `share.sh ensure-running` with the fake cloudflared: the owner on a
 // desktop, a guest on a desktop who opens the prototype from the question's "Open prototype" link, and a guest on a
 // 390x844 phone with touch who opens /proto/<qid> directly, in separate browser contexts (separate storage). Covered:
-// the preview tile and its link; the variant switcher (click and arrow keys); the Annotate toggle; a note pinned to an
+// the preview tile and its link; the session's palette on the prototype page; the variant switcher (click and arrow keys); the Annotate toggle; a note pinned to an
 // element inside an html variant (its path and box reach the server, its pin is drawn in the variant, and the variant's
 // own click handler does not run while Annotate is on); a note on a spot of a picture variant; the notes in the
 // question's Claude thread on the main page and in the round's digest for Claude; picking a variant; the variant's
 // sandbox (no access to the page or its storage, and a forged pin message is ignored); a second pick while a note is
-// open; a variant that navigates its frame away (dropped, then not heard); the owner token kept out of every link and
+// open; a variant that navigates its frame away (dropped, and the page it goes to refused); the owner token kept out of every link and
 // the address bar, the owner still the owner after a reload and on the pages its links open; the phone layout; no 429,
 // no CSP violation and no page error.
 //   node plugins/planning/shared/tests/ui_proto.js
@@ -17,7 +17,7 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, snap, joinAs, png, openClaude } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs, png, openClaude } = require("./browser_harness");
 
 // The html variant. Its button's path, from its markup: html > body(1st) > main(1st) > section(1st) > div(1st) > button(1st).
 const BUTTON_PATH = "html > body:nth-of-type(1) > main:nth-of-type(1) > section:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)";
@@ -34,7 +34,9 @@ addEventListener("message", e => { if (e.data && e.data.type === "mode" && e.dat
 </script></body></html>`;
 // A hostile variant: once loaded it sends its own frame to another page, which then talks like the pin helper (ready,
 // and a pin on "html", a path the page would take) and shows a sign-in form inside the session's page. The other page
-// is an asset of the same session, so the page's frame-src 'self' lets the frame go there.
+// is an asset of the same session, so the page's frame-src 'self' lets the frame go there, but the server refuses it
+// (401): a navigation the sandboxed frame starts comes from an opaque origin, so its request carries no SameSite=Strict
+// asset cookie (decision 1: assets only for joined people and the owner).
 const ELSEWHERE = `<!doctype html><p id="evil">Sign in again</p><script>parent.postMessage({ type: "ready" }, "*");
 setInterval(() => parent.postMessage({ type: "pinned", selector: "html", rect: { x: 0, y: 0, w: 10, h: 10 }, label: "evil" }, "*"), 100);</script>`;
 const leaver = to => `<!doctype html><html><body><p>Loading</p><script>
@@ -51,7 +53,7 @@ async function main() {
   const s = suite("ui_proto"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("proto");
-    const v1 = s.asset(A.dir, "v1.html", VARIANT), v2 = s.asset(A.dir, "v2.png", png(300, 200, [80, 120])), v3 = s.asset(A.dir, "v3.html", leaver(s.asset(A.dir, "elsewhere.html", ELSEWHERE)));
+    const v1 = s.asset(A.dir, "v1.html", VARIANT), v2 = s.asset(A.dir, "v2.png", png(300, 200, [80, 120])), elsewhere = s.asset(A.dir, "elsewhere.html", ELSEWHERE), v3 = s.asset(A.dir, "v3.html", leaver(elsewhere));
     s.apply(A.dir, [{ op: "set-title", title: "Checkout prototype" }, { op: "open-round", questions: [
       q("Q1", "Which checkout layout?", { kind: "prototype", variants: [{ id: "v-1", label: "One page", asset: v1 }, { id: "v-2", label: "Two steps", asset: v2 }] }),
       q("Q2", "What should the pay button say?", { kind: "text" }),
@@ -59,6 +61,9 @@ async function main() {
     ] }]);
     const ownerToken = new URL(A.ownerUrl).hash.replace(/^#owner=/, "");
     const owner = await rec.open(A.ownerUrl);
+    // Every request the server answers 401, in the contexts whose pages the error check below covers.
+    const refused = [], hear401 = ctx => ctx.on("response", r => { if (r.status() === 401) refused.push(`${r.request().method()} ${new URL(r.url()).pathname}`); });
+    hear401(owner.context());
     await until(owner, () => (window.Core.snapshot()?.questions || []).some(x => x.id === "Q1"));
     await owner.locator(".vf-q", { hasText: "Which checkout layout?" }).first().click();
 
@@ -89,6 +94,10 @@ async function main() {
     await ownerProto.waitForLoadState();
     ok("the owner's Open prototype opens /proto/Q1 as the owner", new URL(ownerProto.url()).pathname === "/proto/Q1" && await isOwner(ownerProto), ownerProto.url());
     await until(ownerProto, () => document.querySelector(".vp-back")?.getAttribute("href") === "/");
+    await solo.evaluate(() => window.Core.saveSettings({ theme: { palette: "contrast" } }));
+    ok("the prototype page shows the session's palette", await until(ownerProto, () => document.querySelector(".vp-app")?.dataset.palette === "contrast"),
+      await ownerProto.evaluate(() => document.querySelector(".vp-app")?.dataset.palette));
+    await solo.evaluate(() => window.Core.saveSettings({ theme: { palette: "default" } }));
     const protoShown = await tokenShown(ownerProto);
     ok("the prototype tab's address and links hold no owner token", protoShown.hash === "" && protoShown.hrefs.length === 0, JSON.stringify(protoShown));
     ok("the prototype tab has no handle on the page that opened it", (await ownerProto.evaluate(() => window.opener)) === null);
@@ -106,6 +115,7 @@ async function main() {
 
     // ---------- desktop guest: opens the prototype from the question ----------
     const gus = await rec.open(A.localUrl);
+    hear401(gus.context());
     const gusPid = await joinAs(gus, "Gus");
     await gus.locator(".vf-q", { hasText: "Which checkout layout?" }).first().click();
     await until(gus, () => !document.querySelector(".vf-proto")?.hidden);
@@ -215,18 +225,20 @@ async function main() {
 
     // ---------- phone guest in another browser context, straight to /proto/Q1 ----------
     const pia = await rec.open(new URL("/proto/Q1", A.localUrl).href, { context: PHONE });
+    hear401(pia.context());
     const piaPid = await joinAs(pia, "Pia");
     ok("a phone opening the prototype first joins on that page", !!piaPid && piaPid !== gusPid);
     await until(pia, () => document.querySelectorAll(".vp-notes li").length === 1);
     ok("the phone sees the desktop guest's note on One page", (await pia.locator(".vp-notes li").first().textContent()).includes("Make the total sit next to Pay now."));
+    const still = await settled(pia, { rects: true });
     const layout = await pia.evaluate(() => {
       const r = el => document.querySelector(el).getBoundingClientRect();
       return { overflow: document.documentElement.scrollWidth - innerWidth, stage: r(".vp-stage"), side: r(".vp-side"),
         tabs: [...document.querySelectorAll(".vp-tab, .vp-annotate, .vp-choose")].map(b => Math.round(b.getBoundingClientRect().height)) };
     });
-    ok("phone: nothing runs past the width", layout.overflow <= 0, layout.overflow);
-    ok("phone: the variant sits above the notes, both on screen", layout.stage.bottom <= layout.side.top + 1 && layout.stage.height > 200 && layout.side.top < 844 && layout.side.height > 100, JSON.stringify(layout));
-    ok("phone: the switcher, Annotate and Choose are at least 40 px tall", layout.tabs.every(h => h >= 40), JSON.stringify(layout.tabs));
+    ok("phone: nothing runs past the width", still && layout.overflow <= 0, still ? layout.overflow : "not settled");
+    ok("phone: the variant sits above the notes, both on screen", still && layout.stage.bottom <= layout.side.top + 1 && layout.stage.height > 200 && layout.side.top < 844 && layout.side.height > 100, JSON.stringify(layout));
+    ok("phone: the switcher, Annotate and Choose are at least 40 px tall", still && layout.tabs.every(h => h >= 40), JSON.stringify({ still, tabs: layout.tabs }));
     await pia.locator(".vp-annotate").tap();
     await pia.locator(".vp-whole").tap();
     await pia.locator("#vp-note").fill("Too long for a phone.");
@@ -253,7 +265,7 @@ async function main() {
       && document.querySelector(".vp-left")?.textContent.startsWith("This variant tried to leave its page")));
     await away.locator(".vp-annotate").click();
     await away.waitForTimeout(800);
-    ok("the page it went to is not heard: its pins open no note", await away.locator(".vp-composer").isHidden());
+    ok("the page it went to is refused and opens no note", refused.includes(`GET /assets/${elsewhere}`) && await away.locator(".vp-composer").isHidden(), refused.join(", "));
     ok("Load it again frames the variant afresh", await away.evaluate(() => { document.querySelector(".vp-left button").click(); return !!document.querySelector(".vp-frame"); }));
     ok("and drops it again when it leaves again", await until(away, () => !document.querySelector(".vp-frame") && !!document.querySelector(".vp-left")));
     await away.keyboard.press("Escape");
@@ -262,11 +274,19 @@ async function main() {
     const digest = doc.log.events.find(e => e.kind === "round-sent")?.digest;
     ok("the round's digest hands Claude each note with its element", JSON.stringify(digest?.annotations?.map(x => [x.variant, x.element, x.text])) === JSON.stringify([
       ["v-1", BUTTON_PATH, "Make the total sit next to Pay now."], ["v-2", "img", "This band hides the address."], ["v-1", "html", "Too long for a phone."]]), JSON.stringify(digest?.annotations));
+    await owner.evaluate(() => window.Core.endSession(true));
+    ok("once the session ends, a guest's Choose is disabled and says the session has ended (B6)", await until(proto, () => {
+      const b = document.querySelector(".vp-choose"); return b.disabled && b.title === "This session has ended."; }),
+      await proto.evaluate(() => document.querySelector(".vp-choose").title));
 
     ok("no request was answered 429 (slow down)", rec.too.length === 0, rec.too.slice(0, 5).join(", "));
     const csp = [...await rec.cspViolations(), ...(await proto.evaluate(() => window.__csp || []))];
     ok("no page broke the server's CSP", csp.length === 0, csp.slice(0, 3).join(" | "));
-    ok("no page error or console error", rec.errors.length === 0, rec.errors.slice(0, 3).join(" | "));
+    const left = `GET /assets/${elsewhere}`;
+    ok("the only 401s are the leaving variant's two trips to the other page", JSON.stringify(refused) === JSON.stringify([left, left]), refused.join(", "));
+    let expected401 = refused.length; // each refused load also logs one console error; drop only those
+    const errors = rec.errors.filter(e => !(expected401 > 0 && e.includes("status of 401") && expected401--));
+    ok("no page error or console error", errors.length === 0, errors.slice(0, 3).join(" | "));
   } catch (e) {
     s.results.push(`ERROR ${e?.stack || e}`);
   } finally {

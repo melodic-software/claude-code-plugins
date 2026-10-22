@@ -1,0 +1,24 @@
+version: 2
+activities:
+  resolve-issue:
+    skill: work-items:work
+    args: --ci
+    effect: read
+    applied-by:
+      patch: apply-issue-patch
+    gating: advisory
+    reads-untrusted: true
+    inputs: [issue]
+  apply-issue-patch:
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: true
+    inputs: [issue]
+lanes:
+  work-resolve-issue:
+    stage: work
+    slots:
+      - activity: resolve-issue
+      - activity: apply-issue-patch
+        needs: [resolve-issue]

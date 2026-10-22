@@ -14,9 +14,10 @@
 // config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
 // The same run then starts review-dependency for review-tier Dependabot PRs
-// (dependency-dispatch.mjs) and fix-ci for lanes App PRs whose ci-status
-// failed (fix-ci-dispatch.mjs), and their run ids join the same record.
-// Both read the one open-PR listing. A head whose check runs handle it for
+// (dependency-dispatch.mjs), fix-ci for lanes App PRs whose ci-status
+// failed (fix-ci-dispatch.mjs) and fix-docs once per ready PR that changes
+// Markdown (fix-docs-dispatch.mjs), and their run ids join the same record.
+// resolve-conflicts and review-dependency read the one open-PR listing. A head whose check runs handle it for
 // good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
 // carries to the next run through the Actions cache; the next run skips that
 // head's check-run read, and its UNKNOWN re-queries.
@@ -24,11 +25,13 @@
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { dispatchCiFixes, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
+import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
@@ -116,9 +119,9 @@ export async function dispatchConflicting({
 
   for (let attempt = 1; pending.length > 0 && attempt <= unknownRetries; attempt += 1) {
     await sleep(unknownDelayMs);
-    const requeried = await api.getPulls(pending);
-    candidates.push(...requeried.filter((node) => isCandidate(node, base) && !recorded(node)));
-    pending = requeried.filter((node) => isPending(node, base) && !recorded(node)).map((node) => node.number);
+    const reread = await api.getPulls(pending);
+    candidates.push(...reread.filter((node) => isCandidate(node, base) && !recorded(node)));
+    pending = reread.filter((node) => isPending(node, base) && !recorded(node)).map((node) => node.number);
   }
   for (const number of pending) {
     log(
@@ -199,7 +202,7 @@ export async function dispatchConflicting({
 
 // The Dependabot fields feed dependency-dispatch.mjs's classification.
 const PULL_FIELDS =
-  "number isDraft isCrossRepository mergeable baseRefName headRefOid headRefName state title body author { login } labels(first: 100) { nodes { name } } changedFiles commits { totalCount }";
+  "number isDraft isCrossRepository mergeable baseRefName headRefOid headRefName state title body author { login ... on Bot { databaseId } } labels(first: 100) { nodes { name } } changedFiles commits { totalCount }";
 
 const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
   repository(owner: $owner, name: $name) {
@@ -268,6 +271,15 @@ export function createGitHubApi({
       const data = await graphql(CI_FIX_QUERY, { owner, name, base, after: after ?? null });
       return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests };
     },
+    // fix-docs-dispatch.mjs's listing and its per-PR check-run history.
+    async listDocsFixCandidates({ base, after }) {
+      const data = await graphql(DOCS_FIX_QUERY, { owner, name, base, after: after ?? null });
+      return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests };
+    },
+    async readDocsFixHistory({ number, appId, checkName }) {
+      const data = await graphql(DOCS_FIX_HISTORY_QUERY, { owner, name, number, appId, checkName });
+      return { rateLimit: data.rateLimit, pullRequest: data.repository.pullRequest };
+    },
     async getPulls(numbers) {
       const fields = numbers
         .map((number) => {
@@ -301,6 +313,26 @@ export function createGitHubApi({
         `${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?${query}`,
       );
       return result.check_runs;
+    },
+    // fix-ci-dispatch.mjs's infra check: the newest pr-require-checks
+    // pull_request run on the head that tested it and its latest jobs
+    // (infra-failure.mjs testedRun); a null run and no jobs when there is none.
+    async readRequiredRun(sha) {
+      if (!/^[0-9a-f]{40}$/.test(sha)) {
+        throw new Error("not a commit SHA");
+      }
+      const listing = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`);
+      const runs = (listing.workflow_runs ?? [])
+        .filter((run) => run.path === ".github/workflows/pr-require-checks.yml")
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
+      const tested = await testedRun(runs, async (run) => {
+        const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
+        if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
+          throw new Error(`run ${run.id}'s job listing is not one complete page`);
+        }
+        return jobs.jobs;
+      });
+      return { run: tested?.run ?? null, jobs: tested?.jobs ?? [] };
     },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.
@@ -416,8 +448,15 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, now }) {
   } else {
     log("::error::APP_SENDER_ID is not the lanes App's user id; no fix-ci dispatched");
   }
-  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched];
-  const failed = conflicts.failed + reviews.failed + fixes.failed;
+  const docs = await dispatchDocsFixes({
+    api: client,
+    runId: env.GITHUB_RUN_ID,
+    log,
+    record,
+    maxDispatch: limits["fix-docs-per-run"] ?? 2,
+  });
+  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...docs.dispatched];
+  const failed = conflicts.failed + reviews.failed + fixes.failed + docs.failed;
   if (dispatched.length > 0) {
     const ids = dispatched.map((run) => run.workflowRunId).join(" ");
     appendFileSync(env.GITHUB_OUTPUT, `run-ids=${ids}\n`);

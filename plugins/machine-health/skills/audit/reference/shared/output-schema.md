@@ -64,6 +64,32 @@ Emitted by `scripts/<os>/checks/Test-*.ps1`. Exactly one JSON object per invocat
 }
 ```
 
+### `detail` of a list-style check: FindingItems
+
+A check that lists items the owner can mute puts each one in `detail.items[]` as a FindingItem,
+built by `scripts/windows/lib/New-FindingItem.ps1`:
+
+| Field | Type | Notes |
+|---|---|---|
+| `key` | string, `^[a-z-]{1,16}:[0-9a-f]{16}$`, or null | FindingKey: `<kind>:<first 16 hex of SHA-256(lower(kind + "\|" + identity fields joined by "\|"))>`; stable across runs. Null for an unkeyed item |
+| `severity` | `OK`\|`INFO`\|`WARN`\|`CRIT`\|`UNKNOWN` | the item's own reading |
+| `muted` | bool | true when `key` was passed in the check's `-MutedKeys`; always false for an unkeyed item |
+| `title` | string | display text, sanitized machine text |
+
+An item is unkeyed when its identity fields could not be read (a listener whose program could not
+be resolved, a per-version firewall rule whose protocol and port stayed unread): no key is ever
+computed from missing data, so the item is listed but cannot be muted, and `unkeyed_reason` says
+why. Machine-derived text in `title` and in check-specific fields is capped and has control,
+escape and bidi-override characters replaced (`Format-MachineText`).
+
+Check-specific fields sit beside these. The check also emits the scalars `items_count` and
+`muted_count`. A muted item stays in `detail.items[]`.
+
+Severity: the check's severity is the worst severity over items with `muted: false`
+(`Get-UnmutedSeverity`), combined with the check's system-level rules. A source read records a
+ReadState (`ok`, `absent`, `masked`, `denied`, `false-zero` or `error`); a field fed by a state
+other than `ok` or `absent` cannot make the check OK.
+
 ## 2. Run snapshot (`state/latest.json`)
 
 Emitted by the orchestrator at the end of every run. Overwrites the previous snapshot.

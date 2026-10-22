@@ -53,7 +53,29 @@ const ciFixPull = (number) => {
   };
 };
 
-const api = (dispatched, ciFixPulls = []) => ({
+// Ready PRs a person opened that change Markdown and never had fix-docs, as
+// fix-docs-dispatch.mjs lists them.
+const docsPull = (number) => {
+  const head = String(number).padStart(40, "d");
+  return {
+    number,
+    isDraft: false,
+    isCrossRepository: false,
+    baseRefName: "main",
+    headRefOid: head,
+    author: { __typename: "User", login: "someone" },
+    labels: { nodes: [] },
+    files: { nodes: [{ path: "README.md" }], pageInfo: { hasNextPage: false } },
+    commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [] } } } }] },
+  };
+};
+
+const api = (dispatched, ciFixPulls = [], docsPulls = []) => ({
+  listDocsFixCandidates: async () => ({
+    rateLimit: { cost: 1, remaining: 4999 },
+    pullRequests: { nodes: docsPulls, pageInfo: { hasNextPage: false, endCursor: null } },
+  }),
+  readDocsFixHistory: async () => ({ rateLimit: { cost: 1, remaining: 4999 }, pullRequest: { commits: { nodes: [] } } }),
   listCiFixCandidates: async () => ({
     rateLimit: { cost: 1, remaining: 4999 },
     pullRequests: { nodes: ciFixPulls, pageInfo: { hasNextPage: false, endCursor: null } },
@@ -65,13 +87,14 @@ const api = (dispatched, ciFixPulls = []) => ({
   getPulls: async () => [],
   listCheckRuns: async () => [STOPPED],
   listWorkflowRuns: async () => [],
+  readRequiredRun: async () => ({ run: null, jobs: [] }),
   dispatchWorkflow: async ({ inputs }) => {
     dispatched.push(inputs["pr-number"]);
     return { workflowRunId: 9040 };
   },
 });
 
-async function run(text, ciFixPulls = []) {
+async function run(text, ciFixPulls = [], docsPulls = []) {
   const base = baseWith(text);
   const output = join(base, "output");
   writeFileSync(output, "");
@@ -79,7 +102,7 @@ async function run(text, ciFixPulls = []) {
   try {
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: output, BASE_PATH: base, APP_SENDER_ID: String(LANES_APP) },
-      { api: api(dispatched, ciFixPulls), sleep: async () => {}, log: () => {}, now: Date.parse("2026-10-17T12:00:00Z") },
+      { api: api(dispatched, ciFixPulls, docsPulls), sleep: async () => {}, log: () => {}, now: Date.parse("2026-10-17T12:00:00Z") },
     );
     return { code, dispatched };
   } finally {
@@ -104,6 +127,14 @@ test("the base config's limits.fix-ci-per-run caps the fix-ci dispatches", async
   assert.deepEqual(await run(LIVE, pulls), { code: 0, dispatched: ["40", "51", "52"] });
   const one = LIVE.replace(/^ {2}fix-ci-per-run: 2$/m, "  fix-ci-per-run: 1");
   assert.deepEqual(await run(one, pulls), { code: 0, dispatched: ["40", "51"] });
+});
+
+test("the base config's limits.fix-docs-per-run caps the fix-docs dispatches", async () => {
+  const pulls = [docsPull(61), docsPull(62), docsPull(63)];
+  assert.match(LIVE, /^ {2}fix-docs-per-run: 2$/m, "the live config sets the per-run cap");
+  assert.deepEqual(await run(LIVE, [], pulls), { code: 0, dispatched: ["40", "61", "62"] });
+  const one = LIVE.replace(/^ {2}fix-docs-per-run: 2$/m, "  fix-docs-per-run: 1");
+  assert.deepEqual(await run(one, [], pulls), { code: 0, dispatched: ["40", "61"] });
 });
 
 test("a base config the resolver refuses fails the run before any dispatch", async () => {

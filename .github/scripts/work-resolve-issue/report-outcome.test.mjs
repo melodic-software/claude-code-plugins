@@ -6,7 +6,7 @@
 // `stopped` comment, add needs-human and remove agent-ready.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -103,15 +103,22 @@ test("done opens a PR whose body starts with Closes #N", () => {
   assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
 });
 
-// A recorded keep-Refs decision (#7741): the PR links without closing, and a
-// human merges it because the merge gate finds no closing issue to read.
-test('done with "link": "refs" opens a PR that starts Refs: #N and carries the hold line', () => {
+// A recorded keep-Refs decision (#7741): the PR links without closing. The
+// merge gate finds no closing issue to read, so it never merges it; Refs alone
+// adds no hold line.
+test('done with "link": "refs" opens a PR that starts Refs: #N and carries no hold line', () => {
   withDir({ "work-outcome.json": JSON.stringify({ ...done, link: "refs" }) }, (dir) => {
     const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
     assert.ok(plan.body.startsWith("Refs: #77\n"), plan.body);
     assert.ok(!plan.body.includes("Closes #77"), plan.body);
-    assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
+    assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+    assert.equal(plan.refsHold, "needs-human");
   });
+});
+
+test("a Refs PR with a trusted merge: human label still carries the hold line", () => {
+  const plan = decideDone({ outcome: { ...done, link: "refs" }, humanMerge: true });
+  assert.ok(plan.body.startsWith("Refs: #77\n\nHold: a human merges this\n"), plan.body);
 });
 
 test("an unknown link value still closes the issue", () => {
@@ -532,9 +539,14 @@ test("an issue title carrying an issue reference or URL loses it", () => {
   );
 });
 
-test("a diff the compare listing may have cut short carries the hold line", () => {
+test("a diff the compare listing may have cut short carries the hold line while a path is denied", () => {
   const files = Array.from({ length: 300 }, (_, i) => `docs/f${i}.md`);
   assert.ok(decideDone({ changedFiles: files }).body.split("\n").includes("Hold: a human merges this"));
+});
+
+test("with no denied path a diff at the compare cap carries no hold line, since the cut can hide nothing", () => {
+  const files = Array.from({ length: 300 }, (_, i) => `docs/f${i}.md`);
+  assert.ok(!decideDone({ changedFiles: files, holdPaths: [] }).body.includes("Hold: a human merges this"));
 });
 
 test("done with no branch is stopped, since nothing was committed", () => {
@@ -637,6 +649,47 @@ test("main refuses a human-gated label that is agent-ready and writes no label",
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// A run its issue dimensions skipped took no model turn, so it left no
+// outcome: report-outcome hands the issue to a person with the next step.
+for (const [reason, step] of [
+  ["split-required", "/work-items:decompose"],
+  ["research-first", "research"],
+  ["probe-first", "probe"],
+  ["not-assessed", "Size, Complexity and Uncertainty"],
+]) {
+  test(`main on a ${reason} dimension skip hands the issue back naming the next step`, async () => {
+    await withDir({}, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: reason }, fetch }), 0);
+      assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
+      assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.match(comment, new RegExp(`^<!-- work-resolve-issue outcome=${reason} run=123 -->`));
+      assert.equal(parseOutcomeMarker(comment).outcome, reason);
+      assert.ok(comment.includes(step), comment);
+      assert.ok(comment.includes("https://example/o/r/actions/runs/123"), comment);
+      assert.ok(!calls.some((c) => c.path.endsWith("/pulls") || c.path.includes("/compare/")));
+    });
+  });
+}
+
+test("main refuses a dimension skip it does not know and writes nothing", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "awaiting-human" }, fetch }), 1);
+    assert.ok(!calls.some((c) => c.method !== "GET"));
+  });
 });
 
 test("main on done opens a ready PR from the branch and adds no label to it", async () => {
@@ -806,12 +859,23 @@ test("main does not adopt an open PR from the branch that someone else opened", 
 });
 
 // A resumed run can finish the inherited work without a commit of its own:
-// its branch was deleted, so the PR opens from the branch it resumed.
+// its branch was deleted, so the PR opens from the branch it resumed, once
+// run-checks has checked that whole branch and every commit on it ahead of
+// the default branch is the lanes App's.
 const RESUMED = "work-resolve-issue/issue-77-100-1";
-// A resumed run that reports done with no commit of its own opens no PR: the
-// runner checks only this run's own branch, so the resumed branch's work is
-// unchecked. It goes to a person, and the comment names the branch and why.
-test("main on a resumed done with no commit of its own hands back, naming the resumed branch", async () => {
+const APP_COMMIT = {
+  author: { login: "melodic-automation-lanes[bot]", type: "Bot" },
+  committer: { login: "web-flow" },
+  commit: { verification: { verified: true, reason: "valid" } },
+};
+const resumedCompare = (commits = [APP_COMMIT, APP_COMMIT]) => [
+  "GET",
+  /\/compare\//,
+  200,
+  { files: [{ filename: "README.md" }], commits, total_commits: commits.length },
+];
+
+test("main on a resumed done with no commit of its own and no check results hands back, naming the resumed branch", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", resume: RESUMED }) },
     async (dir) => {
@@ -832,10 +896,114 @@ test("main on a resumed done with no commit of its own hands back, naming the re
   );
 });
 
-test("a resumed done with no new commit is stopped, not opened, and names why", () => {
-  const plan = decideDone({ branch: "", resumed: RESUMED });
-  assert.equal(plan.action, "hand-back");
-  assert.match(plan.comment, /resumed `work-resolve-issue\/issue-77-100-1` and reported done with no new commit/);
+test("main on a resumed done with no commit of its own opens the PR from the resumed branch its checks passed on", async () => {
+  await withAsyncDir(
+    {
+      "work-outcome.json": JSON.stringify(done),
+      "lane.json": JSON.stringify({ branch: "", resume: RESUMED }),
+      "runner-checks": checksFile({ branch: RESUMED }),
+    },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(RESUMED),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        resumedCompare(),
+        ["GET", /\/pulls$/, 200, []],
+        ["POST", /\/pulls$/, 201, { number: 90, head: { sha: CHECKED_TIP } }],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      // The compare reads the tip the runner checked, not wherever the name points now.
+      assert.ok(calls.some((c) => c.path === `/repos/o/r/compare/main...${CHECKED_TIP}`), JSON.stringify(calls.map((c) => c.path)));
+      assert.ok(!calls.some((c) => c.method === "PATCH"));
+      const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls"))?.body;
+      assert.ok(pull, "no PR was opened");
+      assert.equal(pull.head, RESUMED);
+      assert.ok(pull.body.startsWith("Closes #77\n"), pull.body);
+      assert.ok(pull.body.includes(`against ${CHECKED_TIP}:\n\n- ${FRAGMENTS}: passed\n`), pull.body);
+      assert.match(pull.body, /resumed `work-resolve-issue\/issue-77-100-1` and made no commit of its own/);
+      assert.ok(pull.body.includes(`the runner checked that whole branch at ${CHECKED_TIP}`), pull.body);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/77/")));
+    },
+  );
+});
+
+// The resumed branch comes from lane.json, which code the model started can
+// rewrite, so the runner opens it only when its checks name it, the branch is
+// still at the tip they checked, they passed, and every commit ahead of the
+// default branch is the lanes App's.
+test("main on a resumed done hands back when its branch's checks fail, moved, or carry a commit not the App's", async () => {
+  for (const [label, checks, tip, compare] of [
+    ["a failing check", checksFile({ branch: RESUMED, results: [{ check: FRAGMENTS, exit: 1 }] }), CHECKED_TIP, resumedCompare()],
+    ["no checks ran", checksFile({ branch: RESUMED, results: [] }), CHECKED_TIP, resumedCompare()],
+    ["results for another branch", checksFile(), CHECKED_TIP, resumedCompare()],
+    ["a tip the branch moved off", checksFile({ branch: RESUMED }), "d".repeat(40), resumedCompare()],
+    ["a commit not the App's", checksFile({ branch: RESUMED }), CHECKED_TIP, resumedCompare([APP_COMMIT, { ...APP_COMMIT, author: { login: "stranger" } }])],
+    ["a cut-short commit listing", checksFile({ branch: RESUMED }), CHECKED_TIP, ["GET", /\/compare\//, 200, { files: [], commits: [APP_COMMIT], total_commits: 300 }]],
+  ]) {
+    await withAsyncDir(
+      { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", resume: RESUMED }), "runner-checks": checks },
+      async (dir) => {
+        const { fetch, calls } = fakeFetch([
+          ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+          branchTip(RESUMED, tip),
+          ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+          compare,
+          ["POST", /\/issues\/77\/labels$/, 200, []],
+          ["DELETE", /\/labels\//, 200, []],
+          ["POST", /\/issues\/77\/comments$/, 201, {}],
+        ]);
+        assert.equal(await main({ env: env(dir), fetch }), 0, label);
+        assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")), label);
+        const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
+        assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=stopped"), `${label}: ${comment}`);
+        assert.ok(comment.includes(RESUMED), `${label}: ${comment}`);
+      },
+    );
+  }
+});
+
+// The branch name can move between the tip check and the PR open, so a PR
+// whose head is not the checked tip is closed and the issue handed back.
+test("main closes a resumed branch's new PR whose head is not the tip the runner checked, and hands back", async () => {
+  await withAsyncDir(
+    {
+      "work-outcome.json": JSON.stringify(done),
+      "lane.json": JSON.stringify({ branch: "", resume: RESUMED }),
+      "runner-checks": checksFile({ branch: RESUMED }),
+    },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        branchTip(RESUMED),
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        resumedCompare(),
+        ["GET", /\/pulls$/, 200, []],
+        ["POST", /\/pulls$/, 201, { number: 90, head: { sha: "d".repeat(40) } }],
+        ["PATCH", /\/pulls\/90$/, 200, {}],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      assert.deepEqual(calls.find((c) => c.method === "PATCH" && c.path.endsWith("/pulls/90"))?.body, { state: "closed" });
+      assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/77/labels")).body, { labels: ["needs-human"] });
+      const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
+      assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=stopped"), comment);
+      assert.ok(comment.includes(CHECKED_TIP), comment);
+    },
+  );
+});
+
+test("a resumed done with no new commit is stopped unless the runner's checks passed on the resumed branch", () => {
+  for (const checks of [null, NO_CHECKS, { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 1 }] }]) {
+    const plan = decideDone({ branch: "", resumed: RESUMED, checks });
+    assert.equal(plan.action, "hand-back");
+    assert.match(plan.comment, /resumed `work-resolve-issue\/issue-77-100-1` and reported done with no new commit/);
+  }
+  const plan = decideDone({ branch: "", resumed: RESUMED, checks: { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 0 }] } });
+  assert.equal(plan.action, "open-pr");
+  assert.equal(plan.branch, RESUMED);
 });
 
 test("main on a resumed stop with no commit of its own names no branch", async () => {
@@ -1394,6 +1562,16 @@ test("a pushback marker, or a newer pushback for another run, resumes nothing", 
   assert.deepEqual(prior({ branches, markers: [marked("pushback", "400")] }), { action: "run" });
   const newer = [marked("turn-cap", "400"), marked("pushback", "401", "2026-10-16T12:00:00Z")];
   assert.deepEqual(prior({ branches, markers: newer }), { action: "run" });
+});
+
+// A dimension skip ran nothing and touched no branch, so it leaves the
+// earlier run's resume as it was.
+test("a newer dimension-skip marker keeps an earlier run's resume", () => {
+  const branches = [branchFact(lane(400), { sha: SHA_400 })];
+  for (const reason of ["split-required", "research-first", "probe-first", "not-assessed"]) {
+    const markers = [marked("turn-cap", "400"), marked(reason, "401", "2026-10-16T12:00:00Z")];
+    assert.deepEqual(prior({ branches, markers }), { action: "resume", branch: lane(400), tip: SHA_400, cause: "turn-cap" }, reason);
+  }
 });
 
 // A resumed run that committed nothing keeps no branch of its own, so the
@@ -2049,8 +2227,11 @@ test("the script loads from a copy of its own directory alone", async () => {
 });
 
 // work-resolve-issue.yml's run-checks step, run against a throwaway base and
-// lane branch. Expected values come from #7497: each check runs from the base
-// copy against the lane branch, and reads its scripts/ data from the base.
+// lane branch. Expected values come from #7497 and W-92 (a): each check runs
+// from the base copy against the lane branch, and reads the scripts/ data
+// (.txt, .json, .jsonl) the merged ref would hold: the base's, with the
+// branch's own changes since the merge base; a committed symlink there fails
+// the step.
 function runChecksScript() {
   const lines = readFileSync(new URL("../../workflows/work-resolve-issue.yml", import.meta.url), "utf8").split("\n");
   const id = lines.findIndex((line) => /^\s+id: run-checks$/.test(line));
@@ -2066,11 +2247,24 @@ function runChecksScript() {
   return body.map((l) => l.slice(indent)).join("\n");
 }
 
-// The base's check passes only when its own scripts/list.txt says ok and the
-// branch holds .changes/good.md; the branch's copy of the check always passes
-// and its list says bad, so a check run from, or reading data from, the
-// branch's scripts/ gives the other answer.
-function runChecks({ goodFragment, checks = ["scripts/check-x.sh --check"] }) {
+// The lane repository forks from a commit holding the base's check and a
+// scripts/list.txt saying bad; the lane branch then commits its own files and
+// the default branch moves on with `baseFiles`, and BASE is a clone of that
+// tip. The base's check passes only when scripts/list.txt says ok, the branch
+// holds .changes/good.md and `extraCheck` holds; the branch's copy of the check
+// logs "lane" and always passes, so running it gives a different log and result.
+function runChecks({
+  goodFragment,
+  branchList = "ok\n",
+  symlink,
+  checks = ["scripts/check-x.sh --check"],
+  forkFiles = {},
+  laneFiles = {},
+  laneDeletes = [],
+  baseFiles = {},
+  extraCheck = "true",
+  unrelatedBase = false,
+}) {
   const root = mkdtempSync(join(tmpdir(), "run-checks-"));
   try {
     const base = join(root, "base");
@@ -2081,21 +2275,41 @@ function runChecks({ goodFragment, checks = ["scripts/check-x.sh --check"] }) {
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, text);
     };
-    write(join(base, "scripts", "list.txt"), "ok\n");
-    write(
-      join(base, "scripts", "check-x.sh"),
-      '#!/usr/bin/env bash\necho "base $PWD $CHECK_DATA_ROOT $*" >>"$LOG"\ngrep -qx ok scripts/list.txt && [ -f .changes/good.md ]\n',
-    );
-    write(join(laneDir, "scripts", "list.txt"), "bad\n");
-    write(join(laneDir, "scripts", "check-x.sh"), "#!/usr/bin/env bash\nexit 0\n");
-    if (goodFragment) {
-      write(join(laneDir, ".changes", "good.md"), "x\n");
+    const gitIn = (dir, ...args) => {
+      const run = spawnSync("git", ["-C", dir, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8" });
+      assert.equal(run.status, 0, `git ${args.join(" ")}: ${run.stderr}`);
+      return run.stdout;
+    };
+    const git = (...args) => gitIn(laneDir, ...args);
+    const commitAll = (dir, files, message) => {
+      for (const [path, text] of Object.entries(files)) write(join(dir, path), text);
+      gitIn(dir, "add", "-A");
+      gitIn(dir, "commit", "-qm", message, "--allow-empty");
+    };
+    const baseCheck = `#!/usr/bin/env bash\necho "base $PWD $CHECK_DATA_ROOT $*" >>"$LOG"\ngrep -qx ok scripts/list.txt && [ -f .changes/good.md ] && ${extraCheck}\n`;
+    const forkTree = { "scripts/list.txt": "bad\n", "scripts/check-x.sh": baseCheck, ...forkFiles };
+    mkdirSync(laneDir, { recursive: true });
+    git("init", "-q", "-b", "main");
+    commitAll(laneDir, forkTree, "fork");
+    git("checkout", "-q", "-b", "lane");
+    for (const path of laneDeletes) rmSync(join(laneDir, path));
+    if (symlink) {
+      symlinkSync(symlink.target, join(laneDir, "scripts", symlink.name));
     }
-    const git = (...args) => spawnSync("git", ["-C", laneDir, ...args], { encoding: "utf8" });
-    git("init", "-q");
-    git("add", "-A");
-    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "lane");
-    const tip = git("rev-parse", "HEAD").stdout.trim();
+    const laneTree = { "scripts/list.txt": branchList, "scripts/check-x.sh": '#!/usr/bin/env bash\necho lane >>"$LOG"\nexit 0\n', ...laneFiles };
+    if (goodFragment) laneTree[".changes/good.md"] = "x\n";
+    commitAll(laneDir, laneTree, "lane");
+    git("checkout", "-q", "main");
+    commitAll(laneDir, baseFiles, "base moves on");
+    if (unrelatedBase) {
+      mkdirSync(base, { recursive: true });
+      gitIn(base, "init", "-q", "-b", "main");
+      commitAll(base, forkTree, "unrelated");
+    } else {
+      gitIn(root, "clone", "-q", "--branch", "main", laneDir, base);
+    }
+    git("checkout", "-q", "lane");
+    const tip = git("rev-parse", "HEAD").trim();
     write(join(root, "resolved.json"), JSON.stringify({ lane: { slots: [{ name: "resolve-issue", checks }] } }));
     const run = spawnSync("bash", ["-e", "-o", "pipefail", "-c", runChecksScript()], {
       encoding: "utf8",
@@ -2115,7 +2329,7 @@ function runChecks({ goodFragment, checks = ["scripts/check-x.sh --check"] }) {
   }
 }
 
-test("the runner runs each check from the base copy against the lane branch, with the base's scripts/ data", () => {
+test("the runner runs each check's code from the base copy, reading the lane branch's committed scripts/ data", () => {
   const passing = runChecks({ goodFragment: true });
   assert.equal(passing.status, 0, passing.stdout);
   assert.deepEqual(passing.checks, {
@@ -2125,10 +2339,70 @@ test("the runner runs each check from the base copy against the lane branch, wit
     results: [{ check: "scripts/check-x.sh --check", exit: 0 }],
   });
   assert.equal(passing.log, `base ${passing.laneDir} ${passing.laneDir} --check\n`);
+  const badList = runChecks({ goodFragment: true, branchList: "bad\n" });
+  assert.equal(badList.status, 0, badList.stdout);
+  assert.deepEqual(badList.checks.results, [{ check: "scripts/check-x.sh --check", exit: 1 }]);
+  assert.equal(badList.log, `base ${badList.laneDir} ${badList.laneDir} --check\n`);
   const failing = runChecks({ goodFragment: false });
   assert.equal(failing.status, 0, failing.stdout);
   assert.deepEqual(failing.checks.results, [{ check: "scripts/check-x.sh --check", exit: 1 }]);
 });
+
+test("a scripts/ data file the default branch added after the lane branch forked is the base's copy", () => {
+  const run = runChecks({ goodFragment: true, baseFiles: { "scripts/added.txt": "base\n" }, extraCheck: "grep -qx base scripts/added.txt" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.checks.results, [{ check: "scripts/check-x.sh --check", exit: 0 }]);
+});
+
+test("a scripts/ data file the default branch changed and the lane branch did not is the base's copy", () => {
+  const run = runChecks({
+    goodFragment: true,
+    forkFiles: { "scripts/shared.json": "fork\n" },
+    baseFiles: { "scripts/shared.json": "base\n" },
+    extraCheck: "grep -qx base scripts/shared.json",
+  });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.checks.results, [{ check: "scripts/check-x.sh --check", exit: 0 }]);
+});
+
+test("a scripts/ data file the lane branch changed is the branch's copy", () => {
+  const run = runChecks({
+    goodFragment: true,
+    forkFiles: { "scripts/own.jsonl": "fork\n" },
+    laneFiles: { "scripts/own.jsonl": "lane\n" },
+    extraCheck: "grep -qx lane scripts/own.jsonl",
+  });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.checks.results, [{ check: "scripts/check-x.sh --check", exit: 0 }]);
+});
+
+test("a scripts/ data file the lane branch deleted is absent", () => {
+  const run = runChecks({
+    goodFragment: true,
+    forkFiles: { "scripts/gone.txt": "fork\n" },
+    laneDeletes: ["scripts/gone.txt"],
+    extraCheck: "[ ! -e scripts/gone.txt ]",
+  });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.checks.results, [{ check: "scripts/check-x.sh --check", exit: 0 }]);
+});
+
+test("the runner fails and runs no check when the lane branch shares no history with the base tip", () => {
+  const run = runChecks({ goodFragment: true, unrelatedBase: true });
+  assert.equal(run.status, 1, run.stdout);
+  assert.match(run.stdout, /::error::cannot find the lane branch's merge base with the base tip/);
+  assert.equal(run.checks, null);
+  assert.equal(run.log, "");
+});
+
+test("the runner fails and runs no check when the lane branch commits a symlink under scripts/", () => {
+  const run = runChecks({ goodFragment: true, symlink: { name: "link.txt", target: "/etc/hostname" } });
+  assert.equal(run.status, 1, run.stdout);
+  assert.match(run.stdout, /::error::the lane branch's scripts\/ holds a symlink/);
+  assert.equal(run.checks, null);
+  assert.equal(run.log, "");
+});
+
 
 test("the runner writes no check results for a check outside scripts/ or with free arguments", () => {
   for (const check of ["plugins/x/scripts/check.sh", "scripts/check-x.sh ../etc", "scripts/check-x.sh; true"]) {

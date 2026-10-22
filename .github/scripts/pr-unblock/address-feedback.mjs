@@ -10,8 +10,10 @@
 //           a trusted person with write access asked the lane to fix it, or
 //           a trusted person answered the lane's escalation, then decides
 //           skip (no such thread), escalate (the PR changes .github/**, or
-//           the configured number of rounds already ran) or proceed, writing the thread file
-//           the skill's review-thread tool reads. On a PR carrying the
+//           the configured number of rounds already ran and no write-access
+//           fix request came after the newest one) or proceed, writing the thread file
+//           the skill's review-thread tool reads, with the same-plugin files
+//           a write-access fix request names (namedPaths). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
 //           awaiting-human when there are none.
@@ -25,7 +27,7 @@
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { isProtectedPath } from "./thread-scope.mjs";
+import { isProtectedPath, namedInScope } from "./thread-scope.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
@@ -57,15 +59,23 @@ export function countRounds(issueComments, appId) {
 // or broker refusal after the push moved the head); a forged one only stops
 // the lane sooner.
 export const MODEL_CHECK = "pr-unblock / address-feedback";
+const isModelRun = (run, conclusions) =>
+  run.name === MODEL_CHECK && run.app?.slug === "github-actions" && conclusions.includes(run.conclusion);
 export function countCheckRounds(checkRunsByCommit) {
-  return checkRunsByCommit.filter((runs) =>
-    runs.some(
-      (run) =>
-        run.name === MODEL_CHECK &&
-        run.app?.slug === "github-actions" &&
-        ["success", "failure"].includes(run.conclusion),
-    ),
-  ).length;
+  return checkRunsByCommit.filter((runs) => runs.some((run) => isModelRun(run, ["success", "failure"]))).length;
+}
+
+// When the newest round ended: the latest of the round markers' creation and
+// the model check runs' completion, a cancelled or timed-out one included so
+// one fix request cannot start a round again after such a run. NaN when any of
+// them has no readable time, so no fix request counts as newer.
+export function lastRoundAt(issueComments, appId, checkRunsByCommit) {
+  const ended = ["success", "failure", "cancelled", "timed_out"];
+  const times = [
+    ...issueComments.filter((comment) => isRoundMarker(comment, appId)).map((comment) => comment.created_at),
+    ...checkRunsByCommit.flat().filter((run) => isModelRun(run, ended)).map((run) => run.completed_at),
+  ].map((time) => Date.parse(time ?? ""));
+  return times.some(Number.isNaN) ? Number.NaN : Math.max(...times);
 }
 
 export function reviewedHeads(issueComments) {
@@ -103,6 +113,92 @@ export function isFixRequest(body) {
     }
   }
   return false;
+}
+
+// The file-shaped words of a fix request's body outside fenced code blocks and
+// quoted lines: each word with wrapping backticks, quotes, brackets or
+// emphasis, trailing punctuation and a trailing :line or :line-line removed,
+// kept when its last segment has an extension. A _ is a legal first or last
+// character of a name, so it is emphasis only as a matched pair.
+const WRAP_START = /^[`'"([{<*]+/;
+const WRAP_END = /[`'")\]}>*.,;:!?]+$/;
+const UNDERSCORE_PAIR = /^(_+)(.+)\1$/;
+export function pathTokens(body) {
+  const tokens = new Set();
+  let fenced = false;
+  for (const raw of String(body ?? "").split("\n")) {
+    const line = raw.replace(/\r$/, "");
+    if (/^ {0,3}(```|~~~)/.test(line)) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced || /^ {0,3}>/.test(line)) {
+      continue;
+    }
+    for (const word of line.split(/\s+/)) {
+      const token = word
+        .replace(WRAP_START, "")
+        .replace(WRAP_END, "")
+        .replace(UNDERSCORE_PAIR, "$2")
+        .replace(/:[1-9][0-9]*(-[1-9][0-9]*)?$/, "");
+      if (/\.[A-Za-z0-9]+$/.test(token.slice(token.lastIndexOf("/") + 1))) {
+        tokens.add(token);
+      }
+    }
+  }
+  return [...tokens];
+}
+
+// The most named paths one thread adds, counted after the existence check.
+export const NAMED_CAP = 10;
+// The most distinct directories one thread's existence check reads.
+export const TREE_READ_CAP = 2 * NAMED_CAP;
+// A regular or executable file's git mode, as GraphQL's TreeEntry.mode gives
+// it (100644 and 100755 in decimal): a symbolic link (120000) and a gitlink
+// (160000) are never named in.
+const FILE_MODES = new Set([0o100644, 0o100755]);
+
+// The paths a kept thread's fix requests name that may join its scope: each
+// path token of a comment by one of `fixers` that is a fix request
+// (isFixRequest), read as repository-relative when it holds a / and as a
+// file in the thread path's directory when it does not, allowed by
+// namedInScope for the thread, and a regular file at `headSha`
+// (`listTree(sha, dir)` answers the directory's GraphQL tree entries).
+export async function namedPaths({ thread, reviewComments, fixers, headSha, listTree }) {
+  const rows = new Map(reviewComments.map((row) => [row.id, row]));
+  const dir = thread.path.slice(0, thread.path.lastIndexOf("/") + 1);
+  const candidates = new Set();
+  for (const comment of thread.comments) {
+    const row = rows.get(comment.id);
+    if (comment.author !== "trusted-human" || !fixers.has(row?.user?.id) || !isFixRequest(row.body)) {
+      continue;
+    }
+    for (const token of pathTokens(row.body)) {
+      const path = token.includes("/") ? token : `${dir}${token}`;
+      if (path !== thread.path && namedInScope(path, thread.path)) {
+        candidates.add(path);
+      }
+    }
+  }
+  const trees = new Map();
+  const named = [];
+  for (const path of candidates) {
+    if (named.length === NAMED_CAP) {
+      break;
+    }
+    const parent = path.slice(0, path.lastIndexOf("/"));
+    if (!trees.has(parent)) {
+      if (trees.size === TREE_READ_CAP) {
+        continue;
+      }
+      trees.set(parent, await listTree(headSha, parent));
+    }
+    const entry = trees.get(parent).find((e) => e.name === path.slice(parent.length + 1));
+    if (entry?.type === "blob" && FILE_MODES.has(entry.mode)) {
+      named.push(path);
+    }
+  }
+  return named;
 }
 
 // The ids of the trusted people who wrote a fix request in `comments` (each
@@ -214,7 +310,7 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
     const id = comment.authorId;
     const human = isHuman(comment);
     if (i > last) {
-      // NaN compares false, so an unparseable time leaves the thread alone.
+      // NaN compares false, so an unparsable time leaves the thread alone.
       if (!human || !(Date.parse(comment.createdAt ?? "") > escalatedAt)) {
         return null;
       }
@@ -230,7 +326,8 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
 
 // A thread is kept when it is unresolved, its first comment belongs to a
 // review the reviewer bot submitted on a marker-confirmed head (any head for
-// a thread a fix request started), and threadAuthors accepts its comments.
+// a thread carrying a trusted person's direction), and threadAuthors accepts
+// its comments.
 // A thread with more comments than one page reads is left alone.
 export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
@@ -258,12 +355,11 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
     if (authors === null) {
       continue;
     }
-    // A thread with a trusted person's comment and none by the lanes App is
-    // one threadAuthors accepted for a fix request: the person asked for it,
-    // so its review may be on an earlier head.
-    const requested = authors.some((a) => a.author === "trusted-human") && !authors.some((a) => a.author === "lane");
+    // A trusted person's direction (a fix request, or a reply to the lane's
+    // escalation) asks for the thread, so its review may be on an earlier head.
+    const directed = authors.some((a) => a.direction === true);
     const review = reviewsById.get(rows[0].pull_request_review_id);
-    if (review?.user?.id !== reviewerId || (!requested && !heads.has(review.commit_id))) {
+    if (review?.user?.id !== reviewerId || (!directed && !heads.has(review.commit_id))) {
       continue;
     }
     kept.push({
@@ -327,15 +423,40 @@ export async function select({
   const commits = await api.listPullCommits(pr);
   const checkRuns = await Promise.all(commits.map((commit) => api.listCheckRuns(commit.sha, MODEL_CHECK)));
   const rounds = Math.max(countRounds(issueComments, appId), countCheckRounds(checkRuns));
+  let worked = kept;
   if (rounds >= maxRounds) {
-    return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
+    // Past the cap, a trusted person with write access who asked for a fix
+    // after the newest round grants one more round, for the threads they
+    // asked about only.
+    const since = lastRoundAt(issueComments, appId, checkRuns);
+    const rows = new Map(reviewComments.map((row) => [row.id, row]));
+    worked = kept.filter((thread) =>
+      thread.comments.some((comment) => {
+        const row = rows.get(comment.id);
+        return (
+          comment.author === "trusted-human" &&
+          fixers.has(row.user?.id) &&
+          isFixRequest(comment.body) &&
+          Date.parse(row.created_at ?? "") > since
+        );
+      }),
+    );
+    if (worked.length === 0) {
+      return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
+    }
+  }
+  for (const thread of worked) {
+    const named = await namedPaths({ thread, reviewComments, fixers, headSha, listTree: api.listTree });
+    if (named.length > 0) {
+      thread.named_paths = named;
+    }
   }
   return {
     decision: "proceed",
     rounds,
     fixRequested: gated,
-    threads: kept,
-    file: { version: 1, repository, pr, head_sha: headSha, lane_branch: laneBranch, threads: kept },
+    threads: worked,
+    file: { version: 1, repository, pr, head_sha: headSha, lane_branch: laneBranch, threads: worked },
   };
 }
 
@@ -359,6 +480,12 @@ const THREAD_QUERY = `query($id: ID!) {
     ... on PullRequestReviewThread {
       isResolved pullRequest { number } comments(first: 100) { totalCount nodes { databaseId } }
     }
+  }
+}`;
+
+const TREE_QUERY = `query($owner: String!, $name: String!, $expression: String!) {
+  repository(owner: $owner, name: $name) {
+    object(expression: $expression) { ... on Tree { entries { name type mode } } }
   }
 }`;
 
@@ -470,6 +597,21 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     async getCommit(sha) {
       return (await request(`${repo}/commits/${sha}`)).data;
     },
+    // A file's text at `ref` through the raw media type, which serves files
+    // over 1 MB (docs.github.com/en/rest/repos/contents#get-repository-content,
+    // as of 2026-10-21; recheck when that section changes its size limits);
+    // null when the path is absent.
+    async getText(path, ref) {
+      const url = `${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`;
+      const response = await fetch(url, { headers: { ...headers, Accept: "application/vnd.github.raw+json" } });
+      if (response.status === 404) {
+        return null;
+      }
+      if (!response.ok) {
+        throw new Error(`GET ${url} returned ${response.status}`);
+      }
+      return response.text();
+    },
     async listThreads(pr) {
       const nodes = [];
       let after = null;
@@ -481,6 +623,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
         }
         after = page.pageInfo.endCursor;
       }
+    },
+    // The entries of the tree at `${sha}:${dir}`, none when it is no tree.
+    async listTree(sha, dir) {
+      const object = (await graphql(TREE_QUERY, { owner, name, expression: `${sha}:${dir}` })).repository.object;
+      return object?.entries ?? [];
     },
     async readThread(id) {
       const node = (await graphql(THREAD_QUERY, { id })).node;
@@ -510,7 +657,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     async createIssueComment(pr, body) {
       await request(`${repo}/issues/${pr}/comments`, "POST", { body });
     },
-    // One page: apply-ci-fix.mjs refuses to read more labels than it holds.
+    // One page: a pull request with more labels than one page holds is refused.
     async listLabels(pr) {
       const { data, link } = await request(`${repo}/issues/${pr}/labels?per_page=100`);
       if (/rel="next"/.test(link)) {
@@ -518,8 +665,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       }
       return data;
     },
-    // The Git Data API (apply-ci-fix.mjs): GitHub signs a commit made with no
-    // author or committer as the App.
+    // The Git Data API: GitHub signs a commit made with no author or
+    // committer as the App.
     createBlob: async (content) => (await request(`${repo}/git/blobs`, "POST", { content, encoding: "base64" })).data.sha,
     createTree: async (baseTree, tree) => (await request(`${repo}/git/trees`, "POST", { base_tree: baseTree, tree })).data.sha,
     createCommit: async (message, tree, parents) => (await request(`${repo}/git/commits`, "POST", { message, tree, parents })).data.sha,

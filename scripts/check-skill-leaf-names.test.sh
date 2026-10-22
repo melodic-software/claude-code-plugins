@@ -137,6 +137,17 @@ else
   fail "duplicate registry entry should fail (rc=$rc): $out"
 fi
 
+# 5g. Entries out of leaf-name order fail, so parallel additions land on
+#     different lines instead of both appending at the end.
+printf 'zeta *\nshared alpha,beta,gamma\n' >"$REGISTRY"
+out="$(run --check)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'lists shared after zeta' <<<"$out"; then
+  ok "an unsorted registry fails"
+else
+  fail "unsorted registry should fail (rc=$rc): $out"
+fi
+
 # 6. Stale guard: a registry entry that no longer collides fails, under the one
 #    STALE BASELINE prefix scripts/lib/read-list.sh owns for every list gate.
 printf 'shared\nvanished\n' >"$REGISTRY"

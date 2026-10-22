@@ -4,6 +4,36 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.23.8] - 2026-10-22
+
+### Fixed
+
+- The skill-authoring vendor hazard scan in `update.test.sh` now flags a process-substitution fetch such as `bash <(curl -s URL)`.
+
+## [0.23.7] - 2026-10-20
+
+### Fixed
+
+- skill-authoring: resynced the vendored upstream baseline, clearing the scheduled drift check. The update script now strips upstream's self-update block (an instruction to curl an install into `~/.claude/skills/`) on every sync and compares after the same strip, records `metadata.upstream-sha` for the vendored file, and its tests fail if any fetch-and-run or self-update instruction reaches `vendor/`.
+
+## [0.23.6] - 2026-10-20
+
+### Changed
+
+- The Fable 5.1 model-adaptation chapter's Batching and Progress-and-closing-messages sections now state the playbook's own rule in its own words, with a pointer, as-of date and recheck trigger, instead of tracking the upstream guide's text.
+
+## [0.23.5] - 2026-10-20
+
+### Changed
+
+- `repo-sweep` record points to the `/source-control:worktree` accepted-shapes heading for the general shapes and keeps its three observed forms ([#5673](https://github.com/melodic-software/claude-code-plugins/issues/5673)).
+
+### Fixed
+
+- The `boris` orchestration, favorites and customization references now carry pointer records (anchor, as-of date, recheck trigger) for fast mode, the dynamic-workflows blog sections, `/batch` fan-out and the keybindings file, in place of restated speed and scale figures.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.23.4] - 2026-10-18
 
 ### Changed

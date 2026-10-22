@@ -60,7 +60,8 @@ if [[ -n "$ref" ]]; then
 else
   text="$(cat "$CONFIG" 2>/dev/null)" || text=""
 fi
-records="$(LC_ALL=C awk -f "$SCRIPT_DIR/yaml-subset.awk" <<<"$text")" || die 1 "$CONFIG does not parse"
+records="$(LC_ALL=C awk -f "$SCRIPT_DIR/yaml-subset.awk" <<<"$text")" ||
+  die 1 "$CONFIG does not parse: $(awk -F '\t' '$1 == "error" { print "line " $2 ": " $3 }' <<<"$records")"
 records="$(awk -F '\t' -v p="$PREFIX" 'index($1, p) == 1 { print substr($0, length(p) + 1) }' <<<"$records")"
 [[ -n "$records" ]] || die 3 "$CONFIG has no ${PREFIX%.} block"
 

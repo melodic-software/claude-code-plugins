@@ -17,9 +17,23 @@ from a completed, successful one. Any other artifact is ignored.
 - the pull request was created more than `TOO_OLD_DAYS` ago:
   `verify:too-old`, since a verdict may already have expired;
 - a counted FAIL at the head, under any pull request number: `verify:fail`;
+- counted FAILs at `max_fails` or more distinct heads of this pull request
+  (tied as in the next item): `verify:repeated-fail`, whatever a pass says.
+  Before a pass decides, FAILs of other pull requests in this repository,
+  open or closed, that close one of its closing issues count too, at their
+  own heads (a FAIL among them whose run cannot be read is
+  `verify:unreadable`);
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch:
-  `verify:earlier-fail`;
+  `verify:earlier-fail`. It stands while a FAIL-named artifact cannot be
+  read (next item); otherwise counted PASS or PASS-NOTES verdicts at the
+  head whose runs were all created after every such FAIL's run (each
+  creation time read fresh from GitHub, which a re-attempt keeps; a missing
+  one keeps the refusal) clear it when the
+  pull request's own change at the head differs from its change at every
+  FAILed head (`change_digest`: a head that only merges the branch or adds
+  an empty commit carries the FAIL forward, and a digest that cannot be
+  computed keeps the refusal), and those passes decide, as below;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
   is ignored; an untied FAIL whose run is readable and of verifier origin but
@@ -37,8 +51,10 @@ from a completed, successful one. Any other artifact is ignored.
   other than the pull request's author, else `verify:untrusted-spec`;
 - otherwise `verify:missing`.
 
-`verify:too-old`, `verify:earlier-fail`, `verify:spec-changed` and
-`verify:untrusted-spec` need a human, who merges in person. Any read that fails refuses
+`verify:fail`, `verify:too-old`, `verify:repeated-fail`, `verify:earlier-fail`,
+`verify:spec-changed` and `verify:untrusted-spec` need a human, who merges in
+person; a `verify:fail` escalation quotes the newest head FAIL's summary
+(`Reader.fail_summary`). Any read that fails refuses
 (`verify:unreadable`). The repository's artifacts are listed once per
 `Reader`, every page, and filtered on the name here: the API's name filter
 matches whole names only, and a FAIL counts under any number and head.
@@ -60,6 +76,7 @@ whole queue rather than merging blind.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -110,18 +127,28 @@ NETWORK_ERRORS = (
 )
 FAIL = "verify:fail"
 EARLIER_FAIL = "verify:earlier-fail"
+REPEATED_FAIL = "verify:repeated-fail"
 MISSING = "verify:missing"
 UNREADABLE = "verify:unreadable"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
 SPEC_CHANGED = "verify:spec-changed"
-NEEDS_HUMAN = (EARLIER_FAIL, TOO_OLD, UNTRUSTED_SPEC, SPEC_CHANGED)
+NEEDS_HUMAN = (
+    FAIL,
+    EARLIER_FAIL,
+    REPEATED_FAIL,
+    TOO_OLD,
+    UNTRUSTED_SPEC,
+    SPEC_CHANGED,
+)
 CLOSING_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){closingIssuesReferences(first:10){totalCount "
     "nodes{number lastEditedAt repository{nameWithOwner} "
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
-    "author{...actor} editor{...actor}}}}}}}}"
+    "author{...actor} editor{...actor}}} "
+    "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
+    "nodes{number repository{nameWithOwner}}}}}}}}"
     "fragment actor on Actor{__typename login "
     "... on User{databaseId} ... on Bot{databaseId}}"
 )
@@ -160,6 +187,11 @@ class _Unreadable(Exception):
 
 class _Transient(_Unreadable):
     """A failed read that may succeed if repeated."""
+
+
+class SummaryUnreadable(Exception):
+    """`Reader.fail_summary` could not read the record, which is not the
+    same as a record with nothing to quote."""
 
 
 def _transient(detail: str) -> bool:
@@ -216,6 +248,8 @@ class Evidence:
     verdicts: tuple[Verdict, ...]
     ignored: int
     detail: str | None = None
+    # The newest counted FAIL at the head: its run id and artifact name.
+    head_fail: tuple[int, str] | None = None
 
     @property
     def needs_human(self) -> bool:
@@ -236,7 +270,63 @@ class Evidence:
             ),
             "ignored": self.ignored,
             "detail": self.detail,
+            "headFail": (
+                {"run": self.head_fail[0], "artifact": self.head_fail[1]}
+                if self.head_fail
+                else None
+            ),
         }
+
+
+DIFF_HEADER = re.compile(r"diff --git a/(.*) b/(.*)")
+MODE_LINES = ("old mode ", "new mode ", "new file mode ", "deleted file mode ")
+
+
+def change_digest(diff: str) -> str | None:
+    """A sha256 digest of the changed lines a unified diff holds, so context
+    and line numbers (which a base merge moves or edits) leave it alone.
+    Each file contributes its path, the old to new path of a rename, its
+    mode lines, its binary-change line, and its `-` and `+` lines with all
+    whitespace removed and the marker kept, blank ones dropped; a trailing
+    carriage return is dropped from every line. Lines within a file and files by
+    path are sorted, so reordering hunks or files changes nothing. None for
+    a diff with no change, or one that is not a git diff."""
+    files: dict[str, list[str]] = {}
+    lines: list[str] | None = None
+    in_hunk = False
+    for line in diff.split("\n"):
+        line = line.removesuffix("\r")
+        header = DIFF_HEADER.fullmatch(line)
+        if header:
+            lines = files.setdefault(header[2], [])
+            in_hunk = False
+        elif lines is None:
+            if line.strip():
+                return None
+        elif line.startswith("@@"):
+            in_hunk = True
+        elif in_hunk:
+            # A blank line, added or removed, changes nothing a re-roll
+            # could not add for free.
+            if line[:1] in ("-", "+") and (content := "".join(line[1:].split())):
+                lines.append(line[0] + content)
+        elif line.startswith("rename from "):
+            lines.append("rename " + line.removeprefix("rename from "))
+        elif line.startswith("rename to "):
+            lines.append("rename to " + line.removeprefix("rename to "))
+        elif line.startswith(MODE_LINES) or (
+            line.startswith("Binary files ") and line.endswith(" differ")
+        ):
+            lines.append(line)
+    changed = sorted((path, sorted(found)) for path, found in files.items() if found)
+    if not changed:
+        return None
+    return hashlib.sha256(json.dumps(changed).encode("utf-8")).hexdigest()
+
+
+def _is_id(value: Any, run_id: int) -> bool:
+    """`value` is the integer `run_id`; `True` equals 1 but is no id."""
+    return type(value) is int and value == run_id
 
 
 def _read(args: list[str], label: str) -> Any:
@@ -261,6 +351,8 @@ class Reader:
     listing_path: str | None = field(
         default_factory=lambda: os.environ.get(LISTING_ENV) or None
     )
+    # `merge.max-verify-fails`: FAILed heads at which a pass no longer clears.
+    max_fails: int = merge_policy.MAX_VERIFY_FAILS
     _artifacts: list[dict[str, Any]] | None = None
     _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
@@ -268,6 +360,8 @@ class Reader:
     _listing_error: str | None = None
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
+    _created: dict[int, Any] = field(default_factory=dict)
+    _digests: dict[str, str | None] = field(default_factory=dict)
     # Runs whose standing came from the run cache (`_run_state`).
     _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
@@ -309,6 +403,15 @@ class Reader:
         self._saved = self._own = False
         self._save(listing, fetched_at)
         return listing
+
+    def listing(self) -> list[dict[str, Any]]:
+        """Every repository artifact, as a judgment reads it, saved to
+        `listing_path` for the run's gate processes. Raises `RuntimeError`
+        when it cannot be read."""
+        try:
+            return self._listing()
+        except _Unreadable as exc:
+            raise RuntimeError(str(exc)) from exc
 
     @property
     def saved(self) -> bool:
@@ -475,6 +578,7 @@ class Reader:
             self._shared_runs.discard(run_id)
         if not cached:
             self._started[run_id] = record.get("run_started_at")
+            self._created[run_id] = record.get("created_at")
             run_cache.put(RUN_SECTION, key, {k: record.get(k) for k in RUN_FIELDS})
         done = (
             record.get("status") == "completed"
@@ -488,7 +592,7 @@ class Reader:
         repository whose head the branch holds."""
         head = record.get("head_sha")
         return (
-            record.get("id") == run_id
+            _is_id(record.get("id"), run_id)
             and record.get("path") == WORKFLOW_PATH
             and record.get("event") == "workflow_run"
             and record.get("head_branch") == self.branch
@@ -678,14 +782,29 @@ class Reader:
             == self.repo
         }
         for issue in live.values():
-            comments = json_object(issue.get("comments"))
-            if not is_json_array(comments.get("nodes")) or comments.get(
-                "totalCount"
-            ) != len(comments["nodes"]):
-                raise _Unreadable(
-                    f"#{issue.get('number')}: its comments could not be read"
-                )
+            for part in ("comments", "closedByPullRequestsReferences"):
+                listed = json_object(issue.get(part))
+                if not is_json_array(listed.get("nodes")) or listed.get(
+                    "totalCount"
+                ) != len(listed["nodes"]):
+                    raise _Unreadable(
+                        f"#{issue.get('number')}: its {part} could not be read"
+                    )
         return live
+
+    def _closers(self, live: dict[Any, Any]) -> set[int]:
+        """The pull requests in this repository, open or closed, that close
+        any of the closing issues `live` holds."""
+        return {
+            node.get("number")
+            for issue in live.values()
+            for node in map(
+                json_object,
+                json_object(issue.get("closedByPullRequestsReferences")).get("nodes"),
+            )
+            if json_object(node.get("repository")).get("nameWithOwner") == self.repo
+            and type(node.get("number")) is int
+        }
 
     def _commits(self, number: int, head: str) -> set[str]:
         try:
@@ -729,8 +848,14 @@ class Reader:
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str]] = []
+        head_fails: list[tuple[int, str]] = []
         ignored = 0
         unreadable: str | None = None
+        # FAILs of verifier origin by pull request number, and the numbers
+        # with a FAIL whose run cannot be read, for the cap's other pull
+        # requests (`_closers`).
+        failed_by_pr: dict[int, set[str]] = {}
+        unread_prs: set[int] = set()
         for item in map(json_object, self._listing()):
             name = str(item.get("name") or "")
             match = NAME_RE.fullmatch(name)
@@ -758,11 +883,13 @@ class Reader:
                 ignored += 1
                 continue
             if state == UNREAD:
+                unread_prs.add(pr_n)
                 if tied:
                     unreadable = unreadable or f"run of {name}"
                 else:
                     ignored += 1
                 continue
+            failed_by_pr.setdefault(pr_n, set()).add(sha)
             if not tied:
                 try:
                     recorded = self._head_ref(run_id, name, item.get("id"), head_ref)
@@ -772,12 +899,22 @@ class Reader:
                 if not head_ref or recorded != head_ref:
                     continue
             verdicts.append(Verdict(sha, verdict, run_id))
+            if sha == head and verdict == "fail":
+                head_fails.append((run_id, name))
         fails = [v for v in verdicts if v.verdict == "fail"]
+        failed = {v.sha for v in fails}
         refusal: str | None
         detail = unreadable
-        if any(v.sha == head for v in fails):
+        if head in failed:
             refusal = FAIL
-        elif fails:
+        elif len(failed) >= self.max_fails:
+            refusal = REPEATED_FAIL
+            detail = f"fails at {len(failed)} heads, the cap is {self.max_fails}"
+        elif fails and (
+            unreadable
+            or not self._passes_follow(fails, passes)
+            or not self._change_differs(head, failed)
+        ):
             refusal = EARLIER_FAIL
         elif unreadable:
             refusal = UNREADABLE
@@ -785,16 +922,128 @@ class Reader:
             # Every pass at the head must allow, so listing order decides
             # nothing; any unreadable one refuses (`_Unreadable`).
             live = self._closing_issues(number)
-            refusals = {
-                self._pass_refusal(run_id, name, number, head, author, live)
-                for run_id, name in passes
-            }
-            refusal = next(
-                (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals), None
-            )
+            others = self._closers(live) - {number}
+            elsewhere = set().union(*(failed_by_pr.get(n, set()) for n in others))
+            if others & unread_prs:
+                raise _Unreadable("a FAIL run of a pull request for the same issue")
+            if len(failed | elsewhere) >= self.max_fails:
+                refusal = REPEATED_FAIL
+                detail = (
+                    f"fails at {len(failed | elsewhere)} heads of this and other "
+                    f"pull requests for its issues, the cap is {self.max_fails}"
+                )
+            else:
+                refusals = {
+                    self._pass_refusal(run_id, name, number, head, author, live)
+                    for run_id, name in passes
+                }
+                refusal = next(
+                    (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
+                    None,
+                )
         else:
             refusal = MISSING
-        return Evidence(refusal, head, tuple(verdicts), ignored, detail)
+        return Evidence(
+            refusal,
+            head,
+            tuple(verdicts),
+            ignored,
+            detail,
+            max(head_fails) if refusal == FAIL else None,
+        )
+
+    def _fresh_created(self, run_id: int) -> datetime | None:
+        """When the run was created, from a record this process read from
+        GitHub: a cached or carried record could be forged, so it is read
+        again. A re-attempt keeps `created_at` and moves `run_started_at`
+        later, so a re-run of an old judgment never looks newer than a FAIL
+        that followed it. None when that read fails or holds no time."""
+        if run_id not in self._created:
+            try:
+                record = json_object(
+                    self._actions(
+                        ["api", f"repos/{self.repo}/actions/runs/{run_id}"],
+                        f"run {run_id}",
+                    )
+                )
+            except _Unreadable:
+                return None
+            if not _is_id(record.get("id"), run_id):
+                return None
+            self._created[run_id] = record.get("created_at")
+        try:
+            return postmerge._time(self._created[run_id])
+        except postmerge.PostMergeReadError:
+            return None
+
+    def _passes_follow(
+        self, fails: list[Verdict], passes: list[tuple[int, str]]
+    ) -> bool:
+        """Every counted pass at the head was judged after every counted
+        FAIL: each pass's run was created after each FAIL's run. A pass judged
+        before a later FAIL (head B passes, A fails, the branch returns to B)
+        never clears it, re-attempted or not, and a missing time clears
+        nothing."""
+        if not passes:
+            return False
+        starts = [self._fresh_created(v.run_id) for v in fails]
+        begun = [self._fresh_created(run_id) for run_id, _ in passes]
+        if None in starts or None in begun:
+            return False
+        return max(s for s in starts if s) < min(b for b in begun if b)
+
+    def _digest(self, sha: str) -> str | None:
+        """`change_digest` of the pull request's own change at `sha`: the
+        diff from its merge base with the branch to `sha` (compare
+        `branch...sha`, read once). None when it cannot be read or holds no
+        change."""
+        if sha not in self._digests:
+            self._digests[sha] = None
+            try:
+                diff = postmerge.gh_capture(
+                    [
+                        "api",
+                        "-H",
+                        "Accept: application/vnd.github.diff",
+                        f"repos/{self.repo}/compare/{self.branch}...{sha}",
+                    ],
+                    env_overrides=self._env(),
+                )
+            except (RuntimeError, ValueError, OSError):
+                return None
+            if diff.returncode == 0:
+                self._digests[sha] = change_digest(diff.stdout)
+        return self._digests[sha]
+
+    def _change_differs(self, head: str, failed: set[str]) -> bool:
+        """The pull request's change at the head differs from its change at
+        every FAILed head, so its pass judged a change no FAIL did. A digest
+        that cannot be computed differs from nothing."""
+        own = self._digest(head)
+        return own is not None and all(
+            (other := self._digest(sha)) is not None and other != own for sha in failed
+        )
+
+    def fail_summary(
+        self, run_id: int, name: str, number: int, head: str
+    ) -> str | None:
+        """The `summary` a FAIL artifact's verdict.json records for pull
+        request `number` at `head`, or None when it records another pull
+        request, head or verdict. Raises `SummaryUnreadable` when it cannot be
+        read. Untrusted model text: the caller frames it as data."""
+        try:
+            record = self._record(run_id, name)
+        except _Unreadable as exc:
+            raise SummaryUnreadable(str(exc)) from exc
+        summary = record.get("summary")
+        if (
+            record.get("pr") != number
+            or record.get("head_sha") != head
+            or record.get("verdict") != "fail"
+            or not isinstance(summary, str)
+        ):
+            return None
+        return summary
 
     def _pass_refusal(
         self,

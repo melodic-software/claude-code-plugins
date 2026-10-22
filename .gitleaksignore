@@ -10,10 +10,11 @@
 4b10aeebd6e7f9861f2fca9710ca3143b24d8613:plugins/architecture/lib/likec4-golden/deployment-kubernetes.c4:generic-api-key:21
 097e014ebe3a9fa9a58c23eeecfec50049253daa:plugins/disk-hygiene/lib/test_guard_decision_log.py:private-key:180
 097e014ebe3a9fa9a58c23eeecfec50049253daa:plugins/disk-hygiene/lib/test_guard_decision_log.py:jwt:197
-# The vendored gitleaks rules file: this rule's regex is a literal prefix that
+# The vendored gitleaks rules files: this rule's regex is a literal prefix that
 # matches itself. A commit-less line is checked in git scans as well as dir
 # scans, so it survives the squash merge that replaces the adding commit.
 plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
+plugins/corrections/tools/findings-buffer/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
 # The fake key in the elevenlabs tests. Commit-less, so it survives the squash merge.
 plugins/speech/scripts/test_elevenlabs.py:generic-api-key:21
 bf5e54fb3c1f180d10e2dcff580d411a3dea0b5d:plugins/display-redaction/hooks/mask.test.ts:private-key:46
@@ -39,10 +40,6 @@ plugins/session-flow/evals/fh-confirms-before-resume/samples/token-not-surfaced.
 plugins/session-flow/evals/fh-confirms-before-resume/samples/token-not-surfaced.json:generic-api-key:18
 # Shared interview state fixtures: tokenHash is a sha256 of a fixture token and guestKey a fixture
 # key. Commit-less, so they survive the squash merge; line 73 is the prototype's line in its adding commit.
-plugins/planning/shared/tests/fixtures/state-v1.json:generic-api-key:33
-plugins/planning/shared/tests/fixtures/invalid-state-duplicate-flag.json:generic-api-key:33
-plugins/planning/shared/tests/fixtures/state-v0-prototype.json:generic-api-key:73
-plugins/planning/shared/tests/fixtures/state-v0-prototype.json:generic-api-key:74
 plugins/planning/shared/tests/fixtures/state-written-08ff888.json:generic-api-key:1
 plugins/planning/shared/tests/fixtures/state-written-0bbffb3.json:generic-api-key:1
 plugins/planning/shared/tests/fixtures/state-written-3153973.json:generic-api-key:1

@@ -503,8 +503,8 @@ Hosting is a deployment-owned binding. This contract fixes invariants only:
   a routine additionally opens no scheduling or merge path of its own;
 - the per-class isolation floor: the [matrix](guardrails.md#the-matrix) min-isolation
   column;
-- merge-policy caps, including that vendor-hosted
-  [executors](trigger-dispatch.md#executor-surface-classes) stay human-gated;
+- merge-policy caps: the matrix merge-policy column, with no cap by
+  [executor class](trigger-dispatch.md#executor-surface-classes);
 - cost surfaced before any paid binding; no new cost by default.
 
 Budget posture, org shape, and substrate availability are deployment decision inputs.

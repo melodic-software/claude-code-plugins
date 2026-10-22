@@ -33,7 +33,14 @@ const OWN = {
   activityRules: json(".github/actions/resolve-config/activity-rules.json"),
 };
 const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
-const LIVE = { ...OWN, config: read(CONFIG_PATH), vocabulary: json(VOCABULARY_PATH), trustedActors: json(TRUSTED_ACTORS_PATH) };
+const ROLE_MAP_PATH = "plugins/multi-agent/reference/defaults.yaml";
+const LIVE = {
+  ...OWN,
+  config: read(CONFIG_PATH),
+  vocabulary: json(VOCABULARY_PATH),
+  trustedActors: json(TRUSTED_ACTORS_PATH),
+  roleMap: read(ROLE_MAP_PATH),
+};
 // A listed human in the live trusted-actor list, and an account not on it.
 const LISTED = 153232337;
 const UNLISTED = 42;
@@ -81,7 +88,6 @@ const DEFAULT_RUN = {
 };
 
 for (const [lane, activity] of [
-  ["pr-refine", "fix-docs"],
   ["pr-unblock", "resolve-conflicts"],
   ["pr-unblock", "address-feedback"],
   ["pr-unblock", "review-dependency"],
@@ -233,7 +239,7 @@ test("live config: the live issue-dimensions maps every org option and runs a kn
 });
 
 test("live config: an activity with no issue input takes no dimensions", () => {
-  const slot = liveSlot("pr-refine", "fix-docs");
+  const slot = liveSlot("pr-unblock", "fix-docs");
   assert.equal(slot["issue-dimensions"], undefined);
   assert.equal(slot["timeout-minutes"], undefined);
 });
@@ -300,6 +306,136 @@ for (const [route, profile, args] of [
   });
 }
 
+// Role profiles. Expected values read by hand from the role map
+// (plugins/multi-agent/reference/defaults.yaml): worker's model is inherit and
+// its mechanical workload sonnet, verifier's effort high; the owner's rule
+// sends inherit, and any role route that resolves no alias, to opus.
+test("live config: fix-ci runs as a worker on code, opus at the verifier's effort, 75 turns", () => {
+  const slot = liveSlot("pr-unblock", "fix-ci");
+  assert.deepEqual(slot.models, {
+    profile: "code-fix",
+    role: "worker",
+    workload: "code",
+    model: "opus",
+    effort: "high",
+    "subagent-model": "inherit",
+    "max-turns": 75,
+  });
+  assert.equal(modelArgs(slot.models), "--model opus --max-turns 75 --effort high");
+});
+
+// The role map's worker runs mechanical work on sonnet at its own effort,
+// medium; the profile keeps standard's 75 turns.
+test("live config: fix-docs runs as a mechanical worker, sonnet at the worker's effort, 75 turns", () => {
+  const slot = liveSlot("pr-unblock", "fix-docs");
+  assert.deepEqual(slot.models, {
+    profile: "docs-fix",
+    role: "worker",
+    workload: "mechanical",
+    model: "sonnet",
+    effort: "medium",
+    "subagent-model": "inherit",
+    "max-turns": 75,
+  });
+  assert.equal(modelArgs(slot.models), "--model sonnet --max-turns 75 --effort medium");
+});
+
+// Every route the live config names runs on a routed alias: never empty,
+// `default`, `inherit`, a model ID, or the frontier tier (fable, best).
+test("live config: every route resolves to a model alias, never empty, default or a model ID", () => {
+  const doc = parse(LIVE.config);
+  const routes = Object.keys(doc.models.routes);
+  assert.ok(routes.includes("fix-ci"));
+  for (const route of routes) {
+    let models;
+    if (Object.hasOwn(doc.activities, route)) {
+      const lane = Object.keys(doc.lanes).find((name) => (doc.lanes[name].slots ?? []).some((slot) => slot.activity === route));
+      assert.ok(lane, `no lane holds ${route}`);
+      models = liveSlot(lane, route).models;
+    } else {
+      models = resolveRoute(LIVE, { route, configPath: CONFIG_PATH });
+    }
+    assert.ok(["haiku", "sonnet", "opus"].includes(models.model), `${route}: ${models.model}`);
+  }
+});
+
+const ROLE_PROFILES = {
+  coder: { role: "worker", workload: "code", "effort-role": "verifier", "max-turns": 40 },
+  chores: { role: "worker", workload: "mechanical", "max-turns": 20 },
+  fallback: { model: "opus", "max-turns": 5 },
+};
+const roleSlot = (roleMap, profile = "coder") =>
+  fixtureSlot({
+    ...withModels({ profiles: ROLE_PROFILES, "default-profile": "fallback", routes: { "fix-prose": profile } }),
+    roleMap,
+  }).models;
+const roleMapWith = (worker, extra = "") =>
+  `schema: 1\nroles:\n  worker:\n${worker}\n  verifier:\n    model: inherit\n    effort: high\n${extra}`;
+
+test("a role profile whose role inherits runs on opus", () => {
+  const models = roleSlot(roleMapWith("    model: inherit\n    effort: medium"));
+  assert.equal(models.model, "opus");
+  assert.equal(models.effort, "high");
+});
+
+test("a role profile's workload model wins over its role's: the live map's mechanical worker is sonnet", () => {
+  const models = roleSlot(LIVE.roleMap, "chores");
+  assert.deepEqual(
+    { model: models.model, effort: models.effort, workload: models.workload },
+    { model: "sonnet", effort: "medium", workload: "mechanical" },
+  );
+});
+
+for (const [why, roleMap] of [
+  ["no role map", undefined],
+  ["a role map that does not parse", "roles: [\n"],
+  ["a role map without the role", "schema: 1\nroles:\n  verifier:\n    model: sonnet\n    effort: high\n"],
+  ["a role model of default", roleMapWith("    model: default")],
+  ["a role model that is a model ID", roleMapWith("    model: claude-sonnet-5-5")],
+  // Owner rule: Fable never routes automatically, so the frontier tier is opus.
+  ["a role model of fable", roleMapWith("    model: fable")],
+  ["a role model of best", roleMapWith("    model: best")],
+]) {
+  test(`a role profile falls back to opus with ${why}`, () => {
+    assert.equal(roleSlot(roleMap).model, "opus");
+  });
+}
+
+// The reader refuses YAML aliases; a role map holding one is treated as absent,
+// so fix-ci still resolves, on opus, instead of failing its lane.
+test("live config: a role map holding a YAML alias resolves fix-ci to opus", () => {
+  const roleMap = "schema: 1\nroles:\n  worker: &w\n    model: sonnet\n    effort: medium\n  verifier: *w\n";
+  const { models } = resolve(
+    { ...LIVE, roleMap },
+    { lane: "pr-unblock", activity: "fix-ci", configPath: CONFIG_PATH, basePath: ".base", facts: LIVE_FACTS },
+  ).selected;
+  assert.equal(models.model, "opus");
+  assert.equal(models.effort, null);
+});
+
+test("a role profile whose effort-role the role map lacks passes no --effort", () => {
+  const models = roleSlot("schema: 1\nroles:\n  worker:\n    model: sonnet\n");
+  assert.equal(models.model, "sonnet");
+  assert.equal(models.effort, null);
+  assert.equal(modelArgs(models), "--model sonnet --max-turns 40");
+});
+
+for (const [why, profile] of [
+  ["a model of default beside a role", { role: "worker", model: "default", "max-turns": 5 }],
+  ["a model ID beside a role", { role: "worker", model: "claude-opus-5-5", "max-turns": 5 }],
+  ["an effort level beside a role", { role: "worker", effort: "high", "max-turns": 5 }],
+  ["a role of default", { role: "default", "max-turns": 5 }],
+  ["a model ID as a role", { role: "claude-opus-5-5", "max-turns": 5 }],
+  ["an unknown workload", { role: "worker", workload: "chores", "max-turns": 5 }],
+  ["a workload on a model profile", { model: "opus", workload: "code", "max-turns": 5 }],
+  ["a role profile with no max-turns", { role: "worker" }],
+]) {
+  test(`the schema rejects a route profile with ${why}`, () => {
+    const models = { profiles: { p: profile, q: { model: "opus", "max-turns": 5 } }, "default-profile": "q", routes: { "fix-prose": "p" } };
+    assertRejected(() => fixtureSlot(withModels(models)), "invalid-config");
+  });
+}
+
 // A fixture config with a models block, or `null` to leave the block out.
 const withModels = (models) => {
   const doc = parse(FIXTURE.config);
@@ -308,7 +444,7 @@ const withModels = (models) => {
   }
   return { ...FIXTURE, config: stringify(doc) };
 };
-const fixtureSlot = (files, lane = "pr-refine", activity = "fix-docs") =>
+const fixtureSlot = (files, lane = "pr-refine", activity = "fix-prose") =>
   resolve(files, { lane, activity, configPath: CONFIG_PATH, basePath: ".base", facts: { event: "synchronize", changedPaths: ["src/app.js"] } })
     .selected;
 const PROFILES = {
@@ -317,7 +453,7 @@ const PROFILES = {
 };
 
 test("a route picks its profile, and every other skill activity takes default-profile", () => {
-  const files = withModels({ profiles: PROFILES, "default-profile": "wide", routes: { "fix-docs": "light" } });
+  const files = withModels({ profiles: PROFILES, "default-profile": "wide", routes: { "fix-prose": "light" } });
   assert.deepEqual(fixtureSlot(files).models, {
     profile: "light",
     model: "sonnet",
@@ -341,7 +477,7 @@ test("a config with no models block takes the built-in standard profile: no --mo
 });
 
 test("a profile becomes --model, --max-turns and --effort, and its subagent model becomes settings env", () => {
-  const files = withModels({ profiles: PROFILES, "default-profile": "wide", routes: { "fix-docs": "light" } });
+  const files = withModels({ profiles: PROFILES, "default-profile": "wide", routes: { "fix-prose": "light" } });
   assert.equal(modelArgs(fixtureSlot(files).models), "--model sonnet --max-turns 40 --effort medium");
   const wide = fixtureSlot(files, "pr-run-checks", "measure-coverage").models;
   assert.equal(modelArgs(wide), "--model opus --max-turns 120");
@@ -367,7 +503,7 @@ for (const [why, models] of [
 test("the schema rejects the removed activity model and max-turns keys and merge.verifier-model", () => {
   for (const extra of [{ model: "opus" }, { "max-turns": 30 }]) {
     const doc = parse(FIXTURE.config);
-    Object.assign(doc.activities["fix-docs"], extra);
+    Object.assign(doc.activities["fix-prose"], extra);
     assertRejected(() => fixtureSlot({ ...FIXTURE, config: stringify(doc) }), "invalid-config");
   }
   const doc = parse(FIXTURE.config);
@@ -385,7 +521,7 @@ test("a default-profile or route naming no profile is undefined-profile", () => 
   const profiles = { p: { model: "opus", "max-turns": 5 } };
   assertRejected(() => fixtureSlot(withModels({ profiles, "default-profile": "q" })), "undefined-profile");
   assertRejected(
-    () => fixtureSlot(withModels({ profiles, "default-profile": "p", routes: { "fix-docs": "q" } })),
+    () => fixtureSlot(withModels({ profiles, "default-profile": "p", routes: { "fix-prose": "q" } })),
     "undefined-profile",
   );
 });
@@ -430,7 +566,7 @@ function readOutputs(path) {
 
 function routeEnv(extra = {}) {
   const base = mkdtempSync(join(scratch, "base-"));
-  for (const relative of [CONFIG_PATH, SCHEMA_PATH, VOCABULARY_PATH, TRUSTED_ACTORS_PATH]) {
+  for (const relative of [CONFIG_PATH, SCHEMA_PATH, VOCABULARY_PATH, TRUSTED_ACTORS_PATH, ROLE_MAP_PATH]) {
     mkdirSync(dirname(join(base, relative)), { recursive: true });
     writeFileSync(join(base, relative), read(relative));
   }
@@ -487,6 +623,65 @@ test("main gives a default model and an unset effort as empty model and effort o
   assert.equal(outputs["claude-args"], "--max-turns 60");
 });
 
+// fix-ci on pr-unblock, on a labeled event; its labels-absent predicate reads
+// the PR's labels fresh, answered here with none.
+async function mainOnFixCi({ dropRoleMap = false, config } = {}) {
+  const env = routeEnv({
+    MODEL_ROUTE: "",
+    LANE: "pr-unblock",
+    ACTIVITY: "fix-ci",
+    EVENT_NAME: "pull_request",
+    PR_NUMBER: "7",
+    REPOSITORY: "o/r",
+    PREPARE_SUPPORTED: "true",
+    APPLIED_BY_SUPPORTED: "patch",
+  });
+  if (dropRoleMap) {
+    rmSync(join(env.BASE_PATH, ROLE_MAP_PATH));
+  }
+  if (config !== undefined) {
+    writeFileSync(join(env.BASE_PATH, CONFIG_PATH), config);
+  }
+  const eventPath = join(env.BASE_PATH, "event.json");
+  writeFileSync(eventPath, JSON.stringify({ action: "labeled", pull_request: { number: 7, draft: false, labels: [] } }));
+  const github = async (method, path) => {
+    assert.equal(`${method} ${path}`, "GET /repos/o/r/pulls/7");
+    return { number: 7, draft: false, labels: [] };
+  };
+  const code = await main({ env: { ...env, EVENT_PATH: eventPath }, github });
+  return { code, outputs: readOutputs(env.GITHUB_OUTPUT) };
+}
+
+test("main resolves fix-ci through the base's role map to opus at effort high", async () => {
+  const { code, outputs } = await mainOnFixCi();
+  assert.equal(code, 0);
+  assert.equal(outputs.profile, "code-fix");
+  assert.equal(outputs.model, "opus");
+  assert.equal(outputs.effort, "high");
+  assert.equal(outputs["claude-args"], "--model opus --max-turns 75 --effort high");
+  assert.equal(outputs["applied-by-patch"], "apply-patch");
+});
+
+test("main gives fix-ci opus and no effort when the base has no role map", async () => {
+  const { code, outputs } = await mainOnFixCi({ dropRoleMap: true });
+  assert.equal(code, 0);
+  assert.equal(outputs.model, "opus");
+  assert.equal(outputs.effort, "");
+  assert.equal(outputs["claude-args"], "--model opus --max-turns 75");
+});
+
+test("main writes applied-by-patch as the activity that applies the selected one's patch", async () => {
+  const doc = parse(LIVE.config);
+  const applier = doc.lanes["pr-unblock"].slots
+    .map((slot) => slot.activity)
+    .find((name) => doc.activities[name].prepare === "apply-patch");
+  assert.ok(applier, "pr-unblock holds no apply-patch activity");
+  doc.activities["fix-ci"]["applied-by"] = { patch: applier };
+  const { code, outputs } = await mainOnFixCi({ config: stringify(doc) });
+  assert.equal(code, 0);
+  assert.equal(outputs["applied-by-patch"], applier);
+});
+
 // Canned answers in the shapes recorded live on pr-pipeline-sandbox#167
 // (REST issue-field-values and the GraphQL field events, 2026-10-18).
 const fieldRow = (field, option) => ({
@@ -507,6 +702,8 @@ async function mainOnIssue(events) {
     ACTIVITY: "resolve-issue",
     EVENT_NAME: "issues",
     REPOSITORY: "o/r",
+    // What the read runner hands on for resolve-issue.
+    APPLIED_BY_SUPPORTED: "patch work-outcome",
   });
   writeFileSync(join(env.BASE_PATH, CONFIG_PATH), TUNED.config);
   const issue = { number: 7, updated_at: "2026-10-18T00:00:00Z", labels: [] };

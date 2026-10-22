@@ -3,6 +3,53 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.0] - 2026-10-22
+
+### Added
+
+- **Dispatch briefs carry the Brief.** A new brief item quotes PLAN.md's Problem, Goal (with the Intent, Vision and conflict-preference lines), Out-of-scope and the load-bearing assumptions the phase depends on.
+- **Worker discoveries.** Implementer reports gain a `discoveries:` field for stale dependencies, better options and assumption checks; the orchestrator records every non-STOP problem, open question and discovery.
+
+- implement reads paved-path entries before editing
+
+  /implementation:implement now resolves the standards index before its
+  first edit and, when it has a paved-path row, reads only the entries for the
+  concerns the paths it edits touch. A plan's per-phase criteria still win.
+  With no row it does nothing extra.
+
+### Changed
+
+- `phase-verifier` now fails a criterion when the diff edits, deletes or skips a test or check file (test files, runner configs, lint and hook configs, check scripts, CI workflows, eval cases and graders) that the dispatch did not name. It lists the changed paths itself, and when it is handed a throwaway worktree it re-runs the check there with those paths restored from the base.
+
+- The divergence ladder keeps Minor, Moderate and Major and defines them as proceed and note, flag and continue (a better option is logged, never adopted unasked), and stop and replan. Brief item 2 is the divergence clause's only owner and finishes in-fence work before reporting.
+- Step 3.5 records an invented item as a `human-decision` entry when nobody can answer, grades a worker discovery on the Step 3 ladder instead of its own table, and completion fold-back writes dated pivot notes into PLAN.md.
+
+- `/implementation:implement-dispatch` now matches `phase-verifier`: an unsanctioned edit to an existing test or check file is a FAIL, not a finding, and brief item 13 quotes the verifier's definitions of a test or check file and of a sanctioned edit. Step 3 checks every return against item 13, mechanical phases included, and the verifier applies the same rule at the phase boundary, handed the brief's item 13 sanctions.
+- The orchestrator creates the throwaway worktree whenever the phase diff touches a test or check file, not only when holdout tests are on, and fills it with the full phase state, uncommitted and untracked changes included, so the verifier's base-restored re-run checks the actual implementation.
+
+- `/implementation:implement-dispatch` briefs now carry a `Model and effort:` line. With no routing row, the orchestrator picks the model and effort from the complexity the phase's Brief or ticket states, names the matched row of the model-selection matrix and of the effort-levels table, and points at the dated upstream docs. A routing row's model still wins, and the existing wave, route-floor and trail-verifier rules stay above the pick.
+
+- implement asks whether a finished block could be fewer lines
+
+  The execution cadence gains a fewer-lines check in every mode: before the
+  commit checkpoint, a block that can say the same thing in fewer lines with
+  identical behavior is shrunk. It applies to the result `integration_posture`
+  calls for.
+
+### Fixed
+
+- Step 3 described the `testing` plugin's `test_guards_enabled` hook as asking for a reason. It adds an advisory note, and denies an added skip or removed test block only under `rules: {test-weaken-block: error}`; it never asks.
+
+## [0.31.0] - 2026-10-20
+
+### Added
+
+- A plan phase tagged `Review: architecture`, `security`, `code-design` or `concurrency` now gets that review at its boundary. `/implementation:implement` and `/implementation:implement-dispatch` invoke `/review:quality-gate architecture`, `security`, `code-design` or `slice concurrency` with the previous phase-boundary commit as `--base`, the plan's `Quality bar:` line when it has one, `--report-only`, and, for a worker's worktree, `--worktree`, and pass no rationale. The sequence is review, fix inside the phase fence, one re-review against the same base, then the acceptance verdict last. Any CRITICAL on the re-review goes to `DEVIATIONS.md` as a blocking `human-decision` and is escalated once, never looped. An untagged phase gets no review. Under an unattended permission mode that denies the review's worktree reads, the run logs the review as not run (`unverified`), lists it in the final report, and continues to the phase-verifier.
+
+### Fixed
+
+- `implement-dispatch` briefs, `implementer` and `scoped-implementer` tell a worker to name scratch files `<branch>-<purpose>` and never run a scratch script it did not write in this task, so parallel workers sharing one scratchpad stop running each other's leftover scripts.
+
 ## [0.30.1] - 2026-10-18
 
 ### Fixed

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/run/home/cwd/notes/incident.md\",\"content\":\"# Checkout error spike\"}}]}}",
+      "why": "rewrites the write-up"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/tmp/run/home/cwd/notes/incident.md\",\"old_string\":\"Likely cause\",\"new_string\":\"Cause\"}}]}}",
+      "why": "edits the write-up"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/run/home/cwd/notes/incident.md\"}}]}}",
+      "why": "only reads the write-up"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/run/home/cwd/notes/incident-v2.txt\",\"content\":\"x\"}}]}}",
+      "why": "writes a different file"
+    }
+  ]
+}

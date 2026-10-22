@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\nWhen `sample-kit triage` labels an issue, nothing in the log says which issue it labeled.\n\n## Fix\n\nAfter the label is applied, print `labeled <number>: <title>` with the issue's number and title.\n\n## Done when\n\n- [ ] Each labeled issue prints one `labeled <number>: <title>` line."
+  },
+  "pr": {
+    "title": "feat(sample-kit): log each issue triage labels",
+    "body": "Prints the issue number and title after triage applies a label."
+  }
+}

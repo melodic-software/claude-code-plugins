@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Scope: candidates 2 and 3, a three-step wizard prefilled from the signup form.\n\nWrote `.work/onboarding-dropoff/brainstorm.md`:\n\n## Handoff\n- Problem: new users drop off before finishing the setup wizard (reported)\n- Intent (why, in the user's words): \"people pay us and never see the product work\"\n- Vision (where this heads): a new user sees their first report on day one\n- Chosen direction: 2, cut the wizard to three steps; 3, prefill from the signup form\n- Rejected options: 1, support already sends reminders by hand; 4 and 5, too big for this quarter\n- Criteria surfaced: quick to try (2); users hate retyping (3)\n\nRECOMMENDED: /planning:interview, reading the handoff block. Basis: judgment.",
+      "why": "every field carried and routed to the interview"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Scope: a shorter, prefilled wizard. Handoff: Problem: drop-off. Intent: improve activation. Chosen: 2 and 3. RECOMMENDED: /planning:interview.",
+      "why": "paraphrases the why, drops the vision, the rejected reasons and the criteria"
+    }
+  ]
+}

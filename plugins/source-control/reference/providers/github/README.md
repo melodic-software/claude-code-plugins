@@ -38,7 +38,7 @@ A pull request is GitHub's change request; this file uses its terms.
 | Mergeability | `gh pr view <N> --json mergeable`; `CONFLICTING` means GitHub runs no workflows until the base is integrated |
 | The PR for a branch | `gh pr list --head <branch> --json number,title,state` |
 | Whether a branch's PR merged (worktree cleanup) | `gh pr list --state merged --head <branch>`; a non-empty result means merged |
-| Every PR, one batched read for worktree cross-reference | `gh pr list --state all --json number,title,state,headRefName` |
+| PRs for worktree cross-reference (one call per worktree branch, all states) | `gh pr list --head <branch> --state all --json number,title,state,headRefName`; a PR whose head is `<branch>` is a match, and a failed call marks that branch's PR lookup incomplete |
 | Your own open PRs here | `gh pr list --state open --author "@me" --json number` |
 | Your own open PRs across an owner | `gh search prs --state open --author @me --owner <owner> --json repository` |
 
@@ -53,7 +53,7 @@ entry and pass it to every later `gh` call in that phase.
 | Check out the PR head | `gh pr checkout <N>`, or `gh pr checkout <N> --detach` when the branch is locked in another worktree. It is fork-safe: a fork's head branch is not fetchable from `origin` by name |
 | Merge the base into the head | `gh pr update-branch <N>` (pull-request `ready-for-review.md`) |
 | Flip a draft ready | `gh pr ready <N>`, run only inside `/source-control:pull-request ready`, never bare |
-| Merge pinned to the reviewed head | `gh pr merge <N> -R <owner>/<repo> --squash --match-head-commit <sha>` in one command behind its `gh pr view ... --jq '<guard>' \| grep -qx true` guard, never `--auto`, and `--admin` only in the guarded admin form (pull-request `merge.md` §4.2.1 owns the merge-queue form; its commands are in [pull-request/merge.md](pull-request/merge.md#merge-after-ai-review)). A babysit lane merges only through its merge-gate wrapper (babysit-prs `safety.md`) |
+| Merge a PR | `gh pr merge <N> -R <owner>/<repo>` with the PR number and repository written literally, plus the flags the repository needs: `--squash`, `--auto` on a merge-queue or auto-merge base, `--admin` only where a code-owner review or merge queue blocks an otherwise ready merge and the consumer's policy allows it; `--match-head-commit <sha>` is optional for an immediate merge and required with `--auto`. A refused merge is reported, never handed to the user or retried in another shape ([pull-request/merge.md](pull-request/merge.md#merge-command); pull-request `merge.md` §4.2.1 owns when to merge without asking). A babysit lane merges only through its merge-gate wrapper (babysit-prs `safety.md`) |
 | Open a tracking issue | `gh issue create` |
 
 ## Checks and CI logs

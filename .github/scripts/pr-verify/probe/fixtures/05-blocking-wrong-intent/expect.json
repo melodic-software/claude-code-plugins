@@ -1,0 +1,7 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "main",
+  "defect": "the diff sorts by name ascending; the issue asks for updatedAt, newest first",
+  "mentions": ["updatedAt", "newest", "by name", "alphabetical", "localeCompare"]
+}

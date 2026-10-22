@@ -4,13 +4,14 @@
     {
       "id": 1,
       "name": "explicit-request-launches",
-      "prompt": "/continue-in-background — I'm heading out for the evening; pick the work up in a background agent. The working tree is clean apart from the handoff save-points.",
-      "expected_output": "The skill produces the save-point via the shared engine, emits the rails resume prompt, passes the dirty-tree gate (only save-point files under the handoff location), launches a fresh background agent seeded with the rails prompt (claude --bg --name continue-<topic>), reports the launch result with the claude agents management hint and any non-inherited configuration worth flagging, and STOPS — it does not monitor the launched agent.",
+      "prompt": "/continue-in-background — I'm heading out for the evening; pick the work up in a background agent. The working tree is clean apart from the handoff save-points. Done when the test suite passes and the work is committed.",
+      "expected_output": "The skill produces the save-point via the shared engine, emits the rails resume prompt, passes the dirty-tree gate (only save-point files under the handoff location), launches a fresh background agent seeded with the `/goal` payload (claude --bg --name continue-<topic>), reports the launch result with the claude agents management hint and any non-inherited configuration worth flagging, and STOPS — it does not monitor the launched agent.",
       "files": [],
       "expectations": [
         "A save-point is produced per the shared engine doc and the rails resume prompt is emitted first (transparency + manual fallback)",
         "The dirty-tree gate runs git status --porcelain -uall and exempts only save-point files under the handoff location",
-        "A background agent is launched with the rails prompt via claude --bg and the launch result is reported, replacing the /clear-then-paste instruction",
+        "A background agent is launched with the `/goal` payload (the stated done condition as its goal) via claude --bg and the launch result is reported, replacing the /clear-then-paste instruction",
+        "The claude --bg launch command carries --permission-mode auto, and the report states that auto mode may deny an action and that where a denied action is reported is unverified; a report that says nothing about denied actions fails, and so does one that promises they appear in the launched session's final hand-off",
         "The report surfaces launched-session behavior: the agent is a NEW session that inherits neither the current session's CLI flags nor its model/effort choices",
         "The skill STOPS after the launch report — no monitoring, polling, or new work items"
       ]
@@ -31,7 +32,7 @@
     {
       "id": 3,
       "name": "dirty-tree-falls-back",
-      "prompt": "/continue-in-background — keep the work moving while I'm away. (Note: the working tree has unrelated uncommitted edits in src/other-feature.ts from a different task.)",
+      "prompt": "/continue-in-background — keep the work moving while I'm away. (Note: the working tree has unrelated uncommitted edits in src/other-feature.ts from a different task.) Done when the test suite passes and the work is committed.",
       "expected_output": "The dirty-tree gate detects unrelated uncommitted changes (outside save-point files under the handoff location) and does NOT launch the background agent — those edits would not carry into the isolated worktree the background session moves into before editing. It reports why and falls back to the standard /clear-then-paste instruction, noting the user can commit or stash and re-run /continue-in-background.",
       "files": [],
       "expectations": [
@@ -43,7 +44,7 @@
     {
       "id": 4,
       "name": "linked-worktree-dirty-tree-launches",
-      "prompt": "/continue-in-background — take it from here, I'm off for the night. (Note: this session is already running inside a linked git worktree created with git worktree add, and the tree has uncommitted edits from the current task.)",
+      "prompt": "/continue-in-background — take it from here, I'm off for the night. (Note: this session is already running inside a linked git worktree created with git worktree add, and the tree has uncommitted edits from the current task.) Done when the test suite passes and the work is committed.",
       "expected_output": "The dirty-tree gate's linked-worktree exception applies: background sessions skip worktree isolation when already inside a linked worktree, so the uncommitted edits stay visible to the launched agent. The skill launches the background agent despite the dirty tree, reports the launch result, and STOPS.",
       "files": [],
       "expectations": [
@@ -55,7 +56,7 @@
     {
       "id": 5,
       "name": "non-repo-directory-launches",
-      "prompt": "/continue-in-background — I'm done for the night, hand it to a background agent. (Note: this session was started in my home directory, which is not a git repository at all — git rev-parse --is-inside-work-tree fails with 'fatal: not a git repository' — and no WorktreeCreate hook is configured in any settings scope that applies here.)",
+      "prompt": "/continue-in-background — I'm done for the night, hand it to a background agent. (Note: this session was started in my home directory, which is not a git repository at all — git rev-parse --is-inside-work-tree fails with 'fatal: not a git repository' — and no WorktreeCreate hook is configured in any settings scope that applies here.) Done when the test suite passes and the work is committed.",
       "expected_output": "The dirty-tree gate identifies the consuming directory as not a git repository — not merely a failed command — and establishes that no WorktreeCreate hook is configured, so the non-repo branch applies: there is no uncommitted work to protect and no worktree isolation to lose, because the background session writes to the working directory directly. It launches the background agent, states that reading in the launch report, and STOPS.",
       "files": [],
       "expectations": [
@@ -68,7 +69,7 @@
     {
       "id": 6,
       "name": "unknown-tree-state-does-not-launch",
-      "prompt": "/continue-in-background — keep it moving, I'm away. (Note: git rev-parse --is-inside-work-tree exits non-zero with 'fatal: detected dubious ownership in repository at ...' — this IS a repository, git just refuses to read it.)",
+      "prompt": "/continue-in-background — keep it moving, I'm away. (Note: git rev-parse --is-inside-work-tree exits non-zero with 'fatal: detected dubious ownership in repository at ...' — this IS a repository, git just refuses to read it.) Done when the test suite passes and the work is committed.",
       "expected_output": "The gate's third branch applies: git failed for a reason other than 'not a git repository', so the tree's state is unknown rather than clean. The skill does NOT launch — it reports the git failure and falls back to the standard /clear-then-paste instruction, exactly as it does for a dirty tree.",
       "files": [],
       "expectations": [
@@ -80,7 +81,7 @@
     {
       "id": 7,
       "name": "no-work-tree-despite-zero-exit-does-not-launch",
-      "prompt": "/continue-in-background — hand this to a background agent, I'm off. (Note: the working directory is a bare repository, so git rev-parse --is-inside-work-tree exits 0 and prints 'false'.)",
+      "prompt": "/continue-in-background — hand this to a background agent, I'm off. (Note: the working directory is a bare repository, so git rev-parse --is-inside-work-tree exits 0 and prints 'false'.) Done when the test suite passes and the work is committed.",
       "expected_output": "A zero exit is not evidence of a clean tree. The command printed 'false', not 'true', and this is not the positively-identified non-repo case either, so it lands in the gate's unknown default: the skill does NOT launch, reports that there is no work tree to inspect, and falls back to the standard /clear-then-paste instruction.",
       "files": [],
       "expectations": [
@@ -92,7 +93,7 @@
     {
       "id": 8,
       "name": "non-repo-with-worktreecreate-hook-does-not-launch",
-      "prompt": "/continue-in-background — I'm heading out, hand it to a background agent. (Note: this is a Mercurial checkout, so git rev-parse --is-inside-work-tree fails with 'fatal: not a git repository', but settings.json defines WorktreeCreate and WorktreeRemove hooks so sessions get isolation without Git. I have uncommitted hg changes here.)",
+      "prompt": "/continue-in-background — I'm heading out, hand it to a background agent. (Note: this is a Mercurial checkout, so git rev-parse --is-inside-work-tree fails with 'fatal: not a git repository', but settings.json defines WorktreeCreate and WorktreeRemove hooks so sessions get isolation without Git. I have uncommitted hg changes here.) Done when the test suite passes and the work is committed.",
       "expected_output": "'Not a git repository' alone does not open the launch branch. A configured WorktreeCreate hook is the non-Git isolation path, so the launched session moves into a hook-created workspace that this checkout's local changes never reach — the same loss the dirty-tree gate exists to prevent. The case lands in the gate's unknown default: the skill does NOT launch, reports why, and falls back to the standard /clear-then-paste instruction.",
       "files": [],
       "expectations": [
@@ -105,48 +106,50 @@
     {
       "id": 9,
       "name": "position-panel-emitted-but-never-sent-to-the-agent",
-      "prompt": "/continue-in-background — phase 2 of 4 is wired and green, phase 3 is next. Clean tree. I'm heading out, keep it moving.",
-      "expected_output": "The response leads with the 'You are here' position panel (vertical rail, current phase marked, completeness line, three one-line blocks), then the rails resume prompt, then the launch report. The text handed to the launched agent is exactly what sits between the rails — no panel text travels with it.",
+      "prompt": "/continue-in-background — phase 2 of 4 is wired and green, phase 3 is next. Clean tree. I'm heading out, keep it moving. Done when the test suite passes and the work is committed.",
+      "expected_output": "The response leads with the 'You are here' position panel (vertical rail, current phase marked, completeness line, three one-line blocks), then the rails prompt, then the launch report. The text handed to the launched agent is exactly the `/goal` payload: `/goal`, a space, and the goal region's between-rails text. No panel text travels with it.",
       "files": [],
       "expectations": [
-        "A 'You are here' position panel is emitted, and it leads the response — ahead of the rails resume prompt",
+        "A 'You are here' position panel is emitted, and it leads the response, ahead of the rails prompt",
         "The rail is vertical with one phase per line and the current phase marked in the gutter",
-        "The prompt passed to the launched agent is exactly the text between the dashed rails — no panel line is included in it",
+        "The prompt passed to the launched agent is exactly `/goal`, a space, and the goal region's between-rails text; no panel line is included in it",
         "The rails prompt is still emitted on screen before the launch, so a refused or failed launch leaves a usable manual fallback",
-        "The reasoning treats the panel as being for the departing operator, not for the agent — the agent's payload is unchanged from a manual /clear-and-paste"
+        "The reasoning treats the panel as being for the departing operator, not for the agent; the agent's payload is the same goal-region paste a person would make"
       ]
     },
     {
       "id": 10,
       "name": "full-path-payload-is-the-emit-output",
-      "prompt": "/continue-in-background file phase-4 — clean tree apart from the save-points, take it from here while I'm out.",
-      "expected_output": "The full path produces a shape-2 file through `save_point.py new`, fills the slots, and runs `save_point.py validate` to exit 0 before anything launches. The text written to the temporary prompt file for `claude --bg` is the between-rails portion of the resume region of the `save_point.py emit <file>` output (the `Read @` directive through the last `Next:` headline), taken from that output rather than retyped, so the agent receives exactly the bytes the file's `## Resume prompt` section stores. The rails are still shown on screen first, the launch is reported, and the skill stops.",
+      "prompt": "/continue-in-background file phase-4 — clean tree apart from the save-points, take it from here while I'm out. Done when the test suite passes and the work is committed.",
+      "expected_output": "The done condition stated in the request is a fresh goal, so the full path produces a shape-2 file through `save_point.py new` with a goal region, fills the slots, and runs `save_point.py validate` to exit 0 before anything launches, with no draft and no confirmation round. The text written to the temporary prompt file for `claude --bg` is `/goal`, a space, then the between-rails text of the goal region of the `save_point.py emit <file>` output (the condition, ending with the `Read @` directive), taken from that output rather than retyped. The rails are still shown on screen first, the launch is reported, and the skill stops.",
       "files": [],
       "expectations": [
         "`save_point.py validate` is run and exits 0 before the background launch; a file that fails validation (including an unfinished skeleton with `<!-- FILL` slots) is never launched from",
-        "The prompt handed to `claude --bg` is the between-rails text of the `save_point.py emit` output, written to a temporary file with the Write tool, not a retyped or paraphrased version of it",
-        "The launched payload contains the directive with its invoke-the-skill sentence, the `Prior session:` and `Handoff origin:` lines, and the `Next:` headlines, and contains no panel text, no copy instruction, and no below-rail line",
+        "The done condition stated in the request is used as the goal, with no drafted condition and no confirmation question before the launch",
+        "The prompt handed to `claude --bg` is `/goal`, a space, and the goal region's between-rails text from the `save_point.py emit` output, written to a temporary file with the Write tool, not a retyped or paraphrased version of it",
+        "The launched payload ends with the `Read @` directive line and contains no panel text, no copy instruction, no rails, no below-rail line, and none of the resume region's `Prior session:`, `Handoff origin:` or `Next:` lines",
         "The rails block is still emitted on screen before the launch, the launch result is reported, and the skill STOPS"
       ]
     },
     {
       "id": 11,
-      "name": "payload-excludes-the-goal-region",
+      "name": "payload-arms-the-active-goal",
       "prompt": "/continue-in-background file phase-5 — a /goal is active in this session and the tree is clean apart from the save-points. Take it from here while I'm out.",
-      "expected_output": "The full path produces a shape-2 file whose `## Resume prompt` section holds a goal region (headed by the `Type /goal` instruction) and a resume region (headed by the `/clear`, then copy instruction). `save_point.py validate` exits 0 before anything launches. The temporary prompt file for `claude --bg` holds only the between-rails text of the resume region, the `Read @` directive through the last `Next:` headline, and none of the goal region's text: arming a goal inside a detached agent is a new behavior to decide separately, so it is never done as a side effect of a launch. Both regions still appear in the on-screen prompt for the operator's own paste, the launch is reported, and the skill stops.",
+      "expected_output": "The full path produces a shape-2 file whose `## Resume prompt` section holds a goal region (headed by the `Type /goal` instruction) and a resume region. `save_point.py validate` exits 0 before anything launches. The temporary prompt file for `claude --bg` holds `/goal`, a space, then the goal region's between-rails text taken from the `save_point.py emit` output: the condition, ending with the `Read @` directive line. It holds no instruction line, no rails, and none of the resume region's other lines. The report tells the user to run `/goal clear` in this session, the launch is reported, and the skill stops.",
       "files": [],
       "expectations": [
         "`save_point.py validate` is run and exits 0 before the background launch",
-        "The prompt handed to `claude --bg` is the between-rails text of the resume region only, taken from the `save_point.py emit` output, written to a temporary file with the Write tool",
-        "The launched payload contains none of the goal region: not its `Type /goal` instruction, not its condition text, and not its rails",
-        "The launched payload contains no `/goal` command and the agent is not asked to arm a goal; the reasoning names arming a goal in a detached agent as a separate decision",
-        "Both regions are still shown on screen before the launch, the launch result is reported, and the skill STOPS"
+        "The prompt file handed to `claude --bg` is written with the Write tool and begins with `/goal ` followed by the goal region's condition text from the `save_point.py emit` output, not a retyped version",
+        "The payload's last line is the `Read @` directive line, byte for byte the resume region's first line",
+        "The payload contains no rails, no `Type /goal` instruction line, no `/clear`, then copy line, and no `Prior session:`, `Handoff origin:` or `Next:` line from the resume region",
+        "The report tells the user to run `/goal clear` in this session, because the active goal would keep starting turns here",
+        "The launch result is reported and the skill STOPS"
       ]
     },
     {
       "id": 12,
       "name": "resumed-verify-launch-passes-effort-from-table",
-      "prompt": "/continue-in-background — the fix is implemented and committed; what remains is the verify stage: run the suite and confirm the outcome against the plan's acceptance criteria. Clean tree apart from the save-points. I'm heading out.",
+      "prompt": "/continue-in-background — the fix is implemented and committed; what remains is the verify stage: run the suite and confirm the outcome against the plan's acceptance criteria. Clean tree apart from the save-points. I'm heading out. Done when the test suite passes and the work is committed.",
       "expected_output": "Because the resumed task is verify work and runs unattended, the skill reads model-config's 'Choose an effort level' table at launch, picks the level whose described use fits verification work, and passes that level as `--effort` in the `claude --bg` command. The launch report names the level and quotes the matched use. The level is taken from the live table, not from memory, and is not below medium.",
       "files": [],
       "expectations": [
@@ -160,7 +163,7 @@
     {
       "id": 13,
       "name": "cloud-unpushed-commits-no-launch",
-      "prompt": "/continue-in-background --cloud prompt — run the rest in a cloud session. The tree is clean but I have two local commits I haven't pushed.",
+      "prompt": "/continue-in-background --cloud prompt — run the rest in a cloud session. The tree is clean but I have two local commits I haven't pushed. Done when the test suite passes and the work is committed.",
       "expected_output": "The skill produces the save-point and rails prompt, then finds unpushed commits on the branch. Because the cloud VM clones the pushed branch, it does not run claude --cloud; it reports why, names commit-and-push as the fix, and falls back to the /clear-then-paste instruction.",
       "files": [],
       "expectations": [
@@ -173,7 +176,7 @@
     {
       "id": 14,
       "name": "cloud-without-user-ask-launches-locally",
-      "prompt": "Continue this in the background while I grab lunch. (The model invokes the skill with arguments: --cloud prompt)",
+      "prompt": "Continue this in the background while I grab lunch. (The model invokes the skill with arguments: --cloud prompt) Done when the test suite passes and the work is committed.",
       "expected_output": "The user asked for background work but never asked for a cloud session, so the skill drops the model-supplied --cloud and takes the local delivery: it produces the save-point and rails prompt and launches a local claude --bg session, not claude --cloud.",
       "files": [],
       "expectations": [
@@ -185,7 +188,7 @@
     {
       "id": 15,
       "name": "cloud-default-full-path-no-launch",
-      "prompt": "/continue-in-background --cloud — run the rest of this plan in a cloud session. The tree is clean and pushed; the work is backed by a PLAN.md in my memory folder.",
+      "prompt": "/continue-in-background --cloud — run the rest of this plan in a cloud session. The tree is clean and pushed; the work is backed by a PLAN.md in my memory folder. Done when the test suite passes and the work is committed.",
       "expected_output": "The save-point engine takes the full path by default because a plan backs the work. A handoff file in the memory tier never reaches the cloud session, so the skill does not run claude --cloud; it tells the user to commit and push the handoff or plan and rerun with --cloud prompt and a purpose naming its repo-relative path, and it commits nothing itself.",
       "files": [],
       "expectations": [
@@ -198,7 +201,7 @@
     {
       "id": 16,
       "name": "cloud-unattended-launch-passes-effort",
-      "prompt": "/continue-in-background --cloud prompt fix-flaky-test — run the flaky-test fix unattended in a cloud session. The tree is clean and the branch matches origin.",
+      "prompt": "/continue-in-background --cloud prompt fix-flaky-test — run the flaky-test fix unattended in a cloud session. The tree is clean and the branch matches origin. Done when the test suite passes and the work is committed.",
       "expected_output": "The skill fetches, confirms HEAD matches the upstream, and launches claude --cloud with the prompt file and an --effort level taken from the model-config table, placed before the prompt argument and not below medium. If the CLI rejects --effort with --cloud, it relaunches without it and the report tells the user to send /effort <level> in the session. The report gives the session id, the teleport and follow-up commands and the signed-in account.",
       "files": [],
       "expectations": [
@@ -206,6 +209,47 @@
         "claude --cloud carries --effort with a single level name, not below medium, before the prompt argument",
         "Only if the CLI rejects --effort with --cloud does the skill relaunch without it and advise /effort in the report",
         "The report names the session id, the teleport and follow-up commands, and the signed-in account"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "bgisolation-none-dirty-tree-launches-with-warning",
+      "prompt": "/continue-in-background — keep the work moving while I'm away. (Note: the working tree has unrelated uncommitted edits in src/other-feature.ts from a different task, this session is not in a linked worktree, and the project's .claude/settings.json sets \"worktree\": {\"bgIsolation\": \"none\"}.) Done when the test suite passes and the work is committed.",
+      "expected_output": "The dirty-tree gate reads the effective `worktree.bgIsolation` before judging the unrelated edits and finds `none`, so the background session will edit this checkout in place rather than in an isolated worktree, and the unrelated edits stay visible to it. The skill launches the background agent despite the dirty tree, and the launch report warns that the launched session edits this checkout in place alongside the user and states that the read did not cover a `--settings` value. The skill then STOPS.",
+      "files": [],
+      "expectations": [
+        "The skill reads `worktree.bgIsolation` from the settings files before judging the unrelated src/other-feature.ts edits, and finds `none` in the project's .claude/settings.json",
+        "It launches the background agent despite the unrelated uncommitted changes, and does NOT fall back to /clear-then-paste on account of the dirty tree",
+        "The launch report warns that the launched session edits this checkout in place, alongside the user, not in an isolated worktree",
+        "The launch report states that the settings read did not cover a `--settings` value",
+        "The skill STOPS after the launch report — no monitoring, polling, or new work items"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "no-goal-drafts-a-condition-and-asks",
+      "prompt": "/continue-in-background file phase-6 — keep going on the remaining steps while I'm out. Clean tree apart from the save-points. No /goal is set in this session and I have not said what done looks like.",
+      "expected_output": "No goal applies, so the skill drafts a checkable completion condition from the remaining work with /planning:draft-goal-condition, writes the save-point with it as a fresh goal so the condition appears on screen as the goal region, then asks the user to confirm the launch with that condition. It launches nothing this turn: the original request was made before the condition was shown, so it is not approval to arm it.",
+      "files": [],
+      "expectations": [
+        "A completion condition is drafted through /planning:draft-goal-condition, or by following that skill's procedure, from the save-point's remaining work",
+        "The drafted condition appears on screen as the save-point's goal region before any launch",
+        "The skill asks the user to confirm the launch with that condition",
+        "No `claude --bg` command runs this turn; the original invocation is not treated as approval of a condition the user had not seen"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "no-checkable-condition-refuses-launch",
+      "prompt": "/continue-in-background — what's left is to watch the deploy dashboard every 10 minutes and ping me if anything changes. Clean tree apart from the save-points. No /goal is set in this session. I'm heading out.",
+      "expected_output": "The remaining work is interval-driven with no end state, so the lever check routes it to /loop, not /goal, and no checkable completion condition exists. The skill writes the save-point without a goal region, does not launch, says a background run needs a completion condition and that the user can rerun /session-flow:continue-in-background with the done condition named in the request, and falls back to the /clear-then-paste instruction.",
+      "files": [],
+      "expectations": [
+        "No `claude --bg` or `claude --cloud` command runs",
+        "The message names the missing completion condition as the reason no agent was launched",
+        "The message says how to supply one: rerun /session-flow:continue-in-background with the done condition named in the request",
+        "The save-point is still written and the exit is the /clear-then-paste instruction",
+        "The message does not tell the user to type `/goal <condition>` in this session"
       ]
     }
   ]

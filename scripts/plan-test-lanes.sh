@@ -31,6 +31,9 @@
 #                           Eval fixtures (scripts/outside-node-exclusions.txt) are data.
 #                           A Node suite with neither fails the plan: no lane would run it.
 #   *.Tests.ps1             test-windows; Pester has no Linux lane
+# The Windows steps run on the selection of the changed files minus the paths
+# scripts/test-windows-inert-paths.txt lists; a path it does not list selects as usual, and a change to the list runs
+# every Windows step.
 #
 # WIDER THAN THE SELECTION, NEVER NARROWER:
 #   - the whole tree (no base and no paths: a schedule, a dispatch, a push with no
@@ -73,6 +76,7 @@ cd "$ROOT" || exit 2
 
 SECONDS_LIST="scripts/suite-seconds.txt"
 WINDOWS_LIST="scripts/test-windows-plan.txt"
+WINDOWS_INERT="scripts/test-windows-inert-paths.txt"
 PACKAGES_LIST="scripts/outside-node-packages.txt"
 EXCLUSIONS_LIST="scripts/outside-node-exclusions.txt"
 DEFAULT_SECONDS=5
@@ -85,7 +89,7 @@ plugins/miro/server plugins/miro/
 plugins/ai-briefing/skills/generate/output/build plugins/ai-briefing/skills/generate/ plugins/ai-briefing/skills/generate/scripts/run-tests.sh
 plugins/knowledge/skills/video-digest/extraction plugins/knowledge/skills/video-digest/ plugins/knowledge/skills/video-digest/scripts/run-tests.sh
 plugins/knowledge/skills/course-digest/extraction plugins/knowledge/skills/course-digest/ plugins/knowledge/skills/course-digest/scripts/run-tests.sh
-.github/actions/resolve-config .github/actions/resolve-config/ docs/conventions/pr-pipeline/ docs/conventions/pr-pipeline.yaml .github/scripts/pr-unblock/feedback-dispatch.mjs .github/scripts/pr-unblock/fix-ci-context.mjs"
+.github/actions/resolve-config .github/actions/resolve-config/ .github/actions/seal-lane-output/ .github/actions/open-lane-output/ .github/lane-keys/ docs/conventions/pr-pipeline/ docs/conventions/pr-pipeline.yaml .github/scripts/pr-unblock/feedback-dispatch.mjs .github/scripts/pr-unblock/fix-ci-context.mjs"
 
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}" >&2
@@ -142,7 +146,7 @@ fi
 for f in ${changed[@]+"${changed[@]}"}; do
   case "$f" in
   .github/workflows/pr-require-checks.yml) whole=1 ;;
-  .github/workflows/pr-test-windows.yml) whole_windows=1 ;;
+  .github/workflows/pr-test-windows.yml | "$WINDOWS_INERT") whole_windows=1 ;;
   .github/actions/download-full-history/*)
     whole=1
     whole_windows=1
@@ -160,11 +164,12 @@ done
 
 # --- the selection ----------------------------------------------------------
 
-unmapped=0
-: >"$WORK/selection"
-if [[ ${#changed[@]} -gt 0 ]] && ((!whole || !whole_windows)); then
-  rc=0
-  bash scripts/affected-tests.sh --unmapped-corpus -- "${changed[@]}" >"$WORK/selection" 2>"$WORK/selector.err" || rc=$?
+# select_into <out> <path>...: the selector's suites for <path>... into <out>; sets
+# `unmapped` from its report.
+select_into() {
+  local out="$1" rc=0
+  shift
+  bash scripts/affected-tests.sh --unmapped-corpus -- "$@" >"$out" 2>"$WORK/selector.err" || rc=$?
   case "$rc" in
   0) ;;
   4)
@@ -176,6 +181,32 @@ if [[ ${#changed[@]} -gt 0 ]] && ((!whole || !whole_windows)); then
     die "scripts/affected-tests.sh exited $rc; the selection is unknown"
     ;;
   esac
+}
+
+unmapped=0
+: >"$WORK/selection"
+if [[ ${#changed[@]} -gt 0 ]] && ((!whole || !whole_windows)); then
+  select_into "$WORK/selection" "${changed[@]}"
+fi
+
+# The Windows plan selects from the changed files minus the paths of WINDOWS_INERT,
+# and only reruns the selector when that drops some but not all of them.
+inert=() win_changed=()
+read_list::into inert "$WINDOWS_INERT" --comments inline || exit 2
+for f in ${changed[@]+"${changed[@]}"}; do
+  for pat in ${inert[@]+"${inert[@]}"}; do
+    # shellcheck disable=SC2053 # the right-hand side is a glob on purpose.
+    [[ "$f" == $pat ]] && continue 2
+  done
+  win_changed+=("$f")
+done
+WIN_SELECTION="$WORK/selection"
+if ((!whole_windows)) && [[ ${#win_changed[@]} -lt ${#changed[@]} ]]; then
+  WIN_SELECTION="$WORK/win-selection"
+  : >"$WIN_SELECTION"
+  keep_unmapped="$unmapped"
+  [[ ${#win_changed[@]} -eq 0 ]] || select_into "$WIN_SELECTION" "${win_changed[@]}"
+  unmapped="$keep_unmapped"
 fi
 
 # Assigned through a nameref, which shellcheck cannot follow (SC2154).
@@ -394,7 +425,7 @@ for row in "${rows[@]}"; do
           on=1
           break 2
         }
-      done <"$WORK/selection"
+      done <"$WIN_SELECTION"
     done
   fi
   if ((on)); then

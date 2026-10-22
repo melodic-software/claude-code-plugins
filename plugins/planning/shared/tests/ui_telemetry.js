@@ -62,9 +62,10 @@ async function main() {
     await guest.waitForSelector("dialog.core-name[open]");
     const dlg = await guest.evaluate(() => {
       const d = document.querySelector("dialog.core-name");
-      return { notice: /records errors|What this page records|Record problems/.test(d.textContent), controls: d.querySelectorAll("a, input[type=checkbox], [role=switch]").length };
+      // the host's own sign-in link is the one link the join dialog carries (owner, 2026-10-21)
+      return { notice: /records errors|What this page records|Record problems/.test(d.textContent), controls: d.querySelectorAll("a:not(.core-host-code), input[type=checkbox], [role=switch]").length };
     });
-    ok("the join dialog carries no recording notice, link or switch", !dlg.notice && dlg.controls === 0, JSON.stringify(dlg));
+    ok("the join dialog carries no recording notice, link or switch beyond the host's sign-in link", !dlg.notice && dlg.controls === 0, JSON.stringify(dlg));
     const pid = await joinAs(guest, NAME);
 
     ok("the vendored web-vitals loads from this origin", await until(guest, () => !!window.webVitals?.onINP));

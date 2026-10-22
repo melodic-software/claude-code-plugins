@@ -84,6 +84,70 @@ printf '```yaml config\nschema: 1\nroles:\n  worker:\n    workloads:\n      mech
 out="$(run mechoptout worker --session-model opus --workload mechanical)"
 assert_contains "team block restores inherit for mechanical work" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"inherit","omit_model":true'
 
+# A consumer layer declares its own workload and sets per-role values for it.
+fixture declared
+mkdir -p "$T/declared/repo/docs/conventions"
+printf '```yaml config\nschema: 1\nworkloads:\n  deep: true\nroles:\n  worker:\n    workloads:\n      deep:\n        model: opus\n        effort: high\n```\n' >"$T/declared/repo/docs/conventions/multi-agent.md"
+out="$(run declared worker --session-model sonnet --workload deep)"
+assert_eq "declared workload resolves" 0 "$?"
+assert_contains "declared workload: worker takes its model and effort" "$out" '"single":{"model":"opus","omit_model":false,"effort":"high","guarded":false}'
+assert_contains "declared workload: values come from the team layer" "$out" '"source":{"model":"team","effort":"team"},"basis":{"model":"config","fanout_model":"config","effort":"config"}'
+assert_contains "declared workload named in the output" "$out" '"workload":"deep"'
+out="$(run declared worker --session-model opus --workload mechanical)"
+assert_contains "declaring a workload keeps the bundled ones" "$out" '"single":{"model":"sonnet"'
+
+# A declaration in one layer covers values set in another.
+fixture crosslayer
+printf 'schema: 1\nworkloads:\n  deep: true\n' >"$T/crosslayer/home/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  verifier:\n    workloads:\n      deep:\n        effort: max\n' >"$T/crosslayer/repo/.claude/multi-agent.local.yaml"
+out="$(run crosslayer verifier --session-model opus --workload deep)"
+assert_contains "user-global declaration, overlay value" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"max"'
+assert_lacks "declared across layers: no undeclared note" "$out" 'undeclared'
+
+# An undeclared workload is reported and ignored, and cannot be resolved.
+fixture undeclared
+printf 'schema: 1\nroles:\n  worker:\n    workloads:\n      deep:\n        model: opus\n' >"$T/undeclared/repo/.claude/multi-agent.yaml"
+out="$(run undeclared worker --session-model opus)"
+assert_contains "undeclared workload key reported" "$out" "team: roles.worker.workloads.deep.model ignored: undeclared workload 'deep'"
+run undeclared worker --session-model opus --workload deep >/dev/null
+assert_eq "undeclared workload exits 2" 2 "$?"
+assert_contains "undeclared workload error lists the declared ones" "$(cat "$T/undeclared.err")" "unknown workload 'deep' (declared: code research mechanical)"
+
+# A declaration takes true or false; false withdraws one, a bundled one included.
+fixture badecl
+printf 'schema: 1\nworkloads:\n  deep: yes\n  mechanical: false\n' >"$T/badecl/repo/.claude/multi-agent.yaml"
+out="$(run badecl worker --session-model opus)"
+assert_contains "declaration value outside true/false rejected" "$out" "workloads.deep rejected: 'yes'"
+assert_contains "withdrawn bundled workload: its bundled key is ignored" "$out" "bundled: roles.worker.workloads.mechanical.model ignored: undeclared workload 'mechanical'"
+run badecl worker --session-model opus --workload mechanical >/dev/null
+assert_eq "withdrawn workload exits 2" 2 "$?"
+
+# A declared name holds only letters, digits, `_` and `-`.
+fixture badname
+printf 'schema: 1\nworkloads:\n  "a b": true\n' >"$T/badname/repo/.claude/multi-agent.yaml"
+out="$(run badname worker --session-model opus)"
+assert_eq "bad workload name still exits 0" 0 "$?"
+assert_contains "bad workload name rejected" "$out" "workloads.a b ignored: a workload name holds only letters, digits, _ and -, and does not start with -"
+
+# The route skill passes its second positional argument as the workload.
+out="$("$SCRIPT_DIR/../skills/route/scripts/route.sh" worker deep session=opus --root "$T/declared/repo" --home "$T/declared/home" 2>/dev/null)"
+assert_contains "route.sh passes a declared workload" "$out" '"workload":"deep"'
+
+# Names that differ only in `-` against `_H_` stay distinct workloads.
+fixture collide
+printf 'schema: 1\nworkloads:\n  a-b: true\n  a_H_b: false\nroles:\n  worker:\n    workloads:\n      a-b:\n        model: opus\n' >"$T/collide/repo/.claude/multi-agent.yaml"
+out="$(run collide worker --session-model sonnet --workload a-b)"
+assert_eq "a-b stays declared beside a withdrawn a_H_b" 0 "$?"
+printf 'schema: 1\nworkloads:\n  a-b: true\n  a_H_b: true\nroles:\n  worker:\n    workloads:\n      a-b:\n        model: opus\n      a_H_b:\n        model: sonnet\n' >"$T/collide/repo/.claude/multi-agent.yaml"
+out="$(run collide worker --session-model opus --workload a-b)"
+assert_contains "a-b keeps its own model beside a_H_b" "$out" '"single":{"model":"opus"'
+
+# A name starting with `-` would parse as an option in route.sh, so it is refused.
+fixture dashname
+printf 'schema: 1\nworkloads:\n  "-deep": true\n' >"$T/dashname/repo/.claude/multi-agent.yaml"
+out="$(run dashname worker --session-model opus)"
+assert_contains "leading-hyphen workload name rejected" "$out" "workloads.-deep ignored: a workload name holds only letters, digits, _ and -, and does not start with -"
+
 run plain nosuch >/dev/null
 assert_eq "unknown role exits 2" 2 "$?"
 assert_contains "unknown role lists the valid roles" "$(cat "$T/plain.err")" "valid roles: orchestrator worker verifier retrieval"

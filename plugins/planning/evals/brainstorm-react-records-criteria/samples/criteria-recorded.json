@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Criteria so far:\n- No new service to run (from candidate 2).\n\nCandidate 5, a read replica, is a new database to run, which pulls against that criterion. What draws you to it: isolating report load from the main database, or something else?",
+      "why": "records the stated reason as a criterion and asks why 5 resonates"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Good picks. Caching (2) and a read replica (5) together should get you under 5 seconds. RECOMMENDED: /planning:interview.",
+      "why": "ignores the stated reason and never asks why 5 resonates"
+    },
+    {
+      "answer": "Criteria: no new service to run (2); isolates report load from writes (5). Scope: cache first, replica later.",
+      "why": "invents a reason for candidate 5 instead of asking"
+    }
+  ]
+}

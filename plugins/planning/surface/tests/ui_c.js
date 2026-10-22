@@ -95,7 +95,7 @@ async page => {
     ok("AC16: i focuses the note", (await focused()) === "note" && (await page.inputValue("#note")) === "");
     await page.keyboard.press("Escape");
     await page.keyboard.press("/");
-    ok("AC16: / focuses the filter", (await focused()) === "filter");
+    ok("#5915: / focuses the search box", (await focused()) === "search");
     await page.click("main.detail h3");
     const n1 = (await events()).length;
     await page.keyboard.press("r"); await page.waitForTimeout(400);
@@ -110,6 +110,29 @@ async page => {
     ok("Ctrl+Enter saves nothing behind the open ? sheet", armedBehind && (await events()).length === n1 && await page.evaluate(() => document.getElementById("keysDlg").open), "armed " + armedBehind);
     await page.keyboard.press("Escape"); await page.waitForTimeout(150);
     ok("AC16: Esc closes the sheet", await page.evaluate(() => !document.getElementById("keysDlg").open));
+    // #5915: the Show filter key, search and jump, the URL hash, and the rail button's accessible name
+    await page.click("main.detail h3"); await page.keyboard.press("s");
+    ok("#5915: s focuses the Show filter", (await focused()) === "filter");
+    await page.keyboard.press("Escape");
+    await page.click("#search"); await page.keyboard.type("1"); await page.keyboard.press("Enter"); await page.waitForTimeout(250);
+    ok("#5915: typing 1 then Enter selects Q1", (await sel()) === "Q1", await sel());
+    ok("#5915: selecting a question writes its id to the URL hash", (await page.evaluate(() => location.hash)) === "#Q1", await page.evaluate(() => location.hash));
+    const q1 = (await state()).questions.questions.find(x => x.id === "Q1"), short1 = q1.short || q1.title, total = (await page.$$(".rail-list .qbtn")).length;
+    await page.fill("#search", short1); await page.waitForTimeout(250);
+    const hits = await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q));
+    ok("#5915: words filter the rail to the questions that contain them", hits.includes("Q1") && hits.length < total, hits.join(",") + " of " + total);
+    await page.fill("#search", "zzzz-no-such-word"); await page.waitForTimeout(250);
+    ok("#5915: a search that matches nothing says so in the rail", /No questions match/.test(await page.textContent("#railList")));
+    await page.fill("#search", ""); await page.waitForTimeout(150);
+    await page.evaluate(() => { location.hash = "#P1"; }); await page.waitForTimeout(300);
+    const viaHash = await sel();
+    await page.evaluate(() => { location.hash = "#NO-SUCH-ID"; }); await page.waitForTimeout(300);
+    ok("#5915: a hashchange selects the named question, and an unknown id leaves the selection alone", viaHash === "P1" && (await sel()) === "P1", viaHash + " then " + await sel());
+    const nm = await page.$eval('.qbtn[data-q="Q1"]', el => ({label: el.getAttribute("aria-label"), desc: (document.getElementById(el.getAttribute("aria-describedby")) || {}).textContent || ""}));
+    ok("#5915: a rail button's accessible name is its id, short title and state", nm.label.startsWith("Q1, ") && nm.label.includes(short1) && /, Accepted/.test(nm.label) && !/needs/.test(nm.label), nm.label);
+    ok("#5915: the rest of the card is the button's accessible description", /Accepted/.test(nm.desc), nm.desc);
+    await page.goto(base + "?load=1#Q3"); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(500);
+    ok("#5915: loading the page with #Q3 selects Q3", (await sel()) === "Q3", await sel());
     // Hedged: accept with a required condition note; its commitments count like an accept's
     await pick("Q3"); await page.click("main.detail h3");
     await page.keyboard.press("h");
@@ -147,6 +170,29 @@ async page => {
     const baseOpen = s.questions.questions.filter(q => q.group === "base" && !q.archived && !(s.responses.responses[q.id] || {}).decision).length;
     const cnt = await page.textContent('.sec[data-key="g:base"] .cnt');
     ok("AC20: archived question not in the group's open count", cnt === baseOpen + " open / 5", cnt + " want " + baseOpen);
+    await page.setViewportSize({width: 1440, height: 900});
+    const baseArch = s.questions.questions.filter(q => q.group === "base" && q.archived).length, rowSel = '.sec[data-key="g:base"] .archtoggle';
+    ok("#8086: archived cards are hidden on load in Groups", baseArch > 0 && await page.$('.rail-list .sec[data-key="g:base"] .qbtn[data-q="X1"]') === null);
+    ok("#8086: one archived row shows the group's archived count", (await page.$$(rowSel)).length === 1 && (await page.textContent(rowSel)).trim() === baseArch + " archived" && await page.getAttribute(rowSel, "aria-expanded") === "false", await page.textContent(rowSel));
+    ok("#8086: a group with no archived cards shows no row", await page.$('.sec[data-key="g:chain"] .archtoggle') === null);
+    await page.click(rowSel); await page.waitForTimeout(150);
+    ok("#8086: clicking the row shows the archived cards, greyed", await page.getAttribute(rowSel, "aria-expanded") === "true" && await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived") && !!el.offsetParent));
+    await page.click(rowSel); await page.waitForTimeout(150);
+    ok("#8086: a second click collapses the row again", await page.$('.rail-list .qbtn[data-q="X1"]') === null);
+    await page.click('.seg [data-view="rounds"]'); await page.waitForTimeout(150);
+    ok("#8086: Rounds view still lists the archived card, with no archived row", await page.$eval('.rail-list .qbtn[data-q="X1"]', el => el.classList.contains("archived")) && await page.$(".archtoggle") === null);
+    await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(150);
+    // base renders live Q1 Q2 Q3 X2, then the row holding archived X1: j and k follow that order
+    await pick("Q3"); await page.keyboard.press("j"); await page.waitForTimeout(200);
+    const jCollapsed = await sel();
+    ok("#8086: j follows the rail, stepping over the collapsed archived card to the next live one", jCollapsed === "X2" && await page.getAttribute(rowSel, "aria-expanded") === "false", "Q3 -> " + jCollapsed);
+    await page.keyboard.press("k"); await page.waitForTimeout(200);
+    ok("#8086: k steps back the same way", await sel() === "Q3", "X2 -> " + await sel());
+    await page.click(rowSel); await page.waitForTimeout(150);
+    await pick("X2"); await page.keyboard.press("j"); await page.waitForTimeout(200);
+    ok("#8086: with the row open, j from the last live card goes to the archived card under the row", await sel() === "X1", "X2 -> " + await sel());
+    await page.click(rowSel); await page.waitForTimeout(150);
+    await page.click(rowSel); await page.waitForTimeout(150);
     ok("AC20: archived question greyed in Groups", await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived")));
     const live = s.questions.questions.filter(q => !q.archived).length;
     ok("AC20: meter leaves the archived question out", new RegExp(" of " + live + " answered$").test(await page.textContent("#meterText")), await page.textContent("#meterText"));
@@ -415,8 +461,11 @@ async page => {
   if (PHASE === 2) {
     await page.waitForTimeout(900); // SSE brings the external revise of A2 and the emoji switch
     ok("R-J: no anchors when emojiMarkers is false", !(await page.textContent("#dscroll .dhead h3")).includes(Q_MARK) && (await recHead()) === "Recommendation (Rec)", await recHead());
+    // A2 was selected with a choice armed when the shell revised its recommendation: the notice is up before any Save
+    const early = await page.evaluate(() => { const c = document.getElementById("conflict"); return {hidden: c.hidden, text: c.textContent}; });
+    ok("a revision landing on the armed question shows the changed notice before Save", !early.hidden && /A2 just changed: review/.test(early.text) && /Recommendation/.test(early.text), JSON.stringify(early));
     await page.click("#dlgOk"); await page.waitForTimeout(900);
-    const ev = await events(), acc = ev.filter(e => e.kind === "accept" && (e.id === "A1" || e.id === "A2")).map(e => e.id);
+    const ev = await events(), acc =ev.filter(e => e.kind === "accept" && (e.id === "A1" || e.id === "A2")).map(e => e.id);
     ok("AC23: Accept all skips the question whose contentRev changed", acc.join(",") === "A1", acc.join(","));
     ok("AC23: the toast names the skipped question", /Skipped A2/.test(await page.textContent("#toast")), await page.textContent("#toast"));
     // Accept all goes with the revision each question was opened at: A2 was opened in phase 1,
@@ -447,6 +496,8 @@ async page => {
     ok("toast reads Wrapping up", /Wrapping up/.test(await page.textContent("#dscroll")));
     await pick("Q3"); await page.click("main.detail h3"); await page.keyboard.press("1");
     ok("Save disabled during the wrap-up freeze", await page.$eval("[data-save]", el => el.disabled) && /Rec/.test(await armed()));
+    // The shell declared Q3 as being revised between phases: the rail card and the detail pane say so, and answering stays possible
+    ok("a revising-by-claude mark shows on the rail card and the detail pane", /Claude is revising this: auditing the cache choice/.test(await page.textContent('.qbtn[data-q="Q3"]')) && /Claude is revising this:.*auditing the cache choice.*You can still answer/.test(await page.textContent("#dscroll")), await page.textContent('.qbtn[data-q="Q3"]'));
     await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(500); await page.keyboard.press("Escape");
     ok("Ctrl+Enter records nothing during the freeze", (await events()).length === n0 + 1);
     // The shell's revise between phases dropped P2's alternative (b), which its kept decision names

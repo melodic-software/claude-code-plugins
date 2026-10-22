@@ -319,10 +319,26 @@ test("a fix request works a thread whose review is on an earlier head, in the se
   assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
 });
 
+// #8233: the reviewer bot's finding, the lanes App's UNCERTAIN reply, then the
+// owner's fix request, all on a review of an earlier head.
+for (const [label, overrides] of [
+  ["a trusted reply to the lane's escalation", escalated()],
+  ["a trusted fix request after the lane's escalation", escalated({ replies: [[102, HUMAN, REQUEST]] })],
+]) {
+  test(`on an earlier head, ${label} is kept, in the select step and the re-read`, async () => {
+    const api = fakeApi({ ...overrides, ...OLD_REVIEW });
+    const result = await run(api);
+    assert.equal(result.decision, "proceed");
+    assert.equal(result.file.threads[0].review_commit, OLD_HEAD);
+    assert.equal(result.file.threads[0].comments.at(-1).direction, true);
+    const { kept } = await currentThreads({ api, pr: 42, reviewerId: REVIEWER, appId: APP, trustedHumans: new Set([HUMAN]) });
+    assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
+  });
+}
+
 for (const [label, overrides] of [
   ["a reviewer-bot-only thread", {}],
-  ["an escalation answered by a trusted person", escalated()],
-  ["an escalation answered with a fix request", escalated({ replies: [[102, HUMAN, REQUEST]] })],
+  ["an escalation answered by an untrusted person", escalated({ replies: [[102, STRANGER, REQUEST]] })],
   ["an untrusted person's fix request", { ...asked([[101, STRANGER, REQUEST]]), permissions: { stranger: "admin" } }],
   ["a fix request by a review another account submitted", { ...asked([[101, HUMAN, REQUEST]]), reviews: [{ id: 10, user: { id: HUMAN }, commit_id: OLD_HEAD }] }],
 ]) {
@@ -457,6 +473,55 @@ test("model-job check runs count rounds the reply job never recorded", async () 
   }
 });
 
+// At the cap of 3, round markers posted at minute 10, a reviewer-bot thread
+// (PRRT_2) and a thread (PRRT_1) where `user` asked for a fix at `minute`.
+function pastCap({ user = HUMAN, minute = 20, body = REQUEST, rounds = 3, roundAt = at(10), checks, permissions } = {}) {
+  const reviewComments = [
+    comment(100, REVIEWER, { created_at: at(0) }),
+    comment(101, user, { body, created_at: at(minute) }),
+    comment(200, REVIEWER, { created_at: at(0) }),
+  ];
+  const issueComments = [
+    { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
+    ...Array.from({ length: rounds }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}`, created_at: roundAt })),
+  ];
+  const api = fakeApi({ reviewComments, issueComments, threads: [thread("PRRT_1", [100, 101]), thread("PRRT_2", [200])], checks, permissions });
+  return select({ api, pr: 42, headSha: HEAD, laneBranch: "lane-commits/x", repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), maxRounds: 3 });
+}
+
+test("at the cap, a write-access fix request newer than the last round runs one more round on its thread only", async () => {
+  const result = await pastCap();
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.rounds, 3);
+  assert.deepEqual(result.threads.map((row) => row.id), ["PRRT_1"]);
+  assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1"]);
+});
+
+test("below the cap, a fix request changes nothing: every kept thread runs", async () => {
+  const result = await pastCap({ rounds: 2, minute: 5 });
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1", "PRRT_2"]);
+});
+
+const check = (completedAt, conclusion = "success") => ({ name: "pr-unblock / address-feedback", conclusion, app: { slug: "github-actions" }, completed_at: completedAt });
+for (const [label, overrides] of [
+  ["a fix request older than the last round marker", { minute: 5 }],
+  ["a fix request older than the last round's model check run", { checks: { [HEAD]: [check(at(25))] } }],
+  ["a fix request older than a cancelled model run", { checks: { [HEAD]: [check(at(25), "cancelled")] } }],
+  ["a fix request older than a timed-out model run", { checks: { [HEAD]: [check(at(25), "timed_out")] } }],
+  ["a round with no readable time", { roundAt: null }],
+  ["an untrusted person's fix request", { user: STRANGER, permissions: { stranger: "admin" } }],
+  ["a trusted person's fix request without write access", { permissions: { "kyle-sexton": "read" } }],
+  ["a trusted person's newer reply that asks no fix", { body: DECISION }],
+]) {
+  test(`at the cap, ${label} escalates feedback-round-cap`, async () => {
+    const result = await pastCap(overrides);
+    assert.equal(result.decision, "escalate");
+    assert.equal(result.escalationReason, "feedback-round-cap");
+    assert.equal(result.file, undefined);
+  });
+}
+
 test("round markers count only when the lanes App posted them as the first line", async () => {
   const comments = [
     { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
@@ -557,4 +622,142 @@ test("createGitHubApi follows rel=next pages and sends the token", async () => {
     calls.map((call) => call.auth),
     ["Bearer tok", "Bearer tok"],
   );
+});
+
+// #8116's thread PRRT_kwDOTCGFQM6tojDu: the reviewer bot's finding on
+// write-transcript.js, then the owner's fix request naming run-transcript.js,
+// refused at 2026-10-19T02:31Z as outside every kept thread's scope.
+const T = "plugins/knowledge/skills/video-digest/extraction/transcript";
+const OWNER_8116 =
+  "*Owner reply, posted by AI from the owner's answer in an attended session on 2026-10-18.*\n\n" +
+  "PR-fix lane: please fix this finding. Strip `cues` where `run-transcript.js` serializes the rows " +
+  "(for example `written.transcripts.map(({ cues, ...row }) => row)`) so the CLI's stdout is unchanged, " +
+  "and add a test that the CLI output has no `cues` key.";
+const FILE = { type: "blob", mode: 0o100644 };
+const EXEC = { type: "blob", mode: 0o100755 };
+// The head's trees, keyed by directory: GraphQL TreeEntry rows.
+const TREES = {
+  [T]: [{ name: "write-transcript.js", ...FILE }, { name: "run-transcript.js", ...EXEC }, { name: "run-transcript.test.js", ...FILE }],
+  "plugins/knowledge": [{ name: "README.md", ...FILE }, { name: "AGENTS.md", ...FILE }, { name: "link.md", type: "blob", mode: 0o120000 }, { name: "vendor", type: "commit", mode: 0o160000 }],
+  "plugins/other": [{ name: "x.js", ...FILE }],
+  ".github/workflows": [{ name: "x.yml", ...FILE }],
+};
+function named(replies, { trees = TREES, permissions } = {}) {
+  const fixture = asked(replies);
+  fixture.reviewComments = fixture.reviewComments.map((row) => ({ ...row, path: `${T}/write-transcript.js` }));
+  const api = fakeApi({ ...fixture, permissions });
+  const reads = [];
+  api.listTree = async (sha, dir) => {
+    reads.push(`${sha}:${dir}`);
+    return trees[dir] ?? [];
+  };
+  return { api, reads };
+}
+
+test("#8116: a write-access fix request naming a same-plugin file adds it to the thread's scope", async () => {
+  const { api, reads } = named([[101, HUMAN, OWNER_8116]]);
+  const result = await run(api);
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.threads[0].named_paths, [`${T}/run-transcript.js`]);
+  assert.deepEqual(reads, [`${HEAD}:${T}`]);
+  const { inThreadScope } = await import("./thread-scope.mjs");
+  assert.equal(inThreadScope(`${T}/run-transcript.js`, new Set([`${T}/write-transcript.js`]), result.file.threads), true);
+});
+
+test("a repository-relative name with a :line suffix in the same plugin is added", async () => {
+  const body = "PR-fix lane: please fix this finding. Also update plugins/knowledge/README.md:12.";
+  const result = await run(named([[101, HUMAN, body]]).api);
+  assert.deepEqual(result.file.threads[0].named_paths, ["plugins/knowledge/README.md"]);
+});
+
+test("a name in another plugin, under .github/ or on an instruction path is not added, and no tree is read for it", async () => {
+  const body =
+    "PR-fix lane: please fix this finding. Edit plugins/other/x.js, .github/workflows/x.yml, " +
+    "plugins/knowledge/AGENTS.md and `plugins/knowledge/hooks/hooks.json`.";
+  const { api, reads } = named([[101, HUMAN, body]]);
+  const result = await run(api);
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.file.threads[0].named_paths, undefined);
+  assert.deepEqual(reads, []);
+});
+
+test("a ../ traversal or an absolute name is not added", async () => {
+  const body =
+    "PR-fix lane: please fix this finding. See ../watch/run-watch.js, plugins/knowledge/../other/x.js " +
+    "and /plugins/knowledge/README.md.";
+  const { api, reads } = named([[101, HUMAN, body]]);
+  assert.equal((await run(api)).file.threads[0].named_paths, undefined);
+  assert.deepEqual(reads, []);
+});
+
+test("a name from a trusted person without write access is not added", async () => {
+  // Kept as an answer to the lane's escalation, which needs no write access.
+  const fixture = escalated({ replies: [[102, HUMAN, OWNER_8116]] });
+  fixture.reviewComments = fixture.reviewComments.map((row) => ({ ...row, path: `${T}/write-transcript.js` }));
+  const api = fakeApi({ ...fixture, permissions: { "kyle-sexton": "read" } });
+  api.listTree = async (sha, dir) => TREES[dir] ?? [];
+  const result = await run(api);
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.file.threads[0].named_paths, undefined);
+});
+
+test("a name from an untrusted account leaves the thread alone, so nothing is added", async () => {
+  const { api } = named([[101, STRANGER, OWNER_8116]], { permissions: { stranger: "admin" } });
+  assert.equal((await run(api)).decision, "skip");
+});
+
+test("a name that is no regular file at the head is not added: missing, a symbolic link, a gitlink, or another letter case", async () => {
+  const body =
+    "PR-fix lane: please fix this finding. Edit `missing.js`, plugins/knowledge/link.md, plugins/knowledge/vendor.d " +
+    "and Run-transcript.js.";
+  const trees = { ...TREES, "plugins/knowledge": [...TREES["plugins/knowledge"], { name: "vendor.d", type: "commit", mode: 0o160000 }] };
+  const result = await run(named([[101, HUMAN, body]], { trees }).api);
+  assert.equal(result.file.threads[0].named_paths, undefined);
+});
+
+test("names inside fenced code or quoted lines, and in the thread's other comments, are not read", async () => {
+  const body = "PR-fix lane: please fix this finding.\n```\nrun-transcript.js\n```\n> plugins/knowledge/README.md";
+  const result = await run(named([[101, HUMAN, body], [102, HUMAN, "Also run-transcript.test.js"]]).api);
+  assert.equal(result.file.threads[0].named_paths, undefined);
+});
+
+test("words that are not files ahead of a real name do not push it out of the cap", async () => {
+  const words = Array.from({ length: 12 }, (_, i) => `obj.f${i}`).join(" ");
+  const body = `PR-fix lane: please fix this finding. Per ${words}, edit run-transcript.js.`;
+  const { api, reads } = named([[101, HUMAN, body]]);
+  assert.deepEqual((await run(api)).file.threads[0].named_paths, [`${T}/run-transcript.js`]);
+  assert.deepEqual(reads, [`${HEAD}:${T}`]);
+});
+
+test("names in many missing directories read at most TREE_READ_CAP trees; a name in a read directory still counts", async () => {
+  const { TREE_READ_CAP } = await import("./address-feedback.mjs");
+  const missing = Array.from({ length: TREE_READ_CAP + 5 }, (_, i) => `plugins/knowledge/d${i}/x.js`);
+  const body = `PR-fix lane: please fix this finding. Edit ${missing.join(" ")} and run-transcript.js.`;
+  const { api, reads } = named([[101, HUMAN, body]]);
+  assert.equal((await run(api)).file.threads[0].named_paths, undefined);
+  assert.equal(reads.length, TREE_READ_CAP);
+  const first = `PR-fix lane: please fix this finding. Edit run-transcript.js, ${missing.join(" ")} and run-transcript.test.js.`;
+  const kept = named([[101, HUMAN, first]]);
+  assert.deepEqual((await run(kept.api)).file.threads[0].named_paths, [`${T}/run-transcript.js`, `${T}/run-transcript.test.js`]);
+  assert.equal(kept.reads.length, TREE_READ_CAP);
+});
+
+test("at most NAMED_CAP existing files are added", async () => {
+  const { NAMED_CAP } = await import("./address-feedback.mjs");
+  const files = Array.from({ length: NAMED_CAP + 2 }, (_, i) => `f${i}.js`);
+  const body = `PR-fix lane: please fix this finding. Edit ${files.join(" ")}.`;
+  const trees = { ...TREES, [T]: [...TREES[T], ...files.map((name) => ({ name, ...FILE }))] };
+  const result = await run(named([[101, HUMAN, body]], { trees }).api);
+  assert.deepEqual(result.file.threads[0].named_paths, files.slice(0, NAMED_CAP).map((name) => `${T}/${name}`));
+});
+
+test("a leading or trailing _ that belongs to the name is kept; only a matched _ pair is emphasis", async () => {
+  const body =
+    "PR-fix lane: please fix this finding. Edit _utils.js, `__init__.py` and _run-transcript.test.js_.";
+  const trees = {
+    ...TREES,
+    [T]: [...TREES[T], { name: "_utils.js", ...FILE }, { name: "utils.js", ...FILE }, { name: "__init__.py", ...FILE }, { name: "init__.py", ...FILE }],
+  };
+  const result = await run(named([[101, HUMAN, body]], { trees }).api);
+  assert.deepEqual([...result.file.threads[0].named_paths].sort(), [`${T}/__init__.py`, `${T}/_utils.js`, `${T}/run-transcript.test.js`]);
 });

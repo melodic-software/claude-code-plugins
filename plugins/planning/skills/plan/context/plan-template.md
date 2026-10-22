@@ -8,7 +8,7 @@
 - [Script Repeatable Operations (default deliverable)](#script-repeatable-operations-default-deliverable)
 - [Sanity-Check Format (per-phase)](#sanity-check-format-per-phase)
 - [Sub-Topic Promotion Trigger](#sub-topic-promotion-trigger)
-- [Execution-Shape Analysis](#execution-shape-analysis)
+- [Execution-shape analysis](#execution-shape-analysis)
 - [Large-scale changes (migrations, library swaps, broad refactoring)](#large-scale-changes-migrations-library-swaps-broad-refactoring)
 - [Decision ids (tagged decisions)](#decision-ids-tagged-decisions)
 - [Phase Review tags (optional per phase)](#phase-review-tags-optional-per-phase)
@@ -22,14 +22,26 @@ Scale to the task. Not every section is needed for every plan. A trivial fix nee
 
 ## Full Template
 
-```markdown
-## Goal
+These sections sit under PLAN.md's `## Plan`, before the first phase ([plan-md-anatomy.md](../templates/plan-md-anatomy.md)).
 
+```markdown
+### Goal
+
+**Serves**: <the Brief's `### Problem`, in one line, so a reader can check this Goal against it>
 **What**: <1-2 sentences: what is being changed>
 **Why**: <1-2 sentences: the motivation, not just "because we need to">
 **Done when**: <the observable finish line, e.g. "every caller reads the new setting and the build is green">
+- Intent (why, in the user's words): <quoted verbatim from the Brief's `### Goal`>
+- Vision (where this heads): <quoted verbatim from the Brief's `### Goal`>
+- When goals conflict, prefer: <quoted verbatim from the Brief's `### Goal`>
 
-## Standards grounding
+### Load-bearing assumptions
+
+| Assumption | Source | Falsifying check | Response if false |
+|------------|--------|------------------|-------------------|
+| <one Brief Captured assumption, or one the plan adds> | <`Brief`, `PRD`, `plan`, or the research file> | <the phase Sanity Check that shows it false, e.g. "Phase 2 Sanity Check: `grep -c ...` prints 0"> | <Minor: proceed and note / Moderate: flag and continue, never adopt a better option unasked / Major: stop and replan> |
+
+### Standards grounding
 
 <which consumer standards shaped this plan, from the grounding step. Skipped at trivial scale only: state "Skipped: trivial scale, ambient context only">
 
@@ -37,15 +49,15 @@ Scale to the task. Not every section is needed for every plan. A trivial fix nee
 |---------|----------------|------------------|
 | <surface id from the index> | <file + section(s) loaded> | <team / personal overlay / user-global> |
 
-## Approach
+### Approach
 
-### Steps
+#### Steps
 
 1. <Step with rationale>
 2. <Step with rationale>
 3. ...
 
-### Files Affected
+#### Files Affected
 
 | File | Action | What changes |
 |------|--------|-------------|
@@ -53,7 +65,7 @@ Scale to the task. Not every section is needed for every plan. A trivial fix nee
 | `path/to/new-file.cs` | Create | New cache configuration |
 | `path/to/old-file.cs` | Delete | Replaced by new approach |
 
-### File Inventory (when plan touches ≥10 files)
+#### File Inventory (when plan touches ≥10 files)
 
 When a plan or phase touches ≥10 files, emit a checkbox inventory table. Checkboxes enforce verification discipline: the agent ticks each file as processed; the reviewer sees completeness at a glance.
 
@@ -72,12 +84,15 @@ When a plan or phase touches ≥10 files, emit a checkbox inventory table. Check
 
 **Below threshold (<10 files):** the "Files Affected" table above is sufficient, with no checkboxes needed.
 
-### Dependencies
+#### Dependencies
 
-- <What this plan depends on: existing code, libraries, infrastructure>
+| Package | Version | Source URL | As of |
+|---------|---------|------------|-------|
+| <library, tool, service, or in-repo path this plan relies on> | <version the plan builds against; `n/a` for in-repo code> | <docs or release page read; `n/a` for in-repo code> | <date the source was read> |
+
 - <What depends on this plan: downstream consumers, tests, CI>
 
-### Pre-flight consumer check (when migrating a contract)
+#### Pre-flight consumer check (when migrating a contract)
 
 When a phase migrates a contract surface (frontmatter schema, JSON schema, public API, env-var shape, file format, exported function signature), list "Identify consumers" as the FIRST work item:
 
@@ -87,14 +102,14 @@ When a phase migrates a contract surface (frontmatter schema, JSON schema, publi
 
 Without pre-flight, migrations break consumers silently. Example: a frontmatter field migration must pre-flight scripts parsing the field via `yq` / `grep` / a YAML library.
 
-## Alternatives Considered
+### Alternatives Considered
 
-| Alternative | Why rejected |
-|-------------|-------------|
-| <Approach A> | <Specific reason, not just "too complex"> |
-| <Approach B> | <Specific reason> |
+| Alternative | Why rejected | Switch condition |
+|-------------|-------------|------------------|
+| <Approach A> | <Specific reason, not just "too complex"> | <the observable fact that would make A the better choice> |
+| <Approach B> | <Specific reason> | <...> |
 
-## Test Strategy
+### Test Strategy
 
 > **Invoke `/tdd:principles` via the Skill tool (if enabled) when writing this section.** It provides authoritative guidance on what to test, testing styles (output/state/communication), when to mock, and testable architecture patterns. Which test type each changed file needs (unit / integration / e2e / architecture / analyzer) is classified by `/testing:plan`'s test-type table when the `testing` plugin is enabled; cite it rather than restating, and otherwise apply standard test-design judgment. Test-first (Red-Green-Refactor) is the default; specify test-after only when genuinely impractical.
 
@@ -105,7 +120,7 @@ Without pre-flight, migrations break consumers silently. Example: a frontmatter 
 - <Edge cases to cover>
 - <Existing tests that need updating>
 
-## Risks and Mitigations
+### Risks and Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
@@ -117,7 +132,11 @@ Without pre-flight, migrations break consumers silently. Example: a frontmatter 
 ```markdown
 ## Plan: <title>
 
-**Goal**: <what and why in one line>
+**Goal**: <what and why in one line>; serves <the Brief's Problem in one line>. When the Brief has them, quote verbatim:
+
+- Intent (why, in the user's words): <quoted>
+- Vision (where this heads): <quoted>
+- When goals conflict, prefer: <quoted>
 
 **Done when**: <the observable finish line>
 
@@ -135,7 +154,7 @@ The plan depth should match the blast radius:
 
 - **Trivial** (typo fix, doc update, single-line config): abbreviated template, 3-5 bullets
 - **Small** (new rule, simple feature, 2-5 files): abbreviated template with test strategy
-- **Medium** (new library, module changes, 5-15 files): full template minus alternatives
+- **Medium** (new library, module changes, 5-15 files): full template, alternatives and risks included
 - **Large** (architecture change, cross-cutting refactor, new service): full template + stress-test
 
 Standards grounding follows the same scale: trivial plans skip the "Standards grounding" element (ambient context only, with no standards fetch); small plans ground the matched surfaces with a brief citation line (the standards a change is built to are the ones it is reviewed against, whatever its size); medium and large plans carry the full element for the surfaces they touch.
@@ -201,9 +220,23 @@ Recommend promoting a phase to its own topic directory (with its own PLAN.md) wh
 
 Sub-topics keep the parent PLAN.md scannable and give the promoted work its own clean-context boundary. A sub-topic PLAN.md inherits the parent PLAN structure (Brief, Plan sections recursively).
 
-## Execution-Shape Analysis
+## Execution-shape analysis
 
-For plans with ≥2 phases. Single-phase plans and trivial fixes skip this section entirely; skipped = all-main-session execution, stated in one line.
+Step 4.5 loads this section. For plans with ≥2 phases. Single-phase plans and trivial fixes skip this section entirely; skipped = all-main-session execution, stated in one line. The hub states the agent-team routing rule and the early-escalation rule; this is the analysis.
+
+**Analysis steps:**
+
+1. **File-overlap matrix**. For each phase pair (i, j), check whether their ALLOWED file lists intersect. Zero overlap = parallel-safe candidate
+2. **Dependency graph**. Explicit (Phase A produces output Phase B consumes; Phase A's contract change is cited by Phase B's Sanity Check) + implicit (semantic-source-before-mechanical-execution; sweep-before-detector-activation)
+3. **Identify Wave A (parallel-safe set)**. Largest subset with zero file overlap AND no inter-phase dependencies
+4. **Identify Wave B+ (sequential)**. Phases blocked by Wave A outputs
+5. **Recommend shape**. RECOMMEND parallel when ≥2 phases are parallel-safe AND the saving is material (roughly ≥100 LOC of independent work). Otherwise document sequential as the default. Sequential remains a valid choice even with opportunity present
+6. **Author scope-fencing tables**. For each parallel agent: ALLOWED files (whitelist) + explicit FORBIDDEN (PLAN.md, other agents' territory) per "Scope-fencing tables" below
+7. **Surface the cost**. Parallel agents multiply token usage; state "N agents parallel vs sequential" so the user picks consciously
+8. **Document sequential fallback**. An explicit path back to sequential ordering if parallel orchestration fails (scope-fence violation, concurrent-edit race, an agent reports it cannot complete)
+9. **Assign per-phase execution surface and model**. Give each phase a routing row (`Phase | Surface | Model | Attempts | Basis`), with `Attempts` blank (one attempt) or `multi-shape` per "Per-phase routing table" below: main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Set `Model` per "Per-phase routing table" below: `sonnet` only when every eligibility condition holds, otherwise `opus`, and `frontier` for security-surface work. Route to agent team only when the environment has agent teams enabled (an experimental, default-off surface; the dated record is in "Composition risks" below); otherwise fall back to sub-agent workers or sequential
+
+**Output:** PLAN.md's `## Execution shape` section (parallelism shape + per-phase routing table) + scope-fencing tables in "Handoff to implementation". The user approves the shape at Step 5.
 
 ### Phase file-overlap matrix
 
@@ -246,16 +279,7 @@ Each agent gets an explicit ALLOWED whitelist + FORBIDDEN deny-list:
 
 **Each agent reports at end:** work items completed + per-criterion Sanity Check verdict + actual LOC delta.
 
-**Divergence escalation (copy into every worker brief verbatim):**
-
-```text
-DIVERGENCE ESCALATION (mandatory): if reality diverges from this brief, so
-a precondition fails, a file/symbol named here is absent or different than
-described, scope is blocked, or a design question arises mid-task, STOP.
-Do not improvise, fix forward, or expand scope. Report to the orchestrator:
-what you found, what the brief expected, and the exact state of your work
-(files touched, edits applied / not applied). Await a revised brief.
-```
+**Divergence escalation:** every worker brief carries the clause `/implementation:implement-dispatch` owns, its worker-brief item 2, quoted from there. This template keeps no copy.
 
 ### Sequential fallback (document inline)
 
@@ -289,7 +313,7 @@ The mark records what the plan found and reads no setting; whether marked phases
 attempts is decided at dispatch, by `/implementation:implement-dispatch`.
 
 - **Main-session:** judgment-heavy, tightly coupled to conversation context, or requires user interaction
-- **Sub-agent worker:** mechanical, file-disjoint volume work that returns a summary; every worker row implies a dispatch brief carrying the scope fence + the divergence-escalation clause above
+- **Sub-agent worker:** mechanical, file-disjoint volume work that returns a summary; every worker row implies a dispatch brief carrying the scope fence + the divergence-escalation clause (`/implementation:implement-dispatch` brief item 2)
 
 The `Model` column decides which implementer agent a worker row dispatches to:
 
@@ -302,6 +326,13 @@ This split is our routing rule. Two built-in levers sit beside it and are not pa
 - **Pointer**: for the model split, see <https://code.claude.com/docs/en/costs#choose-the-right-model>; for `opusplan`, see <https://code.claude.com/docs/en/model-config#opusplan-model-setting>; for teammates, see <https://code.claude.com/docs/en/costs#agent-team-token-costs>.
 - **As of**: 2026-10-01
 - **Recheck trigger**: any of those sections is renamed, or the costs page changes its model split.
+
+### Composition risks
+
+- Parallel orchestration depends on sub-agent compliance with scope-fence discipline. The sequential fallback path MUST be documented in PLAN.md "Handoff to implementation"
+- PLAN.md edits stay main-session-only (status updates would race if agents edited PLAN); agents report back instead
+- **Design for an agent team when the parallel-safe workers must message each other** (cross-layer feature, competing-hypothesis debugging) rather than just fan out and report back. That execution shape is an **agent team**, not independent fan-out sub-agents. The file-overlap matrix above IS the team-safety check: decompose by **context boundary / disjoint clean-interface file-set, never by lifecycle role** (a planner/implementer/tester of one feature shares too much context). Dependency-order the task list so blocked tasks auto-unblock; disjoint file ownership is mandatory, not optional. Pointer: <https://code.claude.com/docs/en/agent-teams#avoid-file-conflicts>; as of 2026-10-19; recheck when that section is renamed or moved. For whether agent teams are available and how they are turned on, pointer: <https://code.claude.com/docs/en/agent-teams#enable-agent-teams>; as of 2026-10-19; recheck when that section is renamed, or a release note names agent teams. Verify availability before routing a phase there, and keep the sub-agent fan-out or sequential path as the documented fallback
+- The user's commit policy is unchanged. Staging/commits happen per the consuming project's own rules, never silently by parallel agents
 
 ## Large-scale changes (migrations, library swaps, broad refactoring)
 
@@ -452,28 +483,3 @@ When a plan involves moving, renaming, or modifying a GROUP of files (batch migr
 ## Domain-specialist skills during planning
 
 When the plan touches a domain with a dedicated installed skill or plugin (cloud deployment, AI/ML library selection, edge compute, MCP server design, project scaffolding), cite that skill's slash invocation for deeper analysis during planning and stress-testing rather than reasoning from general knowledge. Enumerate what is actually installed; do not assume a roster.
-
-## Execution-shape analysis
-
-Load this section from Step 4.5. The hub states the agent-team routing rule and the early-escalation rule; this is the analysis.
-
-**Analysis steps:**
-
-1. **File-overlap matrix**. For each phase pair (i, j), check whether their ALLOWED file lists intersect. Zero overlap = parallel-safe candidate
-2. **Dependency graph**. Explicit (Phase A produces output Phase B consumes; Phase A's contract change is cited by Phase B's Sanity Check) + implicit (semantic-source-before-mechanical-execution; sweep-before-detector-activation)
-3. **Identify Wave A (parallel-safe set)**. Largest subset with zero file overlap AND no inter-phase dependencies
-4. **Identify Wave B+ (sequential)**. Phases blocked by Wave A outputs
-5. **Recommend shape**. RECOMMEND parallel when ≥2 phases are parallel-safe AND the saving is material (roughly ≥100 LOC of independent work). Otherwise document sequential as the default. Sequential remains a valid choice even with opportunity present
-6. **Author scope-fencing tables**. For each parallel agent: ALLOWED files (whitelist) + explicit FORBIDDEN (PLAN.md, other agents' territory) per "Scope-fencing tables" above
-7. **Surface the cost**. Parallel agents multiply token usage; state "N agents parallel vs sequential" so the user picks consciously
-8. **Document sequential fallback**. An explicit path back to sequential ordering if parallel orchestration fails (scope-fence violation, concurrent-edit race, an agent reports it cannot complete)
-9. **Assign per-phase execution surface and model**. Give each phase a routing row (`Phase | Surface | Model | Attempts | Basis`), with `Attempts` blank (one attempt) or `multi-shape` per "Per-phase routing table" above: main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Set `Model` per "Per-phase routing table" above: `sonnet` only when every eligibility condition holds, otherwise `opus`, and `frontier` for security-surface work. Route to agent team only when the environment has agent teams enabled (an experimental, default-off surface; the dated record is in the parallelism section below); otherwise fall back to sub-agent workers or sequential
-
-**Output:** an Execution-Shape Analysis subsection in the plan body (parallelism shape + per-phase routing table) + scope-fencing tables in "Handoff to implementation". The user approves the shape at Step 5.
-
-**Composition risks:**
-
-- Parallel orchestration depends on sub-agent compliance with scope-fence discipline. The sequential fallback path MUST be documented in PLAN.md "Handoff to implementation"
-- PLAN.md edits stay main-session-only (status updates would race if agents edited PLAN); agents report back instead
-- **Design for an agent team when the parallel-safe workers must message each other** (cross-layer feature, competing-hypothesis debugging) rather than just fan out and report back. That execution shape is an **agent team**, not independent fan-out sub-agents. The file-overlap matrix above IS the team-safety check: decompose by **context boundary / disjoint clean-interface file-set, never by lifecycle role** (a planner/implementer/tester of one feature shares too much context). Dependency-order the task list so blocked tasks auto-unblock; disjoint file ownership is mandatory, not optional. Pointer: <https://code.claude.com/docs/en/agent-teams#avoid-file-conflicts>; as of 2026-10-19; recheck when that section is renamed or moved. For whether agent teams are available and how they are turned on, pointer: <https://code.claude.com/docs/en/agent-teams#enable-agent-teams>; as of 2026-10-19; recheck when that section is renamed, or a release note names agent teams. Verify availability before routing a phase there, and keep the sub-agent fan-out or sequential path as the documented fallback
-- The user's commit policy is unchanged. Staging/commits happen per the consuming project's own rules, never silently by parallel agents

@@ -17,7 +17,7 @@ it for delegation-heavy tasks.
 | `/session-flow:find-handoff` | I wrote a handoff, ran `/clear`, and lost the resume prompt. Where is it and how do I resume? |
 | `/session-flow:clean-stop` | Before I lose this machine, is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
-| `/session-flow:audit-sessions` | Across every session on this machine, which ones lost the most time, tokens or corrections, and what would fix it? |
+| `/session-flow:audit-sessions` | Across every session on this machine, which ones lost the most time or tokens, and what would fix it? |
 | `/session-flow:audit-friction` | Where do permission prompts, auto-mode denials, hook blocks and the agent's own asks get in my way, and what should change? |
 | `/session-flow:running-retro` | Mid-flight: how is this session going, what is drifting, and what should change before it costs more? |
 | `/session-flow:orient` | Where do we stand, what are we doing, and why, from the durable + off-thread state, not just the conversation? |
@@ -600,6 +600,7 @@ reads it from.
 | `transcript_scope` | string | `"worktree"` | `CLAUDE_PLUGIN_OPTION_TRANSCRIPT_SCOPE` | How far /session-flow:find-handoff and /session-flow:recall read transcripts: worktree widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
 | `retro_lenses` | string | `"1"` | `CLAUDE_PLUGIN_OPTION_RETRO_LENSES` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
 | `cloud_route` | string | `"offer"` | `CLAUDE_PLUGIN_OPTION_CLOUD_ROUTE` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
+| `orient_catch_up_word_cap` | number<br>*min 150* | `250` | `CLAUDE_PLUGIN_OPTION_ORIENT_CATCH_UP_WORD_CAP` | Most words /session-flow:orient catch-up may use in its reply, visuals excluded; default 250, minimum 150. The reply opens with what needs you, then what happened, then each decision. |
 
 ### How to set these
 

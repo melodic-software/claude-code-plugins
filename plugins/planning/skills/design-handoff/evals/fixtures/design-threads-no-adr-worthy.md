@@ -24,9 +24,9 @@ peak memory on large reports.
 ## Thread 4: Principles. RESOLVED
 
 Principles applied: YAGNI keeps options in one defaults file until the settings service lands.
-Generalize now or wait: the Brief's `Intent: second variant = speculative` line settles it: wait
+Generalize now or wait: the Brief's `Variation intent: second variant = speculative` line settles it: wait
 for the third occurrence.
-Rationale: the Intent line is the user's answer.
+Rationale: the Variation intent line is the user's answer.
 
 ## Thread 5: Lifecycle and reversibility. RESOLVED
 

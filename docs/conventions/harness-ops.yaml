@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../plugins/harness-ops/schemas/harness-ops.schema.json
+# Team layer for the harness-ops plugin's settings.
+# Resolution: plugins/harness-ops/skills/morning-brief/scripts/morning-brief.sh (morning_brief keys).
+# The Azure subscription is not set here: pass --subscription or set it in harness-ops.local.yaml.
+morning_brief:
+  org: melodic-software
+  actions_included_minutes: 3000
+  actions_included_storage_gb: 2
+  usage_alert_percent: 50
+  log_cap_alert_percent: 50
+  forecast_alert: 50
+  required_budgets:
+    - budget-subscription-monthly
+    - budget-subscription-forecast
+  anomaly_alert: daily-cost-anomaly
+  expiry_days: 30

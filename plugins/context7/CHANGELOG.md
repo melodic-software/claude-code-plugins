@@ -3,6 +3,22 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-10-20
+
+### Changed
+
+- lookup: re-synced the vendored find-docs baseline to upstash/context7@158ad262 and updated the latest-version example queries from Next.js middleware to proxy, matching the Next.js 16 rename.
+
+## [0.8.0] - 2026-10-20
+
+### Changed
+
+- `/context7:lookup update` follows the shared drift-check exit-code contract: 0 no drift, 1 drift (a CLI behind latest, changed upstream skill content, or a missing baseline), 2 unverifiable (a missing tool, an unreachable registry or upstream, a failed fix or refresh, or an unknown mode). Drift used to exit 0 and a missing tool 1. A `ctx7` that is not installed is reported but no longer counted as drift. (#6493)
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.7.1] - 2026-10-16
 
 ### Changed

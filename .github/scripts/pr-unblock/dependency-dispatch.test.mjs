@@ -14,7 +14,8 @@ function pr(number, overrides = {}) {
     baseRefName: "main",
     headRefOid: String(number).padStart(40, "c"),
     headRefName: `dependabot/npm_and_yarn/x-${number}`,
-    author: { login: "dependabot[bot]" },
+    // The GraphQL listing's shape: the Bot login has no [bot] suffix.
+    author: { login: "dependabot", databaseId: 49699333 },
     title: "build(deps): bump x from 1.0.0 to 2.0.0",
     body: "",
     labels: { nodes: [{ name: "dependencies" }] },
@@ -87,6 +88,19 @@ test("leaves auto-tier bumps, other authors, drafts and forks alone", async () =
   });
   const { dispatched } = await run(api);
   assert.deepEqual(dispatched, []);
+});
+
+test("Dependabot is matched by its account id, never by a login", async () => {
+  const api = fakeApi({
+    nodes: [
+      pr(7),
+      pr(8, { author: { login: "dependabot" } }),
+      pr(9, { author: { login: "dependabot[bot]" } }),
+      pr(10, { author: { login: "dependabot", databaseId: 1 } }),
+    ],
+  });
+  const { dispatched } = await run(api);
+  assert.deepEqual(dispatched.map((d) => d.number), [7]);
 });
 
 test("a minor bump whose registry provenance changed is dispatched for review", async () => {

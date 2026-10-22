@@ -22,12 +22,12 @@ const FILES = {
 
 const run = (fixDocs) => {
   const doc = parse(read("./fixtures/valid.yaml"));
-  Object.assign(doc.activities["fix-docs"], fixDocs);
+  Object.assign(doc.activities["fix-prose"], fixDocs);
   return resolve(
     { ...FILES, config: stringify(doc) },
     {
       lane: "pr-refine",
-      activity: "fix-docs",
+      activity: "fix-prose",
       configPath: "docs/conventions/pr-pipeline.yaml",
       basePath: ".base",
       facts: { event: "synchronize", changedPaths: ["README.md"], labels: [], workClasses: [] },
@@ -76,8 +76,9 @@ for (const path of [
   });
 }
 
-// Only the write runner grants them, so a read skill's list would do nothing.
-test("verify-scripts with effect read fails the schema", () => {
+// Only the runner that stages edit tools grants them, so a read skill that
+// hands on no patch would list them for nothing.
+test("verify-scripts with effect read and no applied-by.patch fails the schema", () => {
   rejected({ effect: "read", "verify-scripts": ["scripts/check-x.sh"] });
 });
 

@@ -70,7 +70,7 @@ async function main() {
     // ---------- add a screenshot: re-encoded, the owner reads it back ----------
     await pia.waitForTimeout(1200); // one addition a second
     await pia.locator(".vf-myrep input[type=file]").setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: png(3200, 1800, [800, 1000]) });
-    await until(pia, () => !document.querySelector(".vf-myrep .vf-rep-shot").hidden);
+    ok("the picked screenshot shows as an attachment chip", await until(pia, () => !!document.querySelector(".vf-myrep .vf-attdraft:not([hidden]) .vf-ref-thumb img")?.naturalWidth));
     await pia.locator(".vf-myrep-add button[type=submit]").tap();
     ok("the screenshot shows as added", await until(pia, () => [...document.querySelectorAll(".vf-myrep-adds li")].some(li => li.textContent === "Screenshot added")));
     const shot = await owner.evaluate(async id => {
@@ -80,6 +80,15 @@ async function main() {
       return { w: im.naturalWidth, h: im.naturalHeight, kind: src.slice(0, 15) };
     }, fid);
     ok("the owner reads the added screenshot back at 1600 px", shot.w === 1600 && shot.h === 900 && /^data:image\/(webp|jpeg)/.test(shot.kind), JSON.stringify(shot));
+
+    // ---------- a screenshot still shrinking when a newer one is picked never replaces it ----------
+    await pia.locator(".vf-myrep input[type=file]").setInputFiles({ name: "big.png", mimeType: "image/png", buffer: png(3200, 1800, [800, 1000]) });
+    await pia.locator(".vf-myrep input[type=file]").setInputFiles({ name: "small.png", mimeType: "image/png", buffer: png(64, 48, [16, 16]) });
+    await until(pia, () => !document.querySelector(".vf-myrep .vf-attdraft").hidden);
+    await pia.waitForTimeout(2000); // past the big one's shrink
+    const cap = await pia.evaluate(() => document.querySelector(".vf-myrep .vf-attdraft .vf-ref-cap")?.textContent);
+    ok("the newer pick stays: the older, slower one is dropped when it finishes", cap === "Screenshot, 64 × 48", cap);
+    await pia.locator(".vf-myrep .vf-attdraft .vf-ref-x").click();
 
     // ---------- only the reporter and the owner ----------
     const boSees = await bo.evaluate(() => JSON.stringify(window.Core.snapshot()));

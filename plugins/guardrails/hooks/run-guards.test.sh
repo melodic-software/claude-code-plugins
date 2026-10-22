@@ -248,6 +248,24 @@ if (ulimit -s 1024) 2>/dev/null; then
   ) || RC=$?
   assert_exit "attended row, 1 MB stack: reset --hard, then past the alias budget, denies" 2 "$RC"
 fi
+# A guard's `exit` unwinds the guard before the next one runs, and the rest of
+# the chain runs in a forked process after a deep exit, so the deny of a guard
+# that exits 140 frames down survives a stack that small, whether or not the
+# next guard's own walk fits in it: the alias chain alone, through the shipped
+# Bash row, at the default stack and at 1 MB.
+alias_p=$(jq -nc --arg c "git$rg_hops a1" --arg d "$ATT_REPO" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
+for rg_stack in default 1024; do
+  if [[ "$rg_stack" != default ]] && ! (ulimit -s "$rg_stack") 2>/dev/null; then continue; fi
+  RC=0
+  ERR=$(
+    [[ "$rg_stack" == default ]] || ulimit -s "$rg_stack"
+    bash "$DISPATCH" --lib lib/powershell/ps-command.sh \
+      block-no-verify.sh block-dangerous-git.sh block-noncanonical-commit.sh \
+      block-root-delete-target.sh block-credential-read.sh <<<"$alias_p" 2>&1 >/dev/null
+  ) || RC=$?
+  assert_exit "alias chain past the budget, $rg_stack stack: denies" 2 "$RC"
+  assert_contains "alias chain past the budget, $rg_stack stack: the reason is on stderr" "$ERR" "over 128 re-expansions"
+done
 att_run 1 'rm -rf "$X"; rm -rf /etc/foo'
 assert_eq "attended row: two asking segments ask" ask "$(hsd permissionDecision)"
 assert_contains "attended row: the reason names the bare variable" "$(hsd permissionDecisionReason)" "bare variable"
@@ -616,13 +634,13 @@ assert_contains "hard error, closed posture: the fail-closed line is on stderr" 
 assert_silent "hard error, closed posture: no stdout document" "$OUT"
 assert_eq "hard error, closed posture: the next guard still ran" $'hardc\ngit status --short\nBash' "$(cat "$SEEN")"
 
-# A guard's `exit` runs the next guard from inside its own call, so a guard
-# that exits deep leaves its frames under every guard after it. Git Bash has a
+# A guard's `exit` once ran the next guard from inside its own call, so a guard
+# that exited deep left its frames under every guard after it. Git Bash has a
 # 2 MB stack: an attended alias walk that exited about 140 frames down, then a
 # second walk, overflowed it, and bash died with exit 0 and no output, an
-# allow. Past the depth bound the rest runs in a fresh process with an empty
-# stack, and its documents and status still count. The depth a later guard
-# sees is the structural pin; it holds on every platform.
+# allow. Now `exit` unwinds the guard, and after a deep exit the rest runs in a
+# forked process; its documents and status still count. The depth a later
+# guard sees is the structural pin; it holds on every platform.
 deep_stub() { # <name> <status>: recurse 100 frames, then exit <status> from the bottom
   stub "$1" 'd() { if (($1)); then d $(($1 - 1)); else exit '"$2"'; fi; }
 d 100'
@@ -634,23 +652,47 @@ stub die.sh 'echo die >>"'"$SEEN"'"; kill -9 "$BASHPID"'
 run "$PAYLOAD" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/depth.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "deep exit: the rest of the chain still runs" 0 "$RC"
 deep_seen=$(cat "$SEEN")
-assert_eq "deep exit: the next guard starts on a fresh stack" "depth=3" "${deep_seen%%$'\n'*}"
-assert_eq "deep exit: each later guard ran once" $'depth=3\ngit status --short\nBash' "$deep_seen"
+assert_eq "deep exit: the next guard starts on a fresh stack" "depth=5" "${deep_seen%%$'\n'*}"
+assert_eq "deep exit: each later guard ran once" $'depth=5\ngit status --short\nBash' "$deep_seen"
+stub depth1.sh 'echo "depth=${#FUNCNAME[@]}" >>"'"$SEEN"'"; exit 0'
+run "$PAYLOAD" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/depth1.sh"
+assert_eq "deep exit: the guard's frames are gone, not under the next guard" "depth=5" "$(cat "$SEEN")"
+stub shallow0.sh 'exit 0'
+run "$PAYLOAD" "$TEST_TMPDIR/shallow0.sh" "$TEST_TMPDIR/depth1.sh"
+assert_eq "shallow exit: the next guard runs on the dispatcher's own stack" "depth=3" "$(cat "$SEEN")"
 run "$PAYLOAD" "$TEST_TMPDIR/deep2.sh" "$TEST_TMPDIR/ask1.sh" "$TEST_TMPDIR/ctx1.sh"
-assert_exit "deep exit 2: the block wins over the fresh process's documents" 2 "$RC"
-assert_absent "deep exit 2: the ask from the fresh process is dropped" "$OUT" '"ask"'
-assert_contains "deep exit 2: the fresh process's context is kept" "$(hsd additionalContext)" "ctx one"
+assert_exit "deep exit 2: the block wins over the forked rest's documents" 2 "$RC"
+assert_absent "deep exit 2: the ask from the forked rest is dropped" "$OUT" '"ask"'
+assert_contains "deep exit 2: the forked rest's context is kept" "$(hsd additionalContext)" "ctx one"
+# A guard that dies of a hard error more than 64 frames down hands the rest to
+# a fresh dispatcher: the only caller of run_rest's deep branch. That needs a
+# payload the fresh process reads back the same; any other is denied.
+stub harddeep.sh 'source "'"$HOOK_DIR"'/abort-boundary.sh"
+guard::abort_boundary harddeep PreToolUse open 0 2
+d() { if (($1)); then d $(($1 - 1)); else : "${RUN_GUARDS_TEST_UNBOUND?forced abort}"; fi; }
+d 100'
+run "$PAYLOAD" "$TEST_TMPDIR/harddeep.sh" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/block.sh"
+assert_exit "deep hard error: the fresh dispatcher's block comes back" 2 "$RC"
+run "$PAYLOAD" "$TEST_TMPDIR/harddeep.sh" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "deep hard error: the fresh dispatcher's status comes back" 0 "$RC"
+assert_contains "deep hard error: the fresh dispatcher's documents come back" "$(hsd additionalContext)" "ctx one"
+# The depth bound is reached here by lowering it, not by recursing: an EXIT trap
+# on Linux bash runs after the frames unwind, so a real deep abort never shows
+# run_rest more than 64 frames. The stub is sourced into the dispatcher, so it
+# calls run_rest the way guard_done does, on a stack the lowered bound counts as deep.
+stub restdeep.sh 'RUN_GUARDS_MAX_DEPTH=0
+run_guards::run_rest $((RUN_GUARDS_CUR + 1))
+run_guards::finish'
+run "not json" "$TEST_TMPDIR/restdeep.sh" "$TEST_TMPDIR/allow.sh"
+assert_exit "deep hard error, unprimed payload: denied" 2 "$RC"
+assert_contains "deep hard error, unprimed payload: the reason names it" "$ERR" "reported no verdict"
 # A rest of the chain that dies before reporting has an unknown verdict, so
-# the call is denied, on the fresh-process path and on the hard-error subshell.
+# the call is denied, on the forked-subshell path and on the hard-error subshell.
 run "$PAYLOAD" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/die.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "deep exit, then the rest dies unreported: denied" 2 "$RC"
 assert_contains "deep exit, then the rest dies unreported: the reason names it" "$ERR" "reported no verdict"
 run "$PAYLOAD" "$TEST_TMPDIR/hard.sh" "$TEST_TMPDIR/die.sh" "$TEST_TMPDIR/allow.sh"
 assert_exit "hard error, then the rest dies unreported: denied" 2 "$RC"
-# Past the bound with a payload a fresh process could not read back the same
-# (a malformed one here): the rest does not run, and the call is denied.
-run "not json" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/depth.sh"
-assert_exit "deep exit on an unprimed payload: denied" 2 "$RC"
 # The dispatcher's own boundary is fail-open, but not once a guard has
 # blocked: an abort in the merge after that denies. The stub makes the merge
 # fail and its fallback die of an unbound variable.
@@ -802,7 +844,7 @@ done
 for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dangerous-git \
   flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
-  block-root-delete-target; do
+  block-root-delete-target block-fix-request-post; do
   n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOKS_JSON")
   if ((n > 0)); then ok "hooks.json dispatches $g"; else bad "hooks.json does not dispatch $g"; fi
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi

@@ -59,11 +59,11 @@
 #    timings:{total,outside_marketplaces,resolution}, marketplaces:[…], errors:[…]}
 #   Each marketplace block: {name, timings, catalog_last_updated, catalog_source,
 #    source_checkout, auto_update, refresh:{rc,output,predicted}, project_root,
-#    in_repo:{updated,failed,would_update},
+#    in_repo:{updated,failed,would_update,live_read},
 #    user_sweep:{updated,failed,would_update,withheld_downgrades},
 #    downgraded, moved_during_run, noop_unverified, install_gap, installed, installed_with_unset_user_config,
 #    install_enable_deferred, stopped_before_install, enable_gap, enabled,
-#    project_enable_rows, normalize, cache_content, catalog_regression,
+#    pending_enable, project_enable_rows, normalize, cache_content, catalog_regression,
 #    divergences, divergences_here, in_repo_records, in_repo_ids,
 #    stale_project_records, user_scope_orphans, installed_disabled, delisted,
 #    delisted_project, delisted_settings_only, self_updated, self_update,
@@ -92,19 +92,34 @@
 #   `{total, paths, project, by_parent:[{parent,count,paths}], more_parents, list_file}`,
 #   `project` counting the project-scope records among `total`,
 #   with the full `[{path,count}]` in `list_file` (null under --audit);
+#   `user_home_records` is `{total, paths}` for the project/local records whose
+#   projectPath is a user home (`projectPathIsHome`), which `divergences` and
+#   `divergences_here` never count;
 #   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
 #   `{id, version, files_differ, unreleased_changes}` per stale install, the last
-#   true when the clone holds `.changes/<plugin>/`. `source_checkout` is null
+#   true when the clone holds `.changes/<plugin>/`. `in_repo.live_read[]` is
+#   `{id, scope, installed, path}`, filled under --audit only, for each in-repo
+#   record of a marketplace whose `directory` source is the run's own project
+#   root (or a folder under it): the CLI reads that folder live and will not
+#   update the record, so it is not in `would_update`. `source_checkout` is null
 #   unless the source is `directory`; then it is `{path, state, branch, upstream,
 #   ahead, behind, dirty}` with `state` one of tracking, no_upstream, detached,
 #   not_a_repo, and the counts as of the checkout's last fetch (never fetched here).
 #   `enable_gap` is the gap the step FOUND; `enabled` is what it filled at user and
 #   local scope, and `project_enable_rows` is what it reports rather than writes.
+#   `pending_enable[]` is `{id, outcome}` (`enabled` or `enable_failed`) for each
+#   id an earlier interrupted `ask` run left in pending-enable.txt that this run
+#   found installed at user scope and effectively `false`, and tried to enable.
 #   `updated` carries forward moves and unreadable-direction moves (flagged
 #   `direction: "unknown"`); a pair whose new version is LOWER lands in `downgraded`
 #   instead, which is what keeps a backward move off the report's `Updated:` line
 #   even for an id the guard could not prove in advance.
+#   `divergences` is `{pre, mid, post, new_total, new_by_interval, pre_existing,
+#   actionable_here, actionable_elsewhere, in_worktrees, blocked}`: `post` counts
+#   the actionable (`versionsMatch: false`) rows, and the last four split it by
+#   what an operator can do about each row (see `divergence_block`). A digest
+#   written before the split carries none of the four.
 #   `moved_during_run[]` is `{id, scope, kind, old, new, direction}` for each id whose
 #   update call the CLI answered "already at the latest version" while the post
 #   snapshot's version differs from the pre-mutation one: it moved during the run
@@ -728,18 +743,75 @@ catalog_regression_rows() {
 # labeling the whole delta "the user-scope sweep" is wrong whenever Step 2 caused
 # it. Only `versionsMatch: false` rows are actionable; a same-version multi-scope
 # install is benign and is never counted.
+#
+# A scope whose projectPath is a user home (`projectPathIsHome`) is not a project
+# at all, and converge blocks it, so it is dropped before the versions are
+# compared: a divergence that exists only because of such a record is not
+# actionable. A report with no such field keeps every scope.
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+ACTIONABLE_DEF='def actionable: select(.versionsMatch == false)
+    | select(([.scopes[]? | select(.projectPathIsHome != true) | .version] | unique | length) > 1);'
+#
+# The post count is then split by what an operator can do about each row, so the
+# report points converge only at rows converge can act on. A divergence row is
+# classed by its project/local pins: any pin that is present and not a linked
+# worktree makes the row `actionable`; otherwise any pin in a linked worktree makes
+# it `worktree`; otherwise every pin is in a path that is not present and the row is
+# `blocked`. A row with no pin is `actionable`. The actionable rows split again into
+# `actionable_here` (the id has a record for the repo the run stands in) and
+# `actionable_elsewhere`. `divergences[]` itself is never filtered.
+#
+# A linked worktree is a present path whose `.git` is a FILE whose `gitdir:` line
+# names a `<repo>.git/worktrees/<name>` entry of another repository. A repository's
+# own `.git` is a directory, a submodule's `.git` file names `/modules/`, and a
+# `--separate-git-dir` checkout names a git directory that is not under `worktrees/`
+# of a `.git`, so none of them matches.
+#
+# A row's pins are judged only when they differ from the row's highest version
+# (`row_class`), so a pin already at the highest version does not make a row
+# actionable while its stale pin sits in a path that is not present.
+linked_worktree_paths() {
+  local __var="$1"
+  local post="$2"
+  local paths=""
+  local p
+  local fs
+  local line
+  local found=()
+  jq_to paths -r "$ACTIONABLE_DEF"'[.divergences[]? | actionable | .scopes[]?
+    | select(.projectPathIsHome != true and .projectPathPresent == true) | .projectPath]
+    | unique | .[]' "$post" || paths=""
+  while IFS= read -r p; do
+    p="${p//$'\r'/}"
+    [[ -n "$p" ]] || continue
+    fs="${p//\\//}"
+    [[ -f "$fs/.git" ]] || continue
+    line=""
+    IFS= read -r line <"$fs/.git" || true
+    line="${line//$'\r'/}"
+    case "$line" in
+    "gitdir:"*".git/worktrees/"*) found+=("$p") ;;
+    *) ;;
+    esac
+  done <<<"$paths"
+  json_strings_of "$__var" ${found[@]+"${found[@]}"}
+}
+
 divergence_block() {
   local __var="$1"
   local mp="$2"
   local pre="$RUN_DIR/pre.$mp.json"
   local mid="$RUN_DIR/mid.$mp.json"
   local post="$RUN_DIR/post.$mp.json"
+  local linked="[]"
   if [[ ! -f "$pre" || ! -f "$mid" || ! -f "$post" ]]; then
     jq_to "$__var" -c -n '{pre: null, mid: null, post: null, new_total: null,
       new_by_interval: {in_repo: null, user_sweep: null, concurrent: null}, pre_existing: null,
       note: "a snapshot was missing; the split could not be computed"}'
     return 0
   fi
+  linked_worktree_paths linked "$post"
+  [[ -n "$linked" ]] || linked="[]"
   # The ids that moved during the run under a call this run did not make an update
   # (finalize_moves' MOVED_DURING): a new divergence on one of them is not the
   # step's doing, so it is split out of the interval it first appeared in.
@@ -747,19 +819,54 @@ divergence_block() {
   json_array_of moved_rows ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c -n --argjson moved "$moved_rows" \
-    --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" '
-    def act: [.divergences[]? | select(.versionsMatch == false) | .id];
+    --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" \
+    --argjson wt "$linked" "$ACTIONABLE_DEF"'
+    # A pin at the project the run stands in is converge-actionable even when that
+    # project is itself a linked worktree, so it is never classed `worktree`.
+    ([$q[0].installed[]? | select(.currentProject == true) | .projectPath]) as $curp
+    | def act: [.divergences[]? | actionable | .id];
+    def pin_class:
+      if .projectPathPresent == false then "blocked"
+      elif .projectPathPresent == true and (.projectPath as $pp | $curp | index($pp)) == null
+           and (.projectPath as $pp | $wt | index($pp)) != null then "worktree"
+      else "actionable" end;
+    def version_triple:
+      if type == "string" then
+        ((capture("^v?(?<a>[0-9]+)[.](?<b>[0-9]+)[.](?<c>[0-9]+)") // null)
+         | if . == null then null else [.a, .b, .c] | map(tonumber) end)
+      else null end;
+    # Only a pin that differs from the row'"'"'s highest version is the skew converge or
+    # a worktree removal would settle; a pin already at it is not what makes the
+    # row actionable. An unparsable version stays in, the conservative direction.
+    # A pin keyed to a user home (`projectPathIsHome`) is dropped like in `actionable`:
+    # it never sets the highest version and never classes the row.
+    def row_class:
+      [.scopes[]? | select(.projectPathIsHome != true)] as $s
+      | ([$s[] | .version | version_triple | select(. != null)] | max) as $top
+      | [$s[] | select((.projectPath // "") != "")
+         | select($top == null or (.version | version_triple) != $top)
+         | pin_class] as $c
+      | if ($c | length) == 0 or ($c | index("actionable")) != null then "actionable"
+        elif ($c | index("worktree")) != null then "worktree"
+        else "blocked" end;
     ($moved | map(.id)) as $conc
     | ($p[0] | act) as $pre | ($m[0] | act) as $mid | ($q[0] | act) as $post
     | ($post - $pre) as $new
     | [$new[] | select(. as $i | $conc | index($i))] as $by_conc
     | ($new - $by_conc) as $by_step
+    | ([$q[0].installed[]? | select(.currentProject == true) | .id]) as $here
+    | ([$q[0].divergences[]? | actionable | {id, c: row_class}]) as $rows
+    | ([$rows[] | select(.c == "actionable")]) as $act_rows
     | {pre: ($pre | length), mid: ($mid | length), post: ($post | length),
        new_total: ($new | length),
        new_by_interval: {in_repo: ([$by_step[] | select(. as $i | $mid | index($i))] | length),
                          user_sweep: ([$by_step[] | select(. as $i | $mid | index($i) | not)] | length),
                          concurrent: ($by_conc | length)},
-       pre_existing: (($post | length) - ($new | length))}'
+       pre_existing: (($post | length) - ($new | length)),
+       actionable_here: ([$act_rows[] | select(.id as $i | $here | index($i))] | length),
+       actionable_elsewhere: ([$act_rows[] | select(.id as $i | $here | index($i) | not)] | length),
+       in_worktrees: ([$rows[] | select(.c == "worktree")] | length),
+       blocked: ([$rows[] | select(.c == "blocked")] | length)}'
 }
 
 # --- per-marketplace accumulators ----------------------------------------------
@@ -768,10 +875,10 @@ divergence_block() {
 # values ARE the per-marketplace reset, so both come from this one function.
 reset_marketplace_state() {
   MP_ERRORS=()
-  IR_UPDATED=() IR_FAILED=() IR_WOULD=()
+  IR_UPDATED=() IR_FAILED=() IR_WOULD=() IR_LIVE=()
   US_UPDATED=() US_FAILED=() US_WOULD=()
   MOVED_DURING=() NOOP_UNVERIFIED=0
-  WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=()
+  WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=() RECOVERED_ROWS=()
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
   SELF_UPDATED="false" SELF_UPDATE="null" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
   REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
@@ -971,11 +1078,35 @@ run_marketplace() {
       # exit 2 with empty output is a FAILED projection, never "nothing in-repo".
       mp_error "in-repo projection failed (exit $rc), step not run: $(proj_err)"
     else
+      # A marketplace whose `directory` source is this very repository is read
+      # live from that folder: `claude plugin update` answers "nothing to update"
+      # and leaves the project record pinned, so an update predicted for it
+      # would be one the CLI never makes.
+      local live_path=""
+      if [[ "$MODE" == "audit" ]]; then
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to live_path -r '
+          def fold: gsub("\\\\"; "/") | rtrimstr("/");
+          (.marketplace.source // "") as $s | (.project_root // "" | fold) as $r
+          # fleet-state folds the project root to lower case after the drive letter
+          # on Windows, where the recorded source keeps its case: compare folded.
+          | ($r | test("^[A-Za-z]:")) as $ci
+          | def eqp($a; $b): if $ci then ($a | ascii_downcase) == ($b | ascii_downcase) else $a == $b end;
+          if ($s | startswith("directory:")) and $r != "" then
+              ($s | sub("^directory:"; "") | fold) as $p
+              | if eqp($p; $r) or eqp(($p | .[0:($r | length) + 1]); $r + "/") then $p else "" end
+            else "" end' "$RUN_DIR/pre.$mp.json"
+      fi
       while IFS=$'\t' read -r id scope; do
         id="${id//$'\r'/}"
         scope="${scope//$'\r'/}"
         [[ -n "$id" ]] || continue
         version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
+        if [[ "$MODE" == "audit" && -n "$live_path" ]]; then
+          IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
+            '{id: $id, scope: $sc, installed: $old, path: $path}')")
+          continue
+        fi
         if [[ "$MODE" == "audit" ]]; then
           predict_cli "claude plugin update $id -s $scope"
           IR_WOULD+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" \
@@ -1115,6 +1246,8 @@ run_marketplace() {
   jq_to enable_gap_count -r 'length' <<<"$ENABLE_GAP"
   clock_into T_PI_E
 
+  recover_pending "$mp"
+
   if ((REFRESH_FAILED == 1)); then
     # Step 4 derives installations from the catalog and Step 5 consults catalog
     # metadata, so an unrefreshed checkout can install a since-removed plugin or
@@ -1185,6 +1318,78 @@ run_marketplace() {
   emit_marketplace_block "$mp"
 }
 
+# --- pending-enable record ---------------------------------------------------------
+# An `ask` pick is installed and then enabled in two CLI calls, and a run
+# interrupted between them leaves a user-scope `enabledPlugins: false` that reads
+# as the user's own opt-out. So the pick is journaled in the record BEFORE the
+# install and cleared once the enable lands (or once nothing is left to enable);
+# the next run completes what the record names. The record lives beside the run
+# directories, not in one, so pruning old runs never drops it. Only an id sync
+# itself journaled is ever in it, which is why a `false` the user set is never
+# touched.
+PENDING_FILE=""
+pending_path() {
+  local root
+  if [[ "$MODE" == "audit" ]]; then
+    return 0
+  elif ((ONLY_INSTALL_MODE == 1)); then
+    root="${RUN_DIR%/}"
+    root="${root%/*}"
+  else
+    root="${JOURNAL_ROOT%/}"
+  fi
+  PENDING_FILE="${root%/*}/pending-enable.txt"
+}
+
+pending_add() {
+  [[ -n "$PENDING_FILE" ]] || return 0
+  mkdir -p "${PENDING_FILE%/*}" 2>/dev/null
+  grep -qxF -- "$1" "$PENDING_FILE" 2>/dev/null || printf '%s\n' "$1" >>"$PENDING_FILE"
+}
+
+pending_remove() {
+  [[ -n "$PENDING_FILE" && -f "$PENDING_FILE" ]] || return 0
+  grep -vxF -- "$1" "$PENDING_FILE" >"$PENDING_FILE.next" 2>/dev/null
+  mv "$PENDING_FILE.next" "$PENDING_FILE"
+}
+
+# Finishes what an interrupted run left, from the fresh pre-install read. An id the
+# record names that is installed at user scope and effectively `false` is the
+# interrupted pick, so it is enabled; an id that is not installed never finished
+# its install, and one already enabled needs nothing. Each clears its record
+# entry, except a failed enable, which stays for the next run and is reported.
+recover_pending() {
+  local mp="$1"
+  local id
+  local state
+  [[ -n "$PENDING_FILE" && -f "$PENDING_FILE" && "$MODE" == "sync" ]] || return 0
+  [[ -f "$RUN_DIR/pre-install.$mp.json" ]] || return 0
+  while IFS= read -r id; do
+    id="${id//$'\r'/}"
+    [[ -n "$id" && "$id" == *"@$mp" ]] || continue
+    # This run's own picks are handled by the install loop.
+    case ",${ONLY_INSTALL// /,}," in *",$id,"*) continue ;; *) ;; esac
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to state -r --arg id "$id" '
+      (any(.installed[]?; .id == $id and .scope == "user")) as $in
+      | .enabled[$id] as $en
+      | if ($in | not) then "absent" elif $en == false then "off" else "on" end' \
+      "$RUN_DIR/pre-install.$mp.json" || continue
+    case "$state" in
+    off)
+      enable_one "$id" user
+      if ((CLI_RC == 0)); then
+        pending_remove "$id"
+        RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enabled"}')")
+      else
+        RECOVERED_ROWS+=("$(jq -c -n --arg id "$id" '{id: $id, outcome: "enable_failed"}')")
+      fi
+      ;;
+    *) pending_remove "$id" ;;
+    esac
+  done <"$PENDING_FILE"
+}
+
 # Installs one id at user scope and appends its digest row. `CLI_RC` is the
 # caller's success test, so the row shape lives in one place across both entry
 # paths below.
@@ -1226,10 +1431,19 @@ run_install_step() {
     # is already enabled exits 1, which would report a false failure.
     for id in $wanted; do
       [[ "$id" == *"@$mp" ]] || continue
+      pending_add "$id"
       install_one "$id"
-      ((CLI_RC == 0)) || continue
+      if ((CLI_RC != 0)); then
+        pending_remove "$id"
+        continue
+      fi
       installed_any=1
-      [[ "$INSTALLED_DISABLED" == "true" ]] && enable_one "$id" user
+      if [[ "$INSTALLED_DISABLED" == "true" ]]; then
+        enable_one "$id" user
+        ((CLI_RC == 0)) && pending_remove "$id"
+      else
+        pending_remove "$id"
+      fi
     done
   elif ((gap_count > 0)) && [[ "$INSTALL_NEW" == "all" ]]; then
     while IFS= read -r id; do
@@ -1436,12 +1650,35 @@ finalize_moves() {
     [[ "$old" == "-" ]] && old=""
     [[ "$new" == "-" ]] && new=""
     # An id the CLI called already-current is a true noop only when the snapshots
-    # agree. The post read decides; the version the CLI's line printed (`new`, for a
-    # noop row) is the cross-check. A post version that differs from `old` means the
-    # install moved after the pre-mutation read and this call changed nothing: a
-    # concurrent move, reported as its own row. A version that cannot be read, or
-    # the two sources disagreeing, stays a noop and is counted as unverified.
+    # agree and the run's own record took. First, when the run's own project/local
+    # record is still below the catalog, the CLI judged some other record (a linked
+    # worktree's update is a no-op, #6713) and the update did not take: a failure,
+    # never a quiet success, or the next run would count the same divergence again.
+    # Otherwise the post read decides; the version the CLI's line printed (`new`,
+    # for a noop row) is the cross-check. A post version that differs from `old`
+    # means the install moved after the pre-mutation read and this call changed
+    # nothing: a concurrent move, reported as its own row. A version that cannot be
+    # read, or the two sources disagreeing, stays a noop and is counted as unverified.
     if [[ "$result" == "noop" ]]; then
+      if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" && -f "$post" ]]; then
+        local ncur
+        local ncat
+        local nlabel
+        version_at ncur "$post" "$id" "$scope"
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to ncat -r --arg id "$id" '.catalog_versions[$id] // ""' "$post"
+        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+        jq_to nlabel -r --arg id "$id" --arg sc "$scope" \
+          'first(.installed[]? | select(.id == $id and .scope == $sc and .currentProject == true)
+            | .label) // ""' "$post"
+        if [[ -n "$ncur" && -n "$ncat" && "$(version_direction "$ncur" "$ncat")" == "forward" ]]; then
+          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg cur "$ncur" --arg cat "$ncat" --arg label "$nlabel" \
+            '{id: $id, scope: $sc, rc: 0, output: "",
+              reason: ("the CLI said already at the latest version, but this project'"'"'s record is still at \($cur) and the catalog reads \($cat): the update did not take"
+                + (if $label == "" then "" else " (" + $label + ")" end))}')")
+          continue
+        fi
+      fi
       local post_v=""
       [[ -f "$post" ]] && version_at post_v "$post" "$id" "$scope"
       if [[ -z "$old" || -z "$post_v" ]]; then
@@ -1541,6 +1778,7 @@ report_extras() {
   done
   if [[ -z "$src" ]]; then
     jq_to "$__var" -c -n '{auto_update: null, catalog_source: null, user_scope_orphans: [],
+      user_home_records: {total: 0, paths: []},
       delisted: [], delisted_project: [], delisted_settings_only: [],
       stale_project_records: {total: null, paths: null, by_parent: [], more_parents: 0, list_file: null},
       in_repo_records: null, in_repo_ids: [], divergences_here: null}'
@@ -1567,12 +1805,16 @@ report_extras() {
   # record count first, capped at STALE_PARENT_ROWS rows; `more_parents` counts
   # the groups past the cap.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to "$__var" -c --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" '
+  jq_to "$__var" -c --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" \
+    "$ACTIONABLE_DEF"'
     def parent: capture("^(?<p>.*[/\\\\])[^/\\\\]+[/\\\\]*$").p // .;
-    ([.divergences[]? | select(.versionsMatch == false) | .id]) as $act
+    ([.divergences[]? | actionable | .id]) as $act
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
+    | ([.installed[]? | select(.projectPathIsHome == true)]) as $homes
     | {auto_update: .marketplace.autoUpdate,
+       user_home_records: {total: ($homes | length),
+                           paths: ($homes | map(.projectPath) | unique)},
        catalog_source: (.marketplace.source // null),
        user_scope_orphans: (.user_scope_orphans // []),
        delisted: (.delisted // []),
@@ -1763,6 +2005,7 @@ emit_marketplace_block() {
   local ir_u
   local ir_f
   local ir_w
+  local ir_l
   local us_u
   local us_f
   local us_w
@@ -1772,6 +2015,7 @@ emit_marketplace_block() {
   local inst
   local en
   local pr
+  local rec
   local errs
   local unset_cfg
   local installed_disabled
@@ -1793,6 +2037,7 @@ emit_marketplace_block() {
   json_array_of ir_u ${IR_UPDATED[@]+"${IR_UPDATED[@]}"}
   json_array_of ir_f ${IR_FAILED[@]+"${IR_FAILED[@]}"}
   json_array_of ir_w ${IR_WOULD[@]+"${IR_WOULD[@]}"}
+  json_array_of ir_l ${IR_LIVE[@]+"${IR_LIVE[@]}"}
   json_array_of us_u ${US_UPDATED[@]+"${US_UPDATED[@]}"}
   json_array_of us_f ${US_FAILED[@]+"${US_FAILED[@]}"}
   json_array_of us_w ${US_WOULD[@]+"${US_WOULD[@]}"}
@@ -1802,6 +2047,7 @@ emit_marketplace_block() {
   json_array_of inst ${INSTALLED_ROWS[@]+"${INSTALLED_ROWS[@]}"}
   json_array_of en ${ENABLED_ROWS[@]+"${ENABLED_ROWS[@]}"}
   json_array_of pr ${PROJECT_ROWS[@]+"${PROJECT_ROWS[@]}"}
+  json_array_of rec ${RECOVERED_ROWS[@]+"${RECOVERED_ROWS[@]}"}
   json_strings_of errs ${MP_ERRORS[@]+"${MP_ERRORS[@]}"}
 
   catalog_regression_rows reg_interval reg_rows "$mp"
@@ -1837,11 +2083,11 @@ emit_marketplace_block() {
     --argjson refresh_predicted "$REFRESH_PREDICTED" \
     --argjson project_root "$PROJECT_ROOT_JSON" \
     --argjson ir_u "$ir_u" --argjson ir_f "$ir_f" --argjson ir_w "$ir_w" \
-    --argjson us_u "$us_u" --argjson us_f "$us_f" --argjson us_w "$us_w" \
+    --argjson ir_l "$ir_l" --argjson us_u "$us_u" --argjson us_f "$us_f" --argjson us_w "$us_w" \
     --argjson wh "$wh" --argjson dg "$dg" \
     --argjson moved "$moved" --argjson noop_unverified "$NOOP_UNVERIFIED" \
     --argjson install_gap "$INSTALL_GAP" --argjson inst "$inst" \
-    --argjson enable_gap "$ENABLE_GAP" --argjson en "$en" --argjson pr "$pr" \
+    --argjson enable_gap "$ENABLE_GAP" --argjson en "$en" --argjson pr "$pr" --argjson rec "$rec" \
     --argjson deferred "$INSTALL_DEFERRED" --argjson stopped "$STOPPED_BEFORE_INSTALL" \
     --argjson normalize "$NORMALIZE_JSON" --argjson cache "$CACHE_JSON" \
     --arg reg_interval "$reg_interval" --argjson reg_rows "$reg_rows" \
@@ -1891,7 +2137,7 @@ emit_marketplace_block() {
      source_checkout: $checkout,
      refresh: {rc: $refresh_rc, output: $refresh_out, reason: $refresh_reason, predicted: $refresh_predicted},
      project_root: $project_root,
-     in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w},
+     in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w, live_read: $ir_l},
      user_sweep: {updated: $us_u, failed: $us_f, would_update: $us_w,
                   withheld_downgrades: $wh},
      downgraded: $dg,
@@ -1906,6 +2152,7 @@ emit_marketplace_block() {
      enable_gap: $enable_gap,
      enabled: $en,
      project_enable_rows: $pr,
+     pending_enable: $rec,
      normalize: $normalize,
      cache_content: $cache,
      catalog_regression: (if $reg_interval == "" then null
@@ -1920,6 +2167,7 @@ emit_marketplace_block() {
 
 # --- main --------------------------------------------------------------------------
 setup_run_dir
+pending_path
 
 # `--allow-downgrade` belongs to the RUN, not to one invocation of it. A re-entry
 # that omitted the flag would otherwise rebuild the withheld list from
@@ -2010,6 +2258,19 @@ fi
 for mp in ${MPS[@]+"${MPS[@]}"}; do
   run_marketplace "$mp"
 done
+
+# Each marketplace skips the ids that are not its own, so an id no marketplace in
+# the run claims would vanish from the report. Name it once the whole run has been
+# considered.
+if ((ONLY_INSTALL_MODE == 1)); then
+  for id in ${ONLY_INSTALL//,/ }; do
+    claimed=0
+    for mp in ${MPS[@]+"${MPS[@]}"}; do
+      [[ "$id" == *"@$mp" ]] && claimed=1
+    done
+    ((claimed == 1)) || run_error "--only-install id matches no marketplace in this run: $id"
+  done
+fi
 
 BLOCKS='[]'
 [[ -s "$RUN_DIR/.blocks.jsonl" ]] && jq_to BLOCKS -c -s '.' "$RUN_DIR/.blocks.jsonl"

@@ -6,9 +6,10 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  given a ledger's text it merges into that ledger's register (merged_register)
   sync_ledger    a ledger's text with only its register rows replaced by the merged rows
   export_brief   the PLAN.md `## Brief` sections and an empty `## Plan`; given a ledger's text it
-                 numbers as that ledger and carries its ledger-only rows. Goal, Constraints, Acceptance
-                 criteria and Out-of-scope come from the newest confirmed restatement rev, and the
-                 TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
+                 numbers as that ledger and carries its ledger-only rows. Problem, Goal, Work size,
+                 Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed
+                 restatement rev (without one, each Problem field reads `unknown` and each Work
+                 size field `not assessed`), and the TLDR's `Restatement:` line stamps it confirmed or UNCONFIRMED
   export_report  one self-contained HTML file (no external resources; everything escaped); it
                  also inlines each file visual that resolves inside the data dir
 import_ledger seeds an empty questions document from a ledger's register rows.
@@ -28,7 +29,11 @@ Every row export_ledger writes has one resolution grammar: named fields in this 
 present only when it has a value, each value escaped on its own (esc_field), joined with `; `:
   hold:: claude|user E(waitsOn)   the hold, by Claude (waits on) or the user (awaiting user)
   proposal:: E(new)               a plan's proposal and the answer it displaced; always a pair,
-  was:: E(old)                    written on every row whose question the plan superseded
+  was[ plain|answer]:: E(old)     written on every row whose question the plan superseded;
+                                  `plain` or `answer` names the form the displaced resolution
+                                  had (a plain cell, or an `answer` field), so restoring the row
+                                  gives that form back; a bare `was::`, as older ledgers and a
+                                  reconfirmed row hold it, records no form
   answer:: E(answer)              the decision that counts, on any status: `accepted: <rec>`,
                                   `hedged: <rec>`, `alt <key>: <text>` (`alt <key>` for a key the
                                   question does not list), `free-text: <text>`,
@@ -102,6 +107,9 @@ ADDED = re.compile(r"\(added in round\s+([0-9]+)\)", re.IGNORECASE)
 # Register statuses that leave a question unresolved; superseded-by-plan is a plan's
 # displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
+# The Brief's field labels, per context/problem-framing.md "Problem fields" and "Work size".
+PROBLEM_FIELDS = ("Gap", "Who / how many", "Frequency", "Trend", "Cost", "Evidence")
+WORK_SIZE_FIELDS = ("Appetite", "Size", "Uncertainty", "Split signals")
 PROPOSES = re.compile(r"^plan proposes:\s*(.*?);\s*was:\s*(.*)$", re.IGNORECASE)
 # An open row held on research or on the user; a research hold carries the answer it keeps,
 # and an unanswered one the commitments confirmed on it.
@@ -122,7 +130,10 @@ CONFIRMED = re.compile(r"^(?:; )?confirmed:(:?)(?: |$)(.*)$", re.DOTALL)
 TAIL = re.compile(r"; confirmed::(?=[ ;]|$)")
 ANSWER_MARK = re.compile(r"^answer::(?: |$)(.*)$", re.DOTALL)
 FIELDS = ("hold", "proposal", "was", "answer", "note", "aside", "commitments")
-NAMED = re.compile(rf"^({'|'.join(FIELDS)})::(?: |$)(.*)$", re.DOTALL)
+WAS_FORMS = ("plain", "answer")
+NAMED = re.compile(
+    rf"^({'|'.join(FIELDS)})(?: ({'|'.join(WAS_FORMS)}))?::(?: |$)(.*)$", re.DOTALL
+)
 UNKNOWN_LEAD = re.compile(r"^([^:;]+)::(?: |$)")
 ALT = re.compile(r"^alt (\S+?)(?:: (.*))?$", re.DOTALL)
 
@@ -333,9 +344,12 @@ def parse_hold(res, where):
 
 def encode(fields, marked):
     """A row's resolution in the named-field grammar (module docstring); a field whose value is
-    None is left out."""
+    None is left out, and `wasForm` names the `was` field's form."""
+    form = fields.get("wasForm")
     parts = [
-        f"{k}::" + (f" {esc_field(fields[k])}" if fields[k] else "")
+        (f"was {form}" if k == "was" and form else k)
+        + "::"
+        + (f" {esc_field(fields[k])}" if fields[k] else "")
         for k in FIELDS
         if fields.get(k) is not None
     ]
@@ -490,6 +504,8 @@ def settle(q, responses, events, seed_rows):
     seed = seed_rows.get(q["id"]) or {}
     proposal = seed_proposal(seed)
     fields = dict(zip(("proposal", "was"), proposal)) if proposal else {}
+    if proposal and seed.get("wasForm"):
+        fields["wasForm"] = seed["wasForm"]
     rec = latest_decision(q, responses)
     decision = (rec or {}).get("decision")
     status = seed.get("status")
@@ -949,8 +965,18 @@ def export_brief(d, text=None):
             stamp = f"UNCONFIRMED (latest rev {latest}); no rev was confirmed"
         out.append(f"- Restatement: {stamp}")
     title = (doc.get("meta") or {}).get("title") or "Interview decisions"
+    unset_problem = [f"- {f}: unknown" for f in PROBLEM_FIELDS]
+    out += ["", "### Problem", "", *(bullets(sections.get("problem")) or unset_problem)]
     out += ["", "### Goal", "", para(sections.get("goal")) or para(title), ""]
-    out += ["### Constraints", ""]
+    out += [
+        "### Work size",
+        "",
+        *(
+            bullets(sections.get("workSize"))
+            or [f"- {f}: not assessed" for f in WORK_SIZE_FIELDS]
+        ),
+    ]
+    out += ["", "### Constraints", ""]
     out += [
         *bullets(sections.get("constraints")),
         *(
@@ -1249,6 +1275,163 @@ def parse_register(text):
     return rows
 
 
+REGISTER_LEAD = re.compile(r"^(\[[^\]\s]+\]\s*)(.*)$", re.DOTALL)
+
+
+def locate_row(lines, qid, where):
+    """(line index, prefix, status cell, resolution cell, lead id) of the register row `qid` names
+    (`Q<N>` or the `[<id>]` a renumbered row leads with); refuses a missing or ambiguous row.
+    `lines` carry no line ending."""
+    found = []
+    for i, m in scan_register(lines)[1]:
+        cells = m.group(2).split("|", 3)
+        if len(cells) < 4:
+            continue
+        lead = REGISTER_LEAD.match(cells[3].strip())
+        ids = {f"Q{int(m.group(1))}", lead.group(1).strip()[1:-1] if lead else ""}
+        if qid.upper() in {x.upper() for x in ids if x}:
+            found.append((i, lines[i][: m.start(2)], cells[0], cells[3]))
+    if len(found) != 1:
+        raise SystemExit(
+            f"refused: {len(found)} register rows match {qid!r} in {where}"
+            if found
+            else f"refused: no register row {qid!r} in {where}"
+        )
+    return found[0]
+
+
+def edit_row(text, qid, where, change):
+    """`text` with one register row rewritten: change(status, resolution) returns the new
+    (status, resolution) from the row's stripped cells. Each cell keeps its own surrounding
+    whitespace and the line keeps its ending, so nothing else in the ledger moves. The status is
+    passed as written, so only the lowercase statuses the exporter writes match: restore could
+    not give back another case."""
+    lines = text.splitlines(keepends=True)
+    bare = [x.rstrip("\r\n") for x in lines]
+    i, prefix, status_cell, res_cell = locate_row(bare, qid, where)
+    ending = lines[i][len(bare[i]) :]
+    cells = bare[i][len(prefix) :].split("|", 3)
+    new_status, new_res = change(status_cell.strip(), res_cell.strip())
+
+    def put(cell, value):
+        core = cell.strip()
+        start = cell.index(core) if core else len(cell)
+        return cell[:start] + value + cell[start + len(core) :]
+
+    cells[0], cells[3] = put(cells[0], new_status), put(cells[3], new_res)
+    lines[i] = prefix + "|".join(cells) + ending
+    return "".join(lines)
+
+
+def split_lead(res):
+    """(`[<id>] ` lead or "", the rest) of a register resolution."""
+    m = REGISTER_LEAD.match(res)
+    return (m.group(1), m.group(2)) if m else ("", res)
+
+
+ANSWER_FIELD = re.compile(r"\b(?:hold|answer|note|aside|commitments)::")
+
+
+def displaced_answer(old, qid, where):
+    """(the bare answer a superseded row's `was` holds, as export_ledger writes it, and its form):
+    `old` itself and `plain` for a plain resolution, the `answer` field and `answer` for a
+    named-field one. A named row carrying more than its answer is refused, since `was` has no
+    place for it."""
+    named = parse_named(old, where)
+    if not named:
+        return old, "plain"
+    fields, marked = named
+    if set(fields) != {"answer"} or marked:
+        raise SystemExit(
+            f"refused: {qid} carries more than an answer ({', '.join(fields)}), which the "
+            f"superseded row cannot hold; edit it by hand in {where}"
+        )
+    return fields["answer"], "answer"
+
+
+def decision_shaped(old):
+    """True when `old` reads as an answer field's value (module docstring)."""
+    return old.startswith(("accepted: ", "hedged: ", "free-text: ", "deferred")) or bool(
+        ALT.match(old)
+    )
+
+
+def supersede_row(text, qid, proposes, where):
+    """`text` with the answered row `qid` set to superseded-by-plan, `proposal:: E(proposes);
+    was <form>:: E(its answer)`, escaped as export_ledger escapes a superseded row. `was` keeps
+    only the answer and names the form it had, so resolve_row restore rebuilds that form."""
+    if not proposes.strip():
+        raise SystemExit("refused: --proposes is empty")
+
+    def change(status, res):
+        if status != "answered":
+            raise SystemExit(
+                f"refused: {qid} is {status or 'blank'}, and only an answered row can be "
+                f"superseded, in {where}"
+            )
+        lead, old = split_lead(res)
+        old, form = displaced_answer(old, qid, where)
+        fields = {"proposal": proposes, "was": old, "wasForm": form}
+        return "superseded-by-plan", lead + encode(fields, None)
+
+    return edit_row(text, qid, where, change)
+
+
+def resolve_row(text, qid, how, note, where):
+    """`text` with the superseded-by-plan row `qid` cleared: `reconfirm` writes the answered
+    `proposal:: ...; was:: ...; answer:: accepted: ...` row, `restore` the resolution the row had
+    before supersede_row, character for character, in the form its `was` names. A `was` that
+    names no form, as older ledgers wrote it, is guessed: a ledger already in the named grammar
+    (an `answer::`, `hold::`, `note::`, `aside::` or `commitments::` field in a row beside this
+    one) gets the named `answer:: E(was)` form back for an answer-shaped `was`; any other ledger
+    gets the plain cell."""
+    if how not in ("reconfirm", "restore"):
+        raise SystemExit(f"refused: unknown resolution {how!r} (reconfirm or restore)")
+    if note and how == "restore":
+        raise SystemExit("refused: --note belongs to reconfirm")
+
+    def change(status, res):
+        if status != "superseded-by-plan":
+            raise SystemExit(
+                f"refused: {qid} is {status or 'blank'}, not superseded-by-plan, in {where}"
+            )
+        lead, rest = split_lead(res)
+        named = parse_named(rest, where)
+        form = None
+        if named:
+            fields = named[0]
+            form = fields.pop("wasForm", None)
+            if set(fields) != {"proposal", "was"} or named[1]:
+                raise SystemExit(
+                    f"refused: {qid} carries more than a plan proposal and the answer it "
+                    f"displaced; edit it by hand in {where}"
+                )
+            new, old = fields["proposal"], fields["was"]
+        else:
+            older = PROPOSES.match(rest)
+            if not older:
+                raise SystemExit(f"refused: unreadable plan proposal {rest!r} in {where}")
+            new, old = older.groups()
+        if how == "restore":
+            if form is None:
+                guessed = decision_shaped(old) and len(ANSWER_FIELD.findall(text)) > len(
+                    ANSWER_FIELD.findall(res)
+                )
+                form = "answer" if guessed else "plain"
+            if form == "answer":
+                return "answered", lead + encode({"answer": old}, None)
+            return "answered", lead + old
+        fields = {
+            "proposal": new,
+            "was": old,
+            "answer": f"accepted: {new}",
+            "note": note or None,
+        }
+        return "answered", lead + encode(fields, None)
+
+    return edit_row(text, qid, where, change)
+
+
 def seeded_decision(res):
     """The terminal decision an `answered` resolution records: (decision, alt, text, recommendation)."""
     if res.startswith("free-text:"):
@@ -1340,7 +1523,11 @@ def parse_named(res, where):
         if marked is None and not m:
             refuse(f"unknown field {part.partition(':')[0]!r}", where)
         if m:
-            name, part = m.groups()
+            name, form, part = m.groups()
+            if form and name != "was":
+                refuse(f"unknown field {name + ' ' + form!r}", where)
+            if form:
+                fields["wasForm"] = form
             if FIELDS.index(name) <= last:
                 refuse(f"field {name!r} repeated or out of order", where)
             last = FIELDS.index(name)
@@ -1464,6 +1651,8 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
             "resolution": f"plan proposes: {new}; was: {old}",
             "proposal": [new, old],
         }
+        if "wasForm" in fields:
+            seeded[qid]["wasForm"] = fields["wasForm"]
     elif status == "superseded-by-plan" or (residual and note is not None):
         seeded[qid] = {
             "status": status,

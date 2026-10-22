@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "1. Batch the inserts.\n2. Your idea: a bigger warehouse.\n3. Load incrementally.\n\nWhich of these resonate?", "why": "asks the user to react"}
+  ],
+  "fail": [
+    {"answer": "1. Batch the inserts.\n2. Your idea: a bigger warehouse.\n\nI'll go with batching the inserts.", "why": "picks for the user"},
+    {"answer": "I picked the bigger warehouse since you suggested it.", "why": "picks for the user"}
+  ]
+}

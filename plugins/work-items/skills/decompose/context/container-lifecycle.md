@@ -27,16 +27,19 @@ coordination provider instead of publishing a spec that cannot travel.
 **Publish. Container first.** On approval, create the container before any item so item
 `create-item` calls can carry `--parent`:
 
-- **Body**: the Brief **verbatim** (TLDR / Goal / Constraints / Acceptance criteria / Captured
-  assumptions / Out-of-scope / Deferred questions), plus an optional `## Testing decisions`
+- **Body**: the Brief **verbatim** (TLDR / Problem / Goal with its Intent, Vision and
+  When-goals-conflict lines / Constraints / Acceptance criteria / Captured assumptions /
+  Out-of-scope / Deferred questions), plus the plan's `### Load-bearing assumptions` table
+  verbatim when the plan has one (a link in the Problem or a Source cell naming a memory-slice
+  file becomes the file's name alone, since that slice is never committed), plus an optional `## Testing decisions`
   section when test-topology decisions (with prior-art test pointers) were locked at plan time,
   plus the inlined design artifact block(s) described below when the design behind this plan
   produced any, and the approved `**Execution shape:** <choice>` line appended after the Brief
   sections, plus the sibling `**Integration branch:** <branch-name>` line when the integration
   shape was chosen and named
   ([`reference/execution-shape.md`](../../../reference/execution-shape.md)
-  "The shape line"). No inflation, the Brief as approved is the spec. Exactly three additions
-  are admitted beside it and nothing else: the `## Testing decisions` section, the inlined
+  "The shape line"). No inflation, the Brief as approved is the spec. Exactly four additions
+  are admitted beside it and nothing else: the load-bearing assumptions table, the `## Testing decisions` section, the inlined
   design artifact block(s) and their provenance notes specified immediately below, and the shape
   line with its integration-branch sibling. Do not otherwise expand the Brief into a "long,
   extensive" document for the tracker's benefit.
@@ -96,7 +99,10 @@ coordination provider instead of publishing a spec that cannot travel.
   Step 5 report and a comment on the source item). Close-out runs at PR time, often in a
   fresh session, this recorded line is what its presence gate reads; in-session memory does
   not survive to it. The fallback discovery path (no line found) is a tracker query for an
-  open item carrying the binding-resolved container label whose body cites the topic slug.
+  open item carrying the binding-resolved container label whose body cites the topic slug and
+  carries the `**Execution shape:**` line this skill appends to every container (wayfind maps
+  share the label but never write it). A labeled item without that line is skipped and named
+  in the report, never adopted.
 
 **Ship ritual, close at ship, archival by closure.** `/work-items:ship` is the macro router
 over a published container (status, execution-shape discipline, next step), it routes the close

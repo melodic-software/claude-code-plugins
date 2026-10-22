@@ -67,8 +67,11 @@ const DOT_SEGMENT = /(^|\/)\.\.?(\/|:)/;
 const BAD_CHARS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/u;
 // HTML comments carry markers; token shapes from
 // docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-// (as of 2026-10-15; recheck when that section adds a prefix).
-const FORBIDDEN = /<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|github_pat_/;
+// and the stateless installation token (ghs_ then a JWT) from
+// https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+// whose header gh[opsur]_[A-Za-z0-9]{20} matches; this prefix check is not GitHub's recommended regex
+// (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
+const FORBIDDEN = /<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_pat_/;
 const DISPOSITIONS = ["VALID", "INCORRECT", "UNCERTAIN", "VALID-defer"];
 const KEYS = ["disposition", "evidence", "fix_sha", "note", "thread"];
 const LABELS = {
@@ -104,7 +107,9 @@ export function parseRun(text) {
         typeof thread.path === "string" &&
         Array.isArray(thread.comment_ids) &&
         thread.comment_ids.length > 0 &&
-        thread.comment_ids.every((id) => Number.isSafeInteger(id) && id > 0),
+        thread.comment_ids.every((id) => Number.isSafeInteger(id) && id > 0) &&
+        (thread.named_paths === undefined ||
+          (Array.isArray(thread.named_paths) && thread.named_paths.every((path) => typeof path === "string"))),
       "run.json holds a malformed thread",
     );
   }
@@ -168,11 +173,21 @@ export function renderReply({ disposition, evidence, fixSha, note }) {
   ].join("\n");
 }
 
+const SKILL_FILE = /^((?:.*\/)?skills\/[^/]+\/)SKILL\.md$/;
+
+// Whether a fix commit's changed files touch a thread's path: the path itself,
+// or for a skill's SKILL.md any file under that skill's directory.
+function touchesThread(changed, threadPath) {
+  const skillDir = SKILL_FILE.exec(threadPath)?.[1];
+  return skillDir === undefined ? changed.includes(threadPath) : changed.some((file) => file.startsWith(skillDir));
+}
+
 // Whenever the PR branch moved since the model job's gated head, or a reply is
 // VALID, that range may change only what inThreadScope allows around the kept
 // threads' paths (run.json, whose SHA-256 the model job's runner recorded), and
 // nothing under .github/. Every VALID fix must be a commit in that range that
-// changes its own thread's path.
+// changes its own thread's path, or for a thread on a skill's SKILL.md any file
+// in that skill's directory (touchesThread).
 async function fixesLanded({ api, run, headSha, replies }) {
   const valid = replies.filter((reply) => reply.disposition === "VALID");
   if (valid.length === 0 && run.head_sha === headSha) {
@@ -189,7 +204,7 @@ async function fixesLanded({ api, run, headSha, replies }) {
     files.length < LIMITS.files &&
     files.every((file) =>
       [file.filename, file.previous_filename].every(
-        (path) => path === undefined || inThreadScope(path, paths),
+        (path) => path === undefined || inThreadScope(path, paths, run.threads),
       ),
     );
   if (!inRange) {
@@ -197,7 +212,7 @@ async function fixesLanded({ api, run, headSha, replies }) {
   }
   for (const reply of valid) {
     const changed = ((await api.getCommit(reply.fixSha)).files ?? []).map((file) => file.filename);
-    if (!changed.includes(threadPath.get(reply.thread))) {
+    if (!touchesThread(changed, threadPath.get(reply.thread))) {
       return false;
     }
   }

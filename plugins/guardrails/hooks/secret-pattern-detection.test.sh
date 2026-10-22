@@ -96,6 +96,25 @@ RC=$?
 assert_exit "GitHub App token, ghs_<APPID>_<JWT> form → exit 2" 2 "$RC"
 assert_contains "GH App token, ghs_<APPID>_<JWT> form → message" "$OUT" "GitHub App Token"
 
+# A stateless installation token is ghs_ then a JWT of about 520 characters, with no
+# app id. The RS256 header encodes to exactly 36 alphanumerics; the kid header carries
+# a '-' 16 characters in, before any alphanumeric minimum is met. Payload and signature
+# are fake, and every token is built at run time.
+b64url() { printf '%s' "$1" | base64 | tr -d '\n=' | tr '+/' '-_'; }
+JWT_TAIL=".$(b64url '{"sub":"FAKE-not-a-real-token","iat":0}').$(b64url "$(printf 'FAKE signature, not a real token?>%.0s' {1..10})")"
+for header in "$(b64url '{"alg":"RS256","typ":"JWT"}')" "$(b64url '{"kid":"k?~>","alg":"RS256","typ":"JWT"}')"; do
+  for tok in "${GHS_PREFIX}$header$JWT_TAIL" "${GHS_PREFIX}123456_$header$JWT_TAIL"; do
+    OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "token = '$tok'")" 2>&1)
+    RC=$?
+    assert_exit "stateless GitHub App token ${tok:0:20}... → exit 2" 2 "$RC"
+    assert_contains "stateless GitHub App token ${tok:0:20}... → message" "$OUT" "GitHub App Token"
+    # A token right after an escaped newline in written JSON text has a word character on its left.
+    OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "{\"log\": \"line\\n$tok\"}")" 2>&1)
+    RC=$?
+    assert_exit "GitHub App token ${tok:0:20}... after a literal \\n → exit 2" 2 "$RC"
+  done
+done
+
 # One long line that once took GNU grep 25-60 s in a UTF-8 locale. `timeout 10`
 # is the backstop: a slow scan reads as rc 124, a finished one as 0.
 SLOW_SHAPES=(
@@ -420,6 +439,14 @@ assert_silent "clean content → no stderr" "$OUT"
 OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'api_key=mySecretValue123')" 2>&1)
 RC=$?
 assert_exit "low-confidence generic pattern → exit 0" 0 "$RC"
+
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'token = ghs_job; lane = ghs_lane; sha = 3e7fef0587433cfb07332dbeabf0d79fc0baadf3')" 2>&1)
+RC=$?
+assert_exit "token placeholders and a commit sha → exit 0" 0 "$RC"
+
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'label = highs_and_lows_of_the_market_over_the_year; mood = laughs_out_loud_at_the_whole_long_meeting_today')" 2>&1)
+RC=$?
+assert_exit "a long identifier ending in ghs_ → exit 0" 0 "$RC"
 
 OUT=$(bash "$HOOK" <<<"$(other_tool_json "Read" "$FIXTURE")" 2>&1)
 RC=$?

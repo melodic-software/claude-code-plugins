@@ -3,6 +3,32 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.2] - 2026-10-22
+
+### Changed
+
+- **Bump pillow from 12.3.0 to 13.0.0 in /plugins/playwright/skills/demo-video** (#8751).
+
+- Synced the shared `exec-bash.mjs` launcher, which gains an opt-in `--fail-closed` flag. This plugin's hooks do not pass it, so their behavior is unchanged.
+
+### Fixed
+
+- `/playwright:demo-video` quality control no longer crashes on the last frame of a video or shows the next frame in about one contact-sheet tile in three. It seeks half a frame before each frame, and a short ffmpeg read now fails with an error naming the frame index and its timestamp.
+
+## [0.13.1] - 2026-10-20
+
+### Changed
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.13.0] - 2026-10-18
 
 ### Changed

@@ -1,0 +1,21 @@
+diff --git a/plugins/sample-kit/scripts/triage.mjs b/plugins/sample-kit/scripts/triage.mjs
+index 4b5c6d7..8e9f0a1 100644
+--- a/plugins/sample-kit/scripts/triage.mjs
++++ b/plugins/sample-kit/scripts/triage.mjs
+@@ -1,4 +1,4 @@
+-import { execFileSync } from "node:child_process";
++import { execSync } from "node:child_process";
+
+ import { pickLabel } from "./rules.mjs";
+
+@@ -9,6 +9,9 @@ export function triage(issues) {
+     if (!label) {
+       continue;
+     }
+-    execFileSync("gh", ["issue", "edit", String(issue.number), "--add-label", label]);
++    execSync(
++      `gh issue edit ${issue.number} --add-label ${label} && echo "labeled ${issue.number}: ${issue.title}"`,
++      { stdio: "inherit" },
++    );
+   }
+ }

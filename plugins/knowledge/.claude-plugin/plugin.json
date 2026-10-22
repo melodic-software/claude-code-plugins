@@ -1,6 +1,6 @@
 {
   "name": "knowledge",
-  "version": "0.24.0",
+  "version": "0.27.1",
   "description": "Ingests external knowledge into synthesized artifacts: book-distill (PDF or EPUB into author-attributed reference files), video-digest (one YouTube or X video: transcript, links, repo applicability), course-digest (Dometrain and Teachable courses into recommendations), docpage-digest (one documentation page into a verified knowledge slice), and map-corpus (a multi-resource corpus into a classified link map and an approved docpage-digest queue). setup sets where artifacts land.",
   "author": {
     "name": "Melodic Software",
@@ -37,7 +37,7 @@
     "library_dir": {
       "type": "directory",
       "title": "Library directory",
-      "description": "Where synthesized knowledge artifacts land. The default, ., is the session's working-tree root (its worktree, once entered); a relative value resolves there. An absolute path, a leading ~, or a ${NAME} or %NAME% variable also work. An artifacts convention in your project's CLAUDE.md or rules wins.",
+      "description": "Where synthesized knowledge artifacts land. The default, ., is the session's working-tree root (its worktree, once entered); relative values resolve there. video-digest moves its work root here, with watch/relayout-slice.js before close; other artifacts conventions are not auto-applied.",
       "default": "."
     },
     "yt_dlp_js_runtimes": {
@@ -65,6 +65,12 @@
       "default": 1,
       "min": 1,
       "max": 3
+    },
+    "asr_python": {
+      "type": "string",
+      "title": "Python interpreter for faster-whisper",
+      "description": "Path to the Python interpreter that imports faster_whisper, probed before python, python3 and py on PATH (video-digest's optional ASR rung). Use it when the default Python refuses pip install --user. Empty by default. Nothing is installed.",
+      "default": ""
     }
   }
 }

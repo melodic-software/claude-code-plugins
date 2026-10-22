@@ -38,7 +38,7 @@ scope decomposed into, since the right width depends on the repository being sca
 the method. Name the count and the areas to the user before dispatching: scan cost rises with the
 subagent count, and the scan fan-out is the largest cost of a run.
 
-If the project keeps a domain glossary, read it: the nearest `UBIQUITOUS-LANGUAGE.md` (or equivalent), found by walking UP from the directory being examined toward the repo root and stopping at the first match (the same way `.editorconfig` / `.gitignore` resolve).
+If the project keeps a domain glossary, read it: the nearest `GLOSSARY.md` (or the name the domain-driven-design `glossary_file` setting sets, or an equivalent), plus the nearest `GLOSSARY-MAP.md` in a multi-context repository, found by walking UP from the directory being examined toward the repo root and stopping at the first match (the same way `.editorconfig` / `.gitignore` resolve).
 
 Also read any architecture decision records (ADRs) in the area being examined. Give them the same discovery discipline as the glossary rather than one shallow glob. If the consuming project declares where its decisions live (a path in its `CLAUDE.md` / rules, or a documented convention), honor that. Otherwise walk the ladder of common homes in [../../../reference/adr-discovery.md](../../../reference/adr-discovery.md), from the examined directory up to the repo root. ADR placement varies widely; a single default glob misses most of them.
 

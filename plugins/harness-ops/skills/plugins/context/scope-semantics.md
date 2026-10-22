@@ -179,6 +179,17 @@ checkout that has a linked worktree holding a record of the same id, showing `up
 updating the record keyed to the literal cwd. On a confirmed fix, drop the read-back in `converge.md`
 Step 4 and `sync.md` Step 2 and the `currentProject` filter in `sync-run.sh`.
 
+**A lagging record in a linked worktree is labeled, counted, and cleared by `uninstall`, never
+trusted to `update`.** `fleet-state.sh` marks each project/local record `linkedWorktree` and labels a
+lagging one `update ineffective; uninstall clears it`; the row stays a divergence, and any update the
+run does make is verified by re-reading the record ([converge.md](converge.md) Step 4). `uninstall`
+clears it and edits that worktree's tracked settings file ([converge.md](converge.md) Step 5).
+**Record**: pointer, the update-strategy results of the 2026-10-12 converge run in
+[#6713 (comment)](https://github.com/melodic-software/claude-code-plugins/issues/6713#issuecomment-6125445322);
+as-of 2026-10-12. **Recheck trigger**: a Claude Code release note that changes how `update -s project`
+treats a record keyed to a linked worktree, or a re-run of that probe (the converge update strategy
+against lagging records in linked worktrees, then a re-read) showing the records move.
+
 When reading a record out of a `fleet-state.sh` report, a `project`/`local` record belongs to the run
 only when its `currentProject` flag is `true`; matching on id and scope alone returns whichever
 sibling's record comes first.
@@ -208,6 +219,18 @@ applicable. Read it precisely:
 because `converge`'s `(cd "<projectPath>" && …)` form cannot execute against an absent path. Naming
 the condition is this skill's whole role here; reaping the record is not something it can or should
 do.
+
+### A projectPath that is a user home directory
+
+`fleet-state.sh` also annotates the same records and entries with `projectPathIsHome: true|false|null`.
+`true` means the `projectPath` is a user home: the current `$HOME`, `/home/<name>`, `/Users/<name>`,
+`C:\Users\<name>`, or the WSL view of a Windows home, `/mnt/<drive>/Users/<name>` (`Users` and the
+drive letter match case-insensitively). A project-scope install run from a home directory records
+that home as its `projectPath`, and the home's `.claude/settings.json` is the user-scope file, so a
+`-s project` command there would change user scope. Under a home (`/home/<name>/repos/app`) is an
+ordinary project and reads `false`. `converge` blocks such a row and runs nothing for it. `sync` drops
+the record's scope before comparing versions, so a divergence that exists only because of it is not
+counted as actionable, and lists the records in a `User-home project records` row.
 
 ## Where project-scope records come from, and why the skill cannot reap them
 

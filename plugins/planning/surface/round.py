@@ -27,6 +27,11 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   import-ledger   seed an empty data dir from an existing ledger
   sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
                   --ledger merges
+  supersede       set an answered register row of --ledger F to superseded-by-plan with --proposes
+                  (needs no data dir): the row's resolution becomes `was`, escaped as the exporter does
+  resolve         clear a superseded row of --ledger F: reconfirm (answered, the proposal accepted) or
+                  restore (the row as it was before supersede); both back the ledger up and print the
+                  check-open-questions verdict
   doctor          report what the running version needs and --ledger F or the page lacks (writes nothing;
                   exit 1 on a missing element)
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
@@ -155,6 +160,9 @@ ASKS_USER = re.compile(
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
 CODE_SPAN = re.compile(r"`[^`\n]+`")
 REPO_SLUG = re.compile(r"[\w.-]+/[\w.-]+", re.ASCII)
+BRANCH_SOURCE_LINK = re.compile(
+    r"https?://github\.com/[\w.-]+/[\w.-]+/blob/(?![0-9a-f]{7,40}/)[^/\s)]+/", re.ASCII
+)
 
 if os.name == "nt":
     import msvcrt
@@ -565,6 +573,15 @@ def warn_bare_issue_refs(doc, label, value):
         )
 
 
+def warn_branch_source_links(label, facts):
+    """Warn once when facts links a repo file by branch (blob/<branch>), which stops landing on the quoted lines once the branch moves."""
+    if facts and BRANCH_SOURCE_LINK.search(facts):
+        warn(
+            f"{label} facts links a repo file by branch (blob/<branch>); "
+            "pin the source link to a commit SHA (blob/<sha>/...)"
+        )
+
+
 def norm_alt(text):
     """Casefolded, whitespace-collapsed text without a (recommended) marker or trailing punctuation."""
     t = " ".join(str(text).casefold().replace("(recommended)", " ").split())
@@ -596,6 +613,7 @@ def lint_questions(doc, qs):
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
+        warn_branch_source_links(q["id"], q.get("facts"))
         rec = q.get("recommendation") or ""
         m = SENTENCE_BREAK.search(rec)
         first = m.start() + 1 if m else len(rec)
@@ -963,6 +981,7 @@ def op_reply(d, doc, a):
         doc["handledSeq"] = max(doc.get("handledSeq") or 0, a.handled)
     mark_handled(doc, [a.seq])
     q.setdefault("history", []).append(line)
+    q.pop("claudeRevising", None)
     return [q], f"replied on {a.id}"
 
 
@@ -1024,6 +1043,7 @@ def op_revise(d, doc, a):
             "pass revised alternatives in the same op (revise --alt)",
         )
     snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
+    warn_branch_source_links(a.id, a.facts)
     changed = []
     for field, val in (
         ("title", a.title),
@@ -1109,6 +1129,7 @@ def op_revise(d, doc, a):
     if a.seq is not None:
         lines[0]["replyTo"] = a.seq
     q.setdefault("history", []).extend(lines)
+    q.pop("claudeRevising", None)
     mark_handled(doc, [a.seq])
     return [q], f"revised {a.id}: {', '.join(changed)}"
 
@@ -1204,6 +1225,38 @@ def op_set_status(d, doc, a):
         return [], "status cleared"
     doc["status"] = {"text": text, "at": now()}
     return [], "status set"
+
+
+def op_revising_by_claude(d, doc, a):
+    """Declare that Claude is revising questions `ids`, with a reason, or clear the mark (on `ids`,
+    else on every question). A `revise` or `reply` of a question clears its own mark. Not the
+    server-derived `revising` flag, which marks the user's unhandled answer."""
+    why = capped("revising-by-claude why", (a.why or "").strip(), LINE_CAP)
+    if bool(why) == bool(a.clear):
+        sys.exit(
+            "refused: revising-by-claude takes ids with a non-empty why, or clear, not both"
+        )
+    ids = list(dict.fromkeys(a.ids or []))
+    known = {q["id"]: q for q in doc["questions"]}
+    unknown = [qid for qid in ids if qid not in known]
+    if unknown:
+        sys.exit(
+            f"refused: unknown question ids in revising-by-claude: {', '.join(unknown)}"
+        )
+    if a.clear:
+        pool = [known[qid] for qid in ids] if ids else doc["questions"]
+        marked = [q for q in pool if q.pop("claudeRevising", None)]
+        names = ", ".join(q["id"] for q in marked) or "no question"
+        return marked, f"revising mark cleared on {names}"
+    if not ids:
+        sys.exit("refused: revising-by-claude needs ids to mark")
+    at = now()
+    for qid in ids:
+        known[qid]["claudeRevising"] = {"why": why, "at": at}
+    return (
+        [known[qid] for qid in ids],
+        f"{', '.join(ids)} marked as being revised: {why}",
+    )
 
 
 ZONE_CAP = 40
@@ -1317,7 +1370,9 @@ def op_confirm_commitments(d, doc, a):
 
 
 RESTATE_SECTIONS = (
+    "problem",
     "goal",
+    "workSize",
     "constraints",
     "decisions",
     "acceptance",
@@ -1370,9 +1425,9 @@ def log_activity(doc, text, ids, **marks):
     doc["activity"] = kept[1 - ACTIVITY_CAP :] + [entry]
 
 
-def summarize(doc, logged):
+def summarize(doc, logged, asks=False):
     """One feed entry for the (op name, message, touched) of one write's logged ops; none when
-    there are none. `notes`, `added`, `finished` and `restate` (the new rev) mark what the page links to."""
+    there are none. `notes`, `added`, `revised`, `waits`, `asks` (a Notes reply that needs an answer), `finished` and `restate` (the new rev) mark what the page links to."""
     if not logged:
         return
     names = {name for name, _, _ in logged}
@@ -1386,6 +1441,9 @@ def summarize(doc, logged):
         ids,
         notes="note-reply" in names,
         added=bool(names & {"add", "add-round"}),
+        revised="revise" in names,
+        waits=bool(names & {"reply", "wait"}),  # a write that also replies or holds leaves the question waiting on the user
+        asks=asks,
         restate=doc["restatement"]["rev"] if "restate" in names else None,
         finished="finish" in names,
     )
@@ -1399,7 +1457,7 @@ def write_op(fn, name):
             doc = load(d)
             touched, msg = fn(d, doc, a)
             if name in LOGGED_OPS:
-                summarize(doc, [(name, msg, touched)])
+                summarize(doc, [(name, msg, touched)], getattr(a, "needsAnswer", False))
             save(d, doc, touched)
         print(f"{msg} (rev {doc['rev']})")
 
@@ -1565,6 +1623,10 @@ OP_ARGS = {
         {"id": None, "decision": None, "alt": None, "text": None},
     ),
     "set-status": (op_set_status, {"text": None, "clear": False}),
+    "revising-by-claude": (
+        op_revising_by_claude,
+        {"ids": None, "why": None, "clear": False},
+    ),
     "context": (
         op_context,
         {"percent": None, "zone": None, "handoff": None, "clear": False},
@@ -1655,7 +1717,7 @@ def apply_ops_file(d, name, claimed):
         if err:
             sys.exit(f"refused: {err}")
     doc = load(d)
-    touched, lines, added, logged = [], [], [], []
+    touched, lines, added, logged, asks = [], [], [], [], False
     for op in spec["ops"]:
         fn, defaults = OP_ARGS[op["op"]]
         args = argparse.Namespace(
@@ -1676,7 +1738,8 @@ def apply_ops_file(d, name, claimed):
         lines.append(f"{op['op']}: {msg}")
         if op["op"] in LOGGED_OPS:
             logged.append((op["op"], msg, t))
-    summarize(doc, logged)
+        asks = asks or (op["op"] == "note-reply" and args.needsAnswer)
+    summarize(doc, logged, asks)
     lint_questions(doc, added)
     for op in spec["ops"]:
         if op["op"] not in ("add", "add-round", "meta"):
@@ -2031,6 +2094,51 @@ def write_synced_ledger(d, ledger):
 
 def cmd_sync_ledger(d, a):
     report_notes(write_synced_ledger(d, a.ledger), ("conflict",))
+
+
+def edit_ledger(a, edit):
+    """Rewrite the register row `edit` changes, behind a timestamped backup, then print the
+    check-open-questions verdict (a verdict that still counts open rows does not fail this command)."""
+    path = Path(a.ledger)
+    text = read_input(path, "ledger", newline="")
+    new = edit(text, str(path))
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    backup, n = path.with_name(f"{path.name}.{stamp}.bak"), 1
+    while backup.exists():
+        backup, n = path.with_name(f"{path.name}.{stamp}-{n}.bak"), n + 1
+    shutil.copyfile(path, backup)
+    tmp = path.with_name(f".{path.name}.edit")
+    write_text(tmp, new)
+    os.replace(tmp, path)
+    print(f"updated {a.qid} in {path} (backup {backup})")
+    check = HERE.parent / "scripts" / "check-open-questions.sh"
+    try:
+        r = subprocess.run(
+            ["bash", str(check), "--ledger", str(path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as e:
+        print(f"check-open-questions.sh did not run: {e}", file=sys.stderr)
+        return
+    print(r.stdout.strip() or f"check-open-questions.sh exit {r.returncode}")
+    if r.stderr.strip():
+        print(r.stderr.strip(), file=sys.stderr)
+
+
+def cmd_supersede(d, a):
+    edit_ledger(
+        a, lambda text, where: exporters.supersede_row(text, a.qid, a.proposes, where)
+    )
+
+
+def cmd_resolve(d, a):
+    edit_ledger(
+        a,
+        lambda text, where: exporters.resolve_row(text, a.qid, a.how, a.note, where),
+    )
 
 
 def cmd_import_ledger(d, a):
@@ -2589,6 +2697,34 @@ def main(argv=None):
     s.set_defaults(fn=cmd_sync_ledger)
 
     s = sub.add_parser(
+        "supersede",
+        help="set an answered register row of a ledger to superseded-by-plan (no data dir needed)",
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.add_argument(
+        "qid",
+        metavar="Q",
+        help="the row: Q<N>, or the [<id>] a renumbered row leads with",
+    )
+    s.add_argument("--proposes", required=True, help="what the plan proposes instead")
+    s.set_defaults(fn=cmd_supersede)
+
+    s = sub.add_parser(
+        "resolve",
+        help="clear a superseded-by-plan register row: reconfirm the proposal or restore the "
+        "answer (no data dir needed)",
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.add_argument(
+        "qid",
+        metavar="Q",
+        help="the row: Q<N>, or the [<id>] a renumbered row leads with",
+    )
+    s.add_argument("how", choices=("reconfirm", "restore"))
+    s.add_argument("--note", help="reconfirm only: the accept's note")
+    s.set_defaults(fn=cmd_resolve)
+
+    s = sub.add_parser(
         "ensure-running",
         help="start the server for the data dir or reuse it; prints the URL",
     )
@@ -2641,6 +2777,9 @@ def main(argv=None):
     a = p.parse_args(argv)
     if a.cmd == "revise" and a.commit == ["none"]:
         a.commit = []
+    if a.fn in (cmd_supersede, cmd_resolve):
+        a.fn(None, a)
+        return
     if not a.dir:
         p.error("--dir DATA_DIR is required (the data dir holding questions.json)")
     d = Path(a.dir).resolve()

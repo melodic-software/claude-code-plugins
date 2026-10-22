@@ -31,12 +31,39 @@
       "id": 3,
       "name": "install-new-ask-offers-does-not-auto-install",
       "prompt": "Sync my plugins — I have `install_new` set to `ask` and there are 2 new catalog plugins not yet installed.",
-      "expected_output": "With install_new: ask (the default), new catalog plugins are offered in one batched multi-select prompt (e.g. via AskUserQuestion) rather than installed automatically. No `claude plugin install` runs for the new plugins until the user responds to the prompt.",
+      "expected_output": "With install_new: ask (the default), new catalog plugins are offered through AskUserQuestion (one multi-select question holding both plugins, since 2 fits one chunk) rather than installed automatically. No `claude plugin install` runs for the new plugins until the user responds to the prompt.",
       "files": [],
       "expectations": [
-        "The response presents the new catalog plugins as a batched choice for the user to select from, not as already installed",
+        "The response presents the new catalog plugins as a choice for the user to select from, not as already installed",
         "No `claude plugin install` command runs for any new plugin before the user's selection is obtained",
-        "The prompt is a single batched multi-select, not one separate confirmation per plugin"
+        "The 2 plugins are offered as one multi-select question, not one separate confirmation per plugin"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "install-new-ask-gap-of-one-is-single-select",
+      "prompt": "Sync my plugins — I have `install_new` set to `ask` and there is exactly 1 new catalog plugin not yet installed.",
+      "expected_output": "A gap of 1 is offered as a single-select Install/Skip AskUserQuestion question, because the tool takes 2-4 options per question and a one-option multi-select would be rejected. No hand-added Other option is offered. No `claude plugin install` runs until the user answers; a dismissed or unanswered question counts as declined and the plugin is listed under Action needed.",
+      "files": [],
+      "expectations": [
+        "The offer is a single-select question with an Install and a Skip option, not a multi-select with one option",
+        "The response does not add its own Other option",
+        "No `claude plugin install` command runs before the user's answer is obtained",
+        "A dismissed or unanswered question is treated as declined, with the plugin listed under Action needed"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "install-new-ask-gap-over-four-is-chunked",
+      "prompt": "Sync my plugins — I have `install_new` set to `ask` and there are 9 new catalog plugins not yet installed.",
+      "expected_output": "The 9 plugins are offered in chunks of at most 4 options: three multi-select questions (4, 4 and 1 options) in one AskUserQuestion call, each with distinct question text because answers are keyed by question text. The chunk of 1 is a single-select Install/Skip question. No `claude plugin install` runs until the answers are obtained; an unanswered chunk counts as declined.",
+      "files": [],
+      "expectations": [
+        "No question carries more than 4 options and no call carries more than 4 questions",
+        "Every one of the 9 plugins appears in exactly one question",
+        "Each question has distinct question text",
+        "The leftover chunk of 1 plugin is a single-select Install/Skip question, not a one-option multi-select",
+        "No `claude plugin install` command runs before the user's answers are obtained"
       ]
     },
     {
@@ -49,6 +76,79 @@
         "The response aborts converge without executing or previewing any `claude plugin uninstall`/`update` consolidation command",
         "The response names the autonomous-session detection (e.g. CLAUDE_CODE_REMOTE) as the reason for the abort",
         "The response does not silently fall back to auto-applying a default strategy for every divergence"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "converge-defaults-to-update-for-committed-enable",
+      "prompt": "/harness-ops:plugins converge: fleet-state.sh reports two actionable divergences with versionsMatch: false, both with a user-scope record at 2.0.0 and a project-scope record at 1.0.0 whose projectPath is present. For alpha@market1 the repository's tracked .claude/settings.json (git ls-files --error-unmatch exits 0) holds `enabledPlugins[\"alpha@market1\"]: true`. For beta@market1 the tracked settings hold no enabledPlugins entry for it. The catalog reads 2.0.0 for both.",
+      "expected_output": "Because user scope holds the highest version, both rows would normally default to uninstall. The alpha row mirrors a committed enable, so its default is `(cd \"<projectPath>\" && claude plugin update alpha@market1 -s project)`; uninstall is offered only as the non-default option with a warning that it removes a committed enabledPlugins entry. The beta row, absent from the tracked settings, still defaults to `(cd \"<projectPath>\" && claude plugin uninstall beta@market1 -s project --keep-data)`. Each preview row states why its default was chosen. Nothing runs before a per-row confirm.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The alpha@market1 row proposes `claude plugin update alpha@market1 -s project` as its default, not uninstall",
+        "The response warns that uninstalling alpha@market1 at project scope removes a committed `enabledPlugins` entry, and offers uninstall only as a non-default option",
+        "The beta@market1 row still proposes `claude plugin uninstall beta@market1 -s project --keep-data` as its default",
+        "Each row's preview states the reason for its default (a committed enable, or no tracked enable)",
+        "Every proposed project-scope command is wrapped in a `cd` to that row's projectPath, and nothing is run before a per-row confirm"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "converge-keeps-uninstall-for-missing-or-untracked-settings",
+      "prompt": "/harness-ops:plugins converge: fleet-state.sh reports two actionable divergences with versionsMatch: false, both with a user-scope record at 2.0.0 and a project-scope record at 1.0.0 whose projectPath is present. For alpha@market1 the project has no .claude/settings.json at all. For beta@market1 the project's .claude/settings.json holds `enabledPlugins[\"beta@market1\"]: true`, but `git ls-files --error-unmatch .claude/settings.json` exits 1 because the file is not tracked. The catalog reads 2.0.0 for both.",
+      "expected_output": "Neither row mirrors a committed enable: a missing file and an untracked file hold nothing every clone reads. Both rows keep the uninstall default, `(cd \"<projectPath>\" && claude plugin uninstall <id> -s project --keep-data)`, and each preview row states why (no tracked enable). The settings file is read with the Read tool, not jq or a shell capture. Nothing runs before a per-row confirm.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The alpha@market1 row proposes `claude plugin uninstall alpha@market1 -s project --keep-data` as its default, because the settings file is missing",
+        "The beta@market1 row proposes `claude plugin uninstall beta@market1 -s project --keep-data` as its default, because the settings file is untracked",
+        "Each row's preview states the reason for its default",
+        "The settings file is not read with `jq` or a shell capture",
+        "Nothing is run before a per-row confirm"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "converge-defaults-to-update-for-non-git-project-path",
+      "prompt": "/harness-ops:plugins converge: fleet-state.sh reports one actionable divergence with versionsMatch: false for alpha@market1: a user-scope record at 2.0.0 and a project-scope record at 1.0.0 whose projectPath is present. That projectPath's .claude/settings.json holds `enabledPlugins[\"alpha@market1\"]: true`, and `git -C <projectPath> ls-files --error-unmatch .claude/settings.json` exits 128 with `fatal: not a git repository`. The catalog reads 2.0.0.",
+      "expected_output": "The git error is not a \"not tracked\" answer, so the check cannot decide and is treated as a committed enable. The default is `(cd \"<projectPath>\" && claude plugin update alpha@market1 -s project)`; uninstall is offered only as the non-default option with a warning that it may remove a committed enabledPlugins entry. The preview row states why. Nothing runs before a per-row confirm.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The alpha@market1 row proposes `claude plugin update alpha@market1 -s project` as its default, not uninstall",
+        "The response does not treat the `not a git repository` error as proof the file is untracked",
+        "Uninstall is offered only as a non-default option, with a warning",
+        "The row's preview states the reason for its default",
+        "Nothing is run before a per-row confirm"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "converge-defaults-to-update-for-committed-false",
+      "prompt": "/harness-ops:plugins converge: fleet-state.sh reports one actionable divergence with versionsMatch: false for alpha@market1: a user-scope record at 2.0.0 and a project-scope record at 1.0.0 whose projectPath is present. The repository's tracked .claude/settings.json (git ls-files --error-unmatch exits 0) holds `enabledPlugins[\"alpha@market1\"]: false`. The catalog reads 2.0.0.",
+      "expected_output": "A committed `false` is still a committed enabledPlugins entry, and uninstall would delete it. The default is `(cd \"<projectPath>\" && claude plugin update alpha@market1 -s project)`; uninstall is offered only as the non-default option with a warning that it removes a committed enabledPlugins entry. The preview row states why. Nothing runs before a per-row confirm.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The alpha@market1 row proposes `claude plugin update alpha@market1 -s project` as its default, not uninstall",
+        "The response treats the committed `false` entry as a committed entry, not as an absent one",
+        "Uninstall is offered only as a non-default option, with a warning that it removes a committed `enabledPlugins` entry",
+        "Nothing is run before a per-row confirm"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "converge-local-row-skips-committed-enable-check",
+      "prompt": "/harness-ops:plugins converge: fleet-state.sh reports one actionable divergence with versionsMatch: false for alpha@market1: a user-scope record at 2.0.0 and a local-scope record at 1.0.0 whose projectPath is present. The repository's tracked .claude/settings.json (git ls-files --error-unmatch exits 0) holds `enabledPlugins[\"alpha@market1\"]: true`. The catalog reads 2.0.0.",
+      "expected_output": "The committed-enable check applies to project-scope rows only: `-s local` writes settings.local.json, which is not tracked. The local row keeps the uninstall default, `(cd \"<projectPath>\" && claude plugin uninstall alpha@market1 -s local --keep-data)`, and the preview row states why. Nothing runs before a per-row confirm.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The alpha@market1 row proposes `claude plugin uninstall alpha@market1 -s local --keep-data` as its default",
+        "The response does not switch the local row to update because of the tracked project settings entry",
+        "The row's preview states the reason for its default",
+        "Nothing is run before a per-row confirm"
       ]
     },
     {
@@ -169,6 +269,33 @@
         "The response does not add a row, section, or count the render omitted, and does not recompute the Divergences split from the digest",
         "The only line the response adds after the render is the reload guidance, stated as the docs' two-step: bare /reload-plugins first, /reload-plugins --force only if the bare command warns about re-reading the conversation",
         "The response does not append its own monitor restart call-out; that bullet comes from the render's Action needed when updated_with_monitors is non-empty"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "install-new-ask-leftover-chunk-of-one-in-second-call",
+      "prompt": "Sync my plugins — I have `install_new` set to `ask` and there are 17 new catalog plugins not yet installed.",
+      "expected_output": "The first AskUserQuestion call carries 4 multi-select questions of 4 options each (16 plugins), each with distinct question text. The 17th plugin is left over as a chunk of 1 and goes in a further call as a single-select Install/Skip question, not a one-option multi-select, with no hand-added Other option. No `claude plugin install` runs until the answers are obtained; an unanswered chunk counts as declined.",
+      "files": [],
+      "expectations": [
+        "No question carries more than 4 options and no call carries more than 4 questions",
+        "Every one of the 17 plugins appears in exactly one question",
+        "The leftover 17th plugin is asked in a further call as a single-select Install/Skip question, not a one-option multi-select",
+        "No `claude plugin install` command runs before the user's answers are obtained"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "converge-linked-worktree-committed-enable-has-no-default",
+      "prompt": "/harness-ops:plugins converge: fleet-state.sh reports one actionable divergence for gamma@market1 with versionsMatch: false: a user-scope record at 2.0.0 and a project-scope record at 1.0.0 whose projectPath is present and whose scopes[].linkedWorktree is true, labeled `update ineffective; uninstall clears it`. That worktree's tracked .claude/settings.json (git ls-files --error-unmatch exits 0) holds `enabledPlugins[\"gamma@market1\"]: true`. The catalog reads 2.0.0.",
+      "expected_output": "The row gets no default strategy. Update is not offered because the project path is a linked worktree, and uninstall would delete the committed enabledPlugins entry. The response reports the row with both reasons and offers uninstall only as a non-default option with the committed-entry warning, to run only on the user's explicit choice. Nothing runs before that choice.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The gamma@market1 row proposes no default strategy",
+        "The response does not offer `claude plugin update gamma@market1 -s project` for this row, citing the linked worktree",
+        "The response warns that uninstalling gamma@market1 at project scope removes a committed `enabledPlugins` entry and offers it only as a non-default choice",
+        "No command runs without the user's explicit choice for this row"
       ]
     }
   ]

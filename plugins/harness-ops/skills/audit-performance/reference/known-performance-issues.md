@@ -211,39 +211,52 @@ than one, and a non-match as spawning nothing.
   live. **As of**: 2026-10-11. **Recheck trigger**: `if` gains combining syntax, or a non-match
   starts spawning.
 
-The engine classifies exactly one `if` shape, `Edit(*.<ext>)`, and reports every other shape in
-`unclassified_rows` with the reason, counting it as firing. That direction is deliberate: an
+The engine classifies one `if` family: an `Edit(...)` or `Write(...)` rule whose glob is a single
+dotted suffix, `*.<ext>` or a multi-dot `*.Tests.ps1`, optionally under a `**/` or literal
+directory prefix. It decides the rule by the last extension. A rule narrowed by a directory prefix
+other than a bare `**/`, by a multi-dot suffix or by an upper-case letter in its suffix, and a
+`Write(...)` rule on an `Edit` or `NotebookEdit` row, count only toward the ceiling, never the
+floor. Each is listed in `unclassified_rows` with the reason "decided by extension only; its
+directory prefix, multi-dot suffix, letter case or `Write` tool is not modeled, so a matching
+extension is not known to fire", followed by
+the compile error when its matcher also fails to compile. Every other
+shape is listed there with the reason and counted as firing. That direction is deliberate: an
 unmodelled rule inflates the projection, which an operator can investigate, where the opposite
 would hide a spawn nobody goes looking for. The file kinds projected are a fixed baseline plus
 every extension a classified gate names, so a gate on a kind outside the baseline gets its own
 row and `other` means a file no gate names.
 
-**Drift record.** *Claim:* an `Edit(*.<ext>)` `if` rule is evaluated by file extension for all
-three file-writing tools, `Write`, `Edit`, and `NotebookEdit`, so a `Write` of `notes.md` fires a
-handler gated `Edit(*.md)`. *Basis:* no single page states it, so the premise is assembled. The
-hooks reference points `if` at permission-rule syntax without naming the input field or tool set;
-the permissions reference's file-path section says which rule names govern the file-writing tools;
-the 2.1.176 changelog entry is the closest statement that a file-tool path is what the rule sees;
-and this repository's own hook-budget convention already rests on the premise, since the
-formatter plugins carry one `if: Edit(*.ext)` row per extension so that a `Write` to any other
-file spawns nothing.
+**Drift record.** We decide an `Edit(*.<ext>)` rule by file extension on all three file-writing
+tools, `Write`, `Edit`, and `NotebookEdit`, the premise this repository's formatter plugins
+already rest on with one `if: Edit(*.ext)` row per extension. We treat a `Write(*.<ext>)` rule as
+known to fire on `Write` rows only: on `Edit` and `NotebookEdit` rows the engine counts it as
+uncertain, toward the ceiling only, until a cited section settles which file-writing tools it
+reaches. *Basis:* no single page states the `Edit` premise, so it is assembled from the three
+sections below, and stays unconfirmed upstream until one of them states it.
 
-- **Pointer**: when re-deriving the premise, fetch
-  [permissions: read and edit](https://code.claude.com/docs/en/permissions#read-and-edit),
-  [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields), and
-  [changelog 2.1.176](https://code.claude.com/docs/en/changelog#2-1-176) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: a hooks-reference revision that names the input field or the tool set for
-  file-tool `if` rules, which would make the premise citable directly.
+- **Pointer**: when re-deriving either decision, fetch
+  [permissions: read and edit](https://code.claude.com/docs/en/permissions#read-and-edit), the
+  section that says which rule names govern the file-writing tools, with
+  [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) and
+  [changelog 2.1.176](https://code.claude.com/docs/en/changelog#2-1-176), live.
+- **As of**: 2026-10-20
+- **Recheck trigger**: the read-and-edit section changes which rule names govern the file-writing
+  tools, or a hooks-reference revision names the input field or tool set for file-tool `if` rules.
 
-Two things the projection cannot model, both over-counts rather than hidden spawns. An `if` rule
+Two things the projection models only as over-counts rather than hidden spawns. An `if` rule
 matches only under its anchor, so an edit to a file outside the project directory never matches
-one and every gated row there is counted as firing when none of them is. And dedup is modeled
-nowhere, so rows the product collapses into one run are counted twice here.
+one and every gated row there is counted as firing when none of them is. And for dedup we
+collapse only settings-file handlers that spawn the same command and arguments: each extra copy
+is listed in `unclassified_rows` with the reason "duplicate settings handler: an earlier
+settings-file handler spawns the same command and arguments, so this copy counts toward the
+ceiling only (see HOOK_DEDUP_NOTE)" and counted in `fire_always_unclassified`, so ceiling minus
+floor stays the unclassified count. Collapsing on what
+the row spawns can only lower the floor, so it holds whichever fields the product compares.
+Plugin and skill copies are never collapsed, and any other duplicate is counted in full.
 
 - **Pointer**: when judging which duplicate handlers collapse, fetch
   [hooks: hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields) live.
-  **As of**: 2026-10-11. **Recheck trigger**: that section changes its dedup rule or where hooks
+  **As of**: 2026-10-20. **Recheck trigger**: that section changes its dedup rule or where hooks
   on one event run in parallel.
 
 ### Configuration on disk is not configuration in force
