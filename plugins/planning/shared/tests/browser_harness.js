@@ -114,6 +114,42 @@ function recorder(browser) {
 const until = (page, fn, arg, timeout = 8000) => page.waitForFunction(fn, arg, { timeout }).then(() => true).catch(() => false);
 const snap = page => page.evaluate(() => window.Core.snapshot());
 
+/** In the page (through settled): true once #app's theme is `theme`, no finite animation or transition on the read set
+ *  runs, and the read set's styles (and boxes, with rects) read the same two frames apart; false once `ms` pass first.
+ *  An infinite animation (a shimmer, the typing dots) never ends, so it is not waited for and the element it moves is
+ *  left out of the read. */
+async function settledIn({ theme, sel, styles, rects, ms }) {
+  const end = performance.now() + ms, frame = () => new Promise(r => requestAnimationFrame(() => r()));
+  const want = theme ?? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+  const set = () => new Set(document.querySelectorAll(sel));
+  const moving = () => { const s = set(); return document.getAnimations().filter(a => a.playState === "running" && a.effect?.getComputedTiming().endTime !== Infinity && s.has(a.effect.target)); };
+  const read = () => {
+    const loops = new Set(document.getAnimations().filter(a => a.effect?.getComputedTiming().endTime === Infinity).map(a => a.effect.target));
+    return [...set()].filter(e => !loops.has(e)).map(e => {
+      const c = getComputedStyle(e), r = rects ? e.getBoundingClientRect() : null;
+      return styles.map(p => c[p]).join(" ") + (r ? ` ${r.x},${r.y},${r.width},${r.height}` : "");
+    }).join("|");
+  };
+  const themed = () => theme === false || document.getElementById("app")?.dataset.theme === want;
+  await Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, ms))]);
+  while (performance.now() < end) {
+    const run = moving();
+    if (run.length) { await Promise.race([Promise.all(run.map(a => a.finished.catch(() => {}))), new Promise(r => setTimeout(r, Math.max(0, end - performance.now())))]); continue; }
+    if (!themed()) { await frame(); continue; }
+    const before = read();
+    await frame(); await frame();
+    if (themed() && !moving().length && read() === before) return true;
+  }
+  return false;
+}
+/** True once the page holds still (settledIn), false if it has not within `timeout` ms: fold it into the check that reads
+ *  colors or boxes next, so a page that never settles fails that check. A transition's computed value is its start value
+ *  until a frame ticks it, and a sheet or pop-up measures short of its place while it slides or scales in. The theme to
+ *  wait for is the emulated scheme's unless `theme` names one; `theme: false` skips it (a page with no #app). Run it
+ *  after any navigation has been awaited: it is one evaluate, and a reload under it throws. */
+const settled = (page, { theme, sel = "#app, #app *", styles = ["color", "backgroundColor", "borderTopColor", "opacity"], rects = false, timeout = 10000 } = {}) =>
+  page.evaluate(settledIn, { theme, sel, styles, rects, ms: timeout });
+
 /** Join a fresh guest page with a name; resolves to its pid. */
 async function joinAs(page, name) {
   await page.waitForSelector("dialog.core-name[open]");
@@ -144,4 +180,4 @@ async function openClaude(page) {
   if ((await t.getAttribute("aria-expanded")) !== "true") await t.click();
   return until(page, () => !document.querySelector(".vf-clbody").hidden);
 }
-module.exports = { loadPlaywright, suite, recorder, until, snap, joinAs, png, upOnSparePort, openClaude, guestKey };
+module.exports = { loadPlaywright, suite, recorder, until, settled, snap, joinAs, png, upOnSparePort, openClaude, guestKey };

@@ -91,6 +91,7 @@ docs/conventions/enforcement-ladder/README.md plugins/review/context/enforcement
 docs/conventions/enforcement-ladder/README.md plugins/session-flow/skills/retro/reference/enforcement-ladder.md
 docs/conventions/enforcement-ladder/README.md plugins/harness-config/skills/audit-automation-gaps/context/enforcement-ladder.md
 docs/conventions/enforcement-ladder/README.md plugins/architecture/skills/improve/research/enforcement-ladder.md
+docs/conventions/enforcement-ladder/README.md plugins/corrections/skills/codify/reference/enforcement-ladder.md
 docs/conventions/standards/README.md plugins/improvement/reference/standards-contract.md
 docs/conventions/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
 docs/conventions/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
@@ -203,6 +204,9 @@ lib/prerequisites.ps1 plugins/context-guard/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/context7/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/context7/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/context7/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/corrections/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/corrections/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/corrections/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/coupling/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/coupling/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/coupling/lib/prerequisites.ps1

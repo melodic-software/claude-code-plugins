@@ -10,7 +10,7 @@
 // Expected values come from the approved spec (.work spec-question-screen.md, followups item 10, mockup variant A) and
 // the texts this suite writes, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs, openClaude } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs, openClaude } = require("./browser_harness");
 
 const ANN1 = "Should the summary stay pinned on phones?", ANN1_EDIT = "Should the summary stay pinned on phones and tablets?";
 const OFF = "Unrelated: lunch at noon?", BO_ASK = "@Claude what do the big shops do on phones?", ANSWER = "Most keep a sticky total bar at the bottom.";
@@ -183,12 +183,13 @@ async function main() {
     ok("  and deletes it", await until(ann, t => ![...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)), ANN_ASK));
 
     // ---------- 390 phone ----------
+    const still = await settled(bo, { rects: true });
     const fit = await bo.evaluate(() => {
       const r = document.querySelector(".vf-disc").getBoundingClientRect(), hd = document.querySelector(".vf-disc-head").getBoundingClientRect();
       return { left: r.left, right: r.right, w: innerWidth, head: hd.height, page: document.documentElement.scrollWidth,
         rows: [...document.querySelectorAll(".vf-cm")].every(li => li.getBoundingClientRect().right <= innerWidth) };
     });
-    ok("390: the Discussion fits the screen with a 44px head and nothing scrolls sideways", fit.left >= 0 && fit.right <= fit.w && fit.head >= 44 && fit.page <= fit.w && fit.rows, JSON.stringify(fit));
+    ok("390: the Discussion fits the screen with a 44px head and nothing scrolls sideways", still && fit.left >= 0 && fit.right <= fit.w && fit.head >= 44 && fit.page <= fit.w && fit.rows, JSON.stringify({ still, ...fit }));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));

@@ -89,6 +89,25 @@ second way beside it is the finding above, and replacing it means updating
 the entry too. With no index or no `paved-path` row, find the established way
 in the codebase.
 
+### Writing the paved-path entry
+
+This skill is the only one that writes paved-path entries; every other skill
+(the architecture conventions lens, `/corrections:codify`, review) proposes
+an entry to it and writes none. When the work establishes a new way for a
+recurring concern, or openly replaces a listed one, draft the entry: the
+concern, the chosen way as a pointer to the code or template that shows it,
+and the enforcing check, or `none` when nothing enforces it yet. For a
+replacement, the draft changes the listed entry rather than adding a second
+one for the same concern.
+
+- **Ask first.** Show the draft and write it only after the user says yes.
+  A no, or no answer, writes nothing.
+- **No index row or no file.** Offer to create both (the `paved-path` index
+  row, and the file the row points at) and write nothing until the user says
+  yes.
+- **Unattended run.** Propose only: put the draft in the report and write no
+  file.
+
 ## Scope, the unlintable "approach" level
 
 This skill owns consistency of **how work is done** where judgment, not a

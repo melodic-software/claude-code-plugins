@@ -4334,6 +4334,59 @@ class TestIntro(SessionCase):
         self.assertEqual(self.s.snapshot(ann)["intro"], "")
 
 
+class TestRepo(SessionCase):
+    """Issue #8250: `set-repo` names the session's GitHub repository (owner/name) and a pinned commit (40 hex), which
+    the page links `#N` and repository paths against. Expected values are this test's own repo and SHA."""
+
+    REPO, SHA = "octo-org/demo.repo", "0123456789abcdef0123456789abcdef01234567"
+
+    def test_set_repo_lands_on_disk_and_in_a_guests_snapshot(self):
+        ann, _ = self.join("Ann")
+        self.apply({"op": "set-repo", "repo": self.REPO, "commit": self.SHA})
+        self.assertEqual((self.disk()["session"]["repo"], self.disk()["session"]["commit"]), (self.REPO, self.SHA))
+        snap = self.s.snapshot(ann)
+        self.assertEqual((snap["repo"], snap["commit"]), (self.REPO, self.SHA))
+
+    def test_the_anonymous_view_still_has_exactly_three_keys(self):
+        self.apply({"op": "set-repo", "repo": self.REPO, "commit": self.SHA})
+        self.assertEqual(self.s.anonymous_view(), {"title": "Checkout redesign", "ended": False, "joinNeedsKey": True})
+
+    def test_a_session_without_a_repo_has_none_in_its_snapshot(self):
+        self.assertNotIn("repo", self.disk()["session"])
+        snap = self.s.snapshot(HOST)
+        self.assertNotIn("repo", snap)
+        self.assertNotIn("commit", snap)
+
+    def test_a_repo_without_a_commit_drops_the_old_commit_and_empty_clears_both(self):
+        self.apply({"op": "set-repo", "repo": self.REPO, "commit": self.SHA})
+        self.apply({"op": "set-repo", "repo": "octo-org/other"})
+        self.assertEqual(self.disk()["session"]["repo"], "octo-org/other")
+        self.assertNotIn("commit", self.disk()["session"])
+        self.apply({"op": "set-repo", "repo": ""})
+        self.assertNotIn("repo", self.disk()["session"])
+        self.assertNotIn("repo", self.s.snapshot(HOST))
+
+    def test_a_malformed_repo_or_commit_is_refused(self):
+        # The field names the refused value, so a refusal by the ops schema (field "ops") does not pass for it.
+        for repo in ("octo-org", "a/b/c", "octo-org/..", "octo-org/.", "octo-org/demo\n", "-octo/demo", "octo org/demo", "https://github.com/a/b"):
+            self.assertEqual(self.refused_ops("bad-field", {"op": "set-repo", "repo": repo}).details["field"], "repo", repr(repo))
+        for commit in ("0123456789abcdef0123456789abcdef0123456", "0123456789abcdef0123456789abcdef01234567" * 2, "0123456789ABCDEF0123456789ABCDEF01234567", "main"):
+            self.assertEqual(self.refused_ops("bad-field", {"op": "set-repo", "repo": self.REPO, "commit": commit}).details["field"], "commit", commit)
+        self.assertEqual(self.refused_ops("bad-field", {"op": "set-repo", "repo": "", "commit": self.SHA}).details["field"], "commit")
+        self.assertNotIn("repo", self.disk()["session"])
+
+    def test_a_state_file_with_a_malformed_repo_or_a_commit_without_one_is_refused(self):
+        doc = self.disk()
+        for bad in ({"repo": "octo-org"}, {"repo": self.REPO, "commit": "main"}, {"commit": self.SHA}):
+            self.assertIsNotNone(session.document_error({**doc, "session": {**doc["session"], **bad}}), bad)
+        self.assertIsNone(session.document_error({**doc, "session": {**doc["session"], "repo": self.REPO, "commit": self.SHA}}))
+
+    def test_set_repo_rolls_back_with_a_refused_op_in_the_same_apply(self):
+        self.refused_ops("wrong-status", {"op": "set-repo", "repo": self.REPO, "commit": self.SHA}, {"op": "ack-round", "round": 1})
+        self.assertNotIn("repo", self.disk()["session"])
+        self.assertNotIn("repo", self.s.state["session"])
+
+
 class HideEditCase(SessionCase):
     def setUp(self):
         super().setUp()

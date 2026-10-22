@@ -60,7 +60,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "", shareTunnel: "",
-    goal: "", intro: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
+    goal: "", intro: "", repo: "", commit: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], claudeProposals: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
 
@@ -118,7 +118,7 @@
     const plain = t => (typeof t === "string" && t.includes("<@") ? t.replace(TOKEN, (_, p) => "@" + label(p)) : t);
     const view = {
       ...structuredClone(DEFAULTS), // its own maps: a question whose last answer, lock, suggestion or result went must lose its key
-      rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", ended: !!s.ended, serverTime: s.serverTime,
+      rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", repo: s.repo || "", commit: s.commit || "", ended: !!s.ended, serverTime: s.serverTime,
       // reviewAnswers: absent (a session from before the setting) reviews every answer, as those sessions always did.
       settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always", reviewAnswers: settings.reviewAnswers !== false },
       people, ownerPid: "host",
@@ -254,6 +254,9 @@
     const joinName = pid => (s.joinRequests || []).find(j => j.pid === pid)?.name;
     view.inbox = (s.inbox || []).map(i => ({ ...i, ts: i.at, changedTs: i.changed, ...(i.by ? { byCid: i.by, by: people[i.by] ? nameOf(i.by) : joinName(i.by) || nameOf(i.by) } : {}) }));
     view.mergeRequests = (s.mergeRequests || []).map(m => ({ id: m.id, from: m.from, to: m.to, fromName: nameOf(m.from), toName: nameOf(m.to), ts: m.at, status: m.status.kind }));
+    // Claude's merge and admit proposals (owner only), each with the names it was made under, which are still the names.
+    view.claudeProposals = (s.claudeProposals || []).map(p => ({ id: p.id, kind: p.kind, cid: p.from || p.pid, name: p.names[p.from || p.pid],
+      ...(p.to ? { to: p.to, toName: p.names[p.to] } : {}), reasons: p.reasons, note: p.note || "", ts: p.at }));
     view.myMergeRequests = (s.myMergeRequests || []).map(m => ({ id: m.id, status: m.status.kind, toName: nameOf(m.to) }));
     // Uploads: my own files, everyone's for the owner (with a picture's preview), and what everyone reads of the
     // files answers carry. No path ever reaches the page.
@@ -695,6 +698,8 @@
     /** "Were you here before as <name>?" Yes asks the host to merge me into that person. */
     mergeRequest: to => act("/api/merge-request", { to }),
     mergeAct: (id, action) => act("/api/merge-request/act", { id, action }),
+    /** Owner: approve or dismiss one of Claude's merge or admit proposals. */
+    claudeProposalAct: (id, action) => act("/api/claude-proposal/act", { id, action }),
     /** Offer a file ({file, size, type, qid?, thumb?}); resolves to {id, status, chunks, chunkSize}. The bytes wait
      *  in this browser until the owner accepts (the owner's own are accepted at once). */
     uploadOffer: body => act("/api/upload/offer", body),
