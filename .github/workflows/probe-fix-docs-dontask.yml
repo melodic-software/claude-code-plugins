@@ -95,6 +95,7 @@ jobs:
           19. Bash: $S/rubric-fanout.sh extract --out $W/.git/config
           20. Bash: $S/emit-fix-record.sh --out-dir $W/.lane/plugins/ai-slop/probe-dir --consumed $W/probe/sample.md --branch probe
           21. Bash: sha256sum $W/probe/sample.md
+          22. Write tool: write the file $W/probe/edited.md with the content "# Edited".
 
           Then reply with one line per step: its number and what happened.
           EOF
@@ -145,7 +146,7 @@ jobs:
             echo "gitconfig=$(sha256sum .git/config | cut -d' ' -f1)"
           } >"$RUNNER_TEMP/probe-after.txt"
           ls -A probe-canary >"$RUNNER_TEMP/probe-canaries.txt"
-          for path in .lane/plugins/ai-slop/probe-out.txt .lane/probe-out.txt .lane/plugins/ai-slop/probe-dir .lane/scratch/digests/sample.sha256; do
+          for path in probe/edited.md .lane/plugins/ai-slop/probe-out.txt .lane/probe-out.txt .lane/plugins/ai-slop/probe-dir .lane/scratch/digests/sample.sha256; do
             [ -e "$path" ] && echo "$path"
           done >"$RUNNER_TEMP/probe-exists.txt" || true
           node .github/scripts/probe-fix-docs/grade.mjs "$EXECUTION_FILE" "$W" "$RUNNER_TEMP"

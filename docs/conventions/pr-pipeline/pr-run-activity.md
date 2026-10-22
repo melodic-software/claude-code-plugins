@@ -639,7 +639,8 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    (`fix-docs`), and fails red on any other prepare mode with a patch and on `checks`,
    `self-checks` or `verify-scripts`, which have no wrapper there. The no-prepare patch skill gets
    the tools `Read`, `Glob`, `Grep`, `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules
-   name its skill, `Grep`, `Glob`, `Edit`, `Write` and `Agent`, and for `ai-slop:audit` each of
+   name its skill, `Grep`, `Glob`, `Edit`, `Write`, `Agent` and `Edit(./.lane/scratch/**)`, which
+   approves a shell redirect into the scratch directory, and for `ai-slop:audit` each of
    its scripts by absolute path under `.lane/plugins`, bare and double-quoted, plus
    `Bash(sha256sum *)` and `Bash(mkdir -p <workspace>/.lane/scratch/*)` for the fix flow's
    digests; no other `Bash` rule, and the lane does not rely on the skill's frontmatter grants. It

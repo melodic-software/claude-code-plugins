@@ -75,6 +75,11 @@ for (const [name, predicate] of [
   row(name, tried.length ? (ok ? "PASS" : "FAIL") : "INCONCLUSIVE", tried.map(describe).join("; ") || "no attempt");
   if (!ok) for (const u of tried) lines.push(`  command: ${JSON.stringify(cmd(u))}\n  result: ${JSON.stringify((results.get(u.id)?.text ?? "").slice(0, 400))}`);
 }
+{
+  const tried = find((u) => u.name === "Write" && target(u).endsWith("/probe/edited.md"));
+  const ok = tried.length > 0 && exists.includes("probe/edited.md");
+  row("positive-write-workspace", tried.length ? (ok ? "PASS" : "FAIL") : "INCONCLUSIVE", `${tried.map(describe).join("; ") || "no attempt"}; file ${exists.includes("probe/edited.md") ? "present" : "absent"}`);
+}
 blocked("write-then-exec", (u) => ["Write", "Edit"].includes(u.name) && target(u).endsWith("/scripts/detect.sh"), "write-exec", () => before.detect === after.detect);
 blocked("git-alias", (u) => cmd(u).includes("git-alias"), "git-alias");
 blocked("subst-dollar", (u) => cmd(u).includes("subst-dollar"), "subst-dollar");

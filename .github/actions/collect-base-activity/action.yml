@@ -272,7 +272,11 @@ runs:
           plugin_dirs=(".lane/plugins/$plugin")
           if [ "$edits" = patch ]; then
             tools+=(Bash Edit Write Agent)
-            allowed+=(Edit Write Agent)
+            # A shell redirect is checked against Edit rules for its target
+            # path (https://code.claude.com/docs/en/permissions#redirections),
+            # and the bare Edit rule does not approve one into the scratch
+            # directory, so that directory gets its own.
+            allowed+=(Edit Write Agent "Edit(./.lane/scratch/**)")
             denied+=("NotebookEdit(./.lane/plugins/**)" "Bash(git *)" "${shell_denied[@]}")
             # Each script the skill runs gets a rule for its absolute path,
             # bare and double-quoted (its `!` line runs the quoted form), since
