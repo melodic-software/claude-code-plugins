@@ -57,8 +57,33 @@ const SHELL_DENIED = [
   "Read(//proc/**)",
   `Read(/${WORKSPACE}/.git/**)`,
 ];
-// The deny rules other than the write lanes' shell set.
-const ownDenied = (denied) => denied.filter((rule) => !SHELL_DENIED.includes(rule));
+// The write lanes' git deny rules: all of git, or in merge-base mode, whose
+// skill resolves the merge with git, every form that reads config, reaches a
+// remote, reads a file outside the index or runs a program.
+const WRITE_GIT_DENIED = ["Bash(git *)"];
+const MERGE_BASE_GIT_DENIED = [
+  "Bash(git -*)",
+  "Bash(git config *)",
+  "Bash(git remote *)",
+  "Bash(git ls-remote *)",
+  "Bash(git credential *)",
+  "Bash(git var *)",
+  "Bash(git fetch *)",
+  "Bash(git push *)",
+  "Bash(git pull *)",
+  "Bash(git submodule *)",
+  "Bash(git *--no-index*)",
+  "Bash(git *--output*)",
+  "Bash(git *--git-dir*)",
+  "Bash(git *--work-tree*)",
+  "Bash(git *.git/*)",
+  "Bash(git *.git\\*)",
+  "Bash(git *--ext-diff*)",
+  "Bash(git *--textconv*)",
+];
+// The deny rules other than the write lanes' shell and git sets.
+const ownDenied = (denied) =>
+  denied.filter((rule) => !SHELL_DENIED.includes(rule) && !WRITE_GIT_DENIED.includes(rule) && !MERGE_BASE_GIT_DENIED.includes(rule));
 
 // The Bash rules other than the commit grant's chmod rule.
 const wrapperRules = (allowed) => allowed.filter((rule) => rule.startsWith("Bash") && rule !== CHMOD_RULE);
@@ -196,7 +221,7 @@ test("prepare: merge-base leaves out the commit tool and the instruction to comm
   assert.ok(!args.includes("chmod"), args);
   // Still a writing skill: it edits and stages its resolution.
   assert.match(args, /--allowedTools "Skill\(source-control:resolve-conflicts\),Read\([^)]*\),Edit,Write,Agent,Grep,Glob,Edit\(/);
-  assert.ok(args.includes(`--disallowedTools "WebFetch,WebSearch,${SHELL_DENIED.join(",")}"`), args);
+  assert.ok(args.includes(`--disallowedTools "WebFetch,WebSearch,${MERGE_BASE_GIT_DENIED.join(",")},${SHELL_DENIED.join(",")}"`), args);
 });
 
 // pr-run-activity.md, "Skill activities": each listed check runs from the base
@@ -1249,6 +1274,16 @@ for (const [name, run] of [
       const expected = rule.replace(WORKSPACE, workspace);
       assert.ok(denied.includes(expected), `${expected} in ${denied.join(" | ")}`);
     }
+  });
+  if (name === "a read skill that hands on a patch") continue;
+  test(`a write lane denies git, in merge-base mode every form that reaches config, a remote or a file outside the index: ${name}`, () => {
+    const { status, denied } = run();
+    assert.equal(status, 0);
+    const mergeBase = name === "prepare: merge-base";
+    for (const rule of mergeBase ? MERGE_BASE_GIT_DENIED : WRITE_GIT_DENIED) {
+      assert.ok(denied.includes(rule), `${rule} in ${denied.join(" | ")}`);
+    }
+    assert.equal(denied.includes("Bash(git *)"), !mergeBase, denied.join(" | "));
   });
 }
 
