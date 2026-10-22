@@ -72,6 +72,7 @@ function fakeApi({
   runIds = new Map(),
   workflowRuns = [],
   ciFixPulls = [],
+  docsPulls = [],
 } = {}) {
   const calls = { list: [], get: [], checks: [], dispatch: [], runs: [] };
   let round = 0;
@@ -79,6 +80,12 @@ function fakeApi({
     calls,
     async listCiFixCandidates() {
       return { rateLimit: { cost: 1, remaining: 4999 }, pullRequests: { nodes: ciFixPulls, pageInfo: { hasNextPage: false, endCursor: null } } };
+    },
+    async listDocsFixCandidates() {
+      return { rateLimit: { cost: 1, remaining: 4999 }, pullRequests: { nodes: docsPulls, pageInfo: { hasNextPage: false, endCursor: null } } };
+    },
+    async readDocsFixHistory() {
+      return { rateLimit: { cost: 1, remaining: 4999 }, pullRequest: { commits: { nodes: [] } } };
     },
     async listOpenPulls({ base, after }) {
       calls.list.push({ base, after });
@@ -575,6 +582,30 @@ test("main records fix-ci dispatches beside the others, capped by limits.fix-ci-
   assert.deepEqual(capped, { code: 0, output: "run-ids=9140 9141\n" });
   const fallback = await runMain({ pages: [[]], ciFixPulls: pulls });
   assert.deepEqual(fallback, { code: 0, output: "run-ids=9141 9142\n" }, "with no fix-ci limit the default of 2 holds");
+});
+
+// A ready PR a person opened that changes Markdown, as fix-docs-dispatch.mjs lists it.
+const docsPull = (number) => {
+  const head = String(number).padStart(40, "d");
+  return {
+    number,
+    isDraft: false,
+    isCrossRepository: false,
+    baseRefName: "main",
+    headRefOid: head,
+    author: { __typename: "User", login: "someone" },
+    labels: { nodes: [] },
+    files: { nodes: [{ path: "README.md" }], pageInfo: { hasNextPage: false } },
+    commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [] } } } }] },
+  };
+};
+
+test("main records fix-docs dispatches beside the others, capped by limits.fix-docs-per-run", async () => {
+  const docsPulls = [docsPull(171), docsPull(172), docsPull(173)];
+  const capped = await runMain({ pages: [[pr(170)]], docsPulls }, { ...LIMIT_DEFAULTS, "fix-docs-per-run": 1 });
+  assert.deepEqual(capped, { code: 0, output: "run-ids=9170 9171\n" });
+  const fallback = await runMain({ pages: [[]], docsPulls });
+  assert.deepEqual(fallback, { code: 0, output: "run-ids=9171 9172\n" }, "with no fix-docs limit the default of 2 holds");
 });
 
 test("without the lanes App sender id main still dispatches conflicts, dispatches no fix-ci, and exits 1", async () => {

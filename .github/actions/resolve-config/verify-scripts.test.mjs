@@ -22,12 +22,12 @@ const FILES = {
 
 const run = (fixDocs) => {
   const doc = parse(read("./fixtures/valid.yaml"));
-  Object.assign(doc.activities["fix-docs"], fixDocs);
+  Object.assign(doc.activities["fix-prose"], fixDocs);
   return resolve(
     { ...FILES, config: stringify(doc) },
     {
       lane: "pr-refine",
-      activity: "fix-docs",
+      activity: "fix-prose",
       configPath: "docs/conventions/pr-pipeline.yaml",
       basePath: ".base",
       facts: { event: "synchronize", changedPaths: ["README.md"], labels: [], workClasses: [] },
