@@ -3496,7 +3496,9 @@ def assess(
     merges in flight. The
     config at the base must enable that authority (`enabled_authority`).
 
-    Config at the pull request's base SHA, then authority, identity, the
+    Config at the pull request's base SHA (the default branch head's alone,
+    reported as `baseConfigFallback`, when the base's cannot be parsed), then
+    authority, identity, the
     credential chokepoint, the kill switch, a base that is the default
     branch, the config tightened by the default branch head's
     (`with_default_branch`; `merge.max-in-flight` the head's alone,
@@ -3527,6 +3529,16 @@ def assess(
     base_ref = str(json_object(pr.get("base")).get("ref"))
     base_sha = str(json_object(pr.get("base")).get("sha"))
     config = read_config_at(repo, base_sha)
+    fallback = None
+    if config.error == "config-parse-error":
+        # A base older than the reader's grammar answers to the default branch
+        # head's config alone, never the pull request head's; a head config
+        # that cannot be read or parsed raises, as the base's did.
+        config = _default_branch_config(repo)
+        fallback = (
+            f"{CONFIG_PATH} at {base_sha}: config-parse-error; "
+            f"read at the default branch head {config.base_sha}"
+        )
     if config.error:
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha}: {config.error}")
     identity = config.agent_identity
@@ -3537,6 +3549,8 @@ def assess(
         config.dependabot_mode != "enforce" if dependabot_pr else config.report_only
     )
     details: dict[str, Any] = {"baseSha": base_sha, "reportOnly": report_only}
+    if fallback:
+        details["baseConfigFallback"] = fallback
     inputs: dict[str, Any] = {
         "pr": pr,
         "config": config,

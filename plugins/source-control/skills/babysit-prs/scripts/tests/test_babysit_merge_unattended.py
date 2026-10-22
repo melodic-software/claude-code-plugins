@@ -1753,6 +1753,56 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(out["unattended"]["reason"], "risk:MED")
 
 
+class BaseConfigParseError(Unattended):
+    """A base whose pipeline config the reader rejects answers to the default
+    branch head's config alone; a base read failure still refuses."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.main_head = "d" * 40
+        self.base_read: Any = dataclasses.replace(
+            self.config, rung="off", error="config-parse-error"
+        )
+        self.main_read: Any = dataclasses.replace(self.config, base_sha=self.main_head)
+
+    def _read_config_at(self, repo: str, sha: str, *args: Any) -> Any:
+        read = self.base_read if sha == BASE else self.main_read
+        if isinstance(read, Exception):
+            raise read
+        return read
+
+    def test_the_default_branch_head_config_stands_in_for_an_unparsable_base(
+        self,
+    ) -> None:
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out.get("blockers"))
+        self.assertIsNone(out["unattended"]["reason"])
+        self.assertEqual(
+            out["unattended"]["baseConfigFallback"],
+            f"{policy.CONFIG_PATH} at {BASE}: config-parse-error; "
+            f"read at the default branch head {self.main_head}",
+        )
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_an_unparsable_default_branch_config_too_refuses(self) -> None:
+        self.main_read = dataclasses.replace(self.main_read, error="config-parse-error")
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertIn("unattended merge policy unreadable", out["error"])
+        self.assertIn(
+            f"at the default branch head {self.main_head}: config-parse-error",
+            out["error"],
+        )
+        self.assertEqual(self.log, [])
+
+    def test_a_base_read_failure_refuses_without_the_fallback(self) -> None:
+        self.base_read = policy.PolicyReadError("pr-pipeline.yaml (status 502)")
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertIn("status 502", out["error"])
+        self.assertEqual(self.log, [])
+
+
 class CheckInputsChangedOnTheBase(Unattended):
     """A ready head whose merge base predates a base change to a
     `merge.check-inputs` path is updated from the base, not enqueued."""
