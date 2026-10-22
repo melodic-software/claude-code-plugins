@@ -3,6 +3,24 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-10-22
+
+### Added
+
+- `/debugging:debug` Phase 2 gains a Minimize step: cut inputs, callers, config, data and steps one at a time, keep a cut only when the loop stays red, and stop when every remaining element is needed. The Phase 3 gate now requires the minimized reproduction.
+- `/debugging:debug` Phase 5 step 2 asks for a diff against a pristine copy when the red was forced by editing code or a fixture, to confirm the edit landed before the red is trusted.
+- `/debugging:debug` notes that every answer the human-driven script collects with `ask` is pasted back into the session, so it asks only for observations and leaves signing in to an `instruct` step.
+
+- `/debugging:analyze-profile`'s `query_profile.py` gains two read-only subcommands for converted heap snapshots: `compare <before.db> <after.db>` lists which heap types grew between two snapshots, and `retainers <db> <idx>` prints the shortest non-weak path from the root to one heap object.
+
+### Fixed
+
+- The `.cpuprofile` format pointer targets the DevTools Profiler domain page; its `#type-Profile` anchor is rendered client-side and failed the online link check.
+
+### Security
+
+- Credential guards now catch stateless GitHub App installation tokens (`ghs_` followed by a JWT), using GitHub's recommended `ghs_` regex where a guard matches the whole token.
+
 ## [0.11.2] - 2026-10-20
 
 ### Fixed

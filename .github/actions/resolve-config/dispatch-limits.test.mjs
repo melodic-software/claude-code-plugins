@@ -55,7 +55,29 @@ const ciFixPull = (number) => {
   };
 };
 
-const api = (dispatched, ciFixPulls = []) => ({
+// Ready PRs a person opened that change Markdown and never had fix-docs, as
+// fix-docs-dispatch.mjs lists them.
+const docsPull = (number) => {
+  const head = String(number).padStart(40, "d");
+  return {
+    number,
+    isDraft: false,
+    isCrossRepository: false,
+    baseRefName: "main",
+    headRefOid: head,
+    author: { __typename: "User", login: "someone" },
+    labels: { nodes: [] },
+    files: { nodes: [{ path: "README.md" }], pageInfo: { hasNextPage: false } },
+    commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [] } } } }] },
+  };
+};
+
+const api = (dispatched, ciFixPulls = [], docsPulls = []) => ({
+  listDocsFixCandidates: async () => ({
+    rateLimit: { cost: 1, remaining: 4999 },
+    pullRequests: { nodes: docsPulls, pageInfo: { hasNextPage: false, endCursor: null } },
+  }),
+  readDocsFixHistory: async () => ({ rateLimit: { cost: 1, remaining: 4999 }, pullRequest: { commits: { nodes: [] } } }),
   listCiFixCandidates: async () => ({
     rateLimit: { cost: 1, remaining: 4999 },
     pullRequests: { nodes: ciFixPulls, pageInfo: { hasNextPage: false, endCursor: null } },
@@ -73,7 +95,7 @@ const api = (dispatched, ciFixPulls = []) => ({
   },
 });
 
-async function run(text, ciFixPulls = [], tracker = null) {
+async function run(text, ciFixPulls = [], docsPulls = [], tracker = null) {
   const base = baseWith(text);
   if (tracker !== null) {
     writeFileSync(join(base, ".work-item-tracker.json"), tracker);
@@ -84,7 +106,7 @@ async function run(text, ciFixPulls = [], tracker = null) {
   try {
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: output, BASE_PATH: base, APP_SENDER_ID: String(LANES_APP) },
-      { api: api(dispatched, ciFixPulls), sleep: async () => {}, log: () => {}, now: Date.parse("2026-10-17T12:00:00Z") },
+      { api: api(dispatched, ciFixPulls, docsPulls), sleep: async () => {}, log: () => {}, now: Date.parse("2026-10-17T12:00:00Z") },
     );
     return { code, dispatched };
   } finally {
@@ -133,10 +155,18 @@ test("the base tracker config's human-gated label holds an adopted PR from fix-c
   owner.commits.nodes[0].commit.committedDate = idle;
   owner.labels = { nodes: [{ name: "awaiting-owner" }] };
   const mapped = JSON.stringify({ config: { role_labels: { "human-gated": "awaiting-owner" } } });
-  assert.deepEqual(await run(LIVE, [owner], mapped), { code: 0, dispatched: ["40"] });
+  assert.deepEqual(await run(LIVE, [owner], [], mapped), { code: 0, dispatched: ["40"] });
   assert.deepEqual(await run(LIVE, [owner]), { code: 0, dispatched: ["40", "62"] }, "with no tracker file the label is needs-human");
   // An unreadable tracker config stops fix-ci alone, as a failure.
-  assert.deepEqual(await run(LIVE, [ciFixPull(63)], "{not json"), { code: 1, dispatched: ["40"] });
+  assert.deepEqual(await run(LIVE, [ciFixPull(63)], [], "{not json"), { code: 1, dispatched: ["40"] });
+});
+
+test("the base config's limits.fix-docs-per-run caps the fix-docs dispatches", async () => {
+  const pulls = [docsPull(61), docsPull(62), docsPull(63)];
+  assert.match(LIVE, /^ {2}fix-docs-per-run: 2$/m, "the live config sets the per-run cap");
+  assert.deepEqual(await run(LIVE, [], pulls), { code: 0, dispatched: ["40", "61", "62"] });
+  const one = LIVE.replace(/^ {2}fix-docs-per-run: 2$/m, "  fix-docs-per-run: 1");
+  assert.deepEqual(await run(one, [], pulls), { code: 0, dispatched: ["40", "61"] });
 });
 
 test("a base config the resolver refuses fails the run before any dispatch", async () => {

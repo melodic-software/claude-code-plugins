@@ -22,6 +22,10 @@
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
     "never": "Posts to the pull request, merges, closes, or pushes under .github/"
   },
+  "fix-docs": {
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],
+    "never": "Holds a write token: it runs a script on head files, and its change leaves only as a patch"
+  },
   "fix-ci": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],
     "never": "Holds a write token: it runs head code, and its change leaves only as a patch"
