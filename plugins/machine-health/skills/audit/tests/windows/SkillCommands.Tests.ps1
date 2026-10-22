@@ -2,28 +2,43 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 <#
 .SYNOPSIS
-Parses the PowerShell command templates in SKILL.md with hostile roots.
+Parses the PowerShell command templates in the audit and setup SKILL.md files
+with hostile roots.
 
 .DESCRIPTION
 Claude Code substitutes ${CLAUDE_PLUGIN_ROOT}, ${CLAUDE_PLUGIN_DATA} and
 ${user_config.report_dir} into skill content as text, so a root reaches each
-command as typed characters. Each template, run after the roots block, must
-parse to the same commands whatever a root holds: PowerShell reads U+2018 to
-U+201B as single quotes, and $( ) runs code outside a single-quoted string.
-The fallback values come from SKILL.md, "Resolving output locations".
+command as typed characters. Each template, run after its skill's roots block,
+must parse to the same commands whatever a root holds: PowerShell reads U+2018
+to U+201B as single quotes, and $( ) runs code outside a single-quoted string.
+The fallback values come from the audit SKILL.md, "Resolving output locations".
 #>
+
+BeforeDiscovery {
+    $script:HostileRoots = @(
+        @{ Case = 'U+2019 around $( )'; Root = "C:\x$([char]0x2019) `$(New-Item canary) $([char]0x2019)" }
+        @{ Case = 'U+2019 around a statement'; Root = "C:\x$([char]0x2019); New-Item canary; $([char]0x2019)" }
+        @{ Case = 'an apostrophe'; Root = "C:\x'; New-Item canary; '" }
+        @{ Case = 'U+201B around $( )'; Root = "C:\x$([char]0x201B) `$(New-Item canary) $([char]0x201B)" }
+        @{ Case = 'a leading here-string close'; Root = "'@ `$(New-Item canary)" }
+        @{ Case = 'a leading U+2019 here-string close'; Root = "$([char]0x2019)@; New-Item canary" }
+    )
+}
 
 BeforeAll {
     . "$PSScriptRoot\..\helpers\Initialize-CheckSuite.ps1"
-    $skillText = Get-Content -LiteralPath (Join-Path $script:SkillRoot 'SKILL.md') -Raw
+
     # A fence indented under a list item indents its lines by the same amount.
-    $script:Blocks = @([regex]::Matches($skillText, '(?ms)^([ \t]*)```powershell\r?\n(.*?)^[ \t]*```') | ForEach-Object {
-            $indent = $_.Groups[1].Value
-            ($_.Groups[2].Value -split '\r?\n' | ForEach-Object {
-                if ($indent -and $_.StartsWith($indent)) { $_.Substring($indent.Length) } else { $_ }
-            }) -join "`n"
-        })
-    $script:Tokens = @('${CLAUDE_PLUGIN_ROOT}', '${CLAUDE_PLUGIN_DATA}', '${user_config.report_dir}')
+    function Get-PowerShellBlock {
+        param([string] $Path)
+        $text = Get-Content -LiteralPath $Path -Raw
+        @([regex]::Matches($text, '(?ms)^([ \t]*)```powershell\r?\n(.*?)^[ \t]*```') | ForEach-Object {
+                $indent = $_.Groups[1].Value
+                ($_.Groups[2].Value -split '\r?\n' | ForEach-Object {
+                    if ($indent -and $_.StartsWith($indent)) { $_.Substring($indent.Length) } else { $_ }
+                }) -join "`n"
+            })
+    }
 
     function Get-CommandList {
         param([string] $Text)
@@ -38,36 +53,39 @@ BeforeAll {
     }
 
     function Format-RootTemplate {
-        param([string] $Text, [string] $Value)
-        foreach ($token in $script:Tokens) { $Text = $Text.Replace($token, $Value) }
+        param([string] $Text, [string[]] $Token, [string] $Value)
+        foreach ($t in $Token) { $Text = $Text.Replace($t, $Value) }
         return $Text
     }
 
+    # The roots block with one command appended to its last line after '; ', as SKILL.md says.
+    function Join-RootsCommand {
+        param([string] $Roots, [string] $Command)
+        if ($Command) { $Roots.TrimEnd() + '; ' + $Command.Trim() } else { $Roots.TrimEnd() }
+    }
+
     function Invoke-RootsBlock {
-        param([string] $Text)
-        $block = [scriptblock]::Create($Text + "`n" +
-            '[pscustomobject]@{ Skill = $skillRoot; State = $stateRoot; Report = $reportRoot }')
+        param([string] $Text, [string] $Result)
+        $block = [scriptblock]::Create($Text + "`n" + $Result)
         & $block 3>$null
     }
+
+    $script:AuditBlocks = Get-PowerShellBlock (Join-Path $script:SkillRoot 'SKILL.md')
+    $script:AuditTokens = @('${CLAUDE_PLUGIN_ROOT}', '${CLAUDE_PLUGIN_DATA}', '${user_config.report_dir}')
+    $script:SetupBlocks = Get-PowerShellBlock (Join-Path $script:SkillRoot '..\setup\SKILL.md')
+    $script:SetupTokens = @('${CLAUDE_PLUGIN_ROOT}', '${CLAUDE_PLUGIN_DATA}', '<payload file>')
 }
 
-Describe 'SKILL.md command templates' -Tag 'skill' {
+Describe 'audit SKILL.md command templates' -Tag 'skill' {
     It 'holds the roots block and four commands' {
-        $script:Blocks.Count | Should -Be 5
-        foreach ($token in $script:Tokens) { $script:Blocks[0] | Should -BeLike "*$token*" }
+        $script:AuditBlocks.Count | Should -Be 5
+        foreach ($token in $script:AuditTokens) { $script:AuditBlocks[0] | Should -BeLike "*$token*" }
         # The PowerShell tool takes newlines only inside a here-string.
-        @($script:Blocks[0].Trim() -split '\n').Count | Should -Be 5
-        foreach ($command in $script:Blocks[1..4]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
+        @($script:AuditBlocks[0].Trim() -split '\n').Count | Should -Be 5
+        foreach ($command in $script:AuditBlocks[1..4]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
     }
 
-    Context 'a root holding <Case>' -ForEach @(
-        @{ Case = 'U+2019 around $( )'; Root = "C:\x$([char]0x2019) `$(New-Item canary) $([char]0x2019)" }
-        @{ Case = 'U+2019 around a statement'; Root = "C:\x$([char]0x2019); New-Item canary; $([char]0x2019)" }
-        @{ Case = 'an apostrophe'; Root = "C:\x'; New-Item canary; '" }
-        @{ Case = 'U+201B around $( )'; Root = "C:\x$([char]0x201B) `$(New-Item canary) $([char]0x201B)" }
-        @{ Case = 'a leading here-string close'; Root = "'@ `$(New-Item canary)" }
-        @{ Case = 'a leading U+2019 here-string close'; Root = "$([char]0x2019)@; New-Item canary" }
-    ) {
+    Context 'a root holding <Case>' -ForEach $script:HostileRoots {
         It 'parses the <Name> command to only its own commands' -ForEach @(
             @{ Name = 'roots'; Index = 0; Expected = @('ForEach-Object', 'Join-Path', 'Write-Warning') }
             @{ Name = 'run'; Index = 1; Expected = @('&', 'Join-Path') }
@@ -75,9 +93,8 @@ Describe 'SKILL.md command templates' -Tag 'skill' {
             @{ Name = 'launch'; Index = 3; Expected = @('.', 'Get-ElevatedLaunch', 'Join-Path', 'Start-ElevatedLaunch') }
             @{ Name = 'import'; Index = 4; Expected = @('&', '.', 'Get-ElevatedLaunch', 'Join-Path', 'Join-Path') }
         ) {
-            # SKILL.md appends a command to the roots block's last line after '; '.
-            $command = if ($Index -eq 0) { '' } else { '; ' + $script:Blocks[$Index].Trim().Replace('<ScriptSha256>', 'AB' * 32) }
-            $text = (Format-RootTemplate $script:Blocks[0] $Root).TrimEnd() + $command
+            $command = if ($Index -eq 0) { '' } else { $script:AuditBlocks[$Index].Replace('<ScriptSha256>', 'AB' * 32) }
+            $text = Join-RootsCommand (Format-RootTemplate -Text $script:AuditBlocks[0] -Token $script:AuditTokens -Value $Root) $command
 
             $parsed = Get-CommandList $text
 
@@ -90,7 +107,8 @@ Describe 'SKILL.md command templates' -Tag 'skill' {
         It 'binds each root to exactly the substituted text' {
             Push-Location -LiteralPath $TestDrive
             try {
-                $roots = Invoke-RootsBlock (Format-RootTemplate $script:Blocks[0] $Root)
+                $roots = Invoke-RootsBlock (Format-RootTemplate -Text $script:AuditBlocks[0] -Token $script:AuditTokens -Value $Root) `
+                    '[pscustomobject]@{ Skill = $skillRoot; State = $stateRoot; Report = $reportRoot }'
             } finally {
                 Pop-Location
             }
@@ -103,18 +121,72 @@ Describe 'SKILL.md command templates' -Tag 'skill' {
     }
 
     It 'defaults the report root and puts state under it when neither token was substituted' {
-        $roots = Invoke-RootsBlock $script:Blocks[0]
+        $roots = Invoke-RootsBlock $script:AuditBlocks[0] '[pscustomobject]@{ State = $stateRoot; Report = $reportRoot }'
 
         $roots.Report | Should -BeExactly (Join-Path $env:USERPROFILE 'Documents\MachineHealth')
         $roots.State | Should -BeExactly $roots.Report
     }
 
     It 'keeps a substituted data folder when only the report option is unset' {
-        $text = $script:Blocks[0].Replace('${CLAUDE_PLUGIN_DATA}', 'D:\data\machine-health')
+        $text = $script:AuditBlocks[0].Replace('${CLAUDE_PLUGIN_DATA}', 'D:\data\machine-health')
 
-        $roots = Invoke-RootsBlock $text
+        $roots = Invoke-RootsBlock $text '[pscustomobject]@{ State = $stateRoot; Report = $reportRoot }'
 
         $roots.State | Should -BeExactly 'D:\data\machine-health'
         $roots.Report | Should -BeExactly (Join-Path $env:USERPROFILE 'Documents\MachineHealth')
+    }
+}
+
+Describe 'setup SKILL.md command templates' -Tag 'skill' {
+    It 'holds the roots block and three commands' {
+        $script:SetupBlocks.Count | Should -Be 4
+        foreach ($token in $script:SetupTokens) { $script:SetupBlocks[0] | Should -BeLike "*$token*" }
+        @($script:SetupBlocks[0].Trim() -split '\n').Count | Should -Be 5
+        foreach ($command in $script:SetupBlocks[1..3]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
+    }
+
+    Context 'a root holding <Case>' -ForEach $script:HostileRoots {
+        It 'parses the <Name> command to only its own commands' -ForEach @(
+            @{ Name = 'roots'; Index = 0; Expected = @() }
+            @{ Name = 'apply'; Index = 1; Expected = @('.', 'Join-Path', 'Set-ApprovalState') }
+            @{ Name = 'picks resolve'; Index = 2
+                Expected = @('.', 'ForEach-Object', 'Format-Table', 'Get-Content', 'Join-Path', 'Join-Path', 'Resolve-CheckupPick')
+            }
+            @{ Name = 'picks write'; Index = 3
+                Expected = @('.', '.', 'Get-Content', 'Join-Path', 'Join-Path', 'Join-Path', 'Resolve-CheckupPick', 'Set-ApprovalState', 'Set-ApprovalState')
+            }
+        ) {
+            $command = if ($Index -eq 0) { '' } else {
+                $script:SetupBlocks[$Index].Replace('<action> <arguments>', 'approve -RemediationId clear-temp-files').
+                Replace('<confirmed mute numbers>', '1, 2').Replace('<confirmed approval numbers>', '3')
+            }
+            $text = Join-RootsCommand (Format-RootTemplate -Text $script:SetupBlocks[0] -Token $script:SetupTokens -Value $Root) $command
+
+            $parsed = Get-CommandList $text
+
+            $parsed.Errors.Count | Should -Be 0
+            $parsed.Names | Should -Be (@(@('ForEach-Object') + $Expected) | Sort-Object)
+        }
+
+        It 'binds each root and the payload path to exactly the substituted text' {
+            Push-Location -LiteralPath $TestDrive
+            try {
+                $roots = Invoke-RootsBlock (Format-RootTemplate -Text $script:SetupBlocks[0] -Token $script:SetupTokens -Value $Root) `
+                    '[pscustomobject]@{ Plugin = $pluginRoot; State = $stateRoot; Payload = $payloadPath }'
+            } finally {
+                Pop-Location
+            }
+
+            $roots.Plugin | Should -BeExactly $Root
+            $roots.State | Should -BeExactly $Root
+            $roots.Payload | Should -BeExactly $Root
+            Test-Path -LiteralPath (Join-Path $TestDrive 'canary') | Should -BeFalse
+        }
+    }
+
+    It 'throws when the data folder token was not substituted' {
+        $text = $script:SetupBlocks[0].Replace('${CLAUDE_PLUGIN_ROOT}', 'D:\plugins\machine-health')
+
+        { Invoke-RootsBlock $text '$stateRoot' } | Should -Throw '*did not resolve*'
     }
 }
