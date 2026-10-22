@@ -583,9 +583,15 @@ Upstream link formats (volatile; read the pages, never copy their limits here):
 Off until the owner turns on Uploads (`shared_session.uploads`). Every place people write (the answer
 box, Ask Claude, a question's ask box, a suggestion, chat, the Discussion and Propose) then has an
 Attach button that offers "Upload a file" and lists the person's files the owner accepted. Every
-picture (PNG, JPEG, WebP or GIF), picked or pasted into any of those fields, is redrawn in the browser
+picture (PNG, JPEG or WebP), picked or pasted into any of those fields, is redrawn in the browser
 at most 1600 px and 512 KB, so no metadata such as EXIF or GPS leaves the device, then offered as a
-file. A pasted one shows as a thumbnail chip, never as text in the field; it reads "Waiting for the
+file. A GIF (its first bytes GIF87a or GIF89a, whatever its name or type) is not redrawn, which would
+keep only its first frame: it goes whole with only its frames, their graphic control blocks and the
+loop count, each extension rebuilt to its fixed size; every other extension (comment, plain text,
+application, unknown) is dropped, since any can carry text. One over 512 KB is refused before it is
+offered. An animated GIF shows as
+its first frame with a Play GIF button, on its tile and in the viewer, for everyone (WCAG 2.2.2,
+reduced motion). A pasted one shows as a thumbnail chip, never as text in the field; it reads "Waiting for the
 host" until the owner accepts it, and taking it off the form withdraws it (or removes it once
 received). Each question keeps its own unsent chips. Send waits while a file is waiting for the
 host, and takes off, naming it, a file declined, withdrawn, failed or removed meanwhile; a sent form

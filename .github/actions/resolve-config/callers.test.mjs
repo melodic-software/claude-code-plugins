@@ -938,6 +938,8 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
   assert.ok(index("Stage the skill's files in the checkout") < index("Run the skill on the API key"));
   // The staged trusted context is read-only, as the plugin and the CI context are.
   assert.match(jobs.run.steps[index("Stage the skill's files in the checkout")].run, /chmod a-w \.lane\/trusted-context\.json/);
+  // The prompt and .lane/ itself too, so a script's --out lands only in .lane/scratch.
+  assert.match(jobs.run.steps[index("Stage the skill's files in the checkout")].run, /chmod a-w \.lane\/prompt\.md \.lane\n/);
 });
 
 test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_TEMP or /proc", () => {
