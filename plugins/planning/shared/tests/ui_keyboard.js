@@ -17,7 +17,7 @@
 // to the invoking element, or where it was when a shortcut opened it), the server contract (session.py pick: one pick
 // per person) and core.js's join dialog rule (it stays open until the join succeeds), never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs } = require("./browser_harness");
 
 const PRESSES = 30;
 const DESK = { viewport: { width: 1440, height: 900 } };
@@ -286,9 +286,11 @@ async function main() {
     await until(gus, () => (window.Core.snapshot().cards.Q2 || []).some(c => c.ref === "p:host"));
     async function swept(page, name, { scope, open, close } = {}) {
       try { if (open) await open(); } catch (e) { ok(`Tab sweep, ${name}: the view opens`, false, String(e.message).split("\n")[0]); return; }
-      await page.waitForTimeout(250);
+      // Swept once the view holds still: each control's resting look is the baseline its focus ring is told from.
+      const still = await settled(page, { rects: true });
       const r = await sweep(page, scope);
-      ok(`Tab sweep, ${name}: all ${r.total} controls take focus from Tab`, r.total > 0 && r.missed.length === 0, `${r.missed.length} missed: ${r.missed.slice(0, 6).join(", ")}`);
+      ok(`Tab sweep, ${name}: all ${r.total} controls take focus from Tab`, still && r.total > 0 && r.missed.length === 0,
+        `${still ? "" : "not settled; "}${r.missed.length} missed: ${r.missed.slice(0, 6).join(", ")}`);
       ok(`Tab sweep, ${name}: each shows a focus ring`, r.noRing.length === 0, r.noRing.slice(0, 6).join(", "));
       ok(`Tab sweep, ${name}: each is on screen and not covered when focused`, r.hidden.length === 0, r.hidden.slice(0, 6).join(", "));
       if (close) await close();
