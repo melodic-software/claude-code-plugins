@@ -1710,9 +1710,9 @@ def dequeue_identity_entries(
 PIN_RE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$")
 PIN_QUERY = (
     "query PostMergePin($o:String!,$r:String!,$n:Int!,$c:String){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){comments(first:100,after:$c){"
-    "pageInfo{hasNextPage endCursor} nodes{"
-    "author{__typename login} body lastEditedAt}}}}}"
+    "pullRequest(number:$n){reviews(last:1){nodes{author{__typename login} submittedAt}} "
+    "comments(first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{"
+    "author{__typename login} body createdAt lastEditedAt}}}}}"
 )
 # Comment pages the pin read walks: 3000 comments. A longer thread reads as
 # no pin, which fails the read-back once the dispatch deadline passes.
@@ -1726,13 +1726,18 @@ def pin_comment(sha: str) -> str:
     )
 
 
-def read_pin(repo: str, number: int, identity: str) -> str | None:
+def read_pin(
+    repo: str, number: int, identity: str, *, alone: bool = False
+) -> str | None:
     """The head SHA the agent identity pinned for `number`: its newest pin
     comment, read through every comment page, or None when there is none,
     the thread runs past `PIN_PAGE_LIMIT` pages, or that comment was edited
-    (anyone with write access can edit it)."""
+    (anyone with write access can edit it). `alone` also answers None when
+    anyone but the identity commented after that pin or submitted the newest
+    review after it; a review list that cannot be read raises."""
     owner, name = _split_repo(repo)
-    pins: list[dict[str, Any]] = []
+    comments: list[dict[str, Any]] = []
+    reviews: Any = None
     cursor: str | None = None
     for _ in range(PIN_PAGE_LIMIT):
         args = ["api", "graphql", "-f", f"query={PIN_QUERY}", "-f", f"o={owner}"]
@@ -1751,12 +1756,9 @@ def read_pin(repo: str, number: int, identity: str) -> str | None:
         nodes, info = page.get("nodes"), json_object(page.get("pageInfo"))
         if not is_json_array(nodes) or not isinstance(info.get("hasNextPage"), bool):
             raise PostMergeReadError(f"#{number} pin: no comment page")
-        pins += [
-            node
-            for node in map(json_object, nodes)
-            if _actor_key(node.get("author")) == _login_key(identity)
-            and PIN_RE.match(_first_line(node.get("body")))
-        ]
+        comments += map(json_object, nodes)
+        if reviews is None:
+            reviews = json_object(pull.get("reviews")).get("nodes")
         cursor = info.get("endCursor")
         if not info["hasNextPage"]:
             break
@@ -1764,9 +1766,33 @@ def read_pin(repo: str, number: int, identity: str) -> str | None:
             raise PostMergeReadError(f"#{number} pin: a next page with no cursor")
     else:
         return None
-    if not pins or pins[-1].get("lastEditedAt"):
+    mine = [_actor_key(c.get("author")) == _login_key(identity) for c in comments]
+    pins = [
+        i
+        for i, c in enumerate(comments)
+        if mine[i] and PIN_RE.match(_first_line(c.get("body")))
+    ]
+    if not pins or comments[pins[-1]].get("lastEditedAt"):
         return None
-    match = PIN_RE.match(_first_line(pins[-1].get("body")))
+    newest = comments[pins[-1]]
+    if alone:
+        if not all(mine[pins[-1] :]):
+            return None
+        if not is_json_array(reviews):
+            raise PostMergeReadError(f"#{number} pin: no review list")
+        try:
+            pinned_at = datetime.fromisoformat(str(newest.get("createdAt")))
+            for review in map(json_object, reviews):
+                submitted = review.get("submittedAt")
+                if (
+                    _actor_key(review.get("author")) != _login_key(identity)
+                    and submitted is not None
+                    and datetime.fromisoformat(str(submitted)) >= pinned_at
+                ):
+                    return None
+        except (TypeError, ValueError) as exc:
+            raise PostMergeReadError(f"#{number} pin: {exc}") from exc
+    match = PIN_RE.match(_first_line(newest.get("body")))
     return match[1] if match else None
 
 

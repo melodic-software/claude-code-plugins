@@ -9,8 +9,8 @@ from a completed success at this pull request's head; a FAIL at another head
 of the pull request goes to a human unless a counted pass at the head clears
 every check; an unreadable FAIL blocks; a pull request
 older than 80 days goes to a human; a pass needs every linked issue written
-and last edited by a trusted human other than the author, unchanged since the
-judgment; the Actions reads use the Actions token; a Dependabot pull request
+and last edited by a trusted human, the pull request's author included,
+unchanged since the judgment; the Actions reads use the Actions token; a Dependabot pull request
 needs no verdict.
 
 The artifact and run shapes follow responses recorded from
@@ -1206,15 +1206,33 @@ class TheSpecMustBeTrusted(unittest.TestCase):
                 self.assertTrue(evidence.needs_human)
         self.assertEqual(self.with_issues([]).refusal, "verify:untrusted-spec")
 
-    def test_the_pr_authors_own_issue_does_not(self) -> None:
-        evidence = self.with_issues([TRUSTED_ISSUE], user={"login": "Maintainer"})
-        self.assertEqual(evidence.refusal, "verify:untrusted-spec")
+    def test_a_trusted_human_authors_own_issue_allows(self) -> None:
+        for user in ({"login": "Maintainer"}, {"login": "maintainer"}, {}):
+            with self.subTest(user=user):
+                self.assertIsNone(self.with_issues([TRUSTED_ISSUE], user=user).refusal)
 
-    def test_a_pull_request_with_no_readable_author_does_not(self) -> None:
-        # With no author login, no issue author can be shown to be someone else.
-        self.assertEqual(
-            self.with_issues([TRUSTED_ISSUE], user={}).refusal, "verify:untrusted-spec"
-        )
+    def test_an_untrusted_authors_own_issue_does_not(self) -> None:
+        cases = {
+            "the lanes App": (
+                {
+                    **TRUSTED_ISSUE,
+                    "author_login": "agent-lanes[bot]",
+                    "author_id": 200,
+                    "author_type": "Bot",
+                },
+                {"login": "agent-lanes[bot]"},
+            ),
+            "an unlisted user": (
+                {**TRUSTED_ISSUE, "author_login": "x", "author_id": 999},
+                {"login": "x"},
+            ),
+        }
+        for label, (issue, user) in cases.items():
+            with self.subTest(label):
+                self.assertEqual(
+                    self.with_issues([issue], user=user).refusal,
+                    "verify:untrusted-spec",
+                )
 
     def test_every_linked_issue_must_be_trusted(self) -> None:
         # A trivially satisfied human issue beside the lanes App's own.
@@ -1243,33 +1261,15 @@ class TheSpecMustBeTrusted(unittest.TestCase):
                 "editor_id": 999,
                 "editor_type": "User",
             },
-            "the PR author": {
-                "editor_login": "maintainer",
-                "editor_id": 100,
-                "editor_type": "User",
-            },
             "no editor": {"editor_login": None, "editor_id": None, "editor_type": None},
         }
         for label, editor in cases.items():
             with self.subTest(label):
-                user = (
-                    {"login": "maintainer"}
-                    if label == "the PR author"
-                    else {"login": "agent-lanes[bot]"}
-                )
-                issue = {**edited, **editor}
-                if label == "the PR author":
-                    # The author must differ from the issue author too, so
-                    # only the edit decides: another trusted human wrote it.
-                    issue = {**issue, "author_login": "other", "author_id": 101}
                 fake = passing()
-                fake.actors["actors"].append(
-                    {"id": 101, "login": "other", "kind": "human"}
+                fake.records[named(HEAD, "pass")] = record(
+                    linked_issues=[{**edited, **editor}]
                 )
-                fake.records[named(HEAD, "pass")] = record(linked_issues=[issue])
-                self.assertEqual(
-                    read(fake, pull(user=user)).refusal, "verify:untrusted-spec"
-                )
+                self.assertEqual(read(fake).refusal, "verify:untrusted-spec")
         trusted = {
             **edited,
             "editor_login": "maintainer",
@@ -1277,6 +1277,10 @@ class TheSpecMustBeTrusted(unittest.TestCase):
             "editor_type": "User",
         }
         self.assertIsNone(self.with_issues([trusted]).refusal)
+        # The PR author editing their own issue is still a trusted human.
+        self.assertIsNone(
+            self.with_issues([trusted], user={"login": "maintainer"}).refusal
+        )
 
     def test_a_record_for_another_head_or_an_unreadable_list_refuses(self) -> None:
         fake = passing()
@@ -1292,8 +1296,8 @@ class TheSpecMustBeTrusted(unittest.TestCase):
 
 class TheSpecCommentsMustBeTheJudgedOnes(unittest.TestCase):
     """The trusted comments on each linked issue now (by a User on the
-    trusted list's humans other than the PR author, last edited if ever by
-    one) must be the ones the verdict recorded, by id and update time."""
+    trusted list's humans, last edited if ever by one) must be the ones the
+    verdict recorded, by id and update time."""
 
     RECORDED = [{"id": 1, "updated_at": "2026-10-12T00:00:00Z"}]
 
@@ -1338,15 +1342,12 @@ class TheSpecCommentsMustBeTheJudgedOnes(unittest.TestCase):
         ]
         self.assertIsNone(self.judge(live))
 
-    def test_the_pr_authors_comments_are_not_part_of_the_spec(self) -> None:
-        other = {**TRUSTED_ISSUE, "author_login": "other", "author_id": 101}
-        fake = passing()
-        fake.actors["actors"].append({"id": 101, "login": "other", "kind": "human"})
-        fake.records[named(HEAD, "pass")] = record(
-            linked_issues=[{**other, "spec_comments": []}]
+    def test_a_trusted_pr_authors_comments_are_part_of_the_spec(self) -> None:
+        user = {"login": "maintainer"}
+        self.assertIsNone(self.judge([comment(1, HUMAN)], user=user))
+        self.assertEqual(
+            self.judge([comment(1, HUMAN)], [], user=user), "verify:spec-changed"
         )
-        fake.closing_comments = {7: [comment(1, HUMAN)]}
-        self.assertIsNone(read(fake, pull(user={"login": "maintainer"})).refusal)
 
     def test_a_partial_comment_read_or_a_malformed_record_refuses(self) -> None:
         fake = passing()
