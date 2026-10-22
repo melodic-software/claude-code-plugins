@@ -107,7 +107,9 @@ const exactKeys = (value, keys) =>
   value !== null && typeof value === "object" && !Array.isArray(value) && Object.keys(value).sort().join() === [...keys].sort().join();
 
 // Plain prose: posted inside a fence, so no control character, fence, HTML
-// comment or @-mention can change what the comment shows or who it pings.
+// comment or user @-mention can change what the comment shows or who it pings.
+// An @ after a slash (a URL) or opening a scoped package (@scope/name) passes;
+// that also lets a team-style @org/team through, left to the fence.
 function plain(text, max) {
   return (
     typeof text === "string" &&
@@ -115,7 +117,7 @@ function plain(text, max) {
     text.length <= max &&
     !/[\u0000-\u001f\u007f]/.test(text) &&
     !/```|~~~|<!--|-->/.test(text) &&
-    !/(^|[^A-Za-z0-9`])@[A-Za-z0-9]/.test(text)
+    !/(^|[^A-Za-z0-9`/])@[A-Za-z0-9](?![A-Za-z0-9._-]*\/)/.test(text)
   );
 }
 

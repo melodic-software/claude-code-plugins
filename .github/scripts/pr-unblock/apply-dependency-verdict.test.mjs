@@ -170,6 +170,11 @@ const go = (api, run, extra = {}) => apply({ api, pr: 7, appId: APP, modelRun: "
 
 test("validateRun accepts the runner's record and refuses anything off the template", () => {
   assert.deepEqual(validateRun(runOf(), 7).output.verdict, "merge");
+  const scoped = output({
+    reasons: ["Patch bump of the review-only dependency @anthropic-ai/claude-code"],
+    evidence: ["https://registry.npmjs.org/@anthropic-ai/claude-code/2.1.308"],
+  });
+  assert.equal(validateRun(runOf({ output: scoped }), 7).output.verdict, "merge");
   const bad = [
     runOf({ version: 2 }),
     runOf({ pr: 8 }),
