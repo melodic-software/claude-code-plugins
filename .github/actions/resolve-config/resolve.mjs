@@ -210,17 +210,19 @@ function checkLeaves(activities, activityRules) {
       continue;
     }
     // ci-context is the read runner's one mode, apply-patch a branch-writing
-    // script's; every other mode needs a skill that can write.
+    // script's; every other mode needs a skill that can write, or a read
+    // skill whose patch a script applies.
     const needs = { "ci-context": "read", "apply-patch": "mutate-branch" }[activity.prepare];
+    const handsOnPatch = isObject(activity["applied-by"]) && activity["applied-by"].patch !== undefined;
     if (
       activity.prepare !== undefined &&
-      (needs ? activity.effect !== needs : activity.effect === "read")
+      (needs ? activity.effect !== needs : activity.effect === "read" && !handsOnPatch)
     ) {
       throw new Rejection(
         "invalid-prepare",
         needs
           ? `activity \`${name}\` sets prepare: ${activity.prepare}, which needs effect ${needs}`
-          : `activity \`${name}\` sets prepare with effect read; prepare needs a skill that can write`,
+          : `activity \`${name}\` sets prepare with effect read and no applied-by.patch; prepare needs a skill that can write or hands on a patch`,
       );
     }
     const rule = Object.hasOwn(activityRules, name)
