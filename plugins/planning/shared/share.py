@@ -598,13 +598,22 @@ def browser(ua):
 
 def summarize(lines):
     """Counts from server.log lines: error fingerprints, refusals, network failures and unanswered actions, action
-    latency and rollbacks, reconnect gaps, layout anomalies, INP and LCP, and how many summaries there were (from the
-    summary-batch entries). The owner's own pages are left out of the timings, which a page on the owner's machine
-    would skew."""
+    latency and rollbacks, reconnect gaps, layout anomalies, INP and LCP, feature use and rage and dead taps by component,
+    and how many summaries there were (from the summary-batch entries). The owner's own pages are left out of the
+    timings, which a page on the owner's machine would skew."""
     faults, refusals, server_ms, repeats, repeat_at = {}, collections.Counter(), collections.defaultdict(list), collections.Counter(), {}
     lat, rollbacks, gaps, vitals = collections.defaultdict(lambda: [0] * (len(LAT_EDGES) + 1)), collections.Counter(), [], {}
     sm = {"count": 0, "batches": 0, "pages": 0, "ownerPages": 0, "dropped": 0}
-    pages = set()
+    pages, taps = set(), {k: collections.Counter() for k in ("use", "rage", "dead")}
+
+    def count(key, n, at):
+        """A `rep:<fp>`, `use:`, `rage:` or `dead:<component>` count, from a batch's counts or an older summary."""
+        kind, _, name = key.partition(":")
+        if kind == "rep":
+            repeats[name] += n
+            repeat_at[name] = max(repeat_at.get(name, ""), at)
+        elif kind in taps and name:
+            taps[kind][name] += n
 
     def fold(message, ua, at):
         """One summary from a batch written at `at`."""
@@ -614,8 +623,7 @@ def summarize(lines):
         pages.add(pv)
         for k, v in t.items():
             if k.startswith("rep:") and _digits(v):
-                repeats[k[4:]] += int(v)
-                repeat_at[k[4:]] = max(repeat_at.get(k[4:], ""), at)
+                count(k, int(v), at)
         if t.get("owner") == "1":
             sm["ownerPages"] += pv not in vitals
             vitals.setdefault(pv, {"owner": True})
@@ -647,6 +655,11 @@ def summarize(lines):
                 continue  # cut short: not a batch this can read
             sm["batches"] += 1
             sm["dropped"] += int(f.get("dropped", "0")) if _digits(f.get("dropped", "")) else 0
+            with contextlib.suppress(ValueError):
+                counts = json.loads(f.get("counts") or "{}")
+                for k, n in counts.items() if isinstance(counts, dict) else ():
+                    if type(n) is int and n > 0:
+                        count(k, n, line[:19])
             for item in items if isinstance(items, list) else []:
                 if isinstance(item, list) and len(item) == 2 and all(isinstance(x, str) for x in item):
                     fold(*item, line[:19])
@@ -697,6 +710,7 @@ def summarize(lines):
         "layout": [{"anomaly": a, "at": at, "device": dev, "count": n} for (a, at, dev), n in anomalies.most_common()],
         "inp": vital("inp"),
         "lcp": vital("lcp"),
+        "features": {k: [{"component": c, "count": n} for c, n in sorted(v.items(), key=lambda x: (-x[1], x[0]))] for k, v in taps.items()},
         "summaries": {**sm, "pages": len(pages)},
         "repeatsUnmatched": sum(repeats.values()),
     }
@@ -729,6 +743,9 @@ def summary_text(s):
         v = s[name]
         p75 = "-" if v["p75Ms"] is None else f"{v['p75Ms']} ms"
         out.append(f"{name.upper()} p75: {p75} over {v['pages']} page views ({devs(v['byDevice'])}); API missing on {v['missing']}")
+    for k, title in (("use", "Feature use, taps by component:"), ("rage", "Rage taps (three quick taps on one control) by component:"),
+                     ("dead", "Dead taps (a tap that changed nothing on the page) by component:")):
+        out += ["", title] + ([f"  {x['component']}: {x['count']}" for x in s["features"][k]] or ["  none"])
     if s["repeatsUnmatched"]:
         out.append(f"Repeats whose first entry is no longer in the log: {s['repeatsUnmatched']}")
     return "\n".join(out)

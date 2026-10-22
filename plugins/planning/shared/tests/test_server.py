@@ -1596,8 +1596,8 @@ class TestClientLog(LogCase):
         self.app.flush_summaries()
         new = self.log_text().splitlines()[before:]
         self.assertEqual(len(new), 2, new)
-        self.assertRegex(new[1], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} INFO summary-batch summaries=1 dropped=0 data=")
-        self.assertEqual(json.loads(new[1].split(" data=", 1)[1]), [[self.SUMMARY["message"], "safari phone"]])
+        self.assertRegex(new[1], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} INFO summary-batch summaries=1 dropped=0 counts=\{\} data=")
+        self.assertEqual(json.loads(new[1].split(" data=", 1)[1]), [[self.SUMMARY["message"], "phone"]])
         self.assertNotIn("pid=", new[1])
         self.assertEqual(self.post("/api/client-log", {**self.ENTRY, "fp": "1a2b3c4d"}, guest)[0], 200)
         self.assertTrue(self.entry_for(" kind=error ").endswith(f'client pid={pid} kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d'))
@@ -1623,12 +1623,12 @@ class TestClientLog(LogCase):
         _, bo = self.join("Bo")
         self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=ffff0000 gap=10"}, ann)[0], 200)
         self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=00000000 gap=20"}, bo)[0], 200)
-        with mock.patch.object(server, "SUMMARY_BATCH_BYTES", 120):  # room for the two above (48 bytes each as batch JSON), not a third
+        with mock.patch.object(server, "SUMMARY_BATCH_BYTES", 80):  # room for the two above (37 bytes each as batch JSON), not a third
             self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=11111111 gap=30"}, bo)[0], 200)
         self.app.flush_summaries()
         line = self.entry_for(" summary-batch ")
-        self.assertIn(" summary-batch summaries=2 dropped=1 data=", line)
-        self.assertEqual(json.loads(line.split(" data=", 1)[1]), [["pv=00000000 gap=20", "safari phone"], ["pv=ffff0000 gap=10", "safari phone"]])
+        self.assertIn(" summary-batch summaries=2 dropped=1 counts={} data=", line)
+        self.assertEqual(json.loads(line.split(" data=", 1)[1]), [["pv=00000000 gap=20", "phone"], ["pv=ffff0000 gap=10", "phone"]])
         self.app.flush_summaries()
         self.assertEqual(self.log_text().count(" summary-batch "), 1)  # nothing held, nothing written
 
@@ -1646,10 +1646,83 @@ class TestClientLog(LogCase):
 
             self.assertEqual(call(app.guest_port, "POST", "/api/client-log", self.SUMMARY, guest)[0], 200)
             self.assertTrue(wait_for(lambda: " summary-batch summaries=1 " in log(), seconds=10), log())
-            self.assertEqual(call(app.guest_port, "POST", "/api/client-log", {**self.SUMMARY, "message": "pv=0a1b2c3d gap=5"}, guest)[0], 200)
+            for gap in (5, 6):
+                self.assertEqual(call(app.guest_port, "POST", "/api/client-log", {**self.SUMMARY, "message": f"pv=0a1b2c3d gap={gap}"}, guest)[0], 200)
             app.shutdown()
-        self.assertEqual(log().count(" summary-batch summaries=1 "), 2, log())
+        self.assertEqual(log().count(" summary-batch summaries=1 "), 1, log())
         self.assertIn("gap=5", log().splitlines()[-1].replace("\\u0020", " "))
+        self.assertIn(" summary-batch summaries=2 ", log().splitlines()[-1])
+
+    def batch(self):
+        """The newest summary-batch entry: its counts and its [message, ua] pairs."""
+        line = self.entry_for(" summary-batch ")
+        return line, json.loads(line.split(" counts=", 1)[1].split(" ", 1)[0]), json.loads(line.split(" data=", 1)[1])
+
+    def test_a_summary_pair_cannot_be_matched_to_a_fault_entrys_pid(self):
+        """A fault and a later repeat of it share one fingerprint, and the fault entry names the person and their
+        browser. The repeat count leaves the summary's pair for the batch's counts, and the pair keeps only the device
+        class, so no pair holds the fingerprint or the browser that would point to the pid."""
+        pid, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        self.assertEqual(self.post("/api/client-log", {**self.ENTRY, "ua": "firefox computer", "fp": "1a2b3c4d"}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 gap=10 rep:1a2b3c4d=2", "ua": "firefox computer"}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=bbbb0000 gap=20", "ua": "chrome computer"}, bo)[0], 200)
+        self.app.flush_summaries()
+        line, counts, pairs = self.batch()
+        self.assertEqual(pairs, [["pv=aaaa0000 gap=10", "computer"], ["pv=bbbb0000 gap=20", "computer"]])
+        self.assertEqual(counts, {"rep:1a2b3c4d": 2})
+        self.assertNotIn("firefox", line)
+        self.assertNotIn(pid, line)
+
+    def test_a_lone_summary_at_shutdown_is_counted_as_dropped_not_written(self):
+        """At shutdown a single summary would sit next to its sender's last heartbeat: it is only counted."""
+        d = tmpdir(self)
+        app = server.App(d, watch_tunnel=False)
+        self.addCleanup(app.shutdown)
+        app.hold_summary("pv=0a1b2c3d gap=5 use:vf-chat=1", "safari phone")
+        app.shutdown()
+        lines = [x for x in (d / "server.log").read_text(encoding="utf-8").splitlines() if " summary-batch " in x]
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn(" summary-batch summaries=0 dropped=1 counts={} data=[]", lines[0])
+
+    def test_the_batch_is_written_while_the_tunnel_sync_keeps_failing(self):
+        d = tmpdir(self)
+        with mock.patch.object(server, "SUMMARY_BATCH_SECONDS", 1.5):
+            app = server.App(d, watch_tunnel=False)
+            self.addCleanup(app.shutdown)
+            app.sync_tunnel = mock.Mock(side_effect=RuntimeError("tunnel record unreadable"))
+            app.hold_summary("pv=0a1b2c3d gap=5", "safari phone")
+            app.serve()
+            log = lambda: (d / "server.log").read_text(encoding="utf-8")  # noqa: E731
+            self.assertTrue(wait_for(lambda: " summary-batch summaries=1 " in log(), seconds=10), log())
+        self.assertGreater(app.sync_tunnel.call_count, 0)
+
+    def test_feature_counts_add_up_across_people_with_no_pid_and_no_text(self):
+        """use:<component> counts from many pages become one count per component in the batch; a token naming
+        anything but a vf- or core- component (text, a name, digits) is dropped."""
+        pid, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 use:vf-chat=2 use:vf-keysbtn=1 use:Quillon=4 use:vf-x1=1"}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=bbbb0000 use:vf-chat=3 use:core-records=1"}, bo)[0], 200)
+        self.app.flush_summaries()
+        line, counts, pairs = self.batch()
+        self.assertEqual(counts, {"use:core-records": 1, "use:vf-chat": 5, "use:vf-keysbtn": 1})
+        self.assertEqual(pairs, [["pv=aaaa0000", "phone"], ["pv=bbbb0000", "phone"]])
+        self.assertNotIn("Quillon", line)
+        self.assertNotIn("pid=", line)
+        self.assertNotIn(pid, line)
+
+    def test_rage_and_dead_taps_are_counted_by_component_name_only(self):
+        _, ann = self.join("Ann")
+        msg = "pv=aaaa0000 rage:vf-vote=1 dead:vf-pencil=2 rage:Send it=1 dead:vf-Hello=1 rage:vf-vote=x"
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": msg}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 rage:vf-vote=2"}, ann)[0], 200)
+        self.app.flush_summaries()
+        line, counts, pairs = self.batch()
+        self.assertEqual(counts, {"dead:vf-pencil": 2, "rage:vf-vote": 3})
+        self.assertEqual(pairs, [["pv=aaaa0000", "phone"], ["pv=aaaa0000", "phone"]])
+        self.assertNotIn("Send", line)
+        self.assertNotIn("Hello", line)
 
     def test_summaries_and_faults_have_separate_rate_buckets(self):
         """At most 6 summaries a minute per person, and a page in an error loop cannot starve them, or the reverse."""

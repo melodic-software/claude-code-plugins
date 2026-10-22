@@ -865,15 +865,15 @@
   // ---------- telemetry: what this page records so the host can fix problems (README "Logs") ----------
   // Faults go to server.log under this person's pid the first time each fingerprint shows: script errors, unhandled
   // rejections, actions that never reached the server (send above; the server logs its own refusals), and layout
-  // anomalies. Repeats, action timings and rollbacks, reconnect gaps, INP and LCP wait for one summary, sent with no
-  // pid when the page hides. Only once joined: the server refuses an anonymous entry. Never typed text, answers, chat,
+  // anomalies. Repeats, action timings and rollbacks, reconnect gaps, INP and LCP, and taps counted by control wait
+  // for one summary, sent with no pid when the page hides; the server adds up its counts per batch. Only once joined: the server refuses an anonymous entry. Never typed text, answers, chat,
   // names, the address or its fragment, text on the page, or a credential. There is no switch: it always runs.
   const cut = (text, n) => Array.from(String(text)).slice(0, n).join(""); // by code point, as the server counts
   const recentErrors = []; // the last few this page saw, which a problem report carries
   const LAT_EDGES = [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]; // ms, upper bucket edges; share.py LAT_EDGES
   const SUMMARY_MAX = 500; // the server's message limit: what does not fit waits for the next summary
   const tel = {
-    seen: new Set(), rep: new Map(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(),
+    seen: new Set(), rep: new Map(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(), use: new Map(), rage: new Map(), dead: new Map(),
     pv: [...crypto.getRandomValues(new Uint8Array(4))].map(b => b.toString(16).padStart(2, "0")).join(""), // this page view, no one's id
     inp: "", lcp: "", sentInp: "", sentLcp: "", missing: "", sentMissing: false, vitals: false,
   };
@@ -920,11 +920,12 @@
     for (const [route, b] of tel.lat) { const n = b.findLastIndex(x => x > 0); items.push([`lat:${route}=${b.slice(0, n + 1).join(",")}`, () => tel.lat.delete(route)]); }
     for (const [route, n] of tel.rb) items.push([`rb:${route}=${n}`, () => tel.rb.delete(route)]);
     for (const [fp, n] of tel.rep) items.push([`rep:${fp}=${n}`, () => tel.rep.delete(fp)]);
+    for (const k of ["use", "rage", "dead"]) for (const [c, n] of tel[k]) items.push([`${k}:${c}=${n}`, () => tel[k].delete(c)]);
     let message = base;
     for (const [t, sent, keep] of items) {
       if (message.length + 1 + t.length <= SUMMARY_MAX) { message += " " + t; sent(); } else keep?.();
     }
-    if (message !== base) post({ kind: "summary", message, ua: ua() }).catch(() => {});
+    if (message !== base) post({ kind: "summary", message, ua: deviceKind() }).catch(() => {});
   }
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") flush(); });
   addEventListener("pagehide", flush);
@@ -937,6 +938,41 @@
     }
     return node ? String(node.nodeName || "node").toLowerCase() : "none";
   }
+  // Taps on controls, by the control's name (tapName), never its text: each tap is `use`; the RAGE_TAPS-th tap on one
+  // control within RAGE_MS of the first is a `rage` tap; a tap the page shows no change for (no DOM change, no scroll)
+  // within DEAD_MS is a `dead` tap. A disabled control gets no click, so it is not counted.
+  const TAPPABLE = "button, a[href], [role=button], summary, input[type=button], input[type=submit]";
+  const STYLE = /^(?:vf|core)-(?:btn|tbtn|lbtn|icon-btn|toggle|chip)(?:-[a-z-]+)?$/; // looks, not what the control is
+  const RAGE_TAPS = 3, RAGE_MS = 1000; // judgment: three taps within a second on one control is impatience, not use
+  const DEAD_MS = 1000; // judgment: the page answers a tap at once; the polls' own changes can only hide a dead tap
+  /** A control's name: the last vf- or core- class (letters and hyphens only) that is not a style class, on it or
+   *  its nearest ancestor with one; null when there is none. */
+  function tapName(el) {
+    for (; el && el !== document.body; el = el.parentElement) {
+      const c = [...el.classList].filter(x => /^(?:vf|core)-[a-z-]+$/.test(x) && !STYLE.test(x)).pop();
+      if (c) return c;
+    }
+    return null;
+  }
+  const rages = new WeakMap(), waiting = new Set();
+  const changed = () => { waiting.clear(); seer.disconnect(); };
+  const seer = new MutationObserver(changed);
+  addEventListener("scroll", () => waiting.size && changed(), { capture: true, passive: true });
+  document.addEventListener("click", e => {
+    const el = e.target?.closest?.(TAPPABLE), name = el && tapName(el);
+    if (!name) return;
+    bump(tel.use, name);
+    const now = performance.now(), r = rages.get(el);
+    if (r && now - r.at <= RAGE_MS) { if (++r.n === RAGE_TAPS) bump(tel.rage, name); } else rages.set(el, { at: now, n: 1 });
+    const tap = { name };
+    if (!waiting.size) seer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+    waiting.add(tap);
+    setTimeout(() => {
+      if (waiting.delete(tap)) bump(tel.dead, name);
+      if (!waiting.size) seer.disconnect();
+    }, DEAD_MS);
+  }, true);
+
   /** INP and LCP from the vendored web-vitals attribution build (web/web-vitals.attribution.iife.js), on this origin;
    *  a page without it, or without the browser APIs it reads, says which is missing. */
   function loadVitals() {
@@ -1031,10 +1067,11 @@
     fault("rejection", r && !(r instanceof Error) && r.error ? `${r.error} ${r.status ?? ""}`.trim() : r?.message || String(r)); });
 
   // The notice in Help: one line and a "What this page records" link to the plain list.
-  const REC_LINE = "This page records errors, slow or failed actions and layout problems on this device, so the host can fix them. It never records what you type.";
+  const REC_LINE = "This page records errors, slow or failed actions, layout problems and how often its controls are tapped on this device, so the host can fix them. It never records what you type.";
   const RECORDED = ["Script errors on this page, and actions that never reached the host", "How long each action takes to get an answer, and how often one is undone",
     "How long the page takes to catch up when you come back to it", "Layout problems: something too wide for the screen, a field the keyboard covers, the header pushed off screen",
-    "How fast the page answers a tap and shows its main content", "Your device type and browser family, such as phone and Safari"];
+    "How fast the page answers a tap and shows its main content", "Your device type and browser family, such as phone and Safari",
+    "How often each control is tapped, tapped three times in a second, or tapped with nothing changing, by the control's name only, added up for everyone every 10 minutes"];
   const NEVER = ["What you type: your answers, chat and requests", "Your name, or this page's address", "Any text shown on the page"];
   const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id. It all stays on the host's computer.";
   function openRecords() {
