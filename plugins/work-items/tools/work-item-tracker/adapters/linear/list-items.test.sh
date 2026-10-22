@@ -2,6 +2,7 @@
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 # list-items: offline contract tests. Pagination, state filtering, and the scope
 # boundary are driven through a mocked curl — no live Linear call.
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/linear/*.sh
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-items.sh"
 D="$(dirname "$S")"

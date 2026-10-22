@@ -7,7 +7,7 @@
 # broken environment, not as passing coverage. test_render renders through node and playwright-core with
 # Chromium and skips without them, or fails under ANIMATION_REQUIRE_DEPS=1.
 # test-scope: plugins/animation/skills/*/SKILL.md plugins/animation/skills/*/scripts/* plugins/animation/hooks/*.sh plugins/animation/scripts/*
-# test-scope: plugins/animation/requirements.in plugins/animation/styles/*
+# test-scope: plugins/animation/requirements.in plugins/animation/styles/* plugins/animation/.claude-plugin/plugin.json
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
