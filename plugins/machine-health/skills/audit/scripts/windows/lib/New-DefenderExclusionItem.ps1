@@ -11,6 +11,9 @@ defender-exclusions lists the current exclusions. Both build their items here,
 so one exclusion value gets the same FindingKey in both checks and one mute
 covers both.
 
+$script:DefenderExclusionCheckIds names those two checks: a mute of an
+exclusion key under one of them is written under both.
+
 $script:DefenderExclusionTypes maps the source's list name to the item type.
 The Defender registry keys under Exclusions and the lists
 Get-DefenderExclusionState returns share these names (Paths, Extensions,
@@ -21,6 +24,8 @@ $script:DefenderKnownSafePaths are well-known benign dev-machine exclusions
 #>
 
 . (Join-Path $PSScriptRoot 'New-FindingItem.ps1')
+
+$script:DefenderExclusionCheckIds = @('defender', 'defender-exclusions')
 
 $script:DefenderExclusionTypes = [ordered]@{ Paths = 'path'; Extensions = 'extension'; Processes = 'process' }
 

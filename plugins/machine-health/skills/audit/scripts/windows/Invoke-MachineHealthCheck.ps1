@@ -111,6 +111,7 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Import-ElevatedResult.ps1')
 . (Join-Path $libRoot 'Get-RanCheckId.ps1')
 . (Join-Path $libRoot 'New-UnknownCheckResult.ps1')
+. (Join-Path $libRoot 'Publish-CheckupView.ps1')
 
 # stderr keeps stdout clean for the JSON snapshot.
 function Write-StderrBanner {
@@ -976,6 +977,10 @@ $glanceRows
 
     $report | Out-File -LiteralPath $reportPath -Encoding utf8 -Force
     Write-MachineHealthLog "wrote_report path=$reportPath"
+
+    # Decision page, built from latest.json after the report.
+    $pagePath = Publish-CheckupView -StateWritable $stateWritable -StateBase $StateBase -LatestPath $latestPath `
+        -RunStamp $runStamp -ReportPath $reportPath
     Write-MachineHealthLog "run_end run_id=$runId duration_seconds=$durationSeconds"
 
     if ($Human) {
@@ -983,6 +988,7 @@ $glanceRows
         Write-Output "  severity: $oneLine"
         Write-Output "  duration: $durationHuman"
         Write-Output ($stateWritable ? "  snapshot: $latestPath" : '  snapshot: not written (state folder under a cloud sync root)')
+        if ($pagePath) { Write-Output "  page: $pagePath" }
     } else {
         $snapshot | ConvertTo-Json -Depth 20
     }
