@@ -13,7 +13,8 @@ before setup wrote the root in, so the copy in the plugin install never runs.
 
 The audit runs in dontAsk mode. Its allow rules are Read, Write or Edit of
 <StateBase>/TODO.md (the one Edit(/TODO.md) rule covers both tools), and two
-commands through the Bash or PowerShell tool, matched as written:
+commands through the Bash tool, matched as written (the PowerShell tool approves
+no pwsh call by rule):
 pwsh -NoProfile -File '<root>/skills/audit/scripts/windows/<script>.ps1' ...
 for Invoke-MachineHealthCheck.ps1 and Format-ShortReport.ps1, where <root> is
 the plugin root setup wrote in. pwsh reading a script from stdin (-File -),
@@ -80,7 +81,7 @@ $logsDir = Join-Path $stateBase 'logs'
 $settingsPath = Join-Path $PSScriptRoot 'scheduled-settings.json'
 $marker = 'machine-health checkup '
 $auditScripts = foreach ($name in 'Invoke-MachineHealthCheck', 'Format-ShortReport') { "$pluginRoot/skills/audit/scripts/windows/$name.ps1" }
-$shellRules = foreach ($tool in 'Bash', 'PowerShell') { foreach ($path in $auditScripts) { "$tool(pwsh -NoProfile -File '$path' *)" } }
+$shellRules = foreach ($path in $auditScripts) { "Bash(pwsh -NoProfile -File '$path' *)" }
 # Each tool list is variadic, so an option follows each one.
 $auditArgs = @('-p', '/machine-health:audit on-demand --scheduled', '--permission-mode', 'dontAsk', '--settings', $settingsPath,
     '--allowedTools', 'Read', 'Edit(/TODO.md)') + $shellRules +

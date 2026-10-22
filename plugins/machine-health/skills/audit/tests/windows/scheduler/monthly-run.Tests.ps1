@@ -66,7 +66,7 @@ switch ($env:MH_SHIM_MODE) {
         $shortReport = "pwsh -NoProfile -File '$script:PluginRoot/skills/audit/scripts/windows/Format-ShortReport.ps1' *"
         @('-p', '/machine-health:audit on-demand --scheduled', '--permission-mode', 'dontAsk',
             '--settings', (Join-Path $Base 'scheduler\scheduled-settings.json'),
-            '--allowedTools', 'Read', 'Edit(/TODO.md)', "Bash($orchestrator)", "Bash($shortReport)", "PowerShell($orchestrator)", "PowerShell($shortReport)",
+            '--allowedTools', 'Read', 'Edit(/TODO.md)', "Bash($orchestrator)", "Bash($shortReport)",
             '--disallowedTools', 'WebFetch', 'WebSearch', 'Bash(pwsh -NoProfile -File - *)', 'PowerShell(pwsh -NoProfile -File - *)',
             '--strict-mcp-config', '--output-format', 'json')
     }
@@ -135,6 +135,21 @@ Describe 'monthly-run wrapper' -Tag 'lib' {
         $shimArgs | Should -Be (Get-ExpectedArgumentList $r.Base)
         Join-Path $r.Base 'logs' | Get-ChildItem -Filter 'monthly-run-*.stdout.json' | Should -HaveCount 1
         $r.LogNames | Where-Object { $_ -like '*.tmp' } | Should -BeNullOrEmpty
+    }
+
+    It 'allows exactly the two commands audit SKILL.md prints for --scheduled, with the root setup wrote in' {
+        $r = Invoke-Wrapper 'ok'
+        $shimArgs = @(Get-Content -Raw -LiteralPath (Join-Path $r.Base 'shim-args.json') | ConvertFrom-Json)
+        $allowed = $shimArgs[([array]::IndexOf($shimArgs, '--allowedTools') + 1)..([array]::IndexOf($shimArgs, '--disallowedTools') - 1)]
+        $prefixes = @($allowed | Where-Object { $_ -like 'Bash(*' } | ForEach-Object { $_ -replace '^Bash\((.*) \*\)$', '$1' })
+        $skillText = Get-Content -Raw -LiteralPath (Join-Path $script:SkillRoot 'SKILL.md')
+        $commands = @([regex]::Matches($skillText, '(?m)^[ \t]*```text\r?\n[ \t]*(pwsh -NoProfile -File .*)$') | ForEach-Object {
+                $_.Groups[1].Value.TrimEnd().Replace('${CLAUDE_PLUGIN_ROOT}', $script:PluginRoot)
+            })
+
+        $commands.Count | Should -Be 2
+        $prefixes.Count | Should -Be 2
+        foreach ($prefix in $prefixes) { @($commands | Where-Object { $_.StartsWith("$prefix ") }).Count | Should -Be 1 }
     }
 
     It 'records which claude it ran in the stderr log' {

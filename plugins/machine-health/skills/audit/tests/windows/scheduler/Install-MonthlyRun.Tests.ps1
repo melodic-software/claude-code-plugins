@@ -21,9 +21,36 @@ Describe 'Get-MonthlyRunText' -Tag 'lib' {
         $text | Should -Not -Match '__PLUGIN_ROOT__'
     }
 
-    It 'refuses a root holding a single quote or a control character' {
-        { Get-MonthlyRunText -PluginRoot "C:/Profile/it's" } | Should -Throw
-        { Get-MonthlyRunText -PluginRoot "C:/Profile/a`tb" } | Should -Throw
+    It 'refuses a plugin root holding <Case>' -ForEach @(
+        @{ Case = 'an apostrophe'; Char = "'" }
+        @{ Case = 'U+2018'; Char = [string][char]0x2018 }
+        @{ Case = 'U+2019'; Char = [string][char]0x2019 }
+        @{ Case = 'U+201A'; Char = [string][char]0x201A }
+        @{ Case = 'U+201B'; Char = [string][char]0x201B }
+        @{ Case = 'a tab'; Char = "`t" }
+        @{ Case = 'a line feed'; Char = "`n" }
+        @{ Case = 'a carriage return'; Char = "`r" }
+    ) {
+        { Get-MonthlyRunText -PluginRoot "C:/Profile/a$($Char)b" } | Should -Throw '*plugin root*'
+    }
+}
+
+Describe 'Assert-ScheduleRoot' -Tag 'lib' {
+    It 'accepts roots with spaces and no quote or control character' {
+        { Assert-ScheduleRoot -PluginRoot $script:Root -StateBase 'C:/Profile/A B/data/machine-health' } | Should -Not -Throw
+    }
+
+    It 'refuses a state folder holding <Case>' -ForEach @(
+        @{ Case = 'U+2019'; Char = [string][char]0x2019 }
+        @{ Case = 'an apostrophe'; Char = "'" }
+    ) {
+        { Assert-ScheduleRoot -PluginRoot $script:Root -StateBase "C:/Profile/a$($Char)b" } | Should -Throw '*state folder*'
+    }
+
+    It 'leaves no scheduler folder when Install-MonthlyRun refuses the state folder' {
+        $base = Join-Path $TestDrive "bad$([char]0x2019)base"
+        { Install-MonthlyRun -PluginRoot $script:Root -StateBase $base } | Should -Throw '*state folder*'
+        Join-Path $base 'scheduler' | Should -Not -Exist
     }
 }
 

@@ -31,8 +31,9 @@ Observed behavior: `CLAUDE_PLUGIN_DATA` is present in the environment of command
 Pass both explicitly to the orchestrator, as `$reportRoot` and `$stateRoot` from the roots block. Never write generated state into the plugin's own install directory. A plugin update replaces it.
 
 **Roots block.** Every PowerShell command in this skill is this block, copied unchanged, with the
-command appended to its last line after a semicolon. Never type a path into a quoted string. The
-three tokens are filled in as the pointer below records; each value lands on its own line inside a
+command appended to its last line after a semicolon. Never type a path into a quoted string; the
+two `--scheduled` commands below are the one exception, for the reason given there. The three
+tokens are filled in as the pointer below records; each value lands on its own line inside a
 single-quoted here-string, behind a `|` that no closing quote can follow, so no character in a path
 reaches the parser as code. The block applies the resolution table above, including both
 fallbacks. A root holding a line break is not a path: stop and report it.
@@ -66,10 +67,27 @@ machine-derived text, so the only file the session writes is `<StateBase>/TODO.m
 when it is missing and Edit when it exists (the Task Scheduler wrapper's one `Edit(/TODO.md)` rule
 covers both tools): discovery records every proposal in the report and `TODO.md`, and writes no
 custom check script and no catalog overlay entry; deprecations and demotions are proposed in
-`TODO.md` too. That wrapper allows exactly two shell commands, the ones in steps 4 and 8, matched
-as written, so under `--scheduled` write each exactly as shown there: `pwsh -NoProfile -File`, the
-script path in single quotes as the step prints it, then the arguments. Any other spelling is
-denied and the run fails.
+`TODO.md` too. That wrapper allows exactly two shell commands, the `text` blocks in steps 4 and 8,
+so under `--scheduled` run those two through the Bash tool, each exactly as shown there:
+`pwsh -NoProfile -File`, the script path in single quotes as the step prints it, then the
+arguments. Any other spelling, or the PowerShell tool, is denied and the run fails.
+
+These two commands type the roots into quoted strings because a permission rule matches the
+command text: a rule can name a script only by the path typed in the command, never through the
+roots block's variables, and the PowerShell tool approves no `pwsh` call by rule. The typed roots
+stay data because `/machine-health:setup schedule` refuses a plugin root or state folder holding a
+single quote (`'` or U+2018 to U+201B), a control character or a line break, and under the
+wrapper's dontAsk mode a command that breaks out of its quotes to run anything else matches no
+rule and is denied.
+
+- **Pointer**: that a Bash or PowerShell rule matches the command text, and that "A rule must match
+  each subcommand independently", are in [Configure permissions](https://code.claude.com/docs/en/permissions)
+  under "Wildcard patterns", "Compound commands" and "PowerShell". **Probe**: `claude -p` 2.1.305
+  in dontAsk, in a throwaway folder with only project settings: `Bash(pwsh -NoProfile -File '<script>' *)`
+  ran a plain call and denied one carrying `$( )` in its arguments; `PowerShell(pwsh *)` and an
+  exact `PowerShell(pwsh ...)` rule denied a plain call. **As of**: 2026-10-22. **Recheck
+  trigger**: that page changes how a PowerShell rule matches a native command, or a rerun of the
+  probe allows a `pwsh` call through the PowerShell tool.
 
 ## OS detection and routing
 
@@ -108,14 +126,14 @@ Routing table:
 1. **Verify preconditions.** PowerShell 7.4+ (enforced by the orchestrator's `#Requires`; individual checks that need a still-newer cmdlet return UNKNOWN rather than aborting). The report and state roots are writable. Record elevation state via `scripts/<os>/lib/Test-IsElevated.ps1`. The run never prompts for UAC; the [elevated pass](#elevated-pass) is the only route to admin.
 2. **Load and filter the catalog.** The orchestrator reads the shipped `catalog/checks.jsonc`, merges the machine-local overlay at `<StateBase>/catalog/checks.local.jsonc` when present (see `reference/shared/catalog-overlay.md`), and keeps entries whose `os` list contains the current OS and where `enabled: true` and `deprecated: false`.
 3. **Load trend context.** Read the tail of `<StateBase>/state/history.jsonl` (last 8 weeks) for each check. Pass the slice to each check script over stdin so checks can annotate deltas, but checks remain stateless themselves.
-4. **Invoke the OS orchestrator** as a background command, and wait for its completion notice: a full run can outlast the shell tool's foreground limit. Run through the PowerShell tool the [roots block](#resolving-output-locations-do-this-first) with the command below appended, `weekly` replaced by the run mode, adding `-DryRun` for `--dry-run` and the `--scheduled` parameters above:
+4. **Invoke the OS orchestrator** as a background command, and wait for its completion notice: a full run can outlast the shell tool's foreground limit. Run through the PowerShell tool the [roots block](#resolving-output-locations-do-this-first) with the command below appended, `weekly` replaced by the run mode, adding `-DryRun` for `--dry-run`:
 
    ```powershell
    & (Join-Path $skillRoot 'scripts/windows/Invoke-MachineHealthCheck.ps1') -OutputBase $reportRoot -StateBase $stateRoot -RunMode weekly
    ```
 
-   Under `--scheduled`, run this instead, with the resolved roots typed in, keeping its start
-   exactly as printed here (see `--scheduled` above):
+   Under `--scheduled`, run this instead through the Bash tool, with the resolved roots and run
+   mode typed in (see `--scheduled` above):
 
    ```text
    pwsh -NoProfile -File '${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/windows/Invoke-MachineHealthCheck.ps1' -OutputBase '<report-root>' -StateBase '<state-root>' -RunMode <mode> -SampleSeconds 60 -SkipBanner
@@ -133,10 +151,10 @@ Routing table:
    [roots block](#resolving-output-locations-do-this-first) with this command appended:
 
    ```powershell
-   & (Join-Path $skillRoot 'scripts\windows\Format-ShortReport.ps1') -LatestPath (Join-Path $stateRoot 'state\latest.json')
+   & (Join-Path $skillRoot 'scripts/windows/Format-ShortReport.ps1') -LatestPath (Join-Path $stateRoot 'state/latest.json')
    ```
 
-   Under `--scheduled`, run this instead, in the same `pwsh -NoProfile -File` form as step 4:
+   Under `--scheduled`, run this instead through the Bash tool, as in step 4:
 
    ```text
    pwsh -NoProfile -File '${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/windows/Format-ShortReport.ps1' -LatestPath '<state-root>/state/latest.json'

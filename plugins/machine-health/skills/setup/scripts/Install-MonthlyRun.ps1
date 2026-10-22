@@ -16,15 +16,29 @@ Set-StrictMode -Version 3.0
 
 $script:MonthlyRunTemplates = Join-Path (Split-Path -Parent $PSScriptRoot) 'templates'
 
+# The wrapper and the scheduled audit type these roots inside single quotes, which PowerShell also
+# closes with U+2018 to U+201B.
+function Assert-ScheduleRoot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $PluginRoot,
+        [string] $StateBase
+    )
+
+    foreach ($root in @{ Name = 'plugin root'; Value = $PluginRoot }, @{ Name = 'state folder'; Value = $StateBase }) {
+        if ($root.Value -match "[\x00-\x1f\x7f'\u2018-\u201b]") {
+            throw "The $($root.Name) holds a single quote (' or U+2018 to U+201B), a control character or a line break, which a scheduled run cannot type inside single quotes."
+        }
+    }
+}
+
 # The wrapper text with the plugin root written in, as setup installs it.
 function Get-MonthlyRunText {
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory)] [string] $PluginRoot)
 
-    if ($PluginRoot -match "[\x00-\x1f\x7f']") {
-        throw 'The plugin root holds a control character or a single quote, which the wrapper cannot quote.'
-    }
+    Assert-ScheduleRoot -PluginRoot $PluginRoot
     [System.IO.File]::ReadAllText((Join-Path $script:MonthlyRunTemplates 'monthly-run.ps1')).Replace('__PLUGIN_ROOT__', $PluginRoot)
 }
 
@@ -35,8 +49,9 @@ function Install-MonthlyRun {
         [Parameter(Mandatory)] [string] $StateBase
     )
 
+    Assert-ScheduleRoot -PluginRoot $PluginRoot -StateBase $StateBase
     $text = Get-MonthlyRunText -PluginRoot $PluginRoot
-    $dir = New-Item -ItemType Directory -Force -Path (Join-Path $StateBase 'scheduler')
+    $dir =New-Item -ItemType Directory -Force -Path (Join-Path $StateBase 'scheduler')
     $wrapper = Join-Path $dir.FullName 'monthly-run.ps1'
     $settings = Join-Path $dir.FullName 'scheduled-settings.json'
     [System.IO.File]::WriteAllText($wrapper, $text)
