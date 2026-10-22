@@ -126,6 +126,16 @@ test("an owner merge pinned as the culprit goes to a person, with a draft revert
   assert.match(result.body, /The revert it would open \(draft\)/);
 });
 
+test("under fail-forward a pinned lane merge goes to a person and the report plans no revert", async () => {
+  const w = world({ merges: [{ sha: HEAD, number: 101, by: LANES }] });
+  const result = await run(ENV, w, { loadConfig: () => ({ redMain: { remedy: "fail-forward" }, agentIdentity: LANES }) });
+  assert.equal(culpritOf(result.body), HEAD);
+  assert.equal(decisionOf(result.body), "human");
+  assert.match(result.body, /Culprit: `f{40}`/);
+  assert.match(result.body, /fail-forward/);
+  assert.doesNotMatch(result.body, /The revert it would open|git revert/);
+});
+
 const confirmedRed = (id) => ({ id, conclusion: "failure", attempts: [[failedJob(id * 10, "test-node")], [failedJob(id * 10 + 1, "test-node")]] });
 
 test("a mixed range: a lane merge pinned as the culprit may auto-revert past an owner merge", async () => {

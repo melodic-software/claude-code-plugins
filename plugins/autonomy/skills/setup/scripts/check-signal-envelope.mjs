@@ -117,19 +117,15 @@ function underRunLinkPrefix(link, prefix) {
   return linkPath === prefixPath || linkPath.startsWith(prefixPath.endsWith("/") ? prefixPath : `${prefixPath}/`);
 }
 
-// Structural gate on the security binding slices this checker consumes:
-// the executor-class discriminator and the admission.classification.temporal
-// home. Everything else the binding carries is check-security-binding.mjs's
-// jurisdiction — this gate exists only so an envelope cannot certify against
+// Structural gate on the security binding slice this checker consumes: the
+// admission.classification.temporal home. Everything else the binding carries
+// is check-security-binding.mjs's jurisdiction — this gate exists only so an envelope cannot certify against
 // a binding the full checker would reject on these same surfaces.
 function gateSecurityBinding(securityBinding) {
   const violations = [];
   if (typeof securityBinding !== "object" || securityBinding === null || Array.isArray(securityBinding)) {
     violations.push("the binding is not a JSON object");
     return violations;
-  }
-  if (typeof securityBinding.executor_class !== "string" || securityBinding.executor_class.length === 0) {
-    violations.push("executor_class missing or empty (the schema-required executor discriminator)");
   }
   const temporalHome = securityBinding.admission?.classification?.temporal;
   if (temporalHome === undefined) return violations;

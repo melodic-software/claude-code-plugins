@@ -71,6 +71,7 @@ class TestValidSamples(unittest.TestCase):
                 "upload-received",
                 "upload-removed",
                 "report-filed",
+                "person-joined",
             },
         )
 
@@ -129,6 +130,19 @@ class TestRefusedShapes(unittest.TestCase):
         ops = copy.deepcopy(fixture("ops-handle.json"))
         ops["ops"].append({"op": "drop-session"})
         self.assertIn("$.ops[2]", schema.first_error(ops, OPS))
+
+    def test_set_repo_op_and_the_sessions_repo_fields(self):
+        sha = "0123456789abcdef0123456789abcdef01234567"
+        self.assertIsNone(schema.first_error({"ops": [{"op": "set-repo", "repo": "octo-org/demo", "commit": sha}]}, OPS))
+        self.assertIsNone(schema.first_error({"ops": [{"op": "set-repo", "repo": ""}]}, OPS))
+        self.assertIn("$.ops[0]", schema.first_error({"ops": [{"op": "set-repo", "commit": sha}]}, OPS))
+        self.assertIn("$.ops[0]", schema.first_error({"ops": [{"op": "set-repo", "repo": "a/b", "branch": "main"}]}, OPS))
+        state = fixture("state-full.json")
+        self.assertNotIn("repo", state["session"])  # a state without the fields stays valid
+        state["session"].update(repo="octo-org/demo", commit=sha)
+        self.assertIsNone(schema.first_error(state, STATE))
+        state["session"]["branch"] = "main"
+        self.assertIn("unexpected property 'branch'", schema.first_error(state, STATE))
 
     def test_question_input_keeps_the_question_rules(self):
         ops = fixture("ops-open-round.json")
@@ -202,8 +216,12 @@ class TestFormatsReactionsPresence(unittest.TestCase):
         state["reports"] = {"F1": {"by": "host", "text": "Send does nothing", "ctx": ctx, "image": "reports/F1.png", "status": "open", "ts": 1.0}}
         state["session"]["seq"]["F"] = 1
         self.assertIsNone(schema.first_error(state, STATE))
+        more = copy.deepcopy(state)  # four pictures sent with it: the first at image, the rest at moreImages
+        more["reports"]["F1"]["moreImages"] = ["reports/F1-p2.png", "reports/F1-p3.jpg", "reports/F1-p4.webp"]
+        self.assertIsNone(schema.first_error(more, STATE))
         for bad, want in ((lambda r: r.update(status="closed"), "'closed' is not one of"), (lambda r: r["ctx"].update(answer="x"), "'answer'"),
-                          (lambda r: r.pop("text"), "missing required 'text'"), (lambda r: r["ctx"].update(errors=["e"] * 6), "at most 5")):
+                          (lambda r: r.pop("text"), "missing required 'text'"), (lambda r: r["ctx"].update(errors=["e"] * 6), "at most 5"),
+                          (lambda r: r.update(moreImages=[f"reports/F1-p{n}.png" for n in range(2, 6)]), "at most 3")):
             with self.subTest(want=want):
                 broken = copy.deepcopy(state)
                 bad(broken["reports"]["F1"])

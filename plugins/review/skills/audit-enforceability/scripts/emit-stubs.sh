@@ -11,7 +11,7 @@
 #              rank<TAB>class<TAB>basis<TAB>rung<TAB>owner[<TAB>error text].
 #              A path, or `-` to read it from stdin. A rank present in the table
 #              but absent from the TSV still gets a stub, classed
-#              `unclassified / unresolved / llm-only / none`; an empty field
+#              `unclassified / unresolved / automated-review / none`; an empty field
 #              takes the same default. A row with other than five or six
 #              fields, or whose first field is not a rank the table carries,
 #              exits 2 before anything is written.
@@ -1060,7 +1060,7 @@ read_classes() {
     # `case`, never as a subscript, so a substitution-shaped value stays text.
     local rung="${f[3]}"
     if [[ -n "$rung" ]] && ! stage_of_rung "$rung"; then
-      printf 'refusing: --classes line %d names a rung outside the closed set (make-impossible, editorconfig-severity, analyzer-pack-rule, custom-analyzer, semgrep-rule, architecture-test, hook, llm-only). Nothing was written. Rung: %s\n' \
+      printf 'refusing: --classes line %d names a rung outside the closed set (make-impossible, editorconfig-severity, analyzer-pack-rule, custom-analyzer, semgrep-rule, architecture-test, action-guard, automated-review). Nothing was written. Rung: %s\n' \
         "$lineno" "$rung" >&2
       exit 2
     fi
@@ -1083,8 +1083,8 @@ stage_of_rung() {
   analyzer-pack-rule | custom-analyzer) STAGE="build" ;;
   semgrep-rule) STAGE="commit" ;;
   architecture-test) STAGE="test" ;;
-  hook) STAGE="tool-call" ;;
-  llm-only) STAGE="review" ;;
+  action-guard) STAGE="tool-call" ;;
+  automated-review) STAGE="review" ;;
   *) return 1 ;;
   esac
 }
@@ -1168,7 +1168,7 @@ while IFS= read -r record; do
   # rank does.
   f_class="${class_of[$r_rank]:-unclassified}"
   f_basis="${basis_of[$r_rank]:-unresolved}"
-  f_rung="${rung_of[$r_rank]:-llm-only}"
+  f_rung="${rung_of[$r_rank]:-automated-review}"
   f_owner="${owner_of[$r_rank]:-none}"
   f_error="${error_of[$r_rank]:-none proposed}"
   stage_of_rung "$f_rung"

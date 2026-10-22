@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Build the PR conversation comment that records a `ready --skip` run: a
-# `<!-- ready-skip head=<sha> -->` marker line naming the head the run flipped,
-# then one line per skipped step, in run order. Comments are append-only, so the
-# record never rewrites the body or a hold in it.
+# Build the PR conversation comment that records a `ready --skip` run: one line
+# per skipped step, in run order. Comments are append-only, so the record never
+# rewrites the body or a hold in it.
 #
 # Usage:
-#   ready-skip-comment.sh --login <login> --head <sha> --reason <text> --step <step>...
+#   ready-skip-comment.sh --login <login> --reason <text> --step <step>...
 #
 # Pass only the steps --skip removed from what would have run, never one
 # pre_ready disabled or a built-in condition skipped. The reason is data: it is
@@ -39,15 +38,13 @@ neutralize() {
   printf '%s' "$s"
 }
 
-login="" head="" reason="" has_reason=0 steps=()
+login="" reason="" has_reason=0 steps=()
 while (($#)); do
   case "$1" in
-  --login | --head | --reason | --step)
+  --login | --reason | --step)
     (($# >= 2)) || die "$1 needs a value"
     if [[ "$1" == --login ]]; then
       login="$2"
-    elif [[ "$1" == --head ]]; then
-      head="$2"
     elif [[ "$1" == --reason ]]; then
       reason="$2" has_reason=1
     else
@@ -61,7 +58,6 @@ while (($#)); do
 done
 
 [[ "$login" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]] || die "--login needs a GitHub login"
-[[ "$head" =~ ^[0-9a-f]{40}$ ]] || die "--head needs a full commit sha"
 ((${#steps[@]})) || die "--step names no step: there is nothing to record"
 for step in "${steps[@]}"; do
   [[ " ${PRE_READY_STEPS[*]} " == *" $step "* ]] || die "unknown step $(printf '%q' "$step")"
@@ -70,7 +66,6 @@ done
 reason="$(neutralize "$reason")"
 [[ "$reason" =~ [^[:space:]] ]] || die "--reason is empty"
 
-printf '<!-- ready-skip head=%s -->\n' "$head"
 for step in "${PRE_READY_STEPS[@]}"; do
   # The backticks are markdown code spans, not command substitution.
   # shellcheck disable=SC2016

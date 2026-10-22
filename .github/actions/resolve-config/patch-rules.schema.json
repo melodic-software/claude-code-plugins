@@ -34,10 +34,11 @@
               "symlink",
               "gitlink",
               "new-executable",
-              "rename-into-refused"
+              "rename-into-refused",
+              "instruction-path"
             ]
           },
-          "description": "Named refusals; any match refuses the whole patch. github: .github/** in any case and through any .. segment; claude: .claude/** at any depth; mcp-config: the root .mcp.json; gitmodules: .gitmodules; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; new-executable: an executable bit on a file not already executable; rename-into-refused: a rename whose new path another refusal matches."
+          "description": "Named refusals; any match refuses the whole patch. github: .github/** in any case and through any .. segment; claude: .claude/** at any depth; mcp-config: the root .mcp.json; gitmodules: .gitmodules; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; new-executable: an executable bit on a file not already executable; rename-into-refused: a rename whose new path another refusal matches; instruction-path, optional: a path loaded as instructions or ownership (CLAUDE.md, AGENTS.md, .mcp.json, .lsp.json, .gitmodules or CODEOWNERS at any depth, a .claude or .claude-plugin directory, a plugin's hooks, monitors or bin)."
         },
         "allow": {
           "type": "array",
@@ -88,6 +89,16 @@
         "reads-report": {
           "enum": [null, "ci-escalations"],
           "description": "The producer report apply-patch reads; ci-escalations: the checks the model escalated."
+        },
+        "skip-moved-head": {
+          "type": "boolean",
+          "default": false,
+          "description": "true: a PR head that moved since the producer's run skips superseded-sha, before the mint and again before the push; false: the patch takes the moved tip with --3way when the moved commits touch no patched path."
+        },
+        "empty-at-push": {
+          "enum": ["empty", "invalid"],
+          "default": "empty",
+          "description": "The escalation kind for a patch that applies but changes nothing at push time: empty gives the row's empty reason, invalid its invalid reason (ci-context, since the producer said it wrote a change)."
         },
         "escalations": {
           "type": "array",

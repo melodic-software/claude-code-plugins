@@ -93,7 +93,11 @@ LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
 LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
 DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
+HUMAN_GATED_ROLE = "human-gated"
 DEFAULT_ROLE_LABEL = "needs-human"
+# The role marking a pull request whose only writer is the standards sync App.
+STANDARDS_SYNC_ROLE = "standards-sync"
+DEFAULT_STANDARDS_SYNC_LABEL = "standards-sync"
 TRACKER_CONFIG = ".work-item-tracker.json"
 # The follow-up note on an existing record; the demotion-alert workflow writes
 # the same prefix, so either filer's note is a sighting to the other.
@@ -1151,11 +1155,19 @@ def attribute(repo: str, verdict: PostMergeVerdict) -> list[int]:
     return triggered
 
 
-def _role_label(owner: str, name: str, *, strict: bool = False) -> str:
-    """The tracker's human-gated role label, or the default when the tracker
-    config is absent (404) or maps none. Any other failed read is the default
-    too, unless `strict`: then it raises `PostMergeReadError`, so a merge gate
-    never holds on a label the tracker may have remapped."""
+def _role_label(
+    owner: str,
+    name: str,
+    *,
+    strict: bool = False,
+    role: str = HUMAN_GATED_ROLE,
+    default: str = DEFAULT_ROLE_LABEL,
+) -> str:
+    """The tracker's label for `role` (human-gated unless named), or `default`
+    when the tracker config is absent (404) or maps none. Any other failed
+    read is the default too, unless `strict`: then it raises
+    `PostMergeReadError`, so a gate never acts on a label the tracker may
+    have remapped."""
     try:
         config = _read(
             [
@@ -1169,15 +1181,39 @@ def _role_label(owner: str, name: str, *, strict: bool = False) -> str:
     except PostMergeReadError as exc:
         if strict and gh_http_status(str(exc)) != 404:
             raise
-        return DEFAULT_ROLE_LABEL
+        return default
     label = json_object(
         json_object(json_object(config).get("config")).get("role_labels")
-    ).get("human-gated")
-    return (
-        label.strip()
-        if isinstance(label, str) and label.strip()
-        else DEFAULT_ROLE_LABEL
+    ).get(role)
+    return label.strip() if isinstance(label, str) and label.strip() else default
+
+
+def standards_sync_label(owner: str, name: str) -> str:
+    """The tracker's standards-sync role label (`standards-sync` unless
+    `.work-item-tracker.json` maps it). No branch refresh updates a pull
+    request carrying it: the sync App is its only writer. A failed read other
+    than a 404 raises `PostMergeReadError`."""
+    return _role_label(
+        owner,
+        name,
+        strict=True,
+        role=STANDARDS_SYNC_ROLE,
+        default=DEFAULT_STANDARDS_SYNC_LABEL,
     )
+
+
+def standards_sync_skip(owner: str, name: str, labels: Any) -> str | None:
+    """Why no branch refresh may update a pull request carrying the REST
+    `labels`, or None: it carries the standards-sync role label (matched
+    case-insensitively), whose only writer is the sync App. An unreadable
+    label raises `PostMergeReadError`."""
+    label = standards_sync_label(owner, name)
+    if is_json_array(labels) and any(
+        str(json_object(item).get("name") or "").casefold() == label.casefold()
+        for item in labels
+    ):
+        return f"the PR carries the {label!r} standards-sync label"
+    return None
 
 
 def _identity_entries(

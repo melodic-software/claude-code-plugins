@@ -113,7 +113,7 @@ Applies in both modes, when `/code-metrics:audit-duplication` ran and its docume
   Never open `trend.previous_document`. With no `trend` (the first run in a project) no class is
   growing; copy count still ranks spread (ranking.md).
 - **The candidate's next step is a lint proposal**: a check that stops the next copy. Which rung
-  fits (`canonical-helper`, one helper every caller goes through, or a linter rung that flags a new
+  fits (`shared-helper`, one helper every caller goes through, or a linter rung that flags a new
   copy) is the enforcement ladder's call, made by `/review:audit-enforceability`
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/enforcement-ladder/README.md>).
 - **No CI ceiling on a total clone count.** The trend is a ranking input, never a gate; a proposal

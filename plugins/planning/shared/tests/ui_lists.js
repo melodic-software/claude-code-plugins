@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Long lists in a real browser (triage 48), against `share.sh ensure-running` with the fake cloudflared and 30 guests:
 // answer cards show 12, then Show all (30); the Host view's people list shows 25 of 32 with Show more, presence
-// chips (All, Here, Away, Offline) and the owner's Removed chip with their counts, and a name search; the queue shows
+// chips (All, Active, Away, Offline, each person under exactly one of the last three) and the owner's Removed chip with their counts, and a name search; past 12
+// people each row is one line about half the full row's height, whose menu button opens the person's card (#8698); the queue shows
 // its oldest 20; the proposals panel 20, Later 10 and a locked question's suggestions 10, each with Show more; the
 // bell 20 with Show more and Unread only; and on a 320 px phone the people chips wrap inside the screen.
 //   node plugins/planning/shared/tests/ui_lists.js
@@ -33,7 +34,7 @@ async function main() {
     };
     const guests = [];
     for (let i = 1; i <= GUESTS; i++) {
-      const ip = { "CF-Connecting-IP": `198.51.100.${i}` }, out = await api("/api/join", { name: `Guest ${i}`, device: "computer" }, ip);
+      const ip = { "CF-Connecting-IP": `198.51.100.${i}` }, out = await api("/api/join", { name: `Guest ${i}`, device: "computer", key: A.guestKey }, ip);
       guests.push({ pid: out.pid, h: { ...ip, "X-Session-Secret": out.secret } });
     }
     const { id: hello } = await api("/api/chat", { text: "Hello all" }, owner);
@@ -43,7 +44,7 @@ async function main() {
       await api("/api/propose", { text: `Proposal from Guest ${i + 1}` }, g.h);
       if (i < 25) await api("/api/chat", { text: `Reply ${i + 1}`, replyTo: hello }, g.h);
     }
-    const gone = await api("/api/join", { name: "Gone", device: "computer" }, { "CF-Connecting-IP": "198.51.100.99" });
+    const gone = await api("/api/join", { name: "Gone", device: "computer", key: A.guestKey }, { "CF-Connecting-IP": "198.51.100.99" });
     await api("/api/person/remove", { pid: gone.pid, on: true }, owner);
     // Presence lives in memory: a restart leaves everyone offline until they beat. Guests 1-10 are here and active,
     // 11-15 here with their tab hidden (Away); the rest stay offline.
@@ -72,13 +73,31 @@ async function main() {
     };
     await viewSeg("Host");
     const chipText = () => host.evaluate(() => [...document.querySelectorAll(".vf-pfilters .vf-fchip:not([hidden])")].map(b => b.textContent).join(" "));
-    ok("the people chips count All 32, Here 16, Away 5, Offline 15 and the owner's Removed 1", await until(host, () =>
-      [...document.querySelectorAll(".vf-pfilters .vf-fchip:not([hidden])")].map(b => b.textContent).join(" ") === "All32 Here16 Away5 Offline15 Removed1"), await chipText());
+    // Active: the 10 beating guests and the owner; Away: the 5 with a hidden tab; Offline: the 15 who never beat.
+    ok("the people chips count All 32, Active 11, Away 5, Offline 15 and the owner's Removed 1", await until(host, () =>
+      [...document.querySelectorAll(".vf-pfilters .vf-fchip:not([hidden])")].map(b => b.textContent).join(" ") === "All32 Active11 Away5 Offline15 Removed1"), await chipText());
     ok("the people list shows 25 of 32", await until(host, () => document.querySelectorAll(".vf-hpeople > li").length === 25
       && [...document.querySelectorAll(".vf-more-foot:not([hidden])")].some(f => f.textContent.startsWith("Showing 25 of 32"))), String(await rows(host, ".vf-hpeople > li")));
     await host.locator(".vf-hpeople + .vf-more-foot button").click();
     ok("Show more shows all 32 and moves focus to the 26th", await until(host, () => document.querySelectorAll(".vf-hpeople > li").length === 32
       && document.querySelectorAll(".vf-hpeople > li")[25].contains(document.activeElement)));
+    // #8698: past 12 people each row is one line, about half the two-line row's height, and its menu still opens
+    const row = await host.evaluate(() => {
+      const L = document.querySelector(".vf-hpeople"), li = [...L.children].find(x => x.querySelector(".vf-hp-more:not([hidden])"));
+      if (!li) return null;
+      const box = sel => li.querySelector(sel).getBoundingClientRect(), parts = [".vf-hp-av", ".vf-hp-name", ".vf-hp-state", ".vf-hp-more"].map(box);
+      const h = li.getBoundingClientRect().height, oneLine = parts.every(r => r.height > 0 && r.top < parts[0].bottom && r.bottom > parts[0].top);
+      L.classList.remove("vf-hpeople-compact"); const full = li.getBoundingClientRect().height; L.classList.add("vf-hpeople-compact");
+      return { h, full, oneLine, state: li.querySelector(".vf-hp-state").textContent, meta: getComputedStyle(li.querySelector(".vf-hp-meta")).display, name: li.querySelector(".vf-hp-name").textContent };
+    });
+    ok("past 12 people each row is one line: dot, name, state and a menu button", !!row && row.oneLine && ["Active", "Away", "Offline"].includes(row.state) && row.meta === "none", JSON.stringify(row));
+    ok("  about half the height of the full row", !!row && row.h <= row.full * 0.6, JSON.stringify(row));
+    await host.locator(".vf-hpeople > li").filter({ has: host.locator(".vf-hp-name", { hasText: new RegExp(`^${row?.name}$`) }) }).locator(".vf-hp-more").click({ timeout: 5000 }).catch(() => {});
+    ok("  and its menu button opens the person's card with the host's actions", await until(host, n => {
+      const c = document.querySelector(".vf-pcard");
+      return !!c && !c.hidden && c.textContent.includes(n) && [...c.querySelectorAll("button")].some(b => b.textContent === "Remove");
+    }, row?.name || ""), await host.evaluate(() => document.querySelector(".vf-pcard")?.textContent || "no card"));
+    await host.keyboard.press("Escape");
     await host.locator(".vf-pfilters .vf-fchip", { hasText: "Away" }).click();
     ok("Away shows the 5 whose tabs are hidden", await until(host, () => {
       const li = [...document.querySelectorAll(".vf-hpeople > li")];
@@ -86,6 +105,16 @@ async function main() {
     }), String(await rows(host, ".vf-hpeople > li")));
     await host.locator(".vf-pfilters .vf-fchip", { hasText: "Removed" }).click();
     ok("Removed shows the removed guest", await until(host, () => [...document.querySelectorAll(".vf-hpeople > li")].map(x => x.querySelector(".vf-hp-name").textContent).join() === "Gone"));
+    // Each of the 31 people not removed shows under exactly one of Active, Away and Offline, in that state.
+    const under = {};
+    for (const chip of ["Active", "Away", "Offline"]) {
+      await host.locator(".vf-pfilters .vf-fchip", { hasText: chip }).click();
+      await until(host, c => [...document.querySelectorAll(".vf-pfilters .vf-fchip")].find(b => b.textContent.startsWith(c))?.getAttribute("aria-pressed") === "true", chip);
+      under[chip] = await host.evaluate(() => [...document.querySelectorAll(".vf-hpeople > li")].map(li => [li.querySelector("[data-pid]").dataset.pid, li.dataset.presence]));
+    }
+    const placed = Object.values(under).flat().map(([pid]) => pid);
+    ok("each person not removed shows under exactly one of Active, Away and Offline, matching their presence",
+      placed.length === 31 && new Set(placed).size === 31 && Object.entries(under).every(([c, l]) => l.every(([, pr]) => pr === c.toLowerCase())), JSON.stringify(under));
     await host.locator(".vf-pfilters .vf-fchip", { hasText: "All" }).click();
     ok("a name search shows past 12 people", await host.locator(".vf-pfind").isVisible());
     await host.fill(".vf-pfind", "Guest 1");

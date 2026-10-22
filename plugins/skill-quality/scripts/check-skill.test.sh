@@ -4963,6 +4963,7 @@ compatibility: Requires git.' 0 "multi-line block-scalar description with colon-
 make_skill script-stdin "$good_body"
 mkdir -p "$SKILLS/script-stdin/scripts"
 printf '#!/usr/bin/env bash\nif read -r -t 2 _x; then exit 1; fi\nexit 0\n' >"$SKILLS/script-stdin/scripts/x.test.sh"
+git -C "$TMP" add "$SKILLS/script-stdin/scripts/x.test.sh"
 out="$(run script-stdin 2>&1 </dev/zero)"
 if grep -q 'script test passed: scripts/x.test.sh' <<<"$out"; then
   pass "check 7 gives a skill script test EOF on stdin"
@@ -4972,12 +4973,161 @@ fi
 make_skill script-long "$good_body"
 mkdir -p "$SKILLS/script-long/scripts"
 printf '#!/usr/bin/env bash\nseq 1 300\nexit 1\n' >"$SKILLS/script-long/scripts/x.test.sh"
+git -C "$TMP" add "$SKILLS/script-long/scripts/x.test.sh"
 out="$(run script-long 2>&1)"
 if grep -q 'output truncated to the last 100 lines; run bash .*x.test.sh for all of it' <<<"$out" &&
   grep -qx '300' <<<"$out" && ! grep -qx '200' <<<"$out"; then
   pass "check 7 replays only the last 100 lines of a long failing script test"
 else
   fail "check 7 should truncate a 300-line failing test: $out"
+fi
+
+# Check 7 runs a skill's script tests only when the skill sits in the invoking
+# cwd's git work tree; anywhere else (another repo, no repo, or a cwd in no
+# repo) it skips them with a note. Root mode runs each child at its dispatched
+# root, so the parent's answer must reach the child. Each fixture test touches
+# a marker and exits 1, so a run shows as the marker and a failure.
+SCOPE_TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP" "$XREPO" "$SCOPE_TMP"' EXIT
+for scope_r in other nogit; do
+  mkdir -p "$SCOPE_TMP/$scope_r/skills/good-skill/scripts"
+  printf '%s' "$good_body" >"$SCOPE_TMP/$scope_r/skills/good-skill/SKILL.md"
+  printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/$scope_r.ran" \
+    >"$SCOPE_TMP/$scope_r/skills/good-skill/scripts/x.test.sh"
+done
+git -C "$SCOPE_TMP/other" init -q
+git -C "$SCOPE_TMP/other" add skills
+mkdir -p "$SCOPE_TMP/plaincwd"
+# scope_case LABEL CWD SKILLS-ROOT MARKER single|root run|skip [NOTE]
+scope_case() {
+  rm -f "$4"
+  local out rc
+  if [[ "$5" == single ]]; then
+    out="$(cd "$2" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING_TOPLEVEL \
+      CHECK_SKILL_SKILLS_ROOT="$3" CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" good-skill 2>&1)"
+  else
+    out="$(cd "$2" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_SKILLS_ROOT -u CHECK_SKILL_INVOKING_TOPLEVEL \
+      CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" "$3" 2>&1)"
+  fi
+  rc=$?
+  if [[ "$6" == run ]]; then
+    if [[ -f "$4" && $rc -eq 1 ]] && grep -q 'script test failed: scripts/x.test.sh' <<<"$out"; then
+      pass "check 7 $1"
+    else
+      fail "check 7 $1: the test should run (rc=$rc): $out"
+    fi
+  elif [[ ! -f "$4" && $rc -eq 0 ]] &&
+    grep -q "${7:-script tests skipped: the skill is outside the current repository}" <<<"$out"; then
+    pass "check 7 $1"
+  else
+    fail "check 7 $1: the test should be skipped with the note (rc=$rc): $out"
+  fi
+}
+scope_case "runs a test in the invoking repo (root mode)" "$SCOPE_TMP/other" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" root run
+scope_case "runs a test in the invoking repo from a subdirectory (single mode)" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" single run
+scope_case "skips a test in another repo (single mode)" "$TMP" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" single skip
+scope_case "skips a test in another repo (root mode)" "$TMP" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" root skip
+scope_case "skips a test in no repo (single mode)" "$TMP" \
+  "$SCOPE_TMP/nogit/skills" "$SCOPE_TMP/nogit.ran" single skip
+scope_case "skips a test in no repo (root mode)" "$TMP" \
+  "$SCOPE_TMP/nogit/skills" "$SCOPE_TMP/nogit.ran" root skip
+scope_case "skips a repo's test from a cwd in no repo (single mode)" "$SCOPE_TMP/plaincwd" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" single skip
+scope_case "skips a repo's test from a cwd in no repo (root mode)" "$SCOPE_TMP/plaincwd" \
+  "$SCOPE_TMP/other/skills" "$SCOPE_TMP/other.ran" root skip
+# A plugin copy git never tracked, under a directory that is itself a work
+# tree (a home-directory repo), shares the invoker's toplevel, but its skills
+# root holds no tracked file: skipped with a note.
+mkdir -p "$SCOPE_TMP/home/cache/skills/good-skill/scripts"
+git -C "$SCOPE_TMP/home" init -q
+printf '%s' "$good_body" >"$SCOPE_TMP/home/cache/skills/good-skill/SKILL.md"
+printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/home.ran" \
+  >"$SCOPE_TMP/home/cache/skills/good-skill/scripts/x.test.sh"
+scope_case "skips an untracked test under the invoking work tree (single mode)" "$SCOPE_TMP/home" \
+  "$SCOPE_TMP/home/cache/skills" "$SCOPE_TMP/home.ran" single skip \
+  'script test skipped: scripts/x.test.sh is not committed in the current repository yet'
+scope_case "skips an untracked test under the invoking work tree (root mode)" "$SCOPE_TMP/home" \
+  "$SCOPE_TMP/home/cache/skills" "$SCOPE_TMP/home.ran" root skip \
+  'script test skipped: scripts/x.test.sh is not committed in the current repository yet'
+
+# Only the invoking repository's index vouches for a test: a nested repo under
+# a skill's scripts/ that commits its own test is not part of it.
+mkdir -p "$SCOPE_TMP/other/skills/nested-skill/scripts/inner"
+printf '%s' "$good_body" >"$SCOPE_TMP/other/skills/nested-skill/SKILL.md"
+printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$SCOPE_TMP/nested.ran" \
+  >"$SCOPE_TMP/other/skills/nested-skill/scripts/inner/x.test.sh"
+git -C "$SCOPE_TMP/other/skills/nested-skill/scripts/inner" init -q
+git -C "$SCOPE_TMP/other/skills/nested-skill/scripts/inner" add x.test.sh
+git -C "$SCOPE_TMP/other/skills/nested-skill/scripts/inner" \
+  -c user.email=test@example.com -c user.name=test commit -qm fixture
+git -C "$SCOPE_TMP/other" add skills/nested-skill/SKILL.md
+rm -f "$SCOPE_TMP/nested.ran"
+out="$(cd "$SCOPE_TMP/other" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING_TOPLEVEL \
+  CHECK_SKILL_SKILLS_ROOT="$SCOPE_TMP/other/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" nested-skill 2>&1)"
+if [[ ! -f "$SCOPE_TMP/nested.ran" ]] &&
+  grep -q 'script test skipped: scripts/inner/x.test.sh is not tracked in the current repository' <<<"$out"; then
+  pass "check 7 skips a test only a nested repository tracks"
+else
+  fail "check 7 should skip a test a nested repository vouches for: $out"
+fi
+
+# An untracked, not-ignored test runs when its skills root already holds a
+# tracked file (a lane writes a new skill before it commits); one in a
+# brand-new skills root, or an ignored one, is skipped with a note.
+# scope_file SKILLS-ROOT SKILL MARKER: a skill whose test touches MARKER.
+scope_file() {
+  mkdir -p "$1/$2/scripts"
+  printf '%s' "$good_body" >"$1/$2/SKILL.md"
+  printf '#!/usr/bin/env bash\ntouch %q\nexit 1\n' "$3" >"$1/$2/scripts/x.test.sh"
+}
+# scope_single LABEL SKILLS-ROOT SKILL MARKER run|skip [NOTE]
+scope_single() {
+  rm -f "$4"
+  local out
+  out="$(cd "$SCOPE_TMP/other" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING_TOPLEVEL \
+    CHECK_SKILL_SKILLS_ROOT="$2" CHECK_SKILL_SKIP_MARKDOWNLINT=1 bash "$SUT" "$3" 2>&1)"
+  if [[ "$5" == run ]]; then
+    if [[ -f "$4" ]] && grep -q 'script test failed: scripts/x.test.sh' <<<"$out"; then
+      pass "check 7 $1"
+    else
+      fail "check 7 $1: the test should run: $out"
+    fi
+  elif [[ ! -f "$4" ]] && grep -q "$6" <<<"$out"; then
+    pass "check 7 $1"
+  else
+    fail "check 7 $1: the test should be skipped with the note: $out"
+  fi
+}
+scope_file "$SCOPE_TMP/other/skills" lane-skill "$SCOPE_TMP/lane.ran"
+scope_single "runs an untracked test in a skills root with tracked files" \
+  "$SCOPE_TMP/other/skills" lane-skill "$SCOPE_TMP/lane.ran" run
+scope_file "$SCOPE_TMP/other/fresh/skills" fresh-skill "$SCOPE_TMP/fresh.ran"
+scope_single "skips an untracked test in a brand-new skills root" \
+  "$SCOPE_TMP/other/fresh/skills" fresh-skill "$SCOPE_TMP/fresh.ran" skip \
+  'script test skipped: scripts/x.test.sh is not committed in the current repository yet'
+scope_file "$SCOPE_TMP/other/skills" ignored-skill "$SCOPE_TMP/ignored.ran"
+printf 'skills/ignored-skill/scripts/\n' >"$SCOPE_TMP/other/.gitignore"
+scope_single "skips an ignored test" \
+  "$SCOPE_TMP/other/skills" ignored-skill "$SCOPE_TMP/ignored.ran" skip \
+  'script test skipped: scripts/x.test.sh is not tracked in the current repository'
+
+# An exported GIT_DIR and GIT_WORK_TREE naming the skill's repo must not make
+# it the invoking repo: both toplevel probes ignore them.
+rm -f "$SCOPE_TMP/other.ran"
+out="$(cd "$TMP" && env -u CLAUDE_PROJECT_DIR -u CHECK_SKILL_INVOKING_TOPLEVEL \
+  GIT_DIR="$SCOPE_TMP/other/.git" GIT_WORK_TREE="$SCOPE_TMP/other" \
+  CHECK_SKILL_SKILLS_ROOT="$SCOPE_TMP/other/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" good-skill 2>&1)"
+if [[ ! -f "$SCOPE_TMP/other.ran" ]] &&
+  grep -q 'script tests skipped: the skill is outside the current repository' <<<"$out"; then
+  pass "check 7 ignores an exported GIT_DIR and GIT_WORK_TREE"
+else
+  fail "check 7 should skip a test an exported GIT_DIR points at: $out"
 fi
 
 # The usage error carries no bash-internal prefix and points at --help; the
@@ -5445,7 +5595,7 @@ else
 fi
 
 ST_PLAIN="$(mktemp -d)"
-trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP" "$XREPO" "$ST_PLAIN"' EXIT
+trap 'rm -rf "$TMP" "$CACHE_TMP" "$WALK_TMP" "$NOGIT_TMP" "$XREPO" "$SCOPE_TMP" "$ST_PLAIN"' EXIT
 mkdir -p "$ST_PLAIN/skills"
 cp -R "$SKILLS/st-misread" "$ST_PLAIN/skills/"
 out="$(GIT_CEILING_DIRECTORIES="$ST_PLAIN" run_st_default "$ST_PLAIN" "$SUT" "$ST_PLAIN/skills" st-misread 2>&1)"

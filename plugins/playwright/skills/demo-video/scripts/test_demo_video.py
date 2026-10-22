@@ -18,6 +18,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+from frame_seek import check_frame, seek_time  # noqa: E402
+
 try:
     import numpy as np
     from PIL import Image, ImageDraw
@@ -555,6 +557,31 @@ class DemoPipelineSmoke(unittest.TestCase):
         state_edl.write_text(json.dumps(edl))
         r, report = self.quality_control(out, edl=state_edl, name='quality-control-zoomed-state-cut')
         self.assertNotIn('nav-cuts', self.failed(report), r.stdout)
+
+
+class FrameSeek(unittest.TestCase):
+    """The seek time and short-read check quality_control.py's rgb() uses; standard library only, so they run on CI."""
+
+    def test_seek_time_pins_the_first_and_last_frame(self):
+        self.assertEqual(seek_time(0, 30), '0.0000')
+        self.assertEqual(seek_time(338, 30), '11.2500')   # the old fi / fps gave 11.2667, the next frame
+
+    def test_seek_time_lands_in_the_gap_before_every_frame(self):
+        for fi in range(1000):
+            t = float(seek_time(fi, 30))
+            self.assertTrue((fi - 1) / 30 < t <= fi / 30, f'frame {fi}: seek {t}')
+
+    def test_short_read_names_the_frame_and_its_timestamp(self):
+        for raw in (b'', b'\0' * (320 * 180 * 3 - 1)):
+            with self.assertRaises(ValueError) as ctx:
+                check_frame(raw, 338, 30, 320, 180)
+            self.assertIn('frame 338', str(ctx.exception))
+            self.assertIn('11.2667s', str(ctx.exception))
+            self.assertNotIn('not enough image data', str(ctx.exception))
+
+    def test_full_read_passes_through(self):
+        raw = b'\0' * (320 * 180 * 3)
+        self.assertIs(check_frame(raw, 338, 30, 320, 180), raw)
 
 
 if __name__ == '__main__':

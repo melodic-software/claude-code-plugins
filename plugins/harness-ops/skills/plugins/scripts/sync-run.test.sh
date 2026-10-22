@@ -1464,6 +1464,49 @@ assert_contains "render ask partial pick: the declined plugin is named" "$REPORT
 assert_eq "render ask partial pick: the installed plugin is not in the gap bullet" "0" \
   "$(grep -c 'offered and not installed.*beta@market1' <<<"$REPORT_TEXT")"
 
+# --- an --only-install id that no marketplace in the run claims is reported ----
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.3.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal"
+run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
+report_of "$case_dir" --only-install beta@market1,typo@nowhere --run-dir "$run_dir"
+assert_exit "render unclaimed id: exit 0" 0 "$REPORT_RC"
+assert_contains "render unclaimed id: the id is named as an error row" "$REPORT_TEXT" \
+  "error: --only-install id matches no marketplace in this run: typo@nowhere"
+assert_eq "render unclaimed id: the claimed id raises no error" "0" \
+  "$(grep -c 'matches no marketplace.*beta@market1' <<<"$REPORT_TEXT" || true)"
+
+# --- an id the second marketplace claims raises no error from the first ---------
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market2 gamma 0.1.0
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{
+  \"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m1\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"},
+  \"market2\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m2\"}, \"installLocation\": \"$case_dir/mkt2\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}
+}"
+write "$case_dir/catalog/market2.json" '{"plugins": [{"name": "gamma", "source": "gamma"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --all --install-new none --journal-root "$case_dir/journal"
+run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
+report_of "$case_dir" --only-install gamma@market2 --run-dir "$run_dir"
+assert_exit "render second-marketplace id: exit 0" 0 "$REPORT_RC"
+assert_eq "render second-marketplace id: no error row" "0" \
+  "$(grep -c 'matches no marketplace' <<<"$REPORT_TEXT" || true)"
+assert_eq "render second-marketplace id: it was installed" "1" \
+  "$(grep -c 'plugin install gamma@market2' "$case_dir/claude.log")"
+
 # --- every `needs update` carries evidence of what needs doing -----------------
 # A minimal digest per $needs disjunct, rendered directly. Sync mode: an
 # `Action needed` bullet must name it. Audit mode renders predictions as rows

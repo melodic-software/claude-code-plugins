@@ -434,6 +434,12 @@ async page => { // the user journey in order on one page, no reload after phase 
       }
       ok("at " + w + " px the long Claude line and hold keep the page, Wrap up and the counts in the viewport", fit.every(f => f.scroll <= f.W && f.wrap && f.counts && f.line > 400), JSON.stringify(fit));
     }
+    // #8085: at 390x844, after load, the question title is fully on the first screen with the long Claude line in the header
+    await page.setViewportSize({width: 390, height: 844});
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(600);
+    const first = await page.evaluate(() => { const t = document.querySelector("main.detail h3"), r = t && t.getBoundingClientRect(), c = document.getElementById("claudeLine"); return {bottom: r ? Math.round(r.bottom) : null, scroll: scrollY, head: Math.round(document.querySelector("header.top").getBoundingClientRect().height), line: c.hidden ? 0 : Math.round(c.getBoundingClientRect().height), text: c.hidden ? 0 : document.getElementById("clText").textContent.length}; });
+    ok("at 390x844 the question title ends within the first screen with scroll at 0, the Claude line held to two lines", first.bottom !== null && first.bottom <= 844 && first.scroll === 0 && first.text > 400 && first.line < 60, JSON.stringify(first));
+    await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(200);
   }
   if (PHASE === 7) { // the shell cleared Q3's hold
     await page.waitForTimeout(900);
@@ -557,7 +563,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     const df = await page.evaluate(() => { const d = document.getElementById("reDiff"); return d ? {head: d.querySelector("b").textContent, sec: [...d.querySelectorAll("h5")].map(h => h.textContent).join(), del: [...d.querySelectorAll("del")].map(x => x.textContent.trim()).join("|"), ins: [...d.querySelectorAll("ins")].map(x => x.textContent.trim()).join("|")} : null; });
     ok("the restatement shows a line diff against the newest confirmed rev", !!df && /rev 2/.test(df.head) && df.sec === "Constraints" && /Builds stop at ten minutes\./.test(df.del) && /share one cache/.test(df.ins), JSON.stringify(df));
     ok("after the wrap-up the banner is not shown, since Confirm is gone", await page.$eval("#reBanner", el => el.hidden));
-    const sum = await page.evaluate(() => {
+    const sumProbe = () => page.evaluate(() => {
       const broken = [], tbl = document.querySelector("table.sum");
       tbl.querySelectorAll("td, th").forEach(c => {
         const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
@@ -571,7 +577,16 @@ async page => { // the user journey in order on one page, no reload after phase 
       return {broken, n: rows.length, empty: rows.filter(r => !r.cells[2].textContent.trim()).length, chip: Math.max(...[...tbl.querySelectorAll(".ref b")].map(b => b.getBoundingClientRect().height)),
         q5: (rows.find(r => r.cells[0].textContent.startsWith("Q5")) || {cells: [{}, {}, {}]}).cells[2].textContent, q9: (rows.find(r => r.cells[0].textContent.startsWith("Q9")) || {cells: [{}, {}, {}]}).cells[2].textContent};
     });
+    const sum = await sumProbe();
     ok("at 1024 px no Decisions cell breaks inside a word and each id chip stays on one line", sum.n > 5 && sum.broken.length === 0 && sum.chip < 24, JSON.stringify(sum));
+    // #8085: at 390 px the cells still wrap only at word boundaries, a long token scrolls the table's own container, and the page stays put
+    await page.setViewportSize({width: 390, height: 844}); await page.waitForTimeout(300);
+    const sum390 = await sumProbe(), cells390 = await page.evaluate(() => {
+      const bad = [...document.querySelectorAll("table.sum th, table.sum td, table.sum td *")].filter(c => { const s = getComputedStyle(c); return s.wordBreak === "break-all" || s.overflowWrap === "anywhere"; }).length;
+      return {bad, page: document.scrollingElement.scrollWidth, W: innerWidth};
+    });
+    ok("at 390 px no Decisions cell breaks inside a word, has break-all or anywhere, or scrolls the page", sum390.n > 5 && sum390.broken.length === 0 && sum390.chip < 24 && cells390.bad === 0 && cells390.page <= cells390.W, JSON.stringify({sum390, cells390}));
+    await page.setViewportSize({width: 1024, height: 800}); await page.waitForTimeout(300);
     ok("every answered row shows what was decided", sum.empty === 0 && /Pin it to the lock file\./.test(sum.q5) && /^All of them/.test(sum.q9), JSON.stringify(sum));
     ok("after the wrap-up the summary shows no Confirm, Something's off or Confirm all", !(await page.$("[data-understand]")) && !(await page.$("[data-confirmall]")) && (await page.$$("#toConfirm [data-confirm]")).length > 0 && /Not confirmed; wrap-up already sent/.test(await text("#uDone")), await text("#restate"));
     ok("only one control is labeled Finish: export and end the session, and it sends the wrap-up event", await page.$$eval("button", bs => bs.filter(b => b.textContent.trim() === "Finish: export and end the session").map(b => b.hasAttribute("data-wrapup")).join()) === "true");

@@ -88,8 +88,8 @@ async page => {
   // flyout tabs
   await page.keyboard.press("v"); await page.waitForTimeout(250);
   ok("v opens the Visuals tab", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && document.getElementById("flyTitle").textContent.startsWith("Visuals")));
-  const flyBox = await page.evaluate(() => { const f = document.getElementById("fly").getBoundingClientRect(), m = document.querySelector("main.detail").getBoundingClientRect(); return {overlay: getComputedStyle(document.getElementById("fly")).position === "absolute", mainW: Math.round(m.width), flyL: Math.round(f.left), mainR: Math.round(m.right)}; });
-  ok("flyout overlays the answer pane", flyBox.overlay && flyBox.flyL < flyBox.mainR, JSON.stringify(flyBox));
+  const flyBox = await page.evaluate(() => { const f = document.getElementById("fly").getBoundingClientRect(), m = document.querySelector("main.detail").getBoundingClientRect(); return {overlay: getComputedStyle(document.getElementById("fly")).position === "absolute", vw: innerWidth, mainW: Math.round(m.width), flyL: Math.round(f.left), mainR: Math.round(m.right)}; });
+  ok("unpinned flyout floats beside the answer pane without covering it from 1100px", flyBox.overlay && (flyBox.vw < 1100 || flyBox.flyL >= flyBox.mainR), JSON.stringify(flyBox));
   await page.click('#tabs [data-panel="notes"]'); await page.waitForTimeout(200);
   ok("Notes tab", await page.textContent("#flyTitle") === "Notes to Claude" && !!(await page.$("#noteText")));
   await page.click('#tabs [data-panel="settings"]'); await page.waitForTimeout(200);
@@ -122,6 +122,25 @@ async page => {
   const ev4 = await events();
   ok("note sent as event kind note", ev4[ev4.length - 1].kind === "note" && ev4[ev4.length - 1].id === null, ev4[ev4.length - 1].text);
   ok("note shows in the thread", /Side note for Claude/.test(await page.textContent(".nthread")));
+  ok("a short thread has no jump control and no folded note", !(await page.$("[data-notenewest]")) && !(await page.$("[data-notetoggle]")));
+  for (let i = 1; i <= 6; i++) {
+    await page.fill("#noteText", "Folding note " + i + (i === 6 ? "\n" + "newest filler line\n".repeat(40) : "\nsecond line " + i));
+    await page.click("[data-sendnote]"); await page.waitForTimeout(500);
+  }
+  for (const pinned of [false, true]) {
+    if ((await page.getAttribute("#pinBtn", "aria-pressed")) !== String(pinned)) await page.click("#pinBtn");
+    await page.waitForTimeout(200);
+    const tag = pinned ? "pinned" : "unpinned";
+    ok("a long thread folds an older note to one line (" + tag + ")", await page.evaluate(() => { const b = document.querySelector('[data-notetoggle][aria-expanded="false"]'); return !!b && b.nextElementSibling.hidden && !document.querySelector("#noteNewest [data-notetoggle]"); }));
+    await page.evaluate(() => { document.getElementById("fbody").scrollTop = 0; });
+    await page.focus("[data-notenewest]"); await page.keyboard.press("Enter"); await page.waitForTimeout(200);
+    ok("the jump control, from the keyboard, brings the newest note into the panel (" + tag + ")", await page.evaluate(() => { const r = document.getElementById("noteNewest").getBoundingClientRect(), p = document.getElementById("fbody").getBoundingClientRect(); return r.top < p.bottom && r.bottom > p.top; }));
+    await page.evaluate(() => { document.getElementById("fbody").scrollTop = 0; });
+    await page.click('[data-notetoggle][aria-expanded="false"]'); await page.waitForTimeout(100);
+    ok("clicking a folded note expands it (" + tag + ")", await page.evaluate(() => { const b = document.querySelector("[data-notetoggle]"); return b.getAttribute("aria-expanded") === "true" && !b.nextElementSibling.hidden; }));
+    await page.click("[data-notetoggle]"); await page.waitForTimeout(100);
+  }
+  await page.click("#pinBtn"); await page.waitForTimeout(150); // leave the panel unpinned, as the rest of the run expects
   await page.keyboard.press("Escape"); await page.keyboard.press("Escape"); await page.waitForTimeout(200);
   ok("Esc then Esc closes the flyout", await page.evaluate(() => !document.getElementById("fly").classList.contains("open")));
 

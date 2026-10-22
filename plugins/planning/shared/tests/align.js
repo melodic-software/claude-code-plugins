@@ -2,7 +2,8 @@
 // Page alignment check: seeds a varied session and an empty one through `share.sh ensure-running` (fake cloudflared,
 // spare ports), then opens every view below at each size and theme and checks the page: no mention token (<@pid>) in
 // its text, attributes or fields, and the geometry: no page scroll,
-// no horizontal overflow, the focus view's blocks on the question's column (column), no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
+// no horizontal overflow, the focus view's blocks on the question's column (column), a phone's previous and next arrows on the question
+// position's row (qnav-row), no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
 // place, the phone tab bar, choice and confirm controls above the fold, and icon-only buttons with the icon centered
 // on the button within 0.5 px (icon-center).
 //   node plugins/planning/shared/tests/align.js
@@ -53,7 +54,7 @@ async function seed(s, A) {
   }
   const host = { id: "host", h: { "X-Owner-Token": owner } };
   await post("/api/join", { name: "Kyle" }, host).catch(() => {});
-  const join = async name => { const j = await post("/api/join", { name, device: "computer" }, { id: "anon-" + name, h: {} }); return { id: j.pid, pid: j.pid, h: { "X-Session-Secret": j.secret } }; };
+  const join = async name => { const j = await post("/api/join", { name, device: "computer", key: A.guestKey }, { id: "anon-" + name, h: {} }); return { id: j.pid, pid: j.pid, h: { "X-Session-Secret": j.secret } }; };
 
   const shot = s.asset(A.dir, "shot.png", png(640, 400, [40, 90, 160], [220, 220, 230]));
   const pics = [[200, 60, 60], [60, 160, 90], [230, 180, 40], [120, 70, 170]].map((c, i) => s.asset(A.dir, `opt${i + 1}.png`, png(320, 200, c, [245, 245, 245])));
@@ -73,7 +74,7 @@ async function seed(s, A) {
       q("Q2", "Which pages need the new header?"),
       q("Q3", `Is this word too long: ${longWord}?`),
       q("Q4", "Should guest checkout be the default?"),
-      q("Q5", "Which reaction fits the new flow best? 🎉🚀😅👍🏽 🧑‍💻 or 🛒✨"),
+      q("Q5", "Which reaction fits the new flow best? 🎉🚀😅👍🏽 🧑\u200d💻 or 🛒✨"),
       q("Q6", "האם עמוד התשלום צריך לתמוך בעברית? ما هي طريقة الدفع المفضلة لديك؟"),
       q("Q7", "What worries you about the new checkout?", undefined, { purpose: "gather" }),
       q("Q8", "How should the confirmation page read?\n\nToday it repeats the whole order, the address and the delivery estimate, then asks for a review.\n\nSecond paragraph: should it link to the order history, or to the help center, or neither?\n\nThird paragraph: anything else it should say."),
@@ -135,11 +136,12 @@ async function main() {
   const CFG = { sizes: sizes.length ? sizes : SIZES, views: list(process.env.ALIGN_VIEWS) };
   const results = [], details = [];
   try {
-    const A = await s.start("align"), E = await s.start("empty");
+    const A = await s.start("align"), E = await s.start("empty"), C = await s.start("crowd");
     try { await seed(s, A); s.ok("seed the varied session", true); } catch (e) { s.ok("seed the varied session", false, e.message); throw e; }
+    try { await crowd(s, C); s.ok("seed the crowd session", true); } catch (e) { s.ok("seed the crowd session", false, e.message); throw e; }
     const ctx = await browser.newContext({ reducedMotion: "reduce" });
     const page = await ctx.newPage();
-    const VIEWS = views(page, { emptyHost: E.ownerUrl, emptyGuest: E.localUrl });
+    const VIEWS = views(page, { emptyHost: E.ownerUrl, emptyGuest: E.localUrl, crowdHost: C.ownerUrl });
     const unknown = CFG.views.filter(v => !VIEWS[v]);
     if (unknown.length) throw new Error(`ALIGN_VIEWS names no such view: ${unknown.join(", ")}; known: ${Object.keys(VIEWS).join(", ")}`);
     const names = CFG.views.length ? CFG.views : Object.keys(VIEWS);
@@ -167,7 +169,7 @@ async function main() {
             details.push(`FAIL ${tag}  (${path.basename(file)})\n    ` + f.slice(0, MAX_DETAIL).map(x => `[${x.rule}] ${x.msg}`).join("\n    ") + (f.length > MAX_DETAIL ? `\n    …${f.length - MAX_DETAIL} more` : ""));
           }
         }
-        if (v.startsWith("empty-")) loaded = false; // these leave the seeded page
+        if (/^(empty|crowd)-/.test(v)) loaded = false; // these leave the seeded page
       }
     }
   } catch (e) {
@@ -183,6 +185,16 @@ async function main() {
   console.log(`runtime ${Math.round((Date.now() - t0) / 1000)} s`);
   console.log(`PASS ${pass} / ${results.length}`);
   return code || pass !== results.length || !results.length ? 1 : 0;
+}
+
+/** A session of 13 guests and the host with one question open (the Host view needs a round), so the Host view's people list is past its compact cutoff (#8698). */
+async function crowd(s, C) {
+  s.apply(C.dir, [{ op: "open-round", questions: [q("Q1", "Which loot rule should the first playable use?")] }]);
+  const base = C.localUrl.replace(/\/$/, "");
+  for (let i = 1; i <= 13; i++) {
+    const r = await fetch(base + "/api/join", { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": `198.51.100.${i}` }, body: JSON.stringify({ name: `Guest ${i}`, device: "computer", key: C.guestKey }) });
+    if (!r.ok) throw new Error(`join Guest ${i} -> ${r.status}`);
+  }
 }
 
 /** Resolves once the page holds still, so the check measures what a person sees and not a passing frame: fonts
@@ -303,7 +315,7 @@ function views(page, CFG) {
       return page.evaluate(() => !!document.querySelector(".vf-opt[data-state='mine']"));
     },
     "claude-hidden": () => gotoQ("Q3"),
-    "device": async () => { await clickIn(".vf-person-me"); await W(150); return clickIn(".vf-pcard .vf-menu-item", "another device"); },
+    "device": async () => { await clickIn(".vf-person-me"); await W(150); return clickIn(".vf-pcard .vf-menu-item", "Sign in on another device"); }, // the owner's pairing popup
     "msg-menu": async () => { await clickIn(".vf-fab"); await W(150); return clickIn(".vf-msgmore"); },
     "compare-formats": async () => { await mode("compare"); return page.evaluate(() => { const b = document.querySelector(".vf-board"); if (!b) return false; b.scrollLeft = b.scrollWidth; return true; }); },
     // the Inbox remembers its tab on the device, and "review" leaves it on Needs you: these start on Notifications
@@ -329,6 +341,8 @@ function views(page, CFG) {
     "pick-thumbs": async () => { await gotoQ("Q11"); return page.evaluate(() => { const a = document.querySelector(".vf-alist .vf-pickthumb:not([hidden])"); a?.scrollIntoView({ block: "center" }); return !!a; }); },
     "more": async () => ((await phone()) ? clickIn(".vf-tab", "More") : "skip"),
     // last: these leave the seeded page; the next view reloads it
+    // #8698: past 12 people the Host view's people rows are compact, one line each
+    "crowd-host": async () => { await page.goto(CFG.crowdHost); await page.reload(); await joinIfAsked("Kyle"); return mode("host"); },
     "empty-host": async () => { await page.goto(CFG.emptyHost); await page.reload(); await joinIfAsked("Kyle"); return true; },
     "empty-guest": async () => { await page.goto(CFG.emptyGuest); await page.evaluate(() => localStorage.clear()); await page.reload(); await joinIfAsked(`Sam${++guests}`); return true; },
   };
@@ -421,6 +435,13 @@ const check = (page, theme) => page.evaluate(theme => {
       if (Math.abs(r.left - qr.left) > 1 || Math.abs(r.right - qr.right) > 1) fail("column", `${name(el)} x ${r.left.toFixed(1)}..${r.right.toFixed(1)} is not on the question's column x ${qr.left.toFixed(1)}..${qr.right.toFixed(1)}`);
     }
   }
+  // 2c. A phone's question row (app.css .vf-qmeta): previous and next stay on the position's row; the host's Who must
+  // answer, the chips and the avatars of who else is on it wrap below, never the arrows.
+  const qnav = document.querySelector(".vf-focus .vf-qmeta > .vf-qnav"), qpos = qnav?.parentElement.firstElementChild;
+  if (qnav && vis(qnav) && qpos && vis(qpos)) {
+    const n = qnav.getBoundingClientRect(), p = qpos.getBoundingClientRect();
+    if (n.top >= p.bottom - T || n.bottom <= p.top + T) fail("qnav-row", `${name(qnav)} y ${n.top.toFixed(1)}..${n.bottom.toFixed(1)} wrapped off the position's row y ${p.top.toFixed(1)}..${p.bottom.toFixed(1)}`);
+  }
 
   // 3. Visible text never overlaps other visible text.
   const texts = [];
@@ -506,6 +527,23 @@ const check = (page, theme) => page.evaluate(theme => {
       }
     }
   }
+  // live-pill: the Live pill sits on the title's line, its center y within 1px of the title row's, its left edge at most
+  // 8px past the title or rename pencil before it, inside the row, and clear of every other top-bar control
+  const pill = app.querySelector(".vf-top .vf-live"), trow = app.querySelector(".vf-top .vf-titlerow");
+  if (pill && trow && vis(pill) && vis(trow)) {
+    const pb = pill.getBoundingClientRect(), rb = trow.getBoundingClientRect();
+    const before = [...trow.children].filter(k => k !== pill && vis(k)).map(k => k.getBoundingClientRect()).filter(b => b.right <= pb.left + T);
+    const prevRight = before.length ? Math.max(...before.map(b => b.right)) : rb.left;
+    const dy = (pb.top + pb.bottom) / 2 - (rb.top + rb.bottom) / 2;
+    if (Math.abs(dy) > 1) fail("live-pill", `${name(pill)} center y off the title row's by ${dy.toFixed(1)}px`);
+    if (pb.left - prevRight > 8 + T) fail("live-pill", `${name(pill)} left x ${pb.left.toFixed(1)} sits ${(pb.left - prevRight).toFixed(1)}px past the title row's content end ${prevRight.toFixed(1)}`);
+    if (pb.left < rb.left - T || pb.right > rb.right + T) fail("live-pill", `${name(pill)} x ${pb.left.toFixed(1)}..${pb.right.toFixed(1)} outside the title row x ${rb.left.toFixed(1)}..${rb.right.toFixed(1)}`);
+    for (const el of app.querySelectorAll(".vf-top button, .vf-top .vf-people, .vf-top .vf-here")) {
+      if (!vis(el) || trow.contains(el)) continue;
+      const b = el.getBoundingClientRect();
+      if (b.left < pb.right - T && b.right > pb.left + T && b.top < pb.bottom - T && b.bottom > pb.top + T) fail("live-pill", `${name(pill)} overlaps ${name(el)}`);
+    }
+  } else if (pill && vis(pill)) fail("live-pill", `${name(pill)} shows with no title row beside it`);
   // toast: centered on the center pane ±1px, text centered, clear of composer, tab bar, chat button and chat
   const toast = app.querySelector(".vf-toast.vf-on");
   if (toast && vis(toast)) {

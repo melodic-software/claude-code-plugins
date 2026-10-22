@@ -145,7 +145,7 @@ function Invoke-DriversCheck {
         }
 
         # Admin-gated (pnputil problem devices, PSWindowsUpdate driver catalog): non-elevated
-        # runs emit these fields as null with needs_admin: true. See elevation-matrix.md.
+        # runs emit these fields as null with needs_admin: true. See lib/Get-ElevationMatrix.ps1.
         $elevated = Test-IsElevated
         $adminFields = [System.Collections.Generic.List[string]]::new()
 

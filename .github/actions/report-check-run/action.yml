@@ -65,6 +65,12 @@ inputs:
     description: The check-signed-commits all-verified output; empty when it did not run.
     required: false
     default: ""
+  unverified:
+    description: >
+      The check-signed-commits unverified output. Empty with all-verified not
+      `true` means the commits could not be verified.
+    required: false
+    default: ""
   lane-class:
     description: >
       The run job's lane-class output: report-lane-outcome's failure class,
@@ -126,6 +132,7 @@ runs:
         PR_HEAD_SHA: ${{ inputs.pr-head-sha }}
         CAN_COMMIT: ${{ inputs.can-commit }}
         ALL_VERIFIED: ${{ inputs.all-verified }}
+        UNVERIFIED: ${{ inputs.unverified }}
         LANE_CLASS: ${{ inputs.lane-class }}
         LANE_RESETS: ${{ inputs.lane-resets }}
         LANE_TURNS: ${{ inputs.lane-turns }}
