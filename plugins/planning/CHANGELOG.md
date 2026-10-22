@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.85.1] - 2026-10-22
+
+### Fixed
+
+- The interview Groups rail lists each group's live cards first, then one collapsed "N archived" row that expands on click to show the group's archived cards. A group with no archived cards shows no row, and the Rounds view is unchanged. The j and k keys follow the same order and skip archived cards while their row is collapsed.
+
 ## [0.85.0] - 2026-10-22
 
 ### Added
