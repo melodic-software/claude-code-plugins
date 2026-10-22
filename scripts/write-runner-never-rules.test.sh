@@ -125,55 +125,43 @@ const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "
 // wrapper the skill may run with no arguments; its `verify-scripts`, each a
 // read-only wrapper over a base copy it may run with any arguments; under web-access `any`,
 // the read-only base copy of the two docs scripts; under prepare:
-// review-threads, the read-only review-thread tool wrapper; with the
-// commit tool, chmod +x, since commit_files takes each file's mode from disk;
+// review-threads, nothing here (the read runner's launcher arm grants its
+// wrapper); with the commit tool, chmod +x, since commit_files takes each file's mode from disk;
 // and under prepare: ci-context, bare Bash for a read skill, which runs in
 // pr-run-activity-read.yml with no write token (this file fails a read effect
 // before it stages anything).
 const docsRule = String.raw`allowed="$allowed,Bash(bash $DOCS_DIR/$script *),Bash(bash \\\"$DOCS_DIR/$script\\\" *)"`;
 const ciContextRule = 'allowed="$allowed,Bash,Edit,Write,Agent,Read(/$CI_DIR/**),Edit(/$SCRATCH/**)"';
 const allowedLines = stage.split("\n").filter((l) => /allowed="\$allowed|allowed="Skill/.test(l));
-say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', 'allowed="$allowed,Bash($verifier *)"', docsRule, 'allowed="$allowed,Bash($tool *)"', 'allowed="$allowed,Bash(chmod +x *)"', ciContextRule].includes(l.trim())),
-  "the runner grants the skill no Bash but its check wrappers, its verify-scripts, the docs scripts, the review-thread tool, chmod +x and a read ci-context skill's");
+say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || ['allowed="$allowed,Bash($wrapper)"', 'allowed="$allowed,Bash($verifier *)"', docsRule, 'allowed="$allowed,Bash(chmod +x *)"', ciContextRule].includes(l.trim())),
+  "the runner grants the skill no Bash but its check wrappers, its verify-scripts, the docs scripts, chmod +x and a read ci-context skill's");
 const readBranch = stage.slice(stage.indexOf("          read)\n"), stage.indexOf("          mutate-branch | mutate-tracker"));
 say(readBranch.includes(ciContextRule) && /ci-context\) \[ "\$EFFECT" = read \] \|\| fail/.test(stage),
   "the ci-context Bash grant sits in the read effect's branch, and ci-context with any other effect fails red");
 say(/chmod -R a-w "\$VERIFY_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$VERIFY_DIR\/\*\*\),Write\(\/\$VERIFY_DIR\/\*\*\)"/.test(stage),
   "the verify-scripts copy is read-only to the skill");
-say(/chmod -R a-w "\$FEEDBACK_DIR"/.test(stage) && /Edit\(\/\$FEEDBACK_DIR\/\*\*\),Write\(\/\$FEEDBACK_DIR\/\*\*\),Edit\(\/\$FEEDBACK_STATE\/\*\*\),Write\(\/\$FEEDBACK_STATE\/\*\*\)/.test(stage),
-  "the review-thread tool, its thread file and its log are out of the skill's Edit and Write");
-// review-threads decides before the mint with the job token. After the
-// skill, a pinned action (no PATH lookup the activity could redirect) records
-// the gated head and kept threads beside the model's replies; no step of the
-// model run holds a reply or resolve call.
-const select = at((s) => s.id === "feedback-select");
-say(select >= 0 && select < mint && byId("feedback-select").env?.GITHUB_TOKEN === "${{ github.token }}",
-  "the review-threads select step runs before the mint, with the job's read-only token");
+// review-threads runs on the read runner, after its caller's select job: this
+// file refuses it before the mint, keeps no threads and collects no replies.
+const refuse = at((s) => s.name === "Assert review-threads runs in the read runner");
+say(refuse >= 0 && refuse < mint && /steps\.config\.outputs\.prepare == 'review-threads'/.test(steps[refuse].if ?? "") && /exit 1/.test(steps[refuse].run ?? ""),
+  "a review-threads activity fails red before the mint");
+say(!steps.some((s) => ["feedback-select", "feedback-collect"].includes(s.id)) && !("THREAD_FILE" in (byId("promote").env ?? {})),
+  "the write runner keeps no review threads and collects no replies");
 say(/proceed != 'false'/.test(byId("head-recheck").if ?? ""), "a select step that does not proceed skips the mint");
-const feedbackCollect = byId("feedback-collect");
-say(String(feedbackCollect.uses ?? "").startsWith("actions/github-script@") && at((s) => s.id === "feedback-collect") > at((s) => s.id === "promote")
-  && feedbackCollect.env?.HEAD_SHA === "${{ steps.gate.outputs.head-sha }}" && !("github-token" in (feedbackCollect.with ?? {})),
-  "the replies are collected by a pinned action after the promote step, with the gated head and no lane token");
 const runSteps = JSON.stringify(steps);
 say(!/resolveReviewThread|\/replies['"`]|record-round/.test(runSteps) && !/feedback-round/.test(JSON.stringify(steps.map((s) => s.id))),
   "no step of the write runner replies on or resolves a review thread");
 const promoteScript = String(byId("promote").with?.script ?? "");
-const promoteThreads = String(byId("promote").env?.THREAD_FILE ?? "");
-say(promoteThreads.includes("prepare == 'review-threads'") && promoteThreads.includes("lane-feedback/threads.json"),
-  "review-threads mode hands the promote step the kept threads' paths");
-say(promoteScript.indexOf("if (THREAD_FILE)") >= 0 && promoteScript.indexOf("if (THREAD_FILE)") < promoteScript.indexOf("updateRef"),
-  "the promote step checks the lane branch's paths before it moves the PR branch");
-say(/run-sha256/.test(String(feedbackCollect.with?.script ?? "")) && byId("act-script").env?.RUN_SHA256 === "${{ inputs.review-run-sha256 }}",
-  "the reply script gets the SHA-256 of the run.json the collect step wrote");
+say(byId("act-script").env?.RUN_SHA256 === "${{ inputs.review-run-sha256 }}",
+  "the reply script gets the SHA-256 of the run.json the caller's select job wrote");
 // "Re-run failed jobs" on the reply job alone bumps github.run_attempt but
-// keeps the model job's outputs, so the replies artifact is named by the
-// model job's attempt on both sides, never by the downloading job's own.
-const replyUpload = steps.find((s) => s.name === "Upload the review-thread replies");
+// keeps the other jobs' outputs, so each artifact is named by its writer's
+// attempt, never by the downloading job's own.
+const runDownload = steps.find((s) => s.name === "Download the review-thread run record");
 const replyDownload = steps.find((s) => s.name === "Download the review-thread replies");
-say(replyUpload?.with?.name === "feedback-replies-${{ github.run_attempt }}"
-  && replyDownload?.with?.name === "feedback-replies-${{ inputs.review-run-attempt }}"
-  && wf.jobs.run.outputs["feedback-run-attempt"] === "${{ steps.feedback-collect.outcome == 'success' && github.run_attempt || '' }}",
-  "the reply job downloads the replies by the model job's attempt, so a re-run of it alone still finds them");
+say(runDownload?.with?.name === "feedback-context-${{ inputs.review-run-attempt }}"
+  && replyDownload?.with?.name === "feedback-replies-${{ inputs.lane }}-address-feedback-${{ inputs.review-replies-attempt }}",
+  "the reply job downloads run.json and the replies by their writers' attempts, so a re-run of it alone still finds them");
 const actors = at((s) => s.id === "reply-actors");
 say(actors >= 0 && actors < checkout && /\.base\/\.github\/standards\/trusted-actors\/trusted-actors\.json/.test(byId("reply-actors").run ?? ""),
   "the reply script's trusted-actors list is copied from the base before the head checkout");
