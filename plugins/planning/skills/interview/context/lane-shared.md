@@ -173,6 +173,13 @@ answer. A named person's question never turns optional for them, a reaction alon
 count as their answer, and their pass needs a reason. The owner can change it from the page; an
 op naming someone not in the session is refused, so ask the owner rather than guess a name.
 
+**A new version of a prototype.** When a round revises a prototype from an earlier round, give
+each revised variant `previous: {qid, variant}`, naming the variant it replaces on the earlier
+`prototype` question. The page lists every version on both questions, marks the newest current,
+and shows two side by side. Notes stay on the version they were pinned to, so a digest note's
+`qid` and `variant` say which version it is about. Each variant is revised once, so name the
+newest version; a second variant naming the same one is refused (400 `bad-field`).
+
 **In-flight work.** When a lookup or a guest's request is still running, ask the rest of the
 frontier now; hold only the questions that pending async work can change.
 

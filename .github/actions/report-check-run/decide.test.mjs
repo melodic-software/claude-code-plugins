@@ -299,6 +299,13 @@ test("an untrusted-rerunner trigger stop posts failure, not neutral", () => {
   assert.equal(posted(decide(v, i)).conclusion, "failure");
 });
 
+// A PR on a non-default base is judged by scripts it may have changed, so
+// its stop must not turn neutral either.
+test("an untrusted-base trigger stop posts failure, not neutral", () => {
+  const { verdict: v, inputs: i } = stoppedAt("untrusted-base");
+  assert.equal(posted(decide(v, i)).conclusion, "failure");
+});
+
 // The gated head is not the branch's current head, and the push that moved
 // the branch is gated by its own run, so the stop is a superseded-sha skip.
 test("a head-lag trigger stop posts neutral with superseded-sha", () => {
