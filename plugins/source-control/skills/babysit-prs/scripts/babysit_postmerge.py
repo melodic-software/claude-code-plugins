@@ -201,8 +201,8 @@ class PostMergeReadError(RuntimeError):
 
 class UnlistedRecordHold(PostMergeReadError):
     """A github-actions[bot] dispatch by the deadline whose record listing read
-    empty twice. `dispatch`: no recorded lane run after the deadline is still
-    running, so a fresh one is asked for."""
+    empty twice, with no recorded lane run after the deadline completed.
+    `dispatch`: none is running either, so a fresh one is asked for."""
 
     def __init__(self, message: str, *, dispatch: bool) -> None:
         super().__init__(message)
@@ -1600,19 +1600,18 @@ def _judge(
             and ctx.lane_unlisted(run)
         ]
         if unlisted:
-            # Every `own` run here was created after the deadline. Only a
+            # Every `own` run here was created after the deadline. A completed
             # recorded lane run (github-actions[bot], on the branch, containing
-            # the merge) that passes clears the hold. An unreadable verdict
-            # names no run for the lane's re-run, so a fresh one is asked for
-            # unless a recorded one is still running.
+            # the merge) is a complete read, so the runs above judge the merge:
+            # one that passes clears it, a red one is its failure, and a red
+            # attempt 1 waits for the lane's re-run. With none completed the
+            # hold stands, asking for a fresh run unless one is still running.
             late = [r for r in own if ctx.lane_dispatched(r)]
-            if not any(passes(r) for r in late):
+            if all(ctx.outcome(r, attributable=True)[0] == PENDING for r in late):
                 raise UnlistedRecordHold(
                     f"#{merge.number}: the record listing of run {unlisted[0].id} "
                     "read empty twice",
-                    dispatch=not any(
-                        ctx.outcome(r, attributable=True)[0] == PENDING for r in late
-                    ),
+                    dispatch=not late,
                 )
         else:
             failures.append(

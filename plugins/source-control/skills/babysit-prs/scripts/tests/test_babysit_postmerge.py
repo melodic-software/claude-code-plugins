@@ -1242,9 +1242,6 @@ class UnlistedRecordRecovery(CheckCase):
                 {"actor": by(IDENTITY), "triggering_actor": by(IDENTITY)},
                 True,
             ),
-            # A red attempt 1 with no attempt 2: an unreadable verdict names
-            # no run for the lane's re-run, so a fresh run is asked for.
-            "red": ({"conclusion": "failure"}, True),
             "not containing the merge": ({"head_sha": OTHER_SHA}, True),
         }
         for name, (fields, dispatch) in cases.items():
@@ -1257,6 +1254,72 @@ class UnlistedRecordRecovery(CheckCase):
                 self.assertIn("run 11", verdict.reason)
                 self.assertEqual(verdict.failures, ())
                 self.assertIs(verdict.needs_dispatch, dispatch)
+
+    def red_late_rerun(self) -> None:
+        """Run 12, red on attempt 1 and on the lane's recorded attempt 2."""
+        self.late_run("failure", run_attempt=2)
+        self.gh.attempts[(self.LATE_RUN, 1)] = dispatch_run(
+            self.LATE_RUN,
+            "failure",
+            created_at="2026-10-12T16:30:00Z",
+            actor=self.BOT,
+            triggering_actor=self.BOT,
+        )
+        name = f"pr-merge-rerun-{self.LATE_RUN}-attempt-2"
+        self.gh.artifacts[name] = [
+            {"id": 14, "name": name, "workflow_run": {"id": self.LANE_RUN}}
+        ]
+
+    def test_a_later_recorded_red_run_with_regressions_is_a_failure(self) -> None:
+        # A completed recorded lane run containing the merge is a complete read.
+        self.unlisted_hold()
+        self.red_late_rerun()
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual(
+            [(f.signal, f.run_url) for f in verdict.failures],
+            [("dispatch", f"{RUN_URL}/{self.LATE_RUN}/attempts/2")],
+        )
+        self.assertIn("newly failing: test-bash", verdict.failures[0].detail)
+        self.assertFalse(verdict.needs_dispatch)
+
+    def test_a_later_recorded_red_run_without_regressions_clears_the_hold(
+        self,
+    ) -> None:
+        # test-bash already failed on the newest dispatch run before the merge.
+        maintainer = by("maintainer")
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                10,
+                "failure",
+                head_sha=HEAD_SHA,
+                created_at="2026-10-12T09:30:00Z",
+                actor=maintainer,
+                triggering_actor=maintainer,
+            ),
+        )
+        self.gh.jobs[(10, 1)] = [failed_job(101, "test-bash", "Run the bash tests")]
+        self.unlisted_hold()
+        self.red_late_rerun()
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual(verdict.failures, ())
+        self.assertFalse(verdict.needs_dispatch)
+
+    def test_a_later_recorded_red_attempt_1_awaits_the_lanes_rerun(self) -> None:
+        # Readable, so pr-merge's re-run step can name it (exit 5).
+        self.unlisted_hold()
+        self.late_run("failure")
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(pm.verdict_exit(verdict), pm.EXIT_UNVERIFIED)
+        self.assertEqual(
+            [(r.run_id, r.lane) for r in verdict.reruns], [(self.LATE_RUN, True)]
+        )
+        self.assertFalse(verdict.needs_dispatch)
 
     def test_a_recorded_later_run_still_running_asks_for_no_second_dispatch(
         self,
