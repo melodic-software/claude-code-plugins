@@ -811,7 +811,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs` and `publish-feedba
    - when a reply is `VALID` or the PR branch moved, compares the model job's gated head with the
      PR's current head: the branch must be ahead, hold every fix commit, and change fewer than 300
      files, each in a kept thread's scope and none under `.github/`, and each fix commit must change
-     its own thread's path. Otherwise it posts no reply and escalates `feedback-not-landed`;
+     its own thread's path, or for a thread on a skill's `SKILL.md` any file in that skill's
+     directory. Otherwise it posts no reply and escalates `feedback-not-landed`;
    - re-reads every kept thread and, right before posting, the thread itself, and skips one that
      is resolved, on another PR, or whose comments are not exactly the ones the model job read;
    - re-reads `git/ref heads/<head ref>` right before each post and each resolve, since the
