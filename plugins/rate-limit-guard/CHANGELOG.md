@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.7] - 2026-10-22
+
+### Fixed
+
+- The reader contract now says the plugin has 8 `userConfig` options, not 7, matching `plugin.json` and the README table.
+
 ## [2.0.6] - 2026-10-22
 
 ### Changed
