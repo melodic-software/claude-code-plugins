@@ -392,6 +392,9 @@
   /** The shown variant's live view: Open live prototype (a new tab, no opener, no referrer) only while its entry runs;
    *  else what it waits for, or that it ended. The owner also gets Approve (with the attestation a server on a port
    *  needs), Stop, and for a port a link to look at it on this machine first. */
+  /** A failed Approve or Stop: show its error and build the box afresh, so its button comes back even when the error
+   *  reads the same as the last one (the box's key would not change). */
+  const liveFailed = x => { ui.liveErr = Core.errorText(x); liveBox._key = ""; render(); };
   function renderLive(v) {
     const w = views(v), e = Core.liveOf(v), owner = Core.me.isOwner, link = Core.liveLink(v), kind = e?.status.kind || "";
     liveBox.hidden = !w.live;
@@ -432,7 +435,7 @@
         ok.onclick = () => {
           ok.disabled = true; ui.liveErr = "";
           Core.approveLive(e.id, !!attest?.checked).then(() => say("The live prototype is running. Guests can open it now."))
-            .catch(x => { ui.liveErr = Core.errorText(x); render(); });
+            .catch(liveFailed);
         };
         parts.push(ok);
       }
@@ -440,7 +443,7 @@
       stop.setAttribute("aria-label", `Stop the live prototype ${e.label}`);
       stop.onclick = () => {
         stop.disabled = true; ui.liveErr = "";
-        Core.stopLive(e.id).then(() => say("The live prototype has stopped.")).catch(x => { ui.liveErr = Core.errorText(x); render(); });
+        Core.stopLive(e.id).then(() => say("The live prototype has stopped.")).catch(liveFailed);
       };
       parts.push(stop);
     }

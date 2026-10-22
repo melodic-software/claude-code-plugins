@@ -64,13 +64,17 @@ async function main() {
     const shot = s.asset(A.dir, "a.png", png(300, 200, [60, 90]));
     const own = JSON.parse(fs.readFileSync(path.join(A.dir, ".shared-ports.json"), "utf8"));
     const devPort = [51731, 51732, 51733].find(p => p !== own.guest && p !== own.control); // add-live refuses the session's own ports
-    const added = s.apply(A.dir, [{ op: "add-live", label: "Checkout app", folder: build }, { op: "add-live", label: "Dev server", port: devPort }]).results.map(r => r.id);
-    ok("add-live answers L1 and L2, each pending", JSON.stringify(added) === JSON.stringify(["L1", "L2"]), JSON.stringify(added));
+    // L3 is one the stand-in starter never starts (fixtures/live_stub_server.py FAILS): each Approve answers the same 502.
+    const added = s.apply(A.dir, [{ op: "add-live", label: "Checkout app", folder: build }, { op: "add-live", label: "Dev server", port: devPort },
+      { op: "add-live", label: "Broken build", folder: build }]).results;
+    ok("add-live answers L1, L2 and L3, each pending", JSON.stringify(added) === JSON.stringify(["L1", "L2", "L3"].map(id => ({ id, status: "pending" }))), JSON.stringify(added));
     s.apply(A.dir, [{ op: "open-round", questions: [
       q("Q1", "Which checkout?", { kind: "prototype", lookAt: "The basket: add an item, then open it.", variants: [
         { id: "v-1", label: "Dense", shots: [shot], live: { id: "L1", path: "/?variant=A" } }, { id: "v-2", label: "Roomy", live: { id: "L1", path: "/?variant=B" } }] }),
       q("Q2", "Which dashboard?", { kind: "prototype", lookAt: "The first chart.", variants: [
         { id: "v-1", label: "On the dev server", live: { id: "L2", path: "/" } }, { id: "v-2", label: "Picture", asset: shot }] }),
+      q("Q3", "Which settings page?", { kind: "prototype", lookAt: "The settings form.", variants: [
+        { id: "v-1", label: "Broken", live: { id: "L3", path: "/" } }, { id: "v-2", label: "Picture", asset: shot }] }),
     ] }]);
 
     // ---------- pending: the guest waits and never holds a link; the owner gets Approve and Stop ----------
@@ -150,6 +154,18 @@ async function main() {
     await until(guest, () => document.querySelector(".vp-live-open")?.getAttribute("href") === `https://live-l2.example.test/`, undefined, 10000);
     ok("with the attestation Approve runs it, and the guest gets its link", (await openOf(guest))?.href === `${ORIGIN("L2")}/`, JSON.stringify(await openOf(guest)));
 
+    // ---------- a start that fails twice with the same error: Approve comes back, the error shows ----------
+    const failing = await rec.open(ownerAt("/proto/Q3"));
+    await until(failing, () => !!document.querySelector(".vp-live-approve"));
+    for (const n of [1, 2]) {
+      await until(failing, () => document.querySelector(".vp-live-approve")?.disabled === false, undefined, 5000);
+      await Promise.all([failing.waitForResponse(r => new URL(r.url()).pathname === "/api/live/approve"), failing.locator(".vp-live-approve").click()]);
+      await until(failing, () => document.querySelector(".vp-live-approve")?.disabled === false && !!document.querySelector(".vp-live-err"), undefined, 3000);
+      const after = await failing.evaluate(() => ({ disabled: document.querySelector(".vp-live-approve")?.disabled, err: document.querySelector(".vp-live-err")?.textContent || "" }));
+      ok(`after failed Approve ${n} of 2 Approve is enabled again and the error shows`, after.disabled === false && !!after.err, JSON.stringify(after));
+    }
+    await failing.close();
+
     // ---------- live prototypes off: every entry ends, and guests lose the live view ----------
     await owner.evaluate(() => window.Core.saveSettings({ prototypeTiers: ["screenshot", "snapshot"] }));
     await until(oproto, () => !!document.querySelector(".vp-live-ended"));
@@ -159,7 +175,9 @@ async function main() {
     ok("guests then get no live view: no box, no entry, the live-only variant reads as off", off.box === true && off.lives === 0 && /off in this session/.test(off.stage), JSON.stringify(off));
 
     // ---------- no errors ----------
-    ok("no page error or console error", rec.errors.length === 0, rec.errors.join(" | "));
+    // The two failed Approves above each log their 502 to the console; nothing else may.
+    const failed502 = rec.errors.filter(e => /status of 502/.test(e)), others = rec.errors.filter(e => !/status of 502/.test(e));
+    ok("no page error or console error beyond the two expected 502s", others.length === 0 && failed502.length <= 2, rec.errors.join(" | "));
     const csp = await rec.cspViolations();
     ok("no CSP violation", csp.length === 0, csp.join(" | "));
     ok("no 429", rec.too.length === 0, rec.too.join(" | "));
