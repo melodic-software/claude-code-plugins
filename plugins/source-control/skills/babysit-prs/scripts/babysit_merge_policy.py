@@ -3330,21 +3330,23 @@ NEVER_FLOOR_EXEMPT = (
     ".github/workflows/**",
     ".github/scripts/**",
     ".github/actions/**",
-    "CODEOWNERS",
-    "**/CODEOWNERS",
     # Owner decision 2026-10-20 (Gated PR Merge clause 5): the merge gate,
-    # the review lanes and agent permission config, even in his own PRs.
+    # the review lanes and agent permission config, even in his own PRs; the
+    # rest of that config is `INSTRUCTION_PATH_RE`.
     "plugins/source-control/skills/babysit-prs/**",
     "plugins/review/**",
     "docs/conventions/**",
-    "**/.claude/**",
-    "**/.claude-plugin/**",
-    "**/CLAUDE.md",
-    "**/AGENTS.md",
     "REVIEW.md",
-    "**/.mcp.json",
-    "**/.lsp.json",
     "**/settings*.json",
+)
+# The instruction and runnable-plugin paths (CLAUDE.md, AGENTS.md, .mcp.json,
+# .lsp.json, .gitmodules, CODEOWNERS, .claude/ and .claude-plugin/
+# directories, plugins/*/hooks, monitors and bin): the twin of
+# .github/scripts/pr-unblock/thread-scope.mjs INSTRUCTION_PATH, which a test
+# holds equal. Never floor-exempt either.
+INSTRUCTION_PATH_RE = re.compile(
+    r"(^|\/)((claude|agents)\.md|\.mcp\.json|\.lsp\.json|\.gitmodules|codeowners)$|(^|\/)\.claude(-plugin)?(\/|$)|(^|\/)plugins\/[^/]+\/(hooks|monitors|bin)(\/|$)",
+    re.I,
 )
 
 
@@ -3352,7 +3354,7 @@ def own_paths(
     repo: str, pr: Mapping[str, Any], changed: Collection[str]
 ) -> frozenset[str]:
     """The `changed` paths only the author's own commits touched
-    (`foreign_paths`), less `NEVER_FLOOR_EXEMPT`: what the path floor leaves
+    (`foreign_paths`), less `NEVER_FLOOR_EXEMPT` and `INSTRUCTION_PATH_RE`: what the path floor leaves
     out of an adopted pull request whose author's lines count as its own
     (`Eligibility.body_is_intent`). Empty when the commits cannot be read."""
     others = foreign_paths(repo, pr, changed)
@@ -3361,7 +3363,9 @@ def own_paths(
     return frozenset(
         p
         for p in changed
-        if p not in others and not any(glob_match(g, p) for g in NEVER_FLOOR_EXEMPT)
+        if p not in others
+        and not INSTRUCTION_PATH_RE.search(p)
+        and not any(glob_match(g, p) for g in NEVER_FLOOR_EXEMPT)
     )
 
 

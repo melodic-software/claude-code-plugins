@@ -26,7 +26,9 @@ bump: minor
   `.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` are never exempt, nor are the
   merge gate, the review lanes, `docs/conventions/**` and agent permission config (`.claude/`,
   `.claude-plugin/`, `CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `.mcp.json`, `.lsp.json`,
-  `settings*.json`), per owner decision 2026-10-20. An App's own
+  `settings*.json`), per owner decision 2026-10-20, nor `.gitmodules` and `plugins/*/hooks`,
+  `monitors` and `bin`. The instruction paths come from one regex, the twin of pr-unblock's
+  `thread-scope.mjs` `INSTRUCTION_PATH`, held equal by a test. An App's own
   commit needs a committer that is the App or GitHub's web-flow.
 - A pass judged on the pull request's title and body records their sha256, and the gate refuses
   it with `verify:spec-changed` once they change.

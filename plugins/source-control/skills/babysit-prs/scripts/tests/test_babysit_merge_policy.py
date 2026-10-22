@@ -18,6 +18,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -3826,20 +3827,44 @@ class ForeignPaths(unittest.TestCase):
                 ".mcp.json",
                 "plugins/x/.lsp.json",
                 "config/settings.local.json",
+                # Runnable plugin code and submodule wiring
+                # (thread-scope.mjs INSTRUCTION_PATH).
+                "plugins/x/hooks/h.sh",
+                "plugins/x/monitors/m.json",
+                "plugins/x/bin/tool",
+                ".gitmodules",
                 "docs/x.md",
+                "plugins/x/skills/y/SKILL.md",
             }
         )
-        sync = owner_pr(
-            user={
-                "login": "melodic-standards-sync[bot]",
-                "id": 300666570,
-                "type": "Bot",
-            }
-        )
-        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
-            self.assertEqual(policy.own_paths(REPO, sync, changed), {"docs/x.md"})
+        own = {"docs/x.md", "plugins/x/skills/y/SKILL.md"}
+        for user in (
+            {"login": "melodic-standards-sync[bot]", "id": 300666570, "type": "Bot"},
+            {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "User"},
+            {"login": "claude[bot]", "id": 209825114, "type": "Bot"},
+            {"login": "cursoragent", "id": 199161495, "type": "User"},
+        ):
+            with (
+                self.subTest(author=user["login"]),
+                mock.patch.object(policy, "foreign_paths", return_value=frozenset()),
+            ):
+                self.assertEqual(
+                    policy.own_paths(REPO, owner_pr(user=user), changed), own
+                )
         with mock.patch.object(policy, "foreign_paths", return_value=None):
-            self.assertEqual(policy.own_paths(REPO, sync, changed), frozenset())
+            self.assertEqual(policy.own_paths(REPO, owner_pr(), changed), frozenset())
+
+    def test_the_instruction_path_twin_matches_thread_scope(self) -> None:
+        # One list: the Python twin is the regex thread-scope.mjs defines.
+        root = pathlib.Path(__file__).resolve().parents[6]
+        source = (root / ".github/scripts/pr-unblock/thread-scope.mjs").read_text(
+            encoding="utf-8"
+        )
+        found = re.search(r"const INSTRUCTION_PATH =\s*/(.+)/(\w*);", source)
+        assert found is not None
+        self.assertEqual(policy.INSTRUCTION_PATH_RE.pattern, found.group(1))
+        self.assertEqual(found.group(2), "i")
+        self.assertTrue(policy.INSTRUCTION_PATH_RE.flags & re.IGNORECASE)
 
     def test_a_merge_commit_scores_its_files_the_pr_changed(self) -> None:
         resolved = self.commit("m1", self.LANES, parents=2)

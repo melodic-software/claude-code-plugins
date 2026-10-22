@@ -1719,9 +1719,12 @@ App's, while staying adoptable for fix-and-merge. `.github/standards/**`, `.gith
 `.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` always score, whoever wrote them:
 CI runs that code from main with tokens. So do the merge gate
 (`plugins/source-control/skills/babysit-prs/**`), the review lanes (`plugins/review/**`),
-`docs/conventions/**`, and agent permission config: `.claude/` and `.claude-plugin/` directories,
-`CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `.mcp.json`, `.lsp.json` and `settings*.json` (owner
-decision 2026-10-20, clause 5 of the gated PR merge decision). Paths match case-insensitively. The lanes App and
+`docs/conventions/**`, `REVIEW.md` and `settings*.json` (owner decision 2026-10-20, clause 5 of
+the gated PR merge decision), and every instruction or runnable plugin path pr-unblock's thread
+scope names (`INSTRUCTION_PATH` in `thread-scope.mjs`, whose Python twin a test holds equal):
+`.claude/` and `.claude-plugin/` directories, `CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`,
+`.gitmodules`, `CODEOWNERS`, and `plugins/*/hooks`, `monitors` and `bin`. Paths match
+case-insensitively. The lanes App and
 Dependabot are never adopted. A commit is the author's own
 only when GitHub verified its signature and its author account is the PR's author, and, for a
 person, its committer account too; the author account alone comes from the git author email,
