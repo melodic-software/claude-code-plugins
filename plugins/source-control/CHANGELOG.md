@@ -3,6 +3,45 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.0] - 2026-10-22
+
+### Changed
+
+- The pr-merge lane adopts a pull request any trusted-actor-list account opened, a `User` or a
+  `Bot`, read at the default branch head (owner decision 2026-10-22); a `Bot`'s needs no idle
+  window. pr-merge.yml lists each listed account's PRs by login. Without `adoption.idle-hours`
+  nothing is adopted.
+- An adopted pull request closing no issue in this repository is eligible when a person or an App
+  in `adoption.spec-from-body-apps` opened it, and the verifier gate accepts a pass that records
+  `intent: pull-request` with no closing issue then or now. Any other App still needs its issue.
+- For an adopted pull request, the HIGH path floor and the manifest review score only its changed
+  paths that a commit not its author's own touched, so a trusted author's own lines, a person's or
+  an App's, need no person while a lane's fix to a floor path still holds. A commit is the
+  author's own only when GitHub verified it and its author account, and for a person its
+  committer account, is the pull request's author. A merge commit not the author's own scores its
+  files the pull request changed. The lanes App's own pull requests stay scored whole, and an
+  unreadable commit list scores every path.
+- A person, whose title and body serve as intent with no closing issue, is a `kind: human` id on
+  the trusted list, not any GitHub `User`; the list is read at the default branch head, less the
+  lanes App and Dependabot, which are never adopted.
+- The own-lines floor exemption covers people and `adoption.spec-from-body-apps` Apps; every
+  other App's adopted pull request (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) is
+  exempt only for its own lines under `plugins/*/scripts/` (owner decision Q14 (c)); top-level
+  `scripts/` still scores, since credentialed jobs on main run it. `.github/standards/**`, `.github/workflows/**`,
+  `.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` are never exempt, nor are the
+  merge gate, the review lanes, `docs/conventions/**` and agent permission config (`.claude/`,
+  `.claude-plugin/`, `CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `.mcp.json`, `.lsp.json`,
+  `settings*.json`), per owner decision 2026-10-20, nor `.gitmodules` and `plugins/*/hooks`,
+  `monitors` and `bin`. The instruction paths come from one regex, the twin of pr-unblock's
+  `thread-scope.mjs` `INSTRUCTION_PATH`, held equal by a test. An App's own
+  commit needs a committer that is the App or GitHub's web-flow.
+- A pass judged on the pull request's title and body records their sha256, and the gate refuses
+  it with `verify:spec-changed` once they change.
+
+### Fixed
+
+- The post-merge check no longer holds the pr-merge lane forever when a github-actions[bot] dispatch run's `pr-merge-dispatched-<id>` record listing reads empty twice past the dispatch deadline. The unreadable verdict now sets `needsDispatch` once per merge, so pr-merge starts and records one fresh full run; any github-actions[bot] dispatch after the deadline, recorded or not, uses up that one run. A completed later run judges the merge only when its record is listed, github-actions[bot] dispatched it on the branch, and its head contains the merge commit: one that passes clears the hold, a red one with checks newly failing is a dispatch failure, and a red attempt 1 waits for the lane's re-run. Any other later run leaves the verdict unreadable. The report's new `hold` field names the case, and `recovery-unrecorded`, the recovery run's record missing too, makes pr-merge emit an error.
+
 ## [2.1.2] - 2026-10-22
 
 ### Fixed
