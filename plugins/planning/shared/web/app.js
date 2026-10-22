@@ -1463,7 +1463,11 @@
     const protoMeta = E("p", "vf-proto-meta"), protoOpen = E("a", "vf-btn vf-btn-primary vf-btn-sm vf-proto-open", "Open prototype");
     protoOpen.target = "_blank"; protoOpen.rel = "noopener noreferrer";
     const protoVers = E("div", "vf-proto-versions"); protoVers.hidden = true;
-    protoInfo.append(protoMeta, protoVers, protoOpen);
+    // Where to look (the question's lookAt), beside Open prototype: the area the variants change and the step that shows it.
+    const protoGo = E("div", "vf-proto-go"), protoLook = E("p", "vf-proto-look"), protoLookText = E("span");
+    protoLook.append(E("span", "vf-proto-look-h", "Where to look: "), protoLookText);
+    protoGo.append(protoOpen, protoLook);
+    protoInfo.append(protoMeta, protoVers, protoGo);
     protoBox.append(protoTile, protoInfo);
     fmtBox.append(fmtHint, protoBox, optGrid, multiList, scaleBox, rankList, confirmFig, cfRow, otherBox, fmtActs, fmtNote, fmtRes);
     // Layout A: Answers, then "Claude on this question", one column at every width. The Claude section starts folded to its
@@ -6363,19 +6367,21 @@
     function renderProtoTile(q) {
       protoBox.hidden = q.formatKind !== "prototype";
       if (protoBox.hidden) return;
-      const vs = q.variants || [], shown = vs.filter(v => v.asset), pic = shown.find(v => !/\.html$/.test(v.asset));
-      const off = !shown.length, hidden = Core.me.isOwner ? vs.filter(v => Core.viewOff(v)) : [];
-      protoTile.hidden = protoOpen.hidden = off;
-      const key = `${q.id}|${pic?.asset || ""}`;
+      const vs = q.variants || [], views = vs.map(v => Core.viewsOf(v)), pic = views.map(w => w.shots[0]).find(Boolean) || "";
+      const off = !views.some(w => w.shots.length || w.snapshot), hidden = Core.me.isOwner ? vs.filter(v => Core.viewsOff(v).length) : [];
+      protoTile.hidden = protoGo.hidden = off;
+      protoLook.hidden = !q.lookAt;
+      protoLookText.textContent = q.lookAt || "";
+      const key = `${q.id}|${pic}`;
       if (protoTile._key !== key) {
         protoTile._key = key;
-        if (pic) { const im = E("img"); im.alt = ""; im.loading = "lazy"; im.src = assetUrl(pic.asset); protoTile.replaceChildren(im); }
+        if (pic) { const im = E("img"); im.alt = ""; im.loading = "lazy"; im.src = assetUrl(pic); protoTile.replaceChildren(im); }
         else protoTile.replaceChildren(icon("open", "vf-i vf-proto-ico"), E("span", null, `${vs.length} interactive variant${vs.length === 1 ? "" : "s"}`));
       }
       const n = (Core.state.annotations || []).filter(a => a.qid === q.id).length;
       protoMeta.textContent = `${vs.length} variants: ${vs.map(v => v.label).join(", ")}. ` + (off ? "Prototype views are off in this session."
         : `${n ? `${n} note${n === 1 ? "" : "s"} pinned so far.` : "Try them and pin notes on any part."}`
-        + (hidden.length ? ` Hidden from guests: ${hidden.map(v => `${v.label} (${OFF_NAME[Core.viewOff(v)]})`).join(", ")}.` : ""));
+        + (hidden.length ? ` Hidden from guests: ${hidden.map(v => `${v.label} (${Core.viewsOff(v).map(t => OFF_NAME[t]).join(", ")})`).join(", ")}.` : ""));
       protoOpen.href = protoTile.href = Core.pageLink(`/proto/${q.id}`);
       protoOpen.setAttribute("aria-label", `Open prototype for ${q.id} in a new tab`);
       renderProtoVersions(q, vs);
