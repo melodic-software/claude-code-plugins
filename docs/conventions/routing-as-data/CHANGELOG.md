@@ -8,10 +8,13 @@ bump; docs-only clarification is a patch.
 
 - Team layer, breaking: `routing.rows` may re-rank or override an existing row, and may add a row
   only when its id matches a bundled row or an installed plugin or skill. A team file may not add a
-  new `kind: tool` row. A row that breaks either rule is dropped, and the disclosure names it. Each
-  adopter's team-file schema `description` states the same rule.
-- Adopters: `user-experience` adopts the 2.0.0 limits; `user-interface` records a deviation, applying
-  team-added rows with no id limit, tracked in #8788.
+  new `kind: tool` row. A team row that reuses a bundled id may not change that row's `kind`,
+  `detect` or `account`. A row that breaks any of these rules is dropped, and the disclosure names
+  it. Each adopter's team-file schema `description` states the same rules.
+- Adopters: `user-experience` adopts the 2.0.0 limits, with a deviation: its schema `description`
+  states only the two add limits, while its code enforces the third. `user-interface` records a
+  deviation, applying team-added rows with no id limit, no `kind: tool` refusal and no restriction
+  on a bundled-id override, tracked in #8788.
 
 ## [1.0.1] - 2026-10-09
 

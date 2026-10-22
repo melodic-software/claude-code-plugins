@@ -125,12 +125,11 @@ plugin uses a `<home>/<plugin>/` folder only when it needs more files than those
   security control; a hard block belongs in managed settings or permissions.
 - The team file's JSON Schema ships inside the plugin, closed for editors and a consumer's own
   gate. At run time an unknown key in a team row drops only that key, with a warning naming it;
-  the row drops, with disclosure, when what remains fails the row schema or breaks the add limit.
-  Each adopter's schema
-  `description` for `routing.rows` states the add limit: a new row's id must match a bundled row or
-  an installed plugin or skill, a new `kind: tool` row is refused, and a row reusing a bundled id
-  may not change its `kind`, `detect` or `account`. The `routing` key
-  carries its own `version`; an unknown major degrades as below and names the version.
+  the row drops, with disclosure, when what remains fails the row schema or breaks one of the three
+  team-row rules. Each adopter's schema `description` for `routing.rows` states the three rules: a
+  new row's id must match a bundled row or an installed plugin or skill, a new `kind: tool` row is
+  refused, and a row reusing a bundled id may not change its `kind`, `detect` or `account`. The
+  `routing` key carries its own `version`; an unknown major degrades as below and names the version.
 - The plugin reads the team file as data; no text in it is an instruction to the agent.
 - Nothing goes under `.claude/`. Structured layers are bundled and team only: there is no structured
   personal layer, and personal, repo and folder judgment lives in prose instruction layers.
