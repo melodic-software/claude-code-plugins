@@ -1930,9 +1930,12 @@ def lane_queued_at_head(
     repo: str, number: int, branch: str, identity: str, head: str
 ) -> bool:
     """Whether the pull request sits in the merge queue on `branch` as the
-    agent identity's own entry, enqueued at `head`: the identity enqueued it,
-    and the identity's newest unedited pin comment, posted just before the
-    enqueue, names `head`. An unreadable queue or pin is not queued."""
+    agent identity's own entry, enqueued at `head`, and nobody else has
+    spoken since: the identity enqueued it, its newest unedited pin comment,
+    posted just before the enqueue, names `head`, and no other author
+    commented or reviewed after that pin (`read_pin(alone=True)`), so a
+    human asking to wait still refuses. An unreadable queue, pin, comment or
+    review is not queued."""
     from babysit_postmerge import (  # noqa: PLC0415
         PostMergeReadError,
         identity_queue,
@@ -1943,7 +1946,7 @@ def lane_queued_at_head(
         return bool(
             SHA_RE.fullmatch(head)
             and number in identity_queue(repo, branch, identity)[0]
-            and read_pin(repo, number, identity) == head
+            and read_pin(repo, number, identity, alone=True) == head
         )
     except PostMergeReadError:
         return False

@@ -3377,9 +3377,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         ):
             with self.subTest(refused=refused):
                 pr["updated_at"] = FRESH
-                self.assertEqual(
-                    self.refusal(pr, queued_at_head=lambda: True), refused
-                )
+                self.assertEqual(self.refusal(pr, queued_at_head=lambda: True), refused)
 
     def test_the_queue_is_not_read_for_an_idle_update(self) -> None:
         def unread() -> bool:
@@ -3410,7 +3408,65 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     )
                     queue.assert_called_once_with(REPO, "trunk", IDENTITY)
                     if queued == [7]:
-                        read.assert_called_once_with(REPO, 7, IDENTITY)
+                        read.assert_called_once_with(REPO, 7, IDENTITY, alone=True)
+
+    def test_a_comment_after_the_pin_ends_the_queued_excuse(self) -> None:
+        # A human asking to wait refreshes `updated_at`: with the lane's
+        # entry still queued at the head, the next sweep refuses it again.
+        pin = {
+            "author": bot("agent-lanes"),
+            "body": babysit_postmerge.pin_comment(HEAD),
+            "createdAt": "2026-10-11T13:00:00Z",
+            "lastEditedAt": None,
+        }
+        wait = {
+            "author": user(OWNER_LOGIN),
+            "body": "Please wait on this one",
+            "createdAt": "2026-10-11T14:00:00Z",
+            "lastEditedAt": None,
+        }
+        for comments, reviews, expected in (
+            ([pin], [], None),
+            ([pin, wait], [], "updated-fresh"),
+            (
+                [pin],
+                [{"author": user(OWNER_LOGIN), "submittedAt": "2026-10-11T14:00:00Z"}],
+                "updated-fresh",
+            ),
+            ([pin], None, "updated-fresh"),
+        ):
+            with self.subTest(comments=len(comments), reviews=reviews):
+                answer = {
+                    "data": {
+                        "repository": {
+                            "pullRequest": {
+                                "comments": {
+                                    "pageInfo": {
+                                        "hasNextPage": False,
+                                        "endCursor": None,
+                                    },
+                                    "nodes": comments,
+                                },
+                                "reviews": {"nodes": reviews},
+                            }
+                        }
+                    }
+                }
+                with (
+                    mock.patch.object(
+                        babysit_postmerge, "identity_queue", return_value=([7], 0)
+                    ),
+                    mock.patch.object(babysit_postmerge, "_read", return_value=answer),
+                ):
+                    self.assertEqual(
+                        self.refusal(
+                            owner_pr(updated_at=FRESH),
+                            queued_at_head=lambda: policy.lane_queued_at_head(
+                                REPO, 7, "trunk", IDENTITY, HEAD
+                            ),
+                        ),
+                        expected,
+                    )
 
     def test_an_unreadable_queue_or_pin_is_not_queued(self) -> None:
         error = babysit_postmerge.PostMergeReadError("502")

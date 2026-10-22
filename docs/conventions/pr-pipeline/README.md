@@ -792,9 +792,11 @@ except six:
   and that no hold applies to: the `do-not-merge` label, the
   tracker's human-gated role label as `.work-item-tracker.json` resolves it, or a hold line in
   the body. While the lane's own merge-queue entry holds it at the current head (the lanes App
-  enqueued it, and its newest unedited pin comment names that head), a recent `updatedAt` does
-  not refuse, since the pin comment and the enqueue refresh it; the head commit test and every
-  hold still apply. The decision records it as `eligibility.adoption` (`idle-owner:<hours>h`);
+  enqueued it, its newest unedited pin comment names that head, and no other author has commented
+  or submitted the newest review since that pin), a recent `updatedAt` does not refuse, since the
+  pin comment and the enqueue refresh it; any other comment or review, such as a request to
+  wait, refuses again, as does an unreadable one. The head commit test and every hold still
+  apply. The decision records it as `eligibility.adoption` (`idle-owner:<hours>h`);
   every other gate applies unchanged. Any other author refuses `not-lane-authored`, and an owner pull
   request that is not adopted refuses `not-adopted:<reason>`. The candidate listing adds each
   owner account's open pull requests, looked up by id.

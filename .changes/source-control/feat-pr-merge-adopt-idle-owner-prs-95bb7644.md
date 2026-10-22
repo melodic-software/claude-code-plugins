@@ -8,7 +8,8 @@ bump: minor
   `adoption.owner-ids` (none when absent) opened, matched by account id, not a draft,
   whose update and head commit are both at least `adoption.idle-hours` old (read at main, 24
   when absent; 1 to 720), and with no hold label or body hold. The lane's own merge-queue entry
-  at the current head keeps adoption though its pin comment refreshed the update time.
+  at the current head keeps adoption though its pin comment refreshed the update time, until
+  anyone else comments or reviews after the pin.
   pr-merge.yml lists those accounts' PRs. The decision records it as `eligibility.adoption`;
   every other gate applies unchanged.
 
