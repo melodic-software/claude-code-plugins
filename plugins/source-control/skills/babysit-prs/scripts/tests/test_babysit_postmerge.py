@@ -1233,18 +1233,22 @@ class UnlistedRecordRecovery(CheckCase):
     def test_a_later_run_failing_a_condition_leaves_the_hold(self) -> None:
         maintainer = by("maintainer")
         cases = {
-            "unrecorded": ({"recorded": False}, True),
+            # The one recovery dispatch is spent: no second one, a loud hold.
+            "unrecorded": ({"recorded": False}, (False, "recovery-unrecorded")),
             "another actor": (
                 {"actor": maintainer, "triggering_actor": maintainer},
-                True,
+                (True, "unlisted-record"),
             ),
             "the agent identity, not the lane": (
                 {"actor": by(IDENTITY), "triggering_actor": by(IDENTITY)},
-                True,
+                (True, "unlisted-record"),
             ),
-            "not containing the merge": ({"head_sha": OTHER_SHA}, True),
+            "not containing the merge": (
+                {"head_sha": OTHER_SHA},
+                (True, "unlisted-record"),
+            ),
         }
-        for name, (fields, dispatch) in cases.items():
+        for name, (fields, (dispatch, hold)) in cases.items():
             with self.subTest(name):
                 self.setUp()
                 self.unlisted_hold()
@@ -1254,6 +1258,39 @@ class UnlistedRecordRecovery(CheckCase):
                 self.assertIn("run 11", verdict.reason)
                 self.assertEqual(verdict.failures, ())
                 self.assertIs(verdict.needs_dispatch, dispatch)
+                self.assertEqual(verdict.report()["hold"], hold)
+
+    def test_failing_record_uploads_spend_one_recovery_dispatch(self) -> None:
+        # Each sweep sees the bot runs dispatched before it, none recorded.
+        self.unlisted_hold()
+        dispatched = 0
+        holds = []
+        for sweep in range(6):
+            minute = 30 + sweep * 5
+            verdict = self.check(
+                pinned=None, now=datetime(2026, 10, 12, 17, minute, tzinfo=UTC)
+            )
+            self.assertFalse(verdict.readable)
+            holds.append(verdict.report()["hold"])
+            if verdict.needs_dispatch:
+                dispatched += 1
+                self.gh.add_runs(
+                    "pr-require-checks.yml",
+                    "workflow_dispatch",
+                    dispatch_run(
+                        100 + sweep,
+                        created_at=f"2026-10-12T17:{minute}:30Z",
+                        actor=self.BOT,
+                        triggering_actor=self.BOT,
+                    ),
+                )
+        self.assertEqual(dispatched, 1)
+        self.assertEqual(holds, ["unlisted-record"] + ["recovery-unrecorded"] * 5)
+
+    def test_a_readable_verdict_carries_no_hold(self) -> None:
+        self.unlisted_hold()
+        self.late_run()
+        self.assertIsNone(self.check(pinned=None, now=self.AFTER).report()["hold"])
 
     def red_late_rerun(self) -> None:
         """Run 12, red on attempt 1 and on the lane's recorded attempt 2."""
