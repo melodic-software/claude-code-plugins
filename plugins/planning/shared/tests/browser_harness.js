@@ -109,6 +109,8 @@ function recorder(browser) {
   return { open, openIn, errors, too, cspViolations };
 }
 
+/** True once fn(arg) is truthy in the page, false on timeout. A predicate that throws ends the wait at once and lands in
+ *  the page errors, so one that can run while the page reloads reads window.Core with ?. (it is unset until core.js runs). */
 const until = (page, fn, arg, timeout = 8000) => page.waitForFunction(fn, arg, { timeout }).then(() => true).catch(() => false);
 const snap = page => page.evaluate(() => window.Core.snapshot());
 
