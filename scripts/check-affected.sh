@@ -324,6 +324,7 @@ fi
 typos_check() {
   typos --config "$1" --force-exclude \
     --exclude 'plugins/*/skills/*/vendor/**' \
+    --exclude 'plugins/*/tools/*/vendor/**' \
     --exclude 'plugins/testing/skills/audit/evals/judge-calibration/cases/**' \
     -- "${changed[@]}" || return 1
 }
