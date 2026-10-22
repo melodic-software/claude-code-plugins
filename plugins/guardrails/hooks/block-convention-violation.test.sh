@@ -4,6 +4,7 @@
 # Black-box: invokes the hook as a subprocess, pipes PreToolUse JSON on stdin,
 # asserts on exit code (2 = blocked, 0 = allowed). Each case runs against an
 # isolated repo root whose team convention file this test controls.
+# test-scope: plugins/guardrails/hooks/*.test.sh plugins/guardrails/hooks/workflow-resilience-check.sh
 
 set -uo pipefail
 
