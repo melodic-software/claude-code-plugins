@@ -50,6 +50,7 @@ if str(HERE.parent / "surface") not in sys.path:
     sys.path.append(str(HERE.parent / "surface"))
 schema = importlib.import_module("schema")
 detached = importlib.import_module("detached")
+liveserve = importlib.import_module("liveserve")
 
 HOST = "host"
 CLAUDE = object()  # the actor for ops arriving through the control listener
@@ -224,12 +225,14 @@ HTML_ASSET = re.compile(r"[0-9a-f]{16}\.html")  # a prototype variant's snapshot
 # Live prototypes (`lives`): an entry's id; a live link's path on the prototype's own origin, RFC 3986 path-absolute
 # (so never "//", which would name another host) with an optional query, in URL characters only: no "#" (a fragment,
 # where the page's #me=, #join= and #owner= identities ride), no backslash, space or control character (the WHATWG URL
-# parser reads a backslash as "/" and drops tab and newline, so "/<backslash>x" or "/<tab>/x" would become "//x"); the https origin a
-# started entry is opened at, with no user, path, query or fragment; and the build folder an entry serves, relative to
-# the data folder, under staging/ (never the data folder itself, which holds the session's secrets and guests' files).
+# parser reads a backslash as "/" and drops tab and newline, so "/<backslash>x" or "/<tab>/x" would become "//x"); the
+# origin a started entry is opened at, only a quick tunnel's (https, one label under trycloudflare.com, no user, port,
+# path, query or fragment, never an IP literal or cloudflared's own api. host), which the Public Suffix List makes a
+# site apart from the interview's; and the build folder an entry serves, relative to the data folder, under staging/
+# (never the data folder itself, which holds the session's secrets and guests' files).
 LIVE_ID = re.compile(r"L[1-9][0-9]{0,5}")
 LIVE_PATH = re.compile(r"/(?!/)(?:[A-Za-z0-9._~!$&'()*+,;=:@/?-]|%[0-9A-Fa-f]{2})*")
-LIVE_URL = re.compile(r"https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+(?::[0-9]{1,5})?")
+LIVE_URL = re.compile(r"https://(?!api\.)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.trycloudflare\.com")
 LIVE_FOLDER = re.compile(r"staging/[^/.][^/]*(?:/[^/.][^/]*)*")
 MAX_LIVE_PATH = 500
 MAX_LIVE_URL = 300
@@ -549,7 +552,7 @@ def _live_errors(doc):
             errors.append(f"Live prototype {e['id'][:40]} serves a folder outside staging/.")
         url = e["status"].get("url")
         if url is not None and not (len(url) <= MAX_LIVE_URL and LIVE_URL.fullmatch(url)):
-            errors.append(f"Live prototype {e['id'][:40]} runs at an address that is not an https origin.")
+            errors.append(f"Live prototype {e['id'][:40]} runs at an address that is not a quick tunnel's https origin.")
         if e["status"]["kind"] in ("starting", "running") and (doc["session"]["phase"]["kind"] == "ended" or "live" not in prototype_tiers(doc["session"]["settings"])):
             errors.append(f"Live prototype {e['id'][:40]} runs while live prototypes are off or the session has ended.")
         if e["target"]["kind"] == "port" and "approvedAt" in e["status"] and not e["status"].get("attested"):
@@ -4020,6 +4023,45 @@ class Session:
         with self._lock:
             return next((e["status"]["kind"] for e in self.state.get("lives", []) if e["id"] == lid), None)
 
+    def live_entries(self):
+        """A copy of every live entry, for the server's supervision."""
+        with self._lock:
+            return copy.deepcopy(self.state.get("lives", []))
+
+    def live_moved(self, lid, url):
+        """The live starter restarted the running `lid` behind a new quick tunnel at `url`: the entry keeps running,
+        approved once for its target and content, at the new address. False when it no longer runs (the server then
+        stops what it restarted); a url that is not a quick tunnel's origin is refused, 502."""
+        if not (isinstance(url, str) and len(url) <= MAX_LIVE_URL and LIVE_URL.fullmatch(url)):
+            raise DomainError(502, "live-failed", "The live prototype did not restart: its server answered no https address.")
+        with self._tx():
+            e = self._live(lid)
+            if e["status"]["kind"] != "running":
+                return False
+            if e["status"]["url"] != url:
+                e["status"] = {**e["status"], "url": url}
+            return True
+
+    def live_ended(self, lid, reason="failed"):
+        """`lid` ended outside a route: `failed` when it stopped and could not be started again (or was gone after a
+        restart of the machine), `stopped` when `share.sh stop` ended it while the server was down. True when it ended
+        here."""
+        with self._lock:
+            if self.live_status(lid) not in ("starting", "running"):
+                return False
+            with self._tx():
+                self._end_live(self._live(lid), reason)
+            return True
+
+    def stop_all_lives(self):
+        """`share.sh stop` and `share.sh live-stop` with no id: every live prototype not ended ends; the ids."""
+        with self._lock:
+            ids = [e["id"] for e in self.state.get("lives", []) if e["status"]["kind"] != "ended"]
+            if ids:
+                with self._tx():
+                    self._end_lives("stopped")
+            return ids
+
     def stop_live(self, pid, body):
         """POST /api/live/stop {id}: the owner ends a live prototype, started or not."""
         _body(body)
@@ -6201,6 +6243,10 @@ class Session:
             target = {"kind": "port", "port": self._live_port(op["port"])}
         else:
             target = {"kind": "folder", "folder": _live_folder(op["folder"], self.path.parent)}
+            try:
+                liveserve.scan_build(self.path.parent / target["folder"])  # the start copies it with the same walk
+            except (liveserve.BuildRefused, OSError) as exc:
+                raise _bad("folder", f"add-live serves a folder of regular files only: {exc}") from None
         lives = self.state.get("lives", [])
         if sum(1 for e in lives if e["status"]["kind"] != "ended") >= MAX_LIVES:
             raise DomainError(409, "lives-full", f"A session runs at most {MAX_LIVES} live prototypes at once; stop one first.", max=MAX_LIVES)

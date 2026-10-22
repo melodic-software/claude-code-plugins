@@ -20,6 +20,7 @@ from unittest import mock
 from support import FAKE, FIXTURES, WINDOWS, outside_cloudflared, tmpdir
 
 import detached
+import liveserve
 import tunnel
 
 ADDRESS = re.compile(r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com$")
@@ -596,6 +597,91 @@ class TestSwitch(TunnelCase):
         tunnel.ensure(self.d, 4321)
         tunnel.ensure(self.d, 4321, HOST, self.token, verify=self.reaches)
         self.assertEqual(self.checked, [f"https://{HOST}"])
+
+
+class TestLiveRecords(TunnelCase):
+    """A live prototype's own quick tunnel, keyed by its record's path under .shared-live/: start, end, sweep. The
+    session tunnel's record is never touched."""
+
+    def setUp(self):
+        super().setUp()
+        self.path = tunnel.live_path(self.d, "L1")
+        self.addCleanup(lambda: tunnel.sweep_live(self.d, every=True))
+
+    def static_server(self):
+        root = tmpdir(self) / "copy"
+        root.mkdir()
+        proc, port = liveserve.spawn(root, tmpdir(self) / "serve.log")
+        self.addCleanup(lambda: (proc.kill(), proc.wait()))
+        self.assertIsNotNone(port)
+        return {"pid": proc.pid, "marker": liveserve.MARKER, "processStart": detached.started(proc.pid), "port": port}
+
+    def test_start_runs_a_quick_tunnel_to_the_port_and_records_it_at_its_path_only(self):
+        rec = tunnel.start_live(self.path, 4400)
+        self.assertRegex(rec["url"], ADDRESS)
+        self.assertEqual(self.runs(), ["tunnel --no-autoupdate --url http://127.0.0.1:4400"])
+        self.assertEqual(tunnel.read_live(self.path), rec)
+        self.assertEqual((rec["id"], rec["port"]), ("L1", 4400))
+        self.assertIsNone(tunnel.read(self.d))  # the session's own record stays as it was: absent
+        self.assertTrue((self.d / tunnel.LIVE_DIR / "L1.cloudflared.log").is_file())
+
+    @unittest.skipIf(WINDOWS, "file modes are advisory on Windows")
+    def test_the_record_and_its_folder_are_private(self):
+        tunnel.start_live(self.path, 4400)
+        self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE(self.path.parent.stat().st_mode), 0o700)
+
+    def test_a_restart_ends_the_tunnel_it_named_and_keeps_the_server_it_named(self):
+        srv = self.static_server()
+        tunnel.write_live(self.path, {"id": "L1", "port": srv["port"], "server": srv})
+        first = tunnel.start_live(self.path, srv["port"])
+        second = tunnel.start_live(self.path, srv["port"])
+        self.assertNotEqual(first["url"], second["url"])
+        self.assertFalse(tunnel.tunnel_running(first))
+        self.assertEqual(second["server"], srv)
+        self.assertTrue(tunnel.server_running(second))
+
+    def test_end_stops_the_tunnel_and_the_server_and_keeps_the_record(self):
+        srv = self.static_server()
+        tunnel.write_live(self.path, {"id": "L1", "port": srv["port"], "server": srv})
+        rec = tunnel.start_live(self.path, srv["port"])
+        done = tunnel.end_live(self.path, "stopped")
+        self.assertEqual(sorted(done["stopped"]), ["server", "tunnel"])
+        self.assertFalse(tunnel.tunnel_running(rec) or tunnel.server_running(rec))
+        kept = tunnel.read_live(self.path)
+        self.assertEqual((kept["pid"], kept["url"], kept["reason"]), (rec["pid"], rec["url"], "stopped"))
+        self.assertEqual(tunnel.end_live(self.path, "failed")["reason"], "stopped")  # ended once
+        self.assertIsNone(tunnel.end_live(tunnel.live_path(self.d, "L9"), "stopped"))
+
+    def test_a_record_naming_no_trycloudflare_address_is_never_handed_on(self):
+        with mock.patch.object(tunnel, "_start", return_value={"id": "L1", "pid": 1, "url": "https://evil.example", "marker": "x", "processStart": "0"}):
+            with self.assertRaisesRegex(tunnel.TunnelDown, "not a trycloudflare.com address"):
+                tunnel.start_live(self.path, 4400)
+
+    def test_sweep_ends_a_record_whose_processes_are_gone_and_leaves_a_running_one(self):
+        running = tunnel.start_live(self.path, 4400)
+        gone_path = tunnel.live_path(self.d, "L2")
+        gone = tunnel.start_live(gone_path, 4401)
+        detached.stop(*tunnel._identity(gone))
+        ended = tunnel.sweep_live(self.d)
+        self.assertEqual([r["id"] for r in ended], ["L2"])
+        self.assertEqual(tunnel.read_live(gone_path)["reason"], "failed")
+        self.assertTrue(tunnel.tunnel_running(running))
+        self.assertNotIn("endedAt", tunnel.read_live(self.path))
+
+    def test_sweep_of_every_record_stops_the_running_ones(self):
+        rec = tunnel.start_live(self.path, 4400)
+        ended = tunnel.sweep_live(self.d, every=True, reason="session-ended")
+        self.assertEqual([(r["id"], r["stopped"]) for r in ended], [("L1", ["tunnel"])])
+        self.assertFalse(tunnel.tunnel_running(rec))
+        self.assertEqual(tunnel.sweep_live(self.d, every=True), [])  # an ended record is left alone
+
+    def test_the_session_tunnel_record_keeps_its_fields(self):
+        rec = tunnel.ensure(self.d, 4321)
+        tunnel.start_live(self.path, 4400)
+        self.assertEqual(sorted(tunnel.read(self.d)), sorted(rec))
+        self.assertEqual(sorted(rec), ["adopted", "marker", "pid", "port", "processStart", "startedAt", "url"])
+
 
 if __name__ == "__main__":
     unittest.main()

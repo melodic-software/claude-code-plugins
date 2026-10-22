@@ -2,7 +2,8 @@
 
 The only file that runs cloudflared. `share.py` and `server.py` see a record,
 `{pid, url, port, startedAt, marker, processStart, adopted[, hostname, tokenFile][, retired]}` in
-`<data_dir>/.shared-tunnel.json` (0600), and call `ensure`, `alive`, `adopt`, `retired`, `sweep` and `stop`.
+`<data_dir>/.shared-tunnel.json` (0600), and call `ensure`, `alive`, `adopt`, `retired`, `sweep` and `stop`. A live
+prototype gets its own quick tunnel and record under `.shared-live/` ("live prototypes" below).
 cloudflared runs as its own detached process (detached.py), so it outlives a server restart and the
 guest link stays the same; the server restarts it when it exits.
 
@@ -213,8 +214,8 @@ def read(data_dir):
     return rec if isinstance(rec, dict) and isinstance(rec.get("pid"), int) and isinstance(rec.get("url"), str) else None
 
 
-def _write(data_dir, rec):
-    detached.write_private(Path(data_dir) / RECORD, json.dumps(rec, indent=2) + "\n")
+def _write(data_dir, rec, path=None):
+    detached.write_private(path or Path(data_dir) / RECORD, json.dumps(rec, indent=2) + "\n")
 
 
 def _identity(rec):
@@ -285,9 +286,11 @@ def _wait_url(proc, log, seconds, pattern=BANNER):
     return None
 
 
-def _start(data_dir, port, hostname="", token_file="", retired_entry=None, verify=None):
-    """Start cloudflared and write its record, with `retired_entry` (a tunnel left running) as its retired. `verify(url)`,
-    when given, says why the new address does not reach this session (else None); then nothing is recorded."""
+def _start(data_dir, port, hostname="", token_file="", retired_entry=None, verify=None, path=None, log_name=LOG, fields=None):
+    """Start cloudflared in `data_dir` and write its record, with `retired_entry` (a tunnel left running) as its retired.
+    `verify(url)`, when given, says why the new address does not reach this session (else None); then nothing is
+    recorded. `path`, `log_name` and `fields`: another record than the session's (a live prototype's), its log, and the
+    fields it keeps beside the tunnel's."""
     problem = hostname and (hostname_problem(hostname) or token_file_problem(token_file))
     if problem:
         raise TunnelDown(problem)
@@ -295,7 +298,7 @@ def _start(data_dir, port, hostname="", token_file="", retired_entry=None, verif
     if not exe:
         raise TunnelDown(MISSING)
     d = Path(data_dir)
-    log = d / LOG
+    log = d / log_name
     try:
         proc = detached.spawn(_command(exe, port, hostname, token_file), log=log, env=child_env(), cwd=d)
     except OSError as exc:
@@ -322,12 +325,12 @@ def _start(data_dir, port, hostname="", token_file="", retired_entry=None, verif
     # The word alive() looks for: the program's name in its command line, or on Windows the stem of
     # the executable the OS reports (python for the test fake).
     marker = Path((detached.describe(proc.pid) or exe) if detached.WINDOWS else exe).stem.lower()
-    rec = {"pid": proc.pid, "url": url, "port": port, "startedAt": time.time(), "marker": marker, "processStart": start, "adopted": False}
+    rec = {**(fields or {}), "pid": proc.pid, "url": url, "port": port, "startedAt": time.time(), "marker": marker, "processStart": start, "adopted": False}
     if hostname:
         rec.update(hostname=hostname, tokenFile=token_file)
     if retired_entry:
         rec["retired"] = retired_entry
-    _write(d, rec)
+    _write(d, rec, path)
     detached.release(proc)
     return rec
 
@@ -459,6 +462,122 @@ def stop(data_dir):
         stopped = bool(rec) and _ours(d, rec, True) and _end(rec)
         (d / RECORD).unlink(missing_ok=True)
         return stopped
+
+
+# -- live prototypes ----------------------------------------------------------------------------------------------
+# A live prototype the owner approved runs behind its own quick tunnel, never the session's: its trycloudflare.com host
+# is a site of its own (trycloudflare.com is on the Public Suffix List), apart from the interview page's origin and
+# the owner token in its storage. One record per entry, `<data_dir>/.shared-live/<id>.json` (0600, the folder 0700),
+# keyed by its path: the tunnel's fields as the session record holds them (pid, url, port, startedAt, marker,
+# processStart, adopted), the entry's `id`, and `server` {pid, marker, processStart, port} when the plugin started a
+# static server (liveserve.py) for it. Ending one stops both and keeps the record with `endedAt` and `reason`, so it
+# still says what ran. The session tunnel's own record and functions above are unchanged.
+
+LIVE_DIR = ".shared-live"
+
+
+def live_path(data_dir, lid):
+    return Path(data_dir) / LIVE_DIR / f"{lid}.json"
+
+
+def read_live(path):
+    """The live record at `path`, or None."""
+    try:
+        rec = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return rec if isinstance(rec, dict) and isinstance(rec.get("id"), str) else None
+
+
+def live_records(data_dir):
+    """[(path, record)] for every live record in the data folder, by id."""
+    folder = Path(data_dir) / LIVE_DIR
+    found = ((p, read_live(p)) for p in sorted(folder.glob("*.json"))) if folder.is_dir() else ()
+    return [(p, rec) for p, rec in found if rec]
+
+
+def _live_lock(path):
+    detached.make_private_dir(Path(path).parent)
+    return detached.locked(Path(path).with_suffix(".lock"))
+
+
+def write_live(path, rec):
+    detached.make_private_dir(Path(path).parent)
+    _write(None, rec, Path(path))
+
+
+def _server(rec):
+    """(pid, marker, start) of the static server a live record names, or None."""
+    srv = rec.get("server")
+    if not isinstance(srv, dict) or not isinstance(srv.get("pid"), int):
+        return None
+    return srv["pid"], srv.get("marker") or "liveserve", srv.get("processStart") or "unknown"
+
+
+def tunnel_running(rec):
+    """True while the cloudflared a live record names runs."""
+    return isinstance((rec or {}).get("pid"), int) and detached.alive(*_identity(rec))
+
+
+def server_running(rec):
+    """True while the static server a live record names runs; False when it names none."""
+    srv = _server(rec or {})
+    return bool(srv) and detached.alive(*srv)
+
+
+def start_live(path, port):
+    """Start a quick tunnel to 127.0.0.1:<port> for the live record at `path` (the caller writes its id and server
+    first), ending the cloudflared it named; the record. Only a quick tunnel, with no check through the new address:
+    raises TunnelDown when cloudflared is missing, exits or prints no trycloudflare.com address in time."""
+    path = Path(path)
+    if not binary():
+        raise TunnelDown(MISSING)
+    detached.make_private_dir(path.parent)
+    with _live_lock(path):
+        rec = read_live(path) or {"id": path.stem}
+        if tunnel_running(rec):
+            detached.stop(*_identity(rec))
+        fields = {k: rec[k] for k in ("id", "server") if k in rec}
+        new = _start(path.parent, port, path=path, log_name=f"{path.stem}.cloudflared.log", fields=fields)
+    if not URL.fullmatch(new["url"]):  # the banner pattern takes only this: never hand on another address
+        end_live(path, "failed")
+        raise TunnelDown(f"{new['url']} is not a trycloudflare.com address")
+    return new
+
+
+def end_live(path, reason):
+    """Stop what the live record at `path` runs, its cloudflared and the static server the plugin started (never a
+    server the owner runs on a port), and mark it ended with `reason` unless it was; the record plus `stopped`, the
+    processes stopped, or None when there is no record."""
+    if read_live(path) is None:
+        return None
+    with _live_lock(path):
+        rec = read_live(path)
+        if rec is None:
+            return None
+        stopped = []
+        if isinstance(rec.get("pid"), int) and detached.stop(*_identity(rec)):
+            stopped.append("tunnel")
+        srv = _server(rec)
+        if srv and detached.stop(*srv):
+            stopped.append("server")
+        if "endedAt" not in rec:
+            rec.update(endedAt=time.time(), reason=reason)
+            write_live(path, rec)
+    return {**rec, "stopped": stopped}
+
+
+def sweep_live(data_dir, every=False, reason="failed"):
+    """End each live record not ended yet that has nothing running any more (after a reboot or a crash), or, with
+    `every`, each one, stopping whatever of it still runs; the records ended."""
+    out = []
+    for path, rec in live_records(data_dir):
+        if "endedAt" in rec or (not every and (tunnel_running(rec) or server_running(rec))):
+            continue
+        done = end_live(path, reason)
+        if done:
+            out.append(done)
+    return out
 
 
 def main(argv=None):
