@@ -209,8 +209,9 @@ jobs:
         SKU, a retention or quota change, a paid GitHub feature, larger or hosted runners, macOS or
         private-repo minutes, new API spend, or a new paid service or plan), escalate to needs-human
         and add one line to your comment: `Cost: <what bills, where; the owner decision it lacks>`.
-        Skip this only when the issue cites an owner-recorded `**Decision recorded.**` comment that
-        already covers that charge; then name it on the Cost line.
+        Skip this only when a comment whose first line is exactly `**Decision recorded.**`, by an
+        author whose login does not end in `[bot]`, already covers that charge; then name it on the
+        Cost line.
 
         RE-ENTRY AFTER A RECORDED DECISION. Apply this section only when a comment's first line is
         exactly `**Decision recorded.**` and whose author login does not end in `[bot]`; the newest
