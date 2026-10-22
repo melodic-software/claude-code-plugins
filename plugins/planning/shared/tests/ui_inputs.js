@@ -15,7 +15,7 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
 const web = path.resolve(__dirname, "..", "web");
 // CSS viewport left above the keyboard, by judgment from each device's CSS size (iPhone 13: 390x844, iPhone 15:
@@ -78,8 +78,9 @@ async function main() {
         for (const [what, text] of [["2000 typed characters", LONG], ["a pasted 300-character word", WORD]]) {
           await page.evaluate(f => { const el = document.querySelector(f); el.focus(); el.value = ""; el.dispatchEvent(new Event("input", { bubbles: true })); }, sel.field);
           await page.keyboard.insertText(text);
-          await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-          const bad = await page.evaluate(([f, sendSel]) => {
+          // Measured once the page holds still: a surface that opens scales in, and its send icon is held to 0.5 px.
+          const still = await settled(page, { rects: true });
+          const bad = (still ? [] : ["the page did not hold still"]).concat(await page.evaluate(([f, sendSel]) => {
             const out = [], el = document.querySelector(f), vv = window.visualViewport, T = 0.5;
             const se = document.scrollingElement, app = document.getElementById("app");
             if (se.scrollWidth > innerWidth + 1 || app.scrollWidth > app.clientWidth + 1) out.push(`page overflows sideways (${se.scrollWidth}/${app.scrollWidth} > ${innerWidth})`);
@@ -111,7 +112,7 @@ async function main() {
               }
             }
             return out;
-          }, [sel.field, sel.send]);
+          }, [sel.field, sel.send]));
           ok(`${run.label}, ${name}, ${what}`, bad.length === 0, bad.join("; "));
           if (bad.length && process.env.UI_INPUTS_SHOTS) await page.screenshot({ path: path.join(process.env.UI_INPUTS_SHOTS, `${run.label}-${name}-${what.length}.png`.replace(/\s+/g, "_")) });
         }

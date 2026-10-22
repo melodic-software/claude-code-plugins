@@ -17,7 +17,7 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, snap, joinAs, png, openClaude } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs, png, openClaude } = require("./browser_harness");
 
 // The html variant. Its button's path, from its markup: html > body(1st) > main(1st) > section(1st) > div(1st) > button(1st).
 const BUTTON_PATH = "html > body:nth-of-type(1) > main:nth-of-type(1) > section:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)";
@@ -230,14 +230,15 @@ async function main() {
     ok("a phone opening the prototype first joins on that page", !!piaPid && piaPid !== gusPid);
     await until(pia, () => document.querySelectorAll(".vp-notes li").length === 1);
     ok("the phone sees the desktop guest's note on One page", (await pia.locator(".vp-notes li").first().textContent()).includes("Make the total sit next to Pay now."));
+    const still = await settled(pia, { rects: true });
     const layout = await pia.evaluate(() => {
       const r = el => document.querySelector(el).getBoundingClientRect();
       return { overflow: document.documentElement.scrollWidth - innerWidth, stage: r(".vp-stage"), side: r(".vp-side"),
         tabs: [...document.querySelectorAll(".vp-tab, .vp-annotate, .vp-choose")].map(b => Math.round(b.getBoundingClientRect().height)) };
     });
-    ok("phone: nothing runs past the width", layout.overflow <= 0, layout.overflow);
-    ok("phone: the variant sits above the notes, both on screen", layout.stage.bottom <= layout.side.top + 1 && layout.stage.height > 200 && layout.side.top < 844 && layout.side.height > 100, JSON.stringify(layout));
-    ok("phone: the switcher, Annotate and Choose are at least 40 px tall", layout.tabs.every(h => h >= 40), JSON.stringify(layout.tabs));
+    ok("phone: nothing runs past the width", still && layout.overflow <= 0, still ? layout.overflow : "not settled");
+    ok("phone: the variant sits above the notes, both on screen", still && layout.stage.bottom <= layout.side.top + 1 && layout.stage.height > 200 && layout.side.top < 844 && layout.side.height > 100, JSON.stringify(layout));
+    ok("phone: the switcher, Annotate and Choose are at least 40 px tall", still && layout.tabs.every(h => h >= 40), JSON.stringify({ still, tabs: layout.tabs }));
     await pia.locator(".vp-annotate").tap();
     await pia.locator(".vp-whole").tap();
     await pia.locator("#vp-note").fill("Too long for a phone.");

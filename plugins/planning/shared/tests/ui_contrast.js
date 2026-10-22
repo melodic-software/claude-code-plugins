@@ -16,7 +16,7 @@
 // accent, the accent's text reaches 4.5:1 on every surface and text on the accent 4.5:1, and the ten person colors keep
 // their AA ratios (initials 4.5:1 on the color, the color 3:1 on the page).
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
 const q = (id, text, format, purpose = "decide") => ({ id, text, alternatives: [], dependsOn: [], purpose, format });
 const choice = labels => ({ kind: "choice", options: labels.map((label, i) => ({ id: `opt-${i + 1}`, label })) });
@@ -113,22 +113,6 @@ function scan() {
     if (el.matches("button") && el.querySelector("svg") && !el.textContent.trim() && el.getAttribute("aria-hidden") !== "true") judge(el, cs.color, 3, "icon");
   }
   return { out, measured };
-}
-
-/** In the page: true once no animation or transition runs and the colors and opacities under #app read the same a frame
- *  apart, false if that has not happened within `ms`. A transition's computed value is its start value until a frame
- *  ticks it, so a scan taken sooner can measure the previous theme's color on the new theme's background. */
-async function settle(ms) {
-  const end = performance.now() + ms, frame = () => new Promise(r => requestAnimationFrame(() => r()));
-  const read = () => [...document.querySelectorAll("#app, #app *")].map(e => { const c = getComputedStyle(e); return `${c.color} ${c.backgroundColor} ${c.borderTopColor} ${c.opacity}`; }).join("|");
-  while (performance.now() < end) {
-    const running = document.getAnimations().filter(a => a.playState === "running");
-    if (running.length) { await Promise.race([Promise.all(running.map(a => a.finished.catch(() => {}))), new Promise(r => setTimeout(r, Math.max(0, end - performance.now())))]); continue; }
-    const before = read();
-    await frame(); await frame();
-    if (!document.getAnimations().some(a => a.playState === "running") && read() === before) return true;
-  }
-  return false;
 }
 
 /** In the page: the boundary of the Propose button against the rail, as {ratio}. */
@@ -238,11 +222,11 @@ async function main() {
         await owner.evaluate(p => window.Core.saveSettings({ theme: { palette: p } }), pal);
         for (const theme of ["dark", "light"]) {
           await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
-          const settled = await until(page, ([t, p]) => document.getElementById("app").dataset.theme === t && document.getElementById("app").dataset.palette === p, [theme, pal])
-            && await page.evaluate(settle, SETTLE_MS);
+          const still = await until(page, ([t, p]) => document.getElementById("app").dataset.theme === t && document.getElementById("app").dataset.palette === p, [theme, pal])
+            && await settled(page, { timeout: SETTLE_MS });
           const { out, measured } = await page.evaluate(scan);
-          ok(`${label}, ${pal}, ${theme}: every text run, placeholder, field edge and icon reaches its WCAG AA ratio (${measured} measured)`, settled && measured > 20 && out.length === 0,
-            (settled ? "" : `not settled in ${pal} ${theme} within ${SETTLE_MS} ms `) + JSON.stringify(out.slice(0, MAX_LIST)) + (out.length > MAX_LIST ? ` and ${out.length - MAX_LIST} more` : ""));
+          ok(`${label}, ${pal}, ${theme}: every text run, placeholder, field edge and icon reaches its WCAG AA ratio (${measured} measured)`, still && measured > 20 && out.length === 0,
+            (still ? "" : `not settled in ${pal} ${theme} within ${SETTLE_MS} ms `) + JSON.stringify(out.slice(0, MAX_LIST)) + (out.length > MAX_LIST ? ` and ${out.length - MAX_LIST} more` : ""));
         }
       }
     }
@@ -253,10 +237,10 @@ async function main() {
       await owner.evaluate(p => window.Core.saveSettings({ theme: { palette: p } }), pal);
       for (const theme of ["dark", "light"]) {
         await owner.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
-        const settled = await until(owner, ([t, p]) => document.getElementById("app").dataset.theme === t && document.getElementById("app").dataset.palette === p, [theme, pal])
-          && await owner.evaluate(settle, SETTLE_MS);
+        const still = await until(owner, ([t, p]) => document.getElementById("app").dataset.theme === t && document.getElementById("app").dataset.palette === p, [theme, pal])
+          && await settled(owner, { timeout: SETTLE_MS });
         const e = await owner.evaluate(proposeEdge);
-        ok(`${pal}, ${theme}: the Propose button's boundary reaches 3:1 against the rail`, settled && !!e && e.ratio >= 3, JSON.stringify(e));
+        ok(`${pal}, ${theme}: the Propose button's boundary reaches 3:1 against the rail`, still && !!e && e.ratio >= 3, (still ? "" : `not settled in ${pal} ${theme} within ${SETTLE_MS} ms `) + JSON.stringify(e));
       }
     }
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
