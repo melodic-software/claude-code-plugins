@@ -10,6 +10,8 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { parse } from "yaml";
+
 import { main } from "../../scripts/pr-unblock/dispatch.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -104,6 +106,20 @@ test("the base config's limits.fix-ci-per-run caps the fix-ci dispatches", async
   assert.deepEqual(await run(LIVE, pulls), { code: 0, dispatched: ["40", "51", "52"] });
   const one = LIVE.replace(/^ {2}fix-ci-per-run: 2$/m, "  fix-ci-per-run: 1");
   assert.deepEqual(await run(one, pulls), { code: 0, dispatched: ["40", "51"] });
+});
+
+test("the base config's adoption section lets fix-ci adopt an idle owner PR", async () => {
+  // kyle-sexton (trusted-actors.json), 25 hours idle at run()'s clock.
+  const idle = "2026-10-16T11:00:00Z";
+  const owner = ciFixPull(61);
+  owner.author = { databaseId: 153232337 };
+  owner.updatedAt = idle;
+  owner.commits.nodes[0].commit.committedDate = idle;
+  assert.deepEqual(parse(LIVE).adoption, { "idle-hours": 24, "owner-ids": [153232337] }, "the live config adopts the owner after 24 hours");
+  assert.deepEqual(await run(LIVE, [owner]), { code: 0, dispatched: ["40", "61"] });
+  const without = LIVE.replace(/^adoption:\n( {2}.*\n)*/m, "");
+  assert.doesNotMatch(without, /^adoption:/m);
+  assert.deepEqual(await run(without, [owner]), { code: 0, dispatched: ["40"] });
 });
 
 test("a base config the resolver refuses fails the run before any dispatch", async () => {

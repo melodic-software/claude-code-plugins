@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createGitHubApi } from "./dispatch.mjs";
-import { dispatchCiFixes, LIST_QUERY } from "./fix-ci-dispatch.mjs";
+import { dispatchCiFixes, LIST_QUERY, skipReason } from "./fix-ci-dispatch.mjs";
 
 // The lanes App bot's user id and the GitHub Actions app id
 // (.github/standards/trusted-actors/trusted-actors.json; dispatch.mjs).
@@ -214,6 +214,57 @@ test("a failed dispatch, or one with no usable run id, counts as failed and stil
   assert.deepEqual(result, { dispatched: [], failed: 2 });
 });
 
+// Owner decision Q22 (2026-10-22): a non-draft PR by an adoptable owner
+// account is a candidate once both it and its head commit are 24 hours idle.
+const OWNER = 153232337;
+const NOW = Date.parse("2026-10-22T12:00:00Z");
+const hoursAgo = (hours) => new Date(NOW - hours * 3_600_000).toISOString();
+const ADOPTION = { ownerIds: [OWNER], idleHours: 24 };
+
+function ownerPr(number, { updated = 25, committed = 25, ...overrides } = {}) {
+  const node = pr(number, { author: { login: "kyle-sexton", databaseId: OWNER }, updatedAt: hoursAgo(updated), ...overrides });
+  node.commits.nodes[0].commit.committedDate = hoursAgo(committed);
+  return node;
+}
+
+test("an adoptable owner's PR idle 25 hours whose ci-status failed is dispatched", async () => {
+  const { result } = await run({ pages: [[ownerPr(9)]] }, { adoption: ADOPTION, now: NOW });
+  assert.deepEqual(result, { dispatched: [{ number: 9, workflowRunId: "7009" }], failed: 0 });
+});
+
+test("an owner PR active within the idle window is skipped with a reason", () => {
+  const options = { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: "pr-unblock / fix-ci", holdLabels: ["do-not-merge", "needs-human"], restarts: 1, adoption: ADOPTION, now: NOW };
+  assert.equal(skipReason(ownerPr(1, { updated: 2, committed: 2 }), options), "owner PR or its head commit active in the last 24 hour(s)");
+  // Idle means both: an old PR with a fresh commit, or the reverse, is active.
+  assert.equal(skipReason(ownerPr(2, { updated: 25, committed: 2 }), options), "owner PR or its head commit active in the last 24 hour(s)");
+  assert.equal(skipReason(ownerPr(3, { updated: 2, committed: 25 }), options), "owner PR or its head commit active in the last 24 hour(s)");
+  assert.equal(skipReason(ownerPr(4), options), "");
+});
+
+test("owner drafts, holds, unlisted users and an absent adoption list are left alone", async () => {
+  const pages = [
+    [
+      ownerPr(1, { isDraft: true }),
+      ownerPr(2, { labels: { nodes: [{ name: "do-not-merge" }] } }),
+      ownerPr(3, { labels: { nodes: [{ name: "needs-human" }] } }),
+      ownerPr(4, { body: "Closes #1\n\nHold: until the demo\n" }),
+      ownerPr(5, { author: { login: "octocat", databaseId: 4242 } }),
+      // An unreadable date is not proof of idleness.
+      ownerPr(6, { updatedAt: "not a date" }),
+    ],
+  ];
+  const { result } = await run({ pages }, { adoption: ADOPTION, now: NOW });
+  assert.deepEqual(result.dispatched, []);
+  const none = await run({ pages: [[ownerPr(7)]] }, { now: NOW });
+  assert.deepEqual(none.result.dispatched, [], "with no adoption list no owner PR is adopted");
+});
+
+test("lanes App PRs keep their rules: no idle wait, and a Hold: line does not hold them", async () => {
+  const fresh = pr(8, { body: "Closes #1\n\nHold: a human merges this\n", updatedAt: hoursAgo(0) });
+  const { result } = await run({ pages: [[fresh]] }, { adoption: ADOPTION, now: NOW });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [8]);
+});
+
 test("the adapter sends one query naming the PR, its last commit's check rollup and rateLimit cost", async () => {
   const requests = [];
   const api = createGitHubApi({
@@ -235,7 +286,7 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
   assert.equal(requests[0].url, "https://api.example/graphql");
   assert.equal(requests[0].body.query, LIST_QUERY);
   assert.deepEqual(requests[0].body.variables, { owner: "octo", name: "repo", base: "main", after: null });
-  for (const field of ["rateLimit", "cost", "statusCheckRollup", "commits(last: 1)", "databaseId"]) {
+  for (const field of ["rateLimit", "cost", "statusCheckRollup", "commits(last: 1)", "databaseId", "... on User { databaseId }", "updatedAt", "committedDate", "body"]) {
     assert.ok(LIST_QUERY.includes(field), field);
   }
 });

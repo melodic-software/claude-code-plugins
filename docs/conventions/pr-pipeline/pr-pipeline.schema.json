@@ -253,6 +253,27 @@
         }
       }
     },
+    "adoption": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Owner accounts whose non-draft pull requests the lanes adopt once idle: fix-ci fixes a failed ci-status and pr-merge merges under its usual gates. Contract: README.md, Adoption.",
+      "properties": {
+        "idle-hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 24,
+          "description": "Hours both the pull request (its last update) and its head commit (its committer date) must be unchanged before it is adopted."
+        },
+        "owner-ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1 },
+          "default": [],
+          "description": "Numeric GitHub user ids whose pull requests are adopted; each must also be on the trusted-actor list for the run to proceed. Empty: none."
+        }
+      }
+    },
     "merge": { "$ref": "#/$defs/merge" },
     "models": { "$ref": "#/$defs/models" }
   },

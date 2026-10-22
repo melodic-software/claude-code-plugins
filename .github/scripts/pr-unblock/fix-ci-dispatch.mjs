@@ -1,10 +1,13 @@
 // Starts the pr-unblock lane's fix-ci activity for each open pull request the
-// lanes App opened whose head's ci-status failed, from the same dispatcher run
+// lanes App opened, or an adoptable owner opened and left idle (the base
+// config's `adoption` section), whose head's ci-status failed, from the same
+// dispatcher run
 // as dispatch.mjs (pr-unblock-dispatch.yml), so the trigger gate and the
 // broker check it as they check a resolve-conflicts dispatch.
 //
 // The listing is one GraphQL query per page of 50 pull requests: each one's
-// author, labels, and the check rollup of its last commit. Its rateLimit.cost
+// author, labels, body, last update, and its last commit's date and check
+// rollup. Its rateLimit.cost
 // is logged, the baseline for what the listing spends. A head is dispatched
 // when it has no pr-unblock / fix-ci check run from the GitHub Actions app,
 // or when every such run failed and there are at most `fix-ci-restarts` of
@@ -22,6 +25,8 @@ export const DEFAULTS = Object.freeze({
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
+  // No owner is adopted unless the config lists one.
+  adoption: Object.freeze({ ownerIds: Object.freeze([]), idleHours: 24 }),
 });
 
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
@@ -32,13 +37,13 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
   repository(owner: $owner, name: $name) {
     pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
       nodes {
-        number isDraft isCrossRepository baseRefName headRefOid
-        author { login ... on Bot { databaseId } }
+        number isDraft isCrossRepository baseRefName headRefOid updatedAt body
+        author { login ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
         commits(last: 1) {
           nodes {
             commit {
-              oid
+              oid committedDate
               statusCheckRollup {
                 contexts(first: 100) {
                   nodes {
@@ -69,16 +74,33 @@ function headChecks(node, actionsAppId) {
   );
 }
 
+// An owner PR is idle when neither it nor its head commit changed in the last
+// idleHours; an unreadable date is not idle.
+function ownerIdle(node, idleHours, now) {
+  const commit = node.commits?.nodes?.[0]?.commit;
+  const since = now - idleHours * 3_600_000;
+  return commit?.oid === node.headRefOid && Date.parse(node.updatedAt) <= since && Date.parse(commit.committedDate) <= since;
+}
+
 // Why a listed PR is not dispatched, or "" when it is a candidate.
-export function skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts }) {
+export function skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, adoption = DEFAULTS.adoption, now = Date.now() }) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
   }
-  if (node.author?.databaseId !== appSenderId) {
-    return "not opened by the lanes App";
+  const owner = node.author?.databaseId !== appSenderId;
+  if (owner && !adoption.ownerIds.includes(node.author?.databaseId)) {
+    return "not opened by the lanes App or an adoptable owner";
   }
   if ((node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name))) {
     return "held";
+  }
+  // The lanes App's own PRs carry `Hold: a human merges this`, which holds the
+  // merge, not a CI fix; an owner's Hold: line holds the lane off entirely.
+  if (owner && String(node.body ?? "").split("\n").some((line) => line.startsWith("Hold:"))) {
+    return "held by a Hold: line";
+  }
+  if (owner && !ownerIdle(node, adoption.idleHours, now)) {
+    return `owner PR or its head commit active in the last ${adoption.idleHours} hour(s)`;
   }
   const checks = headChecks(node, actionsAppId);
   if (!checks) {
@@ -113,6 +135,8 @@ export async function dispatchCiFixes({
   checkName = DEFAULTS.checkName,
   actionsAppId = DEFAULTS.actionsAppId,
   holdLabels = DEFAULTS.holdLabels,
+  adoption = DEFAULTS.adoption,
+  now = Date.now(),
 }) {
   if (!Number.isSafeInteger(appSenderId) || appSenderId < 1) {
     throw new Error("the lanes App sender id is not a user id");
@@ -123,7 +147,7 @@ export async function dispatchCiFixes({
     const { rateLimit, pullRequests } = await api.listCiFixCandidates({ base, after });
     log(`fix-ci listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
     for (const node of pullRequests.nodes) {
-      if (skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts }) === "") {
+      if (skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, adoption, now }) === "") {
         candidates.push(node);
       }
     }

@@ -14,8 +14,9 @@
 // config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
 // The same run then starts review-dependency for review-tier Dependabot PRs
-// (dependency-dispatch.mjs) and fix-ci for lanes App PRs whose ci-status
-// failed (fix-ci-dispatch.mjs), and their run ids join the same record.
+// (dependency-dispatch.mjs) and fix-ci for lanes App PRs, and idle PRs of the
+// owners the config's `adoption` section lists, whose ci-status failed
+// (fix-ci-dispatch.mjs), and their run ids join the same record.
 // Both read the one open-PR listing. A head whose check runs handle it for
 // good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
 // carries to the next run through the Actions cache; the next run skips that
@@ -116,9 +117,9 @@ export async function dispatchConflicting({
 
   for (let attempt = 1; pending.length > 0 && attempt <= unknownRetries; attempt += 1) {
     await sleep(unknownDelayMs);
-    const requeried = await api.getPulls(pending);
-    candidates.push(...requeried.filter((node) => isCandidate(node, base) && !recorded(node)));
-    pending = requeried.filter((node) => isPending(node, base) && !recorded(node)).map((node) => node.number);
+    const refreshed = await api.getPulls(pending);
+    candidates.push(...refreshed.filter((node) => isCandidate(node, base) && !recorded(node)));
+    pending = refreshed.filter((node) => isPending(node, base) && !recorded(node)).map((node) => node.number);
   }
   for (const number of pending) {
     log(
@@ -335,6 +336,14 @@ export async function loadBaseLimits(env) {
   return limitsFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
 }
 
+// The base config's `adoption` section as set, the same way.
+export async function loadBaseAdoption(env) {
+  const { adoptionFromBase } = await import(
+    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
+  );
+  return adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+}
+
 // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
 // returns, so a run cancelled mid-step still records what it sent.
 function wrapRunIds(base, env) {
@@ -359,6 +368,7 @@ export async function main(
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     log = (line) => console.log(line),
     loadLimits = loadBaseLimits,
+    loadAdoption = loadBaseAdoption,
     now,
   } = {},
 ) {
@@ -378,7 +388,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: wrapRunIds(base, env), sleep, log, loadLimits, now });
+    return await dispatchAll(env, { client: wrapRunIds(base, env), sleep, log, loadLimits, loadAdoption, now });
   } finally {
     if (budget) {
       log(budget.summary());
@@ -386,8 +396,9 @@ export async function main(
   }
 }
 
-async function dispatchAll(env, { client, sleep, log, loadLimits, now }) {
+async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, now }) {
   const limits = await loadLimits(env);
+  const adoption = await loadAdoption(env);
   const listed = await listAll(client, DEFAULTS.base);
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));
@@ -412,6 +423,8 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, now }) {
       appSenderId: Number(env.APP_SENDER_ID),
       maxDispatch: limits["fix-ci-per-run"] ?? 2,
       restarts: limits["fix-ci-restarts"] ?? 1,
+      adoption: { ownerIds: adoption["owner-ids"] ?? [], idleHours: adoption["idle-hours"] ?? 24 },
+      now,
     });
   } else {
     log("::error::APP_SENDER_ID is not the lanes App's user id; no fix-ci dispatched");

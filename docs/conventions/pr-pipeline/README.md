@@ -19,6 +19,7 @@
 - [Loop caps](#loop-caps)
 - [Limits](#limits)
 - [WIP cap](#wip-cap)
+- [Adoption](#adoption)
 - [Red main](#red-main)
 - [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
@@ -221,9 +222,9 @@ universal set, an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` o
 unappliable patch, or a check the model escalated, goes to `report-escalation`. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
-same-repository ones into `main` that the lanes App opened (by bot id), with no `do-not-merge`
-or `needs-human` label, whose head's `ci-status` check run from the GitHub Actions app ended
-`failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
+same-repository ones into `main` that the lanes App opened (by bot id), or that an owner in
+[`adoption`](#adoption) opened and left idle, with no `do-not-merge` or `needs-human` label,
+whose head's `ci-status` check run from the GitHub Actions app ended `failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
 untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
 and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
@@ -1505,6 +1506,31 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while the lane
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |
 | `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
 | `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
+
+## Adoption
+
+The `adoption` section names owner accounts whose pull requests the lanes take over once the owner
+has left them (owner decision Q22, 2026-10-22). This grants the lanes unattended power over PRs a
+person opened. A PR is adopted when all of these hold:
+
+- one of `owner-ids` opened it (the author's numeric user id);
+- it is not a draft, it is a same-repository PR into `main`, and it carries no `do-not-merge` or
+  `needs-human` label;
+- no body line starts with `Hold:`;
+- its last update (`updatedAt`) and its head commit's committer date are both at least
+  `idle-hours` old. Neither one alone is enough.
+
+An adopted PR whose `ci-status` failed is dispatched `fix-ci` like a lanes App PR, under the same
+`limits.fix-ci-per-run`, `limits.fix-ci-restarts` and `loop.fix-ci-rounds`. The run still needs
+the author on the trusted-actor list, as every pr-unblock run does. A pushed fix commit updates the
+PR and its head, so the next fix waits another `idle-hours`: an owner PR gets at most one fix
+round per idle window. A lanes App PR is unchanged: it waits for no idle window, and its
+`Hold: a human merges this` line holds the merge, not a CI fix.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `idle-hours` | 24 | Hours both the PR and its head commit must be unchanged; 1 to 720. |
+| `owner-ids` | `[]` | User ids whose PRs are adopted. Empty: none. |
 
 ## Red main
 

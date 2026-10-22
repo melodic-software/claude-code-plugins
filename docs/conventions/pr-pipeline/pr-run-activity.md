@@ -952,7 +952,8 @@ warns of a [classifier gap](README.md#classifier-gaps).
 
 ### prepare: ci-context
 
-pr-unblock's `fix-ci` fixes a lanes App pull request's failing checks in four jobs, so no model
+pr-unblock's `fix-ci` fixes a lanes App or [adopted](README.md#adoption) owner pull request's
+failing checks in four jobs, so no model
 holds a write token: a base job, a read model job in this mode on the automations role's API key,
 its fallback call on the role's OAuth token after a credit stop or with the key empty
 ([Two calls on one credential each](#two-calls-on-one-credential-each)), and an

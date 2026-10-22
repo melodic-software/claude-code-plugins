@@ -115,7 +115,8 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
   fix-ci:
-    # Fixes the failing CI checks on a lanes App pull request: reproduces each
+    # Fixes the failing CI checks on a lanes App pull request, or an adopted
+    # owner one (`adoption` below): reproduces each
     # with the repository's own command, fixes the cause and reruns it. It
     # holds no write token: the runner turns its uncommitted edits into a
     # patch that apply-patch pushes. pr-unblock-dispatch.yml starts it; a
@@ -546,6 +547,16 @@ red-main:
   # fail-forward: no revert is planned; a person or a fix pull request
   # repairs main (owner decision W-51, 2026-10-21).
   remedy: rollback
+
+# Owner PRs the lanes adopt (owner decision Q22, 2026-10-22): a non-draft PR
+# one of these accounts opened, with no hold label and no `Hold:` body line,
+# whose last update and head commit are both idle-hours old. fix-ci fixes its
+# failed ci-status and pr-merge merges it under its usual gates.
+adoption:
+  # 24: a day with no push, comment or label change means the owner left it.
+  idle-hours: 24
+  # kyle-sexton (.github/standards/trusted-actors/trusted-actors.json).
+  owner-ids: [153232337]
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as

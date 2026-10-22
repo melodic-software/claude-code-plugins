@@ -8,7 +8,8 @@ name: pr-unblock-dispatch
 # The same run dispatches review-dependency for each open Dependabot PR the
 # classifier sorts `review` whose head has no review-dependency check run yet
 # (.github/scripts/pr-unblock/dependency-dispatch.mjs), and fix-ci for each
-# open lanes App PR whose head's ci-status failed and has no fix-ci run yet,
+# open lanes App PR, or idle PR of an owner in the config's `adoption`
+# section, whose head's ci-status failed and has no fix-ci run yet,
 # at most limits.fix-ci-per-run per run, from one GraphQL query whose
 # rateLimit.cost it logs (.github/scripts/pr-unblock/fix-ci-dispatch.mjs). No
 # schedule: the broker accepts a dispatcher run started by a push or a listed
@@ -142,7 +143,8 @@ jobs:
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # fix-ci starts only on PRs the lanes App opened, matched by this id.
+          # fix-ci starts on PRs the lanes App opened, matched by this id, and
+          # on idle PRs of the owners in the config's `adoption` section.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           RUN_IDS_FILE: ${{ runner.temp }}/pr-unblock-run-ids
           DISPATCH_RECORD: ${{ runner.temp }}/pr-unblock-dispatch-record.json
