@@ -26,6 +26,7 @@
           {"$ref": "#/$defs/set-purpose"},
           {"$ref": "#/$defs/set-for"},
           {"$ref": "#/$defs/add-asset"},
+          {"$ref": "#/$defs/add-live"},
           {"$ref": "#/$defs/make-question-from"},
           {"$ref": "#/$defs/resolve-report"},
           {"$ref": "#/$defs/share-result"},
@@ -166,6 +167,20 @@
         "path": {"type": "string"},
         "as": {"type": "string"},
         "scale": {"enum": [1, 2]}
+      }
+    },
+    "add-live": {
+      "description": "Records a live prototype, pending until the owner's Approve on the page: `folder`, an absolute path to a build folder under the data dir's staging/, or `port`, a port on 127.0.0.1 the owner runs (never the session's own guest or control port). Refused with live-off while the session's live tier is off. Answers {id: L<N>, status: pending}; a variant links it with live: {id, path}.",
+      "type": "object",
+      "required": ["op", "label"],
+      "additionalProperties": false,
+      "oneOf": [{"required": ["folder"]}, {"required": ["port"]}],
+      "properties": {
+        "op": {"enum": ["add-live"]},
+        "label": {"type": "string"},
+        "folder": {"type": "string"},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "note": {"type": "string"}
       }
     },
     "make-question-from": {

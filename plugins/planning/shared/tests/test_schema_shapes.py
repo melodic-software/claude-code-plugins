@@ -265,15 +265,62 @@ class TestFormatsReactionsPresence(unittest.TestCase):
         self.assertIsNone(question_error(q))
         v = {"id": "v-1", "label": "Flow"}
         for ok in ({"shots": ["0123456789abcdef.png"]}, {"shots": ["0123456789abcdef.png"] * 4, "snapshot": "fedcba9876543210.html"},
+                   {"live": {"id": "L1", "path": "/?variant=A"}}, {"shots": ["0123456789abcdef.png"], "live": {"id": "L2", "path": "/"}},
                    {"snapshot": "fedcba9876543210.html", "lookAt": "Step two."}, {"asset": "fedcba9876543210.html"}):
             q["format"] = {"kind": "prototype", "lookAt": "The basket.", "variants": [{**v, **ok}, {**v, "id": "v-2", "asset": "0123456789abcdef.png"}]}
             self.assertIsNone(question_error(q), ok)
         for bad in ({}, {"asset": "0123456789abcdef.png", "shots": ["0123456789abcdef.png"]}, {"shots": []}, {"shots": ["0123456789abcdef.png"] * 5},
-                    {"shots": ["0123456789abcdef.png"], "live": {"id": "L1", "path": "/"}}, {"snapshot": "fedcba9876543210.html", "lookAt": "x" * 201}):
+                    {"asset": "0123456789abcdef.png", "live": {"id": "L1", "path": "/"}}, {"live": {"id": "L1"}}, {"live": {"id": "L1", "path": "/", "url": "https://a.example"}},
+                    {"snapshot": "fedcba9876543210.html", "lookAt": "x" * 201}):
             q["format"] = {"kind": "prototype", "variants": [{**v, **bad}, {**v, "id": "v-2", "asset": "0123456789abcdef.png"}]}
             self.assertIn("$.format", question_error(q), bad)
         q["format"] = {"kind": "prototype", "lookAt": "x" * 201, "variants": [{**v, "asset": "0123456789abcdef.png"}, {**v, "id": "v-2", "asset": "0123456789abcdef.png"}]}
         self.assertIn("$.format", question_error(q))
+
+    def test_lives_is_an_optional_list_of_live_entries(self):
+        state = fixture("state-full.json")
+        self.assertNotIn("lives", state)  # a file from before it stays valid
+        self.assertIsNone(schema.first_error(state, STATE))
+        folder, port = {"kind": "folder", "folder": "staging/r1/live"}, {"kind": "port", "port": 5173}
+        entry = {"id": "L1", "label": "Checkout app", "target": folder, "at": 1.0, "status": {"kind": "pending"}}
+        oks = [
+            entry,
+            {**entry, "id": "L2", "target": port, "note": "Sample data only.", "status": {"kind": "starting", "approvedAt": 2.0, "attested": True}},
+            {**entry, "id": "L3", "status": {"kind": "running", "approvedAt": 2.0, "startedAt": 3.0, "url": "https://quiet-fox.trycloudflare.com"}},
+            {**entry, "id": "L4", "status": {"kind": "ended", "endedAt": 4.0, "reason": "session-ended", "approvedAt": 2.0}},
+        ]
+        state["lives"] = oks
+        self.assertIsNone(schema.first_error(state, STATE))
+        bads = [
+            {**entry, "status": {"kind": "running", "approvedAt": 2.0, "startedAt": 3.0}},  # running needs its url
+            {**entry, "status": {"kind": "pending", "url": "https://a.example"}},  # only a running entry holds a url
+            {**entry, "status": {"kind": "ended", "endedAt": 4.0, "reason": "stopped", "url": "https://a.example"}},
+            {**entry, "status": {"kind": "ended", "endedAt": 4.0, "reason": "crashed"}},
+            {**entry, "target": {"kind": "port", "port": 70000}},
+            {**entry, "target": {"kind": "url", "url": "https://hosted.example"}},  # no external links
+            {**entry, "url": "https://a.example"},
+            {k: v for k, v in entry.items() if k != "target"},
+        ]
+        for bad in bads:
+            state["lives"] = [bad]
+            self.assertIsNotNone(schema.first_error(state, STATE), bad)
+
+    def test_add_live_takes_a_folder_or_a_port_and_never_a_url(self):
+        for ok in ({"op": "add-live", "label": "App", "folder": "/data/staging/r1/live"}, {"op": "add-live", "label": "App", "port": 5173, "note": "Vite."}):
+            self.assertIsNone(schema.first_error({"ops": [ok]}, OPS), ok)
+        for bad in ({"op": "add-live", "label": "App"}, {"op": "add-live", "label": "App", "folder": "/x", "port": 5173},
+                    {"op": "add-live", "label": "App", "url": "https://hosted.example"}, {"op": "add-live", "folder": "/x"},
+                    {"op": "add-live", "label": "App", "port": 0}):
+            self.assertIsNotNone(schema.first_error({"ops": [bad]}, OPS), bad)
+
+    def test_a_guests_live_entry_carries_a_url_only_while_it_runs(self):
+        for ok in ({"id": "L1", "label": "App", "status": {"kind": "pending"}}, {"id": "L1", "label": "App", "status": {"kind": "ended"}},
+                   {"id": "L1", "label": "App", "status": {"kind": "running"}, "url": "https://quiet-fox.trycloudflare.com"}):
+            self.assertIsNone(wire_error(ok, "live"), ok)
+        for bad in ({"id": "L1", "label": "App", "status": {"kind": "pending"}, "url": "https://a.example"},
+                    {"id": "L1", "label": "App", "status": {"kind": "running"}},
+                    {"id": "L1", "label": "App", "status": {"kind": "pending"}, "target": {"kind": "port", "port": 5173}}):
+            self.assertIsNotNone(wire_error(bad, "live"), bad)
 
     def test_a_file_from_before_disagreements_is_still_valid(self):
         state = fixture("state-full.json")

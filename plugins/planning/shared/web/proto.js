@@ -7,6 +7,9 @@
 // helper inside it (proto-pin.js) talks to this page, by postMessage; every message is checked here before use.
 // A variant shows its views (Core.viewsOf): an html snapshot, and one to four screenshots shown one under another, each
 // with its own pins; a note on screenshot k (k > 1) is pinned at "img:nth-of-type(k)", on the first at "img".
+// A live view is another origin's running server: never framed here, only linked to open in a new tab with no opener
+// and no referrer, and only once the owner approved it and it runs (the server sends a guest its url only then). Notes
+// on a live-only variant are on the whole variant.
 (() => {
   const Core = window.Core;
   const qid = (location.pathname.match(/^\/proto\/(Q[1-9][0-9]{0,5})$/) || [])[1] || "";
@@ -18,9 +21,10 @@
   const okRect = r => !!r && typeof r === "object" && ["x", "y", "w", "h"].every(k => typeof r[k] === "number" && Number.isFinite(r[k]) && r[k] >= 0)
     && r.w > 0 && r.h > 0 && r.x + r.w <= 100 && r.y + r.h <= 100;
   const WHOLE = { x: 0, y: 0, w: 100, h: 100 };
-  const views = v => Core.viewsOf(v), hasView = v => !!(views(v).snapshot || views(v).shots.length);
+  const views = v => Core.viewsOf(v), hasView = v => !!(views(v).snapshot || views(v).shots.length || views(v).live);
+  const liveOnly = v => !views(v).snapshot && !views(v).shots.length && !!views(v).live;
   const params = new URLSearchParams(location.hash.slice(1));
-  const ui = { variant: params.get("v") || "", view: "", with: params.get("with") || "", annotate: false, draft: null, active: params.get("n") || "", ready: false, pinsKey: "", listKey: "" };
+  const ui = { variant: params.get("v") || "", view: "", with: params.get("with") || "", annotate: false, draft: null, active: params.get("n") || "", ready: false, pinsKey: "", listKey: "", liveErr: "" };
   Core.context = () => ({ view: "prototype" });
 
   // ---------- the page ----------
@@ -43,7 +47,9 @@
   const snapBtn = btn("vf-seg-btn vp-viewbtn", "HTML snapshot"), shotsBtn = btn("vf-seg-btn vp-viewbtn", "Screenshots");
   snapBtn.dataset.view = "snapshot"; shotsBtn.dataset.view = "shots";
   viewSeg.append(snapBtn, shotsBtn);
-  bar.append(look, tabs, viewSeg, E("span", "vf-spacer"), annotateBtn, chooseBtn);
+  // The shown variant's live view: Open live prototype while it runs, else what it waits for; the owner's Approve and Stop.
+  const liveBox = E("div", "vp-livebox"); liveBox.setAttribute("role", "group"); liveBox.setAttribute("aria-label", "Live prototype"); liveBox.hidden = true;
+  bar.append(look, liveBox, tabs, viewSeg, E("span", "vf-spacer"), annotateBtn, chooseBtn);
   const hint = E("p", "vp-hint"); hint.id = "vp-hint";
   const body = E("div", "vp-body");
   const stage = E("section", "vp-stage"); stage.id = "vp-stage"; stage.setAttribute("role", "tabpanel");
@@ -83,7 +89,8 @@
   // session switched off (its state then holds none).
   let frame = null, layers = [], shownVariant = "", readySeen = false;
   const OFF_TEXT = "This view is off in this session. You can still choose this variant.";
-  const OFF_NAME = { screenshot: "screenshots are off", snapshot: "HTML snapshots are off" };
+  const OFF_NAME = { screenshot: "screenshots are off", snapshot: "HTML snapshots are off", live: "live prototypes are off" };
+  const LIVE_ONLY_TEXT = "This variant is a live prototype. It opens in its own tab, from Open live prototype above.";
   const send = m => frame?.contentWindow?.postMessage(m, "*"); // the sandboxed frame has no origin to name
 
   // ---------- state ----------
@@ -166,13 +173,15 @@
   for (const b of [snapBtn, shotsBtn]) b.onclick = () => { if (shownView(current(question())) !== b.dataset.view) { ui.view = b.dataset.view; closeComposer(); render(); } };
   function mountStage(v) {
     const { shots, snapshot } = views(v), kind = shownView(v);
-    const key = `${v.id}|${kind}|${snapshot}|${shots.join(",")}`; // a view switched off or back on mounts afresh
+    const key = `${v.id}|${kind}|${snapshot}|${shots.join(",")}|${liveOnly(v)}`; // a view switched off or back on mounts afresh
     if (shownVariant === key) return;
     shownVariant = key; ui.ready = false; ui.pinsKey = ""; readySeen = false;
     frame = null; layers = [];
     stage.setAttribute("aria-label", `Variant ${v.label}`);
     if (!hasView(v)) {
       mainView.replaceChildren(E("p", "vp-left vp-off", OFF_TEXT));
+    } else if (liveOnly(v)) {
+      mainView.replaceChildren(E("p", "vp-left vp-live-only", LIVE_ONLY_TEXT));
     } else if (kind === "snapshot") {
       const f = frame = E("iframe", "vp-frame");
       f.setAttribute("sandbox", "allow-scripts"); // plus the asset's own CSP sandbox; never allow-same-origin
@@ -263,8 +272,8 @@
     stage.dataset.split = String(!!other);
     cmpPane.hidden = mainCap.hidden = !other;
     if (!other) { cmpView.replaceChildren(); return; }
-    if (!snapshot && !shots.length) {
-      cmpView.replaceChildren(E("p", "vp-left vp-off", "This view is off in this session."));
+    if (!snapshot && !shots.length) {  // a live version is never framed here either
+      cmpView.replaceChildren(E("p", "vp-left vp-off", other.views?.live ? "This version is a live prototype, which opens in its own tab." : "This view is off in this session."));
     } else if (snapshot) {
       const f = E("iframe", "vp-cmp-frame");
       f.setAttribute("sandbox", "allow-scripts"); // plus the asset's own CSP sandbox; never allow-same-origin
@@ -357,7 +366,7 @@
   }
   wholeBtn.onclick = () => {
     const v = current(question());
-    if (v) openComposer({ selector: shownView(v) === "snapshot" ? "html" : "img", rect: { ...WHOLE } }, "the whole variant");
+    if (v) openComposer({ selector: shownView(v) === "snapshot" || liveOnly(v) ? "html" : "img", rect: { ...WHOLE } }, "the whole variant");
   };
   cancel.onclick = () => { closeComposer(); render(); annotateBtn.focus(); };
   composer.addEventListener("submit", e => {
@@ -378,6 +387,69 @@
     if (e.key !== "Escape") return;
     if (!composer.hidden) { closeComposer(); render(); annotateBtn.focus(); } else if (ui.annotate) setAnnotate(false);
   });
+
+  // ---------- the live view ----------
+  /** A failed Approve or Stop: show its error and build the box afresh, so its button comes back even when the error
+   *  reads the same as the last one (the box's key would not change). */
+  const liveFailed = x => { ui.liveErr = Core.errorText(x); liveBox._key = ""; render(); };
+  /** The shown variant's live view: Open live prototype (a new tab, no opener, no referrer) only while its entry runs;
+   *  else what it waits for, or that it ended. The owner also gets Approve (with the attestation a server on a port
+   *  needs), Stop, and for a port a link to look at it on this machine first. */
+  function renderLive(v) {
+    const w = views(v), e = Core.liveOf(v), owner = Core.me.isOwner, link = Core.liveLink(v), kind = e?.status.kind || "";
+    liveBox.hidden = !w.live;
+    if (!w.live) return;
+    const key = JSON.stringify([v.id, v.label, w.live, e, owner, link, ui.liveErr]);
+    if (liveBox._key === key) return;
+    liveBox._key = key;
+    const parts = [];
+    if (link) {
+      const a = E("a", "vf-btn vf-btn-primary vf-btn-sm vp-live-open", "Open live prototype");
+      a.href = link; a.target = "_blank"; a.rel = "noopener noreferrer"; a.referrerPolicy = "no-referrer";
+      a.setAttribute("aria-label", `Open the live prototype of ${v.label} in a new tab`);
+      parts.push(a);
+    } else if (kind === "ended") {
+      parts.push(E("p", "vp-live-state vp-live-ended", "Live prototype ended"));
+    } else {
+      parts.push(E("p", "vp-live-state vp-live-wait", !owner ? "Live version waiting for the host"
+        : kind === "starting" ? "Starting the live prototype." : "Live version waiting for your Approve."));
+    }
+    if (owner && e && kind !== "ended") {
+      const port = e.target?.kind === "port";
+      if (kind === "pending" && port && /^http:\/\/127\.0\.0\.1:[0-9]{1,5}$/.test(e.url || "")) {
+        const look = E("a", "vf-btn vf-btn-ghost vf-btn-sm vp-live-local", "Look at it on this machine");
+        look.href = e.url; look.target = "_blank"; look.rel = "noopener noreferrer"; look.referrerPolicy = "no-referrer";
+        parts.push(look);
+      }
+      let attest = null;
+      if (kind === "pending" && port) {
+        const lab = E("label", "vp-live-attest");
+        attest = E("input"); attest.type = "checkbox";
+        lab.append(attest, E("span", null, "It runs on sample data only, with writes stubbed and no credentials in its environment."));
+        parts.push(lab);
+      }
+      if (kind === "pending") {
+        const ok = btn("vf-btn vf-btn-primary vf-btn-sm vp-live-approve", "Approve");
+        ok.setAttribute("aria-label", `Approve the live prototype ${e.label}, so guests can open it`);
+        if (attest) { ok.disabled = true; attest.onchange = () => { ok.disabled = !attest.checked; }; }
+        ok.onclick = () => {
+          ok.disabled = true; ui.liveErr = "";
+          Core.approveLive(e.id, !!attest?.checked).then(() => say("The live prototype is running. Guests can open it now."))
+            .catch(liveFailed);
+        };
+        parts.push(ok);
+      }
+      const stop = btn("vf-btn vf-btn-ghost vf-btn-sm vp-live-stop", "Stop");
+      stop.setAttribute("aria-label", `Stop the live prototype ${e.label}`);
+      stop.onclick = () => {
+        stop.disabled = true; ui.liveErr = "";
+        Core.stopLive(e.id).then(() => say("The live prototype has stopped.")).catch(liveFailed);
+      };
+      parts.push(stop);
+    }
+    if (owner && ui.liveErr) { const er = E("p", "vp-live-err", ui.liveErr); er.setAttribute("role", "alert"); parts.push(er); }
+    liveBox.replaceChildren(...parts);
+  }
 
   // ---------- notes ----------
   function renderNotes(v) {
@@ -426,6 +498,7 @@
     lookQ.replaceChildren(...(q.lookAt ? [E("span", "vp-look-h", "Where to look: "), q.lookAt] : []));
     lookV.replaceChildren(...(v.lookAt ? [E("span", "vp-look-h", `${v.label}: `), v.lookAt] : []));
     renderTabs(q, v);
+    renderLive(v);
     const w = views(v), kind = shownView(v);
     viewSeg.hidden = !(w.snapshot && w.shots.length);
     snapBtn.setAttribute("aria-pressed", String(kind === "snapshot"));
@@ -440,7 +513,7 @@
     annotateBtn.setAttribute("aria-pressed", String(ui.annotate));
     annotateBtn.textContent = ui.annotate ? "Annotate: on" : "Annotate";
     root.dataset.annotate = String(ui.annotate);
-    hint.textContent = !hasView(v) ? OFF_TEXT : ui.annotate
+    hint.textContent = !hasView(v) ? OFF_TEXT : liveOnly(v) ? (ui.annotate ? "A live prototype opens in its own tab, so a note on it is on the whole variant." : "Open the live prototype, then come back here to choose it or leave a note.") : ui.annotate
       ? `${matchMedia("(pointer: coarse)").matches ? "Tap" : "Click"} the part of ${v.label} your note is about. Esc turns Annotate off.`
       : "Try each variant. Turn on Annotate to pin a note to any part of it.";
     wholeBtn.hidden = !ui.annotate || !!ui.draft;
