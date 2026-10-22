@@ -186,6 +186,33 @@ jobs:
       issue-number: ${{ inputs.issue-number }}
       allowed-author-ids: ${{ needs.born-triaged.outputs.human-ids }}
       allowed-bot-sender-ids: ${{ needs.born-triaged.outputs.bot-ids }}
+      # Re-entry after a recorded decision (intake-reenter.yml). The marker is
+      # the first line isDecisionComment in select-trusted-text.mjs matches. An
+      # escalated run posts only the reusable's fixed note, so the quote and
+      # new questions survive only on a run that does not set needs_human.
+      instructions: |
+        RE-ENTRY AFTER A RECORDED DECISION. Apply this section only when a comment's first line is
+        exactly `**Decision recorded.**`; the newest such comment is the decision. It is the owner's
+        answer to the open questions the issue was parked on. Then:
+
+        a. Quote the decision verbatim in your comment: every line as a Markdown quote (`> `), the
+           first line included, followed by its link from the comment's `url` field (when that field
+           is missing or empty, name it as the decision comment by its author). Never paraphrase,
+           summarize or reword it; quote any @mention as written, since the lane breaks mentions itself. The quote does not count toward the 150-word limit, but the whole
+           comment must stay under 2800 characters: when the quote would not fit, quote its opening
+           lines and end with `> [quote truncated; the full decision is at the link]`.
+        b. List the open questions from the issue body and earlier comments, and check each against
+           the decision. Treat any assumption, unknown or gap in intent the decision does not settle
+           as an open question too.
+        c. When one or more stay open, apply `status: needs-decision` and keep needs_human false.
+           After the quote, ask each as a numbered new question with a `Recommended:` answer and its
+           basis. Never fill one with a default of your own or treat a recommendation as decided.
+        d. When the remaining work needs a person (a host, spend, a trust-boundary call, or an
+           attended run), set needs_human true, even when (c) also applies. The decision comment
+           stays on the issue for the person who picks it up.
+        e. When the decision settles every open question and no person is needed, apply no status
+           label, quote the decision, say in one sentence that it settles the open questions, and ask
+           nothing again. Triage the rest as usual.
     secrets:
       CLAUDE_API_KEY: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
