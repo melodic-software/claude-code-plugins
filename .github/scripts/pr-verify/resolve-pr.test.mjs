@@ -85,11 +85,16 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE] } = {}) {
-  const github = async (method, apiPath) => {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], restFails = false, associated = [] } = {}) {
+  const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
+    if (listed && restFails) throw new Error(`GET ${apiPath} failed with status 500`);
     if (listed && listed[1] === HEAD) return pulls.slice((Number(listed[2]) - 1) * 100, Number(listed[2]) * 100);
+    if (apiPath === "/graphql" && body.query.includes("associatedPullRequests")) {
+      assert.deepEqual(body.variables, { owner: "example-org", name: "example-repo", oid: HEAD });
+      return { data: { repository: { object: { associatedPullRequests: { nodes: associated, pageInfo: { hasNextPage: false } } } } } };
+    }
     if (apiPath === "/graphql") {
       return { data: { repository: { pullRequest: { closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
     }
@@ -123,6 +128,30 @@ test("a passing same-repository run resolves its one PR at the run's head", asyn
     linkedIssues: [LINKED],
     specText: [{ number: 7, body: "the spec", comments: [] }],
   });
+});
+
+// pull()'s pull request as GraphQL's associatedPullRequests returns it: the
+// App's login without "[bot]", the state in capitals.
+const GRAPHQL_PULL = {
+  number: 41,
+  state: "OPEN",
+  isDraft: false,
+  headRefName: "feat/x",
+  headRefOid: HEAD,
+  baseRefName: "main",
+  baseRefOid: BASE,
+  headRepository: { nameWithOwner: REPO },
+  author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 },
+  labels: { nodes: [], pageInfo: { hasNextPage: false } },
+};
+
+test("a commit pulls read that fails falls back to GraphQL and resolves the same PR", async () => {
+  const fallback = await resolve({ restFails: true, associated: [GRAPHQL_PULL, { ...GRAPHQL_PULL, number: 12, state: "MERGED" }] });
+  assert.deepEqual(fallback, await resolve());
+});
+
+test("a GraphQL fallback whose only PR is a draft skips as a draft", async () => {
+  assert.equal(await reason({ restFails: true, associated: [{ ...GRAPHQL_PULL, isDraft: true }] }), "draft");
 });
 
 test("a linked issue in another repository is left out", async () => {

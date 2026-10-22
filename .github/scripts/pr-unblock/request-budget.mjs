@@ -19,17 +19,22 @@
 // fits its timeout: a wait that does not fit is not taken, the response is
 // returned at once, and an error line names the reset. A second rate limit
 // after the wait is returned as it is. The same policy as ci-workflows'
-// pr-require-checks gh-api.sh.
+// pr-require-checks gh-api.sh. A GET answered 5xx is first sent again by
+// createGitHub's retryServerErrors, so only its last answer reaches the above.
+
+import { retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 const RATE_LIMIT_MESSAGE = /rate limit/i;
 
 export function budgetedFetch({
-  fetch = globalThis.fetch,
+  fetch: rawFetch = globalThis.fetch,
   log = (line) => console.log(line),
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now = () => Date.now(),
+  random,
   maxWaitMs = 6 * 60 * 1000,
 } = {}) {
+  const fetch = retryServerErrors(rawFetch, { sleep, random, log, now });
   const seen = new Map();
   const counts = { rest: 0, notModified: 0, graphql: 0 };
   const last = new Map();
