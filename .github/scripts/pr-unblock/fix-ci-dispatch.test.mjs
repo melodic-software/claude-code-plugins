@@ -42,18 +42,19 @@ function pr(number, { checks = [check("ci-status", "FAILURE")], ...overrides } =
   };
 }
 
-function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new Set(), runIds = new Map(), requiredJobs = new Map() } = {}) {
+function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new Set(), runIds = new Map(), requiredRuns = new Map() } = {}) {
   const calls = { list: 0, runs: 0, dispatch: [], jobs: [] };
   return {
     calls,
-    // The latest jobs of the head's pr-require-checks run; a real failure unless the test names the head.
-    async listRequiredRunJobs(sha) {
+    // The head's pr-require-checks run: its attempt and latest jobs; a real
+    // failure at attempt 1 unless the test names the head.
+    async readRequiredRun(sha) {
       calls.jobs.push(sha);
-      const jobs = requiredJobs.get(sha) ?? MIXED_JOBS;
-      if (jobs instanceof Error) {
-        throw jobs;
+      const required = requiredRuns.get(sha) ?? { attempt: 1, jobs: MIXED_JOBS };
+      if (required instanceof Error) {
+        throw required;
       }
-      return jobs;
+      return required;
     },
     async listCiFixCandidates({ after }) {
       calls.list += 1;
@@ -258,7 +259,7 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
 
 test("a head whose ci-status failed on infra only gets no fix-ci run, and takes no place under the cap", async () => {
   const head = (number) => String(number).padStart(40, "a");
-  const { api, lines, result } = await run({ pages: [[pr(5), pr(6), pr(7)]], requiredJobs: new Map([[head(5), INFRA_JOBS]]) });
+  const { api, lines, result } = await run({ pages: [[pr(5), pr(6), pr(7)]], requiredRuns: new Map([[head(5), { attempt: 1, jobs: INFRA_JOBS }]]) });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
     [6, 7],
@@ -269,7 +270,22 @@ test("a head whose ci-status failed on infra only gets no fix-ci run, and takes 
 
 test("a head whose required run's jobs cannot be read gets no fix-ci run this time", async () => {
   const head = "5".padStart(40, "a");
-  const { lines, result } = await run({ pages: [[pr(5)]], requiredJobs: new Map([[head, new Error("GET returned 502")]]) });
+  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, new Error("GET returned 502")]]) });
   assert.deepEqual(result, { dispatched: [], failed: 0 });
   assert.ok(lines.some((line) => line.startsWith("::warning::#5: could not read its required run's jobs")));
+});
+
+test("an infra-only head is the reconciler's for its two re-runs; at attempt 3 fix-ci takes it", async () => {
+  // The reconciler re-runs an infra-only run at attempts 1 and 2 only (INFRA_BACKOFF_MINUTES, two entries).
+  const head = (number) => String(number).padStart(40, "a");
+  const requiredRuns = new Map([
+    [head(5), { attempt: 2, jobs: INFRA_JOBS }],
+    [head(6), { attempt: 3, jobs: INFRA_JOBS }],
+  ]);
+  const { lines, result } = await run({ pages: [[pr(5), pr(6)]], requiredRuns });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [6],
+  );
+  assert.ok(lines.includes("skip fix-ci #5: infra failure, re-run job owns it"));
 });

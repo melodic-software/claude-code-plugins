@@ -40,10 +40,22 @@ test("ci-status failing alone is real", () => {
   assert.equal(infraOnly(recorded(39716948399)), false);
 });
 
-test("a job whose first failed step installs is infra, even when a later step fails too", () => {
-  assert.equal(infraCause(job("failure", "Install the pinned YAML reader", "Aggregate hygiene results")), "install");
-  assert.equal(infraCause(job("failure", "Set up Node")), "install");
-  assert.equal(infraCause(job("failure", "Set up job")), "install");
+// A step stopped mid-run concludes cancelled, as check-plugins' "Install the
+// locked root toolchain" step does in run 39710654665.
+const stopped = (conclusion, name, ...laterFailedSteps) => {
+  const base = job("failure", ...laterFailedSteps);
+  return { ...base, steps: [base.steps[0], { name, conclusion }, ...base.steps.slice(1)] };
+};
+
+test("a job whose install step was stopped is infra, even when a later step fails too", () => {
+  assert.equal(infraCause(stopped("cancelled", "Install the pinned YAML reader", "Aggregate hygiene results")), "install");
+  assert.equal(infraCause(stopped("timed_out", "Set up Node")), "install");
+});
+
+test("an install step that exits with a failure is real: a stale lockfile fails npm ci the same way", () => {
+  assert.equal(infraCause(job("failure", "Install dependencies")), "");
+  assert.equal(infraCause(job("failure", "Set up Node")), "");
+  assert.equal(infraCause(job("failure", "Set up job")), "");
 });
 
 test("a failed job with no failed step lost its runner", () => {

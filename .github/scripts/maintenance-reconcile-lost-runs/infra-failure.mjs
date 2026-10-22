@@ -11,8 +11,10 @@
 //   cancelled inside a run that ends failure (pr-require-checks run
 //   39710654665, its check-plugins and test-node jobs). A matrix leg fail-fast
 //   cancelled is infra too, but the leg that failed first classifies itself;
-// - its first failed step installs a toolchain or dependency, or is the runner's
-//   own "Set up job" (action downloads);
+// - its first stopped step (cancelled or timed_out) installs a toolchain or
+//   dependency, or is the runner's own "Set up job" (action downloads). An
+//   install step that concluded failure exited non-zero, as `npm ci` does on a
+//   stale lockfile, so it is real;
 // - it failed with no failed step: the runner was lost mid-step.
 // Anything else is a real failure. The ci-status aggregate fails whenever a
 // lane does, so it is set aside when another job failed; alone, it is real.
@@ -20,6 +22,11 @@
 export const AGGREGATE_JOBS = new Set(["ci-status"]);
 export const INSTALL_STEP = /^(Install |Set up (job|Node|Python)$)/;
 const FAILED = new Set(["failure", "cancelled", "timed_out", "startup_failure"]);
+const STOPPED = new Set(["cancelled", "timed_out"]);
+// Minutes after attempt N of an infra-only run ended before the reconciler
+// re-runs its failed jobs; past the last entry it is left red, and fix-ci takes
+// it. Two re-runs per head at most.
+export const INFRA_BACKOFF_MINUTES = [15, 30];
 
 // Why the failed job is infra ("time limit", "install", "lost runner"), or "" when it is real.
 export function infraCause(job) {
@@ -29,11 +36,15 @@ export function infraCause(job) {
   if (job?.conclusion !== "failure") {
     return "";
   }
-  const first = (Array.isArray(job.steps) ? job.steps : []).find((step) => step?.conclusion === "failure");
+  const steps = Array.isArray(job.steps) ? job.steps : [];
+  const first = steps.find((step) => step?.conclusion === "failure" || STOPPED.has(step?.conclusion));
   if (first === undefined) {
     return "lost runner";
   }
-  return INSTALL_STEP.test(String(first.name ?? "")) ? "install" : "";
+  if (STOPPED.has(first.conclusion) && INSTALL_STEP.test(String(first.name ?? ""))) {
+    return "install";
+  }
+  return steps.some((step) => step?.conclusion === "failure") ? "" : "lost runner";
 }
 
 // True for a contract-only run, which a label or edit event starts: every lane

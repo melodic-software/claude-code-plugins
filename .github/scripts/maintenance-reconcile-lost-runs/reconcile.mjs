@@ -50,15 +50,12 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { infraOnly, testedRun } from "./infra-failure.mjs";
+import { INFRA_BACKOFF_MINUTES, infraOnly, testedRun } from "./infra-failure.mjs";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
 // A failed run's failed jobs are re-run only while both pages show indicator none.
 export const NPM_STATUS_URL = "https://status.npmjs.org/api/v2/status.json";
 export const GITHUB_STATUS_URL = "https://www.githubstatus.com/api/v2/status.json";
-// Minutes after attempt N of a failed run ended before its failed jobs are
-// re-run; past the last entry it is left red. Two re-runs per head at most.
-export const INFRA_BACKOFF_MINUTES = [15, 30];
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const RECORD = /^reconcile-rerun-[1-9][0-9]{0,19}-2-[0-9a-f]{40}$/;
@@ -231,16 +228,26 @@ async function plan({ repo, call, say, since, now, readStatus }) {
         continue;
       }
       const set = rerun.map((r) => ({ kind: "ci", pr: pull.number, id: r.id, path: r.path, conclusion: r.conclusion, head: pull.head.sha }));
+      const tested = [];
       for (const runs of ciRunsByWorkflow(listing.workflow_runs)) {
-        const tested = await testedRun(runs, async (r) => {
-          const listed = await call("GET", `/repos/${repo}/actions/runs/${r.id}/jobs?filter=latest&per_page=100`);
-          if (!Array.isArray(listed?.jobs) || listed.total_count > 100) {
-            throw new Error(`run ${r.id}'s job listing is not one complete page`);
-          }
-          return listed.jobs;
-        });
-        const r = tested?.run;
-        if (!tested?.jobs || !isRetryable(r, since, now) || !infraOnly(tested.jobs)) {
+        tested.push(
+          await testedRun(runs, async (r) => {
+            const listed = await call("GET", `/repos/${repo}/actions/runs/${r.id}/jobs?filter=latest&per_page=100`);
+            if (!Array.isArray(listed?.jobs) || listed.total_count > 100) {
+              throw new Error(`run ${r.id}'s job listing is not one complete page`);
+            }
+            return listed.jobs;
+          }),
+        );
+      }
+      // A re-run still going under a newer failed contract-only run is in
+      // flight too, though classify sees only the newest run.
+      if (tested.some((t) => t?.run?.status !== "completed" && t?.run?.run_attempt > 1)) {
+        inFlight += 1;
+        continue;
+      }
+      for (const { run: r, jobs } of tested.filter(Boolean)) {
+        if (!jobs || !isRetryable(r, since, now) || !infraOnly(jobs)) {
           continue;
         }
         const hold = await upstreamHold();

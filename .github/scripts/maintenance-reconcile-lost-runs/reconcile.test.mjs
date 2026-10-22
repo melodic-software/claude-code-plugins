@@ -623,3 +623,12 @@ test("a failed contract-only run on top of an infra-only run does not hide it", 
   const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1)), contract] });
   assert.deepEqual(failedJobReruns, [101]);
 });
+
+test("a re-run still going under a newer failed contract-only run takes a place under the cap", async () => {
+  // PR 1's attempt-2 run is in progress; a contract-only run failed on top of it.
+  const contract = failed(102, sha(1), { jobs: fixture("jobs-39716948399.json").jobs, created: "2026-10-19T18:59:57Z" });
+  const runs = [run(101, sha(1), { status: "in_progress", attempt: 2 }), contract, run(201, sha(2)), run(202, sha(3)), run(203, sha(4))];
+  const { reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3), pr(4)], runs });
+  assert.deepEqual(reruns, [201, 202]);
+  assert.deepEqual(failedJobReruns, []);
+});

@@ -120,8 +120,8 @@ function fakeApi({
       }
       return checked.has(sha) ? [SUCCESS_RUN] : [];
     },
-    async listRequiredRunJobs() {
-      return [];
+    async readRequiredRun() {
+      return { attempt: 0, jobs: [] };
     },
     async listWorkflowRuns(workflow) {
       calls.runs.push(workflow);
@@ -740,10 +740,10 @@ test("the GitHub adapter calls the documented endpoints", async () => {
   );
 });
 
-test("the required-run jobs read takes the newest pr-require-checks run that tested the head", async () => {
+test("the required-run read takes the newest pr-require-checks run that tested the head, with its attempt", async () => {
   const head = "c".repeat(40);
   const urls = [];
-  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure" });
+  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure", run_attempt: id === 12 ? 2 : 1 });
   // Run 14 is a contract-only run (only ci-status ran), stepped past.
   const contractOnly = [
     { name: "ci-status", conclusion: "failure" },
@@ -773,14 +773,14 @@ test("the required-run jobs read takes the newest pr-require-checks run that tes
       return { ok: true, status: 200, json: async () => responses.shift() };
     },
   });
-  assert.deepEqual(await api.listRequiredRunJobs(head), [{ name: "test-node", conclusion: "cancelled" }]);
+  assert.deepEqual(await api.readRequiredRun(head), { attempt: 2, jobs: [{ name: "test-node", conclusion: "cancelled" }] });
   assert.deepEqual(urls, [
     `https://api.example/repos/octo/repo/actions/runs?head_sha=${head}&event=pull_request&per_page=100`,
     "https://api.example/repos/octo/repo/actions/runs/14/jobs?filter=latest&per_page=100",
     "https://api.example/repos/octo/repo/actions/runs/12/jobs?filter=latest&per_page=100",
   ]);
-  assert.deepEqual(await api.listRequiredRunJobs(head), []);
-  await assert.rejects(api.listRequiredRunJobs("main"), /not a commit SHA/);
+  assert.deepEqual(await api.readRequiredRun(head), { attempt: 0, jobs: [] });
+  await assert.rejects(api.readRequiredRun("main"), /not a commit SHA/);
 });
 
 // The record a run leaves: the next run, against the same GitHub state,
