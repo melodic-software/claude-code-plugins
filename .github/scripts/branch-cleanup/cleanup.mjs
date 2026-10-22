@@ -9,14 +9,13 @@
 //
 // Environment: GITHUB_TOKEN, REPOSITORY, DRY_RUN (`true` or `false`),
 // BASE_PATH (main's checkout), LEDGER_PATH (JSON Lines file), CALL_BUDGET,
-// LANES_BOT_LOGIN, GITHUB_API_URL, GITHUB_STEP_SUMMARY.
+// GITHUB_API_URL, GITHUB_STEP_SUMMARY.
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
-import { parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
-import { ageDays, excluded, laneBranch, lastPull, linkedIssues, resolveBranchCleanup, stoppedRun } from "./rules.mjs";
+import { excluded, laneIssue, lastPull, linkedIssues, resolveBranchCleanup } from "./rules.mjs";
 
 export function client(env, { pace = () => delay(200), dryRun = true } = {}) {
   let used = 0;
@@ -53,9 +52,9 @@ async function pages(call, path, max = 20) {
 const refPath = (name) => name.split("/").map(encodeURIComponent).join("/");
 
 // One branch's verdict: { verdict: delete | keep | report, rule or reason,
-// issue, pr, closedAt }. Reads run cheapest first and stop at the first
+// issue, pr }. Reads run cheapest first and stop at the first
 // verdict; a failed read reports the branch.
-export async function evaluate(call, { repo, owner, bot, defaultBranch, config, now }, branch) {
+export async function evaluate(call, { repo, owner, defaultBranch }, branch) {
   const { name, sha } = branch;
   const keep = (reason, extra = {}) => ({ verdict: "keep", reason, ...extra });
   const report = (reason, extra = {}) => ({ verdict: "report", reason, ...extra });
@@ -65,21 +64,11 @@ export async function evaluate(call, { repo, owner, bot, defaultBranch, config, 
   if (openPull) return keep("open pull request", { pr: openPull.number });
   const pull = lastPull(pulls);
   const pr = pull?.number ?? null;
-  const lane = laneBranch(name);
-
-  const closedTimes = [];
-  let issue = null;
-  if (lane) {
-    issue = lane.issue;
+  let issue = laneIssue(name);
+  if (issue) {
     const read = await call("GET", `/repos/${repo}/issues/${issue}`);
     if (!read) return report("its issue could not be read", { issue, pr });
     if (read.state !== "closed") return keep("its issue is open", { issue, pr });
-    const markers = (await pages(call, `/repos/${repo}/issues/${issue}/comments`))
-      .filter((c) => c.user?.login === bot)
-      .map((c) => parseOutcomeMarker(c.body))
-      .filter(Boolean);
-    if (stoppedRun(markers, lane.run)) return report("a stopped lane run's branch: a person decides", { issue, pr });
-    closedTimes.push(read.closed_at);
   } else {
     if (!pull) return report("never had a pull request", {});
     for (const number of linkedIssues(pull.body, repo)) {
@@ -87,7 +76,6 @@ export async function evaluate(call, { repo, owner, bot, defaultBranch, config, 
       if (!read) return report(`linked issue #${number} could not be read`, { issue: number, pr });
       if (read.state !== "closed") return keep(`linked issue #${number} is open`, { issue: number, pr });
       issue ??= number;
-      closedTimes.push(read.closed_at);
     }
   }
 
@@ -95,7 +83,6 @@ export async function evaluate(call, { repo, owner, bot, defaultBranch, config, 
   if (!pull) {
     rule = "lane-issue-closed";
   } else {
-    closedTimes.push(pull.closed_at);
     const tipMoved = pull.head?.sha !== sha;
     if (pull.merged_at && !tipMoved) {
       rule = "pr-merged";
@@ -114,15 +101,10 @@ export async function evaluate(call, { repo, owner, bot, defaultBranch, config, 
     }
   }
 
-  const age = ageDays(closedTimes, now);
-  if (age === null) return report("a close time could not be read", { issue, pr });
-  if (age < config["min-age-days"]) {
-    return keep(`closed ${Math.floor(age)} d ago, under min-age-days (${config["min-age-days"]})`, { issue, pr });
-  }
   const rules = await call("GET", `/repos/${repo}/rules/branches/${refPath(name)}`);
   if (!Array.isArray(rules)) return report("the rules for it could not be read", { issue, pr });
   if (rules.length > 0) return keep("a ruleset applies to it", { issue, pr });
-  return { verdict: "delete", rule, issue, pr, ageDays: Math.floor(age) };
+  return { verdict: "delete", rule, issue, pr };
 }
 
 // Right before the delete: the tip still at the listed SHA, and no open pull
@@ -145,11 +127,9 @@ export async function cleanup(env, { call, clock, loadConfig, append, log = cons
   const dryRun = env.DRY_RUN !== "false";
   const config = resolveBranchCleanup(loadConfig());
   const owner = repo.split("/")[0];
-  const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
-  const now = clock();
   const defaultBranch = (await call("GET", `/repos/${repo}`))?.default_branch;
   if (typeof defaultBranch !== "string" || defaultBranch === "") throw new Error("the default branch could not be read");
-  const context = { repo, owner, bot, defaultBranch, config, now };
+  const context = { repo, owner, defaultBranch };
 
   const branches = await pages(call, `/repos/${repo}/branches`);
   const results = [];
@@ -168,8 +148,7 @@ export async function cleanup(env, { call, clock, loadConfig, append, log = cons
     }
   }
 
-  // Oldest first, so a capped run deletes the longest-closed branches.
-  const candidates = results.filter((r) => r.verdict === "delete").sort((a, b) => b.ageDays - a.ageDays);
+  const candidates = results.filter((r) => r.verdict === "delete");
   const cap = config["max-deletes-per-run"];
   const planned = candidates.slice(0, cap);
   log(
@@ -212,14 +191,14 @@ export async function cleanup(env, { call, clock, loadConfig, append, log = cons
   const lines = [
     `### Branch cleanup${dryRun ? " (dry-run: nothing deleted)" : ""}`,
     "",
-    `${branches.length} branches: ${candidates.length} deletable, ${count("keep")} kept, ${count("report")} for a person, ${count("excluded")} excluded. min-age-days ${config["min-age-days"]}, cap ${cap}.`,
+    `${branches.length} branches: ${candidates.length} deletable, ${count("keep")} kept, ${count("report")} for a person, ${count("excluded")} excluded. Cap ${cap}.`,
     "",
     dryRun ? `#### Would delete (${planned.length})` : `#### Deleted (${deleted.length})`,
     "",
-    row(["Branch", "SHA", "Rule", "Issue", "PR", "Closed (days)"]),
-    row(["---", "---", "---", "---", "---", "---"]),
+    row(["Branch", "SHA", "Rule", "Issue", "PR"]),
+    row(["---", "---", "---", "---", "---"]),
     ...(dryRun ? planned : planned.filter((c) => deleted.some((d) => d.branch === c.name))).map((c) =>
-      row([`\`${c.name}\``, c.sha.slice(0, 12), c.rule, c.issue ? `#${c.issue}` : "", c.pr ? `#${c.pr}` : "", c.ageDays]),
+      row([`\`${c.name}\``, c.sha.slice(0, 12), c.rule, c.issue ? `#${c.issue}` : "", c.pr ? `#${c.pr}` : ""]),
     ),
   ];
   if (candidates.length > planned.length) {

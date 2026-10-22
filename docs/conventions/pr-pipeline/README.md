@@ -1579,7 +1579,8 @@ before any revert merges.
 
 ## Branch cleanup
 
-No non-default branch lives forever (owner decision W-7, 2026-10-21).
+A branch lives as long as its issue is open and is deleted once the issue closes (owner decisions
+W-7, 2026-10-21, and #8958). No dates are involved.
 [`maintenance-delete-stale-branches.yml`](../../../.github/workflows/maintenance-delete-stale-branches.yml)
 runs daily and sorts every branch; its rules and tests are in
 [`.github/scripts/branch-cleanup/`](../../../.github/scripts/branch-cleanup/). It runs no model.
@@ -1588,20 +1589,18 @@ runs daily and sorts every branch; its rules and tests are in
 2. **Kept.** A protected branch or one a ruleset applies to; one with an open pull request; a lane
    branch (`work-resolve-issue/issue-<n>-...`) while issue `n` is open; any other branch while an
    issue its newest pull request's body links with `Closes`, `Fixes`, `Resolves` or `Refs` is
-   open; and a branch whose pull request or issue closed under `min-age-days` ago.
-3. **Never deleted, reported.** A lane branch of a stopped run: a lanes-App outcome marker on its
-   issue names its run, names no run, or comes from a resumed run (needs a human, blocked,
-   limited, funding, turn-cap), even after the issue closed, since the next run resumes from it.
-   Also a branch that never had a pull request, a merged branch with commits ahead of the default
-   branch after its tip moved, a closed-unmerged branch whose tip moved, and any branch a read
-   failed on. The step summary lists them for a person.
+   open.
+3. **Never deleted, reported.** A branch that never had a pull request (a lane branch excepted), a
+   merged branch with commits ahead of the default branch after its tip moved, a closed-unmerged
+   branch whose tip moved, and any branch a read failed on. The step summary lists them for a
+   person.
 4. **Deleted.** The newest pull request closed unmerged or merged at the branch tip, or merged
    with the tip moved and 0 commits ahead of the default branch, and every linked issue closed;
-   or a lane branch with no pull request whose issue closed. The later of those closes is at
-   least `min-age-days` ago.
+   or a lane branch with no pull request whose issue closed. A lane run's stop or resume marker
+   on the issue does not keep the branch once the issue is closed.
 
-The job prints how many it will delete, then deletes at most `max-deletes-per-run`, oldest-closed
-first. Before each delete it re-reads the tip and the open pull requests from and into the branch,
+The job prints how many it will delete, then deletes at most `max-deletes-per-run`, in listing
+order. Before each delete it re-reads the tip and the open pull requests from and into the branch,
 skips it when the tip moved or one opened, and appends `{repo, branch, sha, rule, issue, pr,
 deletedAt}` to the step summary and the run's `branch-cleanup-ledger-<run>-<attempt>` artifact. The
 delete is `DELETE git/refs/heads/<branch>` with the job's own `GITHUB_TOKEN` (`contents: write`,
@@ -1613,7 +1612,6 @@ refuses every request but `GET`. The kill switch stops it.
 
 | Key | Default | What it sets |
 |---|---|---|
-| `min-age-days` | 14 | Days since the later of the pull request and issue closes; 1 to 365. |
 | `max-deletes-per-run` | 25 | Deletes per run at most; 0 to 100, and 0 deletes none. |
 
 ## Planning lane work

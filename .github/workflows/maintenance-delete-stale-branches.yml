@@ -1,14 +1,13 @@
 name: maintenance-delete-stale-branches
 
-# Deletes the branches of this repository whose work is finished, so no
-# non-default branch lives forever (owner decision W-7). Daily it sorts every
-# branch by the branch-cleanup rule (docs/conventions/pr-pipeline/README.md,
-# "Branch cleanup"): a branch whose pull request closed or merged and whose
-# linked issue closed at least `branch-cleanup.min-age-days` ago is deleted;
-# one with an open issue, an open pull request, a stopped lane run, a
-# protection or ruleset, or that is the default, release/*, dependabot/* or
-# gh-readonly-queue/* branch is never deleted; anything else is listed for a
-# person. It prints how many it will delete first and deletes at most
+# Deletes the branches of this repository whose work is finished: a branch
+# lives as long as its issue is open (owner decisions W-7 and #8958). Daily it
+# sorts every branch by the branch-cleanup rule
+# (docs/conventions/pr-pipeline/README.md, "Branch cleanup"): a branch whose
+# pull request closed or merged and whose linked issue closed is deleted; one
+# with an open issue, an open pull request, a protection or ruleset, or that
+# is the default, release/*, dependabot/* or gh-readonly-queue/* branch is
+# never deleted; anything else is listed for a person. It prints how many it will delete first and deletes at most
 # `branch-cleanup.max-deletes-per-run`. Before each delete it re-reads the tip
 # and the open pull requests, and appends {repo, branch, sha, rule, issue, pr,
 # deletedAt} to the ledger: the step summary and the branch-cleanup-ledger
@@ -47,7 +46,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write # list branches, compare, delete a branch ref
-      issues: read # read linked issues and the lanes App's outcome markers
+      issues: read # read linked issues
       pull-requests: read # read each branch's pull requests
     steps:
       - name: Check out the run's main commit

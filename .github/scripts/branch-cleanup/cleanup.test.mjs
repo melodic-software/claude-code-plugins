@@ -10,8 +10,7 @@ import { linkedIssues } from "./rules.mjs";
 const REPO = "melodic-software/claude-code-plugins";
 const BOT = "melodic-automation-lanes[bot]";
 const NOW = "2026-10-21T12:00:00Z";
-const OLD = "2026-09-01T00:00:00Z"; // 50 days before NOW
-const RECENT = "2026-10-15T00:00:00Z"; // 6 days before NOW
+const OLD = "2026-09-01T00:00:00Z";
 const sha = (c) => c.repeat(40);
 
 // `branches` are { name, sha, protected }; `pulls` are keyed by branch name;
@@ -58,7 +57,7 @@ function world({ branches, pulls = {}, issues = {}, comments = {}, ahead = {}, r
 async function run(w, { dryRun = false, config = {} } = {}) {
   const ledger = [];
   const result = await cleanup(
-    { REPOSITORY: REPO, DRY_RUN: dryRun ? "true" : "false", LANES_BOT_LOGIN: BOT },
+    { REPOSITORY: REPO, DRY_RUN: dryRun ? "true" : "false" },
     { call: w.call, clock: () => NOW, loadConfig: () => config, append: (e) => ledger.push(e), log: () => {} },
   );
   const verdict = (name) => result.results.find((r) => r.name === name);
@@ -91,68 +90,42 @@ test("a lane branch whose issue is open is kept, however old its merged PR", asy
   assert.deepEqual(r.deletes, []);
 });
 
-test("a stopped lane run's branch is never deleted, even after its issue closed", async () => {
+// Owner decision on #8958: a branch lives while its issue is open and is
+// deleted once it closes, whatever the lanes App's outcome markers say.
+const stopMarker = { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=turn-cap cap=75 run=100 -->\nPartial work is on the branch." };
+
+test("a stopped lane run's branch is kept while its issue is open", async () => {
   const name = lane(11);
-  const w = world({
-    branches: [{ name, sha: sha("b") }],
-    issues: { 11: closedIssue(OLD) },
-    comments: {
-      11: [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=turn-cap cap=75 run=100 -->\nPartial work is on the branch." }],
-    },
-  });
+  const w = world({ branches: [{ name, sha: sha("b") }], issues: { 11: openIssue }, comments: { 11: [stopMarker] } });
   const r = await run(w);
-  assert.equal(r.verdict(name).verdict, "report");
+  assert.equal(r.verdict(name).verdict, "keep");
   assert.deepEqual(r.deletes, []);
 });
 
-test("a stopped-run marker from someone other than the lanes App protects nothing", async () => {
+test("a stopped lane run's branch is deleted once its issue closes", async () => {
   const name = lane(12);
-  const w = world({
-    branches: [{ name, sha: sha("c") }],
-    issues: { 12: closedIssue(OLD) },
-    comments: { 12: [{ user: { login: "someone" }, body: "<!-- work-resolve-issue outcome=stopped run=100 -->" }] },
-  });
+  const w = world({ branches: [{ name, sha: sha("c") }], issues: { 12: closedIssue(NOW) }, comments: { 12: [stopMarker] } });
   const r = await run(w);
-  assert.equal(r.verdict(name).verdict, "delete");
+  assert.equal(r.verdict(name).rule, "lane-issue-closed");
   assert.deepEqual(r.deletes, [deletePath(name)]);
 });
 
-test("a lane branch with no PR is kept while its issue closed under 14 days ago, deleted at or past it", async () => {
-  const young = lane(13);
-  const old = lane(14);
-  const w = world({
-    branches: [
-      { name: young, sha: sha("d") },
-      { name: old, sha: sha("e") },
-    ],
-    issues: { 13: closedIssue(RECENT), 14: closedIssue(OLD) },
-  });
+test("a lane branch with no PR is deleted the run after its issue closes, with a ledger line", async () => {
+  const name = lane(14);
+  const w = world({ branches: [{ name, sha: sha("e") }], issues: { 14: closedIssue(NOW) } });
   const r = await run(w);
-  assert.equal(r.verdict(young).verdict, "keep");
-  assert.equal(r.verdict(old).verdict, "delete");
-  assert.equal(r.verdict(old).rule, "lane-issue-closed");
-  assert.deepEqual(r.deletes, [deletePath(old)]);
+  assert.deepEqual(r.deletes, [deletePath(name)]);
   assert.deepEqual(r.ledger, [
-    { repo: REPO, branch: old, sha: sha("e"), rule: "lane-issue-closed", issue: 14, pr: null, deletedAt: NOW },
+    { repo: REPO, branch: name, sha: sha("e"), rule: "lane-issue-closed", issue: 14, pr: null, deletedAt: NOW },
   ]);
 });
 
-test("a branch closed exactly min-age-days ago is deleted", async () => {
-  const name = lane(16);
-  const w = world({ branches: [{ name, sha: sha("9") }], issues: { 16: closedIssue("2026-10-07T12:00:00Z") } });
+test("a branch whose PR closed unmerged at its tip, linking no issue, is deleted", async () => {
+  const pull = { ...mergedPull(2, sha("f"), NOW), merged_at: null };
+  const w = world({ branches: [{ name: "feat/abandoned", sha: sha("f") }], pulls: { "feat/abandoned": [pull] } });
   const r = await run(w);
-  assert.deepEqual(r.deletes, [deletePath(name)]);
-});
-
-test("the age counts from the later of PR close and issue close", async () => {
-  const name = lane(15);
-  const w = world({
-    branches: [{ name, sha: sha("f") }],
-    pulls: { [name]: [mergedPull(2, sha("f"), OLD)] },
-    issues: { 15: closedIssue(RECENT) },
-  });
-  const r = await run(w);
-  assert.equal(r.verdict(name).verdict, "keep");
+  assert.equal(r.verdict("feat/abandoned").rule, "pr-closed");
+  assert.deepEqual(r.deletes, [deletePath("feat/abandoned")]);
 });
 
 test("a branch with an open PR is kept", async () => {
@@ -252,7 +225,7 @@ test("a branch whose tip moved, or that gained an open PR, between listing and d
   assert.deepEqual(r.skipped.map((s) => s.name).sort(), ["feat/moved", "feat/reopened"]);
 });
 
-test("the per-run cap is honored, oldest-closed first", async () => {
+test("a run deletes at most max-deletes-per-run, the rest wait", async () => {
   const branches = [];
   const pulls = {};
   for (let i = 1; i <= 4; i += 1) {

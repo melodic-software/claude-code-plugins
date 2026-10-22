@@ -543,14 +543,12 @@ red-main:
   # (16) plus queue time.
   confirm-wait-minutes: 40
 
-# The daily branch cleanup (owner decision W-7, 2026-10-21): no non-default
-# branch lives forever. maintenance-delete-stale-branches.yml deletes a branch
-# whose pull request closed and whose linked issue closed at least
-# min-age-days ago, and never one with an open issue, an open pull request
-# or a stopped lane run on it.
+# The daily branch cleanup (owner decisions W-7, 2026-10-21, and #8958): a
+# branch lives as long as its issue is open. maintenance-delete-stale-branches.yml
+# deletes a branch once its pull request and linked issue are closed, and never
+# one with an open issue or an open pull request.
 branch-cleanup:
-  min-age-days: 14
-  # A run deletes at most this many, oldest-closed first.
+  # A run deletes at most this many; the rest wait for the next run.
   max-deletes-per-run: 25
 
 merge:
