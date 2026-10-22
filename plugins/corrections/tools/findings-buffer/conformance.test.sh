@@ -77,6 +77,12 @@ printf '{"schema_version":"2.0","adapter":"x"}\n' >"$D/capabilities.json"
 bash "$CONF" "$D" >/dev/null 2>&1
 expect_exit 1 $? "an unsupported schema_version fails"
 
+# invalid JSON that still contains the expected text
+D="$(make_broken badjson)"
+printf '{"schema_version":"1.0","adapter":"x",\n' >"$D/capabilities.json"
+bash "$CONF" "$D" >/dev/null 2>&1
+expect_exit 1 $? "an unparsable capabilities.json fails"
+
 # a reader that ignores its arguments
 D="$(make_broken lax)"
 cat >"$D/read.sh" <<'EOF'

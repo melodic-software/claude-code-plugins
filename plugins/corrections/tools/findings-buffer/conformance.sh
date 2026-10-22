@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Conformance check for a findings-buffer adapter: conformance.sh <adapter-dir>
 # Runs the adapter's append.sh and read.sh inside a throwaway git repository.
-# Exit: 0 every check passed, 1 a check failed, 2 usage.
+# Exit: 0 every check passed, 1 a check failed, 2 usage, 3 jq missing.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
 
@@ -10,6 +10,10 @@ if [[ $# -ne 1 || ! -d "$1" ]]; then
   exit 2
 fi
 ADAPTER="$(cd "$1" && pwd)"
+command -v jq >/dev/null 2>&1 || {
+  echo "conformance.sh: prerequisite missing: jq" >&2
+  exit 3
+}
 
 FAILED=0
 CASE_NUM=0
@@ -38,8 +42,7 @@ read_rows() { (cd "$REPO" && bash "$ADAPTER/read.sh" "$@"); }
 # capabilities.json
 CAPS="$ADAPTER/capabilities.json"
 if [[ -f "$CAPS" ]] \
-  && grep -Eq '"schema_version"[[:space:]]*:[[:space:]]*"1\.0"' "$CAPS" \
-  && grep -Eq '"adapter"[[:space:]]*:[[:space:]]*"[^"]+"' "$CAPS"; then
+  && jq -e '.schema_version == "1.0" and (.adapter | type == "string" and length > 0)' "$CAPS" >/dev/null 2>&1; then
   pass "capabilities.json declares schema_version 1.0 and an adapter name"
 else
   fail "capabilities.json declares schema_version 1.0 and an adapter name"

@@ -96,9 +96,9 @@ Adapter selection through `findings-buffer.yaml` belongs to the core slice, not 
 ## Conformance
 
 `conformance.sh <adapter-dir>` runs an adapter in a temporary git repository and exits `0` when it
-passes, `1` when a check fails, `2` on a usage error. It checks:
+passes, `1` when a check fails, `2` on a usage error, `3` when `jq` is missing. It checks:
 
-- `capabilities.json` parses with `schema_version` `1.0`.
+- `capabilities.json` parses as JSON (with `jq`), with `schema_version` `1.0` and an adapter name.
 - 8 concurrent `append.sh` calls with distinct rows are all durable, and `read.sh` returns every row
   once per append.
 - `read.sh --since` returns every row with `ts >= since`.
