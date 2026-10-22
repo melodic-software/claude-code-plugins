@@ -1,0 +1,110 @@
+name: maintenance-delete-stale-branches
+
+# Deletes the branches of this repository whose work is finished, so no
+# non-default branch lives forever (owner decision W-7). Daily it sorts every
+# branch by the branch-cleanup rule (docs/conventions/pr-pipeline/README.md,
+# "Branch cleanup"): a branch whose pull request closed or merged and whose
+# linked issue closed at least `branch-cleanup.min-age-days` ago is deleted;
+# one with an open issue, an open pull request, a stopped lane run, a
+# protection or ruleset, or that is the default, release/*, dependabot/* or
+# gh-readonly-queue/* branch is never deleted; anything else is listed for a
+# person. It prints how many it will delete first and deletes at most
+# `branch-cleanup.max-deletes-per-run`. Before each delete it re-reads the tip
+# and the open pull requests, and appends {repo, branch, sha, rule, issue, pr,
+# deletedAt} to the ledger: the step summary and the branch-cleanup-ledger
+# artifact. A deleted branch is restored from its ledger SHA with
+# `git push origin <sha>:refs/heads/<branch>`. No model, and no branch code is
+# checked out. Rules: .github/scripts/branch-cleanup/.
+#
+# The schedule deletes; a manual run is a dry-run unless dry-run is set to
+# false. How to stop it: set the organization or repository lanes kill-switch
+# variable to anything but "false".
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "true: report what would be deleted and delete nothing"
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: maintenance-delete-stale-branches
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  clean:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write # list branches, compare, delete a branch ref
+      issues: read # read linked issues and the lanes App's outcome markers
+      pull-requests: read # read each branch's pull requests
+    steps:
+      - name: Check out the run's main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or deleted"
+
+      # cleanup.mjs reads the branch-cleanup leaf through the base's
+      # resolve-config, which needs its dependencies.
+      - name: Install resolve-config's dependencies
+        if: steps.kill.outputs.proceed == 'true'
+        run: npm ci --ignore-scripts --omit=dev --prefix .base/.github/actions/resolve-config
+
+      # A workflow token's REST limit is per repository per hour
+      # (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api);
+      # 600 calls covers about three reads for each of 200 branches.
+      - name: Delete stale branches
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BASE_PATH: .base
+          CALL_BUDGET: "600"
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.dry-run) || 'false' }}
+          LEDGER_PATH: ${{ runner.temp }}/branch-cleanup-ledger.jsonl
+        run: |
+          : > "$LEDGER_PATH"
+          node .base/.github/scripts/branch-cleanup/cleanup.mjs
+
+      # Uploaded after a failed step too, so every line written before a
+      # delete survives.
+      - name: Upload the ledger
+        if: always() && steps.kill.outputs.proceed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: branch-cleanup-ledger-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/branch-cleanup-ledger.jsonl
+          if-no-files-found: ignore
+          retention-days: 90

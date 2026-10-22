@@ -543,6 +543,16 @@ red-main:
   # (16) plus queue time.
   confirm-wait-minutes: 40
 
+# The daily branch cleanup (owner decision W-7, 2026-10-21): no non-default
+# branch lives forever. maintenance-delete-stale-branches.yml deletes a branch
+# whose pull request closed and whose linked issue closed at least
+# min-age-days ago, and never one with an open issue, an open pull request
+# or a stopped lane run on it.
+branch-cleanup:
+  min-age-days: 14
+  # A run deletes at most this many, oldest-closed first.
+  max-deletes-per-run: 25
+
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
   # class C2 (plugins/autonomy/reference/guardrails/work-classes.md) and reads
