@@ -4,8 +4,14 @@ A Claude Code plugin that turns a recurring correction into a check that
 enforces it. A check is only worth recording once it is proven to fail on the
 mistake it targets and to pass on the current code.
 
-This first slice ships the proof script. The `/corrections:codify` skill that
-uses it is the next slice, so the plugin has no skill yet.
+| Skill | What it does |
+|---|---|
+| `/corrections:codify "<description>" [#PR]` | Counts how often the mistake recurs, picks the strongest enforcement-ladder rung, places the lesson by scope, and proposes a check proven with `prove-check.sh` |
+
+`codify` counts at 2 occurrences, or at once on a person's direct "codify this". A person's
+invocation writes the proposal; a model invocation only proposes. It asks before installing any
+blocking check, and reports a check whose proof did not fail on the old ref and pass on the new one as
+unproven.
 
 | Script | What it does |
 |---|---|
