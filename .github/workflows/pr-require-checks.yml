@@ -138,7 +138,9 @@ concurrency:
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
 # suite among them, plus about 55 s of setup), 9; test-python per leg about
-# 260, the 199 s planning server suite plus setup, 7; test-node about 50 (31 s
+# 310 on the whole tree (255 s of suites over 5 legs estimated from
+# scripts/suite-seconds.txt, a 201 s suite among them, plus up to 56 s of
+# setup), 7; test-node about 50 (31 s
 # of package chains measured on a warm npm cache), sized for a cold install, 5;
 # ci-status 9 / 42, 3. A job that outgrows its timeout is made faster or split,
 # not given a longer one.
