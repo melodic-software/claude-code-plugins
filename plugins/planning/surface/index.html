@@ -6,6 +6,7 @@
 <meta name="interview-token" content="%%TOKEN%%">
 <title>Interview</title>
 <link rel="icon" href="data:,">
+<link rel="stylesheet" href="/question-shape.css">
 <style>
 :root{
   color-scheme:light;
@@ -296,6 +297,8 @@ button.act:disabled{opacity:.45;cursor:not-allowed}
 .toast{font-size:13px;color:var(--ok);min-height:1.2em;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .toast.bad{color:var(--warn)}
 .kbd{font:11.5px var(--mono);color:var(--faint)}
+.ncount{display:flex;justify-content:flex-end}
+.ncount:has(> :empty){display:none} /* the note's counter shows only near its limit */
 .conflict{border:1px solid var(--chg);background:var(--chg-soft);border-radius:6px;padding:8px 12px;display:grid;gap:6px;font-size:13.5px}
 .conflict[hidden]{display:none}
 .diff{max-height:18vh;overflow:auto;background:var(--panel);border-radius:4px;padding:6px 8px;font-size:13px}
@@ -387,8 +390,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 
 @media (max-width:900px){ .agrid{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto} }
 @media (max-width:820px){
-  body{overflow:auto}
-  .app{height:auto;min-height:100vh}
+  .app{position:fixed;inset-inline:0;top:var(--vv-top,0px);height:var(--vv-h,100dvh);overflow-y:auto;overscroll-behavior:contain} /* pinned to the visual viewport (question-shape.js): an on-screen keyboard shrinks the page instead of covering the note */
   .layout,.layout.pinned,.layout.norail,.layout.norail.pinned{grid-template-columns:minmax(0,1fr)}
   .strip{flex-direction:row;order:-1}
   nav.rail{max-height:none;padding-bottom:12px;border-bottom:1px solid var(--line-strong);box-shadow:0 12px 10px -10px var(--line)}
@@ -412,8 +414,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   .cline[hidden]{display:none}
   button.act,.choice{min-height:44px}
   .notice{max-width:100%}
-  aside.fly.open{position:fixed;inset:0;width:auto;border-radius:0}
-  .layout.pinned aside.fly.open{position:fixed;inset:0;width:auto;border-radius:0}
+  aside.fly.open,.layout.pinned aside.fly.open{position:fixed;inset:var(--vv-top,0px) 0 auto;height:var(--vv-h,100dvh);width:auto;border-radius:0}
   #pinBtn{display:none}
 }
 @media (prefers-reduced-motion: reduce){*,*::before{animation:none!important;transition:none!important}}
@@ -476,7 +477,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
             <div class="arow" id="decideRow"></div>
           </fieldset>
           <div class="compose">
-            <textarea id="note" rows="2" placeholder="Note, caveat, own answer, or a question for Claude. Enter adds a line; Ctrl+Enter saves."></textarea>
+            <textarea id="note" rows="2" placeholder="Note, caveat, own answer, or a question for Claude. Enter adds a line; Ctrl+Enter saves."></textarea><div class="ncount" id="noteCount"></div>
             <fieldset class="talk"><legend>Talk (records no decision)</legend>
               <div class="arow" id="talkRow"></div>
             </fieldset>
@@ -522,6 +523,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 <dialog id="keysDlg" aria-labelledby="keysTitle"><h3 id="keysTitle">Keyboard shortcuts</h3><div class="keys" id="keysBody"></div>
   <p class="kbd">Single keys work only outside text boxes and only when shortcuts are on. Plain Enter never saves.</p>
   <div class="arow"><button class="act" id="keysClose" aria-keyshortcuts="Escape">Close</button></div></dialog>
+<script src="/question-shape.js"></script>
 <script>
 (function(){
   "use strict";
@@ -543,6 +545,21 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const FIRST_WAKE = "Not listening: approve any prompt in the terminal, or type next";
   const DEAF_AFTER = 30; // seconds with no watcher poll before the rung 5 message
   const LINE_CAP = 500; // the server's one-line cap, which a hedged condition must fit
+  const TEXT_MAX = 20000; // a note box's length: the lane's longest text (ops.schema.json markdown), inside the server's 64 KB body
+  // The composer kit (question-shape.js) runs both note boxes: Ctrl or Cmd + Enter sends and Escape leaves (P5: the
+  // keydown handler below keeps every other key, and these outside text boxes), a counter shows near the limit, and a
+  // box grows with its text up to 40% of its pane: the side panel, else the question pane, else on a phone the page.
+  const PHONE = matchMedia("(max-width:820px)");
+  const Kit = QuestionShape.kit({
+    pane: t => t.closest("aside.fly") || (PHONE.matches ? t.closest(".app") : t.closest("main.detail")) || document.body,
+    grew: t => { const k = Kit.get(t); if (k) Kit.paint(k); if (document.activeElement === t && Kit.typing(t)) t.scrollIntoView({block: "nearest"}); },
+  });
+  Kit.boot(); // the note boxes keep their own drafts (localStorage, per question), so the kit tracks none
+  function noteBox(ta, verb){
+    ta.maxLength = TEXT_MAX; ta.placeholder = ta.placeholder.replace("Ctrl+", QuestionShape.MOD_KEY + "+");
+    return Kit.composer(ta, {send: () => ctrlEnter(ta, false), escape: () => escText(ta), verb});
+  }
+  $("noteCount").append(noteBox($("note"), "save").count);
   const PERSON = "someone else decides: "; // a defer whose text names the person who holds the decision
   const named = t => String(t || "").replace(/^someone else decides:\s*/i, "").trim(); // the person a note names, without a repeated label
   const personOf = d =>!!d && d.decision === "defer" && String(d.text || "").startsWith(PERSON);
@@ -1249,7 +1266,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const needText = armed && needsNote(armed) && !(armed.who ? named(text) : text), frozen = wrapFreeze() > 0;
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
-    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (shut ? closedWhy() : frozen ? "Wrapping up" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : "Ctrl+Enter") + "</span>" +
+    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (shut ? closedWhy() : frozen ? "Wrapping up" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : QuestionShape.keyHint("save")) + "</span>" +
       (asks ? '<span class="nudge-q" id="askNudge">This reads as a question. Ask Claude instead?<button class="act soft" data-act="ask" data-submit="1"' + (can ? "" : " disabled") + ">Ask Claude</button></span>" : "") +
       (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
       (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
@@ -1269,16 +1286,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     t.innerHTML = esc(S.toast) + (S.undo && S.api >= 2 ? ' <button class="tbtn small" data-undo="1" data-submit="1" aria-keyshortcuts="u">Undo' + (setting("shortcuts") ? " (u)" : "") + "</button>" : "");
   }
   function fillNote(){
-    const q = Q[S.sel]; if (!q) { $("note").value = ""; grow($("note")); return; }
+    const q = Q[S.sel]; if (!q) { $("note").value = ""; Kit.grow($("note")); return; }
     const draft = lsGet("draft:" + q.id, null); // only what the user typed; a stored decision shows read-only under Your earlier answer
     $("note").value = draft !== null ? draft : "";
-    grow($("note"));
+    Kit.grow($("note"));
   }
   function clearNote(){
     const q = Q[S.sel]; if (!q) return;
-    lsSet("draft:" + q.id, ""); $("note").value = ""; grow($("note")); renderAnswer(); $("note").focus();
+    lsSet("draft:" + q.id, ""); $("note").value = ""; Kit.grow($("note")); renderAnswer(); $("note").focus();
   }
-  function grow(ta){ ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, window.innerHeight * 0.4) + "px"; }
 
   // ---------- conflict (409) ----------
   function snapOf(q){ return {rev: crev(q), content: q.contentRev || 0, title: q.title, recommendation: q.recommendation || "", alternatives: (q.alternatives || []).map(a => "(" + a.key + ") " + a.text).join("\n")}; }
@@ -1573,8 +1589,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       (fold ? '<div class="arow"><button type="button" class="tbtn small" data-notenewest="1">Jump to newest note</button></div>' : "") +
       '<div class="nthread">' + (nt.length ? nt.map(noteHtml).join("") : '<p class="empty">No notes yet.</p>') + "</div>" +
       '<textarea id="noteText" rows="3" placeholder="A note for Claude. Enter adds a line; Ctrl+Enter sends."' + (S.api >= 2 ? "" : " disabled") + ">" + esc(draft) + "</textarea>" +
-      '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 && !closed() ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api < 2 ? RESTART : closed() ? closedWhy() : "Ctrl+Enter") + '</span></div><div class="toast" id="noteToast"></div>';
-    const ta = $("noteText"); grow(ta);
+      '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 && !closed() ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api < 2 ? RESTART : closed() ? closedWhy() : QuestionShape.keyHint("send")) + '</span></div><div class="toast" id="noteToast"></div>';
+    const ta = $("noteText"), nk = noteBox(ta, "send"); ta.nextElementSibling.append(nk.count); Kit.grow(ta);
     const th = body.querySelector(".nthread"); if (th.lastElementChild) th.lastElementChild.scrollIntoView({block: "nearest"});
   }
   function renderSettings(body){
@@ -1877,7 +1893,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       await refresh();
       S.busy = false; S.snap[q.id] = snapOf(Q[q.id]);
       if (!isDec) {
-        lsSet("draft:" + q.id, ""); $("note").value = ""; grow($("note"));
+        lsSet("draft:" + q.id, ""); $("note").value = ""; Kit.grow($("note"));
         toast((kind === "ask" ? "Sent. Claude's reply lands in the thread." : "Sent. Claude's rephrase lands in the thread.") + queued());
         renderDetail(); const th = $("thread"); if (th) th.classList.add("flash");
         return;
@@ -1961,7 +1977,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const q = Q[S.sel], c = q && (q.commits || [])[i]; if (c === undefined) return;
     const ta = $("note"), line = "Challenge: " + c + " ";
     ta.value = ta.value.trim() ? ta.value.replace(/\s*$/, "\n") + line : line;
-    lsSet("draft:" + q.id, ta.value); grow(ta); renderAnswer();
+    lsSet("draft:" + q.id, ta.value); Kit.grow(ta); renderAnswer();
     ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
   }
   async function sendNote(){
@@ -2232,9 +2248,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   });
   document.addEventListener("toggle", e => { if (e.target.id === "more") lsSet("moreOpen", e.target.open); else if (e.target.id === "src") lsSet("srcOpen", e.target.open); }, true);
   document.addEventListener("input", e => {
-    if (e.target.id === "note") { if (S.sel && Q[S.sel]) lsSet("draft:" + S.sel, e.target.value); grow(e.target); renderAnswer(); }
+    if (e.target.id === "note") { if (S.sel && Q[S.sel]) lsSet("draft:" + S.sel, e.target.value); Kit.grow(e.target); renderAnswer(); }
     else if (e.target.id === "search") { S.search = e.target.value; renderRail(); }
-    else if (e.target.id === "noteText") { lsSet("noteDraft", e.target.value); grow(e.target); }
+    else if (e.target.id === "noteText") { lsSet("noteDraft", e.target.value); Kit.grow(e.target); }
     else if (e.target.id === "offText") S.offDraft = e.target.value;
     else if (e.target.id === "looseReply") S.looseDraft = e.target.value;
   });
@@ -2244,7 +2260,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!add || note.disabled) return;
     e.preventDefault();
     note.value += (note.value && !/\s$/.test(note.value) ? " " : "") + add;
-    lsSet("draft:" + S.sel, note.value); grow(note);
+    lsSet("draft:" + S.sel, note.value); Kit.grow(note);
     note.focus(); note.setSelectionRange(note.value.length, note.value.length);
     renderAnswer();
   });
@@ -2257,19 +2273,23 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     e.preventDefault(); e.stopPropagation(); showFly(all[j].dataset.panel);
     const sel = document.querySelector('#tabs [role="tab"][aria-selected="true"]'); if (sel) sel.focus();
   }, true);
+  /** Ctrl or Cmd + Enter: send the Notes panel's note from there, else save the armed choice (with Shift, ask Claude);
+   *  never behind a dialog or a full-screen visual. */
+  function ctrlEnter(target, shift){
+    if ($("dlg").open || $("keysDlg").open || $("finDlg").open || !$("fs").hidden) return;
+    if (target.id === "noteText") sendNote();
+    else if (S.sel === SUMMARY || !Q[S.sel]) return;
+    else if (shift) { if ($("note").value.trim()) send("ask"); else toast("Write your question in the note first.", true); }
+    else submitArmed();
+  }
+  /** Escape in a note box: close a full-screen visual first, else leave the box and keep its draft. */
+  function escText(ta){ if (!$("fs").hidden) fsClose(); else ta.blur(); }
   document.addEventListener("keydown", e => {
+    if (e.defaultPrevented) return; // a note box's composer sent or left it
     if (e.isComposing || e.keyCode === 229) return; // IME composition, including Safari
     const inText = textFocused();
     const modal = $("dlg").open || $("keysDlg").open || $("finDlg").open, fullScreen = !$("fs").hidden;
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      if (modal || fullScreen) return; // never save behind a dialog or a full-screen visual
-      if (e.target.id === "noteText") sendNote();
-      else if (S.sel === SUMMARY || !Q[S.sel]) return;
-      else if (e.shiftKey) { if ($("note").value.trim()) send("ask"); else toast("Write your question in the note first.", true); }
-      else submitArmed();
-      return;
-    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); ctrlEnter(e.target, e.shiftKey); return; }
     if (e.key === "Escape") {
       if (fullScreen) { fsClose(); e.preventDefault(); return; }
       if (modal) return;
@@ -2307,7 +2327,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     e.preventDefault(); // a key that moved focus into a text box must not type itself there
   });
   window.addEventListener("hashchange", () => { const id = hashId(); if (S.loaded && id && id !== S.sel) goTo(id); });
-  window.addEventListener("resize", () => grow($("note")));
+  window.addEventListener("resize", () => Kit.grow($("note")));
+  let vvH = 0; // the keyboard coming or going (question-shape.js refits the page) keeps the focused note box in view
+  window.addEventListener("core-viewport", () => {
+    const h = window.visualViewport.height, a = document.activeElement; if (h === vvH) return; vvH = h;
+    if (a && Kit.get(a)) { Kit.grow(a); a.scrollIntoView({block: "nearest"}); }
+  });
   let wasUnheard = false;
   setInterval(() => { if (!S.loaded) return; renderHeader(); const u = unheard(); if (u !== wasUnheard) { wasUnheard = u; renderRail(); renderHeader(); } }, 2000); // unheard() turns true as time passes, so the header is redrawn after the rail on the tick it flips
 

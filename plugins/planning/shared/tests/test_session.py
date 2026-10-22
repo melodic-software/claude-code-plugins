@@ -5042,6 +5042,13 @@ class TestChatReactions(SessionCase):
         self.assertGreaterEqual(len(session.CHAT_EMOJI), 80)
         self.assertEqual(session.CHAT_EMOJI[:6], ("👍", "👎", "😂", "❤️", "🎉", "😮"))
 
+    def test_the_page_names_the_servers_own_option_id_once(self):
+        web = SHARED / "web"
+        self.assertIn(f'const OTHER = "{session.OTHER}";', (web / "question-shape.js").read_text(encoding="utf-8"))
+        for name in ("core.js", "app.js"):
+            with self.subTest(name=name):
+                self.assertNotIn(f'=== "{session.OTHER}"', (web / name).read_text(encoding="utf-8"))
+
 
 class TestMultiBacking(FormatCase):
     def setUp(self):

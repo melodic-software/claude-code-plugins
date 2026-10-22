@@ -807,6 +807,27 @@ class TestSecurity(ServerCase):
         self.assertIn("script-src 'self' 'unsafe-inline'", csp)
         self.assertNotIn("http", csp.lower())
 
+    def test_the_question_shape_files_come_from_the_shared_web_folder(self):
+        """The page loads the composer and viewport file the shared page serves too: one route, the bytes as written,
+        no page policy on them, and the page's policy and every other path unchanged."""
+        import server
+
+        web = HERE.parent / "shared" / "web"
+        for path, ctype in (("/question-shape.js", "text/javascript"), ("/question-shape.css", "text/css")):
+            with self.subTest(path=path):
+                code, raw, headers = self.get(path, token=False)
+                self.assertEqual((code, headers.get("Content-Type")), (200, ctype + "; charset=utf-8"))
+                self.assertEqual(raw, (web / path[1:]).read_text(encoding="utf-8"))
+                self.assertNotIn("Content-Security-Policy", headers)
+        for path in ("/core.js", "/app.js", "/question-shape.json", "/../shared/web/question-shape.js", "/shared/web/question-shape.js"):
+            with self.subTest(path=path):
+                self.assertEqual(self.get(path)[0], 404)
+        _, page, headers = self.get("/", token=False)
+        self.assertEqual(headers["Content-Security-Policy"], server.PAGE_CSP)
+        self.assertIn("script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'", server.PAGE_CSP)
+        self.assertLess(page.index('<link rel="stylesheet" href="/question-shape.css">'), page.index("<style>"))
+        self.assertLess(page.index('<script src="/question-shape.js"></script>'), page.index("<script>"))
+
     def test_ac7_saved_answer_reaches_a_waiting_watcher_within_one_quiet_window(self):
         seq0 = self.state()["responses"]["seq"]
         box = {}
