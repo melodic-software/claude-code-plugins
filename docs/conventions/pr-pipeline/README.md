@@ -232,8 +232,8 @@ pushes and `ci-status` stays red. `protected-path`, `weaken-required` and `flaky
 without a retry. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
-same-repository ones into `main` that the lanes App opened (by bot id), or that an owner in
-[`adoption`](#adoption) opened and left idle, with no `do-not-merge`, `needs-human` or tracker
+same-repository ones into `main` that the lanes App opened (by bot id), or that a trusted actor
+opened ([`adoption`](#adoption); a person's once idle), with no `do-not-merge`, `needs-human` or tracker
 human-gated label,
 whose head's `ci-status` check run from the GitHub Actions app ended `failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
 untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
@@ -785,11 +785,12 @@ except six:
   enqueue the closing issue is read again and a different one refuses
   (`closing-issue-changed:<was>><now>`). A pull request into any branch but the default refuses
   `base-not-default:<ref>`, read at eligibility and again before the enqueue; any read that fails
-  refuses. An adopted pull request (owner decision Q22) is one an owner account opened, a `User`
-  whose account id is in `adoption.owner-ids` (absent or empty adopts none), never matched by
-  login, that is not a draft, whose `updatedAt` and head commit committer date are both at least
-  `adoption.idle-hours` old (24 when absent; an unreadable date is not idle; a value that is not a
-  whole number from 1 to 720 adopts nothing), both settings read at the default branch head,
+  refuses. An adopted pull request (owner decisions Q22 and 2026-10-22, [Adoption](#adoption)) is
+  one a `User` or `Bot` on the trusted-actor list opened, matched by account id, never by
+  login, that is not a draft, and, for a `User`, whose `updatedAt` and head commit committer date
+  are both at least `adoption.idle-hours` old (absent adopts nothing; an unreadable date is not
+  idle; a value that is not a whole number from 1 to 720 adopts nothing), the setting and the
+  list read at the default branch head,
   and that no hold applies to: the `do-not-merge` label, the
   tracker's human-gated role label as `.work-item-tracker.json` resolves it, or a hold line in
   the body. While the lane's own merge-queue entry holds it at the current head (the lanes App
@@ -800,7 +801,7 @@ except six:
   apply. The decision records it as `eligibility.adoption` (`idle-owner:<hours>h`);
   every other gate applies unchanged. Any other author refuses `not-lane-authored`, and an owner pull
   request that is not adopted refuses `not-adopted:<reason>`. The candidate listing adds each
-  owner account's open pull requests, looked up by id.
+  trusted actor's open pull requests by its login on the list.
 - **Verdict criterion.** No promotion evidence is read. The merge criterion is the pr-verify
   verdict at the head ([Verifier verdict](#verifier-verdict)), which binds to that one closing
   issue and its trusted spec, so with a rung above off the gate refuses
@@ -1141,12 +1142,14 @@ head and never cancel a running judgment.
 the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, compared as the
 pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
 the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
-only lane-authored pull requests reach the pr-merge lane. `lane-or-owner` also judges the owner
-account's: a `User` whose account id is in `adoption.owner-ids` (absent or empty: none; never
-matched by login), whose idle pull
-requests the pr-merge lane adopts (Eligibility, above); any other author's is skipped with
-`author-not-lane-or-owner`. pr-verify runs when `pr-require-checks` passes, so it judges an owner
-pull request at each ready head, before it is idle. `any` judges every author's. Any other
+only lane-authored pull requests reach the pr-merge lane. `lane-or-owner` also judges every
+trusted actor's: a `User` or `Bot` whose account id is on the trusted-actor list (never matched
+by login), whose pull requests the pr-merge lane adopts (Eligibility, above); any other author's
+is skipped with `author-not-lane-or-owner`. pr-verify runs when `pr-require-checks` passes, so it
+judges a person's pull request at each ready head, before it is idle. A pull request closing no
+issue is judged against its own title and body only as [Adoption](#adoption) says, and a lane fix
+that changes behavior or intent the spec does not ask for fails the verdict, which escalates it
+to a person. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
@@ -1679,11 +1682,14 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 
 ## Adoption
 
-The `adoption` section names owner accounts whose pull requests the lanes take over once the owner
-has left them (owner decision Q22, 2026-10-22). This grants the lanes unattended power over PRs a
+With an `adoption` section, the lanes take over every trusted actor's pull request (owner
+decisions Q22 and 2026-10-22): one rule for the lanes App, Dependabot, the release App, the owner
+and anyone later added to `.github/standards/trusted-actors/trusted-actors.json`. When it is red
+or needs a fix, a lane fixes it and it merges without a person, unless the fix changes behavior or
+intent, which the verifier fails and escalates. This grants the lanes unattended power over PRs a
 person opened. A PR is adopted when all of these hold:
 
-- one of `owner-ids` opened it (the author's numeric user id);
+- an account on the trusted-actor list opened it, a person or an App, matched by numeric id;
 - it is not a draft, it is a same-repository PR into `main`, and it carries no `do-not-merge`,
   `needs-human` or human-gated label (`config.role_labels["human-gated"]` in the base
   `.work-item-tracker.json`, as pr-merge resolves it; a tracker file that is not JSON holds every
@@ -1691,22 +1697,64 @@ person opened. A PR is adopted when all of these hold:
   two labels);
 - no body line starts with `Hold:`, read as babysit reads it: any case, after any non-newline
   whitespace (NBSP included), with a bare CR also ending a line;
-- its last update (`updatedAt`) and its head commit's committer date are both at least
-  `idle-hours` old. Neither one alone is enough.
+- for a person's PR, its last update (`updatedAt`) and its head commit's committer date are both
+  at least `idle-hours` old. Neither one alone is enough. An App's PR does not wait.
+
+An adopted PR that closes no issue in this repository is judged against its own title and body
+when a person (a `kind: human` id on the trusted list, not merely a GitHub `User`) opened it or
+an App in `spec-from-body-apps` did (an App whose bodies a script writes): resolve-pr gives the verifier that text as the spec, the verdict records `intent:
+pull-request`, and the pr-merge gate accepts it with no closing issue. Any other App, the lanes
+App included, still needs a closing issue a trusted person wrote: a model that wrote the diff
+would also have written the spec it is graded against.
+
+The body counts only if it was never edited, or was last edited by its author or a trusted person;
+the verdict records its sha256 (`intent_sha256`), and the gate refuses the pass
+(`verify:spec-changed`) once the live title and body differ.
+
+In the pr-merge lane, for an adopted PR a person or a `spec-from-body-apps` App opened, the HIGH
+path floor and the manifest review score only the PR's changed paths that a commit not its
+author's own touched (a lane's fix among them): that author's own lines need no person. Any other
+App's PR (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) gets that exemption only for its
+own lines under `plugins/*/scripts/` (owner decision Q14 (c)); its other paths score whole, like
+the lanes App's, top-level `scripts/` included (credentialed jobs on main run it), while it stays
+adoptable for fix-and-merge. `.github/standards/**`, `.github/workflows/**`,
+`.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` always score, whoever wrote them:
+CI runs that code from main with tokens. So do the merge gate
+(`plugins/source-control/skills/babysit-prs/**`), the review lanes (`plugins/review/**`),
+`docs/conventions/**`, `REVIEW.md` and `settings*.json` (owner decision 2026-10-20, clause 5 of
+the gated PR merge decision), and every instruction or runnable plugin path pr-unblock's thread
+scope names (`INSTRUCTION_PATH` in `thread-scope.mjs`, whose Python twin a test holds equal):
+`.claude/` and `.claude-plugin/` directories, `CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`,
+`.gitmodules`, `CODEOWNERS`, and `plugins/*/hooks`, `monitors` and `bin`. Paths match
+case-insensitively. The lanes App and
+Dependabot are never adopted. A commit is the author's own
+only when GitHub verified its signature and its author account is the PR's author, and, for a
+person, its committer account too; the author account alone comes from the git author email,
+which anyone can set. An App's commits go through the API and GitHub's web-flow commits them, so
+an App's own commit needs the signature, its author account, and a committer that is the App or
+web-flow, the weaker case. A merge
+commit not the author's own scores its files that the PR also changed, so a conflict a lane
+resolves inside a PR-changed file holds while main's other incoming files score nothing. The lanes
+App's own PRs are never adopted and stay scored whole. A commit list or commit that cannot be read
+whole scores every path. The trusted list is read at the default branch head. The capability
+check, the security-review lane's findings and every other gate still apply. Dependabot keeps its own paths, `review-dependency` for a red PR and
+its own tier in pr-merge ([Dependabot pull requests](#dependabot-pull-requests)), and is never
+dispatched `fix-ci`.
 
 An adopted PR whose `ci-status` failed is dispatched `fix-ci` like a lanes App PR, under the same
 `limits.fix-ci-per-run`, `limits.fix-ci-restarts` and `loop.fix-ci-rounds`. The run still needs
 the author on the trusted-actor list, as every pr-unblock run does. A pushed fix commit updates the
-PR and its head, so the next fix waits another `idle-hours`: an owner PR gets at most one fix
+PR and its head, so the next fix waits another `idle-hours`: a person's PR gets at most one fix
 round per idle window. A lanes App PR waits for no idle window, and its
-`Hold: a human merges this` line holds the merge, not a CI fix. While `owner-ids` lists anyone,
-the human-gated label holds a lanes App PR from `fix-ci` too; with `owner-ids` empty the tracker
-file is not read, and only `do-not-merge` and `needs-human` hold.
+`Hold: a human merges this` line holds the merge, not a CI fix. With an `adoption` section the
+human-gated label holds a lanes App PR from `fix-ci` too; without one the tracker file and the
+trusted-actor list are not read, nothing is adopted, and only `do-not-merge` and `needs-human`
+hold.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `idle-hours` | 24 | Hours both the PR and its head commit must be unchanged; 1 to 720. |
-| `owner-ids` | `[]` | User ids whose PRs are adopted. Empty: none. |
+| `idle-hours` | none | Hours both a person's PR and its head commit must be unchanged; 1 to 720. Absent: nothing is adopted. |
+| `spec-from-body-apps` | `[]` | App ids whose PR bodies a script writes; such a PR closing no issue is judged against its title and body. |
 
 ## Red main
 

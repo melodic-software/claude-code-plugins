@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { main, ownerIds, resolvePull } from "./resolve-pr.mjs";
+import { main, resolvePull } from "./resolve-pr.mjs";
 
 const REPO = "example-org/example-repo";
 const HEAD = "a".repeat(40);
@@ -85,7 +85,7 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], restFails = false, associated = [] } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [] } = {}) {
   const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
@@ -96,7 +96,7 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       return { data: { repository: { object: { associatedPullRequests: { nodes: associated, pageInfo: { hasNextPage: false } } } } } };
     }
     if (apiPath === "/graphql") {
-      return { data: { repository: { pullRequest: { closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
+      return { data: { repository: { pullRequest: { ...edit, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
     }
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(apiPath);
     if (named) {
@@ -231,8 +231,11 @@ test("verify-authors lane-or-owner judges the owner account's PRs and the lane's
   // Matched by account id, never login.
   const spoof = pull({ user: { id: OWNER_ID + 1, login: "kyle-sexton", type: "User" } });
   assert.equal(await reason({ pulls: [spoof] }, opts), "author-not-lane-or-owner", "owner login, other id");
-  const botId = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "Bot" } });
-  assert.equal(await reason({ pulls: [botId] }, opts), "author-not-lane-or-owner", "a Bot with the id");
+  // A listed App (the release App) is judged too (owner decision 2026-10-22).
+  const app = pull({ user: { id: OWNER_ID, login: "melodic-plugin-release[bot]", type: "Bot" } });
+  assert.equal(await reason({ pulls: [app] }, opts), "ok", "a listed Bot");
+  const org = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "Organization" } });
+  assert.equal(await reason({ pulls: [org] }, opts), "author-not-lane-or-owner", "another account type");
   assert.equal(await reason({ pulls: [HUMAN_PR] }, opts), "author-not-lane-or-owner", "another human");
   // A draft stays unjudged.
   assert.equal(await reason({ pulls: [{ ...owner, draft: true }] }, opts), "draft", "owner draft");
@@ -248,12 +251,82 @@ test("lane-or-owner reads the owner ids it is given", async () => {
   assert.equal(await reason({ pulls: [owner] }, { verifyAuthors: "lane-or-owner" }), "author-not-lane-or-owner", "not given");
 });
 
-test("the owner ids come from adoption.owner-ids, none when unset", () => {
-  assert.deepEqual(ownerIds(undefined), []);
-  assert.deepEqual(ownerIds("5\n77\n"), [5, 77]);
-  assert.deepEqual(ownerIds(""), []);
-  // An entry that is not an account id adopts nothing.
-  assert.deepEqual(ownerIds("5\nkyle\n"), []);
+// Owner decision 2026-10-22: with no closing issue here, a person's or a
+// script-written App's title and body are the spec; a model-written App's
+// (claude[bot]) or the lanes App's are not, since its run wrote them.
+test("a trusted PR with no closing issue here is its own spec, unless a model wrote its body", async () => {
+  const RELEASE = 337859524;
+  const CLAUDE = 209825114;
+  // cursoragent is a GitHub User the trusted list marks kind bot: a model
+  // writes its bodies, so only a kind human id counts as a person.
+  const CURSORAGENT = 199161495;
+  const opts = {
+    verifyAuthors: "lane-or-owner",
+    humans: new Set([100, OWNER_ID]),
+    ownerIds: [OWNER_ID, RELEASE, CLAUDE, CURSORAGENT],
+    specFromBodyApps: [RELEASE],
+  };
+  const own = (user) => pull({ user, title: "chore: release", body: "Bumps the versions." });
+  const spec = [{ number: 41, source: "pull-request", body: "chore: release\n\nBumps the versions.", comments: [] }];
+  for (const [user, expected] of [
+    [{ id: OWNER_ID, login: "kyle-sexton", type: "User" }, spec],
+    [{ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" }, spec],
+    [{ id: CLAUDE, login: "claude[bot]", type: "Bot" }, []],
+    [{ id: CURSORAGENT, login: "cursoragent", type: "User" }, []],
+    [{ id: 337595936, login: LANE, type: "Bot" }, []],
+  ]) {
+    const result = await resolve({ pulls: [own(user)], issues: [] }, opts);
+    assert.deepEqual(result.specText, expected, user.login);
+    assert.deepEqual(result.linkedIssues, [], user.login);
+  }
+  // S&C D: a body last edited by anyone but its author or a trusted person
+  // is not the spec; edited by them, it still is.
+  const owner = own({ id: OWNER_ID, login: "kyle-sexton", type: "User" });
+  const releasePr = own({ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" });
+  const by = (databaseId, __typename = "User") => ({ lastEditedAt: "2026-10-22T00:00:00Z", editor: { __typename, login: "x", databaseId } });
+  for (const [pr, edit, expected] of [
+    [owner, by(4242), []],
+    [releasePr, by(CLAUDE, "Bot"), []],
+    [owner, by(OWNER_ID), spec],
+    [releasePr, by(RELEASE, "Bot"), spec],
+    [releasePr, by(100), spec],
+    [owner, { lastEditedAt: "2026-10-22T00:00:00Z", editor: null }, []],
+  ]) {
+    const result = await resolve({ pulls: [pr], issues: [], edit }, opts);
+    assert.deepEqual(result.specText, expected, JSON.stringify(edit));
+  }
+  // A closing issue here keeps it the spec.
+  const result = await resolve({ pulls: [own({ id: OWNER_ID, login: "kyle-sexton", type: "User" })] }, opts);
+  assert.deepEqual(result.specText, [{ number: 7, body: "the spec", comments: [] }]);
+});
+
+test("main judges every trusted-actors.json account under lane-or-owner, a Bot included", async (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const output = path.join(dir, "out");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(
+    actors,
+    JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }, { id: 77, login: "a-release[bot]", kind: "bot" }] }),
+  );
+  t.mock.method(console, "log", () => {});
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_OUTPUT: output,
+    UPSTREAM_RUN_ID: String(RUN),
+    SPEC_FILE: path.join(dir, "spec.json"),
+    SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+    TRUSTED_ACTORS_PATH: actors,
+    LANE_IDENTITY: LANE,
+    VERIFY_AUTHORS: "lane-or-owner",
+  };
+  const release = pull({ user: { id: 77, login: "a-release[bot]", type: "Bot" } });
+  await main(env, { github: fake({ pulls: [release] }) });
+  assert.match(readFileSync(output, "utf8"), /^proceed=true\nreason=ok\n/);
+  writeFileSync(output, "");
+  const stranger = pull({ user: { id: 78, login: "stranger", type: "User" } });
+  await main(env, { github: fake({ pulls: [stranger] }) });
+  assert.match(readFileSync(output, "utf8"), /^proceed=false\nreason=author-not-lane-or-owner\n/);
 });
 
 test("an unknown verify-authors value judges nothing", async () => {

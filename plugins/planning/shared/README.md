@@ -183,6 +183,7 @@ the refused op's index).
 | `fail-request` | `request`, `reason` | `running` -> `failed` |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | |
 | `add-asset` | `path`, `as?`, `scale?` | Copies a PNG, JPEG, WebP, SVG or HTML file (by its bytes, at most 10 MB) from the data folder, where captures go in `staging/`, into `assets/<16 hex>.<ext>`, named by its content; returns `{id, kind, bytes, at, scale}`. Usable from the next apply; a refused apply removes the files it copied and puts back any sidecar it rewrote |
+| `add-live` | `label`, `folder` or `port`, `note?` | Records a live prototype, pending until the owner's Approve; starts nothing. `folder`: an absolute path to a build folder inside the data folder's `staging/` with no hidden part; `port`: 1..65535 on 127.0.0.1, never the session's own guest or control port (`.shared-ports.json`; 503 `live-unavailable` when that file cannot be read). 403 `live-off` while the live tier is off, 409 `wrong-status` once the session ended, 409 `lives-full` with 20 not ended. Returns `{id: L<N>, status: pending}`; a variant links it as `live: {id, path}` |
 | `set-purpose` | `qid`, `purpose` | The owner's `/api/question/purpose` rules |
 | `set-for` | `qid`, `for` | Who must answer, by name or pid; `[]` asks everyone. The owner's `/api/question/for` takes the same body. A question in `open-round` takes `for` too |
 | `make-question-from` | `proposal`, `question` | |
@@ -295,6 +296,8 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `/api/decision/keep` | `{qid}` | Keeps a possibly reopened decision ([Answering](#answering), "Possibly reopened") |
 | `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open or seen report and writes `report-filed` for Claude (409 `wrong-status` on one that is resolved or already asked) |
 | `GET /api/report/image?id=[&pic=P\|&add=N]` | | One report's first screenshot, its `P`th sent with it (`P` 1 to 4), or its Nth addition's (`N` 1 to 999); else, or with both, 400 `bad-field`. As `{id, image}`, a data: URL |
+| `/api/live/approve` | `{id, attest?}` | Starts a pending live prototype ([Prototype page](#prototype-page), "Live"): `starting`, then `running` with the https origin the server's live starter answers. A port needs `attest: true` (400 `bad-field`, field `attest`). 403 `live-off` while the live tier is off, 409 `wrong-status` unless it is pending or once the session ended, 404 `not-found` for no such entry; 503 `live-unavailable` while no starter can start one (it stays pending), 502 `live-failed` when the start fails or answers no https origin (it stays pending, and what began is stopped) |
+| `/api/live/stop` | `{id}` | Ends a live prototype, started or not: `ended`, reason `stopped`, its url gone; the server stops what its starter began. 409 `wrong-status` once ended |
 
 `POST /api/chat/react {id, emoji, on}` (any person) adds or takes back one's own emoji on a chat
 message: only the page's fixed set (`CHAT_EMOJI` in `session.py` and `web/app.js`), at most 20
@@ -408,7 +411,20 @@ for a free-form selector an earlier build took.
   file were missing (pictures stay served: options, references and confirm questions share them).
   The owner sees every view, each hidden one named. A guest's page shows "This view is off" for
   such a variant, and with no view left the question shows as text with a note; the picks still
-  work. `live` is stored and shown only: nothing starts a live prototype yet.
+  work.
+- **Live.** With `live` in `prototypeTiers`, `add-live` records a live prototype (`lives`, `L<N>`,
+  optional in the state file) and a variant links it with `live: {id, path}`; such a variant is
+  written with `shots`/`snapshot`/`live`, never as a bare `asset`. `path` starts with one `/` and
+  holds only URL path and query characters: no `#` or `%23`, no `//`, scheme, backslash, space or
+  control character (400). Only the owner's Approve starts an entry, and only a running entry's
+  url reaches anyone else: a guest's or leader's `lives` lists the entries their questions link
+  as `{id, label, status: {kind}}`, adding `url` only while it runs; the owner's adds the target,
+  and for a pending port `url` is that port on 127.0.0.1. Stop, turning `live` off and ending the
+  session end every entry they cover (`ended`, no url kept); turning `live` on again or reopening
+  restarts none. While `live` is off, guests' variants carry no `live`. The prototype page shows
+  "Open live prototype" (a new tab, `rel="noopener noreferrer"`, no referrer) only for a running
+  entry, never frames one, shows guests "Live version waiting for the host" while it is pending,
+  and gives the owner Approve (with the sample-data attestation for a port) and Stop.
 - **Owner token.** Links to session pages (`Core.pageLink`) never hold it. The page keeps it in
   the tab's `sessionStorage`, takes it out of the address bar, and uses it again only on a reload
   or Back in that tab; when the owner follows a session link, `core.js` opens the page with

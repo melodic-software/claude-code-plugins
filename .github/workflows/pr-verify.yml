@@ -125,8 +125,8 @@ jobs:
           mkdir -p "$(dirname "$SPEC_FILE")"
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          OWNER_IDS=$(yq '.adoption."owner-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY OWNER_IDS
+          SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the
@@ -340,6 +340,7 @@ jobs:
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
           HEAD_REF: ${{ steps.pr.outputs.head-ref }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
+          SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
@@ -448,8 +449,8 @@ jobs:
           mkdir -p "$(dirname "$SPEC_FILE")"
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          OWNER_IDS=$(yq '.adoption."owner-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY OWNER_IDS
+          SPEC_FROM_BODY_APPS=$(yq '.adoption."spec-from-body-apps" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the
@@ -639,6 +640,7 @@ jobs:
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
           HEAD_REF: ${{ steps.pr.outputs.head-ref }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
+          SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
