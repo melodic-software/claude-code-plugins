@@ -1592,8 +1592,8 @@ leaves the count only by running, so pausing runs on it would hold the count shu
 that fails leaves admissions open (`admission_basis: fail-open`) and changes no run pause. A
 search that answers `incomplete_results: true` (a degraded search can answer a false empty) is
 unknown, not failed: on or after `pause-from` admissions pause (`admission_basis` and
-`admission_reason` `search-incomplete`), with a `check-wip-cap` warning, and no run pause changes. The
-search lists at most 1,000 issues: past that, the issues it counted but did not list count as
+`admission_reason` `search-incomplete`), with a `check-wip-cap` warning, and no run pause changes.
+The search lists at most 1,000 issues: past that, the issues it counted but did not list count as
 queued, and admissions pause (`queued_truncated: true`).
 
 work-unblock is the one lane that adds `agent-ready` to a new issue. Past the room it labels a
