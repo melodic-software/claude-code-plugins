@@ -1794,6 +1794,20 @@
       b.onclick = () => Core.saveSettings({ [k]: !st()[k] }).catch(fail);
       settingsPop.append(b); switches[k] = b;
     }
+    // Which prototype views guests get (the prototypeTiers setting): each switch saves the list with its own view toggled.
+    // Live prototypes are only stored for now; nothing starts one yet.
+    const TIERS = [["screenshot", "Screenshots", "Picture variants of a prototype question"],
+      ["snapshot", "HTML snapshots", "Self-contained HTML variants, run in a sandbox"],
+      ["live", "Live prototypes", "A linked prototype server guests click around in; off by default"]];
+    const tierRows = {};
+    settingsPop.append(E("h3", "vf-pop-sub", "Prototypes"));
+    for (const [k, label, desc] of TIERS) {
+      const b = btn("vf-sw-row"); b.setAttribute("role", "switch"); b.dataset.tier = k;
+      const txt = E("span", "vf-sw-txt"); txt.append(E("span", "vf-sw-label", label), E("span", "vf-sw-desc", desc));
+      b.append(txt, E("span", "vf-switch"));
+      b.onclick = () => { const on = new Set(st().prototypeTiers); on.has(k) ? on.delete(k) : on.add(k); Core.saveSettings({ prototypeTiers: TIERS.map(([kk]) => kk).filter(kk => on.has(kk)) }).catch(fail); };
+      settingsPop.append(b); tierRows[k] = b;
+    }
     const MODES = [["system", "System"], ["light", "Light"], ["dark", "Dark"]];
     const ACCENTS = [["teal", "Teal"], ["indigo", "Indigo"], ["violet", "Violet"], ["amber", "Amber"]];
     const PALETTES = [["default", "Default"], ["midnight", "Midnight"], ["slate", "Slate"], ["paper", "Paper"], ["contrast", "High contrast"]];
@@ -6280,11 +6294,16 @@
       citeChips.hidden = !citeChips.children.length;
     }
 
-    /** Q98: the preview tile (the first picture variant, else a plain tile) and the link to the prototype's own page. */
+    const OFF_NAME = { screenshot: "screenshots off", snapshot: "HTML snapshots off" };
+    /** Q98: the preview tile (the first picture variant, else a plain tile) and the link to the prototype's own page.
+     *  With every view off for this guest (prototypeTiers) the question shows as text with a note; the owner, who still
+     *  sees every view, is told which ones guests do not get. */
     function renderProtoTile(q) {
       protoBox.hidden = q.formatKind !== "prototype";
       if (protoBox.hidden) return;
-      const vs = q.variants || [], pic = vs.find(v => !/\.html$/.test(v.asset));
+      const vs = q.variants || [], shown = vs.filter(v => v.asset), pic = shown.find(v => !/\.html$/.test(v.asset));
+      const off = !shown.length, hidden = Core.me.isOwner ? vs.filter(v => Core.viewOff(v)) : [];
+      protoTile.hidden = protoOpen.hidden = off;
       const key = `${q.id}|${pic?.asset || ""}`;
       if (protoTile._key !== key) {
         protoTile._key = key;
@@ -6292,7 +6311,9 @@
         else protoTile.replaceChildren(icon("open", "vf-i vf-proto-ico"), E("span", null, `${vs.length} interactive variant${vs.length === 1 ? "" : "s"}`));
       }
       const n = (Core.state.annotations || []).filter(a => a.qid === q.id).length;
-      protoMeta.textContent = `${vs.length} variants: ${vs.map(v => v.label).join(", ")}. ${n ? `${n} note${n === 1 ? "" : "s"} pinned so far.` : "Try them and pin notes on any part."}`;
+      protoMeta.textContent = `${vs.length} variants: ${vs.map(v => v.label).join(", ")}. ` + (off ? "Prototype views are off in this session."
+        : `${n ? `${n} note${n === 1 ? "" : "s"} pinned so far.` : "Try them and pin notes on any part."}`
+        + (hidden.length ? ` Hidden from guests: ${hidden.map(v => `${v.label} (${OFF_NAME[Core.viewOff(v)]})`).join(", ")}.` : ""));
       protoOpen.href = protoTile.href = Core.pageLink(`/proto/${q.id}`);
       protoOpen.setAttribute("aria-label", `Open prototype for ${q.id} in a new tab`);
       renderProtoVersions(q, vs);
@@ -7364,6 +7385,7 @@
 
       // popovers
       for (const [k, b] of Object.entries(switches)) b.setAttribute("aria-checked", String(k === "hideClaude" ? s[k] !== false : !!s[k]));
+      for (const [k, b] of Object.entries(tierRows)) b.setAttribute("aria-checked", String(s.prototypeTiers.includes(k)));
       switches.signoff.disabled = !s.voting;
       switches.hideClaude.hidden = !v8();
       const nLater = laterItems().length;

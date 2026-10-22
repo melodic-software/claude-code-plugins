@@ -827,9 +827,9 @@ class GuestHandler(BaseHTTPRequestHandler):
         return pid
 
     def asset(self, aid, ext, *, pin=False):
-        self.asset_reader()
+        pid = self.asset_reader()
         f = self.app.dir / "assets" / aid
-        if not f.is_file():
+        if not f.is_file() or self.app.session.asset_hidden(pid, aid):  # a view switched off reads as no such asset
             return self.fail(DomainError(404, "not-found", "No such asset."))
         if ext != "html":
             return self.send(200, f.read_bytes(), ASSET_TYPES[ext], {"Content-Security-Policy": ASSET_CSP, "Content-Disposition": "inline"})

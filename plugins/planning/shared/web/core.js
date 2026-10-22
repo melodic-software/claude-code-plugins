@@ -63,7 +63,7 @@
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "", shareTunnel: "",
     goal: "", intro: "", repo: "", commit: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], claudeProposals: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
-    settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
+    settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true, prototypeTiers: ["screenshot", "snapshot"] },
   };
 
   // C40: a person's color is one of ten ids (Person.color); core.css draws each per theme (--pc-c1..--pc-c10).
@@ -122,7 +122,9 @@
       ...structuredClone(DEFAULTS), // its own maps: a question whose last answer, lock, suggestion or result went must lose its key
       rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", repo: s.repo || "", commit: s.commit || "", ended: !!s.ended, serverTime: s.serverTime,
       // reviewAnswers: absent (a session from before the setting) reviews every answer, as those sessions always did.
-      settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always", reviewAnswers: settings.reviewAnswers !== false },
+      // prototypeTiers: absent offers screenshots and HTML snapshots, as the server does (session.py prototype_tiers).
+      settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always", reviewAnswers: settings.reviewAnswers !== false,
+        prototypeTiers: settings.prototypeTiers || DEFAULTS.settings.prototypeTiers },
       people, ownerPid: "host",
       leaders: live.filter(p => p.role === "leader").map(p => p.pid), trusted: live.filter(p => p.trusted && p.pid !== "host").map(p => p.pid),
       removed: (s.removed || []).map(p => p.pid),
@@ -481,6 +483,9 @@
     canModerate: () => Core.me.isOwner || Core.me.isLeader,
     lockOf: qid => Core.state.locks[qid] || null,
     suggestionsFor: qid => Core.state.suggestions[qid] || [],
+    /** Which of a prototype variant's views the session switched off (prototypeTiers): "screenshot" for a picture,
+     *  "snapshot" for an html file, "off" when this viewer's state left the view out (a guest's), "" while it shows. */
+    viewOff: v => (!v?.asset ? "off" : (t => (Core.state.settings.prototypeTiers.includes(t) ? "" : t))(/\.html$/.test(v.asset) ? "snapshot" : "screenshot")),
     /** One prototype variant's versions, oldest first, along the `previous` links between prototype questions:
      *  [{qid, variant, label, asset, round, n, current}], `current` on the newest. Empty for a variant not in the session. */
     versionsOf(qid, vid) {
