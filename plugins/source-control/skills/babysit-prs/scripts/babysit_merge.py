@@ -3044,6 +3044,19 @@ def score_unattended(
             LaneEvidence(lane, False, "evidence-missing", None)
             for lane in review_evidence.LANES
         )
+    # An adopted pull request's trusted author: the path floor holds only
+    # paths someone else's commits touched, a lane's fix among them. A
+    # model-driven App's own lines count only under `MODEL_APP_OWN` (Q14 (c)).
+    own = (
+        merge_policy.own_paths(
+            repo,
+            pr,
+            frozenset(p for f in files for p in (f.path, f.previous_path) if p),
+            None if eligible.body_is_intent else merge_policy.MODEL_APP_OWN,
+        )
+        if eligible.adoption
+        else frozenset()
+    )
     if config.high_path_floor:
         # The capability check compares base and head text (the floor only).
         files = merge_policy.with_capability_contents(repo, pr, files)
@@ -3103,6 +3116,7 @@ def score_unattended(
             eval_cases=eval_cases,
             lanes=lanes,
             blast_radius=None,
+            floor_exempt=own,
             **lane_switches,
         )
     )

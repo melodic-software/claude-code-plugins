@@ -14,8 +14,8 @@
 // config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
 // The same run then starts review-dependency for review-tier Dependabot PRs
-// (dependency-dispatch.mjs), fix-ci for lanes App PRs, and idle PRs of the
-// owners the config's `adoption` section lists, whose ci-status failed
+// (dependency-dispatch.mjs), fix-ci for lanes App PRs and, with an
+// `adoption` section, PRs of the base's trusted actors, whose ci-status failed
 // (fix-ci-dispatch.mjs) and fix-docs once per ready PR that changes
 // Markdown (fix-docs-dispatch.mjs), and their run ids join the same record.
 // resolve-conflicts and review-dependency read the one open-PR listing. A head whose check runs handle it for
@@ -26,8 +26,9 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { POLICY_PATH } from "./dependency-classify.mjs";
+import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
@@ -55,6 +56,7 @@ export const DEFAULTS = Object.freeze({
 
 // The run id form the record's readers accept.
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
+const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 
 function isCandidate(node, base) {
   return (
@@ -461,16 +463,20 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   // A missing lanes App id stops fix-ci alone, as a failure. The tracker's
   // human-gated label is read only when owners are adopted; an unreadable
   // tracker config holds the adopted owner PRs alone, as a failure.
+  // With `adoption.idle-hours` set (as pr-merge requires), every account on
+  // the base's trusted-actors list is adoptable, by id, but Dependabot:
+  // review-dependency owns its red PRs.
   let fixes = { dispatched: [], failed: 1 };
-  const ownerIds = adoption["owner-ids"] ?? [];
+  let ownerIds = [];
   let holdLabels = CI_FIX_DEFAULTS.holdLabels;
   let ownersHeld = "";
-  if (ownerIds.length > 0) {
+  if (adoption["idle-hours"] !== undefined) {
     try {
+      ownerIds = [...loadTrustedList(`${env.BASE_PATH || ".base"}/${TRUSTED_ACTORS_PATH}`).ids].filter((id) => id !== DEPENDABOT_ID);
       holdLabels = [...new Set([...holdLabels, baseHumanGatedLabel(env)])];
     } catch (error) {
-      log(`::error::cannot read the human-gated label from the base .work-item-tracker.json (${error.message}); no adopted owner PR gets fix-ci`);
-      ownersHeld = "base tracker config unreadable, so its human-gated label is unknown";
+      log(`::error::cannot read the base trusted-actors list or the human-gated label from the base .work-item-tracker.json (${error.message}); no adopted PR gets fix-ci`);
+      ownersHeld = "base trusted-actors list or tracker config unreadable";
     }
   }
   if (/^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "")) {
@@ -481,7 +487,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       appSenderId: Number(env.APP_SENDER_ID),
       maxDispatch: limits["fix-ci-per-run"] ?? 2,
       restarts: limits["fix-ci-restarts"] ?? 1,
-      adoption: { ownerIds, idleHours: adoption["idle-hours"] ?? 24, held: ownersHeld },
+      adoption: { ownerIds, idleHours: adoption["idle-hours"], held: ownersHeld },
       holdLabels,
       now,
     });
