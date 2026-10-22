@@ -2471,6 +2471,32 @@ class CostHold(Unattended):
         self.assertEqual(out["risk"]["score"], "LOW")
         self.assertEqual(out["costDecision"], link)
 
+    def test_a_raised_timeout_holds_only_on_a_model_workflow(self) -> None:
+        # The gate reads the workflow's head text, floor off, to see its legs.
+        workflow = ChangedFile(
+            ".github/workflows/x.yml",
+            None,
+            "modified",
+            1,
+            1,
+            True,
+            "100644",
+            "100644",
+            patch="@@ -1 +1 @@\n-    timeout-minutes: 30\n+    timeout-minutes: 45",
+        )
+        self.files = ((workflow,), True)
+        for text, held in (
+            ("      - uses: anthropics/claude-code-action@abc\n", True),
+            ("      - run: make\n", False),
+        ):
+            with self.subTest(held=held):
+                policy._TEXT_AT.clear()
+                self.addCleanup(policy._TEXT_AT.clear)
+                with mock.patch.object(policy, "_file_at", return_value=text):
+                    read, out = self.run_with_decision(None)
+                codes = [r["code"] for r in out["risk"]["reasons"]]
+                self.assertEqual("cost-review-required" in codes, held)
+
     def test_a_non_cost_change_reads_no_decision(self) -> None:
         read, out = self.run_with_decision("unused")
         self.assertEqual(out["risk"]["score"], "LOW")

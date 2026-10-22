@@ -2657,6 +2657,10 @@ class LaneRequiresAVerdict(unattended.Unattended):
             ),
             True,
         )
+        # The cost hold reads the workflow's text: it starts no model leg.
+        reader = mock.patch.object(policy, "_file_at", return_value="jobs: {}\n")
+        reader.start()
+        self.addCleanup(reader.stop)
         code, out = self.lane()
         self.assertEqual(code, 0, out["blockers"])
         self.assertEqual(out["unattended"]["risk"]["score"], "LOW")

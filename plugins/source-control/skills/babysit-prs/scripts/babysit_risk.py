@@ -76,9 +76,15 @@ in every lane, floor or not (owner rule, 2026-10-22): any `COST_PATHS` file
 (Pulumi, Terraform, Bicep); a `.github/workflows/` file whose patch adds a
 `cron:` line or a larger-runner label (`-<n>-cores`, `-large`, `-xlarge`,
 `-gpu`), or, unless `RiskInput.public` is True, a `runs-on:` or `macos` line;
-and a `pr-pipeline.yaml` whose patch adds a `model:`, `effort:` or
-`max-turns:` line. A workflow or pipeline file with no patch holds. Only
-`RiskInput.cost_decision`, an owner decision the caller verified, clears it.
+gains a `secrets.` reference to a model credential (a name holding `CLAUDE`,
+`OAUTH_TOKEN` or `_API_KEY`) or a `uses:` of run-claude-cli or
+claude-code-action, counted against the lines it removes so a move or repin
+is not new; or adds a `timeout-minutes` or `leg-timeout-minutes` above every
+one it removes, when its head text (`contents`) uses one of those actions or
+could not be read; and a `pr-pipeline.yaml` whose patch adds or removes a
+line on a spend key (`_COST_PIPELINE_LINE`). A workflow or pipeline file with
+no patch holds. Only `RiskInput.cost_decision`, an owner decision the caller
+verified, clears it.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -1462,20 +1468,70 @@ _COST_WORKFLOW_LINE = re.compile(
 # Standard hosted runners are free only on public repositories, so on any
 # other a runs-on or macOS label charges too.
 _COST_PRIVATE_LINE = re.compile(r"\bruns-on\s*:|\bmacos\b", re.IGNORECASE)
-# Model spend: the pipeline's model, effort or turn settings.
+# Pipeline settings that move model spend, on an added or removed line: the
+# model, effort and turn budget, review and fix rounds, restarts, per-run and
+# WIP caps, admission rates, the pause date, leg timeouts and a credential
+# route.
 _COST_PIPELINE_LINE = re.compile(
-    r"^\s*-?\s*(?:model|effort|max-turns)\s*:", re.IGNORECASE
+    r"^\s*-?\s*(?:model|effort|max-turns|[\w-]*rounds|[\w-]*restarts[\w-]*"
+    r"|turn-cap[\w-]*|[\w-]*-per-run|[\w-]*cap|admission-factor"
+    r"|admission-min-per-hour|pause-from|leg-timeout-minutes|credential[\w-]*)\s*:",
+    re.IGNORECASE,
 )
+# A model credential a workflow line reaches through `secrets.`.
+_MODEL_SECRET = re.compile(
+    r"secrets\.([A-Za-z0-9_]*(?:CLAUDE|OAUTH_TOKEN|_API_KEY)[A-Za-z0-9_]*)",
+    re.IGNORECASE,
+)
+# A model leg: the actions that start a Claude session.
+_MODEL_ACTION = re.compile(
+    r"\buses\s*:\s*['\"]?([^@\s'\"]*(?:run-claude-cli|claude-code-action))@"
+)
+_MODEL_ACTION_NAME = re.compile(r"run-claude-cli|claude-code-action")
+_TIMEOUT = re.compile(r"^\s*(?:leg-)?timeout-minutes\s*:\s*['\"]?([0-9]+)")
 
 
-def _added_lines(patch: Any) -> list[str] | None:
+def is_workflow_path(path: str) -> bool:
+    return any(glob_match(g, path) for g in _WORKFLOWS)
+
+
+def _patch_lines(patch: Any) -> tuple[list[str], list[str]] | None:
+    """(added, removed) line texts of a unified patch, None when unreadable."""
     if not isinstance(patch, str):
         return None
-    return [
-        line[1:]
-        for line in patch.split("\n")
-        if line.startswith("+") and not line.startswith("+++")
-    ]
+    added, removed = [], []
+    for line in patch.split("\n"):
+        if line.startswith("+") and not line.startswith("+++"):
+            added.append(line[1:])
+        elif line.startswith("-") and not line.startswith("---"):
+            removed.append(line[1:])
+    return added, removed
+
+
+def _net_added(
+    pattern: re.Pattern[str], added: list[str], removed: list[str]
+) -> list[str]:
+    """Each match `added` gains over `removed`, so a moved or repinned line
+    is not new."""
+    gained = Counter(m for line in added for m in pattern.findall(line))
+    gained.subtract(m for line in removed for m in pattern.findall(line))
+    return sorted(m for m, n in gained.items() if n > 0)
+
+
+def _raised_timeouts(
+    f: _File, raw: Any, added: list[str], removed: list[str]
+) -> list[str]:
+    """Timeouts on a workflow that starts a model leg (or whose head text could
+    not be read) that the patch adds above every value it removes."""
+    new = [int(m[1]) for line in added if (m := _TIMEOUT.match(line))]
+    if not new:
+        return []
+    contents = getattr(raw, "contents", None)
+    head = contents[1] if isinstance(contents, tuple) and len(contents) == 2 else None
+    if isinstance(head, str) and not _MODEL_ACTION_NAME.search(head):
+        return []
+    old = [int(m[1]) for line in removed if (m := _TIMEOUT.match(line))]
+    return [f"timeout raised to {n}" for n in new if not old or n > max(old)]
 
 
 def _cost_reasons(
@@ -1489,24 +1545,34 @@ def _cost_reasons(
         if any(glob_match(g, p) for g in COST_PATHS for p in f.paths):
             hits.append(f"{f.path}: infrastructure as code")
             continue
-        workflow = any(glob_match(g, p) for g in _WORKFLOWS for p in f.paths)
+        workflow = any(is_workflow_path(p) for p in f.paths)
         pipeline = any(glob_match(_PIPELINE_CONFIG, p) for p in f.paths)
         if not (workflow or pipeline):
             continue
-        added = _added_lines(getattr(raw, "patch", None))
-        if added is None:
+        lines = _patch_lines(getattr(raw, "patch", None))
+        if lines is None:
             hits.append(f"{f.path}: no patch to read")
             continue
-        patterns = (
-            [_COST_WORKFLOW_LINE] + ([] if inp.public is True else [_COST_PRIVATE_LINE])
-            if workflow
-            else [_COST_PIPELINE_LINE]
-        )
-        lines = [
-            line.strip() for line in added if any(p.search(line) for p in patterns)
-        ]
-        if lines:
-            hits.append(f"{f.path}: {'; '.join(lines)}")
+        added, removed = lines
+        if workflow:
+            patterns = [_COST_WORKFLOW_LINE] + (
+                [] if inp.public is True else [_COST_PRIVATE_LINE]
+            )
+            found = [s.strip() for s in added if any(p.search(s) for p in patterns)]
+            found += [
+                f"model credential {n}"
+                for n in _net_added(_MODEL_SECRET, added, removed)
+            ]
+            found += [
+                f"new model leg {n}" for n in _net_added(_MODEL_ACTION, added, removed)
+            ]
+            found += _raised_timeouts(f, raw, added, removed)
+        else:
+            found = [
+                s.strip() for s in added + removed if _COST_PIPELINE_LINE.search(s)
+            ]
+        if found:
+            hits.append(f"{f.path}: {'; '.join(found)}")
     if not hits or inp.cost_decision:
         return []
     detail = "; ".join(hits) + (

@@ -718,9 +718,16 @@ and its queued entries leave; two different identities, or an unreadable head co
   `.github/workflows/` file whose patch adds a `cron:` line (a schedule can spend model credits)
   or a larger-runner label (`-<n>-cores`, `-large`, `-xlarge`, `-gpu`), which
   [GitHub bills even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
-  on a repository that is not public, a workflow patch that adds a `runs-on:` or `macos` line;
-  and a `pr-pipeline.yaml` whose patch adds a `model:`, `effort:` or `max-turns:` line. A
-  workflow or pipeline file with no patch holds. The hold clears only when the pull request body
+  on a repository that is not public, a workflow patch that adds a `runs-on:` or `macos` line; a
+  workflow patch that gains a `secrets.` reference to a model credential (a name holding `CLAUDE`,
+  `OAUTH_TOKEN` or `_API_KEY`) or a `uses:` of `run-claude-cli` or `claude-code-action` (a new
+  model leg), counted against the lines it removes so a moved line or a repin is not new; a
+  `timeout-minutes` or `leg-timeout-minutes` the patch adds above every one it removes, in a
+  workflow whose head text uses one of those actions (the gate reads it) or could not be read; and
+  a `pr-pipeline.yaml` line added or removed on a spend key: `model`, `effort`, `max-turns`, any
+  `*rounds`, `*restarts*`, `turn-cap*`, `*-per-run` or `*cap` key, `admission-factor`,
+  `admission-min-per-hour`, `pause-from`, `leg-timeout-minutes`, or a `credential*` route. Other
+  `pr-pipeline.yaml` lines do not hold. A workflow or pipeline file with no patch holds. The hold clears only when the pull request body
   links an owner decision that covers it: a comment on the pull request's closing issue or on the
   pull request itself, in this repository, whose first line is `**Decision recorded.**`, written
   by a User with admin permission who is not the agent identity, not posted through an App, and
@@ -732,7 +739,9 @@ and its queued entries leave; two different identities, or an unreadable head co
   services outside these files are not detected, and neither is a Pulumi program file
   (`Program.cs`, `index.ts`) whose `Pulumi.yaml` and stack files are unchanged: a repository that
   holds one lists its program paths in `denied-paths` or `floor-paths` before it turns on
-  unattended merge. The review lanes and the verifier judge the rest. Dependabot pull requests are
+  unattended merge. azure-iac's Pulumi program is C#, and its deploy gate
+  ([azure-iac#75](https://github.com/melodic-software/azure-iac/issues/75)) stops any Azure change
+  for the owner at deploy time. The review lanes and the verifier judge the rest. Dependabot pull requests are
   not scored, so the hold does not apply to them.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and

@@ -3044,8 +3044,11 @@ def score_unattended(
             LaneEvidence(lane, False, "evidence-missing", None)
             for lane in review_evidence.LANES
         )
-    if config.high_path_floor:
-        # The capability check compares base and head text (the floor only).
+    if config.high_path_floor or any(
+        babysit_risk.is_workflow_path(f.path) for f in files
+    ):
+        # The capability check compares base and head text (the floor only);
+        # the cost hold reads a workflow's head text for its model legs.
         files = merge_policy.with_capability_contents(repo, pr, files)
     # The pr-merge lane's switches (owner decision Q624); the local lane
     # keeps HIGH_FLOOR, both caps and the C2 contradictions.

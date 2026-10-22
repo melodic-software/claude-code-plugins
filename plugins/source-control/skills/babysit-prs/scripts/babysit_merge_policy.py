@@ -66,6 +66,7 @@ from babysit_risk import (
     glob_match,
     is_capability_path,
     is_case_file,
+    is_workflow_path,
     is_manifest_path,
 )
 from babysit_util import (
@@ -3301,7 +3302,7 @@ def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
 def with_capability_contents(
     repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
 ) -> tuple[ChangedFile, ...]:
-    """Each changed capability file, manifest or eval case.yaml (not removed) with its base
+    """Each changed capability file, manifest, eval case.yaml or workflow (not removed) with its base
     text at the base SHA, from its previous path on a rename or copy, and its head text
     at the head SHA, or the reason either could not be read."""
     owner, name = _split_repo(repo)
@@ -3313,6 +3314,7 @@ def with_capability_contents(
             is_capability_path(changed.path)
             or is_manifest_path(changed.path)
             or is_case_file(changed.path)
+            or is_workflow_path(changed.path)
         ):
             read.append(changed)
             continue

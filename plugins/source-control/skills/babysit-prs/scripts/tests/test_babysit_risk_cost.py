@@ -98,5 +98,114 @@ class CostHold(unittest.TestCase):
         self.assertNotIn(COST_CODE, _codes(_cost([other], public=True)))
 
 
+MODEL_WORKFLOW = (
+    "jobs:\n  judge:\n    steps:\n"
+    "      - uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@abc\n"
+)
+
+
+class ModelSpendDetections(unittest.TestCase):
+    """S&C's four detections: credential reach, pipeline spend limits, a raised
+    model-leg timeout, and a new model leg. Each holds only on a line that
+    moves spend."""
+
+    def test_an_added_model_credential_reference_holds(self):
+        for name in (
+            "AUTOMATIONS_CLAUDE_API_KEY",
+            "LANES_CLAUDE_TOKEN",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "OPENAI_API_KEY",
+        ):
+            with self.subTest(name=name):
+                line = f"+          api-key: ${{{{ secrets.{name} }}}}"
+                wf = _file(WORKFLOW, patch=_patch(line))
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_moved_or_unrelated_secret_does_not_hold(self):
+        moved = _patch(
+            "-          api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}",
+            "+        api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}",
+        )
+        other = _patch("+          token: ${{ secrets.GITHUB_TOKEN }}")
+        for patch in (moved, other):
+            with self.subTest(patch=patch):
+                wf = _file(WORKFLOW, patch=patch)
+                self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_changed_spend_limit_in_the_pipeline_config_holds(self):
+        config = "docs/conventions/pr-pipeline.yaml"
+        for line in (
+            "+  review-rounds: 4",
+            "-  turn-cap-restarts: 1",
+            "+  restarts-per-run: 6",
+            "+  fix-ci-restarts: 2",
+            "+  admission-factor: 1.0",
+            "+  admission-min-per-hour: 3",
+            "+  wip-cap: 20",
+            "+  min-cap: 20",
+            "+  held-cap: 20",
+            '+  pause-from: ""',
+            "+    leg-timeout-minutes: 60",
+            "+    credential: subscription",
+        ):
+            with self.subTest(line=line):
+                held = _file(config, patch=_patch(line))
+                self.assertIn(COST_CODE, _codes(_cost([held], public=True)))
+
+    def test_other_pipeline_keys_do_not_hold(self):
+        config = "docs/conventions/pr-pipeline.yaml"
+        for line in (
+            "+  quarantine-days: 7",
+            "+  report-only: false",
+            "+  # wip-cap: 9",
+        ):
+            with self.subTest(line=line):
+                other = _file(config, patch=_patch(line))
+                self.assertNotIn(COST_CODE, _codes(_cost([other], public=True)))
+
+    def test_a_raised_timeout_on_a_model_workflow_holds(self):
+        for patch in (
+            _patch("+    timeout-minutes: 45"),
+            _patch("-    timeout-minutes: 30", "+    timeout-minutes: 45"),
+            _patch(
+                "-          leg-timeout-minutes: 10",
+                "+          leg-timeout-minutes: 20",
+            ),
+        ):
+            with self.subTest(patch=patch):
+                wf = _file(WORKFLOW, patch=patch, contents=("", MODEL_WORKFLOW))
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_lowered_timeout_or_a_timeout_on_another_workflow_does_not_hold(self):
+        lowered = _patch("-    timeout-minutes: 45", "+    timeout-minutes: 30")
+        wf = _file(WORKFLOW, patch=lowered, contents=("", MODEL_WORKFLOW))
+        self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+        raised = _patch("+    timeout-minutes: 45")
+        plain = _file(WORKFLOW, patch=raised, contents=("", "jobs: {}\n"))
+        self.assertNotIn(COST_CODE, _codes(_cost([plain], public=True)))
+
+    def test_a_raised_timeout_on_an_unread_workflow_holds(self):
+        raised = _patch("+    timeout-minutes: 45")
+        wf = _file(WORKFLOW, patch=raised, contents=None)
+        self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_new_model_leg_holds(self):
+        for action in (
+            "melodic-software/ci-workflows/.github/actions/run-claude-cli@abc",
+            "anthropics/claude-code-action@abc",
+        ):
+            with self.subTest(action=action):
+                wf = _file(WORKFLOW, patch=_patch(f"+      - uses: {action}"))
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_repinned_model_leg_does_not_hold(self):
+        bump = _patch(
+            "-      - uses: anthropics/claude-code-action@aaa # v1",
+            "+      - uses: anthropics/claude-code-action@bbb # v1.1",
+        )
+        wf = _file(WORKFLOW, patch=bump, contents=("", MODEL_WORKFLOW))
+        self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+
 if __name__ == "__main__":
     unittest.main()
