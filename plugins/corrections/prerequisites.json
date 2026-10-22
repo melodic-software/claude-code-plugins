@@ -3,7 +3,7 @@
     {
       "id": "jq",
       "kind": "cli",
-      "need": "required",
+      "need": "optional",
       "for": [
         "plugin"
       ],

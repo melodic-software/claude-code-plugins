@@ -163,6 +163,42 @@ else
   fail "a lock left by a dead holder is taken over" "exit $RC after $((SECONDS - start))s"
 fi
 
+# several appenders racing for one dead holder's lock never interleave or lose rows.
+# Rows are large so cat writes each call in several chunks, which interleave if
+# two appenders ever hold the lock at once.
+for t in seq tr head printf; do
+  p="$(command -v "$t")" && ln -sf "$p" "$NOFLOCK/$t"
+done
+PAD="$(head -c 200000 /dev/zero | tr '\0' x)"
+RACE_REPO="$TEST_TMPDIR/race"
+git init -q -b main "$RACE_REPO" >/dev/null 2>&1
+race_bad=""
+for round in $(seq 1 20); do
+  rm -rf "$RACE_REPO/.work"
+  mkdir -p "$RACE_REPO/.work/buffer/.lockdir"
+  sleep 0 &
+  dead=$!
+  wait "$dead"
+  printf '%s\n' "$dead" >"$RACE_REPO/.work/buffer/.lockdir/pid"
+  pids=()
+  for w in $(seq 1 8); do
+    for k in 1 2 3; do
+      printf '{"obs_id":"r%d-%d-%d","ts":"2026-10-21T00:00:00Z","pad":"%s"}\n' "$round" "$w" "$k" "$PAD"
+    done >"$TEST_TMPDIR/race-$w.jsonl"
+    (cd "$RACE_REPO" && PATH="$NOFLOCK" bash "$LOCAL/append.sh" <"$TEST_TMPDIR/race-$w.jsonl") &
+    pids+=($!)
+  done
+  for p in "${pids[@]}"; do wait "$p" || race_bad="$race_bad round$round:exit"; done
+  ids="$(jq -r '.obs_id' "$RACE_REPO/.work/buffer/findings.jsonl" 2>/dev/null | sort)"
+  want="$(for w in $(seq 1 8); do for k in 1 2 3; do printf 'r%d-%d-%d\n' "$round" "$w" "$k"; done; done | sort)"
+  [[ "$ids" == "$want" ]] || race_bad="$race_bad round$round:rows"
+done
+if [[ -z "$race_bad" ]]; then
+  pass "8 appenders racing for a dead holder's lock keep every row whole, 20 rounds"
+else
+  fail "8 appenders racing for a dead holder's lock keep every row whole, 20 rounds" "$race_bad"
+fi
+
 # outside a repository
 NOREPO="$TEST_TMPDIR/norepo"
 mkdir -p "$NOREPO"

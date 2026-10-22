@@ -24,7 +24,8 @@ FILE="$DIR/findings.jsonl"
 LOCKDIR="$DIR/.lockdir"
 HELD=0
 TMP="$(mktemp)" || exit 1
-trap 'rm -f "$TMP"; if [[ $HELD -eq 1 ]]; then rm -rf "$LOCKDIR"; fi' EXIT
+# Remove the lock only while it is still ours: a taker may have moved it aside.
+trap 'rm -f "$TMP"; if [[ $HELD -eq 1 && "$(cat "$LOCKDIR/pid" 2>/dev/null)" == "$$" ]]; then rm -rf "$LOCKDIR"; fi' EXIT
 trap 'exit 1' HUP INT TERM
 
 # Validate every line first, so a malformed row stores nothing from this call.
@@ -48,21 +49,34 @@ write_rows() {
   sync "$FILE" 2>/dev/null || true
 }
 
-# take_mkdir_lock: mkdir is atomic. The holder writes its pid inside the lock;
-# a lock whose holder is no longer alive, or that has no pid after a minute, is
-# taken over, so a killed appender never wedges later ones.
+# lock_is_stale <dir>: its holder pid is no longer alive, or it has no pid and is
+# over a minute old.
+lock_is_stale() {
+  local holder
+  holder="$(cat "$1/pid" 2>/dev/null)"
+  if [[ -n "$holder" ]]; then
+    ! kill -0 "$holder" 2>/dev/null
+  else
+    [[ -n "$(find "$1" -maxdepth 0 -mmin +1 2>/dev/null)" ]]
+  fi
+}
+
+# take_mkdir_lock: mkdir is atomic. The holder writes its pid inside the lock. A
+# stale lock is taken over by renaming it aside, which only one taker can do; the
+# taker re-checks the moved lock and renames it back if its holder is alive (a
+# second taker that moved a lock just retaken), so a killed appender never wedges
+# later ones and a live lock is never removed.
 take_mkdir_lock() {
-  local tries=0 holder stale
+  local tries=0 aside="$LOCKDIR.stale.$$"
   until mkdir "$LOCKDIR" 2>/dev/null; do
-    holder="$(cat "$LOCKDIR/pid" 2>/dev/null)"
-    stale=0
-    if [[ -n "$holder" ]]; then
-      kill -0 "$holder" 2>/dev/null || stale=1
-    elif [[ -n "$(find "$LOCKDIR" -maxdepth 0 -mmin +1 2>/dev/null)" ]]; then
-      stale=1
-    fi
-    if [[ $stale -eq 1 ]] && mv "$LOCKDIR" "$LOCKDIR.stale.$$" 2>/dev/null; then
-      rm -rf "$LOCKDIR.stale.$$"
+    if lock_is_stale "$LOCKDIR" && mv "$LOCKDIR" "$aside" 2>/dev/null; then
+      if lock_is_stale "$aside"; then
+        rm -rf "$aside"
+      else
+        # Its holder is alive: put it back. When a new lock took the name meanwhile,
+        # mv nests it inside that one, whose holder removes both; then retry.
+        mv "$aside" "$LOCKDIR" 2>/dev/null
+      fi
       continue
     fi
     tries=$((tries + 1))

@@ -90,7 +90,7 @@ The core enforces this by routing; an off-machine adapter is not handed transcri
 
 | Adapter | Storage |
 |---|---|
-| `local-file` | `.work/buffer/findings.jsonl` under the repository root, created on first append. Appends take an exclusive lock, so concurrent calls never interleave or lose a row: `flock` on `.work/buffer/.lock`, or where `flock` is absent (macOS) a `.work/buffer/.lockdir` directory holding the holder's pid. The holder removes that directory on exit; a later append takes it over when the pid is no longer alive, or when it has no pid and is over a minute old, so a killed appender never wedges the buffer. Needs `jq`. Exits `3` outside a git repository or without `jq`. |
+| `local-file` | `.work/buffer/findings.jsonl` under the repository root, created on first append. Appends take an exclusive lock, so concurrent calls never interleave or lose a row: `flock` on `.work/buffer/.lock`, or where `flock` is absent (macOS) a `.work/buffer/.lockdir` directory holding the holder's pid. The holder removes that directory on exit while it still holds its pid. A later append takes it over when the pid is no longer alive, or when it has no pid and is over a minute old: it renames the directory aside (only one taker's rename succeeds), re-checks the moved holder, and renames it back if that holder is alive. A killed appender never wedges the buffer. Needs `jq`. Exits `3` outside a git repository or without `jq`. |
 
 Adapter selection through `findings-buffer.yaml` belongs to the core slice, not to this contract.
 
