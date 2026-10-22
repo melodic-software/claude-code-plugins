@@ -3,6 +3,7 @@
 # Each case builds its own repository root in a temp directory; expected values
 # come from the schema's allowed values (true, false) and the script's stated
 # exit codes, not from the script's output.
+# test-scope: plugins/review/lib/parse-concern-value.sh plugins/review/lib/resolve-convention-home.sh
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG

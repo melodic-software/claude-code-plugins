@@ -210,6 +210,13 @@ runs:
           jq -e '.selected["applied-by"].patch // empty' "$RESOLVED" >/dev/null; then
           edits=patch
         fi
+        # Read-only commands such as cat, echo and diff run with no allow
+        # rule in every mode, until a deny rule names them
+        # (https://code.claude.com/docs/en/permissions#read-only-commands).
+        # A skill that edits reads files with Read, Grep and Glob, so these
+        # deny every command that can print a file or the environment,
+        # read-only or a text filter.
+        shell_denied=("Bash(echo *)" "Bash(printf *)" "Bash(cat *)" "Bash(head *)" "Bash(tail *)" "Bash(grep *)" "Bash(find *)" "Bash(env *)" "Bash(printenv *)" "Bash(strings *)" "Bash(od *)" "Bash(xxd *)" "Bash(diff *)" "Bash(sed *)" "Bash(awk *)" "Bash(sort *)" "Bash(cut *)" "Bash(tr *)" "Bash(base64 *)" "Bash(nl *)" "Bash(tac *)" "Bash(rev *)" "Bash(uniq *)" "Bash(fold *)" "Bash(column *)" "Bash(jq *)" "Bash(xargs *)" "Bash(more *)" "Bash(less *)" "Bash(wc *)")
         # run-claude-cli: the CLI runs with --restricted in the checkout and
         # reads nothing outside it, so everything the skill reads is staged
         # here and copied to .lane/ after the head checkout, where the rules
@@ -258,14 +265,37 @@ runs:
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The context file is $lane/ci/context.json. Leave every fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
           fi
           # A skill that hands on a patch with no prepare mode (fix-docs) gets
-          # Bash for the scripts its own frontmatter grants, which alone run
-          # under dontAsk: no Bash rule here. The base deny rules keep the git
-          # directory unread.
+          # Bash, which runs only what an allow rule below names: the lane
+          # does not rely on the skill's allowed-tools frontmatter, and a deny
+          # rule beats a frontmatter grant. The scripts run from the read-only
+          # base copy under .lane/plugins, denied to the file tools.
           plugin_dirs=(".lane/plugins/$plugin")
           if [ "$edits" = patch ]; then
             tools+=(Bash Edit Write Agent)
-            allowed+=(Edit Write Agent)
-            preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. Leave every change uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
+            # A shell redirect is checked against Edit rules for its target
+            # path (https://code.claude.com/docs/en/permissions#redirections),
+            # and the bare Edit rule does not approve one into the scratch
+            # directory, so that directory gets its own.
+            allowed+=(Edit Write Agent "Edit(./.lane/scratch/**)")
+            denied+=("NotebookEdit(./.lane/plugins/**)" "Bash(git *)" "${shell_denied[@]}")
+            # Each script the skill runs gets a rule for its absolute path,
+            # bare and double-quoted (its `!` line runs the quoted form), since
+            # a rule matches the words before its `*` as written. Its shebang
+            # fixes the interpreter, so no `bash <path>` rule.
+            case "$SKILL" in
+              ai-slop:audit)
+                scripts=$lane/plugins/$plugin/skills/audit/scripts
+                for script in detect.sh rubric-fanout.sh emit-findings.sh emit-fix-record.sh cross-check.sh; do
+                  allowed+=("Bash($scripts/$script *)" "Bash(\"$scripts/$script\" *)")
+                done
+                # The fix flow's concurrent-edit guard digests each file into
+                # a state file under the scratch directory.
+                allowed+=("Bash(sha256sum *)" "Bash(mkdir -p $lane/scratch/*)")
+                # The user-scope target reads the runner's own config.
+                denied+=("Bash($scripts/user-scope.sh *)" "Bash(\"$scripts/user-scope.sh\" *)")
+                ;;
+            esac
+            preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. Leave every change uncommitted in the working tree: the runner turns it into a patch that a later job pushes. Run each shell command as one plain command per call, a script by the absolute path the skill names: no variables, cd, ;, &&, a pipe, a command substitution or an interpreter, and redirect output only into $lane/scratch."
             # web-access `any` only: the research plugins load from .lane/
             # too, read-only like the skill's own. The docs scripts are not
             # staged, so the run reads pages with WebFetch.
@@ -337,8 +367,8 @@ runs:
             # What a write skill needs to do its job unattended: edit files,
             # run subagents, keep state files in a scratch directory (added
             # as a working directory) and commit through the action's signed
-            # tool. Its allowed-tools frontmatter grants nothing under
-            # dontAsk: Bash runs only what a rule in this list allows. The PR
+            # tool. The lane does not rely on the skill's allowed-tools
+            # frontmatter: Bash runs what a rule in this list allows. The PR
             # is the review step; no tool here limits which files it changes.
             # In merge-base mode the runner commits what the skill staged,
             # so the skill gets no commit tool and no instruction to commit.
@@ -456,6 +486,12 @@ runs:
                     'unset GH_TOKEN GITHUB_TOKEN' \
                     'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=2' \
                     'export GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null'
+                  # An issue lane's patch lands through the issue row, whose
+                  # script-exec-bit makes each new or changed script
+                  # executable, so the checks judge the tree with that bit.
+                  if [ "$edits" = patch ] && [ -n "${ISSUE_NUMBER:-}" ]; then
+                    echo 'export CHECK_AFFECTED_SCRIPT_EXEC_BIT=1'
+                  fi
                   printf 'CHECK_DATA_ROOT=%q exec %q%s\n' "$WORKSPACE" "$CHECKS_DIR/$script" "$flags"
                 } >"$wrapper"
                 chmod +x "$wrapper"
@@ -585,16 +621,29 @@ runs:
               disallowed="${disallowed:+$disallowed,}Edit(/$DEPENDENCY_DIR/**),Write(/$DEPENDENCY_DIR/**)"
               system_prompt="$system_prompt The dependency context file is $DEPENDENCY_DIR/dependency.json. Your verdict is your structured output; a later job acts on it, and you post nothing."
             fi
-            # Read-only commands such as cat, echo and diff run with no allow
-            # rule in every mode, until a deny rule names them
-            # (https://code.claude.com/docs/en/permissions#read-only-commands).
-            # A write skill reads files with Read, Grep and Glob, so these
-            # deny every command that can print a file or the environment,
-            # read-only or a text filter; the Read rules keep it out of
+            # The shell deny set above; the Read rules keep the skill out of
             # process files and out of the checkout's git config, where the
             # action stores its token.
             [[ $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the workspace path is missing or has a name a rule cannot carry"
-            disallowed="${disallowed:+$disallowed,}Bash(echo *),Bash(printf *),Bash(cat *),Bash(head *),Bash(tail *),Bash(grep *),Bash(find *),Bash(env *),Bash(printenv *),Bash(strings *),Bash(od *),Bash(xxd *),Bash(diff *),Bash(sed *),Bash(awk *),Bash(sort *),Bash(cut *),Bash(tr *),Bash(base64 *),Bash(nl *),Bash(tac *),Bash(rev *),Bash(uniq *),Bash(fold *),Bash(column *),Bash(jq *),Bash(xargs *),Bash(more *),Bash(less *),Read(//proc/**),Read(/$WORKSPACE/.git/**)"
+            # A write skill reaches git only through the base wrappers, so its
+            # Bash runs no git command. Merge-base mode's skill resolves the
+            # merge with git diff, show, merge-base, add, status, log, ls-files
+            # and rev-parse on repository-relative paths and revisions, with no
+            # quotes, commit or --continue, so there git loses only its global
+            # options, the subcommands that read config or reach a remote,
+            # absolute and parent paths, quotes, and the flags (any prefix
+            # git accepts) that read a file outside the index or run a
+            # program. A rule matches the whole command text, * at any
+            # position (https://code.claude.com/docs/en/permissions#wildcard-patterns),
+            # so this list is best-effort; the double quote is escaped for
+            # claude_args' quoted --disallowedTools.
+            if [ "$PREPARE" = merge-base ]; then
+              git_denied=("Bash(git -*)" "Bash(git config *)" "Bash(git remote *)" "Bash(git ls-remote *)" "Bash(git credential *)" "Bash(git var *)" "Bash(git fetch *)" "Bash(git push *)" "Bash(git pull *)" "Bash(git submodule *)" "Bash(git *--no-i*)" "Bash(git *--out*)" "Bash(git *--git-dir*)" "Bash(git *--work-tree*)" "Bash(git *.git/*)" "Bash(git *--ext*)" "Bash(git *--text*)" "Bash(git blame *)" "Bash(git *--cont*)" "Bash(git grep *)" "Bash(git *--pathspec*)" "Bash(git * /*)" "Bash(git *../*)" "Bash(git *..)" "Bash(git *'*)" 'Bash(git *\"*)')
+            else
+              git_denied=("Bash(git *)")
+            fi
+            disallowed="${disallowed:+$disallowed,}$(IFS=,; echo "${git_denied[*]}")"
+            disallowed="${disallowed:+$disallowed,}$(IFS=,; echo "${shell_denied[*]}"),Read(//proc/**),Read(/$WORKSPACE/.git/**)"
             ;;
           *) fail "the activity's effect is not a known effect" ;;
         esac

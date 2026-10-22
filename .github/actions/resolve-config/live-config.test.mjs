@@ -441,14 +441,13 @@ test("live config: fix-docs holds no write token and its push job in pr-unblock 
   assert.equal(apply.prepare, "apply-patch");
 });
 
-// Auto mode is decided per activity: fix-docs alone runs in it.
-test("live config: only fix-docs sets permission-mode, to auto", () => {
-  assert.equal(selected("pr-unblock", "fix-docs")["permission-mode"], "auto");
+// Under run-claude-cli's env scrub the CLI forces the default mode for
+// auto, so no activity asks for it; fix-docs takes the dontAsk default and
+// runs only what the stage's allow rules name.
+test("live config: no activity sets permission-mode", () => {
+  assert.equal(selected("pr-unblock", "fix-docs")["permission-mode"], undefined);
   const { activities } = parse(FILES.config);
-  assert.deepEqual(
-    Object.entries(activities).filter(([, a]) => Object.hasOwn(a, "permission-mode")).map(([name, a]) => [name, a["permission-mode"]]),
-    [["fix-docs", "auto"]],
-  );
+  assert.deepEqual(Object.keys(activities).filter((name) => Object.hasOwn(activities[name], "permission-mode")), []);
 });
 
 // fix-docs hands on a patch, so its targets leave out instruction surfaces

@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_speech.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -208,6 +208,12 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   `rank` it is one vote, outside the Borda count; on `multi` a person backs any number of them,
   kept in `backs` (`{qid: {pid: [ref]}}`), outside the picks. `scale` and `confirm` take a
   `comment` instead.
+- **None of these.** A `multi` question whose open-round `format` sets `none: true` gets one
+  `{id: "none", none: true}` option after Something else; Claude's ops never write one, and the
+  server refuses a `multi` option labeled that way. It excludes every other pick: when `options`
+  holds it with others, the pick just made wins (`none` newly added keeps only `none`; another
+  option added drops it). It is an answer, so it takes back a Pass, and the digest's `counts` gives
+  it its own row marked `none: true`.
 - **Disagree.** `POST /api/disagree {qid, card, reason}` on a `decide` question records a reason
   (1..200 characters), one per person per answer; `on: false` takes it back. Vote counts never
   change, and the digest lists each one under its question.
@@ -229,7 +235,22 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   `people.answered` counts who took part.
 - **Late acts.** A vote, back, reaction, Disagree or Pass on a closed round's question is stamped in
   `lateActs` (`{qid: {pid: {round, at}}}`), and the next digest's `late` lists what that person
-  holds there, each with `act`.
+  holds there, each with `act`. A locked question takes none of them (409 `locked`; Suggest a change
+  proposes new text) except a Disagree once its round closed.
+- **Possibly reopened.** The first late Disagree each person gives with the locked answer of a
+  `decide` question (the answer it was locked on, or the one its locked text was edited from or
+  reworded; a lock taken from a suggestion has none) raises "possibly reopened": the owner's Inbox
+  gets a `reopen:` item with Keep decision and Unlock, the digest lists it under `possiblyReopened`
+  (the locked text, and each Disagree with the locked answer the people who disagreed late hold
+  now), and every question whose `dependsOn` names it gets a `possibly-reopened` review
+  flag, which everyone sees as "Needs review: Q1 may be reopened". The question, its lock and its
+  answers never change on their own. A poll never raises it: a closed poll chose no answer.
+  `POST /api/decision/keep {qid}` (owner) keeps the decision: the item goes, so do the
+  `possibly-reopened` flags it raised, and the log records it; 409 `not-reopened` when nothing is
+  raised. Unlock is the usual unlock, which flags the dependents `unlocked`; Unlock or a change to the
+  locked text also ends it, with those flags, and so does taking back the last of those Disagrees
+  (logged `withdrawn`). A late Disagree with a rejected alternative is kept and raises nothing. A
+  newer late Disagree raises the item again, unread.
 - **Digest.** `multi` reports picks per option; `scale` the count per value, the mean (two places)
   and the median; `rank` Borda totals (with n options a first place scores n-1, a last 0) and how
   many gave each full order. Each lists people's own options with their backers, and the comments.
@@ -239,13 +260,17 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   names with `digestNames`, else a count; on a question with options it carries `picked`, the
   label of the option the person chose, and its `text` is their comment, which may be empty.
 - **Presence.** The heartbeat (`schema/wire.schema.json`) carries `visible`, `lastInput` (seconds
-  since the last key, pointer or touch) and `away` (the person's own snooze, sent until their next
-  input), and `tab`, an id each browser tab keeps for its life (in `sessionStorage`). The server
+  since the last key, pointer or touch), `lastFocus` (seconds since the tab last gained focus or
+  was shown), `away` (the person's own snooze, sent until their next input), and `tab`, an id each
+  browser tab keeps for its life (in `sessionStorage`). The server
   keeps a beat per tab, at most 8 per person, the least recent dropped. A tab is live until 90 s
   without a beat; a person with no live tab is offline. A tab is Away while hidden, after 5 minutes
   visible with no input, or snoozed; the person is Active while any live tab is Active, and Away,
   `since` the last tab went Away, only when every live tab is. Their question and typing come
-  from their latest beat, and typing flags last 5 s. Each tab's beats have their own one-a-second
+  from a visible live tab before a hidden one and, within each, the one focused or shown most
+  recently (the server's receive time less `lastFocus`, estimated once per `focusId`, which the
+  page changes with each focus or show, so a late beat never moves it later), else, when no live tab sends one, from
+  their latest beat; typing flags last 5 s. Each tab's beats have their own one-a-second
   limit, and a beat that changes `visible` or `away` is taken at once. The page beats every 2 s
   and at once on a visibility change, never two from one tab within the limit, and sends its own
   writes to one route a second apart. The write limits count per person, not per tab, so one
@@ -267,6 +292,7 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `/api/proposal/all` | `{ids}` | Approve all in Proposed: each listed proposal, the new ones the owner's confirm counted, becomes a question in the next round as Make it a question makes one, and its author is told. All or none: one no longer new is 409 `wrong-status`, more than the round has room for 409 `round-full` (with `room`), so a proposal that arrived after the confirm stays in New |
 | `/api/claude-proposal/act` | `{id, action: approve\|dismiss}` | Carries out or dismisses one of [Claude's merge and admit proposals](#claudes-merge-and-admit-proposals) (409 `wrong-status` once answered) |
 | `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, every mention of `from` names `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
+| `/api/decision/keep` | `{qid}` | Keeps a possibly reopened decision ([Answering](#answering), "Possibly reopened") |
 | `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open or seen report and writes `report-filed` for Claude (409 `wrong-status` on one that is resolved or already asked) |
 | `GET /api/report/image?id=[&pic=P\|&add=N]` | | One report's first screenshot, its `P`th sent with it (`P` 1 to 4), or its Nth addition's (`N` 1 to 999); else, or with both, 400 `bad-field`. As `{id, image}`, a data: URL |
 
@@ -299,6 +325,15 @@ points the merged person's mentions at the kept one. Claude never reads a token:
 the log, and a guest's own Claude through `/api/mine/requests`, gets "@Name", or "@someone" where
 `digestNames` is off (for a guest's own Claude, where names are masked to that guest).
 
+**Decision history.** `decisions` in `state.json` is an append-only log, oldest first, of each
+lock (with its text), change to the locked text (`lock-change`, with the answer when it only
+rewords it), `unlock`, `poll-close`,
+`poll-reopen`, late Disagree with the locked answer (`late-disagree`, with the answer and reason),
+the last of them taken back (`withdrawn`) and Keep decision (`kept`), each with when, the question and who. A question's decision is possibly
+reopened while `late-disagree` entries follow its last other entry. Only the owner reads it, in the
+owner's snapshot as `decisions`: a History fold under each question and Decisions in Help (More on
+a phone). A session saved before the log starts with none.
+
 There is no device or address blocking (C35): Remove stops a person's secret, and Approve new joins
 or a new guest link stops a removed person rejoining under a new name.
 
@@ -330,10 +365,20 @@ new note gets 409 `notes-full` and none is dropped). Notes show on the page, in 
 Claude thread, and in the round's digest as `{qid, variant, text, element}`; `element` is `null`
 for a free-form selector an earlier build took.
 
+- **Look-at line and views.** A prototype question's `format.lookAt` (at most 200 characters, required
+  on every new one, absent on one from before it) names the area the variants change and the step
+  that shows it; the card shows it beside "Open prototype" and the page above the variant tabs, with
+  the shown variant's own `lookAt` under it. A variant shows `shots` (one to four pictures, stacked in
+  order, each captioned) and a `snapshot` (one html file), at least one; with both, the page
+  switches between the snapshot and the screenshots. A variant with one view is written as
+  `{id, label, asset}`, the shape builds before `shots` and `snapshot` read; the page takes an
+  `asset` by its file's kind. A state holding a question with `lookAt`, or a variant with more than
+  one view, does not load in a build before them: copy `state.json` aside before restarting onto one.
 - **Anchor.** `selector` is the element's path from the variant's root, such as
   `html > body:nth-of-type(1) > main:nth-of-type(1)` (tag names only, each below the root with
   `:nth-of-type(n)`, at most 32 levels and 1000 characters), or
-  `img` on a picture variant; anything else is refused (400 `bad-field`, `anchor.selector`).
+  `img` on a picture (`img:nth-of-type(k)` on a variant's k-th screenshot); anything else is
+  refused (400 `bad-field`, `anchor.selector`).
   `rect` is the element's box in percent of the variant's reference box: an html variant's whole
   scrollable page when the note was pinned, a picture variant's image. It places the pin when the
   path no longer finds the element.
@@ -356,6 +401,14 @@ for a free-form selector an earlier build took.
   nothing it posts is read, and dropped if it leaves its page. Notes stay on the version they were
   pinned to. The toolbar's Prototypes filter lists every round's prototype questions and opens the
   rounds that hold them.
+- **Views.** The `prototypeTiers` setting (Host settings, Prototypes; `[screenshot, snapshot]` when
+  absent) names the views guests get. A view switched off stays in the question; guests' state
+  leaves out a variant's pictures (`shots`, or a picture `asset`) while `screenshot` is off and its
+  html file (`snapshot`, or an html `asset`) while `snapshot` is off, each view on its own, and while `snapshot` is off `/assets/<id>.html` answers a guest 404 as if the
+  file were missing (pictures stay served: options, references and confirm questions share them).
+  The owner sees every view, each hidden one named. A guest's page shows "This view is off" for
+  such a variant, and with no view left the question shows as text with a note; the picks still
+  work. `live` is stored and shown only: nothing starts a live prototype yet.
 - **Owner token.** Links to session pages (`Core.pageLink`) never hold it. The page keeps it in
   the tab's `sessionStorage`, takes it out of the address bar, and uses it again only on a reload
   or Back in that tab; when the owner follows a session link, `core.js` opens the page with
@@ -370,8 +423,9 @@ filter chips by status or kind that the device remembers, like the tab:
 - Needs you: what needs this person now. Everyone sees the answers to their requests they have not opened and the
   questions they are asked to answer; a leader adds proposals and suggestions to place and a round to mark ready; the
   owner adds requests to run, answers to share, requests Claude failed (until opened), files offered, pictures to
-  approve, open problem reports not yet asked about, merge and join requests, Claude's merge and admit proposals, and a round marked ready, with Run,
-  Share, Approve and the rest on the rows. Only the owner's actions do anything: the server refuses them from anyone
+  approve, open problem reports not yet asked about, merge and join requests, Claude's merge and admit proposals, a round
+  marked ready, and decisions a late Disagree may have reopened, with Run, Share, Approve, Keep decision, Unlock and the
+  rest on the rows. Only the owner's actions do anything: the server refuses them from anyone
   else.
 - My requests: this person's requests that wait, run or have news, with the status they see: `waiting`, `running`,
   `answered` (an answer only its asker and the owner see), `unshared` (shown as "Answered, waiting for the host to
@@ -382,7 +436,8 @@ filter chips by status or kind that the device remembers, like the tab:
 
 The snapshot's `inbox` carries a person's own requests and, for the owner, what waits on them (`run:`, `share:`,
 `fail:` for a guest's request Claude failed, `report:` for an open report not yet asked about, `merge:`, `join:`, `people:` for a
-proposal of Claude's),
+proposal of Claude's, and `reopen:<qid>:<n>` for a possibly reopened decision, `n` the newest late Disagree's place in
+the decision log),
 built by `session.py` for the viewer alone (never another person's request or a result its requester cannot see).
 `inboxSeen` in `state.json` keeps, per person, the status each item had when they opened it; an item whose status
 moved since is unread, and only `POST /api/inbox/read {keys}` (keys of the caller's own Inbox; others mark nothing)
@@ -552,9 +607,15 @@ Upstream link formats (volatile; read the pages, never copy their limits here):
 Off until the owner turns on Uploads (`shared_session.uploads`). Every place people write (the answer
 box, Ask Claude, a question's ask box, a suggestion, chat, the Discussion and Propose) then has an
 Attach button that offers "Upload a file" and lists the person's files the owner accepted. Every
-picture (PNG, JPEG, WebP or GIF), picked or pasted into any of those fields, is redrawn in the browser
+picture (PNG, JPEG or WebP), picked or pasted into any of those fields, is redrawn in the browser
 at most 1600 px and 512 KB, so no metadata such as EXIF or GPS leaves the device, then offered as a
-file. A pasted one shows as a thumbnail chip, never as text in the field; it reads "Waiting for the
+file. A GIF (its first bytes GIF87a or GIF89a, whatever its name or type) is not redrawn, which would
+keep only its first frame: it goes whole with only its frames, their graphic control blocks and the
+loop count, each extension rebuilt to its fixed size; every other extension (comment, plain text,
+application, unknown) is dropped, since any can carry text. One over 512 KB is refused before it is
+offered. An animated GIF shows as
+its first frame with a Play GIF button, on its tile and in the viewer, for everyone (WCAG 2.2.2,
+reduced motion). A pasted one shows as a thumbnail chip, never as text in the field; it reads "Waiting for the
 host" until the owner accepts it, and taking it off the form withdraws it (or removes it once
 received). Each question keeps its own unsent chips. Send waits while a file is waiting for the
 host, and takes off, naming it, a file declined, withdrawn, failed or removed meanwhile; a sent form
@@ -579,7 +640,7 @@ file is deleted, and `upload-removed` (`upload`, `file`) tells Claude never to r
 arriving, approved or ended touches the chat messages carrying it (`chatTouched`), so a page holding
 older messages reads them again.
 
-1. `POST /api/upload/offer` `{file, size, type, qid?, thumb?}` (96 KB) records the offer; the file
+1. `POST /api/upload/offer` `{file, size, type, qid?, thumb?, avatar?}` (96 KB) records the offer; the file
    stays in the browser (IndexedDB, or memory where a private window refuses it) until the owner
    accepts. The owner's own offer is accepted at once.
 2. The owner accepts or declines in the Host queue (`POST /api/upload/act`); the uploader can
@@ -640,6 +701,29 @@ on their way from someone no longer in the session, and cuts a partial file back
 record counts. A state whose upload id, extension or received name is not one the server makes
 does not load.
 
+### Profile pictures
+
+A person may show a profile picture on their avatar in place of their initials. They pick it on
+their own person card (Your picture: Choose a picture, Replace picture, Remove picture); the
+browser redraws the middle square at 256 px at most, as WebP where it writes it, else JPEG, and
+offers it with `avatar: true` through the upload path above, so the first piece's magic-number
+check applies. It needs no accept: it is small, and others see it only once approved. A guest's
+follows the Uploads switch (403 `uploads-off`, "The host has pictures off in this session."); the
+owner's own does not. An avatar offer must name a PNG, JPEG or
+WebP (415 `file-type`), be 256 KB at most (413 `upload-too-large`), and name no `qid`; no post may
+carry it (409 `wrong-status`). Once it arrives it replaces the person's last one, which is removed
+and deleted, and a new offer withdraws one still on its way. Neither event goes to Claude
+(`upload-received` and `upload-removed` are left out for it). The person and the owner remove it with
+`POST /api/upload/act {id, action: "remove"}`.
+
+The owner's own picture shows at once; a guest's shows to others only once the owner approves it,
+as any received picture (Approve picture on the guest's card or in the Host queue). Until then,
+and after a replace until the new one is approved, everyone but its uploader and the owner sees
+initials, `people[].avatar` (the upload id) is left out, and `GET /api/upload/image` answers them
+404. While names are hidden (Show names off), the snapshot of a guest leaves `avatar` out, the image
+read answers them 404, and every page shows initials. `myUploads` and `uploads` mark the upload
+`avatar`. The page reads each picture once and shows it as a circle crop over the initials.
+
 ## Problem reports
 
 Anyone joined can report a problem: "Report a problem" in the phone More sheet and the desktop Help
@@ -689,13 +773,13 @@ quoted when it holds a space, so only a newline ends an entry; `logs` splits on 
 |---|---|---|
 | `request` | INFO for 2xx/3xx, WARNING for 4xx, ERROR for 5xx | `method route status ms` and `pid` (the acting person's id, once known); a refusal adds `code field message` (its error body); a 5xx adds `trace`, the last 8000 characters of the traceback of the bug or of the session's refusal where it was raised. The one exception is 503 `busy`, answered before any request is read: `method=- route=- status=503 ms=0.0 code=busy message=...`, no pid, no trace. A `summary` the server takes gets no entry |
 | `client` | WARNING | `pid kind message source route code ua fp`, as the page sent them: a fault |
-| `summary-batch` | INFO | `summaries dropped data`: every `summary` taken since the last batch, written every 10 minutes and when the server stops, if there was one. `data` is a JSON array of `[message, ua]` pairs, sorted, in ASCII with each space as `\u0020`, so it ends the line; `dropped` counts summaries past the batch's 100,000 bytes. No pid, and no time but the batch's |
+| `summary-batch` | INFO | `summaries dropped counts data`: every `summary` taken since the last batch, written every 10 minutes and when the server stops, if there was one and it came from at least 2 guests or only the owner, or at shutdown of a session only one guest ever joined (counts only, see below). `counts` is a JSON object of the summaries' `use:`, `rage:` and `dead:` counts added up; `data` is a JSON array of `[message, device]` pairs, the rest of each summary, sorted; both in ASCII with each space as `\u0020`. `dropped` counts summaries past the batch's 100,000 bytes, and at shutdown those from a single guest, or a one-guest session's pairs (see below). No pid, and no time but the batch's |
 
 ```text
 2026-10-17 13:21:56,794 WARNING request method=POST route=/api/person/role status=400 ms=0.5 pid=host code=bad-field field=role message="role must be one of leader, guest."
 2026-10-17 13:21:57,102 ERROR request method=POST route=/api/rename status=500 ms=1.2 pid=pidAnn001 code=state-invalid message="The server could not do that; nothing was written." trace="Traceback (most recent call last):\x0a  File \x22...\x22 ..."
 2026-10-17 13:21:58,330 WARNING client pid=pidAnn001 kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d
-2026-10-17 13:30:00,412 INFO summary-batch summaries=1 dropped=0 data=[["pv=0a1b2c3d\u0020lat:/api/vote=0,3,1\u0020rb:/api/vote=1\u0020gap=900\u0020rep:1a2b3c4d=2\u0020inp=184:pointer:vf-vote\u0020lcp=1200:vf-qtext","safari\u0020phone"]]
+2026-10-17 13:30:00,412 INFO summary-batch summaries=2 dropped=0 counts={"dead:vf-pencil":1,"use:vf-vote":5} data=[["pv=0a1b2c3d\u0020lat:/api/vote=0,3,1\u0020rb:/api/vote=1\u0020gap=900\u0020inp=184:pointer:vf-vote\u0020lcp=1200:vf-qtext","phone"],["pv=5e6f7a8b\u0020gap=400","computer"]]
 ```
 
 A pid is no credential. No entry holds a token, secret, guest key, owner link, request body, answer
@@ -703,7 +787,7 @@ or chat text, or upload.
 
 **What the page records** (`web/core.js` telemetry). Faults go out at once, under the person's pid
 so they can be matched to that person's request entries, the first time each fingerprint (`fp`)
-shows; after that each repeat is a count in the next summary:
+shows; a repeat is not sent:
 
 - `error` and `rejection`: a script error (`source` as `/file:line`) or an unhandled rejection.
 - `api`: an action that never reached the server: `code` `network` (the request failed) or
@@ -722,15 +806,40 @@ so a summary with a time of its own could be matched to them. A summary holds `p
 page's INP counts once; `owner=1` on the owner's page; `lat:<route>` tap-to-answer counts per
 bucket (upper edges 100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000 and 10000 ms, then above),
 measured with `performance.now()`; `rb:<route>` optimistic changes rolled back; `gap`, ms from the
-page showing again to its first good poll; `rep:<fp>` repeats; `inp` (ms, interaction type,
+page showing again to its first good poll; `use:<control>` taps, `rage:<control>`
+rage taps (the third tap on one control within a second of the first) and `dead:<control>` dead taps (a tap
+after which the page changes nothing, no DOM change and no scroll, for a second; never a link that opens
+elsewhere), counted on a person's taps on buttons, `input` buttons, links, `role=button` and `summary`, a
+disabled control getting no tap; `inp` (ms, interaction type,
 component) and `lcp` (ms, component) from the vendored web-vitals build, the component `-` where
 web-vitals names its target by a selector or an id instead (an element gone before it measured), or `inp=missing`,
 `lcp=missing`, `vitals=missing` where the browser API or the file is missing. What does not fit in
-500 characters waits for the next summary. Nothing is sampled.
+500 characters waits for the next summary. Nothing is sampled. A control is named by its first `vf-` or
+`core-` class (letters and hyphens) that is not a style class such as `vf-btn`, on it or its nearest
+ancestor, never by its text, label or id.
+
+The server keeps only the device word of a summary's `ua` (`phone`, `tablet` or `computer`, else
+`unknown`) and lifts every `use:`, `rage:` and `dead:` token out of the summary into the batch's
+`counts`, dropping one not shaped like a `vf-`/`core-` class name and every `rep:` token an older page
+sends, whose fingerprint is on a fault entry that names the person. A batch is written only once at
+least 2 guests sent summaries to it (or only the owner did): with fewer it waits for the next batch,
+and at shutdown its summaries are only counted as `dropped`. So no pair holds a fingerprint or a
+browser that would match it to a fault entry's pid, and in a session with two or more guests no
+batch's counts are one guest's.
+
+A one-on-one session (one person besides the owner ever joined, waiting ones included; a second
+guest who never sent a summary still counts) would otherwise record nothing, so its
+held batch is written at shutdown with its `counts` only, the session's totals, and its pairs, each
+one page view's record, counted as `dropped`. In one on one the host knows who the guest is, so
+these totals are that guest's: what keeps them unlinked is that they carry no pid, fingerprint,
+browser or page view, and no time but the session's end. A one-guest session's counts are kept
+only while its held batch is under 100,000 bytes, pairs included; past that a summary is dropped
+whole, and a crash or `share.sh stop` on Windows (below) loses them all.
 
 Never recorded: what anyone types, answers, chat, names, the address or its fragment, text on the
 page, or a credential. Help says so in one line, with a "What this page records" link to the plain
-list; the phone More sheet opens the same list. Recording has no off switch: every joined page
+list; the phone More sheet opens the same list. The list tells a guest that when they are the only
+guest, the host can tell their session's counts are theirs. Recording has no off switch: every joined page
 sends, and a `telemetry` key an older page left in `localStorage` is ignored. The join dialog shows
 only its heading, the invite line, the name prompt, the name box and Join.
 
@@ -750,10 +859,11 @@ to the second) and device and browser classes, refusals by route and code (from 
 server's entries), network failures and unanswered actions by route, tap-to-answer p50 and p95 by
 route (the upper edge of the bucket) beside the server's own `ms`, rollbacks and their rate,
 reconnect gaps (over 10 s, worst, by device), layout anomalies by device kind, INP and LCP p75 by
-device with the count of page views missing the API, and how many summaries came in how many
+device with the count of page views missing the API, taps, rage taps and dead taps by control
+(`features`), and how many summaries came in how many
 batches from how many page views, and how many were dropped.
 The owner's own page views stay out of the timings. A summary counts at its batch's time, for
-`--since` and for a fingerprint's last repeat. `logs --errors` leaves batches out.
+`--since`. A `rep:<fp>` count in an older log still adds to its fingerprint's count. `logs --errors` leaves batches out.
 
 ## Themes
 
@@ -774,6 +884,25 @@ High contrast chosen for yourself, your accent swatches are disabled and say so.
 accent stays settable, since it still reaches anyone who picks another palette. `palette` is optional
 in the `theme` setting: a session written before palettes has none, loads as it was, and shows the
 default palette until the owner, or a person for themselves, picks one.
+
+## Read aloud and dictation
+
+Two switches in a person's own card, each off until they turn it on and kept with their other preferences (the
+`readAloud` and `dictate` prefs). Both use the browser's own Web Speech API; the page makes no request of its own for
+them and the CSP is unchanged.
+
+- **Read questions aloud** adds a speaker button to the question's row. It speaks the question, then each option label
+  the person's page shows, read from the page itself, so nothing hidden from them is spoken. A second press or Escape
+  stops it, and so does moving to another question. A voice on the device is used when the browser lists one for the
+  page's language.
+- **Dictate answers and comments** adds a microphone button to the answer box and the Discussion comment box. The words
+  land at the box's caret for the person to edit, and nothing is sent until they send it. A second press or Escape stops
+  listening. The switch and the buttons show only where the browser has `SpeechRecognition`.
+- Recognition may run on a server: Chrome's has by default. Where the browser offers on-device recognition
+  (`processLocally`), a press asks for it first; a device without the language falls back at once to the browser's
+  service. Until words have been heard on the device, the card shows under the switch: "Your browser may send what you
+  say to its maker's speech service to turn it into text." The page never calls `SpeechRecognition.available()`, which
+  ends the page's process in a Chromium build without Chrome's handler for it, and never installs a language pack.
 
 ## Data contract
 
@@ -984,6 +1113,7 @@ node plugins/planning/shared/tests/ui_welcome.js
 node plugins/planning/shared/tests/ui_per_device.js
 node plugins/planning/shared/tests/ui_review.js
 node plugins/planning/shared/tests/ui_rail_header.js
+node plugins/planning/shared/tests/ui_reopen.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -1004,6 +1134,12 @@ Merge folds the phone into the earlier Ann with her chat.
 person's own settings): a single pick or a scale value with the comment box empty shows "Next question in 2 s · Stay"
 and moves on; Stay cancels; a pick with a comment, pick-many, rank and a written answer never move on.
 
+`ui_speech.js` checks Read aloud and Dictate with the page's speech APIs replaced by recording stubs: both switches off
+by default and kept on the server, turning them on moves nothing, Read aloud speaks the question then its options and
+never an answer the owner has not shared, a second press or Escape stops it, Dictate fills its box and sends nothing,
+the disclosure and its on-device cases, and no Dictate switch or button without the API. `align.js` checks both
+controls on in its `speech-choice` and `speech-answer` views.
+
 `ui_askbox.js` checks the guest's one Ask Claude box: no Ask, Research or Explore picker in the panel or a question's
 form, a "Use the web" chip, off by default, that sends the request as `research` (else `ask`), and the owner keeping
 the picker.
@@ -1017,6 +1153,11 @@ chips and the Inbox tab kept over a reload.
 `ui_inbox_page.js` checks the Inbox page: Needs you holding a request Claude failed until it is opened but never one
 the owner discarded or cancelled, nor a report already asked about; History holding them; rows opening where they
 happened and closing the page; a leader's proposals to place and the server refusing a leader's Run.
+
+`ui_reopen.js` checks a late Disagree on a locked answer once its round closed: the owner's Possibly reopened row
+with the locked answer, the reason, Keep decision and Unlock; a guest reading "Needs review: Q1 may be reopened" on
+the dependent question with no row, History or Decisions; the owner's History under the question and Decisions
+timeline; Keep decision clearing the row and badge, a newer Disagree raising it again, and Unlock.
 
 `ui_rail_header.js` checks, at 1440x900 and on a 390x844 phone, that every round's label in the rail starts at one x,
 with a check once something in the round is done and an empty ring before, both aria-hidden; that the phone's question
@@ -1068,10 +1209,12 @@ with keyboards at 320 to 430 px wide.
 `ui_proto.js` checks the prototype page on a desktop and a 390x844 phone in separate browser
 contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an
 element of an html variant and to a spot of a picture, the notes in the Claude thread and the
-digest, the variant's sandbox, and a forged pin message being ignored. `ui_proto_versions.js` checks
+digest, the variant's sandbox, a forged pin message being ignored, the look-at line on the card and
+the page, and a variant with a snapshot and two screenshots (both shown, a note on the second). `ui_proto_versions.js` checks
 a prototype revised in a later round: the Prototypes filter finding both rounds' prototypes without
 scrolling, the later question's version list with the current version marked, opening version 1
-from it, the two side by side on a desktop and stacked on a phone, and a note staying on its version.
+from it, the two side by side on a desktop and stacked on a phone, a note staying on its version, and
+a question stored with no look-at line showing none.
 
 `ui_contrast.js` checks WCAG 2.2 AA contrast on the main page states in every palette, in light
 and dark: text and placeholders, field edges, icon-only buttons and the Propose button's edge; per
@@ -1107,7 +1250,7 @@ poll carries a query string; no page breaks the CSP; and a returning guest comes
 person, keeping its stored secret when its first heartbeats get a 429 or
 no answer. `ui_formats.js` covers, in a session past its first round, `multi`, `scale` and `rank`
 (keyboard, and touch on a 390x844 phone, whose Questions tab must take taps with two rounds
-listed), Something else on `choice`, `multi` and `rank`, Disagree, the `down` reaction and a
+listed), Something else on `choice`, `multi` and `rank`, None of these on a `multi`, Disagree, the `down` reaction and a
 diagram's alt text. `ui_presence.js` (about 4 minutes) hides a tab for 3 minutes with throttled
 timers, closes another, snoozes a third, keeps one person in two tabs with one hidden, and checks
 none of that gets a 429. The

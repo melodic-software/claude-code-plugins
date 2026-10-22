@@ -3,6 +3,134 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.91.0] - 2026-10-22
+
+### Added
+
+- A shared interview session has a `prototypeTiers` setting (`shared_session.prototype_tiers`, default screenshots and HTML snapshots, live off) with Screenshots, HTML snapshots and Live prototypes switches under Prototypes in the Host settings. A view switched off leaves guests' state (a picture variant's asset while screenshots are off, an html one's while snapshots are off), and a guest's request for an html variant answers 404 while snapshots are off; the owner still sees every view, each hidden one named. With every view off, a prototype question shows as text with a note and still takes picks. Live prototypes is only stored for now. A session from before the setting loads and is written back unchanged.
+
+- On the 1:1 interview page, an alternative can carry a `tradeoff`, which the page shows under the alternative.
+
+- A shared interview prototype variant can show up to four screenshots (`shots`) and an HTML snapshot (`snapshot`). The prototype page stacks the screenshots in order, each with a caption and its own pins, and switches between the snapshot and the screenshots when a variant has both. A variant with one view is still written as `{id, label, asset}`, and `asset` is still accepted. Every new prototype question carries a required `format.lookAt` line naming the area that changes and the step that shows it, and a variant may add its own. The line shows on the question card beside "Open prototype" and above the variant tabs. A question from before it loads and shows no line. A session holding a `lookAt` or a variant with more than one view does not load in an earlier build.
+
+### Changed
+
+- The 1:1 page's questions take `id`, `short`, `title`, `recommendation`, `dependsOn` and each alternative's text from the shared question shape schema, so `short` is now capped at 80 characters on the page as in the shared session; a file holding a longer `short` refuses every write until one `apply` revises each such label to fit.
+- The shared session schema states the stored option bounds exactly: a choice holds 3 to 5 options, a multi 3 to 10 and a rank 4 to 7 (Claude's options plus the server's Something else and None of these), and Claude's open-round input takes 2 to 4, 2 to 8 and 3 to 6.
+
+- On the shared interview page, the chat opens as a full-height panel on the right under the top bar instead of a floating popover. From 1100 px wide the page moves over to make room, so the question and the chat read side by side and Tab moves between them; narrower, the panel covers the page as a modal dialog. The chat button hides while the panel is open and the panel's close button closes it. On a phone the chat fills the screen instead of 80% of it.
+
+### Fixed
+
+- The interview surface's detail banner for an archived question that was superseded now shows one line naming its replacement as a link, in place of the batch `archived.why` sentence and a second Superseded banner.
+
+- On the shared interview page, a pop-up message no longer covers the open chat. While the chat covers the page (narrower than 1100 px, and the whole screen on a phone), the pop-up shows inside the chat between the messages and the message box, which make room for it. Beside the docked chat it centers on the page next to the chat.
+
+- The shared-page UI suite (`shared/tests/ui.test.sh`) fails under `CI=true` when node, playwright-core or Chromium is missing, instead of printing SKIP and passing. Local runs still skip.
+- The shared-page UI suite runs `ui_telemetry.js` alone after the parallel suites, since parallel load hides the dead tap its one-second check waits for.
+
+## [0.90.1] - 2026-10-22
+
+### Fixed
+
+- Shared interview page: a hovered primary button (Send, Propose, Save) now keeps its label at WCAG AA contrast (4.5:1) in every palette, accent and mode; light-mode teal measured 3.93:1 before.
+
+- `share.sh ensure-running --open` starts the 30-second clock that deletes the owner's open page only after the browser has been handed the page, so an opener that takes time to start (such as one named by `SHARED_BROWSER`) still finds it.
+
+## [0.90.0] - 2026-10-22
+
+### Changed
+
+- `/planning:interview` now passes the `tunnel_hostname` and `tunnel_token_file` options to a shared session, so a configured named tunnel starts without restating it; an unset hostname runs a quick tunnel.
+
+## [0.89.0] - 2026-10-22
+
+### Added
+
+- On the shared interview page, a pick-any question can offer "None of these": Claude asks for it with `none: true` on a `multi` format, the server adds the option and refuses a Claude-written one, it excludes every other pick (picking it clears them, picking another clears it), and the digest counts it as its own row, apart from a Pass or an empty pick.
+
+### Fixed
+
+- `/planning:interview` page protocol (`surface.md`) now points at `lane-page.md` for the page start command and the "Question surface: the page" rule, which moved out of `SKILL.md`.
+
+## [0.88.2] - 2026-10-22
+
+### Removed
+
+- The page no longer sends `rep:<fp>` repeat counts, and the server drops any an older page sends, so a usage count can no longer be joined to a fault entry's pid.
+
+### Fixed
+
+- A one-on-one shared interview (only one guest ever joined) now records its tap counts: at shutdown the session's `use:`, `rage:` and `dead:` totals are written once with no pid, fingerprint, browser or page view, and its per-page-view pairs are counted as dropped. In a session two or more guests joined, a batch from one guest is still never written, even when only one of them sent summaries.
+
+## [0.88.1] - 2026-10-22
+
+### Fixed
+
+- A tap counts as dead even when the page's own polling redraws it
+
+  In a shared interview, the page's tap telemetry no longer treats its own
+  1.5 s state poll redraw as the answer to a tap. A tap that changes
+  nothing is counted as dead however busy the page or the device is, while a
+  tap that opens a sheet or runs an action is still answered.
+
+## [0.88.0] - 2026-10-22
+
+### Added
+
+- GIFs in chat and answers on the shared interview page: a pasted or picked GIF goes with only its frames, their timing and the loop count (no comment, plain text, application or unknown extension), up to 512 KB, through the owner-approved picture path. An animated GIF shows as its still first frame with a Play GIF button, on its tile and in the viewer.
+
+### Fixed
+
+- The host's urgent pop-up no longer writes its words back into the pop-up area while another message waits to show there, so a screen reader no longer hears the same problem report announced twice.
+
+## [0.87.1] - 2026-10-22
+
+### Fixed
+
+- The interview's Decide rows render each choice's label and text through the same inline renderer as the recommendation card, so backticked code shows as code, emphasis applies and issue numbers link, while HTML in the text stays escaped.
+
+## [0.87.0] - 2026-10-22
+
+### Added
+
+- The shared interview page can read a question and its options aloud, and take dictation into the answer and comment boxes, through the browser's own Web Speech API. Both are off until a person turns them on in their own card, and are kept as their `readAloud` and `dictate` preferences. Dictated words land in the box for review and are never sent on their own; turning Dictate on says when the browser may send the audio to its maker's speech service, and on-device recognition is asked for first where the browser offers it.
+
+## [0.86.0] - 2026-10-22
+
+### Added
+
+- The shared interview page counts taps by control, plus rage taps (three quick taps on one control) and dead taps (a tap that changes nothing), by the control's class name only. The server adds them up for everyone in each 10-minute summary batch, and `share.py logs --summary` lists them.
+
+- Shared interview: once its round has closed, a locked decision accepts a late Disagree. Votes, Passes and answers are still refused. One late Disagree with the locked answer of a decide question marks it "possibly reopened" in the owner's Inbox, with Keep decision and Unlock, and in every digest until the owner keeps, changes or unlocks it, or the last such Disagree is taken back. A late Disagree with a rejected alternative is recorded and raises nothing. Every question that depends on it shows "Needs review: <Q> may be reopened" to everyone. The decision itself never changes on its own.
+- Shared interview: the owner reads a decision history, folded under each question and session-wide under Decisions. It covers locks, changes to the locked text, unlocks, closed and reopened polls, late Disagrees, withdrawn ones and kept decisions, each with its time. Sessions saved before this release start with an empty history.
+- Interview shared lane: when to open a new round, what `dependsOn` names, and what to do with a possibly reopened decision in the digest.
+
+- The shared interview page shows an optional profile picture on each avatar: a PNG, JPEG or WebP of at most 256 KB, picked on your person card and shown as a circle crop. A guest's picture shows to others once the owner approves it, the owner's at once; initials on the person's color stay the fallback, and pictures hide while names do.
+
+### Fixed
+
+- Summary batches can no longer be matched to a fault entry's pid: repeat counts move from each summary to the batch's totals, a summary keeps only the device class, and a batch is written only once at least two guests sent to it, so a single guest's summaries wait for the next batch or, at shutdown, are counted as dropped (#8221).
+- The 10-minute summary batch is still written while the tunnel sync keeps failing.
+
+- A person with tabs on two questions no longer flips between them
+
+  In a shared interview, each tab now reports how long ago it was focused or
+  shown, and the person shows on the question of the tab they used last
+  instead of whichever tab sent the latest heartbeat.
+
+## [0.85.1] - 2026-10-22
+
+### Fixed
+
+- The interview Groups rail lists each group's live cards first, then one collapsed "N archived" row that expands on click to show the group's archived cards. A group with no archived cards shows no row, and the Rounds view is unchanged. The j and k keys follow the same order and skip archived cards while their row is collapsed.
+
+## [0.85.0] - 2026-10-22
+
+### Added
+
+- Shared interview page: a prototype keeps its identity across rounds. A variant can name the variant it revises on an earlier prototype question (`previous`), and the question card and the prototype page list every version, mark the current one, open any of them, and show two side by side. Notes stay on the version they were pinned to, and the toolbar's Prototypes filter finds every round's prototypes without scrolling.
+
 ## [0.84.0] - 2026-10-22
 
 ### Added

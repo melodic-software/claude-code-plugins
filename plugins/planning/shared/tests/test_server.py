@@ -734,6 +734,17 @@ class TestRawRequests(ServerCase):
         self.assertNotIn("\x1b", log)
 
 
+class TestBind(unittest.TestCase):
+    def test_the_listeners_bind_without_looking_up_a_host_name(self):
+        """HTTPServer.server_bind resolves its address with socket.getfqdn, which took about 35 s on a macOS runner:
+        longer than share.py waits for the server to start."""
+        with mock.patch.object(socket, "getfqdn", side_effect=AssertionError("getfqdn called")):
+            app = server.App(tmpdir(self), watch_tunnel=False)
+        self.addCleanup(app.shutdown)
+        self.assertEqual((app.guest.server_name, app.guest.server_port), ("127.0.0.1", app.guest_port))
+        self.assertEqual((app.control.server_name, app.control.server_port), ("127.0.0.1", app.control_port))
+
+
 class TestBusy(unittest.TestCase):
     def test_a_connection_past_the_handler_cap_is_answered_503(self):
         d = tmpdir(self)
@@ -1593,11 +1604,12 @@ class TestClientLog(LogCase):
         self.assertIn(" INFO request method=POST route=/api/heartbeat status=200 ms=", new[0])
         self.assertTrue(new[0].endswith(f" pid={pid}"), new[0])
         self.assertNotIn("pv=0a1b2c3d", self.log_text())
-        self.app.flush_summaries()
+        with mock.patch.object(server, "SUMMARY_MIN_SENDERS", 1):  # one guest's batch, written here to read its line
+            self.app.flush_summaries()
         new = self.log_text().splitlines()[before:]
         self.assertEqual(len(new), 2, new)
-        self.assertRegex(new[1], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} INFO summary-batch summaries=1 dropped=0 data=")
-        self.assertEqual(json.loads(new[1].split(" data=", 1)[1]), [[self.SUMMARY["message"], "safari phone"]])
+        self.assertRegex(new[1], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} INFO summary-batch summaries=1 dropped=0 counts=\{\} data=")
+        self.assertEqual(json.loads(new[1].split(" data=", 1)[1]), [[self.SUMMARY["message"], "phone"]])
         self.assertNotIn("pid=", new[1])
         self.assertEqual(self.post("/api/client-log", {**self.ENTRY, "fp": "1a2b3c4d"}, guest)[0], 200)
         self.assertTrue(self.entry_for(" kind=error ").endswith(f'client pid={pid} kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d'))
@@ -1623,18 +1635,18 @@ class TestClientLog(LogCase):
         _, bo = self.join("Bo")
         self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=ffff0000 gap=10"}, ann)[0], 200)
         self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=00000000 gap=20"}, bo)[0], 200)
-        with mock.patch.object(server, "SUMMARY_BATCH_BYTES", 120):  # room for the two above (48 bytes each as batch JSON), not a third
+        with mock.patch.object(server, "SUMMARY_BATCH_BYTES", 80):  # room for the two above (37 bytes each as batch JSON), not a third
             self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=11111111 gap=30"}, bo)[0], 200)
         self.app.flush_summaries()
         line = self.entry_for(" summary-batch ")
-        self.assertIn(" summary-batch summaries=2 dropped=1 data=", line)
-        self.assertEqual(json.loads(line.split(" data=", 1)[1]), [["pv=00000000 gap=20", "safari phone"], ["pv=ffff0000 gap=10", "safari phone"]])
+        self.assertIn(" summary-batch summaries=2 dropped=1 counts={} data=", line)
+        self.assertEqual(json.loads(line.split(" data=", 1)[1]), [["pv=00000000 gap=20", "phone"], ["pv=ffff0000 gap=10", "phone"]])
         self.app.flush_summaries()
         self.assertEqual(self.log_text().count(" summary-batch "), 1)  # nothing held, nothing written
 
     def test_summaries_are_written_on_the_batch_cadence_and_at_shutdown(self):
         d = tmpdir(self)
-        with mock.patch.object(server, "SUMMARY_BATCH_SECONDS", 1.5):
+        with mock.patch.object(server, "SUMMARY_BATCH_SECONDS", 1.5), mock.patch.object(server, "SUMMARY_MIN_SENDERS", 1):
             app = server.App(d, watch_tunnel=False)
             app.serve()
             self.addCleanup(app.shutdown)
@@ -1646,10 +1658,142 @@ class TestClientLog(LogCase):
 
             self.assertEqual(call(app.guest_port, "POST", "/api/client-log", self.SUMMARY, guest)[0], 200)
             self.assertTrue(wait_for(lambda: " summary-batch summaries=1 " in log(), seconds=10), log())
-            self.assertEqual(call(app.guest_port, "POST", "/api/client-log", {**self.SUMMARY, "message": "pv=0a1b2c3d gap=5"}, guest)[0], 200)
+            for gap in (5, 6):
+                self.assertEqual(call(app.guest_port, "POST", "/api/client-log", {**self.SUMMARY, "message": f"pv=0a1b2c3d gap={gap}"}, guest)[0], 200)
             app.shutdown()
-        self.assertEqual(log().count(" summary-batch summaries=1 "), 2, log())
+        self.assertEqual(log().count(" summary-batch summaries=1 "), 1, log())
         self.assertIn("gap=5", log().splitlines()[-1].replace("\\u0020", " "))
+        self.assertIn(" summary-batch summaries=2 ", log().splitlines()[-1])
+
+    def batch(self):
+        """The newest summary-batch entry: its counts and its [message, ua] pairs."""
+        line = self.entry_for(" summary-batch ")
+        return line, json.loads(line.split(" counts=", 1)[1].split(" ", 1)[0]), json.loads(line.split(" data=", 1)[1])
+
+    def test_a_summary_pair_cannot_be_matched_to_the_pid_on_a_fault_entry(self):
+        """A fault and a later repeat of it share one fingerprint, and the fault entry names the person and their
+        browser. An older page's repeat count is dropped, never counted, and the pair keeps only the device class, so
+        no line holds the fingerprint or the browser that would point to the pid."""
+        pid, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        self.assertEqual(self.post("/api/client-log", {**self.ENTRY, "ua": "firefox computer", "fp": "1a2b3c4d"}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 gap=10 rep:1a2b3c4d=2", "ua": "firefox computer"}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=bbbb0000 gap=20", "ua": "chrome computer"}, bo)[0], 200)
+        self.app.flush_summaries()
+        line, counts, pairs = self.batch()
+        self.assertEqual(pairs, [["pv=aaaa0000 gap=10", "computer"], ["pv=bbbb0000 gap=20", "computer"]])
+        self.assertEqual(counts, {})
+        self.assertNotIn("1a2b3c4d", line)
+        self.assertNotIn("firefox", line)
+        self.assertNotIn(pid, line)
+
+    def summary_batches(self):
+        return [x for x in self.log_text().splitlines() if " summary-batch " in x]
+
+    def test_a_one_on_one_session_writes_its_counts_once_at_shutdown_and_no_pair(self):
+        """One guest joined: no batch reaches two guests, so the session's counts are written once, at shutdown, with
+        no pair (each one page view's record), no fingerprint and no pid; the owner's counts join them."""
+        pid, ann = self.join("Ann")
+        for msg in ("pv=0a1b2c3d gap=5 use:vf-chat=1 rage:vf-vote=1", "pv=0a1b2c3d gap=6 rep:1a2b3c4d=1 use:vf-chat=2 dead:vf-pencil=1"):
+            self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": msg}, ann)[0], 200)
+            self.app.flush_summaries()  # a 10-minute tick: one guest's batch waits
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=cccc0000 owner=1 use:vf-gear=1"}, self.owner)[0], 200)
+        self.assertEqual(self.summary_batches(), [])
+        self.app.flush_summaries(stopping=True)  # what shutdown() runs
+        lines = self.summary_batches()
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn(' summary-batch summaries=0 dropped=3 counts={"dead:vf-pencil":1,"rage:vf-vote":1,"use:vf-chat":3,"use:vf-gear":1} data=[]', lines[0])
+        for leak in (pid, "1a2b3c4d", "0a1b2c3d", "gap=", "safari", "phone"):
+            self.assertNotIn(leak, lines[0])
+
+    def test_two_joined_guests_and_one_sender_write_no_counts_at_shutdown(self):
+        """One on one is who joined, not who sent: a second guest whose page never hid still makes the one sender's
+        counts theirs alone, so at shutdown they are only counted as dropped."""
+        _, ann = self.join("Ann")
+        self.join("Bo")
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 use:vf-chat=1"}, ann)[0], 200)
+        self.app.flush_summaries(stopping=True)
+        lines = self.summary_batches()
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn(" summary-batch summaries=0 dropped=1 counts={} data=[]", lines[0])
+
+    def test_one_guests_trailing_batch_is_still_dropped_when_the_session_had_two(self):
+        """Once two guests sent, a last batch holding one guest's summaries is theirs, so at shutdown it is only
+        counted."""
+        _, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        for msg, who in (("pv=aaaa0000 use:vf-chat=1", ann), ("pv=bbbb0000 use:vf-chat=2", bo)):
+            self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": msg}, who)[0], 200)
+        self.app.flush_summaries()
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 use:vf-vote=4"}, ann)[0], 200)
+        self.app.flush_summaries(stopping=True)
+        lines = self.summary_batches()
+        self.assertEqual(len(lines), 2, lines)
+        self.assertIn(' counts={"use:vf-chat":3} ', lines[0])
+        self.assertIn(" summary-batch summaries=0 dropped=1 counts={} data=[]", lines[1])
+
+    def test_one_guests_summaries_wait_for_a_second_guest_before_any_batch(self):
+        """Every batch, not only the last: a batch holding one guest's summaries would be theirs, its counts beside a
+        fingerprint their fault entry names. It waits, and is written with the next guest's."""
+        _, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        for msg in ("pv=aaaa0000 gap=10", "pv=aaaa0000 use:vf-chat=1"):
+            self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": msg}, ann)[0], 200)
+        self.app.flush_summaries()
+        self.assertNotIn(" summary-batch ", self.log_text())
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=bbbb0000 use:vf-chat=2"}, bo)[0], 200)
+        self.app.flush_summaries()
+        line, counts, pairs = self.batch()
+        self.assertIn(" summary-batch summaries=3 dropped=0 ", line)
+        self.assertEqual(counts, {"use:vf-chat": 3})
+        self.assertEqual(pairs, [["pv=aaaa0000", "phone"], ["pv=aaaa0000 gap=10", "phone"], ["pv=bbbb0000", "phone"]])
+
+    def test_the_owners_own_summaries_are_written_alone(self):
+        """The owner's summaries are the reader's own: a batch with no guest's is written."""
+        code, _, _ = self.post("/api/client-log", {**self.SUMMARY, "message": "pv=cccc0000 owner=1 use:vf-gear=1"}, self.owner)
+        self.assertEqual(code, 200)
+        self.app.flush_summaries()
+        self.assertEqual(self.batch()[1:], ({"use:vf-gear": 1}, [["pv=cccc0000 owner=1", "phone"]]))
+
+    def test_the_batch_is_written_while_the_tunnel_sync_keeps_failing(self):
+        d = tmpdir(self)
+        with mock.patch.object(server, "SUMMARY_BATCH_SECONDS", 1.5):
+            app = server.App(d, watch_tunnel=False)
+            self.addCleanup(app.shutdown)
+            app.sync_tunnel = mock.Mock(side_effect=RuntimeError("tunnel record unreadable"))
+            app.hold_summary("pv=0a1b2c3d gap=5", "safari phone")
+            app.serve()
+            log = lambda: (d / "server.log").read_text(encoding="utf-8")  # noqa: E731
+            self.assertTrue(wait_for(lambda: " summary-batch summaries=1 " in log(), seconds=10), log())
+        self.assertGreater(app.sync_tunnel.call_count, 0)
+
+    def test_feature_counts_add_up_across_people_with_no_pid_and_no_text(self):
+        """use:<component> counts from many pages become one count per component in the batch; a token naming
+        anything but a vf- or core- component (text, a name, digits) is dropped."""
+        pid, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 use:vf-chat=2 use:vf-keysbtn=1 use:Quillon=4 use:vf-x1=1"}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=bbbb0000 use:vf-chat=3 use:core-records=1"}, bo)[0], 200)
+        self.app.flush_summaries()
+        line, counts, pairs = self.batch()
+        self.assertEqual(counts, {"use:core-records": 1, "use:vf-chat": 5, "use:vf-keysbtn": 1})
+        self.assertEqual(pairs, [["pv=aaaa0000", "phone"], ["pv=bbbb0000", "phone"]])
+        self.assertNotIn("Quillon", line)
+        self.assertNotIn("pid=", line)
+        self.assertNotIn(pid, line)
+
+    def test_rage_and_dead_taps_are_counted_by_component_name_only(self):
+        _, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        msg = "pv=aaaa0000 rage:vf-vote=1 dead:vf-pencil=2 rage:Send_it=1 dead:vf-Hello=1 rage:vf-vote=x"
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": msg}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 rage:vf-vote=2"}, bo)[0], 200)
+        self.app.flush_summaries()
+        line, counts, pairs = self.batch()
+        self.assertEqual(counts, {"dead:vf-pencil": 2, "rage:vf-vote": 3})
+        self.assertEqual(pairs, [["pv=aaaa0000", "phone"], ["pv=aaaa0000", "phone"]])
+        self.assertNotIn("Send", line)
+        self.assertNotIn("Hello", line)
 
     def test_summaries_and_faults_have_separate_rate_buckets(self):
         """At most 6 summaries a minute per person, and a page in an error loop cannot starve them, or the reverse."""
@@ -1825,7 +1969,7 @@ class TestPrototypePage(ServerCase):
         code, _, out = self.ops({"op": "add-asset", "path": str(self.d / "v1.html")}, {"op": "add-asset", "path": str(self.d / "v2.png")})
         self.assertEqual(code, 200, out)
         self.html, self.png = (r["id"] for r in out["results"])
-        proto = {**text_q("Q1"), "format": {"kind": "prototype", "variants": [{"id": "v-1", "label": "One page", "asset": self.html}, {"id": "v-2", "label": "Two steps", "asset": self.png}]}}
+        proto = {**text_q("Q1"), "format": {"kind": "prototype", "lookAt": "The payment step.", "variants": [{"id": "v-1", "label": "One page", "asset": self.html}, {"id": "v-2", "label": "Two steps", "asset": self.png}]}}
         code, _, out = self.ops({"op": "open-round", "questions": [proto, text_q("Q2")]})
         self.assertEqual(code, 200, out)
         _, self.guest = self.join("Ann")
@@ -1846,6 +1990,41 @@ class TestPrototypePage(ServerCase):
         self.assertNotIn("allow-same-origin", h["Content-Security-Policy"])
         code, h, _ = self.get(f"/assets/{self.png}?pin=1", self.guest)
         self.assertEqual((code, h["Content-Security-Policy"], h["X-Frame-Options"]), (200, "sandbox", "DENY"))
+
+    def test_with_snapshots_off_a_guest_gets_404_for_an_html_variant_and_the_owner_200(self):
+        code, _, out = self.post("/api/session/settings", {"prototypeTiers": ["screenshot"]}, self.owner)
+        self.assertEqual((code, out["settings"]["prototypeTiers"]), (200, ["screenshot"]), out)
+        missing = self.get("/assets/0000000000000000.html", self.guest)
+        for path in (f"/assets/{self.html}", f"/assets/{self.html}?pin=1"):
+            with self.subTest(path=path):
+                code, h, body = self.get(path, self.guest)
+                self.assertEqual((code, body), (missing[0], missing[2]))  # the same answer as no such asset
+                self.assertEqual((code, h["Cache-Control"]), (404, "no-store"))
+                code, _, body = self.get(path, self.owner)
+                self.assertEqual(code, 200)
+                self.assertTrue(body.startswith(self.VARIANT_HTML))
+        self.assertEqual(self.get(f"/assets/{self.png}", self.guest)[0], 200)
+        self.assertEqual(self.get(f"/assets/{self.html}")[0], 401)  # no credential is still 401
+        self.post("/api/session/settings", {"prototypeTiers": ["screenshot", "snapshot"]}, self.owner)
+        self.assertEqual(self.get(f"/assets/{self.html}", self.guest)[0], 200)
+
+    def test_with_screenshots_off_a_guests_state_holds_no_picture_variant(self):
+        code, _, out = self.post("/api/session/settings", {"prototypeTiers": ["snapshot"]}, self.owner)
+        self.assertEqual(code, 200, out)
+        variants = lambda snap: next(q for q in snap["questions"] if q["id"] == "Q1")["format"]["variants"]  # noqa: E731
+        code, _, snap = self.get("/api/state", self.guest)
+        self.assertEqual(code, 200)
+        self.assertEqual([v.get("asset") for v in variants(snap)], [self.html, None])
+        self.assertNotIn(self.png, json.dumps(snap))
+        self.assertEqual([v.get("asset") for v in variants(self.get("/api/state", self.owner)[2])], [self.html, self.png])
+
+    def test_prototype_tiers_take_each_tier_once(self):
+        for bad in (["live", "live"], ["video"], "live"):
+            with self.subTest(bad=bad):
+                code, _, out = self.post("/api/session/settings", {"prototypeTiers": bad}, self.owner)
+                self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "prototypeTiers"))
+        code, _, out = self.post("/api/session/settings", {"prototypeTiers": []}, self.guest)
+        self.assertEqual(code, 403, out)
 
     def test_pin_1_appends_the_pin_helper_as_the_one_inline_script(self):
         _, h, body = self.get(f"/assets/{self.html}?pin=1", self.guest)

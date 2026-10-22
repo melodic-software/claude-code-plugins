@@ -29,7 +29,9 @@ name: work-unblock
 # It re-fires the same way an issue whose work-resolve-issue run failed with no
 # report: a crash, a rerun the token broker refused as workflow-modified
 # (a rerun keeps its first event's workflow files), or a run that waited in
-# its slot past a lane workflow change and stopped as workflow-stale. It does that once per issue
+# its slot past a lane workflow change and stopped as workflow-stale, or a run
+# cancelled after admit and before resolve-issue started (pick-slot's timeout); a
+# run a newer agent-ready run replaced is not. It does that once per issue
 # per version of the lane's two workflow files on main, recorded in a comment.
 # When that run opened a lanes-App PR instead, and the PR merged with `Refs:`
 # or was closed unmerged, the App adds needs-triage and takes agent-ready off,
@@ -46,7 +48,8 @@ name: work-unblock
 # New agent-ready labels are paced by the issue lane's queued cap
 # (check-wip-cap): past its room an issue gets admission-deferred instead, and
 # each hourly sweep admits the deferred issues oldest first. Restarts,
-# re-fires and relabels are never paced.
+# re-fires and relabels are never paced. Its label-unblocked job runs one at
+# a time, so two runs cannot each admit the whole room.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label a person removed.
@@ -99,6 +102,13 @@ jobs:
     if: >-
       (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
       || (github.event_name == 'issues' && github.event.sender.type != 'Bot')
+    # One run at a time across the repository, so two runs cannot each admit
+    # the queued cap's whole room. The rest wait in line and are never
+    # cancelled (`queue: max`).
+    concurrency:
+      group: work-unblock-label-unblocked
+      cancel-in-progress: false
+      queue: max
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

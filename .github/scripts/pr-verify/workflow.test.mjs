@@ -321,3 +321,11 @@ test("every ci-workflows action is pinned to one release", () => {
   assert.ok(refs.length >= 6);
   assert.equal(new Set(refs).size, 1, `one pin: ${[...new Set(refs)].join(", ")}`);
 });
+
+test("the resolver reads adoption.owner-ids from main's pipeline config in both jobs", () => {
+  for (const job of JOBS) {
+    const block = step("Resolve the pull request", job);
+    assert.match(block, /OWNER_IDS=\$\(yq '\.adoption\."owner-ids" \/\/ \[\] \| \.\[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)/, job);
+    assert.match(block, /export VERIFY_AUTHORS LANE_IDENTITY OWNER_IDS\n/, job);
+  }
+});

@@ -7,9 +7,11 @@
 
 # list_tracked_markdown <dir>: tracked *.md paths relative to dir, one per line.
 # The exit status is git's. quotePath is forced off so a non-ASCII name is the
-# raw filename, not a C-quoted escape.
+# raw filename, not a C-quoted escape. Every git call here and in the callers
+# turns off core.fsmonitor and hooks, so a target repository's own config
+# runs no program.
 list_tracked_markdown() {
-  git -C "$1" -c core.quotePath=false ls-files '*.md'
+  git -c core.fsmonitor= -c core.hooksPath=/dev/null -C "$1" -c core.quotePath=false ls-files '*.md'
 }
 
 # Strip one trailing slash, except a Windows drive root (`C:/`) or `/`.
@@ -52,7 +54,7 @@ list_tracked_or_fallback() {
     return 0
   fi
 
-  inside="$(git -C "$dir" rev-parse --is-inside-work-tree 2>/dev/null)"
+  inside="$(git -c core.fsmonitor= -c core.hooksPath=/dev/null -C "$dir" rev-parse --is-inside-work-tree 2>/dev/null)"
   status=$?
   if [[ "$mode" == walk ]]; then
     if [[ "$status" -ne 0 ]]; then

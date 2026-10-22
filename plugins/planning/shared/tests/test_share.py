@@ -349,6 +349,33 @@ class TestLogsSummary(unittest.TestCase):
             self.assertIn(want, p.stdout.splitlines())
         self.assertFalse(p.stdout.startswith("{"))
 
+    def test_a_batchs_counts_give_feature_use_rage_and_dead_taps_and_repeats(self):
+        """README "Logs": a batch's `counts` add up per component across batches, and a `rep:<fp>` count joins its
+        fault's count. Expected counts are the fixture's, added by hand."""
+        lines = [
+            '2026-10-18 11:00:00,000 WARNING client pid=pidAnn001 kind=error message=boom route=/ ua="chrome phone" fp=eeee5555',
+            '2026-10-18 11:10:00,000 INFO summary-batch summaries=2 dropped=0 counts={"dead:vf-pencil":1,"rage:vf-vote":2,"rep:eeee5555":3,"use:vf-chat":4,"use:vf-vote":6}'
+            ' data=[["pv=p1\\u0020gap=900","phone"],["pv=p2","computer"]]',
+            '2026-10-18 11:20:00,000 INFO summary-batch summaries=2 dropped=0 counts={"rage:vf-vote":1,"use:vf-chat":1,"use:core-records":1} data=[["pv=p3","phone"],["pv=p4","phone"]]',
+        ]
+        out = share_cli.summarize(lines)
+        self.assertEqual(out["features"], {
+            "use": [{"component": "vf-vote", "count": 6}, {"component": "vf-chat", "count": 5}, {"component": "core-records", "count": 1}],
+            "rage": [{"component": "vf-vote", "count": 3}],
+            "dead": [{"component": "vf-pencil", "count": 1}],
+        })
+        self.assertEqual([(g["fp"], g["count"], g["lastSeen"]) for g in out["errors"]], [("eeee5555", 4, "2026-10-18 11:10:00")])
+        self.assertEqual(out["summaries"]["count"], 4)
+        text = share_cli.summary_text(out).splitlines()
+        for want in ("Feature use, taps by component:", "  vf-vote: 6", "  vf-chat: 5", "  core-records: 1",
+                     "Rage taps (three quick taps on one control) by component:", "  vf-vote: 3",
+                     "Dead taps (a tap that changed nothing on the page) by component:", "  vf-pencil: 1"):
+            self.assertIn(want, text)
+
+    def test_counts_that_are_not_whole_numbers_count_as_nothing(self):
+        line = '2026-10-18 11:00:00,000 INFO summary-batch summaries=2 dropped=0 counts={"use:vf-chat":"2","rage:vf-vote":true,"dead:vf-x":-1,"use:vf-y":3} data=[]'
+        self.assertEqual(share_cli.summarize([line])["features"], {"use": [{"component": "vf-y", "count": 3}], "rage": [], "dead": []})
+
     def test_non_ascii_digits_in_a_summary_count_as_nothing_and_never_stop_the_summary(self):
         """str.isdigit takes "²", which int() refuses: a page could send it and break `logs --summary`."""
         line = '2026-10-18 11:00:00,000 INFO summary-batch summaries=1 dropped=² data=[["pv=p1\\u0020rep:x=²\\u0020gap=²\\u0020rb:/api/vote=²\\u0020lat:/api/vote=²,1","chrome\\u0020phone"]]'
@@ -389,7 +416,8 @@ class TestOpen(ShareCase):
         seen = stub / "opened.json"
         script = stub / "opener.py"
         script.write_text(
-            "import json, os, stat, sys, urllib.parse, urllib.request\n"
+            "import json, os, stat, sys, time, urllib.parse, urllib.request\n"
+            "time.sleep(1.5)\n"  # outlast the 1 s window: the page must stay until the browser has it
             "page = urllib.request.url2pathname(urllib.parse.urlparse(sys.argv[1]).path)\n"
             f"json.dump({{'argv': sys.argv[1:], 'page': page, 'mode': stat.S_IMODE(os.stat(page).st_mode), 'html': open(page, encoding='utf-8').read()}}, open({str(seen)!r}, 'w'))\n",
             encoding="utf-8",
@@ -403,6 +431,7 @@ class TestOpen(ShareCase):
             opener.chmod(0o700)
         code, out, err = share(self.d, "ensure-running", "--open", environ=env(SHARED_BROWSER=str(opener), SHARED_OPEN_SECONDS="1"))
         self.assertEqual(code, 0, err)
+        self.assertIs(out.get("opened"), True, err)
         link = (self.d / ".owner-link").read_text(encoding="utf-8").strip()
         token = link.split("#owner=", 1)[1]
         got = json.loads(seen.read_text(encoding="utf-8"))

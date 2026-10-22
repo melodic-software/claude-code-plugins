@@ -60,6 +60,7 @@ const SHA = /^[0-9a-f]{40}$/;
 const NAME = /^[a-z][a-z0-9-]*$/;
 const SYMLINK = "120000";
 const GITLINK = "160000";
+const REGULAR = "100644";
 const EXECUTABLE = "100755";
 const ZERO = /^0+$/;
 
@@ -133,20 +134,39 @@ export const credentialIn = (text) => CREDENTIALS.find((credential) => credentia
 const REASONS = "not-reproducible|flaky|protected-path|weaken-required|unfixed";
 const ESCALATED_LINE = new RegExp(`^(.+?): escalated (?:${REASONS})(?: |$)`);
 
+const ESCALATED_REASON = new RegExp(`^.+?: escalated (${REASONS})(?: |$)`);
+// The reasons a fix-ci retry one model rung up may answer; protected-path,
+// weaken-required and flaky stay with a person.
+const RUNG_UP_REASONS = new Set(["unfixed", "not-reproducible"]);
+
+const reportLines = (text) => String(text).split("\n").map((line) => line.replace(/\r$/, ""));
+
 // The checks a report escalated, one per `<check>: escalated <reason>
 // <sentence>` line. The report is model output: only this shape is read.
 export function escalatedChecks(text) {
-  return String(text)
-    .split("\n")
-    .map((line) => ESCALATED_LINE.exec(line.replace(/\r$/, ""))?.[1])
+  return reportLines(text)
+    .map((line) => ESCALATED_LINE.exec(line)?.[1])
     .filter(Boolean);
 }
 
-// The producer reports a row may read: each says whether the model escalated.
+// Whether a report escalated at least one check and every escalation is one
+// a stronger model may answer.
+export function rungUpEscalation(text) {
+  const reasons = reportLines(text).flatMap((line) => ESCALATED_REASON.exec(line)?.[1] ?? []);
+  return reasons.length > 0 && reasons.length === escalatedChecks(text).length && reasons.every((reason) => RUNG_UP_REASONS.has(reason));
+}
+
+const reportText = (reportDir) => {
+  const file = reportDir ? join(reportDir, "reply.txt") : "";
+  return Boolean(file) && existsSync(file) && lstatSync(file).isFile() ? readFileSync(file, "utf8") : "";
+};
+
+// The producer reports a row may read: each says whether the model escalated,
+// and whether a retry one model rung up may answer every escalation.
 const REPORTS = {
-  "ci-escalations": (reportDir) => {
-    const file = reportDir ? join(reportDir, "reply.txt") : "";
-    return Boolean(file) && existsSync(file) && lstatSync(file).isFile() && escalatedChecks(readFileSync(file, "utf8")).length > 0;
+  "ci-escalations": {
+    escalated: (reportDir) => escalatedChecks(reportText(reportDir)).length > 0,
+    rungUp: (reportDir) => rungUpEscalation(reportText(reportDir)),
   },
 };
 
@@ -271,6 +291,10 @@ export function checkRow(row) {
   if (!Object.hasOwn(TARGETS, String(row.target))) {
     fail(`names an unknown target: ${row.target}`);
   }
+  // A plugin's hooks and bin run, so the bit is set only where they are refused.
+  if (row["script-exec-bit"] === true && !row.refuse.includes("instruction-path")) {
+    fail("sets script-exec-bit without refusing instruction-path");
+  }
   return row;
 }
 
@@ -316,10 +340,14 @@ export function patchProblem(file, expected) {
   return credential ? `the patch carries a ${credential} shape` : "";
 }
 
-export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir }) {
+// `rung` is the producer's model rung (0 or 1): at 0, an empty patch whose
+// report escalated only checks a stronger model may answer skips rung-up, and
+// the caller runs the producer once more at rung 1, instead of escalating.
+export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0 }) {
   checkRow(row);
   const decide = (proceed, skipReason, escalationReason) => ({ proceed, skipReason, escalationReason });
-  const escalated = row["reads-report"] !== null && REPORTS[row["reads-report"]](reportDir);
+  const report = row["reads-report"] === null ? null : REPORTS[row["reads-report"]];
+  const escalated = report !== null && report.escalated(reportDir);
   if (patchState !== "written" && patchState !== "empty") {
     return decide(false, "awaiting-human", reasonFor(row, "invalid"));
   }
@@ -327,6 +355,9 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
     return decide(false, "superseded-sha", "");
   }
   if (patchState === "empty") {
+    if (escalated && rung === 0 && report.rungUp(reportDir)) {
+      return decide(false, "rung-up", "");
+    }
     return decide(false, "awaiting-human", reasonFor(row, escalated ? "escalated" : "empty"));
   }
   let names = [];
@@ -386,6 +417,13 @@ function applyOnto(git, sha, patchFile, threeWay) {
     return "";
   }
 }
+
+// A script by the exec-bit rule: a regular file that ends in .sh or whose
+// blob starts with #!. The mode is checked first, so no gitlink's commit or
+// symlink is read as a blob.
+const isScript = (git, entry) =>
+  [REGULAR, EXECUTABLE].includes(entry.newMode) &&
+  (entry.path.endsWith(".sh") || git(["cat-file", "blob", entry.newSha]).subarray(0, 2).toString("latin1") === "#!");
 
 const hasCommit = (git, sha) => {
   try {
@@ -471,7 +509,7 @@ export async function push({
       return { outcome: "superseded" };
     }
   }
-  const tree = applyOnto(git, headSha, patchFile, moved);
+  let tree = applyOnto(git, headSha, patchFile, moved);
   if (!tree) {
     return escalate("not-applied", "the patch does not apply to the gated head");
   }
@@ -493,10 +531,21 @@ export async function push({
   const reaching = from === headSha ? entries : changes(git(["diff-tree", "-r", "-z", "--no-renames", from, tree]));
   const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", from, tree]));
   // One refused entry refuses the whole patch, before anything is written.
-  // A rename is checked as one first; every entry then meets the rest.
-  const checks = [...renames.map((entry) => [entry, ["rename-into-refused"]]), ...reaching.map((entry) => [entry, [...row.refuse, ...ALWAYS]])];
-  for (const [entry, names] of checks) {
-    const [refusal] = refusalsOf(entry, names);
+  // A rename is checked as one first; every entry then meets the rest. Under
+  // script-exec-bit, a script's executable bit that only the start commit
+  // carries is the one an earlier apply set, so only the patch's own bits meet
+  // new-executable.
+  const refuse = [...row.refuse, ...ALWAYS];
+  const inherited = row["script-exec-bit"] === true ? refuse.filter((name) => name !== "new-executable") : refuse;
+  // Each list is read only when its entry's turn comes, after the patch's own
+  // entries have passed.
+  const checks = [
+    ...renames.map((entry) => [entry, () => ["rename-into-refused"]]),
+    ...entries.map((entry) => [entry, () => refuse]),
+    ...(reaching === entries ? [] : reaching.map((entry) => [entry, () => (isScript(git, entry) ? inherited : refuse)])),
+  ];
+  for (const [entry, namesOf] of checks) {
+    const [refusal] = refusalsOf(entry, namesOf());
     if (refusal) {
       return escalate(REFUSALS[refusal].kind, `refused (${refusal}): ${entry.path}`);
     }
@@ -521,6 +570,19 @@ export async function push({
   const leaked = blobs.find(({ bytes }) => credentialIn(bytes.toString("latin1")));
   if (leaked) {
     return escalate("invalid", `the patched ${leaked.entry.path} carries a credential shape`);
+  }
+  // The model sets no file mode (new-executable refused any it did), so under
+  // script-exec-bit each new or changed script, a .sh file or one starting
+  // with #!, is made executable here, in the index the patch was applied to.
+  if (row["script-exec-bit"] === true) {
+    const scripts = blobs.filter(({ entry }) => entry.newMode !== EXECUTABLE && isScript(git, entry));
+    if (scripts.length > 0) {
+      git(["update-index", ...scripts.flatMap(({ entry }) => ["--cacheinfo", EXECUTABLE, entry.newSha, entry.path])]);
+      tree = git(["write-tree"]).toString("utf8").trim();
+      for (const { entry } of scripts) {
+        entry.newMode = EXECUTABLE;
+      }
+    }
   }
   // A hold set while the model worked stops the commit.
   if (await target.held(api, number, { holds: new Set(holdLabels), required: requiredLabels, repository })) {
@@ -618,6 +680,15 @@ function labelList(env, key) {
   return labels;
 }
 
+// The producer's model rung from MODEL_RUNG: empty or 0 is the route's own
+// profile, 1 the rung above it; anything else is refused.
+function modelRung(value = "") {
+  if (!["", "0", "1"].includes(value)) {
+    throw new Error("MODEL_RUNG must be empty, 0 or 1");
+  }
+  return value === "1" ? 1 : 0;
+}
+
 export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = (line) => console.log(line) } = {}) {
   const row = rowFor(loadRules(env.BASE_DIR), { prepare: env.PATCH_PREPARE ?? "", target: env.PATCH_TARGET || "pr" });
   const target = TARGETS[row.target];
@@ -631,6 +702,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
       headSha: env.HEAD_SHA,
       patchDir: env.PATCH_DIR ?? "",
       reportDir: env.REPORT_DIR ?? "",
+      rung: modelRung(env.MODEL_RUNG),
     });
     appendFileSync(env.GITHUB_OUTPUT, `proceed=${result.proceed}\nskip-reason=${result.skipReason}\nescalation-reason=${result.escalationReason}\n`);
     log(`select (${row.name}): proceed=${result.proceed} skip=${result.skipReason || "none"} escalation=${result.escalationReason || "none"}`);

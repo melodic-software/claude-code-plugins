@@ -3,6 +3,13 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.1] - 2026-10-22
+
+### Removed
+
+- `/harness-ops:morning-brief` no longer lists `pr-refine.yml` among its default lane workflows;
+  the pr-pipeline `pr-refine` lane and its workflow were removed.
+
 ## [4.0.0] - 2026-10-22
 
 ### Added

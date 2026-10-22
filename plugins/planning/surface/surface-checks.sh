@@ -23,7 +23,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live page" [ui-c]="c" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=171 [e]=15 [journey]=235 [live]=11 [page]=51)
+declare -A CHECKS=([ab]=97 [c]=182 [e]=15 [journey]=235 [live]=11 [page]=51)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -172,6 +172,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40"><text x="10" y="25">filemark</text></svg>' \
       >"$c/diagrams/flow.svg"
     bash "$here/round.sh" --dir "$c" archive X1 --why "The old path left the plan" >/dev/null
+    bash "$here/round.sh" --dir "$c" archive D0 --why "The old path left the plan" >/dev/null
     CLAUDE_PROJECT_DIR="$repo" bash "$here/round.sh" --dir "$c" ensure-running --port 0 --emoji-markers true \
       --user-settings tests/fixtures/ui_c/user-settings.json >/dev/null
     cport=$(sed -n 's/^PORT=//p' "$c/.interview-session.env" | tr -d '\r')

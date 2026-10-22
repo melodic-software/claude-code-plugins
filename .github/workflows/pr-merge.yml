@@ -41,9 +41,11 @@ name: pr-merge
 # it), so when it ends red the same job sends its run id and head SHA to
 # post-merge-demotion-alert.yml through workflow_dispatch, which files the
 # post-merge record and fix issues and reports the red-main culprit once the
-# re-run fails too. A red run inside a lane merge's attribution window gets
-# its one re-run from the post-merge-dispatch job, which records it; a red
-# run with no lane merge to charge gets none, and the alert judges attempt 1
+# re-run fails too. A red run this workflow dispatched gets its one re-run
+# from the post-merge-dispatch job, which records it, when it is inside a lane
+# merge's attribution window, or was created within
+# red-main.confirm-wait-minutes plus 50 minutes and demotes by the
+# affected-set rule. Any other gets none, and the alert judges attempt 1
 # after red-main.confirm-wait-minutes. For a lane merge the merge job's
 # post-merge check also files the demotion record once it reads the run red,
 # and either filer's record is found by the other through its failing run.
@@ -499,8 +501,8 @@ jobs:
             github-token ${{ github.token }}
 
       # Candidates: open, non-draft PRs into main that the lanes App
-      # (merge.agent-identity on main) opened, plus Dependabot's unless
-      # merge.dependabot.mode is off. This is only a shortlist; the gate checks
+      # (merge.agent-identity on main) or the owner account opened, plus
+      # Dependabot's unless merge.dependabot.mode is off. This is only a shortlist; the gate checks
       # the author, the closing issue and verifier verdict or the Dependabot
       # tier, and every other rule again. A candidate the gate would refuse on
       # its listed labels or body alone (the `do-not-merge` label, the
@@ -524,6 +526,19 @@ jobs:
             exit 1
           fi
           authors=("app/$slug")
+          # The owner accounts (adoption.owner-ids; absent or null, none),
+          # each looked up by account id: the gate adopts their idle pull
+          # requests (babysit_merge_policy.adoption_refusal) and checks the id
+          # again. A failed lookup lists none of that account's PRs.
+          for owner_id in $(yq '.adoption."owner-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml); do
+            if [[ $owner_id =~ ^[1-9][0-9]*$ ]] &&
+              owner_login=$(gh api "user/$owner_id" --jq .login) &&
+              [[ $owner_login =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]]; then
+              authors+=("$owner_login")
+            else
+              echo "::warning::the owner account's login is unreadable; no owner PR is a candidate this run"
+            fi
+          done
           # The gate resolves the same label through babysit_postmerge._role_label.
           human_gated=needs-human
           if [ -f .base/.work-item-tracker.json ]; then
@@ -972,12 +987,12 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # A pr-refine or pr-unblock run the broker refused as
-      # workflow-modified cannot pass on a rerun, which keeps its first
-      # event's workflow files. On the schedule, this pushes an empty commit
-      # with the lane token to each such PR whose head check-trusted-trigger
-      # would trust (no fork, no Dependabot PR), so new runs start on main's
-      # files: at most five a run, and once per PR per version of the file the
+      # A pr-unblock run the broker refused as workflow-modified cannot
+      # pass on a rerun, which keeps its first event's workflow files. On
+      # the schedule, this pushes an empty commit with the lane token to
+      # each such PR whose head check-trusted-trigger would trust (no fork,
+      # no Dependabot PR), so the next pr-unblock run uses main's files: at
+      # most five a run, and once per PR per version of the file the
       # broker named, recorded in a marker comment first. It runs after the
       # gate, which refuses a PR with a failing check, and not while the lane
       # is report-only. Rules: .github/scripts/pr-merge/refire-refused.mjs.

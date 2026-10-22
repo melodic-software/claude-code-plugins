@@ -124,6 +124,13 @@ on:
         required: false
         type: string
         default: ""
+      model-rung:
+        description: >-
+          The model rung the activity's profile runs at: empty or 0 its own,
+          1 its escalate-to (fix-ci's one retry one rung up).
+        required: false
+        type: string
+        default: ""
     # A caller passes one of the two: PR mode's first call the API key, its
     # fallback call and issue mode the OAuth token.
     secrets:
@@ -331,8 +338,8 @@ jobs:
         ${{ inputs.issue-number != '' && (steps.patch-upload.outcome == 'success' && 'written'
         || steps.patch.outputs.state == 'empty' && 'empty') || '' }}
       patch-sha256: ${{ steps.patch-upload.outcome == 'success' && steps.patch.outputs.sha256 || '' }}
-      patch-attempt: ${{ steps.patch-upload.outcome == 'success' && github.run_attempt || '' }}
-      reply-attempt: ${{ steps.reply-upload.outcome == 'success' && github.run_attempt || '' }}
+      patch-attempt: ${{ steps.patch-upload.outcome == 'success' && format('{0}{1}', github.run_attempt, inputs.model-rung == '1' && '-rung-up' || '') || '' }}
+      reply-attempt: ${{ steps.reply-upload.outcome == 'success' && format('{0}{1}', github.run_attempt, inputs.model-rung == '1' && '-rung-up' || '') || '' }}
       # For the scan job's verdict. go and the gate fields come from steps
       # before any head code; skip-reason, dirty-tree and patch-collected
       # after it, so the scan job holds each to its closed set.
@@ -500,6 +507,7 @@ jobs:
           pr-number: ${{ steps.gate.outputs.pr-number }}
           head-sha: ${{ steps.gate.outputs.head-sha }}
           issue-dimensions: ${{ inputs.issue-dimensions }}
+          model-rung: ${{ inputs.model-rung }}
           # This file performs prepare: ci-context (the context steps below)
           # and refuses every other mode.
           prepare-supported: "true"
@@ -741,7 +749,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -772,7 +780,7 @@ jobs:
           echo "ready=true" >>"$GITHUB_OUTPUT"
 
       # The collector writes the patch in patch mode and checks the tree is
-      # clean otherwise. The sealer and its public key go with it: the head
+      # clean otherwise; the mode check reads each launcher leg. The sealer and its public key go with it: the head
       # checkout replaces .base, and the head's own key file is the PR's.
       # Head code can rewrite either copy, as it can the collector's; a
       # forged sealer gains nothing the model job does not already hold.
@@ -783,7 +791,7 @@ jobs:
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
         run: |
           mkdir -p "$DEST" "$SEAL_DIR"
-          cp .base/.github/scripts/read-patch/collect-patch.sh "$DEST/"
+          cp .base/.github/scripts/read-patch/collect-patch.sh .base/.github/scripts/read-patch/check-permission-mode.sh "$DEST/"
           cp .base/.github/actions/seal-lane-output/action.yml .base/.github/actions/seal-lane-output/seal.mjs \
             .base/.github/lane-keys/scan-carrier.pub "$SEAL_DIR/"
 
@@ -819,8 +827,10 @@ jobs:
 
       # PR mode: run-claude-cli reads only inside the checkout, so the stage
       # the base copy left goes to .lane/, which a head may not hold. The
-      # plugin, the CI context and the trusted context are read-only, git ignores the directory,
-      # and the patch leaves it out (collect-patch.sh).
+      # plugin, the CI context, the trusted context, the prompt and .lane/
+      # itself are read-only, so a script the skill runs writes only in
+      # .lane/scratch; git ignores the directory, and the patch leaves it out
+      # (collect-patch.sh).
       - name: Stage the skill's files in the checkout
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
         env:
@@ -840,6 +850,7 @@ jobs:
           if [ -d .lane/ci ]; then
             chmod -R a-w .lane/ci
           fi
+          chmod a-w .lane/prompt.md .lane
           mkdir -p .git/info
           echo /.lane/ >>.git/info/exclude
 
@@ -919,7 +930,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 50
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -948,7 +959,8 @@ jobs:
 
       # The CLI's init message reports the permission mode the leg ran in. A
       # leg in another mode, or with no init message, fails the job, so no
-      # patch is collected; a credit stop hands off unchecked. It reads only
+      # patch is collected; a credit stop hands off unchecked. Asked for
+      # dontAsk, default passes: see check-permission-mode.sh. It reads only
       # that field and writes no summary.
       - name: Check the API key leg's permission mode
         id: mode-key
@@ -958,19 +970,14 @@ jobs:
         env:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file }}
           MODE: ${{ steps.config.outputs.permission-mode }}
-        run: |
-          mode=$(jq -r 'if type == "array" then ([.[] | select(.type? == "system" and .subtype? == "init")] | first | .permissionMode // "") else "" end' "$EXECUTION_FILE" 2>/dev/null) || mode=""
-          if [ -z "$MODE" ] || [ "$mode" != "$MODE" ]; then
-            echo "::error::permission-mode: the leg's init message does not report the mode asked for ($MODE)"
-            exit 1
-          fi
+        run: bash "$RUNNER_TEMP/read-patch/check-permission-mode.sh"
 
       - name: Run the skill on the OAuth token
         id: act-token
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 50
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -999,12 +1006,7 @@ jobs:
         env:
           EXECUTION_FILE: ${{ steps.act-token.outputs.execution-file }}
           MODE: ${{ steps.config.outputs.permission-mode }}
-        run: |
-          mode=$(jq -r 'if type == "array" then ([.[] | select(.type? == "system" and .subtype? == "init")] | first | .permissionMode // "") else "" end' "$EXECUTION_FILE" 2>/dev/null) || mode=""
-          if [ -z "$MODE" ] || [ "$mode" != "$MODE" ]; then
-            echo "::error::permission-mode: the leg's init message does not report the mode asked for ($MODE)"
-            exit 1
-          fi
+        run: bash "$RUNNER_TEMP/read-patch/check-permission-mode.sh"
 
       # Issue mode, on claude-code-action until the issue lane moves to the
       # launcher. A failure does not stop the job here: the next step fails
@@ -1017,7 +1019,7 @@ jobs:
           steps.go.outputs.run == 'true' && steps.config.outputs.kind == 'skill'
           && inputs.issue-number != ''
         continue-on-error: ${{ inputs.issue-number != '' }}
-        uses: anthropics/claude-code-action@a5a423f75c251dcbff8a74e99f83b2cb03c72bfa # v1.0.256
+        uses: anthropics/claude-code-action@6b6870e649b5ff408753befeaee5fc7989d4e6a9 # v1.0.258
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1288,13 +1290,14 @@ jobs:
         if: >-
           always() && inputs.issue-number != ''
           && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
         with:
           outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
           execution-file: >-
             ${{ steps.act-skill.outputs.execution_file
             || format('{0}/claude-execution-output.json', runner.temp) }}
           lane: ${{ inputs.lane }}
+          lane-id: ${{ inputs.lane }}
           credential: ${{ steps.credential.outputs.name }}
           max-turns: ${{ steps.config.outputs.max-turns }}
 
@@ -1306,7 +1309,7 @@ jobs:
           always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@7b362428c76085a160e28656cd2c75c3147a69ff # v0.54.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}
@@ -1316,6 +1319,7 @@ jobs:
             || inputs.fallback == 'no-key'
             && format('{0}/{1} (key {2} is empty)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
             || format('{0}/{1}', inputs.lane, inputs.activity) }}
+          lane-id: ${{ inputs.lane }}
           step-started-at: ${{ steps.key-present.outputs.started-at || steps.token-present.outputs.started-at }}
           step-timeout-minutes: 50
           credential: ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential }}
@@ -1533,7 +1537,7 @@ jobs:
           && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
           # Named files only: head code can write into this directory.
           path: |
             ${{ runner.temp }}/skill-reply/reply.txt
@@ -1546,7 +1550,7 @@ jobs:
         if: always() && inputs.issue-number != '' && steps.patch.outputs.state == 'written'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
           path: ${{ runner.temp }}/patch/patch.diff
           retention-days: 7
           if-no-files-found: error
@@ -1659,8 +1663,8 @@ jobs:
         ${{ steps.patch-upload.outcome == 'success' && 'written'
         || steps.decode.outputs.patch-state == 'empty' && 'empty' || '' }}
       patch-sha256: ${{ steps.patch-upload.outcome == 'success' && steps.leak-scan.outputs.patch-sha256 || '' }}
-      patch-attempt: ${{ steps.patch-upload.outcome == 'success' && github.run_attempt || '' }}
-      reply-attempt: ${{ steps.reply-upload.outcome == 'success' && github.run_attempt || '' }}
+      patch-attempt: ${{ steps.patch-upload.outcome == 'success' && format('{0}{1}', github.run_attempt, inputs.model-rung == '1' && '-rung-up' || '') || '' }}
+      reply-attempt: ${{ steps.reply-upload.outcome == 'success' && format('{0}{1}', github.run_attempt, inputs.model-rung == '1' && '-rung-up' || '') || '' }}
     steps:
       # The opener and the public key, from the default branch's tip, named
       # by the event, never by a run job output: this code runs with the
@@ -2138,7 +2142,7 @@ jobs:
         if: steps.leak-scan.outputs.clean == 'true' && steps.decode.outputs.reply == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
           path: |
             ${{ steps.leak-scan.outputs.dir }}/reply.txt
             ${{ steps.leak-scan.outputs.dir }}/act-turns.json
@@ -2151,7 +2155,7 @@ jobs:
         if: steps.leak-scan.outputs.clean == 'true' && steps.decode.outputs.patch == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
           path: ${{ steps.leak-scan.outputs.dir }}/patch.diff
           retention-days: 7
           if-no-files-found: error
@@ -2211,7 +2215,7 @@ jobs:
       - name: Upload the verdict
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
           path: ${{ runner.temp }}/verdict/verdict.json
           retention-days: 1
           if-no-files-found: error
@@ -2370,7 +2374,7 @@ jobs:
         id: summary-run
         if: steps.isolate.outcome == 'success'
         continue-on-error: true
-        uses: anthropics/claude-code-action@a5a423f75c251dcbff8a74e99f83b2cb03c72bfa # v1.0.256
+        uses: anthropics/claude-code-action@6b6870e649b5ff408753befeaee5fc7989d4e6a9 # v1.0.258
         env:
           # As in the run job's skill step.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -2477,7 +2481,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
           path: ${{ runner.temp }}/verdict
 
       # The PR number from the caller or the event, never from the run job,

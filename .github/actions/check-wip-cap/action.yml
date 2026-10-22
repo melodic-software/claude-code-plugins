@@ -2,7 +2,8 @@ name: Check the WIP cap
 description: >
   Read the lanes App's open, merged and opened pull requests and the open
   agent-ready issues in this repository with serial searches on the job's own
-  token; derive the issue lane's WIP cap from the merge rate and the default
+  token, plus one pull request read per open lane PR whose first body line
+  names no issue (its head branch then names it); derive the issue lane's WIP cap from the merge rate and the default
   branch's pr-pipeline.yaml `wip` block; count held pull requests apart; count
   queued work against the admission pace; and publish the status. Set
   `capped` to `true` only when runs pause (over the WIP cap or the held cap on
@@ -10,7 +11,8 @@ description: >
   newest status a `save-state` run saved to the Actions cache) applies; with
   none the check fails open. Set `admission-open` to `false` only when new
   admissions pause (queued work at or over the queued cap on or after
-  `wip.pause-from`).
+  `wip.pause-from`, or a search answered `incomplete_results: true`, whatever
+  `wip.pause-from` says).
   Run it from the default branch checkout, before any slot or lane token.
 
 inputs:
@@ -35,7 +37,7 @@ outputs:
     description: "`true` only while the lane pauses (over the WIP cap or the held cap on or after `wip.pause-from`, or on a failed read whose last known state paused); otherwise `false`."
     value: ${{ steps.check.outputs.capped }}
   admission-open:
-    description: "`false` only while new admissions pause (queued work at or over the queued cap on or after `wip.pause-from`); a failed queued read leaves `true`. Runs never pause on it."
+    description: "`false` only while new admissions pause (queued work at or over the queued cap on or after `wip.pause-from`, or a search answered `incomplete_results: true`, whatever `wip.pause-from` says); a failed queued read without that flag leaves `true`. Runs never pause on it."
     value: ${{ steps.check.outputs.admission-open }}
   wip:
     description: "The status as one flat JSON object: countable_lane_prs, held_lane_prs, held_oldest_age_hours, held_over_alarm_count, wip_cap, wip_cap_source and the rest (pr-pipeline README, WIP cap)."

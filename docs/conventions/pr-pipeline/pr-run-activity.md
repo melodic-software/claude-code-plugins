@@ -65,6 +65,8 @@ permissions, and passes no App key.
 | `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, that job's `head-sha` output, passed to the gate and the broker (step 3) |
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-attempt` output, which names the replies artifact so a re-run of the reply job alone still finds it |
 | `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop` or `no-key` for its fallback call, on `claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
+| `model-rung` | `''` | Read file only: the model rung the activity's profile runs at, resolve-config's `model-rung` (`1` takes its `escalate-to`) |
+| `patch-model-rung` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the rung the patch's producer ran at; at `0` (or empty) an empty fix-ci patch may skip `rung-up` |
 | `ci-context-attempt`, `ci-context-sha256` | `''` | Read file only: for [`prepare: ci-context`](#prepare-ci-context), the attempt naming the `ci-context-<attempt>` artifact and its file's SHA-256 |
 | `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity`, `patch-prepare`, `reply-attempt` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the read model job's outputs, its activity name and that activity's prepare mode, which picks the `patch-rules.json` row (empty: `default`) |
 
@@ -421,8 +423,14 @@ Every activity whose effect is not `read`, and a read skill that hands on a patc
 `--disallowedTools` rules for the shell commands that can print a file or the environment,
 including read-only ones that run with no allow rule (`echo`, `printf`, `cat`, `head`, `tail`,
 `grep`, `find`, `env`, `printenv`, `strings`, `od`, `xxd`, `diff`, `sed`, `awk`, `sort`, `cut`,
-`tr`, `base64`, `nl`, `tac`, `rev`, `uniq`, `fold`, `column`, `jq`, `xargs`, `more`, `less`, each as
+`tr`, `base64`, `nl`, `tac`, `rev`, `uniq`, `fold`, `column`, `jq`, `xargs`, `more`, `less`, `wc`, each as
 `Bash(<command> *)`), and `Read(//proc/**)`; the skill reads files with `Read`, `Grep` and `Glob`.
+Every activity whose effect is not `read` also gets `Bash(git *)`: it reaches git only through
+the base wrappers. In `merge-base` mode, whose skill resolves the merge with git, the rules instead
+deny git's global options, the subcommands that read config or reach a remote, absolute and parent
+paths, quotes, and the flags (in any prefix form) or commands that read a file outside the index
+(including `blame` and `grep`) or run a diff or text-conversion program. Rules match command text,
+so that list is best-effort; it goes when `resolve-conflicts` moves to the read runner.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
@@ -637,10 +645,17 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    (`fix-docs`), and fails red on any other prepare mode with a patch and on `checks`,
    `self-checks` or `verify-scripts`, which have no wrapper there. The no-prepare patch skill gets
    the tools `Read`, `Glob`, `Grep`, `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules
-   name its skill, `Grep`, `Glob`, `Edit`, `Write` and `Agent` but no `Bash` rule, so Bash runs
-   only what the skill's own frontmatter grants; it adds no deny rule, since the base set already
-   denies `Read(./.git/**)`; and the preamble says to keep scratch files in `.lane/scratch` and leave every change
-   uncommitted. With `web-access` (`domains: any` only; a domain list fails red) it also gets the
+   name its skill, `Grep`, `Glob`, `Edit`, `Write`, `Agent` and `Edit(./.lane/scratch/**)`, which
+   approves a shell redirect into the scratch directory, and for `ai-slop:audit` each of
+   its scripts by absolute path under `.lane/plugins`, bare and double-quoted, plus
+   `Bash(sha256sum *)` and `Bash(mkdir -p <workspace>/.lane/scratch/*)` for the fix flow's
+   digests; no other `Bash` rule, and the lane does not rely on the skill's frontmatter grants. It
+   adds the deny rules `Bash(git *)`, the `user-scope.sh` script, `NotebookEdit(./.lane/plugins/**)`
+   and the write lanes' shell deny set to the base set, which already denies `Read(./.git/**)`
+   and `Read(//proc/**)`. The preamble says to keep scratch files in `.lane/scratch`, leave every
+   change uncommitted, and run one plain command per call, redirecting only into `.lane/scratch`.
+   The staging step makes `.lane/prompt.md` and `.lane/` itself read-only, so a script's `--out`
+   lands only in `.lane/scratch`. With `web-access` (`domains: any` only; a domain list fails red) it also gets the
    `WebFetch` and `WebSearch` tools, no longer denied, the rules `WebFetch(domain:*)`, `WebSearch`
    and the four research skills, and the `discovery` and `knowledge` plugins staged read-only
    beside its own, one `plugin-dirs` line each. The docs scripts are not staged, so the preamble
@@ -1001,7 +1016,8 @@ warns of a [classifier gap](README.md#classifier-gaps).
 
 ### prepare: ci-context
 
-pr-unblock's `fix-ci` fixes a lanes App pull request's failing checks in four jobs, so no model
+pr-unblock's `fix-ci` fixes a lanes App or [adopted](README.md#adoption) owner pull request's
+failing checks in four jobs, so no model
 holds a write token: a base job, a read model job in this mode on the automations role's API key,
 its fallback call on the role's OAuth token after a credit stop or with the key empty
 ([Two calls on one credential each](#two-calls-on-one-credential-each)), and an
@@ -1050,7 +1066,10 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
 1. Before the mint, the write file downloads `patch-<lane>-<patch-activity>-<patch-attempt>`
    and the model job's reply, and runs the script's `select` with no token. A gated head other
    than `patch-head-sha` skips `superseded-sha` (the row's `skip-moved-head`), and the script checks it again. An `empty` patch escalates `ci-fix-empty`
-   (`ci-fix-escalated` when the report escalated a check). A `patch-state` other than `written`
+   (`ci-fix-escalated` when the report escalated a check), except that at `patch-model-rung` 0 a
+   report whose every escalated check is `unfixed` or `not-reproducible` skips `rung-up` with no
+   escalation (output `rung-up` `true`), so the caller runs the producer once more at
+   `model-rung` 1. A `patch-state` other than `written`
    or `empty`, or an artifact that is not exactly one regular `patch.diff` of at most 1 MiB with
    that SHA-256 and no credential shape, escalates `ci-fix-invalid`. Each skips `awaiting-human`
    with nothing minted. A report that escalated a check sets `ci-fix-escalated` and proceeds, so

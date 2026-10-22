@@ -27,7 +27,8 @@ const HOUR = 3_600_000;
 const LIMITS = { "wip-cap": 12 };
 const WIP = { ...WIP_DEFAULTS };
 
-const pr = ({ labels = [], body = "", ageHours = 1 } = {}) => ({
+const pr = ({ labels = [], body = "", ageHours = 1, number } = {}) => ({
+  ...(number === undefined ? {} : { number }),
   labels: labels.map((name) => ({ name })),
   body,
   created_at: new Date(NOW - ageHours * HOUR).toISOString(),
@@ -36,12 +37,21 @@ const pr = ({ labels = [], body = "", ageHours = 1 } = {}) => ({
 // A search API that answers by query: the open listing pages through `open`,
 // the queued issue listing through `queued` (issues as { number }), the
 // merged and opened counts answer `merged` and `admitted`; an Error
-// answer throws. Each path is recorded.
-function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplete = false } = {}) {
+// answer throws. A pull request read answers `heads[number]` as its head
+// ref. Each path is recorded.
+function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplete = false, heads = {} } = {}) {
   const paths = [];
   const github = async (method, path) => {
     paths.push(`${method} ${path}`);
     const url = new URL(path, "https://api.github.com");
+    const pull = /^\/repos\/[^/]+\/[^/]+\/pulls\/([0-9]+)$/.exec(url.pathname);
+    if (pull) {
+      const head = heads[pull[1]];
+      if (head instanceof Error) {
+        throw head;
+      }
+      return { number: Number(pull[1]), head: { ref: head } };
+    }
     const q = url.searchParams.get("q");
     const answer = q.includes("is:issue") ? queued : q.includes("is:merged") ? merged : q.includes("created:") ? admitted : open;
     if (answer instanceof Error) {
@@ -102,7 +112,32 @@ test("the open listing pages until a short page", async () => {
 
 test("a search that answers incomplete results is an unknown read", async () => {
   const reads = await read({ open: [pr()], merged: 0, admitted: 3, incomplete: true });
-  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null });
+  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null, searchIncomplete: true });
+});
+
+// During a GitHub search incident the API answered total_count 0 with
+// incomplete_results true for a repository with about 600 open issues
+// (2026-10-22). A failed read keeps admissions open; an incomplete one is
+// evidence the search itself is degraded, so it closes them whatever
+// pause-from says (owner decision 2026-10-22); the queued cap stays as configured.
+test("an incomplete search answer closes new admissions with pause-from unset, future or past", async () => {
+  const reads = await read({ open: [], merged: 0, admitted: 0, queued: [], incomplete: true });
+  for (const pauseFrom of ["", "2026-10-19", "2026-10-01"]) {
+    const closed = status(reads, { "pause-from": pauseFrom });
+    assert.equal(closed.admission_open, false, pauseFrom);
+    assert.equal(closed.admission_room, 0, pauseFrom);
+    assert.equal(closed.admission_reason, "search-incomplete", pauseFrom);
+    assert.equal(closed.admission_basis, "search-incomplete", pauseFrom);
+    assert.equal(closed.paused, false, pauseFrom);
+  }
+});
+
+test("a search answer with no incomplete_results field is a failed read, not an incomplete one", async () => {
+  const reads = await read({ open: [pr()], merged: 48, queued: null });
+  assert.equal(reads.searchIncomplete, false);
+  const result = status(reads, { "pause-from": "2026-10-01" });
+  assert.equal(result.admission_open, true);
+  assert.equal(result.admission_basis, "fail-open");
 });
 
 test("no read is made once the rate limit has nothing left; those reads are unknown", async () => {
@@ -184,7 +219,8 @@ test("admissions may reach the admission factor times the merges, no more", asyn
 
 // Queued work (owner decision 2026-10-21, #8794): open agent-ready issues no
 // open lane PR names on its first body line (`Closes #n` or `Refs: #n`, as
-// report-outcome writes it), plus held lane PRs. The queued cap is
+// report-outcome writes it) or, failing that, by its lane branch (#8965), plus
+// held lane PRs. The queued cap is
 // max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
 // x wip.merge-rate-window-hours. Over it, on or after pause-from, new
 // admissions pause; runs never pause on it.
@@ -202,6 +238,38 @@ test("queued work is the agent-ready issues no open lane PR names first, plus th
   assert.equal(result.queued_issues, 2);
   assert.equal(result.held_lane_prs, 2);
   assert.equal(result.queued_total, 4);
+});
+
+// #8965: a lane PR's head branch (work-resolve-issue/issue-<n>-<run>-<attempt>,
+// as apply-issue-patch names it) names its issue too, so a person editing the
+// body's first line does not leave the issue queued. Only a PR whose first
+// line names no issue costs a pull request read.
+test("a lane PR whose edited body names no issue still takes its issue out of the queue by its head branch", async () => {
+  const open = [pr({ number: 50, body: "Closes #1" }), pr({ number: 51, body: "Edited by a person.\n\nCloses #3" })];
+  const { github, paths } = searchApi({ open, merged: 24, queued: issues(1, 2, 3), heads: { 51: "work-resolve-issue/issue-3-123-1" } });
+  const result = status(await readLaneWip(github, { repo: REPO, now: NOW, windowHours: 24 }));
+  assert.equal(result.queued_issues, 1);
+  assert.deepEqual(
+    paths.filter((path) => path.includes("/pulls/")),
+    [`GET /repos/${REPO}/pulls/51`],
+  );
+});
+
+test("a held lane PR with an edited body counts once, as held, not again as a queued issue", async () => {
+  const open = [pr({ number: 52, labels: ["needs-human"], body: "Rewritten summary" })];
+  const result = status(await read({ open, merged: 24, queued: issues(7), heads: { 52: "work-resolve-issue/issue-7-9-2" } }));
+  assert.equal(result.held_lane_prs, 1);
+  assert.equal(result.queued_issues, 0);
+  assert.equal(result.queued_total, 1);
+});
+
+test("a head branch outside the lane's shape names no issue, and a failed pull request read keeps the listing", async () => {
+  const open = [pr({ number: 53, body: "x" }), pr({ number: 54, body: "y" }), pr({ number: 55, body: "z" })];
+  const heads = { 53: "work-resolve-issue/issue-1-abc-1", 54: "feat/issue-2", 55: new Error("GET failed with status 502") };
+  const reads = await read({ open, merged: 24, queued: issues(1, 2, 3), heads });
+  assert.equal(reads.open.length, 3);
+  assert.equal(status(reads).queued_issues, 3);
+  assert.equal(status(reads).countable_lane_prs, 3);
 });
 
 test("the queued cap is max(factor x merges per hour, the floor) x the merge-rate window", async () => {
@@ -587,6 +655,32 @@ test("main pauses new admissions over this repository's queued cap past pause-fr
   const under = await runMain({ open, merged: 24, queued: [] }, {}, pastConfig());
   assert.equal(under.admissionOpen, "true");
   assert.ok(!under.logs.some((l) => l.includes("admission paused")));
+});
+
+test("main closes new admissions and warns when the search answers incomplete results, under this repository's own pause-from", async () => {
+  const repoConfig = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8");
+  for (const config of [repoConfig, pastConfig()]) {
+    const result = await runMain({ open: [], merged: 0, admitted: 0, queued: [], incomplete: true }, {}, config);
+    assert.equal(result.admissionOpen, "false");
+    assert.equal(result.wip.admission_basis, "search-incomplete");
+    const warning = result.logs.find((line) => line.includes("search-incomplete"));
+    assert.ok(warning?.startsWith("::warning title=check-wip-cap::"), result.logs.join("\n"));
+    assert.ok(warning.includes("no new admissions are made this run"), warning);
+    assert.ok(result.logs.includes("::notice title=admission paused::admission paused: reason=search-incomplete queued=null held=null cap=24"), result.logs.join("\n"));
+  }
+});
+
+test("over a cap with an unreadable base config the warning names the config, not pause-from", async () => {
+  const held = await runMain({ open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 24 });
+  const warning = held.logs.find((line) => line.startsWith("::warning title=check-wip-cap::60 held"));
+  assert.ok(warning?.includes("the lane keeps running (the base config could not be read, so the defaults apply)"), held.logs.join("\n"));
+  const unset = await runMain(
+    { open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 24 },
+    {},
+    readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8"),
+  );
+  const unsetWarning = unset.logs.find((line) => line.startsWith("::warning title=check-wip-cap::"));
+  assert.ok(unsetWarning?.includes("the lane keeps running (pause-from is not set)"), unset.logs.join("\n"));
 });
 
 test("a queued read that fails keeps the run's read basis and leaves admissions open", async () => {

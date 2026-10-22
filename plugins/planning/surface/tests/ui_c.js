@@ -170,6 +170,29 @@ async page => {
     const baseOpen = s.questions.questions.filter(q => q.group === "base" && !q.archived && !(s.responses.responses[q.id] || {}).decision).length;
     const cnt = await page.textContent('.sec[data-key="g:base"] .cnt');
     ok("AC20: archived question not in the group's open count", cnt === baseOpen + " open / 5", cnt + " want " + baseOpen);
+    await page.setViewportSize({width: 1440, height: 900});
+    const baseArch = s.questions.questions.filter(q => q.group === "base" && q.archived).length, rowSel = '.sec[data-key="g:base"] .archtoggle';
+    ok("#8086: archived cards are hidden on load in Groups", baseArch > 0 && await page.$('.rail-list .sec[data-key="g:base"] .qbtn[data-q="X1"]') === null);
+    ok("#8086: one archived row shows the group's archived count", (await page.$$(rowSel)).length === 1 && (await page.textContent(rowSel)).trim() === baseArch + " archived" && await page.getAttribute(rowSel, "aria-expanded") === "false", await page.textContent(rowSel));
+    ok("#8086: a group with no archived cards shows no row", await page.$('.sec[data-key="g:chain"] .archtoggle') === null);
+    await page.click(rowSel); await page.waitForTimeout(150);
+    ok("#8086: clicking the row shows the archived cards, greyed", await page.getAttribute(rowSel, "aria-expanded") === "true" && await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived") && !!el.offsetParent));
+    await page.click(rowSel); await page.waitForTimeout(150);
+    ok("#8086: a second click collapses the row again", await page.$('.rail-list .qbtn[data-q="X1"]') === null);
+    await page.click('.seg [data-view="rounds"]'); await page.waitForTimeout(150);
+    ok("#8086: Rounds view still lists the archived card, with no archived row", await page.$eval('.rail-list .qbtn[data-q="X1"]', el => el.classList.contains("archived")) && await page.$(".archtoggle") === null);
+    await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(150);
+    // base renders live Q1 Q2 Q3 X2, then the row holding archived X1: j and k follow that order
+    await pick("Q3"); await page.keyboard.press("j"); await page.waitForTimeout(200);
+    const jCollapsed = await sel();
+    ok("#8086: j follows the rail, stepping over the collapsed archived card to the next live one", jCollapsed === "X2" && await page.getAttribute(rowSel, "aria-expanded") === "false", "Q3 -> " + jCollapsed);
+    await page.keyboard.press("k"); await page.waitForTimeout(200);
+    ok("#8086: k steps back the same way", await sel() === "Q3", "X2 -> " + await sel());
+    await page.click(rowSel); await page.waitForTimeout(150);
+    await pick("X2"); await page.keyboard.press("j"); await page.waitForTimeout(200);
+    ok("#8086: with the row open, j from the last live card goes to the archived card under the row", await sel() === "X1", "X2 -> " + await sel());
+    await page.click(rowSel); await page.waitForTimeout(150);
+    await page.click(rowSel); await page.waitForTimeout(150);
     ok("AC20: archived question greyed in Groups", await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived")));
     const live = s.questions.questions.filter(q => !q.archived).length;
     ok("AC20: meter leaves the archived question out", new RegExp(" of " + live + " answered$").test(await page.textContent("#meterText")), await page.textContent("#meterText"));
@@ -179,6 +202,13 @@ async page => {
     ok("AC20: archived question greyed in Tree", await page.$eval('.rail-list .tree .qbtn[data-q="X1"]', el => el.classList.contains("archived")));
     await page.click('.rail-list .tree .qbtn[data-q="X1"]'); await page.waitForTimeout(200);
     ok("AC20: archived question clickable in Tree and names why", await sel() === "X1" && /Archived: The old path left the plan/.test(await page.textContent("#dscroll")), await sel());
+    const banners = async () => page.$$eval("#dscroll .sup-banner", els => els.map(e => ({text: e.textContent, link: [...e.querySelectorAll("a, button")].map(a => a.textContent + "|" + (a.getAttribute("href") || a.dataset.ref || a.dataset.q || ""))})));
+    await page.click('.rail-list .tree .qbtn[data-q="D0"]'); await page.waitForTimeout(200);
+    const dBan = await banners();
+    ok("#8087: an archived question with supersededBy shows one banner that names and links the replacement", await sel() === "D0" && dBan.length === 1 && /superseded by D1/i.test(dBan[0].text) && !/The old path left the plan/.test(dBan[0].text) && dBan[0].link.some(l => l.includes("D1")), JSON.stringify(dBan));
+    await page.click('.rail-list .tree .qbtn[data-q="X1"]'); await page.waitForTimeout(200);
+    const xBan = await banners();
+    ok("#8087: an archived question without supersededBy still shows its archived.why", xBan.length === 1 && /Archived: The old path left the plan/.test(xBan[0].text), JSON.stringify(xBan));
     await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(150);
 
     // SPEC 6: stale after an upstream re-answer, upstream-pending further down
@@ -245,7 +275,7 @@ async page => {
     ok("stale with a decision: Reconfirm, Rec, Accept with note, then the alternatives; radio values count from 1; no number shown", radios.slice(0, 3).join() === "1=Reconfirm,2=Rec,3=Accept with note" && radios.every((r, i) => r.startsWith((i + 1) + "=") && !r.endsWith("#n")), radios.join(", "));
     await pick("D1");
     const dup = await page.$$eval("#choices .choice", els => els.map(e => e.querySelector("b").textContent + "=" + e.textContent + (e.classList.contains("rec") ? "#rec" : "")));
-    ok("an alternative restating the recommendation is folded into Accept: Rec is first with class rec and no (a) choice carries the duplicate", dup[0].startsWith("Rec=") && dup[0].endsWith("#rec") && !dup.some(x => /^\(a\)/.test(x) || /\(recommended\)/.test(x)) && dup.some(x => /^\(b\)/.test(x)) && dup.some(x => /^\(c\).*only on request/.test(x)), dup.join(" | "));
+    ok("alternatives the server flags as restating the recommendation fold into Accept: Rec is first with class rec, no (a) or (c) choice, (b) stays", dup[0].startsWith("Rec=") && dup[0].endsWith("#rec") && !dup.some(x => /^\((a|c)\)/.test(x) || /\(recommended\)/.test(x)) && dup.some(x => /^\(b\)/.test(x)), dup.join(" | "));
     const nEv = (await events()).length;
     await page.click("#qhead"); await page.keyboard.press("o"); await page.fill("#note", "(a), because it is hidden"); await page.click("[data-save]"); await page.waitForTimeout(400);
     const hid = await page.evaluate(() => ({open: document.getElementById("dlg").open, title: document.getElementById("dlgTitle").textContent}));

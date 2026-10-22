@@ -129,6 +129,9 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .lock{font:500 11.5px var(--mono);color:var(--wait);margin:-2px 0 0 20px}
 .qlist{display:grid;gap:6px;list-style:none;margin:0;padding:0}
 .qlist li.pickable{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;align-items:start}
+.archtoggle{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:2px 0 2px 2px;cursor:pointer;text-align:left;color:var(--faint);font:500 11.5px var(--mono)}
+.archtoggle::before{content:"\25BE"/"";width:12px;transition:transform .15s}
+.archtoggle[aria-expanded="false"]::before{transform:rotate(-90deg)}
 .qlist li.pickable .pick{margin:10px 0 0 2px;width:16px;height:16px}
 .sec[data-collapsed="true"] .qlist,.sec[data-collapsed="true"] .sec-hint{display:none}
 .qbtn{width:100%;text-align:left;display:grid;grid-template-columns:3.2ch minmax(0,1fr);gap:2px 10px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;position:relative}
@@ -238,6 +241,7 @@ nav.rail,.toolbar,.rail-list,.sec,.qlist,.tree,.act-list,.act-list li,main.detai
 .alts{display:grid;gap:8px;max-width:80ch}
 .alt{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;border:1px solid var(--line);border-radius:6px;padding:8px 12px}
 .alt .k{font:600 13px var(--mono)}
+.alt .to{display:block;margin-top:2px;color:var(--muted);font-size:13px}
 .alt.chosen{border-color:var(--chg);background:var(--chg-soft)}
 ol.hist{list-style:none;margin:0;padding:0 0 0 14px;display:grid;gap:10px;border-left:2px solid var(--line)}
 ol.hist li{font-size:13.5px;position:relative;display:grid;gap:2px}
@@ -713,7 +717,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const groupDone = gid => S.doc.questions.filter(q => q.group === gid && live(q)).every(q => isAnswered(stateOf(q)));
   const lockedBy = gid => ((groupById(gid) || {}).dependsOn || []).filter(p => groupById(p) && !groupDone(p));
   const groupTitle = gid => (groupById(gid) || {}).title || gid;
-  const withheld = q => /^\s*Withheld:/.test(q.recommendation || ""); // no recommendation to accept: the field names the evidence that would settle it
+  const withheld = q => q.withheld === true; // the server derives it: no recommendation to accept, the field names the evidence that would settle it
   const eligible = q => stateOf(q) === "open" && !!q.recommendation && !withheld(q) && !(q.group && lockedBy(q.group).length) && upOf(q).every(p => parentMet(p) && !isStale(Q[p]));
   function carryOver(){
     const max = {}, out = {};
@@ -855,6 +859,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       for (const s of secs) {
         const items = s.items.filter(passes);
         if (!items.length && filtering()) continue;
+        const {live: liveItems, arch, open: archOpen} = archSplit(s, items);
+        const li = q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + railItem(q, s, carry, fresh) + "</li>"; };
         const o = lsGet("col:" + s.key, null), coll = s.collapsed && !(filtering() && !(o && o.d === s.done)); // a filter opens a section with no applicable stored toggle that holds a match
         const elig = s.items.filter(q => s.gid ? eligible(q) : op.has(q.id) && eligible(q)), picked = s.gid ? elig.filter(q => S.pick.has(q.id)) : [], aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
         html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + coll + '" data-dflt="' + s.done + '">' +
@@ -864,7 +870,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
           (elig.length && s.round && !s.gid ? '<button class="tbtn small" data-auditround="' + esc(s.round) + '" data-submit="1" title="Accept the recommendation on the open questions you have opened here and have agents check the answers">Accept all and have agents check them</button>' : "") + "</div>" +
           (s.lock.length ? '<div class="lock">Locked: opens after ' + s.lock.map(g => esc(groupTitle(g))).join(", ") + "</div>" : "") +
           (s.hint ? '<div class="sec-hint">' + (s.hintStale ? '<span class="chip hot" title="This summary was written before questions were added to the group">Stale</span> ' : "") + esc(s.hint) + "</div>" : "") +
-          '<ul class="qlist">' + (items.length ? items.map(q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + railItem(q, s, carry, fresh) + "</li>"; }).join("") : '<li class="empty">None.</li>') + "</ul></div>";
+          '<ul class="qlist">' + (items.length ? liveItems.map(li).join("") + (arch.length ? '<li class="archrow"><button class="archtoggle" data-archtoggle="' + esc(s.key) + '" aria-expanded="' + archOpen + '">' + arch.length + " archived</button></li>" + (archOpen ? arch.map(li).join("") : "") : "") : '<li class="empty">None.</li>') + "</ul></div>";
       }
     }
     const hiddenByShow = searchTerm() && S.filter !== "all" ? S.doc.questions.filter(q => matchesSearch(q) && !passesShow(q)).length : 0; // the Show filter and the search both apply, so say when Show hides matches
@@ -874,10 +880,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     list.scrollTop = top;
     (flashIds || []).forEach(id => list.querySelectorAll('.qbtn[data-q="' + CSS.escape(id) + '"]').forEach(el => el.classList.add("flash")));
   }
+  function archSplit(s, items){ // Groups view draws a section's live cards, then its archived ones behind one row
+    if (S.view !== "groups") return {live: items, arch: [], open: false};
+    const arch = items.filter(q => stateOf(q) === "arch"), live = items.filter(q => stateOf(q) !== "arch");
+    const stored = lsGet("arch:" + s.key, null); // null until the row is toggled, so a click can collapse a row a filter opened
+    return {live, arch, open: !!arch.length && (stored === true || (stored === null && filtering() && !live.length))}; // a filter that matches only archived cards shows them
+  }
   function railOrder(all){ // all: every question in rail order, so a just-answered question still marks the position
     const keep = id => all || passes(Q[id]);
     if (S.view === "tree") { const t = treeData(), out = [], walk = id => { if (out.includes(id)) return; out.push(id); t.kids[id].forEach(walk); }; t.roots.forEach(walk); return out.filter(keep); }
-    return sections().secs.flatMap(s => s.items.map(q => q.id)).filter(keep);
+    return sections().secs.flatMap(s => { const r = archSplit(s, s.items.filter(q => keep(q.id))); return r.live.concat(all || r.open ? r.arch : []).map(q => q.id); }); // the order the rail draws, without collapsed archived cards
   }
   function revealInRail(id){
     const list = $("railList"), el = list.querySelector(id === SUMMARY ? ".sumbtn" : '.qbtn[data-q="' + CSS.escape(id) + '"]');
@@ -1127,11 +1139,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const text = k === "accept" ? "the recommendation" : k === "alt" ? "alternative (" + d.alt + "): " + a.text : k === "own" ? "your own answer" : k === "hedged" ? "hedged: " + (d.text || "") : personOf(d) ? d.text : "deferred";
     return {re: true, kind: k, alt: k === "alt" ? d.alt : null, keep: d.text || "", label: "Reconfirm", text, who: personOf(d)}; // who: a new name typed over the kept one stays person-held
   }
-  const normAlt = t => String(t).toLowerCase().replace(/\(recommended\)/g, " ").split(/\s+/).filter(Boolean).join(" ").replace(/[.,;:!?)]+$/, "").trim();
-  function altsOf(q){ // alternatives minus any that restate the recommendation: those fold into Accept
-    const rec = normAlt(String(q.recommendation || "").trim().split("\n")[0]);
-    return (q.alternatives || []).filter(a => !(/\(recommended\)/i.test(a.text) || (rec && normAlt(a.text) === rec)));
-  }
+  function altsOf(q){ return (q.alternatives || []).filter(a => !a.restates); } // the server flags an alternative that restates the recommendation: it folds into Accept
   function choicesOf(q){
     const r = reconfirmOf(q), c = r ? [r] : [], w = withheld(q); // a withheld question has nothing to accept, with or without a note or condition
     if (!w) c.push({kind: "accept", label: "Rec", text: String(q.recommendation || "").replace(/[*`#]/g, "").replace(/\s+/g, " ").trim() || "the recommendation"}, {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
@@ -1164,7 +1172,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const links = link("Follow-up of", q.followUpOf ? [q.followUpOf] : []) + link("Follow-ups:", kids) + link("Needs", (q.dependsOn || []).filter(x => Q[x])) +
       link("Unblocks", unblocks) + link("Supersedes", q.supersedes ? [q.supersedes] : []);
     if (links) h += '<div class="links">' + links + "</div>";
-    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + inline((q.archived || {}).why || "off the current path") + "</div>";
+    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer that one instead." : inline((q.archived || {}).why || "off the current path")) + "</div>"; // a replacement named here is the one banner for a superseded, archived card
     if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". Research in progress" + (fmtT(q.waitingSince) ? ", started " + esc(fmtT(q.waitingSince)) : "") + ". You can answer anyway; it counts once the research returns.</div>";
@@ -1172,7 +1180,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q.revising && st !== "arch") h += '<div class="banner"><b>Answer not handled yet.</b> Claude has not handled your answer to this question yet, so it may be revised. You can still answer.</div>';
     if (q.claudeRevising && st !== "arch") h += '<div class="banner"><b>Claude is revising this:</b> ' + inline(q.claudeRevising.why) + " You can still answer.</div>";
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
-    if (q.supersededBy) h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
+    if (q.supersededBy && st !== "arch") h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
     if (q.revised) { // the full banner until the user has opened the question since its latest revision, then a chip
       const rr = recRev(q), prev = q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + md(q.previousRecommendation) + "</details>" : "";
       h += S.revSeen === rr ? '<div class="revchip"><span class="chip plain" title="Recommendation revised">Revised</span>' + prev + "</div>"
@@ -1199,7 +1207,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     let more = "";
     if (facts.trim()) more += '<section class="blk"><h4>What we know</h4>' + md(facts) + "</section>";
     if (altsOf(q).length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + altsOf(q).map(a =>
-      '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + inline(a.text) + "</span></div>").join("") + "</div></section>";
+      '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + inline(a.text) + (a.tradeoff ? '<span class="to">' + inline(a.tradeoff) + "</span>" : "") + "</span></div>").join("") + "</div></section>";
     if (more) h += '<details class="more" id="more"' + (lsGet("moreOpen", false) ? " open" : "") + "><summary>Details: what we know, alternatives</summary>" + more + "</details>";
     const hist = historyOf(q); // every Claude reply stays in the Thread, the latest one too
     h += '<section class="blk" id="thread"><h4>Thread</h4>' + (hist.length ? '<ol class="hist">' + hist.map(x => histLine(x, q)).join("") + "</ol>" : '<p class="empty">No activity yet.</p>') + "</section>";
@@ -1237,7 +1245,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re || c.wn ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" && !c.who ? " d" : c.kind === "hedged" ? " h" : "";
     const armed = armedOf(cs);
     $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && !c.wn && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
-      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
+      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + inline(c.label) + "</b> " + inline(c.text) + "</span></label>").join("");
     const needText = armed && needsNote(armed) && !(armed.who ? named(text) : text), frozen = wrapFreeze() > 0;
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
@@ -1649,6 +1657,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (id !== SUMMARY && !Q[id]) return;
     if (S.sel !== id) { S.armed = null; S.vtab = null; if (S.conflict && S.conflict.early) S.conflict = null; S.revSeen = lsGet("revSeen", {})[id]; if (!S.undo) { S.toast = ""; S.toastBad = false; renderToast(); } } // a toast speaks for the view it was raised on; leaving a question drops its early changed notice, since the next visit re-snaps it
     S.sel = id; lsSet("sel", id);
+    if (S.view === "groups" && id !== SUMMARY && stateOf(Q[id]) === "arch") { const sec = sections().secs.find(x => x.items.some(q => q.id === id)); if (sec) lsSet("arch:" + sec.key, true); } // selecting an archived card opens its row once; a later click on the row still collapses it
     try { history.replaceState(null, "", location.pathname + location.search + (id === SUMMARY ? "" : "#" + encodeURIComponent(id))); } catch (e) {} // replace, so Back leaves the page rather than walking the questions
     if (id !== SUMMARY) {
       markSeen(e => (e.ids || []).includes(id));
@@ -1689,7 +1698,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!matchesSearch(Q[id])) clearSearch(); // a zero-padded number reaches a question the text does not match
     if (hidden) { S.filter = "all"; lsSet("filter", "all"); }
     const sec = S.view === "tree" ? null : sections().secs.find(x => x.items.some(q => q.id === id));
-    if (sec) lsSet("col:" + sec.key, {c: false, d: sec.done}); // open the group that holds the target
+    if (sec) { lsSet("col:" + sec.key, {c: false, d: sec.done}); if (S.view === "groups" && stateOf(Q[id]) === "arch") lsSet("arch:" + sec.key, true); } // open the group that holds the target, and its archived row for an archived one
     select(id, {animate: true});
     if (hidden) toast("Showing all to reveal " + id + ".");
   }
@@ -2166,6 +2175,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const au = t.closest("[data-auditround]"); if (au) { const s = sections().secs.find(x => x.round === au.dataset.auditround); if (s) acceptAllDialog(s.items, s.title, s.round); return; }
     const aa = t.closest("[data-acceptall]"); if (aa) { acceptAllDialog(S.doc.questions.filter(q => q.group === aa.dataset.acceptall), groupTitle(aa.dataset.acceptall), null, "all"); return; }
     const as = t.closest("[data-acceptsel]"); if (as) { acceptAllDialog(S.doc.questions.filter(q => q.group === as.dataset.acceptsel && S.pick.has(q.id)), groupTitle(as.dataset.acceptsel), null, "sel"); return; }
+    const at = t.closest("[data-archtoggle]"); if (at) { const k = "arch:" + at.dataset.archtoggle; lsSet(k, at.getAttribute("aria-expanded") !== "true"); renderRail(); return; }
     const sh = t.closest(".sec-h");
     if (sh) { const sec = sh.closest(".sec"), c = sec.dataset.collapsed !== "true"; sec.dataset.collapsed = String(c); sh.setAttribute("aria-expanded", String(!c)); lsSet("col:" + sec.dataset.key, {c, d: sec.dataset.dflt === "true"}); return; }
     const v = t.closest(".seg button"); if (v) { S.view = v.dataset.view; lsSet("view", S.view); renderRail(); return; }

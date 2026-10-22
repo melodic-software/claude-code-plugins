@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json
 """Unit + integration tests for the detached observer (stdlib unittest, no deps).
 
 Mirrors retro's `test_parse_transcript.py` convention. Covers the pieces the

@@ -63,6 +63,26 @@ else
   ok "a failing registered package fails the run"
 fi
 
+# A package's locked file: dependency is installed before its npm test runs
+# (check-wip-cap's suites load yaml from resolve-config's node_modules); one
+# with no lockfile is left alone. An npm stub records the calls.
+mkdir -p "$fixture/pkgs/app" "$fixture/pkgs/locked" "$fixture/pkgs/unlocked" "$fixture/bin"
+printf '{"private":true,"scripts":{"test":"node --test"},"dependencies":{"locked":"file:../locked","unlocked":"file:../unlocked"}}\n' \
+  >"$fixture/pkgs/app/package.json"
+printf '{"private":true}\n' >"$fixture/pkgs/locked/package.json"
+printf '{}\n' >"$fixture/pkgs/locked/package-lock.json"
+printf '{"private":true}\n' >"$fixture/pkgs/unlocked/package.json"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$fixture/npm.log" >"$fixture/bin/npm"
+chmod +x "$fixture/bin/npm"
+printf 'pkgs/app\n' >"$fixture/scripts/outside-node-packages.txt"
+: >"$fixture/npm.log"
+PATH="$fixture/bin:$PATH" bash "$fixture/$RUNNER" >/dev/null 2>&1 || true
+if [[ "$(cat "$fixture/npm.log")" == "ci --ignore-scripts --prefix $fixture/pkgs/locked"$'\n'"test" ]]; then
+  ok "a locked file: dependency installs before the package's npm test, an unlocked one does not"
+else
+  fail "expected one npm ci of pkgs/locked, then npm test: $(cat "$fixture/npm.log")"
+fi
+
 printf '%s\n' "plugins/knowledge/vendor/not-a-suite/missing.test.js" >"$list"
 if bash "$RUNNER" --paths "$list" >/dev/null 2>"$list.err"; then
   fail "an unclassified path should fail"

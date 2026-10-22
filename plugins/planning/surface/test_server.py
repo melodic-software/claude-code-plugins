@@ -1725,6 +1725,34 @@ class TestAnswered(WaitCase):
         self.assertEqual(self.answered()["C"], (False, "open"))
 
 
+class TestQuestionShapeFlags(WaitCase):
+    """The page reads `withheld` and `alternatives[i].restates` from the server, which derives them
+    in memory: a file written before restating alternatives were refused still loads."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("A", recommendation="Ship it now.", alternatives=[{"key": "a", "text": "ship it now"}, {"key": "b", "text": "Later"}]),
+            question("B", recommendation="Withheld: the load test would settle it."),
+            question("C"),
+        )
+
+    def test_a_restating_alternative_is_flagged(self):
+        self.assertEqual([a.get("restates") for a in self.q("A")["alternatives"]], [True, None])
+
+    def test_a_withheld_question_is_flagged(self):
+        self.assertIs(self.q("B").get("withheld"), True)
+        self.assertNotIn("withheld", self.q("C"))
+        self.assertFalse(any("restates" in a for a in self.q("C")["alternatives"]))
+
+    def test_the_flags_stay_out_of_the_file(self):
+        self.q("A")
+        raw = (Path(self.dir) / "questions.json").read_text(encoding="utf-8")
+        self.assertNotIn("restates", raw)
+        self.assertNotIn('"withheld"', raw)
+
+
 class TestConfirm(WaitCase):
     """The `confirm` event: ticks one commitment, records no decision, needs handling."""
 

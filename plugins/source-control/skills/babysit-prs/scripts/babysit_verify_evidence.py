@@ -25,15 +25,15 @@ from a completed, successful one. Any other artifact is ignored.
   `verify:unreadable`);
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch:
-  `verify:earlier-fail`. It stands while a FAIL-named artifact cannot be
-  read (next item); otherwise counted PASS or PASS-NOTES verdicts at the
+  `verify:earlier-fail`. Counted PASS or PASS-NOTES verdicts at the
   head whose runs were all created after every such FAIL's run (each
   creation time read fresh from GitHub, which a re-attempt keeps; a missing
   one keeps the refusal) clear it when the
   pull request's own change at the head differs from its change at every
   FAILed head (`change_digest`: a head that only merges the branch or adds
-  an empty commit carries the FAIL forward, and a digest that cannot be
-  computed keeps the refusal), and those passes decide, as below;
+  an empty commit carries the FAIL forward, and a diff that holds no change
+  or answers 404 keeps the refusal), and those passes decide, as below. Any
+  other failed read of a run time or a diff refuses as the next item does;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
   is ignored; an untied FAIL whose run is readable and of verifier origin but
@@ -48,7 +48,7 @@ from a completed, successful one. Any other artifact is ignored.
   issue's trusted comments (`_spec_comments`) are the recorded ones by id and
   update time; then allowed only when every linked issue it records was
   written, and last edited if ever, by a User on the trusted list's humans
-  other than the pull request's author, else `verify:untrusted-spec`;
+  (the pull request's author among them), else `verify:untrusted-spec`;
 - otherwise `verify:missing`.
 
 `verify:fail`, `verify:too-old`, `verify:repeated-fail`, `verify:earlier-fail`,
@@ -686,28 +686,19 @@ class Reader:
             run_cache.note(self._humans_at)
         return humans
 
-    def _trusted_actor(self, kind: Any, actor_id: Any, login: Any, author: str) -> bool:
+    def _trusted_actor(self, kind: Any, actor_id: Any) -> bool:
         """The one spec-author filter (resolve-pr.mjs `trusted` is its
-        twin): a User on the trusted list's humans other than the PR author."""
-        return (
-            kind == "User"
-            and actor_id in self._trusted_humans()
-            and author != ""
-            and str(login or "").casefold() != author.casefold()
-        )
+        twin): a User on the trusted list's humans, the PR author included.
+        Bots and Apps, the lanes App among them, never pass."""
+        return kind == "User" and actor_id in self._trusted_humans()
 
-    def _spec_comments(self, comments: list[Any], author: str) -> set[tuple[Any, Any]]:
+    def _spec_comments(self, comments: list[Any]) -> set[tuple[Any, Any]]:
         """The trusted comments, by id and update time: written, and last
         edited if ever, by a trusted actor (`_trusted_actor`)."""
 
         def by(actor: Any) -> bool:
             actor = json_object(actor)
-            return self._trusted_actor(
-                actor.get("__typename"),
-                actor.get("databaseId"),
-                actor.get("login"),
-                author,
-            )
+            return self._trusted_actor(actor.get("__typename"), actor.get("databaseId"))
 
         return {
             (c.get("databaseId"), c.get("updatedAt"))
@@ -728,16 +719,13 @@ class Reader:
             raise _Unreadable(f"#{issue.get('number')}: no spec comment record")
         return {(c["id"], c["updated_at"]) for c in recorded}
 
-    def _trusted_spec(self, record: dict[str, Any], author: str) -> bool:
+    def _trusted_spec(self, record: dict[str, Any]) -> bool:
         """Every linked issue was written, and its body last edited if ever,
-        by a User on the trusted list's humans other than the PR author."""
+        by a User on the trusted list's humans (`_trusted_actor`)."""
 
         def trusted(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
-                issue.get(f"{role}_type"),
-                issue.get(f"{role}_id"),
-                issue.get(f"{role}_login"),
-                author,
+                issue.get(f"{role}_type"), issue.get(f"{role}_id")
             )
 
         issues = [
@@ -844,7 +832,6 @@ class Reader:
         if now - created > timedelta(days=TOO_OLD_DAYS):
             return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
         head_ref = str(json_object(pr.get("head")).get("ref") or "")
-        author = str(json_object(pr.get("user")).get("login") or "")
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str]] = []
@@ -911,8 +898,7 @@ class Reader:
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads, the cap is {self.max_fails}"
         elif fails and (
-            unreadable
-            or not self._passes_follow(fails, passes)
+            not self._passes_follow(fails, passes)
             or not self._change_differs(head, failed)
         ):
             refusal = EARLIER_FAIL
@@ -934,7 +920,7 @@ class Reader:
                 )
             else:
                 refusals = {
-                    self._pass_refusal(run_id, name, number, head, author, live)
+                    self._pass_refusal(run_id, name, number, head, live)
                     for run_id, name in passes
                 }
                 refusal = next(
@@ -957,17 +943,15 @@ class Reader:
         GitHub: a cached or carried record could be forged, so it is read
         again. A re-attempt keeps `created_at` and moves `run_started_at`
         later, so a re-run of an old judgment never looks newer than a FAIL
-        that followed it. None when that read fails or holds no time."""
+        that followed it. None when the record holds no time; raises
+        `_Unreadable` when the read fails."""
         if run_id not in self._created:
-            try:
-                record = json_object(
-                    self._actions(
-                        ["api", f"repos/{self.repo}/actions/runs/{run_id}"],
-                        f"run {run_id}",
-                    )
+            record = json_object(
+                self._actions(
+                    ["api", f"repos/{self.repo}/actions/runs/{run_id}"],
+                    f"run {run_id}",
                 )
-            except _Unreadable:
-                return None
+            )
             if not _is_id(record.get("id"), run_id):
                 return None
             self._created[run_id] = record.get("created_at")
@@ -995,10 +979,12 @@ class Reader:
     def _digest(self, sha: str) -> str | None:
         """`change_digest` of the pull request's own change at `sha`: the
         diff from its merge base with the branch to `sha` (compare
-        `branch...sha`, read once). None when it cannot be read or holds no
-        change."""
+        `branch...sha`, read once). None when it holds no change or GitHub
+        answers 404 (a garbage-collected or force-pushed-away head, which no
+        later read finds); raises `_Unreadable` when any other read fails,
+        which is not saved."""
         if sha not in self._digests:
-            self._digests[sha] = None
+            label = f"compare {self.branch}...{sha}"
             try:
                 diff = postmerge.gh_capture(
                     [
@@ -1009,19 +995,28 @@ class Reader:
                     ],
                     env_overrides=self._env(),
                 )
-            except (RuntimeError, ValueError, OSError):
-                return None
+            except (RuntimeError, ValueError, OSError) as exc:
+                raise _Unreadable(f"{label}: {exc}") from exc
             if diff.returncode == 0:
                 self._digests[sha] = change_digest(diff.stdout)
+            elif gh_http_status(diff.stderr or "") == 404:
+                self._digests[sha] = None
+            else:
+                raise _Unreadable(
+                    f"{label}: {(diff.stderr or '').strip() or diff.returncode}"
+                )
         return self._digests[sha]
 
     def _change_differs(self, head: str, failed: set[str]) -> bool:
         """The pull request's change at the head differs from its change at
-        every FAILed head, so its pass judged a change no FAIL did. A digest
-        that cannot be computed differs from nothing."""
+        every FAILed head, so its pass judged a change no FAIL did. A diff
+        that holds no change differs from nothing; a failed read raises
+        `_Unreadable`. Heads are read in sorted order, so which of a FAIL
+        that carries and an unreadable one decides never varies by run."""
         own = self._digest(head)
         return own is not None and all(
-            (other := self._digest(sha)) is not None and other != own for sha in failed
+            (other := self._digest(sha)) is not None and other != own
+            for sha in sorted(failed)
         )
 
     def fail_summary(
@@ -1051,7 +1046,6 @@ class Reader:
         name: str,
         number: int,
         head: str,
-        author: str,
         live: dict[Any, Any],
     ) -> str | None:
         """One counted pass at the head against the live closing issues."""
@@ -1069,13 +1063,13 @@ class Reader:
             (edited := node.get("lastEditedAt")) is not None
             and postmerge._time(edited) > started
             or self._spec_comments(
-                json_array(json_object(node.get("comments")).get("nodes")), author
+                json_array(json_object(node.get("comments")).get("nodes"))
             )
             != self._recorded_comments(issues[n])
             for n, node in live.items()
         ):
             return SPEC_CHANGED
-        return None if self._trusted_spec(record, author) else UNTRUSTED_SPEC
+        return None if self._trusted_spec(record) else UNTRUSTED_SPEC
 
     def queued_hold(self, number: int) -> str | None:
         """Why a queued entry must leave: no allowing verdict at its live

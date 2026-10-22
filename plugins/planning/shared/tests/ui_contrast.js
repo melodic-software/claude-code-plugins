@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Computed contrast on the shared page, against `share.sh ensure-running` with the fake cloudflared: on the main page
 // states (the focus view on a choice and a written question with answers, chat, the Host view, the Inbox, Session
-// settings, the Propose form, and a guest's phone), in every palette (Default, Midnight, Slate, Paper, High contrast)
+// settings, the Propose form, and a guest's phone with the chat closed and open), in every palette (Default, Midnight, Slate, Paper, High contrast)
 // in dark and light each, every visible text run reaches WCAG 2.2 AA (1.4.3: 4.5:1, or 3:1 for large text, 24 px or
 // 18.66 px bold), placeholders included; text-field boundaries and icon-only buttons' icons reach
 // 3:1 against what they sit on (1.4.11); and the Propose button's boundary reaches 3:1 too, since it is the one way in
@@ -13,8 +13,9 @@
 // Expected values come from WCAG 2.2 (https://www.w3.org/TR/WCAG22/#contrast-minimum and #non-text-contrast) and the
 // relative-luminance formula it defines; the self-checks use WebAIM's published ratios (#777 on white is 4.48:1).
 // Each palette is picked in the owner's settings and in a guest's own card and applies on the page; per palette, mode and
-// accent, the accent's text reaches 4.5:1 on every surface and text on the accent 4.5:1, and the ten person colors keep
-// their AA ratios (initials 4.5:1 on the color, the color 3:1 on the page).
+// accent, the accent's text reaches 4.5:1 on every surface and text on the accent 4.5:1, a hovered primary button's label
+// 4.5:1 on its hover fill, and the ten person colors keep their AA ratios (initials 4.5:1 on the color, the color 3:1 on
+// the page).
 "use strict";
 const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
@@ -32,12 +33,22 @@ function tokenMatrix([palettes, accents]) {
   const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
   const app = document.getElementById("app"), was = { ...app.dataset }, out = [], bgs = {}, hc = {};
   const tok = n => getComputedStyle(app).getPropertyValue(n).trim();
+  const hb = document.querySelector(".hover-probe"), hover = { out: [], hovered: 0, min: null };
   for (const palette of palettes) for (const theme of ["dark", "light"]) for (const accent of accents) {
     Object.assign(app.dataset, { palette, theme, accent });
     const tag = `${palette} ${theme} ${accent}`, need = (what, r, n) => { if (r + 0.005 < n) out.push(`${tag}: ${what} ${r.toFixed(2)}:1 < ${n}`); };
     bgs[`${palette} ${theme}`] = rgb(tok("--bg")).join(",");
     for (const s of ["--bg", "--sunk", "--pane", "--raise"]) need(`--accent-text on ${s}`, ratio(tok("--accent-text"), tok(s)), 4.5);
     need("--on-accent on --accent", ratio(tok("--on-accent"), tok("--accent")), 4.5);
+    // The hovered primary button (the caller holds the pointer on it): its label 4.5:1 on its hover fill, which must differ from the resting fill.
+    if (hb?.isConnected && hb.matches(":hover")) {
+      const cs = getComputedStyle(hb), r = ratio(cs.color, cs.backgroundColor);
+      hover.hovered++;
+      for (const c of [cs.color, cs.backgroundColor]) { cx.fillStyle = "#000"; cx.fillStyle = c; if (cx.fillStyle === "#000000") hover.out.push(`${tag}: the canvas could not read ${c}`); }
+      if (!hover.min || r < hover.min.r) hover.min = { tag, r: +r.toFixed(2) };
+      if (rgb(cs.backgroundColor).join() === rgb(tok("--accent")).join()) hover.out.push(`${tag}: hover fill equals --accent`);
+      if (r + 0.005 < 4.5) hover.out.push(`${tag}: ${r.toFixed(2)}:1 < 4.5`);
+    }
     if (palette === "contrast") (hc[theme] ||= new Set()).add(["--accent", "--accent-text", "--on-accent"].map(tok).join("|"));
     if (accent !== accents[0]) continue;
     for (let i = 1; i <= 10; i++) {
@@ -49,7 +60,7 @@ function tokenMatrix([palettes, accents]) {
     }
   }
   for (const k of ["palette", "theme", "accent"]) if (was[k] === undefined) delete app.dataset[k]; else app.dataset[k] = was[k];
-  return { out, bgs, hcAccents: Object.values(hc).map(s => s.size) };
+  return { out, bgs, hcAccents: Object.values(hc).map(s => s.size), hover };
 }
 
 /** In the page: every contrast failure under #app as [{what, ratio, need, fg, bg}], plus how many runs were measured. */
@@ -150,6 +161,13 @@ async function main() {
     await ann.waitForTimeout(1100);
     await ann.evaluate(() => window.Core.idea("Should guests see shipping costs before the cart?"));
     await until(owner, () => (window.Core.snapshot().cards?.Q1 || []).length > 0 && (window.Core.state.chat || []).length > 0);
+    // the owner's own bubble (the accent), a reply's quote, a mention and a reaction, so the open chat shows each accent's text
+    await until(owner, () => Object.values(window.Core.state.people || {}).some(p => p.name === "Ann"));
+    await owner.evaluate(() => { const m = window.Core.state.chat[0]; window.Core.chatReact(m.id, "👍", true); return window.Core.chat("@Ann welcome, start with the order summary", m.id); });
+    await until(owner, () => (window.Core.state.chat || []).length > 1);
+    const ownerName = await owner.evaluate(() => window.Core.snapshot().me.name);
+    await ann.evaluate(n => window.Core.chat(`@${n} the summary goes on the right`), ownerName);
+    await until(owner, () => !!document.querySelector(".vf-bubble .vf-mention-me") || (window.Core.state.chat || []).length > 2);
 
     // ---------- the calculator itself ----------
     const probe = async (fg, bg) => {
@@ -201,8 +219,16 @@ async function main() {
     await ann.keyboard.press("Escape");
 
     // ---------- per palette, mode and accent: the accent and person colors keep their AA ratios ----------
+    await owner.evaluate(() => { const b = document.createElement("button"); b.className = "vf-btn vf-btn-primary hover-probe"; b.textContent = "Send";
+      Object.assign(b.style, { position: "fixed", top: "50%", left: "50%", zIndex: "2147483647", transition: "none" }); document.getElementById("app").append(b); });
+    await owner.hover(".hover-probe");
     const m = await owner.evaluate(tokenMatrix, [PALETTES, ACCENTS]);
+    await owner.evaluate(() => document.querySelector(".hover-probe").remove());
+    await owner.mouse.move(0, 0);
     ok(`every palette, mode and accent: accent text 4.5:1 on each surface, text on the accent 4.5:1, person colors AA`, m.out.length === 0, m.out.slice(0, MAX_LIST).join("; ") + (m.out.length > MAX_LIST ? ` and ${m.out.length - MAX_LIST} more` : ""));
+    const combos = PALETTES.length * 2 * ACCENTS.length, h = m.hover;
+    ok(`every palette, mode and accent: a hovered primary button's label reaches 4.5:1 on its hover fill (lowest ${h.min?.r}:1, ${h.min?.tag})`,
+      h.hovered === combos && h.out.length === 0, `hovered in ${h.hovered} of ${combos}; ` + h.out.join("; "));
     ok("High contrast keeps one accent per mode whatever the accent setting", JSON.stringify(m.hcAccents) === "[1,1]", JSON.stringify(m.hcAccents));
     ok("each palette and mode paints its own page background", new Set(Object.values(m.bgs)).size === PALETTES.length * 2, JSON.stringify(m.bgs));
 
@@ -214,28 +240,31 @@ async function main() {
     const STATES = [
       ["owner, a written question with an answer", owner, async () => { await closeAll(owner); await go(owner, "Where should the order summary sit?"); }],
       ["owner, a choice question", owner, async () => { await closeAll(owner); await go(owner, "Which carrier should we use?"); }],
-      ["owner, chat open", owner, async () => { await closeAll(owner); await owner.click(".vf-fab"); await until(owner, () => !document.querySelector(".vf-chat").hidden); }],
-      ["owner, the Host view", owner, async () => { await closeAll(owner); if (await owner.evaluate(() => !document.querySelector(".vf-chat").hidden)) await owner.click(".vf-fab"); await owner.locator(".vf-bar .vf-seg-btn", { hasText: "Host" }).click(); }],
+      // every accent too: the chat paints the owner's own bubble in it
+      ["owner, chat open", owner, async () => { await closeAll(owner); await owner.click(".vf-fab"); await until(owner, () => !document.querySelector(".vf-chat").hidden); }, ACCENTS],
+      ["owner, the Host view", owner, async () => { await closeAll(owner); if (await owner.evaluate(() => !document.querySelector(".vf-chat").hidden)) await owner.click(".vf-chat-head .vf-icon-btn"); await owner.locator(".vf-bar .vf-seg-btn", { hasText: "Host" }).click(); }],
       ["owner, the Inbox", owner, async () => { await closeAll(owner); await owner.locator(".vf-bar .vf-seg-btn", { hasText: "Focus" }).click(); await owner.click(".vf-bell"); }],
       ["owner, Session settings with the theme picker", owner, async () => { await closeAll(owner); await owner.click(".vf-gear"); await until(owner, () => !document.querySelector(".vf-settings").hidden); }],
       ["owner, the Propose form", owner, async () => { await closeAll(owner); await owner.click(".vf-propose"); await until(owner, () => !document.querySelector(".vf-proposepop").hidden); }],
       ["guest phone, a choice question", phone, async () => { await until(phone, () => !!document.querySelector(".vf-qtext")); }],
+      ["guest phone, chat open", phone, async () => { await phone.click(".vf-fab"); await until(phone, () => !document.querySelector(".vf-chat").hidden); }],
     ];
-    for (const [label, page, open] of STATES) {
+    for (const [label, page, open, accents = [ACCENTS[0]]] of STATES) {
       await open().catch(e => ok(`${label}: opens`, false, String(e).slice(0, 120)));
-      for (const pal of PALETTES) {
-        await owner.evaluate(p => window.Core.saveSettings({ theme: { palette: p } }), pal);
+      for (const pal of PALETTES) for (const accent of accents) {
+        await owner.evaluate(t => window.Core.saveSettings({ theme: t }), { palette: pal, accent });
+        const tag = accents.length > 1 ? `${pal} ${accent}` : pal;
         for (const theme of ["dark", "light"]) {
           await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
-          const still = await until(page, ([t, p]) => document.getElementById("app").dataset.theme === t && document.getElementById("app").dataset.palette === p, [theme, pal])
+          const still = await until(page, ([t, p, a]) => { const d = document.getElementById("app").dataset; return d.theme === t && d.palette === p && d.accent === a; }, [theme, pal, accent])
             && await settled(page, { timeout: SETTLE_MS });
           const { out, measured } = await page.evaluate(scan);
-          ok(`${label}, ${pal}, ${theme}: every text run, placeholder, field edge and icon reaches its WCAG AA ratio (${measured} measured)`, still && measured > 20 && out.length === 0,
-            (still ? "" : `not settled in ${pal} ${theme} within ${SETTLE_MS} ms `) + JSON.stringify(out.slice(0, MAX_LIST)) + (out.length > MAX_LIST ? ` and ${out.length - MAX_LIST} more` : ""));
+          ok(`${label}, ${tag}, ${theme}: every text run, placeholder, field edge and icon reaches its WCAG AA ratio (${measured} measured)`, still && measured > 20 && out.length === 0,
+            (still ? "" : `not settled in ${tag} ${theme} within ${SETTLE_MS} ms `) + JSON.stringify(out.slice(0, MAX_LIST)) + (out.length > MAX_LIST ? ` and ${out.length - MAX_LIST} more` : ""));
         }
       }
     }
-    await owner.evaluate(() => window.Core.saveSettings({ theme: { palette: "default" } }));
+    await owner.evaluate(a => window.Core.saveSettings({ theme: { palette: "default", accent: a } }), ACCENTS[0]);
     // ---------- the Propose button is a bordered button whose edge reaches 3:1 ----------
     await closeAll(owner);
     for (const pal of PALETTES) {

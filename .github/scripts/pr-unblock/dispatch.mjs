@@ -14,22 +14,24 @@
 // config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
 // The same run then starts review-dependency for review-tier Dependabot PRs
-// (dependency-dispatch.mjs), fix-ci for lanes App PRs whose ci-status
-// failed (fix-ci-dispatch.mjs) and fix-docs once per ready PR that changes
+// (dependency-dispatch.mjs), fix-ci for lanes App PRs, and idle PRs of the
+// owners the config's `adoption` section lists, whose ci-status failed
+// (fix-ci-dispatch.mjs) and fix-docs once per ready PR that changes
 // Markdown (fix-docs-dispatch.mjs), and their run ids join the same record.
 // resolve-conflicts and review-dependency read the one open-PR listing. A head whose check runs handle it for
 // good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
 // carries to the next run through the Actions cache; the next run skips that
 // head's check-run read, and its UNKNOWN re-queries.
 
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
+import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
-import { dispatchCiFixes, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
+import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
@@ -313,6 +315,26 @@ export function createGitHubApi({
       );
       return result.check_runs;
     },
+    // fix-ci-dispatch.mjs's infra check: the newest pr-require-checks
+    // pull_request run on the head that tested it and its latest jobs
+    // (infra-failure.mjs testedRun); a null run and no jobs when there is none.
+    async readRequiredRun(sha) {
+      if (!/^[0-9a-f]{40}$/.test(sha)) {
+        throw new Error("not a commit SHA");
+      }
+      const listing = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`);
+      const runs = (listing.workflow_runs ?? [])
+        .filter((run) => run.path === ".github/workflows/pr-require-checks.yml")
+        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
+      const tested = await testedRun(runs, async (run) => {
+        const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
+        if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
+          throw new Error(`run ${run.id}'s job listing is not one complete page`);
+        }
+        return jobs.jobs;
+      });
+      return { run: tested?.run ?? null, jobs: tested?.jobs ?? [] };
+    },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.
     async listWorkflowRuns(workflow) {
@@ -346,6 +368,27 @@ export async function loadBaseLimits(env) {
   return limitsFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
 }
 
+// The base tracker config's human-gated label, as pr-merge.yml reads it.
+export function baseHumanGatedLabel(env) {
+  let text = null;
+  try {
+    text = readFileSync(`${env.BASE_PATH || ".base"}/.work-item-tracker.json`, "utf8");
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+  return humanGatedLabel(text);
+}
+
+// The base config's `adoption` section as set, the same way.
+export async function loadBaseAdoption(env) {
+  const { adoptionFromBase } = await import(
+    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
+  );
+  return adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+}
+
 // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
 // returns, so a run cancelled mid-step still records what it sent.
 function wrapRunIds(base, env) {
@@ -370,6 +413,7 @@ export async function main(
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     log = (line) => console.log(line),
     loadLimits = loadBaseLimits,
+    loadAdoption = loadBaseAdoption,
     now,
   } = {},
 ) {
@@ -389,7 +433,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: wrapRunIds(base, env), sleep, log, loadLimits, now });
+    return await dispatchAll(env, { client: wrapRunIds(base, env), sleep, log, loadLimits, loadAdoption, now });
   } finally {
     if (budget) {
       log(budget.summary());
@@ -397,8 +441,9 @@ export async function main(
   }
 }
 
-async function dispatchAll(env, { client, sleep, log, loadLimits, now }) {
+async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, now }) {
   const limits = await loadLimits(env);
+  const adoption = await loadAdoption(env);
   const listed = await listAll(client, DEFAULTS.base);
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));
@@ -413,8 +458,21 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, now }) {
     policy: readPolicy(env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`, log),
     repository: env.GITHUB_REPOSITORY,
   });
-  // A missing lanes App id stops fix-ci alone, as a failure.
+  // A missing lanes App id stops fix-ci alone, as a failure. The tracker's
+  // human-gated label is read only when owners are adopted; an unreadable
+  // tracker config holds the adopted owner PRs alone, as a failure.
   let fixes = { dispatched: [], failed: 1 };
+  const ownerIds = adoption["owner-ids"] ?? [];
+  let holdLabels = CI_FIX_DEFAULTS.holdLabels;
+  let ownersHeld = "";
+  if (ownerIds.length > 0) {
+    try {
+      holdLabels = [...new Set([...holdLabels, baseHumanGatedLabel(env)])];
+    } catch (error) {
+      log(`::error::cannot read the human-gated label from the base .work-item-tracker.json (${error.message}); no adopted owner PR gets fix-ci`);
+      ownersHeld = "base tracker config unreadable, so its human-gated label is unknown";
+    }
+  }
   if (/^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "")) {
     fixes = await dispatchCiFixes({
       api: client,
@@ -423,7 +481,11 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, now }) {
       appSenderId: Number(env.APP_SENDER_ID),
       maxDispatch: limits["fix-ci-per-run"] ?? 2,
       restarts: limits["fix-ci-restarts"] ?? 1,
+      adoption: { ownerIds, idleHours: adoption["idle-hours"] ?? 24, held: ownersHeld },
+      holdLabels,
+      now,
     });
+    fixes.failed += ownersHeld === "" ? 0 : 1;
   } else {
     log("::error::APP_SENDER_ID is not the lanes App's user id; no fix-ci dispatched");
   }

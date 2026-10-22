@@ -1,11 +1,13 @@
 # test-scope: plugins/planning/shared/schema/*.schema.json
 # test-scope: plugins/planning/shared/tests/fixtures/*.json
+# test-scope: plugins/planning/shared/session.py plugins/planning/skills/interview/context/question-shape.md
 """The shared session schemas accept the sample files and refuse the shapes the contract forbids."""
 
 from __future__ import annotations
 
 import copy
 import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -15,11 +17,16 @@ SHARED = HERE.parent
 SCHEMA_DIR = SHARED / "schema"
 FIXTURES = HERE / "fixtures"
 SURFACE = SHARED.parent / "surface"
+QUESTION_SHAPE_DOC = SHARED.parent / "skills" / "interview" / "context" / "question-shape.md"
 # Appended, as session.py does: prepended, surface/test_server.py would shadow ours at discovery.
 if str(SURFACE) not in sys.path:
     sys.path.append(str(SURFACE))
 
 import schema  # noqa: E402
+
+if str(SHARED) not in sys.path:
+    sys.path.insert(0, str(SHARED))
+import session  # noqa: E402
 
 STATE = schema.load("state", SCHEMA_DIR)
 OPS = schema.load("ops", SCHEMA_DIR)
@@ -83,6 +90,42 @@ class TestValidSamples(unittest.TestCase):
         q = fixture("state-full.json")["questions"][0]
         shape = {k: v for k, v in q.items() if k in SHAPE["properties"]}
         self.assertIsNone(schema.first_error(shape, SHAPE))
+
+
+class TestOptionCounts(unittest.TestCase):
+    """question-shape.md's format table, session.py OPTION_COUNTS, the ops input bounds and the
+    stored bounds state one option count per format: stored adds Something else, and on a multi
+    question None of these."""
+
+    WORDS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8}
+
+    def doc_counts(self):
+        rows = {}
+        for kind, least, most in re.findall(
+            r"^\| `(choice|multi|rank)` \|.*?\b(\w+) to (\w+) options",
+            QUESTION_SHAPE_DOC.read_text(encoding="utf-8"),
+            re.MULTILINE,
+        ):
+            rows[kind] = (self.WORDS[least], self.WORDS[most])
+        return rows
+
+    def bounds(self, fmt):
+        return {
+            b["properties"]["kind"]["enum"][0]: (b["properties"]["options"]["minItems"], b["properties"]["options"]["maxItems"])
+            for b in fmt["oneOf"]
+            if "options" in b.get("properties", {})
+        }
+
+    def test_the_doc_table_is_option_counts_and_the_ops_input_bounds(self):
+        self.assertEqual(self.doc_counts(), session.OPTION_COUNTS)
+        self.assertEqual(self.bounds(OPS["$defs"]["format"]), session.OPTION_COUNTS)
+
+    def test_stored_bounds_add_the_server_options(self):
+        added = {kind: 1 + (kind == "multi") for kind in session.OPTION_COUNTS}
+        self.assertEqual(
+            self.bounds(STATE["$defs"]["format"]),
+            {kind: (least + 1, most + added[kind]) for kind, (least, most) in session.OPTION_COUNTS.items()},
+        )
 
 
 class TestRefusedShapes(unittest.TestCase):
@@ -204,6 +247,33 @@ class TestFormatsReactionsPresence(unittest.TestCase):
         self.assertIn("allows at most 200 characters", schema.first_error(state, STATE))
         del d["reason"]
         self.assertIn("missing required 'reason'", schema.first_error(state, STATE))
+
+    def test_prototype_tiers_is_an_optional_list_of_the_three_views(self):
+        state = fixture("state-full.json")
+        self.assertNotIn("prototypeTiers", state["session"]["settings"])  # a file from before it stays valid
+        self.assertIsNone(schema.first_error(state, STATE))
+        for ok in ([], ["screenshot"], ["screenshot", "snapshot", "live"]):
+            state["session"]["settings"]["prototypeTiers"] = ok
+            self.assertIsNone(schema.first_error(state, STATE), ok)
+        for bad in (["video"], "live", ["screenshot", "snapshot", "live", "live"]):
+            state["session"]["settings"]["prototypeTiers"] = bad
+            self.assertIsNotNone(schema.first_error(state, STATE), bad)
+
+    def test_a_variant_shows_shots_a_snapshot_or_an_earlier_asset_and_a_prototype_may_say_where_to_look(self):
+        q = question("Q4")
+        self.assertNotIn("lookAt", q["format"])  # a question from before the look-at line stays valid
+        self.assertIsNone(question_error(q))
+        v = {"id": "v-1", "label": "Flow"}
+        for ok in ({"shots": ["0123456789abcdef.png"]}, {"shots": ["0123456789abcdef.png"] * 4, "snapshot": "fedcba9876543210.html"},
+                   {"snapshot": "fedcba9876543210.html", "lookAt": "Step two."}, {"asset": "fedcba9876543210.html"}):
+            q["format"] = {"kind": "prototype", "lookAt": "The basket.", "variants": [{**v, **ok}, {**v, "id": "v-2", "asset": "0123456789abcdef.png"}]}
+            self.assertIsNone(question_error(q), ok)
+        for bad in ({}, {"asset": "0123456789abcdef.png", "shots": ["0123456789abcdef.png"]}, {"shots": []}, {"shots": ["0123456789abcdef.png"] * 5},
+                    {"shots": ["0123456789abcdef.png"], "live": {"id": "L1", "path": "/"}}, {"snapshot": "fedcba9876543210.html", "lookAt": "x" * 201}):
+            q["format"] = {"kind": "prototype", "variants": [{**v, **bad}, {**v, "id": "v-2", "asset": "0123456789abcdef.png"}]}
+            self.assertIn("$.format", question_error(q), bad)
+        q["format"] = {"kind": "prototype", "lookAt": "x" * 201, "variants": [{**v, "asset": "0123456789abcdef.png"}, {**v, "id": "v-2", "asset": "0123456789abcdef.png"}]}
+        self.assertIn("$.format", question_error(q))
 
     def test_a_file_from_before_disagreements_is_still_valid(self):
         state = fixture("state-full.json")
