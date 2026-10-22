@@ -218,6 +218,7 @@ ROUTES = {
     "/api/person/merge": ("owner", "merge_people"),
     "/api/merge-request": ("person", "request_merge"),
     "/api/merge-request/act": ("owner", "act_on_merge_request"),
+    "/api/claude-proposal/act": ("owner", "act_on_claude_proposal"),
     "/api/session/settings": ("owner", "update_settings"),
     "/api/session/title": ("owner", "set_title"),
     "/api/session/goal": ("owner", "set_goal"),
