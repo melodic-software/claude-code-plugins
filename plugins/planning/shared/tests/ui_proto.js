@@ -329,6 +329,9 @@ async function main() {
       return JSON.stringify(layers) === "[0,1]";
     }));
     await flow.keyboard.press("Escape");
+    await flow.waitForTimeout(1100); // one write a second per person per route
+    await flow.evaluate(() => window.Core.annotate("Q4", "v-1", { selector: "html > body:nth-of-type(1)", rect: { x: 0, y: 0, w: 10, h: 10 } }, "The snapshot's page."));
+    await until(owner, () => (window.Core.snapshot()?.annotations || []).filter(a => a.qid === "Q4").length === 2);
     await flow.locator(".vp-tab", { hasText: "Single" }).click();
     ok("a one-screenshot variant shows its picture as before: no choice of views, no caption, only the question's line", await until(flow, a => {
       const imgs = [...document.querySelectorAll(".vp-stage .vp-img")];
@@ -370,7 +373,8 @@ async function main() {
       && !document.querySelector(".vp-viewseg").checkVisibility() && ![a, b].some(x => JSON.stringify(window.Core.snapshot().questions).includes(x)), [v1, shot1, shot2]));
     await flow.frameLocator(".vp-frame").locator("#pay").waitFor();
     await flow.waitForTimeout(500); // the pins go once the frame says it is ready
-    ok("  and puts no pin of the second screenshot's note on the snapshot", (await flow.frameLocator(".vp-frame").locator("html > div[aria-hidden=true] > div").count()) === 0);
+    const framePins = await flow.frameLocator(".vp-frame").locator("html > div[aria-hidden=true] > div").allTextContents();
+    ok("  and puts only the snapshot's own note (2) on it, none of the second screenshot's", JSON.stringify(framePins) === JSON.stringify(["2"]), JSON.stringify(framePins));
     await proto.locator(".vp-tab", { hasText: "One page" }).click();
     ok("the html variant still runs for the guest", await until(proto, a => document.querySelector(".vp-frame")?.getAttribute("src") === `/assets/${a}?pin=1`, v1));
     await owner.click(".vf-gear");
@@ -384,7 +388,12 @@ async function main() {
     ok("the guest's open html variant is taken down", await until(proto, () => !document.querySelector(".vp-frame") && !!document.querySelector(".vp-stage .vp-off")));
     await owner.click(".vf-gear");
     ok("Live prototypes on is stored", await setTier("Live prototypes", ["live"]));
-    ok("turning both views back on keeps the canonical order", await setTier("Screenshots", ["screenshot", "live"]) && await setTier("HTML snapshots", ["screenshot", "snapshot", "live"]));
+    ok("Screenshots back on with snapshots off is saved", await setTier("Screenshots", ["screenshot", "live"]));
+    ok("Flow then shows the guest its screenshots with only the screenshot note's pin, the snapshot's note on neither", await until(flow, () => {
+      const layers = [...document.querySelectorAll(".vp-stage .vp-layer")].map(l => [...l.querySelectorAll(".vp-pin")].map(p => p.textContent));
+      return !document.querySelector(".vp-frame") && JSON.stringify(layers) === JSON.stringify([[], ["1"]]);
+    }), await flow.evaluate(() => JSON.stringify([...document.querySelectorAll(".vp-stage .vp-layer")].map(l => [...l.querySelectorAll(".vp-pin")].map(p => p.textContent)))));
+    ok("turning HTML snapshots back on keeps the canonical order", await setTier("HTML snapshots", ["screenshot", "snapshot", "live"]));
     ok("Live prototypes off restores the default", await setTier("Live prototypes", ["screenshot", "snapshot"]));
     await owner.keyboard.press("Escape");
     ok("the guest's html variant runs again", await until(proto, a => document.querySelector(".vp-frame")?.getAttribute("src") === `/assets/${a}?pin=1`, v1));
