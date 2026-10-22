@@ -185,9 +185,15 @@ export function wipStatus({ open, merged, admitted, queued = null, queuedUnliste
   const queuedTotal = queuedIssues === null ? null : queuedIssues + heldCount;
   const queuedOver = queuedTotal !== null && (truncated || queuedTotal >= queuedCap - 1e-9);
   // Admissions left before the cap; null when nothing gates them. An
-  // incomplete search answer leaves none: its counts may be false empties.
-  const room =
-    !pausing ? null : searchIncomplete ? 0 : queuedTotal === null ? null : truncated ? 0 : Math.max(0, Math.ceil(queuedCap - queuedTotal - 1e-9));
+  // incomplete search answer leaves none whatever pause-from says: its counts
+  // may be false empties.
+  const room = searchIncomplete
+    ? 0
+    : !pausing || queuedTotal === null
+      ? null
+      : truncated
+        ? 0
+        : Math.max(0, Math.ceil(queuedCap - queuedTotal - 1e-9));
   return {
     countable_lane_prs: countable,
     held_lane_prs: heldCount,
@@ -333,12 +339,12 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   }
   if (status.admission_basis === "search-incomplete") {
     log(
-      `::warning title=check-wip-cap::GitHub search answered incomplete results (admission_basis search-incomplete), so its counts are unknown and ${status.admission_open ? "admissions stay open (pause-from not reached)" : "no new admissions are made this run"}`,
+      `::warning title=check-wip-cap::GitHub search answered incomplete results (admission_basis search-incomplete), so its counts are unknown and no new admissions are made this run`,
     );
   }
   if (status.alert) {
     log(
-      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under both caps" : `the lane keeps running (${status.wip_over || status.held_over ? "pause-from not reached" : "only the WIP and held caps pause runs"})`}`,
+      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under both caps" : `the lane keeps running (${!(status.wip_over || status.held_over) ? "only the WIP and held caps pause runs" : configError ? "the base config could not be read, so the defaults apply" : wip["pause-from"] === "" ? "pause-from is not set" : "pause-from not reached"})`}`,
     );
   }
   if (status.paused) {

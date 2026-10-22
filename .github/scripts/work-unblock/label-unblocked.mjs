@@ -310,11 +310,15 @@ async function isTrustedClose(github, repo, closedIssue, humans) {
 // asked and counting each admission against its room.
 function admissionGate(status) {
   let room;
+  let reason;
   return {
+    // Why take() last answered false.
+    why: () => (reason === "search-incomplete" ? "GitHub search answered incomplete results" : "queued work is at the queued cap"),
     take: async () => {
       if (room === undefined) {
         const s = await status();
         room = s.admission_room ?? Number.POSITIVE_INFINITY;
+        reason = s.admission_reason;
         if (!s.admission_open) {
           console.log(`::notice title=admission paused::${escapeCommand(admissionLine(s))}`);
         }
@@ -335,7 +339,7 @@ async function admit({ github, repo, number, gate, deferred }) {
     if (!deferred) {
       await github("POST", `${base}/labels`, { labels: [DEFERRED_LABEL] });
     }
-    console.log(`label-unblocked: #${number} admission deferred: queued work is at the queued cap`);
+    console.log(`label-unblocked: #${number} admission deferred: ${gate.why()}`);
     return;
   }
   await github("POST", `${base}/labels`, { labels: [LABEL] });

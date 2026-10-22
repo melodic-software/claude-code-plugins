@@ -118,19 +118,18 @@ test("a search that answers incomplete results is an unknown read", async () => 
 // During a GitHub search incident the API answered total_count 0 with
 // incomplete_results true for a repository with about 600 open issues
 // (2026-10-22). A failed read keeps admissions open; an incomplete one is
-// evidence the search itself is degraded, so past pause-from it closes them.
-test("an incomplete search answer closes new admissions past pause-from, and only then", async () => {
+// evidence the search itself is degraded, so it closes them whatever
+// pause-from says (owner decision 2026-10-22); the queued cap stays as configured.
+test("an incomplete search answer closes new admissions with pause-from unset, future or past", async () => {
   const reads = await read({ open: [], merged: 0, admitted: 0, queued: [], incomplete: true });
-  const closed = status(reads, { "pause-from": "2026-10-01" });
-  assert.equal(closed.admission_open, false);
-  assert.equal(closed.admission_room, 0);
-  assert.equal(closed.admission_reason, "search-incomplete");
-  assert.equal(closed.admission_basis, "search-incomplete");
-  assert.equal(closed.paused, false);
-  const unset = status(reads);
-  assert.equal(unset.admission_open, true);
-  assert.equal(unset.admission_room, null);
-  assert.equal(unset.admission_basis, "search-incomplete");
+  for (const pauseFrom of ["", "2026-10-19", "2026-10-01"]) {
+    const closed = status(reads, { "pause-from": pauseFrom });
+    assert.equal(closed.admission_open, false, pauseFrom);
+    assert.equal(closed.admission_room, 0, pauseFrom);
+    assert.equal(closed.admission_reason, "search-incomplete", pauseFrom);
+    assert.equal(closed.admission_basis, "search-incomplete", pauseFrom);
+    assert.equal(closed.paused, false, pauseFrom);
+  }
 });
 
 test("a search answer with no incomplete_results field is a failed read, not an incomplete one", async () => {
@@ -658,12 +657,30 @@ test("main pauses new admissions over this repository's queued cap past pause-fr
   assert.ok(!under.logs.some((l) => l.includes("admission paused")));
 });
 
-test("main closes new admissions and warns when the search answers incomplete results", async () => {
-  const result = await runMain({ open: [], merged: 0, admitted: 0, queued: [], incomplete: true }, {}, pastConfig());
-  assert.equal(result.admissionOpen, "false");
-  assert.equal(result.wip.admission_basis, "search-incomplete");
-  const warning = result.logs.find((line) => line.includes("search-incomplete"));
-  assert.ok(warning?.startsWith("::warning title=check-wip-cap::"), result.logs.join("\n"));
+test("main closes new admissions and warns when the search answers incomplete results, under this repository's own pause-from", async () => {
+  const repoConfig = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8");
+  for (const config of [repoConfig, pastConfig()]) {
+    const result = await runMain({ open: [], merged: 0, admitted: 0, queued: [], incomplete: true }, {}, config);
+    assert.equal(result.admissionOpen, "false");
+    assert.equal(result.wip.admission_basis, "search-incomplete");
+    const warning = result.logs.find((line) => line.includes("search-incomplete"));
+    assert.ok(warning?.startsWith("::warning title=check-wip-cap::"), result.logs.join("\n"));
+    assert.ok(warning.includes("no new admissions are made this run"), warning);
+    assert.ok(result.logs.includes("::notice title=admission paused::admission paused: reason=search-incomplete queued=null held=null cap=24"), result.logs.join("\n"));
+  }
+});
+
+test("over a cap with an unreadable base config the warning names the config, not pause-from", async () => {
+  const held = await runMain({ open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 24 });
+  const warning = held.logs.find((line) => line.startsWith("::warning title=check-wip-cap::60 held"));
+  assert.ok(warning?.includes("the lane keeps running (the base config could not be read, so the defaults apply)"), held.logs.join("\n"));
+  const unset = await runMain(
+    { open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 24 },
+    {},
+    readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8"),
+  );
+  const unsetWarning = unset.logs.find((line) => line.startsWith("::warning title=check-wip-cap::"));
+  assert.ok(unsetWarning?.includes("the lane keeps running (pause-from is not set)"), unset.logs.join("\n"));
 });
 
 test("a queued read that fails keeps the run's read basis and leaves admissions open", async () => {
