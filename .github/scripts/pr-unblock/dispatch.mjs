@@ -117,9 +117,9 @@ export async function dispatchConflicting({
 
   for (let attempt = 1; pending.length > 0 && attempt <= unknownRetries; attempt += 1) {
     await sleep(unknownDelayMs);
-    const requeried = await api.getPulls(pending);
-    candidates.push(...requeried.filter((node) => isCandidate(node, base) && !recorded(node)));
-    pending = requeried.filter((node) => isPending(node, base) && !recorded(node)).map((node) => node.number);
+    const reread = await api.getPulls(pending);
+    candidates.push(...reread.filter((node) => isCandidate(node, base) && !recorded(node)));
+    pending = reread.filter((node) => isPending(node, base) && !recorded(node)).map((node) => node.number);
   }
   for (const number of pending) {
     log(
@@ -200,7 +200,7 @@ export async function dispatchConflicting({
 
 // The Dependabot fields feed dependency-dispatch.mjs's classification.
 const PULL_FIELDS =
-  "number isDraft isCrossRepository mergeable baseRefName headRefOid headRefName state title body author { login } labels(first: 100) { nodes { name } } changedFiles commits { totalCount }";
+  "number isDraft isCrossRepository mergeable baseRefName headRefOid headRefName state title body author { login ... on Bot { databaseId } } labels(first: 100) { nodes { name } } changedFiles commits { totalCount }";
 
 const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
   repository(owner: $owner, name: $name) {

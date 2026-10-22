@@ -20,6 +20,7 @@
 - [Limits](#limits)
 - [WIP cap](#wip-cap)
 - [Red main](#red-main)
+- [Branch cleanup](#branch-cleanup)
 - [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
 - [Outside this repository](#outside-this-repository)
@@ -677,6 +678,23 @@ and its queued entries leave; two different identities, or an unreadable head co
   refuses at the cap, and an entry enqueued past it (another host's came first) dequeues itself. A
   red full run or canary run charges every unverified merge whose commit it contains, so a breakage
   found with several in flight demotes the rung and fails the post-merge check for all of them.
+- **Quarantined suites.** A red full run on the default branch demotes only for a newly failing
+  suite (a test file) in the affected set of the merges since the branch's last green full run:
+  `scripts/plan-test-lanes.sh`, the pull request runs' selector, over the paths changed since that
+  run's SHA, run from a worktree of that green SHA with no token in its environment, so no merge
+  judged can narrow its own set. A window that changes the selector's own files, or a plan that
+  picks no suite, has no set. A suite is named from its test leg's log; a failed job whose
+  suites cannot be named, a set that cannot be computed, and the merge gate's own suites
+  (`GATE_SUITE_PREFIXES` in `babysit_postmerge.py`) demote as before. A suite outside the set
+  demotes nothing, the window counts as verified (its `max-in-flight` slots free), and the suite
+  is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, labeled
+  needs-human and assigned to the suite's CODEOWNERS user when a rule names one, filed by the
+  agent identity's `--remediate` or by post-merge-demotion-alert.yml. While that issue is open
+  and younger than `merge.quarantine-days` (default 7, at most 30), the suite's out-of-set failures
+  demote nothing; after that they demote again, even when the suite was already failing before the
+  merge. A failure inside the set demotes whether or not the suite
+  is quarantined, and an excused run gets no red-main report. Quarantine never changes a pull request's `ci-status` and starts no
+  re-run.
 - **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the
   wrapper enqueuing a head the merge queue has removed that many times for failed checks since the
   head last changed; the queue would eject it again on the same commits. A push resets the count.
@@ -873,13 +891,30 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   pip update whose [registry provenance](#registry-provenance) changed. The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
   when the newest round marker the lanes App posted on it
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
-  names the current head with `verdict=merge`. A marker from any other author is ignored.
+  names the current head with `verdict=merge`. A marker from any other author is ignored. The
+  review's verdict job posts no merge marker on a pull request that changes a workflow or action
+  file (`dependency-workflow-held`), so a person merges those. A `fix` verdict lands only when
+  its commits change nothing but npm or pip manifest and lock files outside `.github/`, in a
+  directory `.github/dependabot.yml` lists for that ecosystem, each modified in place as a regular
+  `100644` file and changed only by a version (the **fix rule**: in `package.json` only an
+  existing dependency entry's plain, bounded semver range (no `*` or lower bound alone); in a
+  lock the same package keys as the Dependabot commit's lock, each entry's `resolved` exactly
+  `https://registry.npmjs.org/<name>/-/<unscoped name>-<version>.tgz` for its own name (or
+  alias `name`, which must be the Dependabot commit's) and version with a `sha512-` integrity, and no install-script change; in
+  requirements only added `name==version` pins of projects the fix also unpins, and
+  `--hash=sha256:` continuations); anything else keeps the fix off the
+  branch and hands the pull request to a person. The verdict job posts no merge marker unless
+  every commit is Dependabot's own, the version-bump commit, or a commit that passes the fix rule
+  (`dependency-fix-refused`) ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
 - **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
   `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
-  only a plugin's `plugin.json` or `CHANGELOG.md`). On a reviewed pull request the lanes App's
-  verified `[dependabot skip]` fix commits count too. The commits listing must hold the pull
+  only a plugin's `plugin.json` or `CHANGELOG.md`, each modified in place as a regular file, the
+  `plugin.json` changing only its `version`; else `dependabot-bump-content:<why>`). On a reviewed pull request the lanes App's
+  verified `[dependabot skip]` fix commits count too, each only after it passes the fix rule. The commits listing must hold the pull
   request's whole commit count, else the reason is `commits-listed:<listed>-of:<total>` (the
-  listing stops at 250). A commit's author is text whoever creates it
+  listing stops at 250). A lanes App commit must pass the fix rule against its one parent, read
+  from the commit's files, tree modes and both sides' text, else the reason is
+  `dependabot-fix-content:<why>`. A commit's author is text whoever creates it
   chooses, so two more checks bind the pull request to Dependabot:
   - **Pushes.** The repository activity API for the head branch, read back to Dependabot's newest
     branch creation or force push, shows every push by `dependabot[bot]`, or by
@@ -893,7 +928,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     A directory holding `*` or `?` is a glob, read the same way in both lanes: `*` and `?` stay
     inside one path segment, `**/` is zero or more whole segments (so `**/*` covers the root and
     every layer below), any other `**` crosses segments, and everything else is literal. A path the version-bump or lanes App fix
-    commit touched counts as checked; a fix commit may not touch `.github/`, and one whose file
+    commit touched counts as checked; a fix commit may touch only npm or pip manifest and lock files
+    outside `.github/` in a listed directory (the pr-unblock lane enforces this before the fix
+    lands), and one whose file
     list cannot be read whole refuses. Anything else (a rebuilt bundle, a manifest outside a listed
     directory) makes the pull request tier `review` with the reason `dependabot-content:<path>`,
     so the AI review judges it; it is never left for a person. A failed push check, by contrast,
@@ -1602,6 +1639,46 @@ the resolver refuses fails it. It holds the job's own `GITHUB_TOKEN` (`actions`,
 calls, and stops on any failed read. A range of more than 25 merges pins no culprit. The kill switch stops it, and it skips an event the lanes App
 sent. Owner decision 2026-10-20: `dry-run` stays true for 3 days of reports with no wrong blame
 before any revert merges.
+
+## Branch cleanup
+
+A branch lives as long as its issue is open and is deleted once the issue closes (owner decisions
+W-7, 2026-10-21, and #8958). No dates are involved.
+[`maintenance-delete-stale-branches.yml`](../../../.github/workflows/maintenance-delete-stale-branches.yml)
+runs daily and sorts every branch; its rules and tests are in
+[`.github/scripts/branch-cleanup/`](../../../.github/scripts/branch-cleanup/). It runs no model.
+
+1. **Never touched.** The default branch, `release/*`, `dependabot/*` and `gh-readonly-queue/*`.
+2. **Kept.** A protected branch or one a ruleset applies to; one with an open pull request; a lane
+   branch (`work-resolve-issue/issue-<n>-...`) while issue `n` is open; any other branch while an
+   issue its newest pull request's body links with `Closes`, `Fixes`, `Resolves` or `Refs` is
+   open.
+3. **Never deleted, reported.** A branch that never had a pull request (a lane branch excepted), a
+   merged branch with commits ahead of the default branch after its tip moved, a closed-unmerged
+   branch whose tip moved, and any branch a read failed on. The step summary lists them for a
+   person.
+4. **Deleted.** The newest pull request closed unmerged or merged at the branch tip, or merged
+   with the tip moved and 0 commits ahead of the default branch, and every linked issue closed;
+   or a lane branch with no pull request whose issue closed. A lane run's stop or resume marker
+   on the issue does not keep the branch once the issue is closed.
+
+The job prints how many it will delete, then deletes at most `max-deletes-per-run`, in listing
+order. It reserves four calls per planned delete from its call budget before evaluating, and stops
+evaluating once it has found `max-deletes-per-run` deletable branches or spent the rest of the
+budget. Each run starts at a different point in the listing, moved by the run number and wrapping
+around, so branches kept early in the listing do not hide the later ones from every run. Before each delete it re-reads the tip and the open pull requests from and into the branch,
+skips it when the tip moved or one opened, and appends `{repo, branch, sha, rule, issue, pr,
+deletedAt}` to the step summary and the run's `branch-cleanup-ledger-<run>-<attempt>` artifact. The
+delete is `DELETE git/refs/heads/<branch>` with the job's own `GITHUB_TOKEN` (`contents: write`,
+`issues` and `pull-requests` read); the API takes no expected SHA, so the delete also removes a push that lands between the re-read
+and the delete; the pusher's own copy restores it. The ledger SHA restores the deleted tip:
+`git push origin <sha>:refs/heads/<branch>`. A scheduled run
+deletes; a manual run is a dry-run unless `dry-run` is set to false, and in dry-run the client
+refuses every request but `GET`. The kill switch stops it.
+
+| Key | Default | What it sets |
+|---|---|---|
+| `max-deletes-per-run` | 25 | Deletes per run at most; 0 to 100, and 0 deletes none. |
 
 ## Planning lane work
 

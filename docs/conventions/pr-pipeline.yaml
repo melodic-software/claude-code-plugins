@@ -83,7 +83,8 @@ activities:
     skill: source-control:pull-request
     # The skill's CI mode for dependency bumps: reads the runner's context
     # file, the checkout and upstream release notes, runs no head code, and
-    # pushes a fix only outside .github/ with [dependabot skip].
+    # pushes a fix only to npm or pip manifest and lock files outside
+    # .github/, with [dependabot skip]; the runner lands no other fix.
     args: dependency --ci
     # Before any model turn the runner skips a pull request Dependabot did
     # not open or one sorted `auto`, and hands it to a person once
@@ -520,7 +521,7 @@ wip:
   # queued cap new admissions do.
   # The owner clears it to only alert. Empty: over a cap the lane alerts and
   # keeps starting runs.
-  pause-from: "2026-10-18"
+  pause-from: ""
 
 # The red-main revert rule (owner decision 2026-10-20). post-merge-demotion-
 # alert.yml's report job reads it after a scheduled or dispatched
@@ -548,6 +549,14 @@ red-main:
   # fail-forward: no revert is planned; a person or a fix pull request
   # repairs main (owner decision W-51, 2026-10-21).
   remedy: rollback
+
+# The daily branch cleanup (owner decisions W-7, 2026-10-21, and #8958): a
+# branch lives as long as its issue is open. maintenance-delete-stale-branches.yml
+# deletes a branch once its pull request and linked issue are closed, and never
+# one with an open issue or an open pull request.
+branch-cleanup:
+  # A run deletes at most this many; the rest wait for the next run.
+  max-deletes-per-run: 25
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
@@ -605,6 +614,12 @@ merge:
   # whatever a later pass says, so pushing until the verifier passes once
   # does not merge it (owner decision 2026-10-21).
   max-verify-fails: 3
+  # Days a suite failing on main outside the merges' affected set stays
+  # quarantined: its quarantine issue excuses its failures from demotion
+  # until it closes or is this old, then they demote again, even when the
+  # suite was already red before the merge. 7 is judgment (owner decision
+  # Q645 left the default to planning); at most 30.
+  quarantine-days: 7
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane
