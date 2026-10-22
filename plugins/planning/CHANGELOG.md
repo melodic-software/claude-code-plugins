@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.90.0] - 2026-10-22
+
+### Changed
+
+- `/planning:interview` now passes the `tunnel_hostname` and `tunnel_token_file` options to a shared session, so a configured named tunnel starts without restating it; an unset hostname runs a quick tunnel.
+
 ## [0.89.0] - 2026-10-22
 
 ### Added
