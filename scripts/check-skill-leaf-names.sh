@@ -78,6 +78,7 @@ done
 # for a name whose owner set is open by contract (see the registry header).
 declare -A registered
 registered_leaves=()
+duplicate_leaves=()
 if [[ -f "$registry" ]]; then
   # `inline`: an entry is a leaf name plus an owner set, never a regex, so a `#`
   # anywhere on the line opens the rationale comment (scripts/lib/read-list.sh
@@ -89,7 +90,13 @@ if [[ -f "$registry" ]]; then
     # `read`, not array splitting: the owner field may be a literal `*`, which
     # unquoted word splitting would pathname-expand against the cwd.
     read -r leaf_key owner_field _ <<<"$line"
-    [[ -n "${registered[$leaf_key]+set}" ]] || registered_leaves+=("$leaf_key")
+    # A merge that keeps both sides (merge=union, or a hand resolution) leaves
+    # two lines when two branches each changed one entry; neither may win.
+    if [[ -n "${registered[$leaf_key]+set}" ]]; then
+      duplicate_leaves+=("$leaf_key")
+    else
+      registered_leaves+=("$leaf_key")
+    fi
     registered["$leaf_key"]="${owner_field:-}"
   done
 fi
@@ -147,6 +154,24 @@ if [[ "$mode" == "discover" ]]; then
 fi
 
 failed=0
+
+for leaf in ${duplicate_leaves[@]+"${duplicate_leaves[@]}"}; do
+  printf 'FAIL: %s registers %s more than once. Merge the entries into one line.\n' \
+    "$registry" "$leaf" >&2
+  failed=1
+done
+
+# Entries stay sorted by leaf name, so two branches adding different names
+# insert at different lines instead of both appending at the end.
+prev=""
+for leaf in ${registered_leaves[@]+"${registered_leaves[@]}"}; do
+  if [[ -n "$prev" ]] && [[ "$(printf '%s\n%s\n' "$prev" "$leaf" | LC_ALL=C sort | head -n1)" != "$prev" ]]; then
+    printf 'FAIL: %s lists %s after %s. Keep the entries sorted by leaf name.\n' \
+      "$registry" "$leaf" "$prev" >&2
+    failed=1
+  fi
+  prev="$leaf"
+done
 
 for leaf in $(printf '%s\n' ${collision_leaves[@]+"${collision_leaves[@]}"} | sort); do
   # shellcheck disable=SC2206

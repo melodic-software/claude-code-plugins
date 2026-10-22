@@ -14,9 +14,11 @@
 # that already decided the question, where re-arguing each new owner would be
 # ceremony with no decision in it.
 #
-# --check fails three ways: an unregistered collision, a registered one whose
-# owner set has changed, and an entry that no longer collides at all (which has
-# outlived its reason and would otherwise pre-authorize a future name).
+# --check fails five ways: an unregistered collision, a registered one whose
+# owner set has changed, an entry that no longer collides at all (which has
+# outlived its reason and would otherwise pre-authorize a future name), a leaf
+# name listed twice, and entries out of leaf-name order. Add a new entry, with
+# its rationale block, where its leaf name sorts.
 #
 # Every one of these is separately invocable -- namespacing guarantees that, and
 # the philosophy's Naming section is explicit that a name is never degraded to
@@ -25,13 +27,6 @@
 # apart only by the `(<plugin-name>)` prefix on the description. That is the
 # cost each entry below is accepted at, and the reason each description's first
 # clause has to name its object.
-
-# Contract-mandated, open owner set. docs/plugin-philosophy.md (Setup) fixes the
-# name for every plugin that ships consumer configuration; uniformity IS the
-# contract, so a new plugin adopting it is conformance, not a new decision. Not
-# consolidatable: ${CLAUDE_PLUGIN_ROOT} resolves per containing plugin and there
-# is no cross-plugin skill inheritance, so each plugin owns its own.
-setup *
 
 # Fixed verb meaning: read-only findings report (plugin-philosophy.md, Naming
 # verb table). The namespace supplies the object in every case. Qualifying the
@@ -168,6 +163,27 @@ check-prerequisites animation,instruction-placement,skill-quality,toolchain
 # directory tree, repo-hygiene cleans a repository's caches and git metadata.
 clean disk-hygiene,repo-hygiene
 
+# Fixed shape rather than a fixed verb: a read-only lane that re-runs its
+# plugin's own audit and reports only what MOVED since the last run, above a
+# noise budget. Both members exist for the same reason: a re-run that
+# re-presents the whole standing finding set trains the operator to skim, and a
+# skimmed report is how a bad change gets approved. overengineering deltas an
+# enforcement surface; instruction-placement deltas an instruction layer.
+# Unrelated targets, and the namespace disambiguates. The noun is kept over a
+# verb because the skill names the artifact it produces (a delta) rather than an
+# action it performs on the target, the same reasoning the vocabulary already
+# applies to knowledge and lifecycle-object routers.
+delta instruction-placement,overengineering
+
+# Kept on merit. planning:design designs an implementation approach for a code
+# change; evals:design designs an evaluation suite (success criteria + graded
+# cases). user-interface:design designs what a person or agent interacts with
+# (CLI output, TUIs, mods, web and app UI), and its description's first clause
+# names that object. It is the plugin's one listed entry skill, so a longer leaf
+# would only repeat the namespace. Three unrelated artifacts; the namespace
+# supplies the object in each.
+design evals,planning,user-interface
+
 # D19, kept on merit. songwriting diagnoses a song, testing diagnoses a failing
 # suite -- unrelated domains, and the namespace disambiguates.
 # computer-use joins on the same grounds: it diagnoses a screen-control session
@@ -179,20 +195,31 @@ clean disk-hygiene,repo-hygiene
 # applies, and this entry is the ordinary cost of it.
 diagnose computer-use,songwriting,testing
 
-# Kept on merit. planning:design designs an implementation approach for a code
-# change; evals:design designs an evaluation suite (success criteria + graded
-# cases). user-interface:design designs what a person or agent interacts with
-# (CLI output, TUIs, mods, web and app UI), and its description's first clause
-# names that object. It is the plugin's one listed entry skill, so a longer leaf
-# would only repeat the namespace. Three unrelated artifacts; the namespace
-# supplies the object in each.
-design evals,planning,user-interface
+# Kept on merit. ai-briefing:generate produces the briefing artifact;
+# wizard:generate authors an interactive setup-wizard script a human runs.
+# Unrelated artifacts; the namespace supplies the object in both, and wizard's
+# name was locked by a naming tournament against grammar-clean alternatives
+# (the noun namespace carries the artifact class, the leaf stays the verb).
+generate ai-briefing,wizard
+
+# Kept on merit. architecture:improve scans module structure for deepening
+# opportunities and interviews one through Design-It-Twice, editing nothing;
+# improvement:improve ships one improvement of any kind in any target as a draft
+# PR. Both improve something; the namespace supplies the object, each
+# description's first clause names it, and improvement:improve routes a
+# structural fix to its owning lane rather than repeating architecture's lens.
+improve architecture,improvement
 
 # Noun reserved for knowledge routers (plugin-philosophy.md, Naming). Each
 # routes its own domain's method literature: event-storming:methodology the
 # EventStorming practice, evals:methodology Anthropic's evaluation guidance.
 # The namespace supplies the domain; qualifying the noun would say it twice.
 methodology evals,event-storming
+
+# D19, kept on merit. planning:plan is the root-echo core action of its domain;
+# testing:plan is a test-strategy plan. The bare token still belongs to the
+# built-in plan-mode toggle, which neither shadows.
+plan planning,testing
 
 # Noun reserved for knowledge routers (plugin-philosophy.md, Naming), same
 # grounds as `methodology` above. tdd:principles routes the TDD literature
@@ -210,32 +237,13 @@ methodology evals,event-storming
 # The namespace supplies the domain in all three.
 principles code-metrics,mutation-testing,tdd
 
-# D19, kept on merit. planning:plan is the root-echo core action of its domain;
-# testing:plan is a test-strategy plan. The bare token still belongs to the
-# built-in plan-mode toggle, which neither shadows.
-plan planning,testing
-
-# D19, kept on merit. session-flow:workflow routes a development session,
-# songwriting:workflow routes a writing session.
-workflow session-flow,songwriting
-
-# Fixed verb meaning: refreshes vendored upstream material (plugin-philosophy.md,
-# Naming verb table). firecrawl:update syncs the firecrawl wrapper skill against
-# the upstream firecrawl-cli release and SKILL.md source; playbooks:update syncs
-# each vendored pack against its own upstream. Same maintainer-facing sync
-# contract; the namespace supplies the object.
-update firecrawl,playbooks
-
-# Kept on merit. ai-briefing:generate produces the briefing artifact;
-# wizard:generate authors an interactive setup-wizard script a human runs.
-# Unrelated artifacts; the namespace supplies the object in both, and wizard's
-# name was locked by a naming tournament against grammar-clean alternatives
-# (the noun namespace carries the artifact class, the leaf stays the verb).
-generate ai-briefing,wizard
-
-# Fixed verb meaning: produces an artifact. bugs writes a report, testing
-# writes tests.
-write bugs,testing
+# Settled name (#5835): explainer-video is a new plugin, not a Manim backend
+# inside animation. animation:produce makes a hand-drawn film from style packs
+# behind a storyboard approval gate; explainer-video:produce scripts and
+# self-checks a silent ManimCE explainer. Both produce a finished video; the
+# namespace supplies which kind, each description's first clause names it, and
+# explainer-video's routes hand-drawn film to animation:produce.
+produce animation,explainer-video
 
 # Fixed verb meaning: consumes a sibling audit's findings artifact and drives the
 # human-gated realignment it recommends, never re-judging the surface itself.
@@ -250,44 +258,16 @@ write bugs,testing
 # what a per-item gate is not.
 realign instruction-placement,overengineering
 
-# Fixed shape rather than a fixed verb: a read-only lane that re-runs its
-# plugin's own audit and reports only what MOVED since the last run, above a
-# noise budget. Both members exist for the same reason: a re-run that
-# re-presents the whole standing finding set trains the operator to skim, and a
-# skimmed report is how a bad change gets approved. overengineering deltas an
-# enforcement surface; instruction-placement deltas an instruction layer.
-# Unrelated targets, and the namespace disambiguates. The noun is kept over a
-# verb because the skill names the artifact it produces (a delta) rather than an
-# action it performs on the target, the same reasoning the vocabulary already
-# applies to knowledge and lifecycle-object routers.
-delta instruction-placement,overengineering
-
 # One contract text, shipped as byte-identical copies because each plugin's
 # agents preload their own plugin's copy through a `skills:` entry.
 report discovery,implementation,plugin-quality
 
-# Kept on merit. dometrain:sync is a maintainer-only drift check of the
-# grounding skill's vendored upstream content; repo-fleet-hygiene:sync
-# fast-forwards a fleet's canonical checkouts onto the remote default branch.
-# Both bring a local copy level with its upstream. Unrelated targets, and the
-# namespace supplies the object in both; each description's first clause names it.
-sync dometrain,repo-fleet-hygiene
-
-# Settled name (#5835): explainer-video is a new plugin, not a Manim backend
-# inside animation. animation:produce makes a hand-drawn film from style packs
-# behind a storyboard approval gate; explainer-video:produce scripts and
-# self-checks a silent ManimCE explainer. Both produce a finished video; the
-# namespace supplies which kind, each description's first clause names it, and
-# explainer-video's routes hand-drawn film to animation:produce.
-produce animation,explainer-video
-
-# Kept on merit. architecture:improve scans module structure for deepening
-# opportunities and interviews one through Design-It-Twice, editing nothing;
-# improvement:improve ships one improvement of any kind in any target as a draft
-# PR. Both improve something; the namespace supplies the object, each
-# description's first clause names it, and improvement:improve routes a
-# structural fix to its owning lane rather than repeating architecture's lens.
-improve architecture,improvement
+# Contract-mandated, open owner set. docs/plugin-philosophy.md (Setup) fixes the
+# name for every plugin that ships consumer configuration; uniformity IS the
+# contract, so a new plugin adopting it is conformance, not a new decision. Not
+# consolidatable: ${CLAUDE_PLUGIN_ROOT} resolves per containing plugin and there
+# is no cross-plugin skill inheritance, so each plugin owns its own.
+setup *
 
 # Kept on merit. adhd:shape sets a standing output posture for the session's
 # responses; user-experience:shape is the front door for the user experience of
@@ -296,3 +276,25 @@ improve architecture,improvement
 # description's first clause names it ("Shape the assistant's output" beside
 # "Shape the user experience of the app being built").
 shape adhd,user-experience
+
+# Kept on merit. dometrain:sync is a maintainer-only drift check of the
+# grounding skill's vendored upstream content; repo-fleet-hygiene:sync
+# fast-forwards a fleet's canonical checkouts onto the remote default branch.
+# Both bring a local copy level with its upstream. Unrelated targets, and the
+# namespace supplies the object in both; each description's first clause names it.
+sync dometrain,repo-fleet-hygiene
+
+# Fixed verb meaning: refreshes vendored upstream material (plugin-philosophy.md,
+# Naming verb table). firecrawl:update syncs the firecrawl wrapper skill against
+# the upstream firecrawl-cli release and SKILL.md source; playbooks:update syncs
+# each vendored pack against its own upstream. Same maintainer-facing sync
+# contract; the namespace supplies the object.
+update firecrawl,playbooks
+
+# D19, kept on merit. session-flow:workflow routes a development session,
+# songwriting:workflow routes a writing session.
+workflow session-flow,songwriting
+
+# Fixed verb meaning: produces an artifact. bugs writes a report, testing
+# writes tests.
+write bugs,testing
