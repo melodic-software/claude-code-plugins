@@ -1175,12 +1175,12 @@ test("an issue is re-fired once per version of the lane workflow files: the App'
   assert.deepEqual(writes(forged.calls), refired(30));
 });
 
-test("a run still going, one that succeeded or was cancelled, or no run at all, is not re-fired", async () => {
+test("a run still going, one that succeeded or was cancelled before any job ran, or no run at all, is not re-fired", async () => {
   for (const [name, runs] of [
     ["in progress", [laneRun({ status: "in_progress", conclusion: null })]],
     ["queued beside a failed one", [laneRun(), laneRun({ at: "2026-10-16T10:00:09Z", status: "queued", conclusion: null })]],
     ["success", [laneRun({ conclusion: "success" })]],
-    ["cancelled", [laneRun({ conclusion: "cancelled" })]],
+    ["cancelled before any job ran", [laneRun({ conclusion: "cancelled" })]],
     ["none", []],
     ["another issue's", [laneRun({ number: 300 })]],
     ["outside the label's window", [laneRun({ at: "2026-10-16T10:30:00Z" })]],
@@ -1458,6 +1458,72 @@ test("a dimension-skipped run whose report-skip failed is re-fired, so report-sk
     const { github, actions, calls } = stalledRun({ jobs });
     assert.equal(await sweep({ github, actions }), 0, name);
     assert.deepEqual(writes(calls), refired(30), name);
+  }
+});
+
+// #9095: run 39711139895 on #8087 ended cancelled when pick-slot hit its
+// timeout in the WIP cap step: admit succeeded, pick-slot was cancelled and
+// every later job skipped, so no lane branch and no outcome marker exist.
+const CANCELLED_AT_PICK_SLOT = [
+  { name: "admit", conclusion: "success", steps: [{ name: "Check the trigger", conclusion: "success" }] },
+  { name: "pick-slot", conclusion: "cancelled", steps: [{ name: "Check the WIP cap", conclusion: "cancelled" }, { name: "Pick the slot", conclusion: "skipped" }] },
+  { name: "report-skip", conclusion: "skipped", steps: [] },
+  { name: "resolve-issue", conclusion: "skipped", steps: [] },
+  { name: "report-outcome", conclusion: "skipped", steps: [] },
+];
+
+// resolve-issue's slot queue keeps at most 100 waiting; GitHub cancels the rest
+// before they get a runner, so no step ran.
+const CANCELLED_IN_SLOT_QUEUE = [
+  { name: "admit", conclusion: "success", steps: [] },
+  pickSlot,
+  { name: "resolve-issue / run", conclusion: "cancelled", steps: [] },
+];
+
+test("a run cancelled before its lane token mint is re-fired like a failed run, once per version of the lane workflow files", async () => {
+  for (const [name, jobs] of [
+    ["at pick-slot", CANCELLED_AT_PICK_SLOT],
+    ["in the slot queue", CANCELLED_IN_SLOT_QUEUE],
+  ]) {
+    const fresh = stalledRun({ jobs, conclusion: "cancelled" });
+    assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0, name);
+    assert.deepEqual(writes(fresh.calls), refired(30), name);
+  }
+  // The App's re-add on these workflow files was cancelled the same way: stop there.
+  const again = stalledRun({
+    jobs: CANCELLED_AT_PICK_SLOT,
+    conclusion: "cancelled",
+    comments: [note(), refireNote(KEY, "2026-10-16T09:59:59Z")],
+    events: [
+      added("2026-10-16T09:00:00Z", OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T09:59:59Z" },
+      added(LABELED_AT),
+    ],
+  });
+  assert.equal(await sweep({ github: again.github, actions: again.actions }), 0);
+  assert.deepEqual(writes(again.calls), []);
+});
+
+test("a cancelled run admit did not pass, one that minted its token, or a held issue's, is not re-fired", async () => {
+  const modelRun = { name: "resolve-issue / run", conclusion: "cancelled", steps: [{ name: "Request the lane token", conclusion: "success" }] };
+  for (const [name, jobs, labels] of [
+    // A newer agent-ready run for the issue replaced this one while it waited
+    // in the workflow's concurrency group, so none of its jobs ran.
+    ["superseded before any job ran", [], []],
+    ["superseded with its jobs cancelled unstarted", [{ name: "admit", conclusion: "cancelled", steps: [] }, { name: "pick-slot", conclusion: "cancelled", steps: [] }], []],
+    ["cancelled after its mint", [CANCELLED_IN_SLOT_QUEUE[0], pickSlot, modelRun], []],
+    ["cancelled at pick-slot on a held issue", CANCELLED_AT_PICK_SLOT, ["needs-owner-decision"]],
+  ]) {
+    const fake = world({
+      openReady: [ready(30, labels)],
+      comments: { 30: [note()] },
+      events: { 30: [added(LABELED_AT, OWNER)] },
+      runs: [{ ...laneRun({ conclusion: "cancelled" }), updated_at: "2026-10-16T10:05:00Z" }],
+      jobs: { 5030: jobs },
+      blobs: BLOBS,
+    });
+    assert.equal(await sweep({ github: fake.github, actions: fake.github }), 0, name);
+    assert.deepEqual(writes(fake.calls), [], name);
   }
 });
 
