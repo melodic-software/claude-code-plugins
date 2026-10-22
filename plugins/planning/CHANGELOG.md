@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.85.0] - 2026-10-22
+
+### Added
+
+- Shared interview page: a prototype keeps its identity across rounds. A variant can name the variant it revises on an earlier prototype question (`previous`), and the question card and the prototype page list every version, mark the current one, open any of them, and show two side by side. Notes stay on the version they were pinned to, and the toolbar's Prototypes filter finds every round's prototypes without scrolling.
+
 ## [0.84.0] - 2026-10-22
 
 ### Added
