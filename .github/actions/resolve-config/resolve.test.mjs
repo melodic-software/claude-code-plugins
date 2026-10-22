@@ -1563,6 +1563,20 @@ const appliedByEdit = (edit) => {
   return stringify(doc);
 };
 
+test("prepare: a read skill that hands on a patch may set a writing skill's prepare mode; without applied-by.patch it may not", () => {
+  for (const prepare of ["review-threads", "dependency-review", "merge-base"]) {
+    const handsOn = appliedByEdit((doc) => {
+      doc.activities["fix-ci"].prepare = prepare;
+    });
+    assert.equal(unblock(handsOn).prepare, prepare, prepare);
+    const noPatch = appliedByEdit((doc) => {
+      doc.activities["fix-ci"].prepare = prepare;
+      delete doc.activities["fix-ci"]["applied-by"];
+    });
+    assertRejected(() => unblock(noPatch), "invalid-prepare");
+  }
+});
+
 test("applied-by: a read skill whose patch an apply-patch script in its lane needs resolves and carries the map", () => {
   assert.deepEqual(unblock(APPLIED_BY)["applied-by"], { patch: "apply-patch" });
   assert.equal(Object.hasOwn(unblock(APPLIED_BY, "apply-patch"), "applied-by"), false);

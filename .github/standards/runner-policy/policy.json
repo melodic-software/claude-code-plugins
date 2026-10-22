@@ -281,6 +281,32 @@
         "issues": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@2fe38c031867900824c164e33a140a335ed9ecf0": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "role": "automations",
+      "allowedInputs": [
+        "runner",
+        "allowed-labels",
+        "escalation-label",
+        "floor-label",
+        "instructions",
+        "cli-version",
+        "claude-args",
+        "issue-number",
+        "allowed-author-ids",
+        "allowed-bot-sender-ids",
+        "role"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_API_KEY": "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-review.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -500,6 +526,25 @@
         "id-token": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/pr-review.yml@2fe38c031867900824c164e33a140a335ed9ecf0": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "incremental-review",
+        "allowed-bot-sender-ids",
+        "model-args",
+        "allowed-author-ids"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -683,6 +728,19 @@
       }
     },
     "melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@164c2809f6150429b6f24d4a2777bb377af953d9": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "incremental-review", "allowed-bot-sender-ids", "model-args"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@2fe38c031867900824c164e33a140a335ed9ecf0": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner", "incremental-review", "allowed-bot-sender-ids", "model-args"],

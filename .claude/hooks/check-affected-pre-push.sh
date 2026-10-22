@@ -177,7 +177,7 @@ segment_push_dir() {
     w="$1"
     shift
     case "$w" in
-    --delete | --dry-run | -[nd]* | -[!-]*[nd]*) return 1 ;;
+    --delete | --dry-run | -[dn]* | -[!-]*[dn]*) return 1 ;;
     --tags) tags=1 ;;
     -o | --push-option | --repo | --receive-pack | --exec) shift ;;
     -*) ;;
@@ -287,7 +287,7 @@ run_checks() (
     extract_tools "$top" "$mb" "$tmp/tools" || exit 2
   fi
   [[ -x "$script" ]] || exit 2
-  (cd "$data" && bash "$script" 2>&1) || rc=$?
+  (cd "$data" && CHECK_DATA_ROOT="$data" bash "$script" 2>&1) || rc=$?
   exit "$rc"
 )
 
