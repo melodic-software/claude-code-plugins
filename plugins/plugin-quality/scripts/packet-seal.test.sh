@@ -351,7 +351,7 @@ iso_header='^# sealed-at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$
 
 # has_line <exact-line> <label> - the last run's output carries <exact-line> on a line of its own.
 has_line() {
-  if printf '%s\n' "$last_out" | grep -qxF -- "$1"; then
+  if grep -qxF -- "$1" <<<"$last_out"; then
     pass "$2"
   else
     fail "$2 — output was: $last_out"
