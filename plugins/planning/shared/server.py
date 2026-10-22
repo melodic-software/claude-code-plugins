@@ -193,6 +193,7 @@ ROUTES = {
     "/api/suggestion/act": ("moderator", "act_on_suggestion"),
     "/api/lock/edit": ("moderator", "edit_lock"),
     "/api/review/clear": ("moderator", "clear_review"),
+    "/api/decision/keep": ("owner", "keep_decision"),
     "/api/propose": ("person", "propose"),
     "/api/proposal/act": ("moderator", "act_on_proposal"),
     "/api/proposal/all": ("owner", "approve_proposals"),
