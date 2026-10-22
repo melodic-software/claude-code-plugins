@@ -10,7 +10,7 @@
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved spec (follow-up item 4) and the texts this suite writes, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
 const ASK = "@Claude what have we settled so far?", ANSWER = "The summary stays pinned; the copy is still open.";
 const PICK_ASK = "Which questions did nobody answer?";
@@ -111,9 +111,10 @@ async function main() {
     await ann.reload();
     await until(ann, () => !!window.Core.snapshot()?.me);
 
+    const still = await settled(bo, { rects: true });
     const fit = await bo.evaluate(() => ({ page: document.documentElement.scrollWidth, w: innerWidth,
       rows: [...document.querySelectorAll(".vf-msg-claude")].every(li => li.getBoundingClientRect().right <= innerWidth) }));
-    ok("390: Claude's message fits and nothing scrolls sideways", fit.page <= fit.w && fit.rows, JSON.stringify(fit));
+    ok("390: Claude's message fits and nothing scrolls sideways", still && fit.page <= fit.w && fit.rows, JSON.stringify({ still, ...fit }));
 
     // ---------- Ask Claude's picker: About the whole session ----------
     await ann.click(".vf-asktop");

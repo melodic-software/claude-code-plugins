@@ -12,7 +12,7 @@
 // Expected values come from the owner-approved spec (spec-question-screen.md item 9, follow-up 23) and the texts this
 // suite writes, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
 const CTX = { view: "focus", device: "computer", browser: "chrome", viewport: { w: 1440, h: 900 }, errors: [] };
@@ -105,8 +105,9 @@ async function main() {
     ok("the Host view's Review in Inbox opens Needs you with the request's row ringed", await until(owner, t => !document.querySelector(".vf-inboxpage").hidden
       && document.querySelector(".vf-ixtabs [data-k=needs]").getAttribute("aria-pressed") === "true"
       && [...document.querySelectorAll(".vf-ibneeds .vf-revlist > li")].some(li => li.textContent.includes(t) && li.classList.contains("vf-hl")), REVIEW));
+    const colsStill = await settled(owner, { rects: true });
     const cols = await owner.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect(); const a = r(".vf-ibneeds > .vf-ibrev"), b = r(".vf-ibneeds > .vf-ibneedq"); return { aL: a.left, aR: a.right, bL: b.left, top: Math.abs(a.top - b.top) }; });
-    ok("at 1440 px, Needs you lists requests and what waits on the host side by side (follow-up 51)", cols.aR <= cols.bL && cols.top < 2, JSON.stringify(cols));
+    ok("at 1440 px, Needs you lists requests and what waits on the host side by side (follow-up 51)", colsStill && cols.aR <= cols.bL && cols.top < 2, JSON.stringify({ still: colsStill, ...cols }));
     await owner.click(".vf-ibchips [data-stat=proposal]");
     await owner.locator(".vf-ibneeds .vf-revlist > li", { hasText: REVIEW }).locator("button", { hasText: /^Run$/ }).click();
     ok("with only a kind whose chip is off left, the chips stay in reach and say so", await until(owner, () => !document.querySelector(".vf-ibchips").hidden
@@ -213,11 +214,12 @@ async function main() {
 
     // ---------- follow-up 51: the Notifications layout ----------
     await showTab(owner, "notes");
+    const sideStill = await settled(owner, { rects: true });
     const side = await owner.evaluate(() => {
       const r = s => document.querySelector(s).getBoundingClientRect(), list = r(".vf-ixnotes > .vf-bptools"), pops = r(".vf-ibside > .vf-ibpops"), box = r(".vf-ibside > .vf-mutebox");
       return { beside: pops.left >= list.right, top: Math.abs(pops.top - list.top) < 40, box: box.height > 0, btn: document.querySelector(".vf-mutebtn").getClientRects().length };
     });
-    ok("at 1440 px, Pop-ups and the switches sit in a column beside the messages, open, with no button", side.beside && side.top && side.box && side.btn === 0, JSON.stringify(side));
+    ok("at 1440 px, Pop-ups and the switches sit in a column beside the messages, open, with no button", sideStill && side.beside && side.top && side.box && side.btn === 0, JSON.stringify({ still: sideStill, ...side }));
     await owner.keyboard.press("Escape");
     const ph = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
     await joinAs(ph, "Pho");
