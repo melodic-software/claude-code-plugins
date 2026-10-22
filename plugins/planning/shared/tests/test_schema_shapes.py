@@ -71,6 +71,7 @@ class TestValidSamples(unittest.TestCase):
                 "upload-received",
                 "upload-removed",
                 "report-filed",
+                "person-joined",
             },
         )
 

@@ -44,6 +44,7 @@ Views: G = every person, M = owner and leaders, O = owner only.
 | `requests` (O) | `requests` (O, runner host) | see Request |
 | `myRequests` | `myRequests` | see Request |
 | `mergeRequests` (O) | `mergeRequests` (O) | `{id, from, to, fromName, toName, ts, status: kind}` |
+| `claudeProposals` (O) | `claudeProposals` (O, open ones only) | `{id, kind, cid, name, to?, toName?, reasons, note, ts}`: `cid` from `from` or `pid`, names from `names` |
 | `myMergeRequests` | `myMergeRequests` | `{id, status: kind, toName}` |
 | `me.pid`, `me.prefs`, `me.unread` | `me.pid`, `me.prefs`, `me.unread` | same |
 | `me.notifications` | `me.notifications` | `ts` from `at`; `byCid` from `by` (a pid); `by` becomes the name |
