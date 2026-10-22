@@ -1322,7 +1322,7 @@ test("pr-unblock.yml: a read activity whose PR head moved mid-run posts on its o
   const { jobs } = workflow("pr-unblock.yml");
   const read = workflow("pr-run-activity-read.yml");
   const step = read.jobs.report.steps.find((s) => s.name === "Choose the head the check is posted on");
-  const choose = (callerHead, runHead) => {
+  const choose = (callerHead, runHead, postDecline = true) => {
     const dir = mkdtempSync(join(tmpdir(), "w9207-"));
     try {
       const output = join(dir, "output");
@@ -1337,6 +1337,7 @@ test("pr-unblock.yml: a read activity whose PR head moved mid-run posts on its o
           API_HEAD: moved,
           PR_MISMATCH: "",
           TRUSTED_SKIP: "false",
+          POST_DECLINE: String(postDecline),
         },
       });
       return Object.fromEntries(readFileSync(output, "utf8").trim().split("\n").map((line) => line.split("=")));
@@ -1352,7 +1353,18 @@ test("pr-unblock.yml: a read activity whose PR head moved mid-run posts on its o
     assert.equal(callerHead, old, `${id} passes the head a base job read`);
     assert.deepEqual(choose(callerHead, old), { post: "true", sha: old, forged: "false" }, id);
     assert.deepEqual(choose(callerHead, "3".repeat(40)), { post: "true", sha: old, forged: "true" }, `${id}: a foreign run head still fails`);
+    // A run that declines before its trigger gate leaves an empty head:
+    // fix-ci posts neutral not-assessed so fix-ci-dispatch moves on; fix-docs,
+    // dispatched once per PR, posts nothing so it is dispatched again.
+    const postDecline = job.with["post-decline"] ?? true;
+    assert.equal(postDecline, !id.startsWith("fix-docs"), `${id} post-decline`);
+    assert.deepEqual(
+      choose(callerHead, "", postDecline),
+      postDecline ? { post: "true", sha: old, forged: "false", "not-run-reason": "not-assessed" } : { post: "true", sha: "", forged: "false" },
+      `${id}: a declined run`,
+    );
   }
+  assert.equal(read.on.workflow_call.inputs["post-decline"].default, true);
 });
 
 test("pr-run-activity-read.yml: with output-mode gone, issue mode still refuses an activity that hands on no patch", () => {

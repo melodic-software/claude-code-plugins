@@ -1285,7 +1285,9 @@ outputs are sent), so the report job differs:
   apply-patch's `patch-head-sha`; apply-patch compares it with the head its own trigger gate reads
   at apply time and pushes only while the branch is still there. Both `fix-docs` calls pass the
   head `fix-docs-head` reads, a job that runs no head code, as `head-sha`, so a push while the run
-  goes posts its check on the head it ran on, not failure on the new head; and
+  goes posts its check on the head it ran on, not failure on the new head. They also pass
+  `post-decline: false`: fix-docs is dispatched once per PR, so a run that stops before its
+  trigger gate posts no `not-assessed` neutral and the PR is dispatched again; and
   `apply-docs-patch` passes the read runner's `head-sha` output as `patch-head-sha`; apply-patch still applies onto the head its own gate reads and measures the
   `default` row's refusals from there.
 

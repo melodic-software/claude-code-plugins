@@ -632,6 +632,7 @@ jobs:
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
       head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      post-decline: false
       timeout-minutes: 60
     secrets:
       claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
@@ -665,6 +666,7 @@ jobs:
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
       head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      post-decline: false
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
