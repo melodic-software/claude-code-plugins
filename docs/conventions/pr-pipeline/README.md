@@ -711,6 +711,29 @@ and its queued entries leave; two different identities, or an unreadable head co
   `plugins/**/scripts/**` entries, `floor-paths` globs that end in a `scripts` directory (such as
   `plugins/x/scripts/**`), or `floor-script-scopes`; every other floor entry, every other
   `floor-paths` glob and `denied-paths` still hold it.
+- **Cost hold.** A change that could add or raise a charge needs the owner (owner rule,
+  2026-10-22). It scores HIGH as `cost-review-required` in both lanes, whatever `high-path-floor`
+  says, and waits for a human like any other HIGH reason. It catches any changed
+  `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam` file; a
+  `.github/workflows/` file whose patch adds a `cron:` line (a schedule can spend model credits)
+  or a larger-runner label (`-<n>-cores`, `-large`, `-xlarge`, `-gpu`), which
+  [GitHub bills even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
+  on a repository that is not public, a workflow patch that adds a `runs-on:` or `macos` line;
+  and a `pr-pipeline.yaml` whose patch adds a `model:`, `effort:` or `max-turns:` line. A
+  workflow or pipeline file with no patch holds. The hold clears only when the pull request body
+  links an owner decision that covers it: a comment on the pull request's closing issue or on the
+  pull request itself, in this repository, whose first line is `**Decision recorded.**`, written
+  by a User with admin permission who is not the agent identity, not posted through an App, and
+  never edited. The gate reads the linked comments only for a pull request the hold catches, and a
+  failed read leaves the hold. A decision clears only this reason: a workflow or
+  `docs/conventions/pr-pipeline.yaml` change still sits on the HIGH path floor here and waits for a
+  person to merge it. Cite the decision before the human-gated label lands; a body edit does not
+  remove that label (only a new head or a person does). Budgets, billing settings and new paid
+  services outside these files are not detected, and neither is a Pulumi program file
+  (`Program.cs`, `index.ts`) whose `Pulumi.yaml` and stack files are unchanged: a repository that
+  holds one lists its program paths in `denied-paths` or `floor-paths` before it turns on
+  unattended merge. The review lanes and the verifier judge the rest. Dependabot pull requests are
+  not scored, so the hold does not apply to them.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.

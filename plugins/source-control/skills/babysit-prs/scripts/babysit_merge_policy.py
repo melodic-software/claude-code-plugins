@@ -1824,6 +1824,69 @@ def _closing_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str |
     return issue, None
 
 
+# --- Cost decision ------------------------------------------------------------------------
+
+# A comment link in a pull request body, and the first line that makes a
+# comment a decision (as select-trusted-text.mjs `DECISION` reads it).
+COST_DECISION_LINK = re.compile(
+    r"https://github\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/(?:issues|pull)/"
+    r"([0-9]+)#issuecomment-([0-9]+)"
+)
+DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*(\s|$)")
+COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}"
+
+
+def cost_decision(
+    repo: str,
+    pr: Mapping[str, Any],
+    issue: int | None,
+    *,
+    permission: Permission,
+    agent_identity: str | None,
+) -> str | None:
+    """The first comment link in the body that is an owner decision covering
+    this pull request, else None: a comment on its closing issue or on the
+    pull request itself in `repo`, by a User with admin permission who is not
+    the agent identity, not posted through an App, never edited, and whose
+    first line is `**Decision recorded.**`. A read that fails clears nothing."""
+    owner, name = _split_repo(repo)
+    covered = {pr.get("number"), issue} - {None}
+    for link in COST_DECISION_LINK.finditer(str(pr.get("body") or "")):
+        if f"{link[1]}/{link[2]}".casefold() != repo.casefold():
+            continue
+        if int(link[3]) not in covered:
+            continue
+        status, comment = _get(f"repos/{owner}/{name}/issues/comments/{link[4]}")
+        if status != 200 or not is_json_object(comment):
+            continue
+        user = json_object(comment.get("user"))
+        login = user.get("login")
+        if (
+            not str(comment.get("issue_url") or "").endswith(f"/issues/{link[3]}")
+            or user.get("type") != "User"
+            or comment.get("performed_via_github_app") is not None
+            or not isinstance(login, str)
+            or _login_key(login) == _login_key(agent_identity or "")
+            or not DECISION_LINE.match(str(comment.get("body") or "").lstrip())
+        ):
+            continue
+        try:
+            if permission(login) != "admin":
+                continue
+            node = _graphql(
+                COMMENT_EDITED, "cost decision", id=str(comment.get("node_id"))
+            ).get("node")
+        except PolicyReadError:
+            continue
+        if (
+            is_json_object(node)
+            and "lastEditedAt" in node
+            and node["lastEditedAt"] is None
+        ):
+            return link[0]
+    return None
+
+
 def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
     """`fork` for a head outside this repository, `dependency-manager` for a
     dependency manager's pull request, else None."""

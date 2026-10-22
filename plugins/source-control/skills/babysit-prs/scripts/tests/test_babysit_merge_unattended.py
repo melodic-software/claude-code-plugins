@@ -2438,6 +2438,46 @@ class FloorReadsCapabilityText(Unattended):
         self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
 
 
+class CostHold(Unattended):
+    """A change that could add or raise a charge refuses as risk:HIGH unless
+    the body cites an owner decision; the decision is read only then."""
+
+    PULUMI = ChangedFile(
+        "infra/Pulumi.yaml", None, "modified", 1, 1, True, "100644", "100644"
+    )
+
+    def run_with_decision(self, decision: str | None) -> tuple[Any, dict[str, Any]]:
+        read = mock.Mock(return_value=decision)
+        with mock.patch.object(policy, "cost_decision", read):
+            code, out = self.run_main(merge_flag=False)
+        # A refusal exits 10, as every refused unattended check does.
+        self.assertEqual(code, 0 if out["unattended"]["reason"] is None else 10)
+        return read, out["unattended"]
+
+    def test_a_cost_change_waits_for_a_human(self) -> None:
+        self.files = ((LOW_FILE, self.PULUMI), True)
+        read, out = self.run_with_decision(None)
+        self.assertEqual(out["risk"]["score"], "HIGH")
+        self.assertEqual(out["reason"], "risk:HIGH")
+        codes = [r["code"] for r in out["risk"]["reasons"]]
+        self.assertEqual(codes, ["cost-review-required"])
+        read.assert_called_once()
+        self.assertEqual(read.call_args.args[2], 40)
+
+    def test_a_cited_owner_decision_clears_it(self) -> None:
+        self.files = ((LOW_FILE, self.PULUMI), True)
+        link = "https://github.com/owner/repo/issues/40#issuecomment-7"
+        read, out = self.run_with_decision(link)
+        self.assertEqual(out["risk"]["score"], "LOW")
+        self.assertEqual(out["costDecision"], link)
+
+    def test_a_non_cost_change_reads_no_decision(self) -> None:
+        read, out = self.run_with_decision("unused")
+        self.assertEqual(out["risk"]["score"], "LOW")
+        read.assert_not_called()
+        self.assertNotIn("costDecision", out)
+
+
 class LaneEvidenceGetsTheChangedPaths(Unattended):
     """The review evidence is bound against the diff's paths, both sides of
     a rename, and against None when the file list is incomplete."""

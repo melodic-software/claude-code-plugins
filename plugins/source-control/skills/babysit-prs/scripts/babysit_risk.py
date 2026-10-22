@@ -71,6 +71,15 @@ read or parsed, or repeats a key, holds; an added plugin.json is compared with
 differ, and a listed key clears only with the type `_CLEAR_TYPES` names (a
 string otherwise).
 
+A change that could add or raise a charge rates HIGH as `cost-review-required`
+in every lane, floor or not (owner rule, 2026-10-22): any `COST_PATHS` file
+(Pulumi, Terraform, Bicep); a `.github/workflows/` file whose patch adds a
+`cron:` line or a larger-runner label (`-<n>-cores`, `-large`, `-xlarge`,
+`-gpu`), or, unless `RiskInput.public` is True, a `runs-on:` or `macos` line;
+and a `pr-pipeline.yaml` whose patch adds a `model:`, `effort:` or
+`max-turns:` line. A workflow or pipeline file with no patch holds. Only
+`RiskInput.cost_decision`, an owner decision the caller verified, clears it.
+
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
 uses only `[A-Za-z0-9._-]` and does not end in `.` (Windows strips it); every
@@ -190,6 +199,12 @@ class RiskInput:
     # a changed path, as (path, text), None when unreadable; None when not
     # read, so every changed path under plugins/<plugin>/evals/ holds.
     eval_cases: tuple[tuple[str, str | None], ...] | None = None
+    # The repository is public, where standard hosted runners are free; any
+    # other value reads every runs-on and macOS line as a charge.
+    public: bool | None = None
+    # The owner decision the caller verified for a `cost-review-required`
+    # change (its comment URL); None keeps the hold.
+    cost_decision: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1426,6 +1441,81 @@ def _high_path_reasons(
     return reasons
 
 
+COST_CODE = "cost-review-required"
+# Infrastructure as code: any change can add or resize a billed resource.
+COST_PATHS: tuple[str, ...] = (
+    "**/Pulumi.yaml",
+    "**/Pulumi.*.yaml",
+    "**/*.tf",
+    "**/*.tfvars",
+    "**/*.bicep",
+    "**/*.bicepparam",
+)
+_WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
+_PIPELINE_CONFIG = "**/pr-pipeline.yaml"
+# Added workflow lines that can charge in any repository: a schedule (a
+# scheduled lane spends model credits) and a larger-runner label, which
+# GitHub bills even on public repositories.
+_COST_WORKFLOW_LINE = re.compile(
+    r"^\s*-?\s*cron\s*:|-(?:\d+-?cores?|x?large|gpu)\b", re.IGNORECASE
+)
+# Standard hosted runners are free only on public repositories, so on any
+# other a runs-on or macOS label charges too.
+_COST_PRIVATE_LINE = re.compile(r"\bruns-on\s*:|\bmacos\b", re.IGNORECASE)
+# Model spend: the pipeline's model, effort or turn settings.
+_COST_PIPELINE_LINE = re.compile(
+    r"^\s*-?\s*(?:model|effort|max-turns)\s*:", re.IGNORECASE
+)
+
+
+def _added_lines(patch: Any) -> list[str] | None:
+    if not isinstance(patch, str):
+        return None
+    return [
+        line[1:]
+        for line in patch.split("\n")
+        if line.startswith("+") and not line.startswith("+++")
+    ]
+
+
+def _cost_reasons(
+    inp: RiskInput, files: list[_File], raw_files: list[Any]
+) -> list[Reason]:
+    """`cost-review-required` for a change that could add or raise a charge,
+    unless `inp.cost_decision` names the owner decision that clears it. It
+    holds in every lane, whatever the floor switch says."""
+    hits = []
+    for f, raw in zip(files, raw_files):
+        if any(glob_match(g, p) for g in COST_PATHS for p in f.paths):
+            hits.append(f"{f.path}: infrastructure as code")
+            continue
+        workflow = any(glob_match(g, p) for g in _WORKFLOWS for p in f.paths)
+        pipeline = any(glob_match(_PIPELINE_CONFIG, p) for p in f.paths)
+        if not (workflow or pipeline):
+            continue
+        added = _added_lines(getattr(raw, "patch", None))
+        if added is None:
+            hits.append(f"{f.path}: no patch to read")
+            continue
+        patterns = (
+            [_COST_WORKFLOW_LINE] + ([] if inp.public is True else [_COST_PRIVATE_LINE])
+            if workflow
+            else [_COST_PIPELINE_LINE]
+        )
+        lines = [
+            line.strip() for line in added if any(p.search(line) for p in patterns)
+        ]
+        if lines:
+            hits.append(f"{f.path}: {'; '.join(lines)}")
+    if not hits or inp.cost_decision:
+        return []
+    detail = "; ".join(hits) + (
+        "; cite the owner's `**Decision recorded.**` comment on the closing issue or "
+        "this pull request in the body to clear it"
+    )
+    return [Reason(COST_CODE, Risk.HIGH, detail)]
+
+
 def _c2_contradictions(files: list[_File]) -> list[str]:
     """The diff contradicts C2 ("deterministic and trivially reversible")."""
     found = []
@@ -1568,6 +1658,7 @@ def _score(inp: RiskInput) -> RiskResult:
         *_size_reasons(inp, files),
         *_lane_reasons(inp.lanes),
         *_high_path_reasons(inp, files or [], list(raw_files or ())),
+        *_cost_reasons(inp, files or [], list(raw_files or ())),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
