@@ -649,7 +649,7 @@
 .app .vf-chat-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 10px 14px; border-block-end: 1px solid var(--line); }
 .app .vf-chat-title { display: flex; align-items: baseline; gap: 8px; }
 .app .vf-chat-title .vf-h2 { color: var(--text); font-size: 13px; }
-.app .vf-mscroll { overflow: auto; padding: 12px; overscroll-behavior: contain; }
+.app .vf-mscroll { overflow: auto; padding: 12px; overscroll-behavior: contain; margin-block-end: var(--toast-slot, 0px); }
 .app .vf-mlist { display: grid; gap: 2px; }
 /* Name above the bubble; the avatar sits beside the bubble, centered on its first line, however the name wraps. */
 .app .vf-msg {
