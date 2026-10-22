@@ -12,12 +12,54 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the local-file findings-buffer adapter cannot validate or filter rows and exits 3, and the conformance script cannot parse an adapter's capabilities.json and exits 3.",
+      "degrade": "Without jq, the local-file findings-buffer adapter cannot validate or filter rows and exits 3, so buffer.sh appends and reads fail on the default binding, and the conformance script cannot parse an adapter's capabilities.json and exits 3.",
       "install": {
         "docs": "https://jqlang.org/download/",
         "brew": "jq",
         "winget": "jqlang.jq",
         "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, tools/findings-buffer/buffer.sh cannot resolve the adapter binding or set obs_id, and exits 3.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "python3"
+        ]
+      },
+      "degrade": "Without python3, tools/findings-buffer/buffer.sh cannot redact rows, so append exits 3 and writes nothing; read still works.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
       },
       "check": "/harness-ops:prerequisites"
     }
