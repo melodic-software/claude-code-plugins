@@ -7,12 +7,13 @@
 // payload. No model.
 //
 // Each new agent-ready is paced: at or over the issue lane's queued cap
-// (check-wip-cap.mjs, on or after wip.pause-from) a ready issue gets
-// `admission-deferred` instead, and with room for k admissions only the first
-// k ready issues are labeled. Every sweep revisits the open deferred issues
-// oldest first, before the closed ones: one still ready is labeled agent-ready
-// within the room and loses admission-deferred, a held one stays deferred, and
-// any other loses admission-deferred. Restarts, re-fires and relabels below
+// (check-wip-cap.mjs, on or after wip.pause-from, or whenever a search answers
+// incomplete_results: true) a ready issue gets `admission-deferred` instead,
+// and with room for k admissions only the first k ready issues are labeled.
+// Every sweep revisits the open deferred issues oldest first, before the closed
+// ones: one still ready is labeled agent-ready within the room and loses
+// admission-deferred, a held one stays deferred, and any other loses
+// admission-deferred. Restarts, re-fires and relabels below
 // re-run admitted issues and are never paced.
 //
 // On `schedule` it sweeps instead: every issue closed in the last

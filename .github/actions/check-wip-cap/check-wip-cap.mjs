@@ -24,8 +24,9 @@
 // max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
 // x wip.merge-rate-window-hours, on or after wip.pause-from, new admissions
 // (work-unblock adding agent-ready) pause; runs never pause on it, since a
-// queued issue leaves the count only by running. A failed queued read leaves
-// admissions open.
+// queued issue leaves the count only by running. A search that answers
+// incomplete_results: true closes admissions whatever wip.pause-from says. A
+// failed queued read without that flag leaves admissions open.
 //
 // As the action's step it writes `capped` (the run pause), `admission-open`,
 // `wip` (the status as one flat JSON object) and `state-saved` (`true` when a
