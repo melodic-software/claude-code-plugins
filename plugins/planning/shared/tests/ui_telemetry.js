@@ -91,10 +91,18 @@ async function main() {
         if (live) b.onclick = () => { b.dataset.n = String(Number(b.dataset.n || 0) + 1); };
         document.body.append(b);
       }
+      for (let i = 0; i < 3; i++) { // three controls of one kind, like the reaction buttons: one tap each is no rage tap
+        const b = document.createElement("button");
+        b.style.cssText = `position:fixed;inset-inline-start:${200 + 60 * i}px;inset-block-start:0;z-index:2147483647`;
+        b.type = "button"; b.className = "vf-btn vf-telemetry-trio"; b.textContent = String(i);
+        b.onclick = () => { b.dataset.n = "1"; };
+        document.body.append(b);
+      }
     });
     await guest.locator(".vf-telemetry-rage").click({ clickCount: 3 });
     await guest.locator(".vf-telemetry-dead").click();
-    await guest.waitForTimeout(1500); // past the wait that makes a tap dead
+    await guest.waitForTimeout(1500); // past the wait that makes a tap dead; the taps below change the page
+    for (const b of await guest.locator(".vf-telemetry-trio").all()) await b.click({ delay: 0 });
 
     const errorsSent = () => parsed(w.bodies).filter(b => b.kind === "error" && b.message?.includes(THROWN));
     ok("the error thrown three times is sent once, with its fingerprint", errorsSent().length === 1 && /^[0-9a-f]{8}$/.test(errorsSent()[0].fp), JSON.stringify(errorsSent()));
@@ -118,6 +126,7 @@ async function main() {
     ok("  with taps counted by control: Help once, three on the answering control as one rage tap, one dead tap",
       t1["use:vf-keysbtn"] === "1" && t1["use:vf-telemetry-rage"] === "3" && t1["rage:vf-telemetry-rage"] === "1" && !("dead:vf-telemetry-rage" in t1)
       && t1["use:vf-telemetry-dead"] === "1" && t1["dead:vf-telemetry-dead"] === "1" && !("rage:vf-telemetry-dead" in t1), sums[0]?.message);
+    ok("  and one quick tap on each of three controls of one kind is no rage tap", t1["use:vf-telemetry-trio"] === "3" && !("rage:vf-telemetry-trio" in t1), sums[0]?.message);
     ok("  and no body holds a tapped control's text, label, title or id", !w.bodies.some(b => /SECRET|secret-id/.test(b)), w.bodies.filter(b => /SECRET|secret-id/.test(b)).join(" | "));
     ok("  and no pid or name in its body", !("pid" in sums[0]) && !JSON.stringify(sums[0]).includes(pid) && !/owner=/.test(sums[0]?.message || ""), JSON.stringify(sums[0]));
 

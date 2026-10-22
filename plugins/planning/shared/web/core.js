@@ -954,7 +954,9 @@
     }
     return null;
   }
-  const rages = new Map(), waiting = new Set(); // rages by name: a control drawn again between taps is the same one
+  // A rage streak is one control's: its name and its place among the controls of that name, so a control drawn again
+  // between taps is the same one, and three of one kind (the reaction buttons) are three.
+  const rages = new Map(), waiting = new Set();
   const changed = () => { waiting.clear(); seer.disconnect(); };
   const seer = new MutationObserver(changed);
   addEventListener("scroll", () => waiting.size && changed(), { capture: true, passive: true });
@@ -962,8 +964,9 @@
     const el = e.isTrusted && e.target?.closest?.(TAPPABLE), name = el && tapName(el);
     if (!name) return;
     bump(tel.use, name);
-    const now = performance.now(), r = rages.get(name);
-    if (r && now - r.at <= RAGE_MS) { if (++r.n === RAGE_TAPS) bump(tel.rage, name); } else rages.set(name, { at: now, n: 1 });
+    const key = `${name}#${[...document.getElementsByClassName(name)].indexOf(el.closest(`.${name}`))}`;
+    const now = performance.now(), r = rages.get(key);
+    if (r && now - r.at <= RAGE_MS) { if (++r.n === RAGE_TAPS) bump(tel.rage, name); } else rages.set(key, { at: now, n: 1 });
     if (el.matches("a[target], a[download]")) return; // it opens elsewhere: this page need not change
     const tap = { name };
     if (!waiting.size) seer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
