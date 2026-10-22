@@ -27,6 +27,8 @@
 - [23. Browser extensions](#23-browser-extensions)
 - [24. Network listeners](#24-network-listeners)
 - [25. Firewall rules](#25-firewall-rules)
+- [26. Top processes](#26-top-processes)
+- [27. Backup status](#27-backup-status)
 
 Per-check rubrics for Windows. Section numbers follow the order of `catalog/checks.jsonc`. Each
 number is the anchor a catalog entry's `severity_rules` points at, so renumbering breaks those
@@ -1197,3 +1199,94 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   [Get-NetFirewallRule, -PolicyStore](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule#-policystore),
   [Get-NetFirewallPortFilter, -All](https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallportfilter#-all).
   As of 2026-10-21. Recheck when the unelevated bulk port-filter read returns every filter.
+
+---
+
+## 26. Top processes
+
+- **Script:** `scripts/windows/checks/Test-TopProcesses.ps1`, sampling through
+  `scripts/windows/lib/Get-ProcessSample.ps1`
+- **Category:** `reliability`
+- **Needs admin:** no. A process that denies its processor time or path read is listed with
+  `cpu_pct` or `path` null and `path_state` `denied`; that never changes severity.
+- **Remediation:** none. The check reports what is using the machine; it never stops a process.
+- **What it detects:** what is slowing the machine down over one sampling window. The window is
+  the check's `-SampleSeconds`, which the orchestrator passes from its own `-SampleSeconds`
+  (default and range in `Invoke-MachineHealthCheck.ps1`; the dispatch timeout stretches to cover
+  it, `Get-CheckTimeoutSec`). CPU share per process is the processor-time delta between two
+  `Get-Process` snapshots over (measured interval x logical CPUs) x 100, so a process holding one
+  of four CPUs reads 25. The system counters named in `$ProcessSampleCounter`
+  (`Get-ProcessSample.ps1`) are read with `Get-Counter` during that same window, so the check
+  takes about one window. `detail.items[]` lists the top processes by CPU share plus the top by
+  private bytes, once each. Each item's `process` key is its lowercased image file name, so
+  muting one covers every instance of that program; a muted item stays listed. Listed processes
+  are context and never raise severity: the system counters say whether the machine is slow, the
+  list says who to look at.
+- **Severity rubric:** we grade the system counters against Microsoft Learn's published bands and
+  label every result `detail.thresholds_label` as Windows Server guidance, because no client
+  bands are published. Values live in the script's `$band` table.
+  - Learn's Critical band reads `WARN` and its Warning band `INFO`. CPU in the Warning band reads
+    `WARN` when the processor queue per CPU is at or above Learn's level.
+  - Disk latency is graded only when the window is at least `$SustainedSeconds`; shorter
+    windows set `disk_latency_sustained` false and the summary reads "not sustained-tested".
+  - No `CRIT`: a window of seconds on a client is evidence to look at, not the imminent failure
+    `reference/shared/severity-rubric.md` keeps `CRIT` for.
+  - `UNKNOWN` when a counter could not be read and no other reading raised the severity
+    (`detail.counters_state`). Counter paths are English, so another display language reads
+    `UNKNOWN`.
+- **Pointer**: when checking a disk, memory or processor band, fetch
+  [Troubleshoot performance problems in Windows, "Introduce the 18 most important counters"](https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/troubleshoot-performance-problems-in-windows#introduce-the-18-most-important-counters)
+  live; for the % Processor Time band and the queue-length rule, fetch
+  [Troubleshoot issues using Performance Monitor, "Performance counters for CPU usage"](https://learn.microsoft.com/en-us/troubleshoot/windows-server/support-tools/troubleshoot-issues-performance-monitor#performance-counters-for-cpu-usage)
+  live.
+- **As of**: 2026-10-21
+- **Recheck trigger**: either section changes a band, a counter or its sustained-window note, or
+  Microsoft publishes bands scoped to Windows client.
+
+---
+
+## 27. Backup status
+
+- **Script:** `scripts/windows/checks/Test-BackupStatus.ps1`, reading through
+  `scripts/windows/lib/Get-BackupSignal.ps1` (where each signal is read: `$BackupSignalSource`)
+- **Category:** `reliability`
+- **Needs admin:** partly. Restore points and the wbadmin version count are read elevated only;
+  unelevated, their sources read `needs-admin` and `detail.admin_fields` names `restore_points`
+  and `system_image` (`Get-ElevationMatrix.ps1`).
+- **Remediation:** none. The check never starts or configures a backup.
+- **What it detects:** whether anything backs the machine up. One `detail.sources[]` row per
+  signal, each `present`, `absent`, `needs-admin` or `unknown`, with the signal and a one-line
+  basis. We read every signal a home or small-office machine is likely to use, so one present
+  source is enough:
+  - `system-image`: the Backup event channel by numeric event id, never message text. No events
+    reads `unknown`, never `absent`, because we have not seen a Windows 11 client job log there.
+    Elevated, wbadmin's exit code and its count of version-id-shaped lines; a positive count reads
+    `present` even when the retained channel holds only failed runs, and a zero count settles
+    nothing. `detail.deprecation_note` always carries the System Image Backup deprecation, and
+    the summary repeats it only when a system image is the present source.
+  - `restore-points`: the SystemRestore CIM class.
+  - `file-history`: a File History configuration file for the user.
+  - `windows-backup`: the record count of the Windows Backup app's own log, an undocumented
+    signal labeled as such.
+  - `onedrive-kfm`: `present` when Desktop, Documents or Pictures resolves at or under a OneDrive
+    root (signal `known-folder-redirect`, read from the user's shell-folder values without opening
+    any file), or when a Known Folder Move policy names a tenant and moves at least one folder
+    (signal `policy-key`; a folder value of 0 moves nothing, and notification or prompt values are
+    never evidence). This detects redirection, not sync health: a redirected folder whose sync is
+    paused or failing still reads `present`.
+- **Severity rubric:**
+  - `UNKNOWN`: any source reads `needs-admin`, or a source state outside the closed set.
+  - `WARN`: no source is `present`.
+  - `OK`: at least one source is `present`.
+- **Pointer**: when checking System Image Backup's deprecation status, fetch
+  [Deprecated features in the Windows client, "Deprecated features"](https://learn.microsoft.com/en-us/windows/whats-new/deprecated-features#deprecated-features)
+  live and read its System Image Backup (SIB) Solution row; when checking who may run wbadmin,
+  fetch [wbadmin get versions](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/wbadmin-get-versions)
+  live; when checking which Known Folder Move policy values move a folder, fetch
+  [Use OneDrive policies, "Silently move Windows known folders to OneDrive"](https://learn.microsoft.com/sharepoint/use-group-policy#silently-move-windows-known-folders-to-onedrive)
+  live.
+- **As of**: 2026-10-21
+- **Recheck trigger**: the System Image Backup row leaves the deprecated list or moves to the
+  removed-features page, wbadmin get versions stops requiring elevation, a host with a known
+  system image shows no Backup channel events, or the Known Folder Move section renames a value
+  or changes what an unset folder value moves.

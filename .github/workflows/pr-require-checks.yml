@@ -150,6 +150,13 @@ concurrency:
 # serves that ref alone: on 2026-10-09, 169 of 190 entries were, with the
 # repository at 10.67 GB against the 10 GB cap. The setup-node and setup-python
 # `cache:` input always saves, so neither step sets it.
+#
+# NO AUDIT OR FUND REQUEST ON INSTALL. `npm ci` otherwise posts an audit report
+# to the registry after installing, and a stalled request held jobs for npm's
+# fetch timeout. https://docs.npmjs.com/cli/v10/using-npm/config#audit
+env:
+  npm_config_audit: "false"
+  npm_config_fund: "false"
 jobs:
   # Single resolution of the diff scope. Every gated step reads a
   # `needs.select-tests.outputs.*` row instead of re-running the detector, so the
@@ -881,15 +888,22 @@ jobs:
             ~/.npm/_cacache
           key: ${{ steps.npx_cache.outputs.cache-primary-key }}
 
+      # typos skips hidden directories; naming .changes checks the changelog
+      # fragments without pulling in .github and .claude. The release branch
+      # consumes every fragment, and typos exits 64 on a missing path.
+      - name: Resolve spell-check paths
+        id: typos_paths
+        run: |
+          if [[ -d .changes ]]; then paths='. .changes'; else paths='.'; fi
+          echo "paths=$paths" >>"$GITHUB_OUTPUT"
+
       - name: Spell-check
         id: typos
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/typos@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           config: _typos.toml
-          # typos skips hidden directories; naming .changes checks the
-          # changelog fragments without pulling in .github and .claude.
-          paths: . .changes
+          paths: ${{ steps.typos_paths.outputs.paths }}
           # A pack's vendored baseline is replaced verbatim from upstream by its
           # own update script, which reports drift by hashing the committed file
           # against the fetched one, so any spelling correction here would read
