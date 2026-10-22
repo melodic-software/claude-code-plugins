@@ -906,9 +906,13 @@ warns of a [classifier gap](README.md#classifier-gaps).
    `.github/dependabot.yml` lists for that ecosystem (`inFixScope` in the base's
    `dependency-classify.mjs`, copied out with its SHA-256 by the select step before any model
    turn and imported from the checked bytes; the select step also hands on the config's
-   `[ecosystem, directory]` pairs, and an unreadable config admits no path), and every commit's message carries
-   `[dependabot skip]`, so Dependabot may still rebase over the fix. A fix that changes any other
-   path does not land, and the verdict job escalates `dependency-fix-not-landed`. Commits made
+   `[ecosystem, directory]` pairs, and an unreadable config admits no path), every commit's message carries
+   `[dependabot skip]`, so Dependabot may still rebase over the fix, and each file passes the
+   rest of the fix rule (`fixRefusal` in the same copy): modified in place, a regular `100644`
+   file at the lane tip (no symbolic link, submodule or executable, read from the tree before any
+   content), and changed from the PR head only by a version
+   ([README, "Dependabot pull requests"](README.md)). A fix that changes any other path or
+   content does not land, and the verdict job escalates `dependency-fix-not-landed`. Commits made
    beside any other verdict are discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
@@ -936,9 +940,14 @@ warns of a [classifier gap](README.md#classifier-gaps).
      the App's, committer `web-flow`, `verification.verified` `true` with reason `valid`, and a
      committer date no earlier than `run.json`'s `started_at` (taken before any model turn, so
      the verdict job reads no Actions API and needs no `actions` permission), else
-     `superseded-sha`. Those commits may change only
-     the manifest and lock files the promote step admits, by `run.json`'s `config`, either side
-     of a rename, else `dependency-invalid`;
+     `superseded-sha`. Those commits must pass the fix rule the promote step applies
+     ([README, "Dependabot pull requests"](README.md)), with the `[ecosystem, directory]` pairs
+     this job reads from `.github/dependabot.yml` at `BASE_SHA` (never `run.json`'s `config`):
+     each file modified in place, a regular `100644` file at the head (read from the tree before
+     any content), a manifest or lock file in fix scope, and changed from the reviewed head only
+     by a version; else `dependency-fix-refused`, or `dependency-config-unreadable` when the base
+     config does not read. `run.json`'s `head_sha` must equal the model job's gated head
+     (`dependency-head-sha`), else `dependency-invalid`;
    - `merge`: posts the round marker, whose first line
      `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`
      from the lanes App is the record the pr-merge lane merges a review-tier pull request on,
@@ -948,7 +957,13 @@ warns of a [classifier gap](README.md#classifier-gaps).
      (re-read here) change a workflow or action file (`.github/workflows/**` or an
      `action.yml`), either side of a rename, it posts no merge marker and escalates
      `dependency-workflow-held`, so a person merges it; a listing at its 3,000-file limit
-     escalates `dependency-files-truncated`; without each of `controls` quoted
+     escalates `dependency-files-truncated`; unless the pull request's commits are listed whole
+     (fewer than 250, the pull request's count, the last one the head) and each is Dependabot's
+     own (author id 49699333, committer `web-flow`, a valid signature, Dependabot's name and
+     email), the version-bump commit, or a single-parent commit that passes the fix rule against
+     its parent, it posts no merge marker and escalates `dependency-fix-refused`; it reads
+     `.github/dependabot.yml` at `BASE_SHA` itself, and a config that does not read escalates
+     `dependency-config-unreadable`; without each of `controls` quoted
      in `evidence` it escalates `dependency-control-uncited`
      ([README, "Review-only dependencies"](README.md#review-only-dependencies)). This job never
      merges or enqueues;
@@ -961,7 +976,7 @@ warns of a [classifier gap](README.md#classifier-gaps).
    - posts the round marker once per model run, named `none` when the model run uploaded no
      verdict: a re-run that finds its own marker posts none.
 
-   The runner accepts only those six reasons, and only with `dependency-verdict`.
+   The runner accepts only the reasons above, and only with `dependency-verdict`.
 
 ### prepare: ci-context
 

@@ -877,15 +877,22 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   review's verdict job posts no merge marker on a pull request that changes a workflow or action
   file (`dependency-workflow-held`), so a person merges those. A `fix` verdict lands only when
   its commits change nothing but npm or pip manifest and lock files outside `.github/`, in a
-  directory `.github/dependabot.yml` lists for that ecosystem; any other
-  path keeps the fix off the branch and hands the pull request to a person
-  ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
+  directory `.github/dependabot.yml` lists for that ecosystem, each modified in place as a regular
+  `100644` file and changed only by a version (the **fix rule**: in `package.json` only an
+  existing dependency entry's plain semver range; in a lock every `resolved` an
+  `https://registry.npmjs.org/` tarball and no install-script change; in requirements only added
+  `name==version` pins and `--hash=sha256:` continuations); anything else keeps the fix off the
+  branch and hands the pull request to a person. The verdict job posts no merge marker unless
+  every commit is Dependabot's own, the version-bump commit, or a commit that passes the fix rule
+  (`dependency-fix-refused`) ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
 - **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
   `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
   only a plugin's `plugin.json` or `CHANGELOG.md`). On a reviewed pull request the lanes App's
-  verified `[dependabot skip]` fix commits count too. The commits listing must hold the pull
+  verified `[dependabot skip]` fix commits count too, each only after it passes the fix rule. The commits listing must hold the pull
   request's whole commit count, else the reason is `commits-listed:<listed>-of:<total>` (the
-  listing stops at 250). A commit's author is text whoever creates it
+  listing stops at 250). A lanes App commit must pass the fix rule against its one parent, read
+  from the commit's files, tree modes and both sides' text, else the reason is
+  `dependabot-fix-content:<why>`. A commit's author is text whoever creates it
   chooses, so two more checks bind the pull request to Dependabot:
   - **Pushes.** The repository activity API for the head branch, read back to Dependabot's newest
     branch creation or force push, shows every push by `dependabot[bot]`, or by

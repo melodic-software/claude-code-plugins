@@ -236,6 +236,7 @@ jobs:
       trusted-base: default-tip
       dependency-verdict: true
       dependency-run-sha256: ${{ needs.review-dependency.outputs.dependency-run-sha256 }}
+      dependency-head-sha: ${{ needs.review-dependency.outputs.head-sha }}
       # The model job's attempt names the verdict artifact, so "Re-run failed
       # jobs" on this job alone still downloads it.
       dependency-run-attempt: ${{ needs.review-dependency.outputs.dependency-run-attempt }}

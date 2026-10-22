@@ -2,7 +2,9 @@
 // the rules the pr-merge lane applies: a line-for-line port of
 // plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py
 // (`classify`, `parse_metadata`, `parse_title`, `is_major`, `commit_refusal`,
-// `commits_refusal`, `parse_config`, `glob_regex`, `content_refusal`) and its
+// `commits_refusal`, `parse_config`, `glob_regex`, `content_refusal`, and the
+// fix rule `in_fix_scope`, `is_fix_file`, `is_semver_range`,
+// `fix_content_refusal` and `fix_refusal`) and its
 // caller's commit and content steps (`dependabot_eligibility` and
 // `_dependabot_content` in babysit_merge_policy.py). Contract:
 // docs/conventions/pr-pipeline/README.md, "Dependabot pull requests".
@@ -251,8 +253,7 @@ function inDirectory(path, directory) {
 
 // What the lanes App's fix on a reviewed Dependabot pull request may change:
 // npm and pip manifests and lock files only, narrower than MANIFESTS (no
-// setup.py, pyproject.toml or other file a build runs). pr-unblock only; the
-// pr-merge lane has no twin.
+// setup.py, pyproject.toml or other file a build runs).
 const FIX_MANIFESTS = Object.freeze({
   npm: /^(package\.json|package-lock\.json|npm-shrinkwrap\.json)$/,
   pip: /^requirements[^/]*\.(txt|in)$/,
@@ -262,6 +263,8 @@ const FIX_MANIFESTS = Object.freeze({
 // its ecosystem in `config` (the base dependabot.yml's [ecosystem, directory]
 // pairs), never under .github/. A fix that changes anything else does not
 // land, and the pull request goes to a person. No config admits nothing.
+// The pr-merge lane's twin is `in_fix_scope` in babysit_dependabot.py, as
+// for every fix rule below.
 export function inFixScope(path, config) {
   const text = String(path ?? "");
   const name = text.slice(text.lastIndexOf("/") + 1);
@@ -270,6 +273,156 @@ export function inFixScope(path, config) {
     Array.isArray(config) &&
     config.some((pair) => Array.isArray(pair) && FIX_MANIFESTS[pair[0]]?.test(name) && typeof pair[1] === "string" && inDirectory(text, pair[1]))
   );
+}
+
+// web-flow, the committer GitHub records on the commits it signs.
+export const WEB_FLOW_ID = 19864447;
+
+// A commit Dependabot authored and GitHub committed and signed for it: the
+// account ids as well as the name and email, so a fix commit is never taken
+// for Dependabot's on its author text alone.
+export const isDependabotSigned = (item) =>
+  isDependabotCommit(item) &&
+  item?.author?.id === DEPENDABOT_ID &&
+  item?.committer?.id === WEB_FLOW_ID &&
+  item?.commit?.verification?.verified === true &&
+  item.commit.verification.reason === "valid";
+
+// A fix changes only regular, non-executable files: no symbolic link
+// (120000), submodule (160000) or executable (100755). `entry` is the GraphQL
+// tree entry at the fix's tip.
+export const FIX_MODE = 0o100644;
+export const isFixFile = (entry) => entry?.type === "blob" && entry.mode === FIX_MODE;
+
+const DEPENDENCY_SECTIONS = Object.freeze(["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]);
+const RANGE_VERSION = /^v?([0-9]+|[xX*])(\.([0-9]+|[xX*])){0,2}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
+const COMPARATOR = /^(\^|~|[<>]=?|=)?v?([0-9]+|[xX*])(\.([0-9]+|[xX*])){0,2}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$/;
+export const NPM_REGISTRY_TARBALL = "https://registry.npmjs.org/";
+const REQUIREMENT = /^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?(\[[A-Za-z0-9._,-]+\])?==[0-9][0-9A-Za-z.+!-]*(\s*;\s*[A-Za-z0-9_.'"<>=!~ ()]+?)?(\s+\\)?$/;
+const HASH_LINE = /^\s+--hash=sha256:[0-9a-f]{64}(\s+\\)?$/;
+
+// A plain semver range: comparators (`^1.2.3`, `>=1 <2`, `1.x`), a hyphen
+// range, or `||` of either. No dist-tag, alias, URL, path, git or GitHub
+// shorthand, or workspace protocol.
+export function isSemverRange(value) {
+  if (typeof value !== "string" || value.length === 0 || value.length > 200) return false;
+  return value.split("||").every((part) => {
+    const set = part.trim();
+    const hyphen = /^(\S+) - (\S+)$/.exec(set);
+    if (hyphen) return RANGE_VERSION.test(hyphen[1]) && RANGE_VERSION.test(hyphen[2]);
+    return set !== "" && set.split(/\s+/).every((comparator) => COMPARATOR.test(comparator));
+  });
+}
+
+const parseJson = (text) => {
+  try {
+    const value = JSON.parse(String(text));
+    return value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+  } catch {
+    return null;
+  }
+};
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const canonical = (value) =>
+  Array.isArray(value)
+    ? `[${value.map(canonical).join(",")}]`
+    : isObject(value)
+      ? `{${Object.keys(value)
+          .sort()
+          .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`)
+          .join(",")}}`
+      : JSON.stringify(value);
+
+// package.json: only the version range of a dependency already listed in a
+// dependency section changes, to a plain semver range. Any other key
+// (scripts, overrides, resolutions, bin, ...) stays as it was.
+export function packageJsonRefusal(before, after) {
+  const old = parseJson(before);
+  const now = parseJson(after);
+  if (!old || !now) return "package-json-unreadable";
+  for (const key of [...new Set([...Object.keys(old), ...Object.keys(now)])].sort()) {
+    if (!DEPENDENCY_SECTIONS.includes(key)) {
+      if (canonical(old[key]) !== canonical(now[key])) return `package-json-key:${key}`;
+      continue;
+    }
+    const was = old[key];
+    const is = now[key];
+    if (!isObject(was) || !isObject(is)) return `package-json-key:${key}`;
+    const names = Object.keys(was).sort();
+    if (canonical(names) !== canonical(Object.keys(is).sort())) return `package-json-entries:${key}`;
+    for (const name of names) {
+      if (canonical(was[name]) !== canonical(is[name]) && !isSemverRange(is[name])) return `package-json-range:${key}:${name}`;
+    }
+  }
+  return null;
+}
+
+// package-lock.json and npm-shrinkwrap.json: every `resolved` is an npm
+// registry tarball, and no package gains or loses an install script.
+export function lockRefusal(before, after) {
+  const old = parseJson(before);
+  const now = parseJson(after);
+  if (!old || !now) return "lock-unreadable";
+  const stack = [now];
+  while (stack.length) {
+    const node = stack.pop();
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "resolved" && !(typeof value === "string" && value.startsWith(NPM_REGISTRY_TARBALL))) return "lock-resolved";
+      if (value !== null && typeof value === "object") stack.push(value);
+    }
+  }
+  const was = isObject(old.packages) ? old.packages : {};
+  const is = isObject(now.packages) ? now.packages : {};
+  for (const name of [...new Set([...Object.keys(was), ...Object.keys(is)])].sort()) {
+    if ((was[name]?.hasInstallScript === true) !== (is[name]?.hasInstallScript === true)) return `lock-install-script:${name}`;
+  }
+  return null;
+}
+
+// requirements*.txt and .in: every line the fix adds is blank, a comment, a
+// `name==version` pin (extras and an environment marker allowed), or an
+// indented `--hash=sha256:` continuation. No option line (`--index-url`,
+// `--extra-index-url`, `-e`, `-r`, `-c`, ...), URL or VCS requirement.
+export function requirementsRefusal(before, after) {
+  if (typeof before !== "string" || typeof after !== "string") return "requirements-unreadable";
+  const kept = new Map();
+  for (const line of before.split("\n")) kept.set(line, (kept.get(line) ?? 0) + 1);
+  for (const line of after.split("\n")) {
+    if (kept.get(line)) {
+      kept.set(line, kept.get(line) - 1);
+      continue;
+    }
+    const text = line.replace(/\r$/, "");
+    if (!/^\s*(#.*)?$/.test(text) && !REQUIREMENT.test(text) && !HASH_LINE.test(text)) return "requirements-line";
+  }
+  return null;
+}
+
+// Why the fix's change to `path` from `before` to `after` (the file's text on
+// each side) is not a version change, or null.
+export function fixContentRefusal(path, before, after) {
+  const name = String(path ?? "").slice(String(path ?? "").lastIndexOf("/") + 1);
+  if (name === "package.json") return packageJsonRefusal(before, after);
+  if (name === "package-lock.json" || name === "npm-shrinkwrap.json") return lockRefusal(before, after);
+  if (/^requirements[^/]*\.(txt|in)$/.test(name)) return requirementsRefusal(before, after);
+  return "content-unchecked";
+}
+
+// The first reason a fix's changed files (a REST compare or commit `files`
+// listing) are not a lane fix, or null: each file only modified in place,
+// in fix scope for `config`, a regular file at the tip (`entry(path)`, read
+// before any content, since a contents read follows a symbolic link), and a
+// version change from `text("before", path)` to `text("after", path)`.
+export async function fixRefusal(files, config, { entry, text }) {
+  for (const file of files) {
+    const path = String(file?.filename ?? "");
+    if (file?.status !== "modified" || file.previous_filename) return `fix-status:${path}`;
+    if (!inFixScope(path, config)) return `fix-scope:${path}`;
+    if (!isFixFile(await entry(path))) return `fix-mode:${path}`;
+    const why = fixContentRefusal(path, await text("before", path), await text("after", path));
+    if (why) return `fix-content:${path}:${why}`;
+  }
+  return null;
 }
 
 function actionsFile(path, config) {

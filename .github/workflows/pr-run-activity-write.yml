@@ -160,6 +160,13 @@ on:
         required: false
         type: string
         default: ""
+      dependency-head-sha:
+        description: >-
+          With dependency-verdict, the model run's head-sha output: the head
+          its gate passed, which the verdict script requires run.json to name.
+        required: false
+        type: string
+        default: ""
       dependency-run-attempt:
         description: >-
           With dependency-verdict, the model run's dependency-run-attempt
@@ -253,8 +260,8 @@ on:
           dependency-round-cap; for the dependency-verdict script
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-files-truncated, dependency-control-uncited,
-          dependency-workflow-held, dependency-security-close or
-          dependency-escalate; for apply-patch, before the mint,
+          dependency-workflow-held, dependency-fix-refused,
+          dependency-security-close or dependency-escalate; for apply-patch, before the mint,
           ci-fix-empty, ci-fix-invalid or ci-fix-escalated, and from its
           script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
           empty otherwise.
@@ -458,6 +465,7 @@ jobs:
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-held) ;;
+            dependency-fix-refused) ;;
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied) ;;
             *)
@@ -1818,7 +1826,7 @@ jobs:
                   core.setFailed("dependency-classify.mjs does not match the base's copy; the PR branch is not moved");
                   return;
                 }
-                const { inFixScope } = await import(`data:text/javascript;base64,${classify.toString('base64')}`);
+                const { inFixScope, fixRefusal } = await import(`data:text/javascript;base64,${classify.toString('base64')}`);
                 // Unreadable pairs admit no path.
                 let pairs = [];
                 try {
@@ -1836,6 +1844,37 @@ jobs:
                 }
                 if (data.commits.length >= 250 || data.commits.some((c) => !/\[dependabot skip\]/i.test(c.commit.message))) {
                   core.setFailed('The lane branch holds a commit without [dependabot skip]; the PR branch is not moved');
+                  return;
+                }
+                // The compare lists names, not modes or content: each file
+                // must be modified in place, a regular file at the lane tip
+                // (read before any content, since a contents read follows a
+                // symbolic link), and changed only by a version change.
+                const trees = new Map();
+                const refusal = await fixRefusal(data.files, pairs, {
+                  entry: async (path) => {
+                    const dir = path.slice(0, Math.max(path.lastIndexOf('/'), 0));
+                    if (!trees.has(dir)) {
+                      const { repository } = await github.graphql(
+                        'query($owner: String!, $name: String!, $expression: String!) { repository(owner: $owner, name: $name) { object(expression: $expression) { ... on Tree { entries { name type mode } } } } }',
+                        { owner: context.repo.owner, name: context.repo.repo, expression: `${lane}:${dir}` },
+                      );
+                      trees.set(dir, repository.object?.entries ?? []);
+                    }
+                    return trees.get(dir).find((e) => e.name === path.slice(dir ? dir.length + 1 : 0));
+                  },
+                  text: async (side, path) => {
+                    try {
+                      const { data: text } = await github.rest.repos.getContent({ ...context.repo, path, ref: side === 'before' ? HEAD_SHA : lane, mediaType: { format: 'raw' } });
+                      return typeof text === 'string' ? text : null;
+                    } catch (error) {
+                      if (error.status === 404) return null;
+                      throw error;
+                    }
+                  },
+                });
+                if (refusal) {
+                  core.setFailed(`The lane branch's fix is not a version change of regular manifest files (${refusal.slice(0, 200)}); the PR branch is not moved`);
                   return;
                 }
               }
@@ -2098,6 +2137,7 @@ jobs:
           # dependency-verdict only; empty otherwise.
           DEPENDENCY_VERDICT_DIR: ${{ inputs.dependency-verdict && format('{0}/dependency-verdict', runner.temp) || '' }}
           DEPENDENCY_RUN_SHA256: ${{ inputs.dependency-run-sha256 }}
+          DEPENDENCY_HEAD_SHA: ${{ inputs.dependency-head-sha }}
           DEPENDENCY_RUN_ATTEMPT: ${{ inputs.dependency-run-attempt }}
           # apply-patch only; empty otherwise. The select step checked the
           # patch before the mint; the script checks its SHA-256 again.
@@ -2168,6 +2208,7 @@ jobs:
                   :?*:dependency-invalid | :?*:dependency-fix-not-landed) ;;
                   :?*:dependency-security-close | :?*:dependency-escalate | :?*:dependency-config-unreadable) ;;
                   :?*:dependency-files-truncated | :?*:dependency-control-uncited | :?*:dependency-workflow-held) ;;
+                  :?*:dependency-fix-refused) ;;
                   *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
                 esac
                 ;;

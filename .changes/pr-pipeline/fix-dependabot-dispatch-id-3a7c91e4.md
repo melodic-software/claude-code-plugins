@@ -18,3 +18,14 @@ bump: patch
   new `dependency-manifests` predicate.
 - A `merge` verdict on a Dependabot pull request that changes a workflow or action file posts no
   merge marker and escalates the new `dependency-workflow-held`, so a person merges it.
+- A lanes App commit on a Dependabot pull request must be a version change. The promote step,
+  the verdict job's `fix` and `merge` paths, and the pr-merge lane refuse a fix file that is not
+  modified in place, not a regular `100644` file (a symbolic link, submodule or executable), or
+  whose content changes more than a version: in `package.json` only existing dependency entries'
+  plain semver ranges may change, every lock `resolved` must be an `https://registry.npmjs.org/`
+  tarball with no install-script change, and requirements lines may add only `name==version` pins
+  with `--hash=sha256:` continuations. The verdict job's `merge` path now checks every commit that
+  is not Dependabot's own (matched by account id, web-flow and a valid signature), reads the
+  `[ecosystem, directory]` pairs from the base's `.github/dependabot.yml` itself, and requires
+  run.json to name the head the model job's gate passed. A refusal escalates the new
+  `dependency-fix-refused`.

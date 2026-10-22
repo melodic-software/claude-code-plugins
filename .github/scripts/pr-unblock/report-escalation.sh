@@ -23,7 +23,8 @@
 #                       | dependency-config-unreadable
 #                       | dependency-files-truncated
 #                       | dependency-control-uncited
-#                       | dependency-workflow-held | ci-fix-round-cap
+#                       | dependency-workflow-held
+#                       | dependency-fix-refused | ci-fix-round-cap
 #                       | ci-fix-empty | ci-fix-invalid
 #                       | ci-fix-protected-path | ci-fix-not-applied
 #                       | ci-fix-escalated
@@ -71,12 +72,13 @@ case ${ESCALATION_REASON:-} in
   feedback-disputed) why='the lane replied with evidence that a review finding is incorrect; a person decides and resolves that thread' ;;
   dependency-round-cap) why='the lane has reviewed this dependency update as many rounds as its cap allows' ;;
   dependency-invalid) why='the dependency review verdict did not pass validation, so the lane acted on none of it' ;;
-  dependency-fix-not-landed) why='the dependency review chose a fix, but no fix commit reached the branch (the lane lands a fix only when it changes nothing but npm or pip manifest and lock files outside .github/)' ;;
+  dependency-fix-not-landed) why='the dependency review chose a fix, but no fix commit reached the branch (the lane lands a fix only when it changes nothing but the versions in npm or pip manifest and lock files outside .github/)' ;;
   dependency-security-close) why='the dependency review would close a security update, which the lane never closes' ;;
   dependency-escalate) why='the dependency review found a risk the lane does not decide alone' ;;
   dependency-config-unreadable) why='the lane could not read the base .github/dependabot.yml, so it does not mark this dependency update for merge' ;;
   dependency-files-truncated) why='the dependency review chose merge, but the files listing it read was cut short, so the lane does not mark this dependency update for merge' ;;
   dependency-workflow-held) why='the dependency review chose merge, but the update changes a workflow or action file, which a person merges' ;;
+  dependency-fix-refused) why='a commit on the dependency update other than Dependabot'"'"'s changes more than a version of an npm or pip manifest or lock file, as a regular file outside .github/, so the lane does not act on the review' ;;
   dependency-control-uncited) why='the dependency review chose merge for a review-only dependency without quoting its control, so the lane does not mark it for merge' ;;
   ci-fix-round-cap) why='the lane has pushed as many CI fixes to this pull request as its cap allows, and CI still fails' ;;
   ci-fix-empty) why='the lane changed nothing that fixes the failing checks' ;;
