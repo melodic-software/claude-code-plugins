@@ -4,7 +4,9 @@
 // phone freezes a background tab shows all 3 messages posted meanwhile within 2 s of thawing; and a reader scrolled up
 // in the chat gets a "3 new messages" pill instead of a jump. On a 390x844 phone with 20+ messages, a reader at the
 // newest keeps it whole above the field as the keyboard opens, while typing 3 lines, when a message arrives, and as
-// the keyboard closes; scrolled up, an arrival shows the pill.
+// the keyboard closes; scrolled up, an arrival shows the pill. The open chat is a full-height column on the right: from
+// 1100 px wide the page makes room for it, narrower it covers the page as a modal dialog, on a phone it fills the screen,
+// and at 320x568 and 960x540 nothing scrolls sideways.
 //   node plugins/planning/shared/tests/ui_chat.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the triage rows (badge, 3 messages, 2 s) and the messages this suite posts, never from the page.
@@ -272,6 +274,132 @@ async function main() {
     ok("Copy gives the message as \"@Courtney can you check the card field?\"", copied === "@Courtney can you check the card field?", JSON.stringify(copied));
     const raw = await owner.evaluate(() => { const t = [document.documentElement.textContent, ...[...document.querySelectorAll("*")].flatMap(e => [...e.attributes].map(a => a.value)), ...[...document.querySelectorAll("input, textarea")].map(e => e.value)].join("\n"); return (t.match(/<@[A-Za-z0-9_-]+>/) || [""])[0]; });
     ok("no raw mention token anywhere on the page, its attributes or its fields", raw === "", raw);
+
+    // ---------- the docked panel: from 1100 px wide it pushes the page over, narrower it covers the page as a modal ----------
+    // 1100 and 380 are the layout's own breakpoint and width; 48 and 44 px are the top bar's heights. WCAG 2.2 SC 1.4.10
+    // (https://www.w3.org/WAI/WCAG22/Understanding/reflow.html): at 320 CSS px wide nothing scrolls sideways; a word of
+    // 300 letters makes that check able to fail.
+    await gus.evaluate(() => window.Core.chat(`Unbroken ${"x".repeat(300)}`));
+    const dock = await rec.open(A.localUrl);
+    await joinAs(dock, "Dee");
+    await dock.click(".vf-fab");
+    await until(dock, () => [...document.querySelectorAll(".vf-mlist .vf-msg")].some(li => li.textContent.includes("Unbroken")));
+    const geo = () => dock.evaluate(() => {
+      const r = el => { const b = el.getBoundingClientRect(); return { left: Math.round(b.left), right: Math.round(b.right), top: Math.round(b.top), bottom: Math.round(b.bottom), width: Math.round(b.width) }; }, chat = document.querySelector(".vf-chat"), body = document.querySelector(".vf-body"), c = r(chat), b = r(body);
+      const se = document.scrollingElement, sc = document.querySelector(".vf-mscroll");
+      return { iw: innerWidth, ih: innerHeight, left: c.left, right: c.right, top: c.top, bottom: c.bottom, width: c.width, bodyRight: b.right,
+        fab: getComputedStyle(document.querySelector(".vf-fab")).display, role: chat.getAttribute("role"), modal: chat.getAttribute("aria-modal"), inert: body.inert,
+        sideways: [[se, "page"], [chat, "chat"], [sc, "message list"]].filter(([e]) => e.scrollWidth > e.clientWidth).map(([e, n]) => `${n} ${e.scrollWidth} > ${e.clientWidth}`) };
+    });
+    for (const [w, h, push, top] of [[1400, 900, true, 48], [1100, 900, true, 48], [1099, 900, false, 48], [960, 540, false, 44], [721, 900, false, 48]]) {
+      await dock.setViewportSize({ width: w, height: h });
+      await settled(dock, { rects: true, sel: ".vf-chat, .vf-body" });
+      const g = await geo();
+      const docked = g.width === 380 && g.right === g.iw && g.top === top && g.bottom === g.ih && g.fab === "none";
+      ok(`${w}x${h}: the open chat is a ${top} px-down, full-height 380 px column on the right, the chat button hidden`, docked, JSON.stringify(g));
+      ok(push ? `${w}x${h}: the page makes room, its right edge at the chat's left, and stays live beside it`
+        : `${w}x${h}: the chat covers the page as a modal dialog, the page behind it inert`,
+      push ? g.bodyRight <= g.left && !g.inert && g.role === null : g.bodyRight === g.iw && g.inert && g.role === "dialog" && g.modal === "true", JSON.stringify(g));
+      ok(`${w}x${h}: nothing scrolls sideways`, g.sideways.length === 0, g.sideways.join("; "));
+    }
+    await dock.setViewportSize({ width: 320, height: 568 });
+    await settled(dock, { rects: true, sel: ".vf-chat, .vf-body" });
+    const g320 = await geo();
+    ok("320x568: the chat takes the whole screen, and nothing scrolls sideways (SC 1.4.10)",
+      g320.left === 0 && g320.top === 0 && g320.right === 320 && g320.bottom === 568 && g320.sideways.length === 0, JSON.stringify(g320));
+    await dock.setViewportSize({ width: 1400, height: 900 });
+    await frames(dock);
+    await dock.locator(".vf-q").first().focus();
+    await dock.keyboard.press("Escape");
+    ok("docked, Escape pressed in the page leaves the chat open", await dock.evaluate(() => !document.querySelector(".vf-chat").hidden));
+    await dock.click(".vf-chat-head .vf-icon-btn");
+    ok("the panel's x closes it, and focus returns to the chat button, shown again", await until(dock, () => document.querySelector(".vf-chat").hidden
+      && document.activeElement === document.querySelector(".vf-fab") && getComputedStyle(document.activeElement).display !== "none"));
+
+    // ---------- below 1100 px the chat is a modal over the page: every chat feature still works in it ----------
+    await dock.click(".vf-fab");
+    await until(dock, () => !document.querySelector(".vf-chat").hidden);
+    await dock.locator(".vf-q").first().focus();
+    await dock.setViewportSize({ width: 1024, height: 900 });
+    ok("narrowed to 1024 with the chat docked and focus in the page, the chat turns modal and focus moves into it", await until(dock, () => document.querySelector(".vf-body").inert
+      && document.querySelector(".vf-chat").getAttribute("role") === "dialog" && document.querySelector(".vf-chat").contains(document.activeElement)));
+    await settled(dock, { rects: true, sel: ".vf-chat" });
+    await dock.click(".vf-minput");
+    await dock.keyboard.type("@Gu");
+    const picked = await until(dock, () => !document.querySelector(".vf-mentions").hidden) && await dock.locator(".vf-mopt", { hasText: "Gus" }).first().click({ timeout: 5000 }).then(() => true, () => false);
+    ok("1024, modal: typing @ opens the mention picker, and a click on Gus puts him in the field", picked && await until(dock, () => document.querySelector(".vf-minput").value.startsWith("@Gus")));
+    await dock.fill(".vf-minput", "");
+    const msg = dock.locator(".vf-msg:not(.vf-msg-mine)", { hasText: "New C" });
+    const menu = async label => { await msg.hover(); await msg.locator(".vf-msgmore").click(); await dock.locator(".vf-msgmenu [role=menuitem]", { hasText: label }).click({ timeout: 5000 }); };
+    await menu("Reply");
+    ok("1024, modal: Reply from the message menu shows its quote above the field", await until(dock, () => !document.querySelector(".vf-mreply").hidden && document.querySelector(".vf-mreply").textContent.includes("New C")));
+    await dock.fill(".vf-minput", "Replying to C");
+    await dock.locator(".vf-minput").press("Enter");
+    ok("  and the reply sends with the quote", await until(dock, () => [...document.querySelectorAll(".vf-mlist .vf-msg")].some(m => m.textContent.includes("Replying to C") && m.querySelector(".vf-mquote:not([hidden])"))));
+    await msg.hover();
+    await msg.locator(".vf-mreact-add").click();
+    await until(dock, () => !document.querySelector(".vf-reactpop").hidden);
+    await dock.locator('.vf-rp-quick .vf-rp-e[data-e="👍"]').click();
+    ok("1024, modal: a reaction picked from the picker shows on the message", await until(dock, () => [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C"))?.querySelector(".vf-mreact")?.textContent.startsWith("👍")));
+    await dock.evaluate(() => { window.__copied = null; navigator.clipboard.writeText = t => { window.__copied = t; return Promise.resolve(); }; });
+    await menu("Copy");
+    ok("1024, modal: Copy in the message menu gives its text", await until(dock, () => window.__copied === "New C"), await dock.evaluate(() => window.__copied));
+    await dock.evaluate(() => { document.querySelector(".vf-mscroll").scrollTop = 0; });
+    await frames(dock);
+    for (const t of ["Late one", "Late two"]) await gus.evaluate(x => window.Core.chat(x), t);
+    ok("1024, modal: scrolled up, new messages wait behind the pill", await until(dock, () => { const p = document.querySelector(".vf-mnew"); return !!p && !p.hidden && p.textContent.startsWith("2 new"); }));
+    await dock.click(".vf-mnew");
+    await menu("Propose");
+    ok("1024, modal: Propose from a message closes the chat and opens the Propose form on a live page", await until(dock, () => document.querySelector(".vf-chat").hidden
+      && !document.querySelector(".vf-proposepop").hidden && !document.querySelector(".vf-body").inert));
+    await dock.keyboard.press("Escape");
+    await dock.click(".vf-fab");
+    await until(dock, () => !document.querySelector(".vf-chat").hidden);
+    await menu("Ask Claude about this");
+    ok("1024, modal: Ask Claude from a message closes the chat and lands in its drawer, focus in it", await until(dock, () => document.querySelector(".vf-chat").hidden
+      && !document.querySelector(".vf-drawer").hidden && document.querySelector(".vf-drawer").contains(document.activeElement) && !document.querySelector(".vf-body").inert));
+    await dock.keyboard.press("Escape");
+
+    // ---------- 1024, modal: a popover opened over the chat keeps Tab inside itself, not the chat ----------
+    const tabWalk = async sel => {
+      const seen = new Set(); let left = null;
+      for (let i = 0; i < 14; i++) {
+        await dock.keyboard.press("Tab");
+        const f = await dock.evaluate(s => { const a = document.activeElement, p = document.querySelector(s);
+          return { inPop: !!p && p.contains(a), key: a?.dataset?.e || a?.textContent?.trim().slice(0, 30) || a?.className }; }, sel);
+        if (!f.inPop) { left = f.key; break; }
+        seen.add(f.key);
+      }
+      return { seen: [...seen], left };
+    };
+    await dock.click(".vf-fab");
+    await until(dock, () => !document.querySelector(".vf-chat").hidden && document.querySelector(".vf-chat").getAttribute("role") === "dialog");
+    await msg.hover();
+    await msg.locator(".vf-mreact-add").click();
+    await until(dock, () => !document.querySelector(".vf-reactpop").hidden);
+    const quick = await dock.evaluate(() => [...document.querySelectorAll(".vf-reactpop .vf-rp-quick .vf-rp-e")].map(b => b.dataset.e));
+    const rp = await tabWalk(".vf-reactpop");
+    ok("1024, modal: Tab in the reaction picker over the chat stays in it, reaching the second emoji and More", !rp.left && rp.seen.includes(quick[1]) && rp.seen.includes("More"), JSON.stringify({ quick, ...rp }));
+    await dock.keyboard.press("Escape");
+    await msg.hover();
+    await msg.locator(".vf-msgmore").click();
+    await until(dock, () => !document.querySelector(".vf-msgmenu").hidden);
+    const items = await dock.evaluate(() => [...document.querySelectorAll(".vf-msgmenu [role=menuitem]")].filter(b => !b.hidden && b.offsetParent).map(b => b.textContent.trim().slice(0, 30)));
+    const mm = await tabWalk(".vf-msgmenu");
+    ok("1024, modal: Tab in the message menu over the chat stays in it, reaching its second item and the last", !mm.left && mm.seen.includes(items[1]) && mm.seen.includes(items.at(-1)), JSON.stringify({ items, ...mm }));
+    await dock.keyboard.press("Escape");
+
+    // ---------- 1024, modal: the host turning chat off frees the page it covered ----------
+    await until(dock, () => !document.querySelector(".vf-chat").hidden);
+    await owner.evaluate(() => window.Core.saveSettings({ chat: false }));
+    const freed = await until(dock, () => document.querySelector(".vf-chat").hidden);
+    const after = await dock.evaluate(() => ({ inert: [...document.querySelectorAll(".vf-top, .vf-body, .vf-tabs, .vf-fab")].filter(e => e.inert).map(e => e.className),
+      role: document.querySelector(".vf-chat").getAttribute("role"), modal: document.querySelector(".vf-chat").getAttribute("aria-modal") }));
+    let clicked = false;
+    try { await dock.locator(".vf-q").first().click({ timeout: 3000 }); clicked = await dock.evaluate(() => !!document.activeElement?.closest(".vf-q")); } catch {}
+    ok("1024, modal: when the host turns chat off, the chat closes, nothing stays inert or a modal dialog, and the page takes a click",
+      freed && after.inert.length === 0 && after.role === null && after.modal === null && clicked, JSON.stringify({ freed, clicked, ...after }));
+    await owner.evaluate(() => window.Core.saveSettings({ chat: true }));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     ok("no page error", rec.errors.filter(m => !/Failed to load resource/.test(m)).length === 0, rec.errors.slice(0, 3).join(" | "));

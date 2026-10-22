@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Computed contrast on the shared page, against `share.sh ensure-running` with the fake cloudflared: on the main page
 // states (the focus view on a choice and a written question with answers, chat, the Host view, the Inbox, Session
-// settings, the Propose form, and a guest's phone), in every palette (Default, Midnight, Slate, Paper, High contrast)
+// settings, the Propose form, and a guest's phone with the chat closed and open), in every palette (Default, Midnight, Slate, Paper, High contrast)
 // in dark and light each, every visible text run reaches WCAG 2.2 AA (1.4.3: 4.5:1, or 3:1 for large text, 24 px or
 // 18.66 px bold), placeholders included; text-field boundaries and icon-only buttons' icons reach
 // 3:1 against what they sit on (1.4.11); and the Propose button's boundary reaches 3:1 too, since it is the one way in
@@ -161,6 +161,13 @@ async function main() {
     await ann.waitForTimeout(1100);
     await ann.evaluate(() => window.Core.idea("Should guests see shipping costs before the cart?"));
     await until(owner, () => (window.Core.snapshot().cards?.Q1 || []).length > 0 && (window.Core.state.chat || []).length > 0);
+    // the owner's own bubble (the accent), a reply's quote, a mention and a reaction, so the open chat shows each accent's text
+    await until(owner, () => Object.values(window.Core.state.people || {}).some(p => p.name === "Ann"));
+    await owner.evaluate(() => { const m = window.Core.state.chat[0]; window.Core.chatReact(m.id, "👍", true); return window.Core.chat("@Ann welcome, start with the order summary", m.id); });
+    await until(owner, () => (window.Core.state.chat || []).length > 1);
+    const ownerName = await owner.evaluate(() => window.Core.snapshot().me.name);
+    await ann.evaluate(n => window.Core.chat(`@${n} the summary goes on the right`), ownerName);
+    await until(owner, () => !!document.querySelector(".vf-bubble .vf-mention-me") || (window.Core.state.chat || []).length > 2);
 
     // ---------- the calculator itself ----------
     const probe = async (fg, bg) => {
@@ -233,28 +240,31 @@ async function main() {
     const STATES = [
       ["owner, a written question with an answer", owner, async () => { await closeAll(owner); await go(owner, "Where should the order summary sit?"); }],
       ["owner, a choice question", owner, async () => { await closeAll(owner); await go(owner, "Which carrier should we use?"); }],
-      ["owner, chat open", owner, async () => { await closeAll(owner); await owner.click(".vf-fab"); await until(owner, () => !document.querySelector(".vf-chat").hidden); }],
-      ["owner, the Host view", owner, async () => { await closeAll(owner); if (await owner.evaluate(() => !document.querySelector(".vf-chat").hidden)) await owner.click(".vf-fab"); await owner.locator(".vf-bar .vf-seg-btn", { hasText: "Host" }).click(); }],
+      // every accent too: the chat paints the owner's own bubble in it
+      ["owner, chat open", owner, async () => { await closeAll(owner); await owner.click(".vf-fab"); await until(owner, () => !document.querySelector(".vf-chat").hidden); }, ACCENTS],
+      ["owner, the Host view", owner, async () => { await closeAll(owner); if (await owner.evaluate(() => !document.querySelector(".vf-chat").hidden)) await owner.click(".vf-chat-head .vf-icon-btn"); await owner.locator(".vf-bar .vf-seg-btn", { hasText: "Host" }).click(); }],
       ["owner, the Inbox", owner, async () => { await closeAll(owner); await owner.locator(".vf-bar .vf-seg-btn", { hasText: "Focus" }).click(); await owner.click(".vf-bell"); }],
       ["owner, Session settings with the theme picker", owner, async () => { await closeAll(owner); await owner.click(".vf-gear"); await until(owner, () => !document.querySelector(".vf-settings").hidden); }],
       ["owner, the Propose form", owner, async () => { await closeAll(owner); await owner.click(".vf-propose"); await until(owner, () => !document.querySelector(".vf-proposepop").hidden); }],
       ["guest phone, a choice question", phone, async () => { await until(phone, () => !!document.querySelector(".vf-qtext")); }],
+      ["guest phone, chat open", phone, async () => { await phone.click(".vf-fab"); await until(phone, () => !document.querySelector(".vf-chat").hidden); }],
     ];
-    for (const [label, page, open] of STATES) {
+    for (const [label, page, open, accents = [ACCENTS[0]]] of STATES) {
       await open().catch(e => ok(`${label}: opens`, false, String(e).slice(0, 120)));
-      for (const pal of PALETTES) {
-        await owner.evaluate(p => window.Core.saveSettings({ theme: { palette: p } }), pal);
+      for (const pal of PALETTES) for (const accent of accents) {
+        await owner.evaluate(t => window.Core.saveSettings({ theme: t }), { palette: pal, accent });
+        const tag = accents.length > 1 ? `${pal} ${accent}` : pal;
         for (const theme of ["dark", "light"]) {
           await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
-          const still = await until(page, ([t, p]) => document.getElementById("app").dataset.theme === t && document.getElementById("app").dataset.palette === p, [theme, pal])
+          const still = await until(page, ([t, p, a]) => { const d = document.getElementById("app").dataset; return d.theme === t && d.palette === p && d.accent === a; }, [theme, pal, accent])
             && await settled(page, { timeout: SETTLE_MS });
           const { out, measured } = await page.evaluate(scan);
-          ok(`${label}, ${pal}, ${theme}: every text run, placeholder, field edge and icon reaches its WCAG AA ratio (${measured} measured)`, still && measured > 20 && out.length === 0,
-            (still ? "" : `not settled in ${pal} ${theme} within ${SETTLE_MS} ms `) + JSON.stringify(out.slice(0, MAX_LIST)) + (out.length > MAX_LIST ? ` and ${out.length - MAX_LIST} more` : ""));
+          ok(`${label}, ${tag}, ${theme}: every text run, placeholder, field edge and icon reaches its WCAG AA ratio (${measured} measured)`, still && measured > 20 && out.length === 0,
+            (still ? "" : `not settled in ${tag} ${theme} within ${SETTLE_MS} ms `) + JSON.stringify(out.slice(0, MAX_LIST)) + (out.length > MAX_LIST ? ` and ${out.length - MAX_LIST} more` : ""));
         }
       }
     }
-    await owner.evaluate(() => window.Core.saveSettings({ theme: { palette: "default" } }));
+    await owner.evaluate(a => window.Core.saveSettings({ theme: { palette: "default", accent: a } }), ACCENTS[0]);
     // ---------- the Propose button is a bordered button whose edge reaches 3:1 ----------
     await closeAll(owner);
     for (const pal of PALETTES) {
