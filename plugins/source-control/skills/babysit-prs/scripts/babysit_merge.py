@@ -3044,7 +3044,7 @@ def score_unattended(
             LaneEvidence(lane, False, "evidence-missing", None)
             for lane in review_evidence.LANES
         )
-    # An adopted pull request a person opened: the path floor holds only
+    # An adopted pull request's trusted author: the path floor holds only
     # paths someone else's commits touched, a lane's fix among them.
     others = merge_policy.foreign_paths(repo, pr) if eligible.adoption else None
     own = (

@@ -205,7 +205,7 @@ async function linkedIssues(github, repository, number, humans) {
   };
 }
 
-export async function resolvePull({ github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, ownerIds: owners = [] }) {
+export async function resolvePull({ github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, ownerIds: owners = [], specFromBodyApps = [] }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -258,6 +258,18 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
   if (await judged({ github, repository, number: pull.number, head, base, numbers })) {
     return skip("already-judged");
   }
+  const spec = await linkedIssues(github, repository, pull.number, humans);
+  // No closing issue here: the title and body of a trusted person's PR, or
+  // of an App whose bodies a script writes (adoption.spec-from-body-apps),
+  // are the spec. A model-written body, the lanes App's included, never is:
+  // the run that wrote the diff would have written its spec too.
+  const bodyIsIntent =
+    (pull.user?.type === "User" && owners.includes(pull.user.id)) ||
+    (pull.user?.type === "Bot" && specFromBodyApps.includes(pull.user.id));
+  if (spec.linkedIssues.length === 0 && bodyIsIntent) {
+    const body = `${String(pull.title ?? "")}\n\n${String(pull.body ?? "")}`;
+    spec.specText = [{ number: pull.number, source: "pull-request", body, comments: [] }];
+  }
   return {
     proceed: true,
     reason: "ok",
@@ -265,7 +277,7 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
     headSha: head,
     baseSha: pull.base.sha,
     headRef: String(pull.head.ref ?? ""),
-    ...(await linkedIssues(github, repository, pull.number, humans)),
+    ...spec,
   };
 }
 
@@ -293,6 +305,11 @@ export async function main(env = process.env, { github } = {}) {
     verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
     laneIdentity: env.LANE_IDENTITY,
     ownerIds: [...trusted.ids],
+    // One id per line (yq); anything but an id leaves every App needing an issue.
+    specFromBodyApps: (() => {
+      const ids = String(env.SPEC_FROM_BODY_APPS ?? "").split(/\s+/).filter(Boolean);
+      return ids.every((id) => /^[1-9][0-9]*$/.test(id)) ? ids.map(Number) : [];
+    })(),
   });
   if (result.proceed && !/^[A-Za-z0-9._/-]+$/.test(result.headRef)) {
     throw new Error("the head branch has a name the outputs cannot carry");

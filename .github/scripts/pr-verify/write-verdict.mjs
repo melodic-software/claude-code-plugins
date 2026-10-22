@@ -62,7 +62,7 @@ function checkIssues(issues) {
   return issues;
 }
 
-export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues }) {
+export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [] }) {
   if (
     !NUMBER.test(String(pr)) ||
     !SHA.test(headSha ?? "") ||
@@ -102,6 +102,9 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     base_sha: baseSha,
     head_ref: headRef,
     linked_issues: checkIssues(linkedIssues),
+    // What the spec was: the pull request's own title and body
+    // (babysit_verify_evidence.INTENT_PULL_REQUEST), else its closing issues.
+    intent: Array.isArray(specText) && specText.some((entry) => entry?.source === "pull-request") ? "pull-request" : "issues",
     verdict: parsed.verdict,
     summary: parsed.summary.slice(0, SUMMARY_MAX),
     notes: parsed.notes.slice(0, NOTES_MAX).map((note) => note.slice(0, NOTE_MAX)),
@@ -194,6 +197,14 @@ export function main(env = process.env) {
   } catch {
     throw new Error("the linked issues file is unreadable");
   }
+  let specText = [];
+  if (env.SPEC_TEXT_FILE) {
+    try {
+      specText = JSON.parse(readFileSync(env.SPEC_TEXT_FILE, "utf8"));
+    } catch {
+      throw new Error("the spec text file is unreadable");
+    }
+  }
   const verdict = buildVerdict({
     output,
     pr: env.PR_NUMBER,
@@ -202,6 +213,7 @@ export function main(env = process.env) {
     runId: env.GITHUB_RUN_ID,
     headRef: env.HEAD_REF,
     linkedIssues,
+    specText,
   });
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);

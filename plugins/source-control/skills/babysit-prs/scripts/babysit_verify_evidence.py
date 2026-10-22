@@ -46,7 +46,9 @@ from a completed, successful one. Any other artifact is ignored.
   `verify:spec-changed` unless the pull request's closing issues now are the
   ones its verdict recorded, none was edited after its run started, and each
   issue's trusted comments (`_spec_comments`) are the recorded ones by id and
-  update time; then allowed only when every linked issue it records was
+  update time; then allowed when it records no issue and `intent`
+  `pull-request` (the title and body were the spec), else only when every
+  linked issue it records was
   written, and last edited if ever, by a User on the trusted list's humans
   (the pull request's author among them), else `verify:untrusted-spec`;
 - otherwise `verify:missing`.
@@ -133,6 +135,9 @@ UNREADABLE = "verify:unreadable"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
 SPEC_CHANGED = "verify:spec-changed"
+# A verdict's `intent` when its pull request closed no issue in this
+# repository: the title and body were the spec (write-verdict.mjs).
+INTENT_PULL_REQUEST = "pull-request"
 NEEDS_HUMAN = (
     FAIL,
     EARLIER_FAIL,
@@ -1069,6 +1074,11 @@ class Reader:
             for n, node in live.items()
         ):
             return SPEC_CHANGED
+        # No closing issue, then and now: the verdict judged the pull
+        # request's own title and body, which only a trusted author's adopted
+        # pull request reaches the gate with (`lane_eligibility`).
+        if not issues and record.get("intent") == INTENT_PULL_REQUEST:
+            return None
         return None if self._trusted_spec(record) else UNTRUSTED_SPEC
 
     def queued_hold(self, number: int) -> str | None:

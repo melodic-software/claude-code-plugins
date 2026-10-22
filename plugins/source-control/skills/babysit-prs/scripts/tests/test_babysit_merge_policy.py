@@ -3530,13 +3530,61 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertEqual((result.work_class, result.issue), ("C2", 41))
         self.assertEqual(result.adoption, "idle-owner:24h")
 
-    def test_an_adopted_owner_pr_keeps_every_lane_requirement(self) -> None:
-        self.owner_fake()
-        self.fake_lane(author=user(OWNER_LOGIN), closing=[]).rest[self.COMMIT] = {
-            "sha": HEAD,
-            "commit": {"committer": {"date": IDLE}},
+    def test_an_adopted_pr_with_no_issue_here_is_its_own_intent(self) -> None:
+        # Owner decision 2026-10-22: its title and body are the spec, so no
+        # closing issue in this repository is needed; two still refuse.
+        committed = {"sha": HEAD, "commit": {"committer": {"date": IDLE}}}
+        for closing, reason, issue in (
+            ([], None, None),
+            ([self.issue_node(repository="other/repo")], None, None),
+            ([self.issue_node(), self.issue_node(number=42)], "linked-issues:2", None),
+        ):
+            with self.subTest(closing=closing):
+                gh = self.fake_lane(author=user(OWNER_LOGIN), closing=closing)
+                gh.rest[self.COMMIT] = committed
+                result = self.eligibility(owner_pr())
+                self.assertEqual((result.reason, result.issue), (reason, issue))
+        # Before the enqueue the issue is read again: still none here holds.
+        self.fake_lane(author=user(OWNER_LOGIN), closing=[])
+        self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=None))
+
+    def test_only_a_script_written_apps_body_is_its_intent(self) -> None:
+        # A model-written App body (claude[bot]) would grade the diff against
+        # the spec the same run wrote: it needs a closing issue. The release
+        # App's script-written body does not (adoption.spec-from-body-apps).
+        release = {
+            "login": "melodic-plugin-release[bot]",
+            "id": 337859524,
+            "type": "Bot",
         }
-        self.assertEqual(self.eligibility(owner_pr()).reason, "linked-issues:0")
+        claude = {"login": "claude[bot]", "id": 209825114, "type": "Bot"}
+        ids = (OWNER_ID, release["id"], claude["id"])
+        for author, reason in ((release, None), (claude, "linked-issues:0")):
+            with self.subTest(author=author["login"]):
+                gh = self.fake_lane(author=user(author["login"]), closing=[])
+                gh.rest[self.COMMIT] = {
+                    "sha": HEAD,
+                    "commit": {"committer": {"date": IDLE}},
+                }
+                result = self.eligibility(
+                    owner_pr(user=author),
+                    adoption_owner_ids=ids,
+                    spec_from_body_apps=(release["id"],),
+                )
+                self.assertEqual(result.reason, reason)
+        self.fake_lane(author=user(OWNER_LOGIN), closing=[])
+        self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=None))
+
+    def test_spec_from_body_apps_reads_the_setting(self) -> None:
+        for text, expected in (
+            (PIPELINE, ()),
+            (PIPELINE + "adoption:\n  spec-from-body-apps: [5, 77]\n", (5, 77)),
+            (PIPELINE + "adoption:\n  spec-from-body-apps: [5, x]\n", ()),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.spec_from_body_apps, expected)
 
     def test_a_fresh_owner_pr_is_not_adopted(self) -> None:
         self.owner_fake(committed=FRESH)
@@ -3670,13 +3718,20 @@ class ForeignPaths(unittest.TestCase):
         )
         self.assertEqual(self.paths(commits[:1], {}), frozenset())
 
-    def test_an_app_authors_own_lines_still_score(self) -> None:
-        # The owner's answer covers a person's own lines, not an App's.
-        app = {"login": "an-app[bot]", "id": OWNER_ID, "type": "Bot"}
-        with mock.patch.object(
-            policy, "_paginated", side_effect=AssertionError("read")
+    def test_a_trusted_apps_own_lines_score_nothing_as_a_persons(self) -> None:
+        # Owner decision 2026-10-22: every adopted author alike; the lanes
+        # App's own PRs are never adopted, so they stay scored whole.
+        app = {"login": "melodic-plugin-release[bot]", "id": 337859524, "type": "Bot"}
+        commits = [self.commit("r1", {"id": 337859524}), self.commit("l1", {"id": 1})]
+        with (
+            mock.patch.object(policy, "_paginated", return_value=commits),
+            mock.patch.object(
+                policy, "_get", return_value=(200, {"files": [{"filename": "f"}]})
+            ),
         ):
-            self.assertIsNone(policy.foreign_paths(REPO, owner_pr(user=app)))
+            self.assertEqual(
+                policy.foreign_paths(REPO, owner_pr(user=app)), frozenset({"f"})
+            )
 
     def test_a_listing_that_may_be_cut_off_or_fails_scores_every_path(self) -> None:
         lane = self.commit("l1", {"id": 337595936})

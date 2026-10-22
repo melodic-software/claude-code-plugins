@@ -145,7 +145,7 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   owner.author = { databaseId: 153232337 };
   owner.updatedAt = idle;
   owner.commits.nodes[0].commit.committedDate = idle;
-  assert.deepEqual(parse(LIVE).adoption, { "idle-hours": 24 }, "the live config adopts a trusted person after 24 hours");
+  assert.equal(parse(LIVE).adoption["idle-hours"], 24, "the live config adopts a trusted person after 24 hours");
   assert.deepEqual(await run(LIVE, [owner]), { code: 0, dispatched: ["40", "61"] });
   // Every trusted-actors.json entry is adoptable: the release App, a Bot, at once.
   const release = ciFixPull(65);

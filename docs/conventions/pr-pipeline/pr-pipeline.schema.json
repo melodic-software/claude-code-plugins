@@ -263,6 +263,13 @@
           "minimum": 1,
           "maximum": 720,
           "description": "Hours both a person's pull request (its last update) and its head commit (its committer date) must be unchanged before it is adopted. Absent: nothing is adopted."
+        },
+        "spec-from-body-apps": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1 },
+          "default": [],
+          "description": "App account ids whose pull request bodies a script writes: an adopted one that closes no issue is judged against its title and body, as a person's is. Any other App needs a closing issue a trusted person wrote."
         }
       }
     },

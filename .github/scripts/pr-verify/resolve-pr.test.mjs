@@ -222,6 +222,30 @@ test("lane-or-owner reads the owner ids it is given", async () => {
   assert.equal(await reason({ pulls: [owner] }, { verifyAuthors: "lane-or-owner" }), "author-not-lane-or-owner", "not given");
 });
 
+// Owner decision 2026-10-22: with no closing issue here, a person's or a
+// script-written App's title and body are the spec; a model-written App's
+// (claude[bot]) or the lanes App's are not, since its run wrote them.
+test("a trusted PR with no closing issue here is its own spec, unless a model wrote its body", async () => {
+  const RELEASE = 337859524;
+  const CLAUDE = 209825114;
+  const opts = { verifyAuthors: "lane-or-owner", ownerIds: [OWNER_ID, RELEASE, CLAUDE], specFromBodyApps: [RELEASE] };
+  const own = (user) => pull({ user, title: "chore: release", body: "Bumps the versions." });
+  const spec = [{ number: 41, source: "pull-request", body: "chore: release\n\nBumps the versions.", comments: [] }];
+  for (const [user, expected] of [
+    [{ id: OWNER_ID, login: "kyle-sexton", type: "User" }, spec],
+    [{ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" }, spec],
+    [{ id: CLAUDE, login: "claude[bot]", type: "Bot" }, []],
+    [{ id: 337595936, login: LANE, type: "Bot" }, []],
+  ]) {
+    const result = await resolve({ pulls: [own(user)], issues: [] }, opts);
+    assert.deepEqual(result.specText, expected, user.login);
+    assert.deepEqual(result.linkedIssues, [], user.login);
+  }
+  // A closing issue here keeps it the spec.
+  const result = await resolve({ pulls: [own({ id: OWNER_ID, login: "kyle-sexton", type: "User" })] }, opts);
+  assert.deepEqual(result.specText, [{ number: 7, body: "the spec", comments: [] }]);
+});
+
 test("main judges every trusted-actors.json account under lane-or-owner, a Bot included", async (t) => {
   const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
   const output = path.join(dir, "out");

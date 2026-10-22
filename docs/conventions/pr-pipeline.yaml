@@ -593,6 +593,12 @@ red-main:
 adoption:
   # 24: a day with no push, comment or label change means the person left it.
   idle-hours: 24
+  # Apps whose PR bodies a script writes: such a PR closing no issue is judged
+  # against its title and body, as a person's is. Any other App (a model
+  # writes its body, the lanes App's included) needs a closing issue, since
+  # the run that wrote the diff would also write its spec. Ids from
+  # trusted-actors.json: melodic-plugin-release[bot], melodic-standards-sync[bot].
+  spec-from-body-apps: [337859524, 300666570]
 
 # The daily branch cleanup (owner decisions W-7, 2026-10-21, and #8958): a
 # branch lives as long as its issue is open. maintenance-delete-stale-branches.yml

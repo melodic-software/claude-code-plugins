@@ -1146,9 +1146,10 @@ only lane-authored pull requests reach the pr-merge lane. `lane-or-owner` also j
 trusted actor's: a `User` or `Bot` whose account id is on the trusted-actor list (never matched
 by login), whose pull requests the pr-merge lane adopts (Eligibility, above); any other author's
 is skipped with `author-not-lane-or-owner`. pr-verify runs when `pr-require-checks` passes, so it
-judges a person's pull request at each ready head, before it is idle. For a trusted author the
-pull request's title and body state its intent alongside the spec, and a lane fix that changes
-behavior or intent fails the verdict, which escalates it to a person. `any` judges every author's. Any other
+judges a person's pull request at each ready head, before it is idle. A pull request closing no
+issue is judged against its own title and body only as [Adoption](#adoption) says, and a lane fix
+that changes behavior or intent the spec does not ask for fails the verdict, which escalates it
+to a person. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
@@ -1699,10 +1700,18 @@ person opened. A PR is adopted when all of these hold:
 - for a person's PR, its last update (`updatedAt`) and its head commit's committer date are both
   at least `idle-hours` old. Neither one alone is enough. An App's PR does not wait.
 
-In the pr-merge lane, for a PR a person opened, the HIGH path floor and the manifest review score
-only the paths that non-merge commits by someone other than its author touched (a lane's fix
-among them): the person's own lines need no person. An App's PR is scored whole. A commit list or
-commit that cannot be read whole scores every path. The capability check, the security-review lane's findings and every other gate still apply.
+An adopted PR that closes no issue in this repository is judged against its own title and body
+when a person opened it or an App in `spec-from-body-apps` did (an App whose bodies a script
+writes): resolve-pr gives the verifier that text as the spec, the verdict records `intent:
+pull-request`, and the pr-merge gate accepts it with no closing issue. Any other App, the lanes
+App included, still needs a closing issue a trusted person wrote: a model that wrote the diff
+would also have written the spec it is graded against.
+
+In the pr-merge lane, for an adopted PR, the HIGH path floor and the manifest review score only
+the paths that non-merge commits by someone other than its author touched (a lane's fix among
+them): a trusted author's own lines, a person's or an App's, need no person. The lanes App's own
+PRs are never adopted and stay scored whole. A commit list or commit that cannot be read whole
+scores every path. The capability check, the security-review lane's findings and every other gate still apply.
 A merge commit is left out, so a conflict a lane resolves in one is judged by the verifier and the
 review lanes, not the floor. Dependabot keeps its own paths, `review-dependency` for a red PR and
 its own tier in pr-merge ([Dependabot pull requests](#dependabot-pull-requests)), and is never
@@ -1721,6 +1730,7 @@ hold.
 | Key | Default | Meaning |
 |---|---|---|
 | `idle-hours` | none | Hours both a person's PR and its head commit must be unchanged; 1 to 720. Absent: nothing is adopted. |
+| `spec-from-body-apps` | `[]` | App ids whose PR bodies a script writes; such a PR closing no issue is judged against its title and body. |
 
 ## Red main
 

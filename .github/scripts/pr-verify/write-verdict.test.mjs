@@ -41,6 +41,7 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
       base_sha: BASE,
       head_ref: "feat/x",
       linked_issues: [ISSUE],
+      intent: "issues",
       verdict,
       summary: "s",
       notes: ["n"],
@@ -94,6 +95,12 @@ test("linked issues outside their schema throw", () => {
     assert.throws(() => buildVerdict({ ...ids, linkedIssues, output: ok }), undefined, JSON.stringify(linkedIssues));
   }
   assert.deepEqual(buildVerdict({ ...ids, linkedIssues: [], output: ok }).linked_issues, []);
+  // The intent source: the pull request's own title and body when the spec
+  // text holds them (resolve-pr.mjs), else its closing issues.
+  const own = [{ number: 41, source: "pull-request", body: "t\n\nb", comments: [] }];
+  assert.equal(buildVerdict({ ...ids, linkedIssues: [], specText: own, output: ok }).intent, "pull-request");
+  assert.equal(buildVerdict({ ...ids, linkedIssues: [], specText: [], output: ok }).intent, "issues");
+  assert.equal(buildVerdict({ ...ids, output: ok }).intent, "issues");
   const edited = { ...ISSUE, last_edited_at: "2026-10-14T00:00:00Z", editor_login: "lanes", editor_id: 200, editor_type: "Bot" };
   assert.deepEqual(buildVerdict({ ...ids, linkedIssues: [edited], output: ok }).linked_issues, [edited]);
 });

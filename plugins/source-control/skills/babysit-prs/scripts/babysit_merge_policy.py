@@ -576,6 +576,11 @@ class PipelineConfig:
     # `MAX_ADOPTION_IDLE_HOURS`, is None, which adopts nothing.
     # `stricter_config` takes the default branch head's.
     adoption_idle_hours: int | None = None
+    # `adoption.spec-from-body-apps`: the App ids whose pull request bodies a
+    # script writes, so an adopted one closing no issue here is judged
+    # against its title and body, as a person's is. Any other App needs a
+    # closing issue. An entry that is not an id empties it. Main's.
+    spec_from_body_apps: tuple[int, ...] = ()
     # `merge.quarantine-days`: days a quarantined suite's failures on the
     # default branch stop demoting (`babysit_postmerge`). Absent, or anything
     # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
@@ -720,6 +725,7 @@ def read_config_at(
             ("merge.max-verify-fails", False),
             ("merge.check-inputs", True),
             ("adoption.idle-hours", False),
+            ("adoption.spec-from-body-apps", True),
             ("merge.quarantine-days", False),
         ],
     )
@@ -817,6 +823,13 @@ def read_config_at(
                 f"to {MAX_ADOPTION_IDLE_HOURS}; nothing is adopted"
             )
             idle_hours = None
+    body_apps = tuple(values["adoption.spec-from-body-apps"])
+    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in body_apps):
+        notes.append(
+            f"adoption.spec-from-body-apps {list(body_apps)!r} holds an entry that "
+            "is not an account id; every App needs a closing issue"
+        )
+        body_apps = ()
     quarantine_days = scalar("merge.quarantine-days")
     if quarantine_days is not None and not (
         re.fullmatch(r"[1-9][0-9]?", quarantine_days)
@@ -853,6 +866,7 @@ def read_config_at(
         max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
         check_inputs=tuple(values["merge.check-inputs"]),
         adoption_idle_hours=idle_hours,
+        spec_from_body_apps=tuple(int(i) for i in body_apps),
         quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
     )
 
@@ -929,6 +943,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         max_in_flight=min(base.max_in_flight, main.max_in_flight),
         # Read at main (owner decision Q22).
         adoption_idle_hours=main.adoption_idle_hours,
+        spec_from_body_apps=main.spec_from_body_apps,
     )
 
 
@@ -999,6 +1014,8 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                 or count(c.adoption_idle_hours, 1)
                 and c.adoption_idle_hours <= MAX_ADOPTION_IDLE_HOURS
             )
+            and isinstance(c.spec_from_body_apps, tuple)
+            and all(count(i, 1) for i in c.spec_from_body_apps)
         )
     except (TypeError, ValueError):
         return None
@@ -1769,6 +1786,10 @@ def eligibility(
     return Eligibility(True, None, work_class, issue_number)
 
 
+# `_closing_issue` refusals that mean no closing issue in this repository.
+NO_ISSUE_HERE = ("linked-issues:0", "linked-issue-other-repository")
+
+
 def _closing_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str | None]:
     """(the issue, None) for a pull request with exactly one closing issue in
     this repository, else ({}, the refusal)."""
@@ -1976,6 +1997,7 @@ def lane_eligibility(
     permission: Permission | None = None,
     adoption_idle_hours: int | None = None,
     adoption_owner_ids: Collection[int] = (),
+    spec_from_body_apps: Collection[int] = (),
     human_gated: str | None = None,
     now: datetime | None = None,
     queued_at_head: Callable[[], bool] = lambda: False,
@@ -2024,6 +2046,15 @@ def lane_eligibility(
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
+        # An adopted pull request closing no issue here is its own intent,
+        # the verifier judging its title and body (owner decision 2026-10-22),
+        # when a person or a script wrote them: a model-written App body
+        # would be the spec the same run grades itself against.
+        author = json_object(pr.get("user"))
+        body_is_intent = (
+            author.get("type") == "User" or author.get("id") in spec_from_body_apps
+        )
+        if refusal is None or adoption and body_is_intent and refusal in NO_ISSUE_HERE:
             refusal = _base_refusal(owner, name, node, shared=True)
         if refusal is None:
             refusal = _denied_path_refusal(
@@ -2440,6 +2471,8 @@ def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | No
         if not node:
             return "pull-request-unreadable"
         found, refusal = _closing_issue(node, repo)
+        if issue is None and refusal in NO_ISSUE_HERE:
+            return _base_refusal(owner, name, node)
         if refusal:
             return refusal
         if found["number"] != issue:
@@ -3215,16 +3248,14 @@ def foreign_paths(repo: str, pr: Mapping[str, Any]) -> frozenset[str] | None:
     """The paths, both sides of a rename, that the pull request's non-merge
     commits by anyone but its author (by account id) touched: what an
     adopted pull request's floor scores (owner decision 2026-10-22: a
-    person's own lines need no person, a lane's fix still does). A commit
-    with no linked account counts as another's. A merge commit is left out,
-    so main's files an update brings in score nothing. None, which scores
-    every path, for an author that is not a `User` or when a listing may be
+    trusted author's own lines, a person's or an App's, need no person; a
+    lane's fix still does, and the lanes App's own pull requests, never
+    adopted, are scored whole). A commit with no linked account counts as
+    another's. A merge commit is left out, so main's files an update brings
+    in score nothing. None, which scores every path, when a listing may be
     cut off or cannot be read."""
     owner, name = _split_repo(repo)
-    user = json_object(pr.get("user"))
-    author = user.get("id")
-    if user.get("type") != "User":
-        return None
+    author = json_object(pr.get("user")).get("id")
     try:
         commits = _paginated(
             f"repos/{owner}/{name}/pulls/{pr.get('number')}/commits?per_page=100",
@@ -4140,6 +4171,7 @@ def assess(
                 if config.adoption_idle_hours is not None
                 else ()
             ),
+            spec_from_body_apps=config.spec_from_body_apps,
             human_gated=human_gated,
             queued_at_head=lambda: lane_queued_at_head(
                 repo,

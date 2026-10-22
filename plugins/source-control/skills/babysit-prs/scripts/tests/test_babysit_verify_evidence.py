@@ -1418,6 +1418,23 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
             evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, {})
         self.assertEqual(evidence.refusal, "verify:unreadable")
 
+    def test_the_pull_request_is_the_intent_when_it_closes_no_issue(self) -> None:
+        # Owner decision 2026-10-22: a trusted PR with no closing issue is
+        # judged against its own title and body, recorded as the intent.
+        def evidence(closing: list[Any], **recorded: Any) -> Any:
+            fake = passing()
+            fake.closing = closing
+            fake.records[named(HEAD, "pass")] = record(linked_issues=[], **recorded)
+            return read(fake).refusal
+
+        self.assertIsNone(evidence([], intent="pull-request"))
+        self.assertIsNone(evidence([(3, "someone/else")], intent="pull-request"))
+        self.assertEqual(evidence([]), "verify:untrusted-spec")
+        self.assertEqual(evidence([], intent="issues"), "verify:untrusted-spec")
+        self.assertEqual(
+            evidence([(7, REPO)], intent="pull-request"), "verify:spec-changed"
+        )
+
     def test_a_record_whose_issues_are_not_a_list_refuses(self) -> None:
         fake = passing()
         fake.records[named(HEAD, "pass")] = record(linked_issues=None)
