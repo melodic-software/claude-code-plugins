@@ -208,6 +208,12 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   `rank` it is one vote, outside the Borda count; on `multi` a person backs any number of them,
   kept in `backs` (`{qid: {pid: [ref]}}`), outside the picks. `scale` and `confirm` take a
   `comment` instead.
+- **None of these.** A `multi` question whose open-round `format` sets `none: true` gets one
+  `{id: "none", none: true}` option after Something else; Claude's ops never write one, and the
+  server refuses a `multi` option labeled that way. It excludes every other pick: when `options`
+  holds it with others, the pick just made wins (`none` newly added keeps only `none`; another
+  option added drops it). It is an answer, so it takes back a Pass, and the digest's `counts` gives
+  it its own row marked `none: true`.
 - **Disagree.** `POST /api/disagree {qid, card, reason}` on a `decide` question records a reason
   (1..200 characters), one per person per answer; `on: false` takes it back. Vote counts never
   change, and the digest lists each one under its question.
@@ -1232,7 +1238,7 @@ poll carries a query string; no page breaks the CSP; and a returning guest comes
 person, keeping its stored secret when its first heartbeats get a 429 or
 no answer. `ui_formats.js` covers, in a session past its first round, `multi`, `scale` and `rank`
 (keyboard, and touch on a 390x844 phone, whose Questions tab must take taps with two rounds
-listed), Something else on `choice`, `multi` and `rank`, Disagree, the `down` reaction and a
+listed), Something else on `choice`, `multi` and `rank`, None of these on a `multi`, Disagree, the `down` reaction and a
 diagram's alt text. `ui_presence.js` (about 4 minutes) hides a tab for 3 minutes with throttled
 timers, closes another, snoozes a third, keeps one person in two tabs with one hidden, and checks
 none of that gets a 429. The

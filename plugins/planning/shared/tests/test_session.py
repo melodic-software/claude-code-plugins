@@ -3751,6 +3751,114 @@ class TestSomethingElse(FormatCase):
         self.assertEqual(self.s.state["votes"]["Q4"], {self.bo: f"p:{self.ann}"})
 
 
+def none_q(qid, labels=("Card", "PayPal", "Bank transfer")):
+    q = options_q(qid, "multi", labels)
+    q["format"]["none"] = True
+    return q
+
+
+class TestNoneOfThese(FormatCase):
+    """None of these on a pick-any question: the server adds it when the open-round op asks, and it
+    excludes every other pick. Expected values come from the owner's decision (Q4) and its research."""
+
+    def setUp(self):
+        super().setUp()
+        self.send()
+        self.ack(1)
+        self.open_round(none_q("Q7"))
+
+    def test_the_server_adds_none_of_these_last_when_the_format_asks(self):
+        options = self.question("Q7")["format"]["options"]
+        self.assertEqual(options[-2:], [{"id": "other", "label": "Something else…", "other": True}, {"id": "none", "label": "None of these", "none": True}])
+        self.assertNotIn("none", self.question("Q7")["format"])  # the option is the record, not the flag
+        self.assertIn("o:none", [session.card_ref(c) for c in self.s.state["cards"]["Q7"]])
+        self.assertNotIn("none", [o["id"] for o in self.question("Q1")["format"]["options"]])  # a multi without the flag
+
+    def test_only_a_multi_question_takes_the_flag(self):
+        self.send()
+        self.ack(2)
+        for kind, labels in (("choice", ("A", "B")), ("rank", ("A", "B", "C"))):
+            with self.subTest(kind=kind):
+                q = options_q("Q8", kind, labels)
+                q["format"]["none"] = True
+                self.refused_ops("bad-field", {"op": "open-round", "questions": [q]})
+
+    def test_claude_cannot_write_a_none_of_these_option_on_a_multi(self):
+        self.send()
+        self.ack(2)
+        rev = self.s.state["rev"]
+        for label in ("None of these", "none of the above.", "None…", " NONE "):
+            with self.subTest(label=label):
+                self.refused_ops("bad-field", {"op": "open-round", "questions": [options_q("Q8", "multi", ("A", label))]})
+        q = options_q("Q8", "multi", ("A", "B"))
+        q["format"]["options"].append({"id": "none", "label": "Nothing", "none": True})
+        self.refused_ops("bad-field", {"op": "open-round", "questions": [q]})
+        self.assertEqual(self.s.state["rev"], rev)
+
+    def test_a_choice_question_keeps_a_claude_written_none_option(self):
+        self.send()
+        self.ack(2)
+        self.open_round(options_q("Q8", "choice", ("Card", "None of these")))
+        self.assertEqual([o["label"] for o in self.question("Q8")["format"]["options"]], ["Card", "None of these", "Something else…"])
+
+    def test_picking_none_of_these_clears_the_other_picks(self):
+        self.pick(self.ann, "Q7", options=["opt-1", "opt-2"])
+        self.assertEqual(self.pick(self.ann, "Q7", options=["opt-1", "opt-2", "none"]), {"picks": ["none"]})
+        self.assertEqual(self.mine("Q7", self.ann)["picks"], ["none"])
+
+    def test_picking_another_option_clears_none_of_these(self):
+        self.pick(self.ann, "Q7", options=["none"])
+        self.assertEqual(self.pick(self.ann, "Q7", options=["none", "opt-3"]), {"picks": ["opt-3"]})
+        self.assertEqual(self.mine("Q7", self.ann)["picks"], ["opt-3"])
+
+    def test_writing_your_own_option_clears_none_of_these(self):
+        self.pick(self.ann, "Q7", options=["none"])
+        self.pick(self.ann, "Q7", options=["none", "other"], other="Apple Pay")
+        card = self.mine("Q7", self.ann)
+        self.assertEqual((card["picks"], card["text"]), (["other"], "Apple Pay"))
+
+    def test_picking_none_of_these_drops_your_own_option_and_its_text(self):
+        self.pick(self.ann, "Q7", options=["other"], other="Apple Pay")
+        self.refused("bad-field", "pick", self.ann, {"qid": "Q7", "options": ["other", "none"], "other": "Apple Pay", "view": "focus"}, http=400)
+        self.pick(self.ann, "Q7", options=["other", "none"])
+        card = self.mine("Q7", self.ann)
+        self.assertEqual((card["picks"], card["text"]), (["none"], ""))
+
+    def test_none_of_these_is_recorded_apart_from_a_pass_and_an_empty_pick(self):
+        self.pick(self.ann, "Q7", options=["none"])
+        self.act("pass_", self.bo, {"qid": "Q7"})
+        self.pick(self.cy, "Q7", options=[], comment="Not sure yet")
+        self.pick(HOST, "Q7", options=["opt-1"])
+        self.pick(HOST, "Q7", options=[])
+        people = {c["pid"]: c for c in self.s.state["cards"]["Q7"] if c["kind"] == "person"}
+        self.assertEqual(people[self.ann]["picks"], ["none"])
+        self.assertNotIn(self.ann, self.s.state.get("passes", {}).get("Q7", {}))
+        self.assertNotIn(self.bo, people)
+        self.assertIn(self.bo, self.s.state["passes"]["Q7"])
+        self.assertNotIn("picks", people[self.cy])
+        self.assertNotIn(HOST, people)  # an empty pick with no comment records nothing
+        self.act("pass_", self.cy, {"qid": "Q7"})
+        self.pick(self.cy, "Q7", options=["none"])  # None of these is an answer: it takes back the Pass
+        self.assertNotIn(self.cy, self.s.state["passes"]["Q7"])
+
+    def test_the_digest_counts_none_of_these_as_its_own_row(self):
+        # Ann Card, Bo None, Cy None with a comment, the owner passes: Card 1, None 2; 3 people.
+        self.pick(self.ann, "Q7", options=["opt-1"])
+        self.pick(self.bo, "Q7", options=["none"])
+        self.pick(self.cy, "Q7", options=["none"], comment="We pay cash")
+        self.act("pass_", HOST, {"qid": "Q7"})
+        out = self.outcome("Q7")["outcome"]
+        self.assertEqual(out["counts"], [{"option": "Card", "picks": 1}, {"option": "PayPal", "picks": 0}, {"option": "Bank transfer", "picks": 0},
+                                         {"option": "None of these", "picks": 2, "none": True}])
+        self.assertEqual((out["people"], [c["text"] for c in out["comments"]]), (3, ["We pay cash"]))
+
+    def test_state_refuses_a_none_of_these_option_off_a_multi_question(self):
+        doc = json.loads(json.dumps(self.s.state))
+        q4 = next(q for q in doc["questions"] if q["id"] == "Q4")
+        q4["format"]["options"].append(dict(session.NONE_OPTION))
+        self.assertIn("None of these", session.document_error(doc))
+
+
 class TestDisagree(FormatCase):
     def test_disagree_needs_a_reason_of_1_to_200_characters(self):
         self.refused("empty", "disagree", self.ann, {"qid": "Q5", "card": "c:rec"}, http=400)
