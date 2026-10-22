@@ -6527,7 +6527,7 @@
       ui.otherOpen[qid] = true;
       // On a choice my own option takes no comment, so a comment typed before the pick becomes the option's first draft.
       ui.otherText[qid] = ownText(q) || (q.format === "choice" && earlyOf(q, myRec(qid))?.comment) || "";
-      if (q.format === "multi" && !draftOf(q).includes("other")) ui.fdraft[qid] = { options: [...draftOf(q), "other"] };
+      if (q.format === "multi" && !draftOf(q).includes("other")) ui.fdraft[qid] = { options: [...draftOf(q).filter(o => o !== "none"), "other"] };
       otherBox._q = null;
       render();
       if (phone.matches) setTab("answer");
@@ -6620,7 +6620,7 @@
           li._o = o;
           li._box.checked = cur.includes(o.id); li._box.disabled = ro;
           li.firstChild.lastChild.textContent = o.label;
-          li.classList.toggle("vf-check-other", !!o.other);
+          li.classList.toggle("vf-check-other", !!(o.other || o.none)); // None of these looks like Something else
           li.dataset.on = String(li._box.checked);
         });
         fmtHint.textContent = "Pick every option that fits, then save. Your picks are your vote.";
@@ -6699,7 +6699,10 @@
     function toggleMulti(o, checked) {
       const q = qById(ui.cur); if (!q) return;
       if (o.other) { if (checked) return openOther(q.id); return otherCancel.click(); }
+      // None of these excludes every other pick, as the server does: picking it clears them, and picking another clears it.
+      if (o.none && checked) { ui.otherOpen[q.id] = false; otherBox._q = null; ui.fdraft[q.id] = { options: ["none"] }; return render(); }
       const cur = new Set(draftOf(q)); checked ? cur.add(o.id) : cur.delete(o.id);
+      if (checked) cur.delete("none");
       ui.fdraft[q.id] = { options: optionsOf(q).map(x => x.id).filter(id => cur.has(id)) };
       render();
     }
