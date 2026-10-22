@@ -1,5 +1,5 @@
-// The monitoring lane's job: collect, detect, then file, update or skip one
-// issue per finding. Writes with the job's own token, 1 s apart, within the
+// The monitoring lane's job: collect, detect, then file, update, reopen or
+// skip one issue per finding. Writes with the job's own token, 1 s apart, within the
 // call budget, and only to the issues it files. No model.
 //
 // Environment: GITHUB_TOKEN, REPOSITORY, AGENT_IDENTITY, CALL_BUDGET,
@@ -20,14 +20,27 @@ import { detect } from "./signals.mjs";
 
 const LABELS = ["needs-triage", "source: factory-monitor"];
 
+// A reopened issue goes back to triage: the filing labels that exist return,
+// and agent-ready comes off; a 404 means it was not on the issue.
+async function retriage({ call, repo, number, labels, wait }) {
+  if (labels.length > 0) {
+    await wait();
+    await call("POST", `/repos/${repo}/issues/${number}/labels`, { labels });
+  }
+  await wait();
+  await call("DELETE", `/repos/${repo}/issues/${number}/labels/agent-ready`).catch((error) => {
+    if (error.status !== 404) throw error;
+  });
+}
+
 export async function writePlan({ plan, existing, call, repo, labels, runUrl, wait = () => delay(1000) }) {
-  const done = { filed: [], updated: [], failed: [] };
-  for (const { finding, recurrenceOf } of plan.file) {
+  const done = { filed: [], updated: [], reopened: [], failed: [] };
+  for (const { finding } of plan.file) {
     await wait();
     try {
       const issue = await call("POST", `/repos/${repo}/issues`, {
         title: finding.title,
-        body: renderBody(finding, runUrl, recurrenceOf),
+        body: renderBody(finding, runUrl),
         labels,
       });
       done.filed.push(issue.number);
@@ -35,18 +48,26 @@ export async function writePlan({ plan, existing, call, repo, labels, runUrl, wa
       done.failed.push({ target: finding.key, error: error.message });
     }
   }
-  for (const { number, finding } of plan.update) {
-    // The comment carries the new evidence; the marker then records its
-    // fingerprint, so a failed comment is retried on the next run.
+  // The comment carries the new evidence; the marker then records its
+  // fingerprint, so a failed comment is retried on the next run. A reopen
+  // sends the issue back to triage first and sets the state in that same
+  // last PATCH, so a failed label call leaves it closed and retried too.
+  const writes = [
+    ...plan.update.map((u) => ({ ...u, reopen: false, into: done.updated })),
+    ...plan.reopen.map((r) => ({ ...r, reopen: true, into: done.reopened })),
+  ];
+  for (const { number, finding, reopen, into } of writes) {
     const body = existing.find((i) => i.number === number).body;
     const [, ...rest] = body.split("\n");
     const marker = renderBody(finding, runUrl).split("\n", 1)[0];
+    const state = reopen ? { state: "open", state_reason: "reopened" } : {};
     try {
       await wait();
       await call("POST", `/repos/${repo}/issues/${number}/comments`, { body: renderComment(finding, runUrl) });
+      if (reopen) await retriage({ call, repo, number, labels, wait });
       await wait();
-      await call("PATCH", `/repos/${repo}/issues/${number}`, { body: [marker, ...rest].join("\n") });
-      done.updated.push(number);
+      await call("PATCH", `/repos/${repo}/issues/${number}`, { ...state, body: [marker, ...rest].join("\n") });
+      into.push(number);
     } catch (error) {
       done.failed.push({ target: `#${number}`, error: error.message });
     }
@@ -71,7 +92,9 @@ function client(env) {
       body: body ? JSON.stringify(body) : undefined,
     });
     if (response.status === 404 && method === "GET") return null;
-    if (!response.ok) throw new Error(`${method} ${path.split("?")[0]}: HTTP ${response.status}`);
+    if (!response.ok) {
+      throw Object.assign(new Error(`${method} ${path.split("?")[0]}: HTTP ${response.status}`), { status: response.status });
+    }
     return path.endsWith("/zip") ? Buffer.from(await response.arrayBuffer()) : response.json();
   };
   return { call, used: () => used };
@@ -116,7 +139,7 @@ async function main(env = process.env) {
   const plan = planIssues({ findings, existing });
   const runUrl = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${repo}/actions/runs/${env.GITHUB_RUN_ID ?? 0}`;
 
-  let done = { filed: [], updated: [], failed: [] };
+  let done = { filed: [], updated: [], reopened: [], failed: [] };
   const labels = [];
   if (!env.DRY_RUN) {
     for (const name of LABELS) {
@@ -128,11 +151,12 @@ async function main(env = process.env) {
   const lines = [
     `### Monitoring lane${env.DRY_RUN ? " (dry run)" : ""}`,
     "",
-    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. Filed: ${done.filed.map((n) => `#${n}`).join(", ") || "none"}. Updated: ${done.updated.map((n) => `#${n}`).join(", ") || "none"}. Labels: ${labels.join(", ") || "none"}. Calls: ${used()}.`,
+    `Window ${windowStart.toISOString()} to ${now.toISOString()}. Findings: ${findings.length}. Filed: ${done.filed.map((n) => `#${n}`).join(", ") || "none"}. Updated: ${done.updated.map((n) => `#${n}`).join(", ") || "none"}. Reopened: ${done.reopened.map((n) => `#${n}`).join(", ") || "none"}. Labels: ${labels.join(", ") || "none"}. Calls: ${used()}.`,
     "",
     ...findings.map((f) => `- ${f.signal} \`${f.key}\`: ${f.summary}`),
-    ...plan.file.map((p) => `- plan: file \`${p.finding.key}\`${p.recurrenceOf ? ` (recurrence of #${p.recurrenceOf})` : ""}`),
+    ...plan.file.map((p) => `- plan: file \`${p.finding.key}\``),
     ...plan.update.map((p) => `- plan: update #${p.number} \`${p.finding.key}\``),
+    ...plan.reopen.map((p) => `- plan: reopen #${p.number} \`${p.finding.key}\``),
     ...plan.skip.map((s) => `- plan: skip \`${s.key}\` (${s.reason}${s.number ? `, #${s.number}` : ""})`),
     ...data.gaps.map((g) => `- not read: ${g}`),
     ...done.failed.map((f) => `- failed ${f.target}: ${f.error}`),

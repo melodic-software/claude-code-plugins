@@ -9,7 +9,7 @@ PLAN.md *file* shape; the plan *body* template scaled by task size is a differen
 
 ```markdown
 ## Brief
-<from /planning:interview if applicable — task restatement, scope boundaries, success criteria>
+<the Brief `/planning:interview` writes, in its Brief template's shape, kept as written. With no interview: a minimal Brief (Problem, Goal with its three lines, Out-of-scope) or one line `No Brief: <reason>`, per plan Step 1>
 
 ## Design
 <written by /planning:design-handoff when the design gate passes; /planning:plan keeps it as written. Omit for work with no design stage>
@@ -27,6 +27,21 @@ PLAN.md *file* shape; the plan *body* template scaled by task size is a differen
 <repository paths of the existing patterns, rules, and ADRs this design follows>
 
 ## Plan
+
+### Goal
+<which Brief Problem it serves, What / Why / Done when, and the Brief's three Goal lines quoted verbatim>
+
+### Load-bearing assumptions
+<Assumption | Source | Falsifying check | Response if false: one row per Brief Captured assumption written `<assumption>: revisit if <trigger>` (not the Quality bar, Variation intent or override lines) and per assumption the plan adds; the check names a phase Sanity Check; the response is Minor, Moderate or Major>
+
+### Alternatives Considered
+<Alternative | Why rejected | Switch condition>
+
+### Risks and Mitigations
+<Risk | Likelihood | Impact | Mitigation>
+
+### Decisions made (gate-passed)
+<Decision | What it changes in the plan | Basis (evidence) | Source, per ../context/tag-decisions.md "Presentation contract"; a deferred Brief question the plan resolved has Source `deferred Q<N>`>
 
 ### Phase 1: <name> [TODO]
 <file-by-file changes, rationale, per-phase sanity-check criteria>
@@ -59,6 +74,8 @@ Approval: <attended: approved by <who> on <date>; unattended: standing mandate <
 ### Mechanical work
 <commit boundaries, verification checkpoints, sequential fallback path (when parallel recommended). Standard implementation boilerplate — rarely needs user-specific override>
 ```
+
+The `## Plan` sections before the first phase take their bodies from [`../context/plan-template.md`](../context/plan-template.md) "Full Template". A smaller plan drops what its scale omits but keeps Goal, and keeps the assumptions table whenever the Brief captured any.
 
 An early-exit design (`design-resolution.md`) writes `## Design` as one line naming the early
 exit and its reason; a Tier B early exit adds a `### Contracts` subsection quoting its type sketch. `## Design` is how the design decisions reach a cleared session, a dispatched

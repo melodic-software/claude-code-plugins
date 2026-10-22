@@ -3,6 +3,30 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0] - 2026-10-22
+
+### Added
+
+- `fix-until-green` returns `testEdits`, the changed test, snapshot, fixture and runner config files matched by path. When a green run has any, a runner re-runs the command in a throwaway worktree with those files as they stood at the start (`baseRerun`). The main tree's ignored dependency directories are linked in. A test failure there stops as `green-needs-test-edits` for a person to decide, a command that could not run stops as `base-rerun-env-failed`, and nothing is reverted.
+
+- `/testing:test-value` flags two judgment-only shapes: an absence check with no paired presence case (fix: add a case where another input produces the value; a test that already has one is kept), and assertions that never reach the subject (fix: assert what the subject returns or changes). Three eval cases cover them.
+
+### Changed
+
+- Synced the shared `exec-bash.mjs` launcher, which gains an opt-in `--fail-closed` flag. This plugin's hooks do not pass it, so their behavior is unchanged.
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line.
+
+### Fixed
+
+- The `test_guards_enabled` option description said the hook asks for a reason. It adds an advisory note, and denies an added skip or removed test block only under `rules: {test-weaken-block: error}`; it never asks.
+
+## [0.29.0] - 2026-10-20
+
+### Added
+
+- `browser_driver` setting for `/testing:run-e2e`: the command name of the one browser tool a `playwright` drive uses (default `playwright-cli`), resolved through the same cascade as `e2e_driver` by `resolve-config.sh e2e` and as a `userConfig` option. `scripts/check-browser-driver.sh` stops the run before any drive, naming the setting, the value and its source, when that command is not on PATH; no other browser tool is substituted.
+
 ## [0.28.0] - 2026-10-20
 
 ### Added

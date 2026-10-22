@@ -2,7 +2,7 @@
 
 The runtime behind the interview skill's shared lane (`skills/interview/context/lane-shared.md`):
 one person, the owner, runs a multi-person interview from their own machine. Guests open a
-Cloudflare quick-tunnel link; the owner's Claude session drives the session through `share.sh`
+Cloudflare tunnel link (a quick tunnel, or a [named tunnel](#a-stable-guest-link-the-named-tunnel)); the owner's Claude session drives the session through `share.sh`
 and the session-bridge watcher. Python 3 standard library only.
 
 ## Files
@@ -13,13 +13,14 @@ and the session-bridge watcher. Python 3 standard library only.
 | `share.py` | The CLI: `ensure-running`, `stop`, `restart`, `status`, `url`, `list`, `apply`, `lease` |
 | `server.py` | One process, two 127.0.0.1 listeners: the guest listener (the page and `/api/*`) and the control listener (session-bridge). Routes, auth, caps, headers and the snapshot; no domain rules |
 | `session.py` | The domain rules over `state.json` (people, rounds, questions, votes, locks, proposals, requests, results, uploads, digest, ops) |
-| `tunnel.py` | cloudflared: start, address parse, reattach, adopt, exit detection, stop. The only file that names cloudflared |
+| `tunnel.py` | cloudflared: start (quick or named), address parse, reattach, adopt, exit detection, a switch's retired tunnel, stop. The only file that runs cloudflared |
+| `cfdns.py` | The owner's Cloudflare checks for a named tunnel: the zone listing, the planned DNS record and its confirm-gated write, the machines running the tunnel |
 | `detached.py` | Processes that outlive their starter, and liveness and stop by pid, on Windows, macOS and Linux |
 | `session_bridge.py`, `watch.sh`, `wake.sh` | Generated copies of `lib/session-bridge/` (`scripts/sync-shared-copies.sh`); edit the canonical, never these |
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -32,7 +33,7 @@ Every command prints one JSON line on stdout and diagnostics on stderr. On Windo
 
 | Command | Args | Output |
 |---|---|---|
-| `ensure-running` | `[--open] [--defaults-file F] [--guest-port N] [--adopt-tunnel PID URL]` | `{ok, guestUrl, localUrl, ownerLinkFile, shareChanged, resumed, tunnel, watch}`: starts or reuses the server and the tunnel. A new session's `state.json` comes from `defaults.json` (`{"settings": {...}}`, state.schema field names). `--guest-port` applies only when the session is created; later starts reuse the recorded ports. `--adopt-tunnel`: see [Adopting a running cloudflared](#adopting-a-running-cloudflared) |
+| `ensure-running` | `[--open] [--defaults-file F] [--guest-port N] [--adopt-tunnel PID URL] [--tunnel-hostname H --tunnel-token-file F]` | `{ok, guestUrl, localUrl, ownerLinkFile, shareChanged, resumed, tunnel, watch}`: starts or reuses the server and the tunnel; `tunnel` is `quick`, `named` or `down`. `--tunnel-hostname`: see [A stable guest link](#a-stable-guest-link-the-named-tunnel). A new session's `state.json` comes from `defaults.json` (`{"settings": {...}}`, state.schema field names). `--guest-port` applies only when the session is created; later starts reuse the recorded ports. `--adopt-tunnel`: see [Adopting a running cloudflared](#adopting-a-running-cloudflared) |
 | `stop` | `[--keep-tunnel]` | `{ok, stopped}`: ends the armed watcher, the server and cloudflared (an adopted cloudflared keeps running; see [Adopting a running cloudflared](#adopting-a-running-cloudflared)); keeps the ports and the state. `--keep-tunnel` keeps the guest link for the next start |
 | `restart` | | Stops and starts the server only, on the same ports, with the same control token: the tunnel, the guest link, the state and an armed watcher all survive. Open pages see the new build and reload |
 | `status` | | `{ok, running, tunnel, guestUrl, round, intro, people, queue, unhandled, lease}`; `intro` is true once "Why you're here" is set |
@@ -44,8 +45,9 @@ Every command prints one JSON line on stdout and diagnostics on stderr. On Windo
 
 Exit codes: 0 done; 1 refused (bad arguments, a state file that does not load, a `--guest-port`
 or `--adopt-tunnel` on an existing session, an adopted pid
-that is not a running cloudflared to the guest port); 2 a prerequisite is missing (Python 3, curl,
-cloudflared) or the server cannot start or be reached, a busy `--guest-port` included; 3 no tunnel
+that is not a running cloudflared to the guest port, a tunnel hostname or token file that cannot
+serve); 2 a prerequisite is missing (Python 3, curl,
+cloudflared) or the server cannot start or be reached, a busy `--guest-port` or named-tunnel port included; 3 no tunnel
 address in time (the server keeps running on `localUrl`, `tunnel: "down"`).
 
 The tunnel is its own detached process and outlives server restarts. The server checks it every
@@ -73,6 +75,88 @@ signals an adopted cloudflared: `share.sh stop` drops its record and leaves it r
 yourself (`kill <pid>`, or `Stop-Process -Id <pid>` on Windows) to close the link. If it exits, the
 server starts a cloudflared of its own (a new link), which `stop` ends like any other.
 
+## A stable guest link: the named tunnel
+
+A quick tunnel's address changes whenever cloudflared restarts, a reboot included. A named tunnel
+keeps one address, `https://<tunnel_hostname>`, across restarts, so guests keep their link and,
+because their browser storage belongs to that address, their identity. It is opt-in per machine
+through two planning plugin options, set in that machine's user settings (`pluginConfigs`):
+
+| Option | Value |
+|---|---|
+| `tunnel_hostname` | The tunnel's public hostname, such as `interview.example.com`. Empty (the default) keeps the quick tunnel |
+| `tunnel_token_file` | Absolute path of a file holding the tunnel's token, readable only by you. The token itself never goes in settings, a repository or dotfiles |
+
+The skill passes them as `ensure-running --tunnel-hostname H --tunnel-token-file F`; an
+`ensure-running` without `--tunnel-hostname` keeps the tunnel the session already runs, and only an
+empty `--tunnel-hostname ''` goes back to the quick tunnel. share.py
+checks the file (it exists, is not empty, and no other user can read it) but
+never reads it: cloudflared does, through
+[`--token-file`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/)
+(cloudflared 2025.4.0 or later), so the token is on no command line and in no output. Neither cloudflared nor the server inherits `TUNNEL_TOKEN`,
+`TUNNEL_TOKEN_FILE`, `CLOUDFLARE_API_TOKEN` or `CF_API_TOKEN` from the shell that starts them. A named
+session's guest port is fixed: `--guest-port`, else 8765, and a busy port refuses the start
+(exit 2) instead of moving, because the tunnel's ingress rule names that port. The token file must
+stay in place while the session runs: the server restarts cloudflared from it whenever cloudflared
+exits.
+
+**One machine per tunnel.** Every machine running the same tunnel is a replica, and Cloudflare
+sends each guest to the nearest one
+([Tunnel availability](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-availability/)),
+so a second machine would serve its own session to some guests. Set `tunnel_hostname` on one
+machine only, and before moving the tunnel to another run `python cfdns.py connectors` (below),
+which exits 4 when more than one machine runs it. `ensure-running` prints this reminder on every
+named start.
+
+**Switching.** Setting, changing or clearing `tunnel_hostname` on a running session switches its
+tunnel at the next `ensure-running`; the session keeps its guest port, so switch to a named tunnel
+only a session whose port the ingress rule names (the reminder names the port). The switch happens only
+once the new address proves it reaches this server: the server fetches
+`<new address>/api/tunnel-probe/<nonce>` and expects an answer only it knows, retrying for up to 30
+seconds. A hostname that is mistyped, or routes to another machine, is refused (exit 1) with the
+old tunnel and its link still running, so no page is ever sent where its guest's secret would leak. The old tunnel keeps running for ten minutes; in that time a
+page open on the old address asks the server, learns the new one, and moves there, carrying a
+guest's identity as a personal link (`#me=`), so the same browser keeps its name and answers. A
+quick tunnel that restarts after a reboot leaves no old page to ask: those guests open the new link
+as new people, and the owner can merge each with their earlier self.
+
+### Setting it up once
+
+1. **API token.** In the Cloudflare dashboard, create an API token with two permissions,
+   Account > Cloudflare Tunnel > Edit and Zone > DNS > Edit, limited to your account and the one
+   zone ([Create an API token](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel-api/)).
+   Keep it in your secret store; `cfdns.py` reads it only from the file `--api-token-file` names.
+2. **Tunnel.** Create a remotely-managed tunnel (Networking > Tunnels > Create a tunnel, or the API
+   steps on the same page), save its token to the file `tunnel_token_file` names, and note its id.
+3. **Route.** Publish an application on the tunnel: hostname `tunnel_hostname`, service
+   `http://127.0.0.1:8765` (the guest port). The server listens on IPv4 only, so name the address,
+   not `localhost`. Use a hostname one level below the zone (`interview.example.com`, not
+   `a.b.example.com`): Universal SSL covers only the apex and first-level subdomains
+   ([limitations](https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/limitations/)).
+4. **DNS.** The dashboard route creates the DNS record itself. Through the API, check and write it:
+
+   ```bash
+   python cfdns.py plan  --zone-id <zone id> --hostname <tunnel_hostname> --tunnel-id <tunnel id>
+   python cfdns.py write --zone-id <zone id> --hostname <tunnel_hostname> --tunnel-id <tunnel id> --confirm <tunnel_hostname>
+   ```
+
+   Both refuse a hostname that is not the zone's name or under it. `plan` only reads: it lists the zone's records and prints the one record the tunnel needs, a
+   proxied CNAME to `<tunnel id>.cfargotunnel.com`, with every record already at that name (none
+   means no clash; exit 4 on a clash). `write` lists again and creates exactly that record, only
+   when `--confirm` repeats the hostname and nothing is at that name. Taking the zone id as an
+   argument keeps the token to the two permissions above.
+5. **Set the options** on this machine only, then start the session as usual.
+
+### Per platform
+
+cloudflared install commands per platform are in the plugin's `prerequisites.json`; check
+`cloudflared --version` is 2025.4.0 or later.
+
+- **Windows.** The token file's access list may name only you, the file's owner, SYSTEM and
+  Administrators; share.py refuses any other entry and prints the `icacls` command that fixes it.
+  `python share.py` runs without bash; `python cfdns.py` likewise.
+- **macOS and Linux.** `chmod 600` the token file; share.py refuses one other users can read.
+
 ## The state file is not versioned
 
 `state.json` holds the shape this build writes, with no version number and no migrations; the last
@@ -90,6 +174,7 @@ the refused op's index).
 | Op | Fields | Effect |
 |---|---|---|
 | `set-title`, `set-goal` | `title` / `goal` | |
+| `set-repo` | `repo` (`owner/name`, `""` clears), `commit?` (40 lowercase hex) | The page links `#N` to `https://github.com/<repo>/issues/N`, and a repository path (`path`, `path:line`) to `https://github.com/<repo>/blob/<commit>/<path>#L<line>` once a commit is set. Every joined person's snapshot carries both; the anonymous view does not. Both are replaced together; no `commit` removes the old one |
 | `set-intro` | `intro` (0..600) | "Why you're here", shown to a guest before question 1; empty removes it |
 | `open-round` | `questions` (1..8), `placements?` | Closes the `working` round (or starts round 1) and opens the next |
 | `close-round` | `placements?`, `reason?` | `working` -> `closed`, no new round |
@@ -101,6 +186,8 @@ the refused op's index).
 | `set-purpose` | `qid`, `purpose` | The owner's `/api/question/purpose` rules |
 | `set-for` | `qid`, `for` | Who must answer, by name or pid; `[]` asks everyone. The owner's `/api/question/for` takes the same body. A question in `open-round` takes `for` too |
 | `make-question-from` | `proposal`, `question` | |
+| `propose-merge` | `from`, `to`, `reasons` (1..5), `note?` (0..200) | Proposes that `from` (a new browser) is `to`, someone already here, for the owner's Merge; merges nothing. `reasons` from `same-name`, `was-offline`, `same-device`, `expected`. Neither may be the owner (400 `bad-field`); both must be guests who are in, neither a leader nor trusted (409 `wrong-status`); `from` must be a `person-joined` event's `person` and `to` one of its `sameName` (409 `not-reported`); one open proposal per pair (409 `wrong-status`), none again for a pair the owner dismissed (409 `dismissed`), 200 waiting at once (409 `full`; past 200 in all the oldest answered one goes, never a dismissed one, so 409 `full` too when all 200 wait or were dismissed). See [Claude's merge and admit proposals](#claudes-merge-and-admit-proposals) |
+| `propose-admit` | `pid`, `reasons`, `note?` | Proposes letting in one join waiting under Approve new joins, which a `person-joined` event with `waiting` reported, for the owner's Let in; lets no one in. The same refusals |
 | `handle` | `seqs` | Marks events handled |
 
 ## Answering
@@ -177,9 +264,11 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `GET /api/card/history?qid=&card=` | | Once the owner has hidden or edited an answer, every replaced version goes to its `history` (the original kept, then the newest, 50 in all); before that its author's edits keep none. This route returns one answer's `history`; the owner's snapshot carries only `versions`, the count. An answer its author clears after the owner hid or edited it leaves a tombstone in `cleared` (in the owner's snapshot as `{ref, pid, clearedAt, hidden}`); this route returns its last `text` with `cleared: true`, and the author's next answer there takes it up, hidden if it was |
 | `/api/join/act` | `{pid, action: admit\|decline}` | With the `approveJoins` setting on, a join gets a secret but waits (`status: waiting`, 403 `waiting` on every route) in the owner's `joinRequests` (in join order `n`, with the `device` and `browser` the join named) until admitted; declining removes the person. At most 20 wait (503 `waiting-full`), and a full session never evicts a waiting person. People whose secret already resolves are not affected |
 | `/api/session/intro` | `{intro}` | Edits "Why you're here" |
+| `/api/proposal/all` | `{ids}` | Approve all in Proposed: each listed proposal, the new ones the owner's confirm counted, becomes a question in the next round as Make it a question makes one, and its author is told. All or none: one no longer new is 409 `wrong-status`, more than the round has room for 409 `round-full` (with `room`), so a proposal that arrived after the confirm stays in New |
+| `/api/claude-proposal/act` | `{id, action: approve\|dismiss}` | Carries out or dismisses one of [Claude's merge and admit proposals](#claudes-merge-and-admit-proposals) (409 `wrong-status` once answered) |
 | `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, every mention of `from` names `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
 | `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open or seen report and writes `report-filed` for Claude (409 `wrong-status` on one that is resolved or already asked) |
-| `GET /api/report/image?id=[&add=N]` | | One report's screenshot, or its Nth addition's (`N` 1 to 999, else 400 `bad-field`), as `{id, image}`, a data: URL |
+| `GET /api/report/image?id=[&pic=P\|&add=N]` | | One report's first screenshot, its `P`th sent with it (`P` 1 to 4), or its Nth addition's (`N` 1 to 999); else, or with both, 400 `bad-field`. As `{id, image}`, a data: URL |
 
 `POST /api/chat/react {id, emoji, on}` (any person) adds or takes back one's own emoji on a chat
 message: only the page's fixed set (`CHAT_EMOJI` in `session.py` and `web/app.js`), at most 20
@@ -213,6 +302,23 @@ the log, and a guest's own Claude through `/api/mine/requests`, gets "@Name", or
 There is no device or address blocking (C35): Remove stops a person's secret, and Approve new joins
 or a new guest link stops a removed person rejoining under a new name.
 
+## Claude's merge and admit proposals
+
+Claude proposes; only the owner's tap merges or lets anyone in. When someone joins and waits under Approve new joins,
+or joins under the name of someone already in who is not here now (less the " 2" a taken name gets; never the owner),
+the server writes `person-joined` (`person`, `waiting`, the `device` and `browser` the join named, `sameName` with each
+match's `pid`, `device` and `lastSeen` while the server remembers them, and names only with `digestNames`). Claude may
+answer with `propose-merge` or `propose-admit`, which the owner sees in the Host view and the Inbox's Needs you, with
+the reasons in words, Claude's note, and for a merge a reminder that the earlier person's own link (Use on another
+device) avoids the duplicate next time. No address or location is kept or offered as a reason.
+
+A proposal (`claudeProposals` in `state.json`, ids `K<N>`, the owner's snapshot only) keeps each person's name as Claude
+saw it. Approve merges `from` into `to` as `/api/person/merge` does (that browser carries on as `to`, who gets a `merge`
+notification) or lets the person in as Let in does; a waiting duplicate is let in first, as the owner's Merge requires.
+While a person in it is renamed, removed, merged, let in, turned away, made a leader or trusted, it is out of the
+owner's lists, and an approve then marks it `stale` and is refused (409 `stale`), merging no one. A person's own claim
+to be someone is never a reason: that is their merge request to the owner. Dismiss marks it `dismissed`, and Claude cannot propose that pair, or that admit, again.
+
 ## Prototype page
 
 A `prototype` question shows a preview tile and an "Open prototype" link to `GET /proto/<qid>`
@@ -240,6 +346,16 @@ for a free-form selector an earlier build took.
   dropped: the page stops posting to it, ignores it, and says it tried to leave its page. The
   page's `frame-src 'self'` already refuses a page from another site in the frame.
   `server.py` refuses to start when the helper holds `</script`, `<script` or `<!--`.
+- **Versions.** A variant may name the variant it revises on an earlier prototype question,
+  `previous: {qid, variant}` (400 `bad-field` when that is not a variant of an earlier prototype
+  question, or another variant already revises it), so one prototype's versions form one line,
+  the newest current. The question card lists each line as `v<n> · <qid> · <label>`, each version
+  opening its own page, the current one marked, with a link that shows another version beside the
+  current one. The page lists them too; Side by side (`#with=<qid>.<variant>`) shows the older of
+  two beside the newer, framed with the same sandbox and no pin helper, so it takes no notes and
+  nothing it posts is read, and dropped if it leaves its page. Notes stay on the version they were
+  pinned to. The toolbar's Prototypes filter lists every round's prototype questions and opens the
+  rounds that hold them.
 - **Owner token.** Links to session pages (`Core.pageLink`) never hold it. The page keeps it in
   the tab's `sessionStorage`, takes it out of the address bar, and uses it again only on a reload
   or Back in that tab; when the owner follows a session link, `core.js` opens the page with
@@ -254,7 +370,7 @@ filter chips by status or kind that the device remembers, like the tab:
 - Needs you: what needs this person now. Everyone sees the answers to their requests they have not opened and the
   questions they are asked to answer; a leader adds proposals and suggestions to place and a round to mark ready; the
   owner adds requests to run, answers to share, requests Claude failed (until opened), files offered, pictures to
-  approve, open problem reports not yet asked about, merge and join requests, and a round marked ready, with Run,
+  approve, open problem reports not yet asked about, merge and join requests, Claude's merge and admit proposals, and a round marked ready, with Run,
   Share, Approve and the rest on the rows. Only the owner's actions do anything: the server refuses them from anyone
   else.
 - My requests: this person's requests that wait, run or have news, with the status they see: `waiting`, `running`,
@@ -265,12 +381,13 @@ filter chips by status or kind that the device remembers, like the tab:
   (running, shared, Just me, taken down, declined, discarded), reports seen or with Claude, and pictures done.
 
 The snapshot's `inbox` carries a person's own requests and, for the owner, what waits on them (`run:`, `share:`,
-`fail:` for a guest's request Claude failed, `report:` for an open report not yet asked about, `merge:`, `join:`),
+`fail:` for a guest's request Claude failed, `report:` for an open report not yet asked about, `merge:`, `join:`, `people:` for a
+proposal of Claude's),
 built by `session.py` for the viewer alone (never another person's request or a result its requester cannot see).
 `inboxSeen` in `state.json` keeps, per person, the status each item had when they opened it; an item whose status
 moved since is unread, and only `POST /api/inbox/read {keys}` (keys of the caller's own Inbox; others mark nothing)
 marks one read; Mark all read leaves `fail:` items alone, which clear only from their row. The badge leaves out the `request` notification kind, which the items already show. The owner gets
-no `queue` line for what its Inbox lists as waiting (requests, shares, reports, merges, joins); queue lines for
+no `queue` line for what its Inbox lists as waiting (requests, shares, reports, merges, joins, Claude's proposals); queue lines for
 proposals, suggestions and upload offers still count. The owner's own requests skip the queue: one starts running
 when sent. A guest's request, the owner's guest identity included, still waits for Run.
 
@@ -353,6 +470,16 @@ whole session; "@Claude" in chat or a Discussion always asks for everyone.
   answer back in that message. Only the owner shares it again; Discard is refused (409
   `wrong-status`) on a `private` answer, which its asker already has. A digest already sent keeps
   what it listed.
+- **Move.** `/api/request/act {action: "move", id, qid}` (or `scope: "session"` for the whole
+  session) puts a request and its result on another question, one a second. Only its asker or the
+  owner moves it; anyone else reads 404 `no-such-request`, and every other action stays the owner's
+  (403 `owner-only`). An unknown question reads 404, the place it is already 409 `same-place`, a
+  running request 409 `wrong-status`, and a request on the asker's own Claude stays on a question.
+  Once the host has taken up a request on the host's Claude (any status but `pending`), only the
+  owner moves it (409 `taken-up`); a waiting one its asker moves reads unread again in the owner's
+  Inbox. A result any answer cites stays put (409 `cited`). A shared result its asker moves waits for the
+  owner's Share again; one the owner moves stays shared, and on the whole session it becomes
+  Claude's chat message, as a Share makes it.
 
 ## Connect your Claude
 
@@ -436,7 +563,12 @@ nothing.
 
 What carries files (C44, at most four, each an upload of the writer's own the owner accepted, each
 once): `attachments` on `POST /api/answer` and `POST /api/pick` replaces the list, left out it is
-kept; on `/api/chat`, `/api/request`, `/api/suggest`, `/api/propose` and `/api/discussion` it is
+kept. On `POST /api/answer`, empty `text` with `attachments` saves a picture-only answer, shown and
+voted on like any other and listed in the digest with its `attachments` (so are a lock of it,
+and a late vote, back, reaction or Disagree on it); changing an answer's files after votes marks it
+edited after votes, as a text change does; empty `text` with
+`attachments` left out or empty clears the answer, and so does declining or removing the last file
+of an answer with no text or pick, unless its question is locked or its round went to Claude. On `/api/chat`, `/api/request`, `/api/suggest`, `/api/propose` and `/api/discussion` it is
 optional and refused (403 `uploads-off`) while Uploads is off, and on `/api/request` with `runner:
 self` (400 `bad-field`). A request filed by "@Claude" in chat or a comment carries that message's
 files, a proposal forwarded from chat its message's, and `request-run` lists a request's
@@ -512,33 +644,38 @@ does not load.
 
 Anyone joined can report a problem: "Report a problem" in the phone More sheet and the desktop Help
 popover, and "Report this" on the toast of an action the server refused. The form asks "What went
-wrong?" (required, 2000 characters) and takes one optional screenshot (`accept` png, jpeg or webp,
-no `capture`), which the browser re-encodes to at most 1600 px on its long edge and 512 KB. Before
+wrong?" (required, 2000 characters) and takes up to four optional screenshots (`accept` png, jpeg or
+webp, `multiple`, no `capture`), picked several at once, pasted or added one by one, each of which the
+browser re-encodes to at most 1600 px on its long edge and 512 KB. Before
 Send it lists, under "Sent with this report", every field that goes with it: the view and phone
 tab, the question and round, the device kind and browser family, `innerWidth` x `innerHeight` and
 the visual viewport's width, height and scale, the build, and the last 5 errors the page saw,
 refusals included ([Logs](#logs)). Never an answer, chat, the address or its fragment, or a credential.
 
-`POST /api/report {text, ctx, image?}` (auth class person) takes them, `image` a data: URL whose
-bytes must start as PNG, JPEG or WebP do (415 `file-type`; over 512 KB 413 `upload-too-large`).
-Its body cap is `REPORT_MAX` (about 732 KB) instead of 32 KB. A report is allowed while Uploads is
-off: one picture, checked, saved as `reports/<id>.<png|jpg|webp>` in the private data folder and
-shown to the owner alone; every other upload stays refused (403 `uploads-off`). One report per
+`POST /api/report {text, ctx, images?}` (auth class person) takes them, `images` a list of at most
+`MAX_REPORT_IMAGES` (4) data: URLs, each of whose bytes must start as PNG, JPEG or WebP do (415
+`file-type`; over 512 KB 413 `upload-too-large`; a fifth, or `image` beside `images`, 400 `bad-field`).
+One picture may still come as `image`. Its body cap is `REPORT_SEND_MAX` (about 2.8 MB) instead of
+32 KB. A report is allowed while Uploads is off: its pictures, checked, saved in the private data
+folder, the first as `reports/<id>.<png|jpg|webp>` and picture n after it as `reports/<id>-p<n>.<ext>`,
+and shown to the owner alone; every other upload stays refused (403 `uploads-off`). One report per
 person every 10 s (429 `slow-down`), 5 open per person (429 `too-many-pending`), 500 per session
 (429 `too-many-reports`). The record, `reports` in `state.json` (`{F<N>: {by, text, ctx, image?,
-status: open|seen|resolved, asked?, adds?, ts}}`; optional, so a file from before loads), reaches only the
-owner's snapshot (`reports`, with `image: true` instead of the path) and shows in the Host queue as
-a Problem, with Seen, Resolved and Ask Claude about this report ([Moderation](#moderation)).
+moreImages?, status: open|seen|resolved, asked?, adds?, ts}}`, `moreImages` the second to fourth pictures; each
+optional, so a file from before loads), reaches only the owner's snapshot (`reports`, with `image: true` and
+`images`, the count, instead of the paths) and shows in the Host queue as a Problem, with one Show screenshot per
+picture that loads it, Seen, Resolved and Ask Claude about this report ([Moderation](#moderation)).
 
-**Your reports.** The reporter's own snapshot carries `myReports` (`{id, text, status, ts, image, adds}`, never the
+**Your reports.** The reporter's own snapshot carries `myReports` (`{id, text, status, ts, image, images, adds}`, never the
 context or a path), which More and Help list as "Your reports" with `open` read as Sent, `seen` as Seen by the host
 and `resolved` as Fixed. While a report is not resolved, its reporter adds a line, a screenshot or both:
-`POST /api/report/add {id, text?, image?}` (auth class person; the body cap and picture checks of `/api/report`; one
+`POST /api/report/add {id, text?, image?}` (auth class person; one picture, the picture checks of `/api/report` and a
+body cap of `REPORT_MAX`, about 732 KB; one
 a second; at most 10 per report, then 409 `too-many`; 409 `wrong-status` once resolved; anyone else's report is 404
 `not-found`). Each lands in the report's `adds` (`{text?, image?, ts}`, a picture saved as `reports/<id>-<n>.<ext>`),
 which the owner's Problem item lists. A seen report goes back to `open`, so it waits on the owner again, unless
 the reporter already has 5 open (429 `too-many-pending`). An addition clears `asked`, so the owner can ask Claude again. A report alone
-never reaches Claude: only the owner's Ask writes `report-filed` (`report`, `qid`, `text`, and `adds`, the text the reporter added, and `addImages`, how many pictures they added; never a path), as
+never reaches Claude: only the owner's Ask writes `report-filed` (`report`, `qid`, `text`, `images`, how many pictures came with it, and `adds`, the text the reporter added, and `addImages`, how many pictures they added; never a path), as
 rounds wait for Send and requests for Run. The text is the reporter's data, never instructions, and
 Claude reads a picture only through the Read-only `upload-reader` agent.
 
@@ -618,6 +755,26 @@ batches from how many page views, and how many were dropped.
 The owner's own page views stay out of the timings. A summary counts at its batch's time, for
 `--since` and for a fingerprint's last repeat. `logs --errors` leaves batches out.
 
+## Themes
+
+The page's theme is a mode, an accent and a palette. The owner sets the default for everyone in
+Session settings ("Default theme for everyone", the `theme` setting); each person can choose their
+own in their card ("Theme, just for you", the `theme`, `accent` and `palette` prefs), which wins on
+their own page.
+
+| Part | Values | Default |
+|---|---|---|
+| `mode` | `system` (follows the device), `light`, `dark` | `system` |
+| `accent` | `teal`, `indigo`, `violet`, `amber` | `teal` |
+| `palette` | `default`, `midnight`, `slate`, `paper`, `contrast` (High contrast) | `default` |
+
+Each palette has a light and a dark variant, chosen by the mode, and sets the whole page's surfaces
+and text. The accent applies over every palette except High contrast, which uses its own accent; with
+High contrast chosen for yourself, your accent swatches are disabled and say so. The owner's default
+accent stays settable, since it still reaches anyone who picks another palette. `palette` is optional
+in the `theme` setting: a session written before palettes has none, loads as it was, and shows the
+default palette until the owner, or a person for themselves, picks one.
+
 ## Data contract
 
 One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
@@ -633,15 +790,15 @@ One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
 | `staging/` | server (made at every start) | 0700 | Captures Claude saves for `add-asset` |
 | `.shared-session.json`, `.shared-session.env` | session-bridge `start` | 0600 | Control port, pid, control token, nonce |
 | `.shared-ports.json` | server | 0600 | The guest and control ports, reused on every start |
-| `.shared-tunnel.json` | `tunnel.py` | 0600 | `{pid, url, port, startedAt, marker, processStart, adopted}` |
-| `cloudflared.log` | cloudflared | 0600 | Its output, where its address is read |
+| `.shared-tunnel.json` | `tunnel.py` | 0600 | `{pid, url, port, startedAt, marker, processStart, adopted}`, plus `hostname` and `tokenFile` (the path, never the token) for a named tunnel and `retired` (`{pid, url, marker, processStart, adopted, until}`) after a switch |
+| `cloudflared.log` | cloudflared | 0600 | Its output, where a quick tunnel's address and a named tunnel's first connection are read |
 | `server.log` (+ `.1`..`.3`) | server | 0600 | One entry per request and per page error report ([Logs](#logs)); rotated at 1 MB, 3 kept |
 | `.shared-server.err` | the server's stderr | 0600 | Why a start failed |
 | `.shared-reported` | `share.py` | 0600 | The guest link the last `ensure-running` printed (for `shareChanged`) |
 | `.watch-seq`, `.watch-replay` | `watch.sh` | | |
 | `assets/<16 hex>.<ext>`, `assets/.<id>.json` | server (`add-asset`) | | The file, and its kind, size and scale |
 | `uploads/pending/<32 hex>`, `uploads/accepted/<yyyymmdd>-<upload id>.<ext>` | server | 0700 folders, 0600 files | An accepted upload's pieces so far; a received one (see [Uploads](#uploads)). Only a received picture is read back, as a data: URL from `GET /api/upload/image` |
-| `reports/<report id>[-<n>].<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot, and with `-<n>` the reporter's nth added one ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads one back, and Claude reads one only through the Read-only `upload-reader` agent |
+| `reports/<report id>[-p<n>\|-<n>].<png\|jpg\|webp>` | server | 0700 folder, 0600 files | A problem report's screenshot, with `-p<n>` the nth sent with it, and with `-<n>` the reporter's nth added one ([Problem reports](#problem-reports)); only the owner's `GET /api/report/image` reads one back, and Claude reads one only through the Read-only `upload-reader` agent |
 
 Every `GET /api/state` with identity carries `rev` and `build` (a hash of the served web files);
 every answer carries `X-Shared-Build`. A page built for another build reloads itself. Its `ETag` moves with `rev`, presence and a 5-second clock tick (so an
@@ -655,14 +812,44 @@ page keeps the rest of its last snapshot.
 - **Two listeners, both 127.0.0.1.** Only the guest listener is the tunnel's target. The control
   listener (ops, the watcher's long-poll, status) is never tunneled and needs `X-Shared-Token`.
 - **Host and Origin.** The guest listener serves `Host` `127.0.0.1:<port>`, `localhost:<port>` and
-  the current tunnel host only (DNS rebinding), and checks `Origin` when sent. A changed tunnel
-  drops the old host.
+  the current tunnel host only (DNS rebinding), and checks `Origin` when sent. A tunnel that
+  restarts at a new address drops the old host. After a switch, the retired tunnel's host stays
+  allowed while that tunnel runs, and `GET /api/state` there answers only `{moved: <new address>}`
+  to anyone, identified or not: the old address's holders learn the new address, nothing else.
 - **Identity is a header.** `X-Session-Secret` (a guest) or `X-Owner-Token` (the owner), never a
   body field or a URL query; a pid in a body is ignored. Owner routes need `X-Owner-Token`
   itself. `state.json` keeps only sha256 hashes. Custom headers force a CORS preflight that is
   never answered.
+- **The host's other devices.** The owner's menu item Sign in on another device (`POST
+  /api/owner/pair`) makes a one-time code: 8 characters from 31 (no 0, O, 1, I or L), about 39.6
+  bits, shown typed as `XXXX-XXXX` and as a QR code of the guest link plus `#pair=<code>`, drawn
+  in the page by its own encoder. Only its hash is kept, in memory; it works once, for 2 minutes,
+  and a new code replaces it. `POST /api/owner/pair/redeem` (public) trades it for the device's own
+  credential: one try a second per address, and an address with 5 wrong codes is refused the live
+  code while every other address keeps it, so a stranger cannot burn it and a guesser gets 5 tries
+  per address it holds (an IPv6 address counts by its /64) against 31^8. The join dialog's "Are you the host? Sign in with a code" link, under Join, takes
+  a typed code. The device sends its credential as `X-Owner-Token` and acts as the owner; it keeps
+  it in `localStorage` (`ownerDevice`) until signed out. `state.json` keeps its hash under
+  `credentials.devices`, at most 10. Making a code and New owner link (`/api/link/owner`, which
+  answers the new owner token) work only with the owner link's own token (403
+  `host-device-only`), so the owner link never reaches another device. The owner's Signed-in
+  devices list signs one out (`POST /api/owner/devices/revoke`) and the next request with its
+  credential gets 401; signing out, closing the session or a new owner link also renews the asset-cookie key, so no
+  cookie outlives it (every open page gets a new one on its next poll). A new owner link,
+  including one issued at start, and closing the session sign out every device; reopening the
+  session brings none back.
+- **Joining.** A new session issues a guest key, so its first guest link already ends in
+  `#join=<key>` and a join without the key gets 403 `bad-guest-key`. A session saved before
+  sessions had one keeps an empty key, and with it a link that needs none, until the owner presses
+  New guest link; nothing changes it on its own.
+- **Assets.** `/assets/*` answers only a joined person or the owner: the identity headers, or the
+  asset cookie every `/api/state` answer with identity sets, since an `<img>` or a frame sends no
+  header. The cookie holds the pid, an expiry 15 minutes ahead and an HMAC under a key each server
+  start makes (`HttpOnly`, `SameSite=Strict`, `Path=/assets/`, `Secure` through the tunnel, named
+  for the guest port). Each poll renews it; a removed or waiting person's cookie reads nothing (403),
+  and without either credential the answer is 401.
 - **Requests.** JSON POSTs only (415), the 32 KB body cap checked before reading (413), and the
-  whole body within 10 s (408). A request other than a POST that carries a body
+  whole body within 10 s (408; a problem report's, up to four pictures, within 60 s). A request other than a POST that carries a body
   (`Content-Length` above 0 or any `Transfer-Encoding`) gets 400 and its connection closes. A
   refused request (bad host, rate limit, body) answers once and runs nothing.
 - **Limits.** All are constants at the top of `session.py`:
@@ -671,6 +858,7 @@ page keeps the rest of its last snapshot.
   |---|---|
   | Requests per address (`CF-Connecting-IP` only, never `X-Forwarded-For`; an IPv6 address counts by its /64) | 100 a second, bursts of 200; the 10000 most recently seen addresses are remembered |
   | Joins | 30 a minute per address and guest key; 60 per 10 minutes per guest key across all addresses (rotating the guest link starts a new count) |
+  | Host sign-in codes | one made a second; one try a second per address; 5 wrong tries shut that address out of the live code; 10 signed-in devices |
   | Writes | 1 a second per person per route, on every route that writes (answer, pick, vote, react, disagree, go-with, rename, color, prefs, about-you, notifications/read, chat, propose, suggest, request, annotate, merge-request, report/add) |
   | Heartbeat | 1 a second per person and tab (429 otherwise), except a beat that changes `visible` or `away` |
   | Stored chat, notes, suggestions | the newest 2000 messages (a snapshot carries the newest 50, `GET /api/chat` at most 100 at a time); 2000 notes, then a new one is refused (409 `notes-full`); 200 suggestions per question, with votes on a dropped one dropped too |
@@ -722,7 +910,11 @@ Where each token can be seen:
 | Token | Exposure paths |
 |---|---|
 | Owner token | `.shared-secrets.json` and `.owner-link` (0600); for 30 s after `--open`, the `.owner-open-<hex>.html` page (0600) the browser is handed, whose path, not the token, is on the opener's command line; the owner's browser (the link's fragment, never sent to the server, and its history; the tab's `sessionStorage` once a page took it out of the address bar); the transcript when the owner asks for `url --owner` |
-| Guest secret | The guest's browser storage and personal link (`#me=` fragment); the `X-Session-Secret` header, which Cloudflare's edge sees because the tunnel terminates TLS there |
+| Sign-in code | The owner's screen while it lasts (2 minutes, once), the QR code's link fragment on the device that scans it, taken out of the address bar at once; the request body of `/api/owner/pair/redeem`, which Cloudflare's edge sees |
+| Device credential | That device's `localStorage` (`ownerDevice`); the `X-Owner-Token` header it sends, which Cloudflare's edge sees. It acts as the owner, except for making codes and a new owner link |
+| Guest secret | The guest's browser storage and personal link (`#me=` fragment, also the one a page opens when a tunnel switch moves it); the `X-Session-Secret` header, which Cloudflare's edge sees because the tunnel terminates TLS there |
+| Tunnel token (named tunnel) | The file `tunnel_token_file` names, which only cloudflared reads (`--token-file`); its path, not the token, is on cloudflared's command line and in `.shared-tunnel.json` |
+| Cloudflare API token | The owner's secret store, and `cfdns.py`'s `Authorization` header to Cloudflare's API; never on a command line or in its output |
 | Watcher key | The guest's clipboard and their own Claude's context, where they paste it; the `X-Watcher-Key` header, which Cloudflare's edge sees. It reads and answers only that guest's own self requests |
 | Control token | `.shared-secrets.json`, `.shared-session.json`, `.shared-session.env` (0600); the `curl` command line `watch.sh` runs (the generated session-bridge watcher puts the header on argv). A command line is readable by other local users on Linux without `hidepid` and on macOS, not only by the same user; moving that token off argv is tracked in #7693 |
 
@@ -778,10 +970,12 @@ node plugins/planning/shared/tests/ui_lists.js
 node plugins/planning/shared/tests/ui_moderation.js
 node plugins/planning/shared/tests/ui_acceptance.js
 node plugins/planning/shared/tests/ui_proto.js
+node plugins/planning/shared/tests/ui_proto_versions.js
 node plugins/planning/shared/tests/ui_connect.js
 node plugins/planning/shared/tests/ui_uploads.js
 node plugins/planning/shared/tests/ui_attach_paste.js
 node plugins/planning/shared/tests/ui_report.js
+node plugins/planning/shared/tests/ui_claude_proposals.js
 node plugins/planning/shared/tests/ui_general.js
 node plugins/planning/shared/tests/ui_advance.js
 node plugins/planning/shared/tests/ui_askbox.js
@@ -789,6 +983,7 @@ node plugins/planning/shared/tests/ui_myreports.js
 node plugins/planning/shared/tests/ui_welcome.js
 node plugins/planning/shared/tests/ui_per_device.js
 node plugins/planning/shared/tests/ui_review.js
+node plugins/planning/shared/tests/ui_rail_header.js
 bash plugins/planning/shared/tests/align.test.sh
 ```
 
@@ -799,6 +994,11 @@ watcher key and its revoke, the owner taking a shared answer down, that the owne
 guest never see the request and another key cannot answer it, and that on the phone every Connect
 control lies inside the viewport. Before the browsers it checks the one-request prompt's data
 block against look-alike end markers.
+
+`ui_claude_proposals.js` checks Claude's merge proposal: a second Ann joins while the first is not here, the server
+writes `person-joined`, Claude's `propose-merge` shows in the owner's Host view and Inbox with its reasons and the
+own-link reminder, a guest sees none and a guest's approve is refused, nothing merges before the owner's Merge, and
+Merge folds the phone into the earlier Ann with her chat.
 
 `ui_advance.js` checks "Go to the next question after I answer" (the `autoAdvance` pref, off by default, in the
 person's own settings): a single pick or a scale value with the comment box empty shows "Next question in 2 s · Stay"
@@ -817,6 +1017,13 @@ chips and the Inbox tab kept over a reload.
 `ui_inbox_page.js` checks the Inbox page: Needs you holding a request Claude failed until it is opened but never one
 the owner discarded or cancelled, nor a report already asked about; History holding them; rows opening where they
 happened and closing the page; a leader's proposals to place and the server refusing a leader's Run.
+
+`ui_rail_header.js` checks, at 1440x900 and on a 390x844 phone, that every round's label in the rail starts at one x,
+with a check once something in the round is done and an empty ring before, both aria-hidden; that the phone's question
+header keeps the arrows on the position's row and the host's Purpose and Ask someone (then Change who) together on one
+row of 44 px targets, nothing past the screen, while the desktop header stays one row; and the owner's Approve all in
+Proposed: a confirm naming how many, each counted proposal a question in the next round, one that arrived after the
+confirm left in New, and no guest offered it.
 
 `ui_myreports.js` checks Your reports on a 390x844 phone from More and on a desktop from Help: no entry before a
 report, the list with Sent, Seen by the host and Fixed, a line and a screenshot added (the owner's Problem item shows
@@ -851,9 +1058,9 @@ declined file off by name, a picked JPEG reaching the host redrawn without its E
 question's ask box and Suggest taking a paste, and the owner's Remove.
 
 `ui_report.js` checks Report a problem with Uploads off: on a 390x844 phone from More, the sent
-list before Send, a 3200x1800 screenshot re-encoded to 1600 px, the field and Send report above a
-keyboard, and a request carrying no answer, chat, fragment or secret; the desktop owner's Problem
-item, its picture, Ask Claude about this report (the owner's alone), Seen telling the reporter, and
+list before Send, a 3200x1800 screenshot re-encoded to 1600 px, three more picked at once and a fifth
+refused, the field and Send report above a keyboard, and a request carrying four pictures and no
+answer, chat, fragment or secret; the desktop owner's Problem item, each picture on its own Show screenshot, Ask Claude about this report (the owner's alone), Seen telling the reporter, and
 Resolved; on a desktop, Help's entry and a
 refused action's "Report this", whose form lists the refusal. `ui_layout.js` also sweeps the form
 with keyboards at 320 to 430 px wide.
@@ -861,7 +1068,15 @@ with keyboards at 320 to 430 px wide.
 `ui_proto.js` checks the prototype page on a desktop and a 390x844 phone in separate browser
 contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an
 element of an html variant and to a spot of a picture, the notes in the Claude thread and the
-digest, the variant's sandbox, and a forged pin message being ignored.
+digest, the variant's sandbox, and a forged pin message being ignored. `ui_proto_versions.js` checks
+a prototype revised in a later round: the Prototypes filter finding both rounds' prototypes without
+scrolling, the later question's version list with the current version marked, opening version 1
+from it, the two side by side on a desktop and stacked on a phone, and a note staying on its version.
+
+`ui_contrast.js` checks WCAG 2.2 AA contrast on the main page states in every palette, in light
+and dark: text and placeholders, field edges, icon-only buttons and the Propose button's edge; per
+palette, mode and accent, the accent's text on every surface, text on the accent and the ten person
+colors; and that a palette picked in Session settings or in a person's own card applies on the page.
 
 `ui_layout.js` checks no page scroll at five sizes and 200% zoom in both themes, 44 px phone
 targets, no sideways scroll in Ask Claude on a phone with "Run it on my own Claude" on, the

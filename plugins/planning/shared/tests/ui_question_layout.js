@@ -11,7 +11,7 @@
 // Expected values come from the approved spec (.work spec-question-screen.md: layout A, soft-rule cards, item 12 option
 // alignment, 1 px tolerance) and the texts this suite writes, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs, openClaude } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs, openClaude } = require("./browser_harness");
 
 const CHOICE = "Which payment method should checkout offer first?", TEXT = "Where should the order summary sit?";
 const ASK = "How do the big shops place the order summary?", ANSWER = "Most keep it in a right column on desktop.";
@@ -85,17 +85,18 @@ async function main() {
       }
       for (const [w, h] of [[1440, 900], [1024, 768]]) {
         await ann.setViewportSize({ width: w, height: h });
-        await ann.waitForTimeout(150);
+        const still = await settled(ann, { rects: true });
         const r = await chooseSpread(ann);
         const mixed = r.lines.some(n => n === 1) && r.lines.some(n => n >= 2);
         ok(`${w} wide, ${picked ? "after picking (0 or 1 picks shown)" : "before picking"}: every Choose button in a row of 1- and 2-line cards has one top (within 1 px)`,
-          r.rows >= 1 && mixed && r.spread <= 1, JSON.stringify(r));
+          still && r.rows >= 1 && mixed && r.spread <= 1, JSON.stringify({ still, ...r }));
         if (picked) ok(`${w} wide: the feet read 1 pick or "No picks yet"`, r.feet.includes("1 person chose this") && r.feet.includes("No picks yet"), JSON.stringify(r.feet));
       }
     }
     await ann.setViewportSize({ width: 390, height: 844 });
+    const phoneStill = await settled(ann, { rects: true });
     const phone = await ann.evaluate(() => [...document.querySelectorAll(".vf-opts > .vf-opt")].map(li => Math.round(li.getBoundingClientRect().left)));
-    ok("390 wide: options stay one per row", new Set(phone).size === 1 && phone.length === OPTS.length + 1, JSON.stringify(phone));
+    ok("390 wide: options stay one per row", phoneStill && new Set(phone).size === 1 && phone.length === OPTS.length + 1, JSON.stringify({ still: phoneStill, phone }));
     await ann.setViewportSize({ width: 1440, height: 900 });
 
     // ---------- (b) the Claude section: folded by default, opens by itself on an unread result ----------
@@ -158,16 +159,16 @@ async function main() {
     // ---------- the chat button never covers the end of the page ----------
     for (const [w, h] of [[1440, 900], [390, 844]]) {
       await ann.setViewportSize({ width: w, height: h });
-      await ann.waitForTimeout(200);
+      const still = await settled(ann, { rects: true });
       const hit = await ann.evaluate(() => {
         const sc = document.querySelector(".vf-scroll"); sc.scrollTop = sc.scrollHeight;
         const f = document.querySelector(".vf-fab").getBoundingClientRect();
         return [...document.querySelectorAll(".vf-clsec :is(button, a[href], textarea, input, select)")].filter(e => e.getClientRects().length).map(e => [e, e.getBoundingClientRect()])
           .filter(([, r]) => r.left < f.right && r.right > f.left && r.top < f.bottom && r.bottom > f.top).map(([e]) => e.className || e.textContent);
       });
-      ok(`${w}x${h}: scrolled to the bottom, the chat button covers no control in the Claude section`, hit.length === 0, JSON.stringify(hit));
+      ok(`${w}x${h}: scrolled to the bottom, the chat button covers no control in the Claude section`, still && hit.length === 0, JSON.stringify({ still, hit }));
     }
-    // ---------- the disabled composer's placeholder fits a phone's one line ----------
+    // ---------- the composer's placeholder before a pick fits a phone's one line (it works before a pick: the owner's call) ----------
     const cy = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
     await joinAs(cy, "Cy");
     await until(cy, t => document.querySelector(".vf-qtext")?.textContent === t, CHOICE);
@@ -176,7 +177,7 @@ async function main() {
       cx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
       return { text: ta.placeholder, need: Math.ceil(cx.measureText(ta.placeholder).width), room: Math.floor(ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)), disabled: ta.disabled };
     });
-    ok("390: the disabled composer's placeholder fits its line", fit.disabled && fit.need <= fit.room, JSON.stringify(fit));
+    ok("390: the composer's placeholder before a pick fits its line", !fit.disabled && fit.need <= fit.room, JSON.stringify(fit));
 
     // ---------- a lock and a last suggestion that go clear on another page without a reload ----------
     await ann.setViewportSize({ width: 1440, height: 900 });

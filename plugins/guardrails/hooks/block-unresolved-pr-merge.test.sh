@@ -63,6 +63,7 @@ graphql)
   ;;
 */ccr/review_threads) f=ccr.json ;;
 */reviews\?*) f=reviews.json ;;
+*/check-runs/[0-9]*/annotations*) f="annotations_$(cut -d/ -f5 <<<"$endpoint").json" ;;
 */check-runs\?*) f=checks.json ;;
 */status\?*) f=status.json ;;
 */pulls\?*) f=pulls_list.json ;;
@@ -155,6 +156,34 @@ J
   merge-other-app-pending) echo '{"total_count":1,"check_runs":[{"id":902,"name":"merge","app":{"id":999,"slug":"other-ci"},"status":"pending","conclusion":null}]}' >"$FIX/checks.json" ;;
   matrix-failed-then-leg) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"failure"},{"id":903,"name":"test (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   matrix-leg-skipped) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":903,"name":"test (0)","app":{"id":15368},"check_suite":{"id":2},"status":"completed","conclusion":"skipped"}]}' >"$FIX/checks.json" ;;
+  # A contract-only ci-status (run 5002) that failed as superseded by a full run
+  # (run 5001) in flight on the head (#8716), with the full run's ci-status
+  # success, failed or not yet created, or the marker naming another head. The
+  # first shape gives the superseded run the higher id, a constructed race; on
+  # #8715 the full run's job did not exist yet, the absent shape. The mixed shape
+  # also carries a contract step's own error, which the full run cannot clear;
+  # the garbled shape a second, malformed marker. The other-check shape puts the
+  # marker on a check that is not ci-status, where any step could have printed it.
+  ci-superseded-full-success | ci-superseded-full-failed | ci-superseded-full-absent | ci-superseded-other-sha | ci-superseded-mixed | ci-superseded-garbled | ci-superseded-other-check)
+    local full='' sha=abc123 extra='' name=ci-status app='{"id":15368,"slug":"github-actions"}'
+    [[ "$3" == *-other-check ]] && name='test'
+    local sup='{"id":903,"name":"'"$name"'","app":'"$app"',"check_suite":{"id":3},"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5002/job/3"}'
+    case "$3" in
+    *-full-success | *-other-sha | *-mixed | *-garbled) full='{"id":902,"name":"ci-status","app":'"$app"',"check_suite":{"id":2},"status":"completed","conclusion":"success","details_url":"https://github.com/acme/widgets/actions/runs/5001/job/2"},' ;;
+    *-full-failed) full='{"id":902,"name":"ci-status","app":'"$app"',"check_suite":{"id":2},"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5001/job/2"},' ;;
+    *) ;; # the full run's ci-status is not created yet
+    esac
+    [[ "$3" == *-other-sha ]] && sha=def456
+    [[ "$3" == *-mixed ]] && extra='{"annotation_level":"failure","message":"#42 carries the '\''do-not-merge'\'' label; the merge queue removes it."},'
+    [[ "$3" == *-garbled ]] && extra='{"annotation_level":"failure","message":"superseded by full run garbage; real error"},'
+    echo '{"total_count":3,"check_runs":[{"id":901,"name":"ci-status","app":'"$app"',"check_suite":{"id":1},"status":"completed","conclusion":"success","details_url":"https://github.com/acme/widgets/actions/runs/5000/job/1"},'"$full$sup"']}' >"$FIX/checks.json"
+    echo '['"$extra"'{"annotation_level":"failure","message":"Process completed with exit code 1."},{"annotation_level":"failure","message":"superseded by full run https://github.com/acme/widgets/actions/runs/5001 in flight on '"$sha"': its own ci-status check run is newer than this one and decides the merge gate."}]' >"$FIX/annotations_903.json"
+    ;;
+  # A lone failed ci-status whose annotations carry no superseded marker.
+  ci-failed-plain)
+    echo '{"total_count":1,"check_runs":[{"id":903,"name":"ci-status","app":{"id":15368},"check_suite":{"id":3},"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5002/job/3"}]}' >"$FIX/checks.json"
+    echo '[{"annotation_level":"failure","message":"Process completed with exit code 1."}]' >"$FIX/annotations_903.json"
+    ;;
   matrix-same-suite-sibling) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":902,"name":"build (arm64)","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   *) return 1 ;;
   esac
@@ -278,6 +307,36 @@ assert_contains "names the regressed check" "$ERR" "Failing checks: ci-status"
 scenario none none regressed-early green
 run "newer failure that finished before the older success" 'gh pr merge 42 --squash' 2
 assert_contains "names the early-finishing failure" "$ERR" "Failing checks: ci-status"
+# A ci-status run that failed as superseded by a full run does not count; the
+# named full run's ci-status decides, and is pending until it exists (#8716).
+scenario none none ci-superseded-full-success green
+run "superseded contract-only run, full run succeeded" 'gh pr merge 42 --squash' 0
+assert_eq "superseded, full success -> no stderr" "" "$ERR"
+assert_contains "superseded -> its annotations were read" "$(calls)" "repos/acme/widgets/check-runs/903/annotations"
+scenario none none ci-superseded-full-failed green
+run "superseded contract-only run, full run failed" 'gh pr merge 42 --squash' 2
+assert_contains "superseded, full failed -> names ci-status" "$ERR" "Failing checks: ci-status"
+scenario none none ci-superseded-full-absent green
+run "superseded contract-only run, full run not reported" 'gh pr merge 42 --squash' 2
+assert_contains "superseded, full absent -> pending" "$ERR" "Pending checks (use --auto to merge once they pass): ci-status"
+assert_absent "superseded, full absent -> not failing" "$ERR" "Failing checks"
+scenario none none ci-superseded-full-absent green
+run "superseded contract-only run, full run not reported, --auto" 'gh pr merge 42 --auto --squash' 0
+scenario none none ci-superseded-other-sha green
+run "superseded marker naming another head" 'gh pr merge 42 --squash' 2
+assert_contains "other head -> still failing" "$ERR" "Failing checks: ci-status"
+scenario none none ci-superseded-mixed green
+run "superseded marker beside a contract error, full run succeeded" 'gh pr merge 42 --squash' 2
+assert_contains "superseded beside a contract error -> failing" "$ERR" "Failing checks: ci-status"
+scenario none none ci-superseded-garbled green
+run "valid marker beside a malformed one, full run succeeded" 'gh pr merge 42 --squash' 2
+assert_contains "malformed marker -> failing" "$ERR" "Failing checks: ci-status"
+scenario none none ci-superseded-other-check green
+run "marker on a check that is not ci-status, --auto" 'gh pr merge 42 --auto --squash' 2
+assert_contains "marker on another check -> failing" "$ERR" "Failing checks: test"
+scenario none none ci-failed-plain green
+run "lone failed ci-status" 'gh pr merge 42 --squash' 2
+assert_contains "lone failure -> names ci-status" "$ERR" "Failing checks: ci-status"
 scenario none none newer-pending green
 run "newer pending run over an older success" 'gh pr merge 42 --squash' 2
 assert_contains "names the newer pending run" "$ERR" "Pending checks (use --auto to merge once they pass): ci-status"
@@ -587,6 +646,29 @@ quiet "backtick in git merge-base" 'git merge-base HEAD `git rev-parse origin/ma
 quiet "heredoc commit mentioning merge in backticks" $'git commit -F - <<\'EOF\'\nfix(guardrails): tighten the `merge` path\n\nThe `merge` guard reads `pulls/`.\nEOF'
 quiet "commit -m mentioning merge in backticks" 'git commit -m "fix the merge path in `foo.sh`"'
 quiet "commit -m with pulls/ before merge, no merge route" 'git commit -m "fix `pulls/` parsing, then merge"'
+# #8657: "PR Merge" in prose is not `gh pr merge`; only a `pr merge` whose
+# command word is gh, or cannot be read, is merge-shaped.
+quiet "jq test() naming Gated PR Merge, grep with a backtick" 'jq -r '"'"'.autoMode | .. | strings | select(test("Gated PR Merge"))'"'"' ~/.claude/settings.json | grep -oE '"'"'^[1-6]\. `[^`]*`'"'"''
+quiet "heredoc issue comment naming Gated PR Merge with a backtick" $'gh issue comment 8657 --body-file - <<\'EOF\'\nThe Gated PR Merge guard refused `jq -r` here.\nEOF'
+unresolvable "quote-split gh before pr merge, with a backtick" 'g""h pr merge 5`echo 0` -R acme/widgets'
+unresolvable "command word from a variable, with a backtick" '$GH pr merge 42 -R acme/widgets --body "`cat notes`"'
+unresolvable "command word glued to an expansion, with a backtick" 'gh${IFS}pr merge 5`echo 0` -R acme/widgets'
+unresolvable "two spaces between gh and pr, with a backtick" 'gh  pr merge 5`echo 0` -R acme/widgets'
+unresolvable "tab and space between gh and pr, with a backtick" $'gh\t pr merge 5`echo 0` -R acme/widgets'
+quiet "prose with two spaces before PR Merge, with a backtick" 'echo "Gated  PR Merge `x`"'
+# Words bash drops before argv (empty quotes, a backslash, redirections) do not
+# hide gh from the word before `pr`.
+unresolvable "empty quotes glued to pr, with a backtick" "gh ''pr merge 5\`echo 0\` -R acme/widgets"
+unresolvable "backslash glued to pr, with a backtick" 'gh \pr merge 5`echo 0` -R acme/widgets'
+unresolvable "2>&1 between gh and pr, with a backtick" 'gh 2>&1 pr merge 5`echo 0` -R acme/widgets'
+unresolvable "> /dev/null between gh and pr, with a backtick" 'gh > /dev/null pr merge 5`echo 0` -R acme/widgets'
+unresolvable "2>&1 between gh and pr, PR from backticks" 'gh 2>&1 pr merge `cat n` -R acme/widgets'
+unresolvable "redirect glued to gh before pr, with a backtick" 'gh</dev/null pr merge 5`echo 0` -R acme/widgets'
+quiet "grep for pr merge piped to grep with a backtick" "grep -n 'pr merge' file | grep \`x\`"
+quiet "echo naming an issue before pr merge, with a backtick" 'echo "Issue #8657: pr merge `x`"'
+scenario unresolved none green green
+run "gh pr merge inside \$(...) is checked" 'echo $(gh pr merge 42 -R acme/widgets)' 2
+quiet "heredoc commit naming the PR merge gate with a backtick" $'git commit -F - <<\'EOF\'\nfix(guardrails): note the gate\n\n1. PR merge gate uses `jq`\nEOF'
 quiet "--disable-auto, then gh pr view" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr view 42'
 scenario none none green green
 run "--disable-auto, then one merge" 'gh pr merge 42 -R acme/widgets --disable-auto && gh pr merge 42 -R acme/widgets --squash' 0

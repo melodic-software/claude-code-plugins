@@ -403,7 +403,9 @@ each, the summary below is a pointer, not a copy.
   second. Given `--issue N --marker STR --body-file PATH`, it writes a
   machine-detectable sentinel as the comment's first line, finds that sentinel
   across all comments and PATCHes it, adopting or creating a comment when none
-  carries it. The marker grammar, the `<lane>@<instance>` writer-identity rule,
+  carries it. Under a GitHub App installation token pass `--app-slug SLUG`, so the
+  adoption fallback reads comments written by `SLUG[bot]`; with no resolvable
+  write identity it writes nothing and exits 4. The marker grammar, the `<lane>@<instance>` writer-identity rule,
   the body-file containment and size limits, the pre-write and read-back checks,
   and every exit code are in the script's `--help` header. Two rules the caller
   must follow: pass the body as file contents or on stdin (see "Never pass a body

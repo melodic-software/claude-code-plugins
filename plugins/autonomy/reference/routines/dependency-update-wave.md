@@ -80,7 +80,7 @@ the grain argument made concrete.
 | Isolation floor | `L2`, cited from the [matrix](../guardrails.md#the-matrix) `C2` row and the [unattended floor](../guardrails/isolation-ladder.md#unattended-floor) |
 | Connector entitlements | none. Access is `repo`, so the connector branch of [Access to prerequisites](../routines.md#access-to-prerequisites) does not apply |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
-| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). Security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. Binds the `C2` merge-policy column |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). None: `executor_class` is deprecated and caps nothing. Binds the `C2` merge-policy column |
 | Repo needs | dependency / build manifests (repo-file probe); CI-config presence (ownerless repo-file probe) so the mechanical CI verdict exists; ecosystems via the toolchain seam when installed (fallback: inference from the repo's own build files) |
 
 ### `dependency-update-wave/changelog-informed`
@@ -91,7 +91,7 @@ the grain argument made concrete.
 | Isolation floor | `L3`, cited from the [matrix](../guardrails.md#the-matrix) `C5` row (untrusted-provenance / kernel-separated floor), not re-derived here |
 | Connector entitlements | none. Access class remains `repo`; the untrusted-provenance axis raises the floor without changing Access |
 | Connector entitlement rung | n/a (no connector). For `prod` / `product` / `org` / `ext`, entitlement binds at the [Org binding layer](../binding-seam.md#resolution-ladder) |
-| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). Security-binding `executor_class`; `vendor-hosted` caps every class at human-gated merge; never repo-derivable. `C5` is human merge always; the cap still binds |
+| `executor_class` merge cap | cited from [executor surface classes](../trigger-dispatch.md#executor-surface-classes). None: `executor_class` is deprecated and caps nothing. `C5` is human merge always |
 | Repo needs | everything `mechanical` requires, plus reachable upstream release-note / changelog content in the reasoning loop (attacker-writable external prose). On a scheduled run that cannot establish that read path, the identity resolves `unsupported` or `unknown`, never a silent fall-back to the mechanical posture |
 
 ## Admission and escalation

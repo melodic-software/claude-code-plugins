@@ -1,0 +1,19 @@
+{
+  "name": "corrections",
+  "version": "0.3.0",
+  "description": "Turns a recurring correction into an enforced check. /corrections:codify counts how often a described mistake recurs, picks the strongest enforcement-ladder rung that can catch it, and proposes a check proven to fail on the old code and pass on the current code, using scripts/prove-check.sh to run it in temporary worktrees at two refs.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "corrections",
+    "codify",
+    "check",
+    "fail-then-pass",
+    "proof",
+    "worktree",
+    "recurring-findings"
+  ]
+}

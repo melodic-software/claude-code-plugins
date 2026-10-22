@@ -129,6 +129,9 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .lock{font:500 11.5px var(--mono);color:var(--wait);margin:-2px 0 0 20px}
 .qlist{display:grid;gap:6px;list-style:none;margin:0;padding:0}
 .qlist li.pickable{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;align-items:start}
+.archtoggle{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:2px 0 2px 2px;cursor:pointer;text-align:left;color:var(--faint);font:500 11.5px var(--mono)}
+.archtoggle::before{content:"\25BE"/"";width:12px;transition:transform .15s}
+.archtoggle[aria-expanded="false"]::before{transform:rotate(-90deg)}
 .qlist li.pickable .pick{margin:10px 0 0 2px;width:16px;height:16px}
 .sec[data-collapsed="true"] .qlist,.sec[data-collapsed="true"] .sec-hint{display:none}
 .qbtn{width:100%;text-align:left;display:grid;grid-template-columns:3.2ch minmax(0,1fr);gap:2px 10px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;position:relative}
@@ -141,7 +144,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .qbody{min-width:0;display:flex;flex-direction:column;gap:2px}
 .qtitle{font-size:13.5px;line-height:1.35}
 .qmeta{display:flex;gap:5px;align-items:center;flex-wrap:wrap;min-width:0}
-.qmeta .chip{white-space:normal;overflow-wrap:anywhere;line-height:1.3;max-width:100%}
+.qmeta .chip{white-space:normal;overflow-wrap:break-word;line-height:1.3;max-width:100%} /* break-word keeps an id whole; only a token wider than the chip itself breaks */
 .needs{font:11.5px var(--mono);color:var(--faint);display:flex;gap:4px;align-items:center}
 .needs::before{content:"";width:9px;height:8px;border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;margin-top:-5px}
 .needs.unmet{color:var(--chg)}
@@ -198,7 +201,7 @@ main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8
 .links{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
 .links span{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 .ref{display:inline-flex;gap:5px;align-items:baseline;border:1px solid var(--line-strong);background:var(--ground);border-radius:4px;padding:1px 6px;font:13px var(--sans);cursor:pointer;color:var(--ink)}
-.ref b{font:600 12px var(--mono)}
+.ref b{font:600 12px var(--mono);flex:none;white-space:nowrap;overflow-wrap:normal;word-break:normal} /* an id never splits, whatever wraps around it */
 .rrange{display:inline-flex;align-items:baseline;gap:3px;white-space:nowrap;border:1px solid var(--line-strong);background:var(--ground);border-radius:4px;padding:0 3px}
 .rrange .ref{border:0;background:none;padding:1px 3px}
 .rrange .ref:hover{border:0;text-decoration:underline}
@@ -309,6 +312,7 @@ button.act:disabled{opacity:.45;cursor:not-allowed}
 aside.fly{display:none;background:var(--panel);border:1px solid var(--line-strong);border-radius:8px;min-height:0;grid-template-rows:auto minmax(0,1fr);overflow:hidden}
 aside.fly.open{display:grid;position:absolute;top:0;right:calc(var(--strip-w) + var(--gap));bottom:0;width:min(var(--fly-w),calc(100% - var(--strip-w) - 40px));box-shadow:-10px 0 30px -18px rgba(0,0,0,.45);animation:slide .2s ease-out;z-index:5}
 .layout.pinned aside.fly.open{position:static;width:auto;box-shadow:none;animation:none}
+@media (min-width:1100px){ .layout.flyover main.detail{margin-right:calc(var(--fly-w) + var(--gap))} } /* an open, unpinned flyout overlays the strip side: keep the question detail, with its note box, out from under it */
 @keyframes slide{from{transform:translateX(24px);opacity:0}}
 .fhead{display:grid;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)}
 .frow{display:flex;gap:6px;align-items:center}
@@ -336,6 +340,10 @@ aside.fly.open{display:grid;position:absolute;top:0;right:calc(var(--strip-w) + 
 .nthread{display:grid;gap:10px}
 .nmsg{border:1px solid var(--line);border-radius:6px;padding:8px 10px;display:grid;gap:4px;font-size:13.5px}
 .nmsg.claude{border-color:var(--accent);background:var(--accent-soft)}
+.nsum{display:flex;align-items:baseline;gap:6px;min-width:0;width:100%;text-align:left;background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer}
+.nsum .hl{flex:none;flex-wrap:nowrap}
+.nsum .nt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.nfull{display:grid;gap:4px;margin-top:4px}
 .nmsg.claude .hl time,.nmsg.claude .hl .dot{color:var(--muted)}
 .setrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 .setrow .src{grid-column:1/-1;font:11px var(--mono);color:var(--faint)}
@@ -355,11 +363,12 @@ aside.fly.open{display:grid;position:absolute;top:0;right:calc(var(--strip-w) + 
 .fsstage .md{background:var(--panel);padding:24px;max-width:90ch;margin:0 auto}
 
 .done-h{font:600 24px/1.2 var(--display);margin:0}
-.sumwrap{overflow-x:auto}
-table.sum{border-collapse:collapse;width:100%;max-width:90ch;font-size:13.5px;overflow-wrap:normal}
+.sumwrap{overflow-x:auto;max-width:100%;min-width:0}
+table.sum{border-collapse:collapse;width:100%;max-width:90ch;font-size:13.5px}
+table.sum,table.sum *{overflow-wrap:normal;word-break:normal} /* cells wrap at word boundaries; a token too long for its cell scrolls .sumwrap */
 table.sum .ref b{flex:none;white-space:nowrap}
 table.sum td.dec,table.sum th{white-space:nowrap}
-table.sum td .kbd{display:block;overflow-wrap:break-word}
+table.sum td .kbd{display:block}
 #restate h5{font:600 16px var(--sans);margin:.8em 0 .3em}
 #sumRest{display:grid;gap:var(--gap)}
 table.sum th,table.sum td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -389,8 +398,17 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   .agrid{grid-template-rows:none;flex:none}
   .choices{overflow:visible}
   h1{font-size:20px;margin-top:2px}
+  .app{gap:8px;padding:10px 12px 12px}
   header.top{gap:4px;padding-bottom:4px}
+  .hrow{gap:4px 12px}
+  .hright{justify-content:flex-start;gap:6px 10px}
+  .bar{width:80px}
+  .hrow2{min-height:0;gap:4px 8px}
   .cline{white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
+  .cline:not(.wline){display:flex;align-items:flex-start;overflow:hidden}
+  .cline:not(.wline) #clText{min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;text-overflow:ellipsis}
+  .cline:not(.wline) .age{flex:none} /* only the text is clamped, so the age stays inline beside it; the full line is in Activity; two lines keep the question title on the first screen */
+  .cline[hidden]{display:none}
   button.act,.choice{min-height:44px}
   .notice{max-width:100%}
   aside.fly.open{position:fixed;inset:0;width:auto;border-radius:0}
@@ -513,6 +531,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const idCmp = (a, b) => String(a).localeCompare(String(b), undefined, {numeric: true});
   const fmt = iso => { const d = new Date(iso); return isNaN(d) ? String(iso || "") : d.toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}); };
   const fmtT = iso => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit"}); };
+  const NOTE_FOLD_AT = 5; // Notes panel: past this many notes, all but the newest fold to one line
   const trunc = (s, n) => { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "..." : s; };
   const LABEL = {open: "Open", accept: "Accepted", hedged: "Hedged", alt: "Alternative", own: "Own answer", defer: "Deferred", wait: "Pending research", need: "Needs your answer", sup: "Superseded", arch: "Archived"};
   const DEC = new Set(["accept", "alt", "own", "defer", "hedged", "reopen"]);
@@ -538,7 +557,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     listener: {state: "idle"}, online: false, session: "", sel: null, pick: new Set(), busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", search: "", fly: null, pinned: false, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
     instance: "", restarted: false, finished: null, need: null, actKeys: null,
-    armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
+    armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteOpen: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
@@ -839,6 +858,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       for (const s of secs) {
         const items = s.items.filter(passes);
         if (!items.length && filtering()) continue;
+        const {live: liveItems, arch, open: archOpen} = archSplit(s, items);
+        const li = q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + railItem(q, s, carry, fresh) + "</li>"; };
         const o = lsGet("col:" + s.key, null), coll = s.collapsed && !(filtering() && !(o && o.d === s.done)); // a filter opens a section with no applicable stored toggle that holds a match
         const elig = s.items.filter(q => s.gid ? eligible(q) : op.has(q.id) && eligible(q)), picked = s.gid ? elig.filter(q => S.pick.has(q.id)) : [], aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
         html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + coll + '" data-dflt="' + s.done + '">' +
@@ -848,7 +869,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
           (elig.length && s.round && !s.gid ? '<button class="tbtn small" data-auditround="' + esc(s.round) + '" data-submit="1" title="Accept the recommendation on the open questions you have opened here and have agents check the answers">Accept all and have agents check them</button>' : "") + "</div>" +
           (s.lock.length ? '<div class="lock">Locked: opens after ' + s.lock.map(g => esc(groupTitle(g))).join(", ") + "</div>" : "") +
           (s.hint ? '<div class="sec-hint">' + (s.hintStale ? '<span class="chip hot" title="This summary was written before questions were added to the group">Stale</span> ' : "") + esc(s.hint) + "</div>" : "") +
-          '<ul class="qlist">' + (items.length ? items.map(q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + railItem(q, s, carry, fresh) + "</li>"; }).join("") : '<li class="empty">None.</li>') + "</ul></div>";
+          '<ul class="qlist">' + (items.length ? liveItems.map(li).join("") + (arch.length ? '<li class="archrow"><button class="archtoggle" data-archtoggle="' + esc(s.key) + '" aria-expanded="' + archOpen + '">' + arch.length + " archived</button></li>" + (archOpen ? arch.map(li).join("") : "") : "") : '<li class="empty">None.</li>') + "</ul></div>";
       }
     }
     const hiddenByShow = searchTerm() && S.filter !== "all" ? S.doc.questions.filter(q => matchesSearch(q) && !passesShow(q)).length : 0; // the Show filter and the search both apply, so say when Show hides matches
@@ -858,10 +879,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     list.scrollTop = top;
     (flashIds || []).forEach(id => list.querySelectorAll('.qbtn[data-q="' + CSS.escape(id) + '"]').forEach(el => el.classList.add("flash")));
   }
+  function archSplit(s, items){ // Groups view draws a section's live cards, then its archived ones behind one row
+    if (S.view !== "groups") return {live: items, arch: [], open: false};
+    const arch = items.filter(q => stateOf(q) === "arch"), live = items.filter(q => stateOf(q) !== "arch");
+    const stored = lsGet("arch:" + s.key, null); // null until the row is toggled, so a click can collapse a row a filter opened
+    return {live, arch, open: !!arch.length && (stored === true || (stored === null && filtering() && !live.length))}; // a filter that matches only archived cards shows them
+  }
   function railOrder(all){ // all: every question in rail order, so a just-answered question still marks the position
     const keep = id => all || passes(Q[id]);
     if (S.view === "tree") { const t = treeData(), out = [], walk = id => { if (out.includes(id)) return; out.push(id); t.kids[id].forEach(walk); }; t.roots.forEach(walk); return out.filter(keep); }
-    return sections().secs.flatMap(s => s.items.map(q => q.id)).filter(keep);
+    return sections().secs.flatMap(s => { const r = archSplit(s, s.items.filter(q => keep(q.id))); return r.live.concat(all || r.open ? r.arch : []).map(q => q.id); }); // the order the rail draws, without collapsed archived cards
   }
   function revealInRail(id){
     const list = $("railList"), el = list.querySelector(id === SUMMARY ? ".sumbtn" : '.qbtn[data-q="' + CSS.escape(id) + '"]');
@@ -1494,6 +1521,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const fly = $("fly"), open = !!S.fly;
     fly.classList.toggle("open", open);
     $("layout").classList.toggle("pinned", open && S.pinned);
+    $("layout").classList.toggle("flyover", open && !S.pinned);
     $("layout").classList.toggle("norail", S.railHidden);
     $("railBtn").setAttribute("aria-pressed", String(!S.railHidden));
     document.querySelectorAll(".strip [data-panel]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.panel === S.fly)));
@@ -1534,8 +1562,19 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const nt = noteThread(), draft = lsGet("noteDraft", "");
     S.noteSeen = Date.now(); lsSet("noteSeen", S.noteSeen);
     if (unseenActs().some(e => e.notes)) { markSeen(e => e.notes); renderHeader(); renderRail(); }
+    const fold = nt.length > NOTE_FOLD_AT; // a short thread stays fully open; a long one folds every note but the newest
+    const noteHtml = (n, i) => {
+      const key = n.by + "|" + n.at + "|" + (n.seq || 0), folded = fold && i < nt.length - 1, open = !folded || S.noteOpen.has(key);
+      const who1 = n.by === "claude" ? (n.replyTo ? "Claude replied" : "Claude") : esc(who()) + " wrote";
+      const hl = '<span class="who">' + who1 + '</span><span class="dot">&middot;</span><time>' + esc(fmt(n.at)) + "</time>" + (n.seq ? receipts(n.seq) : "");
+      return '<div class="nmsg' + (n.by === "claude" ? " claude" : "") + '"' + (i === nt.length - 1 ? ' id="noteNewest" tabindex="-1"' : "") + ">" +
+        (folded ? '<button type="button" class="nsum" data-notetoggle="' + esc(key) + '" aria-expanded="' + open + '"><span class="hl">' + hl + '</span><span class="nt">' + esc(trunc(String(n.text).split("\n")[0], 120)) + "</span></button>" +
+          '<div class="nfull"' + (open ? "" : " hidden") + ">" + md(n.text) + "</div>"
+          : '<div class="hl">' + hl + "</div>" + md(n.text)) + "</div>";
+    };
     body.innerHTML = '<div class="fscope">Free-text notes for Claude, not tied to a question. Each note wakes Claude. Notes never count as open items.</div>' +
-      '<div class="nthread">' + (nt.length ? nt.map(n => '<div class="nmsg' + (n.by === "claude" ? " claude" : "") + '"><div class="hl"><span class="who">' + (n.by === "claude" ? (n.replyTo ? "Claude replied" : "Claude") : esc(who()) + " wrote") + '</span><span class="dot">&middot;</span><time>' + esc(fmt(n.at)) + "</time>" + (n.seq ? receipts(n.seq) : "") + "</div>" + md(n.text) + "</div>").join("") : '<p class="empty">No notes yet.</p>') + "</div>" +
+      (fold ? '<div class="arow"><button type="button" class="tbtn small" data-notenewest="1">Jump to newest note</button></div>' : "") +
+      '<div class="nthread">' + (nt.length ? nt.map(noteHtml).join("") : '<p class="empty">No notes yet.</p>') + "</div>" +
       '<textarea id="noteText" rows="3" placeholder="A note for Claude. Enter adds a line; Ctrl+Enter sends."' + (S.api >= 2 ? "" : " disabled") + ">" + esc(draft) + "</textarea>" +
       '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 && !closed() ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api < 2 ? RESTART : closed() ? closedWhy() : "Ctrl+Enter") + '</span></div><div class="toast" id="noteToast"></div>';
     const ta = $("noteText"); grow(ta);
@@ -1621,6 +1660,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (id !== SUMMARY && !Q[id]) return;
     if (S.sel !== id) { S.armed = null; S.vtab = null; if (S.conflict && S.conflict.early) S.conflict = null; S.revSeen = lsGet("revSeen", {})[id]; if (!S.undo) { S.toast = ""; S.toastBad = false; renderToast(); } } // a toast speaks for the view it was raised on; leaving a question drops its early changed notice, since the next visit re-snaps it
     S.sel = id; lsSet("sel", id);
+    if (S.view === "groups" && id !== SUMMARY && stateOf(Q[id]) === "arch") { const sec = sections().secs.find(x => x.items.some(q => q.id === id)); if (sec) lsSet("arch:" + sec.key, true); } // selecting an archived card opens its row once; a later click on the row still collapses it
     try { history.replaceState(null, "", location.pathname + location.search + (id === SUMMARY ? "" : "#" + encodeURIComponent(id))); } catch (e) {} // replace, so Back leaves the page rather than walking the questions
     if (id !== SUMMARY) {
       markSeen(e => (e.ids || []).includes(id));
@@ -1661,7 +1701,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!matchesSearch(Q[id])) clearSearch(); // a zero-padded number reaches a question the text does not match
     if (hidden) { S.filter = "all"; lsSet("filter", "all"); }
     const sec = S.view === "tree" ? null : sections().secs.find(x => x.items.some(q => q.id === id));
-    if (sec) lsSet("col:" + sec.key, {c: false, d: sec.done}); // open the group that holds the target
+    if (sec) { lsSet("col:" + sec.key, {c: false, d: sec.done}); if (S.view === "groups" && stateOf(Q[id]) === "arch") lsSet("arch:" + sec.key, true); } // open the group that holds the target, and its archived row for an archived one
     select(id, {animate: true});
     if (hidden) toast("Showing all to reveal " + id + ".");
   }
@@ -2138,6 +2178,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const au = t.closest("[data-auditround]"); if (au) { const s = sections().secs.find(x => x.round === au.dataset.auditround); if (s) acceptAllDialog(s.items, s.title, s.round); return; }
     const aa = t.closest("[data-acceptall]"); if (aa) { acceptAllDialog(S.doc.questions.filter(q => q.group === aa.dataset.acceptall), groupTitle(aa.dataset.acceptall), null, "all"); return; }
     const as = t.closest("[data-acceptsel]"); if (as) { acceptAllDialog(S.doc.questions.filter(q => q.group === as.dataset.acceptsel && S.pick.has(q.id)), groupTitle(as.dataset.acceptsel), null, "sel"); return; }
+    const at = t.closest("[data-archtoggle]"); if (at) { const k = "arch:" + at.dataset.archtoggle; lsSet(k, at.getAttribute("aria-expanded") !== "true"); renderRail(); return; }
     const sh = t.closest(".sec-h");
     if (sh) { const sec = sh.closest(".sec"), c = sec.dataset.collapsed !== "true"; sec.dataset.collapsed = String(c); sh.setAttribute("aria-expanded", String(!c)); lsSet("col:" + sec.dataset.key, {c, d: sec.dataset.dflt === "true"}); return; }
     const v = t.closest(".seg button"); if (v) { S.view = v.dataset.view; lsSet("view", S.view); renderRail(); return; }
@@ -2156,6 +2197,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     }
     if (t.closest("[data-wrapup], #wrapChip")) { wrapUp(); return; }
     if (t.closest("[data-sendnote]")) { sendNote(); return; }
+    if (t.closest("[data-notenewest]")) { const n = $("noteNewest"); if (n) { n.scrollIntoView({block: "nearest"}); n.focus({preventScroll: true}); } return; }
+    const nz = t.closest("[data-notetoggle]");
+    if (nz) { // toggled in place: a re-render would reset the panel's scroll and the draft's focus
+      const k = nz.dataset.notetoggle, open = nz.getAttribute("aria-expanded") !== "true";
+      nz.setAttribute("aria-expanded", String(open)); nz.nextElementSibling.hidden = !open;
+      if (open) S.noteOpen.add(k); else S.noteOpen.delete(k);
+      return;
+    }
     if (t.closest("[data-looseans]")) { const v = (($("looseReply") || {}).value || "").trim(); if (v) sendFree("note", v).then(ok => { if (ok) { S.looseDraft = ""; renderSummary(); } }); return; }
     const p = t.closest("[data-panel]"); if (p) { if (p.closest("#tabs") || p.closest(".loose")) showFly(p.dataset.panel); else openPanel(p.dataset.panel); return; }
     if (t.closest("#railBtn")) { S.railHidden = !S.railHidden; lsSet("railHidden", S.railHidden); renderFly(); return; }

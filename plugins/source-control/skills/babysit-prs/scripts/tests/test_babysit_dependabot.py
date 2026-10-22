@@ -1081,3 +1081,438 @@ class Provenance(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _pkg(deps: dict[str, Any], **extra: Any) -> str:
+    return json.dumps(
+        {"name": "p", "scripts": {"test": "node t.js"}, "dependencies": deps, **extra}
+    )
+
+
+def _lock(entries: dict[str, Any]) -> str:
+    """A lock of `entries` (key to entry) under the root."""
+    return json.dumps({"lockfileVersion": 3, "packages": {"": {}, **entries}})
+
+
+_INTEGRITY = "sha512-" + "A" * 86 + "=="
+
+
+def _reg(package: str, version: str, **extra: Any) -> dict[str, Any]:
+    """The registry tarball npm records for a package and version."""
+    base = package.rsplit("/", 1)[-1]
+    return {
+        "version": version,
+        "resolved": f"https://registry.npmjs.org/{package}/-/{base}-{version}.tgz",
+        "integrity": _INTEGRITY,
+        **extra,
+    }
+
+
+_X1 = {"node_modules/x": _reg("x", "2.0.0")}
+_X2 = {"node_modules/x": _reg("x", "2.0.1")}
+_SCOPED = "node_modules/@s/n"
+_NESTED = "node_modules/a/node_modules/b"
+
+
+def _x(**fields: Any) -> dict[str, Any]:
+    """x at 2.0.1 with `fields` replaced (None drops one)."""
+    entry = {**_reg("x", "2.0.1"), **fields}
+    return {"node_modules/x": {k: v for k, v in entry.items() if v is not None}}
+
+
+_GIT = "git+ssh://git@github.com/evil/x.git#abc"
+_HASH = "    --hash=sha256:" + "b" * 64
+_SCRIPTS = {"test": "node t.js", "postinstall": "node steal.js"}
+_RANGE = "package-json-range:dependencies:x"
+
+# One for one with dependency-classify.test.mjs's FIX_VECTORS, so both lanes
+# refuse the same fix. Each expected value is the rule as the security review
+# states it: a version-range change of an existing dependency entry,
+# registry-only lock tarballs with no install script change, and
+# `name==version` requirement pins with hashes.
+FIX_VECTORS: list[tuple[str, str, str, str | None]] = [
+    ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": "^2.0.0"}), None),
+    ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": ">=2.0.0 <3"}), None),
+    (
+        "package.json",
+        _pkg({"x": "^1.0.0"}),
+        _pkg({"x": "1.2.x || 2.0.0 - 2.1.0"}),
+        None,
+    ),
+    (
+        "package.json",
+        _pkg({"x": "^1.0.0"}),
+        _pkg({"x": "^1.0.0"}, scripts=_SCRIPTS),
+        "package-json-key:scripts",
+    ),
+    (
+        "package.json",
+        _pkg({"x": "^1.0.0"}),
+        _pkg({"x": "^1.0.0", "y": "1.0.0"}),
+        "package-json-entries:dependencies",
+    ),
+    (
+        "package.json",
+        _pkg({"x": "^1.0.0"}),
+        _pkg({"x": "^1.0.0"}, overrides={"x": "1.0.0"}),
+        "package-json-key:overrides",
+    ),
+    ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": "github:evil/x"}), _RANGE),
+    ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": "evil/x"}), _RANGE),
+    ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": "npm:evil@1.0.0"}), _RANGE),
+    (
+        "package.json",
+        _pkg({"x": "^1.0.0"}),
+        _pkg({"x": "https://evil.example/x.tgz"}),
+        _RANGE,
+    ),
+    ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": "file:../x"}), _RANGE),
+    ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": "workspace:*"}), _RANGE),
+    ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": "latest"}), _RANGE),
+    ("package.json", _pkg({"x": "^1.0.0"}), "not json", "package-json-unreadable"),
+    ("package-lock.json", _lock(_X1), _lock(_X2), None),
+    (
+        "package-lock.json",
+        _lock({_SCOPED: _reg("@s/n", "1.0.0")}),
+        _lock({_SCOPED: _reg("@s/n", "1.0.1")}),
+        None,
+    ),
+    (
+        "package-lock.json",
+        _lock({_NESTED: _reg("b", "1.0.0")}),
+        _lock({_NESTED: _reg("b", "1.0.1")}),
+        None,
+    ),
+    (
+        "package-lock.json",
+        _lock({"node_modules/alias": _reg("real", "1.0.0", name="real")}),
+        _lock({"node_modules/alias": _reg("real", "1.0.1", name="real")}),
+        None,
+    ),
+    (
+        "package-lock.json",
+        _lock(_X1),
+        _lock(_x(resolved="https://evil.example/x-2.0.1.tgz")),
+        "lock-resolved:node_modules/x",
+    ),
+    (
+        "package-lock.json",
+        _lock(_X1),
+        _lock(_x(resolved=_reg("evilpkg", "6.6.6")["resolved"])),
+        "lock-resolved:node_modules/x",
+    ),
+    (
+        "package-lock.json",
+        _lock(_X1),
+        _lock(_x(resolved=_reg("x", "2.0.0")["resolved"])),
+        "lock-resolved:node_modules/x",
+    ),
+    (
+        "package-lock.json",
+        _lock({_SCOPED: _reg("@s/n", "1.0.0")}),
+        _lock({_SCOPED: _reg("n", "1.0.1")}),
+        "lock-resolved:node_modules/@s/n",
+    ),
+    (
+        "package-lock.json",
+        _lock(_X1),
+        _lock(_x(resolved=None)),
+        "lock-resolved:node_modules/x",
+    ),
+    (
+        "package-lock.json",
+        _lock(_X1),
+        _lock(_x(resolved=_GIT, integrity=None)),
+        "lock-resolved:node_modules/x",
+    ),
+    (
+        "package-lock.json",
+        _lock(_X1),
+        _lock(_x(link=True)),
+        "lock-resolved:node_modules/x",
+    ),
+    (
+        "package-lock.json",
+        _lock(_X1),
+        _lock(_x(integrity="sha1-abc=")),
+        "lock-integrity:node_modules/x",
+    ),
+    (
+        "package-lock.json",
+        _lock({"node_modules/a": _reg("a", "1.0.0")}),
+        _lock({"node_modules/a": _reg("evilpkg", "6.6.6", name="evilpkg")}),
+        "lock-name:node_modules/a",
+    ),
+    (
+        "package-lock.json",
+        _lock({"node_modules/x/node_modules/a": _reg("a", "1.0.0")}),
+        _lock(
+            {"node_modules/x/node_modules/a": _reg("evilpkg", "6.6.6", name="evilpkg")}
+        ),
+        "lock-name:node_modules/x/node_modules/a",
+    ),
+    (
+        "package-lock.json",
+        _lock(
+            {
+                "node_modules/a": _reg(
+                    "real", "6.6.6", name="real", hasInstallScript=True
+                )
+            }
+        ),
+        _lock(
+            {
+                "node_modules/a": _reg(
+                    "evilpkg", "6.6.6", name="evilpkg", hasInstallScript=True
+                )
+            }
+        ),
+        "lock-name:node_modules/a",
+    ),
+    (
+        "package-lock.json",
+        _lock({"node_modules/alias": _reg("real", "1.0.0", name="real")}),
+        _lock({"node_modules/alias": _reg("alias", "1.0.1")}),
+        "lock-name:node_modules/alias",
+    ),
+    (
+        "package-lock.json",
+        _lock({"node_modules/alias": _reg("real", "1.0.0", name="real")}),
+        _lock({"node_modules/alias": _reg("other", "1.0.1", name="other")}),
+        "lock-name:node_modules/alias",
+    ),
+    (
+        "package-lock.json",
+        _lock(_X1),
+        _lock({**_X2, "node_modules/evilpkg": _reg("evilpkg", "1.0.0")}),
+        "lock-packages-changed",
+    ),
+    (
+        "package-lock.json",
+        _lock({**_X1, "node_modules/y": _reg("y", "1.0.0")}),
+        _lock(_X2),
+        "lock-packages-changed",
+    ),
+    (
+        "package-lock.json",
+        _lock({**_X1, "plugins/w": {"version": "1.0.0"}}),
+        _lock({**_X2, "plugins/w": {"version": "1.0.0"}}),
+        "lock-key:plugins/w",
+    ),
+    (
+        "package-lock.json",
+        json.dumps({"lockfileVersion": 1, "dependencies": {}}),
+        json.dumps({"lockfileVersion": 1, "dependencies": {}}),
+        "lock-packages",
+    ),
+    (
+        "npm-shrinkwrap.json",
+        _lock(_X1),
+        _lock(_x(hasInstallScript=True)),
+        "lock-install-script:node_modules/x",
+    ),
+    (
+        "package-lock.json",
+        _lock({"node_modules/x": _reg("x", "2.0.0", hasInstallScript=True)}),
+        _lock(_X2),
+        "lock-install-script:node_modules/x",
+    ),
+    ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": "*"}), _RANGE),
+    ("package.json", _pkg({"x": "^1.0.0"}), _pkg({"x": ">=0"}), _RANGE),
+    (
+        "requirements.txt",
+        "numpy==2.5.3\n",
+        "numpy==2.5.4\nevil-pkg==1.0.0\n",
+        "requirements-new-package:evil-pkg",
+    ),
+    ("requirements.txt", "Foo_Bar==1.0\n", "foo.bar==1.1\n", None),
+    (
+        "requirements.txt",
+        "numpy==2.5.3 \\\n" + _HASH.replace("b", "a", 1) + "\n",
+        "numpy==2.5.4 \\\n" + _HASH + "\n    # via onnxruntime\n",
+        None,
+    ),
+    (
+        "requirements.txt",
+        "colorama==0.4.5\n",
+        "colorama==0.4.6 ; sys_platform == 'win32'\n",
+        None,
+    ),
+    ("requirements.in", "manim[typst]==0.20.0\n", "manim[typst]==0.21.0\n", None),
+    (
+        "requirements.txt",
+        "numpy==2.5.3\n",
+        "--extra-index-url https://evil.example/simple\nnumpy==2.5.4\n",
+        "requirements-line",
+    ),
+    (
+        "requirements.txt",
+        "numpy==2.5.3\n",
+        "--index-url https://evil.example/simple\nnumpy==2.5.4\n",
+        "requirements-line",
+    ),
+    (
+        "requirements.txt",
+        "numpy==2.5.3\n",
+        "-e git+https://github.com/evil/x.git#egg=x\n",
+        "requirements-line",
+    ),
+    ("requirements.txt", "numpy==2.5.3\n", "-r other.txt\n", "requirements-line"),
+    (
+        "requirements.txt",
+        "numpy==2.5.3\n",
+        "numpy @ https://evil.example/numpy.whl\n",
+        "requirements-line",
+    ),
+    ("requirements.txt", "numpy==2.5.3\n", "numpy>=2.5.4\n", "requirements-line"),
+    (
+        "requirements.txt",
+        "-r base.txt\nnumpy==2.5.3\n",
+        "-r base.txt\nnumpy==2.5.4\n",
+        None,
+    ),
+    ("setup.py", "", "", "content-unchecked"),
+]
+
+
+class FixRule(unittest.TestCase):
+    """What a lanes App fix commit may change: the pr-unblock lane's fix rule
+    (`fixRefusal` in dependency-classify.mjs), mirrored."""
+
+    def test_the_fix_rule_admits_a_version_change_and_refuses_anything_else(
+        self,
+    ) -> None:
+        for path, before, after, want in FIX_VECTORS:
+            with self.subTest(path=path, after=after[:80]):
+                self.assertEqual(
+                    dependabot.fix_content_refusal(path, before, after), want
+                )
+
+    def test_a_semver_range_is_comparators_hyphen_ranges_or_their_union(
+        self,
+    ) -> None:
+        for value in ("1.2.3", "^1.2.3", "~1.2", ">=1 <2", "1.x", "<2"):
+            self.assertTrue(dependabot.is_semver_range(value), value)
+        for value in ("1.2.3-beta.1", "1.0.0 - 2.0.0", "^1 || ^2"):
+            self.assertTrue(dependabot.is_semver_range(value), value)
+        for value in ("", "latest", "next", "evil/x", "github:evil/x"):
+            self.assertFalse(dependabot.is_semver_range(value), value)
+        for value in ("git+https://x", "npm:y@1", "file:x", "link:x"):
+            self.assertFalse(dependabot.is_semver_range(value), value)
+        for value in ("workspace:^", "^1 ||", ">= 1", 1, "١.0.0"):
+            self.assertFalse(dependabot.is_semver_range(value), value)
+        for value in ("*", "x", ">=0", ">1.2.3", ">=1 || ^2", "x.1.2", "1.0.0 - *"):
+            self.assertFalse(dependabot.is_semver_range(value), value)
+
+    def test_a_fix_file_is_a_regular_non_executable_blob(self) -> None:
+        self.assertTrue(dependabot.is_fix_file({"type": "blob", "mode": 0o100644}))
+        for entry in (
+            {"type": "blob", "mode": 0o100755},
+            {"type": "blob", "mode": 0o120000},
+            {"type": "commit", "mode": 0o160000},
+            {"type": "tree", "mode": 0o040000},
+            None,
+        ):
+            self.assertFalse(dependabot.is_fix_file(entry), entry)
+
+    def test_the_fix_scope_is_npm_and_pip_manifests_outside_github(self) -> None:
+        config = [("npm", "/"), ("pip", "/plugins/speech")]
+        for path in ("package.json", "package-lock.json"):
+            self.assertTrue(dependabot.in_fix_scope(path, config), path)
+        self.assertTrue(
+            dependabot.in_fix_scope("plugins/speech/requirements.txt", config)
+        )
+        for path in (
+            ".github/scripts/x.mjs",
+            ".github/package.json",
+            "src/x.js",
+            "yarn.lock",
+            "plugins/other/package.json",
+            "plugins/speech/setup.py",
+        ):
+            self.assertFalse(dependabot.in_fix_scope(path, config), path)
+        self.assertFalse(dependabot.in_fix_scope("package.json", []))
+
+    def test_fix_refusal_reads_the_mode_before_the_content(self) -> None:
+        reads: list[str] = []
+        files = [{"filename": "package.json", "status": "modified"}]
+
+        def entry(path: str) -> Any:
+            reads.append(f"entry:{path}")
+            return {"type": "blob", "mode": 0o120000}
+
+        def text(side: str, path: str) -> str:
+            reads.append(f"text:{side}")
+            return ""
+
+        self.assertEqual(
+            dependabot.fix_refusal(files, [("npm", "/")], entry, text),
+            "fix-mode:package.json",
+        )
+        self.assertEqual(reads, ["entry:package.json"])
+        for item, why in (
+            ({"filename": "package.json", "status": "added"}, "fix-status"),
+            (
+                {
+                    "filename": "package.json",
+                    "previous_filename": "x.js",
+                    "status": "renamed",
+                },
+                "fix-status",
+            ),
+            ({"filename": "src/x.js", "status": "modified"}, "fix-scope"),
+        ):
+            reason = dependabot.fix_refusal([item], [("npm", "/")], entry, text)
+            self.assertTrue(str(reason).startswith(why), reason)
+
+
+class BumpRule(unittest.TestCase):
+    """The version-bump commit (`bump_refusal`, the pr-unblock lane's
+    `bumpRefusal`): plugin.json may change only its `version`."""
+
+    @staticmethod
+    def plugin(version: str, **extra: Any) -> str:
+        return json.dumps(
+            {"name": "p", "version": version, "description": "d", **extra}
+        )
+
+    def refusal(
+        self, after: str, paths: tuple[str, ...] = (), mode: int = 0o100644
+    ) -> Any:
+        files = [
+            {"filename": p, "status": "modified"}
+            for p in paths
+            or ("plugins/p/.claude-plugin/plugin.json", "plugins/p/CHANGELOG.md")
+        ]
+
+        def text(side: str, path: str) -> str:
+            if path.endswith("plugin.json"):
+                return self.plugin("1.0.0") if side == "before" else after
+            return "# Changelog\n"
+
+        return dependabot.bump_refusal(
+            files, lambda path: {"type": "blob", "mode": mode}, text
+        )
+
+    def test_only_the_version_changes(self) -> None:
+        plugin_json = "plugins/p/.claude-plugin/plugin.json"
+        self.assertIsNone(self.refusal(self.plugin("1.0.1")))
+        hooks = self.plugin("1.0.1", hooks={"PreToolUse": []})
+        self.assertEqual(
+            self.refusal(hooks), f"bump-content:{plugin_json}:plugin-json-key"
+        )
+        self.assertEqual(
+            self.refusal(self.plugin("next")),
+            f"bump-content:{plugin_json}:plugin-json-version",
+        )
+        self.assertEqual(
+            self.refusal("", ("plugins/p/hooks/hooks.json",)),
+            "bump-path:plugins/p/hooks/hooks.json",
+        )
+        self.assertEqual(
+            self.refusal(self.plugin("1.0.1"), mode=0o120000),
+            f"bump-mode:{plugin_json}",
+        )
+        self.assertEqual(
+            dependabot.bump_refusal([], lambda p: None, lambda s, p: ""), "bump-empty"
+        )

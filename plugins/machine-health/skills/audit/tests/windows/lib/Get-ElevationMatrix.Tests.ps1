@@ -32,4 +32,14 @@ Describe 'Get-ElevationMatrix' -Tag 'lib' {
         $entry.AdminRequired | Should -BeTrue
         $entry.Fields | Should -Contain 'unexpected_path_count'
     }
+
+    It 'names the fields <CheckId> fills only when elevated' -ForEach @(
+        @{ CheckId = 'startup-items'; Fields = @('tasks_complete') }
+        @{ CheckId = 'app-last-use'; Fields = @('prefetch_state', 'bam_state') }
+        @{ CheckId = 'backup-status'; Fields = @('restore_points', 'system_image') }
+    ) {
+        $entry = Get-ElevationMatrix | Where-Object { $_.CheckId -eq $CheckId }
+        @($entry).Count | Should -Be 1
+        $entry.Fields | Should -Be $Fields
+    }
 }

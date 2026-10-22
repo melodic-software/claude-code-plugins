@@ -41,6 +41,8 @@ dialog:is(.core-name, .core-switch) button:focus-visible { outline: 2px solid #8
 dialog:is(.core-name, .core-switch) .core-row { display: flex; gap: 10px; }
 dialog:is(.core-name, .core-switch) .core-row button { flex: 1; min-height: 44px; }
 dialog:is(.core-name, .core-switch) .core-btn-quiet { background: transparent; color: #f4f4f5; box-shadow: inset 0 0 0 1px #3a3d48; }
+dialog.core-name .core-host-code { display: block; width: fit-content; margin: 12px auto 0; padding: 4px 2px; font-size: 13px; color: #a5b4fc; }
+dialog.core-name .core-host-code:focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; border-radius: 4px; }
 
 /* The telemetry notice (core.js Core.telemetry): a line and the "What this page records" link. */
 .core-rec-line { margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: #a1a1aa; }

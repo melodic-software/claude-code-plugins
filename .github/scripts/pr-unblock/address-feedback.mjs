@@ -597,6 +597,21 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     async getCommit(sha) {
       return (await request(`${repo}/commits/${sha}`)).data;
     },
+    // A file's text at `ref` through the raw media type, which serves files
+    // over 1 MB (docs.github.com/en/rest/repos/contents#get-repository-content,
+    // as of 2026-10-21; recheck when that section changes its size limits);
+    // null when the path is absent.
+    async getText(path, ref) {
+      const url = `${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`;
+      const response = await fetch(url, { headers: { ...headers, Accept: "application/vnd.github.raw+json" } });
+      if (response.status === 404) {
+        return null;
+      }
+      if (!response.ok) {
+        throw new Error(`GET ${url} returned ${response.status}`);
+      }
+      return response.text();
+    },
     async listThreads(pr) {
       const nodes = [];
       let after = null;
@@ -642,7 +657,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     async createIssueComment(pr, body) {
       await request(`${repo}/issues/${pr}/comments`, "POST", { body });
     },
-    // One page: apply-ci-fix.mjs refuses to read more labels than it holds.
+    // One page: a pull request with more labels than one page holds is refused.
     async listLabels(pr) {
       const { data, link } = await request(`${repo}/issues/${pr}/labels?per_page=100`);
       if (/rel="next"/.test(link)) {
@@ -650,8 +665,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       }
       return data;
     },
-    // The Git Data API (apply-ci-fix.mjs): GitHub signs a commit made with no
-    // author or committer as the App.
+    // The Git Data API: GitHub signs a commit made with no author or
+    // committer as the App.
     createBlob: async (content) => (await request(`${repo}/git/blobs`, "POST", { content, encoding: "base64" })).data.sha,
     createTree: async (baseTree, tree) => (await request(`${repo}/git/trees`, "POST", { base_tree: baseTree, tree })).data.sha,
     createCommit: async (message, tree, parents) => (await request(`${repo}/git/commits`, "POST", { message, tree, parents })).data.sha,

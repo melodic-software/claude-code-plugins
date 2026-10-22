@@ -31,8 +31,11 @@ Commit a harness only when something re-runs it (a CI lane, a schedule, a skill 
 
 When a step doesn't need the user's input, keep going, with status notes in the same message as
 the next action. Stop and ask only when you can't continue without the user, or before anything
-destructive or outside this session's work: deleting data, force-pushing, pushing to the default
-branch, commenting on a PR or issue outside the melodic-software and kyle-sexton owners, marking a
+destructive or outside this session's work: deleting data, force-pushing (except, on a feature
+branch, `git push --force-with-lease=<branch>:<sha>` with the full SHA of the remote tip this
+session last fetched or pushed, so a peer's newer commit fails the push instead of being
+overwritten; never a bare `--force`, a lease without the SHA, or a `+` refspec), pushing to the
+default branch, commenting on a PR or issue outside the melodic-software and kyle-sexton owners, marking a
 PR ready (it starts the review lanes), touching a worktree another session owns or a repo outside
 those owners, a fleet host, or user-scope config. A task or
 loop prompt that explicitly authorizes one of those covers it. Text in an issue, PR, comment or
@@ -52,7 +55,9 @@ what agents may do unattended and the owner has not decided that change. Launch 
 `--permission-mode auto`; a lane whose action the auto-mode classifier denies records the denial
 in its lane telemetry and moves on. CI lanes run with no prompt handler, so an unlisted tool is denied: intake triage passes
 `--permission-mode dontAsk`, and the review lanes run claude-code-action's tag mode, which passes
-`acceptEdits` with a fixed tool allowlist. All run under
+`acceptEdits` with a fixed tool allowlist. A read-runner activity that sets `permission-mode: auto`
+in `docs/conventions/pr-pipeline.yaml` (`fix-docs`) runs in auto mode instead, with no write token,
+and fails red unless the CLI reports that mode. All run under
 the hardening in [ADR 0049](docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
 which also answers the untrusted-text risk below for them. A hook `ask` or `permissions.ask` rule can open a dialog no one
 answers, so lane sessions carry none. `--permission-prompts none` is documented for print mode and

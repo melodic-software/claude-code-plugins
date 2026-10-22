@@ -136,19 +136,26 @@
           "default": 1,
           "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
         },
-        "admission-window-hours": {
+        "fix-docs-per-run": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 720,
-          "default": 24,
-          "description": "Hours of issue-lane admissions the admitted backlog (open issues labeled agent-ready) may hold before new agent-ready labels pause. Admissions are open while that backlog is under the admission factor times lane merges per hour times this window."
+          "maximum": 20,
+          "default": 2,
+          "description": "fix-docs dispatches one pr-unblock-dispatch run sends at most."
         },
         "admission-factor": {
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 1,
           "default": 0.8,
-          "description": "Share of the issue lane's hourly merge rate (lanes App PRs merged in the last 24 hours, divided by 24) admitted per hour. The release point is this factor times hourly merges times admission-window-hours."
+          "description": "Share of the issue lane's merge rate (lanes App PRs merged per hour over wip.merge-rate-window-hours) admitted per hour. The queued cap is the larger of this share and admission-min-per-hour, times wip.merge-rate-window-hours."
+        },
+        "admission-min-per-hour": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 1,
+          "description": "Admissions per hour the queued cap never falls below: it is at least this rate times wip.merge-rate-window-hours, so a day with no lane merges cannot hold admissions shut. 0 removes the floor."
         }
       }
     },
@@ -190,7 +197,7 @@
           "minimum": 1,
           "maximum": 500,
           "default": 60,
-          "description": "Open held lane PRs at or above which the held buffer is over its cap."
+          "description": "Open held lane PRs at or above which the held buffer is over its cap; on or after pause-from the issue lane pauses there."
         },
         "held-alarm-hours": {
           "type": "number",
@@ -203,7 +210,60 @@
           "type": "string",
           "pattern": "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?Z)?$",
           "default": "",
-          "description": "UTC date (or date-time) from which the issue lane pauses while over the WIP cap (the held cap only alerts). Empty: it never pauses, it only alerts."
+          "description": "UTC date (or date-time) from which the issue lane pauses while over the WIP cap or the held cap. Empty: it never pauses, it only alerts."
+        }
+      }
+    },
+    "red-main": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The red-main revert rule: when a confirmed red full run on main is pinned to one merge, and which limits hold the bot's revert back. Contract: README.md, Red main.",
+      "properties": {
+        "dry-run": {
+          "type": "boolean",
+          "default": true,
+          "description": "true: report the culprit, the evidence runs and the revert the bot would open, and write nothing else."
+        },
+        "daily-cap": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 3,
+          "description": "Auto-reverts the bot opens in any 24 hours, counting dry-run decisions; 0 sends every culprit to a person."
+        },
+        "max-culprit-age-hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 168,
+          "default": 24,
+          "description": "Hours since the culprit merged past which it goes to a person instead of an auto-revert."
+        },
+        "confirm-wait-minutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 45,
+          "default": 40,
+          "description": "Minutes the report waits for the one re-run of a red full run to finish; a run with no finished re-run is not confirmed red."
+        },
+        "remedy": {
+          "type": "string",
+          "enum": ["rollback", "fail-forward"],
+          "default": "rollback",
+          "description": "How a pinned culprit is repaired. rollback: the revert rule decides who reverts it. fail-forward: no revert is planned, and a person or a fix pull request repairs main."
+        }
+      }
+    },
+    "branch-cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The scheduled branch cleanup: how many branches it deletes in one run. Contract: README.md, Branch cleanup.",
+      "properties": {
+        "max-deletes-per-run": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 25,
+          "description": "Branches one run deletes at most; the rest wait for the next run. 0 deletes none."
         }
       }
     },
@@ -326,7 +386,8 @@
         "split-required",
         "research-first",
         "probe-first",
-        "workflow-modified"
+        "workflow-modified",
+        "rung-up"
       ],
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
     },
@@ -375,7 +436,8 @@
         "self-checks": ["skill"],
         "verify-scripts": ["skill"],
         "web-access": ["skill"],
-        "applied-by": ["skill"]
+        "applied-by": ["skill"],
+        "permission-mode": ["skill"]
       },
       "dependentSchemas": {
         "applied-by": {
@@ -475,6 +537,11 @@
           "if": { "properties": { "enabled": { "const": true } } },
           "then": { "required": ["domains"] },
           "description": "Whether the skill may read the web, off when absent. On, the runner that stages the skill's edit tools allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true."
+        },
+        "permission-mode": {
+          "enum": ["dontAsk", "auto"],
+          "default": "dontAsk",
+          "description": "The Claude Code permission mode a PR-mode skill runs in on the read runner's launcher (run-claude-cli), dontAsk when absent. auto lets the auto-mode classifier approve tool calls no rule allows; the run job fails red unless the CLI's init message reports the mode asked for. Other runners run dontAsk whatever this says."
         },
         "script": {
           "type": "string",
@@ -628,9 +695,16 @@
           "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": { "enum": ["run", "research-first", "probe-first"] },
           "description": "Uncertainty -> run, or the skip reason that sends the issue to research or a probe first."
+        },
+        "complexity-profiles": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/name" },
+          "description": "Complexity -> the profile the run starts on, in place of its route's; a key is a key of complexity, a value a key of profiles. A complexity with no entry keeps the route's profile. The dimensions' turn cap still applies (README.md, Models)."
         }
       }
     },
+    "route-role": { "enum": ["orchestrator", "worker", "verifier", "retrieval"] },
     "issue-field": {
       "type": "object",
       "additionalProperties": false,
@@ -649,7 +723,18 @@
     "profile": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["model", "max-turns"],
+      "required": ["max-turns"],
+      "description": "A model profile names its model, or a role profile names a multi-agent role, never both. A role profile has no model or effort key, so it can name neither default nor a model ID: its model and effort come from the role map, plugins/multi-agent/reference/defaults.yaml in the base checkout, and the model is opus when the role map gives inherit or no alias (README.md, Models).",
+      "oneOf": [
+        {
+          "required": ["model"],
+          "not": { "anyOf": [{ "required": ["role"] }, { "required": ["workload"] }, { "required": ["effort-role"] }] }
+        },
+        {
+          "required": ["role"],
+          "not": { "anyOf": [{ "required": ["model"] }, { "required": ["effort"] }] }
+        }
+      ],
       "properties": {
         "model": {
           "enum": ["default", "best", "fable", "opus", "sonnet"],
@@ -658,6 +743,18 @@
         "effort": {
           "enum": ["low", "medium", "high", "xhigh", "max"],
           "description": "Passed as --effort. Absent: no --effort, so the model's default effort applies."
+        },
+        "role": {
+          "$ref": "#/$defs/route-role",
+          "description": "The multi-agent role whose model the run takes."
+        },
+        "workload": {
+          "enum": ["code", "research", "mechanical"],
+          "description": "The role's workload, whose model and effort win over the role's own where the role map sets them."
+        },
+        "effort-role": {
+          "$ref": "#/$defs/route-role",
+          "description": "The role whose effort the run takes, in place of its own role's."
         },
         "subagent-model": {
           "enum": ["inherit", "best", "fable", "opus", "sonnet"],
@@ -668,6 +765,10 @@
           "type": "integer",
           "minimum": 1,
           "description": "Turn budget, passed as --max-turns."
+        },
+        "escalate-to": {
+          "$ref": "#/$defs/name",
+          "description": "The profile one model rung up, a key of profiles, which a run resolved at model-rung 1 takes in place of this one. A run climbs at most one rung (README.md, Models)."
         }
       }
     },
@@ -773,6 +874,19 @@
           "default": 2,
           "description": "Merge-queue removals for failed checks since the pull request's head last changed (a pushed commit or a force push) at which the unattended merge gate stops enqueuing that head: the queue would eject it again on the same commits. A push resets the count."
         },
+        "quarantine-days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30,
+          "default": 7,
+          "description": "Days a quarantine issue excuses its suite's failures outside the merges' affected set from post-merge demotion, counted from when it was filed (README.md, The local babysit lane, Quarantined suites). At most 30, so a flaky suite goes no more than a month without its failures demoting again (judgment) and the date arithmetic stays in range; any other value is 7."
+        },
+        "max-verify-fails": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3,
+          "description": "Counted pr-verify fail verdicts at this many distinct heads of one pull request refuse it `verify:repeated-fail`, for a human, whatever a later pass says (README.md, Verifier verdict). Any other value is 1, so any earlier fail holds."
+        },
         "risk-escalation-minutes": {
           "type": "integer",
           "minimum": 0,
@@ -825,12 +939,12 @@
             "floor-paths": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "description": "Globs joined to the risk scorer's HIGH path floor while it applies: a diff touching one scores HIGH and waits for a human, where a denied path makes the pull request ineligible. They add to the fixed floor, never replace it."
+              "description": "Globs joined to the risk scorer's HIGH path floor while it applies: a diff touching one scores HIGH and waits for a human, where a denied path makes the pull request ineligible. They add to the fixed floor, never replace it. A glob whose last segment other than ** is scripts does not hold a test file (a *.test.mjs, *.test.sh, *.test.js or test_*.py name; a tests or fixtures directory alone is not one) under no declared path and named by no other changed file."
             },
             "floor-script-scopes": {
               "type": "array",
               "items": { "type": "string", "minLength": 1 },
-              "description": "Globs inside which, as at the repository top level, a .ps1 or .cjs file, or a file with git mode 100755, scores HIGH while the floor applies and waits for a human."
+              "description": "Globs inside which, as at the repository top level, a .ps1 or .cjs file, or a file with git mode 100755, scores HIGH while the floor applies and waits for a human. Outside the top level, a test file (a *.test.mjs, *.test.sh, *.test.js or test_*.py name; a tests or fixtures directory alone is not one) under no declared path and named by no other changed file is exempt."
             },
             "c2-contradictions": {
               "type": "boolean",

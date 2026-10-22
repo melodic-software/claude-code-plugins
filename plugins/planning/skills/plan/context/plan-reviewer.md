@@ -11,7 +11,7 @@ Attach to the sub-agent brief:
 - The Brief / conversation goal
 - The consuming project's review conventions (its review checklist or rules files), when it declares them
 
-The brief carries the divergence-escalation clause (see [plan-template.md](plan-template.md) "Scope-fencing tables").
+The brief carries the divergence-escalation clause `/implementation:implement-dispatch` owns (its worker-brief item 2).
 
 ## Sub-agent prompt template
 
@@ -56,8 +56,9 @@ the finding; a tool behavior you did not probe is an assumption, and the finding
 - Variation verdicts: every external system the plan touches has a verdict in the Design section of abstract now or contain now, and a `leave inline` verdict on an external system is a finding (leave inline is for internal one-offs only); no provider name reaches domain code, storage, or a public contract under a contain verdict; no planned abstraction exposes implementation types in its signatures
 
 ### Plan mechanics
+- The Goal names the Brief's Problem it serves and that Problem is what the phases solve, and every Brief Captured assumption of the form `<assumption>: revisit if <trigger>` has a row in Load-bearing assumptions (the Quality bar, Variation intent and standards-override lines are settings, not rows)
 - Every phase has at least one mechanically verifiable Sanity Check
-- Every Brief acceptance criterion maps to at least one phase, and no phase does work the Brief's Out-of-scope section lists
+- Every Brief acceptance criterion maps to at least one phase, no phase does work the Brief's Out-of-scope section lists, and every phase or work item traces to a criterion or to something a criterion needs (a test, a migration, a dead-code removal); one that does not is a finding, with the action to cut it or surface it as an Open Decision for the user
 - No machine-specific path (a drive letter such as `C:\`, or a `/Users/<name>` or `/home/<name>` path) unless it is marked as a deliberate example; a published PLAN.md is read on other machines
 - Contract migrations have a pre-flight consumer check as the first work item
 - The plan cites the standards sections loaded for the surfaces it touches, or states why grounding was skipped (scale tier)

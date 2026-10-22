@@ -1340,6 +1340,17 @@ MECHANISMS: tuple[Mechanism, ...] = (
         must_contain=("elif args.remediate and verdict.readable and branch:",),
     ),
     Mechanism(
+        id="postmerge.file-quarantine-gates-its-writes",
+        claim=(
+            "babysit_postmerge.py --judge-run files or comments on a quarantine "
+            "issue only inside one branch of its --judge-run path that needs "
+            "--file-quarantine; without it --judge-run reads GitHub and prints its "
+            "judgment."
+        ),
+        entry_point=POSTMERGE_CLI,
+        must_contain=("if args.file_quarantine and quarantines:",),
+    ),
+    Mechanism(
         id="postmerge.parser-refuses-abbreviation",
         claim=(
             "babysit_postmerge.py sets allow_abbrev=False, so a permission rule written "
@@ -1375,7 +1386,9 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         gate="--merge (absent: readiness check only, exit 0 ready / 10 not ready)",
         claim=(
             "Without --merge this is a readiness reporter on GitHub; with --state-dir it "
-            "may still clear a finished pending-merge record locally. With --merge, the TOCTOU guard "
+            "may still clear a finished pending-merge record locally, except under "
+            "`merge.report-only`, which reads the record and leaves it as it was. "
+            "With --merge, the TOCTOU guard "
             "requires --expected-head unless --allow-unpinned-head is passed -- and the "
             "scripts/ wrapper refuses that override outright."
         ),
@@ -1465,12 +1478,14 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutates_what=(
             "re-runs failed jobs of a red full run; dispatches a full run when none "
             "covers an unverified auto-merge; dequeues the agent identity's "
-            "merge-queue entries; files, reopens, or comments on the demotion issue"
+            "merge-queue entries; files, reopens, or comments on the demotion issue; "
+            "files or comments on a quarantine issue"
         ),
-        gate="--remediate",
-        claim="Read-only without --remediate.",
+        gate="--remediate, --file-quarantine",
+        claim="Read-only without --remediate or --file-quarantine.",
         backed_by=(
             "postmerge.remediate-gates-every-write",
+            "postmerge.file-quarantine-gates-its-writes",
             "postmerge.parser-refuses-abbreviation",
         ),
     ),

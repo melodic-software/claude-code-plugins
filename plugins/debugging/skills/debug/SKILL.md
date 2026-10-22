@@ -104,6 +104,11 @@ prompts need a TTY that the Bash tool does not have. The script ends by printing
 block of `NAME=value` lines; ask the user to paste that block back so each run reaches you in the
 same shape.
 
+Every answer the script collects with `ask` is printed in that results block and pasted into the
+session, so ask only for what the user observes: yes or no, a number, copied error text. Never ask
+for a password, token or other secret (see "Secrets stay out of what you show" above). Signing in
+stays an `instruct` step the user does on their own.
+
 ### Loop-recursion hazard
 
 When the loop IS a test the suite/runner discovers and runs, watch for self-invocation: a test file that invokes the very runner (or pre-push lane) which re-discovers and re-runs it recurses until the box saturates. Each nested run re-triggers the test. The symptom reads as a *hang*, but it is fork-bombing, not a slow test. Guard with a re-entrancy sentinel: set an env marker before the inner run; a nested invocation that sees the marker exits early. Same pattern for any loop that shells out to a command which re-enters the loop.
@@ -159,7 +164,16 @@ Run the loop and see it fail. Then check three things before going on:
 3. **The symptom is on record.** Keep the exact error text, wrong value or timing, so Phase 5 can
    show the fix changed that symptom and not some other one.
 
-**Gate: Phase 3 starts only once the loop has reproduced the bug.**
+### Minimize
+
+Once the loop is red, shrink the reproduction to the smallest case that still fails. Cut inputs,
+callers, config, data and steps one at a time, and re-run the loop after each cut. Keep a cut only
+when the loop stays red. Stop when every remaining element is needed: removing any one of them
+turns the loop green. Fewer parts means fewer suspects in Phase 3, and the minimized case becomes
+the Phase 5 test. For an intermittent bug, an element counts as needed when removing it drops the
+measured failure rate, not when one run happens to pass.
+
+**Gate: Phase 3 starts only once the loop has reproduced the bug and the reproduction is minimized.**
 
 ## Phase 3: Hypothesize
 
@@ -239,7 +253,10 @@ reaches the cause and is a correct seam.
 2. Run it and see it fail (Red), and check that it fails **for the intended reason**. A typo, a bad
    import or an unrelated defect also turns a test red, and a fix that clears *that* red has not
    touched the bug. Compare the failure message with the root cause you are after; if they differ,
-   repair the test or the reproduction before you edit any implementation code.
+   repair the test or the reproduction before you edit any implementation code. When the red came
+   from editing code or a fixture on purpose, diff the edited file against a pristine copy (the
+   committed version, or a copy saved before the edit) and confirm the edit is present before
+   trusting the red.
 3. Make the smallest change that removes the **root cause** rather than the symptom (Green).
 4. Run the test and see it pass.
 5. Run the **Phase 1 loop** again on the original, full-size scenario. A passing test is required

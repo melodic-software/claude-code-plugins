@@ -1,6 +1,6 @@
 {
   "name": "session-flow",
-  "version": "0.62.0",
+  "version": "1.0.0",
   "description": "Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after interruption or stall), find-handoff (recover a lost handoff), clean-stop (durable stopping point), retro and running-retro (retrospectives), audit-sessions, audit-friction, orient (where the session stands), orchestrate (delegation imperatives), reanchor (verify assumptions), reconcile (retire finished work), show-options, tidy-work (.work tiers), check, setup.",
   "author": {
     "name": "Melodic Software",
@@ -172,6 +172,13 @@
       "description": "Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask.",
       "default": "offer",
       "options": ["off", "offer"]
+    },
+    "orient_catch_up_word_cap": {
+      "type": "number",
+      "title": "Orient catch-up word cap",
+      "description": "Most words /session-flow:orient catch-up may use in its reply, visuals excluded; default 250, minimum 150. The reply opens with what needs you, then what happened, then each decision.",
+      "default": 250,
+      "min": 150
     }
   }
 }

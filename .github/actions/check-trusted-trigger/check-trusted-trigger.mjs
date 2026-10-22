@@ -1,9 +1,9 @@
 // Trigger gate for CI lanes: proceed only for a same-repository PR whose event
-// actor and PR author are both on the trusted-actor list, matched by numeric
-// id, and whose re-runner is listed by login. A denied id stops the lane even
-// when it is listed. A workflow_dispatch sent by github-actions[bot] stands in
-// for its sender through a checked dispatcher run, and require-pr false checks
-// the actors without a PR. Every failure ends in proceed=false with a
+// actor, PR author and re-runner are all on the trusted-actor list, matched by
+// numeric id. A denied id stops the lane even when it is listed. A
+// workflow_dispatch sent by github-actions[bot] stands in for its sender
+// through a checked dispatcher run, and require-pr false checks the actors
+// without a PR. Every failure ends in proceed=false with a
 // reason; main never throws.
 import { readFileSync } from "node:fs";
 import process from "node:process";
@@ -19,6 +19,7 @@ const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const HEAD_REF = /^[A-Za-z0-9._/-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
+const RUN_ATTEMPT = /^[1-9][0-9]{0,4}$/;
 // github-actions[bot], the sender of every GITHUB_TOKEN workflow dispatch.
 const ACTIONS_BOT_ID = 41898282;
 const DISPATCHER_EVENTS = new Set(["push", "workflow_dispatch"]);
@@ -168,12 +169,63 @@ class Stop extends Error {
   }
 }
 
-async function fetchPull(github, repository, number) {
+export const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
+// GET /pulls can lag a push by minutes, so the PR is re-read until its head
+// matches the branch ref, after each of these waits in turn (60 s in all).
+const HEAD_READ_DELAYS_MS = [5000, 10_000, 20_000, 25_000];
+
+// The SHA the PR's head branch points at, or null when it cannot be read.
+async function headRefSha(github, pull) {
+  const repository = pull.head?.repo?.full_name ?? "";
+  const ref = pull.head?.ref;
+  if (!REPOSITORY.test(repository) || typeof ref !== "string" || ref === "") {
+    return null;
+  }
+  const encoded = ref.split("/").map(encodeURIComponent).join("/");
   try {
-    return await github("GET", `/repos/${repository}/pulls/${number}`);
+    const sha = (await github("GET", `/repos/${repository}/git/ref/heads/${encoded}`))?.object?.sha;
+    return SHA.test(sha ?? "") ? sha : null;
+  } catch (error) {
+    if (error?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+// The PR, re-read until its head SHA is the branch ref's. `headConfirmed` is
+// false when they never agree, or at once for a PR `confirmable` rejects.
+export async function readPull(github, base, prNumber, sleep, confirmable = () => true) {
+  for (let read = 0; ; read += 1) {
+    const pull = await github("GET", `${base}/pulls/${prNumber}`);
+    if (!confirmable(pull)) {
+      return { pull, headConfirmed: false };
+    }
+    const refSha = await headRefSha(github, pull);
+    if (refSha !== null && refSha === pull.head?.sha) {
+      return { pull, headConfirmed: true };
+    }
+    if (read === HEAD_READ_DELAYS_MS.length) {
+      return { pull, headConfirmed: false };
+    }
+    await sleep(HEAD_READ_DELAYS_MS[read]);
+  }
+}
+
+// A dispatched run's PR, its head confirmed against the branch ref; a fork's
+// is not waited on, since the fork check stops it.
+async function fetchPull(github, repository, number, sleep) {
+  const sameRepo = (pull) => pull.head?.repo?.full_name === repository;
+  let read;
+  try {
+    read = await readPull(github, `/repos/${repository}`, number, sleep, sameRepo);
   } catch {
     throw new Stop("no-pr");
   }
+  if (!read.headConfirmed && sameRepo(read.pull)) {
+    throw new Stop("head-lag");
+  }
+  return read.pull;
 }
 
 // The PR a workflow_run belongs to. An empty `pull_requests` array is not a
@@ -200,17 +252,6 @@ async function resolveRunPull(github, repository, run) {
   return matches[0];
 }
 
-// The context gives the re-runner's login only, so it is matched by login.
-// A re-run keeps the event, so a stop here could otherwise turn an earlier
-// red check on the same SHA neutral: its reason has no skip mapping, and
-// an empty login stops too.
-function checkRerunnerLogin({ ids, logins }, deniedIds, triggeringActor, pool = ids) {
-  const rerunnerId = logins.get(String(triggeringActor).toLowerCase());
-  if (rerunnerId === undefined || !pool.has(rerunnerId) || deniedIds.has(rerunnerId)) {
-    throw new Stop("untrusted-rerunner");
-  }
-}
-
 const timeOf = (value) => (typeof value === "string" ? Date.parse(value) : Number.NaN);
 
 async function readOrRefuse(github, apiPath, reason = "untrusted-actor") {
@@ -224,6 +265,31 @@ async function readOrRefuse(github, apiPath, reason = "untrusted-actor") {
     throw new Stop(reason);
   }
   return body;
+}
+
+// The account that started this run attempt, read by id from this run's own
+// record, since a login can be released and registered by someone else. A
+// re-run keeps the event, so a stop here could otherwise turn an earlier red
+// check on the same SHA neutral: untrusted-rerunner has no skip mapping, and
+// a failed or malformed read stops with it too.
+async function readRerunner(github, repository, runId, runAttempt) {
+  const refuse = "untrusted-rerunner";
+  if (!RUN_ID.test(runId) || !RUN_ATTEMPT.test(runAttempt)) {
+    throw new Stop(refuse);
+  }
+  const own = await readOrRefuse(github, `/repos/${repository}/actions/runs/${runId}`, refuse);
+  if (String(own.id) !== runId || own.run_attempt !== Number(runAttempt) || !Number.isInteger(own.triggering_actor?.id)) {
+    throw new Stop(refuse);
+  }
+  return own.triggering_actor.id;
+}
+
+// The re-runner must be in pool and not denied.
+async function checkRerunner({ github, repository, runId, runAttempt, pool, deniedIds }) {
+  const rerunnerId = await readRerunner(github, repository, runId, runAttempt);
+  if (!pool.has(rerunnerId) || deniedIds.has(rerunnerId)) {
+    throw new Stop("untrusted-rerunner");
+  }
 }
 
 // The run at headSha ran the default branch's own code: no tag shares the
@@ -589,8 +655,8 @@ async function verifyReconcilerRerun({ github, repository, event, list, deniedId
 
 // app-label: the lanes App applying exactly that label to an issue starts the
 // lane; the label alone admits the issue. Any other App event stops. The
-// re-runner is the App itself or a listed human.
-function checkAppLabel({ event, list, deniedIds, triggeringActor, lanesAppId, appLabel }) {
+// re-runner is the App itself, listed, or a listed human.
+async function checkAppLabel({ github, repository, event, list, deniedIds, lanesAppId, appLabel, runId, runAttempt }) {
   if (event.action !== "labeled" || event.label?.name !== appLabel) {
     throw new Stop("bot-actor");
   }
@@ -598,8 +664,9 @@ function checkAppLabel({ event, list, deniedIds, triggeringActor, lanesAppId, ap
     throw new Stop("untrusted-actor");
   }
   console.log(`check-trusted-trigger: ${appLabel} from the lanes App`);
-  const rerunnerId = list.logins.get(String(triggeringActor).toLowerCase());
-  if (rerunnerId !== lanesAppId && (!list.humans.has(rerunnerId) || deniedIds.has(rerunnerId))) {
+  const rerunnerId = await readRerunner(github, repository, runId, runAttempt);
+  const isApp = rerunnerId === lanesAppId && list.ids.has(rerunnerId);
+  if (!isApp && (!list.humans.has(rerunnerId) || deniedIds.has(rerunnerId))) {
     throw new Stop("untrusted-rerunner");
   }
   return { ...stopped("ok"), proceed: "true" };
@@ -609,7 +676,7 @@ function checkAppLabel({ event, list, deniedIds, triggeringActor, lanesAppId, ap
 // (on issues, the account that applied the label) and the triggering actor, a
 // push only the triggering actor; no PR is read. require-kind human narrows
 // both to actors listed as human.
-function evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind, lanesAppId, appLabel }) {
+async function evaluateActors({ github, repository, eventName, event, list, deniedIds, requireKind, lanesAppId, appLabel, runId, runAttempt }) {
   if (eventName !== "workflow_dispatch" && eventName !== "issues" && eventName !== "push") {
     throw new Stop("no-pr");
   }
@@ -620,7 +687,7 @@ function evaluateActors({ eventName, event, list, deniedIds, triggeringActor, re
     lanesAppId !== null &&
     event.sender?.id === lanesAppId
   ) {
-    return checkAppLabel({ event, list, deniedIds, triggeringActor, lanesAppId, appLabel });
+    return checkAppLabel({ github, repository, event, list, deniedIds, lanesAppId, appLabel, runId, runAttempt });
   }
   const pool = requireKind === "human" ? list.humans : list.ids;
   if (eventName !== "push") {
@@ -631,7 +698,7 @@ function evaluateActors({ eventName, event, list, deniedIds, triggeringActor, re
       throw new Stop("untrusted-actor");
     }
   }
-  checkRerunnerLogin(list, deniedIds, triggeringActor, pool);
+  await checkRerunner({ github, repository, runId, runAttempt, pool, deniedIds });
   return { ...stopped("ok"), proceed: "true" };
 }
 
@@ -667,7 +734,7 @@ export async function evaluateTrigger({
     throw new Stop("no-pr");
   }
   if (requirePr === "false") {
-    return evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind, lanesAppId, appLabel });
+    return evaluateActors({ github, repository, eventName, event, list, deniedIds, requireKind, lanesAppId, appLabel, runId, runAttempt });
   }
   if (requirePr !== "true") {
     throw new Stop("no-pr");
@@ -683,7 +750,7 @@ export async function evaluateTrigger({
     if (!PR_NUMBER.test(prNumber ?? "")) {
       throw new Stop("no-pr");
     }
-    pull = await fetchPull(github, repository, prNumber);
+    pull = await fetchPull(github, repository, prNumber, sleep);
   } else if (eventName === "workflow_run") {
     const run = event.workflow_run;
     if (run?.head_repository?.full_name !== repository) {
@@ -703,6 +770,12 @@ export async function evaluateTrigger({
     !SHA.test(pull.base?.sha ?? "")
   ) {
     throw new Stop("no-pr");
+  }
+  // Lanes read the list and scripts from the base, so only the default branch
+  // is a trusted one; a payload without it cannot prove the base.
+  const defaultBranch = event.repository?.default_branch;
+  if (typeof defaultBranch !== "string" || !HEAD_REF.test(defaultBranch) || pull.base.ref !== defaultBranch) {
+    throw new Stop("untrusted-base");
   }
   if (actors.some((actor) => Number.isInteger(actor?.id) && deniedIds.has(actor.id))) {
     throw new Stop("bot-actor");
@@ -739,7 +812,7 @@ export async function evaluateTrigger({
     if (reconcilerWorkflow !== "" && String(triggeringActor).toLowerCase() === "github-actions[bot]") {
       await verifyReconcilerRerun({ github, repository, event, list, deniedIds, reconcilerWorkflow, runId, runAttempt, sleep });
     } else {
-      checkRerunnerLogin(list, deniedIds, triggeringActor);
+      await checkRerunner({ github, repository, runId, runAttempt, pool: ids, deniedIds });
     }
   }
   if (!isListed(ids, pull.user)) {

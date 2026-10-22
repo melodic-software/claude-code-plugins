@@ -1270,7 +1270,8 @@ Run ledger: \`<data-dir>/$(ledger_relpath)\` on the machine running this consume
     return 0
   }
   printf '%s\n' "$body" |
-    bash "$upsert" --issue "$issue" --marker "$CONSUMER_MARKER" --body-file - --repo "$TARGET_REPO" ||
+    bash "$upsert" --issue "$issue" --marker "$CONSUMER_MARKER" --body-file - --repo "$TARGET_REPO" \
+      ${APP_SLUG:+--app-slug "$APP_SLUG"} ||
     warn "the consumer's telemetry upsert failed (the restarts themselves are unaffected)"
 }
 

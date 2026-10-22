@@ -97,7 +97,8 @@ boundary.
    the spawn brief is orchestrate's to own, and this router suggests without ever launching, so
    `continue-in-background`'s explicit-intent launch gate is untouched by a yes here.* (Absent
    that skill: say that the work looks delegable and what a brief would have to carry, meaning
-   scope, turn and budget caps, and the return contract, then leave the spawn decision with the user.)
+   scope, turn and budget caps, a checkable completion condition (`/goal` or a Stop-hook check),
+   and the return contract, then leave the spawn decision with the user.)
 3. **Is there enough smart zone left, or is the remaining work simple enough for a degraded
    context, and does neither question 4 nor question 5 apply?** → continue in session.
    *Questions 4 and 5 do not depend on the zone, so their cases route there whatever the zone
@@ -141,6 +142,19 @@ leaving.
 
 We route by task: same phase or task compacts with a focus, unrelated work hands off when
 anything carries over and clears when nothing does, work that leaves the session hands off.
+
+- Mid-phase, hand bulk work to subagents before compacting, so the window fills with their short
+  returns instead of the raw material.
+- A cleared conversation stays resumable, so `/clear` loses nothing durable.
+- Handoff and questionnaire files stay where they are in the memory dir (handoffs in
+  `<memory_dir>/handoffs/`, questionnaires in
+  `<memory_dir>/<topic-slug>/questionnaire-<recipient-role-slug>.md`); none of the above moves them.
+
+- **Pointer**: for clearing a conversation and resuming it, see
+  <https://code.claude.com/docs/en/sessions#manage-context-within-a-session>
+- **As of**: 2026-10-20
+- **Recheck trigger**: the sessions page stops saying a cleared session is saved and resumable
+  with /resume
 
 - **Pointer**: for when context fills up, see
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>; for managing

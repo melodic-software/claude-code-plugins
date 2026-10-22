@@ -36,7 +36,7 @@ Checkout catches an undeliverable delivery address before payment, using the Loq
 
 ### Captured assumptions
 - Quality bar: production
-- Intent: second variant = speculative; existing structure: checkout has a pay step and no address check; upstream: none
+- Variation intent: second variant = speculative; existing structure: checkout has a pay step and no address check; upstream: none
 MD
 
 git add .

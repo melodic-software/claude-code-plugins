@@ -13,9 +13,11 @@ name: pr-unblock
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or
 # a red ci-status) whose head has no review yet. fix-ci: pr-unblock-dispatch.yml
-# also sends one per lanes App PR whose ci-status failed. All set
-# dispatcher-run-id; a
-# trusted human may dispatch with pr-number and activity alone. Every job
+# also sends one per lanes App PR whose ci-status failed. fix-docs:
+# pr-unblock-dispatch.yml also sends one per ready PR a person opened that
+# changes a Markdown file and never had a fix-docs run. All set
+# dispatcher-run-id; a trusted human may dispatch with pr-number and activity
+# alone. Every job
 # trusts the default branch tip, since a conflicting PR's base SHA is stale and
 # the dispatchers run from the tip.
 
@@ -35,7 +37,7 @@ on:
         description: What to unblock.
         required: false
         type: choice
-        options: [resolve-conflicts, address-feedback, review-dependency, fix-ci]
+        options: [resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-docs]
         default: resolve-conflicts
       dispatcher-run-id:
         description: The dispatcher run that sent this dispatch; empty for a human dispatch.
@@ -62,6 +64,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     # One per-PR queue shared by every write lane: it queues, never cancels.
     concurrency:
@@ -86,6 +89,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -113,6 +117,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -181,7 +186,8 @@ jobs:
 
   # review-dependency's model job holds contents: write, posts nothing, and
   # returns its verdict as structured output that the runner uploads; it
-  # pushes a fix only outside .github/ with [dependabot skip]. Its upstream
+  # pushes a fix only to npm or pip manifest and lock files outside .github/,
+  # with [dependabot skip]. Its upstream
   # release notes are untrusted text, so it holds no pull-requests or issues
   # write. The verdict job, with no model, holds those and acts on the
   # verdict: the round marker, a close (never a security update) with an
@@ -194,6 +200,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -216,6 +223,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -230,11 +238,12 @@ jobs:
       trusted-base: default-tip
       dependency-verdict: true
       dependency-run-sha256: ${{ needs.review-dependency.outputs.dependency-run-sha256 }}
+      dependency-head-sha: ${{ needs.review-dependency.outputs.head-sha }}
       # The model job's attempt names the verdict artifact, so "Re-run failed
       # jobs" on this job alone still downloads it.
       dependency-run-attempt: ${{ needs.review-dependency.outputs.dependency-run-attempt }}
 
-  # fix-ci is three jobs, so no model ever holds a write token. This one runs
+  # fix-ci is four jobs, so no model ever holds a write token. This one runs
   # only base code with a read-only token and checks out no PR head: it hands
   # the PR to a person once loop.fix-ci-rounds fixes were pushed, or writes
   # the failing checks' names, workflows, annotations and log ends to the
@@ -354,8 +363,9 @@ jobs:
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill reruns the failing checks, fixes
   # them and reruns them; the runner uploads its uncommitted edits as a patch.
-  # The run's own concurrency group already holds one fix-ci run per PR. A job
-  # group with the same name waits on its own run and never starts.
+  # It runs on the automations role's API key alone. The per-PR write queue
+  # holds it, never the run's own group, pr-unblock-fix-ci-<pr>: a job group
+  # with that name waits on its own run and never starts.
   fix-ci:
     needs: fix-ci-context
     if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
@@ -363,36 +373,81 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
+      role: automations
       lane: pr-unblock
       activity: fix-ci
       pr-number: ${{ inputs.pr-number }}
-      output-mode: patch
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       # Reproducing, fixing and rerunning several checks outlasts the default.
       timeout-minutes: 60
     secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # The push job: a script with no model that runs no head code. It checks
-  # the patch against the model job's SHA-256 and head, applies it, refuses
-  # .github/**, symbolic links and gitlinks, and pushes one commit without
-  # force. An empty or refused patch, or an escalated check, hands the PR to
-  # a person.
-  apply-ci-fix:
-    needs: fix-ci
+  # The subscription fallback, as a second call on new VMs: it runs only when
+  # fix-ci's key leg hit a credit stop or its key is empty, which fix-ci then
+  # reports as a handoff with no upload, lane record or check. It reads only
+  # those two outputs, each compared to a fixed string, and holds the OAuth
+  # token alone; fallback picks between two literals.
+  fix-ci-subscription:
+    needs: [fix-ci-context, fix-ci]
     if: >-
-      ${{ !cancelled() && (needs.fix-ci.outputs.patch-state == 'written'
-      || needs.fix-ci.outputs.patch-state == 'empty') }}
+      ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
+      && (needs.fix-ci.outputs.lane-class == 'credit-stop'
+      || needs.fix-ci.outputs.credential-present == 'false') }}
     permissions:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: fix-ci
+      fallback: ${{ needs.fix-ci.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
+      ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      timeout-minutes: 60
+    secrets:
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # The push job: apply-patch.mjs, a script with no model that runs no head
+  # code. It checks the patch against the model job's SHA-256 and head,
+  # applies it, refuses what patch-rules.json's ci-context row refuses, and
+  # pushes one commit without force. An empty or refused patch, or an
+  # escalated check, hands the PR to a person. The patch comes from whichever
+  # call ran the activity; a call that handed off left none.
+  apply-patch:
+    needs: [fix-ci-context, fix-ci, fix-ci-subscription]
+    if: >-
+      ${{ !cancelled() && ((needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'written'
+      || (needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'empty') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -401,16 +456,225 @@ jobs:
     with:
       role: automations
       lane: pr-unblock
-      activity: apply-ci-fix
+      activity: apply-patch
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      patch-state: ${{ needs.fix-ci.outputs.patch-state }}
-      patch-sha256: ${{ needs.fix-ci.outputs.patch-sha256 }}
-      patch-attempt: ${{ needs.fix-ci.outputs.patch-attempt }}
+      patch-state: ${{ needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state }}
+      patch-sha256: ${{ needs.fix-ci-subscription.outputs.patch-sha256 || needs.fix-ci.outputs.patch-sha256 }}
+      patch-attempt: ${{ needs.fix-ci-subscription.outputs.patch-attempt || needs.fix-ci.outputs.patch-attempt }}
       patch-activity: fix-ci
-      patch-head-sha: ${{ needs.fix-ci.outputs.head-sha }}
-      reply-attempt: ${{ needs.fix-ci.outputs.reply-attempt }}
+      patch-prepare: ci-context
+      # The head fix-ci-context gated, from a job that ran no head code; the
+      # read runner's own head-sha output is the run job's, which head code
+      # could forge. Both fix-ci calls refuse a context for another head, so a
+      # patch was made on this one. apply-patch compares it with the head its
+      # own trigger gate reads at apply time, and its push needs the branch
+      # still at that head.
+      patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      reply-attempt: ${{ needs.fix-ci-subscription.outputs.reply-attempt || needs.fix-ci.outputs.reply-attempt }}
+
+  # fix-ci's one retry one model rung up, in this same run: when apply-patch
+  # skipped rung-up (the run changed nothing and escalated only unfixed or
+  # not-reproducible checks), fix-ci runs again at model-rung 1 on the same
+  # context and head, with its own subscription fallback and apply-patch.
+  # Whatever the retry ends in reaches report-escalation, which hands the PR
+  # to a person unless the retry's patch applied cleanly; nothing here runs
+  # at rung 1 twice.
+  fix-ci-rung-up:
+    needs: [fix-ci-context, apply-patch]
+    if: >-
+      ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
+      && needs.apply-patch.outputs.rung-up == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: fix-ci
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
+      ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      model-rung: "1"
+      timeout-minutes: 60
+    secrets:
+      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  fix-ci-rung-up-subscription:
+    needs: [fix-ci-context, fix-ci-rung-up]
+    if: >-
+      ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
+      && (needs.fix-ci-rung-up.outputs.lane-class == 'credit-stop'
+      || needs.fix-ci-rung-up.outputs.credential-present == 'false') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: fix-ci
+      fallback: ${{ needs.fix-ci-rung-up.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
+      ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      model-rung: "1"
+      timeout-minutes: 60
+    secrets:
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  apply-patch-rung-up:
+    needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-subscription]
+    if: >-
+      ${{ !cancelled() && ((needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state) == 'written'
+      || (needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state) == 'empty') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: apply-patch
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      patch-state: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state }}
+      patch-sha256: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-sha256 || needs.fix-ci-rung-up.outputs.patch-sha256 }}
+      patch-attempt: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-attempt || needs.fix-ci-rung-up.outputs.patch-attempt }}
+      patch-activity: fix-ci
+      patch-prepare: ci-context
+      patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      # At rung 1 an escalation goes to a person: there is no rung above.
+      patch-model-rung: "1"
+      reply-attempt: ${{ needs.fix-ci-rung-up-subscription.outputs.reply-attempt || needs.fix-ci-rung-up.outputs.reply-attempt }}
+
+  # fix-docs is three jobs, so no model ever holds a write token. The model
+  # job: a read activity with no write token and no OIDC token in the job that
+  # runs head code. The skill fixes the changed Markdown files; the runner
+  # uploads its uncommitted edits as a patch. It runs on the automations
+  # role's API key alone. Drafts and held PRs skip in the config's
+  # applies-when, before any model turn.
+  fix-docs:
+    if: >-
+      inputs.pr-number != '' && inputs.activity == 'fix-docs'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: fix-docs
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      timeout-minutes: 60
+    secrets:
+      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
+  # only when fix-docs's key leg hit a credit stop or its key is empty, reads
+  # only those two outputs, each compared to a fixed string, and holds the
+  # OAuth token alone.
+  fix-docs-subscription:
+    needs: fix-docs
+    if: >-
+      ${{ !cancelled() && (needs.fix-docs.outputs.lane-class == 'credit-stop'
+      || needs.fix-docs.outputs.credential-present == 'false') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: fix-docs
+      fallback: ${{ needs.fix-docs.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      timeout-minutes: 60
+    secrets:
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # fix-docs's push job: the apply-patch activity under patch-rules.json's
+  # default row (fix-docs has no prepare mode). It runs only on a written
+  # patch: no change is the common case and needs no one. report-escalation
+  # does not need it, so a refused patch posts the pr-unblock / apply-patch
+  # check neutral and labels nothing. The patch and its head come from
+  # whichever call ran the activity; apply-patch still applies onto the head
+  # its own gate reads.
+  apply-docs-patch:
+    needs: [fix-docs, fix-docs-subscription]
+    if: >-
+      ${{ !cancelled() && (needs.fix-docs-subscription.outputs.patch-state || needs.fix-docs.outputs.patch-state) == 'written' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: apply-patch
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      patch-state: ${{ needs.fix-docs-subscription.outputs.patch-state || needs.fix-docs.outputs.patch-state }}
+      patch-sha256: ${{ needs.fix-docs-subscription.outputs.patch-sha256 || needs.fix-docs.outputs.patch-sha256 }}
+      patch-attempt: ${{ needs.fix-docs-subscription.outputs.patch-attempt || needs.fix-docs.outputs.patch-attempt }}
+      patch-activity: fix-docs
+      patch-head-sha: ${{ needs.fix-docs-subscription.outputs.head-sha || needs.fix-docs.outputs.head-sha }}
+      reply-attempt: ${{ needs.fix-docs-subscription.outputs.reply-attempt || needs.fix-docs.outputs.reply-attempt }}
 
   # GitHub starts no pull_request workflow on a conflicted PR, so a head the
   # lane could not resolve gets no CI and no sign why. This script job, with
@@ -452,25 +716,35 @@ jobs:
       - review-dependency
       - apply-dependency-verdict
       - fix-ci-context
-      - apply-ci-fix
+      - apply-patch
+      - apply-patch-rung-up
     # escalation-reason is set only by the write runner's own steps, the
     # base's reply, verdict and apply-patch scripts, and fix-ci-context's
     # base script. A later failure in that run (a failed verdict upload)
     # still escalates. At most one escalates: one activity runs per dispatch,
     # a reply, verdict or push job runs only after a model turn, and a model
-    # job, or fix-ci-context, escalates only before one.
+    # job, or fix-ci-context, escalates only before one. A rung-up stop
+    # escalates here too unless apply-patch-rung-up applied the retry's patch
+    # cleanly: its own reason, else ci-fix-escalated. On a cancelled run this
+    # always() branch fires, but the write workflow's run job skips, so no
+    # label is applied and ci-status stays red.
     if: >-
-      ${{ !cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
+      ${{ (!cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
       || needs.address-feedback.outputs.escalation-reason != ''
       || needs.publish-feedback.outputs.escalation-reason != ''
       || needs.review-dependency.outputs.escalation-reason != ''
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
-      || needs.apply-ci-fix.outputs.escalation-reason != '') }}
+      || needs.apply-patch.outputs.escalation-reason != ''))
+      || (always() && needs.apply-patch.outputs.rung-up == 'true'
+      && !(needs.apply-patch-rung-up.result == 'success'
+      && needs.apply-patch-rung-up.outputs.escalation-reason == ''
+      && needs.apply-patch-rung-up.outputs.patch-skip-reason == '')) }}
     permissions:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -488,7 +762,9 @@ jobs:
         || needs.review-dependency.outputs.escalation-reason
         || needs.apply-dependency-verdict.outputs.escalation-reason
         || needs.fix-ci-context.outputs.escalation-reason
-        || needs.apply-ci-fix.outputs.escalation-reason }}
+        || needs.apply-patch.outputs.escalation-reason
+        || needs.apply-patch-rung-up.outputs.escalation-reason
+        || needs.apply-patch.outputs.rung-up == 'true' && 'ci-fix-escalated' || '' }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       expected-upstream-head: >-
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''

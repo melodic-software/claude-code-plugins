@@ -1,7 +1,7 @@
 // Which paths an address-feedback fix may change, shared by the promote step
 // of .github/workflows/pr-run-activity-write.yml (which imports a SHA-256
 // pinned copy, so it imports nothing itself), publish-feedback.mjs,
-// address-feedback.mjs and apply-ci-fix.mjs.
+// address-feedback.mjs and apply-patch.mjs.
 
 export function isProtectedPath(path) {
   return /^\.github(\/|$)/i.test(String(path));

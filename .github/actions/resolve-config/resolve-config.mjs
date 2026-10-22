@@ -36,6 +36,8 @@ const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
 const CODEOWNERS_PATH = ".github/CODEOWNERS";
 const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
+// The multi-agent role map a role profile resolves through.
+const ROLE_MAP_PATH = "plugins/multi-agent/reference/defaults.yaml";
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -226,7 +228,7 @@ function modelOutputs(models) {
     "settings-json": modelSettings(models),
     "max-turns": String(models["max-turns"]),
     // run-claude-cli inputs: `default` has no --model to pass, so it is empty
-    // and the caller fails on it.
+    // and the caller fails on it. A role profile always resolves an alias.
     model: models.model === "default" ? "" : models.model,
     effort: models.effort ?? "",
   };
@@ -256,7 +258,9 @@ function outputsFor({ lane, selected }) {
     issues: selected.grant.issues,
     // Only a read grant cannot commit; any other value keeps the signed-commit check.
     "can-commit": String(selected.grant.contents !== "read"),
+    ...(selected["applied-by"]?.patch === undefined ? {} : { "applied-by-patch": selected["applied-by"].patch }),
     ...(selected.prepare === undefined ? {} : { prepare: selected.prepare }),
+    ...(selected.kind === "skill" ? { "permission-mode": selected["permission-mode"] ?? "dontAsk" } : {}),
     ...(selected["issue-dimensions"] === undefined
       ? {}
       : { "issue-dimensions": selected["issue-dimensions"], "timeout-minutes": String(selected["timeout-minutes"]) }),
@@ -285,6 +289,7 @@ function filesUnderBase(basePath, configPath, readRules = readOwn) {
     vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
     codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
     trustedActors: readJsonUnderBase(basePath, TRUSTED_ACTORS_PATH),
+    roleMap: readUnderBase(basePath, ROLE_MAP_PATH),
     laneRules: readRules("./lane-rules.json"),
     effectGrants: readRules("./effect-grants.json"),
     activityRules: readRules("./activity-rules.json"),
@@ -292,6 +297,10 @@ function filesUnderBase(basePath, configPath, readRules = readOwn) {
     patchRulesSchema: readRules("./patch-rules.schema.json"),
   };
 }
+
+// MODEL_RUNG as resolve()'s rung: empty is none, 0 or 1 that rung; anything
+// else is passed on for resolve() to refuse.
+const modelRung = (value) => (value === undefined || value === "" ? undefined : /^[01]$/.test(value) ? Number(value) : value);
 
 // The ResolvedConfig for the request env names, or a throw: a Rejection
 // (with its code) for a config or request the resolver refuses. `event` is the
@@ -310,6 +319,7 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
     configPath,
     basePath,
     pinnedDimensions: env.ISSUE_DIMENSIONS || undefined,
+    rung: modelRung(env.MODEL_RUNG),
   };
   if (absentAsNull && !laneHasActivity(files, request)) {
     return null;
@@ -360,6 +370,25 @@ export function loopFromBase(env) {
   const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
   const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
   return resolveLoop(filesUnderBase(basePath, configPath), { configPath });
+}
+
+// The base config's `red-main` leaf as set and `merge.agent-identity`, after
+// the same file checks as resolve(), for the post-merge red-main report. The
+// leaf's defaults have one copy, in
+// .github/scripts/post-merge-demotion-alert/red-main.mjs, which applies them.
+export function redMainFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  const doc = loadConfig(filesUnderBase(basePath, configPath), { configPath });
+  return { redMain: doc["red-main"] ?? {}, agentIdentity: doc.merge?.["agent-identity"] ?? "" };
+}
+
+// The base config's `branch-cleanup` leaf as set, likewise; its defaults have
+// one copy, in .github/scripts/branch-cleanup/rules.mjs.
+export function branchCleanupFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  return loadConfig(filesUnderBase(basePath, configPath), { configPath })["branch-cleanup"] ?? {};
 }
 
 // A run that is no lane activity resolves only its model route.

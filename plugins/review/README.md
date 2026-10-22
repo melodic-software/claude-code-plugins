@@ -90,7 +90,7 @@ Invoke via `@review:<agent>` or let Claude delegate.
 - **`/review:audit-enforceability <findings-file>`**. Read-only enforcement audit over ONE
   operator-named findings file: derives a class per finding, maps it to the cheapest deterministic
   rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture
-  test, hook, or llm-only), and writes one proposal stub per finding naming that rung and its
+  test, action-guard, or automated-review), and writes one proposal stub per finding naming that rung and its
   owner. It proposes a rung and never implements one.
 - **`/review:ratchet [<counter, rule or claim>]`**. Holds a count with a checked-in CI ceiling: a
   lint rule's violations, a suppression count, a verified performance counter, or a telemetry
@@ -158,7 +158,7 @@ It is not the approval-marker publish gate (#7956), and it does not cover
   when installed; every path works without them. Claude Code's bundled `/code-review` command and
   the managed Code Review GitHub App service are two further surfaces, distinct from the
   `code-review` marketplace plugin despite the shared name. **`/review` is one of them, not this
-  plugin**: per [code-review](https://code.claude.com/docs/en/code-review#review-a-diff-locally)
+  plugin**: per [code-review](https://code.claude.com/docs/en/code-review-local)
   (fetched 2026-08-10), "`/review` is an alias of `/code-review`; before v2.1.223, it was a separate
   command that ran a single-pass, read-only review of a GitHub pull request." Recheck when that
   page changes the `/review` alias note. A bare `/review` is that bundled reviewer, so name this plugin's skills by their namespaced commands
