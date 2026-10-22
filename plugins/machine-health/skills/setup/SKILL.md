@@ -132,10 +132,16 @@ shipped catalog, no remediations approved), so an absent overlay or absent appro
    else `$env:USERPROFILE\Documents\MachineHealth`.
 6. **Last monthly run** (`<StateBase>/logs/monthly-run-*.status.json`, written by the Task Scheduler
    wrapper). INFO when there is none: no fallback task has run, and a Desktop task writes no status
-   file. Otherwise read the newest one (the file names sort by run time): PASS when `ok` is true;
+   file. Otherwise read the newest one (the file names sort by run time) and show its run stamp,
+   the UTC `<runStamp>` in its name. FAIL when that stamp is more than 35 days old: a run was
+   missed, or hung and was stopped before it wrote a status file. Else PASS when `ok` is true;
    FAIL when it is false, naming each part that failed (`exit_code` not 0, `is_error` not false,
    `marker_found` false, `latest_newer` false, `timed_out` true), with the `.stdout.json` and
-   `.stderr.log` beside it as the place to look.
+   `.stderr.log` beside it as the place to look. Add a note when `streams_incomplete` is true: a
+   process the run left behind held its output open, so the saved output may be cut short. When
+   `<StateBase>/scheduler/monthly-run.ps1` exists, INFO when its SHA-256 differs from
+   `${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/monthly-run.ps1`: the task runs an older wrapper,
+   and rerunning `schedule` refreshes the copy.
 
 ## `apply` (idempotent)
 
@@ -277,9 +283,10 @@ created before asking.
 1. Present it: a local task named `machine-health-monthly`, working folder `<StateBase>`,
    instructions `/machine-health:audit on-demand --scheduled`, Custom schedule `0 9 1 * *` (local
    time, minute hour day-of-month month day-of-week).
-2. Ask which permission mode, offering exactly two, beside the tools the audit uses (the
-   PowerShell or Bash tool to run its scripts, Read for its references, Write and Edit for
-   `<StateBase>/TODO.md` and custom checks):
+2. Ask which permission mode, offering exactly two, beside the tools a scheduled audit uses (the
+   PowerShell or Bash tool to run its scripts as `pwsh -NoProfile -File`, Read for its references,
+   and Write or Edit for `<StateBase>/TODO.md` only: under `--scheduled` it authors no custom
+   check):
    - **Auto** (recommended): the run proceeds without prompts.
    - **Manual plus one Run now**: after creating the task, the owner clicks **Run now**, watches
      for prompts and answers each with "always allow", so later runs do not stall on them.
@@ -293,17 +300,26 @@ created before asking.
   computer awake, one catch-up within seven days) or the permission modes a task can take.
 
 **Task Scheduler fallback** (no Desktop app): a monthly task that runs a copied wrapper, which calls
-`claude -p "/machine-health:audit on-demand --scheduled" --permission-mode auto --permission-prompts none --output-format json`
+`claude -p "/machine-health:audit on-demand --scheduled" --permission-mode dontAsk --allowedTools Read "Edit(/TODO.md)" "Bash(pwsh -NoProfile -File *)" "PowerShell(pwsh -NoProfile -File *)" --disallowedTools WebFetch WebSearch --strict-mcp-config --output-format json`
 under the wrapper's time limit (its `-TimeoutSeconds` default) and records each run in `<StateBase>/logs/monthly-run-<runStamp>.status.json`
-(read by `check` step 6). The permission flags deny anything that would prompt instead of stalling;
-they become `--permission-mode dontAsk` with an exact `--allowedTools` list once the audit's tools
-are enumerated.
+(read by `check` step 6). dontAsk denies, without prompting, every call those rules do not allow.
+The allowed tools are the scheduled audit's: Read, Edit or Write of `<StateBase>/TODO.md` (the
+wrapper starts the run in `<StateBase>`, where a command-line `/path` rule is anchored), and
+`pwsh -NoProfile -File` through the Bash or PowerShell tool. WebFetch and WebSearch are denied and
+no MCP server loads. The owner's own `permissions.allow` rules still apply under dontAsk, so a
+tool those rules allow runs here too.
 
 1. Present the task: the `schtasks` command in step 2, which names it `machine-health monthly`,
    runs it only while the owner is logged on (`/it`), and runs
    `pwsh -NoProfile -File <StateBase>\scheduler\monthly-run.ps1` on the schedule its `/sc`, `/d`
    and `/st` arguments set. Refuse the fallback when `<StateBase>` or the plugin root holds a
-   control character or a single quote: the command quotes both in single quotes.
+   control character or a single quote: the command quotes both in single quotes. Refuse it too
+   when `${CLAUDE_PLUGIN_DATA}` ends in `-inline`: a `--plugin-dir` session's data directory is not
+   the one the task's `claude -p` run writes, so `latest_newer` could never hold. And refuse it
+   when `<StateBase>` sits under a cloud sync root, where the audit writes no state: run through
+   the PowerShell tool
+   `. '${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/windows/lib/Assert-StateBaseLocation.ps1'; (Assert-StateBaseLocation -Path '<StateBase>').Synced`
+   and refuse on `True`.
 2. On yes, run through the PowerShell tool (Git Bash rewrites slash-led arguments such as
    `/create` as paths; under Bash, run it only with `MSYS_NO_PATHCONV=1` set):
    `New-Item -ItemType Directory -Force -Path '<StateBase>\scheduler' | Out-Null; Copy-Item -LiteralPath '${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/monthly-run.ps1' -Destination '<StateBase>\scheduler\monthly-run.ps1'; $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source; schtasks /create /f /tn 'machine-health monthly' /sc MONTHLY /d 1 /st 09:00 /it /tr ('"{0}" -NoProfile -File "{1}"' -f $pwsh, '<StateBase>\scheduler\monthly-run.ps1')`
@@ -315,12 +331,18 @@ are enumerated.
    `pwsh -NoProfile -File '<StateBase>\scheduler\monthly-run.ps1'`, then run `check` and report
    step 6.
 
-- **Pointer**: print mode and the `--permission-mode`, `--permission-prompts` and `--bare` flags are
-  in [CLI reference, "CLI flags"](https://code.claude.com/docs/en/cli-reference#cli-flags); the
+- **Pointer**: print mode and the `--permission-mode`, `--allowedTools`, `--disallowedTools`,
+  `--strict-mcp-config` and `--bare` flags are in
+  [CLI reference, "CLI flags"](https://code.claude.com/docs/en/cli-reference#cli-flags); the
   wrapper never passes `--bare`, which skips plugin and skill loading.
-  **As of**: 2026-10-21. **Recheck trigger**: a
+  **As of**: 2026-10-22. **Recheck trigger**: a
   [Claude Code CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entry
   makes `--bare` the `-p` default or adds a `--no-bare`-style flag.
+- **Pointer**: what dontAsk denies and what it still runs, how a command-line `/path` rule is
+  anchored, and that file permissions consult `Edit(path)` rules for writes are in
+  [Configure permissions](https://code.claude.com/docs/en/permissions).
+  **As of**: 2026-10-22. **Recheck trigger**: that page changes whether dontAsk runs tools the
+  settings `permissions.allow` rules approve, or where a command-line `/path` rule is anchored.
 
 ## Output
 

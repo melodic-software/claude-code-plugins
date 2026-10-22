@@ -14,7 +14,8 @@ Describes what discovery does, what counts as "straightforward" vs "needs approv
    compares; it writes no catalog entry and no `TODO.md` line itself.
 6. **Act on the proposals after the run.** A straightforward proposal becomes a custom check the
    skill writes under `<StateBase>/scripts/<os>/checks/` and registers in the catalog overlay. Any
-   other proposal becomes a `<StateBase>/TODO.md` entry for the human to decide on.
+   other proposal becomes a `<StateBase>/TODO.md` entry for the human to decide on. A `--scheduled`
+   run authors and registers nothing: every proposal becomes a `TODO.md` entry.
 7. **Surface both kinds** in the report under "Newly discovered checks" with rationale.
 
 ## Straightforward vs. needs approval
@@ -36,7 +37,9 @@ Anything else lands in `<StateBase>/TODO.md` as a proposal for human review: new
 
 ## How the skill modifies itself
 
-**Adding a check:**
+**Adding a check** (never in a `--scheduled` run, which has no one to review a check written from
+machine-derived text: it records the proposal in the report and `<StateBase>/TODO.md`, and writes
+no script and no overlay entry):
 
 1. Create `<StateBase>/scripts/<os>/checks/Test-<Thing>.ps1`. Use an existing check as template: set `$id`, `$category`, `$commands`, `$FailureSummary` and `$CheckBody`, then dot-source `Invoke-HealthCheckEnvelope.ps1`, which owns the catch, the `UNKNOWN` fallback and the result write (contract in the script header).
 2. Append a full entry to the overlay at `<StateBase>/catalog/checks.local.jsonc` with `added_on: <run_id_date>`, `crash_count: 0`, `identical_streak: 0`. See `catalog-overlay.md` § Custom checks.

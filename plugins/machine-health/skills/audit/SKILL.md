@@ -61,7 +61,10 @@ Other runtime parameters the caller passes (via slash-command arguments, schedul
 `--scheduled` marks an unattended run; both monthly schedulers pass it. It adds
 `-SampleSeconds 60 -SkipBanner` to the orchestrator call, which sets the `top-processes` sampling
 window; the [elevated pass](#elevated-pass) is never offered; and the short report (step 8) is the
-last thing the run prints.
+run's whole final message. Nobody is present to review what the run writes, and discovery reads
+machine-derived text, so the only file the session writes is `<StateBase>/TODO.md`: discovery
+records every proposal in the report and `TODO.md`, and writes no custom check script and no
+catalog overlay entry; deprecations and demotions are proposed in `TODO.md` too.
 
 ## OS detection and routing
 
@@ -106,8 +109,15 @@ Routing table:
    & (Join-Path $skillRoot 'scripts/windows/Invoke-MachineHealthCheck.ps1') -OutputBase $reportRoot -StateBase $stateRoot -RunMode weekly
    ```
 
+   Under `--scheduled`, run this instead, with the resolved roots typed in; the Task Scheduler
+   wrapper allows shell commands only in this `pwsh -NoProfile -File` form:
+
+   ```text
+   pwsh -NoProfile -File '${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/windows/Invoke-MachineHealthCheck.ps1' -OutputBase '<report-root>' -StateBase '<state-root>' -RunMode <mode> -SampleSeconds 60 -SkipBanner
+   ```
+
    The orchestrator dispatches checks under per-check 90s timeouts, collects JSON results, applies the upward-only trend adjustments and the custom-check clamp, and, on non-dry runs, dispatches authorized remediations with before/after logging.
-5. **Receive the structured result.** When the run reports a `state-location` result, its state folder sits under a cloud sync root and nothing was written there: write no `TODO.md` and no custom check, and go to step 6. Otherwise run discovery per `reference/shared/discovery-guide.md`. Propose 1–3 OS-appropriate new checks. Straightforward read-only ones may be implemented as custom checks (script under `<StateBase>/scripts/<os>/checks/`, registered in the catalog overlay); anything needing new permissions or remediation lands in `<StateBase>/TODO.md` for human approval. Checks broadly useful to every consumer are best contributed to the plugin itself.
+5. **Receive the structured result.** When the run reports a `state-location` result, its state folder sits under a cloud sync root and nothing was written there: write no `TODO.md` and no custom check, and go to step 6. Otherwise run discovery per `reference/shared/discovery-guide.md`. Propose 1–3 OS-appropriate new checks. Straightforward read-only ones may be implemented as custom checks (script under `<StateBase>/scripts/<os>/checks/`, registered in the catalog overlay), except under `--scheduled`, where every proposal goes to `<StateBase>/TODO.md` and nothing is authored or registered; anything needing new permissions or remediation lands in `<StateBase>/TODO.md` for human approval. Checks broadly useful to every consumer are best contributed to the plugin itself.
 6. **Render the markdown report** from `reference/shared/report-template.md` into `<OutputBase>/reports/health-<UTC-timestamp>.md` (one file per run, so a same-day rerun does not overwrite the earlier report).
 
    When the severity spread or trend deltas would read better visually, also generate a self-contained static HTML view of that report (color-coded CRIT/WARN/UNKNOWN, no remote fetch). The markdown `.md` report stays the durable record.
@@ -121,12 +131,19 @@ Routing table:
    & (Join-Path $skillRoot 'scripts\windows\Format-ShortReport.ps1') -LatestPath (Join-Path $stateRoot 'state\latest.json')
    ```
 
-   and relay its output verbatim, at most 12 lines: host and run id, elevation, severity counts
+   Under `--scheduled`, run this instead, in the same `pwsh -NoProfile -File` form as step 4:
+
+   ```text
+   pwsh -NoProfile -File '${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/windows/Format-ShortReport.ps1' -LatestPath '<state-root>/state/latest.json'
+   ```
+
+   Relay its output verbatim, at most 12 lines: host and run id, elevation, severity counts
    and the delta against the prior run, the worst three CRIT or WARN summaries (a clean run may
    still carry `UNKNOWN` findings, counted there), the intruder headline, the largest folder, and
    the report and page paths. Its first line is always `machine-health checkup <host> <run_id>`,
-   and an unattended caller looks for it in the run's final message, so under `--scheduled`
-   nothing follows the short report. When step 5 saw a `state-location` result, latest.json is not
+   and an unattended caller requires it as the first line of the run's final message, naming
+   this run's `run_id`. So under `--scheduled` the final message is the script's output alone:
+   nothing before or after it, no decision-page sentence, and no code fence around it. When step 5 saw a `state-location` result, latest.json is not
    this run's: skip the script and print the fixed first line from the orchestrator's output, the
    `state-location` summary quoted as data, and the report path.
 
