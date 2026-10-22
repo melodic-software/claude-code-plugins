@@ -70,6 +70,11 @@ export const CI_WORKFLOWS = new Set([
 // (reconciler-workflow) and that mint no broker token. Each starts on
 // workflow_run from main, so its runs are listed by workflow, not by PR head.
 export const RECORDED_LANES = [".github/workflows/pr-verify.yml"];
+// The floor-label run an issue's opening starts. A first attempt that failed
+// (most often on a rate limit) left the issue unlabeled, and nothing else
+// starts it again, so its failed jobs are re-run once. Adding the label is
+// idempotent, so the re-run is safe whatever the failure was.
+export const INTAKE_LABEL = ".github/workflows/intake-label-needs-triage.yml";
 // The lane step that judges the head. A run that reached it may have judged,
 // and whoever can cancel it (actions: write) can stop or delete the verdict
 // before it lands, so a re-run would let them have the same head judged again:
@@ -128,6 +133,8 @@ function ciRunsByWorkflow(runs) {
 }
 
 const isLost = (r, since) => r.status === "completed" && LOST.has(r.conclusion) && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
+const isFailedIntake = (r, since) =>
+  r.path === INTAKE_LABEL && r.event === "issues" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isLostLane = (r, since) => r.event === "workflow_run" && r.head_branch === "main" && SHA.test(r.head_sha ?? "") && isLost(r, since);
 // A failed run whose failed jobs may be re-run now, if its failures are infra only.
 const isRetryable = (r, now) => reconcilerRetries(r, now) && now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES[r.run_attempt - 1] * 60_000;
@@ -137,6 +144,9 @@ const lostNow = (item, r, since) => {
   }
   if (item.kind === "infra") {
     return r.status === "completed" && r.conclusion === "failure" && r.run_attempt === item.attempt;
+  }
+  if (item.kind === "intake") {
+    return isFailedIntake(r, since);
   }
   return item.kind === "lane" ? isLostLane(r, since) : isLost(r, since);
 };
@@ -306,6 +316,30 @@ async function plan({ repo, call, say, since, now, readStatus }) {
     }
   }
 
+  // A failed floor-label run takes no place: it is one short job, not CI.
+  const intake = [];
+  try {
+    const listed = await paginate(
+      async (...args) => {
+        const page = await call(...args);
+        if (!Array.isArray(page?.workflow_runs)) {
+          throw new Error("its run listing is not a page of runs");
+        }
+        return page.workflow_runs;
+      },
+      `/repos/${repo}/actions/workflows/${INTAKE_LABEL.slice(INTAKE_LABEL.lastIndexOf("/") + 1)}/runs?created=${created}&status=failure`,
+      LANE_RUN_PAGES,
+    );
+    intake.push(
+      ...listed
+        .filter((r) => isFailedIntake(r, since))
+        .sort(byAge)
+        .map((r) => ({ kind: "intake", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha })),
+    );
+  } catch (error) {
+    noteFailure(INTAKE_LABEL, error);
+  }
+
   // Every item takes one place: a PR's CI set, or one lane run.
   let room = Math.max(0, MAX_IN_FLIGHT - inFlight);
   const items = [];
@@ -325,6 +359,7 @@ async function plan({ repo, call, say, since, now, readStatus }) {
       say(`lane run ${lane.id} (${lane.path}): deferred, ${MAX_IN_FLIGHT} re-runs in flight`);
     }
   }
+  items.push(...intake);
   return { items, failed };
 }
 
@@ -333,7 +368,7 @@ async function act({ repo, call, say, since, sleep, items }) {
   let failed = 0;
   let wrote = false;
   for (const item of items) {
-    const where = item.kind === "lane" ? "lane" : `#${item.pr}`;
+    const where = item.kind === "lane" || item.kind === "intake" ? item.kind : `#${item.pr}`;
     try {
       if (item.kind === "lane" && item.record !== rerunRecordName(item.id, item.head)) {
         throw new Error("the plan names no record for it");
@@ -343,7 +378,7 @@ async function act({ repo, call, say, since, sleep, items }) {
         say(`${where}: run ${item.id} changed since the listing; left alone`);
         continue;
       }
-      if (item.kind !== "lane") {
+      if (item.kind !== "lane" && item.kind !== "intake") {
         // A push since the listing makes this run obsolete, and re-running it
         // would cancel the new head's CI in the PR's concurrency group.
         const current = await call("GET", `/repos/${repo}/pulls/${item.pr}`);
@@ -356,9 +391,13 @@ async function act({ repo, call, say, since, sleep, items }) {
         await sleep(WRITE_GAP_MS);
       }
       wrote = true;
-      if (item.kind === "infra") {
+      if (item.kind === "intake" || item.kind === "infra") {
         await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun-failed-jobs`);
-        say(`${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}, which failed on infra only`);
+        say(
+          item.kind === "intake"
+            ? `${where}: re-ran the failed jobs of floor-label run ${item.id}, whose first attempt failed`
+            : `${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}, which failed on infra only`,
+        );
         continue;
       }
       await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun`);

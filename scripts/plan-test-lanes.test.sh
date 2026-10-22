@@ -188,9 +188,9 @@ plan -- plugins/animation/requirements.txt
 is "$(suites python | tr '\n' ' ')" "plugins/p/test_p.py plugins/q/test_q.py "
 check "the animation lock test-python installs is a Python pin" $?
 
-# 925 suite-seconds would take ceil(925/180) = 6 legs; test-python stops at 4.
-# Longest first onto the least-loaded leg: p, r, s and q open the four legs,
-# then t joins q (100), u joins s (110), v joins r (190) and w joins q and t (195).
+# 925 suite-seconds would take ceil(925/180) = 6 legs; test-python stops at 5.
+# Longest first onto the least-loaded leg: p, r, s, q and t open the five legs,
+# then u joins t (95), v joins q (100) and w joins s (110).
 cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
 for s in r s t u v w; do mk "plugins/$s/test_$s.py" "assert True"; done
 printf '%s\n' "plugins/r/test_r.py 190" "plugins/s/test_s.py 110" "plugins/t/test_t.py 95" \
@@ -198,9 +198,9 @@ printf '%s\n' "plugins/r/test_r.py 190" "plugins/s/test_s.py 110" "plugins/t/tes
 plan -- .python-version
 for s in r s t u v w; do rm -rf "${repo:?}/plugins/$s"; done
 cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
-is "$(key python_legs)" "[0,1,2,3]" &&
-  grep -q 'python: 8 suite(s), 925 suite-seconds, 4 leg(s): 200s/1 270s/2 200s/2 255s/3' "$ERR"
-check "test-python packs by suite-seconds onto at most 4 legs, longest first to the least-loaded leg" $?
+is "$(key python_legs)" "[0,1,2,3,4]" &&
+  grep -q 'python: 8 suite(s), 925 suite-seconds, 5 leg(s): 200s/1 190s/1 170s/2 180s/2 185s/2' "$ERR"
+check "test-python packs by suite-seconds onto at most 5 legs, longest first to the least-loaded leg" $?
 
 plan -- lib/w.mjs
 is "$(suites bash)" "lib/w.test.sh" && is "$(key node)" false

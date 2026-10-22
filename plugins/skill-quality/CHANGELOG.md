@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.2] - 2026-10-22
+
+### Changed
+
+- The evals schema's `id` description now says to give a new case a slug id (its kebab-case name) rather than the next integer, so parallel pull requests never claim the same id ([#8464](https://github.com/melodic-software/claude-code-plugins/issues/8464)).
+
 ## [0.31.1] - 2026-10-22
 
 ### Fixed

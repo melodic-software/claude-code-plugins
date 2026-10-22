@@ -1214,7 +1214,7 @@ jobs:
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
           && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
         continue-on-error: true
-        uses: anthropics/claude-code-action@a5a423f75c251dcbff8a74e99f83b2cb03c72bfa # v1.0.256
+        uses: anthropics/claude-code-action@6b6870e649b5ff408753befeaee5fc7989d4e6a9 # v1.0.258
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1467,13 +1467,14 @@ jobs:
       - name: Record the lane outcome
         id: lane-record
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
         with:
           outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
           execution-file: >-
             ${{ steps.act-skill.outputs.execution_file
             || format('{0}/claude-execution-output.json', runner.temp) }}
           lane: ${{ inputs.lane }}
+          lane-id: ${{ inputs.lane }}
           credential: ${{ steps.credential.outputs.name }}
           max-turns: ${{ steps.config.outputs.max-turns }}
 

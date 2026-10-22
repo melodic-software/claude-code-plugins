@@ -1,5 +1,160 @@
 # Changelog for the PR pipeline convention
 
+## [3.5.1] - 2026-10-22
+
+### Fixed
+
+- pr-merge's `post-merge-dispatch` job re-runs a red full run it dispatched once before the
+  demotion alert judges it, when the run was created within `red-main.confirm-wait-minutes` plus
+  50 minutes (90 by default) and demotes by the affected-set rule, not only inside a lane merge's
+  attribution window. The alert demotes only when that re-run fails too.
+
+## [3.5.0] - 2026-10-22
+
+### Changed
+
+- resolve-config accepts `merge-base`, `review-threads` and `dependency-review` on a `read` skill
+  that hands its change on as a patch (`applied-by.patch`), as the Activities section already
+  describes, so those activities can move to the read runner. Without `applied-by.patch` the
+  shape is still refused
+  ([README.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+
+## [3.4.2] - 2026-10-22
+
+### Fixed
+
+- work-unblock's sweep re-fires an `agent-ready` issue whose work-resolve-issue run was cancelled
+  in `pick-slot` (its timeout while it waited in the WIP cap step) after `admit` passed and before
+  `resolve-issue` ran, like a failed run and under the same once-per-workflow-version re-fire
+  record ([run 39711139895](https://github.com/melodic-software/claude-code-plugins/actions/runs/39711139895)).
+  A run a newer `agent-ready` run replaced while it waited ran no job and is still not re-fired.
+
+## [3.4.1] - 2026-10-22
+
+### Fixed
+
+- Lane scripts send a GitHub REST GET again when it is answered 5xx, answered 200 with an empty or unparsable body, or fails on the network, after about 2, 4 and 8 seconds with jitter, instead of failing the step on the first bad answer. Each attempt is aborted after 20 seconds, and the time failed attempts take plus the waits is capped at 60 seconds per API client. POSTs, 4xx answers, rate limits and other thrown errors are not retried here, and a retry line never prints an error's message.
+- pr-verify, the feedback dispatcher and the workflow_run trigger gate read a commit's pull requests through GraphQL's `associatedPullRequests` when `GET /commits/{sha}/pulls` still fails after those retries, and apply the same open, same-repository and base filters to the result.
+
+## [3.4.0] - 2026-10-22
+
+### Added
+
+- `merge.verify-authors: lane-or-owner` judges the lanes App's pull requests and the owner
+  account's, matched by account id, so an idle owner pull request the pr-merge lane adopts has a
+  verdict. This repository sets it.
+
+### Changed
+
+- The verifier's spec now counts text a trusted human wrote even when that human opened the
+  pull request, so an owner pull request whose closing issue the owner wrote is judged against
+  that issue. Text by the lanes App, any other Bot or App, or an untrusted account is still left
+  out.
+
+### Fixed
+
+- The issue lane's new or changed scripts land executable. apply-patch now makes each file that
+  ends in `.sh` or starts with `#!` mode 100755 after every refusal passes, under the new
+  `script-exec-bit` row key that the `issue` row sets. The model still sets no mode:
+  `new-executable` refuses any executable bit the patch itself carries. Before this, the patch
+  committed such files as 100644 and check-affected's exec-bit check failed
+  ([run 39729937593](https://github.com/melodic-software/claude-code-plugins/actions/runs/39729937593)).
+  A resumed run keeps the executable scripts an earlier lane commit landed.
+- Inside an issue lane's patch run, `check-affected.sh --uncommitted` gives its snapshot the same
+  bits: the checks wrapper sets `CHECK_AFFECTED_SCRIPT_EXEC_BIT=1`, so exec-bit passes on a new
+  script. A run that commits gets no such flag and still has to chmod its own scripts.
+- The `issue` row now refuses `instruction-path`, so the issue lane pushes no plugin hooks,
+  monitors or bin, and no agent instruction file. A row that sets `script-exec-bit` must refuse it.
+
+## [3.3.3] - 2026-10-22
+
+### Fixed
+
+- Write lanes deny git commands: they reach git only through the base wrappers. In `merge-base`
+  mode, whose skill resolves the merge with git, the lane denies git's global options, the
+  subcommands that read config or reach a remote, absolute and parent paths, quotes, and the flags
+  or paths that read a file outside the index (including `blame` and `grep`) or run a diff or
+  text-conversion program
+  ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+- check-wip-cap treats a GitHub search answer with `incomplete_results: true` as unknown, not as a failed read: new admissions pause whether or not `pause-from` is set or reached, with `admission_basis` and `admission_reason` `search-incomplete` and a `check-wip-cap` warning, so work-unblock defers newly unblocked issues instead of admitting without limit on a false empty. A read that fails without that answer still fails open, the queued cap still pauses only past `pause-from`, and no run pause changes.
+- check-wip-cap's over-cap warning names why the lane keeps running (the base config could not be read, `pause-from` is not set, or `pause-from` not reached), and work-unblock's deferral log names its reason instead of always citing the queued cap.
+
+## [3.3.2] - 2026-10-22
+
+### Fixed
+
+- The verifier verdict rules say a failed read of a verify record, run time or diff refuses `verify:unreadable` rather than keeping `verify:earlier-fail`, except a diff GitHub answers with 404, which still keeps it (#9063).
+
+- fix-docs runs again, now in the read runner's default `dontAsk` mode instead of `auto`, which
+  run-claude-cli's subprocess env scrub forced back to the default mode
+  ([run 39723040443](https://github.com/melodic-software/claude-code-plugins/actions/runs/39723040443)).
+  Its Bash runs only explicit allow rules: each `ai-slop:audit` script by absolute path under
+  `.lane/plugins`, bare and double-quoted, plus `sha256sum` and `mkdir -p` in `.lane/scratch`
+  for the fix flow's digests, and `Edit(./.lane/scratch/**)` so a redirect into the scratch
+  directory is approved. It denies `git`, the `user-scope.sh` script, `NotebookEdit` on the
+  staged plugin and the write lanes' shell deny set. The staging step also makes `.lane/prompt.md`
+  and `.lane/` read-only, so a script's `--out` lands only in `.lane/scratch`.
+- Write lanes also deny `wc`, a read-only command that runs with no allow rule and can print
+  file contents in its errors.
+
+## [3.3.1] - 2026-10-22
+
+### Fixed
+
+- The read runner's permission-mode check accepts a leg whose CLI reports `default` when `dontAsk` was asked for, so read-runner skills such as fix-ci no longer fail after their model leg ([#8964](https://github.com/melodic-software/claude-code-plugins/pull/8964)). The launcher's `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` forces the CLI into `default`, and the launcher always passes `--permission-prompts none`, under which Claude Code denies every call no rule allows ([CLI reference](https://code.claude.com/docs/en/cli-reference)). Every other mismatch still fails, and a test fails any launcher pin not yet checked to pass that flag.
+
+- The pr-unblock and feedback dispatchers wait out a rate limit on the repository's job token instead of failing at once: retry-after when GitHub sends it, else until one second past the reset when no requests remain, else one minute, then the call is sent once more. Waits are capped at six minutes per run, summed; a reset further away fails at once and names the reset time.
+- The lost-run reconciler re-runs, once, the failed jobs of an intake-label-needs-triage run whose first attempt failed within its lookback, so an issue the floor label missed (a rate limit, most often) gets it on the next tick.
+
+## [3.3.0] - 2026-10-22
+
+### Added
+
+- `models.issue-dimensions.complexity-profiles` maps an issue's Complexity to the profile its run starts on. This repository sends high Complexity to the new `code-xhigh` profile (Opus at effort xhigh); low, medium and unset keep the activity's default.
+- A profile's `escalate-to` names the profile one model rung up, which a run resolved at resolve-config's new `model-rung` input 1 takes instead. `code-fix` escalates to `code-xhigh`; nothing escalates past it.
+- fix-ci retries once one rung up: a run that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips apply-patch with the new `rung-up` reason, and the same pr-unblock run runs fix-ci and apply-patch again at `model-rung` 1. Unless that retry's patch applies cleanly, the pull request goes to a person, as do `protected-path`, `weaken-required` and `flaky` escalations.
+
+- A top-level `adoption` section (`idle-hours`, default 24; `owner-ids`, default empty) names
+  owner accounts whose pull requests the lanes adopt. pr-unblock-dispatch starts `fix-ci` for a
+  non-draft owner PR whose `ci-status` failed once its last update and its head commit are both
+  `idle-hours` old, with no `do-not-merge`, `needs-human` or tracker human-gated label and no
+  body line starting `Hold:` (babysit's reading: any case, after any whitespace, a bare CR ends
+  a line). This repository adopts kyle-sexton's PRs after 24 hours (owner decision Q22).
+
+### Changed
+
+- The Fable rung above `code-xhigh` stays off: no profile names `fable` or `best`, pending an owner decision on a per-week Fable allowance for the lanes.
+
+- While `adoption.owner-ids` lists anyone, the tracker's human-gated label also holds lanes App
+  PRs from `fix-ci`. A base `.work-item-tracker.json` that is not JSON holds only the adopted
+  owner PRs, and fails the dispatcher run; lanes App PRs still get `fix-ci`.
+
+- The pr-pipeline README's WIP cap section names each `agent-ready` writer and whether the queued cap paces it: only work-unblock's new labels are paced.
+
+### Fixed
+
+- fix-docs is paused: its pr-unblock slot is `enabled: false`, so a dispatched run skips at
+  resolve-config before any model turn, and the broker grants it nothing. Under run-claude-cli's
+  subprocess env scrub the CLI forces the default permission mode instead of `auto`, so every
+  fix-docs run failed its permission-mode check after spending a model leg
+  ([run 39723040443](https://github.com/melodic-software/claude-code-plugins/actions/runs/39723040443)).
+
+- The queued count no longer counts an issue twice when a person edits its lane PR's first body line: an open lane PR whose first line names no issue is matched by its `work-resolve-issue/issue-<n>-...` head branch, at one pull request read each.
+- work-unblock's `label-unblocked` job runs one at a time across the repository, so a burst of closes or a close run beside the hourly sweep can no longer each admit the queued cap's whole room.
+
+## [3.2.0] - 2026-10-22
+
+### Added
+
+- The lost-run reconciler re-runs the failed jobs of a PR CI run that failed only from an outside outage: each failed job hit its time limit, had an install step cancelled or timed out, or lost its runner. An install step that exits with a failure, such as `npm ci` on a stale lockfile, counts as a real failure. It re-runs at most twice per run, 15 then 30 minutes after the attempt ended, only while status.npmjs.org and githubstatus.com both show no incident, and never a run with any other failure.
+- fix-ci starts no model run on a head whose required-run failures are all infra while the reconciler will still re-run it; once both re-runs are used, or the run is older than the reconciler's 24-hour lookback, fix-ci takes the head.
+
+### Fixed
+
+- The red-main report names every red full run since the last green one that has no report on the log, so a report the repository-wide concurrency group cancelled while pending is seen in the next report, whose range re-decides over its merges.
+- The red-main report takes the oldest `github-actions[bot]` issue carrying the log marker as its log, and counts only that account's comments on it (matched by user id) toward the daily cap and the dedupe, so a newer issue carrying the marker can neither take the reports nor reset the cap.
+
 ## [3.1.1] - 2026-10-22
 
 ### Fixed

@@ -3337,6 +3337,29 @@ export async function auditRepository({
         }
       }
 
+      // macOS runners are free only on a public repository and bill at the
+      // macOS rate on a private one, so no private repository may name one,
+      // whatever its enrollment, routing or exception inventory says. The
+      // visibility here is the event-checked inventory value. A value counts
+      // when any token, split on whitespace, commas, brackets and quotes, is
+      // shaped like a macOS label, so a JSON array a reusable workflow passes
+      // to fromJSON is caught; an expression `runs-on` is left to
+      // runner-target-contract.
+      if (config.visibility === "private") {
+        for (const runner of runnerStrings) {
+          if (runner.split(/[\s,[\]"']+/).some((token) => /^macos(-|$)/i.test(token))) {
+            findings.push(
+              finding(
+                "private-macos-runner",
+                file,
+                jobId,
+                `${JSON.stringify(runner.trim())} is a macOS runner, which bills on a private repository; macOS labels are public-only`,
+              ),
+            );
+          }
+        }
+      }
+
       for (const runner of runnerStrings) {
         // The one skip is the label this job routes on, and only for that
         // exact string. It is conditioned on routingEnabled so a public or

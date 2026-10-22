@@ -84,6 +84,45 @@ check "every hygiene gate the runner does not run is named CI only" \
 check "a gate the runner runs is not named CI only" \
   '[[ $ERR != *"CI only: markdown "* && $ERR != *"CI only: spoke-plugin-root "* && $ERR != *"CI only: typos "* ]]'
 
+# The tree checked is the one holding the script, whatever the working
+# directory: run by path from another checkout whose HEAD is at its base (a main
+# checkout beside a worktree), it still lists the branch's one change, notes.txt.
+other="$tmp/other"
+git_test_config "$tmp" clone -q --branch base "$repo" "$other"
+git_test_config "$other" update-ref refs/remotes/origin/main "$(git_test_config "$repo" rev-parse HEAD)"
+# run_from <dir> <args...>: runs the fixture repo's script from <dir>; sets RC, OUT, ERR.
+run_from() {
+  local dir="$1"
+  shift
+  RC=0
+  OUT="$(cd "$dir" && bash "$repo/scripts/check-affected.sh" "$@" 2>"$tmp/err")" || RC=$?
+  ERR="$(cat "$tmp/err")"
+}
+run_from "$other" --base base --tests
+check "run from another checkout, it lists the script's own branch's change" \
+  '[[ $RC == 0 && $OUT == *"over 1 changed files"* && $ERR != *"SKIP tests"* ]]'
+git_test_config "$repo" update-ref refs/remotes/origin/main "$(git_test_config "$repo" rev-parse base)"
+run_from "$other" --base origin/main --no-fetch
+check "an explicit --base run from another checkout still lists the change" \
+  '[[ $RC == 0 && $OUT == *"over 1 changed files"* ]]'
+git_test_config "$repo" update-ref -d refs/remotes/origin/main
+
+# An empty changed set while HEAD is not the base means the wrong tree or range
+# was read, never a pass: HEAD behind the base, and commits that change nothing.
+RC=0
+ERR="$(cd "$other" && bash scripts/check-affected.sh --base origin/main --no-fetch 2>&1)" || RC=$?
+check "HEAD behind its base with no changed files exits non-zero with a message" \
+  '[[ $RC != 0 && $ERR == *"no changed files"* && $ERR != *"passed"* ]]'
+git_test_config "$other" commit -q --allow-empty -m empty
+RC=0
+ERR="$(cd "$other" && bash scripts/check-affected.sh --base origin/base --no-fetch 2>&1)" || RC=$?
+check "commits beyond the base that change no file exit non-zero with a message" \
+  '[[ $RC != 0 && $ERR == *"no changed files"* && $ERR != *"passed"* ]]'
+git_test_config "$other" reset -q --hard origin/base
+RC=0
+OUT="$(cd "$other" && bash scripts/check-affected.sh --base base --no-fetch 2>/dev/null)" || RC=$?
+check "HEAD at its base passes with nothing to check" '[[ $RC == 0 && $OUT == *"over 0 changed files"* ]]'
+
 run STUB_TYPOS=2 -- --base base
 check "a typos exit of 2 is a finding, not a check that could not run" \
   '[[ $RC == 1 && $ERR == *"FAIL typos"* && $ERR != *"SKIP typos"* ]]'
@@ -168,9 +207,10 @@ run PATH="$tmp/bin:$PATH" --
 check "a failed fetch skips the stale-base check only" \
   '[[ $RC == 0 && $ERR == *"SKIP stale-base-overlap (git fetch of origin/main failed)"* && $OUT$ERR == *"validate-plugins (no plugin changed)"* ]]'
 
-# Run from another tree (the pre-push hook's merge-base copy), every check
-# script comes from that tree and is told which tree to read; the checked
-# tree's own scripts and its test code never run.
+# A copy outside the checked tree (the pre-push hook's merge-base copy) checks
+# the tree CHECK_DATA_ROOT names: every check script comes from the copy and is
+# told which tree to read; the checked tree's own scripts and its test code
+# never run.
 tools="$tmp/tools"
 mkdir -p "$tools/scripts"
 cp "$SELF_DIR/check-affected.sh" "$tools/scripts/"
@@ -183,7 +223,7 @@ printf 'import os, sys\nsys.stderr.write("copy of sync-plugin-options-docs read 
 cp "$SELF_DIR/check-affected-gates.txt" "$tools/scripts/"
 chmod +x "$tools"/scripts/*.sh
 RC=0
-ERR="$(cd "$repo" && bash "$tools/scripts/check-affected.sh" --base base --tests 2>&1)" || RC=$?
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base --tests 2>&1)" || RC=$?
 check "a copy run elsewhere runs its own check scripts against the checked tree" \
   '[[ $RC == 1 && $ERR == *"copy of check-shell-portability read $repo"* ]]'
 check "a copy run elsewhere points the spoke, options-docs and changelog-parity checks at the checked tree" \
@@ -196,7 +236,7 @@ printf 'x\n' >"$repo/plugins/demo/skills/s/notes.txt"
 git_test_config "$repo" add -A
 git_test_config "$repo" commit -q -m skill
 RC=0
-ERR="$(cd "$repo" && bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
 check "a copy run elsewhere skips changed-skills, which runs the checked tree's skill-quality code" \
   '[[ $ERR == *"SKIP changed-skills (runs the checked tree"* && $ERR != *"copy of check-changed-skills"* ]]'
 git_test_config "$repo" reset -q --hard HEAD~1
@@ -210,13 +250,13 @@ if command -v markdownlint-cli2 >/dev/null 2>&1; then
   git_test_config "$repo" add -A
   git_test_config "$repo" commit -q -m docs
   RC=0
-  ERR="$(cd "$repo" && bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+  ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
   check "a copy run elsewhere never loads the checked tree's markdownlint config" \
     '[[ ! -e $tmp/md-payload && $ERR != *"SKIP markdown"* ]]'
   printf '# Title\nText.\n' >"$repo/docs/a.md"
   git_test_config "$repo" commit -q -am bad-md
   RC=0
-  ERR="$(cd "$repo" && bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+  ERR="$(cd "$tmp" && CHECK_DATA_ROOT="$repo" bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
   check "a copy run elsewhere still lints the checked tree's markdown" \
     '[[ $RC == 1 && $ERR == *"FAIL markdown"* && $ERR == *"MD022"* ]]'
 else
@@ -237,6 +277,14 @@ printf '#!/usr/bin/env bash\necho hi\n' >"$repo/new-tool"
 run -- --uncommitted
 check "--uncommitted checks an untracked #! file's mode on disk" \
   '[[ $RC == 1 && $ERR == *"FAIL exec-bit"* && $ERR == *"new-tool starts with #!"* ]]'
+# The issue lane's wrapper sets CHECK_DATA_ROOT to the checkout; the snapshot,
+# not the checkout's committed state, is still what gets checked.
+run CHECK_DATA_ROOT="$repo" -- --uncommitted
+check "--uncommitted under the lane's CHECK_DATA_ROOT still checks the work tree" \
+  '[[ $RC == 1 && $ERR == *"new-tool starts with #!"* ]]'
+run CHECK_AFFECTED_SCRIPT_EXEC_BIT=1 -- --uncommitted
+check "--uncommitted with CHECK_AFFECTED_SCRIPT_EXEC_BIT judges a new #! file as executable, as apply-patch commits it" \
+  '[[ $RC == 0 && $OUT == *"over 1 changed files"* && ! -x $repo/new-tool ]]'
 chmod +x "$repo/new-tool"
 run -- --uncommitted
 check "--uncommitted passes once the file is executable on disk" \
@@ -286,6 +334,8 @@ else
   ok "SKIP --uncommitted shellcheck case (no shellcheck with --rcfile here)"
 fi
 check "--uncommitted leaves HEAD, the index and the worktree list as they were" '[[ $(state) == "$before" ]]'
+run -- --uncommitted
+check "--uncommitted with no edits passes with nothing to check" '[[ $RC == 0 && $OUT == *"over 0 changed files"* ]]'
 
 run -- --bogus
 check "an unknown flag is a usage error" '[[ $RC == 2 ]]'

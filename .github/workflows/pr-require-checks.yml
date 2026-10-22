@@ -138,7 +138,9 @@ concurrency:
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
 # suite among them, plus about 55 s of setup), 9; test-python per leg about
-# 260, the 199 s planning server suite plus setup, 7; test-node about 50 (31 s
+# 310 on the whole tree (255 s of suites over 5 legs estimated from
+# scripts/suite-seconds.txt, a 201 s suite among them, plus up to 56 s of
+# setup), 7; test-node about 50 (31 s
 # of package chains measured on a warm npm cache), sized for a cold install, 5;
 # ci-status 9 / 42, 3. A job that outgrows its timeout is made faster or split,
 # not given a longer one.
@@ -913,11 +915,13 @@ jobs:
           # histories, so a correction would change what the judge is measured on.
           exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/**
 
-      # `log-opts` is unset on purpose: the composite scopes the scan by event. A
-      # pull request scans only its own commits (<base>..HEAD), so a finding on
-      # another branch cannot fail it (#3599). A merge group scans HEAD's full
-      # history. A schedule or manual dispatch scans every ref present in the
-      # clone (--all).
+      # Every run scans only history the commit under test can reach, so a
+      # finding on another branch cannot fail it (#3599); each branch is scanned
+      # on its own pull request. A pull request or merge group leaves
+      # `log-opts` empty and the composite scans its own commits
+      # (<base>..HEAD). A schedule or dispatch passes HEAD, main's full
+      # ancestry: the composite's default there is --all, and the unshallow
+      # fetch above brings in every branch.
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
@@ -925,6 +929,7 @@ jobs:
         with:
           config: .gitleaks.toml
           scan-mode: git
+          log-opts: ${{ contains(fromJSON('["schedule","workflow_dispatch"]'), github.event_name) && 'HEAD' || '' }}
 
       # Offline links and anchors: local files and #fragments only, no
       # network. Ungated like the other whole-repo scanners, because a
@@ -2703,7 +2708,10 @@ jobs:
   # collects unittest.TestCase suites as well as pytest-style ones, the
   # disk-hygiene module among them. Suites in different directories import
   # same-named helpers (`from conftest import ...`), and a shared process hands
-  # each the first one loaded, hence a process per module. Node and the root
+  # each the first one loaded, hence a process per module. A planning surface
+  # module spreads its tests over pytest-xdist workers, one test class to a
+  # worker (`--dist loadscope`), since a class's tests share ordered state.
+  # Node and the root
   # npm install come too: Python suites run the claude CLI from
   # node_modules/.bin and the inventory's parser packages through node.
   test-python:
@@ -2797,8 +2805,14 @@ jobs:
             echo "::error::the plan gives leg $LEG no suites; a leg exists only to run some."
             exit 1
           fi
-          tr '\n' '\0' <"$RUNNER_TEMP/leg-suites.txt" |
-            xargs -0 -r -t -n1 python -m pytest -q -o tmp_path_retention_policy=none --
+          rc=0
+          while IFS= read -r suite; do
+            workers=()
+            [[ $suite == plugins/planning/surface/* ]] && workers=(-n auto --dist loadscope)
+            echo "python -m pytest -q -o tmp_path_retention_policy=none ${workers[*]} -- $suite" >&2
+            python -m pytest -q -o tmp_path_retention_policy=none "${workers[@]}" -- "$suite" || rc=1
+          done <"$RUNNER_TEMP/leg-suites.txt"
+          exit "$rc"
 
   # THE NODE PACKAGES THE CHANGE REACHES: the five sub-projects with their own
   # install, typecheck, lint and test chains (the miro MCP server, the
@@ -2934,8 +2948,9 @@ jobs:
           [[ " $PACKAGES " == *" plugins/knowledge/skills/course-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh test
 
-      # resolve-config has pinned dependencies (yaml, ajv) that
-      # run-outside-node-suites.sh never installs, so it installs and tests here.
+      # resolve-config has pinned dependencies (yaml, ajv), so it installs and
+      # tests here; run-outside-node-suites.sh installs them only for a package
+      # that takes resolve-config as a file: dependency.
       #
       # This suite and the next print `::error` lines on purpose, from fixtures
       # that exercise a script's own failure messages, so each runs with

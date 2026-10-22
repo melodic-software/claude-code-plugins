@@ -175,7 +175,7 @@ jobs:
                              # the lane's reviewed-head marker comment
       id-token: write        # OIDC, mints the Claude GitHub App token (required
                              # even with an OAuth/API-key credential)
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@8bd4d7f963a06627dd2d551ffcd8d9db5e6b881b # v0.59.1
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
     with:
       runner: ubuntu-24.04
       # Empty unless resolve-model succeeded, so a failed job's partial output

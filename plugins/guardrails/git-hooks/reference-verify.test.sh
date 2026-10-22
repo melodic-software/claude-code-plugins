@@ -8,7 +8,7 @@
 # the skip key covers only a missing jq); --worktree covers uncommitted files;
 # and the plugin's vendored installer wires the entry as a pre-push hook, so
 # `git commit` does not run it and `git push` does.
-# test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/run-guards.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/stale-path-verify.sh plugins/guardrails/hooks/skill-reference-verify.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/git-hooks/check-lib.sh
+# test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/run-guards.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/stale-path-verify.sh plugins/guardrails/hooks/skill-reference-verify.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PLUGIN_DATA
 

@@ -13,7 +13,7 @@
 # repository-relative path and passed relative, as the dispatcher passes a
 # scope in a real run, because the type-coverage capture names its file by
 # that relative path and a file row matches a scope file on the path.
-# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
+# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/scripts/yaml_subset.py
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

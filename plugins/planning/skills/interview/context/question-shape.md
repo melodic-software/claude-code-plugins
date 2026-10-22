@@ -103,6 +103,12 @@ Only `text` carries a `recommendation`; elsewhere the options are the cards. Nev
 "Something else" or "Other" option: the server adds one to `choice`, `multi` and `rank`, and
 `scale` and `confirm` take a comment.
 
+On a `multi` question where "none of these applies" is a plausible answer, set `none: true` in its
+`format`; never write a "None of these" option yourself, which the server refuses on `multi`. The
+server adds "None of these" last, keeps it apart from every other pick, and counts it in the digest
+as its own row, apart from a Pass. Leave it off a `multi` where at least one option always applies.
+`choice` takes no `none`.
+
 A diagram or chart goes in `references` as `{kind: "diagram", asset, alt, caption?}`: an SVG
 added with `add-asset`, drawn with whatever this session has or by hand. `alt` is required and
 says what the picture shows in words.

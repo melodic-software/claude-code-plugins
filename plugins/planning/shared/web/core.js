@@ -54,6 +54,7 @@
   const ownerDevice = !!ownerToken && ownerToken === get("ownerDevice");
 
   const listeners = new Set(), reloadHooks = new Set();
+  const AVATARS = new Map(); // profile picture upload id -> its data: URL, the read in flight, or when to try again
   let focusQ = "", typingUntil = 0, chatTypingUntil = 0, lastOk = 0, shownAt = null, joining = null;
   let snap = null, rev = 0, etag = "", build = "";
   const DEFAULTS = {
@@ -61,7 +62,7 @@
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "", shareTunnel: "",
     goal: "", intro: "", repo: "", commit: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], claudeProposals: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
-    settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
+    settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true, prototypeTiers: ["screenshot", "snapshot"] },
   };
 
   // C40: a person's color is one of ten ids (Person.color); core.css draws each per theme (--pc-c1..--pc-c10).
@@ -101,7 +102,7 @@
   function toView(s) {
     const people = {}, nameOf = pid => (pid === "host" && !people.host ? "Host" : people[pid]?.name || "Someone");
     const roles = {};
-    for (const p of [...(s.people || []), ...(s.removed || [])]) { people[p.pid] = { name: p.name, ts: p.joinedAt, color: p.color, ...(s.lastSeen?.[p.pid] ? { seen: s.lastSeen[p.pid] } : {}) }; roles[p.pid] = p; }
+    for (const p of [...(s.people || []), ...(s.removed || [])]) { people[p.pid] = { name: p.name, ts: p.joinedAt, color: p.color, ...(p.avatar ? { avatar: p.avatar } : {}), ...(s.lastSeen?.[p.pid] ? { seen: s.lastSeen[p.pid] } : {}) }; roles[p.pid] = p; }
     const live = (s.people || []);
     const rounds = s.rounds || [], last = rounds[rounds.length - 1];
     const settings = s.settings || {};
@@ -120,7 +121,9 @@
       ...structuredClone(DEFAULTS), // its own maps: a question whose last answer, lock, suggestion or result went must lose its key
       rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", repo: s.repo || "", commit: s.commit || "", ended: !!s.ended, serverTime: s.serverTime,
       // reviewAnswers: absent (a session from before the setting) reviews every answer, as those sessions always did.
-      settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always", reviewAnswers: settings.reviewAnswers !== false },
+      // prototypeTiers: absent offers screenshots and HTML snapshots, as the server does (session.py prototype_tiers).
+      settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always", reviewAnswers: settings.reviewAnswers !== false,
+        prototypeTiers: settings.prototypeTiers || DEFAULTS.settings.prototypeTiers },
       people, ownerPid: "host",
       leaders: live.filter(p => p.role === "leader").map(p => p.pid), trusted: live.filter(p => p.trusted && p.pid !== "host").map(p => p.pid),
       removed: (s.removed || []).map(p => p.pid),
@@ -133,7 +136,9 @@
     const proposals = s.proposals || [];
     const reqText = new Map([...(s.requests || []), ...(s.myRequests || [])].map(r => [r.id, r]));
     view.questions = (s.questions || []).map(q => {
-      const f = q.format || { kind: "text" }, flag = (q.needsReview || []).at(-1);
+      // the newest flag, except that a change not yet reviewed outranks a later possibly-reopened on the same question (as the digest)
+      const f = q.format || { kind: "text" }, nr = q.needsReview || [], last = nr.at(-1);
+      const flag = last?.why?.kind === "possibly-reopened" ? nr.findLast(x => x.because === last.because && x.why?.kind !== "possibly-reopened") || last : last;
       const { format: _, ...rest } = q, out = { ...rest, text: plain(q.text), purpose: q.purpose || "decide" };
       if (f.kind === "choice") { out.format = "choice"; out.options = f.options; }
       // Q98: a prototype's variants pick like options here; the question links its own page (/proto/<qid>) to try them.
@@ -146,7 +151,7 @@
       }
       if (q.context) out.context = plain(q.context); // a mention in it reads as @Name, as the question's text does
       out.formatKind = f.kind;
-      out.needsReview = flag ? { because: flag.because, ts: flag.at, ...(flag.why?.suggestion ? { suggestion: flag.why.suggestion } : {}) } : null;
+      out.needsReview = flag ? { because: flag.because, ts: flag.at, why: flag.why?.kind, ...(flag.why?.suggestion ? { suggestion: flag.why.suggestion } : {}) } : null;
       if (!flag) delete out.needsReview;
       if (q.origin?.kind === "proposal") { const p = proposals.find(x => x.id === q.origin.proposal); out.proposal = q.origin.proposal; if (p) out.from = nameOf(p.pid); }
       if (q.origin?.kind === "host") { out.proposal = q.origin.proposal; out.addedBy = nameOf(q.origin.by); out.byHost = q.origin.by === "host"; }
@@ -260,7 +265,7 @@
     // files answers carry. No path ever reaches the page.
     const upView = u => ({ id: u.id, cid: u.pid, by: nameOf(u.pid), qid: u.qid || "", file: u.file, ext: u.ext, size: u.size, ts: u.at,
       total: u.chunks, chunkSize: u.chunkSize, status: u.status.kind, received: u.status.received || 0, bytes: u.status.bytes || 0,
-      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}), ...(u.image ? { image: true } : {}), ...(u.shown ? { shown: true } : {}), ...(u.carried ? { carried: true } : {}) });
+      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}), ...(u.image ? { image: true } : {}), ...(u.shown ? { shown: true } : {}), ...(u.carried ? { carried: true } : {}), ...(u.avatar ? { avatar: true } : {}) });
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
@@ -272,6 +277,9 @@
     view.questionPics = s.questionPics || {};
     // Passes and their reasons (owner only): qid -> pid -> {reason?, ts}.
     view.passes = s.passes || {};
+    // The decision log, the owner's alone: locks, changes, unlocks, closed and reopened polls, late Disagrees on a
+    // lock and Keep decision, oldest first.
+    view.decisions = (s.decisions || []).map(e => ({ ...e, ts: e.at, cid: e.by, by: nameOf(e.by), ...(e.text ? { text: plain(e.text) } : {}) }));
     // Present people are active or away (with since when); a person with no heartbeat for a while is absent: offline.
     view.presence = (s.presence || []).map(p => ({ cid: p.pid, name: nameOf(p.pid), q: p.q, typing: p.typing, chatTyping: p.chatTyping,
       away: p.state === "away", ...(p.state === "away" ? { awaySince: p.since } : {}),
@@ -412,7 +420,7 @@
     },
     labelRe,
     el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; },
-    /** Round avatar element for a person (cid + name). */
+    /** Round avatar element for a person (cid + name): their profile picture over the initials on their color. */
     avatar(personCid, name, size = 28) {
       const a = Core.el("span", "core-avatar", Core.initials(name));
       a.style.setProperty("--av", Core.colorFor(personCid));
@@ -420,7 +428,37 @@
       a.style.width = a.style.height = size + "px";
       a.style.fontSize = Math.max(9, Math.round(size * 0.4)) + "px"; // initials never below 9 px
       a.title = name;
+      Core.paintAvatar(a);
       return a;
+    },
+    /** The upload id of the profile picture the page shows for a person, else "" for initials: none while names are
+     *  hidden; my own once it arrived (before the owner approves it); anyone else's once the server lists it. */
+    avatarOf(id) {
+      const s = Core.state;
+      if (!id || !s.settings?.showNames) return "";
+      if (id === Core.me?.cid) return (s.myUploads || []).find(u => u.avatar && u.status === "done")?.id || "";
+      return s.people?.[id]?.avatar || "";
+    },
+    /** Bring one avatar element's picture in line with avatarOf: each picture is read once, and the initials show
+     *  until it arrives or when it cannot be read. */
+    paintAvatar(a) {
+      const id = Core.avatarOf(a.dataset.who), img = a.querySelector(":scope > img.core-avatar-img");
+      if (a.dataset.avatar === id && !!img === !!id) return;
+      a.dataset.avatar = id;
+      img?.remove();
+      const url = AVATARS.get(id);
+      if (!id || (typeof url === "number" && Date.now() < url)) return;
+      if (typeof url === "string") {
+        const i = document.createElement("img");
+        i.className = "core-avatar-img"; i.alt = ""; i.decoding = "async"; i.src = url;
+        i.onerror = () => i.remove();
+        a.append(i);
+        return;
+      }
+      if (url instanceof Promise) return;
+      AVATARS.set(id, Core.uploadImage(id).then(u => AVATARS.set(id, u), () => AVATARS.set(id, Date.now() + 30000)).then(() => {
+        for (const el of document.querySelectorAll(`.core-avatar[data-avatar="${id}"]`)) { el.dataset.avatar = ""; Core.paintAvatar(el); }
+      }));
     },
 
     answersFor: qid => Core.state.answers[qid] || [],
@@ -444,6 +482,9 @@
     canModerate: () => Core.me.isOwner || Core.me.isLeader,
     lockOf: qid => Core.state.locks[qid] || null,
     suggestionsFor: qid => Core.state.suggestions[qid] || [],
+    /** Which of a prototype variant's views the session switched off (prototypeTiers): "screenshot" for a picture,
+     *  "snapshot" for an html file, "off" when this viewer's state left the view out (a guest's), "" while it shows. */
+    viewOff: v => (!v?.asset ? "off" : (t => (Core.state.settings.prototypeTiers.includes(t) ? "" : t))(/\.html$/.test(v.asset) ? "snapshot" : "screenshot")),
     /** One prototype variant's versions, oldest first, along the `previous` links between prototype questions:
      *  [{qid, variant, label, asset, round, n, current}], `current` on the newest. Empty for a variant not in the session. */
     versionsOf(qid, vid) {
@@ -683,6 +724,8 @@
     setTitle: title => act("/api/session/title", { title }),
     merge: (from, to) => act("/api/person/merge", { from, to }),
     clearReview: qid => act("/api/review/clear", { qid }),
+    /** Owner: keep a decision a late Disagree may have reopened; the dependents' flags it raised go. */
+    keepDecision: qid => act("/api/decision/keep", { qid }),
     markReady: on => act("/api/round/ready", { on }),
     cancelRound: () => act("/api/round/cancel", {}),
     /** Owner: a round stuck with Claude working goes back to open; Claude's late preparation is refused. */
@@ -881,7 +924,7 @@
   // ---------- telemetry: what this page records so the host can fix problems (README "Logs") ----------
   // Faults go to server.log under this person's pid the first time each fingerprint shows: script errors, unhandled
   // rejections, actions that never reached the server (send above; the server logs its own refusals), and layout
-  // anomalies. Repeats, action timings and rollbacks, reconnect gaps, INP and LCP, and taps counted by control wait
+  // anomalies; a repeat is not sent. Action timings and rollbacks, reconnect gaps, INP and LCP, and taps counted by control wait
   // for one summary, sent with no pid when the page hides; the server adds up its counts per batch. Only once joined: the server refuses an anonymous entry. Never typed text, answers, chat,
   // names, the address or its fragment, text on the page, or a credential. There is no switch: it always runs.
   const cut = (text, n) => Array.from(String(text)).slice(0, n).join(""); // by code point, as the server counts
@@ -889,7 +932,7 @@
   const LAT_EDGES = [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]; // ms, upper bucket edges; share.py LAT_EDGES
   const SUMMARY_MAX = 500; // the server's message limit: what does not fit waits for the next summary
   const tel = {
-    seen: new Set(), rep: new Map(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(), use: new Map(), rage: new Map(), dead: new Map(),
+    seen: new Set(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(), use: new Map(), rage: new Map(), dead: new Map(),
     pv: [...crypto.getRandomValues(new Uint8Array(4))].map(b => b.toString(16).padStart(2, "0")).join(""), // this page view, no one's id
     inp: "", lcp: "", sentInp: "", sentLcp: "", missing: "", sentMissing: false, vitals: false,
   };
@@ -914,7 +957,7 @@
     delete body.noted;
     if (!joined()) return;
     const fp = fnv(key || [kind, body.message, body.source || "", kind === "api" ? body.route : ""].join("|"));
-    if (tel.seen.has(fp)) { bump(tel.rep, fp); return; }
+    if (tel.seen.has(fp)) return;
     tel.seen.add(fp);
     post({ ...body, fp }).catch(() => tel.seen.delete(fp));
   }
@@ -935,7 +978,6 @@
     if (tel.gaps.length) { const g = tel.gaps.splice(0); items.push([`gap=${g.join(",")}`, () => {}, () => tel.gaps.unshift(...g)]); }
     for (const [route, b] of tel.lat) { const n = b.findLastIndex(x => x > 0); items.push([`lat:${route}=${b.slice(0, n + 1).join(",")}`, () => tel.lat.delete(route)]); }
     for (const [route, n] of tel.rb) items.push([`rb:${route}=${n}`, () => tel.rb.delete(route)]);
-    for (const [fp, n] of tel.rep) items.push([`rep:${fp}=${n}`, () => tel.rep.delete(fp)]);
     for (const k of ["use", "rage", "dead"]) for (const [c, n] of tel[k]) items.push([`${k}:${c}=${n}`, () => tel[k].delete(c)]);
     let message = base;
     for (const [t, sent, keep] of items) {
@@ -957,10 +999,12 @@
   // A person's taps on controls, by the control's name (tapName), never its text: each tap is `use`; the RAGE_TAPS-th
   // tap on one control within RAGE_MS of the first is a `rage` tap; a tap the page shows no change for (no DOM change,
   // no scroll) within DEAD_MS is a `dead` tap, unless it opens a link elsewhere. A disabled control gets no click.
+  // The render of a timed poll (unprompted) answers no tap: the page made it on its own, so a tap answered only by the
+  // next timed poll counts as dead. A poll a tap's action waits on still answers it.
   const TAPPABLE = "button, a[href], [role=button], summary, input[type=button], input[type=submit]";
   const STYLE = /^(?:vf|core)-(?:btn|tbtn|lbtn|icon-btn|toggle|chip)(?:-[a-z-]+)?$/; // looks, not what the control is
   const RAGE_TAPS = 3, RAGE_MS = 1000; // judgment: three taps within a second on one control is impatience, not use
-  const DEAD_MS = 1000; // judgment: the page answers a tap at once; the polls' own changes can only hide a dead tap
+  const DEAD_MS = 1000; // judgment: the page answers a tap at once
   /** A control's name: the first vf- or core- class (letters and hyphens only) that is not a style class, on it or
    *  its nearest ancestor with one (state classes such as vf-vote-back are added after it); null when there is none. */
   function tapName(el) {
@@ -973,8 +1017,17 @@
   // A rage streak is one control's: its name and its place among the controls of that name, so a control drawn again
   // between taps is the same one, and three of one kind (the reaction buttons) are three.
   const rages = new Map(), waiting = new Set();
+  let quiet = false; // between two frame callbacks that bracket the ones an unprompted change scheduled
   const changed = () => { waiting.clear(); seer.disconnect(); };
-  const seer = new MutationObserver(changed);
+  const seer = new MutationObserver(() => quiet || changed());
+  /** Run fn, a change no tap asked for: what it changes, at once or in the animation frame callbacks it schedules (a
+   *  render measures after painting), answers no waiting tap. A frame runs its callbacks in the order they were asked
+   *  for and delivers each one's records before the next, so a pair asked for around fn brackets exactly fn's. */
+  function unprompted(fn) {
+    if (waiting.size && seer.takeRecords().length) changed();
+    requestAnimationFrame(() => { quiet = true; });
+    try { fn(); } finally { seer.takeRecords(); requestAnimationFrame(() => { quiet = false; }); }
+  }
   addEventListener("scroll", () => waiting.size && changed(), { capture: true, passive: true });
   document.addEventListener("click", e => {
     const el = e.isTrusted && e.target?.closest?.(TAPPABLE), name = el && tapName(el);
@@ -1091,9 +1144,9 @@
   const RECORDED = ["Script errors on this page, and actions that never reached the host", "How long each action takes to get an answer, and how often one is undone",
     "How long the page takes to catch up when you come back to it", "Layout problems: something too wide for the screen, a field the keyboard covers, the header pushed off screen",
     "How fast the page answers a tap and shows its main content", "Your device type and browser family, such as phone and Safari",
-    "How often each control is tapped, tapped three times in a second, or tapped with nothing changing, by the control's name only, added up for everyone every 10 minutes"];
+    "How often each control is tapped, tapped three times in a second, or tapped with nothing changing, by the control's name only, added up for everyone every 10 minutes, or, when you are the only guest, for your session once it ends, which the host can tell is yours"];
   const NEVER = ["What you type: your answers, chat and requests", "Your name, or this page's address", "Any text shown on the page"];
-  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id. It all stays on the host's computer.";
+  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id, though when you are the only guest the host can tell your session's counts are yours. It all stays on the host's computer.";
   function openRecords() {
     const dlg = Core.el("dialog", "core-records"), h = Core.el("h2", null, "What this page records");
     h.id = "core-records-h"; dlg.setAttribute("aria-labelledby", h.id);
@@ -1292,16 +1345,18 @@
   /** The state poll always carries ?since=<rev>: in a session imported from the prototype a poll with
    *  identity and no query is an old page, which gets only a reload notice. */
   // A poll asked for while one runs runs once more after it, so an action's poll always starts after its answer.
-  let polling = null, pollNext = null;
+  // A timed poll (the interval's) renders unprompted; the poll after one that anything else asked for does not.
+  let polling = null, pollNext = null, nextTimed = true;
   let waitPolled = 0;
-  function poll() {
+  function poll(timed = false) {
     // waiting to be let in, the page asks every 5 s, not every 1.5 s: each ask is a 403 the console logs (sweep S31)
     if (Core.state.youWaiting && !polling) { if (Date.now() - waitPolled < 5000) return Promise.resolve(); waitPolled = Date.now(); }
     if (!polling) {
-      polling = pollOnce().finally(() => { polling = null; });
+      polling = pollOnce(timed).finally(() => { polling = null; });
       return polling;
     }
-    pollNext ||= polling.then(() => { pollNext = null; return poll(); });
+    nextTimed &&= timed;
+    pollNext ||= polling.then(() => { const t = nextTimed; pollNext = null; nextTimed = true; return poll(t); });
     return pollNext;
   }
   /** Drop the patches of actions the server accepted before poll number `seq` started: its snapshot holds them. */
@@ -1332,7 +1387,7 @@
     moving = true;
     location.replace(`${to.origin}/${secret ? "#me=" + secret : joinKey ? "#join=" + joinKey : ""}`);
   }
-  async function pollOnce() {
+  async function pollOnce(timed) {
     const seq = ++polls;
     try {
       const headers = { ...ident(), ...(etag ? { "If-None-Match": etag } : {}) };
@@ -1373,7 +1428,7 @@
       if (!ownerToken) { put("pid", s.me.pid); put("name", s.me.name); }
     } catch { /* offline: the live dot says so */ } finally {
       Core.live = Date.now() - lastOk < 5000;
-      emit();
+      if (timed) unprompted(emit); else emit();
     }
   }
   Core.snapshot = () => snap;
@@ -1384,7 +1439,9 @@
   // one answered (a change beat, after the last change beat only), and many asks in that wait send one beat, built
   // from the state when it goes out.
   // Each tab beats under its own id (kept across reloads of the tab), so the server keeps one presence per tab and a
-  // person's other tabs and devices never take their beats: the person is Away only when every tab is.
+  // person's other tabs and devices never take their beats: the person is Away only when every tab is. Each beat also
+  // says how long ago this tab gained focus or was shown (lastFocus), so the server names the person's question from
+  // the tab they used last rather than whichever tab beat last.
   const TAB = (() => {
     const fresh = [...crypto.getRandomValues(new Uint8Array(12))].map(b => b.toString(16).padStart(2, "0")).join("");
     try { const t = sessionStorage.getItem("tab"); if (/^[0-9a-f]{24}$/.test(t || "")) return t; sessionStorage.setItem("tab", fresh); } catch { /* storage off */ }
@@ -1393,6 +1450,7 @@
   const HB = { busy: false, timer: 0, wanted: false, done: -Infinity, changeDone: -Infinity, visible: null, away: null };
   let away = false, lastInputAt = Date.now();
   const visibleNow = () => document.visibilityState !== "hidden";
+  let focusAt = visibleNow() ? Date.now() : null; // loaded in view counts as shown; loaded in the background, not yet
   function beat() { HB.wanted = true; pumpBeat(); }
   function pumpBeat() {
     // a person still waiting to be let in has no presence to send: the server refuses it (403) every beat (sweep S31)
@@ -1403,6 +1461,9 @@
     HB.wanted = false; HB.busy = true;
     const body = { q: focusQ, typing: Date.now() < typingUntil, chatTyping: Date.now() < chatTypingUntil,
       visible, lastInput: Math.max(0, Math.round((Date.now() - lastInputAt) / 1000)), away, tab: TAB };
+    // unrounded: it orders tabs. focusId names this focus, so the server keeps its first estimate of when it was
+    // rather than one a late beat would move later.
+    if (focusAt !== null) { body.lastFocus = Math.max(0, (Date.now() - focusAt) / 1000); body.focusId = focusAt; }
     send("/api/heartbeat", body).then(r => {
       if (r.ok) { HB.visible = visible; HB.away = away; }
       return r.ok ? r.json() : null;
@@ -1424,7 +1485,10 @@
     if (away) { away = false; emit(); beat(); }
   };
   for (const ev of ["keydown", "pointerdown", "touchstart"]) window.addEventListener(ev, input, { capture: true, passive: true });
-  document.addEventListener("visibilitychange", beat);
+  // Set before the beat goes out, so the beat that says "visible" carries the new time.
+  const focused = () => { if (visibleNow()) focusAt = Date.now(); beat(); };
+  document.addEventListener("visibilitychange", focused);
+  window.addEventListener("focus", focused);
   // iOS freezes a background tab's timers: catch up at once when the page shows again (triage 24). The time from
   // showing again to the first good poll is the reconnect gap.
   let hidden = !visibleNow();
@@ -1611,6 +1675,6 @@
     else beat();
     if (switchTo) askSwitch(switchTo);
     poll();
-    setInterval(poll, 1500); setInterval(beat, 2000);
+    setInterval(poll, 1500, true); setInterval(beat, 2000);
   });
 })();

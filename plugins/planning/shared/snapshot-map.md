@@ -32,7 +32,7 @@ Views: G = every person, M = owner and leaders, O = owner only.
 | `research[qid]` | `results[qid]` (G published, O all) | see Research |
 | `chat` | `chat` | see Chat |
 | `presence` | `presence` + `people` | `{cid: pid, name, q, typing, chatTyping, owner: pid === "host", leader, trusted}` |
-| `people` (`{pid: {name, ts, color, seen?}}`) | `people` (list), `removed` (O), `lastSeen` | keyed by pid; `ts` from `joinedAt`; `seen` from `lastSeen[pid]` |
+| `people` (`{pid: {name, ts, color, avatar?, seen?}}`) | `people` (list), `removed` (O), `lastSeen` | keyed by pid; `ts` from `joinedAt`; `avatar` the profile picture's upload id others may see; `seen` from `lastSeen[pid]` |
 | `leaders`, `trusted` | `people[].role`, `people[].trusted` | derived lists |
 | `ownerPid` | none | `"host"` |
 | `removed` (pids) | `removed` (O, person records) | pids |

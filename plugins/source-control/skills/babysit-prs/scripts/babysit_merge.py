@@ -221,18 +221,8 @@ from babysit_util import (
 # merge) so ordinary prose does not false-block.
 HUMAN_MERGE_VETO_RE = re.compile(r"\bdo(?:n['’]?t| not|-not)[\s-]*merge\b", re.I)
 
-# The PR author's own hold, written in the body ("Do not merge this draft", or
-# a line starting "Hold:"): the label is not the only way a PR says it must not
-# merge. The hyphenated form is the label's name and is not matched, so a body
-# that merely names the label does not block. A "Hold:" line may follow any
-# whitespace, NBSP included, and a bare CR counts as a line break. A "Hold:"
-# line holds the merge only: the pull-request ready flip ignores it.
-BODY_MERGE_HOLD_RE = re.compile(
-    r"\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:", re.I | re.M
-)
-# The label form of the same hold: blocks in every tier, whether or not the
-# autopilot merge tier is engaged. `--block-labels` only adds to it.
-MERGE_HOLD_LABELS = ("do-not-merge",)
+BODY_MERGE_HOLD_RE = merge_policy.BODY_MERGE_HOLD_RE
+MERGE_HOLD_LABELS = merge_policy.MERGE_HOLD_LABELS
 # Where this process's gate processes share the resolved human-gated label.
 HUMAN_GATED_SECTION = "human-gated-label"
 
@@ -3188,9 +3178,17 @@ def assess_unattended(
             window_start=window_start,
         )
 
+    # The label an adopted owner pull request holds on; unreadable adopts none.
+    human_gated = None
+    if authority == merge_policy.PR_MERGE:
+        try:
+            human_gated = human_gated_label(repo)
+        except postmerge.PostMergeReadError:
+            pass
     policy = merge_policy.assess(
         repo,
         number,
+        human_gated=human_gated,
         self_logins=self_logins,
         post_merge=post_merge,
         promotion=promotion,

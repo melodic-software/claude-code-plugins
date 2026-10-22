@@ -38,7 +38,7 @@
               "instruction-path"
             ]
           },
-          "description": "Named refusals; any match refuses the whole patch. github: .github/** in any case and through any .. segment; claude: .claude/** at any depth; mcp-config: the root .mcp.json; gitmodules: .gitmodules; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; new-executable: an executable bit on a file not already executable; rename-into-refused: a rename whose new path another refusal matches; instruction-path, optional: a path loaded as instructions or ownership (CLAUDE.md, AGENTS.md, .mcp.json, .lsp.json, .gitmodules or CODEOWNERS at any depth, a .claude or .claude-plugin directory, a plugin's hooks, monitors or bin)."
+          "description": "Named refusals; any match refuses the whole patch. github: .github/** in any case and through any .. segment; claude: .claude/** at any depth; mcp-config: the root .mcp.json; gitmodules: .gitmodules; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; new-executable: an executable bit the patch sets on a file not already executable; rename-into-refused: a rename whose new path another refusal matches; instruction-path, optional: a path loaded as instructions or ownership (CLAUDE.md, AGENTS.md, .mcp.json, .lsp.json, .gitmodules or CODEOWNERS at any depth, a .claude or .claude-plugin directory, a plugin's hooks, monitors or bin)."
         },
         "allow": {
           "type": "array",
@@ -94,6 +94,11 @@
           "type": "boolean",
           "default": false,
           "description": "true: a PR head that moved since the producer's run skips superseded-sha, before the mint and again before the push; false: the patch takes the moved tip with --3way when the moved commits touch no patched path."
+        },
+        "script-exec-bit": {
+          "type": "boolean",
+          "default": false,
+          "description": "true: after every refusal passes, apply-patch makes each new or changed file that ends in .sh or starts with #! executable, since the model's tools set no file mode; the row must refuse instruction-path."
         },
         "empty-at-push": {
           "enum": ["empty", "invalid"],

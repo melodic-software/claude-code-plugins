@@ -16,7 +16,9 @@
 # tree, untracked files and file modes included, through a temporary index and
 # object directory, checks that commit out in a scratch repository, and runs
 # the checks there. Nothing is written under .git, so the checkout's HEAD,
-# index and worktree list stay as they are.
+# index and worktree list stay as they are. With CHECK_AFFECTED_SCRIPT_EXEC_BIT=1
+# (the issue lane's patch run) that commit makes each new or changed .sh or #!
+# file executable, as apply-patch will.
 #
 # Each check calls the script or tool CI calls; none restates a check's logic.
 # The changed set is <merge-base of HEAD and the base>..HEAD, committed work
@@ -48,10 +50,11 @@
 # is covered, and scripts/check-affected-gates.test.sh fails when a gate in
 # the workflow's hygiene jobs is in neither column.
 #
-# Code runs from the tree holding this script; the files checked are those of
-# the current directory's repository. The pre-push hook runs a merge-base copy
-# of this script against a branch, so the two differ: then every check script
-# runs from the copy with CHECK_DATA_ROOT naming the branch tree, markdownlint
+# Code runs from the tree holding this script, and the files checked are that
+# tree's too, whatever the working directory, unless CHECK_DATA_ROOT names
+# another tree. The pre-push hook runs a merge-base copy of this script with
+# CHECK_DATA_ROOT naming the branch tree, so the two differ: then every check
+# script runs from the copy with CHECK_DATA_ROOT passed on, markdownlint
 # reads only the copy's configs (a branch config can load a custom rule, which
 # is code), and checks that run the branch's own code skip: --tests, changed-skills, and the
 # validate-plugins steps that report `SKIP` themselves.
@@ -64,7 +67,8 @@
 # A missing tool, a failed fetch, or a check that exits 2 (could not run) is a
 # SKIP with its reason, never a failure. Exit 0 every check passed or skipped;
 # 1 a check failed, with each failure and its reproduce command on stderr; 2
-# usage or a git state the changed set cannot be read from. That is the
+# usage or a git state the changed set cannot be read from, an empty changed
+# set while HEAD is not the base among them. That is the
 # check-script family contract stated in README.md.
 set -uo pipefail
 
@@ -94,11 +98,11 @@ while (($#)); do
 done
 
 tools="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)" || exit 2
-if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  echo "check-affected: not inside a git work tree" >&2
+top="$(git -C "${CHECK_DATA_ROOT:-$tools}" rev-parse --show-toplevel 2>/dev/null)" || {
+  echo "check-affected: ${CHECK_DATA_ROOT:-$tools} is not inside a git work tree" >&2
   exit 2
-fi
-cd "$(git rev-parse --show-toplevel)" || exit 2
+}
+cd "$top" || exit 2
 
 if ((uncommitted)); then
   # The scratch repository has no remote, so the base is fetched and resolved
@@ -132,10 +136,23 @@ if ((uncommitted)); then
   done < <(git ls-files -z --modified --others --exclude-standard)
   if ((${#paths[@]})); then
     printf '%s\0' "${paths[@]}" | git add -A --pathspec-from-file=- --pathspec-file-nul || exit 2
+    # An issue lane's patch is committed by apply-patch, which makes each new
+    # or changed .sh or #! file executable, so the snapshot does the same.
+    if [[ ${CHECK_AFFECTED_SCRIPT_EXEC_BIT:-} == 1 ]]; then
+      for f in "${paths[@]}"; do
+        [[ -f "$f" && ! -L "$f" ]] || continue
+        if [[ "$f" == *.sh || "$(head -c 2 -- "$f")" == '#!' ]]; then git update-index --chmod=+x -- "$f" || exit 2; fi
+      done
+    fi
   fi
   tree="$(git write-tree)" || exit 2
-  commit="$(git -c user.name=check-affected -c user.email=check-affected@localhost \
-    commit-tree "$tree" -p HEAD -m 'check-affected: uncommitted work')" || exit 2
+  # No edits: the snapshot is HEAD itself, so a clean tree is HEAD at its base.
+  if [[ "$tree" == "$(git rev-parse "HEAD^{tree}")" ]]; then
+    commit="$(git rev-parse HEAD)" || exit 2
+  else
+    commit="$(git -c user.name=check-affected -c user.email=check-affected@localhost \
+      commit-tree "$tree" -p HEAD -m 'check-affected: uncommitted work')" || exit 2
+  fi
   unset GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
   git -c init.defaultBranch=snapshot init --quiet --template= "$snap/tree" || exit 2
   printf '%s\n' "$snap/objects" "$objects" >"$snap/tree/.git/objects/info/alternates" || exit 2
@@ -145,7 +162,7 @@ if ((uncommitted)); then
   args=(--base "$base" --no-fetch)
   ((run_tests)) && args+=(--tests)
   rc=0
-  (cd "$snap/tree" && bash "$tools/scripts/check-affected.sh" "${args[@]}") || rc=$?
+  CHECK_DATA_ROOT="$snap/tree" bash "$tools/scripts/check-affected.sh" "${args[@]}" || rc=$?
   exit "$rc"
 fi
 base="${base:-origin/main}"
@@ -209,6 +226,12 @@ if ! all_raw="$(git diff --name-only "$merge_base" HEAD)" ||
 fi
 mapfile -t changed <<<"$changed_raw"
 [[ -n "${changed[0]-}" ]] || changed=()
+# Nothing changed is a pass only when HEAD is the base; otherwise the run read
+# the wrong tree or range, and passing would check nothing.
+if [[ -z "$all_raw" && "$(git rev-list --count "$base...HEAD")" != 0 ]]; then
+  echo "check-affected: no changed files in $top since $merge_base, yet HEAD is not $base, so nothing would be checked. Run the check-affected.sh inside the tree you mean to check, or name that tree in CHECK_DATA_ROOT." >&2
+  exit 2
+fi
 
 if ((${#changed[@]})) && ! git diff --quiet HEAD -- "${changed[@]}"; then
   echo "check-affected: SKIP every check (uncommitted edits to changed files; the checks read the working tree, a push sends HEAD, and CI checks the pushed commit). Commit or stash them, then rerun." >&2

@@ -1,9 +1,9 @@
 // The fixture set, the data the replay lays out from it, and the scoring.
 // Expected counts come from the planted-defect plan (fixture mix and scoring
 // rules); the data expectations from prompt.md and resolve-pr.mjs's spec
-// rules: a spec is the body and comments a listed human other than the PR
-// author wrote, while the context keeps every listed account's text,
-// including the PR author's, and drops unlisted accounts.
+// rules: a spec is the body and comments a listed human wrote, the PR author
+// included, while the context keeps every listed account's text and drops
+// unlisted accounts.
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

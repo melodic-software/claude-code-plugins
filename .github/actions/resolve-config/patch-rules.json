@@ -48,10 +48,11 @@
     "escalations": ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "issue": {
-    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"],
+    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused", "instruction-path"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],
+    "script-exec-bit": true,
     "commit": { "parents": ["head"], "message": "Resolve issue #{issue}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": null,
     "escalations": ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]

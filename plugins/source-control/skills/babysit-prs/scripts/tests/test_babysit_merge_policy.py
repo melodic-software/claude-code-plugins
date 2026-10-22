@@ -3183,6 +3183,446 @@ class LaneEligibility(unittest.TestCase):
         self.assertEqual(recheck(None), "closing-issue-changed:None>41")
 
 
+OWNER_LOGIN = "kyle-sexton"
+OWNER_ID = 153232337
+ADOPT_NOW = datetime(2026, 10, 12, 12, tzinfo=UTC)
+IDLE = "2026-10-11T11:00:00Z"  # 25 hours before ADOPT_NOW
+FRESH = "2026-10-11T13:00:00Z"  # 23 hours before ADOPT_NOW
+HEAD = "c" * 40
+
+
+def owner_pr(**changes: Any) -> dict[str, Any]:
+    """An idle, ready, unheld REST pull request the owner account opened."""
+    pr = {
+        "number": 7,
+        "base": {"sha": SHA},
+        "head": {"sha": HEAD},
+        "changed_files": 1,
+        "draft": False,
+        "user": {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "User"},
+        "updated_at": IDLE,
+        "labels": [{"name": "enhancement"}],
+        "body": "Closes #41\n\nA plain body.",
+    }
+    pr.update(changes)
+    return pr
+
+
+class AdoptIdleOwnerPullRequests(unittest.TestCase):
+    """Owner decision Q22: a ready, unheld pull request the owner account
+    opened, idle `adoption.idle-hours` by its update and its head commit, is
+    adopted by the pr-merge lane."""
+
+    ISSUE = LaneEligibility.ISSUE
+    TIMELINE = LaneEligibility.TIMELINE
+    FILES = LaneEligibility.FILES
+    COMMENTS = LaneEligibility.COMMENTS
+    COMMIT = f"repos/{REPO}/commits/{HEAD}"
+    issue_node = LaneEligibility.issue_node
+    fake_lane = LaneEligibility.fake
+
+    def refusal(self, pr: dict[str, Any] | None = None, **kwargs: Any) -> Any:
+        args: dict[str, Any] = {
+            "idle_hours": 24,
+            "owner_ids": (OWNER_ID,),
+            "human_gated": "needs-human",
+            "now": ADOPT_NOW,
+        }
+        args.update(kwargs)
+        committed = args.pop("committed", IDLE)
+        return policy.adoption_refusal(
+            owner_pr() if pr is None else pr, lambda: committed, **args
+        )
+
+    def test_an_idle_ready_unheld_owner_pr_is_adopted(self) -> None:
+        self.assertIsNone(self.refusal())
+
+    def test_idle_exactly_the_configured_hours_is_adopted(self) -> None:
+        at = "2026-10-11T12:00:00Z"
+        self.assertIsNone(self.refusal(owner_pr(updated_at=at), committed=at))
+
+    def test_a_draft_is_not_adopted(self) -> None:
+        self.assertEqual(self.refusal(owner_pr(draft=True)), "draft")
+        self.assertEqual(self.refusal(owner_pr(draft=None)), "draft")
+
+    def test_another_account_is_not_adopted(self) -> None:
+        for user in (
+            {"login": "someone", "id": 1, "type": "User"},
+            {"login": OWNER_LOGIN, "type": "User"},
+            {"login": "agent-lanes[bot]", "id": 2, "type": "Bot"},
+        ):
+            with self.subTest(user=user):
+                self.assertEqual(self.refusal(owner_pr(user=user)), "author-not-owner")
+
+    def test_the_owner_login_with_another_id_is_not_adopted(self) -> None:
+        # Login text is never the match: only the account id is.
+        for login in (OWNER_LOGIN, OWNER_LOGIN.upper()):
+            with self.subTest(login=login):
+                spoof = {
+                    "login": login,
+                    "id": OWNER_ID + 1,
+                    "type": "User",
+                }
+                self.assertEqual(self.refusal(owner_pr(user=spoof)), "author-not-owner")
+
+    def test_the_owner_id_on_a_bot_account_is_not_adopted(self) -> None:
+        user = {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "Bot"}
+        self.assertEqual(self.refusal(owner_pr(user=user)), "author-not-owner")
+
+    def test_a_recent_update_is_not_adopted(self) -> None:
+        self.assertEqual(self.refusal(owner_pr(updated_at=FRESH)), "updated-fresh")
+
+    def test_a_recent_head_commit_is_not_adopted(self) -> None:
+        self.assertEqual(self.refusal(committed=FRESH), "head-fresh")
+
+    def test_an_unreadable_time_is_not_idle(self) -> None:
+        for bad in (None, "", "yesterday", "2026-10-10T00:00:00"):
+            with self.subTest(bad=bad):
+                self.assertEqual(
+                    self.refusal(owner_pr(updated_at=bad)), "updated-fresh"
+                )
+                self.assertEqual(self.refusal(committed=bad), "head-fresh")
+
+        def unreadable() -> str:
+            raise policy.PolicyReadError("502")
+
+        self.assertEqual(
+            policy.adoption_refusal(
+                owner_pr(),
+                unreadable,
+                idle_hours=24,
+                owner_ids=(OWNER_ID,),
+                human_gated="needs-human",
+                now=ADOPT_NOW,
+            ),
+            "head-fresh",
+        )
+
+    def test_the_owner_ids_come_from_the_caller(self) -> None:
+        other = {"login": "other", "id": 77, "type": "User"}
+        self.assertIsNone(self.refusal(owner_pr(user=other), owner_ids=(5, 77)))
+        self.assertEqual(self.refusal(owner_ids=(77,)), "author-not-owner")
+        self.assertEqual(self.refusal(owner_ids=()), "author-not-owner")
+
+    def test_the_head_commit_is_not_read_for_a_pr_refused_earlier(self) -> None:
+        def unread() -> str:
+            raise AssertionError("head commit read")
+
+        for pr in (
+            owner_pr(draft=True),
+            owner_pr(user={"login": "x", "id": 1, "type": "User"}),
+            owner_pr(updated_at=FRESH),
+            owner_pr(labels=[{"name": "do-not-merge"}]),
+        ):
+            with self.subTest(pr=pr):
+                self.assertIsNotNone(
+                    policy.adoption_refusal(
+                        pr,
+                        unread,
+                        idle_hours=24,
+                        owner_ids=(OWNER_ID,),
+                        human_gated="needs-human",
+                        now=ADOPT_NOW,
+                    )
+                )
+
+    def test_the_do_not_merge_label_holds(self) -> None:
+        pr = owner_pr(labels=[{"name": "Do-Not-Merge"}])
+        self.assertEqual(self.refusal(pr), "hold-label:do-not-merge")
+
+    def test_the_resolved_human_gated_label_holds(self) -> None:
+        pr = owner_pr(labels=[{"name": "awaiting-owner"}])
+        self.assertEqual(
+            self.refusal(pr, human_gated="awaiting-owner"),
+            "hold-label:awaiting-owner",
+        )
+        # The label is the resolved one, never the literal default.
+        pr = owner_pr(labels=[{"name": "needs-human"}])
+        self.assertIsNone(self.refusal(pr, human_gated="awaiting-owner"))
+        self.assertEqual(self.refusal(pr), "hold-label:needs-human")
+
+    def test_an_unresolved_human_gated_label_is_not_adopted(self) -> None:
+        self.assertEqual(self.refusal(human_gated=None), "human-gated-label-unresolved")
+
+    def test_a_hold_line_in_the_body_holds(self) -> None:
+        for body in ("Closes #41\n\nHold: waiting on the owner", "  hold: x"):
+            with self.subTest(body=body):
+                self.assertEqual(self.refusal(owner_pr(body=body)), "hold-body")
+
+    # --- While the lane's own queue entry is pending ------------------------
+
+    def test_a_fresh_update_keeps_adoption_while_the_lane_entry_is_queued(self) -> None:
+        # The lane's pin comment and enqueue refresh `updated_at`; its own
+        # entry at this head must not then leave the queue as not adopted.
+        pr = owner_pr(updated_at=FRESH)
+        self.assertIsNone(self.refusal(pr, queued_at_head=lambda: True))
+        self.assertEqual(
+            self.refusal(pr, queued_at_head=lambda: False), "updated-fresh"
+        )
+        self.assertEqual(self.refusal(pr), "updated-fresh")
+
+    def test_a_queued_entry_still_needs_an_idle_head_commit(self) -> None:
+        pr = owner_pr(updated_at=FRESH)
+        self.assertEqual(
+            self.refusal(pr, committed=FRESH, queued_at_head=lambda: True),
+            "head-fresh",
+        )
+
+    def test_a_queued_entry_still_answers_to_every_hold(self) -> None:
+        for pr, refused in (
+            (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
+            (owner_pr(labels=[{"name": "needs-human"}]), "hold-label:needs-human"),
+            (owner_pr(body="Hold: the owner merges"), "hold-body"),
+            (owner_pr(draft=True), "draft"),
+        ):
+            with self.subTest(refused=refused):
+                pr["updated_at"] = FRESH
+                self.assertEqual(self.refusal(pr, queued_at_head=lambda: True), refused)
+
+    def test_the_queue_is_not_read_for_an_idle_update(self) -> None:
+        def unread() -> bool:
+            raise AssertionError("queue read")
+
+        self.assertIsNone(self.refusal(queued_at_head=unread))
+
+    def test_the_lane_entry_is_its_own_at_the_current_head(self) -> None:
+        cases = (
+            ("queued and pinned at the head", [7], HEAD, True),
+            ("no entry of the identity", [8], HEAD, False),
+            ("pinned at another head", [7], "d" * 40, False),
+            ("no pin, or an edited one", [7], None, False),
+        )
+        for label, queued, pinned, expected in cases:
+            with self.subTest(label):
+                with (
+                    mock.patch.object(
+                        babysit_postmerge, "identity_queue", return_value=(queued, 0)
+                    ) as queue,
+                    mock.patch.object(
+                        babysit_postmerge, "read_pin", return_value=pinned
+                    ) as read,
+                ):
+                    self.assertIs(
+                        policy.lane_queued_at_head(REPO, 7, "trunk", IDENTITY, HEAD),
+                        expected,
+                    )
+                    queue.assert_called_once_with(REPO, "trunk", IDENTITY)
+                    if queued == [7]:
+                        read.assert_called_once_with(REPO, 7, IDENTITY, alone=True)
+
+    def test_a_comment_after_the_pin_ends_the_queued_excuse(self) -> None:
+        # A human asking to wait refreshes `updated_at`: with the lane's
+        # entry still queued at the head, the next sweep refuses it again.
+        pin = {
+            "author": bot("agent-lanes"),
+            "body": babysit_postmerge.pin_comment(HEAD),
+            "createdAt": "2026-10-11T13:00:00Z",
+            "lastEditedAt": None,
+        }
+        wait = {
+            "author": user(OWNER_LOGIN),
+            "body": "Please wait on this one",
+            "createdAt": "2026-10-11T14:00:00Z",
+            "lastEditedAt": None,
+        }
+        for comments, reviews, expected in (
+            ([pin], [], None),
+            ([pin, wait], [], "updated-fresh"),
+            (
+                [pin],
+                [{"author": user(OWNER_LOGIN), "submittedAt": "2026-10-11T14:00:00Z"}],
+                "updated-fresh",
+            ),
+            ([pin], None, "updated-fresh"),
+        ):
+            with self.subTest(comments=len(comments), reviews=reviews):
+                answer = {
+                    "data": {
+                        "repository": {
+                            "pullRequest": {
+                                "comments": {
+                                    "pageInfo": {
+                                        "hasNextPage": False,
+                                        "endCursor": None,
+                                    },
+                                    "nodes": comments,
+                                },
+                                "reviews": {"nodes": reviews},
+                            }
+                        }
+                    }
+                }
+                with (
+                    mock.patch.object(
+                        babysit_postmerge, "identity_queue", return_value=([7], 0)
+                    ),
+                    mock.patch.object(babysit_postmerge, "_read", return_value=answer),
+                ):
+                    self.assertEqual(
+                        self.refusal(
+                            owner_pr(updated_at=FRESH),
+                            queued_at_head=lambda: policy.lane_queued_at_head(
+                                REPO, 7, "trunk", IDENTITY, HEAD
+                            ),
+                        ),
+                        expected,
+                    )
+
+    def test_an_unreadable_queue_or_pin_is_not_queued(self) -> None:
+        error = babysit_postmerge.PostMergeReadError("502")
+        for target in ("identity_queue", "read_pin"):
+            with self.subTest(target):
+                with (
+                    mock.patch.object(
+                        babysit_postmerge, "identity_queue", return_value=([7], 0)
+                    ),
+                    mock.patch.object(babysit_postmerge, "read_pin", return_value=HEAD),
+                    mock.patch.object(babysit_postmerge, target, side_effect=error),
+                ):
+                    self.assertFalse(
+                        policy.lane_queued_at_head(REPO, 7, "trunk", IDENTITY, HEAD)
+                    )
+        self.assertFalse(policy.lane_queued_at_head(REPO, 7, "trunk", IDENTITY, ""))
+
+    def test_no_idle_hours_adopts_nothing(self) -> None:
+        self.assertEqual(self.refusal(idle_hours=None), "idle-hours-invalid")
+
+    def test_idle_hours_come_from_the_caller(self) -> None:
+        self.assertEqual(self.refusal(idle_hours=26), "updated-fresh")
+        self.assertIsNone(
+            self.refusal(owner_pr(updated_at=FRESH), committed=FRESH, idle_hours=1)
+        )
+
+    # --- In the lane's eligibility ------------------------------------------
+
+    def eligibility(self, pr: dict[str, Any], **kwargs: Any) -> Any:
+        args: dict[str, Any] = {
+            "denied_paths": LANE_DENIED,
+            "agent_identity": IDENTITY,
+            "adoption_idle_hours": 24,
+            "adoption_owner_ids": (OWNER_ID,),
+            "human_gated": "needs-human",
+            "now": ADOPT_NOW,
+        }
+        args.update(kwargs)
+        return policy.lane_eligibility(REPO, 7, pr=pr, **args)
+
+    def owner_fake(self, committed: str = IDLE) -> GhFake:
+        gh = self.fake_lane(author=user(OWNER_LOGIN))
+        gh.rest[self.COMMIT] = {
+            "sha": HEAD,
+            "commit": {"committer": {"date": committed}},
+        }
+        return gh
+
+    def test_an_adopted_owner_pr_is_eligible_and_says_why(self) -> None:
+        self.owner_fake()
+        result = self.eligibility(owner_pr())
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual((result.work_class, result.issue), ("C2", 41))
+        self.assertEqual(result.adoption, "idle-owner:24h")
+
+    def test_an_adopted_owner_pr_keeps_every_lane_requirement(self) -> None:
+        self.owner_fake()
+        self.fake_lane(author=user(OWNER_LOGIN), closing=[]).rest[self.COMMIT] = {
+            "sha": HEAD,
+            "commit": {"committer": {"date": IDLE}},
+        }
+        self.assertEqual(self.eligibility(owner_pr()).reason, "linked-issues:0")
+
+    def test_a_fresh_owner_pr_is_not_adopted(self) -> None:
+        self.owner_fake(committed=FRESH)
+        result = self.eligibility(owner_pr())
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "not-adopted:head-fresh")
+        self.assertIsNone(result.adoption)
+
+    def test_a_fresh_owner_pr_queued_by_the_lane_stays_adopted(self) -> None:
+        self.owner_fake()
+        pr = owner_pr(updated_at=FRESH)
+        result = self.eligibility(pr, queued_at_head=lambda: True)
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.adoption, "idle-owner:24h")
+        result = self.eligibility(pr, queued_at_head=lambda: False)
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
+
+    def test_another_author_stays_not_lane_authored(self) -> None:
+        self.owner_fake()
+        pr = owner_pr(user={"login": OWNER_LOGIN, "id": 1, "type": "User"})
+        self.assertEqual(self.eligibility(pr).reason, "not-lane-authored")
+
+    def test_a_lane_pr_is_not_adopted(self) -> None:
+        self.fake_lane()
+        result = self.eligibility(owner_pr())
+        self.assertTrue(result.eligible, result.reason)
+        self.assertIsNone(result.adoption)
+
+    def test_without_adoption_settings_nothing_is_adopted(self) -> None:
+        self.owner_fake()
+        result = policy.lane_eligibility(
+            REPO, 7, pr=owner_pr(), denied_paths=(), agent_identity=IDENTITY
+        )
+        self.assertEqual(result.reason, "not-lane-authored")
+
+    # --- The setting ---------------------------------------------------------
+
+    def test_idle_hours_default_to_24_and_read_the_setting(self) -> None:
+        for text, expected, noted in (
+            (PIPELINE, 24, False),
+            (PIPELINE + "adoption:\n  idle-hours: 48\n", 48, False),
+            (PIPELINE + "adoption:\n  idle-hours: 1\n", 1, False),
+            (PIPELINE + "adoption:\n  idle-hours: 720\n", 720, False),
+            (PIPELINE + "adoption:\n  idle-hours: 0\n", None, True),
+            (PIPELINE + "adoption:\n  idle-hours: 721\n", None, True),
+            (PIPELINE + "adoption:\n  idle-hours: 01\n", None, True),
+            (PIPELINE + "adoption:\n  idle-hours: soon\n", None, True),
+            (PIPELINE + "adoption:\n  idle-hours: -1\n", None, True),
+            # Under merge it is another key, not the setting.
+            (PIPELINE.replace("merge:\n", "merge:\n  idle-hours: 1\n"), 24, False),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.adoption_idle_hours, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(any("idle-hours" in n for n in config.notes), noted)
+
+    def test_owner_ids_read_the_setting_and_absent_adopts_none(self) -> None:
+        for text, expected, noted in (
+            (PIPELINE, (), False),
+            (PIPELINE + "adoption:\n  idle-hours: 24\n", (), False),
+            (PIPELINE + "adoption:\n  owner-ids:\n", (), False),
+            (PIPELINE + f"adoption:\n  owner-ids: [{OWNER_ID}]\n", (OWNER_ID,), False),
+            (PIPELINE + "adoption:\n  owner-ids: [5, 77]\n", (5, 77), False),
+            (PIPELINE + "adoption:\n  owner-ids: []\n", (), False),
+            (PIPELINE + "adoption:\n  owner-ids: [5, kyle]\n", (), True),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.adoption_owner_ids, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(any("owner-ids" in n for n in config.notes), noted)
+
+    def test_the_default_branch_head_decides_owner_ids(self) -> None:
+        base = policy.PipelineConfig(SHA, "C2", None, IDENTITY, None, (), None)
+        combined = policy.stricter_config(
+            dataclasses.replace(base, adoption_owner_ids=(5,)),
+            dataclasses.replace(base, adoption_owner_ids=(7,)),
+        )
+        self.assertEqual(combined.adoption_owner_ids, (7,))
+
+    def test_the_default_branch_head_decides_idle_hours(self) -> None:
+        base = policy.PipelineConfig(SHA, "C2", None, IDENTITY, None, (), None)
+        for ours, main in ((24, 48), (48, 24), (24, None), (None, 24)):
+            with self.subTest(base=ours, main=main):
+                combined = policy.stricter_config(
+                    dataclasses.replace(base, adoption_idle_hours=ours),
+                    dataclasses.replace(base, adoption_idle_hours=main),
+                )
+                self.assertEqual(combined.adoption_idle_hours, main)
+
+
 class LaneEnabledSince(unittest.TestCase):
     """Authority pr-merge reads its own enabled run (plan Design "Lane mode")."""
 
@@ -3261,6 +3701,31 @@ class LaneAssess(unittest.TestCase):
         ):
             gh.rest[f"repos/{REPO}/{path}"] = 403
         return gh
+
+    def test_adoption_settings_reach_the_lane_and_the_report(self) -> None:
+        gh = self.unreadable_variables()
+        gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = file_payload(
+            LANE_PIPELINE + "adoption:\n  idle-hours: 48\n  owner-ids: [5, 77]\n"
+        )
+        lane = self.lane_clear()
+        lane.return_value = policy.Eligibility(
+            True, None, "C2", 41, adoption="idle-owner:24h"
+        )
+        result = self.lane_assess(
+            post_merge=lambda floor, who: gate(), human_gated="awaiting-owner"
+        )
+        self.assertIsNone(result.reason)
+        kwargs = lane.call_args.kwargs
+        self.assertEqual(kwargs["human_gated"], "awaiting-owner")
+        # The queue read names the resolved identity, the base and the head.
+        with mock.patch.object(
+            policy, "lane_queued_at_head", return_value=True
+        ) as queued:
+            self.assertTrue(kwargs["queued_at_head"]())
+        queued.assert_called_once_with(REPO, 1, "trunk", IDENTITY, "e" * 40)
+        self.assertEqual(kwargs["adoption_idle_hours"], 48)
+        self.assertEqual(kwargs["adoption_owner_ids"], (5, 77))
+        self.assertEqual(result.details["eligibility"]["adoption"], "idle-owner:24h")
 
     def test_an_empty_workflow_cap_allows_the_configured_rung(self) -> None:
         # The variable's own rule: unset (empty in `vars`) is no cap.
@@ -3862,6 +4327,8 @@ class TheStricterConfigEdges(unittest.TestCase):
             {**good, "max_in_flight": "five"},
             {**good, "notes": 7},
             {**good, "denied_paths": [1, 2]},
+            {**good, "adoption_idle_hours": 0},
+            {**good, "adoption_idle_hours": 721},
         ):
             with self.subTest(broken=broken):
                 policy.run_cache.put(policy.DEFAULT_BRANCH_CONFIG_SECTION, REPO, broken)

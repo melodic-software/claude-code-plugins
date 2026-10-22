@@ -110,6 +110,8 @@ async function main() {
     ok("at 1440 px, Needs you lists requests and what waits on the host side by side (follow-up 51)", colsStill && cols.aR <= cols.bL && cols.top < 2, JSON.stringify({ still: colsStill, ...cols }));
     await owner.click(".vf-ibchips [data-stat=proposal]");
     await owner.locator(".vf-ibneeds .vf-revlist > li", { hasText: REVIEW }).locator("button", { hasText: /^Run$/ }).click();
+    // Run's own pop-up comes after a round trip; wait for it so it cannot cover the report pop-ups counted below.
+    ok("  Run pops up that the request is running", await until(owner, () => /^Running\./.test(document.querySelector(".vf-toast.vf-on span")?.textContent || ""), null, 10000));
     ok("with only a kind whose chip is off left, the chips stay in reach and say so", await until(owner, () => !document.querySelector(".vf-ibchips").hidden
       && document.querySelector(".vf-ibchips [data-stat=proposal]")?.getAttribute("aria-pressed") === "false" && /^Nothing with these chips on/.test(document.querySelector(".vf-ibneeds .vf-ibempty").textContent)));
     await owner.click(".vf-ibchips [data-stat=proposal]");

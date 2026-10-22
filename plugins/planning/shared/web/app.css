@@ -201,7 +201,8 @@
 .app .vf-vote .vf-i { inline-size: 14px; block-size: 14px; }
 @media (hover: hover) and (pointer: fine) {
   .app .vf-btn-ghost:hover:not(:disabled), .app .vf-tbtn:hover, .app .vf-propose:hover { background: var(--raise); color: var(--text); }
-  .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--accent) 88%, white); }
+  /* Toward --text, away from the label in every light and dark pairing but light amber, which keeps margin: 4.5:1 (ui_contrast.js). */
+  .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
   .app .vf-btn-brass:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--brass) 88%, white); }
   .app .vf-q:hover { background: var(--raise); color: var(--text); }
   .app .vf-vote:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
@@ -461,6 +462,9 @@
 .app .vf-qctx { margin-block: 8px 4px; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .app .vf-onit { display: flex; align-items: center; gap: 8px; margin-block: 12px 24px; color: var(--muted); font-size: 12px; min-block-size: 20px; }
 .app .vf-qonit { display: none; }
+/* Read aloud ends the question's row; its negative block margin keeps the row's height, so turning it on moves nothing */
+.app .vf-readbtn { flex: none; margin-inline-start: auto; margin-block: -5px; }
+.app :is(.vf-readbtn, .vf-dictate)[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 
 /* locked block: the one loud element */
 .app .vf-lock {
@@ -1492,6 +1496,7 @@
 .app .vf-lb-acts { grid-area: acts; display: flex; gap: 8px; }
 .app .vf-lb-acts .vf-btn { block-size: 44px; padding-inline: 18px; font-size: 14px; gap: 6px; }
 .app .vf-lb-yn { border: 1px solid var(--line-strong); color: var(--text); background: var(--pane); min-inline-size: 88px; }
+.app .vf-lb-gif { border: 1px solid var(--line-strong); color: var(--text); background: var(--pane); }
 .app .vf-lb-yn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .app .vf-lb-acts .vf-btn:disabled { opacity: 0.5; cursor: default; }
 @media (max-width: 720px) {
@@ -1699,10 +1704,10 @@
 .app .vf-citeopt-t { font-weight: 650; font-size: 12.5px; }
 .app .vf-citeopt-s { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .app .vf-citebtn .vf-i { margin-inline-end: 4px; }
-.app .vf-crow > .vf-attach, .app .vf-crow > .vf-citebtn { flex: none; }
+.app .vf-crow > :is(.vf-attach, .vf-citebtn, .vf-dictate) { flex: none; }
 /* Attach is one square icon button wherever it sits: the answer box, Discussion, chat, Ask Claude (44 px on a phone) */
-.app .vf-attach { --att: 32px; inline-size: var(--att); block-size: var(--att); padding: 0; border-radius: var(--r-sm); }
-.app .vf-attach .vf-i { margin: 0; }
+.app :is(.vf-attach, .vf-dictate) { --att: 32px; inline-size: var(--att); block-size: var(--att); padding: 0; border-radius: var(--r-sm); }
+.app :is(.vf-attach, .vf-dictate) .vf-i { margin: 0; }
 /* the file field's button looks like the page's own buttons, not the browser's "Choose File" */
 .app .vf-filein { padding: 4px; font-size: 12.5px; color: var(--muted); }
 .app .vf-filein::file-selector-button {
@@ -1931,7 +1936,7 @@
   .app .vf-pickbtn { min-block-size: 44px; }
   .app .vf-msgmore { inline-size: 36px; block-size: 36px; }
   .app .vf-citechip { min-block-size: 36px; }
-  .app .vf-attach { --att: 44px; }
+  .app :is(.vf-attach, .vf-dictate) { --att: 44px; }
   .app .vf-hostv { padding: 12px 10px 24px; }
   .app .vf-hsec { padding: 12px; }
   .app .vf-tab { flex-direction: column; gap: 3px; }
@@ -2072,6 +2077,11 @@
 .app .vf-ref-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; }
 .app .vf-ref-dom { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline-start: 20px; }
 .app .vf-ref-x { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; background: var(--pane); }
+/* Play GIF / Stop GIF sits on the picture's top-left corner, clear of the remove x */
+.app .vf-gifplay {
+  position: absolute; inset-block-start: 6px; inset-inline-start: 6px; border: 1px solid var(--line-strong); color: var(--text);
+  background: color-mix(in oklch, var(--pane) 88%, transparent);
+}
 /* a diagram is drawn whole on a light ground, whatever the theme */
 .app .vf-ref[data-kind="diagram"] .vf-ref-thumb img { object-fit: contain; background: oklch(0.99 0 none); }
 .app .vf-ref[data-kind="diagram"] .vf-ref-x,
@@ -2110,6 +2120,7 @@
 
 /* ---------- Q86: More sheet (phones) ---------- */
 .app .vf-mslist { display: grid; padding: 4px 8px 12px; grid-template-columns: minmax(0, 1fr); }
+.app .vf-moresheet > .vf-mslist { min-block-size: 0; overflow: auto; } /* the sheet stops at 86% of a phone's height; its list scrolls */
 .app :is(.vf-msitem, .vf-hitem) {
   all: unset; box-sizing: border-box; cursor: pointer; inline-size: 100%;
   display: grid; grid-template-columns: 22px minmax(0, 1fr); grid-template-areas: "i l" ". d"; column-gap: 14px; align-items: center;
@@ -2271,7 +2282,7 @@
   .app .vf-composer > .vf-crow > * { pointer-events: auto; }
   .app .vf-composer:not(:focus-within) > .vf-crow > :is(.vf-citebtn, .vf-btn-ghost:not(.vf-attach), .vf-count-txt) { display: none; }
   .app .vf-composer > .vf-crow > .vf-citebtn { block-size: 32px; }
-  .app .vf-composer > .vf-crow > .vf-btn-ghost:not(.vf-attach, .vf-citebtn) { block-size: 32px; }
+  .app .vf-composer > .vf-crow > .vf-btn-ghost:not(.vf-attach, .vf-citebtn, .vf-dictate) { block-size: 32px; }
   .app .vf-composer .vf-sendbtn {
     margin-inline-start: auto; inline-size: 44px; block-size: 44px; padding: 0; border-radius: 22px;
     background: radial-gradient(circle closest-side, var(--accent) 16px, transparent 16.5px);
@@ -2450,6 +2461,9 @@
 
 /* C40: the ten person colors in the person card. */
 .app .vf-pcolors { display: grid; grid-template-columns: repeat(5, 32px); gap: 8px; margin-block: 4px 12px; }
+.app .vf-pavatar { display: grid; gap: 8px; justify-items: start; margin-block: 4px 12px; }
+.app .vf-pavatar .vf-pop-note { margin: 0; }
+.app .vf-pavatar-prev { inline-size: 64px; block-size: 64px; border-radius: 50%; object-fit: cover; }
 .app .vf-pcolor { inline-size: 32px; block-size: 32px; padding: 0; border: 0; border-radius: 50%; background: var(--av); cursor: pointer; }
 .app .vf-pcolor[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--pane), 0 0 0 4px var(--text); }
 .app .vf-pcolor:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -2546,6 +2560,14 @@
 .app .vf-hist-who { font-size: 11.5px; color: var(--muted); }
 .app .vf-hist-t { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .app :is(.vf-history, .vf-hintro-shown)[hidden], .app .vf-pop-sub[hidden] { display: none; }
+/* The owner's decision history: folded under a question, and the session's Decisions timeline. */
+.app .vf-qhist { margin-block-start: 12px; }
+.app .vf-qhist[hidden] { display: none; }
+.app .vf-qhist-sum { cursor: pointer; font-size: 13px; color: var(--muted); }
+.app .vf-qhist > .vf-history { margin-block-start: 8px; }
+/* Folded, the list is not rendered at all: a closed details' content never runs its theme transitions to the end. */
+.app .vf-qhist:not([open]) > .vf-history { display: none; }
+.app .vf-decpop { inline-size: min(420px, calc(100vw - 24px)); }
 .app .vf-personpop { inline-size: min(480px, calc(100vw - 24px)); }
 .app .vf-ppv-body { display: grid; gap: 12px; max-block-size: min(70vh, 640px); overflow: auto; }
 .app .vf-ppv-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
@@ -2655,8 +2677,9 @@
 .vp-app .vp-pin-on { background: oklch(0.75 0.16 70); }
 .vp-app .vp-side { display: grid; align-content: start; gap: 10px; min-block-size: 0; overflow: auto; padding: 12px; border-inline-start: 1px solid var(--line); background: var(--pane); }
 .vp-app .vp-qtext { margin: 0; font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.vp-app .vp-offnote { margin: 0; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 .vp-app .vp-whole { justify-self: start; }
-.vp-app .vp-whole[hidden], .vp-app .vp-composer[hidden], .vp-app .vp-empty[hidden], .vp-app .vp-missing[hidden] { display: none; }
+.vp-app .vp-whole[hidden], .vp-app .vp-composer[hidden], .vp-app .vp-empty[hidden], .vp-app .vp-missing[hidden], .vp-app .vp-annotate[hidden], .vp-app .vp-offnote[hidden] { display: none; }
 .vp-app .vp-composer { display: grid; gap: 6px; padding: 10px; border: 1px solid color-mix(in oklch, var(--accent) 50%, transparent); border-radius: var(--r-md); }
 .vp-app .vp-where { margin: 0; font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
 .vp-app .vp-ta { min-block-size: 72px; overflow-y: auto; }

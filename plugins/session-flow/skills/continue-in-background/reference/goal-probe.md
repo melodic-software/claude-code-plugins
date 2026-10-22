@@ -8,6 +8,7 @@ probe, not on a docs page; the section to recheck for where a goal runs is
 |---|---|---|---|
 | Pass the condition as the launched session's first prompt, `/goal <payload>`, read from a prompt file into `claude --bg --permission-mode auto "$(cat <file>)"` | The two probes below, run 2026-10-20 on Claude Code 2.1.304, Linux (WSL2) | 2026-10-20 | A release note changes how a background session's first prompt runs a slash command, the section above starts or stops naming background sessions, or a launch's transcript has no `Goal set:` line |
 | When the CLI refuses the `--cloud` launch for lack of a terminal, take the local `--bg` delivery instead | Probe 3 below, run 2026-10-20 on Claude Code 2.1.306, Linux (WSL2) | 2026-10-20 | A release lets `--cloud` start without a terminal, or <https://code.claude.com/docs/en/claude-code-on-the-web#start-a-cloud-session-from-your-terminal> changes how the terminal launch starts |
+| Take the docs' account of a goal staying active in a cloud session as a correlate only; first-prompt arming from a `--cloud` launch stays unprobed | <https://code.claude.com/docs/en/goal#errors-you-have-to-fix-clear-the-goal> | 2026-10-22 | That section stops naming cloud sessions, or <https://code.claude.com/docs/en/goal#run-non-interactively> starts naming them |
 
 ## What the probes observed
 
