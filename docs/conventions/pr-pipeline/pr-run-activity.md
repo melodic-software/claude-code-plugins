@@ -864,22 +864,27 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    downloads `run.json` from the select job's artifact (`review-run-attempt`) and `replies.jsonl`
    from the scan job's (`review-replies-attempt`), and copies the base's trusted-actors list.
    `publish-feedback.mjs` then:
+   - with no `replies.jsonl` (no model turn: a credit stop on both calls, a broker refusal, the
+     kill switch, a head that moved before the call) posts no reply, escalates nothing and skips
+     `no-model-turn`, after still recording the round. The dispatcher does not dispatch that head
+     again, since its check run is now completed; the next push and review do;
    - validates the whole artifact: `run.json` with the select job's SHA-256
-     (`review-run-sha256`); each file a regular file read only when within the size limit;
-     `replies.jsonl` at most 49152 bytes, each line an object with exactly `thread`,
+     (`review-run-sha256`) and at most 1 MiB; each file a regular file read only when within its
+     size limit; `replies.jsonl` at most 49152 bytes, each line an object with exactly `thread`,
      `disposition`, `evidence`, `fix_sha` and `note`; `thread` one `run.json` names, at most one
      reply per thread; `disposition` one of `VALID`, `INCORRECT`, `UNCERTAIN`, `VALID-defer`; at
      most 10 `path:line` evidence entries, no `.` or `..` segment, each a file in the checkout, at
      least one for `VALID` and `INCORRECT`; an empty `fix_sha` on every reply; a note of 1-2000
      characters with no control, direction or zero-width character, no `<!--` or `-->`, and
-     nothing shaped like a GitHub token. Any failure, or a missing artifact, posts no reply and
+     nothing shaped like a GitHub token. Any failure, or a missing `run.json`, posts no reply and
      escalates `feedback-invalid`;
    - requires exactly one reply per thread in `run.json`; an empty or partial set posts no reply
      and escalates `feedback-incomplete`;
    - when a reply is `VALID` or the PR branch moved, compares the select job's head with the PR's
      current head: the branch must be ahead and change fewer than 300 files, each in a kept
      thread's scope and none under `.github/`, and with a `VALID` reply hold exactly one commit the
-     lanes App authored with the push job's trailer, which must change each `VALID` thread's path,
+     lanes App authored with the push job's trailer, committed by `web-flow` with a `valid`
+     signature, which must change each `VALID` thread's path,
      or for a thread on a skill's `SKILL.md` any file in that skill's directory. Otherwise it
      posts no reply and escalates `feedback-not-landed`: a push that was superseded, refused,
      escalated or held made no such commit;
@@ -897,10 +902,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      thread until a trusted human answers a reply left open, so a post, read or resolve failure
      stops the posting, and that or a `VALID` thread left open escalates `feedback-partial`, as
      does a round marker that cannot be posted;
-   - posts the round marker as the lanes App whatever happened above, once per select run: its
-     second line names the workflow run and `review-run-attempt`, and a re-run of the reply job
-     alone finds a lanes App marker with that line and posts none, so one round counts once. A
-     round with no context attempt names none, and its marker is always posted. It escalates
+   - posts the round marker as the lanes App whatever happened above, once per model run: its
+     second line names the workflow run and `review-replies-attempt`, and a re-run of the reply
+     job alone finds a lanes App marker with that line and posts none, so one round counts once,
+     while a re-run of the model job counts another. A round with no replies attempt names none,
+     and its marker is always posted. It escalates
      `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply, or `feedback-disputed` when an
      `INCORRECT` evidence reply was posted: that thread stays open for a person to decide.
 

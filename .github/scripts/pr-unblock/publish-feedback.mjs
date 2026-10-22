@@ -23,7 +23,9 @@
 //      this job gated, nothing more is posted or resolved.
 //   4. Posts the round marker, as the lanes App, once per model run: a
 //      re-run of this job finds the marker naming that run and posts none.
-//   5. Escalates feedback-invalid, feedback-incomplete (a kept thread has no
+//   5. With no replies.jsonl (no model turn) posts nothing and skips
+//      no-model-turn, escalating nothing. Otherwise escalates
+//      feedback-invalid, feedback-incomplete (a kept thread has no
 //      disposition), feedback-not-landed, feedback-partial (posting stopped
 //      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply)
 //      or feedback-disputed (an INCORRECT reply, left open for a person).
@@ -64,8 +66,11 @@ import {
 } from "./address-feedback.mjs";
 import { inThreadScope } from "./thread-scope.mjs";
 
-// bytes: replies.jsonl's cap, the read runner's carry, seal and scan cap too.
-export const LIMITS = { bytes: 49152, note: 2000, evidence: 10, files: 300 };
+// bytes: replies.jsonl's cap, the read runner's carry, seal and scan cap too;
+// runBytes: run.json's, the 1 MiB the read runner accepts for it.
+export const LIMITS = { bytes: 49152, runBytes: 1048576, note: 2000, evidence: 10, files: 300 };
+// GitHub's web-flow user, the committer of a commit made through the API.
+const WEB_FLOW_ID = 19864447;
 // The trailer apply-patch.mjs writes from patch-rules.json's review-threads row.
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/address-feedback";
 const THREAD_ID = /^PRRT_[A-Za-z0-9_-]{1,100}$/;
@@ -191,12 +196,17 @@ function touchesThread(changed, threadPath) {
   return skillDir === undefined ? changed.includes(threadPath) : changed.some((file) => file.startsWith(skillDir));
 }
 
-// The one commit in a range that the lanes App authored with the fix trailer
-// on a line of its own; null for none or more than one.
+// The one commit in a range that the lanes App authored through the API (the
+// web-flow committer, with a valid signature, as upstreamHeadHolds in
+// check-trusted-trigger.mjs requires) with the fix trailer on a line of its
+// own; null for none or more than one.
 export function fixCommitOf(commits, appId) {
   const fixes = commits.filter(
     (commit) =>
       commit.author?.id === appId &&
+      commit.committer?.id === WEB_FLOW_ID &&
+      commit.commit?.verification?.verified === true &&
+      commit.commit.verification.reason === "valid" &&
       String(commit.commit?.message ?? "")
         .split("\n")
         .some((line) => line.replace(/\r$/, "") === FIX_TRAILER),
@@ -324,6 +334,13 @@ async function postReplies({ api, pr, headSha, headRef, appId, reviewerId, trust
     try {
       const { runText, repliesText } = readArtifact();
       run = parseRun(runText);
+      // No replies.jsonl: the model call never ran, so there is nothing to
+      // judge. The round still counts; the check is a skip, and the next
+      // review's dispatch may try again.
+      if (repliesText === null) {
+        log("no reply is posted: no model turn uploaded replies");
+        return { escalationReason: "", skipReason: "no-model-turn", posted: [] };
+      }
       replies = parseReplies(repliesText, run, fileExists);
     } catch (error) {
       if (!(error instanceof Invalid) && error.code !== "ENOENT") {
@@ -435,13 +452,13 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   const runId = positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID");
   const modelRun = attempt ? `${runId}-${attempt}` : null;
   const dir = env.FEEDBACK_REPLIES_DIR;
-  const read = (name) => {
+  const read = (name, limit = LIMITS.bytes + 1) => {
     const path = join(dir, name);
     const stat = lstatSync(path);
     if (!stat.isFile()) {
       throw new Invalid(`${name} is not a regular file`);
     }
-    if (stat.size > LIMITS.bytes + 1) {
+    if (stat.size > limit) {
       throw new Invalid(`${name} is over the size limit`);
     }
     return readFileSync(path, "utf8");
@@ -449,13 +466,25 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   // run.json must be the bytes the model job's runner step wrote, whose
   // SHA-256 that job passed out as a runner-computed output.
   const readRun = () => {
-    const text = read("run.json");
+    const text = read("run.json", LIMITS.runBytes);
     if (!/^[0-9a-f]{64}$/.test(env.RUN_SHA256 ?? "") || createHash("sha256").update(text).digest("hex") !== env.RUN_SHA256) {
       throw new Invalid("run.json does not match the SHA-256 the model job recorded");
     }
     return text;
   };
-  const { escalationReason } = await publish({
+  // A missing replies.jsonl is no model turn; anything else wrong with it is
+  // feedback-invalid.
+  const readReplies = () => {
+    try {
+      return read("replies.jsonl");
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        return null;
+      }
+      throw error;
+    }
+  };
+  const { escalationReason, skipReason } = await publish({
     api:
       api ??
       createGitHubApi({
@@ -472,13 +501,15 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
-    readArtifact: () => ({ runText: readRun(), repliesText: read("replies.jsonl") }),
+    readArtifact: () => ({ runText: readRun(), repliesText: readReplies() }),
     fileExists: (path) => existsSync(join(env.GITHUB_WORKSPACE, path)),
     log,
   });
   if (escalationReason) {
     writeFileSync(env.ESCALATION_REASON_FILE, `${escalationReason}\n`);
     writeFileSync(env.SKIP_REASON_FILE, "awaiting-human\n");
+  } else if (skipReason) {
+    writeFileSync(env.SKIP_REASON_FILE, `${skipReason}\n`);
   }
   return 0;
 }

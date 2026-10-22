@@ -141,9 +141,9 @@ on:
       review-run-attempt:
         description: >-
           With review-replies, the select job's context-attempt output: the
-          attempt whose feedback-context-<attempt> artifact holds run.json,
-          and the model run the round marker names. Empty downloads nothing,
-          which the reply script refuses as feedback-invalid.
+          attempt whose feedback-context-<attempt> artifact holds run.json.
+          Empty downloads nothing, which the reply script refuses as
+          feedback-invalid.
         required: false
         type: string
         default: ""
@@ -152,8 +152,9 @@ on:
           With review-replies, the read runner's feedback-attempt output, set
           only by its scan job: the attempt whose
           feedback-replies-<lane>-address-feedback-<attempt> artifact holds
-          the scanned replies. Empty downloads none, which the reply script
-          refuses as feedback-invalid.
+          the scanned replies, and the model run the round marker names. Empty
+          downloads none: no model turn, which the reply script posts as a
+          no-model-turn skip.
         required: false
         type: string
         default: ""
@@ -893,8 +894,9 @@ jobs:
       # and the replies the read runner's scan job uploaded, both from this
       # workflow run, and the base's trusted-actors list for the reviewer
       # bot's id, all before the head checkout replaces .base. A missing
-      # artifact leaves its file absent, which the script refuses as
-      # feedback-invalid after it still records the round.
+      # artifact leaves its file absent; the script still records the round,
+      # then skips no-model-turn for missing replies and refuses a missing
+      # run.json as feedback-invalid.
       - name: Download the review-thread run record
         if: >-
           steps.lane-token.outputs.token != '' && inputs.review-replies
@@ -2070,7 +2072,7 @@ jobs:
             ${{ inputs.issue-number != ''
             && format('{0}/issue-{1}-{2}-{3}', inputs.lane, inputs.issue-number, github.run_id, inputs.patch-attempt)
             || steps.gate.outputs.head-ref }}
-          MODEL_RUN_ATTEMPT: ${{ inputs.review-run-attempt }}
+          MODEL_RUN_ATTEMPT: ${{ inputs.review-replies-attempt }}
           # dependency-verdict only; empty otherwise.
           DEPENDENCY_VERDICT_DIR: ${{ inputs.dependency-verdict && format('{0}/dependency-verdict', runner.temp) || '' }}
           DEPENDENCY_RUN_SHA256: ${{ inputs.dependency-run-sha256 }}

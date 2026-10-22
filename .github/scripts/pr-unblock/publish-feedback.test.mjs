@@ -36,7 +36,11 @@ const RUN = {
 const fixCommit = (sha = FIX, fields = {}) => ({
   sha,
   author: { id: APP },
-  commit: { message: "Address review feedback on feature\n\nLane-Activity: pr-unblock/address-feedback\n" },
+  committer: { id: 19864447 },
+  commit: {
+    message: "Address review feedback on feature\n\nLane-Activity: pr-unblock/address-feedback\n",
+    verification: { verified: true, reason: "valid" },
+  },
   ...fields,
 });
 const reply = (fields) => ({ thread: "PRRT_a", disposition: "INCORRECT", evidence: ["src/a.js:3"], fix_sha: "", note: "Guarded at src/a.js:2.", ...fields });
@@ -424,8 +428,8 @@ for (const [label, compare] of [
   // apply-feedback-patch pushed nothing: superseded, refused, escalated or held.
   ["the PR branch did not move", { status: "identical", commits: [], files: [] }],
   ["the only new commit is a person's", { status: "ahead", commits: [fixCommit("e".repeat(40), { author: { id: HUMAN } })], files: [{ filename: "src/a.js" }] }],
-  ["the App's new commit carries no fix trailer", { status: "ahead", commits: [fixCommit(FIX, { commit: { message: "Address review feedback on feature\n" } })], files: [{ filename: "src/a.js" }] }],
-  ["the App's new commit is another activity's", { status: "ahead", commits: [fixCommit(FIX, { commit: { message: "Fix\n\nLane-Activity: pr-unblock/fix-ci\n" } })], files: [{ filename: "src/a.js" }] }],
+  ["the App's new commit carries no fix trailer", { status: "ahead", commits: [fixCommit(FIX, { commit: { ...fixCommit().commit, message: "Address review feedback on feature\n" } })], files: [{ filename: "src/a.js" }] }],
+  ["the App's new commit is another activity's", { status: "ahead", commits: [fixCommit(FIX, { commit: { ...fixCommit().commit, message: "Fix\n\nLane-Activity: pr-unblock/fix-ci\n" } })], files: [{ filename: "src/a.js" }] }],
   ["two fix commits", { status: "ahead", commits: [fixCommit(), fixCommit("e".repeat(40))], files: [{ filename: "src/a.js" }] }],
   ["the branch diverged from the gated head", { status: "diverged", commits: [fixCommit()], files: [{ filename: "src/a.js" }] }],
   ["the branch changed a path no kept thread names", { status: "ahead", commits: [fixCommit()], files: [{ filename: "src/a.js" }, { filename: "src/other.js" }] }],
@@ -707,4 +711,78 @@ test("with no VALID reply no fix commit is needed: INCORRECT replies post on an 
   assert.equal(result.escalationReason, "feedback-disputed");
   assert.deepEqual(api.posted().map((call) => call[2]), [100, 200]);
   assert.deepEqual(api.resolved(), []);
+});
+
+// A model call that never ran (credit stop on both legs, broker refusal, kill
+// switch, a head that moved before the call) uploads no replies.jsonl: the
+// round still counts, and the check posts a skip, not an escalation.
+test("no replies.jsonl is no escalation: the round counts and the check skips no-model-turn", async () => {
+  const api = fakeApi();
+  const result = await run(api, null, JSON.stringify(RUN));
+  assert.equal(result.escalationReason, "");
+  assert.equal(result.skipReason, "no-model-turn");
+  assert.deepEqual(api.posted(), []);
+  assert.equal(api.markers().length, 1);
+});
+
+// The lanes App's address, the trailer and a range position are what a person
+// can put on a local commit; GitHub's web-flow committer and a valid
+// signature are what only the App's API commit carries (upstreamHeadHolds).
+test("a fix commit must be committed by web-flow with a valid signature", async () => {
+  for (const [label, fields] of [
+    ["committed by a person", { committer: { id: HUMAN } }],
+    ["no committer", { committer: null }],
+    ["unsigned", { commit: { ...fixCommit().commit, verification: { verified: false, reason: "unsigned" } } }],
+    ["signed but not valid", { commit: { ...fixCommit().commit, verification: { verified: true, reason: "bad_email" } } }],
+  ]) {
+    const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit(FIX, fields)], files: [{ filename: "src/a.js" }] } });
+    const result = await run(api, lines(reply({ disposition: "VALID", evidence: ["src/a.js:3"] })));
+    assert.equal(result.escalationReason, "feedback-not-landed", label);
+    assert.deepEqual(api.posted(), [], label);
+  }
+});
+
+test("main: a missing replies.jsonl writes the no-model-turn skip and no escalation; a missing run.json still escalates", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "publish-feedback-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const replies = join(dir, "replies");
+  mkdirSync(replies);
+  mkdirSync(join(dir, "ws"));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: REVIEWER, login: "claude[bot]", kind: "bot" }] }));
+  // run.json has its own limit, R's 1 MiB, not the replies cap.
+  const runText = JSON.stringify(RUN) + " ".repeat(60000);
+  writeFileSync(join(replies, "run.json"), runText);
+  const env = {
+    GH_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    PR_NUMBER: "42",
+    HEAD_SHA: NOW,
+    HEAD_REF: "feature",
+    GITHUB_RUN_ID: "5000",
+    MODEL_RUN_ATTEMPT: "",
+    APP_SENDER_ID: String(APP),
+    TRUSTED_ACTORS: actors,
+    FEEDBACK_REPLIES_DIR: replies,
+    GITHUB_WORKSPACE: join(dir, "ws"),
+    SKIP_REASON_FILE: join(dir, "skip"),
+    ESCALATION_REASON_FILE: join(dir, "escalation"),
+    RUN_SHA256: createHash("sha256").update(runText).digest("hex"),
+  };
+  const api = fakeApi();
+  assert.equal(await main(env, { api, log: () => {} }), 0);
+  assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "no-model-turn\n");
+  assert.throws(() => readFileSync(env.ESCALATION_REASON_FILE), /ENOENT/);
+  assert.equal(api.markers().length, 1);
+
+  rmSync(env.SKIP_REASON_FILE);
+  const huge = JSON.stringify(RUN) + " ".repeat(1048577);
+  writeFileSync(join(replies, "run.json"), huge);
+  await main({ ...env, RUN_SHA256: createHash("sha256").update(huge).digest("hex") }, { api: fakeApi(), log: () => {} });
+  assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n");
+
+  rmSync(join(replies, "run.json"));
+  rmSync(env.ESCALATION_REASON_FILE);
+  await main(env, { api: fakeApi(), log: () => {} });
+  assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n");
 });

@@ -157,6 +157,10 @@ say(byId("act-script").env?.RUN_SHA256 === "${{ inputs.review-run-sha256 }}",
 // "Re-run failed jobs" on the reply job alone bumps github.run_attempt but
 // keeps the other jobs' outputs, so each artifact is named by its writer's
 // attempt, never by the downloading job's own.
+// The round marker names the model attempt whose scanned replies this job
+// posts, so a model job re-run at a new attempt counts a new round.
+say(byId("act-script").env?.MODEL_RUN_ATTEMPT === "${{ inputs.review-replies-attempt }}",
+  "the round marker names the scan job's replies attempt");
 const runDownload = steps.find((s) => s.name === "Download the review-thread run record");
 const replyDownload = steps.find((s) => s.name === "Download the review-thread replies");
 say(runDownload?.with?.name === "feedback-context-${{ inputs.review-run-attempt }}"
