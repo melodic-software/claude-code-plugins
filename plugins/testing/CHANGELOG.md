@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.0] - 2026-10-22
+
+### Added
+
+- `/testing:check-visual-parity` captures each state through `/app-control:drive capture --kind screenshot` first when that skill is available, using drive's own launch as the one launch path and falling through to the Playwright CLI or the repository's harness when drive reports a capability gap or writes no PNG; the report names the route that captured each state.
+
 ## [0.30.1] - 2026-10-22
 
 ### Changed

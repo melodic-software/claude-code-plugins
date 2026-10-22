@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.1] - 2026-10-22
+
+### Fixed
+
+- The `packet-seal.sh` contract suite no longer fails at random on `sealed-at=` lines: its exact-line check now reads a here-string instead of a pipe into `grep -q`, which could exit before `printf` finished writing and fail the pipeline under `pipefail`.
+
 ## [0.16.0] - 2026-10-20
 
 ### Added

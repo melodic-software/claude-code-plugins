@@ -563,7 +563,7 @@ class GuestServer(ThreadingHTTPServer):
     def server_bind(self):
         if detached.WINDOWS and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        super().server_bind()
+        session_bridge.bind_without_lookup(self)
 
     def process_request(self, request, client_address):
         if not self.slots.acquire(blocking=False):
