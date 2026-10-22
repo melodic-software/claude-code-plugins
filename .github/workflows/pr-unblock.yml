@@ -62,6 +62,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     # One per-PR queue shared by every write lane: it queues, never cancels.
     concurrency:
@@ -86,6 +87,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -113,6 +115,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -194,6 +197,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -216,6 +220,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -364,6 +369,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -378,10 +384,12 @@ jobs:
       trusted-base: default-tip
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       # Reproducing, fixing and rerunning several checks outlasts the default.
       timeout-minutes: 60
     secrets:
       claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The subscription fallback, as a second call on new VMs: it runs only when
   # fix-ci's key leg hit a credit stop or its key is empty, which fix-ci then
@@ -398,6 +406,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -413,9 +422,11 @@ jobs:
       trusted-base: default-tip
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The push job: apply-patch.mjs, a script with no model that runs no head
   # code. It checks the patch against the model job's SHA-256 and head,
@@ -424,7 +435,7 @@ jobs:
   # escalated check, hands the PR to a person. The patch comes from whichever
   # call ran the activity; a call that handed off left none.
   apply-patch:
-    needs: [fix-ci, fix-ci-subscription]
+    needs: [fix-ci-context, fix-ci, fix-ci-subscription]
     if: >-
       ${{ !cancelled() && ((needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'written'
       || (needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'empty') }}
@@ -432,6 +443,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
@@ -449,7 +461,13 @@ jobs:
       patch-attempt: ${{ needs.fix-ci-subscription.outputs.patch-attempt || needs.fix-ci.outputs.patch-attempt }}
       patch-activity: fix-ci
       patch-prepare: ci-context
-      patch-head-sha: ${{ needs.fix-ci-subscription.outputs.head-sha || needs.fix-ci.outputs.head-sha }}
+      # The head fix-ci-context gated, from a job that ran no head code; the
+      # read runner's own head-sha output is the run job's, which head code
+      # could forge. Both fix-ci calls refuse a context for another head, so a
+      # patch was made on this one. apply-patch compares it with the head its
+      # own trigger gate reads at apply time, and its push needs the branch
+      # still at that head.
+      patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       reply-attempt: ${{ needs.fix-ci-subscription.outputs.reply-attempt || needs.fix-ci.outputs.reply-attempt }}
 
   # GitHub starts no pull_request workflow on a conflicted PR, so a head the
@@ -511,6 +529,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}

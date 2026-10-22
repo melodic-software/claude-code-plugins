@@ -549,6 +549,22 @@ test("skill-quality's checks get wrapper rules, and check-skill runs a skill's t
   mkdirSync(path.join(skill, "scripts"), { recursive: true });
   writeFileSync(path.join(skill, "SKILL.md"), "---\ndescription: Demo skill. Use when 'demo'.\n---\n\n# Demo\n");
   writeFileSync(path.join(skill, "scripts", "token.test.sh"), 'echo "seen=${GH_TOKEN-unset},${GITHUB_TOKEN-unset}"\nexit 1\n');
+  // Like a lane run: the workspace is a checkout, and the test the lane wrote
+  // is not committed yet, beside a skills root that holds a tracked file. A
+  // failing fixture call fails here, never reads as a skipped test.
+  const git = (...args) => {
+    const result = spawnSync(
+      "git",
+      ["-C", workspace, "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", ...args],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, `git ${args.join(" ")}: ${result.stderr}`);
+  };
+  git("init", "-q");
+  git("config", "user.name", "test");
+  git("config", "user.email", "test@example.com");
+  git("add", "skills/demo/SKILL.md");
+  git("commit", "-qm", "fixture");
   const run = spawnSync(bin("check-skill"), ["skills"], {
     cwd: root,
     encoding: "utf8",
@@ -1264,6 +1280,9 @@ function launch(overrides = {}) {
   };
 }
 
+// The file tools never reach the checkout's .git, on every launcher arm.
+const GIT_DENIED = ["Read(./.git/**)", "Edit(./.git/**)", "Write(./.git/**)"];
+
 test("run-claude-cli: a ci-context skill gets Bash, Edit and Write, the staged context and plugin under .lane/, and no claude_args", () => {
   const ciDir = mkdtempSync(path.join(root, "ci-launch-"));
   writeFileSync(path.join(ciDir, "context.json"), '{"head_sha":"x"}');
@@ -1273,7 +1292,7 @@ test("run-claude-cli: a ci-context skill gets Bash, Edit and Write, the staged c
   for (const rule of ["Skill(source-control:pull-request)", "Bash", "Edit", "Write", "Agent", "Grep", "Glob"]) {
     assert.ok(run.allowedTools.includes(rule), `${rule} in ${run.allowedTools.join(" | ")}`);
   }
-  for (const rule of ["WebFetch", "WebSearch", "Edit(./.lane/ci/**)", "Write(./.lane/ci/**)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)", "Edit(./.lane/trusted-context.json)", "Write(./.lane/trusted-context.json)", "Read(//proc/**)"]) {
+  for (const rule of ["WebFetch", "WebSearch", "Edit(./.lane/ci/**)", "Write(./.lane/ci/**)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)", "Edit(./.lane/trusted-context.json)", "Write(./.lane/trusted-context.json)", "Read(//proc/**)", ...GIT_DENIED]) {
     assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   }
   assert.equal(run.pluginDirs, ".lane/plugins/source-control");
@@ -1293,7 +1312,7 @@ test("run-claude-cli: a read skill without ci-context gets no Bash, Edit or Writ
   assert.equal(run.status, 0, run.stdout);
   assert.deepEqual(run.tools.toSorted(), ["Glob", "Grep", "Read", "Skill"]);
   assert.ok(!run.allowedTools.some((rule) => /^(Bash|Edit|Write)/.test(rule)), run.allowedTools.join(" | "));
-  assert.ok(run.deniedTools.includes("Read(//proc/**)"), run.deniedTools.join(" | "));
+  for (const rule of ["Read(//proc/**)", ...GIT_DENIED]) assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   assert.doesNotMatch(run.preamble, /context file/);
 });
 
@@ -1324,6 +1343,21 @@ test("run-claude-cli refuses an issue lane, a writing skill, a patch-producing s
     assert.deepEqual(run.tools, []);
     assert.equal(run.promptFile, "");
   }
+});
+
+test("run-claude-cli: a staged plugin with no .mcp.json gets an empty server list, and one that ships its own keeps it", () => {
+  const run = launch({ SKILL: "source-control:pull-request" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.equal(readFileSync(path.join(run.stageDir, "plugins", "source-control", ".mcp.json"), "utf8"), '{"mcpServers":{}}\n');
+  const own = mkdtempSync(path.join(root, "base-mcp-"));
+  mkdirSync(path.join(own, "plugins", "source-control"), { recursive: true });
+  mkdirSync(path.join(own, ".claude-plugin"));
+  writeFileSync(path.join(own, ".claude-plugin", "marketplace.json"), JSON.stringify({ name: "melodic-software" }));
+  const shipped = Buffer.from('{ "mcpServers": { "x": { "command": "y" } } }\r\nÿ');
+  writeFileSync(path.join(own, "plugins", "source-control", ".mcp.json"), shipped);
+  const kept = launch({ BASE_PATH: own, SKILL: "source-control:pull-request" });
+  assert.equal(kept.status, 0, kept.stdout);
+  assert.deepEqual(readFileSync(path.join(kept.stageDir, "plugins", "source-control", ".mcp.json")), shipped);
 });
 
 test("run-claude-cli: a skill plugin holding a symbolic link fails red", () => {

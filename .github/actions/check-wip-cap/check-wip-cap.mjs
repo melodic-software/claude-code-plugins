@@ -10,12 +10,17 @@
 // against wip.held-cap instead, and one older than wip.held-alarm-hours
 // raises the alarm. PRs opened in the window may be at most
 // wip.opened-to-merged-ratio times those merged in it. Over a cap, or on the alarm,
-// the check alerts; it pauses the lane (work-resolve-issue starts no run,
-// work-unblock re-fires none) only over the WIP cap, on or after
-// wip.pause-from. The held cap only alerts. A read that fails never caps.
+// the check alerts; over the WIP cap or the held cap, on or after
+// wip.pause-from, it pauses the lane (work-resolve-issue starts no run,
+// work-unblock re-fires none) and logs one `admission paused: reason=...`
+// line. When a read fails (the open listing, the base config) the lane keeps
+// the last known pause, the status work-unblock's hourly sweep last saved in
+// WIP_STATE; with none it fails open.
 //
-// As the action's step it writes `capped` (the pause) and `wip` (the status
-// as one flat JSON object), and the same object to the step summary and log.
+// As the action's step it writes `capped` (the pause), `wip` (the status
+// as one flat JSON object) and `state-saved` (`true` when a read that
+// succeeded wrote its status to WIP_STATE), and the status to the step
+// summary and log.
 // Environment:
 //   GITHUB_TOKEN        the job's own token (pull-requests: read)
 //   GITHUB_REPOSITORY   owner/repo
@@ -23,8 +28,9 @@
 //   BASE_PATH           the default-branch checkout whose pr-pipeline.yaml
 //                       sets limits and wip (resolve-config's wipFromBase)
 //   LANES_BOT_LOGIN     the lanes App bot login (default melodic-automation-lanes[bot])
+//   WIP_STATE           the last known state file (optional), read then rewritten
 //   GITHUB_OUTPUT, GITHUB_STEP_SUMMARY
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -113,6 +119,8 @@ export function wipStatus({ open, merged, admitted }, { limits, wip, now }) {
   const admissionOver = admitted !== null && admissionCap !== null && admitted > admissionCap;
   const heldAlarm = heldOverAlarm !== null && heldOverAlarm > 0;
   const pauseFrom = wip["pause-from"];
+  const pausing = pauseFrom !== "" && now >= Date.parse(pauseFrom);
+  const reasons = [wipOver && "wip", heldOver && "held-cap"].filter(Boolean);
   return {
     countable_lane_prs: countable,
     held_lane_prs: heldCount,
@@ -136,7 +144,8 @@ export function wipStatus({ open, merged, admitted }, { limits, wip, now }) {
     held_alarm: heldAlarm,
     alert: wipOver || heldOver || admissionOver || heldAlarm,
     pause_from: pauseFrom,
-    paused: wipOver && pauseFrom !== "" && now >= Date.parse(pauseFrom),
+    paused: pausing && reasons.length > 0,
+    pause_reason: pausing && reasons.length > 0 ? reasons.join(",") : null,
   };
 }
 
@@ -162,16 +171,45 @@ export function searchRateLimit() {
   };
 }
 
+const PAUSE_REASONS = new Set(["wip", "held-cap", "wip,held-cap"]);
+
+// The last known state: a previous run's status, or null when there is none
+// or it names a pause reason wipStatus never writes.
+function lastState(path) {
+  try {
+    const prior = JSON.parse(readFileSync(path, "utf8"));
+    const valid = prior?.paused === false || (prior?.paused === true && PAUSE_REASONS.has(prior.pause_reason));
+    return valid ? prior : null;
+  } catch {
+    return null;
+  }
+}
+
+// The status with `pause_basis`: `read`, or on a failed read the last known
+// pause (`last-state`), or with none the open lane (`fail-open`). A config
+// that was read and no longer pauses (`pausing` false) ends a kept pause.
+export function keepLastState(status, { readError, prior, pausing = true }) {
+  if (!readError) {
+    return { ...status, pause_basis: "read" };
+  }
+  if (prior === null) {
+    return { ...status, pause_basis: "fail-open" };
+  }
+  const paused = prior.paused && pausing;
+  const reason = paused ? prior.pause_reason : null;
+  return { ...status, paused, pause_reason: reason, pause_basis: "last-state" };
+}
+
 const escape = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 async function baseConfig(basePath, log) {
   try {
     const { wipFromBase } = await import(new URL("../resolve-config/resolve-config.mjs", import.meta.url).href);
     const { limits, wip } = wipFromBase({ BASE_PATH: basePath });
-    return { limits, wip: resolveWip(wip) };
+    return { limits, wip: resolveWip(wip), configError: false };
   } catch (error) {
     log(`::warning title=check-wip-cap::the base config could not be read (${escape(error?.message ?? error)}); the defaults apply`);
-    return { limits: LIMIT_DEFAULTS, wip: resolveWip(undefined) };
+    return { limits: LIMIT_DEFAULTS, wip: resolveWip(undefined), configError: true };
   }
 }
 
@@ -187,24 +225,43 @@ const alertText = (s) =>
 
 export async function main({ env = process.env, github, now = Date.now(), log = console.log } = {}) {
   const repo = env.GITHUB_REPOSITORY ?? "";
-  const { limits, wip } = await baseConfig(env.BASE_PATH || ".base", log);
+  const { limits, wip, configError } = await baseConfig(env.BASE_PATH || ".base", log);
   const rate = searchRateLimit();
   github ??= createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
-  const status = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
+  const read = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
     ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining })
     : wipStatus({ open: null, merged: null, admitted: null }, { limits, wip, now });
+  const readError = configError || read.countable_lane_prs === null;
+  const pausing = configError || (wip["pause-from"] !== "" && now >= Date.parse(wip["pause-from"]));
+  const status = keepLastState(read, { readError, prior: readError && env.WIP_STATE ? lastState(env.WIP_STATE) : null, pausing });
   const json = JSON.stringify(status);
-  writeOutputs({ capped: String(status.paused), wip: json }, env.GITHUB_OUTPUT);
+  const saved = !readError && Boolean(env.WIP_STATE);
+  if (saved) {
+    writeFileSync(env.WIP_STATE, json);
+  }
+  writeOutputs({ capped: String(status.paused), wip: json, "state-saved": String(saved) }, env.GITHUB_OUTPUT);
   if (env.GITHUB_STEP_SUMMARY) {
     appendFileSync(env.GITHUB_STEP_SUMMARY, `### Issue-lane WIP cap\n\n\`\`\`json\n${json}\n\`\`\`\n`);
   }
-  if (status.countable_lane_prs === null) {
-    log(`::warning title=check-wip-cap::the open lane PRs could not be listed, so the run starts (cap ${status.wip_cap})`);
+  if (readError) {
+    log(
+      `::warning title=check-wip-cap::${read.countable_lane_prs === null ? "the open lane PRs could not be listed" : "the base config could not be read"}, so ${status.pause_basis === "last-state" ? `the last known state applies (paused ${status.paused})` : "with no last known state the run starts"}`,
+    );
   }
   if (status.alert) {
     log(
-      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under the WIP cap" : `the lane keeps running (${status.wip_over ? "pause-from not reached" : "only the WIP cap pauses it"})`}`,
+      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under both caps" : `the lane keeps running (${status.wip_over || status.held_over ? "pause-from not reached" : "only the WIP and held caps pause it"})`}`,
     );
+  }
+  if (status.paused) {
+    const line =
+      status.pause_basis === "last-state"
+        ? `admission paused: reason=${status.pause_reason} (read-error, kept last state)`
+        : `admission paused: reason=${status.pause_reason} countable=${status.countable_lane_prs} wip_cap=${status.wip_cap} held=${status.held_lane_prs} held_cap=${status.held_cap}`;
+    log(`::notice title=admission paused::${escape(line)}`);
+    if (env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(env.GITHUB_STEP_SUMMARY, `\n${line}\n`);
+    }
   }
   log(`check-wip-cap: ${json}`);
   return 0;

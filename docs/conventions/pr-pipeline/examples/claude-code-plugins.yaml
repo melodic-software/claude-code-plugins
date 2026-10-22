@@ -170,8 +170,12 @@ loop:
 # (README.md, Models).
 models:
   profiles:
-    standard: { model: default, max-turns: 75 }
-    review: { model: opus, max-turns: 100 }
+    standard:
+      model: default
+      max-turns: 75
+    review:
+      model: opus
+      max-turns: 100
   default-profile: standard
   routes:
     claude: review

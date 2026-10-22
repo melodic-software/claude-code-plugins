@@ -10,7 +10,8 @@ name: work-resolve-issue
 # with no write token, and leaves its change as a patch, or stops and says why.
 # apply-issue-patch, a script in pr-run-activity-write.yml, commits that patch
 # to a new branch. report-outcome then opens a ready PR from that branch, or
-# comments on the issue and labels it needs-human. The agent-ready label alone
+# comments on the issue and labels it needs-human; an issue its dimensions
+# skip gets the same hand-back from report-skip. The agent-ready label alone
 # admits the issue; the hold labels and the go-live time are in
 # docs/conventions/pr-pipeline.yaml. The kill switch, the labeler check (a
 # listed human, or the lanes App) and the token broker run inside each
@@ -101,6 +102,9 @@ jobs:
     if: github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    # An issues run can only restore a default-branch cache; it reads the
+    # WIP cap's last known state and never saves one (work-unblock does).
+    cache-mode: read
     permissions:
       contents: read # check out the default branch for the WIP cap
       pull-requests: read # count the lanes App's open pull requests
@@ -114,12 +118,13 @@ jobs:
       capped: ${{ steps.wip.outputs.capped }}
       timeout-minutes: ${{ steps.dimensions.outputs.timeout-minutes }}
       issue-dimensions: ${{ steps.dimensions.outputs.issue-dimensions }}
+      skip-reason: ${{ steps.dimensions.outputs.skip-reason }}
     steps:
       # When the WIP cap check pauses the lane (over the WIP cap on or after
       # wip.pause-from; the held cap only alerts), resolve-issue is skipped: no
       # slot, no token. work-unblock's sweep re-fires the issue once under the
       # cap. The check publishes its status as the `wip` output; one that fails
-      # starts the run.
+      # starts the run. A read that fails keeps the last known pause.
       - name: Check out the default branch tip
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -181,6 +186,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
@@ -194,6 +200,36 @@ jobs:
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
     secrets:
       claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # An issue its Size, Complexity and Uncertainty fields skip (pick-slot's
+  # resolve) takes no model turn, so the run leaves no outcome and every job
+  # below skips. This job reports it instead: report-outcome, with the
+  # lanes App token, labels the issue needs-human, removes agent-ready and
+  # comments the next step. It needs no slot and runs at the WIP cap too.
+  report-skip:
+    needs: [admit, pick-slot]
+    if: >-
+      github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
+      && (needs.pick-slot.outputs.skip-reason == 'split-required'
+      || needs.pick-slot.outputs.skip-reason == 'research-first'
+      || needs.pick-slot.outputs.skip-reason == 'probe-first'
+      || needs.pick-slot.outputs.skip-reason == 'not-assessed')
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: work-resolve-issue
+      role: issue-lane
+      activity: report-outcome
+      issue-number: ${{ format('{0}', github.event.issue.number) }}
+      trusted-base: default-tip
+      app-label: agent-ready
+      dimension-skip: ${{ needs.pick-slot.outputs.skip-reason }}
 
   # The commit job: a script with no model that runs nothing from the patch.
   # It checks the patch against the model job's SHA-256, applies it to the
@@ -211,6 +247,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: work-resolve-issue-write-${{ github.event.issue.number }}
@@ -282,9 +319,11 @@ jobs:
   # The model's outcome file is its own word, so the runner runs the
   # resolve-issue activity's `checks` itself, on a fresh runner no model ran
   # on. Each check runs from the default branch tip's copy, in a checkout of
-  # the lane branch whose scripts/ is replaced by the base's, so the check's
-  # code and its data there (scripts/fragment-plugins.txt) are the base's and
-  # only the branch's own files (.changes/) are checked. The results, with the
+  # the lane branch whose scripts/ is replaced by the base's, so every script
+  # the check runs is the base's. The branch's own data there (.txt, .json and
+  # .jsonl, such as scripts/fragment-plugins.txt) is restored from its commit,
+  # so the check reads the same lists the PR's CI does; a check reads list
+  # entries as data and never executes them. The results, with the
   # tip they checked, are this job's `checks` output, never the outcome
   # artifact, which code the model started can rewrite. report-outcome gets
   # them only when this job succeeded, and stops a done run whose checks
@@ -381,6 +420,8 @@ jobs:
         with:
           ref: ${{ steps.branch.outputs.branch }}
           path: .lane
+          # Full history, so the lane branch's merge base with the base tip resolves.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Run the activity's checks
@@ -401,8 +442,21 @@ jobs:
             fail "cannot read the resolve-issue checks from the resolved config"
           mapfile -t checks < <(printf '%s' "$list")
           tip=$(git -C "$LANE" rev-parse HEAD) || fail "cannot read the lane branch tip"
+          base_tip=$(git -C "$BASE" rev-parse HEAD) || fail "cannot read the base tip"
+          merge_base=$(git -C "$LANE" merge-base HEAD "$base_tip") ||
+            fail "cannot find the lane branch's merge base with the base tip"
           rm -rf "${LANE:?}/scripts"
           cp -R "$BASE/scripts" "$LANE/scripts"
+          # Code stays the base's. Data is what the merged ref would hold: the
+          # base's, with the branch's own data changes since the merge base.
+          data=('scripts/*.txt' 'scripts/*.json' 'scripts/*.jsonl')
+          git -C "$LANE" diff --name-only -z --no-renames --diff-filter=AMT "$merge_base" HEAD -- "${data[@]}" |
+            xargs -0r env GIT_LFS_SKIP_SMUDGE=1 git -C "$LANE" restore --source=HEAD -- ||
+            fail "cannot restore the lane branch's scripts/ data files"
+          git -C "$LANE" diff --name-only -z --no-renames --diff-filter=D "$merge_base" HEAD -- "${data[@]}" |
+            xargs -0r -I{} rm -f -- "$LANE/{}" ||
+            fail "cannot remove the scripts/ data files the lane branch deleted"
+          [[ -z $(find "$LANE/scripts" -type l -print -quit) ]] || fail "the lane branch's scripts/ holds a symlink"
           shape='^scripts/[A-Za-z0-9_-]+\.sh( --[a-z][a-z-]*)*$'
           results='[]'
           # A check prints what it reads from the branch, so none of its
@@ -444,6 +498,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:

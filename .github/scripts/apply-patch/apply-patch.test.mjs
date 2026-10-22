@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { checkRow, loadRules, main, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { checkRow, credentialIn, loadRules, main, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
 
 // The registry as committed: the rows these tests hold apply-patch to.
 const REPO_ROOT = join(import.meta.dirname, "../../..");
@@ -19,7 +19,12 @@ const entry = (path, oldMode = "100644", newMode = "100644") => ({ path, oldMode
 // Credential shapes built at run time, so no literal token sits in this file.
 const ANTHROPIC_KEY = ["sk", "ant", "api03", "A1b2".repeat(20)].join("-");
 const OAUTH_TOKEN = ["sk", "ant", "oat01", "Z9y8".repeat(20)].join("-");
-const GITHUB_TOKENS = [`${"ghp"}_${"a1".repeat(18)}`, `${"ghs"}_${"B2".repeat(18)}`, `${"github"}_pat_${"c3".repeat(41)}`];
+// The stateless installation token is ghs_ then a JWT of about 520 characters: three
+// base64url segments joined by '.', each segment obviously fake. The first carries an
+// app-id-like prefix; the second has none, so no numeric app id is assumed.
+const JWT = Array(3).fill("FAKE-not_a_token".repeat(10)).join(".");
+const STATELESS_TOKEN = `${"ghs"}_123456_${JWT}`;
+const GITHUB_TOKENS = [`${"ghp"}_${"a1".repeat(18)}`, `${"ghs"}_${"B2".repeat(18)}`, `${"github"}_pat_${"c3".repeat(41)}`, STATELESS_TOKEN, `${"ghs"}_${JWT}`];
 
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), "apply-patch-"));
@@ -489,6 +494,13 @@ test("a patch carrying an OAuth token shape is refused whole", async (t) => {
 test("a patch carrying a GitHub token shape (ghp_, ghs_, github_pat_) is refused whole", async (t) => {
   for (const token of GITHUB_TOKENS) {
     await assertCredentialRefused(t, token);
+  }
+});
+
+test("credentialIn names every GitHub token shape and passes ordinary text", () => {
+  for (const token of GITHUB_TOKENS) assert.equal(credentialIn(`x ${token} y`), "GitHub token", token.slice(0, 12));
+  for (const text of ["ghs_job", "ghs_lane", "Bearer ghs_job", "a".repeat(40), "3e7fef0587433cfb07332dbeabf0d79fc0baadf3"]) {
+    assert.equal(credentialIn(text), "", text);
   }
 });
 

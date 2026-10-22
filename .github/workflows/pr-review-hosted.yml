@@ -181,7 +181,7 @@ jobs:
                              # reviewed-head marker comment
       id-token: write        # OIDC, mints the Claude GitHub App token (required
                              # even with an OAuth/API-key credential)
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@96b50d451c4483c476f2f963674e0a3ba9d50fe3 # v0.48.0
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@8bd4d7f963a06627dd2d551ffcd8d9db5e6b881b # v0.59.1
     with:
       runner: ubuntu-24.04
       # Empty unless resolve-model succeeded, so a failed job's partial output
@@ -192,6 +192,13 @@ jobs:
       # reviewed. Where the repository does not set this variable the value is
       # empty and the reusable reviews no bot.
       allowed-bot-sender-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+      # People whose closing issues the review reads in full, by numeric user
+      # id: the `human` entries of .github/standards/trusted-actors/trusted-actors.json
+      # (standards components/trusted-actors/trusted-actors.json). Empty
+      # would replace every person's closing issue with a placeholder. The
+      # bot ids in allowed-bot-sender-ids above also mark issues those bots
+      # wrote as trusted closing-issue context.
+      allowed-author-ids: '153232337'
     # Pass only the one named secret (least privilege) rather than
     # `secrets: inherit`, which would forward every parent secret to the
     # called workflow.

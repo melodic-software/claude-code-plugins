@@ -248,6 +248,64 @@ run_case "a read workflow job with no permissions map fails" 1 \
   "rewrite awk 'NR < 9 || NR > 11'" \
   "$READ:8: job run has no explicit permissions map"
 
+# append_scan_job [<environment>] [<private-key value>]: appends to the read
+# workflow, from line 15, a scan job whose environment is on line 16 and whose
+# open-lane-output step's private-key input is on line 23.
+append_scan_job() {
+  printf '  scan:\n    environment: %s\n    permissions:\n      contents: read\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: ./.base/.github/actions/open-lane-output\n        with:\n          private-key: %s\n' \
+    "${1:-pr-pipeline-scan-carrier}" "${2:-\${{ secrets.scan-carrier-private-key \}\}}" >>"$READ"
+}
+# shellcheck disable=SC2016  # literal workflow expressions, never expanded
+CARRIER='${{ secrets.scan-carrier-private-key }}'
+# shellcheck disable=SC2016
+PASS='${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}'
+
+run_case "the scan job's open step may take the scan-carrier key, under its environment" 0 \
+  "append_scan_job" "(1 caller(s))"
+
+run_case "a read caller may pass the scan-carrier key by name in its secrets map" 0 \
+  "printf '      scan-carrier-private-key: %s\n' '$PASS' >>$CALLER && append_scan_job" "(1 caller(s))"
+
+run_case "a read caller passing the scan-carrier key under another name fails" 1 \
+  "printf '      other: %s\n' '$PASS' >>$CALLER && append_scan_job" \
+  "$CALLER:11: reads secrets.SCAN_CARRIER_PRIVATE_KEY outside"
+
+run_case "the scan-carrier key in a caller job that does not call the read workflow fails" 1 \
+  "printf '  other:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n        env:\n          K: %s\n' '$PASS' >>$CALLER && append_scan_job" \
+  "$CALLER:16: reads secrets.SCAN_CARRIER_PRIVATE_KEY outside"
+
+run_case "the scan-carrier key passed to the write workflow fails" 1 \
+  "printf '  simplify:\n    uses: ./$WRITE\n    secrets:\n      scan-carrier-private-key: %s\n' '$PASS' >>$CALLER && append_scan_job" \
+  "$CALLER:14: reads secrets.SCAN_CARRIER_PRIVATE_KEY outside"
+
+run_case "the scan-carrier key in the read workflow's run job fails" 1 \
+  "printf '        env:\n          K: %s\n' '$CARRIER' >>$READ && append_scan_job" \
+  "$READ:16: reads secrets.scan-carrier-private-key outside"
+
+run_case "the scan-carrier key in a second scan-job step fails" 1 \
+  "append_scan_job && printf '      - run: echo hi\n        env:\n          K: %s\n' '$CARRIER' >>$READ" \
+  "$READ:26: reads secrets.scan-carrier-private-key outside"
+
+run_case "the open step reading the environment secret's own name, not the declared input, fails" 1 \
+  "append_scan_job '' '$PASS'" \
+  "$READ:23: references the App key" "$READ:23: reads secrets.SCAN_CARRIER_PRIVATE_KEY outside"
+
+run_case "any other secret as the open step's private-key fails" 1 \
+  "append_scan_job '' '\${{ secrets.DEPLOY_KEY }}'" \
+  "$READ:23: references the App key" "$READ:23: reads secrets.DEPLOY_KEY, which is not on the read-run allowlist"
+
+run_case "another environment on the scan job fails" 1 \
+  "append_scan_job other-env" \
+  "$READ:16: names an environment other than pr-pipeline-scan-carrier on the read workflow's scan job"
+
+run_case "the carrier environment on any other job fails" 1 \
+  "rewrite awk '{ print } NR == 8 { print \"    environment: pr-pipeline-scan-carrier\" }' && append_scan_job" \
+  "$READ:9: names an environment other than pr-pipeline-scan-carrier"
+
+run_case "an environment in a read caller fails" 1 \
+  "printf '  deploy:\n    environment: pr-pipeline-scan-carrier\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n' >>$CALLER" \
+  "$CALLER:12: names an environment other than pr-pipeline-scan-carrier"
+
 run_case "a read workflow that references the key fails" 1 \
   "printf '      app-private-key:\n        required: true\n' >>$READ" \
   "$READ:15: references the App key"

@@ -24,7 +24,16 @@
 #     `issue_lane_claude_code_oauth_token`, `claude_api_key`,
 #     `automations_claude_api_key`, `github_token`
 #     (lower-cased, `-` read as `_`); `toJSON(secrets)`, `secrets[...]` and
-#     bare `secrets` fail.
+#     bare `secrets` fail;
+#   - one exception to both rules above, the scan-carrier key: the read
+#     workflow's `scan` job may hold one step that uses
+#     `./.base/.github/actions/open-lane-output` with
+#     `private-key: ${{ secrets.scan-carrier-private-key }}`, exactly, and a
+#     job that calls the read workflow may pass
+#     `scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}`,
+#     exactly, in its `secrets` map; that secret anywhere else fails;
+#   - no `environment` key, except `environment: pr-pipeline-scan-carrier` on
+#     the read workflow's `scan` job.
 # No file of such a run sets `permissions: write-all`. The read workflow
 # itself must set top-level `permissions: {}` and a permissions map on every
 # job, may name `id-token` only inside its `broker-check` job, which runs no PR

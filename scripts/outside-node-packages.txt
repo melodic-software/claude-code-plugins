@@ -10,8 +10,10 @@
 .github/actions/check-wip-cap
 .github/actions/collect-base-activity
 .github/actions/log-api-budget
+.github/actions/open-lane-output
 .github/actions/report-check-run
 .github/actions/request-lane-token
+.github/actions/seal-lane-output
 .github/actions/select-trusted-text
 .github/scripts/apply-patch
 .github/scripts/intake-reenter

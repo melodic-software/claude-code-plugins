@@ -71,5 +71,19 @@ function Get-ElevationMatrix {
             )
             Reason        = 'Get-MpPreference returns a placeholder string for exclusion fields when non-elevated.'
         }
+        [pscustomobject]@{
+            Feature       = 'Complete logon-task inventory'
+            CheckId       = 'startup-items'
+            AdminRequired = $true
+            Fields        = @('tasks_complete')
+            Reason        = 'Get-ScheduledTask lists only part of the task store to a standard token.'
+        }
+        [pscustomobject]@{
+            Feature       = 'Prefetch and BAM launch records'
+            CheckId       = 'app-last-use'
+            AdminRequired = $true
+            Fields        = @('prefetch_state', 'bam_state')
+            Reason        = 'The Prefetch folder and the BAM registry key refuse a standard token.'
+        }
     )
 }

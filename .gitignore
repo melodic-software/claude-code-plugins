@@ -22,6 +22,9 @@ Thumbs.db
 # .claude/*.local.* form, tracked separately as "overlay spelling drift")
 .claude/**/*.local.*
 CLAUDE.local.md
+# personal overlays in the convention home (docs/conventions/config-cascade/README.md
+# "Overlay naming and the consumer .gitignore")
+docs/conventions/**/*.local.*
 
 # Test-result artifacts (Pester runner output)
 artifacts/

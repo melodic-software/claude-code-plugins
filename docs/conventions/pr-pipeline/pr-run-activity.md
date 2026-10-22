@@ -58,6 +58,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3); in the write file also a `pr-feedback-dispatch.yml` run |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first`, `probe-first` or `not-assessed`) that kept the run from starting; any other value, or one outside issue mode, fails step 1 |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the model job's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-sha256` output |
@@ -250,9 +251,14 @@ the broker request, and no other permission; it never holds `checks: write` or `
     `$RUNNER_TEMP/setup-env`, so no head code runs before the skill's own Bash; a read skill that
     needs the head's own packages runs `npm ci` there.
     Then runs the activity (below) and, in the read file, records whether the tree is dirty, or
-    in [patch output mode](#patch-output-mode) collects the change as a patch.
+    in [patch output mode](#patch-output-mode) collects the change as a patch. Both run the
+    base's `collect-patch.sh`, so no git config the activity planted in `.git` runs, and the
+    dirty-tree check prints no path. After them, a PR-mode read run removes `.git` and `.base/.git`
+    from the workspace, so neither `actions/checkout` post step finds a `.git/config` to run git
+    in.
 13. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
-    `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
+    `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt. In the read file
+    the [scan job](#the-scan-job) does this instead.
 14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,
     pinned by SHA, so no binary resolved through `PATH` or `BASH_ENV` runs with the token, sends
     `DELETE /installation/token` with it, then `GET /installation/repositories`. It never fails
@@ -498,7 +504,7 @@ forge it, for example by writing a `$RUNNER_TEMP` file-command file such as one 
 at, or by leaving a process running. Tests, linters and builds that gate run as a `script` activity,
 or under a separate design that judges their result in a job head code never touched.
 
-The job's step summary shows the skill's final reply (at most 4000 characters, backticks
+The step summary (in a PR-mode read run, the scan job's) shows the skill's final reply (at most 4000 characters, backticks
 neutralized) for audit. It is model output, printed as data. The same text is uploaded as the
 artifact `skill-reply-<lane>-<activity>-<run_attempt>` (7-day retention) whenever the skill step
 ran, as audit evidence, because the REST API cannot read step summaries. Nothing in the workflow
@@ -552,10 +558,18 @@ set `applied-by`, and an issue-mode activity must set it. The steps:
 2. After an act step that succeeded, in place of the clean-tree check, the collector writes
    everything the activity changed against the gated head (committed, staged, unstaged and
    untracked, ignored files and `.lane/` aside) as one `git diff --binary` patch, through a scratch index, with
-   every diff option that changes the patch's form passed explicitly. A failed, cancelled or
-   turnless act step collects nothing and the check fails as usual.
+   every diff option that changes the patch's form passed explicitly. Its git runs against a fresh
+   repository that borrows only the checkout's objects, with no global or system config, so no
+   filter, hook, fsmonitor or include the activity wrote into `.git` runs. A failed, cancelled or
+   turnless act step collects nothing and the check fails as usual. The collector also leaves out
+   the empty files the CLI's Bash leaves at the top of the checkout under its environment scrub,
+   a fixed set of names (`package.json`, `.env` and others) that the gated head does not track. A
+   name from that set the head does not track that holds anything other than an empty regular
+   file makes the collector exit 3 with no patch written: the collect step fails, nothing is
+   collected and `patch-state` stays empty, and the dirty-tree check counts it as dirty.
 3. A non-empty patch is uploaded as the artifact `patch-<lane>-<activity>-<run attempt>`, holding
-   one file, `patch.diff` (7-day retention). The run's `patch-state` output is then `written`,
+   one file, `patch.diff` (7-day retention): in PR mode by the [scan job](#the-scan-job), after
+   its scan, in issue mode by the run job. The run's `patch-state` output is then `written`,
    `patch-sha256` is that file's SHA-256 and `patch-attempt` is the attempt in the artifact's name.
    No change is `patch-state` `empty`, with no artifact and the other two empty. A run that
    collected no patch leaves all three empty.
@@ -563,8 +577,8 @@ set `applied-by`, and an issue-mode activity must set it. The steps:
    collected no patch), and the check is
    `success` titled `Passed: patch written` or `Passed: no changes`.
 
-Head code ran in the job that writes the patch, its SHA-256 and the verdict, and could have
-replaced the collector copy or the patch, so none of them is trusted: the SHA-256 only binds the
+Head code ran in the job that collects the patch, and could have replaced the collector copy or
+the patch, so neither the patch nor the run outputs the verdict is built from is trusted: the SHA-256 only binds the
 artifact to this run's output. A job that applies the patch downloads it by `patch-attempt`, so a
 re-run of that job alone still finds it. Before applying it, that job must check that:
 
@@ -601,21 +615,26 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    a scratch directory and the prompt file; after the head checkout the run job copies them to
    `.lane/`, failing red when the head already holds `.lane`, makes the plugin and the context
    read-only and has git ignore the directory. `--restricted` reads nothing outside the checkout,
-   so `plugin-dirs` is `.lane/plugins/<plugin>`, never `$RUNNER_TEMP`. The tools, allow and deny
-   rules come from the stage, with the activity's `permission-mode`; the preamble stands in for the
-   system prompt, and the prompt asks for the Skill tool. The launcher takes a read skill, either
-   `prepare: ci-context` or one with no prepare mode that hands on a patch (`fix-docs`), and fails
-   red on any other prepare mode with a patch and on `checks`, `self-checks` or `verify-scripts`,
-   which have no wrapper there. The no-prepare patch skill gets the tools `Read`, `Glob`, `Grep`,
-   `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules name its skill, `Grep`, `Glob`,
-   `Edit`, `Write` and `Agent` but no `Bash` rule, so Bash runs only what the skill's own
-   frontmatter grants; its deny rules add `Read(./.git/**)` to the base set; and the preamble says
-   to keep scratch files in `.lane/scratch` and leave every change uncommitted. With `web-access`
-   (`domains: any` only; a domain list fails red) it also gets the `WebFetch` and `WebSearch`
-   tools, no longer denied, the rules `WebFetch(domain:*)`, `WebSearch` and the four research
-   skills, and the `discovery` and `knowledge` plugins staged read-only beside its own, one
-   `plugin-dirs` line each. The docs scripts are not staged, so the preamble says to read each
-   page with WebFetch and cite it.
+   so `plugin-dirs` is `.lane/plugins/<plugin>`, never `$RUNNER_TEMP`. It also ignores the
+   head's user, project and local settings files, so a head `.claude/settings.json` sets no
+   hook, permission or env; `--strict-mcp-config` ignores the head's `.mcp.json`; and the managed
+   settings pin `apiKeyHelper` and `ANTHROPIC_BASE_URL` and allow managed hooks only, which
+   run-claude-cli checks before every leg. This is why PR mode needs no swap of the head's config
+   paths for the base's. A head `CLAUDE.md` is still read, as untrusted text. The tools, allow
+   and deny rules come from the stage, with the activity's `permission-mode`; the preamble stands
+   in for the system prompt, and the prompt asks for the Skill tool. The launcher takes a read
+   skill, either `prepare: ci-context` or one with no prepare mode that hands on a patch
+   (`fix-docs`), and fails red on any other prepare mode with a patch and on `checks`,
+   `self-checks` or `verify-scripts`, which have no wrapper there. The no-prepare patch skill gets
+   the tools `Read`, `Glob`, `Grep`, `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules
+   name its skill, `Grep`, `Glob`, `Edit`, `Write` and `Agent` but no `Bash` rule, so Bash runs
+   only what the skill's own frontmatter grants; its deny rules add `Read(./.git/**)` to the base
+   set; and the preamble says to keep scratch files in `.lane/scratch` and leave every change
+   uncommitted. With `web-access` (`domains: any` only; a domain list fails red) it also gets the
+   `WebFetch` and `WebSearch` tools, no longer denied, the rules `WebFetch(domain:*)`, `WebSearch`
+   and the four research skills, and the `discovery` and `knowledge` plugins staged read-only
+   beside its own, one `plugin-dirs` line each. The docs scripts are not staged, so the preamble
+   says to read each page with WebFetch and cite it.
 3. One step checks the call's secret is set (only that leaves it), and one launcher step per
    secret runs the skill: `act-key` on the first call, `act-token` on the fallback call, with
    `continue-on-error`, a 50-minute step timeout and a 45-minute leg. setup-python's
@@ -624,18 +643,15 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    a step after it fails the job, so no patch is collected, unless the CLI's init message in the
    leg's execution file reports that mode; a credit stop hands off unchecked.
 4. The first call hands off (`handed-off: true`) when its key is empty or its key leg ends in a
-   credit stop. It then uploads no reply, patch or verdict, records no lane outcome, collects no
-   patch and posts no check, so the fallback call's artifacts and check are the run's. Otherwise
+   credit stop. It then skips the scan job, so it uploads no reply, patch or verdict, and records
+   no lane outcome, collects no patch and posts no check, so the fallback call's artifacts and check are the run's. Otherwise
    the call records its lane outcome with `report-lane-outcome`, on the fallback call under the
    name `<lane>/<activity> (key <ROLE>_CLAUDE_API_KEY hit a credit stop)` or `(... is empty)`.
 5. The run job's last step fails it when the launcher left no success and the call did not hand
    off, an empty token on the fallback call included.
-6. Before any upload or step summary, `leak-scan` runs the base's `findSecret`
-   (`lib/publish-gate.mjs`, read through the API at the base SHA, never from the checkout) over the
-   reply, the run fields, the patch, every changed or untracked file and the execution file. A
-   credential format fails the run naming the pattern and asking for rotation, uploads and
-   summarizes nothing, and leaves `patch-state` empty; a `password or secret assignment` only
-   warns, naming the file.
+6. The run job uploads nothing and writes no step summary. It hands the reply, the run fields and
+   the patch to the [scan job](#the-scan-job) as sealed job outputs, which the scan job opens and
+   scans before anything is published.
 
 The issue lane's skill stays on claude-code-action.
 
@@ -1055,6 +1071,89 @@ carries, what else a path must meet, a file cap, the producer output required, t
 parents, message and trailer, and the row's escalation reasons. A row may also name an optional
 refusal, such as the `instruction-path` of `ci-context` and `default`.
 
+## The scan job
+
+Read file: runs after the run job when it succeeded or failed, unless the run was cancelled or the
+call handed off, on a fresh `ubuntu-24.04` VM, in the `pr-pipeline-scan-carrier` environment. It
+holds `contents: read`, one secret (`SCAN_CARRIER_PRIVATE_KEY`, that environment's, which each
+caller passes by name as `scan-carrier-private-key`, read by its open step alone), no `id-token`, no cache, and nothing from the run job but its outputs. run-claude-cli's
+contract puts the reporting and uploads of a lane that grants unrestricted Bash in a downstream
+job that validates its inputs
+([`action.yml`](https://github.com/melodic-software/ci-workflows/blob/7b362428c76085a160e28656cd2c75c3147a69ff/.github/actions/run-claude-cli/action.yml)).
+
+The carrier. After the collector, a PR-mode run job stages each of `reply.txt`, `act-turns.json`
+and `patch.diff` within its cap and sets `carry-<name>-bytes`; the caps are 16 KiB for the reply,
+32 KiB for the run fields (at most four `<local-command-stderr>` entries) and 256 KiB for the
+patch, and a payload over its cap carries only its byte count. It then seals the staged copies
+with [`seal-lane-output`](../../../.github/actions/seal-lane-output/README.md), copied from the
+base before the head checkout, to the base's `.github/lane-keys/scan-carrier.pub`, bound to the run
+id and the `run` job, as `carry-sealed-length` and `carry-sealed-<n>` job outputs (at most five
+chunks of 98304 characters, each fitting one environment variable). None is a `workflow_call`
+output, so no caller can echo one. In order:
+
+1. Checks out the default branch tip the event names, never a run job output (sparse: the opener
+   and the key file), reads the key id, and
+   opens the bundle with [`open-lane-output`](../../../.github/actions/open-lane-output/README.md)
+   into a fresh directory under `runner.temp`, the one step that reads the private key. It fails
+   closed, writing nothing, on `output-withheld` (a chunk the runner left empty, as it does for an
+   output that may hold a secret
+   ([`jobs.<job_id>.outputs`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs));
+   it asks for rotation), and without rotation on `sealed-mismatch` (a wrong key, a failed tag,
+   truncation, an unknown key id, a bad version, or a record from another run, job or payload
+   name) or `too-large`.
+2. Checks every output from `env`, never inlined into a script, and fails closed, publishing
+   nothing, on:
+   - `too-large`: a byte count over the cap;
+   - `payload-mismatch`: a byte count with no opened payload, an opened payload with none or of
+     another size, or a patch that does not match the state its collector reported;
+   - `bad-output`: a run job output set after head code (`skip-reason`, `dirty-tree`,
+     `patch-collected`, `act-outcome`, `lane-class`) or a gate field outside its closed set.
+3. Checks out the gated `head-sha` with `persist-credentials: false` when a patch arrived.
+4. `leak-scan` runs the default branch's `findSecret` (`lib/publish-gate.mjs`, read through the API
+   at the default branch's tip, which the step resolves itself with the scan job's read token
+   (`getBranch`), never from a run job output, an older PR base or a checkout; a failed call or a
+   malformed SHA fails the scan closed with no fetch) over the reply, the run fields and the patch. It applies the
+   patch as apply-patch does, onto the gated head's objects copied through `git index-pack`, and
+   scans every file the patch makes, by name and bytes. It scans copies, which the uploads and the
+   summary then read, and the run's `patch-sha256` is the scanned copy's. A credential format
+   fails the job naming the pattern and asking for rotation, uploads and summarizes nothing, and
+   leaves `patch-state` empty. A patch that does not apply, or a scan that does not finish within
+   the step's timeout, fails it without the rotation line. A `password or secret assignment` on a
+   plain line only warns, naming the kind of source, never its path; beside markup or escapes the
+   gate folds it blocks as `assignment hidden by markup or escapes`, without the rotation line.
+5. After a clean scan, writes the step summary and uploads `skill-reply-*` and `patch-*`, with
+   `overwrite: false`.
+6. Builds `verdict.json` from the run job's checked outputs and its own patch upload, and uploads
+   `verdict-*` (`overwrite: false`) once every step before it succeeded. A run that stopped
+   before head code skips the scan and still posts its skip; a scan hit leaves no verdict.
+
+Its `patch-state`, `patch-sha256`, `patch-attempt` and `reply-attempt` outputs are the read
+file's in PR mode; in issue mode the run job's, which still uploads its own reply, patch and
+outcome. The issue lane's run job holds the OAuth token alone and runs no scan.
+
+### Leak-scan limits
+
+Recorded, not fixed:
+
+- The scan blocks credential formats only (owner ruling Q37). Beside the per-line scan it reads
+  each text with its NUL bytes removed, so a UTF-16LE credential is caught, and each pair of
+  adjacent lines joined (in the patch, hunk lines without their `+`, `-` or space prefix), so a
+  credential split across two lines is caught (N16). The split-line pass leaves out the OpenAI key
+  pattern (`sk-` and 20 token characters): it is too loose to join safely, since a line ending in
+  an `sk-` word joined to the next line's first word matches it, and a false block fails fix-ci
+  closed and asks for a rotation. A split OpenAI key and a credential wrapped in base64 still
+  pass.
+- Issue mode still publishes from the run job, unscanned: its `Show the skill's run in the step
+  summary`, `Upload the skill's final reply` and `Upload the patch` steps, and the gate verdict's
+  step summary (`Check the gate skill's verdict`). That predates the scan job and is slated for 6b.
+- A leaked scan-carrier private key also opens the payloads the scan blocked, which stay in the
+  run's job outputs as ciphertext. Rotate the key on a block, as the rotation line says.
+- The verdict's step outcomes, `act-outcome` among them, come from the run job, which a hostile
+  run can forge, so the check-run conclusion this workflow posts is not evidence. No PR-mode gate
+  skill runs on it, and no consumer treats that conclusion as merge or apply evidence: not a
+  required check, ci-status, pr-merge's verify evidence or risk score, apply-patch, or a
+  `workflow_run` trigger keyed on it.
+
 ## The summary job
 
 Read file, issue mode only: runs after the run job, unless the run was cancelled, when the run
@@ -1087,7 +1186,7 @@ runs with `!cancelled()`, so it opens the PR whether this job succeeded, failed 
 
 ## The report job
 
-Runs after the run job whatever its result, with `checks: write`, `contents: read` and
+Runs after the run job (and, in the read file, the scan job) whatever its result, with `checks: write`, `contents: read` and
 `pull-requests: read`, no model step, and a 10-minute timeout. It checks out the default branch
 tip, with full history, to `.base`, then checks out the run job's `base-sha` output only when that
 SHA is an ancestor of the tip; otherwise it stays on the tip. It never checks out the event's base
@@ -1101,6 +1200,34 @@ apart, since it can lag the promote step's push), and posts the check with
 [`report-check-run`](../../../.github/actions/report-check-run/README.md), passing that SHA as
 `pr-head-sha`. Why the check is written by this job and not the run job:
 [ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md).
+
+In the read file the run job is hostile (its head code can tamper with the runner before its
+outputs are sent), so the report job differs:
+
+- It stays on the default branch tip and never checks out the run job's `base-sha`.
+- The PR number comes from the caller's `pr-number` input or the event, never from the run job; a
+  run job `pr-number` that names another PR fails closed.
+- It posts on the run job's `head-sha` only when that equals the gated head: the caller's
+  `head-sha` input (pr-unblock passes `fix-ci-context`'s) or the event's PR head. The PR head it
+  reads counts only when neither is set, since a head that moved mid-run was never gated. Any
+  other value or a mismatched PR number posts failure on the trusted head and never on the run's
+  SHA. With no trusted head it posts nothing and fails. A handoff skips the report job; the fallback
+  call posts that check.
+- An empty run head (the run stopped before its trigger gate passed) never posts failure, which
+  babysit reads as a merge blocker. After the kill switch, which the report job reads from its
+  variables, or the broker-check job's refusal, it posts what it did before (the event's head on
+  `pull_request`, otherwise nothing), so the owner's switch blocks no merge and the head is
+  dispatched again once the switch is off. Otherwise it posts neutral `not-assessed` on the
+  caller's or the event's head: babysit counts a neutral check as passing, and fix-ci-dispatch
+  reads it as that head's run and dispatches it no more, without counting a restart. A trigger
+  decline cannot be told from a forged empty head in the report job, so both take this neutral.
+- pr-unblock passes `fix-ci-context`'s head, not the read runner's `head-sha` output, as
+  apply-patch's `patch-head-sha`; apply-patch compares it with the head its own trigger gate reads
+  at apply time and pushes only while the branch is still there. pr-refine has no job that gates
+  the head before `fix-docs`, so it passes no `head-sha` (the report job takes the event's head,
+  or on a dispatch the PR's head it reads) and passes the read runner's `head-sha` output as
+  `patch-head-sha`; apply-patch still applies onto the head its own gate reads and measures the
+  `default` row's refusals from there.
 
 What it trusts:
 
@@ -1148,12 +1275,15 @@ Claude OAuth token. Two routes reach it and the activity's GitHub token:
 Both are mitigations for the OAuth token and the activity's own GitHub token. The App key is kept
 off every runner by the broker instead: no workflow holds it.
 
-The verdict is written after head code ran in the same job, so it is never trusted: its lane,
+The verdict is built from run job outputs some of which are set after head code ran (in the write
+file, in the same job), so it is never trusted: its lane,
 activity, gate stop reason and `head-sha` must match the values above or the check fails, and its
 `dirty-tree` counts only as `true` (failure); its `patch` field only picks the title of a success. A missing verdict is a failure. A cancelled run job
 posts neutral `superseded-sha` only when the PR's current head SHA is non-empty and differs from
 the gated `head-sha`; a cancel with no newer head, such as a manual cancel or a timeout, is a
-failure. The full decision order is in the report-check-run README.
+failure. In the read file the run result passed to `report-check-run` is the scan job's when the
+broker check and the run job succeeded, so a failed scan fails the check. The full decision order
+is in the report-check-run README.
 
 ## Secrets and the two files
 
@@ -1184,7 +1314,18 @@ token), `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
 job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
 is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
 other than `${{ github.event.repository.default_branch }}` or a `with` key other than `ref`,
-`path` and `persist-credentials`.
+`path` and `persist-credentials`. One exception, the scan-carrier key: the read file declares
+`scan-carrier-private-key` (required) and its `scan` job may hold one step that uses
+`./.base/.github/actions/open-lane-output` with `private-key: ${{ secrets.scan-carrier-private-key }}`
+exactly; a job that calls the read file passes it by name only,
+`scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}` in its `secrets` map; and only
+the `scan` job may name an `environment`, `pr-pipeline-scan-carrier`. GitHub gives an environment
+secret to a reusable workflow only when the caller passes it by name, and the value it then holds
+is the environment's only in the job that names the environment
+([Reuse workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)).
+Everywhere else in the run the name resolves to a repository or organization secret of that name,
+so none may exist: [`scripts/check-scan-carrier-secret-shadow.sh`](../../../scripts/check-scan-carrier-secret-shadow.sh)
+`<owner/repo>` lists both by name and exits 1 on one.
 
 The read file stays alongside the broker: its guarantee, no key and no OIDC token in a job that
 runs head code, is structural, while the write file's comes from the broker.
@@ -1356,8 +1497,12 @@ caller or the write file merges while it waits, the broker would refuse the appl
 as `workflow-modified`. Before any model turn, the read file's `workflow-current` step compares
 the caller's and the write file's blobs at `github.workflow_sha` with the default branch checkout, the broker's
 rule, and on a difference fails red `workflow-stale` with no model turn and no outcome marker;
-work-unblock's hourly sweep re-fires such a failed run on main's files. What changes from the PR
-flow:
+work-unblock's hourly sweep re-fires such a failed run on main's files. An issue that
+`pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first`, `probe-first`
+or `not-assessed`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
+which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
+`dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
+step under an `outcome=<reason>` marker. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read

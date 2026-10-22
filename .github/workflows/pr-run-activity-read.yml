@@ -101,6 +101,15 @@ on:
         required: false
         type: string
         default: pr-base
+      head-sha:
+        description: >-
+          The PR head the caller gated in a job that ran no head code (pr-unblock's
+          fix-ci-context). The report job posts the check only on it, the event's
+          PR head, or the PR's head read from the API; a run job head-sha that is
+          none of these posts failure on the trusted head instead.
+        required: false
+        type: string
+        default: ""
       ci-context-attempt:
         description: >-
           For a prepare: ci-context activity, the run attempt whose
@@ -124,30 +133,41 @@ on:
       claude-api-key:
         description: The role's Claude Console API key, for a PR-mode skill's first call.
         required: false
-    # Patch output mode. Head code ran in the job that sets the patch outputs:
-    # the job that applies the patch checks it against patch-sha256.
+      # Read only by the scan job's decode step, under its environment, which
+      # supplies the value; a caller passes it by name, never inherit.
+      scan-carrier-private-key:
+        description: The scan-carrier private key, SCAN_CARRIER_PRIVATE_KEY, passed by name.
+        required: true
+    # Patch output mode. In PR mode the scan job sets the patch and reply
+    # outputs from what it scanned; in issue mode the run job, where head
+    # code ran. Either way the job that applies the patch checks it against
+    # patch-sha256.
     outputs:
       head-sha:
-        description: The PR head the trigger gate passed, set before any head code ran.
+        description: >-
+          The run job's head-sha output: the PR head its trigger gate passed. Set
+          before any head code ran, but the run job's runner is hostile and can
+          forge it, so no caller may trust it for a decision; take the head from
+          a job that ran no head code (pr-unblock's fix-ci-context) instead.
         value: ${{ jobs.run.outputs.head-sha }}
       patch-state:
         description: >-
           `written` (the patch artifact holds the change), `empty` (no change,
           no artifact), or '' when the run collected no patch.
-        value: ${{ jobs.run.outputs.patch-state }}
+        value: ${{ jobs.scan.outputs.patch-state || jobs.run.outputs.patch-state }}
       patch-sha256:
         description: The SHA-256 of patch.diff in the patch artifact, when patch-state is written.
-        value: ${{ jobs.run.outputs.patch-sha256 }}
+        value: ${{ jobs.scan.outputs.patch-sha256 || jobs.run.outputs.patch-sha256 }}
       patch-attempt:
         description: >-
           The run attempt in the artifact name
           patch-<lane>-<activity>-<attempt>, when patch-state is written.
-        value: ${{ jobs.run.outputs.patch-attempt }}
+        value: ${{ jobs.scan.outputs.patch-attempt || jobs.run.outputs.patch-attempt }}
       reply-attempt:
         description: >-
           The run attempt in the artifact name
           skill-reply-<lane>-<activity>-<attempt>, when the skill ran.
-        value: ${{ jobs.run.outputs.reply-attempt }}
+        value: ${{ jobs.scan.outputs.reply-attempt || jobs.run.outputs.reply-attempt }}
       base-sha:
         description: >-
           The trusted base commit the run checked, set before any head code
@@ -278,7 +298,13 @@ jobs:
     # The report job trusts only these. Each is a step outcome or an output of a
     # step that ran before any PR head code, except act-outcome for a gate
     # skill: the verdict step it reads runs after the skill, so a gate skill
-    # must not execute head code.
+    # must not execute head code. Every output set after a leg (or any head
+    # code) is forgeable: the scan job takes those only through checks.
+    # act-outcome and the other step outcomes still reach the verdict and the
+    # check-run conclusion this workflow posts, and a hostile run can forge
+    # them. So no PR-mode gate skill runs on this workflow, and nothing may
+    # trust that conclusion as merge or apply evidence (a required check,
+    # ci-status, pr-merge, apply-patch, or a workflow_run trigger).
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
@@ -289,9 +315,8 @@ jobs:
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
       # A gate skill succeeds only on a `pass` verdict, and a skill that took
-      # no model turn fails. The verdict step's ACT_OUTCOME repeats this
-      # expression: runner-policy refuses YAML aliases. A PR-mode skill runs
-      # on one of act-key and act-token.
+      # no model turn fails. The scan job's verdict reads it. A PR-mode
+      # skill runs on one of act-key and act-token.
       act-outcome: >-
         ${{ (steps.act-skill.outcome == 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
         && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
@@ -300,14 +325,26 @@ jobs:
         || steps.act-key.outcome != 'skipped' && steps.act-key.outcome
         || steps.act-token.outcome != 'skipped' && steps.act-token.outcome
         || steps.act-script.outcome }}
-      # Set after head code ran; see the collect step.
-      # The verdict step's PATCH_STATE repeats this expression.
+      # Issue mode, set after head code ran; see the collect step. PR mode's
+      # come from the scan job.
       patch-state: >-
-        ${{ steps.patch-upload.outcome == 'success' && 'written'
-        || steps.patch.outputs.state == 'empty' && 'empty' || '' }}
+        ${{ inputs.issue-number != '' && (steps.patch-upload.outcome == 'success' && 'written'
+        || steps.patch.outputs.state == 'empty' && 'empty') || '' }}
       patch-sha256: ${{ steps.patch-upload.outcome == 'success' && steps.patch.outputs.sha256 || '' }}
       patch-attempt: ${{ steps.patch-upload.outcome == 'success' && github.run_attempt || '' }}
       reply-attempt: ${{ steps.reply-upload.outcome == 'success' && github.run_attempt || '' }}
+      # For the scan job's verdict. go and the gate fields come from steps
+      # before any head code; skip-reason, dirty-tree and patch-collected
+      # after it, so the scan job holds each to its closed set.
+      go: ${{ steps.go.outputs.run }}
+      kill-proceed: ${{ steps.kill.outputs.proceed }}
+      kill-reason: ${{ steps.kill.outputs.reason }}
+      trigger-proceed: ${{ steps.gate.outputs.proceed }}
+      trigger-reason: ${{ steps.gate.outputs.reason }}
+      config-outcome: ${{ steps.config.outcome }}
+      skip-reason: ${{ steps.config.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
+      dirty-tree: ${{ steps.tree.outputs.dirty-tree }}
+      patch-collected: ${{ steps.patch.outputs.state }}
       # Issue mode, all from steps that run before any model turn.
       issue-run-started: ${{ inputs.issue-number != '' && steps.go.outputs.run == 'true' }}
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
@@ -318,6 +355,18 @@ jobs:
       lane-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class }}
       credential-present: ${{ steps.key-present.outputs.present || steps.token-present.outputs.present }}
       handed-off: ${{ steps.key-present.outputs.present == 'false' || steps.act-key.outputs.lane-class == 'credit-stop' }}
+      # PR mode, set after head code ran, for the scan job alone: each
+      # payload's byte count and the sealed bundle, never a workflow_call
+      # output.
+      carry-reply-bytes: ${{ steps.carry.outputs.reply-bytes }}
+      carry-act-turns-bytes: ${{ steps.carry.outputs.act-turns-bytes }}
+      carry-patch-bytes: ${{ steps.carry.outputs.patch-bytes }}
+      carry-sealed-length: ${{ steps.seal.outputs.sealed-length }}
+      carry-sealed-1: ${{ steps.seal.outputs.sealed-1 }}
+      carry-sealed-2: ${{ steps.seal.outputs.sealed-2 }}
+      carry-sealed-3: ${{ steps.seal.outputs.sealed-3 }}
+      carry-sealed-4: ${{ steps.seal.outputs.sealed-4 }}
+      carry-sealed-5: ${{ steps.seal.outputs.sealed-5 }}
     steps:
       # The job if: above cannot match an unset variable, so the guard would
       # silently let the App's own events through. An empty default branch
@@ -722,13 +771,21 @@ jobs:
           done
           echo "ready=true" >>"$GITHUB_OUTPUT"
 
-      - name: Copy the patch collector from the base
-        if: steps.go.outputs.run == 'true' && steps.config.outputs.applied-by-patch != ''
+      # The collector writes the patch in patch mode and checks the tree is
+      # clean otherwise. The sealer and its public key go with it: the head
+      # checkout replaces .base, and the head's own key file is the PR's.
+      # Head code can rewrite either copy, as it can the collector's; a
+      # forged sealer gains nothing the model job does not already hold.
+      - name: Copy the patch collector and the output sealer from the base
+        if: steps.go.outputs.run == 'true'
         env:
           DEST: ${{ runner.temp }}/read-patch
+          SEAL_DIR: ${{ runner.temp }}/seal-lane-output
         run: |
-          mkdir -p "$DEST"
+          mkdir -p "$DEST" "$SEAL_DIR"
           cp .base/.github/scripts/read-patch/collect-patch.sh "$DEST/"
+          cp .base/.github/actions/seal-lane-output/action.yml .base/.github/actions/seal-lane-output/seal.mjs \
+            .base/.github/lane-keys/scan-carrier.pub "$SEAL_DIR/"
 
       # Issue mode checks out the trusted base, the default branch tip, or on
       # a resume the tip of the earlier run's lane branch that issue-prior
@@ -960,7 +1017,7 @@ jobs:
           steps.go.outputs.run == 'true' && steps.config.outputs.kind == 'skill'
           && inputs.issue-number != ''
         continue-on-error: ${{ inputs.issue-number != '' }}
-        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
+        uses: anthropics/claude-code-action@a5a423f75c251dcbff8a74e99f83b2cb03c72bfa # v1.0.256
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1131,7 +1188,8 @@ jobs:
                 .filter((m) => m.type === 'user')
                 .map((m) => textOf(m.message?.content))
                 .filter((text) => text.includes('<local-command-stderr>'))
-                .map((text) => text.slice(0, 2000)),
+                .map((text) => text.slice(0, 2000))
+                .slice(0, 4),
             };
             fs.mkdirSync(REPLY_DIR, { recursive: true });
             // The summary step shows it after the leak scan.
@@ -1203,7 +1261,7 @@ jobs:
         if: >-
           always() && inputs.issue-number != ''
           && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@64fd515245f2bdeea8dedca1a3cea9ca39804bec # v0.43.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
           execution-file: >-
@@ -1286,25 +1344,41 @@ jobs:
           fi
           echo "skip-reason=$reason" >>"$GITHUB_OUTPUT"
 
+      # Through the collector, so git reads none of the checkout's .git
+      # config, hooks or info files: any change against the gated head,
+      # committed or not, is a dirty tree. No path is printed, since the
+      # activity chose the names.
       - name: Check the working tree is clean
         id: tree
         if: steps.go.outputs.run == 'true' && steps.config.outputs.applied-by-patch == ''
+        env:
+          HEAD_SHA: ${{ steps.start.outputs.sha }}
+          TREE_DIFF: ${{ runner.temp }}/tree-check/tree.diff
         run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            git status --short
+          mkdir -p "${TREE_DIFF%/*}"
+          rc=0
+          out=$(bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$TREE_DIFF") || rc=$?
+          rm -f "$TREE_DIFF"
+          # 3: a CLI scrub stub name holds more than an empty file, a change.
+          if [ "$rc" = 3 ]; then
             echo "dirty-tree=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "dirty-tree=false" >>"$GITHUB_OUTPUT"
+            exit 0
           fi
+          [ "$rc" = 0 ] || exit "$rc"
+          case "$(sed -n 's/^state=//p' <<<"$out")" in
+            written) echo "dirty-tree=true" >>"$GITHUB_OUTPUT" ;;
+            empty) echo "dirty-tree=false" >>"$GITHUB_OUTPUT" ;;
+            *) exit 1 ;;
+          esac
 
       # Patch output mode, for an activity whose applied-by names a patch, in
       # place of the clean-tree check, and only after an act step that
       # succeeded: what the activity changed against the gated head becomes
       # one binary patch. Head code ran in this job and could have replaced
       # the collector copy, so the patch and its SHA-256 are activity output;
-      # the job that applies the patch checks both. The launcher steps fail
-      # softly, so a PR-mode skill needs one that succeeded: a handoff or a
-      # failed leg collects nothing.
+      # in PR mode the scan job scans it, and the job that applies the patch
+      # checks both. The launcher steps fail softly, so a PR-mode skill needs
+      # one that succeeded: a handoff or a failed leg collects nothing.
       # In issue mode it also runs after a failed skill step (a turn cap or a
       # usage limit), so the partial work reaches a lane branch a resumed run
       # continues; the apply job holds it to the same rules.
@@ -1324,146 +1398,73 @@ jobs:
           mkdir -p "$PATCH_DIR"
           bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$PATCH_DIR/patch.diff" >>"$GITHUB_OUTPUT"
 
-      # PR mode: the skill ran Bash with the API key in reach, and artifacts
-      # are readable by anyone who can read the repository; masking covers
-      # logs and summaries only. Before any upload or summary, this scans
-      # what leaves the job (the reply, the run fields, the patch and every
-      # changed or untracked file's bytes, listed through a scratch index and
-      # covering a binary hunk) and the
-      # execution file, which the launcher never scans, with the publish
-      # gate's findSecret. The model could edit the checkout and its .git, so
-      # lib/publish-gate.mjs comes from the API at the trusted base SHA, with
-      # the job's read-only token, into a fresh directory, and must import
-      # only node: builtins. A credential format fails the step naming the
-      # pattern, never the value, and says to rotate it; every upload and
-      # summary after it needs clean == 'true'. The one broad label, a
-      # password or secret assignment, is a warning naming the file only.
-      - name: Scan the outputs for credentials
-        id: leak-scan
+      # Each actions/checkout post step runs git in its checkout's path
+      # whenever <path>/.git/config is there, as a node step that holds the
+      # job's runtime token. The head checkout's .git is the model's to write,
+      # and the head checkout removed .base, so the model could make one
+      # there too; with both gone, both post steps return before any git runs.
+      - name: Remove the checkouts' .git directories
         if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        run: rm -rf "${GITHUB_WORKSPACE:?}/.git" "${GITHUB_WORKSPACE:?}/.base/.git"
+
+      # PR mode: the reply, the run fields and the patch leave this job only
+      # as job outputs to the scan job, never as an artifact, and only
+      # sealed to the committed scan-carrier public key: the scan job alone
+      # holds the private key. This step stages each payload within its cap
+      # and sets its byte count; an absent payload sets nothing, and one
+      # over its cap sets only its byte count, which the scan job refuses as
+      # too large. The seal step then seals the staged copies (the sealer
+      # copied from the base, placed where a uses: can reach it) into at
+      # most five chunks of 98304 characters, each fitting one environment
+      # variable, bound to this run and the run job. Every output here is
+      # set after head code ran, so the scan job checks each.
+      - name: Stage the reply, run fields and patch for the scan job
+        id: carry
+        if: always() && inputs.issue-number == '' && steps.go.outputs.run == 'true'
         env:
-          BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
-          HEAD_SHA: ${{ steps.start.outputs.sha }}
-          EXECUTION_FILE: >-
-            ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file
-            || format('{0}/claude-execution-output.json', runner.temp) }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
           PATCH_FILE: ${{ runner.temp }}/patch/patch.diff
-        with:
-          retries: 0
-          script: |
-            const fs = require('fs');
-            const os = require('os');
-            const path = require('path');
-            const { pathToFileURL } = require('url');
-            const { execFileSync } = require('child_process');
-            const { BASE_SHA, HEAD_SHA, EXECUTION_FILE, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
-            // The one findSecret label that warns instead of blocking (owner decision, 2026-10-21).
-            const WARN_ONLY = 'password or secret assignment';
-            // A scratch index, as collect-patch.sh uses: the checkout's own index
-            // is the model's to write (assume-unchanged, skip-worktree).
-            const index = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-index-')), 'index');
-            const git = (...args) =>
-              execFileSync('/usr/bin/git', ['-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', '-c', 'core.hooksPath=/dev/null', ...args], {
-                cwd: GITHUB_WORKSPACE,
-                env: { PATH: '/usr/bin:/bin', HOME: process.env.HOME ?? '/tmp', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_INDEX_FILE: index },
-                maxBuffer: 1 << 30,
-                stdio: ['ignore', 'pipe', 'ignore'],
-              });
-            // A regular file's bytes, a link's target text; anything else holds none.
-            const read = (file) => {
-              let stat;
-              try {
-                stat = fs.lstatSync(file);
-              } catch {
-                return null;
-              }
-              if (stat.isSymbolicLink()) return Buffer.from(fs.readlinkSync(file), 'latin1');
-              return stat.isFile() ? fs.readFileSync(file) : null;
-            };
-            let hit = null;
-            try {
-              if (!/^[0-9a-f]{40}$/.test(BASE_SHA ?? '') || !/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no base or head');
-              const { data } = await github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: BASE_SHA });
-              const source = Buffer.from(data.content, 'base64').toString('utf8');
-              const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
-              if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');
-              const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
-              fs.writeFileSync(path.join(dir, 'publish-gate.mjs'), source);
-              const { findSecret, SECRET_PATTERNS } = await import(pathToFileURL(path.join(dir, 'publish-gate.mjs')).href);
-              // A credential format blocks. The one broad label, an assignment
-              // that may be a test fixture, only warns. Each line is judged on
-              // its own: every blocking pattern on the raw line, then findSecret
-              // (which adds the gate's normalized copy). When findSecret names
-              // the assignment first, its raw matches are blanked and the line
-              // is read again, and each match is read again with its = and :
-              // blanked, so the assignment never hides a credential; an
-              // assignment that survives the blanking (normalized only) blocks.
-              const blocking = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
-              const warnPattern = SECRET_PATTERNS.find(([label]) => label === WARN_ONLY)?.[1];
-              const warnAll = warnPattern && new RegExp(warnPattern.source, warnPattern.flags.includes('g') ? warnPattern.flags : `${warnPattern.flags}g`);
-              const classifyLine = (line) => {
-                const raw = blocking.find(([, re]) => re.test(line));
-                if (raw) return { block: raw[0] };
-                const first = findSecret(line);
-                if (!first) return {};
-                if (first[0] !== WARN_ONLY || !warnAll) return { block: first[0] };
-                const again = findSecret(line.replace(warnAll, (match) => ' '.repeat(match.length)));
-                if (again) return { block: again[0] };
-                for (const [match] of line.matchAll(warnAll)) {
-                  const inside = findSecret(match.replace(/[:=]/g, ' '));
-                  if (inside) return { block: inside[0] };
-                }
-                return { warn: true };
-              };
-              const classify = (text) => {
-                let warn = false;
-                for (const line of text.split(/\r?\n/)) {
-                  const result = classifyLine(line);
-                  if (result.block) return result;
-                  warn ||= Boolean(result.warn);
-                }
-                return { warn };
-              };
-              const paths = ['--', ':(top)', ':(top,exclude).lane'];
-              git('read-tree', HEAD_SHA);
-              git('add', '-A', ...paths);
-              const names = git('diff', '--cached', '--name-only', '--no-renames', '-z', HEAD_SHA, ...paths).toString('latin1').split('\0').filter(Boolean);
-              const sources = [
-                ['reply.txt', `${REPLY_DIR}/reply.txt`],
-                ['act-turns.json', `${REPLY_DIR}/act-turns.json`],
-                ['patch.diff', PATCH_FILE],
-                ['the execution file', EXECUTION_FILE],
-                ...names.map((name) => [name, path.join(GITHUB_WORKSPACE, name)]),
-              ];
-              for (const [source, file] of sources) {
-                const bytes = read(file);
-                if (!bytes) continue;
-                const { block, warn } = classify(bytes.toString('latin1'));
-                if (block) {
-                  hit = { label: block, credential: true };
-                  break;
-                }
-                if (warn) core.warning(`leak-scan: ${WARN_ONLY} in ${source}; not blocking, check it is no real credential`);
-              }
-            } catch (error) {
-              hit = { label: `no finished scan (${error.name})`, credential: false };
-            }
-            core.setOutput('clean', hit ? 'false' : 'true');
-            if (hit) {
-              core.setFailed(`leak-scan: ${hit.label}; nothing is uploaded or summarized${hit.credential ? '\nrotate this credential' : ''}`);
-            }
+          CARRY_DIR: ${{ runner.temp }}/carry
+          SEAL_DIR: ${{ runner.temp }}/seal-lane-output
+        run: |
+          rm -rf "$CARRY_DIR"
+          mkdir -p "$CARRY_DIR"
+          carry() {
+            local name=$1 file=$2 copy=$CARRY_DIR/$3 cap=$4 bytes
+            if [ -L "$file" ] || [ ! -f "$file" ]; then return 0; fi
+            cp -- "$file" "$copy"
+            bytes=$(stat -c %s "$copy")
+            echo "$name-bytes=$bytes" >>"$GITHUB_OUTPUT"
+            if [ "$bytes" -gt "$cap" ]; then
+              rm -f "$copy"
+              echo "::error::too-large: the $name is $bytes bytes, over its $cap-byte cap, so nothing is published"
+            fi
+          }
+          carry reply "$REPLY_DIR/reply.txt" reply.txt 16384
+          carry act-turns "$REPLY_DIR/act-turns.json" act-turns.json 32768
+          carry patch "$PATCH_FILE" patch.diff 262144
+          rm -rf "${GITHUB_WORKSPACE:?}/.lane-seal"
+          cp -R "$SEAL_DIR" "$GITHUB_WORKSPACE/.lane-seal"
 
-      # After the scan: model text and run fields, as data. Issue mode has no
-      # scan (its job holds no API key) and keeps its summary.
+      - name: Seal the reply, run fields and patch for the scan job
+        id: seal
+        if: always() && steps.carry.outcome == 'success'
+        uses: ./.lane-seal # zizmor: ignore[self-repository]
+        with:
+          public-key-file: .lane-seal/scan-carrier.pub
+          payloads: |
+            reply.txt=${{ runner.temp }}/carry/reply.txt
+            act-turns.json=${{ runner.temp }}/carry/act-turns.json
+            patch.diff=${{ runner.temp }}/carry/patch.diff
+          job-id: run
+          max-chunks: 5
+
+      # Issue mode: model text and run fields, as data. PR mode shows them
+      # from the scan job, after its scan.
       - name: Show the skill's run in the step summary
         if: >-
-          always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
-          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
-          || (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure')
-          && steps.act-key.outputs.lane-class != 'credit-stop'
-          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+          always() && inputs.issue-number != ''
+          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           REPLY_DIR: ${{ runner.temp }}/skill-reply
@@ -1487,16 +1488,12 @@ jobs:
             if (turns !== null) core.summary.addHeading('Skill run', 3).addCodeBlock(escape(turns), 'json');
             await core.summary.write();
 
-      # A handoff uploads nothing: the fallback call's artifacts take the same
-      # names. Every upload below repeats the handoff terms.
+      # Issue mode: PR mode's uploads come from the scan job.
       - name: Upload the skill's final reply
         id: reply-upload
         if: >-
-          always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
-          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'
-          || steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
-          || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
+          always() && inputs.issue-number != ''
+          && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
@@ -1509,10 +1506,7 @@ jobs:
 
       - name: Upload the patch
         id: patch-upload
-        if: >-
-          always() && (inputs.issue-number != '' || steps.leak-scan.outputs.clean == 'true')
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
-          && steps.patch.outputs.state == 'written'
+        if: always() && inputs.issue-number != '' && steps.patch.outputs.state == 'written'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
@@ -1571,30 +1565,568 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
-      # Written after head code ran, so the report job only cross-checks it.
-      # A handoff leaves the verdict to the fallback call.
+      # The launcher steps fail softly. A run that handed off ends green and
+      # leaves the activity to the fallback call; any other PR-mode skill run
+      # that got as far as the credential steps and left no launcher success
+      # fails here.
+      - name: Fail without a result
+        if: >-
+          always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success')
+          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
+          && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
+        run: |
+          echo "::error::the skill's launcher run left no result"
+          exit 1
+
+  # Everything the run job hands on leaves here, on a fresh VM that ran no
+  # model or head code, with no id-token, no cache and nothing from the run
+  # job but its outputs: the run-claude-cli contract puts the reporting and
+  # uploads of a lane that grants unrestricted Bash in a downstream job that
+  # validates its inputs. Its one secret is the scan-carrier private key,
+  # in the pr-pipeline-scan-carrier environment, read by the open step
+  # alone. In PR mode it opens and checks the run job's sealed payloads,
+  # scans what leaves against a fresh fetch of the gated head, writes the
+  # summary, and is the only job that uploads the reply, patch and verdict
+  # artifacts. In issue mode it writes only the verdict. A handoff skips it:
+  # the fallback call's artifacts take the same names. The key pair's
+  # generation and rotation: .github/actions/open-lane-output/README.md.
+  # Setup, in this order (the owner, offline from the repository root):
+  #   1. Create the environment, with custom branch policies:
+  #      gh api -X PUT repos/melodic-software/claude-code-plugins/environments/pr-pipeline-scan-carrier -F 'deployment_branch_policy[protected_branches]=false' -F 'deployment_branch_policy[custom_branch_policies]=true'
+  #   2. Admit main only:
+  #      gh api -X POST repos/melodic-software/claude-code-plugins/environments/pr-pipeline-scan-carrier/deployment-branch-policies -f name=main -f type=branch
+  #   3. Only then set the key on it with keygen:
+  #      { node .github/actions/open-lane-output/keygen.mjs --private-key-fd 3 >.github/lane-keys/scan-carrier.pub; } 3>&1 | gh secret set SCAN_CARRIER_PRIVATE_KEY --env pr-pipeline-scan-carrier
+  #   4. Rerun scripts/check-scan-carrier-secret-shadow.sh melodic-software/claude-code-plugins.
+  # A key set before the branch policy would reach a dispatch from any
+  # branch, whose modified copy of this workflow could print it. Step 4
+  # matters because a repository or organization secret of that name would
+  # reach every other job of the run through the callers' by-name pass.
+  # Callers run this file on issues (default branch) and on
+  # workflow_dispatch, which anyone with write access can send on any ref:
+  # off main the environment refuses this job, so the run fails closed and
+  # publishes nothing.
+  scan:
+    needs: run
+    if: >-
+      !cancelled() && (needs.run.result == 'success' || needs.run.result == 'failure')
+      && needs.run.outputs.handed-off != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: pr-pipeline-scan-carrier
+    permissions:
+      contents: read
+    outputs:
+      # The verdict step's PATCH_STATE repeats this expression.
+      patch-state: >-
+        ${{ steps.patch-upload.outcome == 'success' && 'written'
+        || steps.decode.outputs.patch-state == 'empty' && 'empty' || '' }}
+      patch-sha256: ${{ steps.patch-upload.outcome == 'success' && steps.leak-scan.outputs.patch-sha256 || '' }}
+      patch-attempt: ${{ steps.patch-upload.outcome == 'success' && github.run_attempt || '' }}
+      reply-attempt: ${{ steps.reply-upload.outcome == 'success' && github.run_attempt || '' }}
+    steps:
+      # The opener and the public key, from the default branch's tip, named
+      # by the event, never by a run job output: this code runs with the
+      # private key, and head code with sudo on the run job's runner could
+      # forge any output, base-sha included, to name a commit of its own.
+      # The gated head's checkout below replaces this one. An empty default
+      # branch would make the checkout fall back to the event's ref, so it
+      # fails closed first.
+      - name: Assert the default branch is set
+        if: inputs.issue-number == '' && needs.run.outputs.go == 'true' && needs.run.outputs.carry-sealed-length != ''
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::the event names no default branch; the opener is not checked out"
+            exit 1
+          fi
+
+      - name: Check out the default branch tip
+        id: base
+        if: inputs.issue-number == '' && needs.run.outputs.go == 'true' && needs.run.outputs.carry-sealed-length != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            .github/actions/open-lane-output
+            .github/lane-keys
+
+      - name: Read the scan-carrier key id
+        id: key
+        if: steps.base.outcome == 'success'
+        run: |
+          read -r _ id _ <.base/.github/lane-keys/scan-carrier.pub || true
+          echo "id=$id" >>"$GITHUB_OUTPUT"
+
+      # The one step that reads the scan-carrier private key. It opens the
+      # sealed bundle into a fresh directory under runner.temp and writes
+      # the plaintext nowhere else; a withheld chunk is output-withheld and
+      # asks for rotation, and a wrong key, a failed tag, a record from
+      # another run, job or payload name, or a payload over its cap fails
+      # without rotation, writing nothing.
+      - name: Decode the run job's sealed payloads
+        id: open
+        if: steps.base.outcome == 'success'
+        uses: ./.base/.github/actions/open-lane-output # zizmor: ignore[self-repository]
+        with:
+          private-key: ${{ secrets.scan-carrier-private-key }}
+          expected-key-ids: ${{ steps.key.outputs.id }}
+          job-id: run
+          max-bytes: |
+            reply.txt=16384
+            act-turns.json=32768
+            patch.diff=262144
+          directory: ${{ runner.temp }}/scan-in
+          sealed-length: ${{ needs.run.outputs.carry-sealed-length }}
+          sealed-1: ${{ needs.run.outputs.carry-sealed-1 }}
+          sealed-2: ${{ needs.run.outputs.carry-sealed-2 }}
+          sealed-3: ${{ needs.run.outputs.carry-sealed-3 }}
+          sealed-4: ${{ needs.run.outputs.carry-sealed-4 }}
+          sealed-5: ${{ needs.run.outputs.carry-sealed-5 }}
+
+      # Every output the run job set after head code ran must be in its
+      # closed set, each through env, never inlined into a script. A
+      # payload's byte count over its cap is too-large; a byte count with
+      # no opened payload, an opened payload with none, or a size that
+      # differs fails too. The opened files stay where they are; the scan
+      # reads them.
+      - name: Check the run job's outputs and opened payloads
+        id: decode
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          GO: ${{ needs.run.outputs.go }}
+          BASE_SHA: ${{ needs.run.outputs.base-sha }}
+          HEAD_SHA: ${{ needs.run.outputs.head-sha }}
+          KILL_PROCEED: ${{ needs.run.outputs.kill-proceed }}
+          KILL_REASON: ${{ needs.run.outputs.kill-reason }}
+          TRIGGER_PROCEED: ${{ needs.run.outputs.trigger-proceed }}
+          TRIGGER_REASON: ${{ needs.run.outputs.trigger-reason }}
+          GATE_REASON: ${{ needs.run.outputs.gate-reason }}
+          CONFIG_OUTCOME: ${{ needs.run.outputs.config-outcome }}
+          SKIP_REASON: ${{ needs.run.outputs.skip-reason }}
+          ACT_OUTCOME: ${{ needs.run.outputs.act-outcome }}
+          DIRTY_TREE: ${{ needs.run.outputs.dirty-tree }}
+          PATCH_COLLECTED: ${{ needs.run.outputs.patch-collected }}
+          LANE_CLASS: ${{ needs.run.outputs.lane-class }}
+          REPLY_BYTES: ${{ needs.run.outputs.carry-reply-bytes }}
+          ACT_TURNS_BYTES: ${{ needs.run.outputs.carry-act-turns-bytes }}
+          PATCH_BYTES: ${{ needs.run.outputs.carry-patch-bytes }}
+          OPEN_DIR: ${{ steps.open.outcome == 'success' && format('{0}/scan-in', runner.temp) || '' }}
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const env = process.env;
+            const NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+            const SHA = /^[0-9a-f]{40}$/;
+            const OUTCOME = ['success', 'failure', 'skipped', 'cancelled'];
+            const closed = {
+              GO: ['true', 'false'],
+              KILL_PROCEED: ['true', 'false'],
+              TRIGGER_PROCEED: ['true', 'false'],
+              CONFIG_OUTCOME: OUTCOME,
+              ACT_OUTCOME: OUTCOME,
+              DIRTY_TREE: ['true', 'false'],
+              PATCH_COLLECTED: ['written', 'empty'],
+              KILL_REASON: NAME,
+              TRIGGER_REASON: NAME,
+              GATE_REASON: NAME,
+              SKIP_REASON: NAME,
+              LANE_CLASS: NAME,
+              BASE_SHA: SHA,
+              HEAD_SHA: SHA,
+            };
+            // The carry step's payloads and caps.
+            const PAYLOADS = [
+              ['reply', 'reply.txt', 16384],
+              ['act-turns', 'act-turns.json', 32768],
+              ['patch', 'patch.diff', 262144],
+            ];
+            class Refused extends Error {}
+            const refuse = (message) => {
+              throw new Refused(message);
+            };
+            try {
+              for (const [key, allowed] of Object.entries(closed)) {
+                const value = env[key] ?? '';
+                if (value !== '' && !(Array.isArray(allowed) ? allowed.includes(value) : allowed.test(value))) {
+                  refuse(`bad-output: the run job's ${key.toLowerCase().replaceAll('_', '-')} output is not one the runner sets; nothing is published`);
+                }
+              }
+              // A regular file the open step wrote, by size; none without an open.
+              const opened = (file) => {
+                if (!env.OPEN_DIR) return null;
+                try {
+                  const stat = fs.lstatSync(path.join(env.OPEN_DIR, file));
+                  return stat.isFile() ? stat.size : null;
+                } catch {
+                  return null;
+                }
+              };
+              const present = {};
+              for (const [name, file, cap] of PAYLOADS) {
+                const bytesText = env[`${name.toUpperCase().replaceAll('-', '_')}_BYTES`] ?? '';
+                const size = opened(file);
+                if (bytesText === '' && size === null) continue;
+                if (!/^[0-9]+$/.test(bytesText)) refuse(`payload-mismatch: the ${name} has no byte count; nothing is published`);
+                const bytes = Number(bytesText);
+                if (bytes > cap) refuse(`too-large: the ${name} is ${bytes} bytes, over its ${cap}-byte cap; nothing is published`);
+                if (size !== bytes) refuse(`payload-mismatch: the ${name} does not match its byte count; nothing is published`);
+                present[name] = true;
+              }
+              // PR mode: the patch the run collected, and only that, arrives.
+              if (env.ISSUE_NUMBER === '' && Boolean(present.patch) !== (env.PATCH_COLLECTED === 'written')) {
+                refuse('payload-mismatch: the patch does not match the state its collector reported; nothing is published');
+              }
+              core.setOutput('dir', env.OPEN_DIR);
+              core.setOutput('reply', present.reply || present['act-turns'] ? 'true' : 'false');
+              core.setOutput('patch', present.patch ? 'true' : 'false');
+              core.setOutput('patch-state', env.PATCH_COLLECTED === 'empty' ? 'empty' : '');
+            } catch (error) {
+              core.setFailed(error instanceof Refused ? error.message : `payload-mismatch: the outputs could not be decoded (${error.name}); nothing is published`);
+            }
+
+      # The gated head's objects, fresh: the patch applies onto them.
+      - name: Check out the gated head
+        if: steps.decode.outputs.patch == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.run.outputs.head-sha }}
+          persist-credentials: false
+
+      # PR mode: the skill ran Bash with the API key in reach, and artifacts
+      # are readable by anyone who can read the repository; masking covers
+      # logs and summaries only. Before any upload or summary, this copies
+      # what leaves (the reply, the run fields and the patch) into a fresh
+      # directory and scans those copies; the uploads and the summary read
+      # only the copies, and the patch-sha256 the apply job checks is the
+      # scanned copy's. The patch is applied as the apply job applies it,
+      # onto the gated head in a scratch index, and every file it makes is
+      # scanned by name and bytes: a binary hunk's bytes are compressed in
+      # the patch text. git here never reads the checkout's config, hooks or
+      # info files (a fresh repository borrows only its objects, and the
+      # patch applies onto a copy of the head's objects each named by its
+      # own hash), and lib/publish-gate.mjs comes from the API at the default
+      # branch's tip, which this step resolves itself with the job's read-only
+      # token (getBranch; a failed call or a malformed SHA fails the scan
+      # closed with no fetch), never from a run job output or an older PR
+      # base, into a fresh directory, and must import only node: builtins. A credential format fails the
+      # step naming the pattern, never the value, and says to rotate it; a
+      # patch that does not apply, or a scan that does not finish (the
+      # timeout included), fails it with no rotation; every upload and
+      # summary after it needs clean == 'true'. The one broad label, a
+      # password or secret assignment, is a warning naming the kind of
+      # source, never a path.
+      - name: Scan the outputs for credentials
+        id: leak-scan
+        if: inputs.issue-number == '' && needs.run.outputs.go == 'true'
+        timeout-minutes: 10
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          HEAD_SHA: ${{ needs.run.outputs.head-sha }}
+          REPLY_DIR: ${{ steps.decode.outputs.dir }}
+          PATCH_FILE: ${{ steps.decode.outputs.dir }}/patch.diff
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const os = require('os');
+            const path = require('path');
+            const crypto = require('crypto');
+            const { pathToFileURL } = require('url');
+            const { execFileSync } = require('child_process');
+            const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
+            // The one findSecret label that warns instead of blocking.
+            const WARN_ONLY = 'password or secret assignment';
+            // A regular file's bytes, a link's target text; anything else holds none.
+            const read = (file) => {
+              let stat;
+              try {
+                stat = fs.lstatSync(file);
+              } catch {
+                return null;
+              }
+              if (stat.isSymbolicLink()) return Buffer.from(fs.readlinkSync(file), 'latin1');
+              return stat.isFile() ? fs.readFileSync(file) : null;
+            };
+            let hit = null;
+            try {
+              if (!/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no head');
+              const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
+              // The gate's commit, from this job's own token: the default
+              // branch's tip now, never a run job output, which head code with
+              // sudo on that runner could have forged.
+              const branch = context.payload.repository?.default_branch;
+              if (typeof branch !== 'string' || branch === '') throw new Error('no default branch');
+              const tip = (await github.rest.repos.getBranch({ ...context.repo, branch })).data?.commit?.sha;
+              if (typeof tip !== 'string' || !/^[0-9a-f]{40}$/.test(tip)) throw new Error('no default branch tip');
+              const { data } = await github.rest.repos.getContent({ ...context.repo, path: 'lib/publish-gate.mjs', ref: tip });
+              const source = Buffer.from(data.content, 'base64').toString('utf8');
+              const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
+              if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');
+              fs.writeFileSync(path.join(scratch, 'publish-gate.mjs'), source);
+              const { findSecret, SECRET_PATTERNS } = await import(pathToFileURL(path.join(scratch, 'publish-gate.mjs')).href);
+              // git with no global or system config, in a fresh bare repository
+              // that borrows at most the checkout's objects and nothing else
+              // from its .git (collect-patch.sh runs the same way).
+              const home = path.join(scratch, 'home');
+              fs.mkdirSync(home);
+              fs.writeFileSync(path.join(scratch, 'config'), '');
+              const clean = { PATH: '/usr/bin:/bin', HOME: home, XDG_CONFIG_HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: path.join(scratch, 'config'), GIT_NO_REPLACE_OBJECTS: '1' };
+              const repo = (name, borrow) => {
+                const dir = path.join(scratch, name);
+                execFileSync('/usr/bin/git', ['init', '-q', '--bare', '--template=', dir], { env: clean, stdio: 'ignore' });
+                if (borrow) fs.writeFileSync(path.join(dir, 'objects', 'info', 'alternates'), `${path.join(GITHUB_WORKSPACE, '.git', 'objects')}\n`);
+                const env = { ...clean, GIT_DIR: dir, GIT_INDEX_FILE: path.join(dir, 'scan-index') };
+                return (args, input) =>
+                  execFileSync('/usr/bin/git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', ...args], {
+                    cwd: scratch,
+                    env,
+                    input,
+                    maxBuffer: 1 << 30,
+                    stdio: [input ? 'pipe' : 'ignore', 'pipe', 'ignore'],
+                  });
+              };
+              // What leaves is copied once; the scan reads the copy and the
+              // uploads after it read the same bytes.
+              const out = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-out-'));
+              const keep = (file, name) => {
+                const bytes = read(file);
+                if (bytes) fs.writeFileSync(path.join(out, name), bytes, { flag: 'wx', mode: 0o444 });
+                return bytes;
+              };
+              const reply = keep(`${REPLY_DIR}/reply.txt`, 'reply.txt');
+              const turns = keep(`${REPLY_DIR}/act-turns.json`, 'act-turns.json');
+              const patch = keep(PATCH_FILE, 'patch.diff');
+              core.setOutput('dir', out);
+              if (patch) core.setOutput('patch-sha256', crypto.createHash('sha256').update(patch).digest('hex'));
+              // A credential format blocks and asks for rotation. The one broad
+              // label, an assignment that may be a test fixture, only warns, and
+              // only on a plain line. Each line is judged on its own: every
+              // blocking pattern on the raw line, then findSecret (which adds the
+              // gate's normalized copy). When findSecret names the assignment,
+              // its matches are blanked and the line read again, and each match
+              // is read again with its = and : blanked. A line whose assignment
+              // sits beside markup or escapes the gate folds (a tag, an entity,
+              // a doubled backslash: publish-gate.mjs normalize(), lines 60-66),
+              // or whose assignment only the folded copy shows, blocks under its
+              // own label: blanking cannot be trusted there. findSecret on the
+              // whole text runs too, and any credential label from it blocks.
+              const HIDDEN = 'assignment hidden by markup or escapes';
+              const blocking = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
+              const warnPattern = SECRET_PATTERNS.find(([label]) => label === WARN_ONLY)?.[1];
+              const warnOne = warnPattern && new RegExp(warnPattern.source, warnPattern.flags.replace('g', ''));
+              const warnAll = warnPattern && new RegExp(warnPattern.source, `${warnPattern.flags.replace('g', '')}g`);
+              const folds = (line) => /<[^<>]*>/.test(line) || /&#?\w+;/.test(line) || line.includes('\\\\');
+              const credential = (label) => ({ block: label, credential: true });
+              const classifyLine = (line) => {
+                const raw = blocking.find(([, re]) => re.test(line));
+                if (raw) return credential(raw[0]);
+                const first = findSecret(line);
+                if (!first) return {};
+                if (first[0] !== WARN_ONLY || !warnPattern) return credential(first[0]);
+                const again = findSecret(line.replace(warnAll, (match) => ' '.repeat(match.length)));
+                if (again && again[0] !== WARN_ONLY) return credential(again[0]);
+                for (const [match] of line.matchAll(warnAll)) {
+                  const inside = findSecret(match.replace(/[:=]/g, ' '));
+                  if (inside && inside[0] !== WARN_ONLY) return credential(inside[0]);
+                }
+                if (again || folds(line) || !warnOne.test(line)) return { block: HIDDEN, credential: false };
+                return { warn: true };
+              };
+              const classify = (text) => {
+                let warn = false;
+                for (const line of text.split(/\r?\n/)) {
+                  const result = classifyLine(line);
+                  if (result.block) return result;
+                  warn ||= Boolean(result.warn);
+                }
+                const whole = findSecret(text);
+                if (whole && whole[0] !== WARN_ONLY) return credential(whole[0]);
+                return { warn };
+              };
+              // Two more passes, on credential formats only (owner ruling Q37),
+              // each blocking with the label and the rotation line:
+              // - UTF-16LE: the text with its NUL bytes removed, so a token
+              //   written two bytes a character reads as one. #8532 reads a
+              //   NUL as a space to keep line numbers (b9e9475b3a); here it is
+              //   removed, since a space between every character would split
+              //   the token again.
+              // - Split lines: each pair of adjacent lines joined with no
+              //   separator, counting only a match that straddles the join of
+              //   a pattern neither line matches alone, so a token cut across
+              //   two lines is caught and nothing a single line holds is
+              //   judged twice. The OpenAI key pattern (any sk- and 20 token
+              //   characters) and the R2 key pair pattern (a 32-hex and a
+              //   64-hex token on one line) are left out of this pass: joining
+              //   a line that ends in an sk- word to the next line's first
+              //   word matches the first, adjacent md5 and sha256 lines match
+              //   the second, and a false block fails fix-ci closed and asks
+              //   for a rotation. In the patch the pair is hunk
+              //   lines with their +, - or space prefix removed and the file
+              //   headers dropped, or a token split inside an added hunk
+              //   would join as "...ab+cd..." and never match.
+              const straddles = (left, right) => {
+                const joined = left + right;
+                for (const [label, re] of blocking) {
+                  if (label === 'OpenAI key' || label === 'R2 key pair' || re.test(left) || re.test(right)) continue;
+                  for (const match of joined.matchAll(new RegExp(re.source, `${re.flags.replace('g', '')}g`))) {
+                    if (match.index < left.length && match.index + match[0].length > left.length) return label;
+                  }
+                }
+                return null;
+              };
+              const credentialIn = (text) => {
+                for (const line of text.split(/\r?\n/)) {
+                  const raw = blocking.find(([, re]) => re.test(line));
+                  if (raw) return raw[0];
+                }
+                const found = findSecret(text);
+                return found && found[0] !== WARN_ONLY ? found[0] : null;
+              };
+              const HUNK_HEADER = /^(?:\+\+\+|---) /;
+              const deeper = (text, diff) => {
+                const plain = text.replace(/\0/g, '');
+                if (plain !== text) {
+                  const label = credentialIn(plain);
+                  if (label) return label;
+                }
+                let lines = plain.split(/\r?\n/);
+                if (diff) lines = lines.filter((line) => /^[-+ ]/.test(line) && !HUNK_HEADER.test(line)).map((line) => line.slice(1));
+                for (let i = 0; i + 1 < lines.length; i += 1) {
+                  const label = straddles(lines[i], lines[i + 1]);
+                  if (label) return label;
+                }
+                return null;
+              };
+              // Each source has a kind, which names no model-chosen text.
+              const warned = new Set();
+              const judge = (kind, bytes, how = (b) => classify(b.toString('latin1')), diff = false) => {
+                if (hit || !bytes) return;
+                const { block, credential: format, warn } = how(bytes);
+                if (block) {
+                  hit = { label: block, credential: format };
+                  return;
+                }
+                const deep = deeper(bytes.toString('latin1'), diff);
+                if (deep) hit = { label: deep, credential: true };
+                else if (warn) warned.add(kind);
+              };
+              judge('the reply', reply);
+              judge('the reply', turns);
+              judge('the patch', patch, undefined, true);
+              // The patch as the apply job applies it, onto the gated head: every
+              // file it makes, by name and bytes. git apply takes a blob the store
+              // already holds in place of a binary hunk's bytes, so the head's
+              // objects are copied through index-pack, which names each by its
+              // own hash, into a store that borrows nothing. A patch that does
+              // not apply blocks. A missing or blank patch file is no patch: the
+              // collector writes none for no change.
+              if (!hit && patch && patch.toString('latin1').trim() !== '') {
+                const head = repo('head', true);
+                const apply = repo('apply', false);
+                apply(['index-pack', '--stdin'], head(['pack-objects', '--stdout', '-q'], head(['rev-list', '--objects', '--no-walk', HEAD_SHA])));
+                apply(['read-tree', HEAD_SHA]);
+                let made = null;
+                try {
+                  apply(['apply', '--cached', '--binary', '-'], patch);
+                  made = apply(['write-tree']).toString('latin1').trim();
+                } catch {
+                  hit = { label: 'the patch does not apply to the head', credential: false };
+                }
+                const fields = made ? apply(['diff-tree', '-r', '-z', '--no-renames', HEAD_SHA, made]).toString('latin1').split('\0') : [];
+                for (let i = 0; i + 1 < fields.length; i += 2) {
+                  const [, mode, , sha] = fields[i].replace(/^:/, '').split(' ');
+                  judge('the patch', Buffer.from(fields[i + 1], 'latin1'));
+                  if (/^(100644|100755|120000)$/.test(mode)) judge('the patch', apply(['cat-file', 'blob', sha]));
+                }
+              }
+              if (!hit) {
+                for (const kind of warned) core.warning(`leak-scan: ${WARN_ONLY} in ${kind}; not blocking, check it is no real credential`);
+              }
+            } catch (error) {
+              hit = { label: `no finished scan (${error.name})`, credential: false };
+            }
+            core.setOutput('clean', hit ? 'false' : 'true');
+            if (hit) {
+              core.setFailed(`leak-scan: ${hit.label}; nothing is uploaded or summarized${hit.credential ? '\nrotate this credential' : ''}`);
+            }
+
+      # After the scan: model text and run fields, as data, from the scan's
+      # copies.
+      - name: Show the skill's run in the step summary
+        if: steps.leak-scan.outputs.clean == 'true' && steps.decode.outputs.reply == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          REPLY_DIR: ${{ steps.leak-scan.outputs.dir }}
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { REPLY_DIR } = process.env;
+            const text = (name) => {
+              try {
+                return fs.readFileSync(`${REPLY_DIR}/${name}`, 'utf8');
+              } catch {
+                return null;
+              }
+            };
+            // addCodeBlock does not escape its text.
+            const escape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const reply = text('reply.txt');
+            if (reply !== null) core.summary.addHeading('Skill reply', 3).addCodeBlock(escape(reply), 'text');
+            const turns = text('act-turns.json');
+            if (turns !== null) core.summary.addHeading('Skill run', 3).addCodeBlock(escape(turns), 'json');
+            await core.summary.write();
+
+      # PR mode, after a clean scan, from its copies. overwrite: false, so a
+      # second upload of a name this run already holds fails.
+      - name: Upload the skill's final reply
+        id: reply-upload
+        if: steps.leak-scan.outputs.clean == 'true' && steps.decode.outputs.reply == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.leak-scan.outputs.dir }}/reply.txt
+            ${{ steps.leak-scan.outputs.dir }}/act-turns.json
+          retention-days: 3
+          if-no-files-found: error
+          overwrite: false
+
+      - name: Upload the patch
+        id: patch-upload
+        if: steps.leak-scan.outputs.clean == 'true' && steps.decode.outputs.patch == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          path: ${{ steps.leak-scan.outputs.dir }}/patch.diff
+          retention-days: 7
+          if-no-files-found: error
+          overwrite: false
+
+      # From the run job's outputs, each held to its closed set by the decode
+      # step, and this job's own patch upload: no job that ran model or head
+      # code writes it. The scan job's patch-state output repeats PATCH_STATE.
       - name: Write the verdict
-        if: always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
         env:
           LANE: ${{ inputs.lane }}
           ACTIVITY: ${{ inputs.activity }}
-          KILL_PROCEED: ${{ steps.kill.outputs.proceed }}
-          KILL_REASON: ${{ steps.kill.outputs.reason }}
-          TRIGGER_PROCEED: ${{ steps.gate.outputs.proceed }}
-          TRIGGER_REASON: ${{ steps.gate.outputs.reason }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          CONFIG_OUTCOME: ${{ steps.config.outcome }}
-          SKIP_REASON: ${{ steps.config.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
-          ACT_OUTCOME: >-
-            ${{ (steps.act-skill.outcome == 'success' || steps.act-key.outcome == 'success' || steps.act-token.outcome == 'success')
-            && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
-            || steps.act-turns.outcome != 'success') && 'failure'
-            || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
-            || steps.act-key.outcome != 'skipped' && steps.act-key.outcome
-            || steps.act-token.outcome != 'skipped' && steps.act-token.outcome
-            || steps.act-script.outcome }}
-          DIRTY_TREE: ${{ steps.tree.outputs.dirty-tree }}
-          PATCH_STATE: ${{ steps.patch-upload.outcome == 'success' && 'written' || steps.patch.outputs.state == 'empty' && 'empty' || '' }}
+          KILL_PROCEED: ${{ needs.run.outputs.kill-proceed }}
+          KILL_REASON: ${{ needs.run.outputs.kill-reason }}
+          TRIGGER_PROCEED: ${{ needs.run.outputs.trigger-proceed }}
+          TRIGGER_REASON: ${{ needs.run.outputs.trigger-reason }}
+          HEAD_SHA: ${{ needs.run.outputs.head-sha }}
+          CONFIG_OUTCOME: ${{ needs.run.outputs.config-outcome }}
+          SKIP_REASON: ${{ needs.run.outputs.skip-reason }}
+          ACT_OUTCOME: ${{ needs.run.outputs.act-outcome }}
+          DIRTY_TREE: ${{ needs.run.outputs.dirty-tree }}
+          PATCH_STATE: ${{ steps.patch-upload.outcome == 'success' && 'written' || steps.decode.outputs.patch-state == 'empty' && 'empty' || '' }}
           VERDICT_DIR: ${{ runner.temp }}/verdict
         run: |
           mkdir -p "$VERDICT_DIR"
@@ -1626,31 +2158,17 @@ jobs:
               patch: ($patch | nullable)
             }' >"$VERDICT_DIR/verdict.json"
 
-      # Before any head code ran there is nothing to scan, and the report
-      # job needs this verdict to post the skip.
+      # Only after every step above succeeded: a run that stopped before head
+      # code skipped the scan and still posts its skip; a scan hit leaves no
+      # verdict, which the report job reads as a failure.
       - name: Upload the verdict
-        if: >-
-          always() && (inputs.issue-number != '' || steps.go.outputs.run != 'true' || steps.leak-scan.outputs.clean == 'true')
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict/verdict.json
           retention-days: 1
           if-no-files-found: error
-
-      # The launcher steps fail softly. A run that handed off ends green and
-      # leaves the activity to the fallback call; any other PR-mode skill run
-      # that got as far as the credential steps and left no launcher success
-      # fails here.
-      - name: Fail without a result
-        if: >-
-          always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success')
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
-          && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
-        run: |
-          echo "::error::the skill's launcher run left no result"
-          exit 1
+          overwrite: false
 
   # Issue mode, reuse: the summary pass, in its own job with a read-only
   # GITHUB_TOKEN. It starts only when the run job's issue-prior step named a
@@ -1805,7 +2323,7 @@ jobs:
         id: summary-run
         if: steps.isolate.outcome == 'success'
         continue-on-error: true
-        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
+        uses: anthropics/claude-code-action@a5a423f75c251dcbff8a74e99f83b2cb03c72bfa # v1.0.256
         env:
           # As in the run job's skill step.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -1857,7 +2375,7 @@ jobs:
           overwrite: true
 
   report:
-    needs: [broker-check, run]
+    needs: [broker-check, run, scan]
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
     # lanes App's own pull_request events skip the run job. Issue mode has no
     # PR head to post a check on, and a run that handed off leaves the check
@@ -1870,14 +2388,18 @@ jobs:
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # issues: write lets check-signed-commits add its label and comment. Every
+    # caller job grants it; no job that runs the model holds it.
     permissions:
       checks: write
       contents: read
+      issues: write
       pull-requests: read
     steps:
-      # The default branch tip, then the run job's base SHA only when the
-      # default branch holds it. The event's base SHA is never checked out:
-      # a PR into another branch would choose the actions that post its check.
+      # The default branch tip, never the run job's base-sha or the event's
+      # base SHA: a hostile run job could forge the one, and a PR into another
+      # branch would choose the other, and either would pick the code that
+      # posts the check.
       - name: Assert the default branch is set
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -1895,26 +2417,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check out the run job's base SHA when the default branch holds it
-        env:
-          BASE_SHA: ${{ needs.run.outputs.base-sha }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          if [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] &&
-            git -C .base merge-base --is-ancestor "$BASE_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"; then
-            git -C .base checkout -q --detach "$BASE_SHA"
-          else
-            echo "No base SHA on the default branch; staying on the default branch tip"
-          fi
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           package-manager-cache: false
 
-      # A run job that never uploaded a verdict is already a failure, or a
-      # neutral superseded-sha on a cancel, in report-check-run's decision.
+      # A run that never uploaded a verdict (the scan job writes it) is
+      # already a failure, or a neutral superseded-sha on a cancel, in
+      # report-check-run's decision.
       - name: Download the verdict
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1922,24 +2433,16 @@ jobs:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict
 
-      - name: Check the lane's commits are signed
-        id: signed
-        if: >-
-          always()
-          && needs.run.outputs.can-commit != 'false'
-          && needs.run.outputs.pr-number != ''
-        uses: ./.base/.github/actions/check-signed-commits # zizmor: ignore[self-repository]
-        with:
-          pr-number: ${{ needs.run.outputs.pr-number }}
-          since-sha: ${{ needs.run.outputs.head-sha }}
-          github-token: ${{ github.token }}
-
-      # A cancelled run is superseded only when the PR has a newer head.
+      # The PR number from the caller or the event, never from the run job,
+      # whose outputs head code could forge. A run job pr-number that names
+      # another PR fails closed: the check then goes to the trusted head as a
+      # failure.
       - name: Read the PR's current head SHA
         id: pr-head
         if: always()
         env:
-          PR_NUMBER: ${{ needs.run.outputs.pr-number || github.event.pull_request.number || inputs.pr-number }}
+          PR_NUMBER: ${{ inputs.pr-number || github.event.pull_request.number }}
+          RUN_PR_NUMBER: ${{ needs.run.outputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
         run: |
           sha=""
@@ -1951,34 +2454,127 @@ jobs:
             sha=""
           fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          if [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then echo "number=$PR_NUMBER" >>"$GITHUB_OUTPUT"; fi
+          if [ -n "$RUN_PR_NUMBER" ] && [ "$RUN_PR_NUMBER" != "$PR_NUMBER" ]; then
+            echo "::error::the run job's pr-number is not the PR the caller or event names"
+            echo "pr-mismatch=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      # The commit the check is posted on. The run job's head-sha counts only
+      # when it equals the gated head: the caller's head-sha input or the
+      # event's PR head, and the PR head just read only when the caller and
+      # the event name none (a head that moved mid-run was never gated). Any
+      # other value or a mismatched PR number posts failure on the trusted
+      # head, never on the run's SHA. With no trusted head nothing is posted
+      # and the step fails. An empty run head (the run stopped before its
+      # trigger gate passed) never posts failure, which babysit would read as
+      # a merge blocker: after the broker-check job's refusal, which includes
+      # its own kill switch read (a trusted decision no run job output can
+      # write, and one a switch flipped mid-run cannot change here), it keeps
+      # the old rule (on pull_request the event's head, otherwise no post);
+      # with no caller or event head it posts nothing; otherwise it posts
+      # neutral not-assessed on that gated head, which babysit passes and
+      # fix-ci-dispatch reads as the head's run, so it is not re-dispatched
+      # there. A trigger decline cannot be told from a forged empty head
+      # here, so both take that neutral. A handoff never reaches this job:
+      # the fallback call posts that check.
+      - name: Choose the head the check is posted on
+        id: head
+        if: always()
+        env:
+          RUN_HEAD: ${{ needs.run.outputs.head-sha }}
+          CALLER_HEAD: ${{ inputs.head-sha }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          API_HEAD: ${{ steps.pr-head.outputs.sha }}
+          PR_MISMATCH: ${{ steps.pr-head.outputs.pr-mismatch }}
+          TRUSTED_SKIP: ${{ needs.broker-check.outputs.allowed != 'true' }}
+        run: |
+          out() { printf 'post=true\nsha=%s\nforged=%s\n' "$1" "$2" >>"$GITHUB_OUTPUT"; }
+          valid() { [[ $1 =~ ^[0-9a-f]{40}$ ]]; }
+          if [ -z "$RUN_HEAD" ] && [ "$PR_MISMATCH" != true ]; then
+            gated=$CALLER_HEAD
+            valid "$gated" || gated=$EVENT_HEAD
+            if [ "$TRUSTED_SKIP" = true ] || ! valid "$gated"; then
+              out "" false
+            else
+              out "$gated" false
+              echo "not-run-reason=not-assessed" >>"$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          gated=()
+          for sha in "$CALLER_HEAD" "$EVENT_HEAD"; do
+            if valid "$sha"; then gated+=("$sha"); fi
+          done
+          matches=("${gated[@]}")
+          if [ "${#gated[@]}" -eq 0 ] && valid "$API_HEAD"; then matches=("$API_HEAD"); fi
+          targets=("${gated[@]}")
+          if valid "$API_HEAD"; then targets+=("$API_HEAD"); fi
+          if [ "${#targets[@]}" -eq 0 ]; then
+            echo "post=false" >>"$GITHUB_OUTPUT"
+            echo "::error::no trusted PR head to post the check on; nothing is posted"
+            exit 1
+          fi
+          if [ "$PR_MISMATCH" != true ] && [ -n "$RUN_HEAD" ]; then
+            for sha in "${matches[@]}"; do
+              if [ "$RUN_HEAD" = "$sha" ]; then
+                out "$sha" false
+                exit 0
+              fi
+            done
+          fi
+          echo "::error::the run job's head-sha or pr-number is not the gated PR's; failure is posted on the trusted head ${targets[0]}"
+          out "${targets[0]}" true
+
+      - name: Check the lane's commits are signed
+        id: signed
+        if: >-
+          always()
+          && needs.run.outputs.can-commit != 'false'
+          && steps.pr-head.outputs.number != ''
+          && steps.head.outputs.forged == 'false'
+        uses: ./.base/.github/actions/check-signed-commits # zizmor: ignore[self-repository]
+        with:
+          pr-number: ${{ steps.pr-head.outputs.number }}
+          since-sha: ${{ steps.head.outputs.sha }}
+          github-token: ${{ github.token }}
 
       # Off pull_request, an empty run head SHA would fall back to github.sha,
       # the dispatch ref, which is not the PR's commit, so nothing is posted.
       - name: Note that no check is posted without a head SHA
         if: >-
           always() && github.event_name != 'pull_request'
-          && needs.run.outputs.head-sha == ''
+          && steps.head.outputs.post == 'true' && steps.head.outputs.sha == ''
         run: echo "The run job gated no head SHA, so no check run is posted." >>"$GITHUB_STEP_SUMMARY"
 
+      # A forged head or PR posts failure on the trusted head: the run result
+      # reads failure and the head disagrees with the verdict's.
       - name: Post the check run
         if: >-
-          always() && !(github.event_name != 'pull_request'
-          && needs.run.outputs.head-sha == '')
+          always() && steps.head.outputs.post == 'true'
+          && !(github.event_name != 'pull_request' && steps.head.outputs.sha == '')
         uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
         with:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
           # A broker-check failure skips the run job and leaves no verdict, so
-          # the check fails; a cancelled broker-check reads as cancelled.
+          # the check fails; a cancelled broker-check reads as cancelled. A
+          # scan job that failed (a credential, a withheld or oversize
+          # payload) fails the check after a run job that succeeded.
           run-result: >-
-            ${{ needs.broker-check.result != 'success' && needs.broker-check.result
-            || needs.run.result }}
+            ${{ steps.head.outputs.forged == 'true' && 'failure'
+            || steps.head.outputs.not-run-reason != '' && 'skipped'
+            || needs.broker-check.result != 'success' && needs.broker-check.result
+            || needs.run.result != 'success' && needs.run.result
+            || needs.scan.result }}
+          not-run-reason: ${{ steps.head.outputs.not-run-reason }}
           act-outcome: ${{ needs.run.outputs.act-outcome }}
-          gate-reason: ${{ needs.run.outputs.gate-reason }}
-          head-sha: ${{ needs.run.outputs.head-sha }}
+          gate-reason: ${{ steps.head.outputs.forged != 'true' && needs.run.outputs.gate-reason || '' }}
+          head-sha: ${{ steps.head.outputs.sha }}
           pr-head-sha: ${{ steps.pr-head.outputs.sha }}
           can-commit: ${{ needs.run.outputs.can-commit }}
           all-verified: ${{ steps.signed.outputs.all-verified }}
+          unverified: ${{ steps.signed.outputs.unverified }}
           verdict-path: ${{ runner.temp }}/verdict/verdict.json
           base-path: .base
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}

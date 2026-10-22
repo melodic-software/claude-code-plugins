@@ -39,6 +39,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     # One per-PR queue shared by every write lane: it queues, never cancels.
     concurrency:
@@ -54,6 +55,7 @@ jobs:
       timeout-minutes: 60
     secrets:
       claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The subscription fallback, as a second call on new VMs: it runs only when
   # fix-docs's key leg hit a credit stop or its key is empty, which fix-docs
@@ -69,6 +71,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ github.event.pull_request.number || inputs.pr-number }}
@@ -84,6 +87,7 @@ jobs:
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The push job: apply-patch.mjs, a script with no model that runs no head
   # code. It checks the patch against the model job's SHA-256 and head,
@@ -100,6 +104,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      issues: write
       id-token: write
     concurrency:
       group: pr-pipeline-write-${{ github.event.pull_request.number || inputs.pr-number }}
@@ -115,5 +120,9 @@ jobs:
       patch-sha256: ${{ needs.fix-docs-subscription.outputs.patch-sha256 || needs.fix-docs.outputs.patch-sha256 }}
       patch-attempt: ${{ needs.fix-docs-subscription.outputs.patch-attempt || needs.fix-docs.outputs.patch-attempt }}
       patch-activity: fix-docs
+      # The run job's head-sha output, which head code could forge: this lane
+      # has no job that gates the head without running head code. apply-patch
+      # still applies onto the head its own gate reads and measures the
+      # default row's refusals from there.
       patch-head-sha: ${{ needs.fix-docs-subscription.outputs.head-sha || needs.fix-docs.outputs.head-sha }}
       reply-attempt: ${{ needs.fix-docs-subscription.outputs.reply-attempt || needs.fix-docs.outputs.reply-attempt }}

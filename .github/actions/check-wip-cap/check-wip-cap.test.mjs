@@ -6,10 +6,13 @@
 // body line exactly "Hold: a human merges this") counts against the held
 // cap and its age alarm. Lane PRs opened in the window may be at most
 // wip.opened-to-merged-ratio times those merged in it. Over a cap the check alerts; it
-// pauses the lane only over the WIP cap, on or after wip.pause-from; the held
-// cap only alerts. A read that fails never caps.
+// pauses the lane over the WIP cap or the held cap, on or after wip.pause-from,
+// and logs one `admission paused: reason=...` line (owner decision
+// 2026-10-21). A read that fails keeps the last known pause, or with none
+// fails open (owner decision 2026-10-21, #8804).
 import assert from "node:assert/strict";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -211,26 +214,30 @@ test("over the WIP cap the lane pauses only on or after pause-from: unset never,
   assert.equal(status(under, { "pause-from": "2026-10-01" }).paused, false);
 });
 
-test("over the held cap alone the lane alerts but never pauses, whatever pause-from says", async () => {
-  const overHeld = await read({ open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 100 });
-  for (const pauseFrom of ["", "2026-10-19", "2026-10-18", "2026-10-01T00:00:00Z"]) {
-    const result = status(overHeld, { "pause-from": pauseFrom });
+test("over the held cap alone the lane pauses only on or after pause-from, for reason held-cap", async () => {
+  const overHeld = await read({ open: Array.from({ length: 10 }, () => pr({ labels: ["needs-human"] })), merged: 100 });
+  for (const [pauseFrom, paused] of [["", false], ["2026-10-19", false], ["2026-10-18", true], ["2026-10-01T00:00:00Z", true]]) {
+    const result = status(overHeld, { "held-cap": 10, "pause-from": pauseFrom });
     assert.equal(result.held_over, true, pauseFrom);
     assert.equal(result.wip_over, false, pauseFrom);
     assert.equal(result.alert, true, pauseFrom);
-    assert.equal(result.paused, false, pauseFrom);
+    assert.equal(result.paused, paused, pauseFrom);
+    assert.equal(result.pause_reason, paused ? "held-cap" : null, pauseFrom);
   }
+  const under = await read({ open: Array.from({ length: 9 }, () => pr({ labels: ["needs-human"] })), merged: 100 });
+  assert.equal(status(under, { "held-cap": 10, "pause-from": "2026-10-01" }).paused, false);
 });
 
-test("over both caps the lane pauses, because of the WIP cap", async () => {
+test("over both caps the lane pauses for both reasons", async () => {
   const both = await read({ open: [pr(), pr(), pr(), ...Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] }))], merged: 24 });
   const result = status(both, { "pause-from": "2026-10-01" });
   assert.equal(result.held_over, true);
   assert.equal(result.wip_over, true);
   assert.equal(result.paused, true);
+  assert.equal(result.pause_reason, "wip,held-cap");
 });
 
-test("reads that fail never cap or pause", async () => {
+test("reads that fail never cap or pause on their own", async () => {
   const failed = new Error("GET /search/issues failed with status 502");
   const result = status(await read({ open: failed, merged: failed, admitted: failed }), { "pause-from": "2026-10-01" });
   assert.equal(result.countable_lane_prs, null);
@@ -238,6 +245,7 @@ test("reads that fail never cap or pause", async () => {
   assert.equal(result.wip_over, false);
   assert.equal(result.held_over, false);
   assert.equal(result.paused, false);
+  assert.equal(result.pause_reason, null);
 });
 
 // main against a base checkout; with no `config` it holds no schema, so the
@@ -311,18 +319,153 @@ test("main writes capped=true only when paused", async () => {
   assert.equal(paused.wip.wip_min_cap, 12);
   assert.equal(paused.capped, "true");
   assert.ok(paused.logs.some((line) => line.includes("13 countable lane PRs are at or over the WIP cap of 12")));
-  assert.equal((await runMain({ open: [pr()], merged: 24 }, {}, config)).capped, "false");
+  const line = "admission paused: reason=wip countable=13 wip_cap=12 held=0 held_cap=10";
+  assert.ok(paused.logs.includes(`::notice title=admission paused::${line}`), paused.logs.join("\n"));
+  assert.ok(paused.summary.includes(`\n${line}\n`));
+  const running = await runMain({ open: [pr()], merged: 24 }, {}, config);
+  assert.equal(running.capped, "false");
+  assert.ok(!running.logs.some((l) => l.includes("admission paused")));
+  assert.ok(!running.summary.includes("admission paused"));
 });
 
-test("main's warning over the held cap alone, past pause-from, says only the WIP cap pauses", async () => {
+test("main pauses at this repository's held cap of 10, past pause-from, and logs the pause line", async () => {
   const repoConfig = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8");
   const config = repoConfig.replace(/^( +pause-from: ).*$/m, '$1"2026-10-01"');
-  const held = await runMain({ open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, {}, config);
+  const held = await runMain({ open: Array.from({ length: 10 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, {}, config);
+  assert.equal(held.wip.held_cap, 10);
   assert.equal(held.wip.held_over, true);
   assert.equal(held.wip.wip_over, false);
+  assert.equal(held.capped, "true");
+  const warning = held.logs.find((line) => line.startsWith("::warning title=check-wip-cap::") && line.includes("held cap of 10"));
+  assert.ok(warning?.includes("this run starts no work and work-unblock re-fires it once under both caps"), warning);
+  assert.ok(held.logs.includes("::notice title=admission paused::admission paused: reason=held-cap countable=0 wip_cap=12 held=10 held_cap=10"));
+  const nine = await runMain({ open: Array.from({ length: 9 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, {}, config);
+  assert.equal(nine.capped, "false");
+});
+
+// The last known state is the previous run's published status, in the file
+// WIP_STATE names (owner decision 2026-10-21, #8804).
+const pastConfig = () =>
+  readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8").replace(/^( +pause-from: ).*$/m, '$1"2026-10-01"');
+function stateFile(prior) {
+  const path = join(mkdtempSync(join(tmpdir(), "check-wip-cap-state-")), "state.json");
+  if (prior !== undefined) {
+    writeFileSync(path, JSON.stringify(prior));
+  }
+  return path;
+}
+const failed = new Error("GET /search/issues failed with status 502");
+
+test("a read that fails keeps a last known pause, and logs it as kept", async () => {
+  const prior = { paused: true, pause_reason: "held-cap" };
+  for (const [answers, config] of [
+    [{ open: failed, merged: 24 }, pastConfig()],
+    [{ open: [pr()], merged: 24 }, undefined],
+  ]) {
+    const path = stateFile(prior);
+    const kept = await runMain(answers, { WIP_STATE: path }, config);
+    assert.equal(kept.capped, "true");
+    assert.equal(kept.wip.paused, true);
+    assert.equal(kept.wip.pause_reason, "held-cap");
+    assert.equal(kept.wip.pause_basis, "last-state");
+    const line = "admission paused: reason=held-cap (read-error, kept last state)";
+    assert.ok(kept.logs.includes(`::notice title=admission paused::${line}`), kept.logs.join("\n"));
+    assert.ok(kept.summary.includes(`\n${line}\n`));
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), prior);
+  }
+});
+
+test("a kept pause ends when a readable config no longer pauses", async () => {
+  const path = stateFile({ paused: true, pause_reason: "wip" });
+  for (const from of ['""', '"2026-10-19"']) {
+    const config = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8").replace(/^( +pause-from: ).*$/m, `$1${from}`);
+    const open = await runMain({ open: failed, merged: 24 }, { WIP_STATE: path }, config);
+    assert.equal(open.capped, "false");
+    assert.equal(open.wip.pause_basis, "last-state");
+    assert.ok(!open.summary.includes("admission paused"));
+  }
+});
+
+test("a last known pause reason outside wip, held-cap and wip,held-cap is no prior state", async () => {
+  for (const reason of ["wip\n::error::injected", "other", null]) {
+    const path = stateFile({ paused: true, pause_reason: reason });
+    const open = await runMain({ open: failed, merged: 24 }, { WIP_STATE: path }, pastConfig());
+    assert.equal(open.capped, "false");
+    assert.equal(open.wip.pause_basis, "fail-open");
+    assert.ok(!open.summary.includes("admission paused"));
+  }
+  const kept = await runMain({ open: failed, merged: 24 }, { WIP_STATE: stateFile({ paused: true, pause_reason: "wip,held-cap" }) }, pastConfig());
+  assert.equal(kept.capped, "true");
+});
+
+// Issue-event runs cannot save a default-branch cache (low-trust trigger), so
+// only work-unblock's hourly schedule saves the state; pick-slot only reads.
+const { parse } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("yaml");
+const yamlAt = (path) => parse(readFileSync(new URL(`../../../${path}`, import.meta.url), "utf8"));
+const usesWip = (step) => String(step?.uses ?? "").endsWith("/.github/actions/check-wip-cap");
+
+test("the state is saved only from work-unblock's schedule, and pick-slot only reads it", () => {
+  const action = yamlAt(".github/actions/check-wip-cap/action.yml");
+  assert.equal(action.inputs["save-state"].default, "false");
+  const saves = action.runs.steps.filter((step) => String(step.uses ?? "").startsWith("actions/cache/save@"));
+  assert.equal(saves.length, 1);
+  assert.match(saves[0].if, /inputs\.save-state == 'true'/);
+  const savers = [];
+  for (const file of readdirSync(new URL("../../workflows/", import.meta.url)).filter((f) => /\.ya?ml$/.test(f))) {
+    for (const [name, job] of Object.entries(yamlAt(`.github/workflows/${file}`).jobs ?? {})) {
+      for (const step of (job.steps ?? []).filter(usesWip)) {
+        if (String(step.with?.["save-state"] ?? "false") === "true") {
+          savers.push({ file, name, step });
+        }
+      }
+    }
+  }
+  // Its own job: a restored cache must never reach a job that can mint
+  // through the token broker (id-token) or holds a secret.
+  assert.deepEqual(savers.map(({ file, name }) => `${file}:${name}`), ["work-unblock.yml:wip-state"]);
+  const saver = yamlAt(".github/workflows/work-unblock.yml").jobs["wip-state"];
+  assert.match(saver.if, /github\.event_name == 'schedule'/);
+  assert.deepEqual(saver.permissions, { contents: "read", "pull-requests": "read" });
+  assert.ok(!JSON.stringify(saver).includes("secrets."));
+  const pickSlot = yamlAt(".github/workflows/work-resolve-issue.yml").jobs["pick-slot"];
+  assert.equal(pickSlot["cache-mode"], "read");
+  assert.equal(pickSlot.steps.filter(usesWip).length, 1);
+});
+
+test("a read that fails keeps a last known open lane open", async () => {
+  const prior = { paused: false, pause_reason: null };
+  const path = stateFile(prior);
+  const kept = await runMain({ open: failed, merged: 24 }, { WIP_STATE: path }, pastConfig());
+  assert.equal(kept.capped, "false");
+  assert.equal(kept.wip.paused, false);
+  assert.equal(kept.wip.pause_basis, "last-state");
+  assert.ok(!kept.summary.includes("admission paused"));
+  assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), prior);
+});
+
+test("a read that fails with no last known state fails open", async () => {
+  for (const prior of [undefined, { paused: "yes" }]) {
+    const path = stateFile(prior);
+    const open = await runMain({ open: failed, merged: 24 }, { WIP_STATE: path }, pastConfig());
+    assert.equal(open.capped, "false");
+    assert.equal(open.wip.pause_basis, "fail-open");
+    assert.ok(!open.summary.includes("admission paused"));
+  }
+});
+
+test("a read that succeeds saves its status as the last known state", async () => {
+  const path = stateFile();
+  const paused = await runMain({ open: Array.from({ length: 13 }, () => pr()), merged: 24 }, { WIP_STATE: path }, pastConfig());
+  assert.equal(paused.capped, "true");
+  assert.equal(paused.wip.pause_basis, "read");
+  assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), paused.wip);
+});
+
+test("main's warning before pause-from says the pause date is not reached", async () => {
+  const repoConfig = readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8");
+  const config = repoConfig.replace(/^( +pause-from: ).*$/m, '$1"2026-10-19"');
+  const held = await runMain({ open: Array.from({ length: 10 }, () => pr({ labels: ["needs-human"] })), merged: 24 }, {}, config);
   assert.equal(held.capped, "false");
-  const warning = held.logs.find((line) => line.startsWith("::warning title=check-wip-cap::") && line.includes("held cap of 60"));
-  assert.ok(warning);
-  assert.ok(!warning.includes("pause-from not reached"), warning);
-  assert.ok(warning.includes("the lane keeps running (only the WIP cap pauses it)"), warning);
+  const warning = held.logs.find((line) => line.startsWith("::warning title=check-wip-cap::"));
+  assert.ok(warning?.includes("the lane keeps running (pause-from not reached)"), warning);
 });

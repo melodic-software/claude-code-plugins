@@ -27,18 +27,30 @@ models:
     fields:
       size:
         field-id: 11
-        options: { "101": tiny, "102": huge }
+        options:
+          "101": tiny
+          "102": huge
       complexity:
         field-id: 12
-        options: { "201": easy, "202": hard }
+        options:
+          "201": easy
+          "202": hard
       uncertainty:
         field-id: 13
-        options: { "301": clear, "302": foggy }
+        options:
+          "301": clear
+          "302": foggy
     sizes:
-      tiny: { base-turns: 10, timeout-minutes: 5 }
+      tiny:
+        base-turns: 10
+        timeout-minutes: 5
       huge: split
-    complexity: { easy: 1, hard: 2 }
-    uncertainty: { clear: run, foggy: probe-first }
+    complexity:
+      easy: 1
+      hard: 2
+    uncertainty:
+      clear: run
+      foggy: probe-first
 EOF
 git -C "$REPO" -c user.email=t@t -c user.name=t add -A
 git -C "$REPO" -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -qm fixture
@@ -110,6 +122,15 @@ mv "$REPO/docs/conventions/pr-pipeline.yaml" "$TMP_ROOT/away.yaml"
 run "$ID" size=tiny complexity=easy uncertainty=clear
 assert_eq "no dimension map → exit 3" "3" "$RC"
 mv "$TMP_ROOT/away.yaml" "$REPO/docs/conventions/pr-pipeline.yaml"
+
+# A flow mapping is outside the parser's subset: the error names the file and the line.
+cp "$REPO/docs/conventions/pr-pipeline.yaml" "$TMP_ROOT/kept.yaml"
+printf 'models:\n  issue-dimensions: { fields: {} }\n' >"$REPO/docs/conventions/pr-pipeline.yaml"
+run "$ID" size=tiny complexity=easy uncertainty=clear
+assert_eq "a flow mapping → exit 1" "1" "$RC"
+assert_eq "a flow mapping → the error names the file and line" \
+  "set-dimensions: docs/conventions/pr-pipeline.yaml does not parse: line 2: flow mapping ({...}) is outside the subset; use block style" "$ERR"
+mv "$TMP_ROOT/kept.yaml" "$REPO/docs/conventions/pr-pipeline.yaml"
 
 # Two option ids for one key would make the write a guess.
 CFG="$REPO/docs/conventions/pr-pipeline.yaml"

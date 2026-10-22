@@ -1,10 +1,10 @@
 // Identity, polling, heartbeat and actions: the only code that talks to the server. The page (app.js)
 // reads the prototype's state names; toView() builds them from the contract snapshot, and each action
-// below sends the contract route's body. The map: .work/shared-interview-ui/snapshot-map.md.
+// below sends the contract route's body. The map: plugins/planning/shared/snapshot-map.md.
 (() => {
   const memory = new Map();
-  const store = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })()
-    || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
+  const local = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })();
+  const store = local || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
   const get = k => { try { return store.getItem(k); } catch { return memory.get(k) ?? null; } };
   const put = (k, v) => { try { store.setItem(k, v); } catch { memory.set(k, v); } };
   const drop = k => { try { store.removeItem(k); } catch { /* storage gone */ } memory.delete(k); };
@@ -21,10 +21,14 @@
     history.replaceState(null, "", location.pathname + location.search + (hashParams.toString() ? "#" + hashParams : ""));
   };
   const joinKey = hashParams.get("join") || "";
+  // The host's one-time code for signing this device in as the host ("Sign in on another device"), from its QR code.
+  const pairCode = hashParams.get("pair") || "";
+  if (pairCode) unhash("pair");
   // A personal link ("Use on another device") carries the person's secret in the fragment.
   let adopt = hashParams.get("me") || "";
   // The owner link carries the owner token in the fragment. This tab keeps it in sessionStorage and takes it out of
   // the address bar, so a reload or Back in this tab finds it again; a page opened fresh without it is a guest's.
+  // A device the host signed in with a code keeps its own credential in localStorage ("ownerDevice") until signed out.
   const ownerToken = (() => {
     const tab = (() => { try { return window.sessionStorage; } catch { return null; } })();
     const fromHash = hashParams.get("owner") || "";
@@ -32,9 +36,11 @@
       try { tab.setItem("owner", fromHash); if (tab.getItem("owner") === fromHash) unhash("owner"); } catch { /* no storage: it stays in the address */ }
       return fromHash;
     }
+    if (adopt) return "";
     const nav = performance.getEntriesByType?.("navigation")?.[0]?.type;
-    if (adopt || (nav !== "reload" && nav !== "back_forward")) return "";
-    try { return tab.getItem("owner") || ""; } catch { return ""; }
+    let kept = "";
+    if (nav === "reload" || nav === "back_forward") try { kept = tab.getItem("owner") || ""; } catch { /* no storage */ }
+    return kept || get("ownerDevice") || "";
   })();
   // A personal link for someone else never replaces who this browser already is without a yes (askSwitch): a link
   // handed over must not sign this device in as its sender. With no secret stored, the link is adopted at once.
@@ -45,6 +51,7 @@
     unhash("me");
   }
   if (ownerToken) secret = ""; // the owner link is the owner's only credential
+  const ownerDevice = !!ownerToken && ownerToken === get("ownerDevice");
 
   const listeners = new Set(), reloadHooks = new Set();
   let focusQ = "", typingUntil = 0, chatTypingUntil = 0, lastOk = 0, shownAt = null, joining = null;
@@ -52,7 +59,7 @@
   const DEFAULTS = {
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
-    myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "",
+    myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "", shareTunnel: "",
     goal: "", intro: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true },
   };
@@ -121,7 +128,7 @@
       round: last ? { current: last.n, status: last.status.kind, sentAt: last.status.sentAt, ackAt: last.status.ackAt,
         ...(last.status.ready ? { ready: { by: nameOf(last.status.ready.by), cid: last.status.ready.by, ts: last.status.ready.at } } : {}) } : { current: 1, status: "open" },
       requestCounts: s.requestCounts || DEFAULTS.requestCounts, behind: s.behind || {}, aboutYou: s.aboutYou || {}, myAbout: s.me?.aboutYou || null,
-      shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, guestKey: s.guestKey || "",
+      shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, shareTunnel: s.share?.tunnel || "", guestKey: s.guestKey || "", ownerDevices: s.ownerDevices || [],
     };
     const proposals = s.proposals || [];
     const reqText = new Map([...(s.requests || []), ...(s.myRequests || [])].map(r => [r.id, r]));
@@ -254,9 +261,9 @@
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
-    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, status: r.status, asked: !!r.asked, ts: r.ts, adds: r.adds || [] }));
+    view.reports = (s.reports || []).map(r => ({ id: r.id, cid: r.by, name: nameOf(r.by), text: r.text, ctx: r.ctx, image: r.image, images: r.images || 0, status: r.status, asked: !!r.asked, ts: r.ts, adds: r.adds || [] }));
     // My own problem reports (Your reports): their words, additions and status, never the page context.
-    view.myReports = (s.myReports || []).map(r => ({ id: r.id, text: r.text, image: r.image, status: r.status, ts: r.ts, adds: r.adds || [] }));
+    view.myReports = (s.myReports || []).map(r => ({ id: r.id, text: r.text, image: r.image, images: r.images || 0, status: r.status, ts: r.ts, adds: r.adds || [] }));
     view.files = { ...held.files, ...(s.files || {}) };
     // Follow-up 32: qid -> received pictures offered on it that nothing carries, as far as this viewer may see them.
     view.questionPics = s.questionPics || {};
@@ -293,6 +300,10 @@
     "notes-full": "This session holds as many notes as it takes, so this one was not pinned.",
     ended: "This session has ended.",
     "bad-guest-key": "This invite link is no longer valid. Ask the host for the new one.",
+    "bad-pair-code": "That code is wrong or has expired. Make a new one on your first device.",
+    "no-site-data": "This browser is not keeping site data, so it cannot stay signed in as the host. Allow site data for this page, or open your owner link here.",
+    "host-device-only": "Do that on the device where you opened your owner link.",
+    "devices-full": "As many other devices as a session takes are signed in. Sign one out first.",
     "owner-only": "Only the host can do that.",
     "moderator-only": "Only the host or a leader can do that.",
     "uploads-off": "Uploads are off in this session.",
@@ -582,8 +593,8 @@
       const nameOf = pid => (pid === "host" ? "Host" : Core.state.people[pid]?.name || "Someone");
       return { ...j, ...(j.text ? { text: Core.plain(j.text) } : {}), history: (j.history || []).map(v => ({ text: Core.plain(v.text), cid: v.by, name: nameOf(v.by), ts: v.at })) };
     },
-    /** Report a problem: text, the page context (Core.reportContext) and at most one picture, a data: URL. */
-    report: (text, ctx, image) => act("/api/report", { text, ctx, ...(image ? { image } : {}) }),
+    /** Report a problem: text, the page context (Core.reportContext) and up to four pictures, each a data: URL. */
+    report: (text, ctx, images) => act("/api/report", { text, ctx, ...(images?.length ? { images } : {}) }),
     /** Owner: mark a report seen or resolved; either tells the reporter. */
     /** Owner: seen | resolved tell the reporter; ask hands a report to Claude once (a report alone never reaches it). */
     reportAct: (id, action) => act("/api/report/act", { id, action }),
@@ -596,9 +607,9 @@
       if (!r.ok) throw { status: r.status, ...j };
       return j.image;
     },
-    /** Owner: one report's picture, or its Nth addition's, as a data: URL. */
-    reportImage: async (id, add) => {
-      const r = await fetch(`/api/report/image?${new URLSearchParams({ id, ...(add ? { add } : {}) })}`, { headers: ident() });
+    /** Owner: one report's picture (its Nth sent with it, `pic`), or its Nth addition's, as a data: URL. */
+    reportImage: async (id, add, pic) => {
+      const r = await fetch(`/api/report/image?${new URLSearchParams({ id, ...(add ? { add } : {}), ...(pic ? { pic } : {}) })}`, { headers: ident() });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw { status: r.status, ...j };
       return j.image;
@@ -639,6 +650,8 @@
     /** Owner: edit | decline | fail | rerun one request, publish | discard | takedown a result; runRequests runs the given ids still pending. */
     requestAct: (id, action, text) => (action === "run" ? Core.runRequests([id])
       : act("/api/request/act", { id, action, ...(text != null ? { text } : {}) })),
+    /** My own request, or as the owner any: it and its answer move to question `to`, or Core.GENERAL for the whole session. */
+    moveRequest: (id, to) => act("/api/request/act", { id, action: "move", ...(to === Core.GENERAL ? { scope: to } : { qid: to }) }),
     /** The given ids still waiting show as running at once; a refusal puts them back. */
     runRequests: ids => act("/api/request/act", { action: "run", ids }, { key: "run:" + ids.join(), patch: s => {
       for (const r of [...(s.requests || []), ...(s.myRequests || [])]) {
@@ -646,6 +659,8 @@
       }
     } }),
     proposal: (id, action) => act("/api/proposal/act", { id, action }),
+    /** Owner: Approve all, the new proposals `ids` (the ones the confirm counted) each made a question in the next round. */
+    approveProposals: ids => act("/api/proposal/all", { ids }),
     setTitle: title => act("/api/session/title", { title }),
     merge: (from, to) => act("/api/person/merge", { from, to }),
     clearReview: qid => act("/api/review/clear", { qid }),
@@ -654,10 +669,18 @@
     /** Owner: a round stuck with Claude working goes back to open; Claude's late preparation is refused. */
     resetRound: () => act("/api/round/reset", {}),
     rename: name => act("/api/rename", { name }).then(j => { Core.me.name = j.name; put("name", j.name); emit(); return j; }),
+    /** Owner: give another person a new name; resolves to {pid, name}, the name made unique as a self-rename is. */
+    renamePerson: (pid, name) => act("/api/rename", { pid, name }),
     removePerson: (pid, on) => act("/api/person/remove", { pid, on }),
     newGuestLink: () => act("/api/link/guest", {}),
     /** Owner: a new owner token; this page reloads on the new owner link. */
     newOwnerLink: () => act("/api/link/owner", {}).then(j => { location.hash = "owner=" + j.token; location.reload(); return j; }),
+    /** Owner, on the device that opened the owner link: a one-time code another device signs in with; {code, expiresIn}. */
+    pairDevice: () => act("/api/owner/pair", {}),
+    /** Owner: sign one device out; signing out this one makes this page a guest's. */
+    revokeDevice: id => act("/api/owner/devices/revoke", { id }).then(j => { if (id === get("ownerDeviceId")) signedOut(); return j; }),
+    /** This device is one the host signed in with a code, and its id. */
+    ownerDevice: () => (ownerDevice ? get("ownerDeviceId") || "" : null),
     endSession: on => act("/api/session/end", { on }),
     setGoal: goal => act("/api/session/goal", { goal }),
     /** My own view settings ({key: value}, null clears one); resolves to {prefs, ts}. */
@@ -668,8 +691,9 @@
     /** Offer a file ({file, size, type, qid?, thumb?}); resolves to {id, status, chunks, chunkSize}. The bytes wait
      *  in this browser until the owner accepts (the owner's own are accepted at once). */
     uploadOffer: body => act("/api/upload/offer", body),
-    /** Owner: accept or decline; the uploader: withdraw. */
-    uploadAct: (id, action) => act("/api/upload/act", { id, action }),
+    /** Owner: accept or decline; the uploader: withdraw. `draftOnly` (an attachment chip's x): refused once something
+     *  sent carries the file. */
+    uploadAct: (id, action, draftOnly) => act("/api/upload/act", { id, action, ...(draftOnly ? { draftOnly: true } : {}) }),
     /** One piece of an accepted upload, as raw bytes; `whole` is the whole file's sha256, sent with the last piece.
      *  Resolves to {received}; rejects with {status, error, received?} (409 chunk-gap names the next piece). */
     uploadChunk: (id, index, total, bytes, sha, whole) => spaced("/api/upload/chunk", async () => {
@@ -680,11 +704,9 @@
       if (!r.ok) throw { status: r.status, ...j };
       return j;
     }).then(async j => { await poll(); return j; }),
-    /** A link that signs this person in on another device. It carries their secret: keep it private. */
-    personalLink: () => {
-      const base = `${(Core.state.shareUrl || location.origin).replace(/\/$/, "")}/`;
-      return ownerToken ? `${base}#owner=${ownerToken}` : secret ? `${base}#me=${secret}` : "";
-    },
+    /** A guest's link that signs them in on another device. It carries their secret: keep it private. The host signs
+     *  in elsewhere with a one-time code instead, so the owner link stays where it was opened. */
+    personalLink: () => (secret && !ownerToken ? `${(Core.state.shareUrl || location.origin).replace(/\/$/, "")}/#me=${secret}` : ""),
     /** Q98: a note pinned to an element of one prototype variant. anchor is {selector, rect} from the pin helper. */
     annotate: (qid, variant, anchor, text) => act("/api/annotate", { qid, variant, anchor, text }),
     /** A page of this session, `params` in the fragment. It never holds a credential: a guest's secret stays in this
@@ -726,7 +748,7 @@
   // link) is left alone.
   const SESSION_PAGE = /^\/(?:proto\/Q[1-9][0-9]{0,5})?$/;
   function followAsOwner(e) {
-    if (!ownerToken || e.defaultPrevented || e.button !== (e.type === "auxclick" ? 1 : 0)) return;
+    if (!ownerToken || ownerDevice || e.defaultPrevented || e.button !== (e.type === "auxclick" ? 1 : 0)) return;
     const a = e.target.closest?.("a[href]"), u = a && new URL(a.href);
     if (!u || u.origin !== location.origin || !SESSION_PAGE.test(u.pathname) || (u.pathname === location.pathname && a.target !== "_blank")) return;
     e.preventDefault();
@@ -803,6 +825,22 @@
     });
   }
   function forget() { secret = ""; drop("secret"); drop("pid"); Core.me.cid = ""; }
+  let redeeming = false; // a code being traded: an old credential's 401 meanwhile must not drop the new one
+  /** Trade the host's one-time code for this device's own host credential, then reload as the host. */
+  async function redeemPair(code) {
+    // A browser that keeps no site data would lose the credential on the reload below, after the code was spent.
+    if (!local) throw { error: "no-site-data" };
+    redeeming = true;
+    try {
+      const r = await fetch("/api/owner/pair/redeem", json({ code, device: deviceKind(), browser: browserKind() }));
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw { status: r.status, ...j };
+      put("ownerDevice", j.token); put("ownerDeviceId", j.id); drop("signedOut");
+    } catch (x) { redeeming = false; throw x; }
+    location.reload();
+  }
+  /** This device's host credential is gone: forget it, and the reloaded page asks to join, saying why. */
+  function signedOut() { if (redeeming) return; drop("ownerDevice"); drop("ownerDeviceId"); put("signedOut", "1"); location.reload(); }
   /** A merge into the owner ended this browser's guest identity: forget it and say so, never joining again (owner
    *  rights come only with the owner link). Kept across reloads; the owner link clears it. */
   let merged = !ownerToken && get("merged") === "1";
@@ -1215,6 +1253,23 @@
     lastOk = Date.now();
     if (shownAt != null) { tel.gaps.push(Math.round(performance.now() - shownAt)); tel.gaps.splice(0, tel.gaps.length - 20); shownAt = null; }
   }
+  /** The session answers at another address now (the host switched tunnels): go there, taking this browser's identity
+   *  as a personal link, or the invite key of someone who has not joined. The owner's tab stays: its token never
+   *  travels in a link. Only an https address on another origin is followed, once. While the page holds unsent text
+   *  (sessionStorage keeps it per origin) it stays, with Core.movedTo set for its notice, until Core.moveNow() or the
+   *  first poll after that text is sent or cleared. */
+  let moving = false, holdsUnsent = () => false;
+  Core.movedTo = "";
+  Core.keepUnsent = fn => { holdsUnsent = fn; };
+  Core.moveNow = () => moveTo(Core.movedTo, true);
+  function moveTo(url, now) {
+    let to;
+    try { to = new URL(url); } catch { return; }
+    if (moving || ownerToken || to.protocol !== "https:" || to.origin === location.origin) return;
+    if (!now && holdsUnsent()) { Core.movedTo = to.origin; return; }
+    moving = true;
+    location.replace(`${to.origin}/${secret ? "#me=" + secret : joinKey ? "#join=" + joinKey : ""}`);
+  }
   async function pollOnce() {
     const seq = ++polls;
     try {
@@ -1222,11 +1277,13 @@
       const r = await fetch(`/api/state?since=${rev}`, { headers });
       if (r.status === 304) { good(); if (settle(seq) && snap) Core.state = view(); return; }
       const s = await r.json().catch(() => ({}));
+      if (r.ok && s.moved) { good(); moveTo(s.moved); return; }
       if (r.status === 403 && s.error === "removed") { Core.state = { ...Core.state, youRemoved: true, youWaiting: false }; good(); return; }
       // Approve new joins: the person waits until the owner lets them in; the poll keeps asking.
       if (r.status === 403 && s.error === "waiting") { Core.state = { ...structuredClone(DEFAULTS), title: s.title ?? Core.state.title, intro: s.intro || "", youWaiting: true }; good(); return; }
       if (r.status === 401 && !ownerToken && s.error === "merged-into-owner") { etag = ""; markMerged(); return; }
       if (r.status === 401 && !ownerToken) { forget(); etag = ""; askName(errorText(s)); return; }
+      if (r.status === 401 && ownerDevice) return signedOut();
       if (!r.ok) return;
       if (s.build) { if (build && s.build !== build) return reload("build"); build = s.build; }
       etag = r.headers.get("ETag") || "";
@@ -1336,8 +1393,9 @@
     keep.focus();
   }
 
-  // Name prompt. It stays open until the join succeeds; Escape does not close it.
-  function askName(notice = "") {
+  // Name prompt. It stays open until the join succeeds; Escape does not close it. `codeErr`, when given, opens it on
+  // the host's code entry with that error.
+  function askName(notice = "", codeErr = null) {
     if (document.querySelector("dialog.core-name")) return;
     const dlg = Core.el("dialog", "core-name");
     dlg.setAttribute("aria-labelledby", "core-name-h");
@@ -1352,7 +1410,9 @@
     input.setAttribute("aria-describedby", "core-n-err");
     const err = Core.el("p", "core-err", notice); err.id = "core-n-err"; err.setAttribute("role", "alert");
     const go = Core.el("button", null, "Join");
-    form.append(h, sub, label, input, err, go); dlg.append(form);
+    const host = Core.el("a", "core-host-code", "Are you the host? Sign in with a code"); host.href = "#";
+    host.onclick = e => { e.preventDefault(); askCode(""); };
+    form.append(h, sub, label, input, err, go, host); dlg.append(form);
     document.body.append(dlg);
     if (Core.state.joinNeedsKey && !joinKey) err.textContent = "This session needs the host's newest invite link. Ask them for it.";
     dlg.addEventListener("cancel", e => e.preventDefault());
@@ -1365,6 +1425,24 @@
       f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
     });
     const done = () => { unsub(); dlg.close(); dlg.remove(); beat(); poll(); };
+    /** The host's code entry: the code from "Sign in on another device" signs this device in as the host. */
+    function askCode(msg) {
+      const f = Core.el("form"), h2 = Core.el("h2", null, "Sign in as the host"); h2.id = "core-name-h";
+      const p = Core.el("p", "core-note", "On the device where you opened your owner link, open your menu and choose Sign in on another device. Type the code it shows.");
+      const l = Core.el("label", null, "Code"); l.htmlFor = "core-code";
+      const code = Core.el("input"); Object.assign(code, { id: "core-code", required: true, maxLength: 12, autocomplete: "one-time-code", autocapitalize: "characters", spellcheck: false });
+      const e2 = Core.el("p", "core-err", msg); e2.id = "core-code-err"; e2.setAttribute("role", "alert"); code.setAttribute("aria-describedby", e2.id);
+      const row = Core.el("div", "core-row"), back = Core.el("button", "core-btn-quiet", "Back"), ok = Core.el("button", null, "Sign in");
+      back.type = "button"; back.onclick = () => { f.replaceWith(form); input.focus(); };
+      row.append(back, ok); f.append(h2, p, l, code, e2, row);
+      f.addEventListener("submit", ev => {
+        ev.preventDefault();
+        ok.disabled = true; ok.textContent = "Signing in…"; e2.textContent = "";
+        redeemPair(code.value.trim()).catch(x => { e2.textContent = errorText(x); ok.disabled = false; ok.textContent = "Sign in"; code.focus(); });
+      });
+      form.replaceWith(f);
+      code.focus();
+    }
     /** "Were you here before as <name>?" Yes asks the host to merge; either way the person continues now. */
     function askWas(was) {
       form.replaceChildren();
@@ -1399,6 +1477,7 @@
       }
     });
     dlg.showModal();
+    if (codeErr != null) askCode(codeErr);
   }
 
   window.Core = Core;
@@ -1456,13 +1535,17 @@
     } finally { HB.busy = false; }
   }
   window.addEventListener("DOMContentLoaded", () => {
-    if (!ownerToken && secret && (adopt || !Core.me.name || !Core.me.cid)) {
+    const wasSignedOut = get("signedOut") === "1";
+    drop("signedOut");
+    if (pairCode && (!ownerToken || ownerDevice)) { // a device signed in before takes the new code, replacing its own
+      redeemPair(pairCode).catch(x => { askName("", errorText(x)); if (secret) beat(); });
+    } else if (!ownerToken && secret && (adopt || !Core.me.name || !Core.me.cid)) {
       adoptIdentity().then(beat).catch(status => {
         if (status !== 401) return; // removed: the state poll shows it, and the owner can restore the same secret
         forget(); drop("name"); Core.me.name = "";
         askName(adopt ? "That personal link no longer works. Join with your name; the host can merge you with your earlier self." : "");
       });
-    } else if (!ownerToken && !secret && !merged) askName();
+    } else if (!ownerToken && !secret && !merged) askName(wasSignedOut ? "This device was signed out as the host. Join as a guest, or sign in again with a new code." : "");
     else beat();
     if (switchTo) askSwitch(switchTo);
     poll();
