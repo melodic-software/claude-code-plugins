@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## [3.3.3] - 2026-10-22
+
+### Fixed
+
+- Write lanes deny git commands: they reach git only through the base wrappers. In `merge-base`
+  mode, whose skill resolves the merge with git, the lane denies git's global options, the
+  subcommands that read config or reach a remote, absolute and parent paths, quotes, and the flags
+  or paths that read a file outside the index (including `blame` and `grep`) or run a diff or
+  text-conversion program
+  ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+- check-wip-cap treats a GitHub search answer with `incomplete_results: true` as unknown, not as a failed read: new admissions pause whether or not `pause-from` is set or reached, with `admission_basis` and `admission_reason` `search-incomplete` and a `check-wip-cap` warning, so work-unblock defers newly unblocked issues instead of admitting without limit on a false empty. A read that fails without that answer still fails open, the queued cap still pauses only past `pause-from`, and no run pause changes.
+- check-wip-cap's over-cap warning names why the lane keeps running (the base config could not be read, `pause-from` is not set, or `pause-from` not reached), and work-unblock's deferral log names its reason instead of always citing the queued cap.
+
 ## [3.3.2] - 2026-10-22
 
 ### Fixed
