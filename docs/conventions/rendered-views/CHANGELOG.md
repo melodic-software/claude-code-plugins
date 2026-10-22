@@ -3,6 +3,14 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## `machine-health:audit` leaves the grandfathered set, 2026-10-21
+
+- **`machine-health:audit` builds its decision page through the shared builder.** Each run writes
+  a local page from `latest.json` with the interactive profile; machine-derived text reaches it
+  only as data. Its copied payload carries the picked row ids, the run stamp as a builder-assigned
+  choice, and the owner's note, and `machine-health:setup picks` resolves it against the run's id
+  map. The convention lists it with the emitters on the shared builder.
+
 ## Two escape exceptions are named, 2026-10-18
 
 - **Python stdlib `html.escape` emitters and the repo-sweep JSON splice are documented

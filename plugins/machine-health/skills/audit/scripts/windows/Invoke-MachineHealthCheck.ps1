@@ -111,6 +111,9 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Import-ElevatedResult.ps1')
 . (Join-Path $libRoot 'Get-RanCheckId.ps1')
 . (Join-Path $libRoot 'New-UnknownCheckResult.ps1')
+. (Join-Path $libRoot 'Invoke-NativeCommand.ps1')
+. (Join-Path $libRoot 'Get-RemediationId.ps1')
+. (Join-Path $libRoot 'Remove-OldCheckupView.ps1')
 
 # stderr keeps stdout clean for the JSON snapshot.
 function Write-StderrBanner {
@@ -976,6 +979,40 @@ $glanceRows
 
     $report | Out-File -LiteralPath $reportPath -Encoding utf8 -Force
     Write-MachineHealthLog "wrote_report path=$reportPath"
+
+    # Decision page, built from latest.json after the report. Only after a successful build are
+    # older runs' pages pruned, by exact path. A synced StateBase has no latest.json, so neither runs.
+    $pagePath = $null
+    if ($stateWritable) {
+        $viewsDir = Join-Path $StateBase 'views'
+        Initialize-Directory -Path $viewsDir
+        $build = Invoke-NativeCommand -Name 'node' -ArgumentList @(
+            (Join-Path $skillRoot 'scripts\build-checkup-view.mjs'), '--latest', $latestPath, '--views-dir', $viewsDir,
+            '--run-stamp', $runStamp, '--remediations', (@(Get-RemediationId) -join ','))
+        $pageNote = switch ($build.status) {
+            'Absent' {
+                Write-MachineHealthLog 'checkup_view_skipped node_missing'
+                '_No decision page: Node.js was not found, so this markdown report is the only output._'
+            }
+            'Ok' {
+                $pagePath = Join-Path $viewsDir "checkup-$runStamp.html"
+                Write-MachineHealthLog "checkup_view_built path=$pagePath"
+                try {
+                    $pruned = @(Remove-OldCheckupView -ViewsDir $viewsDir -CurrentStamp $runStamp)
+                    Write-MachineHealthLog "checkup_view_pruned files=$($pruned.Count)"
+                } catch {
+                    Write-MachineHealthLog "checkup_view_prune_failed $($_.Exception.Message)"
+                }
+                "Open ``$pagePath`` to mute items or approve remediations, then paste its picks into ``/machine-health:setup picks``."
+            }
+            default {
+                Write-MachineHealthLog ("checkup_view_failed status=$($build.status) exit=$($build.exit_code) " +
+                    ("$($build.output) $($build.error)" -replace '\s+', ' ').Trim())
+                '_No decision page: the page build failed; see the run log._'
+            }
+        }
+        Add-Content -LiteralPath $reportPath -Value "`n## Decision page`n`n$pageNote" -Encoding utf8
+    }
     Write-MachineHealthLog "run_end run_id=$runId duration_seconds=$durationSeconds"
 
     if ($Human) {
@@ -983,6 +1020,7 @@ $glanceRows
         Write-Output "  severity: $oneLine"
         Write-Output "  duration: $durationHuman"
         Write-Output ($stateWritable ? "  snapshot: $latestPath" : '  snapshot: not written (state folder under a cloud sync root)')
+        if ($pagePath) { Write-Output "  page: $pagePath" }
     } else {
         $snapshot | ConvertTo-Json -Depth 20
     }
