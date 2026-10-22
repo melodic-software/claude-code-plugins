@@ -141,6 +141,10 @@ DETAIL="exit $RC; captured: $(cat "$R/adapters/ok/captured.jsonl" 2>/dev/null)"
 check "redaction: append exits 0" test "$RC" -eq 0
 check "redaction: the token never reaches the adapter" test "$(grep -c "$TOKEN" "$R/adapters/ok/captured.jsonl")" -eq 0
 check "redaction: a redaction marker takes its place" grep -q '<redacted:' "$R/adapters/ok/captured.jsonl"
+run "$R" append < <(printf '{"msg":"keyed","%s":"v"}\n' "$TOKEN")
+DETAIL="exit $RC; captured: $(tail -n 1 "$R/adapters/ok/captured.jsonl" 2>/dev/null)"
+check "redaction: a token used as an object key never reaches the adapter" \
+  test "$RC" -eq 0 -a "$(grep -c "$TOKEN" "$R/adapters/ok/captured.jsonl")" -eq 0
 
 # 5. An oversize row is capped.
 new_repo

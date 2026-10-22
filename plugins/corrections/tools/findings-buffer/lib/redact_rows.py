@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Redact every string value of each JSONL row on stdin and write the rows to stdout.
+"""Redact every string value and object key of each JSONL row on stdin and write the rows to stdout.
 
 Uses redact.py with the vendored gitleaks rules. Writes nothing unless every row is redacted.
 Exit: 0 ok; 1 the rules are unusable or redaction failed; 2 a line is not a JSON object.
@@ -21,7 +21,7 @@ def _walk(value, redactor):
     if isinstance(value, list):
         return [_walk(v, redactor) for v in value]
     if isinstance(value, dict):
-        return {k: _walk(v, redactor) for k, v in value.items()}
+        return {redactor.redact(k): _walk(v, redactor) for k, v in value.items()}
     return value
 
 
