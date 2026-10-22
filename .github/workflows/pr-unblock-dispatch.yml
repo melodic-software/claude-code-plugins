@@ -8,7 +8,8 @@ name: pr-unblock-dispatch
 # The same run dispatches review-dependency for each open Dependabot PR the
 # classifier sorts `review` whose head has no review-dependency check run yet
 # (.github/scripts/pr-unblock/dependency-dispatch.mjs), and fix-ci for each
-# open lanes App PR whose head's ci-status failed and has no fix-ci run yet,
+# open lanes App PR whose head's ci-status failed and has no fix-ci run yet
+# (or, once, at model-rung 1 when its fix-ci run stopped for rung-up),
 # at most limits.fix-ci-per-run per run, from one GraphQL query whose
 # rateLimit.cost it logs (.github/scripts/pr-unblock/fix-ci-dispatch.mjs). No
 # schedule: the broker accepts a dispatcher run started by a push or a listed

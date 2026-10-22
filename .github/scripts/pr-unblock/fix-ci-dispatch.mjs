@@ -9,6 +9,8 @@
 // when it has no pr-unblock / fix-ci check run from the GitHub Actions app,
 // or when every such run failed and there are at most `fix-ci-restarts` of
 // them; at most `fix-ci-per-run` per dispatcher run, lowest PR number first.
+// A head whose apply-patch check skipped rung-up is dispatched once more with
+// model-rung 1, the retry one model rung up (skipReason, rungFor).
 // The fix-ci-context job decides the round cap. Logs carry PR numbers, SHAs,
 // run ids and counts only.
 
