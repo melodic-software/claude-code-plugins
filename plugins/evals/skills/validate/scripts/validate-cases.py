@@ -80,19 +80,21 @@ two engines still differ at the edges (`\\w` and `\\b` on non-ASCII letters,
 read together with the grader-types table of the eval-suite reference page.
 AS OF: 2026-10-01. Recheck on the next Claude Code release.
 
-Drift record. CLAIM: Python's `re` accepts syntax that JavaScript rejects or
-reads differently, so a pattern using `\\A`, `\\Z`, `\\z`, a possessive
-quantifier, an atomic group, a `(?P<name>` group, a `(?P=name)` backreference,
-a `(?#` comment or a `(?(` conditional is a FAIL naming the grader and the
-token (JavaScript reads `\\A` as a literal `A`, and throws "Invalid escape"
-under the `u` flag). Where `node` is on PATH, every regex grader is also
+Drift record. CLAIM: a regex grader whose pattern uses `\\A`, `\\Z`, `\\z`, a
+possessive quantifier, an atomic group, a `(?P<name>` group, a `(?P=name)`
+backreference, a `(?#` comment or a `(?(` conditional is a FAIL naming the
+grader and the token. Where `node` is on PATH, every regex grader is also
 compiled with JavaScript's `RegExp` and its samples are graded by it, so a
 pattern that does not compile, or a sample the JavaScript verdict sorts the
 other way, is a FAIL; with no `node`, only the token check runs. BASIS: the
-ECMAScript pattern grammar, and the #8331 paid run where a `\\A` pattern sorted
-every sample correctly under `re` and failed every with-plugin run. AS OF:
-2026-10-19. Recheck when the binary's regex engine changes or a token above
-gains JavaScript support.
+grader's regex engine, from the regex row of
+https://code.claude.com/docs/en/plugin-evals#grader-types; how that engine
+reads each token, identity escapes under the `u` and `v` flags included, from
+https://tc39.es/ecma262/#sec-patterns and its non-Unicode-mode amendment
+https://tc39.es/ecma262/#sec-regular-expressions-patterns; and the #8331 paid
+run, where a `\\A` pattern sorted every sample correctly under `re` and failed
+every with-plugin run. AS OF: 2026-10-22. Recheck when the grader-types row
+names a different engine, or an ECMAScript edition changes either section.
 
 Python 3.8+, standard library only: these scripts run from a consumer checkout
 where no third-party package is provisioned.
