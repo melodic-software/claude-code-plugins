@@ -81,7 +81,9 @@ async function main() {
     const code1 = (await shownCode()).replace("-", "");
     const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
     const phone = await rec.open(`${A.localUrl}#join=${A.guestKey}&pair=${code1}`, { context: PHONE });
-    ok("the code in the QR code's link signs a fresh phone in as the host", await until(phone, () => window.Core.snapshot()?.me?.role === "owner", null, 10000));
+    // Redeeming a code reloads the page, and a wait polls on into the new one before core.js has set window.Core: the
+    // waits after a redeem read it with ?. so they keep waiting, where a throw would end the wait and count as a page error.
+    ok("the code in the QR code's link signs a fresh phone in as the host", await until(phone, () => window.Core?.snapshot()?.me?.role === "owner", null, 10000));
     const phoneCred = await phone.evaluate(() => localStorage.getItem("ownerDevice"));
     ok("  with its own credential, not the owner link's token, and no code left in the address", !!phoneCred && phoneCred !== ownerTok && !(await phone.evaluate(() => location.hash.includes("pair"))));
     ok("  the host's list shows the phone", await until(host, () => [...document.querySelectorAll(".vf-pairlist .vf-pair-dev")].map(li => li.textContent).join().startsWith("Phone")));
@@ -100,7 +102,7 @@ async function main() {
     await laptop.waitForTimeout(1100);
     await laptop.fill("#core-code", code2.toLowerCase());
     await laptop.click("dialog.core-name button:text-is('Sign in')");
-    ok("  and the right one, typed in lower case, signs this browser in as the host", await until(laptop, () => window.Core.snapshot()?.me?.role === "owner", null, 10000));
+    ok("  and the right one, typed in lower case, signs this browser in as the host", await until(laptop, () => window.Core?.snapshot()?.me?.role === "owner", null, 10000));
     ok("  where the settings offer no New owner link: it would hand over the owner link", await laptop.evaluate(() => { const b = [...document.querySelectorAll(".vf-menu-item")].filter(x => x.textContent === "New owner link"); return b.length === 1 && b[0].hidden; }));
 
     await until(host, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 2);
@@ -126,7 +128,7 @@ async function main() {
       await noStore.evaluate(() => document.querySelector("dialog.core-name[open]")?.textContent || "(no dialog)"));
     await noStore.waitForTimeout(1100); // one try a second from one address
     const kept = await rec.open(`${C.localUrl}#join=${C.guestKey}&pair=${code3}`);
-    ok("  and its code is not spent: a browser that keeps data signs in with it", await until(kept, () => window.Core.snapshot()?.me?.role === "owner", null, 10000));
+    ok("  and its code is not spent: a browser that keeps data signs in with it", await until(kept, () => window.Core?.snapshot()?.me?.role === "owner", null, 10000));
     ok("  and the host's list shows only that one device", await until(hostC, () => document.querySelectorAll(".vf-pairlist .vf-pair-dev").length === 1));
 
     // The kept device is signed out while closed, so its stored credential is stale; then it scans a new code. The
@@ -150,7 +152,7 @@ async function main() {
       try { await route.fulfill({ response: answer }); } catch { /* the page reloaded away from it */ }
     });
     const rescan = await rec.openIn(ctx, `${C.localUrl}#join=${C.guestKey}&pair=${code4}`);
-    ok("a device whose old credential was signed out signs in with a new code", await until(rescan, () => window.Core.snapshot()?.me?.role === "owner", null, 10000),
+    ok("a device whose old credential was signed out signs in with a new code", await until(rescan, () => window.Core?.snapshot()?.me?.role === "owner", null, 10000),
       await rescan.evaluate(() => document.querySelector("dialog.core-name[open]")?.textContent || "(no dialog)"));
     const fresh2 = await rescan.evaluate(() => localStorage.getItem("ownerDevice"));
     ok("  and keeps the new credential, not the old one", !!fresh2 && fresh2 !== stale.token);
