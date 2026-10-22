@@ -2948,8 +2948,9 @@ jobs:
           [[ " $PACKAGES " == *" plugins/knowledge/skills/course-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh test
 
-      # resolve-config has pinned dependencies (yaml, ajv) that
-      # run-outside-node-suites.sh never installs, so it installs and tests here.
+      # resolve-config has pinned dependencies (yaml, ajv), so it installs and
+      # tests here; run-outside-node-suites.sh installs them only for a package
+      # that takes resolve-config as a file: dependency.
       #
       # This suite and the next print `::error` lines on purpose, from fixtures
       # that exercise a script's own failure messages, so each runs with
