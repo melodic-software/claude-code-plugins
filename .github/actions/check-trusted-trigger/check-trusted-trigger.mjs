@@ -771,6 +771,12 @@ export async function evaluateTrigger({
   ) {
     throw new Stop("no-pr");
   }
+  // Lanes read the list and scripts from the base, so only the default branch
+  // is a trusted one; a payload without it cannot prove the base.
+  const defaultBranch = event.repository?.default_branch;
+  if (typeof defaultBranch !== "string" || !HEAD_REF.test(defaultBranch) || pull.base.ref !== defaultBranch) {
+    throw new Stop("untrusted-base");
+  }
   if (actors.some((actor) => Number.isInteger(actor?.id) && deniedIds.has(actor.id))) {
     throw new Stop("bot-actor");
   }

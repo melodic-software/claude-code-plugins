@@ -161,10 +161,11 @@ the broker request, and no other permission; it never holds `checks: write` or `
 3. [`check-kill-switch`](../../../.github/actions/check-kill-switch/README.md), then
    [`check-trusted-trigger`](../../../.github/actions/check-trusted-trigger/README.md). Neither has
    `continue-on-error`. A stop at either ends the job green with no token minted and no head
-   checked out; the check is neutral, with one exception. The gate reads the re-runner's id from
+   checked out; the check is neutral, with two exceptions. The gate reads the re-runner's id from
    the run's own record, so a re-run started by an account not on the list, by a denied account,
    or with no readable triggering actor stops with `untrusted-rerunner`, and that check is a
-   failure: a re-run cannot turn an earlier red check on the same SHA neutral. The write file also
+   failure: a re-run cannot turn an earlier red check on the same SHA neutral. A PR whose base is
+   not the default branch stops with `untrusted-base`, also a failure. The write file also
    denies `AUTOMATION_LANES_APP_SENDER_ID`, so the lanes App bot as sender or `workflow_run` actor
    stops it with `bot-actor` (neutral) and one write activity never chains into the next. The read
    file denies nothing, so a `workflow_run` read lane still runs after a bot push; the bot's own
@@ -516,11 +517,14 @@ A slash command whose expansion fails ends with a `success` result and no model 
 reports success, but the skill did nothing. A skill pre-compute (`` !`...` ``) line with a command
 that matches no `allowed-tools` grant does this under `--permission-mode dontAsk`. A step after the
 skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` is empty. It writes
-`subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, any `<local-command-stderr>`
-text, `denied`, one `{tool_name, input}` for each of the first 20 calls the permission mode denied,
-where `input` is the call's `command`, else `file_path`, else `path`, else `pattern` (null when it
-has none), cut to 300 characters, and `denied_total`, the count of all of them; the 20 keep a read
-run's file under its 32768-byte carry cap. It writes them to `act-turns.json`, which goes into the
+`subtype` and up to 10 model names, each cut to 100 characters, `is_error`, `num_turns`,
+`duration_ms`, the first 4 `<local-command-stderr>` messages, each cut to 2000 characters, with
+`local_command_stderr_total` counting all of them, `denied`, one `{tool_name, input}` for each of
+the first 20 calls the permission mode denied, where `tool_name` is cut to 100 characters and
+`input` is the call's `command`, else `file_path`, else `path`, else `pattern` (null when it has
+none), cut to 300 characters, and `denied_total`, the count of all of them. Until the file fits
+the 32768-byte cap a read run's scan job carries it under, the oldest stderr messages drop first,
+then denials from the end. It writes them to `act-turns.json`, which goes into the
 same artifact and onto the step summary, where each denial shows as `tool: input` followed by
 `(+N more)` when some were cut; in the write file the lane token is cut out
 of both. In a PR-mode read run, `act-turns.json` is sealed with the reply for the scan job, which
