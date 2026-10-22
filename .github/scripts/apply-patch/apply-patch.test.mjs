@@ -989,6 +989,20 @@ test("issue target: a resumed run keeps the executable script its earlier lane c
   }
 });
 
+test("issue target: a resumed run whose patch adds a gitlink to a commit not in the repository escalates patch-invalid", async (t) => {
+  const fix = repoWithPatch(t, () => {});
+  writeFileSync(join(fix.repo, "notes.md"), "earlier run's work\n");
+  const resumeTip = commitAll(fix.repo, "earlier lane commit");
+  git(fix.repo, ["update-index", "--add", "--cacheinfo", `160000,${"ab".repeat(20)},vendor/sub`]);
+  const text = execFileSync("git", ["diff", "--cached", "--binary", "--full-index", "--no-renames", resumeTip], { cwd: fix.repo, encoding: "utf8" });
+  git(fix.repo, ["reset", "-q", "--hard", resumeTip]);
+  writeFileSync(fix.patchFile, text);
+  const api = fakeApi(fix.repo, resumeTip, { labels: READY });
+  const resumed = { ...fix, head: resumeTip, sum: sha256(text) };
+  assert.deepEqual(await pushIssue(resumed, api, { headRef: `${LANE}/issue-7-124-1`, refusalBase: fix.head }), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.deepEqual(api.calls, []);
+});
+
 test("issue target: a script under an instruction path is refused before any API call", async (t) => {
   const fix = repoWithPatch(t, (repo) => (mkdirSync(join(repo, "plugins/p/hooks"), { recursive: true }), writeFileSync(join(repo, "plugins/p/hooks/x.sh"), "#!/bin/sh\n")));
   const api = fakeApi(fix.repo, fix.head, { labels: READY });

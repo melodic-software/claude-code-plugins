@@ -60,6 +60,7 @@ const SHA = /^[0-9a-f]{40}$/;
 const NAME = /^[a-z][a-z0-9-]*$/;
 const SYMLINK = "120000";
 const GITLINK = "160000";
+const REGULAR = "100644";
 const EXECUTABLE = "100755";
 const ZERO = /^0+$/;
 
@@ -417,9 +418,12 @@ function applyOnto(git, sha, patchFile, threeWay) {
   }
 }
 
-// A script by the exec-bit rule: a .sh file, or a blob that starts with #!.
+// A script by the exec-bit rule: a regular file that ends in .sh or whose
+// blob starts with #!. The mode is checked first, so no gitlink's commit or
+// symlink is read as a blob.
 const isScript = (git, entry) =>
-  !ZERO.test(entry.newSha) && (entry.path.endsWith(".sh") || git(["cat-file", "blob", entry.newSha]).subarray(0, 2).toString("latin1") === "#!");
+  [REGULAR, EXECUTABLE].includes(entry.newMode) &&
+  (entry.path.endsWith(".sh") || git(["cat-file", "blob", entry.newSha]).subarray(0, 2).toString("latin1") === "#!");
 
 const hasCommit = (git, sha) => {
   try {
@@ -533,13 +537,15 @@ export async function push({
   // new-executable.
   const refuse = [...row.refuse, ...ALWAYS];
   const inherited = row["script-exec-bit"] === true ? refuse.filter((name) => name !== "new-executable") : refuse;
+  // Each list is read only when its entry's turn comes, after the patch's own
+  // entries have passed.
   const checks = [
-    ...renames.map((entry) => [entry, ["rename-into-refused"]]),
-    ...entries.map((entry) => [entry, refuse]),
-    ...(reaching === entries ? [] : reaching.map((entry) => [entry, isScript(git, entry) ? inherited : refuse])),
+    ...renames.map((entry) => [entry, () => ["rename-into-refused"]]),
+    ...entries.map((entry) => [entry, () => refuse]),
+    ...(reaching === entries ? [] : reaching.map((entry) => [entry, () => (isScript(git, entry) ? inherited : refuse)])),
   ];
-  for (const [entry, names] of checks) {
-    const [refusal] = refusalsOf(entry, names);
+  for (const [entry, namesOf] of checks) {
+    const [refusal] = refusalsOf(entry, namesOf());
     if (refusal) {
       return escalate(REFUSALS[refusal].kind, `refused (${refusal}): ${entry.path}`);
     }
