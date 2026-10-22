@@ -117,7 +117,11 @@ Emitted by the orchestrator at the end of every run. Overwrites the previous sna
     "discovered_checks": { "type": "array", "items": { "type": "object" } },
     "urls_called":       { "type": "array", "items": { "type": "string" }, "description": "Egress allowlist audit trail." },
     "elevated_checks":   { "type": "array", "items": { "type": "string" }, "description": "Present only on a run given -ElevatedResultPath: the check ids whose result came from the elevated pass's file. Empty when the file was refused." },
-    "duration_seconds":  { "type": "number", "minimum": 0 }
+    "duration_seconds":  { "type": "number", "minimum": 0 },
+    "run_stamp":         { "type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{9}Z$", "description": "UTC, Gregorian, names this run's report and decision page." },
+    "report_path":       { "type": ["string", "null"], "description": "The markdown report this run writes." },
+    "page_path":         { "type": ["string", "null"], "description": "Where this run's decision page is built; no file is there when the build fails or Node.js is missing." },
+    "cadence_deferred_count": { "type": "integer", "minimum": 0, "description": "Checks this run deferred by cadence; the delta against the prior run discloses them." }
   }
 }
 ```
@@ -140,7 +144,11 @@ Emitted by the orchestrator at the end of every run. Overwrites the previous sna
   "remediations": [],
   "discovered_checks": [],
   "urls_called": ["https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"],
-  "duration_seconds": 247
+  "duration_seconds": 247,
+  "run_stamp": "2026-04-27T130000000Z",
+  "report_path": "X:\\Profile\\Documents\\MachineHealth\\reports\\health-2026-04-27T130000000Z.md",
+  "page_path": "X:\\Profile\\StateBase\\views\\checkup-2026-04-27T130000000Z.html",
+  "cadence_deferred_count": 0
 }
 ```
 

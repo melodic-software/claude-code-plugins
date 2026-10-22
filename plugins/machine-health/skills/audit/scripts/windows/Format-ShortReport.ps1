@@ -12,21 +12,17 @@ string (host, summary, path) can add a line or forge the first one.
 Lines: the fixed first line; elevation and run mode; severity counts and the
 delta against the prior run in state/history.jsonl; the worst three CRIT or
 WARN summaries; the intruder headline; the largest unmuted folder; the report
-and decision-page paths of this run.
+and decision-page paths latest.json records for this run.
 
 Exits 1, after the fixed first line and the reason, when latest.json is
 missing or unreadable.
 
 .PARAMETER LatestPath
 Path to <StateBase>/state/latest.json.
-
-.PARAMETER OutputBase
-The report root the run used; when given, the report path is printed.
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)] [string] $LatestPath,
-    [string] $OutputBase
+    [Parameter(Mandatory = $true)] [string] $LatestPath
 )
 
 Set-StrictMode -Version 3.0
@@ -78,7 +74,7 @@ if (-not (Test-Path -LiteralPath $LatestPath -PathType Leaf)) {
 }
 
 if ($failure) {
-    $lines.Add("$marker $([Environment]::MachineName) no-run-id")
+    $lines.Add("$marker $([System.Net.Dns]::GetHostName()) no-run-id")
     $lines.Add($failure)
 } else {
     $checks = @(Get-Field $latest 'checks' | Where-Object { $null -ne $_ })
@@ -89,9 +85,10 @@ if ($failure) {
     # already appended, so the prior run is the newest line with another run_id.
     $counts = @{}
     foreach ($s in $severityOrder) { $counts[$s] = @($checks | Where-Object { (Get-Field $_ 'severity') -eq $s }).Count }
-    $prior = @(Read-HistoryJsonl -Path (Join-Path (Split-Path -Parent $LatestPath) 'history.jsonl') |
+    $prior = @(Read-HistoryJsonl -Path (Join-Path (Split-Path -Parent $LatestPath) 'history.jsonl') -Tail 2 |
             Where-Object { (Get-Instant (Get-Field $_ 'run_id')) -ne $runAt.UtcTicks })
-    $delta = Get-RunDelta -HistoryTail $prior -CurrentSeverityCounts @{ all = $counts }
+    $delta = Get-RunDelta -HistoryTail $prior -CurrentSeverityCounts @{ all = $counts } `
+        -SkippedCount ([int](Get-Field $latest 'cadence_deferred_count'))
     $lines.Add("severity: $(($severityOrder | ForEach-Object { "$_ $($counts[$_])" }) -join ', ') (delta: $delta)")
 
     $worst = @(@(foreach ($s in 'CRIT', 'WARN') { $checks | Where-Object { (Get-Field $_ 'severity') -eq $s } }) |
@@ -121,13 +118,10 @@ if ($failure) {
             Sort-Object { [long]$_.logical_bytes } -Descending)
     $lines.Add('largest folder: ' + ($folders.Count -gt 0 ? (Get-Field $folders[0] 'title') : 'none listed'))
 
-    $stamp = $runAt.UtcDateTime.ToString('yyyy-MM-ddTHHmmssfffZ', [Globalization.CultureInfo]::InvariantCulture)
-    if ($OutputBase) {
-        $report = Join-Path $OutputBase "reports/health-$stamp.md"
-        $lines.Add('report: ' + ((Test-Path -LiteralPath $report) ? $report : 'not found'))
-    }
-    $page = Join-Path (Split-Path -Parent (Split-Path -Parent $LatestPath)) "views/checkup-$stamp.html"
-    $lines.Add('page: ' + ((Test-Path -LiteralPath $page) ? $page : 'not built'))
+    $report = [string](Get-Field $latest 'report_path')
+    $page = [string](Get-Field $latest 'page_path')
+    $lines.Add('report: ' + $(if (-not $report) { 'not recorded' } elseif (Test-Path -LiteralPath $report -PathType Leaf) { $report } else { 'not found' }))
+    $lines.Add('page: ' + ($page -and (Test-Path -LiteralPath $page -PathType Leaf) ? $page : 'not built'))
 }
 
 foreach ($line in $lines) { Format-MachineText $line }

@@ -118,7 +118,7 @@ Routing table:
    [roots block](#resolving-output-locations-do-this-first) with this command appended:
 
    ```powershell
-   & (Join-Path $skillRoot 'scripts\windows\Format-ShortReport.ps1') -LatestPath (Join-Path $stateRoot 'state\latest.json') -OutputBase $reportRoot
+   & (Join-Path $skillRoot 'scripts\windows\Format-ShortReport.ps1') -LatestPath (Join-Path $stateRoot 'state\latest.json')
    ```
 
    and relay its output verbatim, at most 12 lines: host and run id, elevation, severity counts

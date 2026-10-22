@@ -11,8 +11,6 @@ BeforeAll {
     $script:ScriptPath = Join-Path $script:SkillRoot 'scripts\windows\Format-ShortReport.ps1'
     $script:Marker = 'machine-health checkup '
     $script:RunId = '2026-10-01T09:00:00.0000000-04:00'
-    # The run stamp the orchestrator derives from that run id (UTC, yyyy-MM-ddTHHmmssfffZ).
-    $script:Stamp = '2026-10-01T130000000Z'
 
     function Get-CheckFixture([string] $Id, [string] $Category, [string] $Severity, [string] $Summary, [hashtable] $Detail = @{}) {
         [ordered]@{ id = $Id; category = $Category; os = 'windows'; severity = $Severity; summary = $Summary
@@ -26,7 +24,8 @@ BeforeAll {
     }
 
     # A full run: one CRIT, three WARN (only the first two by catalog order fit the worst three
-    # after the CRIT), the three intruder checks, and a storage list whose largest folder is muted.
+    # after the CRIT), the three intruder checks, a storage list whose largest folder is muted, and
+    # two cadence-deferred checks.
     function Get-SnapshotFixture([string] $HostName = 'TESTHOST', [string] $Summary = 'C: at 97% used', [string] $FolderPath = 'X:\Profile\Videos') {
         [ordered]@{
             run_id = $script:RunId; hostname = $HostName; os = 'windows'; os_version = '10.0'
@@ -45,31 +44,38 @@ BeforeAll {
                         Get-FolderFixture -Path 'X:\Profile\OneDrive' -Bytes $null -Muted $false
                     ) }
             )
-            remediations = @(); discovered_checks = @(); duration_seconds = 42
+            remediations = @(); discovered_checks = @(); duration_seconds = 42; cadence_deferred_count = 2
         }
     }
 
-    # Writes the snapshot, a history whose prior run had WARN 2 (this run's own line, appended
-    # after latest.json, has WARN 3), the report and the page. Returns the two bases.
-    function Initialize-RunFolder($Snapshot) {
+    # Writes the snapshot, a history whose prior run had WARN 2 (an older run had none; this run's
+    # own line, appended after latest.json, has WARN 3), the report and the page. The report and
+    # page names are arbitrary: the script prints the paths latest.json records, never rebuilt ones.
+    function Initialize-RunFolder($Snapshot, [switch] $NoArtifacts) {
         $base = Join-Path $TestDrive ([guid]::NewGuid().ToString('n'))
         $state = New-Item -ItemType Directory -Path (Join-Path $base 'state')
         New-Item -ItemType Directory -Path (Join-Path $base 'views'), (Join-Path $base 'reports') | Out-Null
+        $report = Join-Path $base 'reports\health-fixture.md'
+        $page = Join-Path $base 'views\checkup-fixture.html'
+        if (-not $NoArtifacts) {
+            $Snapshot.report_path = $report
+            $Snapshot.page_path = $page
+            Set-Content -LiteralPath $report -Value 'report'
+            Set-Content -LiteralPath $page -Value 'page'
+        }
         $Snapshot | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $state 'latest.json') -Encoding utf8
+        $older = @{ run_id = '2026-08-01T09:00:00.0000000-04:00'; severity_counts = @{ storage = @{ CRIT = 1 } } }
         $prior = @{ run_id = '2026-09-01T09:00:00.0000000-04:00'
             severity_counts = @{ storage = @{ CRIT = 1; INFO = 1 }; updates = @{ WARN = 2 }; security = @{ OK = 1; INFO = 1; UNKNOWN = 1 } } }
         $self = @{ run_id = $script:RunId
             severity_counts = @{ storage = @{ CRIT = 1; INFO = 1 }; updates = @{ WARN = 2 }; services = @{ WARN = 1 }; security = @{ OK = 1; INFO = 1; UNKNOWN = 1 } } }
         Set-Content -LiteralPath (Join-Path $state 'history.jsonl') -Encoding utf8 -Value @(
-            ($prior | ConvertTo-Json -Depth 5 -Compress), ($self | ConvertTo-Json -Depth 5 -Compress))
-        Set-Content -LiteralPath (Join-Path $base "reports\health-$script:Stamp.md") -Value 'report'
-        Set-Content -LiteralPath (Join-Path $base "views\checkup-$script:Stamp.html") -Value 'page'
-        [pscustomobject]@{ Base = $base; Latest = Join-Path $state 'latest.json' }
+            $older, $prior, $self | ForEach-Object { $_ | ConvertTo-Json -Depth 5 -Compress })
+        [pscustomobject]@{ Base = $base; Latest = Join-Path $state 'latest.json'; Report = $report; Page = $page }
     }
 
-    function Invoke-ShortReport([string] $LatestPath, [string] $OutputBase) {
-        $output = if ($OutputBase) { & $script:ScriptPath -LatestPath $LatestPath -OutputBase $OutputBase }
-        else { & $script:ScriptPath -LatestPath $LatestPath }
+    function Invoke-ShortReport([string] $LatestPath) {
+        $output = & $script:ScriptPath -LatestPath $LatestPath
         $text = @($output) -join "`n"
         [pscustomobject]@{ Text = $text; Lines = @($text -split "`n"); ExitCode = $LASTEXITCODE }
     }
@@ -79,12 +85,21 @@ Describe 'Format-ShortReport' -Tag 'lib' {
     Context 'a full run' {
         BeforeAll {
             $script:Run = Initialize-RunFolder (Get-SnapshotFixture)
-            $script:Out = Invoke-ShortReport $script:Run.Latest $script:Run.Base
+            $script:Out = Invoke-ShortReport $script:Run.Latest
         }
 
-        It 'prints at most 12 lines, the first one fixed' {
-            $script:Out.Lines.Count | Should -BeLessOrEqual 12
-            $script:Out.Lines[0] | Should -BeExactly "machine-health checkup TESTHOST $script:RunId"
+        It 'prints exactly these ten lines, the first one fixed' {
+            $script:Out.Lines | Should -Be @(
+                "machine-health checkup TESTHOST $script:RunId"
+                'elevated: no, mode: on-demand'
+                'severity: CRIT 1, WARN 3, UNKNOWN 1, INFO 2, OK 1 (delta: WARN +1 (2 cadence-deferred checks not compared))'
+                '[CRIT] disk-space: C: at 97% used'
+                '[WARN] os-updates: 3 updates pending'
+                '[WARN] winget-upgrades: 5 upgrades available'
+                'intruder: 2 Defender detections; 1 exposed listeners unsigned or user-writable; exclusions not read (masked)'
+                'largest folder: X:\Profile\Videos (5000000000 bytes)'
+                "report: $($script:Run.Report)"
+                "page: $($script:Run.Page)")
             $script:Out.ExitCode | Should -Be 0
         }
 
@@ -92,6 +107,11 @@ Describe 'Format-ShortReport' -Tag 'lib' {
             $line = $script:Out.Lines | Where-Object { $_ -like 'severity:*' }
             $line | Should -Match 'CRIT 1, WARN 3, UNKNOWN 1, INFO 2, OK 1'
             $line | Should -Match 'WARN \+1'
+        }
+
+        It 'discloses the cadence-deferred checks latest.json records' {
+            $line = $script:Out.Lines | Where-Object { $_ -like 'severity:*' }
+            $line | Should -Match '2 cadence-deferred checks not compared'
         }
 
         It 'lists the worst three: CRIT first, then WARN in check order' {
@@ -116,9 +136,27 @@ Describe 'Format-ShortReport' -Tag 'lib' {
             $line | Should -Not -Match 'Huge'
         }
 
-        It 'prints the report and page paths of this run' {
-            $script:Out.Text | Should -Match ([regex]::Escape("health-$script:Stamp.md"))
-            $script:Out.Text | Should -Match ([regex]::Escape("checkup-$script:Stamp.html"))
+        It 'prints the report and page paths latest.json records' {
+            $script:Out.Lines | Should -Contain "report: $($script:Run.Report)"
+            $script:Out.Lines | Should -Contain "page: $($script:Run.Page)"
+        }
+    }
+
+    Context 'a latest.json that records no report or page path' {
+        It 'says the report was not recorded and the page not built' {
+            $run = Initialize-RunFolder (Get-SnapshotFixture) -NoArtifacts
+            $out = Invoke-ShortReport $run.Latest
+            $out.Lines[-2..-1] | Should -Be @('report: not recorded', 'page: not built')
+            $out.ExitCode | Should -Be 0
+        }
+    }
+
+    Context 'recorded paths whose files are gone' {
+        It 'says the report was not found and the page not built' {
+            $run = Initialize-RunFolder (Get-SnapshotFixture)
+            Remove-Item -LiteralPath $run.Report, $run.Page
+            $out = Invoke-ShortReport $run.Latest
+            $out.Lines[-2..-1] | Should -Be @('report: not found', 'page: not built')
         }
     }
 
@@ -126,11 +164,12 @@ Describe 'Format-ShortReport' -Tag 'lib' {
         It 'says so instead of listing findings' {
             $snap = Get-SnapshotFixture
             $snap.checks = @(Get-CheckFixture -Id 'disk-space' -Category 'storage' -Severity 'OK' -Summary 'fine')
+            $snap.cadence_deferred_count = 0
             $run = Initialize-RunFolder $snap
             Remove-Item -LiteralPath (Join-Path $run.Base 'state\history.jsonl')
-            $out = Invoke-ShortReport $run.Latest $run.Base
+            $out = Invoke-ShortReport $run.Latest
             $out.Text | Should -Match 'no WARN or CRIT findings'
-            $out.Text | Should -Match 'no prior runs'
+            $out.Text | Should -Match '\(delta: no prior runs\)'
             $out.Text | Should -Match 'intruder: .*not read'
         }
     }
@@ -153,11 +192,11 @@ Describe 'Format-ShortReport' -Tag 'lib' {
     }
 
     Context 'no latest.json' {
-        It 'prints the fixed first line and the reason, and exits non-zero' {
+        It 'prints the fixed first line with this host and no run id, then the reason, and exits non-zero' {
             $missing = Join-Path $TestDrive 'absent\state\latest.json'
             $out = Invoke-ShortReport $missing
-            $out.Lines[0] | Should -BeLike "$script:Marker*"
-            $out.Lines.Count | Should -BeLessOrEqual 12
+            $out.Lines[0] | Should -BeExactly "${script:Marker}$([System.Net.Dns]::GetHostName()) no-run-id"
+            $out.Lines.Count | Should -Be 2
             $out.Text | Should -Match 'latest\.json not found'
             $out.ExitCode | Should -Be 1
         }
