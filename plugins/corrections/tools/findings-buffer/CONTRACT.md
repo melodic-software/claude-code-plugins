@@ -44,14 +44,15 @@ Reads rows from stdin, one per line, and stores each.
   is lost.
 - A retry may duplicate a row. The reader dedupes by `obs_id`; an adapter does not have to.
 - Takes no arguments; any argument is a usage error (exit `2`). A line that is not a single JSON
-  object is a usage error and nothing from that call is stored. Blank lines are skipped.
+  object with string `obs_id` and `ts` is a usage error and nothing from that call is stored. Blank
+  lines are skipped.
 
 ### `read.sh [--since <UTC ISO-8601>]`
 
 Writes stored rows to stdout as JSONL.
 
 - Without `--since`, writes every stored row.
-- With `--since`, writes at least every row with `ts >= since`. It may write older rows too;
+- With `--since`, writes at least every row whose top-level `ts` is `>= since`. It may write older rows too;
   the caller filters by `ts` when it needs an exact cut.
 - Never truncates silently. A reader that cannot return every matching row exits non-zero.
 - `--since` takes a UTC ISO-8601 value (`YYYY-MM-DDTHH:MM:SS` with optional fraction, then `Z`).
@@ -89,7 +90,7 @@ The core enforces this by routing; an off-machine adapter is not handed transcri
 
 | Adapter | Storage |
 |---|---|
-| `local-file` | `.work/buffer/findings.jsonl` under the repository root, created on first append. Appends take an exclusive lock, so concurrent calls never interleave or lose a row. Exits `3` outside a git repository. |
+| `local-file` | `.work/buffer/findings.jsonl` under the repository root, created on first append. Appends take an exclusive lock, so concurrent calls never interleave or lose a row: `flock` on `.work/buffer/.lock`, or where `flock` is absent (macOS) a `.work/buffer/.lockdir` directory holding the holder's pid. The holder removes that directory on exit; a later append takes it over when the pid is no longer alive, or when it has no pid and is over a minute old, so a killed appender never wedges the buffer. Needs `jq`. Exits `3` outside a git repository or without `jq`. |
 
 Adapter selection through `findings-buffer.yaml` belongs to the core slice, not to this contract.
 

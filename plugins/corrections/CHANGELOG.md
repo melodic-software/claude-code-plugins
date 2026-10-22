@@ -15,8 +15,8 @@ All notable changes to the `corrections` plugin are documented here. Format foll
   `.work/buffer/findings.jsonl` under the repository root with locked appends.
 - `tools/findings-buffer/conformance.sh <adapter-dir>` and `conformance.test.sh`: the conformance
   check every adapter must pass, including 8 concurrent appends.
-- `prerequisites.json`: declares `jq` (optional), which `conformance.sh` uses to parse
-  `capabilities.json`.
+- `prerequisites.json`: declares `jq` (required), which the `local-file` adapter uses to validate
+  and filter rows and `conformance.sh` uses to parse `capabilities.json`.
 
 ## [0.2.0] - 2026-10-21
 

@@ -113,6 +113,56 @@ else
   fail "a malformed row stores nothing from that call"
 fi
 
+# {oops} and rows missing obs_id or ts are rejected
+for bad in '{oops}' '{}' '{"obs_id":"z"}' '{"obs_id":"z","ts":"2026-10-21T00:00:02Z"}{"x":1}'; do
+  printf '%s\n' "$bad" | (cd "$REPO" && bash "$LOCAL/append.sh" >/dev/null 2>&1)
+  expect_exit 2 $? "append.sh rejects $bad"
+done
+if [[ "$(wc -l <"$REPO/.work/buffer/findings.jsonl")" -eq 1 ]]; then
+  pass "rejected rows store nothing"
+else
+  fail "rejected rows store nothing"
+fi
+
+# --since keeps a row whose nested ts is older but top-level ts is newer
+printf '{"obs_id":"n","ctx":{"ts":"2026-01-01T00:00:00Z"},"ts":"2026-10-21T10:00:00Z"}\n' \
+  | (cd "$REPO" && bash "$LOCAL/append.sh")
+if grep -q '"obs_id":"n"' <<<"$(cd "$REPO" && bash "$LOCAL/read.sh" --since 2026-10-21T00:00:00Z)"; then
+  pass "read.sh --since compares the top-level ts"
+else
+  fail "read.sh --since compares the top-level ts"
+fi
+
+# the mkdir lock (flock hidden from PATH): released after an append, and a lock
+# left by a killed holder does not wedge later appends
+NOFLOCK="$TEST_TMPDIR/noflock-bin"
+mkdir -p "$NOFLOCK"
+for t in bash git jq mkdir rmdir rm mv cat sleep mktemp sync find wc grep; do
+  p="$(command -v "$t")" && ln -sf "$p" "$NOFLOCK/$t"
+done
+nf_append() { (cd "$REPO" && PATH="$NOFLOCK" bash "$LOCAL/append.sh"); }
+printf '{"obs_id":"nf1","ts":"2026-10-21T00:00:03Z"}\n' | nf_append
+expect_exit 0 $? "append.sh without flock exits 0"
+if [[ ! -e "$REPO/.work/buffer/.lockdir" ]]; then
+  pass "the mkdir lock is released after an append"
+else
+  fail "the mkdir lock is released after an append"
+fi
+sleep 0 &
+dead=$!
+wait "$dead"
+mkdir "$REPO/.work/buffer/.lockdir"
+printf '%s\n' "$dead" >"$REPO/.work/buffer/.lockdir/pid"
+start=$SECONDS
+printf '{"obs_id":"nf2","ts":"2026-10-21T00:00:04Z"}\n' | nf_append
+RC=$?
+if [[ $RC -eq 0 && $((SECONDS - start)) -lt 10 ]] \
+  && grep -q '"obs_id":"nf2"' "$REPO/.work/buffer/findings.jsonl"; then
+  pass "a lock left by a dead holder is taken over"
+else
+  fail "a lock left by a dead holder is taken over" "exit $RC after $((SECONDS - start))s"
+fi
+
 # outside a repository
 NOREPO="$TEST_TMPDIR/norepo"
 mkdir -p "$NOREPO"

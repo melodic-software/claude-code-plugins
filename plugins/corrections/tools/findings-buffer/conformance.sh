@@ -81,10 +81,14 @@ else
   fail "read.sh returns every appended row exactly once" "exit $RC, rows $total, off:$miss"
 fi
 
-# --since
+# --since compares the top-level ts, not a nested one
+printf '{"obs_id":"nested","ctx":{"ts":"2026-01-01T00:00:00Z"},"ts":"2026-10-21T10:00:09Z"}\n' \
+  | append >/dev/null 2>&1
+
 OUT="$(read_rows --since 2026-10-21T10:00:05Z 2>/dev/null)"
 RC=$?
 miss=""
+grep -q '"obs_id":"nested"' <<<"$OUT" || miss="$miss nested"
 for i in 5 6 7 8; do
   for s in a b; do
     grep -q "\"obs_id\":\"c$i-$s\"" <<<"$OUT" || miss="$miss c$i-$s"
@@ -94,6 +98,15 @@ if [[ $RC -eq 0 && -z "$miss" ]]; then
   pass "read.sh --since returns every row with ts >= since"
 else
   fail "read.sh --since returns every row with ts >= since" "exit $RC, missing:$miss"
+fi
+
+# a malformed row is a usage error and stores nothing from that call
+printf '{oops}\n{"obs_id":"bad-call","ts":"2026-10-21T10:00:00Z"}\n' | append >/dev/null 2>&1
+RC=$?
+if [[ $RC -eq 2 ]] && ! grep -q '"obs_id":"bad-call"' <<<"$(read_rows 2>/dev/null)"; then
+  pass "append.sh rejects a malformed row with exit 2 and stores nothing"
+else
+  fail "append.sh rejects a malformed row with exit 2 and stores nothing" "exit $RC"
 fi
 
 # malformed arguments
