@@ -47,7 +47,7 @@ fi
 # symlink can never redirect rows (or the lock file) elsewhere.
 refuse_links() {
   local p
-  for p in "$ROOT/.work" "$DIR" "$DIR/.lock" "$LOCKDIR" "$FILE"; do
+  for p in "$ROOT/.work" "$DIR" "$DIR/.gitignore" "$DIR/.lock" "$LOCKDIR" "$FILE"; do
     if [[ -L "$p" ]]; then
       echo "append.sh: $p is a symlink; the buffer must be a plain directory in the repository" >&2
       return 1

@@ -223,6 +223,17 @@ if [[ "$(cat "$LREPO/.work/buffer/.gitignore" 2>/dev/null)" == "*" ]]; then
 else
   fail "an append restores a missing .gitignore in an existing buffer directory"
 fi
+GI_OUT="$TEST_TMPDIR/gitignore-target"
+rm -f "$LREPO/.work/buffer/.gitignore" "$GI_OUT"
+ln -s "$GI_OUT" "$LREPO/.work/buffer/.gitignore"
+printf '{"obs_id":"g3","ts":"2026-10-21T00:00:00Z"}\n' | la
+RC=$?
+if [[ $RC -eq 2 && ! -e "$GI_OUT" ]]; then
+  pass "append.sh refuses a symlinked .gitignore and writes nothing through it"
+else
+  fail "append.sh refuses a symlinked .gitignore and writes nothing through it" "exit $RC"
+fi
+rm -f "$LREPO/.work/buffer/.gitignore"
 if command -v flock >/dev/null 2>&1; then
   printf 'keep\n' >"$LREPO/.work/buffer/.lock"
   printf '{"obs_id":"g2","ts":"2026-10-21T00:00:00Z"}\n' | la
