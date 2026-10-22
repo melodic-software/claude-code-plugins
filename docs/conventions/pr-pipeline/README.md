@@ -484,7 +484,6 @@ each row to these keys:
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default) or `invalid` (`ci-context`, as the producer said it wrote a change). |
 | `skip-moved-head` | Optional, default `false`; `true` (`ci-context`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
 | `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. A row that sets it must refuse `instruction-path`. |
-| `plugin-version-bump` | Optional, default `false`; `true` (`issue`) lets `instruction-path` pass a changed `plugins/<plugin>/.claude-plugin/plugin.json` whose only difference is its top-level `version` string, so the issue lane can bump a plugin's version; any other change to it, a new or deleted one, or one in another case is still refused. A row that sets it must refuse `instruction-path`. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
 Every row refuses `.github/**` in any case and through any `..` segment, `.claude/**` at any depth,
@@ -493,8 +492,7 @@ executable bit the patch sets on a file not already executable, and a rename int
 Plugin hooks, `.claude-plugin/`, `lib/`, `scripts/`, `CLAUDE.md` and `AGENTS.md` are admitted: the
 [HIGH path floor](#merge-authority) holds a pull request that touches them for a human merge.
 The `ci-context`, `default` and `issue` rows also name the optional `instruction-path` refusal, so
-fix-ci, fix-docs and the issue lane push none of them, but for the issue lane's version-only
-`plugin.json` bump (`plugin-version-bump`), and all three cap a patch at 300 paths.
+fix-ci, fix-docs and the issue lane push none of them, and all three cap a patch at 300 paths.
 `checkPatchRules` in
 [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name

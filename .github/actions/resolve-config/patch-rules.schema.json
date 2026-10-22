@@ -100,11 +100,6 @@
           "default": false,
           "description": "true: after every refusal passes, apply-patch makes each new or changed file that ends in .sh or starts with #! executable, since the model's tools set no file mode; the row must refuse instruction-path."
         },
-        "plugin-version-bump": {
-          "type": "boolean",
-          "default": false,
-          "description": "true: instruction-path does not refuse a changed plugins/<p>/.claude-plugin/plugin.json whose only difference is its top-level version string, so a run can bump a plugin's version; any other change to it stays refused, and every other refusal still applies. The row must refuse instruction-path."
-        },
         "empty-at-push": {
           "enum": ["empty", "invalid"],
           "default": "empty",

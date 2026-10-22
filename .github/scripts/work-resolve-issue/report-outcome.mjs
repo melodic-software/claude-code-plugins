@@ -361,7 +361,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
 // apply-issue-patch's escalation reasons, each with why the patch did not land.
 export const PATCH_REASONS = {
   "patch-empty": "the run wrote no change",
-  "patch-protected-path": "the patch changes a path the issue lane may not push, such as a workflow, an instruction file or a plugin manifest beyond its version",
+  "patch-protected-path": "the patch changes a path the issue lane may not push, such as a workflow, an instruction file or a plugin manifest",
   "patch-invalid": "the run's output was not a valid patch to push: missing, too large, made on another commit, or carrying a credential shape",
   "patch-not-applied": "the patch did not apply to the commit the run started from",
 };

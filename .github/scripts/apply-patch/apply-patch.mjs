@@ -295,10 +295,6 @@ export function checkRow(row) {
   if (row["script-exec-bit"] === true && !row.refuse.includes("instruction-path")) {
     fail("sets script-exec-bit without refusing instruction-path");
   }
-  // The bump is an exception to instruction-path, so it needs that refusal.
-  if (row["plugin-version-bump"] === true && !row.refuse.includes("instruction-path")) {
-    fail("sets plugin-version-bump without refusing instruction-path");
-  }
   return row;
 }
 
@@ -397,12 +393,12 @@ function changes(raw) {
   const fields = raw.toString("utf8").split("\0");
   const entries = [];
   for (let i = 0; i + 1 < fields.length; ) {
-    const [oldMode, newMode, oldSha, newSha, status] = fields[i].replace(/^:/, "").split(" ");
+    const [oldMode, newMode, , newSha, status] = fields[i].replace(/^:/, "").split(" ");
     if (/^[RC]/.test(status)) {
-      entries.push({ oldMode, newMode, oldSha, newSha, renamedFrom: fields[i + 1], path: fields[i + 2] });
+      entries.push({ oldMode, newMode, newSha, renamedFrom: fields[i + 1], path: fields[i + 2] });
       i += 3;
     } else {
-      entries.push({ oldMode, newMode, oldSha, newSha, path: fields[i + 1] });
+      entries.push({ oldMode, newMode, newSha, path: fields[i + 1] });
       i += 2;
     }
   }
@@ -428,41 +424,6 @@ function applyOnto(git, sha, patchFile, threeWay) {
 const isScript = (git, entry) =>
   [REGULAR, EXECUTABLE].includes(entry.newMode) &&
   (entry.path.endsWith(".sh") || git(["cat-file", "blob", entry.newSha]).subarray(0, 2).toString("latin1") === "#!");
-
-const PLUGIN_MANIFEST = /^plugins\/[^/]+\/\.claude-plugin\/plugin\.json$/;
-const VERSION_PAIR = /"version"\s*:\s*"[^"\\\n]*"/g;
-const withoutVersion = (text) => {
-  const parsed = JSON.parse(text);
-  return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) && typeof parsed.version === "string"
-    ? JSON.stringify({ ...parsed, version: null })
-    : null;
-};
-
-// A changed plugins/<p>/.claude-plugin/plugin.json whose one difference is
-// its top-level version string: one "version" pair on each side, the texts
-// equal without it, and the parsed objects equal but for it.
-export function versionOnly(git, entry) {
-  if (
-    !PLUGIN_MANIFEST.test(entry.path) ||
-    entry.renamedFrom !== undefined ||
-    entry.oldMode !== REGULAR ||
-    entry.newMode !== REGULAR ||
-    ZERO.test(entry.oldSha ?? "0") ||
-    ZERO.test(entry.newSha ?? "0")
-  ) {
-    return false;
-  }
-  const [before, after] = [entry.oldSha, entry.newSha].map((sha) => git(["cat-file", "blob", sha]).toString("utf8"));
-  if ([before, after].some((text) => (text.match(VERSION_PAIR) ?? []).length !== 1) || before.replace(VERSION_PAIR, "") !== after.replace(VERSION_PAIR, "")) {
-    return false;
-  }
-  try {
-    const stripped = withoutVersion(before);
-    return stripped !== null && stripped === withoutVersion(after);
-  } catch {
-    return false;
-  }
-}
 
 const hasCommit = (git, sha) => {
   try {
@@ -583,12 +544,8 @@ export async function push({
     ...entries.map((entry) => [entry, () => refuse]),
     ...(reaching === entries ? [] : reaching.map((entry) => [entry, () => (isScript(git, entry) ? inherited : refuse)])),
   ];
-  // Under plugin-version-bump, a plugin.json whose version alone changed
-  // meets every refusal but instruction-path.
-  const bump = (entry, names) =>
-    row["plugin-version-bump"] === true && names.includes("instruction-path") && versionOnly(git, entry) ? names.filter((name) => name !== "instruction-path") : names;
   for (const [entry, namesOf] of checks) {
-    const [refusal] = refusalsOf(entry, bump(entry, namesOf()));
+    const [refusal] = refusalsOf(entry, namesOf());
     if (refusal) {
       return escalate(REFUSALS[refusal].kind, `refused (${refusal}): ${entry.path}`);
     }
