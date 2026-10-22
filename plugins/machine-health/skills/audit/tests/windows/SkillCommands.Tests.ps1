@@ -80,21 +80,22 @@ BeforeAll {
 }
 
 Describe 'audit SKILL.md command templates' -Tag 'skill' {
-    It 'holds the roots block and four commands' {
-        $script:AuditBlocks.Count | Should -Be 5
+    It 'holds the roots block and five commands' {
+        $script:AuditBlocks.Count | Should -Be 6
         foreach ($token in $script:AuditTokens) { $script:AuditBlocks[0] | Should -BeLike "*$token*" }
         # The PowerShell tool takes newlines only inside a here-string.
         @($script:AuditBlocks[0].Trim() -split '\n').Count | Should -Be 5
-        foreach ($command in $script:AuditBlocks[1..4]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
+        foreach ($command in $script:AuditBlocks[1..5]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
     }
 
     Context 'a root holding <Case>' -ForEach $script:HostileRoots {
         It 'parses the <Name> command to only its own commands' -ForEach @(
             @{ Name = 'roots'; Index = 0; Expected = @('ForEach-Object', 'Join-Path', 'Write-Warning') }
             @{ Name = 'run'; Index = 1; Expected = @('&', 'Join-Path') }
-            @{ Name = 'prepare'; Index = 2; Expected = @('.', 'Format-List', 'Get-Content', 'Join-Path', 'New-ElevatedLaunch') }
-            @{ Name = 'launch'; Index = 3; Expected = @('.', 'Get-ElevatedLaunch', 'Join-Path', 'Start-ElevatedLaunch') }
-            @{ Name = 'import'; Index = 4; Expected = @('&', '.', 'Get-ElevatedLaunch', 'Join-Path', 'Join-Path') }
+            @{ Name = 'short report'; Index = 2; Expected = @('&', 'Join-Path', 'Join-Path') }
+            @{ Name = 'prepare'; Index = 3; Expected = @('.', 'Format-List', 'Get-Content', 'Join-Path', 'New-ElevatedLaunch') }
+            @{ Name = 'launch'; Index = 4; Expected = @('.', 'Get-ElevatedLaunch', 'Join-Path', 'Start-ElevatedLaunch') }
+            @{ Name = 'import'; Index = 5; Expected = @('&', '.', 'Get-ElevatedLaunch', 'Join-Path', 'Join-Path') }
         ) {
             $command = if ($Index -eq 0) { '' } else { $script:AuditBlocks[$Index].Replace('<ScriptSha256>', 'AB' * 32) }
             # Substituted across the command too, so a command that types a token itself fails.

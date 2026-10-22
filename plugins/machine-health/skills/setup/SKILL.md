@@ -1,11 +1,11 @@
 ---
-description: "Configure the machine-health plugin for this machine. check (read-only): report the effective catalog overlay, remediation approvals, and pending proposals against the shipped catalog. apply: write the machine-local overlay (disable/deprecate/demote checks, register custom ones), approve or revoke remediations (approve=, revoke=), and unmute findings (unmute=). picks: resolve the picks pasted from an audit run's decision page and write the mutes and approvals the owner confirms. Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'revoke a remediation', 'unmute a finding', 'paste checkup picks', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Actions: check (read-only verification, default) | apply (write the machine-local overlay, approvals and mutes) | picks (resolve pasted decision-page picks, then write what the owner confirms). Re-runnable and safe."
-argument-hint: "[check|apply|picks] [disable=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>…]"
+description: "Configure the machine-health plugin for this machine. check (read-only, default): report the effective catalog overlay, remediation approvals, finding mutes, pending proposals and the last monthly run. apply: write the machine-local overlay (disable/deprecate/demote checks, register custom ones), approve or revoke remediations, and unmute findings. picks: resolve the picks pasted from an audit run's decision page and write the mutes and approvals the owner confirms. schedule: create the monthly unattended checkup task, only on the owner's yes. Use when: 'set up machine-health', 'configure machine health', 'disable a health check', 'approve a remediation', 'revoke a remediation', 'unmute a finding', 'paste checkup picks', 'schedule the monthly checkup', 'add a custom health check', or the audit skill proposes catalog changes needing approval. Re-runnable and safe."
+argument-hint: "[check|apply|picks|schedule] [disable=<check>|approve=<remediation>|unmute=<key>…]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
-**Arguments.** `[check|apply|picks] [disable=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>…]`; the full set: `[check|apply|picks] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>]`, or `picks` followed by the pasted `checkup-picks` payload.
+**Arguments.** `[check|apply|picks|schedule] [disable=<check>|approve=<remediation>|unmute=<key>…]`; the full set: `[check|apply|picks|schedule] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>]`, `picks` followed by the pasted `checkup-picks` payload, or `schedule`.
 
 ## Purpose
 
@@ -24,6 +24,8 @@ the requested changes. When `apply` is given complete write arguments (`disable=
 the full interview below. Custom-check registration is inherently interactive (it authors a script)
 and always interviews. `picks` runs the check first, then the [`picks`](#picks-from-a-decision-page)
 steps below; it needs an interactive session, because every write waits for the owner's yes.
+`schedule` runs the check first, then the [`schedule`](#schedule-the-monthly-checkup) steps below;
+it too needs an interactive session, and creates nothing without the owner's yes.
 
 ## Resolving the state root
 
@@ -128,6 +130,12 @@ shipped catalog, no remediations approved), so an absent overlay or absent appro
    `apply` to walk them.
 5. **Report directory**. INFO: the effective location. The `report_dir` plugin option when set,
    else `$env:USERPROFILE\Documents\MachineHealth`.
+6. **Last monthly run** (`<StateBase>/logs/monthly-run-*.status.json`, written by the Task Scheduler
+   wrapper). INFO when there is none: no fallback task has run, and a Desktop task writes no status
+   file. Otherwise read the newest one (the file names sort by run time): PASS when `ok` is true;
+   FAIL when it is false, naming each part that failed (`exit_code` not 0, `is_error` not false,
+   `marker_found` false, `latest_newer` false, `timed_out` true), with the `.stdout.json` and
+   `.stderr.log` beside it as the place to look.
 
 ## `apply` (idempotent)
 
@@ -257,6 +265,58 @@ a yes. Never splice the payload, the note or a label into a command line.
    and confirm each entry landed. An error about a number means nothing was written; any other
    error can leave earlier picks written, so report what the re-read shows.
 
+## `schedule` the monthly checkup
+
+Both schedulers run the same audit, `/machine-health:audit on-demand --scheduled`; the audit never
+creates a task itself. Offer the Desktop task first and the Task Scheduler fallback second, and
+create one only after the owner's explicit yes to it in this conversation. Show what will be
+created before asking.
+
+**Desktop task** (recommended where the Claude Desktop app is open on the first of the month):
+
+1. Present it: a local task named `machine-health-monthly`, working folder `<StateBase>`,
+   instructions `/machine-health:audit on-demand --scheduled`, Custom schedule `0 9 1 * *` (09:00
+   local on the first of each month).
+2. Ask which permission mode, offering exactly two, beside the tools the audit uses (the
+   PowerShell or Bash tool to run its scripts, Read for its references, Write and Edit for
+   `<StateBase>/TODO.md` and custom checks):
+   - **Auto** (recommended): the run proceeds without prompts.
+   - **Manual plus one Run now**: after creating the task, the owner clicks **Run now**, watches
+     for prompts and answers each with "always allow", so later runs do not stall on them.
+3. On yes, create it. A Desktop session can create the task itself, as the page below describes;
+   from any other surface, walk the owner through the **New task** form, then the task's **Edit**
+   form, which holds the Custom schedule.
+
+- **Pointer**: creating a task, Custom cron, missed-run catch-up and per-task permission modes are
+  in [Schedule recurring tasks in Claude Code Desktop](https://code.claude.com/docs/en/desktop-scheduled-tasks).
+  **As of**: 2026-10-21. **Recheck trigger**: that page changes the run conditions (app open,
+  computer awake, one catch-up within seven days) or the permission modes a task can take.
+
+**Task Scheduler fallback** (no Desktop app): a monthly task that runs a copied wrapper, which calls
+`claude -p "/machine-health:audit on-demand --scheduled" --permission-mode auto --permission-prompts none --output-format json`
+under the wrapper's time limit (its `-TimeoutSeconds` default) and records each run in `<StateBase>/logs/monthly-run-<runStamp>.status.json`
+(read by `check` step 6). The permission flags deny anything that would prompt instead of stalling;
+they become `--permission-mode dontAsk` with an exact `--allowedTools` list once the audit's tools
+are enumerated.
+
+1. Present the task: name `machine-health monthly`, monthly on day 1 at 09:00, only while the
+   owner is logged on (`/it`), running `pwsh -NoProfile -File <StateBase>\scheduler\monthly-run.ps1`.
+2. On yes, run through the PowerShell tool (Git Bash rewrites slash-led arguments such as
+   `/create` as paths; under Bash, run it only with `MSYS_NO_PATHCONV=1` set):
+   `New-Item -ItemType Directory -Force -Path '<StateBase>\scheduler' | Out-Null; Copy-Item -LiteralPath '${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/monthly-run.ps1' -Destination '<StateBase>\scheduler\monthly-run.ps1'; $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source; schtasks /create /f /tn 'machine-health monthly' /sc MONTHLY /d 1 /st 09:00 /it /tr ('"{0}" -NoProfile -File "{1}"' -f $pwsh, '<StateBase>\scheduler\monthly-run.ps1')`
+   The wrapper runs only from that `scheduler` folder, never from the plugin install, which a
+   plugin update replaces. Re-running this step refreshes the copy and replaces the task.
+3. Offer one run now, on its own yes, as a background command:
+   `pwsh -NoProfile -File '<StateBase>\scheduler\monthly-run.ps1'`, then run `check` and report
+   step 6.
+
+- **Pointer**: print mode and the `--permission-mode`, `--permission-prompts` and `--bare` flags are
+  in [CLI reference, "CLI flags"](https://code.claude.com/docs/en/cli-reference#cli-flags); the
+  wrapper never passes `--bare`, which skips plugin and skill loading.
+  **As of**: 2026-10-21. **Recheck trigger**: a
+  [Claude Code CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entry
+  makes `--bare` the `-p` default or adds a `--no-bare`-style flag.
+
 ## Output
 
 An updated `<StateBase>/catalog/checks.local.jsonc` (and `approvals.json` or `mutes.json` when
@@ -273,6 +333,7 @@ alone reports the effective configuration and changes nothing.
 - Run the audit. That is `/machine-health:audit`.
 - Edit the shipped catalog or anything inside the plugin install directory. A plugin update
   replaces it; machine-local changes live only under `<StateBase>`.
+- Create a scheduled task without the owner's yes, or from any action but `schedule`.
 - Approve remediations silently. Every approval is an explicit user decision (an `approve=`
   argument, an interview yes, or a yes to one `picks` approval).
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
