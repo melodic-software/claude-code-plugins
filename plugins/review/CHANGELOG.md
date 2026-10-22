@@ -3,6 +3,44 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-10-22
+
+### Added
+
+- The setup apply writer writes the settings file into the repository's convention home, read from the pointer region in AGENTS.md or CLAUDE.md, instead of the fixed docs/conventions. A repository with no region is offered one: with --yes the writer adds the region where the repository already keeps instructions (a new AGENTS.md only when neither file exists) and the overlay ignore line to .gitignore in the same step, and announces both. Without --yes it prints the offer and still creates a missing settings file in docs/conventions; changing an existing file, the region and the ignore line wait for --yes. --home names the home to offer, and --decline records a declined line so the offer is not made again. A home the repository already had lists the settings file in conventions-index.md. --home refuses a value holding a backtick or line break.
+
+- `/review:code-review` checks a `plugin.json` or `marketplace.json` change for a stated reason
+  behind a changed or removed `userConfig` default, the client floor a new `options` list raises,
+  a new setting's default and its reader, the bump level, and whether the description and
+  marketplace entry match what ships.
+- `/review:security-review` flags a `userConfig` default change that widens what a guard allows
+  (judged by the code or skill text that reads the key) or adds a guard with a permissive
+  default, and flags every other changed manifest field outside a small inert set of display
+  text and a changed version, naming what runs
+  and where it comes from.
+- Both lanes write one `manifest <field>: pass` or `flag` line per manifest item in the summary.
+
+### Changed
+
+- The bundled enforcement ladder copy is now 2.0.0: four tiers, a "runs at" column, renamed and added rung ids (`shared-helper`, `harness-setting`, `action-guard`, `scaffold`, `automated-review`, `instruction`, `skill`, `human-review`) and the guardrail criterion.
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line.
+
+- `/review:audit-enforceability` writes the enforcement ladder 2.0.0 rung ids: `action-guard` replaces `hook` and `automated-review` replaces `llm-only`, in the stub's `rung:` field, the stage map, the default for an empty rung and the skill's guidance. The writer's `--classes` set no longer accepts `hook` or `llm-only`, so a caller still sending either id gets the closed-set refusal (exit 2).
+
+- standards-contract copy updated to 1.1.1
+
+  The synced standards-contract copy now names reuse-or-replace as the
+  paved-path writer and plan, implement and review as readers.
+
+### Fixed
+
+- Doc pointers to the `/code-review` pages use the split page names (`code-review-local`, `code-review-pull-requests`), so their fragments resolve in the online link check.
+
+### Security
+
+- Credential guards now catch stateless GitHub App installation tokens (`ghs_` followed by a JWT), using GitHub's recommended `ghs_` regex where a guard matches the whole token.
+
 ## [0.49.0] - 2026-10-20
 
 ### Fixed
