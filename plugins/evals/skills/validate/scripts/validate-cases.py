@@ -1060,7 +1060,9 @@ def run_node_probe(jobs):
             timeout=NODE_TIMEOUT_SECONDS,
         )
         if done.returncode != 0:
-            return None, (done.stderr.strip().splitlines() or ["exit %d" % done.returncode])[-1]
+            return None, (
+                done.stderr.strip().splitlines() or ["exit %d" % done.returncode]
+            )[-1]
         results = json.loads(done.stdout)
     except (OSError, ValueError, subprocess.TimeoutExpired) as error:
         return None, str(error) or type(error).__name__
@@ -1091,12 +1093,18 @@ def check_js_engine(case, graders, samples, findings):
                 for number, item in enumerate(data.get(key) or [], start=1):
                     if isinstance(item["answer"], str):
                         entries.append((key, number, item))
-        jobs.append((name, grader_path, sample_path, mode, count, entries, pattern, flags))
+        jobs.append(
+            (name, grader_path, sample_path, mode, count, entries, pattern, flags)
+        )
     if not jobs:
         return
     results, problem = run_node_probe(
         [
-            {"pattern": job[6], "flags": job[7], "answers": [e[2]["answer"] for e in job[5]]}
+            {
+                "pattern": job[6],
+                "flags": job[7],
+                "answers": [e[2]["answer"] for e in job[5]],
+            }
             for job in jobs
         ]
     )
@@ -1143,7 +1151,12 @@ def check_js_engine(case, graders, samples, findings):
                     case,
                     sample_path,
                     '%s %s grader "%s" under JavaScript (%d matches)'
-                    % (label, "fails" if key == "pass" else "passes", name, seen["count"]),
+                    % (
+                        label,
+                        "fails" if key == "pass" else "passes",
+                        name,
+                        seen["count"],
+                    ),
                 )
             )
 
