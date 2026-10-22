@@ -301,12 +301,15 @@ class AffectedSet(AffectedBase):
 class JudgeRunCli(AffectedBase):
     """`--judge-run`, as post-merge-demotion-alert.yml calls it."""
 
-    def judge(self, *checks: str, file: bool = True) -> tuple[int, dict[str, Any]]:
+    def judge(
+        self, *checks: str, file: bool = True, identity: bool = True
+    ) -> tuple[int, dict[str, Any]]:
         self.red_dispatch(self.fake.logs.get(112) or bash_log((FLAKY, False)))
         with tempfile.TemporaryDirectory() as tmp:
             path = pathlib.Path(tmp) / "checks"
             path.write_text("\n".join(checks) + "\n", encoding="utf-8")
-            argv = ["--repo", REPO, "--agent-identity", IDENTITY]
+            argv = ["--repo", REPO]
+            argv += ["--agent-identity", IDENTITY] if identity else []
             argv += ["--judge-run", "11", "--attempt", "2", "--checks-file", str(path)]
             argv += ["--file-quarantine"] if file else []
             out = io.StringIO()
@@ -319,6 +322,26 @@ class JudgeRunCli(AffectedBase):
         self.assertEqual(code, 0)
         self.assertEqual(report["demoting"], [])
         self.assertEqual(report["quarantine"]["issues"], [9001])
+
+    def test_without_an_identity_it_reads_the_default_branch_config(self) -> None:
+        config = mock.Mock(agent_identity=IDENTITY, quarantine_days=7)
+        with (
+            mock.patch.object(
+                pm.policy, "_default_branch_head", return_value=("main", "c" * 40)
+            ) as head,
+            mock.patch.object(pm.policy, "read_config_at", return_value=config),
+            mock.patch.object(pm.policy, "resolve") as resolve,
+        ):
+            code, _ = self.judge("test-bash (0)", identity=False)
+        self.assertEqual(code, 0)
+        head.assert_called_once_with(REPO)
+        resolve.assert_not_called()
+
+    def test_a_one_word_section_header_inside_a_suite_is_no_suite(self) -> None:
+        log = bash_log((FLAKY, False)).replace(
+            "FAIL: a case inside the suite", "=== setup ===", 1
+        )
+        self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY}))
 
     def test_without_file_quarantine_it_writes_nothing(self) -> None:
         code, _ = self.judge("test-bash (0)", file=False)

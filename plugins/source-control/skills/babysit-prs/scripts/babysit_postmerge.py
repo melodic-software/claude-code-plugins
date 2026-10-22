@@ -586,7 +586,7 @@ def _full_history_clones() -> list[Path]:
 
 
 _LOG_STAMP = re.compile(r"^\ufeff?\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z ?")
-_BASH_START = re.compile(r"=== (\S+) ===")
+_BASH_START = re.compile(r"=== (\S+\.test\.sh) ===")
 _BASH_PASS = re.compile(r"PASS: (\S+)")
 _BASH_FAIL = re.compile(
     r"FAIL: (\S+)(?: \(no result recorded; the worker never reported\))?"
@@ -811,6 +811,9 @@ class _Context:
                 proc = gh_capture(
                     [
                         "api",
+                        # A job log carries terminal escape sequences, which
+                        # gh refuses to print without this flag.
+                        "--allow-escape-sequences",
                         f"repos/{self.owner}/{self.name}/actions/jobs/{job_id}/logs",
                     ]
                 )
@@ -2410,7 +2413,11 @@ def _judge_run(args: argparse.Namespace) -> int:
     try:
         with open(args.checks_file, encoding="utf-8") as handle:
             checks = frozenset(line.strip() for line in handle if line.strip())
-        identity = args.agent_identity or policy.resolve(args.repo).agent_identity
+        identity = args.agent_identity or (
+            policy.read_config_at(
+                args.repo, policy._default_branch_head(args.repo)[1]
+            ).agent_identity
+        )
         refusal = policy.resolve_identity(identity, identity, args.self_login).reason
         if refusal or not identity or not checks:
             report["error"] = refusal or "no agent identity or no checks"
