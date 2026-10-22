@@ -11,7 +11,7 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, snap } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
 
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
 const HELD = "Withheld: the team calendar would settle it."; // a withheld recommendation: asked open, never on a card
@@ -95,6 +95,11 @@ async function main() {
     await held.locator(".vf-q", { hasText: "Which week suits?" }).first().click();
     ok("  and its Withheld text shows as the question's open note", await until(held, t => { const n = document.querySelector(".vf-qopen"); return !!n && !n.hidden && n.textContent === t; }, HELD),
       await held.evaluate(() => document.querySelector(".vf-qopen")?.textContent));
+    const guest = await rec.open(A.localUrl);
+    await joinAs(guest, "Gil");
+    await guest.locator(".vf-q", { hasText: "Which week suits?" }).first().click();
+    ok("  and a guest sees the same open note", await until(guest, t => { const n = document.querySelector(".vf-qopen"); return !!n && !n.hidden && n.textContent === t; }, HELD),
+      await guest.evaluate(() => document.querySelector(".vf-qopen")?.textContent));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));
