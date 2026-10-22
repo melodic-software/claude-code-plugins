@@ -32,18 +32,22 @@ add a forwarding route to the guest listener's boundary.
    change on a restart; the new one replaces the old without a new Approve, since approval covers
    the prototype, not the hostname.
 2. **The default is a static build served by the plugin.** `add-live` takes a folder under the data
-   folder's `staging/`. It refuses a folder that holds a link, a junction, a hidden name or a
-   special file, or that passes the size cap. On the owner's Approve, the server copies that folder
+   folder's `staging/`. It refuses a folder that holds a link, a junction, a hard link (its other
+   name could be a file outside the folder), a hidden name or a special file, or that passes the
+   size cap. On the owner's Approve, the server copies that folder
    into `live/<id>/` with the same rules. `liveserve.py` then serves only the copy, so the served
    root never sits beside the session's secrets. It is one stdlib process bound to 127.0.0.1 and
    answers GET and HEAD only, 405 otherwise. It lists no folder and serves no dotfile. A path that
    resolves, links included, outside the copy answers 404. Every answer carries
-   `Content-Security-Policy: default-src 'self'; connect-src 'self'; frame-ancestors 'none';
-   base-uri 'none'` and `Referrer-Policy: no-referrer`.
+   `Content-Security-Policy: default-src 'self'; connect-src 'self'; form-action 'self';
+   frame-ancestors 'none'; base-uri 'none'`, `Referrer-Policy: no-referrer` and
+   `Cross-Origin-Opener-Policy: same-origin`.
 3. **A port target is refused when it is the session's own guest or control port, or when it
    answers the session-bridge ping as a control listener does.** This keeps another session's
    control listener from being tunneled, which extends ADR 0077 Decision 2 to every session on the
-   machine. The check runs on every start and restart, since a port can change hands. A server the
+   machine. The check runs on every start and restart, since a port can change hands. The watch also
+   ends the entry once nothing listens on the port, so a later server there never inherits the
+   public address without a new Approve. A server the
    owner runs needs the owner's attestation on Approve: sample data only, writes stubbed, no
    credentials in its environment. The plugin tunnels that server but never starts or stops it.
 4. **Lifecycle.** A live prototype runs only while its entry runs. The server restarts an exited
@@ -79,6 +83,11 @@ add a forwarding route to the guest listener's boundary.
 - Each running live prototype is one more public address on the owner's machine, and "Anyone with
   the URL can access your local service". The URL reaches guests only after the owner's Approve
   (`/api/state` filtering) and leaves every view once the entry ends.
+- CSP limits what a prototype's page fetches, submits and frames, not where it navigates itself, so
+  a model-written page could still send what a guest types to another site. Sample data only, by
+  construction for the static default and by attestation for a port, is the control for that.
+- A server swapped on the port within one watch pass (one second) is not caught; the attestation
+  covers that window.
 - Quick tunnels carry Cloudflare's limits: "Each Quick Tunnel supports up to 200 in-flight
   requests", "Quick Tunnels do not support Server-Sent Events (SSE)", and they "have no uptime
   guarantee". A prototype whose dev tooling relies on SSE breaks behind one.

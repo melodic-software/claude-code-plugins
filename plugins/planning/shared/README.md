@@ -185,7 +185,7 @@ the refused op's index).
 | `fail-request` | `request`, `reason` | `running` -> `failed` |
 | `add-reference`, `remove-reference` | `qid`, `reference` / `index` | |
 | `add-asset` | `path`, `as?`, `scale?` | Copies a PNG, JPEG, WebP, SVG or HTML file (by its bytes, at most 10 MB) from the data folder, where captures go in `staging/`, into `assets/<16 hex>.<ext>`, named by its content; returns `{id, kind, bytes, at, scale}`. Usable from the next apply; a refused apply removes the files it copied and puts back any sidecar it rewrote |
-| `add-live` | `label`, `folder` or `port`, `note?` | Records a live prototype, pending until the owner's Approve; starts nothing. `folder`: an absolute path to a build folder inside the data folder's `staging/` with no hidden part, holding regular files and folders only (no link, hidden name or special file; at most 2000 files and 50 MB); `port`: 1..65535 on 127.0.0.1, never the session's own guest or control port (`.shared-ports.json`; 503 `live-unavailable` when that file cannot be read). 403 `live-off` while the live tier is off, 409 `wrong-status` once the session ended, 409 `lives-full` with 20 not ended. Returns `{id: L<N>, status: pending}`; a variant links it as `live: {id, path}` |
+| `add-live` | `label`, `folder` or `port`, `note?` | Records a live prototype, pending until the owner's Approve; starts nothing. `folder`: an absolute path to a build folder inside the data folder's `staging/` with no hidden part, holding regular files and folders only (no link, hard link, hidden name or special file; at most 2000 files and 50 MB); `port`: 1..65535 on 127.0.0.1, never the session's own guest or control port (`.shared-ports.json`; 503 `live-unavailable` when that file cannot be read). 403 `live-off` while the live tier is off, 409 `wrong-status` once the session ended, 409 `lives-full` with 20 not ended. Returns `{id: L<N>, status: pending}`; a variant links it as `live: {id, path}` |
 | `set-purpose` | `qid`, `purpose` | The owner's `/api/question/purpose` rules |
 | `set-for` | `qid`, `for` | Who must answer, by name or pid; `[]` asks everyone. The owner's `/api/question/for` takes the same body. A question in `open-round` takes `for` too |
 | `make-question-from` | `proposal`, `question` | |
@@ -441,22 +441,27 @@ gives it its own quick tunnel, a trycloudflare.com host, which is a site of its 
 reaches the interview page's storage. Its url must be such a host (`session.LIVE_URL`).
 
 - **Folder (the default).** `add-live` refuses a build folder holding a link, a junction, a hidden
-  name or a special file, or more than 2000 files or 50 MB. Approve copies it again, with the same
+  name, a hard link or a special file, or more than 2000 files or 50 MB. Approve copies it again, with the same
   walk, into `<data_dir>/live/<id>/`, and `liveserve.py` serves only that copy on 127.0.0.1: GET and
   HEAD (405 otherwise), no folder listing, no dotfile, a path that resolves outside the copy 404, and
-  every answer with `Content-Security-Policy: default-src 'self'; connect-src 'self';
-  frame-ancestors 'none'; base-uri 'none'`, `Referrer-Policy: no-referrer` and `nosniff`. A change to
-  `staging/` after Approve is not served.
+  every answer with `Content-Security-Policy: default-src 'self'; connect-src 'self'; form-action
+  'self'; frame-ancestors 'none'; base-uri 'none'`, `Referrer-Policy: no-referrer`, `nosniff` and
+  `Cross-Origin-Opener-Policy: same-origin`. CSP cannot stop the page navigating itself elsewhere, so
+  a prototype holds sample data only. A request with a body gets its answer and a closed connection;
+  at most 16 files are sent at once (503 past a 10 s wait). A change to `staging/` after Approve is
+  not served.
 - **Port.** Needs the owner's attestation. Refused (400 `bad-field`, field `port`) on the session's
   own ports and on a port that answers the session-bridge ping as a control listener does. Checked
-  again on every start and restart. Only the tunnel is the plugin's: Stop, `share.sh stop` and
+  again on every start and restart, and once nothing listens on the port the entry ends (`failed`),
+  so whatever binds it next never inherits the address. Only the tunnel is the plugin's: Stop, `share.sh stop` and
   `live-stop` never stop that server, and `share.sh` says it keeps running.
 - **Records.** `<data_dir>/.shared-live/<id>.json` (0600, the folder 0700): the tunnel's pid, url,
   port, marker and process start, as the session record holds them, plus `server` for the static
   server; on an end, `endedAt` and `reason`. The session tunnel's `.shared-tunnel.json` is unchanged.
 - **Watch.** Once a second, apart from the session tunnel's watch: an exited tunnel is restarted to
   the same port, an exited static server is restarted on the same copy behind a new tunnel. The new
-  url replaces the old on the running entry with no new Approve. After 5 failed restarts in a row
+  url replaces the old on the running entry with no new Approve. A record ended as `stopped` from
+  outside the server (`share.sh`) is never restarted; its entry ends. After 5 failed restarts in a row
   (2 s backoff, doubling to 32 s), the entry ends with reason `failed`.
 - **Ends.** Stop, live off, end session, `share.sh stop` and `share.sh live-stop <id>` each stop
   both processes. A server restart keeps a running live prototype and takes it back. The server's

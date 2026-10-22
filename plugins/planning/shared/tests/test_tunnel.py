@@ -653,6 +653,21 @@ class TestLiveRecords(TunnelCase):
         self.assertEqual(tunnel.end_live(self.path, "failed")["reason"], "stopped")  # ended once
         self.assertIsNone(tunnel.end_live(tunnel.live_path(self.d, "L9"), "stopped"))
 
+    def test_a_restart_of_a_record_ended_as_stopped_is_refused_and_a_fresh_start_is_not(self):
+        tunnel.start_live(self.path, 4400)
+        tunnel.end_live(self.path, "stopped")
+        with self.assertRaisesRegex(tunnel.TunnelDown, "was stopped"):
+            tunnel.start_live(self.path, 4400)
+        self.assertEqual(len(self.runs()), 1)
+        tunnel.write_live(self.path, {"id": "L1", "port": 4400})
+        self.assertRegex(tunnel.start_live(self.path, 4400, fresh=True)["url"], ADDRESS)
+
+    @unittest.skipIf(WINDOWS, "a folder link needs a privilege on Windows")
+    def test_a_records_folder_that_is_a_link_is_refused(self):
+        os.symlink(tmpdir(self), self.d / tunnel.LIVE_DIR)
+        with self.assertRaisesRegex(tunnel.TunnelDown, "is a link"):
+            tunnel.start_live(self.path, 4400)
+
     def test_a_record_naming_no_trycloudflare_address_is_never_handed_on(self):
         with mock.patch.object(tunnel, "_start", return_value={"id": "L1", "pid": 1, "url": "https://evil.example", "marker": "x", "processStart": "0"}):
             with self.assertRaisesRegex(tunnel.TunnelDown, "not a trycloudflare.com address"):

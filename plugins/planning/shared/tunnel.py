@@ -496,13 +496,21 @@ def live_records(data_dir):
     return [(p, rec) for p, rec in found if rec]
 
 
+def _live_folder(path):
+    """The records' folder, made 0700; refused when it is a link, which would put the records and locks elsewhere."""
+    folder = Path(path).parent
+    if folder.is_symlink():
+        raise TunnelDown(f"{folder} is a link")
+    return detached.make_private_dir(folder)
+
+
 def _live_lock(path):
-    detached.make_private_dir(Path(path).parent)
+    _live_folder(path)
     return detached.locked(Path(path).with_suffix(".lock"))
 
 
 def write_live(path, rec):
-    detached.make_private_dir(Path(path).parent)
+    _live_folder(path)
     _write(None, rec, Path(path))
 
 
@@ -525,19 +533,22 @@ def server_running(rec):
     return bool(srv) and detached.alive(*srv)
 
 
-def start_live(path, port):
-    """Start a quick tunnel to 127.0.0.1:<port> for the live record at `path` (the caller writes its id and server
-    first), ending the cloudflared it named; the record. Only a quick tunnel, with no check through the new address:
-    raises TunnelDown when cloudflared is missing, exits or prints no trycloudflare.com address in time."""
+def start_live(path, port, server=None, fresh=False):
+    """Start a quick tunnel to 127.0.0.1:<port> for the live record at `path`, ending the cloudflared it named; the
+    record, with `server` (a new static server's fields) in place of the one it named. A restart (`fresh` False) of a
+    record someone ended as `stopped` is refused, so a Stop from outside the server is never undone; a first start
+    (`fresh`: the caller has just written the record) is not. Only a quick tunnel, with no check through the new
+    address: raises TunnelDown when cloudflared is missing, exits or prints no trycloudflare.com address in time."""
     path = Path(path)
     if not binary():
         raise TunnelDown(MISSING)
-    detached.make_private_dir(path.parent)
     with _live_lock(path):
         rec = read_live(path) or {"id": path.stem}
+        if not fresh and rec.get("reason") == "stopped":
+            raise TunnelDown(f"live prototype {rec['id']} was stopped")
         if tunnel_running(rec):
             detached.stop(*_identity(rec))
-        fields = {k: rec[k] for k in ("id", "server") if k in rec}
+        fields = {k: rec[k] for k in ("id", "server") if k in rec} | ({"server": server} if server else {})
         new = _start(path.parent, port, path=path, log_name=f"{path.stem}.cloudflared.log", fields=fields)
     if not URL.fullmatch(new["url"]):  # the banner pattern takes only this: never hand on another address
         end_live(path, "failed")

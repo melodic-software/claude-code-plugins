@@ -336,6 +336,8 @@ class QuickTunnelStarter:
             self.check_port(target["port"])
             return target["port"], None
         lid = entry["id"]
+        if (self.d / LIVE_COPIES).is_symlink():
+            raise DomainError(502, "live-failed", f"{LIVE_COPIES}/ in the data folder is a link, so no copy is made.")
         dest = detached.make_private_dir(self.d / LIVE_COPIES) / lid
         if fresh:
             src = session._live_folder(str(self.d / target["folder"]), self.d)  # still a folder under staging/
@@ -361,9 +363,9 @@ class QuickTunnelStarter:
         lid, path = entry["id"], self.path(entry["id"])
         tunnel.end_live(path, "stopped")  # whatever an earlier start of this entry left
         port, srv = self.serve(entry)
-        tunnel.write_live(path, {"id": lid, "port": port, **({"server": srv} if srv else {})})
         try:
-            rec = tunnel.start_live(path, port)
+            tunnel.write_live(path, {"id": lid, "port": port, **({"server": srv} if srv else {})})
+            rec = tunnel.start_live(path, port, fresh=True)
         except (tunnel.TunnelDown, TimeoutError, OSError) as exc:
             self.end(entry, "failed")
             self.app.log.warning("live %s: the tunnel did not start: %s", lid, loggable(str(exc), 300))
@@ -395,8 +397,21 @@ class QuickTunnelStarter:
         else:
             tunnel.end_live(path, "failed")
             port, srv = self.serve(entry, fresh=False)
-            tunnel.write_live(path, {"id": entry["id"], "port": port, "server": srv})
+            try:
+                return tunnel.start_live(path, port, server=srv)["url"]
+            except BaseException:
+                detached.stop(srv["pid"], srv["marker"], srv["processStart"])  # recorded nowhere yet
+                raise
         return tunnel.start_live(path, port)["url"]
+
+    @staticmethod
+    def listening(port):
+        """True when something accepts connections on 127.0.0.1:<port>."""
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=0.5).close()
+            return True
+        except OSError:
+            return False
 
     def watch(self):
         app = self.app
@@ -411,16 +426,32 @@ class QuickTunnelStarter:
                 if app.session.live_ended(lid, "stopped"):
                     app.changed()
                 continue
+            if entry["target"]["kind"] == "port" and not self.listening(entry["target"]["port"]):
+                # The owner's server is gone: whatever binds the port next is not what they attested, so it never
+                # inherits the public address. A new server needs a new add-live and Approve.
+                with app._live_lock:
+                    app._live_begun.pop(lid, None)
+                self.end(entry, "failed")
+                app.log.info("live %s: nothing listens on port %d any more, so it ended", lid, entry["target"]["port"])
+                if app.session.live_ended(lid, "failed"):
+                    app.changed()
+                continue
             server_ok = entry["target"]["kind"] == "port" or tunnel.server_running(rec)
             if "endedAt" not in rec and server_ok and tunnel.tunnel_running(rec):
                 self.retry.pop(lid, None)
                 continue
             when, fails = self.retry.get(lid, (0.0, 0))
-            if time.monotonic() < when or app.session.live_status(lid) != "running":
+            if time.monotonic() < when or app.session.live_status(lid) != "running" or app._stop.is_set():
                 continue
             try:
                 url = self.restart(entry, rec, server_ok)
             except (DomainError, tunnel.TunnelDown, TimeoutError, OSError) as exc:
+                with app._live_lock:
+                    gone = lid not in app._live_begun or app.session.live_status(lid) != "running"
+                if gone:  # stopped while it restarted: end what the restart began
+                    self.retry.pop(lid, None)
+                    self.end(entry, "stopped")
+                    continue
                 fails += 1
                 app.log.warning("live %s: restart %d of %d failed: %s", lid, fails, LIVE_RESTARTS, loggable(str(exc), 300))
                 if fails < LIVE_RESTARTS:
@@ -434,7 +465,17 @@ class QuickTunnelStarter:
                     app.changed()
                 continue
             self.retry.pop(lid, None)
-            if app.session.live_moved(lid, url):
+            try:
+                moved = app.session.live_moved(lid, url)
+            except DomainError:
+                moved = None
+            if moved is None:
+                with app._live_lock:
+                    app._live_begun.pop(lid, None)
+                self.end(entry, "failed")
+                if app.session.live_ended(lid, "failed"):
+                    app.changed()
+            elif moved:
                 app.log.info("live %s: restarted at a new address", lid)
                 app.changed()
             else:  # stopped while it restarted
@@ -1511,6 +1552,7 @@ class App:
         """Serve both listeners and watch the tunnel in threads; returns at once."""
         loops = (lambda: self.guest.serve_forever(poll_interval=0.1), lambda: self.control.serve_forever(poll_interval=0.1), self.watch, self.watch_lives)
         self.threads = [threading.Thread(target=t, daemon=True) for t in loops]
+        self._live_thread = self.threads[-1]
         for t in self.threads:
             t.start()
 
@@ -1524,6 +1566,9 @@ class App:
             self.control.shutdown()
         self.guest.server_close()
         self.control.server_close()
+        live_thread = getattr(self, "_live_thread", None)
+        if live_thread is not None:
+            live_thread.join(tunnel.START_SECONDS + 10)  # a restart under way ends before the sweep, never after it
         try:  # a live prototype whose processes are gone ends; a running one outlives a restart, unless the session ended
             over = self.session.state["session"]["phase"]["kind"] == "ended"
             for rec in tunnel.sweep_live(self.dir, every=over, reason="session-ended" if over else "failed"):

@@ -5,12 +5,14 @@
 The server answers GET and HEAD with a regular file under the root (a folder answers its index.html), and nothing
 else: any other method is 405, a path with a segment starting with "." is 404, and a path that resolves (symlinks
 included) outside the root, or onto a hidden name inside it, is 404. No folder is ever listed. Every answer carries
-CSP, Referrer-Policy and nosniff, so a prototype's script reaches only its own origin and a guest's tab sends no
-referrer. It has no Host check, no other route, and runs as one process, so stopping its pid stops it on every OS.
+CSP (fetches, forms and frames only to its own origin), Referrer-Policy, nosniff and Cross-Origin-Opener-Policy, so a
+guest's tab sends no referrer and the page gets no handle on the tab that opened it. CSP cannot stop a page from
+navigating itself elsewhere: a prototype is still a public page, and holds sample data only. A request with a body is
+answered and its connection closed, so a body is never read as the next request. It has no Host check, no other route, and runs as one process, so stopping its pid stops it on every OS.
 
 `scan_build` and `copy_build` are the walk `add-live` and the start run over a build folder: regular files and
-folders only, no symlink, junction or other reparse point, no hidden name, at most MAX_FILES files and MAX_BYTES
-bytes. The server only ever serves the copy (`<data_dir>/live/<id>/`), never the folder the model wrote, which sits in
+folders only, no symlink, junction or other reparse point, no hard link (a file with a second name could be one
+outside the folder), no hidden name, at most MAX_FILES files and MAX_BYTES bytes. The server only ever serves the copy (`<data_dir>/live/<id>/`), never the folder the model wrote, which sits in
 the same data folder as the session's secrets.
 """
 
@@ -23,6 +25,7 @@ import re
 import shutil
 import stat
 import sys
+import threading
 import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -39,8 +42,12 @@ MAX_FILES = 2000  # judgment
 READY = re.compile(r"liveserve: serving http://127\.0\.0\.1:([0-9]{1,5})/")
 START_SECONDS = 10.0  # how long a new server may take to print READY
 MARKER = "python" if detached.WINDOWS else "liveserve.py"  # what detached.alive finds in its command line or program
-CSP = "default-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
-HEADERS = {"Content-Security-Policy": CSP, "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"}
+CSP = "default-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+HEADERS = {"Content-Security-Policy": CSP, "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store",
+           "Cross-Origin-Opener-Policy": "same-origin"}
+SENDING = 16  # judgment: files sent at once; a request past them waits up to WAIT seconds, then answers 503
+WAIT = 10.0
+CHUNK = 64 * 1024
 # A fixed map, not mimetypes: on Windows mimetypes reads the registry, which can name .js text/plain and break a module.
 TYPES = {
     ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -62,8 +69,8 @@ def _linked(st):
 
 
 def scan_build(src):
-    """[(path relative to src, as a tuple of names, size)] for every file under the folder `src`, or BuildRefused
-    naming the first thing that cannot be served."""
+    """[(path relative to src, as a tuple of names, size, (device, inode))] for every file under the folder `src`, or
+    BuildRefused naming the first thing that cannot be served."""
     root = Path(src)
     try:
         st = os.lstat(root)
@@ -80,13 +87,15 @@ def scan_build(src):
             where = "/".join((*rel, e.name))
             if e.name.startswith("."):
                 raise BuildRefused(f"the build folder holds a hidden name: {where}")
-            st = e.stat(follow_symlinks=False)
+            st = os.lstat(root.joinpath(*rel, e.name))
             if e.is_symlink() or _linked(st):
                 raise BuildRefused(f"the build folder holds a link: {where}")
             if stat.S_ISDIR(st.st_mode):
                 stack.append((*rel, e.name))
             elif stat.S_ISREG(st.st_mode):
-                files.append(((*rel, e.name), st.st_size))
+                if st.st_nlink != 1:
+                    raise BuildRefused(f"the build folder holds a hard link: {where}")
+                files.append(((*rel, e.name), st.st_size, (st.st_dev, st.st_ino)))
                 total += st.st_size
                 if len(files) > MAX_FILES:
                     raise BuildRefused(f"the build folder holds more than {MAX_FILES} files")
@@ -100,23 +109,23 @@ def scan_build(src):
 def copy_build(src, dest):
     """Copy the folder `src` into `dest` (replaced, made 0700) with scan_build's rules, each file opened without
     following a link and checked to be the regular file the walk saw; the number of files copied."""
-    files = scan_build(src)
+    base = Path(src).resolve()
+    files = scan_build(base)
     dest = Path(dest)
-    if dest.is_symlink():
-        raise BuildRefused(f"{dest} is a link")
+    if dest.is_symlink() or dest.parent.is_symlink():
+        raise BuildRefused(f"{dest} or its folder is a link")
     shutil.rmtree(dest, ignore_errors=True)
     detached.make_private_dir(dest)
-    base = Path(src).resolve()
     try:
-        for rel, size in files:
-            _copy_one(base, rel, size, dest)
+        for rel, size, ident in files:
+            _copy_one(base, rel, size, ident, dest)
     except BaseException:
         shutil.rmtree(dest, ignore_errors=True)
         raise
     return len(files)
 
 
-def _copy_one(base, rel, size, dest):
+def _copy_one(base, rel, size, ident, dest):
     """Copy one file the walk saw as `size` bytes: still under `base` once its folders' links are resolved, and opened
     without following a link (nor waiting on a pipe swapped in)."""
     source = base.joinpath(*rel)
@@ -130,7 +139,7 @@ def _copy_one(base, rel, size, dest):
     with os.fdopen(fd, "rb") as f:
         st = os.fstat(f.fileno())
         data = f.read(size + 1) if stat.S_ISREG(st.st_mode) else b""
-        if not stat.S_ISREG(st.st_mode) or _linked(os.lstat(source)) or len(data) != size:
+        if not stat.S_ISREG(st.st_mode) or _linked(os.lstat(source)) or len(data) != size or st.st_nlink != 1 or (st.st_dev, st.st_ino) != ident:
             raise BuildRefused(f"{'/'.join(rel)} changed while it was copied")
     detached.make_private_dir(dest.joinpath(*rel[:-1]))
     with detached.open_private(dest.joinpath(*rel), "wb") as out:
@@ -198,14 +207,26 @@ class Handler(BaseHTTPRequestHandler):
         self.answer(405, b"Method not allowed\n", "text/plain; charset=utf-8", {"Allow": "GET, HEAD", "Connection": "close"})
 
     def do_GET(self):
+        if self.headers.get("Transfer-Encoding") or self.headers.get("Content-Length", "0").strip() != "0":
+            self.close_connection = True  # a body is never read, so it must never be taken as the next request
         f = resolve(self.server.root, self.path)
         if f is None:
             return self.answer(404, b"Not found\n", "text/plain; charset=utf-8")
+        if not self.server.sending.acquire(timeout=WAIT):
+            return self.answer(503, b"Busy\n", "text/plain; charset=utf-8", {"Retry-After": "5"})
         try:
-            data = f.read_bytes()
+            with open(f, "rb") as src:
+                size = os.fstat(src.fileno()).st_size
+                self.send_response(200)
+                self.send_header("Content-Type", TYPES.get(f.suffix.lower(), "application/octet-stream"))
+                self.send_header("Content-Length", str(size))
+                self.end_headers()
+                if self.command != "HEAD":
+                    shutil.copyfileobj(src, self.wfile, CHUNK)
         except OSError:
-            return self.answer(404, b"Not found\n", "text/plain; charset=utf-8")
-        self.answer(200, data, TYPES.get(f.suffix.lower(), "application/octet-stream"))
+            self.close_connection = True
+        finally:
+            self.server.sending.release()
 
     do_HEAD = do_GET
 
@@ -216,6 +237,7 @@ class Server(ThreadingHTTPServer):
 
     def __init__(self, root, port=0):
         self.root = Path(root).resolve(strict=True)
+        self.sending = threading.BoundedSemaphore(SENDING)
         super().__init__(("127.0.0.1", port), Handler)
 
 

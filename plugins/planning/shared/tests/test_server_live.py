@@ -26,7 +26,7 @@ import server
 import tunnel
 
 ADDRESS = re.compile(r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com$")
-CSP = "default-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
+CSP = "default-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 
 
 def symlink(case, link, target, directory=False):
@@ -82,6 +82,7 @@ class TestLiveserve(unittest.TestCase):
         code, h, body = raw(self.port, "GET", "/")
         self.assertEqual((code, body), (200, b"<!doctype html><p>home</p>"))
         self.assertEqual((h["Content-Security-Policy"], h["Referrer-Policy"], h["X-Content-Type-Options"]), (CSP, "no-referrer", "nosniff"))
+        self.assertEqual(h["Cross-Origin-Opener-Policy"], "same-origin")
         self.assertEqual(h["Content-Type"], "text/html; charset=utf-8")
         self.assertEqual(raw(self.port, "GET", "/app.js?v=2")[1]["Content-Type"], "text/javascript; charset=utf-8")
         self.assertEqual(raw(self.port, "GET", "/sub/")[2], b"<p>sub</p>")
@@ -109,6 +110,18 @@ class TestLiveserve(unittest.TestCase):
                 code, _, body = raw(self.port, "GET", target)
                 self.assertEqual(code, 404, body)
                 self.assertNotIn(b"outside", body)
+
+    def test_a_request_body_is_never_read_as_the_next_request(self):
+        import socket
+
+        smuggled = b"GET /app.js HTTP/1.1\r\nHost: x\r\n\r\n"
+        with socket.create_connection(("127.0.0.1", self.port), timeout=10) as conn:
+            conn.sendall(b"GET /index.html HTTP/1.1\r\nHost: x\r\nContent-Length: %d\r\n\r\n" % len(smuggled) + smuggled)
+            got = b""
+            while chunk := conn.recv(65536):
+                got += chunk
+        self.assertEqual(got.count(b"HTTP/1.1 200"), 1, got)
+        self.assertNotIn(b"console.log", got)
 
     def test_a_folder_is_never_listed(self):
         code, _, body = raw(self.port, "GET", "/empty/")
@@ -163,6 +176,15 @@ class TestBuildWalk(unittest.TestCase):
     def test_a_symlink_is_refused(self):
         symlink(self, self.src / "secrets.json", tmpdir(self) / "x")
         self.refused("link: secrets.json")
+
+    def test_a_hard_link_is_refused(self):
+        secret = self.src.parent / "secret.json"
+        secret.write_text('{"owner": "x"}', encoding="utf-8")
+        try:
+            os.link(secret, self.src / "a.txt")
+        except OSError as exc:
+            self.skipTest(f"no hard link here: {exc}")
+        self.refused("hard link: a.txt")
 
     def test_a_folder_symlink_is_refused(self):
         symlink(self, self.src / "data", tmpdir(self), directory=True)
@@ -297,6 +319,20 @@ class TestPorts(LiveCase):
                 self.starter.check_port(port)
             self.assertEqual(ctx.exception.details.get("field"), "port")
 
+    def test_a_port_whose_server_went_away_ends_so_the_next_server_there_is_never_exposed(self):
+        dev = http.server.ThreadingHTTPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler)
+        threading.Thread(target=dev.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
+        port = dev.server_address[1]
+        lid = self.add(port=port)
+        self.assertEqual(self.approve(lid, attest=True)[0], 200)
+        rec = self.record(lid)
+        dev.shutdown()
+        dev.server_close()
+        self.assertTrue(wait_for(lambda: self.status(lid)["kind"] == "ended", 15), self.status(lid))
+        self.assertEqual(self.status(lid)["reason"], "failed")
+        self.assertFalse(tunnel.tunnel_running(rec))
+        self.assertEqual(len(self.runs()), 1)  # never restarted
+
     def test_an_attested_port_gets_a_tunnel_only_and_its_server_keeps_running_after_stop(self):
         dev = http.server.ThreadingHTTPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler)
         threading.Thread(target=dev.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
@@ -340,6 +376,14 @@ class TestSupervision(LiveCase):
         self.assertNotEqual(rec["server"]["pid"], srv["pid"])
         self.assertFalse(tunnel.tunnel_running(before))
         self.assertEqual(call(rec["server"]["port"], "GET", "/")[2], b"<!doctype html><p>first build</p>")
+
+    def test_a_stop_from_outside_the_server_is_never_undone_by_a_restart(self):
+        lid, before = self.started()
+        tunnel.end_live(tunnel.live_path(self.d, lid), "stopped")  # share.sh with the control call missed
+        self.assertTrue(wait_for(lambda: self.status(lid)["kind"] == "ended", 15), self.status(lid))
+        self.assertEqual(self.status(lid)["reason"], "stopped")
+        self.assertEqual(len(self.runs()), 1)
+        self.assertFalse(tunnel.tunnel_running(before) or tunnel.server_running(before))
 
     def test_past_the_restart_limit_the_entry_ends_and_nothing_runs(self):
         lid, before = self.started()
