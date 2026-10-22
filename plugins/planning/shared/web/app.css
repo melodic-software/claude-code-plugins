@@ -2454,6 +2454,9 @@
 
 /* C40: the ten person colors in the person card. */
 .app .vf-pcolors { display: grid; grid-template-columns: repeat(5, 32px); gap: 8px; margin-block: 4px 12px; }
+.app .vf-pavatar { display: grid; gap: 8px; justify-items: start; margin-block: 4px 12px; }
+.app .vf-pavatar .vf-pop-note { margin: 0; }
+.app .vf-pavatar-prev { inline-size: 64px; block-size: 64px; border-radius: 50%; object-fit: cover; }
 .app .vf-pcolor { inline-size: 32px; block-size: 32px; padding: 0; border: 0; border-radius: 50%; background: var(--av); cursor: pointer; }
 .app .vf-pcolor[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--pane), 0 0 0 4px var(--text); }
 .app .vf-pcolor:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

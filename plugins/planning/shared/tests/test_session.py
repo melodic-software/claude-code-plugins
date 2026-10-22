@@ -4328,7 +4328,9 @@ class TestPresenceStates(SessionCase):
         self.assertEqual((self.state_of(self.ann)["typing"], self.state_of(self.ann)["chatTyping"]), (False, False))
 
     def test_heartbeat_fields_are_checked(self):
-        bad = (({"visible": "no"}, "visible"), ({"lastInput": -3}, "lastInput"), ({"lastInput": float("inf")}, "lastInput"), ({"away": "yes"}, "away"))
+        bad = (({"visible": "no"}, "visible"), ({"lastInput": -3}, "lastInput"), ({"lastInput": float("inf")}, "lastInput"), ({"away": "yes"}, "away"),
+               ({"lastFocus": -1}, "lastFocus"), ({"lastFocus": float("inf")}, "lastFocus"), ({"lastFocus": "now"}, "lastFocus"),
+               ({"focusId": -1}, "focusId"), ({"focusId": 1.5}, "focusId"), ({"focusId": "a"}, "focusId"))
         for body, field in bad:
             with self.subTest(body=body):
                 with self.assertRaises(session.DomainError) as ctx:
@@ -4384,6 +4386,64 @@ class TestPresenceStates(SessionCase):
         self.clock.tick(1)
         self.beat(self.ann, tab="b", q="Q3", typing=False)
         self.assertEqual((self.state_of(self.ann)["q"], self.state_of(self.ann)["typing"]), ("Q3", False))
+
+    def test_question_and_typing_come_from_the_most_recently_focused_tab_whatever_beats_last(self):
+        """A desk tab on Q2 focused 5 s ago and a phone tab on Q1 last shown 60 s ago: Q2, whichever tab beats last."""
+        for order in (("phone", "desk"), ("desk", "phone")):
+            with self.subTest(beats_last=order[1]):
+                self.clock.tick(session.OFFLINE_AFTER)
+                body = {"desk": {"q": "Q2", "typing": True, "lastFocus": 5}, "phone": {"q": "Q1", "visible": False, "lastFocus": 60}}
+                for tab in order:
+                    self.beat(self.ann, tab=tab, **body[tab])
+                    self.clock.tick(1)
+                self.assertEqual((self.state_of(self.ann)["q"], self.state_of(self.ann)["typing"]), ("Q2", True))
+
+    def test_a_visible_tab_beats_a_hidden_one_focused_more_recently(self):
+        """A desk window that kept focus (focused 60 s ago) and a phone locked since its use 5 s ago: the desk's Q2."""
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=60)
+        self.beat(self.ann, tab="phone", q="Q1", visible=False, lastFocus=5)
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+
+    def test_a_late_beat_does_not_move_an_unchanged_focus_later(self):
+        """Phone focused on Q1 at t=0, desk on Q2 at t=1; a phone beat built at t=2 arrives at t=4: still Q2."""
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=0, focusId=1000)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=0, focusId=2000)
+        self.clock.tick(3)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=2, focusId=1000)
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+
+    def test_a_new_focus_id_takes_the_new_focus_time(self):
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=0, focusId=1000)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=0, focusId=2000)
+        self.clock.tick(3)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=1, focusId=5000)  # focused again at t=3
+        self.assertEqual(self.state_of(self.ann)["q"], "Q1")
+
+    def test_without_a_focus_id_a_focus_time_only_moves_earlier(self):
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=0)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=0)
+        self.clock.tick(3)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=2)  # would put the phone's focus at t=2
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=4.5)  # a quicker beat: the desk's focus was at t=-0.5
+        self.assertEqual(self.state_of(self.ann)["q"], "Q1")
+
+    def test_a_beat_without_a_focus_time_keeps_the_tabs_last_one(self):
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=1)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=30)
+        self.clock.tick(2)
+        self.beat(self.ann, tab="desk", q="Q2")
+        self.beat(self.ann, tab="phone", q="Q1")
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+
+    def test_a_tab_reporting_a_focus_time_wins_over_one_that_does_not(self):
+        self.beat(self.ann, tab="new", q="Q2", lastFocus=40)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="old", q="Q1")
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
 
     def test_a_person_keeps_at_most_8_tabs_the_oldest_dropped(self):
         self.beat(self.ann, tab="t0", visible=True)  # the only visible tab
@@ -6212,6 +6272,148 @@ class TestUploadRecovery(UploadCase):
 
 
 PIC = b"\x89PNG\r\n\x1a\n" + bytes(300)  # 308 bytes: chunks of 200 and 108
+
+
+class TestAvatars(UploadCase):
+    """A profile picture is an upload offered with `avatar`: a PNG, JPEG or WebP of at most 256 KB whose first bytes
+    are that kind. A guest's shows to others once the owner approves it, the owner's at once; a new one replaces the
+    last; the person or the owner removes it; while names are hidden, so are pictures."""
+
+    def avatar(self, pid, name="me.png", data=PIC, approve=False):
+        uid = self.offer(pid, name, data, avatar=True)["id"]
+        self.send_all(pid, uid, data)
+        if approve:
+            self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
+        return uid
+
+    def shown(self, viewer, pid):
+        """The avatar viewer's snapshot lists for pid, else None."""
+        return next(p for p in self.s.snapshot(viewer)["people"] if p["pid"] == pid).get("avatar")
+
+    def test_a_guests_offer_is_accepted_at_once_and_stays_hidden_until_approved(self):
+        out = self.offer(self.ann, "me.png", PIC, avatar=True)
+        self.assertEqual(out["status"], "accepted")
+        self.send_all(self.ann, out["id"], PIC)
+        self.assertIsNone(self.shown(self.bo, self.ann))
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": out["id"]}).http, 404)
+        self.act("act_on_upload", HOST, {"id": out["id"], "action": "approve"})
+        self.assertEqual(self.shown(self.bo, self.ann), out["id"])
+
+    def test_the_owners_picture_works_with_uploads_off(self):
+        self.act("update_settings", HOST, {"uploads": False})
+        uid = self.avatar(HOST)
+        self.assertEqual(self.shown(self.bo, HOST), uid)
+        self.refused("uploads-off", "offer_upload", HOST, {"file": "a.pdf", "size": len(PDF), "type": ""})
+
+    def test_a_guests_picture_is_refused_with_uploads_off(self):
+        self.act("update_settings", HOST, {"uploads": False})
+        e = self.refused("uploads-off", "offer_upload", self.ann, {"file": "me.png", "size": len(PIC), "type": "image/png", "avatar": True})
+        self.assertEqual((e.http, e.message), (403, "The host has pictures off in this session."))
+
+    def test_only_a_png_jpeg_or_webp_of_at_most_256_kb_is_offered_as_one(self):
+        gif = {"file": "me.gif", "size": 10, "type": "image/gif", "avatar": True}
+        self.assertEqual(self.refused("file-type", "offer_upload", self.ann, gif).http, 415)
+        self.refused("file-type", "offer_upload", self.ann, {**gif, "file": "me.pdf"})
+        self.refused("file-type", "offer_upload", self.ann, {**gif, "file": "me.svg"})
+        big = {"file": "me.png", "size": 256 * 1024 + 1, "type": "image/png", "avatar": True}
+        self.assertEqual(self.refused("upload-too-large", "offer_upload", self.ann, big).http, 413)
+        self.refused("bad-field", "offer_upload", self.ann, {**big, "size": 10, "qid": "Q1"})
+        for name in ("a.png", "b.jpg", "c.jpeg", "d.webp"):
+            out = self.act("offer_upload", self.ann, {**big, "file": name, "size": 256 * 1024})
+            self.assertEqual(out["status"], "accepted")
+            self.assertTrue(self.upload(out["id"])["avatar"])
+
+    def test_its_bytes_must_be_the_kind_its_name_says(self):
+        jpeg = b"\xff\xd8\xff\xe0" + bytes(100)
+        uid = self.offer(self.ann, "me.png", jpeg, avatar=True)["id"]
+        self.assertEqual(self.refused("file-type", "upload_chunk", self.ann, piece_meta(uid, 0, 1, jpeg, jpeg), jpeg).http, 415)
+        self.assertEqual(self.upload(uid)["status"]["kind"], "failed")
+        self.assertIsNone(self.shown(HOST, self.ann))
+        ok = self.avatar(self.ann, "me.jpg", jpeg)
+        self.assertEqual(self.s.upload_image(self.ann, {"id": ok})["image"][:23], "data:image/jpeg;base64,")
+
+    def test_more_bytes_than_offered_are_refused(self):
+        uid = self.offer(self.ann, "me.png", PIC, avatar=True)["id"]
+        self.chunk(self.ann, uid, 0, PIC)
+        longer = PIC[SMALL:] + b"x"
+        self.assertEqual(self.refused("bad-field", "upload_chunk", self.ann, piece_meta(uid, 1, 2, longer, PIC[:SMALL] + longer), longer).http, 400)
+
+    def test_a_guests_picture_shows_to_others_only_once_the_owner_approves_it(self):
+        uid = self.avatar(self.ann)
+        self.assertIsNone(self.shown(self.bo, self.ann))
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
+        self.assertEqual(self.s.upload_image(self.ann, {"id": uid})["id"], uid)
+        self.assertEqual(self.s.upload_image(HOST, {"id": uid})["id"], uid)
+        mine = next(u for u in self.s.snapshot(self.ann)["myUploads"] if u["id"] == uid)
+        self.assertEqual((mine["avatar"], mine["image"], "shown" in mine), (True, True, False))
+        owners = next(u for u in self.s.snapshot(HOST)["uploads"] if u["id"] == uid)
+        self.assertEqual((owners["avatar"], "shown" in owners), (True, False))
+        self.assertEqual(self.events("upload-received"), [])  # no file for Claude to read
+        self.refused("owner-only", "act_on_upload", self.ann, {"id": uid, "action": "approve"})
+        self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
+        self.assertEqual((self.shown(self.bo, self.ann), self.shown(self.ann, self.ann), self.shown(HOST, self.ann)), (uid, uid, uid))
+        self.assertEqual(self.s.upload_image(self.bo, {"id": uid})["image"][:22], "data:image/png;base64,")
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_the_owners_own_picture_shows_at_once(self):
+        uid = self.avatar(HOST)
+        self.assertEqual(self.shown(self.bo, HOST), uid)
+        self.assertEqual(self.s.upload_image(self.bo, {"id": uid})["id"], uid)
+
+    def test_a_new_picture_replaces_the_last_and_waits_for_approval_again(self):
+        old = self.avatar(self.ann, approve=True)
+        stored = self.tmp / self.upload(old)["status"]["stored"]
+        new = self.avatar(self.ann, "new.png", PIC + b"!")
+        self.assertEqual(self.upload(old)["status"]["kind"], "removed")
+        self.assertFalse(stored.exists())
+        self.assertIsNone(self.shown(self.bo, self.ann))
+        for uid in (old, new):
+            self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
+        self.assertEqual(self.refused("not-found", "upload_image", self.ann, {"id": old}).http, 404)
+        self.assertEqual(self.s.upload_image(self.ann, {"id": new})["id"], new)
+        self.assertEqual(self.s.upload_image(HOST, {"id": new})["id"], new)
+        self.act("act_on_upload", HOST, {"id": new, "action": "approve"})
+        self.assertEqual(self.shown(self.bo, self.ann), new)
+
+    def test_a_new_offer_withdraws_one_still_on_its_way(self):
+        first = self.offer(self.ann, "a.png", PIC, avatar=True)["id"]
+        second = self.offer(self.ann, "b.png", PIC, avatar=True)["id"]
+        self.assertEqual((self.upload(first)["status"]["kind"], self.upload(second)["status"]["kind"]), ("withdrawn", "accepted"))
+        own = self.offer(HOST, "a.png", PIC, avatar=True)["id"]
+        self.chunk(HOST, own, 0, PIC)
+        tmp = self.upload(own)["status"]["tmp"]
+        self.assertEqual(self.pending(), [tmp])
+        self.offer(HOST, "b.png", PIC, avatar=True)
+        self.assertEqual(self.upload(own)["status"]["kind"], "withdrawn")
+        self.assertNotIn(tmp, self.pending())
+
+    def test_the_person_or_the_owner_removes_it(self):
+        ann, own = self.avatar(self.ann, approve=True), self.avatar(HOST)
+        files = [self.tmp / self.upload(u)["status"]["stored"] for u in (ann, own)]
+        self.act("act_on_upload", self.ann, {"id": ann, "action": "remove"})
+        self.act("act_on_upload", HOST, {"id": own, "action": "remove"})
+        self.assertEqual((self.shown(self.bo, self.ann), self.shown(self.bo, HOST)), (None, None))
+        self.assertEqual([f.exists() for f in files], [False, False])
+        bo = self.avatar(self.bo, approve=True)
+        self.refused("no-such-upload", "act_on_upload", self.ann, {"id": bo, "action": "remove"})
+        self.act("act_on_upload", HOST, {"id": bo, "action": "remove"})
+        self.assertIsNone(self.shown(self.ann, self.bo))
+        self.assertEqual(self.events("upload-removed"), [])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_pictures_hide_while_names_do(self):
+        uid = self.avatar(self.ann, approve=True)
+        self.act("update_settings", HOST, {"names": "initials"})
+        self.assertIsNone(self.shown(self.bo, self.ann))
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
+        self.assertEqual(self.s.upload_image(self.ann, {"id": uid})["id"], uid)
+        self.act("update_settings", HOST, {"names": "full"})
+        self.assertEqual(self.shown(self.bo, self.ann), uid)
+        self.assertEqual(self.s.upload_image(self.bo, {"id": uid})["id"], uid)
+
+    def test_no_post_carries_it(self):
+        uid = self.avatar(self.ann, approve=True)
+        self.assertEqual(self.refused("wrong-status", "chat", self.ann, {"text": "Me", "attachments": [uid]}).http, 409)
 
 
 class TestAttachmentsEverywhere(UploadCase):

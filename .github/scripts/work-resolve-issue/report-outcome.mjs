@@ -823,6 +823,11 @@ export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding"]);
 // The issue's lane branch name, capturing its run id and attempt.
 const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);
 export const isLaneBranch = (name, issueNumber) => laneBranch(issueNumber).test(name ?? "");
+// The issue a lane branch name is for, or null for any other name.
+export const laneBranchIssue = (name) => {
+  const issue = /^work-resolve-issue\/issue-([1-9][0-9]*)-/.exec(name ?? "")?.[1];
+  return issue && isLaneBranch(name, issue) ? Number(issue) : null;
+};
 
 // A commit the lanes App made through the API: verified, authored by the App
 // and committed by web-flow (a branch name proves nothing about who pushed to

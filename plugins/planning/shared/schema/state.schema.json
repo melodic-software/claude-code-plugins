@@ -1085,6 +1085,7 @@
         "shown": {"const": true, "description": "The owner approved this guest's received picture: everyone who sees what carries it sees it."},
         "draft": {"const": true, "description": "Offered from a form and not sent with anything yet: never shown under its question."},
         "carried": {"const": true, "description": "A record has carried it: never shown under its question again, even once nothing carries it."},
+        "avatar": {"const": true, "description": "Offered as its sender's profile picture: a PNG, JPEG or WebP of at most 256 KB that no record carries. Once received it replaces their last one; a guest's shows to others once the owner approves it (shown)."},
         "chunks": {"type": "integer", "minimum": 0},
         "status": {
           "oneOf": [
