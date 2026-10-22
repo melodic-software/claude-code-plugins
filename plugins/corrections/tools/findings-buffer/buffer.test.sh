@@ -165,6 +165,12 @@ SIZE="$(printf '%s' "$LINE" | wc -c)"
 GOT="$(jq -r '(.truncated == true) and (.list | type == "string")' <<<"$LINE")"
 check "cap: a large array is replaced by a size note, never rejected" \
   test "$RC" -eq 0 -a "$SIZE" -le 2048 -a "$GOT" == true
+HALF="$(head -c 1500 /dev/zero | tr '\0' 'y')"
+run "$R" append < <(printf '{"session":"s1","first":"%s","second":"%s"}\n' "$HALF" "$HALF")
+run "$R" append < <(printf '{"second":"%s","first":"%s","session":"s1"}\n' "$HALF" "$HALF")
+DETAIL="obs_ids: $(tail -n 2 "$R/adapters/ok/captured.jsonl" | jq -r .obs_id | tr '\n' ' ')"
+check "cap: key order does not change what is trimmed or the obs_id" \
+  test "$(tail -n 2 "$R/adapters/ok/captured.jsonl" | jq -r .obs_id | sort -u | wc -l)" -eq 1
 
 # 6. A redaction failure writes nothing anywhere.
 new_repo
@@ -206,6 +212,25 @@ run "$R" bogus
 check "an unknown verb exits 2" test "$RC" -eq 2
 run "$R" read --since yesterday
 check "a bad --since exits 2" test "$RC" -eq 2
+
+# --since reaches both reads: an old row in the bound adapter and one in the local file are left out.
+new_repo
+fake_adapter "$R" adapters/broken 1
+cat >"$R/adapters/broken/read.sh" <<'EOF'
+#!/usr/bin/env bash
+f="$(dirname "$0")/captured.jsonl"
+[[ -f "$f" ]] || exit 0
+if [[ "${1:-}" == --since ]]; then jq -c --arg s "$2" 'select(.ts >= $s)' "$f"; else cat "$f"; fi
+EOF
+bind "$R" adapters/broken
+run "$R" append < <(printf '%s\n' "$ROW")
+old_row() { printf '{"ts":"2020-01-01T00:00:00Z","session":"s1","msg":"%s","obs_id":"%s"}\n' "$1" "$2"; }
+old_row "old adapter row" aaaaaaaaaaaaaaaa >>"$R/adapters/broken/captured.jsonl"
+old_row "old local row" bbbbbbbbbbbbbbbb >>"$R/.work/buffer/findings.jsonl"
+run "$R" read --since 2025-01-01T00:00:00Z
+DETAIL="exit $RC; out: $OUT"
+check "read --since: both reads leave out rows older than since and keep the new one" \
+  test "$RC" -eq 0 -a "$(grep -c 'old .* row' <<<"$OUT")" -eq 0 -a "$(grep -c '"unused variable"' <<<"$OUT")" -eq 1
 
 # The vendored rules match the canonical copy byte for byte.
 CANON="$REPO_ROOT/plugins/session-flow/skills/audit-sessions/vendor/gitleaks"

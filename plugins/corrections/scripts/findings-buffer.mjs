@@ -139,9 +139,10 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 
-/** Every [holder, key] under `value`, depth first in key order, whose value matches `pick`. */
+/** Every [holder, key] under `value`, depth first in sorted key order, whose value matches `pick`. */
 function slots(value, pick, out = []) {
-  for (const key of Object.keys(value)) {
+  // Sorted, as in `canonical`, so a reordered row trims the same field and keeps its obs_id.
+  for (const key of Object.keys(value).sort()) {
     const v = value[key];
     if (pick(v)) out.push([value, key]);
     if (isContainer(v)) slots(v, pick, out);
@@ -191,6 +192,7 @@ function cap(content) {
   // 3. Drop the largest top-level fields.
   while (bytes(content) > BUDGET) {
     const key = Object.keys(content)
+      .sort()
       .filter((k) => k !== "truncated")
       .reduce((a, k) => (a === null || bytes(content[k]) + k.length > bytes(content[a]) + a.length ? k : a), null);
     if (key === null) break;
