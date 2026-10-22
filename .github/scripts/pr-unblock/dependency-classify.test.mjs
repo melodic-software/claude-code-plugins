@@ -701,7 +701,7 @@ test("a review that only a parse gap caused is a classifier gap; any other reaso
 
 // The fix rule's vectors, one for one with test_babysit_dependabot.py's
 // FixRule class, so both lanes refuse the same fix. Each expected value is
-// the rule as the PR #8813 review states it: a version-range change of an
+// the rule as the security review states it: a version-range change of an
 // existing dependency entry, registry-only lock tarballs with no install
 // script change, and `name==version` requirement pins with hashes.
 const FIX_PKG = (deps, extra = {}) => JSON.stringify({ name: "p", scripts: { test: "node t.js" }, dependencies: deps, ...extra });

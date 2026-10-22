@@ -1126,7 +1126,7 @@ _SCRIPTS = {"test": "node t.js", "postinstall": "node steal.js"}
 _RANGE = "package-json-range:dependencies:x"
 
 # One for one with dependency-classify.test.mjs's FIX_VECTORS, so both lanes
-# refuse the same fix. Each expected value is the rule as the PR #8813 review
+# refuse the same fix. Each expected value is the rule as the security review
 # states it: a version-range change of an existing dependency entry,
 # registry-only lock tarballs with no install script change, and
 # `name==version` requirement pins with hashes.
