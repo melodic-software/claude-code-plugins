@@ -80,6 +80,9 @@ const MERGE_BASE_GIT_DENIED = [
   "Bash(git *.git\\*)",
   "Bash(git *--ext-diff*)",
   "Bash(git *--textconv*)",
+  "Bash(git blame *)",
+  "Bash(git *--contents*)",
+  "Bash(git grep *)",
 ];
 // The deny rules other than the write lanes' shell and git sets.
 const ownDenied = (denied) =>
@@ -1275,7 +1278,6 @@ for (const [name, run] of [
       assert.ok(denied.includes(expected), `${expected} in ${denied.join(" | ")}`);
     }
   });
-  if (name === "a read skill that hands on a patch") continue;
   test(`a write lane denies git, in merge-base mode every form that reaches config, a remote or a file outside the index: ${name}`, () => {
     const { status, denied } = run();
     assert.equal(status, 0);

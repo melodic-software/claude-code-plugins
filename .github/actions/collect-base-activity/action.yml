@@ -603,7 +603,7 @@ runs:
             # rule matches the whole command text, * at any position
             # (https://code.claude.com/docs/en/permissions#wildcard-patterns).
             if [ "$PREPARE" = merge-base ]; then
-              git_denied=("Bash(git -*)" "Bash(git config *)" "Bash(git remote *)" "Bash(git ls-remote *)" "Bash(git credential *)" "Bash(git var *)" "Bash(git fetch *)" "Bash(git push *)" "Bash(git pull *)" "Bash(git submodule *)" "Bash(git *--no-index*)" "Bash(git *--output*)" "Bash(git *--git-dir*)" "Bash(git *--work-tree*)" "Bash(git *.git/*)" 'Bash(git *.git\*)' "Bash(git *--ext-diff*)" "Bash(git *--textconv*)")
+              git_denied=("Bash(git -*)" "Bash(git config *)" "Bash(git remote *)" "Bash(git ls-remote *)" "Bash(git credential *)" "Bash(git var *)" "Bash(git fetch *)" "Bash(git push *)" "Bash(git pull *)" "Bash(git submodule *)" "Bash(git *--no-index*)" "Bash(git *--output*)" "Bash(git *--git-dir*)" "Bash(git *--work-tree*)" "Bash(git *.git/*)" 'Bash(git *.git\*)' "Bash(git *--ext-diff*)" "Bash(git *--textconv*)" "Bash(git blame *)" "Bash(git *--contents*)" "Bash(git grep *)")
             else
               git_denied=("Bash(git *)")
             fi
