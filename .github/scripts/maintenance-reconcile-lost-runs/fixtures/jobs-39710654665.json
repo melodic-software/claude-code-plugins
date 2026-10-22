@@ -1,0 +1,476 @@
+{
+  "jobs": [
+    {
+      "conclusion": "success",
+      "id": 119617086594,
+      "name": "lint-repo"
+    },
+    {
+      "conclusion": "failure",
+      "id": 119617086748,
+      "name": "lint-shell",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check out",
+          "conclusion": "success"
+        },
+        {
+          "name": "Fetch base",
+          "conclusion": "success"
+        },
+        {
+          "name": "Set up Python",
+          "conclusion": "success"
+        },
+        {
+          "name": "Restore the pip cache",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install the pinned YAML reader",
+          "conclusion": "success"
+        },
+        {
+          "name": "Save the pip cache",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Check that hooks exit early before sourcing any library",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check hooks for transcript reads and env-shebang registrations",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check hook entry scripts for silent prerequisite skips",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check plugin test suites for discriminating skip_case sites",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check fixture git isolation",
+          "conclusion": "success"
+        },
+        {
+          "name": "Assert the drive-root scan is a no-op on a non-Windows host",
+          "conclusion": "success"
+        },
+        {
+          "name": "Gate changed shell and skill-md files for GNU-only constructs",
+          "conclusion": "success"
+        },
+        {
+          "name": "Gate scripts on piped early-exit greps",
+          "conclusion": "success"
+        },
+        {
+          "name": "Gate test suites on cleaning up their temp paths",
+          "conclusion": "success"
+        },
+        {
+          "name": "Select the changed shell scripts",
+          "conclusion": "success"
+        },
+        {
+          "name": "Lint shell scripts",
+          "conclusion": "success"
+        },
+        {
+          "name": "Aggregate hygiene results",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Post Lint shell scripts",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Set up Python",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Check out",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "success",
+      "id": 119617086822,
+      "name": "test-bash (0)"
+    },
+    {
+      "conclusion": "cancelled",
+      "id": 119617086823,
+      "name": "test-node",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check out",
+          "conclusion": "success"
+        },
+        {
+          "name": "Set up Node",
+          "conclusion": "success"
+        },
+        {
+          "name": "Restore the npm cache",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install dependencies",
+          "conclusion": "success"
+        },
+        {
+          "name": "Typecheck",
+          "conclusion": "success"
+        },
+        {
+          "name": "Lint",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test",
+          "conclusion": "success"
+        },
+        {
+          "name": "Smoke-test the MCP server over stdio, installed on demand",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install dependencies",
+          "conclusion": "success"
+        },
+        {
+          "name": "Typecheck",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install dependencies",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install dependencies",
+          "conclusion": "success"
+        },
+        {
+          "name": "Typecheck",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test resolve-config",
+          "conclusion": "cancelled"
+        },
+        {
+          "name": "Test the other Node packages",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Save the npm cache",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Set up Node",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Check out",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "cancelled",
+      "id": 119617086847,
+      "name": "check-plugins",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check out",
+          "conclusion": "success"
+        },
+        {
+          "name": "Fetch base",
+          "conclusion": "success"
+        },
+        {
+          "name": "Set up Python",
+          "conclusion": "success"
+        },
+        {
+          "name": "Restore the pip cache",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install the pinned YAML reader",
+          "conclusion": "success"
+        },
+        {
+          "name": "Save the pip cache",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Check plugin hook configs for bare userConfig argv tokens",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check hook declarations for exec-form bare command names",
+          "conclusion": "success"
+        },
+        {
+          "name": "Probe exec-form rows for a real Windows executable",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check every plugin hooks.json carries a top-level description",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check that every summary reader returns the same verdict",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check plugin option docs are in sync with each manifest",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check every catalog entry resolves to a present, name-matching plugin manifest, and no plugin has a top-level bin/",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check every enabledPlugins key names a catalogued plugin",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify every versioned plugin keeps a CHANGELOG.md at or below its manifest version",
+          "conclusion": "success"
+        },
+        {
+          "name": "Resolve the queued pull request",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Verify only the release pull request versions a plugin, monotonically",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify no changed changelog drops a version heading it carried at the fork point",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify every changelog reads newest-first with no duplicate versions",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify every changelog fragment is well formed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify a change to a fragment-mode plugin adds a fragment",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify a release consumes every pending fragment for the plugins it bumps",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify a vendor/ source change bumps the plugin's version",
+          "conclusion": "success"
+        },
+        {
+          "name": "Validate marketplace manifest",
+          "conclusion": "success"
+        },
+        {
+          "name": "Validate plugin manifests",
+          "conclusion": "success"
+        },
+        {
+          "name": "Detect duplicate keys in plugin/marketplace manifests",
+          "conclusion": "success"
+        },
+        {
+          "name": "Set up Node",
+          "conclusion": "success"
+        },
+        {
+          "name": "Restore the npm cache",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install the locked root toolchain",
+          "conclusion": "cancelled"
+        },
+        {
+          "name": "Save the npm cache",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Check rendered-view HTML assets",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Validate plugin and catalog manifests",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Verify generated shared-library copies match their canonical sources",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Check plugin prerequisites are declared",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Verify carrying plugins bumped when a generated copy's canonical changed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Verify contract, changelog, and carrying plugins bumped together",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Check for unregistered or drifted cross-plugin source clusters",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Check performance counter ceilings",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Report not applicable to a docs-only diff",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Aggregate hygiene results",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Set up Node",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Validate plugin manifests",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Validate marketplace manifest",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Set up Python",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Check out",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "success",
+      "id": 119617087207,
+      "name": "select-tests"
+    },
+    {
+      "conclusion": "success",
+      "id": 119617087865,
+      "name": "test-python (0)"
+    },
+    {
+      "conclusion": "success",
+      "id": 119617087953,
+      "name": "check-managed-files"
+    },
+    {
+      "conclusion": "success",
+      "id": 119617088071,
+      "name": "check-skills"
+    },
+    {
+      "conclusion": "success",
+      "id": 119617114810,
+      "name": "mark-lanes"
+    },
+    {
+      "conclusion": "failure",
+      "id": 119619048998,
+      "name": "ci-status",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check the pull-request contract",
+          "conclusion": "success"
+        },
+        {
+          "name": "Require a broker pin PR for a broker-fetched change",
+          "conclusion": "success"
+        },
+        {
+          "name": "Fail a body line that would break the squash signature",
+          "conclusion": "success"
+        },
+        {
+          "name": "Note a draft",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Fail a queued pull request labeled do-not-merge",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Check each skipped lane against scope",
+          "conclusion": "success"
+        },
+        {
+          "name": "Aggregate lane results",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "total_count": 11
+}
