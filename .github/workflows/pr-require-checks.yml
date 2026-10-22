@@ -2706,7 +2706,10 @@ jobs:
   # collects unittest.TestCase suites as well as pytest-style ones, the
   # disk-hygiene module among them. Suites in different directories import
   # same-named helpers (`from conftest import ...`), and a shared process hands
-  # each the first one loaded, hence a process per module. Node and the root
+  # each the first one loaded, hence a process per module. A planning surface
+  # module spreads its tests over pytest-xdist workers, one test class to a
+  # worker (`--dist loadscope`), since a class's tests share ordered state.
+  # Node and the root
   # npm install come too: Python suites run the claude CLI from
   # node_modules/.bin and the inventory's parser packages through node.
   test-python:
@@ -2800,8 +2803,14 @@ jobs:
             echo "::error::the plan gives leg $LEG no suites; a leg exists only to run some."
             exit 1
           fi
-          tr '\n' '\0' <"$RUNNER_TEMP/leg-suites.txt" |
-            xargs -0 -r -t -n1 python -m pytest -q -o tmp_path_retention_policy=none --
+          rc=0
+          while IFS= read -r suite; do
+            workers=()
+            [[ $suite == plugins/planning/surface/* ]] && workers=(-n auto --dist loadscope)
+            echo "python -m pytest -q -o tmp_path_retention_policy=none ${workers[*]} -- $suite" >&2
+            python -m pytest -q -o tmp_path_retention_policy=none "${workers[@]}" -- "$suite" || rc=1
+          done <"$RUNNER_TEMP/leg-suites.txt"
+          exit "$rc"
 
   # THE NODE PACKAGES THE CHANGE REACHES: the five sub-projects with their own
   # install, typecheck, lint and test chains (the miro MCP server, the
