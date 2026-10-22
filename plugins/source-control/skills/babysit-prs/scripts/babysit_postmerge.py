@@ -1465,8 +1465,8 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
             if (
                 run.id not in tally.reruns
                 and run.attempt == 1
-                and ctx.lane_dispatched(run)
                 and ctx.outcome(run, attributable=True)[0] == RERUN
+                and ctx.lane_dispatched(run)
                 and ctx.regressions(SIGNAL_DISPATCH, run, run.created_at)
             ):
                 tally.reruns[run.id] = Rerun(
