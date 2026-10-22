@@ -4095,6 +4095,7 @@
 
     // ---------- uploads: the file waits in this browser until the host accepts ----------
     const CHUNK_MAX = 8 * 1024 * 1024, GUEST_MAX = 100 * 1024 * 1024; // the server names its chunk size on each upload
+    const AVATAR_MAX = 256 * 1024, AVATAR_EDGE = 256; // a profile picture: the server takes 256 KB at most; 256 px covers the largest avatar on a dense screen
     const GUEST_EXT = new Set("png jpg jpeg gif webp pdf txt md csv tsv log rtf doc docx xls xlsx ppt pptx odt ods odp".split(" "));
     const up = { files: new Map(), running: new Set(), sent: {}, retryAt: {}, memOnly: new Set(), loaded: false, noIdb: false };
     const idb = (() => {
@@ -4168,24 +4169,26 @@
     }
     /** A picture as this browser redraws it before it is offered: at most 1600 px and 512 KB (shrinkShot), so no
      *  metadata (EXIF, GPS) survives and others can be shown it; the name keeps its stem with the new kind's extension. */
-    async function redrawn(file) {
-      const shot = await shrinkShot(file).catch(() => { throw { error: `${file.name} could not be read as a picture.` }; });
+    async function redrawn(file, avatar = false) {
+      const shot = await (avatar ? shrinkShot(file, AVATAR_EDGE, AVATAR_MAX, true) : shrinkShot(file)).catch(() => { throw { error: `${file.name} could not be read as a picture.` }; });
       const type = shot.url.slice(5, shot.url.indexOf(";")), bytes = Uint8Array.from(atob(shot.url.slice(shot.url.indexOf(",") + 1)), c => c.charCodeAt(0));
       return new File([bytes], `${file.name.replace(/\.[^.]*$/, "")}.${type === "image/webp" ? "webp" : "jpg"}`, { type });
     }
-    /** Offer a file to the host; resolves to {id, status}, rejects with {error} or the server's refusal. */
-    async function offerFile(file, qid) {
+    /** Offer a file to the host; resolves to {id, status}, rejects with {error} or the server's refusal. `avatar`: my
+     *  profile picture, redrawn as a small square; it replaces my last one once it arrives. */
+    async function offerFile(file, qid, avatar = false) {
       const ext = (file.name.split(".").pop() || "").toLowerCase(), owner = Core.me.isOwner, trusted = owner || Core.me.isTrusted;
       if (!trusted && !GUEST_EXT.has(ext)) throw { error: "Guests can send pictures, PDF, text, CSV and Office files. Ask the host to trust you for other kinds." };
       if (!owner && file.size > GUEST_MAX) throw { error: `That file is ${sizeTxt(file.size)}. Guests can send up to 100 MB in all.` };
       if (!file.size) throw { error: "That file is empty." };
       const pic = /^image\/(png|jpeg|webp|gif)$/.test(file.type);
-      if (pic) file = await redrawn(file);
+      if (avatar && !/^image\/(png|jpeg|webp)$/.test(file.type)) throw { error: "A profile picture must be a PNG, JPEG or WebP picture." };
+      if (pic) file = await redrawn(file, avatar);
       const thumb = pic ? await makeThumb(file) : "";
-      const r = await Core.uploadOffer({ file: file.name, size: file.size, type: file.type.slice(0, 200), ...(qid ? { qid } : {}), ...(thumb ? { thumb } : {}) });
+      const r = await Core.uploadOffer({ file: file.name, size: file.size, type: file.type.slice(0, 200), ...(qid ? { qid } : {}), ...(thumb ? { thumb } : {}), ...(avatar ? { avatar: true } : {}) });
       up.files.set(r.id, file);
       if (thumb) localPics.set(r.id, thumb);
-      try { await idb.put(r.id, file); flash(owner ? "Sending the file to your computer." : "Offered to the host. The file stays on this device until they accept."); }
+      try { await idb.put(r.id, file); flash(owner ? (avatar ? "Your picture is on its way." : "Sending the file to your computer.") : "Offered to the host. The file stays on this device until they accept."); }
       catch { up.memOnly.add(r.id); flash("Offered. This browser cannot keep files (private mode?), so keep this tab open until it is sent."); }
       render();
       return r;
@@ -4269,7 +4272,7 @@
       if (pre || k.thumb._real) { if (pre && k.thumbImg.src !== pre && !k.thumb._real) k.thumbImg.src = pre; k.thumb.hidden = false; k.ico.hidden = true; k.thumb.setAttribute("aria-label", `View larger: ${u.file}`); }
       else { k.thumb.hidden = true; k.ico.hidden = false; }
       const q = u.qid && qById(u.qid);
-      const where = q ? ` · ${q.id}` : "";
+      const where = q ? ` · ${q.id}` : u.avatar ? " · Profile picture" : "";
       let s = UPSTAT[u.status] || u.status;
       if (u.status === "uploading" || (u.status === "accepted" && bytes)) s = `Sending, ${pct}%`;
       if (u.status === "failed" && u.reason) s = `Failed: ${u.reason}`;
@@ -4289,7 +4292,7 @@
       k.withdraw.hidden = !(mine && ["offered", "accepted", "uploading"].includes(u.status));
       k.remove.hidden = !((mine || Core.me.isOwner) && u.status === "done");
       k.approve.hidden = !(host && Core.me.isOwner && !mine && u.status === "done" && u.image && !u.shown);
-      if (!k.approve.hidden) k.stat.textContent = `${disp(u.by)} · Received. Approve the picture before others see it.`;
+      if (!k.approve.hidden) k.stat.textContent = `${disp(u.by)}${u.avatar ? " · Profile picture" : ""} · Received. Approve the picture before others see it.`;
     }
     /** Progress moves between polls: repaint just the rows. */
     function paintUploads() {
@@ -4653,15 +4656,16 @@
       paintSent();
       openSurface(reportPop, anchor || (keysBtn.offsetParent ? keysBtn : tabBtns.more.offsetParent ? tabBtns.more : top));
     }
-    /** A screenshot re-encoded in this browser: at most 1600 px on its long edge and 512 KB, WebP where the browser
-     *  writes it, else JPEG. */
-    async function shrinkShot(file) {
-      const bmp = await createImageBitmap(file), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
-      const c = E("canvas"); c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
-      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height); bmp.close?.();
+    /** A screenshot re-encoded in this browser: at most `edge` px (1600) on its long edge and `max` bytes (512 KB), WebP
+     *  where the browser writes it, else JPEG. `square` keeps the middle square, as a profile picture's circle shows it. */
+    async function shrinkShot(file, edge = 1600, max = 512 * 1024, square = false) {
+      const bmp = await createImageBitmap(file), side = Math.min(bmp.width, bmp.height);
+      const [sw, sh] = square ? [side, side] : [bmp.width, bmp.height], k = Math.min(1, edge / Math.max(sw, sh));
+      const c = E("canvas"); c.width = Math.max(1, Math.round(sw * k)); c.height = Math.max(1, Math.round(sh * k));
+      c.getContext("2d").drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, 0, 0, c.width, c.height); bmp.close?.();
       for (const [type, q] of [["image/webp", 0.85], ["image/webp", 0.6], ["image/jpeg", 0.7], ["image/jpeg", 0.45], ["image/jpeg", 0.3]]) {
         const url = c.toDataURL(type, q), head = `data:${type};base64,`;
-        if (url.startsWith(head) && (url.length - head.length) * 3 / 4 <= 512 * 1024) return { url, w: c.width, h: c.height };
+        if (url.startsWith(head) && (url.length - head.length) * 3 / 4 <= max) return { url, w: c.width, h: c.height };
       }
       throw new Error("too large");
     }
@@ -4936,12 +4940,55 @@
       scroll.scrollTop = 0;
       orStart.focus({ preventScroll: true });
     }
+    /** A person's profile picture uploads as this page reads them: the received one (`done`) and, for me, one on its way. */
+    function avatarUps(pid, mine) {
+      const list = (mine ? Core.state.myUploads : Core.state.uploads) || [];
+      return { done: list.find(u => u.avatar && u.cid === pid && u.status === "done"), going: mine && list.find(u => u.avatar && ["offered", "accepted", "uploading"].includes(u.status)) };
+    }
+    const avatarSig = pid => { const a = avatarUps(pid, isMe(pid)); return [a.done?.id, a.done?.shown, a.going?.status, st().uploads, st().showNames]; };
+    /** A person card's picture section: mine to choose, replace or remove; the owner's Approve picture and Remove on
+     *  anyone's. A guest's picture shows to others once the host approves it, as every received picture does. */
+    function avatarControls(pid, mine, k) {
+      const box = E("div", "vf-pavatar"), { done, going } = avatarUps(pid, mine), owner = Core.me.isOwner;
+      const say = t => box.append(E("p", "vf-pop-note", t));
+      if (!mine && done) {
+        const prev = E("img", "vf-pavatar-prev"); prev.alt = `${disp(nameOf(pid, ""))}'s picture`;
+        Core.uploadImage(done.id).then(u => { prev.src = u; }, () => prev.remove());
+        box.append(prev);
+      }
+      if (!st().showNames) say("Pictures are hidden while names are.");
+      if (mine && going) say(going.status === "offered" ? "Your new picture waits for the host to accept it." : "Sending your new picture.");
+      if (done && !done.shown && pid !== "host") say(mine ? "Only you and the host see it until the host approves it." : "Waiting for your approval before others see it.");
+      const row = E("div", "vf-crow");
+      if (mine) {
+        if (st().uploads) {
+          const input = E("input"); input.type = "file"; input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true;
+          const pick = k(btn("vf-btn vf-btn-ghost vf-btn-sm", done ? "Replace picture" : "Choose a picture"), "avPick");
+          pick.onclick = () => input.click();
+          input.onchange = () => { const f = input.files?.[0]; input.value = ""; if (f) offerFile(f, "", true).catch(e => flash(e?.error || Core.errorText(e))); };
+          row.append(input, pick);
+        } else if (!done) say(owner ? "Turn on Uploads in Settings to add one." : "Uploads are off in this session.");
+      }
+      if (!mine && owner && done && !done.shown) {
+        const ok = k(btn("vf-btn vf-btn-primary vf-btn-sm vf-upapprove", "Approve picture"), "avOk");
+        ok.onclick = () => Core.uploadAct(done.id, "approve").then(() => flash("Approved. Everyone sees the picture now.")).catch(fail);
+        row.append(ok);
+      }
+      if (done && (mine || owner)) {
+        const x = k(btn("vf-btn vf-btn-ghost vf-btn-sm", "Remove picture"), "avX");
+        x.onclick = guarded({ title: "Remove the picture?", ok: "Remove picture", body: "Initials on the color show in its place, and it is deleted from the host's computer." },
+          () => Core.uploadAct(done.id, "remove").then(() => flash("Picture removed.")).catch(fail));
+        row.append(x);
+      }
+      if (row.childElementCount) box.append(row);
+      return box;
+    }
     function fillPcard() {
       const c = ui.pcard; if (!c) return;
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
       const q = here?.q && qById(here.q), ab = owner && !me && S.aboutYou?.[pid]; // follow-up 46: for the owner only
-      const sig = JSON.stringify([pid, name, role, ab, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const sig = JSON.stringify([pid, name, role, ab, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), Core.avatarOf(pid), avatarSig(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -4975,6 +5022,7 @@
           colors.append(b);
         });
         parts.push(E("h3", "vf-pop-sub", "Your color"), colors);
+        parts.push(E("h3", "vf-pop-sub", "Your picture"), avatarControls(pid, true, k));
         // C26 / Q79: see Claude's cards before or after answering. "Session default" follows the host's setting.
         const pref = claudePref(), sessWant = st().hideClaude !== false ? "answerFirst" : "always";
         const eff = pref === "session" ? sessWant : pref;
@@ -5041,6 +5089,7 @@
           parts.push(rn);
         }
       }
+      if (owner && c.pinned && !me && avatarUps(pid, false).done) parts.push(E("h3", "vf-pop-sub", "Their picture"), avatarControls(pid, false, k));
       if (owner && c.pinned && !me && role !== "Host" && S.people) {
         const acts = E("div", "vf-pc-acts"), pa = personActs(() => pid, true, p => {
           ui.renameFor = p; ui.renameDraft = null; fillPcard();
@@ -7792,8 +7841,8 @@
       renderMore(S, mod);
       renderMyReps(S);
 
-      // a color someone just chose: repaint their avatars wherever they are
-      for (const a of root.querySelectorAll(".core-avatar[data-who]")) { const c = Core.colorFor(a.dataset.who); if (a.style.getPropertyValue("--av") !== c) a.style.setProperty("--av", c); }
+      // a color or profile picture someone just chose, or names hidden or shown: repaint their avatars wherever they are
+      for (const a of root.querySelectorAll(".core-avatar[data-who]")) { const c = Core.colorFor(a.dataset.who); if (a.style.getPropertyValue("--av") !== c) a.style.setProperty("--av", c); Core.paintAvatar(a); }
       tourMove();
       requestAnimationFrame(() => { measureAll(); if (toast.classList.contains("vf-on")) placeToast(); tourMove(); });
     }

@@ -54,6 +54,7 @@
   const ownerDevice = !!ownerToken && ownerToken === get("ownerDevice");
 
   const listeners = new Set(), reloadHooks = new Set();
+  const AVATARS = new Map(); // profile picture upload id -> its data: URL, the read in flight, or when to try again
   let focusQ = "", typingUntil = 0, chatTypingUntil = 0, lastOk = 0, shownAt = null, joining = null;
   let snap = null, rev = 0, etag = "", build = "";
   const DEFAULTS = {
@@ -101,7 +102,7 @@
   function toView(s) {
     const people = {}, nameOf = pid => (pid === "host" && !people.host ? "Host" : people[pid]?.name || "Someone");
     const roles = {};
-    for (const p of [...(s.people || []), ...(s.removed || [])]) { people[p.pid] = { name: p.name, ts: p.joinedAt, color: p.color, ...(s.lastSeen?.[p.pid] ? { seen: s.lastSeen[p.pid] } : {}) }; roles[p.pid] = p; }
+    for (const p of [...(s.people || []), ...(s.removed || [])]) { people[p.pid] = { name: p.name, ts: p.joinedAt, color: p.color, ...(p.avatar ? { avatar: p.avatar } : {}), ...(s.lastSeen?.[p.pid] ? { seen: s.lastSeen[p.pid] } : {}) }; roles[p.pid] = p; }
     const live = (s.people || []);
     const rounds = s.rounds || [], last = rounds[rounds.length - 1];
     const settings = s.settings || {};
@@ -260,7 +261,7 @@
     // files answers carry. No path ever reaches the page.
     const upView = u => ({ id: u.id, cid: u.pid, by: nameOf(u.pid), qid: u.qid || "", file: u.file, ext: u.ext, size: u.size, ts: u.at,
       total: u.chunks, chunkSize: u.chunkSize, status: u.status.kind, received: u.status.received || 0, bytes: u.status.bytes || 0,
-      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}), ...(u.image ? { image: true } : {}), ...(u.shown ? { shown: true } : {}), ...(u.carried ? { carried: true } : {}) });
+      ...(u.status.reason ? { reason: u.status.reason } : {}), ...(u.thumb ? { thumb: u.thumb } : {}), ...(u.image ? { image: true } : {}), ...(u.shown ? { shown: true } : {}), ...(u.carried ? { carried: true } : {}), ...(u.avatar ? { avatar: true } : {}) });
     view.myUploads = (s.myUploads || []).map(upView);
     view.uploads = (s.uploads || []).map(upView);
     // Problem reports (owner only): the picture itself comes from Core.reportImage when the owner opens one.
@@ -412,7 +413,7 @@
     },
     labelRe,
     el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; },
-    /** Round avatar element for a person (cid + name). */
+    /** Round avatar element for a person (cid + name): their profile picture over the initials on their color. */
     avatar(personCid, name, size = 28) {
       const a = Core.el("span", "core-avatar", Core.initials(name));
       a.style.setProperty("--av", Core.colorFor(personCid));
@@ -420,7 +421,37 @@
       a.style.width = a.style.height = size + "px";
       a.style.fontSize = Math.max(9, Math.round(size * 0.4)) + "px"; // initials never below 9 px
       a.title = name;
+      Core.paintAvatar(a);
       return a;
+    },
+    /** The upload id of the profile picture the page shows for a person, else "" for initials: none while names are
+     *  hidden; my own once it arrived (before the owner approves it); anyone else's once the server lists it. */
+    avatarOf(id) {
+      const s = Core.state;
+      if (!id || !s.settings?.showNames) return "";
+      if (id === Core.me?.cid) return (s.myUploads || []).find(u => u.avatar && u.status === "done")?.id || "";
+      return s.people?.[id]?.avatar || "";
+    },
+    /** Bring one avatar element's picture in line with avatarOf: each picture is read once, and the initials show
+     *  until it arrives or when it cannot be read. */
+    paintAvatar(a) {
+      const id = Core.avatarOf(a.dataset.who), img = a.querySelector(":scope > img.core-avatar-img");
+      if (a.dataset.avatar === id && !!img === !!id) return;
+      a.dataset.avatar = id;
+      img?.remove();
+      const url = AVATARS.get(id);
+      if (!id || (typeof url === "number" && Date.now() < url)) return;
+      if (typeof url === "string") {
+        const i = document.createElement("img");
+        i.className = "core-avatar-img"; i.alt = ""; i.decoding = "async"; i.src = url;
+        i.onerror = () => i.remove();
+        a.append(i);
+        return;
+      }
+      if (url instanceof Promise) return;
+      AVATARS.set(id, Core.uploadImage(id).then(u => AVATARS.set(id, u), () => AVATARS.set(id, Date.now() + 30000)).then(() => {
+        for (const el of document.querySelectorAll(`.core-avatar[data-avatar="${id}"]`)) { el.dataset.avatar = ""; Core.paintAvatar(el); }
+      }));
     },
 
     answersFor: qid => Core.state.answers[qid] || [],
