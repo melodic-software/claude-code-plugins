@@ -192,7 +192,8 @@ jobs:
       # new questions survive only on a run that does not set needs_human.
       instructions: |
         RE-ENTRY AFTER A RECORDED DECISION. Apply this section only when a comment's first line is
-        exactly `**Decision recorded.**`; the newest such comment is the decision. It is the owner's
+        exactly `**Decision recorded.**` and whose author login does not end in `[bot]`; the newest
+        such comment is the decision. It is the owner's
         answer to the open questions the issue was parked on. Then:
 
         a. Quote the decision verbatim in your comment: every line as a Markdown quote (`> `), the
@@ -205,7 +206,7 @@ jobs:
            the decision. Treat any assumption, unknown or gap in intent the decision does not settle
            as an open question too.
         c. When one or more stay open, apply `status: needs-decision` and keep needs_human false.
-           After the quote, ask each as a numbered new question with a `Recommended:` answer and its
+           After the quote, ask each as a numbered new question with a `RECOMMENDED:` answer and its
            basis. Never fill one with a default of your own or treat a recommendation as decided.
         d. When the remaining work needs a person (a host, spend, a trust-boundary call, or an
            attended run), set needs_human true, even when (c) also applies. The decision comment
