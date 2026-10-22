@@ -832,14 +832,22 @@ warns of a [classifier gap](README.md#classifier-gaps).
    `verdict` (`merge`, `fix`, `close`, `escalate`), 1-10 `reasons` of at most 500 characters and
    at most 20 `evidence` entries of at most 300. The activity's `web-access` names the release-note
    hosts. The skill runs no head code; `ci-status` runs the tests on the pushed head.
-3. The promote step moves the PR branch only when the skill's structured verdict is `fix`, the
-   lane branch changes nothing under `.github/` in fewer than 300 files, and every commit's
-   message carries `[dependabot skip]`, so Dependabot may still rebase over the fix. Commits made
+3. The promote step moves the PR branch only when the skill's structured verdict is `fix`, every
+   path the lane branch changes, either side of a rename, in fewer than 300 files, is an npm
+   (`package.json`, `package-lock.json`, `npm-shrinkwrap.json`) or pip (`requirements*.txt` or
+   `.in`) manifest or lock file outside `.github/`, in a directory the base
+   `.github/dependabot.yml` lists for that ecosystem (`inFixScope` in the base's
+   `dependency-classify.mjs`, copied out with its SHA-256 by the select step before any model
+   turn and imported from the checked bytes; the select step also hands on the config's
+   `[ecosystem, directory]` pairs, and an unreadable config admits no path), and every commit's message carries
+   `[dependabot skip]`, so Dependabot may still rebase over the fix. A fix that changes any other
+   path does not land, and the verdict job escalates `dependency-fix-not-landed`. Commits made
    beside any other verdict are discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
    step's `security`, `config_unreadable` and `files_truncated` flags, its `started-at` as
-   `started_at`, its `controls` (the matched review-only entries' `control` strings), and the
+   `started_at`, its `controls` (the matched review-only entries' `control` strings), its
+   `config` (those `[ecosystem, directory]` pairs), and the
    skill's structured output as `output`, `null` when absent or
    unparsable) and the job uploads it as `dependency-verdict-<run attempt>`. Its
    `dependency-round` output is then `true`, with `dependency-run-sha256` and
@@ -861,14 +869,19 @@ warns of a [classifier gap](README.md#classifier-gaps).
      the App's, committer `web-flow`, `verification.verified` `true` with reason `valid`, and a
      committer date no earlier than `run.json`'s `started_at` (taken before any model turn, so
      the verdict job reads no Actions API and needs no `actions` permission), else
-     `superseded-sha`. Those commits may change
-     nothing under `.github/`, either side of a rename, else `dependency-invalid`;
+     `superseded-sha`. Those commits may change only
+     the manifest and lock files the promote step admits, by `run.json`'s `config`, either side
+     of a rename, else `dependency-invalid`;
    - `merge`: posts the round marker, whose first line
      `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`
      from the lanes App is the record the pr-merge lane merges a review-tier pull request on,
      at the current head and through its own gate. With `config_unreadable` it posts no merge
      marker and escalates `dependency-config-unreadable`; with `files_truncated` it posts no
-     merge marker and escalates `dependency-files-truncated`; without each of `controls` quoted
+     merge marker and escalates `dependency-files-truncated`; when the pull request's files
+     (re-read here) change a workflow or action file (`.github/workflows/**` or an
+     `action.yml`), either side of a rename, it posts no merge marker and escalates
+     `dependency-workflow-held`, so a person merges it; a listing at its 3,000-file limit
+     escalates `dependency-files-truncated`; without each of `controls` quoted
      in `evidence` it escalates `dependency-control-uncited`
      ([README, "Review-only dependencies"](README.md#review-only-dependencies)). This job never
      merges or enqueues;

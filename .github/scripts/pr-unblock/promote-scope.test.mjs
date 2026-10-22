@@ -154,6 +154,103 @@ test("a thread file edited after its hash, or no recorded hash, stops the move",
   }
 });
 
+const CLASSIFY = new URL("./dependency-classify.mjs", import.meta.url);
+
+// The base dependabot.yml's [ecosystem, directory] pairs, as the select step
+// hands them on: a fixture, not this repository's config.
+const PAIRS = [["github-actions", "/"], ["npm", "/"], ["npm", "/plugins/miro/server"], ["npm", "/.github/actions/resolve-config"], ["pip", "/plugins/animation"], ["pip", "/.github"]];
+
+// The dependency-review path of the same step, on a `fix` verdict whose
+// commits all carry [dependabot skip].
+async function promoteFix(files, { classify = readFileSync(CLASSIFY), sha256, pairs = JSON.stringify(PAIRS) } = {}) {
+  const classifyScript = join(dir, "dependency-classify.mjs");
+  writeFileSync(classifyScript, classify);
+  const saved = { ...process.env };
+  Object.assign(process.env, {
+    HEAD_SHA: HEAD,
+    HEAD_REF: "dependabot/npm_and_yarn/x",
+    LANE_BRANCH: "lane-commits/x",
+    MERGE_BASE: "false",
+    THREAD_FILE: "",
+    DEPENDENCY_REVIEW: "true",
+    DEPENDENCY_OUTPUT: JSON.stringify({ verdict: "fix" }),
+    CLASSIFY_SCRIPT: classifyScript,
+    CLASSIFY_SHA256: sha256 ?? createHash("sha256").update(readFileSync(CLASSIFY)).digest("hex"),
+    CONFIG_PAIRS: pairs,
+    HOLD_LABELS: "",
+  });
+  const failed = [];
+  const core = { setOutput() {}, info() {}, warning() {}, setFailed: (message) => failed.push(message) };
+  const commits = [{ commit: { message: "Fix the dependency update on x [dependabot skip]" } }];
+  const github = {
+    request: async () => ({ data: { object: { sha: LANE } } }),
+    rest: {
+      repos: { compareCommitsWithBasehead: async () => ({ data: { files, commits } }) },
+      git: { deleteRef: async () => {} },
+    },
+  };
+  try {
+    const AsyncFunction = (async () => {}).constructor;
+    await new AsyncFunction("github", "context", "core", "require", stepScript())(
+      github,
+      { repo: { owner: "o", repo: "r" } },
+      core,
+      createRequire(import.meta.url),
+    );
+  } finally {
+    process.env = saved;
+  }
+  return failed;
+}
+
+const OUT_OF_FIX_SCOPE = /^The lane branch changes a path that is not an npm or pip manifest or lock file outside \.github\//;
+
+test("a dependency fix touching only manifests and lock files reaches the move", async () => {
+  for (const files of [
+    [{ filename: "package.json" }, { filename: "package-lock.json" }],
+    [{ filename: "plugins/miro/server/package.json" }, { filename: "plugins/miro/server/package-lock.json" }],
+    [{ filename: "plugins/animation/requirements.in" }, { filename: "plugins/animation/requirements.txt" }],
+  ]) {
+    const failed = await promoteFix(files);
+    assert.equal(failed.length, 1, JSON.stringify(files));
+    assert.match(failed[0], HOLD, JSON.stringify(files));
+  }
+});
+
+for (const file of [
+  { filename: "plugins/miro/server/src/index.js" },
+  { filename: "package.json", previous_filename: "scripts/build.js" },
+  { filename: ".github/workflows/x.yml" },
+  { filename: ".github/actions/resolve-config/package.json" },
+  { filename: ".github/requirements-ci.txt" },
+  { filename: "plugins/animation/setup.py" },
+  { filename: "plugins/animation/pyproject.toml" },
+  { filename: "plugins/unlisted/package.json" },
+  { filename: "plugins/miro/server/sub/package.json" },
+]) {
+  test(`a dependency fix touching ${file.previous_filename ?? file.filename} does not move the PR branch`, async () => {
+    const failed = await promoteFix([{ filename: "package-lock.json" }, file]);
+    assert.equal(failed.length, 1);
+    assert.match(failed[0], OUT_OF_FIX_SCOPE);
+  });
+}
+
+test("an unreadable or empty Dependabot config admits no dependency fix", async () => {
+  for (const pairs of ["", "null", "[]", "not json"]) {
+    const failed = await promoteFix([{ filename: "package.json" }], { pairs });
+    assert.equal(failed.length, 1, pairs);
+    assert.match(failed[0], OUT_OF_FIX_SCOPE, pairs);
+  }
+});
+
+test("a rewritten classifier copy, or no recorded hash, stops a dependency fix", async () => {
+  const permissive = "export const inFixScope = () => true;\n";
+  for (const options of [{ classify: permissive }, { sha256: "" }]) {
+    const failed = await promoteFix([{ filename: "src/x.js" }], options);
+    assert.deepEqual(failed, ["dependency-classify.mjs does not match the base's copy; the PR branch is not moved"]);
+  }
+});
+
 async function collect({ edit, threadsSha256 } = {}) {
   const threadFile = join(dir, "collect-threads.json");
   writeFileSync(threadFile, JSON.stringify({ threads: [{ id: "T1", path: "src/round.py", comments: [{ id: 1 }] }] }));

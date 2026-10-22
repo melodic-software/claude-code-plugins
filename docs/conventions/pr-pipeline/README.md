@@ -813,7 +813,13 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   pip update whose [registry provenance](#registry-provenance) changed. The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
   when the newest round marker the lanes App posted on it
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
-  names the current head with `verdict=merge`. A marker from any other author is ignored.
+  names the current head with `verdict=merge`. A marker from any other author is ignored. The
+  review's verdict job posts no merge marker on a pull request that changes a workflow or action
+  file (`dependency-workflow-held`), so a person merges those. A `fix` verdict lands only when
+  its commits change nothing but npm or pip manifest and lock files outside `.github/`, in a
+  directory `.github/dependabot.yml` lists for that ecosystem; any other
+  path keeps the fix off the branch and hands the pull request to a person
+  ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
 - **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
   `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
   only a plugin's `plugin.json` or `CHANGELOG.md`). On a reviewed pull request the lanes App's
@@ -833,7 +839,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     A directory holding `*` or `?` is a glob, read the same way in both lanes: `*` and `?` stay
     inside one path segment, `**/` is zero or more whole segments (so `**/*` covers the root and
     every layer below), any other `**` crosses segments, and everything else is literal. A path the version-bump or lanes App fix
-    commit touched counts as checked; a fix commit may not touch `.github/`, and one whose file
+    commit touched counts as checked; a fix commit may touch only npm or pip manifest and lock files
+    outside `.github/` in a listed directory (the pr-unblock lane enforces this before the fix
+    lands), and one whose file
     list cannot be read whole refuses. Anything else (a rebuilt bundle, a manifest outside a listed
     directory) makes the pull request tier `review` with the reason `dependabot-content:<path>`,
     so the AI review judges it; it is never left for a person. A failed push check, by contrast,

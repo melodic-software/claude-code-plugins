@@ -43,8 +43,8 @@
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "enum": ["any", "kept-threads", "merge-result"] },
-          "description": "What a path the refusals pass must also meet. any: nothing more; kept-threads: the path of a thread the run kept; merge-result: the blob the base merge leaves there, or a conflicted path left with no conflict markers."
+          "items": { "enum": ["any", "kept-threads", "dependency-manifests", "merge-result"] },
+          "description": "What a path the refusals pass must also meet. any: nothing more; kept-threads: the path of a thread the run kept; dependency-manifests: an npm or pip manifest or lock file outside .github/; merge-result: the blob the base merge leaves there, or a conflicted path left with no conflict markers."
         },
         "max-files": {
           "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }],

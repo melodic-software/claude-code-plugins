@@ -82,3 +82,24 @@ and `pr-unblock` never merges
   then reviews the new head, and the round cap bounds the loop.
 - A fix commit on a pull request that changes a plugin may need a changelog fragment that a
   Dependabot-only pull request is exempt from; `ci-status` reports it and the next round sees it.
+
+## Addendum (2026-10-22): a fix changes only manifests, and a workflow change waits for a person
+
+The owner decided on 2026-10-22 that review-tier non-major Dependabot pull requests keep merging
+unattended on the review's verdict, with two limits the runner enforces, not the prompt:
+
+- **A fix changes only manifests and lock files.** Decision 2 narrows: the promote step moves the
+  PR branch only when every path the lane's commits change, either side of a rename, is an npm
+  (`package.json`, `package-lock.json`, `npm-shrinkwrap.json`) or pip (`requirements*.txt` or
+  `.in`) manifest or lock file outside `.github/`, in a directory `.github/dependabot.yml` lists
+  at the base for that ecosystem (`inFixScope` in the base's `dependency-classify.mjs`; the two
+  ecosystems the config lists that have manifests, and no file a build runs, such as `setup.py`).
+  Any other path leaves the fix off the branch, and the
+  verdict job escalates `dependency-fix-not-landed`. The verdict job checks the same rule on what
+  landed (`dependency-invalid`), and `patch-rules.json`'s `dependency-review` row allows only
+  `dependency-manifests`, which refuses until a runner hands it the config's pairs. Basis:
+  [`pr-run-activity-write.yml`](../../.github/workflows/pr-run-activity-write.yml), promote step.
+- **A workflow or action file change is an owner merge.** A `merge` verdict on a pull request
+  whose files change a workflow or action file (a `github-actions` bump outside the allowlisted
+  publishers, say) posts no merge marker and escalates `dependency-workflow-held`. Basis:
+  [`apply-dependency-verdict.mjs`](../../.github/scripts/pr-unblock/apply-dependency-verdict.mjs).

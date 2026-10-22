@@ -14,13 +14,16 @@
 //      close and escalate need the head the model reviewed; a moved head is
 //      superseded and the next dispatcher run reviews the new one. fix needs
 //      only commits GitHub signed for the lanes App during this workflow run
-//      on top of that head, listed whole and touching nothing under .github/
-//      (else dependency-invalid), else dependency-fix-not-landed (no commit)
-//      or superseded (Dependabot rebased, or another commit).
+//      on top of that head, listed whole and touching only npm or pip
+//      manifest and lock files outside .github/ (else dependency-invalid),
+//      else dependency-fix-not-landed (no commit) or superseded (Dependabot
+//      rebased, or another commit).
 //   3. merge: the round marker it posts, naming the reviewed head, is the
 //      record the pr-merge lane merges on; this job never merges or enqueues.
 //      A model that saw a truncated files listing escalates
-//      dependency-files-truncated instead.
+//      dependency-files-truncated instead, and a pull request that changes a
+//      workflow or action file escalates dependency-workflow-held: a person
+//      merges those.
 //      A merge on a review-only dependency whose evidence does not quote each
 //      matched entry's control (run.json `controls`) escalates
 //      dependency-control-uncited instead.
@@ -50,10 +53,10 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
-import { isSecurityUpdate } from "./dependency-classify.mjs";
-import { roundLine, rounds, VERDICTS } from "./review-dependency.mjs";
+import { inFixScope, isSecurityUpdate, isWorkflowFile } from "./dependency-classify.mjs";
+import { FILES_CAP, roundLine, rounds, VERDICTS } from "./review-dependency.mjs";
 
-export const LIMITS = { bytes: 65536, reasons: 10, reason: 500, evidence: 20, evidenceItem: 300 };
+export const LIMITS = { bytes: 65536, reasons: 10, reason: 500, evidence: 20, evidenceItem: 300, config: 200 };
 // The compare listing stops at 250 commits and 300 files
 // (docs.github.com/en/rest/commits/commits#compare-two-commits, as of
 // 2026-10-17; recheck when that section changes its limits).
@@ -99,7 +102,7 @@ export function validateRun(run, pr) {
   const fail = (why) => {
     throw new Invalid(`run.json is invalid: ${why}`);
   };
-  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "controls", "output"])) fail("its fields are not the runner's");
+  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "controls", "config", "output"])) fail("its fields are not the runner's");
   if (run.version !== 1) fail("version is not 1");
   if (run.pr !== pr) fail("it names another pull request");
   if (!SHA.test(String(run.head_sha))) fail("head_sha is not a commit id");
@@ -109,6 +112,9 @@ export function validateRun(run, pr) {
   if (!STARTED_AT.test(String(run.started_at)) || Number.isNaN(Date.parse(run.started_at))) fail("started_at is not a UTC time");
   if (!Array.isArray(run.controls) || run.controls.length > LIMITS.evidence || !run.controls.every((c) => typeof c === "string" && c.length >= 1)) {
     fail("controls is not a list of review-only controls");
+  }
+  if (!Array.isArray(run.config) || run.config.length > LIMITS.config || !run.config.every((pair) => Array.isArray(pair) && pair.length === 2 && pair.every((part) => typeof part === "string" && part.length >= 1))) {
+    fail("config is not a list of [ecosystem, directory] pairs");
   }
   const out = run.output;
   if (!exactKeys(out, ["verdict", "reasons", "evidence"])) fail("the verdict's fields are not the template's");
@@ -225,9 +231,10 @@ export async function apply({ api, pr, appId, modelRun, run, log }) {
       log(`#${pr}: the head moved from ${run.head_sha} to ${head} by more than the lane's fix; the next run reviews it`);
       return { escalationReason: "", skipReason: "superseded-sha" };
     }
-    // The promote step already refuses this; checked again on what landed.
-    if (files.some((file) => [file.filename, file.previous_filename].some((path) => /^\.github(\/|$)/i.test(path ?? "")))) {
-      log(`#${pr}: the lane's fix changes a path under .github/, which it may not push`);
+    // The promote step already refuses this; checked again on what landed,
+    // since the model job's token could write the branch itself.
+    if (files.some((file) => [file.filename, file.previous_filename].filter(Boolean).some((path) => !inFixScope(path, run.config)))) {
+      log(`#${pr}: the lane's fix changes a path that is not an npm or pip manifest or lock file outside .github/`);
       await record("invalid", { reasons, evidence });
       return { escalationReason: "dependency-invalid", skipReason: "" };
     }
@@ -248,6 +255,17 @@ export async function apply({ api, pr, appId, modelRun, run, log }) {
     if (run.files_truncated) {
       await record("escalate", { reasons, evidence });
       return { escalationReason: "dependency-files-truncated", skipReason: "" };
+    }
+    // A bump that changes a workflow or action file waits for a person.
+    const files = await api.listPullFiles(pr);
+    if (!Array.isArray(files) || files.length >= FILES_CAP) {
+      await record("escalate", { reasons, evidence });
+      return { escalationReason: "dependency-files-truncated", skipReason: "" };
+    }
+    if (files.some((file) => [file.filename, file.previous_filename].filter(Boolean).some(isWorkflowFile))) {
+      log(`#${pr}: the pull request changes a workflow or action file; a person merges it`);
+      await record("escalate", { reasons, evidence });
+      return { escalationReason: "dependency-workflow-held", skipReason: "" };
     }
     // A review-only dependency merges only on a verdict that quotes each
     // matched entry's control verbatim in an evidence entry.

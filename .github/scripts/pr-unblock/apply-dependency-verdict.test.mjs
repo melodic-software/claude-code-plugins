@@ -19,6 +19,8 @@ const output = (overrides = {}) => ({
 });
 // When the model job's select step ran, before any model turn.
 const RUN_STARTED = "2026-10-17T10:00:00Z";
+// The base dependabot.yml's [ecosystem, directory] pairs: a fixture.
+const PAIRS = [["github-actions", "/"], ["npm", "/"], ["npm", "/plugins/miro/server"], ["pip", "/plugins/speech"]];
 const runOf = (overrides = {}) => ({
   version: 1,
   pr: 7,
@@ -28,6 +30,7 @@ const runOf = (overrides = {}) => ({
   files_truncated: false,
   started_at: RUN_STARTED,
   controls: [],
+  config: PAIRS,
   output: output(),
   ...overrides,
 });
@@ -42,7 +45,7 @@ const laneCommit = (overrides = {}) => ({
 });
 const landed = (overrides = {}) => ({ status: "ahead", total_commits: 1, commits: [laneCommit()], files: [{ filename: "package.json" }], ...overrides });
 
-function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare = { status: "ahead", total_commits: 0, commits: [], files: [] }, comments = [], issues = [], failClose = false } = {}) {
+function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare = { status: "ahead", total_commits: 0, commits: [], files: [] }, comments = [], issues = [], failClose = false, files = [{ filename: "package.json" }, { filename: "package-lock.json" }] } = {}) {
   // State persists across calls, so a second apply() is a re-run.
   const calls = { comments: [], closed: [], issues: [] };
   const pull = { number: 7, state, head: { sha: head }, labels: labels.map((name) => ({ name })), body, title: "bump x from 1.0.0 to 2.0.0" };
@@ -53,6 +56,7 @@ function fakeApi({ head = HEAD, state = "open", labels = [], body = "", compare 
     getPull: async () => ({ ...pull }),
     listIssueComments: async () => comments,
     compare: async () => compare,
+    listPullFiles: async () => files,
     // The lane token holds no actions permission.
     getRun: async () => {
       throw new Error("403 Resource not accessible by integration");
@@ -100,6 +104,10 @@ test("validateRun accepts the runner's record and refuses anything off the templ
     runOf({ started_at: "not a date" }),
     runOf({ started_at: "2026-10-17" }),
     runOf({ started_at: "2026-13-45T99:99:99Z" }),
+    runOf({ config: undefined }),
+    runOf({ config: "npm:/" }),
+    runOf({ config: [["npm"]] }),
+    runOf({ config: [["npm", 1]] }),
   ];
   for (const run of bad) {
     assert.throws(() => validateRun(run, 7), /invalid/i, JSON.stringify(run).slice(0, 120));
@@ -170,7 +178,7 @@ test("a fix whose comparison is not listed whole is invalid", async () => {
     assert.equal((await go(api, fix())).escalationReason, "dependency-invalid", why);
     assert.match(api.calls.comments[0], /verdict=invalid/, why);
   }
-  const under = fakeApi({ head: FIX, compare: landed({ files: many(299) }) });
+  const under = fakeApi({ head: FIX, compare: landed({ files: many(299, () => "package.json") }) });
   assert.equal((await go(under, fix())).escalationReason, "", "299 files is a whole listing");
 });
 
@@ -253,11 +261,47 @@ test("a run with no model attempt posts its `none` marker once across re-runs", 
   assert.match(api.calls.comments[0], /run=none -->/);
 });
 
-test("a fix that changed a path under .github/ is invalid", async () => {
-  for (const file of [{ filename: ".github/workflows/x.yml" }, { filename: "x.yml", previous_filename: ".github/x.yml" }]) {
+test("a fix that landed a path other than an npm or pip manifest or lock file outside .github/ is invalid", async () => {
+  for (const file of [
+    { filename: ".github/workflows/x.yml" },
+    { filename: "x.yml", previous_filename: ".github/x.yml" },
+    { filename: "src/index.js" },
+    { filename: "package.json", previous_filename: "src/index.js" },
+    { filename: ".github/actions/resolve-config/package.json" },
+    { filename: "setup.py" },
+    { filename: "plugins/unlisted/package.json" },
+  ]) {
     const api = fakeApi({ head: FIX, compare: landed({ files: [file] }) });
     assert.equal((await go(api, fix())).escalationReason, "dependency-invalid", JSON.stringify(file));
   }
+});
+
+test("a fix that landed only manifests and lock files is recorded", async () => {
+  const files = [{ filename: "plugins/miro/server/package.json" }, { filename: "plugins/miro/server/package-lock.json" }, { filename: "plugins/speech/requirements.txt" }];
+  assert.deepEqual(await go(fakeApi({ head: FIX, compare: landed({ files }) }), fix()), { escalationReason: "", skipReason: "" });
+  const unreadable = fakeApi({ head: FIX, compare: landed({ files }) });
+  assert.equal((await go(unreadable, fix({ config: [] }))).escalationReason, "dependency-invalid", "no config pairs admit no fix");
+});
+
+test("a merge verdict on a pull request that changes a workflow or action file escalates and posts no merge marker", async () => {
+  for (const file of [
+    { filename: ".github/workflows/ci.yml" },
+    { filename: ".github/actions/check-wip-cap/action.yml" },
+    { filename: "x.yml", previous_filename: ".github/workflows/old.yml" },
+  ]) {
+    const api = fakeApi({ files: [{ filename: "package.json" }, file] });
+    const result = await go(api, runOf());
+    assert.equal(result.escalationReason, "dependency-workflow-held", JSON.stringify(file));
+    assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/);
+    assert.match(api.calls.comments[0], /verdict=escalate/);
+  }
+  // A manifest under .github/ is not a workflow file.
+  assert.equal((await go(fakeApi({ files: [{ filename: ".github/actions/resolve-config/package.json" }] }), runOf())).escalationReason, "");
+});
+
+test("a merge verdict whose files listing reads at its limit escalates as truncated", async () => {
+  const files = Array.from({ length: 3000 }, (_, i) => ({ filename: `p${i}/package.json` }));
+  assert.equal((await go(fakeApi({ files }), runOf())).escalationReason, "dependency-files-truncated");
 });
 
 test("a merge verdict on an unreadable Dependabot config escalates and posts no merge marker", async () => {

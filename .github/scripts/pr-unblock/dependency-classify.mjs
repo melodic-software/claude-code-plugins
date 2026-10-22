@@ -174,6 +174,10 @@ export const MANIFESTS = Object.freeze({
 });
 const WORKFLOW = /^\.github\/workflows\/[^/]+\.ya?ml$/;
 const ACTION = /^(.+\/)?action\.ya?ml$/;
+// A workflow or action file. A reviewed Dependabot pull request that changes
+// one waits for a person, whatever the verdict says. pr-unblock only, like
+// inFixScope below.
+export const isWorkflowFile = (path) => /^\.github\/workflows\//i.test(String(path ?? "")) || ACTION.test(String(path ?? ""));
 const USES_LINE = /^[+-]\s*(-\s+)?uses:\s*[^\s#]+(\s+#.*)?\s*$/;
 const CONFIG_ENTRY = /^\s*-\s+package-ecosystem:\s*["']?([A-Za-z0-9_-]+)/;
 const CONFIG_DIR = /^\s+directory:\s*["']?([^"'#\s]+)/;
@@ -243,6 +247,29 @@ export function globRegex(pattern) {
 function inDirectory(path, directory) {
   const want = directory.replace(/^\/+|\/+$/g, "");
   return /[*?]/.test(want) ? globRegex(want).test(dirname(path)) : dirname(path) === want;
+}
+
+// What the lanes App's fix on a reviewed Dependabot pull request may change:
+// npm and pip manifests and lock files only, narrower than MANIFESTS (no
+// setup.py, pyproject.toml or other file a build runs). pr-unblock only; the
+// pr-merge lane has no twin.
+const FIX_MANIFESTS = Object.freeze({
+  npm: /^(package\.json|package-lock\.json|npm-shrinkwrap\.json)$/,
+  pip: /^requirements[^/]*\.(txt|in)$/,
+});
+
+// Whether a fix may change `path`: one of FIX_MANIFESTS in a directory of
+// its ecosystem in `config` (the base dependabot.yml's [ecosystem, directory]
+// pairs), never under .github/. A fix that changes anything else does not
+// land, and the pull request goes to a person. No config admits nothing.
+export function inFixScope(path, config) {
+  const text = String(path ?? "");
+  const name = text.slice(text.lastIndexOf("/") + 1);
+  return (
+    !/^\.github(\/|$)/i.test(text) &&
+    Array.isArray(config) &&
+    config.some((pair) => Array.isArray(pair) && FIX_MANIFESTS[pair[0]]?.test(name) && typeof pair[1] === "string" && inDirectory(text, pair[1]))
+  );
 }
 
 function actionsFile(path, config) {
