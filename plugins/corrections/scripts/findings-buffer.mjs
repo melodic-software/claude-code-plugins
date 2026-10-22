@@ -9,7 +9,7 @@
 // Exit: 0 ok, 1 failure (an unreadable row on dedupe), 2 usage or a line that is not a JSON object.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
+import { accessSync, constants, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve as resolvePath, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,6 +77,11 @@ function checkAdapter(project, token) {
       return { why: `${verb} is missing` };
     }
     if (!real.startsWith(dir + sep) || !statSync(real).isFile()) return { why: `${verb} is not a regular file inside the adapter directory` };
+    try {
+      accessSync(real, constants.X_OK);
+    } catch {
+      return { why: `${verb} is not executable` };
+    }
   }
   let caps;
   try {

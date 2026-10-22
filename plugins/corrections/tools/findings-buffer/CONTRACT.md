@@ -85,7 +85,8 @@ adapter whose MAJOR differs from its own, and tolerates a higher MINOR. A missin
 
 Rows derived from session transcripts never leave the machine. An adapter that stores rows off the
 machine (a hosted sink) must not receive them; only the `local-file` adapter may hold such rows.
-The core enforces this by routing; an off-machine adapter is not handed transcript-derived rows.
+`buffer.sh` does not route rows by origin yet: it hands every row to the bound adapter, so bind
+only an adapter that keeps rows on the machine until routing to a hosted sink exists.
 
 ## Adapters
 
