@@ -367,6 +367,8 @@ class QuickTunnelStarter:
             tunnel.write_live(path, {"id": lid, "port": port, **({"server": srv} if srv else {})})
             rec = tunnel.start_live(path, port, fresh=True)
         except (tunnel.TunnelDown, TimeoutError, OSError) as exc:
+            if srv:
+                detached.stop(srv["pid"], srv["marker"], srv["processStart"])  # the record may not have been written
             self.end(entry, "failed")
             self.app.log.warning("live %s: the tunnel did not start: %s", lid, loggable(str(exc), 300))
             raise DomainError(502, "live-failed", "The live prototype's tunnel did not start; it waits for Approve again.") from None

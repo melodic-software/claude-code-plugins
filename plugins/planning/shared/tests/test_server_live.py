@@ -289,6 +289,18 @@ class TestStart(LiveCase):
         self.assertFalse(tunnel.tunnel_running(rec) or tunnel.server_running(rec))
         self.assertEqual(self.status(lid), {"kind": "pending"})
 
+    def test_a_record_that_cannot_be_written_leaves_no_static_server_running(self):
+        lid = self.add()
+        served = []
+        real = self.starter.serve
+        self.starter.serve = lambda entry, fresh=True: served.append(real(entry, fresh)) or served[-1]
+        with mock.patch.object(tunnel, "write_live", side_effect=OSError("disk full")):
+            code, _, out = self.approve(lid)
+        self.assertEqual((code, out["error"]), (502, "live-failed"), out)
+        _, srv = served[0]
+        self.assertFalse(detached.alive(srv["pid"], srv["marker"], srv["processStart"]))
+        self.assertEqual((self.status(lid), self.runs()), ({"kind": "pending"}, []))
+
     def test_stop_ends_the_tunnel_and_the_static_server(self):
         lid = self.add()
         self.assertEqual(self.approve(lid)[0], 200)

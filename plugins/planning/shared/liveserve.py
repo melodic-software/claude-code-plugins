@@ -36,6 +36,7 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 import detached  # noqa: E402  (beside this file; sys.path is set just above)
+import session_bridge  # noqa: E402
 
 MAX_BYTES = 50 * 1024 * 1024  # judgment: a static build with sample data fits well within this
 MAX_FILES = 2000  # judgment
@@ -239,6 +240,9 @@ class Server(ThreadingHTTPServer):
         self.root = Path(root).resolve(strict=True)
         self.sending = threading.BoundedSemaphore(SENDING)
         super().__init__(("127.0.0.1", port), Handler)
+
+    def server_bind(self):
+        session_bridge.bind_without_lookup(self)  # HTTPServer's own bind looks the host name up, which stalls on macOS
 
 
 def spawn(root, log, env=None):
