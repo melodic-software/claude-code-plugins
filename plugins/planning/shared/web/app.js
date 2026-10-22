@@ -2566,6 +2566,7 @@
     }
     function openLb(kind, qid, i, from, items = null, meta = "") {
       Object.assign(LB, { kind, qid, i: Math.max(0, i), from, vKey: null, cur: ui.cur, items, meta });
+      lbImg._src = null; // each opening starts a GIF still (WCAG 2.2.2); a repaint while open keeps it playing
       lb.hidden = false; lbZoomTo(1); paintLb();
       lbClose.focus({ preventScroll: true });
     }
@@ -3645,8 +3646,10 @@
       for (const id of [...gifStills.keys()]) if (!upPics.has(id)) gifStills.delete(id);
     }
     /** A GIF's blocks, walked by the GIF89a spec: null unless the bytes start as a GIF, else its frame count, whether
-     *  it reached the trailer whole, and its blocks without comments or application blocks other than the loop count,
-     *  either of which can carry any text. */
+     *  it reached the trailer whole, and its blocks with only two extensions kept, each rebuilt to its fixed size: the
+     *  graphic control block and the loop count. Every other extension (comment, plain text, application, unknown)
+     *  can carry any text, so it is dropped. */
+    const LOOP_ID = [..."NETSCAPE2.0"].map(c => c.charCodeAt(0));
     function gifWalk(b) {
       if (!/^GIF8[79]a$/.test(String.fromCharCode(...b.subarray(0, 6)))) return null;
       const table = flags => (flags & 0x80 ? 3 << ((flags & 7) + 1) : 0);
@@ -3659,8 +3662,11 @@
         if (b[i] === 0x2c) { frames++; i = subs(i + 11 + table(b[i + 9])); }
         else if (b[i] === 0x21) {
           i = subs(i + 2);
-          const app = b[at + 1] === 0xff && String.fromCharCode(...b.subarray(at + 3, at + 14));
-          if (b[at + 1] === 0xfe || (app && !/^(NETSCAPE2\.0|ANIMEXTS1\.0)$/.test(app))) continue;
+          const [label, size] = [b[at + 1], b[at + 2]];
+          if (label === 0xf9 && size === 4) parts.push(Uint8Array.of(0x21, 0xf9, 4, ...b.subarray(at + 3, at + 7), 0));
+          else if (label === 0xff && size === 11 && /^(NETSCAPE2\.0|ANIMEXTS1\.0)$/.test(String.fromCharCode(...b.subarray(at + 3, at + 14)))
+            && b[at + 14] === 3 && b[at + 15] === 1) parts.push(Uint8Array.of(0x21, 0xff, 11, ...LOOP_ID, 3, 1, b[at + 16], b[at + 17], 0));
+          continue;
         } else break;
         parts.push(b.subarray(at, Math.min(i, b.length)));
       }
@@ -4264,7 +4270,7 @@
       const type = shot.url.slice(5, shot.url.indexOf(";")), bytes = Uint8Array.from(atob(shot.url.slice(shot.url.indexOf(",") + 1)), c => c.charCodeAt(0));
       return new File([bytes], `${file.name.replace(/\.[^.]*$/, "")}.${type === "image/webp" ? "webp" : "jpg"}`, { type });
     }
-    /** A GIF as offered: whole, without its comment and application text, at most SHOWN_MAX so it shows in place. A
+    /** A GIF as offered: whole, with only its frames, their timing and the loop count, at most SHOWN_MAX so it shows in place. A
      *  redraw would keep only its first frame. */
     async function bareGif(file) {
       const g = gifWalk(new Uint8Array(await file.arrayBuffer()));

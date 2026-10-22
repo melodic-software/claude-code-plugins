@@ -586,8 +586,10 @@ Attach button that offers "Upload a file" and lists the person's files the owner
 picture (PNG, JPEG or WebP), picked or pasted into any of those fields, is redrawn in the browser
 at most 1600 px and 512 KB, so no metadata such as EXIF or GPS leaves the device, then offered as a
 file. A GIF (its first bytes GIF87a or GIF89a, whatever its name or type) is not redrawn, which would
-keep only its first frame: it goes whole without its comment blocks and application blocks other
-than the loop count, and one over 512 KB is refused before it is offered. An animated GIF shows as
+keep only its first frame: it goes whole with only its frames, their graphic control blocks and the
+loop count, each extension rebuilt to its fixed size; every other extension (comment, plain text,
+application, unknown) is dropped, since any can carry text. One over 512 KB is refused before it is
+offered. An animated GIF shows as
 its first frame with a Play GIF button, on its tile and in the viewer, for everyone (WCAG 2.2.2,
 reduced motion). A pasted one shows as a thumbnail chip, never as text in the field; it reads "Waiting for the
 host" until the owner accepts it, and taking it off the form withdraws it (or removes it once

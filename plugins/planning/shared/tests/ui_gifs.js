@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // GIFs in chat and answers, against `share.sh ensure-running` with the fake cloudflared: a pasted animated GIF goes
-// whole, without its comment or application text, and is never redrawn; it shows as a still first frame with Play GIF,
+// whole, with only its frames and loop count, and is never redrawn; it shows as a still first frame with Play GIF,
 // for a guest who asks for reduced motion and for one who does not, on its tile and in the viewer; another guest sees
 // nothing of a guest's GIF before the owner approves it; a one-frame GIF shows as it is, with no Play GIF; a GIF over
 // 512 KB is refused before it is offered.
@@ -21,9 +21,14 @@ const LOOP = Buffer.concat([b(0x21, 0xff, 11), Buffer.from("NETSCAPE2.0"), b(3, 
 const frame = color => Buffer.concat([b(0x21, 0xf9, 4, 4, 50, 0, 0, 0), b(0x2c, 0, 0, 0, 0, 1, 0, 1, 0, 0), b(2, 2, color ? 0x4c : 0x44, 1, 0)]);
 const COMMENT = Buffer.concat([b(0x21, 0xfe, 13), Buffer.from("who-made-this"), b(0)]);
 const XMP = Buffer.concat([b(0x21, 0xff, 11), Buffer.from("XMP DataXMP"), b(9), Buffer.from("gps=51,0;"), b(0)]);
+// A plain-text extension (label 0x01, a 12-byte header, then text), an unknown label, and a loop block with a
+// sub-block of text after its loop count: each can carry text, so only the loop count itself should survive.
+const PLAIN = Buffer.concat([b(0x21, 0x01, 12, 0, 0, 0, 0, 1, 0, 1, 0, 8, 8, 1, 0, 10), Buffer.from("plain-note"), b(0)]);
+const UNKNOWN = Buffer.concat([b(0x21, 0x99, 7), Buffer.from("unknown"), b(0)]);
+const LOOP_TAIL = Buffer.concat([LOOP.subarray(0, -1), b(6), Buffer.from("tailed"), b(0)]);
 const END = b(0x3b);
-const ANIMATED = Buffer.concat([HEAD, LOOP, COMMENT, frame(0), XMP, frame(1), END]);
-const STRIPPED = Buffer.concat([HEAD, LOOP, frame(0), frame(1), END]); // what the host should hold: no comment, no XMP
+const ANIMATED = Buffer.concat([HEAD, LOOP_TAIL, COMMENT, PLAIN, frame(0), XMP, UNKNOWN, frame(1), END]);
+const STRIPPED = Buffer.concat([HEAD, LOOP, frame(0), frame(1), END]); // what the host should hold: frames and the bare loop count
 const STILL = Buffer.concat([HEAD, frame(0), END]);
 // Over 512 KB: one frame whose image data is 2100 sub-blocks of 255 bytes.
 const BIG = Buffer.concat([HEAD, b(0x2c, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2), Buffer.concat(Array.from({ length: 2100 }, () => Buffer.concat([b(255), Buffer.alloc(255)]))), b(0), END]);
@@ -84,6 +89,8 @@ async function main() {
     const held = await readBack(owner, gif);
     ok("the host holds the GIF's own frames and loop, byte for byte, with no comment or XMP block", typeof held === "string" && held.startsWith("data:image/gif;base64,")
       && Buffer.from(held.slice(22), "base64").equals(STRIPPED), String(held).slice(0, 60));
+    ok("  none of the plain-text, unknown-label or loop-tail text reaches the host", typeof held === "string"
+      && !/plain-note|unknown|tailed/.test(Buffer.from(held.slice(22), "base64").toString("latin1")));
     await ann.locator(".vf-composer .vf-sendbtn").click();
     ok("Send saves her answer holding the GIF", await until(ann, id => window.Core.snapshot().cards.Q1?.some(c => (c.attachments || []).includes(id)), gif, 10000));
 
@@ -117,6 +124,13 @@ async function main() {
       JSON.stringify(await lb()));
     await bo.locator(".vf-lb-gif").click();
     ok("  and plays it on Play GIF", JSON.stringify(await lb()) === JSON.stringify({ src: "data:image/gif;", play: "Stop GIF" }), JSON.stringify(await lb()));
+    await owner.evaluate(() => window.Core.chat("Still watching"));
+    await until(bo, () => [...document.querySelectorAll(".vf-msg")].some(m => m.textContent.includes("Still watching")), null, 10000);
+    ok("  a repaint while it is open keeps it playing", JSON.stringify(await lb()) === JSON.stringify({ src: "data:image/gif;", play: "Stop GIF" }), JSON.stringify(await lb()));
+    await bo.keyboard.press("Escape");
+    await bo.locator(".vf-msg", { hasText: "Ta-da" }).locator(".vf-uppic").click();
+    ok("  opened again, it starts still with Play GIF", await until(bo, () => document.querySelector(".vf-lb-img")?.getAttribute("src")?.startsWith("data:image/png") && document.querySelector(".vf-lb-gif:not([hidden])")?.textContent === "Play GIF"),
+      JSON.stringify(await lb()));
     await bo.keyboard.press("Escape");
 
     // ---------- a one-frame GIF shows as it is ----------
