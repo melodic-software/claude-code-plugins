@@ -3268,6 +3268,32 @@ def merged_since_floor(
 # --- Changed files with git modes -------------------------------------------------------------
 
 
+def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
+    """`babysit_risk.RiskInput.pulumi_dirs`: each directory holding a
+    `Pulumi.yaml` at the base ("" for the root); None when the base tree
+    cannot be listed whole."""
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(
+            f"Pulumi projects at the base: {type(exc).__name__}: {exc}", file=sys.stderr
+        )
+        return None
+    if modes is None:
+        return None
+    return tuple(
+        sorted(
+            path.rpartition("/")[0]
+            for path in modes
+            if path.rpartition("/")[2].casefold() == "pulumi.yaml"
+        )
+    )
+
+
 def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
     """Each path's git mode at `sha`, or None when the listing is truncated:
     from a local clone holding `sha` (`_clones_holding`), else the trees API."""

@@ -3121,6 +3121,7 @@ def score_unattended(
         blast_radius=None,
         floor_exempt=own,
         public=True if private is False else None,
+        pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
         **lane_switches,
     )
     risk = babysit_risk.score(risk_input)

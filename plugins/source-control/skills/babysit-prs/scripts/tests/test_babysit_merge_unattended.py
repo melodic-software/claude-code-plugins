@@ -737,6 +737,7 @@ class Unattended(unittest.TestCase):
             ),
             mock.patch.object(policy, "changed_files", return_value=self.files),
             mock.patch.object(policy, "declarations_at", return_value=()),
+            mock.patch.object(policy, "pulumi_dirs_at", return_value=()),
             mock.patch.object(
                 policy,
                 "entry_hold",
@@ -2553,6 +2554,33 @@ class CostHold(Unattended):
                     read, out = self.run_with_decision(None)
                 codes = [r["code"] for r in out["risk"]["reasons"]]
                 self.assertEqual("cost-review-required" in codes, held)
+
+    def test_a_record_without_visibility_reads_as_not_public(self) -> None:
+        # The harness record carries no base.repo.private: a standard runner
+        # charges until the repository is known to be public.
+        workflow = ChangedFile(
+            ".github/workflows/x.yml",
+            None,
+            "modified",
+            1,
+            0,
+            True,
+            "100644",
+            "100644",
+            patch="@@ -1 +1,2 @@\n jobs:\n+    runs-on: ubuntu-24.04",
+        )
+        self.files = ((workflow,), True)
+        policy._TEXT_AT.clear()
+        self.addCleanup(policy._TEXT_AT.clear)
+        head = "jobs:\n  a:\n    runs-on: ubuntu-24.04\n"
+        with mock.patch.object(
+            policy,
+            "_file_at",
+            side_effect=lambda o, n, p, sha: head if sha == HEAD else "jobs:\n",
+        ):
+            read, out = self.run_with_decision(None)
+        codes = [r["code"] for r in out["risk"]["reasons"]]
+        self.assertIn("cost-review-required", codes)
 
     def test_a_non_cost_change_reads_no_decision(self) -> None:
         read, out = self.run_with_decision("unused")

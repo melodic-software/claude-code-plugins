@@ -38,6 +38,7 @@ class CostDecision(unittest.TestCase):
         permission: str = "admin",
         edited: Any = None,
         issue: int | None = 40,
+        node: Any = ...,
     ) -> str | None:
         self.reads: list[str] = []
 
@@ -45,7 +46,8 @@ class CostDecision(unittest.TestCase):
             self.reads.append(endpoint)
             return status, comment if comment is not None else _comment()
 
-        graphql = mock.Mock(return_value={"node": {"lastEditedAt": edited}})
+        answer = {"lastEditedAt": edited} if node is ... else node
+        graphql = mock.Mock(return_value={"node": answer})
         with (
             mock.patch.object(policy, "_get", side_effect=get),
             mock.patch.object(policy, "_graphql", graphql),
@@ -100,6 +102,8 @@ class CostDecision(unittest.TestCase):
                 comment=_comment(user={"login": "agent-lanes", "type": "User"})
             ),
             "no body link": dict(body="Closes #40"),
+            "a null node": dict(node=None),
+            "no lastEditedAt key": dict(node={}),
         }
         for name, change in cases.items():
             with self.subTest(name):
@@ -122,6 +126,24 @@ class CostDecision(unittest.TestCase):
             )
         self.assertIsNone(decision)
         graphql.assert_not_called()
+
+
+class PulumiDirs(unittest.TestCase):
+    PR = {"base": {"sha": "a" * 40}}
+
+    def test_each_directory_holding_a_pulumi_yaml(self) -> None:
+        tree = {
+            "Pulumi.yaml": "100644",
+            "infra/x/pulumi.YAML": "100644",
+            "a.md": "100644",
+        }
+        with mock.patch.object(policy, "_tree_modes", return_value=tree):
+            self.assertEqual(policy.pulumi_dirs_at(REPO, self.PR), ("", "infra/x"))
+
+    def test_an_unlisted_tree_is_unknown(self) -> None:
+        with mock.patch.object(policy, "_tree_modes", return_value=None):
+            self.assertIsNone(policy.pulumi_dirs_at(REPO, self.PR))
+        self.assertIsNone(policy.pulumi_dirs_at(REPO, {"base": {}}))
 
 
 if __name__ == "__main__":

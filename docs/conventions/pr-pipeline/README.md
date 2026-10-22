@@ -713,36 +713,43 @@ and its queued entries leave; two different identities, or an unreadable head co
   `floor-paths` glob and `denied-paths` still hold it.
 - **Cost hold.** A change that could add or raise a charge needs the owner (owner rule,
   2026-10-22). It scores HIGH as `cost-review-required` in both lanes, whatever `high-path-floor`
-  says, and waits for a human like any other HIGH reason. It catches any changed
-  `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam` file; a
-  `.github/workflows/` file whose patch adds a `cron:` line (a schedule can spend model credits)
-  or a larger-runner label (`-<n>-cores`, `-large`, `-xlarge`, `-gpu`), which
-  [GitHub bills even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
-  on a repository that is not public, a workflow patch that adds a `runs-on:` or `macos` line; a
-  workflow patch that gains a `secrets.` reference to a model credential (a name holding `CLAUDE`,
-  `OAUTH_TOKEN` or `_API_KEY`) or a `uses:` of `run-claude-cli` or `claude-code-action` (a new
-  model leg), counted against the lines it removes so a moved line or a repin is not new; a
-  `timeout-minutes` or `leg-timeout-minutes` the patch adds above every one it removes, in a
-  workflow whose head text uses one of those actions (the gate reads it) or could not be read; and
-  a `pr-pipeline.yaml` line added or removed on a spend key: `model`, `effort`, `max-turns`, any
-  `*rounds`, `*restarts*`, `turn-cap*`, `*-per-run` or `*cap` key, `admission-factor`,
-  `admission-min-per-hour`, `pause-from`, `leg-timeout-minutes`, or a `credential*` route. Other
-  `pr-pipeline.yaml` lines do not hold. A workflow or pipeline file with no patch holds. The hold clears only when the pull request body
-  links an owner decision that covers it: a comment on the pull request's closing issue or on the
-  pull request itself, in this repository, whose first line is `**Decision recorded.**`, written
-  by a User with admin permission who is not the agent identity, not posted through an App, and
-  never edited. The gate reads the linked comments only for a pull request the hold catches, and a
-  failed read leaves the hold. A decision clears only this reason: a workflow or
-  `docs/conventions/pr-pipeline.yaml` change still sits on the HIGH path floor here and waits for a
-  person to merge it. Cite the decision before the human-gated label lands; a body edit does not
-  remove that label (only a new head or a person does). Budgets, billing settings and new paid
-  services outside these files are not detected, and neither is a Pulumi program file
-  (`Program.cs`, `index.ts`) whose `Pulumi.yaml` and stack files are unchanged: a repository that
-  holds one lists its program paths in `denied-paths` or `floor-paths` before it turns on
-  unattended merge. azure-iac's Pulumi program is C#, and its deploy gate
+  says and whatever an adopted author's own paths leave off the floor, and waits for a human like
+  any other HIGH reason. It catches:
+  - any changed `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam`
+    file, and any file under a directory that holds a `Pulumi.yaml` at the base;
+  - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside;
+  - a workflow patch that adds a `cron:` key in any YAML or JSON spelling (a schedule can spend
+    model credits), a `--model` or `--max-turns` flag, or a `secrets.` reference to a model
+    credential (a name holding `CLAUDE`, `OAUTH_TOKEN` or `_API_KEY`), or a `uses:` of
+    `run-claude-cli` or `claude-code-action` (a new model leg), the last two counted against the
+    lines it removes so a moved line or a repin is not new;
+  - a `timeout-minutes` or `leg-timeout-minutes` the patch adds above every one it removes, in a
+    workflow whose head text uses one of those actions or could not be read;
+  - a runner value the workflow's head text gains over its base text, or an added inline
+    `runs-on:` value: on a public repository only one that is not a free literal (GitHub's
+    standard `ubuntu-*`, `windows-*` and `macos-*` labels, the self-hosted managed labels, or a
+    list holding `self-hosted`), so an expression, a `group:` and a larger runner hold, since
+    [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
+    on any other repository every one, and any added `windows` or `macos` line;
+  - a `pr-pipeline.yaml` line added or removed on a spend key: `model`, `effort`, `max-turns`,
+    any `*rounds`, `*restarts*`, `turn-cap*`, `*-per-run` or `*cap` key, `admission-factor`,
+    `admission-min-per-hour`, `pause-from`, `leg-timeout-minutes`, or a `credential*` route.
+    Other `pr-pipeline.yaml` lines do not hold;
+  - a workflow or pipeline file with no patch.
+
+  The hold clears only when the pull request body links an owner decision that covers it: a
+  comment on the pull request's closing issue or on the pull request itself, in this repository,
+  whose first line is `**Decision recorded.**`, written by a User with admin permission who is not
+  the agent identity, not posted through an App, and never edited. The gate reads the linked
+  comments only for a pull request the hold catches, and a failed read leaves the hold. A decision
+  clears only this reason: a workflow or `docs/conventions/pr-pipeline.yaml` change still sits on
+  the HIGH path floor here and waits for a person to merge it. Cite the decision before the
+  human-gated label lands; a body edit does not remove that label (only a new head or a person
+  does). Not detected: budgets, billing settings and new paid services outside these files.
+  azure-iac's Pulumi program is C#, and its deploy gate
   ([azure-iac#75](https://github.com/melodic-software/azure-iac/issues/75)) stops any Azure change
-  for the owner at deploy time. The review lanes and the verifier judge the rest. Dependabot pull requests are
-  not scored, so the hold does not apply to them.
+  for the owner at deploy time. The review lanes and the verifier judge the rest. Dependabot pull
+  requests are not scored, so the hold does not apply to them.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.

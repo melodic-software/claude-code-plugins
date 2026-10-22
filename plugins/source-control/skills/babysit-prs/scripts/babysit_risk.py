@@ -72,19 +72,23 @@ differ, and a listed key clears only with the type `_CLEAR_TYPES` names (a
 string otherwise).
 
 A change that could add or raise a charge rates HIGH as `cost-review-required`
-in every lane, floor or not (owner rule, 2026-10-22): any `COST_PATHS` file
-(Pulumi, Terraform, Bicep); a `.github/workflows/` file whose patch adds a
-`cron:` line or a larger-runner label (`-<n>-cores`, `-large`, `-xlarge`,
-`-gpu`), or, unless `RiskInput.public` is True, a `runs-on:` or `macos` line;
-gains a `secrets.` reference to a model credential (a name holding `CLAUDE`,
-`OAUTH_TOKEN` or `_API_KEY`) or a `uses:` of run-claude-cli or
-claude-code-action, counted against the lines it removes so a move or repin
-is not new; or adds a `timeout-minutes` or `leg-timeout-minutes` above every
-one it removes, when its head text (`contents`) uses one of those actions or
-could not be read; and a `pr-pipeline.yaml` whose patch adds or removes a
-line on a spend key (`_COST_PIPELINE_LINE`). A workflow or pipeline file with
-no patch holds. Only `RiskInput.cost_decision`, an owner decision the caller
-verified, clears it.
+in every lane, floor or not and whatever `floor_exempt` says (owner rule,
+2026-10-22): any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file under a
+`RiskInput.pulumi_dirs` directory; a file renamed or copied into a workflow or
+`pr-pipeline.yaml` path from outside one; a `.github/workflows/` file whose
+patch adds a `_COST_WORKFLOW_LINE` (a `cron` key in any spelling, `--model`,
+`--max-turns`), or, unless `RiskInput.public` is True, a `runs-on:`,
+`windows` or `macos` line; that gains a `secrets.` reference to a model
+credential (a name holding `CLAUDE`, `OAUTH_TOKEN` or `_API_KEY`) or a `uses:`
+of run-claude-cli or claude-code-action, counted against the lines it removes
+so a move or repin is not new; that adds a `timeout-minutes` or
+`leg-timeout-minutes` above every one it removes, when its head text
+(`contents`) uses one of those actions or could not be read; or that gains a
+runner value (head text against base text, and added inline `runs-on:`
+lines) that is not `_FREE_RUNNER` on a public repository, or any on another;
+and a `pr-pipeline.yaml` whose patch adds or removes a line on a spend key
+(`_COST_PIPELINE_LINE`). A workflow or pipeline file with no patch holds. Only
+`RiskInput.cost_decision`, an owner decision the caller verified, clears it.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
@@ -211,6 +215,9 @@ class RiskInput:
     # The owner decision the caller verified for a `cost-review-required`
     # change (its comment URL); None keeps the hold.
     cost_decision: str | None = None
+    # Directories holding a Pulumi.yaml at the base ("" for the root): any
+    # change under one is infrastructure as code.
+    pulumi_dirs: tuple[str, ...] | None = ()
     # Paths only a trusted author's own commits touched: the path floor and
     # the manifest review leave them out (owner decision 2026-10-22).
     floor_exempt: frozenset[str] = frozenset()
@@ -1466,15 +1473,91 @@ COST_PATHS: tuple[str, ...] = (
 )
 _WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 _PIPELINE_CONFIG = "**/pr-pipeline.yaml"
-# Added workflow lines that can charge in any repository: a schedule (a
-# scheduled lane spends model credits) and a larger-runner label, which
-# GitHub bills even on public repositories.
+# Added workflow lines that can charge in any repository: a schedule in any
+# YAML or JSON spelling (a scheduled lane spends model credits) and a model or
+# turn flag.
 _COST_WORKFLOW_LINE = re.compile(
-    r"^\s*-?\s*cron\s*:|-(?:\d+-?cores?|x?large|gpu)\b", re.IGNORECASE
+    r"\bcron\s*:|[\"']cron[\"']\s*:|--model\b|--max-turns\b", re.IGNORECASE
 )
 # Standard hosted runners are free only on public repositories, so on any
-# other a runs-on or macOS label charges too.
-_COST_PRIVATE_LINE = re.compile(r"\bruns-on\s*:|\bmacos\b", re.IGNORECASE)
+# other a runs-on line or a Windows or macOS label (a matrix value) charges.
+_COST_PRIVATE_LINE = re.compile(r"\bruns-on\s*:|\bmacos\b|\bwindows\b", re.IGNORECASE)
+# Runner labels free on a public repository: GitHub's standard hosted labels
+# and the self-hosted managed labels (`.github/standards/runner-policy`). A
+# list holding `self-hosted` targets a self-hosted runner, which is free.
+_FREE_RUNNER = re.compile(
+    r"(?:ubuntu|windows|macos)-(?:latest|[0-9]+(?:\.[0-9]+)?)(?:-arm)?|windows-11-arm"
+    r"|(?:melodic|kyle)-(?:[a-z0-9]+-)*ubuntu-24\.04-x64(?:-[a-z0-9-]+)?",
+    re.IGNORECASE,
+)
+_RUNS_ON = re.compile(r"^(\s*)-?\s*runs-on\s*:\s*(.*)$")
+
+
+def _scalar(value: str) -> str:
+    return value.split(" #", 1)[0].strip().strip("'\"")
+
+
+def _labels(value: str) -> list[str]:
+    value = _scalar(value)
+    if value.startswith("[") and value.endswith("]"):
+        return [_scalar(v) for v in value[1:-1].split(",") if v.strip()]
+    return [value] if value else []
+
+
+def _runner_values(text: str) -> list[str]:
+    """Each runs-on value in workflow text: an inline label or list, and a
+    block's list items and `group:`/`labels:` entries (as `group:<name>`)."""
+    values: list[str] = []
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        m = _RUNS_ON.match(line)
+        if not m:
+            continue
+        if _scalar(m[2]):
+            values.append(_scalar(m[2]))
+            continue
+        indent = len(m[1])
+        for inner in lines[i + 1 :]:
+            if inner.strip() and len(inner) - len(inner.lstrip()) <= indent:
+                break
+            item = inner.strip()
+            if item.startswith("- "):
+                values.append(_scalar(item[2:]))
+            elif item.startswith("group:"):
+                values.append("group:" + _scalar(item[6:]))
+            elif item.startswith("labels:"):
+                values.append(_scalar(item[7:]))
+    return values
+
+
+def _free(value: str) -> bool:
+    labels = _labels(value)
+    if "self-hosted" in (label.casefold() for label in labels):
+        return True
+    return bool(labels) and all(_FREE_RUNNER.fullmatch(label) for label in labels)
+
+
+def _new_runners(raw: Any, added: list[str], public: bool) -> list[str]:
+    """Runner values the change adds that are not free: from the head text
+    against the base text when both were read, and from added inline runs-on
+    lines. Unread text and an added block holds."""
+    contents = getattr(raw, "contents", None)
+    pair = contents if isinstance(contents, tuple) and len(contents) == 2 else None
+    base, head = pair if pair else (None, None)
+    gained: Counter[str] = Counter()
+    if isinstance(head, str):
+        gained.update(_runner_values(head))
+        gained.subtract(_runner_values(base if isinstance(base, str) else ""))
+    found = [v for v, n in gained.items() if n > 0]
+    for line in added:
+        m = _RUNS_ON.match(line)
+        if m and _scalar(m[2]):
+            found.append(_scalar(m[2]))
+        elif m and not isinstance(head, str):
+            found.append("runs-on block in unread text")
+    return sorted({v for v in found if not (public and _free(v))})
+
+
 # Pipeline settings that move model spend, on an added or removed line: the
 # model, effort and turn budget, review and fix rounds, restarts, per-run and
 # WIP caps, admission rates, the pause date, leg timeouts and a credential
@@ -1552,9 +1635,22 @@ def _cost_reasons(
         if any(glob_match(g, p) for g in COST_PATHS for p in f.paths):
             hits.append(f"{f.path}: infrastructure as code")
             continue
+        if any(
+            p == d or not d or p.casefold().startswith(d.casefold() + "/")
+            for d in inp.pulumi_dirs or ()
+            for p in f.paths
+        ):
+            hits.append(f"{f.path}: in a Pulumi project")
+            continue
         workflow = any(is_workflow_path(p) for p in f.paths)
         pipeline = any(glob_match(_PIPELINE_CONFIG, p) for p in f.paths)
         if not (workflow or pipeline):
+            continue
+        new, old = f.paths[0], f.paths[-1]
+        if new != old and not (
+            is_workflow_path(old) or glob_match(_PIPELINE_CONFIG, old)
+        ):
+            hits.append(f"{f.path}: renamed or copied from {old}")
             continue
         lines = _patch_lines(getattr(raw, "patch", None))
         if lines is None:
@@ -1574,6 +1670,9 @@ def _cost_reasons(
                 f"new model leg {n}" for n in _net_added(_MODEL_ACTION, added, removed)
             ]
             found += _raised_timeouts(f, raw, added, removed)
+            found += [
+                f"runner {v}" for v in _new_runners(raw, added, inp.public is True)
+            ]
         else:
             found = [
                 s.strip() for s in added + removed if _COST_PIPELINE_LINE.search(s)

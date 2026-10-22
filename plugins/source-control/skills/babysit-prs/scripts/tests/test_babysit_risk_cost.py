@@ -207,5 +207,136 @@ class ModelSpendDetections(unittest.TestCase):
         self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
 
 
+def _runner(value: str, public: bool | None = True) -> list[str]:
+    """Codes for a workflow whose head text gains `runs-on: <value>`."""
+    head = f"jobs:\n  build:\n    runs-on: {value}\n    steps: []\n"
+    wf = _file(WORKFLOW, patch=_patch(f"+    runs-on: {value}"), contents=("", head))
+    return list(_codes(_cost([wf], public=public)))
+
+
+class ReviewFindings(unittest.TestCase):
+    """poteto's review of the first cut: each evasion it found now holds."""
+
+    def test_adoption_does_not_exempt_a_cost_change(self):
+        tf = _file("infra/main.tf")
+        codes = _codes(_cost([tf], floor_exempt=frozenset({"infra/main.tf"})))
+        self.assertIn(COST_CODE, codes)
+
+    def test_a_file_renamed_into_a_workflow_or_pipeline_path_holds(self):
+        for path in (WORKFLOW, "docs/conventions/pr-pipeline.yaml"):
+            with self.subTest(path=path):
+                moved = _file(
+                    path,
+                    status="renamed",
+                    previous_path="docs/draft.yml",
+                    patch=_patch("+  name: x"),
+                )
+                self.assertIn(COST_CODE, _codes(_cost([moved], public=True)))
+        within = _file(
+            WORKFLOW,
+            status="renamed",
+            previous_path=".github/workflows/old.yml",
+            patch=_patch("+  name: x"),
+            contents=("", "jobs: {}\n"),
+        )
+        self.assertNotIn(COST_CODE, _codes(_cost([within], public=True)))
+
+    def test_a_flow_style_schedule_holds(self):
+        for line in (
+            "+  schedule: [{cron: '0 3 * * *'}]",
+            "+on: {schedule: [{cron: '0 3 * * *'}]}",
+            '+  "cron": "0 3 * * *"',
+        ):
+            with self.subTest(line=line):
+                wf = _file(WORKFLOW, patch=_patch(line))
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_non_literal_or_unlisted_runner_holds_on_a_public_repository(self):
+        for value in (
+            "${{ vars.RUNNER }}",
+            "${{ format('{0}-xl', 'ubuntu') }}",
+            "big-runner",
+            "ubuntu-24.04-16-cores",
+            "[gpu-a100]",
+        ):
+            with self.subTest(value=value):
+                self.assertIn(COST_CODE, _runner(value))
+
+    def test_a_runner_group_or_labels_mapping_holds(self):
+        head = (
+            "jobs:\n  build:\n    runs-on:\n      group: larger-runners\n"
+            "      labels: ubuntu-24.04\n    steps: []\n"
+        )
+        patch = _patch(
+            "+    runs-on:",
+            "+      group: larger-runners",
+            "+      labels: ubuntu-24.04",
+        )
+        wf = _file(WORKFLOW, patch=patch, contents=("", head))
+        self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_free_standard_runners_do_not_hold_on_a_public_repository(self):
+        for value in (
+            "ubuntu-24.04",
+            "ubuntu-latest",
+            "ubuntu-24.04-arm",
+            "windows-2025",
+            "macos-26",
+            "melodic-ubuntu-24.04-x64",
+            "[ubuntu-24.04]",
+            "[self-hosted, gpu-a100]",
+        ):
+            with self.subTest(value=value):
+                self.assertNotIn(COST_CODE, _runner(value))
+
+    def test_an_existing_runner_expression_does_not_hold(self):
+        base = "jobs:\n  build:\n    runs-on: ${{ inputs.runner }}\n"
+        wf = _file(
+            WORKFLOW,
+            patch=_patch("+    timeout-minutes: 5"),
+            contents=(base, base + "    timeout-minutes: 5\n"),
+        )
+        self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_the_runner_check_reads_runs_on_values_only(self):
+        wf = _file(
+            WORKFLOW,
+            patch=_patch("+        run: git lfs pull --include=assets-large"),
+            contents=("", "jobs: {}\n"),
+        )
+        self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_concurrency_group_does_not_hold(self):
+        head = "concurrency:\n  group: ${{ github.ref }}\njobs: {}\n"
+        wf = _file(
+            WORKFLOW, patch=_patch("+  group: ${{ github.ref }}"), contents=("", head)
+        )
+        self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_windows_or_macos_in_a_matrix_holds_on_a_private_repository(self):
+        for line in ("+        os: [windows-2025]", "+          - macos-26"):
+            with self.subTest(line=line):
+                wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=False)))
+
+    def test_model_flags_in_a_workflow_hold(self):
+        for line in (
+            "+          claude_args: --model opus",
+            "+          claude_args: --max-turns 200",
+        ):
+            with self.subTest(line=line):
+                wf = _file(WORKFLOW, patch=_patch(line), contents=("", "jobs: {}\n"))
+                self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_file_under_a_pulumi_project_holds(self):
+        program = _file("infra/Program.cs")
+        held = _cost([program], pulumi_dirs=("infra",))
+        self.assertIn(COST_CODE, _codes(held))
+        root = _cost([_file("README.md")], pulumi_dirs=("",))
+        self.assertIn(COST_CODE, _codes(root))
+        elsewhere = _cost([_file("docs/x.md")], pulumi_dirs=("infra",))
+        self.assertNotIn(COST_CODE, _codes(elsewhere))
+
+
 if __name__ == "__main__":
     unittest.main()
