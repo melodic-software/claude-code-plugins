@@ -48,7 +48,7 @@ async page => {
   ok("bare #N and owner/repo#N in a title and in facts render as issue links", ["#123 https://github.com/o/r/issues/123", "x/y#4 https://github.com/x/y/issues/4"].every(r => refs.filter(x => x === r).length === 2) && !refs.some(r => /#9\b/.test(r)), refs.join(" | "));
   const dec = await page.evaluate(() => { const t = [...document.querySelectorAll("#choices .choice .t")].find(e => /request/.test(e.textContent)); return t ? {code: [...t.querySelectorAll("code")].map(c => c.textContent), text: t.textContent, bold: [...t.querySelectorAll("b")].map(b => b.textContent), link: [...t.querySelectorAll("a")].map(a => a.textContent + " " + a.getAttribute("href"))} : null; });
   ok("a Decide row renders backticked code as a code element and shows <b> as text, not markup", !!dec && dec.code.join() === "request" && dec.text.includes("<b>by default</b>") && !dec.bold.includes("by default"), JSON.stringify(dec));
-  ok("a bare issue number in a Decide row renders as an issue link", !!dec && dec.link.join() === "#123 https://github.com/o/r/issues/123", JSON.stringify(dec));
+  ok("a bare issue number in a Decide row renders as an issue link", !!dec && dec.link.join() === "#77 https://github.com/o/r/issues/77", JSON.stringify(dec));
   const n0 = (await events()).length;
   await page.click("#note"); await page.keyboard.type("hello"); await page.keyboard.press("Enter"); await page.keyboard.type("world 1");
   await page.waitForTimeout(300);
