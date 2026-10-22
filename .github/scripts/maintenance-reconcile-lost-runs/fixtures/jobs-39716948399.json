@@ -1,0 +1,98 @@
+{
+  "jobs": [
+    {
+      "conclusion": "failure",
+      "id": 119621223130,
+      "name": "ci-status",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check the pull-request contract",
+          "conclusion": "success"
+        },
+        {
+          "name": "Require a broker pin PR for a broker-fetched change",
+          "conclusion": "success"
+        },
+        {
+          "name": "Fail a body line that would break the squash signature",
+          "conclusion": "success"
+        },
+        {
+          "name": "Note a draft",
+          "conclusion": "success"
+        },
+        {
+          "name": "Fail a queued pull request labeled do-not-merge",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Check each skipped lane against scope",
+          "conclusion": "success"
+        },
+        {
+          "name": "Aggregate lane results",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119621223994,
+      "name": "check-plugins"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119621224204,
+      "name": "check-skills"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119621224280,
+      "name": "check-managed-files"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119621224303,
+      "name": "lint-repo"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119621224366,
+      "name": "test-python"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119621254967,
+      "name": "select-tests"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119621256227,
+      "name": "mark-lanes"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119621258588,
+      "name": "test-bash"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119621264052,
+      "name": "test-node"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119621272151,
+      "name": "lint-shell"
+    }
+  ],
+  "total_count": 11
+}

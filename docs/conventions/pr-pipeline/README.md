@@ -219,7 +219,16 @@ universal set, an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` o
 `.gitmodules`, `CODEOWNERS`), or more than 300 paths
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
-unappliable patch, or a check the model escalated, goes to `report-escalation`. The same
+unappliable patch, or a check the model escalated, goes to `report-escalation`, with one
+exception: a run at `model-rung` 0 that changed nothing and escalated only `unfixed` or
+`not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
+runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
+`fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). `report-escalation`
+hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
+`ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
+workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
+pushes and `ci-status` stays red. `protected-path`, `weaken-required` and `flaky` go to a person
+without a retry. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), with no `do-not-merge`
@@ -558,7 +567,8 @@ missed), `prerequisite-missing` (among others, mergeability still unknown at the
 bounded re-reads), `cost-gated`, `awaiting-human` (among others, a `labels-absent` label is on the
 PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no same-repository PR, or an
 actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
-write lane's mint for a workflow file the PR itself changes), or, for an issue run under
+write lane's mint for a workflow file the PR itself changes), `rung-up` (a fix-ci run's patch is
+held back for one retry one model rung up, [Lanes](#lanes)), or, for an issue run under
 `models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
 account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
 `split`). Issue mode posts no check, so work-resolve-issue.yml reports those four dimension skips
@@ -1406,6 +1416,10 @@ Each profile under `models.profiles` names:
   through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
   definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
+- `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
+  (resolve-config's `model-rung` input) takes it in place of this one; at most one rung, so the
+  target's own `escalate-to` is never followed, and a profile with none refuses `model-rung` 1
+  (`no-rung-up`). Only the selected slot climbs, and only fix-ci's retry passes `model-rung` 1.
 
 A role profile names a multi-agent role in place of `model`, and never both: `role`, `workload`
 and `effort-role`, plus `max-turns`. It has no `model` or `effort` key, so it can name neither
@@ -1450,7 +1464,16 @@ its slot cannot give it more turns than its timeout allows; without `issue-dimen
 timeout is 25 minutes. This repository's budgets are owner-approved starting values, tuned in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.issue-dimensions`) from per-run measures. Large
 is `split`, and Uncertainty Known, Knowable and Unknown map to `run`, `research-first` and
-`probe-first`. No model name is set here.
+`probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
+in place of its route's; the dimensions' turn cap still replaces that profile's `max-turns`. A
+complexity with no entry, or an issue not assessed, keeps the route's profile. The config
+reader rejects a key that is not a complexity and a value that is not a profile.
+
+Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
+triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
+(`code-xhigh`) for a high-Complexity issue and fix-ci's one retry, and Fable above it. The Fable
+rung is off: no profile names `fable` or `best`, so no route, rung or Complexity reaches it; it
+waits on an owner decision and a per-week Fable allowance for the lanes.
 
 ## Funding
 
@@ -1669,7 +1692,13 @@ The job reads the leaf through the base checkout's resolve-config (`redMainFromB
 the resolver refuses fails it. It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`,
 `contents` and `pull-requests` read, `issues: write`), reads REST only, 300 ms apart and within 300
 calls, and stops on any failed read. A range of more than 25 merges pins no culprit. The kill switch stops it, and it skips an event the lanes App
-sent. Owner decision 2026-10-20: `dry-run` stays true for 3 days of reports with no wrong blame
+sent. Reports run one at a time in one repository-wide concurrency group, which keeps one pending
+report and cancels the one before it. The next report names every red full run since the last
+green one that has no report on the log, and its range covers their merges, so a cancelled report
+re-decides there instead of dropping. The log is the oldest `github-actions[bot]` issue (user id
+41898282) carrying the log marker, and only that account's comments on it count toward the cap and
+the dedupe. Any workflow's `GITHUB_TOKEN` posts as that account, so a comment there can still use
+up the cap, which only sends a culprit to a person. Owner decision 2026-10-20: `dry-run` stays true for 3 days of reports with no wrong blame
 before any revert merges.
 
 ## Branch cleanup

@@ -1,5 +1,57 @@
 # Changelog for the PR pipeline convention
 
+## [3.1.1] - 2026-10-22
+
+### Fixed
+
+- The skill-run diagnostics in both run-activity files (`act-turns.json` and the step summary) now fit the 32768-byte carry cap after JSON escaping: each `denied` entry's `tool_name` is cut to 100 characters, the write file keeps at most 4 `local_command_stderr` messages as the read file does, `subtype` and up to 10 model names are cut to 100 characters, and `local_command_stderr_total` counts every stderr message. When the file would still exceed the cap, the oldest stderr messages drop first, then denials from the end, so a PR-mode read run's scan job no longer refuses an oversized file.
+
+- `check-trusted-trigger` stops a pull request whose `base.ref` is not the payload's `repository.default_branch` with the new reason `untrusted-base`, on `pull_request`, `workflow_dispatch` and `workflow_run` alike, as it does a payload without the default branch. Before, a listed author's PR stacked on another branch passed. `report-check-run` maps `untrusted-base` to no skip reason, so the check posts failure, not neutral.
+
+## [3.1.0] - 2026-10-22
+
+### Added
+
+- A skill activity's `permission-mode` (`dontAsk`, the default, or `auto`) sets the read
+  runner's launcher mode, through `resolve-config`'s new `permission-mode` output. A step after
+  each launcher leg fails the run unless the CLI's init message reports that mode. fix-docs sets
+  `auto`
+  ([ADR 0049](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md)).
+
+### Changed
+
+- fix-docs moves into the `pr-unblock` lane, so its check is `pr-unblock / fix-docs`.
+  `pr-unblock-dispatch.yml` dispatches it on each push to main, once per open, ready pull request
+  a person opened that changes a Markdown file, carries no `do-not-merge` or `needs-human` label
+  and never had a fix-docs run, at most `limits.fix-docs-per-run` (default 2) per run
+  ([README, fix-docs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+- fix-docs runs on the read runner with no write token, on ci-workflows' run-claude-cli and the
+  automations role's API key first. pr-unblock.yml calls the read runner twice, each call with one
+  Claude secret: `fix-docs` passes only `AUTOMATIONS_CLAUDE_API_KEY`, and `fix-docs-subscription`
+  passes only `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN` and runs only after a credit stop or with the
+  key empty. Every fix-docs job trusts the default branch tip
+  ([pr-run-activity.md, Two calls on one credential each](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#two-calls-on-one-credential-each)).
+- fix-docs's change leaves as a patch that the `apply-docs-patch` job pushes as one commit, only
+  when a patch was written. A refused patch posts the `pr-unblock / apply-patch` check neutral and
+  labels nothing
+  ([pr-run-activity.md, prepare: apply-patch](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#prepare-apply-patch)).
+- The `default` row of
+  [`patch-rules.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/resolve-config/patch-rules.json)
+  refuses every agent instruction path, caps a patch at 300 files and takes a moved head with
+  `--3way` (`skip-moved-head: false`).
+- The read runner's launcher takes a skill with no prepare mode that hands on a patch: Bash,
+  Edit, Write and Agent as tools, no Bash allow rule, and `Read(./.git/**)` denied. It fails red
+  on `checks`, `self-checks` and `verify-scripts`.
+- fix-docs routes to the new `docs-fix` profile, a mechanical worker from the multi-agent role
+  map, which resolves to sonnet.
+- The launcher accepts `web-access` (`domains: any` only), staging the research skills and their
+  plugins under `.lane/`. fix-docs leaves it off.
+
+### Removed
+
+- The `pr-refine` lane and `pr-refine.yml`, whose `pull_request` trigger ran the read runner's
+  scan job off main, where the `pr-pipeline-scan-carrier` environment refuses it.
+
 ## [3.0.0] - 2026-10-22
 
 ### Added
