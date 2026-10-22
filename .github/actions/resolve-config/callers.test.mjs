@@ -2870,3 +2870,37 @@ test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adja
   if (outputs.dir) rmSync(outputs.dir, { recursive: true, force: true });
 });
 
+
+// work-resolve-issue.yml: report-outcome gets apply-issue-patch's escalation
+// reason, so a refused patch is handed back with its reason; the write
+// runner takes a patch-* reason in issue mode only, so pr-unblock's
+// report-escalation still takes none.
+test("work-resolve-issue.yml: report-outcome passes apply-issue-patch's escalation reason", () => {
+  const job = workflow("work-resolve-issue.yml").jobs["report-outcome"];
+  assert.ok(job.needs.includes("apply-issue-patch"));
+  const context = (reason) => ({ "needs.apply-issue-patch.outputs.escalation-reason": reason });
+  assert.equal(evaluate(job.with["escalation-reason"], context("patch-protected-path")), "patch-protected-path");
+  assert.equal(evaluate(job.with["escalation-reason"], context("")), "");
+});
+
+test("pr-run-activity-write.yml: a patch-* escalation reason passes the input check in issue mode only", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.name?.startsWith("Assert the lanes App sender id"));
+  const status = (reason, issueMode) =>
+    spawnSync("bash", ["-c", step.run], {
+      env: {
+        PATH: process.env.PATH,
+        APP_SENDER_ID: "1",
+        DEFAULT_BRANCH: "main",
+        ESCALATION_REASON: reason,
+        ...(issueMode
+          ? { ISSUE_NUMBER: "7", EVENT_NAME: "issues", EVENT_ISSUE: "7", TRUSTED_BASE: "default-tip" }
+          : { EVENT_NAME: "workflow_dispatch", PR_NUMBER: "42", TRUSTED_BASE: "pr-base" }),
+      },
+    }).status;
+  for (const reason of ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]) {
+    assert.equal(status(reason, true), 0, `${reason} in issue mode`);
+    assert.equal(status(reason, false), 1, `${reason} in PR mode`);
+  }
+  assert.equal(status("", false), 0, "the PR-mode control passes with no reason");
+  assert.equal(status("patch-unknown", true), 1);
+});

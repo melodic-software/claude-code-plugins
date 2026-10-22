@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.92.0] - 2026-10-22
+
+### Changed
+
+- Both interview lanes refuse an alternative that repeats or contains the recommendation (whole words, either way): `round.sh add`, `add-round` and `apply` now refuse what they only warned about, as `reply` and `revise` already did, and the shared session refuses such an alternative in Claude's question input. A `Withheld:` recommendation has nothing to repeat.
+- A file written before this keeps loading: the page server flags each restating alternative and the 1:1 page folds it into Accept, now by the same whole-word rule, so an alternative that contains the recommendation folds too.
+- A shared session state saved before this keeps loading too: an alternative it holds that restates the recommendation shows no card, as the 1:1 page folds it, unless someone voted for, reacted to or locked it; the saved state is unchanged.
+
+### Fixed
+
+- A shared session question whose recommendation is withheld no longer shows a "Claude recommends" card: its alternatives stay as cards and its `Withheld:` text shows as the question's open note.
+
+## [0.91.1] - 2026-10-22
+
+### Fixed
+
+- The 1:1 interview page no longer refuses every write to a session holding a `short` over 80 characters: a stored `short` up to 500, the earlier cap, still loads, and answers and edits to other fields save. Only a write that sets a new or changed `short` is held to the 80-character cap.
+
+- The local server answers its first request on macOS within share.py's start limit: its listeners no longer resolve 127.0.0.1 to a host name (socket.getfqdn) when they bind, a lookup that took about 35 seconds on a macOS runner.
+
 ## [0.91.0] - 2026-10-22
 
 ### Added

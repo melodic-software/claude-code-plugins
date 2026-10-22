@@ -5457,7 +5457,7 @@ class TestPrototypeViews(SessionCase):
             "an html file as a shot": {"shots": [HTML]},
             "a picture as the snapshot": {"snapshot": PNG},
             "an asset never added": {"shots": ["9999999999999999.png"]},
-            "a live link, which this build does not take": {"shots": [PNG], "live": {"id": "L1", "path": "/"}},
+            "a live link to no live prototype": {"shots": [PNG], "live": {"id": "L1", "path": "/"}},
         }
         before = self.disk()
         for why, views in bad.items():
@@ -5502,6 +5502,314 @@ class TestPrototypeViews(SessionCase):
                 doc = self.disk()
                 doc["questions"][0]["format"]["variants"][0][key] = value
                 self.assertIn(f"questions[Q1].format.variants.{key}", session.document_error(doc))
+
+
+class TestLiveEntries(SessionCase):
+    """Live prototypes in the domain: `add-live` records an entry (`L<N>`, pending) for a build folder under staging/ or
+    a local port, only while the live tier is on; the owner's Approve starts it (starting, then running with the https
+    origin the starter returns) and Stop, turning the tier off or ending the session ends it, with no url kept. A
+    variant links an entry with `live: {id, path}`. Only the owner's view of an entry carries its url before it runs, or
+    its target; nobody's carries one once it ended."""
+
+    PORTS = {"guest": 41001, "control": 41002}
+    FOLDER_FILES = ("index.html", "app.js")
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.lee = self.people("Ann", "Lee")
+        self.act("set_role", HOST, {"pid": self.lee, "role": "leader"})
+        (self.tmp / ".shared-ports.json").write_text(json.dumps(self.PORTS) + "\n", encoding="utf-8")
+        self.build = self.tmp / "staging" / "r1" / "live"
+        self.build.mkdir(parents=True)
+        for name in self.FOLDER_FILES:
+            (self.build / name).write_text("x", encoding="utf-8")
+
+    def live_on(self):
+        self.act("update_settings", HOST, {"prototypeTiers": ["screenshot", "snapshot", "live"]})
+
+    def add(self, **target):
+        return self.apply({"op": "add-live", "label": "Checkout app", **(target or {"folder": str(self.build)})})["results"][0]
+
+    def entry(self, lid, pid=HOST):
+        return next((e for e in self.s.snapshot(pid).get("lives", []) if e["id"] == lid), None)
+
+    def stored(self, lid):
+        return next(e for e in self.disk()["lives"] if e["id"] == lid)
+
+    def proto(self, *variants, qid="Q1"):
+        return {**text_q(qid, rec=False), "format": {"kind": "prototype", "lookAt": LOOK, "variants": list(variants)}}
+
+    def approve(self, lid, **body):
+        out = self.act("approve_live", HOST, {"id": lid, **body})
+        return out
+
+    def go_running(self, lid, url="https://quiet-fox.trycloudflare.com", **body):
+        self.approve(lid, **body)
+        self.assertTrue(self.s.live_started(lid, url))
+
+    def test_a_new_session_and_a_state_from_before_lives_hold_no_lives_key(self):
+        self.assertNotIn("lives", self.disk())
+        self.live_on()
+        self.assertNotIn("lives", self.disk())  # only the first add-live writes it
+        self.assertNotIn("lives", self.s.snapshot(HOST))
+
+    def test_add_live_while_the_live_tier_is_off_is_refused_403_live_off(self):
+        before = self.disk()
+        for target in ({"folder": str(self.build)}, {"port": 5173}):
+            with self.subTest(target=target):
+                exc = self.refused_ops("live-off", {"op": "add-live", "label": "App", **target})
+                self.assertEqual(exc.http, 403)
+        self.assertEqual(self.disk(), before)
+
+    def test_add_live_returns_l_n_pending_and_stores_the_target(self):
+        self.live_on()
+        self.assertEqual(self.add(), {"id": "L1", "status": "pending"})
+        self.assertEqual(self.apply({"op": "add-live", "label": "Dev server", "port": 5173, "note": "  Vite on sample data.  "})["results"][0],
+                         {"id": "L2", "status": "pending"})
+        one, two = self.stored("L1"), self.stored("L2")
+        self.assertEqual((one["label"], one["target"], one["status"]), ("Checkout app", {"kind": "folder", "folder": "staging/r1/live"}, {"kind": "pending"}))
+        self.assertEqual((two["target"], two["note"], two["status"]), ({"kind": "port", "port": 5173}, "Vite on sample data.", {"kind": "pending"}))
+        self.assertIsNone(session.document_error(self.disk()))
+        reloaded = session.Session.load(self.path, validate_writes=True)
+        self.assertEqual(reloaded.state["lives"], self.s.state["lives"])
+
+    def test_add_live_refuses_the_sessions_own_ports_and_a_port_out_of_range(self):
+        self.live_on()
+        before = self.disk()
+        for port in self.PORTS.values():
+            with self.subTest(port=port):
+                exc = self.refused_ops("bad-field", {"op": "add-live", "label": "App", "port": port})
+                self.assertEqual((exc.http, exc.details["field"]), (400, "port"))
+        for port in (0, 65536, -1, "5173", True):
+            with self.subTest(port=port):
+                self.assertEqual(self.refused_ops("bad-field", {"op": "add-live", "label": "App", "port": port}).http, 400)
+        self.assertEqual(self.disk(), before)
+
+    def test_add_live_with_no_ports_file_refuses_a_port_target(self):
+        self.live_on()
+        (self.tmp / ".shared-ports.json").unlink()
+        self.assertEqual(self.refused_ops("live-unavailable", {"op": "add-live", "label": "App", "port": 5173}).http, 503)
+
+    def test_add_live_takes_a_folder_only_under_staging_with_no_hidden_part(self):
+        self.live_on()
+        (self.tmp / "staging" / ".hidden").mkdir()
+        (self.tmp / "elsewhere").mkdir()
+        outside = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
+        before = self.disk()
+        for folder in (str(self.tmp / "staging"), str(self.tmp), str(self.tmp / "elsewhere"), str(self.tmp / "staging" / ".hidden"), str(outside),
+                       "staging/r1/live", str(self.build / "index.html"), str(self.tmp / "staging" / "nope"), str(self.build / ".." / ".." / ".." / "assets")):
+            with self.subTest(folder=folder):
+                exc = self.refused_ops("bad-field", {"op": "add-live", "label": "App", "folder": folder})
+                self.assertEqual((exc.http, exc.details["field"]), (400, "folder"))
+        for both in ({"folder": str(self.build), "port": 5173}, {}):
+            with self.subTest(both=both):
+                self.assertEqual(self.refused_ops("bad-field", {"op": "add-live", "label": "App", **both}).http, 400)
+        self.assertEqual(self.disk(), before)
+
+    def test_a_variant_links_a_live_entry_and_is_never_written_as_a_bare_asset(self):
+        self.live_on()
+        self.add()
+        self.open_round(self.proto({"id": "v-1", "label": "Live only", "live": {"id": "L1", "path": "/?variant=A"}},
+                                   {"id": "v-2", "label": "Shot and live", "shots": [PNG], "live": {"id": "L1", "path": "/?variant=B"}},
+                                   {"id": "v-3", "label": "Picture", "shots": [PNG]}))
+        stored = next(q for q in self.disk()["questions"] if q["id"] == "Q1")["format"]["variants"]
+        self.assertEqual(stored, [{"id": "v-1", "label": "Live only", "live": {"id": "L1", "path": "/?variant=A"}},
+                                  {"id": "v-2", "label": "Shot and live", "shots": [PNG], "live": {"id": "L1", "path": "/?variant=B"}},
+                                  {"id": "v-3", "label": "Picture", "asset": PNG}])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_live_link_with_a_fragment_scheme_authority_or_identity_token_is_refused(self):
+        self.live_on()
+        self.add()
+        bad = ["/a#b", "/#me=abc", "/x?y=1#join=k", "/%23owner=abc", "/%23me=x", "//evil.example/", "https://evil.example/", "javascript:alert(1)",
+               "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/a b", "", "relative/path", "/%zz", "/\u00e9",
+               "/.//evil.example", "/..//evil.example", "/a/../..//evil.example", "/%2e%2e//evil.example/", "/%2E//evil.example", "/a//b", "/a/./b",
+               "/?owner=abc", "/x?Me=abc", "/x?a=1&join=k"]
+        before = self.disk()
+        for path in bad:
+            with self.subTest(path=path):
+                exc = self.refused_ops("bad-field", {"op": "open-round", "questions": [self.proto({"id": "v-1", "label": "A", "live": {"id": "L1", "path": path}},
+                                                                                                 {"id": "v-2", "label": "B", "asset": PNG})]})
+                self.assertEqual(exc.http, 400)
+        long = {"op": "open-round", "questions": [self.proto({"id": "v-1", "label": "A", "live": {"id": "L1", "path": "/" + "a" * 600}}, {"id": "v-2", "label": "B", "asset": PNG})]}
+        self.assertEqual(self.refused_ops("too-long", long).http, 400)
+        for missing in ({"id": "L9", "path": "/"}, {"id": "nope", "path": "/"}):
+            with self.subTest(missing=missing):
+                self.refused_ops("bad-field", {"op": "open-round", "questions": [self.proto({"id": "v-1", "label": "A", "live": missing}, {"id": "v-2", "label": "B", "asset": PNG})]})
+        self.assertEqual(self.disk(), before)
+        for ok in ("/", "/?variant=A", "/app/checkout?step=2&x=a%20b", "/a:b@c/~d!$'()*+,;="):
+            with self.subTest(ok=ok):
+                self.assertIsNone(session._live_path_error(ok))
+
+    def test_a_pending_entry_url_and_target_reach_only_the_owner(self):
+        self.live_on()
+        self.apply({"op": "add-live", "label": "Dev server", "port": 5173, "note": "Sample data only."})
+        self.open_round(self.proto({"id": "v-1", "label": "A", "live": {"id": "L1", "path": "/"}}, {"id": "v-2", "label": "B", "asset": PNG}))
+        owner = self.entry("L1")
+        self.assertEqual((owner["url"], owner["target"], owner["note"]), ("http://127.0.0.1:5173", {"kind": "port", "port": 5173}, "Sample data only."))
+        for pid in (self.ann, self.lee):
+            with self.subTest(pid=pid):
+                self.assertEqual(self.entry("L1", pid), {"id": "L1", "label": "Dev server", "status": {"kind": "pending"}})
+                raw = json.dumps(self.s.snapshot(pid))
+                for leak in ("5173", "127.0.0.1", "Sample data only."):
+                    self.assertNotIn(leak, raw)
+
+    def test_guests_see_only_entries_a_question_links(self):
+        self.live_on()
+        self.add()
+        self.add()
+        self.open_round(self.proto({"id": "v-1", "label": "A", "live": {"id": "L2", "path": "/"}}, {"id": "v-2", "label": "B", "asset": PNG}))
+        self.assertEqual([e["id"] for e in self.s.snapshot(self.ann)["lives"]], ["L2"])
+        self.assertEqual([e["id"] for e in self.s.snapshot(HOST)["lives"]], ["L1", "L2"])
+
+    def test_only_the_owner_approves_or_stops(self):
+        self.live_on()
+        self.add()
+        for pid in (self.ann, self.lee):
+            for method in ("approve_live", "stop_live"):
+                with self.subTest(pid=pid, method=method):
+                    self.refused("owner-only", method, pid, {"id": "L1"}, http=403)
+        self.assertEqual(self.stored("L1")["status"], {"kind": "pending"})
+
+    def test_approve_marks_it_starting_then_the_starters_url_makes_it_running_for_everyone(self):
+        self.live_on()
+        self.add()
+        self.open_round(self.proto({"id": "v-1", "label": "A", "live": {"id": "L1", "path": "/"}}, {"id": "v-2", "label": "B", "asset": PNG}))
+        out = self.approve("L1")
+        self.assertEqual((out["live"], out["entry"]["target"]), ("L1", {"kind": "folder", "folder": "staging/r1/live"}))
+        self.assertEqual(self.stored("L1")["status"]["kind"], "starting")
+        self.refused("wrong-status", "approve_live", HOST, {"id": "L1"}, http=409)  # a second Approve while it starts
+        self.assertNotIn("url", self.entry("L1", self.ann))
+        self.assertTrue(self.s.live_started("L1", "https://quiet-fox.trycloudflare.com"))
+        status = self.stored("L1")["status"]
+        self.assertEqual((status["kind"], status["url"]), ("running", "https://quiet-fox.trycloudflare.com"))
+        for pid in (HOST, self.ann, self.lee):
+            self.assertEqual(self.entry("L1", pid)["url"], "https://quiet-fox.trycloudflare.com")
+        self.assertEqual(self.entry("L1", self.ann), {"id": "L1", "label": "Checkout app", "status": {"kind": "running"}, "url": "https://quiet-fox.trycloudflare.com"})
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_starter_url_that_is_not_an_https_origin_is_refused_and_the_entry_waits_again(self):
+        self.live_on()
+        self.add()
+        for url in ("http://quiet-fox.trycloudflare.com", "https://quiet-fox.trycloudflare.com/path", "https://a.example/#me=x", "javascript:alert(1)",
+                    "https://user@quiet-fox.trycloudflare.com", "https://quiet-fox.trycloudflare.com?x=1", "", None):
+            with self.subTest(url=url):
+                self.approve("L1")
+                with self.assertRaises(session.DomainError) as ctx:
+                    self.s.live_started("L1", url)
+                self.assertEqual((ctx.exception.http, ctx.exception.code), (502, "live-failed"))
+                self.s.live_start_failed("L1")
+                self.assertEqual(self.stored("L1")["status"], {"kind": "pending"})
+
+    def test_a_port_target_needs_the_owners_attestation_which_the_entry_keeps(self):
+        self.live_on()
+        self.apply({"op": "add-live", "label": "Dev server", "port": 5173})
+        for body in ({}, {"attest": False}, {"attest": "yes"}):
+            with self.subTest(body=body):
+                exc = self.refused("bad-field", "approve_live", HOST, {"id": "L1", **body}, http=400)
+                self.assertEqual(exc.details["field"], "attest")
+        self.go_running("L1", attest=True)
+        self.assertTrue(self.stored("L1")["status"]["attested"])
+
+    def test_approve_checks_a_port_against_the_sessions_ports_again(self):
+        self.live_on()
+        self.apply({"op": "add-live", "label": "Dev server", "port": 5173})
+        (self.tmp / ".shared-ports.json").write_text(json.dumps({"guest": 5173, "control": 41002}), encoding="utf-8")  # moved on a restart
+        exc = self.refused("bad-field", "approve_live", HOST, {"id": "L1", "attest": True}, http=400)
+        self.assertEqual(exc.details["field"], "port")
+        self.assertEqual(self.stored("L1")["status"], {"kind": "pending"})
+
+    def test_approve_while_the_tier_is_off_or_of_an_unknown_entry_is_refused(self):
+        self.live_on()
+        self.add()
+        self.refused("not-found", "approve_live", HOST, {"id": "L9"}, http=404)
+        self.act("update_settings", HOST, {"prototypeTiers": ["screenshot"]})
+        self.refused("live-off", "approve_live", HOST, {"id": "L1"}, http=403)
+
+    def test_stop_ends_it_with_no_url_anywhere_and_a_second_stop_is_refused(self):
+        self.live_on()
+        self.add()
+        self.open_round(self.proto({"id": "v-1", "label": "A", "live": {"id": "L1", "path": "/"}}, {"id": "v-2", "label": "B", "asset": PNG}))
+        self.go_running("L1")
+        self.act("stop_live", HOST, {"id": "L1"})
+        status = self.stored("L1")["status"]
+        self.assertEqual((status["kind"], status["reason"]), ("ended", "stopped"))
+        self.assertNotIn("trycloudflare", self.path.read_text(encoding="utf-8"))
+        for pid in (HOST, self.ann):
+            self.assertNotIn("url", self.entry("L1", pid))
+            self.assertEqual(self.entry("L1", pid)["status"]["kind"], "ended")
+        self.refused("wrong-status", "stop_live", HOST, {"id": "L1"}, http=409)
+        self.refused("wrong-status", "approve_live", HOST, {"id": "L1"}, http=409)
+        self.assertFalse(self.s.live_started("L1", "https://late.trycloudflare.com"))  # a start that ends after Stop is told so
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_end_session_ends_every_entry_with_no_url_in_any_view_and_a_reopen_restarts_nothing(self):
+        self.live_on()
+        self.add()
+        self.apply({"op": "add-live", "label": "Dev server", "port": 5173})
+        self.add()
+        self.open_round(self.proto({"id": "v-1", "label": "A", "live": {"id": "L1", "path": "/"}}, {"id": "v-2", "label": "B", "live": {"id": "L2", "path": "/"}},
+                                   {"id": "v-3", "label": "C", "live": {"id": "L3", "path": "/"}}))
+        self.go_running("L1")
+        self.approve("L3")  # still starting when the session ends
+        self.act("end_session", HOST, {"on": True})
+        self.assertEqual([(e["status"]["kind"], e["status"]["reason"]) for e in self.disk()["lives"]], [("ended", "session-ended")] * 3)
+        raw = self.path.read_text(encoding="utf-8")
+        self.assertNotIn("trycloudflare", raw)
+        for pid in (HOST, self.ann, self.lee):
+            with self.subTest(pid=pid):
+                for e in self.s.snapshot(pid)["lives"]:
+                    self.assertNotIn("url", e)
+                self.assertNotIn("127.0.0.1", json.dumps(self.s.snapshot(pid)["lives"]))
+        self.assertFalse(self.s.live_started("L3", "https://late.trycloudflare.com"))
+        self.act("end_session", HOST, {"on": False})
+        self.assertEqual({e["status"]["kind"] for e in self.disk()["lives"]}, {"ended"})
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_add_live_or_approve_after_the_session_ended_is_refused(self):
+        self.live_on()
+        self.add()
+        self.act("end_session", HOST, {"on": True})
+        self.assertEqual(self.refused_ops("wrong-status", {"op": "add-live", "label": "App", "folder": str(self.build)}).http, 409)
+        self.refused("wrong-status", "approve_live", HOST, {"id": "L1"}, http=409)
+
+    def test_turning_the_live_tier_off_ends_every_entry_at_once_and_on_again_restarts_none(self):
+        self.live_on()
+        self.add()
+        self.add()
+        self.open_round(self.proto({"id": "v-1", "label": "A", "shots": [PNG], "live": {"id": "L1", "path": "/"}}, {"id": "v-2", "label": "B", "live": {"id": "L2", "path": "/"}}))
+        self.go_running("L1")
+        self.act("update_settings", HOST, {"prototypeTiers": ["screenshot", "snapshot"]})
+        self.assertEqual([(e["status"]["kind"], e["status"]["reason"]) for e in self.disk()["lives"]], [("ended", "tier-off")] * 2)
+        guest = next(q for q in self.s.snapshot(self.ann)["questions"] if q["id"] == "Q1")["format"]["variants"]
+        self.assertEqual(guest, [{"id": "v-1", "label": "A", "shots": [PNG]}, {"id": "v-2", "label": "B"}])  # the live view is off for guests
+        self.assertEqual(self.s.snapshot(self.ann).get("lives", []), [])
+        self.assertIn("live", self.question("Q1")["format"]["variants"][0])  # the record stays whole
+        self.live_on()
+        self.assertEqual({e["status"]["kind"] for e in self.disk()["lives"]}, {"ended"})
+
+    def test_the_document_check_reads_lives_and_live_links(self):
+        self.live_on()
+        self.add()
+        self.open_round(self.proto({"id": "v-1", "label": "A", "live": {"id": "L1", "path": "/"}}, {"id": "v-2", "label": "B", "asset": PNG}))
+        self.go_running("L1")
+        cases = {
+            "a link to no entry": lambda d: d["questions"][0]["format"]["variants"][0]["live"].update(id="L7"),
+            "a fragment in a link": lambda d: d["questions"][0]["format"]["variants"][0]["live"].update(path="/#owner=x"),
+            "two entries with one id": lambda d: d["lives"].append(dict(d["lives"][0])),
+            "an id the server never makes": lambda d: d["lives"][0].update(id="X1"),
+            "a running url that is not an https origin": lambda d: d["lives"][0]["status"].update(url="http://a.example/x"),
+            "a folder outside staging": lambda d: d["lives"][0].update(target={"kind": "folder", "folder": "../secrets"}),
+            "running with the live tier off": lambda d: d["session"]["settings"].update(prototypeTiers=["screenshot"]),
+            "running in an ended session": lambda d: d["session"].update(phase={"kind": "ended", "at": 1.0}),
+            "a port approved without the attestation": lambda d: d["lives"][0].update(target={"kind": "port", "port": 5173}),
+        }
+        for why, change in cases.items():
+            with self.subTest(why):
+                doc = self.disk()
+                change(doc)
+                self.assertIsNotNone(session.document_error(doc))
 
 
 class TestImageReferenceRect(SessionCase):

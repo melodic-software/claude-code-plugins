@@ -82,10 +82,10 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 });
 
 // Runs the listing step's script against a fake `gh` whose `gh pr list`
-// fails its first `failures` calls and whose owner lookup answers `owner`
-// (null fails it), with `.base` pointing at this checkout, or, given
-// `ownerIds`, at a copy whose `adoption.owner-ids` line reads that.
-const runListing = (failures, owner = "owner-login", ownerIds) => {
+// fails its first `failures` calls, with `.base` pointing at this checkout,
+// or, given `edit`, at a copy whose pr-pipeline.yaml is `edit(text)` and whose
+// trusted-actors.json is `actors`, when given, else this checkout's.
+const runListing = (failures, edit, actors) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-listing-"));
   try {
     const bin = join(dir, "bin");
@@ -93,7 +93,6 @@ const runListing = (failures, owner = "owner-login", ownerIds) => {
     writeFileSync(
       join(bin, "gh"),
       `#!/usr/bin/env bash\necho "$*" >>"${dir}/args"\n` +
-        `if [ "$1" = api ]; then ${owner === null ? "exit 1" : `echo ${owner}`}; exit; fi\n` +
         `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/calls"\n` +
         `if [ "$n" -le ${failures} ]; then echo "HTTP 502: Bad Gateway" >&2; exit 1; fi\n` +
         `echo '[{"number":7,"headRefOid":"abc","isDraft":false,"updatedAt":"2026-10-18T00:00:00Z","labels":[],"body":""}]'\n`,
@@ -101,14 +100,17 @@ const runListing = (failures, owner = "owner-login", ownerIds) => {
     writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
     chmodSync(join(bin, "gh"), 0o755);
     chmodSync(join(bin, "sleep"), 0o755);
-    if (ownerIds === undefined) {
+    if (edit === undefined) {
       symlinkSync(root, join(dir, ".base"));
     } else {
       const conventions = join(dir, ".base/docs/conventions");
+      const standards = join(dir, ".base/.github/standards/trusted-actors");
       mkdirSync(conventions, { recursive: true });
+      mkdirSync(standards, { recursive: true });
       const config = readFileSync(join(root, "docs/conventions/pr-pipeline.yaml"), "utf8");
-      assert.match(config, /^ {2}owner-ids: .*$/m);
-      writeFileSync(join(conventions, "pr-pipeline.yaml"), config.replace(/^ {2}owner-ids: .*\n/m, ownerIds));
+      writeFileSync(join(conventions, "pr-pipeline.yaml"), edit(config));
+      const list = join(root, ".github/standards/trusted-actors/trusted-actors.json");
+      writeFileSync(join(standards, "trusted-actors.json"), actors === undefined ? readFileSync(list, "utf8") : JSON.stringify({ version: 1, actors }));
       symlinkSync(join(root, "plugins"), join(dir, ".base/plugins"));
     }
     const output = join(dir, "output");
@@ -138,40 +140,39 @@ const runListing = (failures, owner = "owner-login", ownerIds) => {
   }
 };
 
+const authorsOf = (args) => [...args.matchAll(/^pr list .*--author (\S+) /gm)].map((m) => m[1]);
+
 test("the listing retries a failed gh pr list", () => {
   const run = runListing(2);
   assert.equal(run.status, 0, run.stderr);
-  // Three tries for the lane's list, then one for the owner's.
-  assert.equal(run.calls, 4);
+  // Three tries for the lane's list, then one for each other author's.
+  assert.equal(run.calls, new Set(authorsOf(run.args)).size + 2);
   assert.match(run.output, /^count=1$/m);
 });
 
-test("the listing adds the owner account, looked up by its id", () => {
-  const run = runListing(0);
+// Owner decision 2026-10-22: every trusted actor's PR is a candidate.
+test("the listing adds each trusted actor, a person by login and an App as app/<slug>, once", () => {
+  const actors = [
+    { id: 1, login: "a-person", kind: "human" },
+    { id: 2, login: "some-release[bot]", kind: "bot" },
+    { id: 3, login: "melodic-automation-lanes[bot]", kind: "bot" },
+    { id: 4, login: "dependabot[bot]", kind: "bot" },
+    { id: 5, login: "bad login; rm", kind: "human" },
+  ];
+  const run = runListing(0, (config) => config, actors);
   assert.equal(run.status, 0, run.stderr);
-  assert.match(run.args, /^api user\/153232337 --jq \.login$/m);
-  assert.match(run.args, /^pr list .*--author app\/[a-z0-9-]+ /m);
-  assert.match(run.args, /^pr list .*--author owner-login /m);
+  assert.deepEqual(authorsOf(run.args), ["app/melodic-automation-lanes", "a-person", "app/some-release"]);
+  assert.doesNotMatch(run.args, /^api /m);
 });
 
-test("a failed owner lookup warns and lists the lane's PRs alone", () => {
-  for (const owner of [null, "not a login"]) {
-    const run = runListing(0, owner);
-    assert.equal(run.status, 0, run.stderr);
-    assert.match(run.stdout, /^::warning::the owner account's login is unreadable/m);
-    assert.equal(run.calls, 1, String(owner));
-    assert.match(run.output, /^count=1$/m);
-  }
-});
-
-test("an absent, null or empty adoption.owner-ids lists no owner account", () => {
-  for (const ownerIds of ["", "  owner-ids:\n", "  owner-ids: []\n"]) {
-    const run = runListing(0, "owner-login", ownerIds);
-    assert.equal(run.status, 0, run.stderr);
-    assert.doesNotMatch(run.args, /^api /m, JSON.stringify(ownerIds));
-    assert.doesNotMatch(run.args, /--author owner-login /, JSON.stringify(ownerIds));
-    assert.match(run.output, /^count=1$/m);
-  }
+test("without an adoption section no trusted actor is listed", () => {
+  const run = runListing(0, (config) => config.replace(/^adoption:\n( {2}.*\n)*/m, ""));
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(authorsOf(run.args), ["app/melodic-automation-lanes"]);
+  // Nor with a section that sets no idle-hours, which the gate adopts nothing under.
+  const noIdle = runListing(0, (config) => config.replace(/^ {2}idle-hours: 24\n/m, ""));
+  assert.equal(noIdle.status, 0, noIdle.stderr);
+  assert.deepEqual(authorsOf(noIdle.args), ["app/melodic-automation-lanes"]);
 });
 
 test("the listing fails with one clear error after three failed tries", () => {

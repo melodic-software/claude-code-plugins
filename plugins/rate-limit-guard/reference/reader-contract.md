@@ -296,7 +296,7 @@ versions used, once it is older than 60 seconds.
     the monitors component.
 - **Fixed constants.** The snapshot path and the 95% threshold are contract constants, deliberately not
   configurable: cross-plugin consumers read the documented values, so a per-user override could
-  silently split writer and readers. None of the plugin's 7 `userConfig` options changes either:
+  silently split writer and readers. None of the plugin's 8 `userConfig` options changes either:
   `rate_limit_line_threshold` sets only when Claude gets the threshold line, and
   `rate_limit_guard_enabled` stops this machine's writes, never the path or the threshold readers
   apply.

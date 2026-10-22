@@ -62,7 +62,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "", shareTunnel: "",
-    goal: "", intro: "", repo: "", commit: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], claudeProposals: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
+    goal: "", intro: "", repo: "", commit: "", annotations: [], lives: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], claudeProposals: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true, prototypeTiers: ["screenshot", "snapshot"] },
   };
 
@@ -133,6 +133,8 @@
         ...(last.status.ready ? { ready: { by: nameOf(last.status.ready.by), cid: last.status.ready.by, ts: last.status.ready.at } } : {}) } : { current: 1, status: "open" },
       requestCounts: s.requestCounts || DEFAULTS.requestCounts, behind: s.behind || {}, aboutYou: s.aboutYou || {}, myAbout: s.me?.aboutYou || null,
       shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, shareTunnel: s.share?.tunnel || "", guestKey: s.guestKey || "", ownerDevices: s.ownerDevices || [],
+      // Live prototypes (session.py _lives_view): a guest gets only the ones a question links, with a url only while one runs.
+      lives: s.lives || [],
     };
     const proposals = s.proposals || [];
     const reqText = new Map([...(s.requests || []), ...(s.myRequests || [])].map(r => [r.id, r]));
@@ -487,17 +489,32 @@
     canModerate: () => Core.me.isOwner || Core.me.isLeader,
     lockOf: qid => Core.state.locks[qid] || null,
     suggestionsFor: qid => Core.state.suggestions[qid] || [],
-    /** A prototype variant's views as this viewer's state holds them: {shots: [pictures], snapshot: html file or ""}.
-     *  A variant with one view is written as `asset` (the shape earlier builds read), taken here by its file's kind. */
-    viewsOf: v => (v?.asset ? (/\.html$/.test(v.asset) ? { shots: [], snapshot: v.asset } : { shots: [v.asset], snapshot: "" })
-      : { shots: v?.shots || [], snapshot: v?.snapshot || "" }),
+    /** A prototype variant's views as this viewer's state holds them: {shots: [pictures], snapshot: html file or "",
+     *  live: {id, path} or null}. A variant with one picture or html file and nothing else is written as `asset` (the
+     *  shape earlier builds read), taken here by its file's kind. */
+    viewsOf: v => (v?.asset ? (/\.html$/.test(v.asset) ? { shots: [], snapshot: v.asset, live: null } : { shots: [v.asset], snapshot: "", live: null })
+      : { shots: v?.shots || [], snapshot: v?.snapshot || "", live: v?.live || null }),
+    /** The live entry a variant's live link names, as this viewer's state holds it, or null. */
+    liveOf: v => (v?.live ? Core.state.lives.find(e => e.id === v.live.id) || null : null),
+    /** The address a running live entry's link opens: its https origin and the variant's path, or "" for any other
+     *  entry or a path that would leave that origin (the server refuses such paths; this keeps the page from trusting
+     *  that). */
+    liveLink(v) {
+      const e = Core.liveOf(v);
+      if (!e?.url || e.status.kind !== "running" || !/^https:\/\/[a-z0-9.-]+(:[0-9]{1,5})?$/.test(e.url)) return "";
+      try { const u = new URL(v.live.path, e.url); return u.origin === e.url && !u.hash && !u.pathname.startsWith("//") ? u.href : ""; } catch { return ""; }
+    },
+    /** Owner: start a pending live prototype (`attest` for a server on a port), or end one. */
+    approveLive: (id, attest) => act("/api/live/approve", { id, ...(attest ? { attest: true } : {}) }),
+    stopLive: id => act("/api/live/stop", { id }),
     /** Which of a prototype variant's views the session switched off (prototypeTiers), in order: "screenshot" for its
-     *  pictures, "snapshot" for its html file; ["off"] when this viewer's state holds none of them (a guest's with them
-     *  off); [] while every view shows. */
+     *  pictures, "snapshot" for its html file, "live" for its live link; ["off"] when this viewer's state holds none of
+     *  them (a guest's with them off); [] while every view shows. */
     viewsOff(v) {
-      const { shots, snapshot } = Core.viewsOf(v), on = Core.state.settings.prototypeTiers;
-      if (!shots.length && !snapshot) return ["off"];
-      return [...(shots.length && !on.includes("screenshot") ? ["screenshot"] : []), ...(snapshot && !on.includes("snapshot") ? ["snapshot"] : [])];
+      const { shots, snapshot, live } = Core.viewsOf(v), on = Core.state.settings.prototypeTiers;
+      if (!shots.length && !snapshot && !live) return ["off"];
+      return [...(shots.length && !on.includes("screenshot") ? ["screenshot"] : []), ...(snapshot && !on.includes("snapshot") ? ["snapshot"] : []),
+        ...(live && !on.includes("live") ? ["live"] : [])];
     },
     /** One prototype variant's versions, oldest first, along the `previous` links between prototype questions:
      *  [{qid, variant, label, views, round, n, current}] (views as viewsOf), `current` on the newest. Empty for a variant

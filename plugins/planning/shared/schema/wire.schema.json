@@ -44,6 +44,27 @@
         "lastSeen": {"type": "object", "additionalProperties": {"type": "number"}}
       }
     },
+    "live": {
+      "description": "One entry of the snapshot's `lives` as a viewer other than the owner gets it: only entries a question's variant links, with no target or note, and `url`, the https origin the link opens, only while it runs. The owner's view is the stored entry (state.schema.json liveEntry), plus, for a pending or starting entry on a port, `url`, that port on 127.0.0.1 to look at it first.",
+      "oneOf": [
+        {
+          "type": "object", "required": ["id", "label", "status", "url"], "additionalProperties": false,
+          "properties": {
+            "id": {"$ref": "#/$defs/liveId"}, "label": {"type": "string"},
+            "status": {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["running"]}}},
+            "url": {"type": "string", "pattern": "^https://[a-z0-9.-]+(:[0-9]{1,5})?$"}
+          }
+        },
+        {
+          "type": "object", "required": ["id", "label", "status"], "additionalProperties": false,
+          "properties": {
+            "id": {"$ref": "#/$defs/liveId"}, "label": {"type": "string"},
+            "status": {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["pending", "starting", "ended"]}}}
+          }
+        }
+      ]
+    },
+    "liveId": {"type": "string", "pattern": "^L[1-9][0-9]{0,5}$"},
     "chatPage": {
       "type": "object",
       "required": ["chat"],
