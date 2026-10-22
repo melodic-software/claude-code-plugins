@@ -384,20 +384,32 @@ class JudgeRunCli(AffectedBase):
 
 
 class AffectedSuites(unittest.TestCase):
-    """`affected_suites` runs the tree's own plan script in a worktree of the
-    red SHA, against the green SHA, in a local clone holding both."""
+    """`affected_suites` runs the GREEN commit's plan script, in a worktree
+    of it, over the paths `green..red` changed, in a local clone holding
+    both; a window that changes the selector itself has no set."""
 
+    # Prints the tree it runs in (`tree.txt`) and the paths it was given.
     PLAN = (
         "#!/usr/bin/env bash\n"
-        '[[ "$1" == --base ]] || exit 2\n'
-        'echo "bash_plan={\\"0\\":[\\"a.test.sh\\"]}"\n'
-        'echo "python_plan={\\"0\\":[\\"$(git rev-parse --short=7 "$2")/test_b.py\\"]}"\n'
+        '[[ "$1" == -- ]] || exit 2\n'
+        "shift\n"
+        'echo "bash_plan={\\"0\\":[\\"$(cat tree.txt)\\"]}"\n'
+        'echo "python_plan={\\"0\\":[\\"$*\\"]}"\n'
     )
 
     def git(self, root: pathlib.Path, *args: str) -> str:
         return subprocess.run(
             ["git", "-C", str(root), *args], check=True, capture_output=True, text=True
         ).stdout.strip()
+
+    def commit(self, files: dict[str, str], message: str) -> str:
+        for path, text in files.items():
+            target = self.root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+        self.git(self.root, "add", ".")
+        self.git(self.root, "commit", "-q", "-m", message)
+        return self.git(self.root, "rev-parse", "HEAD")
 
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -407,25 +419,42 @@ class AffectedSuites(unittest.TestCase):
         self.git(self.root, "init", "-q")
         self.git(self.root, "config", "user.email", "t@example.com")
         self.git(self.root, "config", "user.name", "t")
-        self.git(self.root, "commit", "-q", "--allow-empty", "-m", "green")
-        self.green = self.git(self.root, "rev-parse", "HEAD")
-        (self.root / "scripts").mkdir()
-        (self.root / pm.PLAN_SCRIPT).write_text(self.PLAN, encoding="utf-8")
-        self.git(self.root, "add", ".")
-        self.git(self.root, "commit", "-q", "-m", "red")
-        self.red = self.git(self.root, "rev-parse", "HEAD")
+        self.green = self.commit(
+            {pm.PLAN_SCRIPT: self.PLAN, "tree.txt": "green"}, "green"
+        )
+        self.red = self.commit({"src/a.sh": "a", "tree.txt": "red"}, "red")
         patcher = mock.patch.object(
             pm.policy, "_history_checkouts", return_value=[self.root]
         )
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def test_the_plan_suites_of_the_change(self) -> None:
+    def test_the_green_commits_plan_over_the_windows_paths(self) -> None:
         self.assertEqual(
             pm.affected_suites(self.green, self.red),
-            frozenset({"a.test.sh", f"{self.green[:7]}/test_b.py"}),
+            frozenset({"green", "src/a.sh tree.txt"}),
         )
         self.assertEqual(self.git(self.root, "worktree", "list").count("\n"), 0)
+
+    def test_a_window_that_changes_the_selector_has_no_set(self) -> None:
+        for path in (
+            pm.PLAN_SCRIPT,
+            "scripts/affected-tests.sh",
+            "scripts/affected-tests-no-suite.txt",
+            "scripts/lib/read-list.sh",
+            "scripts/suite-seconds.txt",
+        ):
+            with self.subTest(path):
+                red = self.commit({path: f"changed {path}"}, f"touch {path}")
+                self.assertIsNone(pm.affected_suites(self.green, red))
+
+    def test_an_empty_plan_has_no_set(self) -> None:
+        plan = (
+            "#!/usr/bin/env bash\necho 'bash_plan={\"0\":[]}'\necho 'python_plan={}'\n"
+        )
+        green = self.commit({pm.PLAN_SCRIPT: plan}, "empty plan")
+        red = self.commit({"src/b.sh": "b"}, "red")
+        self.assertIsNone(pm.affected_suites(green, red))
 
     def test_the_plan_runs_with_no_token_in_its_environment(self) -> None:
         plan = (
@@ -433,15 +462,18 @@ class AffectedSuites(unittest.TestCase):
             'echo "bash_plan={\\"0\\":[\\"t-${GH_TOKEN:-}${GITHUB_TOKEN:-}'
             '${ACTIONS_RUNTIME_TOKEN:-}${PATH:+p}\\"]}"\n'
         )
-        (self.root / pm.PLAN_SCRIPT).write_text(plan, encoding="utf-8")
-        self.git(self.root, "commit", "-q", "-am", "token probe")
-        red = self.git(self.root, "rev-parse", "HEAD")
+        green = self.commit({pm.PLAN_SCRIPT: plan}, "token probe")
+        red = self.commit({"src/b.sh": "b"}, "red")
         secrets = {"GH_TOKEN": "a", "GITHUB_TOKEN": "b", "ACTIONS_RUNTIME_TOKEN": "c"}
         with mock.patch.dict("os.environ", secrets):
-            self.assertEqual(pm.affected_suites(self.green, red), frozenset({"t-p"}))
+            self.assertEqual(pm.affected_suites(green, red), frozenset({"t-p"}))
 
-    def test_a_tree_without_the_plan_script_has_no_set(self) -> None:
-        self.assertIsNone(pm.affected_suites(self.red, self.green))
+    def test_a_green_tree_without_the_plan_script_has_no_set(self) -> None:
+        self.git(self.root, "rm", "-q", pm.PLAN_SCRIPT)
+        self.git(self.root, "commit", "-q", "-m", "no plan")
+        green = self.git(self.root, "rev-parse", "HEAD")
+        red = self.commit({"src/b.sh": "b"}, "red")
+        self.assertIsNone(pm.affected_suites(green, red))
 
     def test_a_commit_no_clone_holds_has_no_set(self) -> None:
         self.assertIsNone(pm.affected_suites("e" * 40, self.red))

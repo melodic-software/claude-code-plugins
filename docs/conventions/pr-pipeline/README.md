@@ -679,8 +679,10 @@ and its queued entries leave; two different identities, or an unreadable head co
   found with several in flight demotes the rung and fails the post-merge check for all of them.
 - **Quarantined suites.** A red full run on the default branch demotes only for a newly failing
   suite (a test file) in the affected set of the merges since the branch's last green full run:
-  `scripts/plan-test-lanes.sh`, the pull request runs' selector, over the diff from that run's SHA,
-  run in a worktree of the red SHA. A suite is named from its test leg's log; a failed job whose
+  `scripts/plan-test-lanes.sh`, the pull request runs' selector, over the paths changed since that
+  run's SHA, run from a worktree of that green SHA with no token in its environment, so no merge
+  judged can narrow its own set. A window that changes the selector's own files, or a plan that
+  picks no suite, has no set. A suite is named from its test leg's log; a failed job whose
   suites cannot be named, a set that cannot be computed, and the merge gate's own suites
   (`GATE_SUITE_PREFIXES` in `babysit_postmerge.py`) demote as before. A suite outside the set
   demotes nothing, the window counts as verified (its `max-in-flight` slots free), and the suite

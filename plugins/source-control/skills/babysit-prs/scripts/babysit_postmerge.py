@@ -128,8 +128,10 @@ UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
 # whose one failed step is its suite step names its suites, from its log: the
 # runner's `FAIL: <suite>` lines, or each pytest invocation's summary. The
 # affected set is scripts/plan-test-lanes.sh, the PR runs' own selector, over
-# the diff from the last green full run's SHA, run in a worktree of the red
-# run's SHA, with no token in its environment. A suite inside the set always
+# the paths changed since the last green full run's SHA, run from a worktree
+# of that green SHA (so no merge judged can narrow its own set) with no token
+# in its environment; a window that changes the selector, or a plan that
+# picks nothing, has no set. A suite inside the set always
 # demotes, quarantined or not. A suite outside it demotes nothing and is
 # quarantined: with no open quarantine issue it gets one (`file_quarantines`);
 # an open one older than `merge.quarantine-days` makes it demote again. The
@@ -140,6 +142,19 @@ SUITE_STEPS = {
     "Run this leg's Python suites": "python",
 }
 PLAN_SCRIPT = "scripts/plan-test-lanes.sh"
+# The selector's code and the rule lists it reads, by path prefix: a window
+# that changes one has no trusted affected set.
+SELECTOR_PATHS = (
+    "scripts/plan-test-lanes.",
+    "scripts/affected-tests",
+    "scripts/lib/",
+    "scripts/suite-seconds.txt",
+    "scripts/outside-node-",
+    "scripts/test-windows-",
+    "scripts/run-plugin-tests",
+    "scripts/sync-shared-copies.sh",
+    "scripts/shared-copies.txt",
+)
 PLAN_TIMEOUT_SECONDS = 600
 # The merge gate's own suites, by path prefix: their failure always demotes.
 GATE_SUITE_PREFIXES = (
@@ -656,11 +671,14 @@ def suite_failures(log: str, kind: str) -> frozenset[str] | None:
 
 
 def affected_suites(base_sha: str, head_sha: str) -> frozenset[str] | None:
-    """The suites the PR runs' selector picks for the change `base_sha..
-    head_sha`: every suite of `PLAN_SCRIPT`'s bash and Python plans, run in a
-    temporary worktree of `head_sha` in a local full-history clone holding
-    both commits. None when no clone holds them, the tree has no plan
-    script, or the plan fails."""
+    """The suites the PR runs' selector picks for the paths `base_sha..
+    head_sha` changed: every suite of `PLAN_SCRIPT`'s bash and Python plans.
+    The plan is the green commit's (`base_sha`) code, run in a temporary
+    worktree of it, so no merge in the window can narrow its own set, and
+    with no token in its environment. None (unknown, so the run demotes)
+    when no local full-history clone holds both commits, the window changes
+    the selector (`SELECTOR_PATHS`) or nothing, the green tree has no plan
+    script, or the plan fails or picks no suite."""
     if not (_FULL_SHA.fullmatch(base_sha) and _FULL_SHA.fullmatch(head_sha)):
         return None
     root = next(
@@ -673,18 +691,24 @@ def affected_suites(base_sha: str, head_sha: str) -> frozenset[str] | None:
     )
     if root is None:
         return None
+    diff = policy._git(
+        root, "diff", "--name-only", "-z", "--no-renames", base_sha, head_sha
+    )
+    changed = [path for path in (diff or "").split("\0") if path]
+    if not changed or any(path.startswith(SELECTOR_PATHS) for path in changed):
+        return None
     with tempfile.TemporaryDirectory(prefix="postmerge-affected-") as tmp:
         tree = Path(tmp) / "tree"
         if (
-            policy._git(root, "worktree", "add", "--detach", str(tree), head_sha)
+            policy._git(root, "worktree", "add", "--detach", str(tree), base_sha)
             is None
         ):
             return None
         try:
             if not (tree / PLAN_SCRIPT).is_file():
                 return None
-            # The plan is the red commit's code: it gets no token the
-            # caller holds (the alert job's GH_TOKEN can write issues).
+            # The caller's tokens (the alert job's GH_TOKEN can write issues)
+            # stay out of the plan's environment.
             unset = [
                 arg
                 for key in sorted(os.environ)
@@ -693,7 +717,7 @@ def affected_suites(base_sha: str, head_sha: str) -> frozenset[str] | None:
             ]
             try:
                 proc = run_command(
-                    ["env", *unset, "bash", PLAN_SCRIPT, "--base", base_sha],
+                    ["env", *unset, "bash", PLAN_SCRIPT, "--", *changed],
                     allowed_executables=("env",),
                     check=False,
                     cwd=tree,
@@ -712,7 +736,7 @@ def affected_suites(base_sha: str, head_sha: str) -> frozenset[str] | None:
                     except ValueError:
                         return None
                     suites |= {str(x) for leg in legs.values() for x in json_array(leg)}
-            return frozenset(suites)
+            return frozenset(suites) or None
         finally:
             policy._git(root, "worktree", "remove", "--force", str(tree))
 

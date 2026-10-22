@@ -64,9 +64,10 @@ name: post-merge-demotion-alert
 
 on:
   # Both jobs check out main's tip and run its scripts; the alert's
-  # --judge-run also runs scripts/plan-test-lanes.sh from the failing run's
-  # own commit on main, with every *TOKEN* variable removed from its
-  # environment. No code from outside main executes here. Each
+  # --judge-run also runs scripts/plan-test-lanes.sh from main's last green
+  # full run's commit (never the failing one, which the judged merges wrote),
+  # with every *TOKEN* variable removed from its environment. No code from
+  # outside main executes here. Each
   # step reads the event's fields through env and acts only on runs of this
   # repository's main branch.
   workflow_run: # zizmor: ignore[dangerous-triggers]
@@ -130,7 +131,7 @@ jobs:
       excused: ${{ steps.file.outputs.excused }}
     steps:
       # main's tip, for babysit_postmerge.py --judge-run and the plan script it
-      # runs in a worktree of the failing SHA; full history for that worktree.
+      # runs in a worktree of the last green SHA; full history for that worktree.
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
