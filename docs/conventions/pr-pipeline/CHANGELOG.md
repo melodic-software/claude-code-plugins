@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [3.2.0] - 2026-10-22
+
+### Added
+
+- The lost-run reconciler re-runs the failed jobs of a PR CI run that failed only from an outside outage: each failed job hit its time limit, had an install step cancelled or timed out, or lost its runner. An install step that exits with a failure, such as `npm ci` on a stale lockfile, counts as a real failure. It re-runs at most twice per run, 15 then 30 minutes after the attempt ended, only while status.npmjs.org and githubstatus.com both show no incident, and never a run with any other failure.
+- fix-ci starts no model run on a head whose required-run failures are all infra while the reconciler will still re-run it; once both re-runs are used, or the run is older than the reconciler's 24-hour lookback, fix-ci takes the head.
+
+### Fixed
+
+- The red-main report names every red full run since the last green one that has no report on the log, so a report the repository-wide concurrency group cancelled while pending is seen in the next report, whose range re-decides over its merges.
+- The red-main report takes the oldest `github-actions[bot]` issue carrying the log marker as its log, and counts only that account's comments on it (matched by user id) toward the daily cap and the dedupe, so a newer issue carrying the marker can neither take the reports nor reset the cap.
+
 ## [3.1.1] - 2026-10-22
 
 ### Fixed
