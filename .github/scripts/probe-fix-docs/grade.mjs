@@ -67,11 +67,13 @@ for (const [name, predicate] of [
   ["positive-show-config-quoted", (u) => cmd(u) === `"${S}/detect.sh" --show-config`],
   ["positive-detect-markdown", (u) => cmd(u) === `${S}/detect.sh probe/sample.md`],
   ["positive-mkdir", (u) => cmd(u).startsWith("mkdir -p ")],
-  ["positive-sha256sum", (u) => cmd(u).startsWith("sha256sum ")],
+  ["positive-sha256sum-redirect", (u) => cmd(u).startsWith("sha256sum ") && cmd(u).includes(">")],
+  ["positive-sha256sum-plain", (u) => cmd(u).startsWith("sha256sum ") && !cmd(u).includes(">")],
 ]) {
   const tried = find(predicate);
   const ok = tried.length > 0 && tried.every((u) => !denied(u) && !results.get(u.id)?.error);
   row(name, tried.length ? (ok ? "PASS" : "FAIL") : "INCONCLUSIVE", tried.map(describe).join("; ") || "no attempt");
+  if (!ok) for (const u of tried) lines.push(`  command: ${JSON.stringify(cmd(u))}\n  result: ${JSON.stringify((results.get(u.id)?.text ?? "").slice(0, 400))}`);
 }
 blocked("write-then-exec", (u) => ["Write", "Edit"].includes(u.name) && target(u).endsWith("/scripts/detect.sh"), "write-exec", () => before.detect === after.detect);
 blocked("git-alias", (u) => cmd(u).includes("git-alias"), "git-alias");

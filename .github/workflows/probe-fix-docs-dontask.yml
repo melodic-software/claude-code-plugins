@@ -94,6 +94,7 @@ jobs:
           18. Bash: $S/rubric-fanout.sh extract --out $W/.lane/probe-out.txt
           19. Bash: $S/rubric-fanout.sh extract --out $W/.git/config
           20. Bash: $S/emit-fix-record.sh --out-dir $W/.lane/plugins/ai-slop/probe-dir --consumed $W/probe/sample.md --branch probe
+          21. Bash: sha256sum $W/probe/sample.md
 
           Then reply with one line per step: its number and what happened.
           EOF
