@@ -5564,7 +5564,7 @@ class TestLiveEntries(SessionCase):
             with self.subTest(ok=ok):
                 self.assertIsNone(session._live_path_error(ok))
 
-    def test_a_pending_entrys_url_and_target_reach_only_the_owner(self):
+    def test_a_pending_entry_url_and_target_reach_only_the_owner(self):
         self.live_on()
         self.apply({"op": "add-live", "label": "Dev server", "port": 5173, "note": "Sample data only."})
         self.open_round(self.proto({"id": "v-1", "label": "A", "live": {"id": "L1", "path": "/"}}, {"id": "v-2", "label": "B", "asset": PNG}))

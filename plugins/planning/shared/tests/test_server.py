@@ -2110,7 +2110,7 @@ class TestLiveRoutes(ServerCase):
                 code, _, out = self.ops({"op": "add-live", "label": "App", "port": port})
                 self.assertEqual((code, out["error"], out.get("field")), (400, "bad-field", "port"), out)
 
-    def test_a_pending_entrys_url_reaches_the_owner_and_never_a_guest_or_leader(self):
+    def test_a_pending_entry_url_reaches_the_owner_and_never_a_guest_or_leader(self):
         self.live_on()
         code, _, out = self.ops({"op": "add-live", "label": "Dev server", "port": 5173})
         self.assertEqual(code, 200, out)
