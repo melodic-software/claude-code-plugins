@@ -55,6 +55,7 @@ Describe 'Write-ElevatedResult' -Tag 'lib' {
         $doc = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
         $doc.format | Should -BeExactly 'elevated-result/1'
         $doc.elevated | Should -BeTrue
+        $doc.user_sid | Should -BeExactly ([System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
         @($doc.results).Count | Should -Be 1
         $doc.results[0].id | Should -BeExactly 'disk-space'
         { Assert-CheckResult $doc.results[0] } | Should -Not -Throw
@@ -186,7 +187,7 @@ Describe 'Invoke-MachineHealthCheck -ResultPath' -Tag 'orchestrator' {
 
         & pwsh -NoProfile -NonInteractive -File $script:Orchestrator -OutputBase $script:outputBase `
             -StateBase $script:stateBase -RunMode on-demand -SkipBanner -ResultPath $script:resultPath `
-            -ResultFileId '00000000-0000000000000000' 2>$null | Out-Null
+            -ResultFileId '0000000000000000-00000000000000000000000000000000' 2>$null | Out-Null
         $LASTEXITCODE | Should -Be 1
 
         Get-TreeListing $script:stateBase | Should -Be $before

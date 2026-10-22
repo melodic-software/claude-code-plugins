@@ -47,20 +47,16 @@ Print a human-readable summary instead of emitting the run snapshot JSON.
 Sampling window, in seconds, for checks that sample over time (top-processes).
 
 .PARAMETER ElevatedResultPath
-A result file an elevated pass filled. The run replaces its own result for
-each check id the file holds (after Import-ElevatedResult's checks) and lists
-those ids in the snapshot's elevated_checks; a refused file adds one UNKNOWN
-elevated-pass result.
+An elevated pass's result file to import through Import-ElevatedResult; the
+imported check ids are listed in the snapshot's elevated_checks.
 
 .PARAMETER ResultPath
-Elevated-pass mode, the command New-ElevatedLaunch writes. Runs only the
-checks with an elevation-matrix row and writes their results into this
-pre-created file, through Write-ElevatedResult, and nothing else: no state
-folder, lock, log, report, battery report, cache or remediation.
+Elevated-pass mode: run the elevation-matrix checks and write their results
+into this pre-created file through Write-ElevatedResult, writing nothing
+else. See reference/windows/elevation-matrix.md, "How to run elevated".
 
 .PARAMETER ResultFileId
-The file ID New-ElevatedLaunch recorded for -ResultPath; any other file at
-that path is refused.
+The file ID New-ElevatedLaunch recorded for -ResultPath.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Standard')]
 param(
@@ -74,8 +70,7 @@ param(
     [ValidateRange(5, 60)] [int] $SampleSeconds = 15,
     [Parameter(ParameterSetName = 'Standard')] [ValidateNotNullOrEmpty()] [string] $ElevatedResultPath,
     [Parameter(Mandatory = $true, ParameterSetName = 'ElevatedPass')] [ValidateNotNullOrEmpty()] [string] $ResultPath,
-    [Parameter(Mandatory = $true, ParameterSetName = 'ElevatedPass')]
-    [ValidatePattern('^[0-9A-F]{8}-[0-9A-F]{16}$')] [string] $ResultFileId
+    [Parameter(Mandatory = $true, ParameterSetName = 'ElevatedPass')] [ValidateNotNullOrEmpty()] [string] $ResultFileId
 )
 
 Set-StrictMode -Version 3.0
@@ -115,6 +110,7 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'New-RunSnapshot.ps1')
 . (Join-Path $libRoot 'Write-ElevatedResult.ps1')
 . (Join-Path $libRoot 'Import-ElevatedResult.ps1')
+. (Join-Path $libRoot 'New-UnknownCheckResult.ps1')
 
 # stderr keeps stdout clean for the JSON snapshot.
 function Write-StderrBanner {
@@ -124,35 +120,6 @@ function Write-StderrBanner {
     [Console]::Error.WriteLine('')
     foreach ($l in $Line) { [Console]::Error.WriteLine($l) }
     [Console]::Error.WriteLine('')
-}
-
-function New-UnknownCheckResult {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
-        Justification = 'Builds an in-memory result object; changes no system state.')]
-    [CmdletBinding()]
-    [OutputType([pscustomobject])]
-    param(
-        [Parameter(Mandatory)] $Entry,
-        [Parameter(Mandatory)] [string] $Summary,
-        [Parameter(Mandatory)] [string] $ErrorReason,
-        [int] $DurationMs = 0
-    )
-    return [pscustomobject]@{
-        id               = $Entry.id
-        category         = $Entry.category
-        os               = 'windows'
-        ran_at           = (Get-Date).ToString('o')
-        severity         = 'UNKNOWN'
-        summary          = $Summary
-        detail           = @{}
-        commands         = @()
-        needs_admin      = [bool]$Entry.needs_admin
-        ran_successfully = $false
-        duration_ms      = $DurationMs
-        trend            = $null
-        notes            = $null
-        error            = $ErrorReason
-    }
 }
 
 $runStart = Get-Date
@@ -189,6 +156,10 @@ $logsDir = Join-Path $StateBase 'logs'
 if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
     $passLog = [System.Collections.Generic.List[string]]::new()
     $passResults = [System.Collections.Generic.List[object]]::new()
+    if (-not (Test-FileIdFormat $ResultFileId)) {
+        [Console]::Error.WriteLine("[machine-health] elevated pass wrote no result: '$ResultFileId' is not a file ID.")
+        exit 1
+    }
     try {
         $shippedCatalog = ConvertFrom-Jsonc -InputText (
             Get-Content -LiteralPath (Join-Path $skillRoot 'catalog\checks.jsonc') -Raw -ErrorAction Stop)
@@ -518,12 +489,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
     # reads for wear/capacity analysis. runStamp keeps same-day reruns distinct.
     $batteryReportPath = if ($stateWritable) { Join-Path $logsDir "battery-report-$runStamp.html" } else { $null }
 
-    # Ids of checks that produced a usable result this run (not cadence-skipped,
-    # not script-missing, not a failed dispatch). Recorded to history.jsonl
-    # checks_ran as the per-check last-run signal cadence selection and trend
-    # annotation read.
-    $ranCheckIds = [System.Collections.Generic.List[string]]::new()
-
     $checkResults = [System.Collections.Generic.List[object]]::new()
     # Surface Assert-CatalogEntry failures through the normal reporting path first
     # so a registered-but-invalid check cannot silently vanish from the report.
@@ -568,15 +533,6 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
             Write-MachineHealthLog ("check_failed id=$($entry.id) reason=$($dispatch.reason) " +
                 "elapsed_ms=$($dispatch.elapsed_ms)")
         } else {
-            # Record checks_ran ONLY when the check produced a SUCCESSFUL result.
-            # A schema-valid but failed result (ran_successfully=false -- e.g. a
-            # transient error, or a cmdlet unavailable) is not a real cadence signal:
-            # counting it would defer a monthly check ~27 days on a failed run
-            # instead of retrying it next run. (Timeout / no-output / invalid-JSON
-            # dispatches already miss this branch entirely.)
-            if ($dispatch.result.ran_successfully) {
-                $ranCheckIds.Add($entry.id)
-            }
             $checkResults.Add($dispatch.result)
             Write-MachineHealthLog ("check_ok id=$($entry.id) severity=$($dispatch.result.severity) " +
                 "elapsed_ms=$($dispatch.elapsed_ms)")
@@ -592,6 +548,20 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         $elevatedChecks = @($import.ElevatedChecks)
         $importOutcome = if ($import.Rejected) { "rejected reason=$($import.Rejected)" } else { "imported checks=$($elevatedChecks -join ',')" }
         Write-MachineHealthLog "elevated_result path=$ElevatedResultPath $importOutcome"
+        foreach ($line in $import.Log) { Write-MachineHealthLog "elevated: $line" }
+    }
+
+    # Ids of dispatched checks whose final result (after any import) ran
+    # successfully: history.jsonl checks_ran, the last-run signal cadence selection
+    # and trend annotation read. A failed result (ran_successfully false, a timeout,
+    # no output, invalid JSON) is no cadence signal: counting it would defer a
+    # monthly check ~27 days instead of retrying it next run.
+    $dispatchedIds = @($windowsChecks | ForEach-Object { [string]$_.id })
+    $ranCheckIds = [System.Collections.Generic.List[string]]::new()
+    foreach ($r in $checkResults) {
+        if ($r.ran_successfully -and [string]$r.id -cin $dispatchedIds -and -not $ranCheckIds.Contains([string]$r.id)) {
+            $ranCheckIds.Add([string]$r.id)
+        }
     }
 
     # Trend-aware severity adjustment + annotation per severity-rubric.md. Trend

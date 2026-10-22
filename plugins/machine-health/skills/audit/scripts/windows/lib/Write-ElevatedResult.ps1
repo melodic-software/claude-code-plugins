@@ -2,37 +2,45 @@
 
 <#
 .SYNOPSIS
-Write the elevated pass's result document into the result file the standard
-session pre-created, and nowhere else.
+Write the elevated pass's result document into the pre-created result file.
 
 .DESCRIPTION
-The elevated side of the elevated pass (reference/windows/elevation-matrix.md,
-"How to run elevated"). The file is opened without following reparse points
-and must already exist; a reparse point, a directory, or a file whose ID is not
--FileId (the ID New-ElevatedLaunch recorded at pre-create time) is refused
-before a byte is written. The document is then written through that same
-handle, so the checked file is the written file.
+Opens -Path through Open-NoFollowFile and refuses a reparse point or a file
+whose ID is not -FileId before writing a byte; the document is then written
+through that same handle. Mechanism: reference/windows/elevation-matrix.md,
+"How to run elevated".
 
-Document: { "format": "elevated-result/1", "ran_at": "<ISO>", "elevated": <bool>,
-"results": [<CheckResult>...], "log": ["<line>"...] }
+Document: { "format": <Get-ElevatedResultFormat>, "ran_at": "<ISO>",
+"elevated": <bool>, "user_sid": "<SID>", "results": [<CheckResult>...],
+"log": ["<line>"...] }
 #>
 
 . (Join-Path $PSScriptRoot 'Open-NoFollowFile.ps1')
+
+function Get-ElevatedResultFormat {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+
+    return 'elevated-result/1'
+}
 
 function Write-ElevatedResult {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)] [string] $Path,
-        [Parameter(Mandatory = $true)] [ValidatePattern('^[0-9A-F]{8}-[0-9A-F]{16}$')] [string] $FileId,
+        [Parameter(Mandatory = $true)] [ValidateScript({ Test-FileIdFormat $_ })] [string] $FileId,
         [AllowEmptyCollection()] [object[]] $Results = @(),
         [AllowEmptyCollection()] [string[]] $Log = @(),
-        [bool] $Elevated
+        [bool] $Elevated,
+        [string] $UserSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     )
 
     $document = [ordered]@{
-        format   = 'elevated-result/1'
+        format   = Get-ElevatedResultFormat
         ran_at   = (Get-Date).ToString('o')
         elevated = $Elevated
+        user_sid = $UserSid
         results  = @($Results)
         log      = @($Log)
     }
@@ -41,8 +49,8 @@ function Write-ElevatedResult {
     $handle = Open-NoFollowFile -Path $Path -Access ReadWrite
     try {
         $identity = Get-FileIdentity -Handle $handle
-        if ($identity.IsReparsePoint -or $identity.IsDirectory) {
-            throw "Refused '$Path': it is a reparse point or a directory, not the pre-created result file."
+        if ($identity.IsReparsePoint) {
+            throw "Refused '$Path': it is a reparse point, not the pre-created result file."
         }
         if ($identity.FileId -cne $FileId) {
             throw "Refused '$Path': its file ID $($identity.FileId) is not the pre-created file's ID $FileId."

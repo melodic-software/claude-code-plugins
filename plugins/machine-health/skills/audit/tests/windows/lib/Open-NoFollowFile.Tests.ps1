@@ -25,18 +25,42 @@ Describe 'Open-NoFollowFile and Get-FileIdentity' -Tag 'lib' {
         Set-Content -LiteralPath $script:file -Value 'a' -NoNewline
     }
 
-    It 'returns the volume serial and file index that fsutil and Win32_LogicalDisk report' {
+    It 'returns the 128-bit file ID fsutil reports, after a 64-bit volume serial ending in Win32_LogicalDisk''s' {
         $identity = Get-IdentityOf $script:file
 
         $fsutil = (& fsutil file queryfileid $script:file) -join ' '
         $fsutil | Should -Match '0x([0-9a-fA-F]{32})'
-        $index = ([regex]::Match($fsutil, '0x([0-9a-fA-F]{32})').Groups[1].Value).Substring(16).ToUpperInvariant()
+        $fileId = ([regex]::Match($fsutil, '0x([0-9a-fA-F]{32})').Groups[1].Value).ToUpperInvariant()
         $drive = [System.IO.Path]::GetPathRoot($script:file).TrimEnd('\')
         $serial = (Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DeviceID='$drive'").VolumeSerialNumber
 
-        $identity.FileId | Should -BeExactly "$($serial.ToUpperInvariant())-$index"
+        $identity.FileId | Should -Match "^[0-9A-F]{8}$($serial.ToUpperInvariant())-$fileId$"
+        Test-FileIdFormat $identity.FileId | Should -BeTrue
         $identity.IsReparsePoint | Should -BeFalse
-        $identity.IsDirectory | Should -BeFalse
+    }
+
+    It 'opens with FILE_FLAG_OPEN_REPARSE_POINT and anonymous SECURITY_SQOS_PRESENT' {
+        # winbase.h: FILE_FLAG_OPEN_REPARSE_POINT 0x00200000, SECURITY_SQOS_PRESENT 0x00100000,
+        # SECURITY_ANONYMOUS 0.
+        $script:NoFollowOpenFlags | Should -Be 0x00300000
+    }
+
+    It 'refuses a handle that is not a disk file, such as a named pipe' {
+        $name = "mh-test-$([guid]::NewGuid())"
+        $server = [System.IO.Pipes.NamedPipeServerStream]::new($name, [System.IO.Pipes.PipeDirection]::InOut, 1,
+            [System.IO.Pipes.PipeTransmissionMode]::Byte, [System.IO.Pipes.PipeOptions]::Asynchronous)
+        try {
+            { Open-NoFollowFile -Path "\\.\pipe\$name" } | Should -Throw '*not a disk file*'
+        } finally {
+            $server.Dispose()
+        }
+    }
+
+    It 'checks the file ID format' {
+        Test-FileIdFormat '0123456789ABCDEF-0123456789ABCDEF0123456789ABCDEF' | Should -BeTrue
+        Test-FileIdFormat '0123456789abcdef-0123456789ABCDEF0123456789ABCDEF' | Should -BeFalse
+        Test-FileIdFormat '01234567-0123456789ABCDEF' | Should -BeFalse
+        Test-FileIdFormat "0123456789ABCDEF-0123456789ABCDEF0123456789ABCDEF`n" | Should -BeFalse
     }
 
     It 'gives two names of one hard-linked file the same ID and a different file another' {
