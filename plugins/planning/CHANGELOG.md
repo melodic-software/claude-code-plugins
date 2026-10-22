@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.87.1] - 2026-10-22
+
+### Fixed
+
+- The interview's Decide rows render each choice's label and text through the same inline renderer as the recommendation card, so backticked code shows as code, emphasis applies and issue numbers link, while HTML in the text stays escaped.
+
 ## [0.87.0] - 2026-10-22
 
 ### Added
