@@ -13,6 +13,7 @@ Views: G = every person, M = owner and leaders, O = owner only.
 | Prototype name | Contract source | Mapping |
 |---|---|---|
 | `title`, `goal`, `serverTime` | `title`, `goal`, `serverTime` | same |
+| `repo`, `commit` | `repo`, `commit` (G, only when set) | same, `""` when absent |
 | `ended` (`{ts}` or null) | `ended` (bool) | same truthiness |
 | `v` (protocol level, 8 or 10) | none | dropped: the page has one server, so `v8()` is always true |
 | `settings.voting`, `signoff`, `chat`, `follow`, `digestNames`, `uploads`, `theme` | `settings.*` | same |
