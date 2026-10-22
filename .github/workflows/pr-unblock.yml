@@ -603,7 +603,7 @@ jobs:
           [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::no PR head SHA read"; exit 1; }
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
 
-  # fix-docs is three jobs, so no model ever holds a write token. The model
+  # fix-docs is four jobs, so no model ever holds a write token. The model
   # job: a read activity with no write token and no OIDC token in the job that
   # runs head code. The skill fixes the changed Markdown files; the runner
   # uploads its uncommitted edits as a patch. It runs on the automations
