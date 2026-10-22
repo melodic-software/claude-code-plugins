@@ -155,6 +155,7 @@ Before formulating, resolve the consumer's standards and load what this task tou
 
 - **Resolve the index** via the "Resolution ladder" section of the plugin's contract binding [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md). The ladder (absent-index inference, offer-to-persist, ask-once) lives there, not here. Zero unprompted writes, ever.
 - **Match** the task's surfaces (ecosystems touched, cross-cutting concerns) against the index rows' `Applies when` clues.
+- **Always check for a paved-path row.** Whatever the "Applies when" clues matched, look for the index's `paved-path` row; when the plan touches a concern the file lists, read that entry and cite it as the established way. With no such row, nothing is cited and nothing is reported.
 - **Pull selectively**: only matched files, and within them only the sections this task needs. Never re-pull ambient content (auto-loaded `CLAUDE.md`, fired `.claude/rules` directives). Post-compaction context and a new task both count as NOT ambient. Re-resolve per task.
 - **Depth rides the plan-scale table below**. A trivial plan takes no standards fetch beyond ambient context; larger scales ground the surfaces they touch. There is no grounding flag.
 - **Name provenance** when a personal-layer rule (a `*.local.md` overlay or the user-global layer) materially shapes the plan.

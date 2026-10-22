@@ -3,7 +3,7 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.2.0] - 2026-10-21
+## [0.3.0] - 2026-10-21
 
 ### Added
 
@@ -17,6 +17,20 @@ All notable changes to the `corrections` plugin are documented here. Format foll
   check every adapter must pass, including 8 concurrent appends.
 - `prerequisites.json`: declares `jq` (optional), which `conformance.sh` uses to parse
   `capabilities.json`.
+
+## [0.2.0] - 2026-10-21
+
+### Added
+
+- `/corrections:codify "<description>" [#PR]`: counts earlier occurrences of a described mistake in
+  recent commits and the session (threshold 2; a person's direct "codify this" acts at once), picks
+  the strongest enforcement-ladder rung that can decide it, places the lesson by scope, and proposes a
+  check proven with `scripts/prove-check.sh`. An unproven check is reported and never proposed for
+  install. A person's invocation writes the proposal, a model invocation only proposes, and a blocking
+  check is asked about before every install. An escaped defect's proposal also names what the model
+  did not have in front of it.
+- The enforcement ladder 2.0.0 as a registered shared copy under `skills/codify/reference/`.
+- Five eval cases for the skill.
 
 ## [0.1.0] - 2026-10-21
 
