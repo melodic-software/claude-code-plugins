@@ -3232,7 +3232,7 @@ class Session:
             if locked is not None and ref == locked:  # a Disagree on a rejected alternative raises nothing
                 raised = {e["by"] for _, e in self._reopened(q["id"])}
                 if on and pid not in raised:
-                    if not self._undo_take_back(q["id"], pid):
+                    if not self._undo_take_back(q["id"], pid, reason):
                         self._decided(q["id"], "late-disagree", pid, card=ref, reason=reason)
                     self._flag(q["id"], {"kind": "possibly-reopened"})
                 elif not on and raised and not any(d["pid"] in raised and d["card"] == locked for d in kept):
@@ -3342,15 +3342,21 @@ class Session:
         self._trim_decisions()
         return cleared
 
-    def _undo_take_back(self, qid, pid):
+    def _undo_take_back(self, qid, pid, reason):
         """pid raises a Disagree again on qid's locked answer soon after their take-back ended its late Disagrees:
-        drop that `withdrawn` entry rather than log a new pair. True when pid's own late Disagree is back in force."""
+        drop that `withdrawn` entry rather than log a new pair. True when pid's own late Disagree is back in force;
+        it moves to the end of the log with a new `seq`, time and reason, so the owner's Inbox row is unread again."""
         log = self.state.get("decisions", [])
         last = next((i for i in range(len(log) - 1, -1, -1) if log[i]["qid"] == qid), None)
         if last is None or log[last]["kind"] != "withdrawn" or log[last]["by"] != pid or self.now() - log[last]["at"] > DISAGREE_CHURN_WINDOW:
             return False
         del log[last]
-        return any(e["by"] == pid for _, e in self._reopened(qid))
+        mine = next((i for i, e in self._reopened(qid) if e["by"] == pid), None)
+        if mine is None:
+            return False
+        seq = 1 + max(e.get("seq", i) for i, e in enumerate(log))
+        log.append({**log.pop(mine), "at": self.now(), "reason": reason, "seq": seq})
+        return True
 
     def _trim_decisions(self):
         """Keep the log at MAX_DECISIONS, oldest first, sparing what a locked decision still reads: its late

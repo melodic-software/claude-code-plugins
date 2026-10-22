@@ -3863,6 +3863,18 @@ class TestDecisionLogBound(ReopenCase):
         self.assertEqual((len(self.reopen_rows()), len(self.flags("Q2"))), (1, 1))
         self.assertIsNone(session.document_error(self.disk()))
 
+    def test_a_raise_again_inside_the_window_brings_the_row_back_unread(self):
+        self.toggle(self.cy, "Q1", 1)
+        (row,) = self.reopen_rows()
+        self.act("read_inbox", HOST, {"keys": [row["key"]]})
+        self.assertFalse(self.reopen_rows()[0]["unread"])
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Still too costly"})
+        (again,) = self.reopen_rows()
+        self.assertTrue(again["unread"])
+        self.assertEqual([e["kind"] for e in self.s.state["decisions"] if e["qid"] == "Q1"], ["lock", "late-disagree"])
+        self.assertIsNone(session.document_error(self.disk()))
+
     def test_a_take_back_and_raise_again_after_the_window_are_both_logged(self):
         self.toggle(self.cy, "Q1", 3, gap=session.DISAGREE_CHURN_WINDOW + 1)
         self.assertEqual([e["kind"] for e in self.s.state["decisions"] if e["qid"] == "Q1"], ["lock", "late-disagree", "withdrawn", "late-disagree"])
