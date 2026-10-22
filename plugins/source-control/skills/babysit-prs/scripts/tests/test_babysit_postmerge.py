@@ -918,6 +918,18 @@ class DroppedDispatchListing(CheckCase):
             verdict.warnings,
         )
 
+    def test_a_short_listing_claiming_past_the_cap_is_unreadable(self) -> None:
+        # A degraded answer can carry a large total_count with few items;
+        # only a listing that reached the cap is short by design.
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.runs[("post-merge-detect-silent-revert.yml", "push")] = [
+            canary_run(21 + i) for i in range(50)
+        ]
+        self.gh.total_counts[("post-merge-detect-silent-revert.yml", "push")] = 1500
+        verdict = self.check()
+        self.assertFalse(verdict.readable)
+        self.assertIn("total_count 1500", verdict.reason)
+
     def test_a_listing_under_the_search_cap_and_short_is_unreadable(self) -> None:
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
         self.gh.runs[("post-merge-detect-silent-revert.yml", "push")] = [

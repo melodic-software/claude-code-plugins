@@ -413,8 +413,9 @@ def _paginated(
     """Every item of a paginated listing. An object listing whose
     `total_count` exceeds the items its pages carried answered short (a
     degraded API can), so it raises rather than read as complete. Past
-    RUN_SEARCH_CAP the search is short by design: given `capped`, the listing
-    reads and a `listing-capped` warning goes there instead."""
+    RUN_SEARCH_CAP the search is short by design: given `capped`, a listing
+    that carried at least RUN_SEARCH_CAP items reads and a `listing-capped`
+    warning goes there instead; one that carried fewer still raises."""
     payload = _read(["api", endpoint, "--paginate", "--slurp"], label)
     try:
         items = flatten_paginated_items(payload, label, items_key=items_key)
@@ -426,7 +427,11 @@ def _paginated(
             (p["total_count"] for p in pages if isinstance(p.get("total_count"), int)),
             default=0,
         )
-        if total > len(items) and total > RUN_SEARCH_CAP and capped is not None:
+        if (
+            total > len(items)
+            and len(items) >= RUN_SEARCH_CAP
+            and capped is not None
+        ):
             capped.append(f"listing-capped: {label} total_count {total}")
         elif total > len(items):
             raise PostMergeReadError(
@@ -853,7 +858,13 @@ class _Context:
         """The branch's full-run dispatches, by id, at `commit` or at any
         commit the branch gained between `merged_at` and `deadline` that
         descends from it: every run that could cover the merge in time, read
-        independently of the dated listing. A failed read raises."""
+        independently of the dated listing. A failed read raises. The commit
+        listing is a bare array with no total, so a 200 that silently drops a
+        commit cannot be told from a complete one; that case falls back to
+        the read at `commit` alone, which can still file a failure but never
+        reads as a pass. pr-merge's `.base` checkout holds full history, so
+        `contains` answers from it without an API call for every commit the
+        checkout already has."""
         window = "&".join(
             f"{key}={quote(t.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'), safe='')}"
             for key, t in (("since", merged_at), ("until", deadline))
