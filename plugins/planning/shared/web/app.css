@@ -2685,6 +2685,11 @@
 .vp-app .vp-side { display: grid; align-content: start; gap: 10px; min-block-size: 0; overflow: auto; padding: 12px; border-inline-start: 1px solid var(--line); background: var(--pane); }
 .vp-app .vp-qtext { margin: 0; font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .vp-app .vp-offnote { margin: 0; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.vp-app .vp-livebox { flex-basis: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.vp-app .vp-livebox[hidden] { display: none; }
+.vp-app .vp-live-state { margin: 0; font-size: 13px; color: var(--muted); }
+.vp-app .vp-live-attest { display: flex; align-items: flex-start; gap: 6px; font-size: 12.5px; max-inline-size: 46ch; }
+.vp-app .vp-live-err { flex-basis: 100%; margin: 0; font-size: 12.5px; color: var(--warn); }
 .vp-app .vp-whole { justify-self: start; }
 .vp-app .vp-whole[hidden], .vp-app .vp-composer[hidden], .vp-app .vp-empty[hidden], .vp-app .vp-missing[hidden], .vp-app .vp-annotate[hidden], .vp-app .vp-offnote[hidden] { display: none; }
 .vp-app .vp-composer { display: grid; gap: 6px; padding: 10px; border: 1px solid color-mix(in oklch, var(--accent) 50%, transparent); border-radius: var(--r-md); }
