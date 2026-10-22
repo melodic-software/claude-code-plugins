@@ -21,7 +21,9 @@ Responsibilities (per SKILL.md High-level procedure):
  9. Return the full run snapshot as JSON on stdout (unless -Human is set).
 
 .PARAMETER OutputBase
-Root folder for reports/. Created on first run.
+Root folder for reports/. Created on first run. When omitted or blank:
+$env:USERPROFILE\Documents\MachineHealth, the default the audit SKILL.md's
+roots block applies, for a scheduled run that cannot read the environment.
 
 .PARAMETER StateBase
 Root folder for state/ and logs/ (history, approvals, run logs). Resolution:
@@ -60,7 +62,7 @@ The file ID New-ElevatedLaunch recorded for -ResultPath.
 #>
 [CmdletBinding(DefaultParameterSetName = 'Standard')]
 param(
-    [Parameter(Mandatory = $true)] [string] $OutputBase,
+    [string] $OutputBase,
     [string] $StateBase,
     [ValidateSet('weekly', 'on-demand', 'first-run')] [string] $RunMode = 'weekly',
     [Parameter(ParameterSetName = 'Standard')] [switch] $DryRun,
@@ -125,12 +127,13 @@ function Write-StderrBanner {
 
 $runStart = Get-Date
 $runId = $runStart.ToString('o')
-$runDate = $runStart.ToString('yyyy-MM-dd')
+$runDate = $runStart.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
 # Filesystem-safe UTC run stamp for per-run artifact names (colons are invalid
 # in Windows paths). Millisecond precision so two runs in the same second (a
 # scheduler retry/overlap, or a fast mostly-cadence-deferred run) still write
-# distinct report/battery filenames rather than overwriting each other.
-$runStamp = $runStart.ToUniversalTime().ToString('yyyy-MM-ddTHHmmssfffZ')
+# distinct report/battery filenames rather than overwriting each other. Gregorian
+# whatever the culture: th-TH would otherwise write the Buddhist year.
+$runStamp = $runStart.ToUniversalTime().ToString('yyyy-MM-ddTHHmmssfffZ', [Globalization.CultureInfo]::InvariantCulture)
 $hostname = [System.Net.Dns]::GetHostName()
 $effectiveDry = $DryRun.IsPresent -or ($RunMode -eq 'first-run')
 $elevated = Test-IsElevated
@@ -138,6 +141,7 @@ $osVersion = try { (Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).Ver
 
 # Normalize and prepare output roots. Reports are user-facing and live under
 # OutputBase; state and logs are machine state and live under StateBase.
+if ([string]::IsNullOrWhiteSpace($OutputBase)) { $OutputBase = Join-Path $env:USERPROFILE 'Documents\MachineHealth' }
 $OutputBase = [System.IO.Path]::GetFullPath($OutputBase)
 if ([string]::IsNullOrWhiteSpace($StateBase)) {
     $StateBase = if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_PLUGIN_DATA)) {
@@ -753,9 +757,14 @@ modules. Harmless to ignore.
         }
     }
 
+    # Per-run (not per-day) filename: a same-day rerun must not overwrite the
+    # earlier report, since each run also writes a distinct history entry.
+    $reportPath = Join-Path $reportsDir "health-$runStamp.md"
     $snapshot = New-RunSnapshot -RunId $runId -HostName $hostname -OsVersion $osVersion -Elevated $elevated `
         -RunMode $RunMode -DryRun $effectiveDry -Checks @($checkResults) -Remediations @($remediationAttempts) `
-        -DiscoveredChecks @($discoveredChecks) -UrlsCalled @($urlsCalled) -DurationSeconds $durationSeconds
+        -DiscoveredChecks @($discoveredChecks) -UrlsCalled @($urlsCalled) -DurationSeconds $durationSeconds `
+        -RunStamp $runStamp -ReportPath $reportPath -PagePath (Get-CheckupViewPath -StateBase $StateBase -RunStamp $runStamp) `
+        -CadenceDeferredCount @($selection.skipped).Count
     if ($ElevatedResultPath) { $snapshot['elevated_checks'] = $elevatedChecks }
 
     $latestPath = Join-Path $stateDir 'latest.json'
@@ -794,9 +803,6 @@ modules. Harmless to ignore.
     }
 
     $templatePath = Join-Path $skillRoot 'reference\shared\report-template.md'
-    # Per-run (not per-day) filename: a same-day rerun must not overwrite the
-    # earlier report, since each run also writes a distinct history entry.
-    $reportPath = Join-Path $reportsDir "health-$runStamp.md"
 
     $oneLine = ("$($totalBySeverity.CRIT) CRIT, $($totalBySeverity.WARN) WARN, " +
         "$($totalBySeverity.INFO) INFO, $($totalBySeverity.OK) OK, " +
@@ -895,7 +901,7 @@ $glanceRows
 
     $deltaLine = try {
         Get-RunDelta -HistoryTail $historyTail -CurrentSeverityCounts $severityCounts `
-            -SkippedCount @($selection.skipped).Count
+            -SkippedCount $snapshot.cadence_deferred_count
     } catch {
         Write-MachineHealthLog "delta_compute_failed $($_.Exception.Message)"
         'see state/history.jsonl for comparison'

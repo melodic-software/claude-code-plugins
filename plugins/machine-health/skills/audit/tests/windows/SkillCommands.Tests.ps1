@@ -76,25 +76,26 @@ BeforeAll {
     $script:AuditBlocks = Get-PowerShellBlock (Join-Path $script:SkillRoot 'SKILL.md')
     $script:AuditTokens = @('${CLAUDE_PLUGIN_ROOT}', '${CLAUDE_PLUGIN_DATA}', '${user_config.report_dir}')
     $script:SetupBlocks = Get-PowerShellBlock (Join-Path $script:SkillRoot '..\setup\SKILL.md')
-    $script:SetupTokens = @('${CLAUDE_PLUGIN_ROOT}', '${CLAUDE_PLUGIN_DATA}', '<payload file>')
+    $script:SetupTokens = @('${CLAUDE_PLUGIN_ROOT}', '${CLAUDE_PLUGIN_DATA}', '${user_config.report_dir}', '<payload file>')
 }
 
 Describe 'audit SKILL.md command templates' -Tag 'skill' {
-    It 'holds the roots block and four commands' {
-        $script:AuditBlocks.Count | Should -Be 5
+    It 'holds the roots block and five commands' {
+        $script:AuditBlocks.Count | Should -Be 6
         foreach ($token in $script:AuditTokens) { $script:AuditBlocks[0] | Should -BeLike "*$token*" }
         # The PowerShell tool takes newlines only inside a here-string.
         @($script:AuditBlocks[0].Trim() -split '\n').Count | Should -Be 5
-        foreach ($command in $script:AuditBlocks[1..4]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
+        foreach ($command in $script:AuditBlocks[1..5]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
     }
 
     Context 'a root holding <Case>' -ForEach $script:HostileRoots {
         It 'parses the <Name> command to only its own commands' -ForEach @(
             @{ Name = 'roots'; Index = 0; Expected = @('ForEach-Object', 'Join-Path', 'Write-Warning') }
             @{ Name = 'run'; Index = 1; Expected = @('&', 'Join-Path') }
-            @{ Name = 'prepare'; Index = 2; Expected = @('.', 'Format-List', 'Get-Content', 'Join-Path', 'New-ElevatedLaunch') }
-            @{ Name = 'launch'; Index = 3; Expected = @('.', 'Get-ElevatedLaunch', 'Join-Path', 'Start-ElevatedLaunch') }
-            @{ Name = 'import'; Index = 4; Expected = @('&', '.', 'Get-ElevatedLaunch', 'Join-Path', 'Join-Path') }
+            @{ Name = 'short report'; Index = 2; Expected = @('&', 'Join-Path', 'Join-Path') }
+            @{ Name = 'prepare'; Index = 3; Expected = @('.', 'Format-List', 'Get-Content', 'Join-Path', 'New-ElevatedLaunch') }
+            @{ Name = 'launch'; Index = 4; Expected = @('.', 'Get-ElevatedLaunch', 'Join-Path', 'Start-ElevatedLaunch') }
+            @{ Name = 'import'; Index = 5; Expected = @('&', '.', 'Get-ElevatedLaunch', 'Join-Path', 'Join-Path') }
         ) {
             $command = if ($Index -eq 0) { '' } else { $script:AuditBlocks[$Index].Replace('<ScriptSha256>', 'AB' * 32) }
             # Substituted across the command too, so a command that types a token itself fails.
@@ -142,23 +143,30 @@ Describe 'audit SKILL.md command templates' -Tag 'skill' {
 }
 
 Describe 'setup SKILL.md command templates' -Tag 'skill' {
-    It 'holds the roots block and three commands' {
-        $script:SetupBlocks.Count | Should -Be 4
+    It 'holds the roots block and eight commands' {
+        $script:SetupBlocks.Count | Should -Be 9
         foreach ($token in $script:SetupTokens) { $script:SetupBlocks[0] | Should -BeLike "*$token*" }
-        @($script:SetupBlocks[0].Trim() -split '\n').Count | Should -Be 5
-        foreach ($command in $script:SetupBlocks[1..3]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
+        @($script:SetupBlocks[0].Trim() -split '\n').Count | Should -Be 6
+        foreach ($command in $script:SetupBlocks[1..8]) { @($command.Trim() -split '\n').Count | Should -Be 1 }
     }
 
     Context 'a root holding <Case>' -ForEach $script:HostileRoots {
         It 'parses the <Name> command to only its own commands' -ForEach @(
             @{ Name = 'roots'; Index = 0; Expected = @() }
-            @{ Name = 'apply'; Index = 1; Expected = @('.', 'Join-Path', 'Set-ApprovalState') }
-            @{ Name = 'picks resolve'; Index = 2
+            @{ Name = 'check wrapper copy'; Index = 1; Expected = @('.', 'Join-Path', 'Test-MonthlyRunCurrent') }
+            @{ Name = 'apply'; Index = 2; Expected = @('.', 'Join-Path', 'Set-ApprovalState') }
+            @{ Name = 'picks resolve'; Index = 3
                 Expected = @('.', 'ForEach-Object', 'Format-Table', 'Get-Content', 'Join-Path', 'Join-Path', 'Resolve-CheckupPick')
             }
-            @{ Name = 'picks write'; Index = 3
+            @{ Name = 'picks write'; Index = 4
                 Expected = @('.', 'Get-Content', 'Join-Path', 'Write-CheckupPick')
             }
+            @{ Name = 'schedule roots'; Index = 5; Expected = @('.', 'Assert-ScheduleRoot', 'Join-Path', 'Join-Path') }
+            @{ Name = 'schedule sync root'; Index = 6; Expected = @('.', 'Assert-StateBaseLocation', 'Join-Path') }
+            @{ Name = 'schedule install'; Index = 7
+                Expected = @('.', 'Get-Command', 'Install-MonthlyRun', 'Join-Path', 'schtasks', 'Select-Object')
+            }
+            @{ Name = 'schedule run now'; Index = 8; Expected = @('Join-Path', 'pwsh') }
         ) {
             $command = if ($Index -eq 0) { '' } else {
                 $script:SetupBlocks[$Index].Replace('<action> <arguments>', 'approve -RemediationId clear-temp-files').
@@ -176,13 +184,14 @@ Describe 'setup SKILL.md command templates' -Tag 'skill' {
             Push-Location -LiteralPath $TestDrive
             try {
                 $roots = Invoke-RootsBlock (Format-RootTemplate -Text $script:SetupBlocks[0] -Token $script:SetupTokens -Value $Root) `
-                    '[pscustomobject]@{ Plugin = $pluginRoot; State = $stateRoot; Payload = $payloadPath }'
+                    '[pscustomobject]@{ Plugin = $pluginRoot; State = $stateRoot; Report = $reportRoot; Payload = $payloadPath }'
             } finally {
                 Pop-Location
             }
 
             $roots.Plugin | Should -BeExactly $Root
             $roots.State | Should -BeExactly $Root
+            $roots.Report | Should -BeExactly $Root
             $roots.Payload | Should -BeExactly $Root
             Test-Path -LiteralPath (Join-Path $TestDrive 'canary') | Should -BeFalse
         }
@@ -192,5 +201,11 @@ Describe 'setup SKILL.md command templates' -Tag 'skill' {
         $text = $script:SetupBlocks[0].Replace('${CLAUDE_PLUGIN_ROOT}', 'D:\plugins\machine-health')
 
         { Invoke-RootsBlock $text '$stateRoot' } | Should -Throw '*did not resolve*'
+    }
+
+    It 'leaves the report root empty when the report option is unset' {
+        $text = $script:SetupBlocks[0].Replace('${CLAUDE_PLUGIN_DATA}', 'D:\data\machine-health')
+
+        Invoke-RootsBlock $text '$reportRoot' | Should -BeExactly ''
     }
 }

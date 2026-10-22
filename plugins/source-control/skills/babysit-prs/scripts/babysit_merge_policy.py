@@ -66,6 +66,7 @@ from babysit_risk import (
     glob_match,
     is_capability_path,
     is_case_file,
+    is_workflow_path,
     is_manifest_path,
 )
 from babysit_util import (
@@ -73,6 +74,7 @@ from babysit_util import (
     is_json_object,
     json_array,
     json_object,
+    parse_timestamp,
     run_command,
 )
 
@@ -1835,6 +1837,92 @@ def _closing_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str |
     return issue, None
 
 
+# --- Cost decision ------------------------------------------------------------------------
+
+# A comment link in a pull request body, and the first line that makes a
+# comment a decision (as select-trusted-text.mjs `DECISION` reads it).
+COST_DECISION_LINK = re.compile(
+    r"https://github\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/(?:issues|pull)/"
+    r"([0-9]+)#issuecomment-([0-9]+)"
+)
+# A cost decision's first line: the decision marker, then `Cost:`, so a
+# decision recorded for something else clears no cost hold.
+DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
+# An HTML comment in the body, or an unclosed one to the end: a link inside
+# one is hidden from a reader, so it cites nothing.
+HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
+COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}"
+
+
+def _after(value: Any, opened: datetime | None) -> bool:
+    made = parse_timestamp(value)
+    return made is not None and opened is not None and made > opened
+
+
+def cost_decision(
+    repo: str,
+    pr: Mapping[str, Any],
+    issue: int | None,
+    *,
+    permission: Permission,
+    agent_identity: str | None,
+    self_logins: Collection[str] = frozenset(),
+) -> str | None:
+    """The first comment link in the body that is an owner decision covering
+    this pull request, else None: a comment on its closing issue or on the
+    pull request itself in `repo`, by a User with admin permission who is not
+    the agent identity, not posted through an App, never edited, and whose
+    first line starts `**Decision recorded.** Cost:`. One on the closing issue
+    counts only when created after the pull request was, so an older decision
+    on the issue cannot cover new work (an author can forge commit dates, not
+    these); one on the pull request postdates it already. A link inside an HTML
+    comment, and a comment by a `self_logins` account, count for nothing. A
+    read that fails clears nothing."""
+    owner, name = _split_repo(repo)
+    covered = {pr.get("number"), issue} - {None}
+    opened = parse_timestamp(pr.get("created_at"))
+    excluded = {_login_key(agent_identity)} | {_login_key(x) for x in self_logins}
+    body = HTML_COMMENT.sub("", str(pr.get("body") or ""))
+    for link in COST_DECISION_LINK.finditer(body):
+        if f"{link[1]}/{link[2]}".casefold() != repo.casefold():
+            continue
+        if int(link[3]) not in covered:
+            continue
+        status, comment = _get(f"repos/{owner}/{name}/issues/comments/{link[4]}")
+        if status != 200 or not is_json_object(comment):
+            continue
+        user = json_object(comment.get("user"))
+        login = user.get("login")
+        if (
+            not str(comment.get("issue_url") or "").endswith(f"/issues/{link[3]}")
+            or user.get("type") != "User"
+            or comment.get("performed_via_github_app") is not None
+            or not isinstance(login, str)
+            or _login_key(login) in excluded
+            or not DECISION_LINE.match(str(comment.get("body") or "").lstrip())
+            or (
+                int(link[3]) != pr.get("number")
+                and not _after(comment.get("created_at"), opened)
+            )
+        ):
+            continue
+        try:
+            if permission(login) != "admin":
+                continue
+            node = _graphql(
+                COMMENT_EDITED, "cost decision", id=str(comment.get("node_id"))
+            ).get("node")
+        except PolicyReadError:
+            continue
+        if (
+            is_json_object(node)
+            and "lastEditedAt" in node
+            and node["lastEditedAt"] is None
+        ):
+            return link[0]
+    return None
+
+
 def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
     """`fork` for a head outside this repository, `dependency-manager` for a
     dependency manager's pull request, else None."""
@@ -3204,6 +3292,32 @@ def merged_since_floor(
 # --- Changed files with git modes -------------------------------------------------------------
 
 
+def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
+    """`babysit_risk.RiskInput.pulumi_dirs`: each directory holding a
+    `Pulumi.yaml` at the base ("" for the root); None when the base tree
+    cannot be listed whole."""
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(
+            f"Pulumi projects at the base: {type(exc).__name__}: {exc}", file=sys.stderr
+        )
+        return None
+    if modes is None:
+        return None
+    return tuple(
+        sorted(
+            path.rpartition("/")[0]
+            for path in modes
+            if path.rpartition("/")[2].casefold() == "pulumi.yaml"
+        )
+    )
+
+
 def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
     """Each path's git mode at `sha`, or None when the listing is truncated:
     from a local clone holding `sha` (`_clones_holding`), else the trees API."""
@@ -3419,7 +3533,7 @@ def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
 def with_capability_contents(
     repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
 ) -> tuple[ChangedFile, ...]:
-    """Each changed capability file, manifest or eval case.yaml (not removed) with its base
+    """Each changed capability file, manifest, eval case.yaml or workflow (not removed) with its base
     text at the base SHA, from its previous path on a rename or copy, and its head text
     at the head SHA, or the reason either could not be read."""
     owner, name = _split_repo(repo)
@@ -3431,6 +3545,7 @@ def with_capability_contents(
             is_capability_path(changed.path)
             or is_manifest_path(changed.path)
             or is_case_file(changed.path)
+            or is_workflow_path(changed.path)
         ):
             read.append(changed)
             continue

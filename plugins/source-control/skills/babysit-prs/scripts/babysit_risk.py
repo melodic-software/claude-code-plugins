@@ -71,6 +71,26 @@ read or parsed, or repeats a key, holds; an added plugin.json is compared with
 differ, and a listed key clears only with the type `_CLEAR_TYPES` names (a
 string otherwise).
 
+A change that could add or raise a charge rates HIGH as `cost-review-required`
+in every lane, floor or not and whatever `floor_exempt` says (owner rule,
+2026-10-22): any `COST_PATHS` file (Pulumi, Terraform, Bicep, the multi-agent
+role map) or file under a `RiskInput.pulumi_dirs` directory, and every file
+when `pulumi_dirs` is None (the base tree was not listed); a file renamed or
+copied into a workflow or `pr-pipeline.yaml` path from outside one; a
+`.github/workflows/` file whose patch adds a `_COST_WORKFLOW_LINE` (a `cron`
+key in any spelling, `--model`, `--max-turns`), or, unless `RiskInput.public`
+is True, a `runs-on:`, `windows` or `macos` line; that gains a `_SECRET_REF`,
+a `_MODEL_ACTION` or a `_MODEL_PACKAGE` run, counted against the lines it
+removes so a move or repin is not new; that adds a `timeout-minutes` or
+`leg-timeout-minutes` above every one it removes, when its head text
+(`contents`) names a model leg or could not be read; or that gains a runner
+value (head text against base text, and added inline `runs-on:` lines) that
+is not `_FREE_RUNNER` on a public repository, or any on another; and a
+`pr-pipeline.yaml` change with any added or removed line off
+`_SAFE_PIPELINE_LINE`, unless it only edits trailing comments. A workflow or
+pipeline file with no patch holds. Only `RiskInput.cost_decision`, an owner
+decision the caller verified, clears it.
+
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
 uses only `[A-Za-z0-9._-]` and does not end in `.` (Windows strips it); every
@@ -190,6 +210,15 @@ class RiskInput:
     # a changed path, as (path, text), None when unreadable; None when not
     # read, so every changed path under plugins/<plugin>/evals/ holds.
     eval_cases: tuple[tuple[str, str | None], ...] | None = None
+    # The repository is public, where standard hosted runners are free; any
+    # other value reads every runs-on and macOS line as a charge.
+    public: bool | None = None
+    # The owner decision the caller verified for a `cost-review-required`
+    # change (its comment URL); None keeps the hold.
+    cost_decision: str | None = None
+    # Directories holding a Pulumi.yaml at the base ("" for the root): any
+    # change under one is infrastructure as code.
+    pulumi_dirs: tuple[str, ...] | None = ()
     # Paths only a trusted author's own commits touched: the path floor and
     # the manifest review leave them out (owner decision 2026-10-22).
     floor_exempt: frozenset[str] = frozenset()
@@ -1433,6 +1462,289 @@ def _high_path_reasons(
     return reasons
 
 
+COST_CODE = "cost-review-required"
+# Infrastructure as code: any change can add or resize a billed resource.
+COST_PATHS: tuple[str, ...] = (
+    # The multi-agent role map: model and effort per role for every fan-out.
+    "plugins/multi-agent/reference/defaults.yaml",
+    "**/Pulumi.yaml",
+    "**/Pulumi.*.yaml",
+    "**/*.tf",
+    "**/*.tfvars",
+    "**/*.bicep",
+    "**/*.bicepparam",
+)
+_WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
+_PIPELINE_CONFIG = "**/pr-pipeline.yaml"
+# Added workflow lines that can charge in any repository: a schedule in any
+# YAML or JSON spelling (a scheduled lane spends model credits) and a model or
+# turn flag.
+_COST_WORKFLOW_LINE = re.compile(
+    r"\bcron\s*:|[\"']cron[\"']\s*:|--model\b|--max-turns\b", re.IGNORECASE
+)
+# Standard hosted runners are free only on public repositories, so on any
+# other a runs-on line or a Windows or macOS label (a matrix value) charges.
+_COST_PRIVATE_LINE = re.compile(r"\bruns-on\s*:|\bmacos\b|\bwindows\b", re.IGNORECASE)
+# Runner labels free on a public repository: GitHub's standard hosted labels
+# and the self-hosted managed labels (`.github/standards/runner-policy`). A
+# list holding `self-hosted` targets a self-hosted runner, which is free.
+_FREE_RUNNER = re.compile(
+    r"(?:ubuntu|windows|macos)-(?:latest|[0-9]+(?:\.[0-9]+)?)(?:-arm)?|windows-11-arm"
+    r"|(?:melodic|kyle)-(?:[a-z0-9]+-)*ubuntu-24\.04-x64(?:-[a-z0-9-]+)?",
+    re.IGNORECASE,
+)
+_RUNS_ON = re.compile(r"^(\s*)-?\s*runs-on\s*:\s*(.*)$")
+
+
+def _scalar(value: str) -> str:
+    return value.split(" #", 1)[0].strip().strip("'\"")
+
+
+def _labels(value: str) -> list[str]:
+    value = _scalar(value)
+    if value.startswith("[") and value.endswith("]"):
+        return [_scalar(v) for v in value[1:-1].split(",") if v.strip()]
+    return [value] if value else []
+
+
+def _runner_values(text: str) -> list[str]:
+    """Each runs-on value in workflow text: an inline label or list, and a
+    block's list items and `group:`/`labels:` entries (as `group:<name>`)."""
+    values: list[str] = []
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        m = _RUNS_ON.match(line)
+        if not m:
+            continue
+        if _scalar(m[2]):
+            values.append(_scalar(m[2]))
+            continue
+        indent = len(m[1])
+        for inner in lines[i + 1 :]:
+            if inner.strip() and len(inner) - len(inner.lstrip()) <= indent:
+                break
+            item = inner.strip()
+            if item.startswith("- "):
+                values.append(_scalar(item[2:]))
+            elif item.startswith("group:"):
+                values.append("group:" + _scalar(item[6:]))
+            elif item.startswith("labels:"):
+                values.append(_scalar(item[7:]))
+    return values
+
+
+def _free(value: str) -> bool:
+    labels = _labels(value)
+    if "self-hosted" in (label.casefold() for label in labels):
+        return True
+    return bool(labels) and all(_FREE_RUNNER.fullmatch(label) for label in labels)
+
+
+def _new_runners(raw: Any, added: list[str], public: bool) -> list[str]:
+    """Runner values the change adds that are not free: from the head text
+    against the base text when both were read, and from added inline runs-on
+    lines. Unread text and an added block holds."""
+    contents = getattr(raw, "contents", None)
+    pair = contents if isinstance(contents, tuple) and len(contents) == 2 else None
+    base, head = pair if pair else (None, None)
+    gained: Counter[str] = Counter()
+    if isinstance(head, str):
+        gained.update(_runner_values(head))
+        gained.subtract(_runner_values(base if isinstance(base, str) else ""))
+    found = [v for v, n in gained.items() if n > 0]
+    for line in added:
+        m = _RUNS_ON.match(line)
+        if m and _scalar(m[2]):
+            found.append(_scalar(m[2]))
+        elif m and not isinstance(head, str):
+            found.append("runs-on block in unread text")
+    return sorted({v for v in found if not (public and _free(v))})
+
+
+# The pr-pipeline.yaml lines a change may touch without moving spend: blank and
+# comment lines and a `description:` or `title:` value. Any other added or
+# removed line holds, unless the change only edits trailing comments (the same
+# lines with the comments stripped).
+_SAFE_PIPELINE_LINE = re.compile(
+    r"\s*(?:#.*)?|\s*(?:description|title)\s*:(?:\s.*)?", re.IGNORECASE
+)
+# Any secrets reference: `secrets.NAME`, `secrets['NAME']`, the whole
+# `secrets` context, and `secrets: inherit`.
+_SECRET_REF = re.compile(
+    r"\bsecrets\s*(?:\.\s*[A-Za-z0-9_]+|\[[^\]]*\])|\bsecrets\b(?=\s*\))"
+    r"|\bsecrets\s*:\s*inherit\b",
+    re.IGNORECASE,
+)
+# A model leg: a claude-code-* action or image, run-claude-cli, or the
+# Claude Code npm package on a run line.
+_MODEL_ACTION_NAME = re.compile(
+    r"run-claude-cli|claude-code[\w-]*|@anthropic-ai/claude-code", re.IGNORECASE
+)
+_MODEL_ACTION = re.compile(
+    r"\buses\s*:\s*['\"]?([^@\s'\"]*(?:run-claude-cli|claude-code[\w-]*)[^@\s'\"]*)",
+    re.IGNORECASE,
+)
+_MODEL_PACKAGE = re.compile(r"@anthropic-ai/claude-code\b", re.IGNORECASE)
+_TIMEOUT = re.compile(r"^\s*(?:leg-)?timeout-minutes\s*:\s*['\"]?([0-9]+)")
+
+
+def is_workflow_path(path: str) -> bool:
+    return any(glob_match(g, path) for g in _WORKFLOWS)
+
+
+def _patch_lines(patch: Any) -> tuple[list[str], list[str]] | None:
+    """(added, removed) line texts of a unified patch, None when unreadable."""
+    if not isinstance(patch, str):
+        return None
+    added, removed = [], []
+    for line in patch.split("\n"):
+        if line.startswith("+") and not line.startswith("+++"):
+            added.append(line[1:])
+        elif line.startswith("-") and not line.startswith("---"):
+            removed.append(line[1:])
+    return added, removed
+
+
+def _unsafe_pipeline_lines(patch: str) -> list[str]:
+    """The changed pr-pipeline.yaml lines off `_SAFE_PIPELINE_LINE`. A run of
+    removed lines and the added lines that follow it pass together only when
+    they are the same lines, in order, once trailing comments are stripped, so
+    a value moved between two places in the file still holds."""
+
+    def unsafe(lines: list[str]) -> list[str]:
+        return [
+            line.split(" #", 1)[0].rstrip()
+            for line in lines
+            if not _SAFE_PIPELINE_LINE.fullmatch(line)
+        ]
+
+    found: list[str] = []
+    removed: list[str] = []
+    added: list[str] = []
+
+    def close() -> None:
+        lost, gained = unsafe(removed), unsafe(added)
+        if lost != gained:
+            found.extend(line.strip() for line in lost + gained)
+        removed.clear()
+        added.clear()
+
+    for line in patch.split("\n"):
+        if line.startswith("-") and not line.startswith("---"):
+            if added:
+                close()
+            removed.append(line[1:])
+        elif line.startswith("+") and not line.startswith("+++"):
+            added.append(line[1:])
+        else:
+            close()
+    close()
+    return found
+
+
+def _net_added(
+    pattern: re.Pattern[str], added: list[str], removed: list[str]
+) -> list[str]:
+    """Each match `added` gains over `removed`, so a moved or repinned line
+    is not new."""
+    gained = Counter(
+        re.sub(r"\s+", "", m).casefold()
+        for line in added
+        for m in pattern.findall(line)
+    )
+    gained.subtract(
+        re.sub(r"\s+", "", m).casefold()
+        for line in removed
+        for m in pattern.findall(line)
+    )
+    return sorted(m for m, n in gained.items() if n > 0)
+
+
+def _raised_timeouts(
+    f: _File, raw: Any, added: list[str], removed: list[str]
+) -> list[str]:
+    """Timeouts on a workflow that starts a model leg (or whose head text could
+    not be read) that the patch adds above every value it removes."""
+    new = [int(m[1]) for line in added if (m := _TIMEOUT.match(line))]
+    if not new:
+        return []
+    contents = getattr(raw, "contents", None)
+    head = contents[1] if isinstance(contents, tuple) and len(contents) == 2 else None
+    if isinstance(head, str) and not _MODEL_ACTION_NAME.search(head):
+        return []
+    old = [int(m[1]) for line in removed if (m := _TIMEOUT.match(line))]
+    return [f"timeout raised to {n}" for n in new if not old or n > max(old)]
+
+
+def _cost_reasons(
+    inp: RiskInput, files: list[_File], raw_files: list[Any]
+) -> list[Reason]:
+    """`cost-review-required` for a change that could add or raise a charge,
+    unless `inp.cost_decision` names the owner decision that clears it. It
+    holds in every lane, whatever the floor switch says."""
+    hits = []
+    for f, raw in zip(files, raw_files):
+        if any(glob_match(g, p) for g in COST_PATHS for p in f.paths):
+            hits.append(f"{f.path}: infrastructure as code")
+            continue
+        if inp.pulumi_dirs is None:
+            hits.append(f"{f.path}: the base tree was not listed for Pulumi projects")
+            continue
+        if any(
+            p == d or not d or p.casefold().startswith(d.casefold() + "/")
+            for d in inp.pulumi_dirs or ()
+            for p in f.paths
+        ):
+            hits.append(f"{f.path}: in a Pulumi project")
+            continue
+        workflow = any(is_workflow_path(p) for p in f.paths)
+        pipeline = any(glob_match(_PIPELINE_CONFIG, p) for p in f.paths)
+        if not (workflow or pipeline):
+            continue
+        new, old = f.paths[0], f.paths[-1]
+        if new != old and not (
+            is_workflow_path(old) or glob_match(_PIPELINE_CONFIG, old)
+        ):
+            hits.append(f"{f.path}: renamed or copied from {old}")
+            continue
+        lines = _patch_lines(getattr(raw, "patch", None))
+        if lines is None:
+            hits.append(f"{f.path}: no patch to read")
+            continue
+        added, removed = lines
+        if workflow:
+            patterns = [_COST_WORKFLOW_LINE] + (
+                [] if inp.public is True else [_COST_PRIVATE_LINE]
+            )
+            found = [s.strip() for s in added if any(p.search(s) for p in patterns)]
+            found += [
+                f"new secrets reference {n}"
+                for n in _net_added(_SECRET_REF, added, removed)
+            ]
+            found += [
+                f"new model leg {n}" for n in _net_added(_MODEL_ACTION, added, removed)
+            ]
+            found += [
+                f"new model package run {n}"
+                for n in _net_added(_MODEL_PACKAGE, added, removed)
+            ]
+            found += _raised_timeouts(f, raw, added, removed)
+            found += [
+                f"runner {v}" for v in _new_runners(raw, added, inp.public is True)
+            ]
+        else:
+            found = _unsafe_pipeline_lines(getattr(raw, "patch", ""))
+        if found:
+            hits.append(f"{f.path}: {'; '.join(found)}")
+    if not hits or inp.cost_decision:
+        return []
+    detail = "; ".join(hits) + (
+        "; cite the owner's `**Decision recorded.**` comment on the closing issue or "
+        "this pull request in the body to clear it"
+    )
+    return [Reason(COST_CODE, Risk.HIGH, detail)]
+
+
 def _c2_contradictions(files: list[_File]) -> list[str]:
     """The diff contradicts C2 ("deterministic and trivially reversible")."""
     found = []
@@ -1575,6 +1887,7 @@ def _score(inp: RiskInput) -> RiskResult:
         *_size_reasons(inp, files),
         *_lane_reasons(inp.lanes),
         *_high_path_reasons(inp, files or [], list(raw_files or ())),
+        *_cost_reasons(inp, files or [], list(raw_files or ())),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
