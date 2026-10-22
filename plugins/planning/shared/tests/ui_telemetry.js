@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Passive telemetry in real browsers, against `share.sh ensure-running` with the fake cloudflared, every request to
 // another host refused. A desktop guest's join dialog carries no notice and no switch; Help shows the notice line and
-// its "What this page records" list, with no switch either. A script error thrown three times is sent once with a fingerprint, its two repeats counted in the
-// summary the page sends when it hides; two picks (one refused on a locked question, so its optimistic patch rolls
+// its "What this page records" list, with no switch either. A script error thrown three times is sent once with a fingerprint, its repeats never sent, in the
+// summary the page sends when it hides or elsewhere; two picks (one refused on a locked question, so its optimistic patch rolls
 // back) show as tap-to-answer latency and one rollback; showing the page again gives a reconnect gap; INP and LCP come
 // from the vendored web-vitals file, loaded from this origin. The summary names no one, in its body or on the server,
 // where it has no line of its own until the batch that stopping the server writes.
@@ -138,7 +138,7 @@ async function main() {
     for (let i = 0; i < 40 && !sums.length; i++) { sums = parsed(w.bodies).filter(b => b.kind === "summary"); if (!sums.length) await guest.waitForTimeout(100); }
     const t1 = tokens(sums[0]?.message);
     const lat = (t1["lat:/api/pick"] || "").split(",").reduce((a, n) => a + Number(n), 0);
-    ok("hiding sends one summary: both picks timed, one rollback, the two repeats", sums.length === 1 && lat === 2 && t1["rb:/api/pick"] === "1" && t1[`rep:${errorsSent()[0]?.fp}`] === "2", sums[0]?.message);
+    ok("hiding sends one summary: both picks timed, one rollback, no repeat count", sums.length === 1 && lat === 2 && t1["rb:/api/pick"] === "1" && !Object.keys(t1).some(k => k.startsWith("rep:")), sums[0]?.message);
     // A target is a component name, or "-" when web-vitals found no element for it (one removed before it measured).
     ok("  with INP and LCP named by component, never text", /^\d+:(pointer|keyboard):(?:[a-z][\w-]*|-)$/.test(t1.inp || "") && /^\d+:(?:[a-z][\w-]*|-)$/.test(t1.lcp || ""), `${t1.inp} ${t1.lcp}`);
     ok("  with taps counted by control: Help once, three on the answering control as one rage tap, one dead tap",
@@ -298,7 +298,7 @@ async function main() {
     const comp = (k, c) => sum.features?.[k]?.find(x => x.component === c)?.count;
     ok("logs --summary counts the taps by control: three, one rage tap, one dead tap", comp("use", "vf-telemetry-rage") === 3 && comp("rage", "vf-telemetry-rage") === 1
       && comp("dead", "vf-telemetry-dead") === 1 && !comp("dead", "vf-telemetry-rage"), JSON.stringify(sum.features));
-    ok("logs --summary counts the error, the latency and the rollback", sum.summaries.count === 7 && sum.errors.some(g => g.message.includes(THROWN) && g.count === 3)
+    ok("logs --summary counts the error, the latency and the rollback", sum.summaries.count === 7 && sum.errors.some(g => g.message.includes(THROWN) && g.count === 1)
       && sum.latency["/api/pick"]?.actions === 4 && sum.latency["/api/pick"]?.rollbacks === 1 && sum.reconnect.count === 2 && sum.inp.pages === 2, JSON.stringify(sum));
   } catch (e) {
     ok("the suite ran to the end", false, String(e.stack || e).split("\n").slice(0, 3).join(" "));
