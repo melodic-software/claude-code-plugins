@@ -213,7 +213,7 @@ function checkLeaves(activities, activityRules) {
     // script's; every other mode needs a skill that can write, or a read
     // skill whose patch a script applies.
     const needs = { "ci-context": "read", "apply-patch": "mutate-branch" }[activity.prepare];
-    const handsOnPatch = isObject(activity["applied-by"]) && activity["applied-by"].patch !== undefined;
+    const handsOnPatch = isObject(activity["applied-by"]) && typeof activity["applied-by"].patch === "string";
     if (
       activity.prepare !== undefined &&
       (needs ? activity.effect !== needs : activity.effect === "read" && !handsOnPatch)
