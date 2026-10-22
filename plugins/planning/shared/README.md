@@ -814,7 +814,8 @@ whole, and a crash or `share.sh stop` on Windows (below) loses them all.
 
 Never recorded: what anyone types, answers, chat, names, the address or its fragment, text on the
 page, or a credential. Help says so in one line, with a "What this page records" link to the plain
-list; the phone More sheet opens the same list. Recording has no off switch: every joined page
+list; the phone More sheet opens the same list. The list tells a guest that when they are the only
+guest, the host can tell their session's counts are theirs. Recording has no off switch: every joined page
 sends, and a `telemetry` key an older page left in `localStorage` is ignored. The join dialog shows
 only its heading, the invite line, the name prompt, the name box and Join.
 

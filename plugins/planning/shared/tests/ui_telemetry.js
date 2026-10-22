@@ -172,10 +172,12 @@ async function main() {
     const note = await until(guest, () => !!document.querySelector("dialog.core-records[open]")) && await guest.evaluate(() => {
       const d = document.querySelector("dialog.core-records");
       return { heads: [...d.querySelectorAll("h3")].map(h => h.textContent), items: d.querySelectorAll("li").length, never: d.textContent.includes("What you type"),
-        taps: [...d.querySelectorAll("li")].some(li => /tapped/.test(li.textContent) && /added up for everyone/.test(li.textContent)),
+        taps: [...d.querySelectorAll("li")].some(li => /tapped/.test(li.textContent) && /added up for everyone/.test(li.textContent)
+          && /when you are the only guest, for your session once it ends, which the host can tell is yours/.test(li.textContent)),
+        ids: d.querySelector(".core-note")?.textContent || "",
         controls: d.querySelectorAll("input[type=checkbox], [role=switch]").length };
     });
-    ok("  its link opens the plain list of what is and is not recorded, with no switch", !!note && note.heads.join("|") === "Recorded|Never recorded" && note.items >= 8 && note.taps && note.never && note.controls === 0, JSON.stringify(note));
+    ok("  its link opens the plain list of what is and is not recorded, with no switch", !!note && note.heads.join("|") === "Recorded|Never recorded" && note.items >= 8 && note.taps && /when you are the only guest the host can tell your session's counts are yours/.test(note.ids) && note.never && note.controls === 0, JSON.stringify(note));
     await guest.locator("dialog.core-records button").click();
     ok("  which closes", await until(guest, () => !document.querySelector("dialog.core-records")));
     await guest.keyboard.press("Escape");

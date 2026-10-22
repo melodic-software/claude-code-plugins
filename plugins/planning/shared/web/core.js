@@ -1128,9 +1128,9 @@
   const RECORDED = ["Script errors on this page, and actions that never reached the host", "How long each action takes to get an answer, and how often one is undone",
     "How long the page takes to catch up when you come back to it", "Layout problems: something too wide for the screen, a field the keyboard covers, the header pushed off screen",
     "How fast the page answers a tap and shows its main content", "Your device type and browser family, such as phone and Safari",
-    "How often each control is tapped, tapped three times in a second, or tapped with nothing changing, by the control's name only, added up for everyone every 10 minutes, or once at the end of a one-on-one session"];
+    "How often each control is tapped, tapped three times in a second, or tapped with nothing changing, by the control's name only, added up for everyone every 10 minutes, or, when you are the only guest, for your session once it ends, which the host can tell is yours"];
   const NEVER = ["What you type: your answers, chat and requests", "Your name, or this page's address", "Any text shown on the page"];
-  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id. It all stays on the host's computer.";
+  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id, though when you are the only guest the host can tell your session's counts are yours. It all stays on the host's computer.";
   function openRecords() {
     const dlg = Core.el("dialog", "core-records"), h = Core.el("h2", null, "What this page records");
     h.id = "core-records-h"; dlg.setAttribute("aria-labelledby", h.id);
