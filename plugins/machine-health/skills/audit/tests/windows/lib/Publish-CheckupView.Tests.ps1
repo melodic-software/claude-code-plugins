@@ -12,7 +12,7 @@ BeforeAll {
 
     $script:Current = '2026-01-14T000000000Z'
     function Get-Stamp([int] $N) { '2026-01-{0:D2}T000000000Z' -f $N }
-    function New-Native([string] $Status) {
+    function Get-NodeResult([string] $Status) {
         [pscustomobject]@{ status = $Status; source = 'node'; exit_code = ($Status -eq 'NonZero' ? 1 : 0); output = ''; error = $null }
     }
 }
@@ -39,7 +39,7 @@ Describe 'Publish-CheckupView' -Tag 'lib' {
     }
 
     It 'with node absent logs checkup_view_skipped node_missing, prunes nothing and says so in the report' {
-        Mock Invoke-NativeCommand { New-Native 'Absent' }
+        Mock Invoke-NativeCommand { Get-NodeResult 'Absent' }
 
         Publish-CheckupView @script:Splat -StateWritable $true | Should -BeNullOrEmpty
 
@@ -49,7 +49,7 @@ Describe 'Publish-CheckupView' -Tag 'lib' {
     }
 
     It 'with a failed build prunes nothing and points the report at the log' {
-        Mock Invoke-NativeCommand { New-Native 'NonZero' }
+        Mock Invoke-NativeCommand { Get-NodeResult 'NonZero' }
 
         Publish-CheckupView @script:Splat -StateWritable $true | Should -BeNullOrEmpty
 
@@ -59,7 +59,7 @@ Describe 'Publish-CheckupView' -Tag 'lib' {
     }
 
     It 'with a built page prunes the older runs and returns the page path' {
-        Mock Invoke-NativeCommand { New-Native 'Ok' }
+        Mock Invoke-NativeCommand { Get-NodeResult 'Ok' }
 
         $page = Publish-CheckupView @script:Splat -StateWritable $true
 
@@ -71,7 +71,7 @@ Describe 'Publish-CheckupView' -Tag 'lib' {
     }
 
     It 'passes node the builder, the run and the shipped remediation ids' {
-        Mock Invoke-NativeCommand { New-Native 'NonZero' }
+        Mock Invoke-NativeCommand { Get-NodeResult 'NonZero' }
 
         Publish-CheckupView @script:Splat -StateWritable $true | Out-Null
 
@@ -84,7 +84,7 @@ Describe 'Publish-CheckupView' -Tag 'lib' {
     }
 
     It 'with a synced StateBase neither builds nor prunes, and leaves the report alone' {
-        Mock Invoke-NativeCommand { New-Native 'Ok' }
+        Mock Invoke-NativeCommand { Get-NodeResult 'Ok' }
 
         Publish-CheckupView @script:Splat -StateWritable $false | Should -BeNullOrEmpty
 
