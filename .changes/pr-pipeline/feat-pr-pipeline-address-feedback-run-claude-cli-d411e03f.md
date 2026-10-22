@@ -1,0 +1,15 @@
+---
+bump: minor
+---
+
+### Changed
+
+- `address-feedback` runs on the read runner, [`pr-run-activity-read.yml`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/pr-run-activity-read.yml), on `run-claude-cli` with a subscription fallback, and no model job holds a write token. `pr-unblock.yml` runs it as five jobs: `address-feedback-select`, a base job with a read-only token, keeps the threads and uploads the thread file and `run.json`; the model job and its subscription call answer them and hand on a patch and their replies; `apply-feedback-patch` pushes the patch; and `publish-feedback` posts the replies. Every later job takes its gate, head and reply inputs from the select job, never from a model call's run job, and `publish-feedback` runs whenever the select job proceeded. A skip or an escalation posts both checks neutral.
+- `address-feedback` has effect `read`, `applied-by` `patch: apply-feedback-patch` and `feedback-replies: publish-feedback`, and the `code-fix` route. The new script activity `apply-feedback-patch` runs `apply-patch.mjs` under the `review-threads` row, which now skips a moved head. The row's `kept-threads` rule reads the select job's thread file, `named_paths` included. A needs-human PR's push still takes a fix that a trusted person with write access asked for.
+- `publish-feedback.mjs` requires an empty `fix_sha` and names the fix itself: the one lanes App commit in the range that carries the `Lane-Activity: pr-unblock/address-feedback` trailer. A push that was superseded, refused, escalated or held leaves none, and a `VALID` round ends `feedback-not-landed`. `replies.jsonl` is capped at 49152 bytes. The read runner carries, seals, scans and uploads it at that cap; all four sealed payloads at their caps still fit five chunks.
+- The read runner accepts a `pr-feedback-dispatch.yml` dispatch and supports `prepare: review-threads` in PR patch mode. It checks the select job's thread file against its SHA-256, PR and head. It stages the review-thread tool read-only under `.lane/feedback/`, except `state/`, and names the tool's path and subcommands in the preamble. Its `feedback-attempt` output comes from the scan job alone.
+- The schema requires `applied-by.patch` of a `read` skill with `prepare: ci-context` or `review-threads`, and `applied-by.feedback-replies` of a `read` `review-threads` skill.
+
+### Removed
+
+- The write runner's `review-threads` mode: its select, promote-scope, collect and upload steps and its `feedback-round`, `feedback-run-sha256` and `feedback-run-attempt` outputs. A `review-threads` activity on the write runner now fails red.
