@@ -941,13 +941,77 @@ test("issue target: the issue row refuses the universal set, each refusal before
     ["a symbolic link", (repo) => symlinkSync("README.md", join(repo, "link")), "patch-invalid"],
     ["a new executable bit", (repo) => chmodSync(join(repo, "notes.md"), 0o755), "patch-protected-path"],
   ];
-  assert.deepEqual(issueRow().refuse, ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"]);
+  assert.deepEqual(issueRow().refuse, ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused", "instruction-path"]);
   for (const [what, edit, reason] of cases) {
     const fix = repoWithPatch(t, edit);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });
     assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: reason }, what);
     assert.deepEqual(api.calls, [], what);
   }
+});
+
+const modeIn = (repo, tree, path) => git(repo, ["ls-tree", tree, "--", path]).split(" ")[0];
+
+test("issue target: a new or changed file that ends in .sh or starts with #! lands 100755; any other file keeps 100644", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "scripts/new.sh"), "set -eu\necho new\n");
+    writeFileSync(join(repo, "scripts/tool"), "#!/usr/bin/env node\nconsole.log(1);\n");
+    writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\nfoo=2\n");
+    writeFileSync(join(repo, "notes.txt"), "plain\n");
+  });
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.equal((await pushIssue(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  for (const path of ["scripts/new.sh", "scripts/tool", "scripts/x.sh"]) {
+    assert.equal(modeIn(fix.repo, createCommit.tree, path), "100755", path);
+  }
+  assert.equal(modeIn(fix.repo, createCommit.tree, "notes.txt"), "100644");
+  assert.equal(modeIn(fix.repo, createCommit.tree, "README.md"), "100644", "an unchanged file keeps its mode");
+});
+
+test("issue target: a resumed run keeps the executable script its earlier lane commit landed; a non-script made executable there is still refused", async (t) => {
+  for (const [path, body, outcome] of [
+    ["scripts/new.sh", "echo earlier\n", "pushed"],
+    ["notes.md", "notes\n", "escalate"],
+  ]) {
+    const fix = repoWithPatch(t, () => {});
+    writeFileSync(join(fix.repo, path), body);
+    chmodSync(join(fix.repo, path), 0o755);
+    const resumeTip = commitAll(fix.repo, "earlier lane commit");
+    writeFileSync(join(fix.repo, "README.md"), "# finished\n");
+    git(fix.repo, ["add", "-A"]);
+    const text = execFileSync("git", ["diff", "--cached", "--binary", "--full-index", "--no-renames", resumeTip], { cwd: fix.repo, encoding: "utf8" });
+    git(fix.repo, ["reset", "-q", "--hard", resumeTip]);
+    writeFileSync(fix.patchFile, text);
+    const api = fakeApi(fix.repo, resumeTip, { labels: READY });
+    const resumed = { ...fix, head: resumeTip, sum: sha256(text) };
+    assert.equal((await pushIssue(resumed, api, { headRef: `${LANE}/issue-7-124-1`, refusalBase: fix.head })).outcome, outcome, path);
+  }
+});
+
+test("issue target: a script under an instruction path is refused before any API call", async (t) => {
+  const fix = repoWithPatch(t, (repo) => (mkdirSync(join(repo, "plugins/p/hooks"), { recursive: true }), writeFileSync(join(repo, "plugins/p/hooks/x.sh"), "#!/bin/sh\n")));
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.deepEqual(api.calls, []);
+});
+
+test("issue target: an executable bit the patch itself sets is refused, on a script or not", async (t) => {
+  for (const [what, edit] of [
+    ["a non-script", (repo) => chmodSync(join(repo, "notes.md"), 0o755)],
+    ["a new .sh", (repo) => (writeFileSync(join(repo, "scripts/new.sh"), "#!/bin/sh\n"), chmodSync(join(repo, "scripts/new.sh"), 0o755))],
+  ]) {
+    const fix = repoWithPatch(t, edit);
+    const api = fakeApi(fix.repo, fix.head, { labels: READY });
+    assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" }, what);
+    assert.deepEqual(api.calls, [], what);
+  }
+});
+
+test("a row that sets script exec bits must refuse instruction paths", () => {
+  const { "script-exec-bit": _, ...without } = issueRow();
+  assert.throws(() => checkRow({ ...without, "script-exec-bit": true, refuse: without.refuse.filter((name) => name !== "instruction-path") }), /script-exec-bit.*instruction-path/);
+  assert.doesNotThrow(() => checkRow({ ...without, "script-exec-bit": true }));
 });
 
 test("issue target: API calls are one blob per changed file, then tree, commit, branch create and the label and branch reads; over max-files none", async (t) => {

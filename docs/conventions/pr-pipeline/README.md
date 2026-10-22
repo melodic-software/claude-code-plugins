@@ -483,15 +483,16 @@ each row to these keys:
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default) or `invalid` (`ci-context`, as the producer said it wrote a change). |
 | `skip-moved-head` | Optional, default `false`; `true` (`ci-context`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
+| `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. A row that sets it must refuse `instruction-path`. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
 Every row refuses `.github/**` in any case and through any `..` segment, `.claude/**` at any depth,
 the root `.mcp.json`, `.gitmodules`, `**/settings*.json`, a symbolic link, a gitlink, an
-executable bit on a file not already executable, and a rename into any of those. Plugin hooks,
-`.claude-plugin/`, `lib/`, `scripts/`, `CLAUDE.md` and `AGENTS.md` are admitted: the
+executable bit the patch sets on a file not already executable, and a rename into any of those.
+Plugin hooks, `.claude-plugin/`, `lib/`, `scripts/`, `CLAUDE.md` and `AGENTS.md` are admitted: the
 [HIGH path floor](#merge-authority) holds a pull request that touches them for a human merge.
-The `ci-context` and `default` rows also name the optional `instruction-path` refusal, so fix-ci
-and fix-docs push none of them, and both cap a patch at 300 paths.
+The `ci-context`, `default` and `issue` rows also name the optional `instruction-path` refusal, so
+fix-ci, fix-docs and the issue lane push none of them, and all three cap a patch at 300 paths.
 `checkPatchRules` in
 [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name

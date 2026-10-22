@@ -256,6 +256,24 @@ test("a self-check gets the same no-argument wrapper as a check", () => {
   );
 });
 
+// #9096: apply-issue-patch makes each new or changed script executable (the
+// issue row's script-exec-bit), so only an issue lane's patch run tells the
+// checks to judge the tree with that bit set; a run that commits sets it itself.
+const SCRIPT_EXEC_BIT = "export CHECK_AFFECTED_SCRIPT_EXEC_BIT=1";
+test("only an issue lane's patch run gets a wrapper that sets the script exec bit", () => {
+  const issuePatch = withChecks(["scripts/check-x.sh --check"], { EFFECT: "read", CAN_COMMIT: "false", ISSUE_NUMBER: "7" }, { "applied-by": { patch: "apply-issue-patch" } });
+  assert.equal(issuePatch.status, 0, issuePatch.stdout);
+  assert.ok(readFileSync(path.join(issuePatch.checksDir, "bin", "check-x"), "utf8").includes(SCRIPT_EXEC_BIT));
+  for (const [what, overrides, selected] of [
+    ["an issue lane that commits", { ISSUE_NUMBER: "7" }, {}],
+    ["a pull request lane that commits", {}, {}],
+  ]) {
+    const run = withChecks(["scripts/check-x.sh --check"], overrides, selected);
+    assert.equal(run.status, 0, what);
+    assert.ok(!readFileSync(path.join(run.checksDir, "bin", "check-x"), "utf8").includes(SCRIPT_EXEC_BIT), what);
+  }
+});
+
 test("checks and self-checks each get a wrapper, and a script in both fails red", () => {
   writeFileSync(path.join(base, "scripts", "check-y.sh"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
   try {
