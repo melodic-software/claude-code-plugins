@@ -484,9 +484,16 @@ class AffectedSuites(unittest.TestCase):
     def test_the_green_commits_plan_over_the_windows_paths(self) -> None:
         self.assertEqual(
             pm.affected_suites(self.green, self.red),
-            frozenset({"green", "src/a.sh tree.txt"}),
+            frozenset({"green", "src/a.sh tree.txt", "src/a.sh", "tree.txt"}),
         )
         self.assertEqual(self.git(self.root, "worktree", "list").count("\n"), 0)
+
+    def test_a_suite_the_window_adds_is_in_the_set(self) -> None:
+        # The green tree lacks it, so its plan cannot pick it.
+        red = self.commit({"plugins/x/tests/test_new.py": "def test(): 0"}, "add")
+        self.assertIn(
+            "plugins/x/tests/test_new.py", pm.affected_suites(self.green, red)
+        )
 
     def test_a_window_that_changes_the_selector_has_no_set(self) -> None:
         for path in (
@@ -518,7 +525,9 @@ class AffectedSuites(unittest.TestCase):
         red = self.commit({"src/b.sh": "b"}, "red")
         secrets = {"GH_TOKEN": "a", "GITHUB_TOKEN": "b", "ACTIONS_RUNTIME_TOKEN": "c"}
         with mock.patch.dict("os.environ", secrets):
-            self.assertEqual(pm.affected_suites(green, red), frozenset({"t-p"}))
+            self.assertEqual(
+                pm.affected_suites(green, red), frozenset({"t-p", "src/b.sh"})
+            )
 
     def test_a_green_tree_without_the_plan_script_has_no_set(self) -> None:
         self.git(self.root, "rm", "-q", pm.PLAN_SCRIPT)

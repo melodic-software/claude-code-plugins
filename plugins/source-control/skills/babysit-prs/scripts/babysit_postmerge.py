@@ -675,7 +675,8 @@ def affected_suites(base_sha: str, head_sha: str) -> frozenset[str] | None:
     head_sha` changed: every suite of `PLAN_SCRIPT`'s bash and Python plans.
     The plan is the green commit's (`base_sha`) code, run in a temporary
     worktree of it, so no merge in the window can narrow its own set, and
-    with no token in its environment. None (unknown, so the run demotes)
+    with no token in its environment; each changed path joins too, so a
+    suite the window added counts. None (unknown, so the run demotes)
     when no local full-history clone holds both commits, the window changes
     the selector (`SELECTOR_PATHS`) or nothing, the green tree has no plan
     script, or the plan fails or picks no suite."""
@@ -736,7 +737,10 @@ def affected_suites(base_sha: str, head_sha: str) -> frozenset[str] | None:
                     except ValueError:
                         return None
                     suites |= {str(x) for leg in legs.values() for x in json_array(leg)}
-            return frozenset(suites) or None
+            # The plan picks nothing from a path the green tree lacks, so a
+            # suite the window added joins as itself; a changed path that is
+            # no suite never matches a failing suite's name.
+            return frozenset(suites | set(changed)) if suites else None
         finally:
             policy._git(root, "worktree", "remove", "--force", str(tree))
 
