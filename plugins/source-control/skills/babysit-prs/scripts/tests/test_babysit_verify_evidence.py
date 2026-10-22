@@ -2688,7 +2688,18 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.unlabeled_lane_pr(real_denied_paths=True)
         gate = "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"
         paths = (gate, ".github/workflows/x.yml", *(f"lib/f{i}.sh" for i in range(8)))
-        self.files = (tuple(changed(path, 300) for path in paths), True)
+        # The workflow's patch adds no cost line, so the cost hold passes it.
+        self.files = (
+            tuple(
+                dataclasses.replace(changed(path, 300), patch="@@ -1 +1 @@\n-a\n+b")
+                for path in paths
+            ),
+            True,
+        )
+        # The cost hold reads the workflow's text: it starts no model leg.
+        reader = mock.patch.object(policy, "_file_at", return_value="jobs: {}\n")
+        reader.start()
+        self.addCleanup(reader.stop)
         code, out = self.lane()
         self.assertEqual(code, 0, out["blockers"])
         self.assertEqual(out["unattended"]["risk"]["score"], "LOW")

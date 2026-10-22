@@ -3057,8 +3057,11 @@ def score_unattended(
         if eligible.adoption
         else frozenset()
     )
-    if config.high_path_floor:
-        # The capability check compares base and head text (the floor only).
+    if config.high_path_floor or any(
+        babysit_risk.is_workflow_path(f.path) for f in files
+    ):
+        # The capability check compares base and head text (the floor only);
+        # the cost hold reads a workflow's head text for its model legs.
         files = merge_policy.with_capability_contents(repo, pr, files)
     # The pr-merge lane's switches (owner decision Q624); the local lane
     # keeps HIGH_FLOOR, both caps and the C2 contradictions.
@@ -3099,27 +3102,42 @@ def score_unattended(
         and any(p and babysit_risk.eval_case_dirs(p) for p in changed)
         else None
     )
-    risk = babysit_risk.score(
-        babysit_risk.RiskInput(
-            work_class=eligible.work_class,
-            rung=babysit_risk.Rung[inputs["rung"].upper()],
-            files=files,
-            files_complete=complete,
-            max_changed_lines=config.max_changed_lines,
-            high_paths=config.denied_paths,
-            floor_paths=config.floor_paths,
-            floor_script_scopes=config.floor_script_scopes,
-            # The floor additions follow the switch in every lane.
-            floor_extensions=config.high_path_floor,
-            declarations=declarations,
-            agents=agents,
-            eval_cases=eval_cases,
-            lanes=lanes,
-            blast_radius=None,
-            floor_exempt=own,
-            **lane_switches,
-        )
+    private = json_object(json_object(pr.get("base")).get("repo")).get("private")
+    risk_input = babysit_risk.RiskInput(
+        work_class=eligible.work_class,
+        rung=babysit_risk.Rung[inputs["rung"].upper()],
+        files=files,
+        files_complete=complete,
+        max_changed_lines=config.max_changed_lines,
+        high_paths=config.denied_paths,
+        floor_paths=config.floor_paths,
+        floor_script_scopes=config.floor_script_scopes,
+        # The floor additions follow the switch in every lane.
+        floor_extensions=config.high_path_floor,
+        declarations=declarations,
+        agents=agents,
+        eval_cases=eval_cases,
+        lanes=lanes,
+        blast_radius=None,
+        floor_exempt=own,
+        public=True if private is False else None,
+        pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
+        **lane_switches,
     )
+    risk = babysit_risk.score(risk_input)
+    if any(r.code == babysit_risk.COST_CODE for r in risk.reasons):
+        # Read only for a cost hold: an owner decision the body cites clears it.
+        decision = merge_policy.cost_decision(
+            repo,
+            pr,
+            eligible.issue,
+            permission=inputs["permission"],
+            agent_identity=inputs.get("identity"),
+            self_logins=self_logins,
+        )
+        if decision:
+            details["costDecision"] = decision
+            risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
     details |= {
         "risk": {
             "score": risk.score.name,
