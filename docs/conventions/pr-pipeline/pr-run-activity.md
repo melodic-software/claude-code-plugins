@@ -514,11 +514,14 @@ A slash command whose expansion fails ends with a `success` result and no model 
 reports success, but the skill did nothing. A skill pre-compute (`` !`...` ``) line with a command
 that matches no `allowed-tools` grant does this under `--permission-mode dontAsk`. A step after the
 skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` is empty. It writes
-`subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, any `<local-command-stderr>`
-text, `denied`, one `{tool_name, input}` for each of the first 20 calls the permission mode denied,
-where `input` is the call's `command`, else `file_path`, else `path`, else `pattern` (null when it
-has none), cut to 300 characters, and `denied_total`, the count of all of them; the 20 keep a read
-run's file under its 32768-byte carry cap. It writes them to `act-turns.json`, which goes into the
+`subtype` and up to 10 model names, each cut to 100 characters, `is_error`, `num_turns`,
+`duration_ms`, the first 4 `<local-command-stderr>` messages, each cut to 2000 characters, with
+`local_command_stderr_total` counting all of them, `denied`, one `{tool_name, input}` for each of
+the first 20 calls the permission mode denied, where `tool_name` is cut to 100 characters and
+`input` is the call's `command`, else `file_path`, else `path`, else `pattern` (null when it has
+none), cut to 300 characters, and `denied_total`, the count of all of them. Until the file fits
+the 32768-byte cap a read run's scan job carries it under, the oldest stderr messages drop first,
+then denials from the end. It writes them to `act-turns.json`, which goes into the
 same artifact and onto the step summary, where each denial shows as `tool: input` followed by
 `(+N more)` when some were cut; in the write file the lane token is cut out
 of both. In a PR-mode read run, `act-turns.json` is sealed with the reply for the scan job, which
