@@ -1,6 +1,6 @@
 # session-flow
 
-A Claude Code plugin with eighteen skills for managing the lifecycle of a working session. The
+A Claude Code plugin with nineteen skills for managing the lifecycle of a working session. The
 skills answer where you are in the work, how to pause and resume it, how
 to recover it after an interruption, how to leave it durable before the machine goes away, how to
 retire finished work and reconcile the task ledger, where things stand and why, whether the
