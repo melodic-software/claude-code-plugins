@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { OWNER_ACCOUNT_ID, main, resolvePull } from "./resolve-pr.mjs";
+import { OWNER_ACCOUNT_ID, main, ownerIds, resolvePull } from "./resolve-pr.mjs";
 
 const REPO = "example-org/example-repo";
 const HEAD = "a".repeat(40);
@@ -206,6 +206,23 @@ test("verify-authors lane-or-owner judges the owner account's PRs and the lane's
   assert.equal(await reason({ pulls: [HUMAN_PR] }, opts), "author-not-lane-or-owner", "another human");
   // A draft stays unjudged.
   assert.equal(await reason({ pulls: [{ ...owner, draft: true }] }, opts), "draft", "owner draft");
+});
+
+test("lane-or-owner reads the owner ids it is given", async () => {
+  const opts = { verifyAuthors: "lane-or-owner", ownerIds: [77] };
+  const other = pull({ user: { id: 77, login: "other", type: "User" } });
+  assert.equal(await reason({ pulls: [other] }, opts), "ok", "a listed id");
+  const owner = pull({ user: { id: OWNER_ACCOUNT_ID, login: "kyle-sexton", type: "User" } });
+  assert.equal(await reason({ pulls: [owner] }, opts), "author-not-lane-or-owner", "an unlisted id");
+  assert.equal(await reason({ pulls: [owner] }, { ...opts, ownerIds: [] }), "author-not-lane-or-owner", "none");
+});
+
+test("the owner ids come from adoption.owner-ids, the owner's id when unset", () => {
+  assert.deepEqual(ownerIds(undefined), [OWNER_ACCOUNT_ID]);
+  assert.deepEqual(ownerIds("5\n77\n"), [5, 77]);
+  assert.deepEqual(ownerIds(""), []);
+  // An entry that is not an account id adopts nothing.
+  assert.deepEqual(ownerIds("5\nkyle\n"), []);
 });
 
 test("an unknown verify-authors value judges nothing", async () => {

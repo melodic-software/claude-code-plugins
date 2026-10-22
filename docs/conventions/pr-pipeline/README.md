@@ -1057,7 +1057,8 @@ the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, 
 pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
 the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
 only lane-authored pull requests reach the pr-merge lane. `lane-or-owner` also judges the owner
-account's: a `User` whose account id is the owner's (never matched by login), whose idle pull
+account's: a `User` whose account id is in `adoption.owner-ids` (the owner's when absent; never
+matched by login), whose idle pull
 requests the pr-merge lane adopts (Eligibility, above); any other author's is skipped with
 `author-not-lane-or-owner`. pr-verify runs when `pr-require-checks` passes, so it judges an owner
 pull request at each ready head, before it is idle. `any` judges every author's. Any other
