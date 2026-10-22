@@ -200,7 +200,6 @@ DEFAULT_LANE_WORKFLOWS=(
   "pr-review-hosted.yml"
   "pr-review-security-hosted.yml"
   "pr-verify.yml"
-  "pr-refine.yml"
   "pr-unblock.yml"
   "work-resolve-issue.yml"
 )

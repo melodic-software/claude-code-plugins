@@ -100,8 +100,26 @@ async function main() {
       }
     });
     await guest.locator(".vf-telemetry-rage").click({ clickCount: 3 });
+    // Any DOM change within a second of the dead tap counts as the page answering it, and a poll's render re-sets every
+    // attribute. Hold the polls and heartbeats until one poll waits (so none is rendering), let the page fall still,
+    // tap, and wait in the page past the tap's own timer, set first, so the dead tap is recorded before anything moves.
+    const held = [], HELD = /\/api\/(?:state|heartbeat)(?:\?|$)/;
+    await guest.route(HELD, r => { held.push(r); });
+    for (let i = 0; i < 100 && !held.some(r => r.request().url().includes("/api/state")); i++) await guest.waitForTimeout(100);
+    const still = await guest.evaluate(() => new Promise(res => {
+      const opts = { subtree: true, childList: true, attributes: true, characterData: true };
+      let quiet;
+      const done = ok => { o.disconnect(); clearTimeout(quiet); clearTimeout(cap); res(ok); };
+      const o = new MutationObserver(() => { clearTimeout(quiet); quiet = setTimeout(done, 1200, true); });
+      o.observe(document.documentElement, opts);
+      quiet = setTimeout(done, 1200, true);
+      const cap = setTimeout(done, 15000, false);
+    }));
+    ok("the page holds still before the dead tap, its polls held", still && held.some(r => r.request().url().includes("/api/state")), held.map(r => r.request().url()).join(" "));
     await guest.locator(".vf-telemetry-dead").click();
-    await guest.waitForTimeout(1500); // past the wait that makes a tap dead; the taps below change the page
+    await guest.evaluate(() => new Promise(res => setTimeout(res, 1100))); // after the dead tap's 1000 ms timer
+    await guest.unroute(HELD);
+    for (const r of held.splice(0)) await r.fallback().catch(() => {});
     for (const b of await guest.locator(".vf-telemetry-trio").all()) await b.click({ delay: 0 });
 
     const errorsSent = () => parsed(w.bodies).filter(b => b.kind === "error" && b.message?.includes(THROWN));
