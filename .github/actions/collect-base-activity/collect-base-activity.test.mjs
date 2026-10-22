@@ -54,6 +54,7 @@ const SHELL_DENIED = [
   "Bash(xargs *)",
   "Bash(more *)",
   "Bash(less *)",
+  "Bash(wc *)",
   "Read(//proc/**)",
   `Read(/${WORKSPACE}/.git/**)`,
 ];
@@ -1372,15 +1373,15 @@ test("run-claude-cli: a skill plugin holding a symbolic link fails red", () => {
   assert.deepEqual(run.tools, []);
 });
 
-// fix-docs: a read skill with no prepare mode that hands on a patch gets Bash
-// for its own frontmatter grants (no Bash rule), Edit, Write and Agent, the
-// git directory denied, and the instruction to leave its change uncommitted.
+// A read skill with no prepare mode that hands on a patch gets Bash with no
+// script rule unless its skill has one, Edit, Write and Agent, the git
+// directory denied, and the instruction to leave its change uncommitted.
 test("run-claude-cli: a patch-producing skill with no prepare mode gets Bash, Edit, Write and Agent, no Bash rule, and .git denied", () => {
   const run = launch({ RESOLVED: launchResolved(PATCH), SKILL: "source-control:pull-request" });
   assert.equal(run.status, 0, run.stdout);
   assert.deepEqual(run.tools.toSorted(), ["Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill", "Write"]);
-  assert.deepEqual(run.allowedTools.toSorted(), ["Agent", "Edit", "Glob", "Grep", "Skill(source-control:pull-request)", "Write"]);
-  for (const rule of ["WebFetch", "WebSearch", "Read(./.git/**)", "Read(//proc/**)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)", "Edit(./.lane/trusted-context.json)", "Write(./.lane/trusted-context.json)"]) {
+  assert.deepEqual(run.allowedTools.toSorted(), ["Agent", "Edit", "Edit(./.lane/scratch/**)", "Glob", "Grep", "Skill(source-control:pull-request)", "Write"]);
+  for (const rule of ["WebFetch", "WebSearch", "Read(./.git/**)", "Read(//proc/**)", "Edit(./.lane/plugins/**)", "Write(./.lane/plugins/**)", "NotebookEdit(./.lane/plugins/**)", "Edit(./.lane/trusted-context.json)", "Write(./.lane/trusted-context.json)", "Bash(git *)"]) {
     assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   }
   assert.equal(run.pluginDirs, ".lane/plugins/source-control");
@@ -1392,6 +1393,51 @@ test("run-claude-cli: a patch-producing skill with no prepare mode gets Bash, Ed
   assert.equal(run.promptFile, "Call the Skill tool with skill source-control:pull-request and args fix, then follow the skill instructions to the end.\n");
   assert.equal(run.args, "", "no claude_args for the launcher");
   assert.deepEqual(run.plugins, []);
+});
+
+// fix-docs runs ai-slop:audit under dontAsk: Bash runs exactly the skill's
+// own scripts by absolute path, bare and quoted (its `!` line runs
+// "<dir>/detect.sh" --show-config), and the fix flow's digest commands,
+// with git, the user-scope script and the read-only print commands denied.
+const SLOP = `${WORKSPACE}/.lane/plugins/ai-slop/skills/audit/scripts`;
+test("run-claude-cli: fix-docs gets exactly the ai-slop scripts' rules and the shell deny set", () => {
+  const slopBase = mkdtempSync(path.join(root, "base-slop-"));
+  mkdirSync(path.join(slopBase, "plugins", "ai-slop", "skills", "audit", "scripts"), { recursive: true });
+  mkdirSync(path.join(slopBase, ".claude-plugin"));
+  writeFileSync(path.join(slopBase, ".claude-plugin", "marketplace.json"), JSON.stringify({ name: "melodic-software" }));
+  const run = launch({ BASE_PATH: slopBase, RESOLVED: launchResolved(PATCH), SKILL: "ai-slop:audit" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(
+    run.allowedTools.filter((rule) => rule.startsWith("Bash")).toSorted(),
+    [
+      `Bash("${SLOP}/cross-check.sh" *)`,
+      `Bash("${SLOP}/detect.sh" *)`,
+      `Bash("${SLOP}/emit-findings.sh" *)`,
+      `Bash("${SLOP}/emit-fix-record.sh" *)`,
+      `Bash("${SLOP}/rubric-fanout.sh" *)`,
+      `Bash(${SLOP}/cross-check.sh *)`,
+      `Bash(${SLOP}/detect.sh *)`,
+      `Bash(${SLOP}/emit-findings.sh *)`,
+      `Bash(${SLOP}/emit-fix-record.sh *)`,
+      `Bash(${SLOP}/rubric-fanout.sh *)`,
+      `Bash(mkdir -p ${WORKSPACE}/.lane/scratch/*)`,
+      "Bash(sha256sum *)",
+    ].toSorted(),
+  );
+  for (const rule of [
+    ...SHELL_DENIED.filter((rule) => rule.startsWith("Bash")),
+    "Read(//proc/**)",
+    "Bash(git *)",
+    `Bash(${SLOP}/user-scope.sh *)`,
+    `Bash("${SLOP}/user-scope.sh" *)`,
+    "NotebookEdit(./.lane/plugins/**)",
+    "Edit(./.lane/plugins/**)",
+    "Write(./.lane/plugins/**)",
+  ]) {
+    assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
+  }
+  assert.match(run.preamble, /one plain command per call/);
+  assert.ok(run.preamble.includes(`redirect output only into ${WORKSPACE}/.lane/scratch.`), run.preamble);
 });
 
 test("run-claude-cli: a ci-context skill that hands on a patch keeps the ci-context tool set and preamble", () => {
