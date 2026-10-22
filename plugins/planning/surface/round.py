@@ -652,7 +652,7 @@ def warn_stale_summaries(doc, qs):
         added = [i for i in group_members(doc, gid) if i not in g["summaryOf"]]
         if added:
             warn(
-                f"group {gid} summary predates {len(added)} questions; refresh it with: "
+                f"group {gid} summary predates {len(added)} question{'' if len(added) == 1 else 's'}; refresh it with: "
                 f"round.py group {gid} --summary ..."
             )
 
