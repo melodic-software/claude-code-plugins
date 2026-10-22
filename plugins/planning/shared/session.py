@@ -329,7 +329,7 @@ def _is_int(v):
 PREFS = {
     "claudeTake": lambda v: v in ("answerFirst", "always"),
     "sort": lambda v: v in ("new", "votes", "unanswered"),
-    "filter": lambda v: v in ("all", "open", "locked", "review", "mine", "research"),
+    "filter": lambda v: v in ("all", "open", "locked", "review", "mine", "research", "proto"),
     "round": lambda v: isinstance(v, str) and PREF_ROUND.fullmatch(v) is not None,
     "expandedRounds": lambda v: isinstance(v, list) and len(v) <= 100 and all(_is_int(n) and 1 <= n <= 9999 for n in v),
     "theme": lambda v: v in THEME_VALUES["mode"],
@@ -404,9 +404,29 @@ def wire_error(body, shape):
     return schema.first_error(body, wire["$defs"][shape], "$", wire)
 
 
+def _pair(previous):
+    return previous["qid"], previous["variant"]
+
+
+def _previous(previous, earlier, taken, field):
+    """A new prototype version's `previous`: a variant of an earlier prototype question (one of `earlier`) that no
+    other variant revises yet (`taken`, to which it is added), so one prototype's versions stay a single line."""
+    qid, vid = _pair(previous)
+    q = next((x for x in earlier if x["id"] == qid and x["format"]["kind"] == "prototype"), None)
+    if q is None:
+        raise _bad(f"{field}.qid", f"{qid[:40]} is not an earlier prototype question.")
+    if vid not in {v["id"] for v in q["format"]["variants"]}:
+        raise _bad(f"{field}.variant", f"{qid} has no variant {vid[:40]}.")
+    if (qid, vid) in taken:
+        raise _bad(field, f"{qid} {vid} already has a next version.")
+    taken.add((qid, vid))
+    return {"qid": qid, "variant": vid}
+
+
 def cross_field_errors(doc):
     """The session rules the schema cannot express, each broken one as a sentence: dependsOn names
-    only earlier questions, no two review flags share because and why, a round holds at most 8, a
+    only earlier questions, a prototype variant's previous names a variant of an earlier prototype question that no
+    other variant also names, no two review flags share because and why, a round holds at most 8, a
     question holds at most one Something else option, the one with id `other` and `other: true`, no
     session secret names the owner (only the owner link does), only a poll holds a closed-poll lock, no person holds a
     reaction twice or both thumbs and down on one answer, a comment's id and a report's id and picture are names the server makes, and every link and asset name is one a write route takes
@@ -423,7 +443,15 @@ def cross_field_errors(doc):
         if {k for k in ("from", "to", "pid") if k in p} != set(named) or any(p[k] not in p["names"] for k in named):
             errors.append(f"Proposal {p['id']} ({p['kind']}) must name {' and '.join(named)}, each in names, and no one else.")
     errors += [f"{where} is not a link or asset name a write route takes." for where in _bad_links_and_assets(doc)]
+    earlier, taken = [], set()
     for q in doc["questions"]:
+        for v in q["format"].get("variants", []):
+            if "previous" in v:
+                try:
+                    _previous(v["previous"], earlier, taken, "previous")
+                except DomainError as e:
+                    errors.append(f"{q['id']} {v['id']} previous: {e.message}")
+        earlier.append(q)
         later = [d for d in q["dependsOn"] if d not in seen]
         if later:
             errors.append(f"{q['id']} depends on {', '.join(later)}, not an earlier question.")
@@ -2330,8 +2358,9 @@ class Session:
         title = _text(r, "title", limit=MAX_NOTE, optional=True)
         return {**out, **({"title": title} if title else {})}
 
-    def _parse_question(self, qi, *, round_n, origin, known, field):
-        """A QuestionInput (already schema-valid) checked for the rules the schema cannot express."""
+    def _parse_question(self, qi, *, round_n, origin, known, field, made=()):
+        """A QuestionInput (already schema-valid) checked for the rules the schema cannot express. `made` holds the
+        questions this apply parsed before it, not yet in the session."""
         qid = qi["id"]
         if not QID.fullmatch(qid):
             raise _bad(f"{field}.id", f"{qid} is not a question id like Q12.")
@@ -2375,7 +2404,7 @@ class Session:
         q["purpose"] = purpose
         if purpose == "poll" and fmt["kind"] == "text":
             raise _bad(f"{field}.purpose", "A poll needs options: use a choice, confirm or prototype format.")
-        q["format"] = self._parse_format(fmt, f"{field}.format")
+        q["format"] = self._parse_format(fmt, f"{field}.format", made)
         q["answerScope"] = qi.get("answerScope", "person")
         refs = qi.get("references", [])
         if len(refs) > MAX_REFERENCES:
@@ -2388,7 +2417,7 @@ class Session:
             q["for"] = targets
         return q
 
-    def _parse_format(self, fmt, field):
+    def _parse_format(self, fmt, field, made=()):
         kind = fmt["kind"]
         if kind == "text":
             return {"kind": "text"}
@@ -2414,11 +2443,14 @@ class Session:
             return {"kind": "scale", "min": 1, "max": fmt["max"], "labels": {**labels, **({"mid": mid} if mid else {})}}
         if kind == "confirm":
             return {"kind": "confirm", "image": self._asset(fmt["image"], f"{field}.image", image=True), "rect": _rect(fmt["rect"], f"{field}.rect")}
-        variants = []
+        variants, earlier = [], [*self.state["questions"], *made]
+        taken = {_pair(v["previous"]) for q in earlier for v in q["format"].get("variants", []) if "previous" in v}
         for i, v in enumerate(fmt["variants"]):
             if not VARIANT.fullmatch(v["id"]):
                 raise _bad(f"{field}.variants[{i}].id", "A variant id looks like v-1.")
             variants.append({"id": v["id"], "label": _text(v, "label"), "asset": self._asset(v["asset"], f"{field}.variants[{i}].asset")})
+            if "previous" in v:
+                variants[-1]["previous"] = _previous(v["previous"], earlier, taken, f"{field}.variants[{i}].previous")
         if len({v["id"] for v in variants}) != len(variants):
             raise _bad(f"{field}.variants", "Each variant needs its own id.")
         return {"kind": "prototype", "variants": variants}
@@ -5519,7 +5551,7 @@ class Session:
         known = {q["id"] for q in st["questions"]}
         made = []
         for i, qi in enumerate(op["questions"]):
-            q = self._parse_question(qi, round_n=n, origin={"kind": "claude"}, known=known, field=f"questions[{i}]")
+            q = self._parse_question(qi, round_n=n, origin={"kind": "claude"}, known=known, field=f"questions[{i}]", made=made)
             known.add(q["id"])
             made.append(q)
         effects = self._parse_placements(op.get("placements", []), required, n, known, made)
@@ -5581,7 +5613,7 @@ class Session:
                             if d not in known:
                                 raise _bad(f"{field}.after", f"{d} is not a question.")
                         qi["dependsOn"] = list(dict.fromkeys([*qi["dependsOn"], *pl["after"]]))
-                    q = self._parse_question(qi, round_n=round_n, origin=origin, known=known, field=f"{field}.question")
+                    q = self._parse_question(qi, round_n=round_n, origin=origin, known=known, field=f"{field}.question", made=made)
                 else:
                     q = {
                         "id": self._next_qid(known),

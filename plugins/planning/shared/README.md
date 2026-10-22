@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -348,6 +348,16 @@ for a free-form selector an earlier build took.
   dropped: the page stops posting to it, ignores it, and says it tried to leave its page. The
   page's `frame-src 'self'` already refuses a page from another site in the frame.
   `server.py` refuses to start when the helper holds `</script`, `<script` or `<!--`.
+- **Versions.** A variant may name the variant it revises on an earlier prototype question,
+  `previous: {qid, variant}` (400 `bad-field` when that is not a variant of an earlier prototype
+  question, or another variant already revises it), so one prototype's versions form one line,
+  the newest current. The question card lists each line as `v<n> · <qid> · <label>`, each version
+  opening its own page, the current one marked, with a link that shows another version beside the
+  current one. The page lists them too; Side by side (`#with=<qid>.<variant>`) shows the older of
+  two beside the newer, framed with the same sandbox and no pin helper, so it takes no notes and
+  nothing it posts is read, and dropped if it leaves its page. Notes stay on the version they were
+  pinned to. The toolbar's Prototypes filter lists every round's prototype questions and opens the
+  rounds that hold them.
 - **Owner token.** Links to session pages (`Core.pageLink`) never hold it. The page keeps it in
   the tab's `sessionStorage`, takes it out of the address bar, and uses it again only on a reload
   or Back in that tab; when the owner follows a session link, `core.js` opens the page with
@@ -962,6 +972,7 @@ node plugins/planning/shared/tests/ui_lists.js
 node plugins/planning/shared/tests/ui_moderation.js
 node plugins/planning/shared/tests/ui_acceptance.js
 node plugins/planning/shared/tests/ui_proto.js
+node plugins/planning/shared/tests/ui_proto_versions.js
 node plugins/planning/shared/tests/ui_connect.js
 node plugins/planning/shared/tests/ui_uploads.js
 node plugins/planning/shared/tests/ui_attach_paste.js
@@ -1059,7 +1070,10 @@ with keyboards at 320 to 430 px wide.
 `ui_proto.js` checks the prototype page on a desktop and a 390x844 phone in separate browser
 contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an
 element of an html variant and to a spot of a picture, the notes in the Claude thread and the
-digest, the variant's sandbox, and a forged pin message being ignored.
+digest, the variant's sandbox, and a forged pin message being ignored. `ui_proto_versions.js` checks
+a prototype revised in a later round: the Prototypes filter finding both rounds' prototypes without
+scrolling, the later question's version list with the current version marked, opening version 1
+from it, the two side by side on a desktop and stacked on a phone, and a note staying on its version.
 
 `ui_contrast.js` checks WCAG 2.2 AA contrast on the main page states in every palette, in light
 and dark: text and placeholders, field edges, icon-only buttons and the Propose button's edge; per
