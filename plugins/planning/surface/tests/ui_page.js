@@ -115,7 +115,7 @@ async page => { // the question page itself: choices, chips, banners, header and
           const range = '<span class="rrange" title="Q4 to Q6">' + chip("Q4", "") + "<span>&ndash;</span>" + chip("Q6", "") + "</span>";
           const host = document.querySelector(panel === "notes" ? "aside.fly.open .nthread" : "aside.fly.open .fbody");
           const box = document.createElement("div"); box.className = panel === "notes" ? "nmsg" : "links";
-          box.innerHTML = "<p>Compare " + range + " with " + chip("Q2", "Runner image cache key for the weekly build") + " and " + chip("Q7", "Pinned digests") + " before deciding.</p>";
+          box.innerHTML = "<p>Compare " + range + " with " + chip("Q2", "Build image cache key for the weekly release") + " and " + chip("Q7", "Pinned digests") + " before deciding.</p>";
           host.appendChild(box);
         }, panel);
         const got = await onOneLine();
