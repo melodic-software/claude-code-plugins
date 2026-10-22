@@ -19,10 +19,11 @@
 // the issue, and nothing it found conflicts; otherwise `status: needs-decision`
 // (unless a needs-info or needs-decision status is already there) and never
 // `status: ready`; `area: security` or a `needs-triage` the triage left also
-// keep it from ready. A work-class label a listed human added for another
-// class, and a field a listed human set to another value, are left as they are
-// and send the issue to needs-decision; the lanes App's own earlier class and
-// values give way to the new verdict. When it applied a class it rewrites the comment's
+// keep it from ready. Only the lanes App's own earlier class and field values
+// give way to the new verdict; a class or value anyone else set, or one whose
+// setter cannot be read, is kept and sends the issue to needs-decision, and a
+// hold class (structural, untrusted-provenance) is never taken off. The class
+// must be one of the repository's work-class labels. When it applied a class it rewrites the comment's
 // "a maintainer confirms" lines. It never adds `agent-ready`.
 //
 // Issue text can only refuse: a line the model quotes is prefixed `> ` and
@@ -76,6 +77,11 @@ export const DIMENSIONS = Object.freeze({
 	uncertainty: "Uncertainty",
 });
 const FLAGS = new Set(["intent", "security", "cost"]);
+// Classes that hold an issue for a person; the writer never takes one off.
+const HOLD_CLASSES = new Set([
+	"work-class: structural",
+	"work-class: untrusted-provenance",
+]);
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS =
@@ -114,7 +120,7 @@ export function checkActors(env, humans, logins) {
 // flags, problems}. workClass is null for `none`; dimensions maps each key to
 // its config key or is null; flags is a list or null. problems says why a part
 // did not parse.
-export function parseVerdict(body, dimensionsConfig) {
+export function parseVerdict(body, dimensionsConfig, classes) {
 	const lines = String(body ?? "").split("\n");
 	const problems = [];
 	const escalated = String(body ?? "").includes(ESCALATED);
@@ -122,8 +128,14 @@ export function parseVerdict(body, dimensionsConfig) {
 	if (!classMatch) {
 		problems.push("the second line is not a `Proposed work class:` line");
 	}
-	const workClass =
+	let workClass =
 		classMatch && classMatch[1] !== "none" && !escalated ? classMatch[1] : null;
+	if (workClass !== null && !classes.has(workClass)) {
+		problems.push(
+			`\`${workClass.slice(0, 60)}\` is not a work-class label here`,
+		);
+		workClass = null;
+	}
 
 	const lineValue = (prefix) => {
 		const found = lines
@@ -180,7 +192,7 @@ export function parseVerdict(body, dimensionsConfig) {
 // field values ({fieldId: {option, setter}}). Pure.
 export function planWrites(
 	verdict,
-	{ labels, fields, dimensionsConfig, humans, classSetters = {} },
+	{ labels, fields, dimensionsConfig, appId, classSetters = {} },
 ) {
 	const reasons = [...verdict.problems];
 	const add = [];
@@ -200,8 +212,14 @@ export function planWrites(
 			classApplied = true;
 		} else if (held.length === 1 && held[0] === verdict.workClass) {
 			classApplied = true;
-		} else if (held.length === 1 && !humans.has(classSetters[held[0]])) {
-			// The lanes App's (or an unlisted account's) earlier class gives way.
+		} else if (
+			held.length === 1 &&
+			!HOLD_CLASSES.has(held[0]) &&
+			appId !== undefined &&
+			classSetters[held[0]] === appId
+		) {
+			// Only the lanes App's own earlier class gives way; anyone else's,
+			// or one no event names, is kept.
 			remove.push(held[0]);
 			add.push(verdict.workClass);
 			classApplied = true;
@@ -221,10 +239,10 @@ export function planWrites(
 			if (
 				current &&
 				String(current.option) !== optionId &&
-				humans.has(current.setter)
+				(appId === undefined || current.setter !== appId)
 			) {
 				reasons.push(
-					`${DIMENSIONS[key]} was set by a listed human to another value`,
+					`${DIMENSIONS[key]} was set to another value by someone other than the lanes App`,
 				);
 			} else if (!current || String(current.option) !== optionId) {
 				fieldWrites.push({
@@ -385,7 +403,14 @@ export async function run({
 		);
 	}
 
-	const verdict = parseVerdict(comment.body, dimensionsConfig);
+	const classes = new Set(
+		(await paginate(github, `/repos/${repository}/labels`))
+			.map((label) => label?.name)
+			.filter(
+				(name) => typeof name === "string" && name.startsWith("work-class:"),
+			),
+	);
+	const verdict = parseVerdict(comment.body, dimensionsConfig, classes);
 	const labels = (issue.labels ?? []).map((label) =>
 		typeof label === "string" ? label : label?.name,
 	);
@@ -394,7 +419,7 @@ export async function run({
 		labels,
 		fields,
 		dimensionsConfig,
-		humans,
+		appId,
 		classSetters: await classSetters(github, base, labels),
 	});
 

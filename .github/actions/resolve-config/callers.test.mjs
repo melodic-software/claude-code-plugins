@@ -254,6 +254,11 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   const job = jobs["apply-verdict"];
   assert.deepEqual(job.needs, ["born-triaged", "intake-triage"]);
   assert.deepEqual(job.permissions, { contents: "read", "id-token": "write" });
+  const minting = Object.entries(jobs)
+    .filter(([, j]) => j.permissions?.["id-token"] !== undefined || j.permissions === "write-all")
+    .map(([id]) => id);
+  assert.deepEqual(minting, ["apply-verdict"], "only apply-verdict can request an OIDC token");
+  assert.deepEqual(workflow("intake-triage.yml").permissions, {}, "no workflow-level grant");
   assert.equal(job.concurrency["cancel-in-progress"], false);
   assert.notEqual(job.concurrency.group, jobs["intake-triage"].concurrency.group, "its own concurrency group");
   const runs = (result, failed) => evaluate(job.if, { "needs.intake-triage.result": result, "needs.intake-triage.outputs.triage-failed": failed });

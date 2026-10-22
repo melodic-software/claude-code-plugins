@@ -22,6 +22,12 @@ const TRUSTED = fileURLToPath(
 );
 const HUMAN = 153232337;
 const LANES_APP = 337595936;
+const CLASSES = new Set([
+	"work-class: scoped",
+	"work-class: structural",
+	"work-class: mechanical",
+	"work-class: untrusted-provenance",
+]);
 const OUTSIDER = 4242;
 const humans = new Set([HUMAN]);
 const logins = new Map([
@@ -65,7 +71,7 @@ const ESCALATED_BODY = `${MARKER}\nProposed work class: none\n\nThanks for the r
 
 describe("parseVerdict", () => {
 	test("reads the class, the three dimensions and no flags", () => {
-		const verdict = parseVerdict(laneBody(), DIMS);
+		const verdict = parseVerdict(laneBody(), DIMS, CLASSES);
 		assert.deepEqual(verdict, {
 			escalated: false,
 			workClass: "work-class: scoped",
@@ -86,6 +92,7 @@ describe("parseVerdict", () => {
 				],
 			}),
 			DIMS,
+			CLASSES,
 		);
 		assert.deepEqual(verdict.flags, ["cost", "intent"]);
 		assert.deepEqual(verdict.dimensions, {
@@ -106,6 +113,7 @@ describe("parseVerdict", () => {
 				],
 			}),
 			DIMS,
+			CLASSES,
 		);
 		assert.equal(verdict.dimensions, null);
 		assert.equal(verdict.flags, null);
@@ -124,6 +132,7 @@ describe("parseVerdict", () => {
 				],
 			}),
 			DIMS,
+			CLASSES,
 		);
 		assert.equal(verdict.dimensions, null);
 		assert.match(verdict.problems.join(), /more than one `Size:`/);
@@ -139,6 +148,7 @@ describe("parseVerdict", () => {
 					lines: [line, "Complexity: Low", "Uncertainty: Known", "Flags: none"],
 				}),
 				DIMS,
+				CLASSES,
 			);
 			assert.equal(verdict.dimensions, null);
 		});
@@ -161,6 +171,7 @@ describe("parseVerdict", () => {
 						],
 					}),
 					DIMS,
+					CLASSES,
 				).flags,
 				null,
 			);
@@ -169,13 +180,13 @@ describe("parseVerdict", () => {
 
 	test("takes the class only from the second line", () => {
 		const body = `${MARKER}\nThanks.\nProposed work class: work-class: scoped\nSize: Small`;
-		const verdict = parseVerdict(body, DIMS);
+		const verdict = parseVerdict(body, DIMS, CLASSES);
 		assert.equal(verdict.workClass, null);
 		assert.match(verdict.problems.join(), /second line/);
 	});
 
 	test("an escalated run carries no class", () => {
-		const verdict = parseVerdict(ESCALATED_BODY, DIMS);
+		const verdict = parseVerdict(ESCALATED_BODY, DIMS, CLASSES);
 		assert.equal(verdict.escalated, true);
 		assert.equal(verdict.workClass, null);
 	});
@@ -183,11 +194,11 @@ describe("parseVerdict", () => {
 
 describe("planWrites", () => {
 	const plan = (body, { labels = [], fields = {}, classSetters = {} } = {}) =>
-		planWrites(parseVerdict(body, DIMS), {
+		planWrites(parseVerdict(body, DIMS, CLASSES), {
 			labels,
 			fields,
 			dimensionsConfig: DIMS,
-			humans,
+			appId: LANES_APP,
 			classSetters,
 		});
 
@@ -253,22 +264,76 @@ describe("planWrites", () => {
 		assert.deepEqual(result.remove, []);
 	});
 
+	test("another work class the lanes App added gives way to the new verdict", () => {
+		const result = plan(laneBody(), {
+			labels: ["work-class: mechanical"],
+			classSetters: { "work-class: mechanical": LANES_APP },
+		});
+		assert.equal(result.ready, true);
+		assert.deepEqual(result.remove, ["work-class: mechanical"]);
+		assert.deepEqual(result.add, ["work-class: scoped", READY]);
+	});
+
 	for (const [name, setter] of [
-		["the lanes App", LANES_APP],
-		["an unlisted account", OUTSIDER],
-		["no recorded event", undefined],
+		["an unlisted account added", OUTSIDER],
+		["no event names (a renamed label)", undefined],
+		["a null actor added", null],
 	]) {
-		test(`another work class ${name} added gives way to the new verdict`, () => {
+		test(`another work class ${name} is kept: an unknown setter counts as a person`, () => {
 			const result = plan(laneBody(), {
-				labels: ["work-class: structural"],
+				labels: ["work-class: mechanical"],
 				classSetters:
-					setter === undefined ? {} : { "work-class: structural": setter },
+					setter === undefined ? {} : { "work-class: mechanical": setter },
 			});
-			assert.equal(result.ready, true);
-			assert.deepEqual(result.remove, ["work-class: structural"]);
-			assert.deepEqual(result.add, ["work-class: scoped", READY]);
+			assert.equal(result.classApplied, false);
+			assert.deepEqual(result.remove, []);
+			assert.deepEqual(result.add, [NEEDS_DECISION]);
 		});
 	}
+
+	for (const hold of [
+		"work-class: structural",
+		"work-class: untrusted-provenance",
+	]) {
+		test(`${hold} is never taken off, even when the lanes App added it`, () => {
+			const result = plan(laneBody(), {
+				labels: [hold],
+				classSetters: { [hold]: LANES_APP },
+			});
+			assert.equal(result.classApplied, false);
+			assert.deepEqual(result.remove, []);
+			assert.deepEqual(result.add, [NEEDS_DECISION]);
+		});
+	}
+
+	for (const [name, setter] of [
+		["an unlisted account", OUTSIDER],
+		["an unreadable setter", null],
+	]) {
+		test(`a field ${name} set to another value is kept`, () => {
+			const result = plan(laneBody(), {
+				fields: { 15462270: { option: 27053566, setter } },
+			});
+			assert.equal(result.ready, false);
+			assert.deepEqual(
+				result.fieldWrites.map(({ key }) => key),
+				["complexity", "uncertainty"],
+			);
+		});
+	}
+
+	test("a class that is not one of the repository's work-class labels is not applied", () => {
+		const verdict = parseVerdict(
+			laneBody({ cls: "work-class: anything-goes" }),
+			DIMS,
+			CLASSES,
+		);
+		assert.equal(verdict.workClass, null);
+		const result = plan(laneBody({ cls: "work-class: anything-goes" }));
+		assert.equal(result.ready, false);
+		assert.ok(!result.add.includes("work-class: anything-goes"));
+		assert.ok(result.add.includes(NEEDS_DECISION));
+	});
 
 	test("two work classes on the issue hold it", () => {
 		const result = plan(laneBody(), {
@@ -396,6 +461,9 @@ function fakeGitHub({
 	const calls = [];
 	const github = async (method, path, body) => {
 		calls.push({ method, path, body });
+		if (method === "GET" && path.startsWith("/repos/o/r/labels")) {
+			return [...CLASSES, READY, NEEDS_DECISION].map((name) => ({ name }));
+		}
 		if (method === "GET" && path.startsWith("/repos/o/r/issues/7/events")) {
 			return events;
 		}
@@ -582,22 +650,22 @@ describe("run", () => {
 
 	test("swaps a class the lanes App added, read from the issue's events, before adding the new one", async () => {
 		const fake = fakeGitHub({
-			issue: { labels: [{ name: "work-class: structural" }] },
+			issue: { labels: [{ name: "work-class: mechanical" }] },
 			comments: [laneComment()],
 			events: [
 				{
 					event: "labeled",
-					label: { name: "work-class: structural" },
+					label: { name: "work-class: mechanical" },
 					actor: { id: HUMAN },
 				},
 				{
 					event: "unlabeled",
-					label: { name: "work-class: structural" },
+					label: { name: "work-class: mechanical" },
 					actor: { id: HUMAN },
 				},
 				{
 					event: "labeled",
-					label: { name: "work-class: structural" },
+					label: { name: "work-class: mechanical" },
 					actor: { id: LANES_APP },
 				},
 			],
@@ -608,7 +676,7 @@ describe("run", () => {
 			({ method, path }) => `${method} ${path}`,
 		);
 		const removal = done.indexOf(
-			`DELETE /repos/o/r/issues/7/labels/${encodeURIComponent("work-class: structural")}`,
+			`DELETE /repos/o/r/issues/7/labels/${encodeURIComponent("work-class: mechanical")}`,
 		);
 		assert.ok(
 			removal >= 0 && removal < done.indexOf("POST /repos/o/r/issues/7/labels"),
