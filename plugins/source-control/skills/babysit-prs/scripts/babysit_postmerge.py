@@ -427,11 +427,7 @@ def _paginated(
             (p["total_count"] for p in pages if isinstance(p.get("total_count"), int)),
             default=0,
         )
-        if (
-            total > len(items)
-            and len(items) >= RUN_SEARCH_CAP
-            and capped is not None
-        ):
+        if total > len(items) and len(items) >= RUN_SEARCH_CAP and capped is not None:
             capped.append(f"listing-capped: {label} total_count {total}")
         elif total > len(items):
             raise PostMergeReadError(
