@@ -143,8 +143,8 @@ shipped catalog, no remediations approved), so an absent overlay or absent appro
    a run was missed, or hung and was stopped before it wrote a status file. Else PASS when `ok` is
    true; FAIL when it is false, naming each part that failed (`exit_code` not 0, `is_error` not
    false, `marker_found` false, `latest_newer` false, `timed_out` true), with the `.stdout.json`
-   and `.stderr.log` beside it as the place to look (the log's first line names the `claude` the
-   wrapper ran). Add a note when `streams_incomplete` is true: a process the run left behind held
+   and `.stderr.log` beside it as the place to look (the log opens with the `claude` the
+   wrapper ran, or why it did not start one). Add a note when `streams_incomplete` is true: a process the run left behind held
    its output open, so the saved output may be cut short. When the copy exists, run
    `. '${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/Install-MonthlyRun.ps1'; Test-MonthlyRunCurrent -PluginRoot '${CLAUDE_PLUGIN_ROOT}' -StateBase '<StateBase>'`
    through the PowerShell tool, and FAIL when `WrapperCurrent` or `SettingsCurrent` is false, or it
