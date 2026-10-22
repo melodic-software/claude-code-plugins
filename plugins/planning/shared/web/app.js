@@ -1729,7 +1729,6 @@
       const sw = E("div", "vf-swatches"); sw.setAttribute("role", "group"); sw.setAttribute("aria-label", "Accent color");
       const pals = E("div", "vf-seg vf-seg-sm vf-palettes"); pals.setAttribute("role", "group"); pals.setAttribute("aria-label", "Palette");
       const why = E("p", "vf-theme-why", "High contrast uses its own accent."); why.id = `vf-theme-why-${++themePickers}`;
-      sw.setAttribute("aria-describedby", why.id);
       const mb = MODES.map(([k, l]) => { const b = btn("vf-seg-btn", l); b.onclick = () => set({ mode: k }); modes.append(b); return [k, b]; });
       const ab = ACCENTS.map(([k, l]) => { const b = btn("vf-swatch"); b.dataset.accent = k; b.setAttribute("aria-label", `${l} accent`); b.title = l; b.onclick = () => { if (!(own && fixedAccent(get()))) set({ accent: k }); }; sw.append(b); return [k, b]; });
       const pb = PALETTES.map(([k, l]) => { const b = btn("vf-seg-btn", l); b.dataset.palette = k; b.onclick = () => set({ palette: k }); pals.append(b); return [k, b]; });
@@ -1740,6 +1739,8 @@
         for (const [k, b] of ab) { b.setAttribute("aria-pressed", String(!fixed && c.accent === k)); b.setAttribute("aria-disabled", String(fixed)); }
         for (const [k, b] of pb) b.setAttribute("aria-pressed", String(c.palette === k));
         why.hidden = !fixed;
+        // a hidden note that aria-describedby points at is still read, so the link exists only while the note shows
+        if (fixed) sw.setAttribute("aria-describedby", why.id); else sw.removeAttribute("aria-describedby");
       };
       return wrap;
     }

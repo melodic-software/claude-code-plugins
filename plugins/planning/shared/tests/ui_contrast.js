@@ -172,6 +172,8 @@ async function main() {
         await until(owner, p => document.getElementById("app").dataset.palette === p && (window.Core.snapshot().settings.theme.palette || "default") === p
           && document.querySelector(`.vf-settings button[data-palette="${p}"]`).getAttribute("aria-pressed") === "true", pal)
         && await until(ann, p => document.getElementById("app").dataset.palette === p, pal), `${await palOf(owner)} ${await palOf(ann)}`);
+      ok(`  ${pal}: the owner's accent swatches stay live, with no description`, await owner.evaluate(() => !document.querySelector(".vf-settings .vf-swatches").hasAttribute("aria-describedby")
+        && [...document.querySelectorAll(".vf-settings .vf-swatch")].every(b => b.getAttribute("aria-disabled") !== "true")));
     }
     await owner.keyboard.press("Escape");
     await ann.click(".vf-keysbtn");
@@ -182,17 +184,20 @@ async function main() {
     ok("a guest's own card: Paper applies on her page only, saved as her own pref",
       await until(ann, () => document.getElementById("app").dataset.palette === "paper" && window.Core.snapshot().me.prefs.palette === "paper")
       && await palOf(owner) === "default", `${await palOf(owner)} ${await palOf(ann)}`);
+    ok("  on Paper her accent swatches carry no description (a hidden note it points at would still be read)",
+      await ann.evaluate(() => !document.querySelector(".vf-pcard .vf-swatches").hasAttribute("aria-describedby")));
     await ann.click('.vf-pcard button[data-palette="contrast"]');
-    ok("High contrast fixes her own accent: the accent swatches are disabled and say why",
+    ok("High contrast fixes her own accent: the accent swatches are disabled and say why, the note describing them",
       await until(ann, () => { const sw = [...document.querySelectorAll(".vf-pcard .vf-swatch")], why = document.querySelector(".vf-pcard .vf-theme-why");
-        return document.getElementById("app").dataset.palette === "contrast" && sw.length === 4 && sw.every(b => b.getAttribute("aria-disabled") === "true") && !!why && !why.hidden && why.textContent.length > 0; }));
+        return document.getElementById("app").dataset.palette === "contrast" && sw.length === 4 && sw.every(b => b.getAttribute("aria-disabled") === "true") && !!why && !why.hidden && why.textContent.length > 0
+          && document.querySelector(".vf-pcard .vf-swatches").getAttribute("aria-describedby") === why.id; }));
     const accentBefore = await ann.evaluate(() => window.Core.snapshot().me.prefs.accent);
     await ann.evaluate(() => document.querySelector('.vf-pcard .vf-swatch[data-accent="amber"]').click()); // Playwright will not click an aria-disabled control
     await ann.waitForTimeout(500);
     ok("  a tap on a disabled swatch saves nothing", await ann.evaluate(() => window.Core.snapshot().me.prefs.accent) === accentBefore);
     await ann.click('.vf-pcard button[data-palette="default"]');
-    ok("  back on Default the swatches are live again", await until(ann, () => [...document.querySelectorAll(".vf-pcard .vf-swatch")].every(b => b.getAttribute("aria-disabled") !== "true")
-      && document.getElementById("app").dataset.palette === "default"));
+    ok("  back on Default the swatches are live again, with no description", await until(ann, () => [...document.querySelectorAll(".vf-pcard .vf-swatch")].every(b => b.getAttribute("aria-disabled") !== "true")
+      && !document.querySelector(".vf-pcard .vf-swatches").hasAttribute("aria-describedby") && document.getElementById("app").dataset.palette === "default"));
     await ann.keyboard.press("Escape");
 
     // ---------- per palette, mode and accent: the accent and person colors keep their AA ratios ----------
