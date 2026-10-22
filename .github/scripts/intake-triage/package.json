@@ -1,7 +1,7 @@
 {
-	"name": "intake-triage",
-	"private": true,
-	"scripts": {
-		"test": "node --test"
-	}
+  "name": "intake-triage",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
 }
