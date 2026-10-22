@@ -634,7 +634,7 @@ test("a re-run still going under a newer failed contract-only run takes a place 
 });
 
 // An issue's floor-label run whose first attempt failed (a rate limit left
-// issue #9045 unlabeled) has its failed jobs re-run once.
+// the issue unlabeled) has its failed jobs re-run once.
 const INTAKE = ".github/workflows/intake-label-needs-triage.yml";
 const intakeRun = (id, opts = {}) => run(id, MAIN_TIP, { path: INTAKE, event: "issues", conclusion: "failure", ...opts });
 
