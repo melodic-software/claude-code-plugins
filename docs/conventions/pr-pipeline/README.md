@@ -1572,9 +1572,13 @@ longer pauses (`pause-from` cleared or in the future); with no saved state (none
 or the cache evicted it), the check fails open and the run starts. Without a merged count the
 cap is `limits.wip-cap`. A held PR's age runs from when it opened.
 
-Queued work is the open `agent-ready` issues no open lane PR names on its first body line
-(`Closes #<n>` or `Refs: #<n>`, as report-outcome writes it), plus the held lane PRs. The lane
-branch is not matched: the search answer carries no head ref. The queued cap is
+Queued work is the open `agent-ready` issues no open lane PR names, plus the held lane PRs. A lane
+PR names its issue on its first body line (`Closes #<n>` or `Refs: #<n>`, as report-outcome writes
+it), or else by its head branch `work-resolve-issue/issue-<n>-<run>-<attempt>`: the search answer
+carries no head ref, so each open lane PR whose first line names no issue (a person edited it) costs
+one pull request read, and one that fails leaves the PR unmatched. A dimension-skipped issue
+whose report-skip failed keeps `agent-ready` with no run; work-unblock's sweep re-fires that failed
+run like any other, and the fresh run's report-skip hands the issue back. The queued cap is
 `max(limits.admission-factor × lane merges per hour, limits.admission-min-per-hour) ×
 merge-rate-window-hours`, with the floor alone when the merged count cannot be read. At or over it,
 on or after `pause-from`, new admissions pause: the step output `admission-open` is `false`, and
@@ -1596,6 +1600,22 @@ revisited; any other is left as is with a warning annotation, since re-admitting
 `admission-deferred`, a held one stays deferred, and any other loses it. Restarts, re-fires and relabels re-run issues already admitted and are never
 paced. This queued cap replaces the admission window (`limits.admission-window-hours`) and owner
 decisions Q2, Q17 and Q22 of the 2026-10-21 lane-flow interview.
+
+work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
+group, queued, never cancelled), so a burst of closes or a close run beside the hourly sweep cannot
+each admit the full room. The search index can still lag an `agent-ready` label added moments
+before, so a run right after another may read the room as one admission too wide.
+
+The queued cap paces only work-unblock's new `agent-ready` labels. Every other writer is exempt by
+design (owner decision 2026-10-22, #8966), and the issues it labels still count as queued work:
+
+| Writer | Paced |
+|---|---|
+| work-unblock adding `agent-ready` to an unblocked or deferred issue | Yes |
+| work-unblock's restarts, re-fires and relabels (remove and re-add on an admitted issue) | No: they re-run work already admitted |
+| A person adding the label by hand | No |
+| A person-run skill: `/work-items:triage`, `/work-items:decompose`, `/work-items:attend-queue`, `/work-items:track` | No: a person's account, their call |
+| `post-merge-demotion-alert.yml` red-main fix issues | No: it files them unlabeled and reopens one on a repeat failure keeping the `agent-ready` a person gave it, which work-unblock relabels; guardrail work |
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
 and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause;

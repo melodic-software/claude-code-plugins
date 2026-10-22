@@ -2,7 +2,8 @@
 // check-wip-cap.mjs: the issue lane's WIP cap and admission pace, from four
 // serial searches: the lanes App's pull requests in this repository (the open
 // ones, the ones merged in the rolling window, and the ones opened in it), then
-// the open agent-ready issues with no hold label.
+// the open agent-ready issues with no hold label; and one pull request read per
+// open lane PR whose first body line names no issue.
 //
 // The cap is the merged count per hour times wip.target-lead-time-hours,
 // rounded up and at least wip.min-cap (limits.wip-cap when the merged count
@@ -18,8 +19,8 @@
 // the last known pause, the status work-unblock's hourly sweep last saved in
 // WIP_STATE; with none it fails open.
 //
-// Queued work is the agent-ready issues no open lane PR names on its first
-// body line, plus the held lane PRs. At or over the queued cap,
+// Queued work is the agent-ready issues no open lane PR names, on its first
+// body line or else by its lane branch, plus the held lane PRs. At or over the queued cap,
 // max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
 // x wip.merge-rate-window-hours, on or after wip.pause-from, new admissions
 // (work-unblock adding agent-ready) pause; runs never pause on it, since a
@@ -46,6 +47,7 @@ import { pathToFileURL } from "node:url";
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { LIMIT_DEFAULTS, resolveAdmission, resolveWip } from "../../scripts/work-resolve-issue/limits.mjs";
+import { laneBranchIssue } from "../../scripts/work-resolve-issue/report-outcome.mjs";
 
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const HOUR_MS = 3_600_000;
@@ -125,6 +127,7 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
     return null;
   };
   const open = (await list(`repo:${repo} is:pr is:open ${author}`, (pr) => ({
+    number: Number(pr?.number),
     createdAt: Date.parse(pr?.created_at),
     held: isHeld(pr),
     issue: namedIssue(pr),
@@ -133,6 +136,17 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
   const admitted = await count(`repo:${repo} is:pr ${author} created:>=${since}`);
   const holds = ISSUE_HOLDS.map((label) => `-label:${label.includes(" ") ? `"${label}"` : label}`).join(" ");
   const queued = await list(`repo:${repo} is:issue is:open label:agent-ready ${holds}`, (issue) => Number(issue?.number));
+  // A search item carries no head ref, so a lane PR whose first body line
+  // names no issue (a person edited it) costs one pull request read for its
+  // lane branch. One that fails leaves the PR unmatched.
+  for (const pr of queued?.items?.length ? (open ?? []) : []) {
+    if (pr.issue === null && Number.isSafeInteger(pr.number) && pr.number > 0) {
+      pr.issue = await github("GET", `/repos/${repo}/pulls/${pr.number}`).then(
+        (pull) => laneBranchIssue(pull?.head?.ref),
+        () => null,
+      );
+    }
+  }
   return { open, merged, admitted, queued: queued?.items ?? null, queuedUnlisted: queued?.unlisted ?? null };
 }
 
