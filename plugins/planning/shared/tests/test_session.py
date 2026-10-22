@@ -6821,6 +6821,70 @@ def zip_of(*entries):
 
 
 PNG_HEAD = b"\x89PNG\r\n\x1a\n"
+# A 1x1 GIF89a of two frames (red, then blue, half a second each) that loops: header, screen, two-color table,
+# NETSCAPE2.0 loop, then per frame a graphic control block and an image whose LZW data is clear, color, end.
+GIF = (b"GIF89a\x01\x00\x01\x00\x80\x00\x00" + b"\xff\x00\x00\x00\x00\xff"
+       + b"\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00"
+       + b"".join(b"\x21\xf9\x04\x04\x32\x00\x00\x00" + b"\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00" + b"\x02\x02" + lzw + b"\x01\x00" for lzw in (b"\x44", b"\x4c"))
+       + b"\x3b")
+GIF87 = b"GIF87a\x01\x00\x01\x00\x80\x00\x00\xff\x00\x00\x00\x00\xff\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x44\x01\x00\x3b"
+
+
+class TestGifs(UploadCase):
+    """A GIF goes through the picture path: its first bytes, never its name or the browser's type, say it is one; a
+    guest's shows to others once the owner approves it; up to the shown-picture cap it reads back as a picture."""
+
+    def sent(self, pid, name, data, kind="image/gif"):
+        uid = self.offer(pid, name, data, type=kind)["id"]
+        if pid != HOST:
+            self.act("act_on_upload", HOST, {"id": uid, "action": "accept"})
+        self.send_all(pid, uid, data)
+        return uid
+
+    def test_a_gif87a_or_gif89a_is_recorded_and_read_back_as_a_gif_whatever_the_browser_says(self):
+        for name, data in (("party.gif", GIF), ("old.gif", GIF87)):
+            with self.subTest(name=name):
+                uid = self.sent(self.ann, name, data, kind="image/png")
+                self.assertEqual((self.upload(uid)["mime"], self.upload(uid)["status"]["kind"]), ("image/gif", "done"))
+                url = self.s.upload_image(self.ann, {"id": uid})["image"]
+                self.assertEqual((url[:22], base64.b64decode(url[22:])), ("data:image/gif;base64,", data))
+
+    def test_a_name_that_does_not_match_the_bytes_fails_at_the_first_piece(self):
+        for name, data in (("party.gif", PIC), ("party.png", GIF)):
+            with self.subTest(name=name):
+                uid = self.offer(self.ann, name, data, type="image/gif")["id"]
+                self.act("act_on_upload", HOST, {"id": uid, "action": "accept"})
+                e = self.refused("file-type", "upload_chunk", self.ann, piece_meta(uid, 0, -(-len(data) // SMALL), data[:SMALL], data if len(data) <= SMALL else None), data[:SMALL])
+                self.assertEqual((e.http, self.upload(uid)["status"]["kind"]), (415, "failed"))
+
+    def test_a_guests_gif_in_chat_or_an_answer_reaches_others_only_once_the_owner_approves_it(self):
+        gif = self.sent(self.ann, "party.gif", GIF)
+        self.act("chat", self.ann, {"text": "Ta-da", "attachments": [gif]})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [gif]})
+        self.assertEqual(self.s.snapshot(self.bo)["files"][gif], {"file": "party.gif", "ext": "gif", "size": len(GIF), "status": "done", "awaitsHost": True})
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": gif}).http, 404)
+        self.assertEqual(self.s.upload_image(HOST, {"id": gif})["image"][:22], "data:image/gif;base64,")
+        self.act("act_on_upload", HOST, {"id": gif, "action": "approve"})
+        self.assertTrue(self.s.snapshot(self.bo)["files"][gif]["image"])
+        self.assertEqual(self.s.upload_image(self.bo, {"id": gif})["image"][:22], "data:image/gif;base64,")
+
+    def test_a_gif_reads_back_as_a_picture_up_to_512_kb_and_past_it_is_a_file(self):
+        ids = {}
+        for name, size in (("at.gif", 512 * 1024), ("over.gif", 512 * 1024 + 1)):
+            data = GIF[:6] + bytes(size - 6)
+            with mock.patch.object(session, "CHUNK_SIZE", 1024 * 1024):
+                uid = self.offered_and_accepted(self.ann, name=name, data=data)
+                self.clock.tick()
+                self.s.upload_chunk(self.ann, piece_meta(uid, 0, 1, data, data), data)
+            ids[name] = uid
+            self.clock.tick()
+        self.act("act_on_upload", HOST, {"id": ids["at.gif"], "action": "approve"})
+        self.refused("wrong-status", "act_on_upload", HOST, {"id": ids["over.gif"], "action": "approve"})
+        self.act("chat", self.ann, {"text": "Two", "attachments": list(ids.values())})
+        files = self.s.snapshot(self.bo)["files"]
+        self.assertEqual([files[ids["at.gif"]].get("image"), files[ids["over.gif"]].get("image")], [True, None])
+        self.assertEqual(self.s.upload_image(self.bo, {"id": ids["at.gif"]})["image"][:22], "data:image/gif;base64,")
+        self.refused("not-found", "upload_image", self.bo, {"id": ids["over.gif"]})
 
 
 class TestUploadHardening(UploadCase):

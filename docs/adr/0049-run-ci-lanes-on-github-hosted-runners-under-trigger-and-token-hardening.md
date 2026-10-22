@@ -75,7 +75,8 @@ lane or any other surface keeps `L2`.
   grants that token only `contents: read` and `pull-requests: read` (the trigger gate reads the
   PR with it before any App token exists), and every write goes through the App token.
 - A lane activity may run its model in Claude Code's auto mode (`permission-mode: auto` in
-  `pr-pipeline.yaml`; `fix-docs` alone so far), where the auto-mode classifier approves tool calls
+  `pr-pipeline.yaml`; no activity can use it yet, since under the launcher's subprocess env scrub
+  the CLI starts in the default mode and the run fails red), where the auto-mode classifier approves tool calls
   no rule allows, in place of dontAsk, which denies them. Only the read runner's
   `run-claude-cli` launcher takes it: a job with no write token whose CLI runs with
   `--restricted`, with credentials scrubbed from the environment of the commands it runs
