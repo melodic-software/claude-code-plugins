@@ -136,6 +136,13 @@
           "default": 1,
           "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
         },
+        "fix-docs-per-run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 2,
+          "description": "fix-docs dispatches one pr-unblock-dispatch run sends at most."
+        },
         "admission-factor": {
           "type": "number",
           "exclusiveMinimum": 0,
@@ -428,7 +435,8 @@
         "self-checks": ["skill"],
         "verify-scripts": ["skill"],
         "web-access": ["skill"],
-        "applied-by": ["skill"]
+        "applied-by": ["skill"],
+        "permission-mode": ["skill"]
       },
       "dependentSchemas": {
         "applied-by": {
@@ -528,6 +536,11 @@
           "if": { "properties": { "enabled": { "const": true } } },
           "then": { "required": ["domains"] },
           "description": "Whether the skill may read the web, off when absent. On, the runner that stages the skill's edit tools allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true."
+        },
+        "permission-mode": {
+          "enum": ["dontAsk", "auto"],
+          "default": "dontAsk",
+          "description": "The Claude Code permission mode a PR-mode skill runs in on the read runner's launcher (run-claude-cli), dontAsk when absent. auto lets the auto-mode classifier approve tool calls no rule allows; the run job fails red unless the CLI's init message reports the mode asked for. Other runners run dontAsk whatever this says."
         },
         "script": {
           "type": "string",
