@@ -129,6 +129,9 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .lock{font:500 11.5px var(--mono);color:var(--wait);margin:-2px 0 0 20px}
 .qlist{display:grid;gap:6px;list-style:none;margin:0;padding:0}
 .qlist li.pickable{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px;align-items:start}
+.archtoggle{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:2px 0 2px 2px;cursor:pointer;text-align:left;color:var(--faint);font:500 11.5px var(--mono)}
+.archtoggle .caret{width:12px;transition:transform .15s}
+.archtoggle[aria-expanded="false"] .caret{transform:rotate(-90deg)}
 .qlist li.pickable .pick{margin:10px 0 0 2px;width:16px;height:16px}
 .sec[data-collapsed="true"] .qlist,.sec[data-collapsed="true"] .sec-hint{display:none}
 .qbtn{width:100%;text-align:left;display:grid;grid-template-columns:3.2ch minmax(0,1fr);gap:2px 10px;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;position:relative}
@@ -845,6 +848,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       for (const s of secs) {
         const items = s.items.filter(passes);
         if (!items.length && filtering()) continue;
+        const groupsView = S.view === "groups", arch = groupsView ? items.filter(q => stateOf(q) === "arch") : [], liveItems = groupsView ? items.filter(q => stateOf(q) !== "arch") : items;
+        const archOpen = !!arch.length && (lsGet("arch:" + s.key, false) === true || (filtering() && !liveItems.length)); // a filter that matches only archived cards shows them
+        const li = q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + railItem(q, s, carry, fresh) + "</li>"; };
         const o = lsGet("col:" + s.key, null), coll = s.collapsed && !(filtering() && !(o && o.d === s.done)); // a filter opens a section with no applicable stored toggle that holds a match
         const elig = s.items.filter(q => s.gid ? eligible(q) : op.has(q.id) && eligible(q)), picked = s.gid ? elig.filter(q => S.pick.has(q.id)) : [], aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
         html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + coll + '" data-dflt="' + s.done + '">' +
@@ -854,7 +860,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
           (elig.length && s.round && !s.gid ? '<button class="tbtn small" data-auditround="' + esc(s.round) + '" data-submit="1" title="Accept the recommendation on the open questions you have opened here and have agents check the answers">Accept all and have agents check them</button>' : "") + "</div>" +
           (s.lock.length ? '<div class="lock">Locked: opens after ' + s.lock.map(g => esc(groupTitle(g))).join(", ") + "</div>" : "") +
           (s.hint ? '<div class="sec-hint">' + (s.hintStale ? '<span class="chip hot" title="This summary was written before questions were added to the group">Stale</span> ' : "") + esc(s.hint) + "</div>" : "") +
-          '<ul class="qlist">' + (items.length ? items.map(q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + railItem(q, s, carry, fresh) + "</li>"; }).join("") : '<li class="empty">None.</li>') + "</ul></div>";
+          '<ul class="qlist">' + (items.length ? liveItems.map(li).join("") + (arch.length ? '<li class="archrow"><button class="archtoggle" data-archtoggle="' + esc(s.key) + '" aria-expanded="' + archOpen + '"><span class="caret">&#9662;</span>' + arch.length + " archived</button></li>" + (archOpen ? arch.map(li).join("") : "") : "") : '<li class="empty">None.</li>') + "</ul></div>";
       }
     }
     const hiddenByShow = searchTerm() && S.filter !== "all" ? S.doc.questions.filter(q => matchesSearch(q) && !passesShow(q)).length : 0; // the Show filter and the search both apply, so say when Show hides matches
@@ -1679,7 +1685,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!matchesSearch(Q[id])) clearSearch(); // a zero-padded number reaches a question the text does not match
     if (hidden) { S.filter = "all"; lsSet("filter", "all"); }
     const sec = S.view === "tree" ? null : sections().secs.find(x => x.items.some(q => q.id === id));
-    if (sec) lsSet("col:" + sec.key, {c: false, d: sec.done}); // open the group that holds the target
+    if (sec) { lsSet("col:" + sec.key, {c: false, d: sec.done}); if (S.view === "groups" && stateOf(Q[id]) === "arch") lsSet("arch:" + sec.key, true); } // open the group that holds the target, and its archived row for an archived one
     select(id, {animate: true});
     if (hidden) toast("Showing all to reveal " + id + ".");
   }
@@ -2156,6 +2162,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const au = t.closest("[data-auditround]"); if (au) { const s = sections().secs.find(x => x.round === au.dataset.auditround); if (s) acceptAllDialog(s.items, s.title, s.round); return; }
     const aa = t.closest("[data-acceptall]"); if (aa) { acceptAllDialog(S.doc.questions.filter(q => q.group === aa.dataset.acceptall), groupTitle(aa.dataset.acceptall), null, "all"); return; }
     const as = t.closest("[data-acceptsel]"); if (as) { acceptAllDialog(S.doc.questions.filter(q => q.group === as.dataset.acceptsel && S.pick.has(q.id)), groupTitle(as.dataset.acceptsel), null, "sel"); return; }
+    const at = t.closest("[data-archtoggle]"); if (at) { const k = "arch:" + at.dataset.archtoggle; lsSet(k, at.getAttribute("aria-expanded") !== "true"); renderRail(); return; }
     const sh = t.closest(".sec-h");
     if (sh) { const sec = sh.closest(".sec"), c = sec.dataset.collapsed !== "true"; sec.dataset.collapsed = String(c); sh.setAttribute("aria-expanded", String(!c)); lsSet("col:" + sec.dataset.key, {c, d: sec.dataset.dflt === "true"}); return; }
     const v = t.closest(".seg button"); if (v) { S.view = v.dataset.view; lsSet("view", S.view); renderRail(); return; }
