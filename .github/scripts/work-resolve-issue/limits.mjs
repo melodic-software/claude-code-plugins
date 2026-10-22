@@ -28,18 +28,40 @@ export const resolveLimits = (limits) =>
     }),
   );
 
-// The limits in resolve-config's output file; the defaults when it is absent
-// or unreadable.
+// The limits in resolve-config's output file, the admission leaves included;
+// the defaults when it is absent or unreadable.
 export function readLimits(path) {
+  let limits;
   try {
-    return resolveLimits(JSON.parse(readFileSync(path, "utf8"))?.limits);
+    limits = JSON.parse(readFileSync(path, "utf8"))?.limits;
   } catch {
-    return resolveLimits(undefined);
+    limits = undefined;
   }
+  return { ...resolveLimits(limits), ...resolveAdmission(limits) };
 }
 
+const positive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+
+// The two `limits` leaves that pace new issue-lane admissions (check-wip-cap's
+// queued cap). They are fractions, so resolveLimits, which keeps whole
+// numbers only, leaves them out.
+export const ADMISSION_DEFAULTS = Object.freeze({
+  "admission-factor": 0.8,
+  "admission-min-per-hour": 1,
+});
+const ADMISSION_VALID = {
+  "admission-factor": (value) => positive(value) && value <= 1,
+  "admission-min-per-hour": (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100,
+};
+
+// Both admission leaves, each valid set value over its default.
+export const resolveAdmission = (limits) =>
+  Object.fromEntries(
+    Object.entries(ADMISSION_DEFAULTS).map(([key, value]) => [key, ADMISSION_VALID[key](limits?.[key]) ? limits[key] : value]),
+  );
+
 // The `wip` leaf of pr-pipeline.yaml: the issue lane's WIP cap derived from
-// the lane merge rate, the admission factor, the held-PR buffer and its age
+// the lane merge rate, the opened-to-merged ratio, the held-PR buffer and its age
 // alarm, and the date from which the lane pauses over the WIP cap. resolve-config
 // passes the leaf through as set; this is the one copy of its defaults.
 export const WIP_DEFAULTS = Object.freeze({
@@ -52,7 +74,6 @@ export const WIP_DEFAULTS = Object.freeze({
   "pause-from": "",
 });
 
-const positive = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
 const WIP_VALID = {
   "target-lead-time-hours": positive,
   "min-cap": (value) => Number.isInteger(value) && value >= 1 && value <= 500,

@@ -13,7 +13,7 @@ Responsibilities (per SKILL.md High-level procedure):
  1. Verify preconditions (PS version, output writable, elevation recorded).
  2. Load catalog; filter to enabled, non-deprecated entries with os: ["windows"].
  3. Load trend context from state/history.jsonl (last 8 weeks).
- 4. Dispatch each check with a 90s timeout (Start-Job).
+ 4. Dispatch each check (Start-Job) under the timeout Get-CheckTimeoutSec gives it.
  5. Adjust severities based on trend when a threshold was just crossed.
  6. On non-dry runs: dispatch authorized remediations (TODO.md approvals + user-load heuristic).
  7. Write state/latest.json; append one compact line to state/history.jsonl.
@@ -42,6 +42,9 @@ Skip all remediations; still produce a full report.
 
 .PARAMETER Human
 Print a human-readable summary instead of emitting the run snapshot JSON.
+
+.PARAMETER SampleSeconds
+Sampling window, in seconds, for checks that sample over time (top-processes).
 #>
 [CmdletBinding()]
 param(
@@ -51,7 +54,8 @@ param(
     [switch] $DryRun,
     [switch] $Human,
     [switch] $Force,
-    [switch] $SkipBanner
+    [switch] $SkipBanner,
+    [ValidateRange(5, 60)] [int] $SampleSeconds = 15
 )
 
 Set-StrictMode -Version 3.0
@@ -457,9 +461,10 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
 
         $muted = Get-MutedFindingKey -State $muteState -CheckId $entry.id
         $checkArgs = Get-CheckArgument -CheckId $entry.id -ScriptPath $scriptPath -RunLog $runLog `
-            -BatteryReportPath $batteryReportPath -MutedKeys $muted
+            -BatteryReportPath $batteryReportPath -MutedKeys $muted -SampleSeconds $SampleSeconds
         Write-MachineHealthLog "check_dispatch id=$($entry.id) script=$($entry.script)"
-        $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec 90 -Arguments $checkArgs
+        $dispatch = Invoke-CheckWithTimeout -ScriptPath $scriptPath -TimeoutSec (Get-CheckTimeoutSec -Arguments $checkArgs) `
+            -Arguments $checkArgs
 
         if (-not $dispatch.ok) {
             $checkResults.Add((New-UnknownCheckResult -Entry $entry `

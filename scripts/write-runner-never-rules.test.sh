@@ -182,11 +182,19 @@ say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invali
   "a script escalates only with the reply script's own reasons, and only in review-replies mode");
 say(/:\?\*:dependency-invalid \| :\?\*:dependency-fix-not-landed\)/.test(byId("act-script").run ?? "")
   && /:\?\*:dependency-security-close \| :\?\*:dependency-escalate \| :\?\*:dependency-config-unreadable\)/.test(byId("act-script").run ?? "")
-  && /:\?\*:dependency-files-truncated \| :\?\*:dependency-control-uncited\)/.test(byId("act-script").run ?? ""),
+  && /:\?\*:dependency-files-truncated \| :\?\*:dependency-control-uncited \| :\?\*:dependency-workflow-held\)/.test(byId("act-script").run ?? "")
+  && /:\?\*:dependency-fix-refused\)/.test(byId("act-script").run ?? ""),
   "a script escalates with the verdict script's reasons only in dependency-verdict mode");
 say(promoteScript.indexOf("verdict !== 'fix'") >= 0 && promoteScript.indexOf("verdict !== 'fix'") < promoteScript.indexOf("updateRef")
-  && /\[dependabot skip\]/.test(promoteScript) && /\\\.github/.test(promoteScript),
-  "dependency-review promotes only a fix verdict's commits, none under .github/, each with [dependabot skip]");
+  && /\[dependabot skip\]/.test(promoteScript) && /!inFixScope\(p, pairs\)/.test(promoteScript)
+  && /await fixRefusal\(data\.files, pairs,/.test(promoteScript)
+  && /CLASSIFY_SHA256/.test(promoteScript) && /cp \.base\/\.github\/scripts\/pr-unblock\/dependency-classify\.mjs/.test(byId("dependency-select").run ?? ""),
+  "dependency-review promotes only a fix verdict's commits, each with [dependabot skip], changing only the manifests and lock files the base's classifier copy admits, as regular files, by a version change");
+// apply-patch runs from a base copy, so each pr-unblock module its
+// predicates import must be copied beside it.
+const predicateImports = [...readFileSync(".github/scripts/apply-patch/predicates.mjs", "utf8").matchAll(/from "\.\.\/pr-unblock\/([^"]+)"/g)].map((m) => m[1]);
+say(predicateImports.length > 0 && predicateImports.every((name) => (byId("apply-base").run ?? "").includes(`cp .base/.github/scripts/pr-unblock/${name} "$RUNNER_TEMP/pr-unblock/"`)),
+  "the apply-patch base copy holds every pr-unblock module its predicates import");
 say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$\{disallowed:\+\$disallowed,\}Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
   "the check wrappers and their base copy are read-only to the skill");
 say(/chmod -R a-w "\$DOCS_DIR"/.test(stage) && /disallowed="Edit\(\/\$DOCS_DIR\/\*\*\),Write\(\/\$DOCS_DIR\/\*\*\)"/.test(stage),
