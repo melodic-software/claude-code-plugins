@@ -541,18 +541,40 @@
         else links(parent, part);
       }
     }
+    function link(text, url) { const a = E("a", "vf-link", text); a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; }
     function links(parent, line) {
       let i = 0;
       for (const m of line.matchAll(LINK)) {
         const url = m[0].replace(/[).,;:!?]+$/, "");
-        if (m.index > i) withMentions(parent, line.slice(i, m.index));
+        if (m.index > i) refs(parent, line.slice(i, m.index));
         let ok = false;
         try { ok = ["http:", "https:"].includes(new URL(url).protocol); } catch {}
-        if (ok) { const a = E("a", "vf-link", url); a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer"; parent.append(a); }
-        else parent.append(url);
+        parent.append(ok ? link(url, url) : url);
         i = m.index + url.length;
       }
-      if (i < line.length) withMentions(parent, line.slice(i));
+      if (i < line.length) refs(parent, line.slice(i));
+    }
+    // ---------- #N and repository paths: links into the session's repository (set-repo), plain text without one ----------
+    const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$/, SHA = /^[0-9a-f]{40}$/;
+    /** `#N` not inside a word, an entity or a path; or a repo-relative path: a dot-free first folder of 2 or more
+     *  characters (a leading dot allowed, so never a host name or "w/e.g"), at least one slash and a file with a
+     *  lowercase letter-led extension, optionally `:line` or `:line-line`. The repo rule is also in session.py.
+     *  Never after a slash, dot, colon, ~ or @, so an absolute, home, drive or relative-to-parent path stays text. */
+    const REF = /(?<![\w&#/])#([1-9]\d{0,6})(?![\w-])|(?<![\w./:@~\\-])(\.?[\w-]{2,}(?:\/\.?[\w-][\w.-]*)*\/\.?[\w-][\w.-]*\.[a-z][a-z0-9]{0,9})(?::([1-9]\d{0,6})(?:-([1-9]\d{0,6}))?)?(?![\w/-]|\.\w)/g;
+    const repoOf = () => { const { repo, commit } = Core.state; return REPO.test(repo) ? { repo, commit: SHA.test(commit) ? commit : "" } : null; };
+    function refs(parent, s) {
+      const at = s.includes("#") || s.includes("/") ? repoOf() : null;
+      if (!at) { withMentions(parent, s); return; }
+      let i = 0;
+      for (const m of s.matchAll(REF)) {
+        const url = m[1] ? `https://github.com/${at.repo}/issues/${m[1]}`
+          : at.commit && `https://github.com/${at.repo}/blob/${at.commit}/${m[2]}${m[3] ? `#L${m[3]}${m[4] ? `-L${m[4]}` : ""}` : ""}`;
+        if (!url) continue;
+        if (m.index > i) withMentions(parent, s.slice(i, m.index));
+        parent.append(link(m[0], url));
+        i = m.index + m[0].length;
+      }
+      if (i < s.length) withMentions(parent, s.slice(i));
     }
     // ---------- @mentions: Core turns the server's <@pid> into "@Name" as this page shows that person; each renders as a chip ----------
     const MN = { labels: null, re: null };
@@ -593,7 +615,8 @@
       }
       return f;
     }
-    function setRich(el, text) { if (el._t !== text) { el._t = text; el.replaceChildren(rich(text)); } }
+    /** Rebuilt when the text or the session's repository changes; _t stays the text (the reader opens it). */
+    function setRich(el, text) { const k = `${Core.state.repo} ${Core.state.commit}`; if (el._t !== text || el._rk !== k) { el._t = text; el._rk = k; el.replaceChildren(rich(text)); } }
 
     // ---------- clamped text: ~6 lines, Show more expands in place, Open shows it in the reader ----------
     function clampBox(cls = "") {
@@ -2107,6 +2130,12 @@
       tourH.textContent = s.h; tourT.textContent = s.t;
       tourBack.hidden = TT.i === 0;
       tourNext.textContent = last ? "Done" : "Next";
+      placeTour(el);
+      tourNext.focus({ preventScroll: true });
+    }
+    /** Draw the ring round the step's target and put the card beside it; again after any re-render or resize moves it. */
+    function placeTour(el = TT.steps[TT.i]?.at()) {
+      if (!shown(el)) return;
       el.scrollIntoView({ block: "nearest", behavior: "auto" });
       const R = root.getBoundingClientRect(), r = el.getBoundingClientRect();
       const box = { l: Math.max(R.left + 4, r.left - 4), t: Math.max(R.top + 4, r.top - 4), r: Math.min(R.right - 4, r.right + 4), b: Math.min(R.bottom - 4, r.bottom + 4) };
@@ -2120,7 +2149,6 @@
       if (box.b + 12 + h <= R.bottom - 12) cs.insetBlockStart = box.b - R.top + 12 + "px";
       else if (box.t - 12 - h >= R.top + 12) cs.insetBlockStart = box.t - R.top - 12 - h + "px";
       else cs.insetBlockEnd = "12px";
-      tourNext.focus({ preventScroll: true });
     }
     tourNext.onclick = () => { if (TT.i >= TT.steps.length - 1) return endTour("done"); TT.i++; paintTour(); };
     tourBack.onclick = () => { if (TT.i > 0) { TT.i--; paintTour(); } };
@@ -2131,7 +2159,7 @@
     });
     // A click outside the card does nothing: the tour ends only by Skip, Done or Escape.
     on(tour, "pointerdown", e => { if (!tourCard.contains(e.target)) e.preventDefault(); });
-    const tourMove = () => { if (!tour.hidden) paintTour(); };
+    const tourMove = () => { if (!tour.hidden) placeTour(); };
     on(window, "resize", tourMove);
 
     // Ask Claude: right drawer on desktop, bottom sheet on phones.
@@ -7727,7 +7755,8 @@
 
       // a color someone just chose: repaint their avatars wherever they are
       for (const a of root.querySelectorAll(".core-avatar[data-who]")) { const c = Core.colorFor(a.dataset.who); if (a.style.getPropertyValue("--av") !== c) a.style.setProperty("--av", c); }
-      requestAnimationFrame(() => { measureAll(); if (toast.classList.contains("vf-on")) placeToast(); });
+      tourMove();
+      requestAnimationFrame(() => { measureAll(); if (toast.classList.contains("vf-on")) placeToast(); tourMove(); });
     }
 
     applyTheme();
