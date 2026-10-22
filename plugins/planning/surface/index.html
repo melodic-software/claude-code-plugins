@@ -882,7 +882,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function archSplit(s, items){ // Groups view draws a section's live cards, then its archived ones behind one row
     if (S.view !== "groups") return {live: items, arch: [], open: false};
     const arch = items.filter(q => stateOf(q) === "arch"), live = items.filter(q => stateOf(q) !== "arch");
-    return {live, arch, open: !!arch.length && (lsGet("arch:" + s.key, false) === true || (filtering() && !live.length))}; // a filter that matches only archived cards shows them
+    const stored = lsGet("arch:" + s.key, null); // null until the row is toggled, so a click can collapse a row a filter opened
+    return {live, arch, open: !!arch.length && (stored === true || (stored === null && filtering() && !live.length))}; // a filter that matches only archived cards shows them
   }
   function railOrder(all){ // all: every question in rail order, so a just-answered question still marks the position
     const keep = id => all || passes(Q[id]);
