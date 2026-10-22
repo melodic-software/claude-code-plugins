@@ -1608,12 +1608,17 @@ class Session:
 
     def _same_name(self, name, new, here):
         """Who else is in under `name`, or under it with the " 2" a taken name gets, and not here now: never the owner."""
-        def base(n):
-            return re.sub(r" [0-9]+\Z", "", _name_key(n))
+        if not name:
+            return []
+        key = _name_key(name)
+
+        def same(n):
+            n = _name_key(n)
+            return key in (n, re.sub(r" [0-9]+\Z", "", n))
 
         out = []
         for p, v in self.state["people"].items():
-            if name and p not in (HOST, new) and p not in here and self._active(p) and base(v["name"]) == _name_key(name):
+            if p not in (HOST, new) and p not in here and self._active(p) and same(v["name"]):
                 seen = self._presence.get(p)
                 out.append({"pid": p, "name": v["name"], **({"device": seen["device"]} if seen and seen.get("device") else {}),
                             **({"lastSeen": iso(self._seen(seen))} if seen else {})})
@@ -1935,10 +1940,14 @@ class Session:
             raise DomainError(409, "dismissed", "The owner dismissed this proposal already.")
         if any(p["status"]["kind"] == "pending" and self._proposal_live(p) for p in same):
             raise DomainError(409, "wrong-status", "This proposal already waits for the owner.", status="pending")
-        if len(self._open_claude_proposals()) >= MAX_CLAUDE_PROPOSALS:
+        open_ = self._open_claude_proposals()
+        if len(open_) >= MAX_CLAUDE_PROPOSALS:
             raise DomainError(409, "full", f"{MAX_CLAUDE_PROPOSALS} proposals already wait for the owner.")
-        if len(lst) >= MAX_CLAUDE_PROPOSALS:  # the oldest answered or no longer live one makes room
-            lst.remove(next(p for p in lst if p not in self._open_claude_proposals()))
+        if len(lst) >= MAX_CLAUDE_PROPOSALS:  # the oldest answered or no longer live one makes room; a dismissal is kept
+            old = next((p for p in lst if p not in open_ and p["status"]["kind"] != "dismissed"), None)
+            if old is None:
+                raise DomainError(409, "full", f"{MAX_CLAUDE_PROPOSALS} proposals are kept, each waiting or dismissed.")
+            lst.remove(old)
         kid = self._next("K")
         names = {p: st["people"][p]["name"] for p in people.values()}
         note = _text(op, "note", limit=MAX_NOTE, optional=True)

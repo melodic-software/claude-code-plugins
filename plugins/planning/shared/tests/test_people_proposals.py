@@ -86,6 +86,13 @@ class TestTheJoinEvent(ProposalCase):
         self.join("Room 7")
         self.assertEqual(self.events("person-joined"), [])
 
+    def test_a_name_ending_in_a_number_rejoining_while_the_first_is_offline_tells_claude(self):
+        agent, _ = self.join("Agent 7")
+        self.offline()
+        twin, _ = self.join("Agent 7")
+        ev = self.events("person-joined")
+        self.assertEqual([(e["person"], [m["pid"] for m in e["sameName"]]) for e in ev], [(twin, [agent])])
+
     def test_the_owner_is_never_offered_as_the_same_person(self):
         self.join("Kim")  # the owner's name
         self.assertEqual(self.events("person-joined"), [])
@@ -146,11 +153,31 @@ class TestProposeOps(ProposalCase):
     def test_answered_proposals_do_not_use_up_the_cap(self):
         with mock_cap(1):
             kid = self.propose(self.merge_op(self.twin, self.ann))
-            self.act("act_on_claude_proposal", HOST, {"id": kid, "action": "dismiss"})
+            self.act("act_on_claude_proposal", HOST, {"id": kid, "action": "approve"})
             self.s.update_settings(HOST, {"approveJoins": True})
             jib, _ = self.join("Jib")
             self.propose(self.admit_op(jib))
             self.assertEqual([p["status"]["kind"] for p in self.s.state["claudeProposals"]], ["pending"])
+
+    def test_a_full_list_makes_room_without_forgetting_a_dismissal(self):
+        with mock_cap(2):
+            kid = self.propose(self.merge_op(self.twin, self.ann))
+            self.act("act_on_claude_proposal", HOST, {"id": kid, "action": "dismiss"})
+            self.s.update_settings(HOST, {"approveJoins": True})
+            jib, _ = self.join("Jib")
+            self.act("act_on_claude_proposal", HOST, {"id": self.propose(self.admit_op(jib)), "action": "approve"})
+            kay, _ = self.join("Kay")
+            self.propose(self.admit_op(kay))  # the list is full: the approved admit makes room
+            self.refused_ops("dismissed", self.merge_op(self.twin, self.ann))
+
+    def test_when_only_dismissed_ones_are_kept_a_new_proposal_waits_for_room(self):
+        with mock_cap(1):
+            kid = self.propose(self.merge_op(self.twin, self.ann))
+            self.act("act_on_claude_proposal", HOST, {"id": kid, "action": "dismiss"})
+            self.s.update_settings(HOST, {"approveJoins": True})
+            jib, _ = self.join("Jib")
+            self.refused_ops("full", self.admit_op(jib))
+            self.refused_ops("dismissed", self.merge_op(self.twin, self.ann))
 
     def test_no_op_merges_or_admits_on_claudes_word(self):
         self.refused_ops("bad-field", {"op": "approve-proposal", "id": "K1"})
