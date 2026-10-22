@@ -1844,7 +1844,12 @@ COST_DECISION_LINK = re.compile(
     r"https://github\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/(?:issues|pull)/"
     r"([0-9]+)#issuecomment-([0-9]+)"
 )
-DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*(\s|$)")
+# A cost decision's first line: the decision marker, then `Cost:`, so a
+# decision recorded for something else clears no cost hold.
+DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*\s+Cost:")
+# An HTML comment in the body, or an unclosed one to the end: a link inside
+# one is hidden from a reader, so it cites nothing.
+HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}"
 
 
@@ -1855,15 +1860,20 @@ def cost_decision(
     *,
     permission: Permission,
     agent_identity: str | None,
+    self_logins: Collection[str] = frozenset(),
 ) -> str | None:
     """The first comment link in the body that is an owner decision covering
     this pull request, else None: a comment on its closing issue or on the
     pull request itself in `repo`, by a User with admin permission who is not
     the agent identity, not posted through an App, never edited, and whose
-    first line is `**Decision recorded.**`. A read that fails clears nothing."""
+    first line starts `**Decision recorded.** Cost:`. A link inside an HTML
+    comment, and a comment by a `self_logins` account, count for nothing. A
+    read that fails clears nothing."""
     owner, name = _split_repo(repo)
     covered = {pr.get("number"), issue} - {None}
-    for link in COST_DECISION_LINK.finditer(str(pr.get("body") or "")):
+    excluded = {_login_key(agent_identity)} | {_login_key(x) for x in self_logins}
+    body = HTML_COMMENT.sub("", str(pr.get("body") or ""))
+    for link in COST_DECISION_LINK.finditer(body):
         if f"{link[1]}/{link[2]}".casefold() != repo.casefold():
             continue
         if int(link[3]) not in covered:
@@ -1878,7 +1888,7 @@ def cost_decision(
             or user.get("type") != "User"
             or comment.get("performed_via_github_app") is not None
             or not isinstance(login, str)
-            or _login_key(login) == _login_key(agent_identity or "")
+            or _login_key(login) in excluded
             or not DECISION_LINE.match(str(comment.get("body") or "").lstrip())
         ):
             continue

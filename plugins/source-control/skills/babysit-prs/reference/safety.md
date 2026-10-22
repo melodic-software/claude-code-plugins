@@ -1046,7 +1046,7 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    `floor-script-scopes` glob, named by no other changed file, takes no HIGH path floor hold for
    that reason alone; the rule is in `babysit_risk.py`'s docstring. A change that could add or
    raise a charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
-   links an owner `**Decision recorded.**` comment on the closing issue or the pull request
+   links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
    (`cost_decision`); which changes count is in that docstring. A C3 pull request also needs a
    LOW blast-radius rating, which nothing supplies
    yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.

@@ -23,7 +23,7 @@ def _comment(**changes: Any) -> dict[str, Any]:
         "issue_url": "https://api.github.com/repos/owner/repo/issues/40",
         "user": {"login": "owner-person", "type": "User"},
         "performed_via_github_app": None,
-        "body": "**Decision recorded.** Approve the larger runner.",
+        "body": "**Decision recorded.** Cost: approve the larger runner.",
         "node_id": "IC_7",
     } | changes
 
@@ -58,6 +58,7 @@ class CostDecision(unittest.TestCase):
                 issue,
                 permission=lambda login: permission,
                 agent_identity=IDENTITY,
+                self_logins=frozenset({"lane-operator"}),
             )
 
     def test_an_owner_decision_on_the_closing_issue_clears(self) -> None:
@@ -102,6 +103,18 @@ class CostDecision(unittest.TestCase):
                 comment=_comment(user={"login": "agent-lanes", "type": "User"})
             ),
             "no body link": dict(body="Closes #40"),
+            "no cost marker": dict(
+                comment=_comment(body="**Decision recorded.** Option 2.")
+            ),
+            "a self login": dict(
+                comment=_comment(user={"login": "lane-operator", "type": "User"})
+            ),
+            "a link inside an HTML comment": dict(
+                body=f"Closes #40\n<!-- {LINK} -->\n"
+            ),
+            "a link after an unclosed HTML comment": dict(
+                body=f"Closes #40\n<!--\n{LINK}\n"
+            ),
             "a null node": dict(node=None),
             "no lastEditedAt key": dict(node={}),
         }
@@ -123,6 +136,7 @@ class CostDecision(unittest.TestCase):
                 40,
                 permission=refuse,
                 agent_identity=IDENTITY,
+                self_logins=frozenset({"lane-operator"}),
             )
         self.assertIsNone(decision)
         graphql.assert_not_called()

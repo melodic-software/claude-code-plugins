@@ -716,13 +716,16 @@ and its queued entries leave; two different identities, or an unreadable head co
   says and whatever an adopted author's own paths leave off the floor, and waits for a human like
   any other HIGH reason. It catches:
   - any changed `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam`
-    file, and any file under a directory that holds a `Pulumi.yaml` at the base;
+    file, `plugins/multi-agent/reference/defaults.yaml` (the model and effort per role), and any
+    file under a directory that holds a `Pulumi.yaml` at the base. A base tree the gate cannot
+    list whole holds every file;
   - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside;
   - a workflow patch that adds a `cron:` key in any YAML or JSON spelling (a schedule can spend
-    model credits), a `--model` or `--max-turns` flag, or a `secrets.` reference to a model
-    credential (a name holding `CLAUDE`, `OAUTH_TOKEN` or `_API_KEY`), or a `uses:` of
-    `run-claude-cli` or `claude-code-action` (a new model leg), the last two counted against the
-    lines it removes so a moved line or a repin is not new;
+    model credits) or a `--model` or `--max-turns` flag; or that gains any `secrets` reference
+    (`secrets.NAME`, `secrets['NAME']`, `toJSON(secrets)`, `secrets: inherit`), a `uses:` of
+    `run-claude-cli` or any `claude-code*` action or image (matched ignoring case), or a run line
+    invoking `@anthropic-ai/claude-code`, each counted against the lines it removes so a moved
+    line or a repin is not new;
   - a `timeout-minutes` or `leg-timeout-minutes` the patch adds above every one it removes, in a
     workflow whose head text uses one of those actions or could not be read;
   - a runner value the workflow's head text gains over its base text, or an added inline
@@ -731,21 +734,22 @@ and its queued entries leave; two different identities, or an unreadable head co
     list holding `self-hosted`), so an expression, a `group:` and a larger runner hold, since
     [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
     on any other repository every one, and any added `windows` or `macos` line;
-  - a `pr-pipeline.yaml` line added or removed on a spend key: `model`, `effort`, `max-turns`,
-    any `*rounds`, `*restarts*`, `turn-cap*`, `*-per-run` or `*cap` key, `admission-factor`,
-    `admission-min-per-hour`, `pause-from`, `leg-timeout-minutes`, or a `credential*` route.
-    Other `pr-pipeline.yaml` lines do not hold;
+  - any `pr-pipeline.yaml` change except one whose added and removed lines are all blank,
+    comment-only, or a `description:` or `title:` value, or that only edits trailing comments.
+    Flow style, quoted keys and new list items hold;
   - a workflow or pipeline file with no patch.
 
   The hold clears only when the pull request body links an owner decision that covers it: a
   comment on the pull request's closing issue or on the pull request itself, in this repository,
-  whose first line is `**Decision recorded.**`, written by a User with admin permission who is not
-  the agent identity, not posted through an App, and never edited. The gate reads the linked
+  whose first line starts `**Decision recorded.** Cost:`, written by a User with admin permission
+  who is not the agent identity or one of the gate's own logins, not posted through an App, and
+  never edited. A link inside an HTML comment in the body counts for nothing. The gate reads the linked
   comments only for a pull request the hold catches, and a failed read leaves the hold. A decision
   clears only this reason: a workflow or `docs/conventions/pr-pipeline.yaml` change still sits on
   the HIGH path floor here and waits for a person to merge it. Cite the decision before the
   human-gated label lands; a body edit does not remove that label (only a new head or a person
-  does). Not detected: budgets, billing settings and new paid services outside these files.
+  does). Not detected: budgets, billing settings and new paid services outside these files, and
+  the shapes [#9241](https://github.com/melodic-software/claude-code-plugins/issues/9241) lists.
   azure-iac's Pulumi program is C#, and its deploy gate
   ([azure-iac#75](https://github.com/melodic-software/azure-iac/issues/75)) stops any Azure change
   for the owner at deploy time. The review lanes and the verifier judge the rest. Dependabot pull

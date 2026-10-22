@@ -3133,6 +3133,7 @@ def score_unattended(
             eligible.issue,
             permission=inputs["permission"],
             agent_identity=inputs.get("identity"),
+            self_logins=self_logins,
         )
         if decision:
             details["costDecision"] = decision

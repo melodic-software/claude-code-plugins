@@ -94,8 +94,6 @@ class CostHold(unittest.TestCase):
             with self.subTest(line=line):
                 held = _file(config, patch=_patch(line))
                 self.assertIn(COST_CODE, _codes(_cost([held], public=True)))
-        other = _file(config, patch=_patch("+  rung: C2"))
-        self.assertNotIn(COST_CODE, _codes(_cost([other], public=True)))
 
 
 MODEL_WORKFLOW = (
@@ -121,16 +119,13 @@ class ModelSpendDetections(unittest.TestCase):
                 wf = _file(WORKFLOW, patch=_patch(line))
                 self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
 
-    def test_a_moved_or_unrelated_secret_does_not_hold(self):
+    def test_a_moved_secret_does_not_hold(self):
         moved = _patch(
             "-          api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}",
             "+        api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}",
         )
-        other = _patch("+          token: ${{ secrets.GITHUB_TOKEN }}")
-        for patch in (moved, other):
-            with self.subTest(patch=patch):
-                wf = _file(WORKFLOW, patch=patch)
-                self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
+        wf = _file(WORKFLOW, patch=moved)
+        self.assertNotIn(COST_CODE, _codes(_cost([wf], public=True)))
 
     def test_a_changed_spend_limit_in_the_pipeline_config_holds(self):
         config = "docs/conventions/pr-pipeline.yaml"
@@ -152,15 +147,16 @@ class ModelSpendDetections(unittest.TestCase):
                 held = _file(config, patch=_patch(line))
                 self.assertIn(COST_CODE, _codes(_cost([held], public=True)))
 
-    def test_other_pipeline_keys_do_not_hold(self):
+    def test_safe_pipeline_lines_do_not_hold(self):
         config = "docs/conventions/pr-pipeline.yaml"
-        for line in (
-            "+  quarantine-days: 7",
-            "+  report-only: false",
-            "+  # wip-cap: 9",
+        for patch in (
+            _patch("+  # wip-cap: 9"),
+            _patch("+"),
+            _patch("+    description: Fixes prose."),
+            _patch("-  review-rounds: 3 # old note", "+  review-rounds: 3 # new note"),
         ):
-            with self.subTest(line=line):
-                other = _file(config, patch=_patch(line))
+            with self.subTest(patch=patch):
+                other = _file(config, patch=patch)
                 self.assertNotIn(COST_CODE, _codes(_cost([other], public=True)))
 
     def test_a_raised_timeout_on_a_model_workflow_holds(self):
@@ -336,6 +332,76 @@ class ReviewFindings(unittest.TestCase):
         self.assertIn(COST_CODE, _codes(root))
         elsewhere = _cost([_file("docs/x.md")], pulumi_dirs=("infra",))
         self.assertNotIn(COST_CODE, _codes(elsewhere))
+
+
+class SecurityAndCostHolds(unittest.TestCase):
+    """S&C's hold findings at f5d53282: each shape its probe passed now holds."""
+
+    def _wf(self, *lines, contents=("", "jobs: {}\n")):
+        return _file(WORKFLOW, patch=_patch(*lines), contents=contents)
+
+    def test_any_pipeline_change_off_the_safe_list_holds(self):
+        config = "docs/conventions/pr-pipeline.yaml"
+        for patch in (
+            _patch("+  review: {review-rounds: 9}"),
+            _patch('+      "model": opus'),
+            _patch("+    verify-pr: code-xhigh", "-    verify-pr: review"),
+            _patch("+        base-turns: 900", "-        base-turns: 75"),
+            _patch("+      large: run", "-      large: split"),
+            _patch("+    max-in-flight: 50", "-    max-in-flight: 2"),
+            _patch("+      - activity: verify-pr"),
+            _patch("+      max-turns: *big"),
+            _patch("+  quarantine-days: 7"),
+        ):
+            with self.subTest(patch=patch):
+                held = _file(config, patch=patch)
+                self.assertIn(COST_CODE, _codes(_cost([held], public=True)))
+
+    def test_any_net_new_secret_reference_holds(self):
+        for line in (
+            "+  KEY: ${{ secrets['ANTHROPIC_API_KEY'] }}",
+            "+  ALL: ${{ toJSON(secrets) }}",
+            "+    secrets: inherit",
+            "+  K: ${{ secrets.ANTHROPIC_KEY }}",
+            "+  K: ${{ secrets.LANE_TOKEN }}",
+            "+  K: ${{ secrets.claude_x }}",
+        ):
+            with self.subTest(line=line):
+                self.assertIn(COST_CODE, _codes(_cost([self._wf(line)], public=True)))
+
+    def test_claude_actions_match_in_any_case_and_any_claude_code_name(self):
+        for line in (
+            "+      - uses: Anthropics/Claude-Code-Action@v1",
+            "+      - uses: anthropics/claude-code-base-action@v1",
+            "+      - uses: docker://ghcr.io/anthropics/claude-code:latest",
+            "+      - uses: Org/Repo/.github/actions/Run-Claude-CLI@abc",
+        ):
+            with self.subTest(line=line):
+                self.assertIn(COST_CODE, _codes(_cost([self._wf(line)], public=True)))
+
+    def test_a_run_line_invoking_the_claude_code_package_holds(self):
+        wf = self._wf("+        run: npx @anthropic-ai/claude-code -p hi")
+        self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_a_raised_timeout_holds_on_a_claude_code_base_action_workflow(self):
+        head = "jobs:\n  a:\n    steps:\n      - uses: Anthropics/Claude-Code-Base-Action@v1\n"
+        wf = self._wf(
+            "-    timeout-minutes: 30",
+            "+    timeout-minutes: 45",
+            contents=(head, head),
+        )
+        self.assertIn(COST_CODE, _codes(_cost([wf], public=True)))
+
+    def test_the_multi_agent_role_defaults_hold(self):
+        defaults = _file(
+            "plugins/multi-agent/reference/defaults.yaml",
+            patch=_patch("+  model: fable", "-  model: opus"),
+        )
+        self.assertIn(COST_CODE, _codes(_cost([defaults])))
+
+    def test_an_unlisted_base_tree_fails_closed(self):
+        result = _cost([_file("infra/Program.cs")], pulumi_dirs=None)
+        self.assertIn(COST_CODE, _codes(result))
 
 
 if __name__ == "__main__":
