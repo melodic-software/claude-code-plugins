@@ -7,12 +7,13 @@
 // payload. No model.
 //
 // Each new agent-ready is paced: at or over the issue lane's queued cap
-// (check-wip-cap.mjs, on or after wip.pause-from) a ready issue gets
-// `admission-deferred` instead, and with room for k admissions only the first
-// k ready issues are labeled. Every sweep revisits the open deferred issues
-// oldest first, before the closed ones: one still ready is labeled agent-ready
-// within the room and loses admission-deferred, a held one stays deferred, and
-// any other loses admission-deferred. Restarts, re-fires and relabels below
+// (check-wip-cap.mjs, on or after wip.pause-from, or whenever a search answers
+// incomplete_results: true) a ready issue gets `admission-deferred` instead,
+// and with room for k admissions only the first k ready issues are labeled.
+// Every sweep revisits the open deferred issues oldest first, before the closed
+// ones: one still ready is labeled agent-ready within the room and loses
+// admission-deferred, a held one stays deferred, and any other loses
+// admission-deferred. Restarts, re-fires and relabels below
 // re-run admitted issues and are never paced.
 //
 // On `schedule` it sweeps instead: every issue closed in the last
@@ -310,11 +311,15 @@ async function isTrustedClose(github, repo, closedIssue, humans) {
 // asked and counting each admission against its room.
 function admissionGate(status) {
   let room;
+  let reason;
   return {
+    // Why take() last answered false.
+    why: () => (reason === "search-incomplete" ? "GitHub search answered incomplete results" : "queued work is at the queued cap"),
     take: async () => {
       if (room === undefined) {
         const s = await status();
         room = s.admission_room ?? Number.POSITIVE_INFINITY;
+        reason = s.admission_reason;
         if (!s.admission_open) {
           console.log(`::notice title=admission paused::${escapeCommand(admissionLine(s))}`);
         }
@@ -335,7 +340,7 @@ async function admit({ github, repo, number, gate, deferred }) {
     if (!deferred) {
       await github("POST", `${base}/labels`, { labels: [DEFERRED_LABEL] });
     }
-    console.log(`label-unblocked: #${number} admission deferred: queued work is at the queued cap`);
+    console.log(`label-unblocked: #${number} admission deferred: ${gate.why()}`);
     return;
   }
   await github("POST", `${base}/labels`, { labels: [LABEL] });

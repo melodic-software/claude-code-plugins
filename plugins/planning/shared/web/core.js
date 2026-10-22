@@ -919,7 +919,7 @@
   // ---------- telemetry: what this page records so the host can fix problems (README "Logs") ----------
   // Faults go to server.log under this person's pid the first time each fingerprint shows: script errors, unhandled
   // rejections, actions that never reached the server (send above; the server logs its own refusals), and layout
-  // anomalies. Repeats, action timings and rollbacks, reconnect gaps, INP and LCP, and taps counted by control wait
+  // anomalies; a repeat is not sent. Action timings and rollbacks, reconnect gaps, INP and LCP, and taps counted by control wait
   // for one summary, sent with no pid when the page hides; the server adds up its counts per batch. Only once joined: the server refuses an anonymous entry. Never typed text, answers, chat,
   // names, the address or its fragment, text on the page, or a credential. There is no switch: it always runs.
   const cut = (text, n) => Array.from(String(text)).slice(0, n).join(""); // by code point, as the server counts
@@ -927,7 +927,7 @@
   const LAT_EDGES = [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000]; // ms, upper bucket edges; share.py LAT_EDGES
   const SUMMARY_MAX = 500; // the server's message limit: what does not fit waits for the next summary
   const tel = {
-    seen: new Set(), rep: new Map(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(), use: new Map(), rage: new Map(), dead: new Map(),
+    seen: new Set(), lat: new Map(), rb: new Map(), gaps: [], layout: new Set(), use: new Map(), rage: new Map(), dead: new Map(),
     pv: [...crypto.getRandomValues(new Uint8Array(4))].map(b => b.toString(16).padStart(2, "0")).join(""), // this page view, no one's id
     inp: "", lcp: "", sentInp: "", sentLcp: "", missing: "", sentMissing: false, vitals: false,
   };
@@ -952,7 +952,7 @@
     delete body.noted;
     if (!joined()) return;
     const fp = fnv(key || [kind, body.message, body.source || "", kind === "api" ? body.route : ""].join("|"));
-    if (tel.seen.has(fp)) { bump(tel.rep, fp); return; }
+    if (tel.seen.has(fp)) return;
     tel.seen.add(fp);
     post({ ...body, fp }).catch(() => tel.seen.delete(fp));
   }
@@ -973,7 +973,6 @@
     if (tel.gaps.length) { const g = tel.gaps.splice(0); items.push([`gap=${g.join(",")}`, () => {}, () => tel.gaps.unshift(...g)]); }
     for (const [route, b] of tel.lat) { const n = b.findLastIndex(x => x > 0); items.push([`lat:${route}=${b.slice(0, n + 1).join(",")}`, () => tel.lat.delete(route)]); }
     for (const [route, n] of tel.rb) items.push([`rb:${route}=${n}`, () => tel.rb.delete(route)]);
-    for (const [fp, n] of tel.rep) items.push([`rep:${fp}=${n}`, () => tel.rep.delete(fp)]);
     for (const k of ["use", "rage", "dead"]) for (const [c, n] of tel[k]) items.push([`${k}:${c}=${n}`, () => tel[k].delete(c)]);
     let message = base;
     for (const [t, sent, keep] of items) {
@@ -995,10 +994,12 @@
   // A person's taps on controls, by the control's name (tapName), never its text: each tap is `use`; the RAGE_TAPS-th
   // tap on one control within RAGE_MS of the first is a `rage` tap; a tap the page shows no change for (no DOM change,
   // no scroll) within DEAD_MS is a `dead` tap, unless it opens a link elsewhere. A disabled control gets no click.
+  // The render of a timed poll (unprompted) answers no tap: the page made it on its own, so a tap answered only by the
+  // next timed poll counts as dead. A poll a tap's action waits on still answers it.
   const TAPPABLE = "button, a[href], [role=button], summary, input[type=button], input[type=submit]";
   const STYLE = /^(?:vf|core)-(?:btn|tbtn|lbtn|icon-btn|toggle|chip)(?:-[a-z-]+)?$/; // looks, not what the control is
   const RAGE_TAPS = 3, RAGE_MS = 1000; // judgment: three taps within a second on one control is impatience, not use
-  const DEAD_MS = 1000; // judgment: the page answers a tap at once; the polls' own changes can only hide a dead tap
+  const DEAD_MS = 1000; // judgment: the page answers a tap at once
   /** A control's name: the first vf- or core- class (letters and hyphens only) that is not a style class, on it or
    *  its nearest ancestor with one (state classes such as vf-vote-back are added after it); null when there is none. */
   function tapName(el) {
@@ -1011,8 +1012,17 @@
   // A rage streak is one control's: its name and its place among the controls of that name, so a control drawn again
   // between taps is the same one, and three of one kind (the reaction buttons) are three.
   const rages = new Map(), waiting = new Set();
+  let quiet = false; // between two frame callbacks that bracket the ones an unprompted change scheduled
   const changed = () => { waiting.clear(); seer.disconnect(); };
-  const seer = new MutationObserver(changed);
+  const seer = new MutationObserver(() => quiet || changed());
+  /** Run fn, a change no tap asked for: what it changes, at once or in the animation frame callbacks it schedules (a
+   *  render measures after painting), answers no waiting tap. A frame runs its callbacks in the order they were asked
+   *  for and delivers each one's records before the next, so a pair asked for around fn brackets exactly fn's. */
+  function unprompted(fn) {
+    if (waiting.size && seer.takeRecords().length) changed();
+    requestAnimationFrame(() => { quiet = true; });
+    try { fn(); } finally { seer.takeRecords(); requestAnimationFrame(() => { quiet = false; }); }
+  }
   addEventListener("scroll", () => waiting.size && changed(), { capture: true, passive: true });
   document.addEventListener("click", e => {
     const el = e.isTrusted && e.target?.closest?.(TAPPABLE), name = el && tapName(el);
@@ -1129,9 +1139,9 @@
   const RECORDED = ["Script errors on this page, and actions that never reached the host", "How long each action takes to get an answer, and how often one is undone",
     "How long the page takes to catch up when you come back to it", "Layout problems: something too wide for the screen, a field the keyboard covers, the header pushed off screen",
     "How fast the page answers a tap and shows its main content", "Your device type and browser family, such as phone and Safari",
-    "How often each control is tapped, tapped three times in a second, or tapped with nothing changing, by the control's name only, added up for everyone every 10 minutes"];
+    "How often each control is tapped, tapped three times in a second, or tapped with nothing changing, by the control's name only, added up for everyone every 10 minutes, or, when you are the only guest, for your session once it ends, which the host can tell is yours"];
   const NEVER = ["What you type: your answers, chat and requests", "Your name, or this page's address", "Any text shown on the page"];
-  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id. It all stays on the host's computer.";
+  const REC_IDS = "Errors are filed under your session id, so the host can match them to what happened; timings and counts carry no id, though when you are the only guest the host can tell your session's counts are yours. It all stays on the host's computer.";
   function openRecords() {
     const dlg = Core.el("dialog", "core-records"), h = Core.el("h2", null, "What this page records");
     h.id = "core-records-h"; dlg.setAttribute("aria-labelledby", h.id);
@@ -1330,16 +1340,18 @@
   /** The state poll always carries ?since=<rev>: in a session imported from the prototype a poll with
    *  identity and no query is an old page, which gets only a reload notice. */
   // A poll asked for while one runs runs once more after it, so an action's poll always starts after its answer.
-  let polling = null, pollNext = null;
+  // A timed poll (the interval's) renders unprompted; the poll after one that anything else asked for does not.
+  let polling = null, pollNext = null, nextTimed = true;
   let waitPolled = 0;
-  function poll() {
+  function poll(timed = false) {
     // waiting to be let in, the page asks every 5 s, not every 1.5 s: each ask is a 403 the console logs (sweep S31)
     if (Core.state.youWaiting && !polling) { if (Date.now() - waitPolled < 5000) return Promise.resolve(); waitPolled = Date.now(); }
     if (!polling) {
-      polling = pollOnce().finally(() => { polling = null; });
+      polling = pollOnce(timed).finally(() => { polling = null; });
       return polling;
     }
-    pollNext ||= polling.then(() => { pollNext = null; return poll(); });
+    nextTimed &&= timed;
+    pollNext ||= polling.then(() => { const t = nextTimed; pollNext = null; nextTimed = true; return poll(t); });
     return pollNext;
   }
   /** Drop the patches of actions the server accepted before poll number `seq` started: its snapshot holds them. */
@@ -1370,7 +1382,7 @@
     moving = true;
     location.replace(`${to.origin}/${secret ? "#me=" + secret : joinKey ? "#join=" + joinKey : ""}`);
   }
-  async function pollOnce() {
+  async function pollOnce(timed) {
     const seq = ++polls;
     try {
       const headers = { ...ident(), ...(etag ? { "If-None-Match": etag } : {}) };
@@ -1411,7 +1423,7 @@
       if (!ownerToken) { put("pid", s.me.pid); put("name", s.me.name); }
     } catch { /* offline: the live dot says so */ } finally {
       Core.live = Date.now() - lastOk < 5000;
-      emit();
+      if (timed) unprompted(emit); else emit();
     }
   }
   Core.snapshot = () => snap;
@@ -1658,6 +1670,6 @@
     else beat();
     if (switchTo) askSwitch(switchTo);
     poll();
-    setInterval(poll, 1500); setInterval(beat, 2000);
+    setInterval(poll, 1500, true); setInterval(beat, 2000);
   });
 })();

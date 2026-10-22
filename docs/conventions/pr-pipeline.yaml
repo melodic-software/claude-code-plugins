@@ -665,9 +665,10 @@ merge:
   # suite was already red before the merge. 7 is judgment (owner decision
   # Q645 left the default to planning); at most 30.
   quarantine-days: 7
-  # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
-  # judges every author's.
-  verify-authors: lane
+  # pr-verify.yml judges PRs the lanes App (agent-identity) opened and, so an
+  # idle owner PR the pr-merge lane adopts has a verdict (owner decision Q22),
+  # the owner account's; `lane` judges the App's alone, `any` every author's.
+  verify-authors: lane-or-owner
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge

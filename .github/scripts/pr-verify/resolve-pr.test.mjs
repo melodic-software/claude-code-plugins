@@ -17,10 +17,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { main, resolvePull } from "./resolve-pr.mjs";
+import { main, ownerIds, resolvePull } from "./resolve-pr.mjs";
 
 const REPO = "example-org/example-repo";
 const HEAD = "a".repeat(40);
+const OWNER_ID = 153232337;
 const BASE = "b".repeat(40);
 const MAIN = "c".repeat(40);
 const RUN = 5551;
@@ -193,6 +194,39 @@ test("verify-authors any judges a human's PR", async () => {
   assert.equal(await reason({ pulls: [HUMAN_PR] }, { verifyAuthors: "any" }), "ok");
 });
 
+test("verify-authors lane-or-owner judges the owner account's PRs and the lane's", async () => {
+  const opts = { verifyAuthors: "lane-or-owner", ownerIds: [OWNER_ID] };
+  assert.equal(await reason({ pulls: [pull()] }, opts), "ok", "lane");
+  const owner = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "User" } });
+  assert.equal(await reason({ pulls: [owner] }, opts), "ok", "owner");
+  // Matched by account id, never login.
+  const spoof = pull({ user: { id: OWNER_ID + 1, login: "kyle-sexton", type: "User" } });
+  assert.equal(await reason({ pulls: [spoof] }, opts), "author-not-lane-or-owner", "owner login, other id");
+  const botId = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "Bot" } });
+  assert.equal(await reason({ pulls: [botId] }, opts), "author-not-lane-or-owner", "a Bot with the id");
+  assert.equal(await reason({ pulls: [HUMAN_PR] }, opts), "author-not-lane-or-owner", "another human");
+  // A draft stays unjudged.
+  assert.equal(await reason({ pulls: [{ ...owner, draft: true }] }, opts), "draft", "owner draft");
+});
+
+test("lane-or-owner reads the owner ids it is given", async () => {
+  const opts = { verifyAuthors: "lane-or-owner", ownerIds: [77] };
+  const other = pull({ user: { id: 77, login: "other", type: "User" } });
+  assert.equal(await reason({ pulls: [other] }, opts), "ok", "a listed id");
+  const owner = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "User" } });
+  assert.equal(await reason({ pulls: [owner] }, opts), "author-not-lane-or-owner", "an unlisted id");
+  assert.equal(await reason({ pulls: [owner] }, { ...opts, ownerIds: [] }), "author-not-lane-or-owner", "none");
+  assert.equal(await reason({ pulls: [owner] }, { verifyAuthors: "lane-or-owner" }), "author-not-lane-or-owner", "not given");
+});
+
+test("the owner ids come from adoption.owner-ids, none when unset", () => {
+  assert.deepEqual(ownerIds(undefined), []);
+  assert.deepEqual(ownerIds("5\n77\n"), [5, 77]);
+  assert.deepEqual(ownerIds(""), []);
+  // An entry that is not an account id adopts nothing.
+  assert.deepEqual(ownerIds("5\nkyle\n"), []);
+});
+
 test("an unknown verify-authors value judges nothing", async () => {
   for (const verifyAuthors of ["Lane", "all", "", "none"]) {
     assert.equal(await reason({ pulls: [pull()] }, { verifyAuthors }), "verify-authors-invalid", JSON.stringify(verifyAuthors));
@@ -303,7 +337,7 @@ test("a malformed run id throws", async () => {
   await assert.rejects(resolvePull({ github: fake(), repository: REPO, upstreamRunId: "1;x" }));
 });
 
-test("the spec text keeps only what trusted humans other than the PR author wrote and last edited", async () => {
+test("the spec text keeps only what trusted humans wrote and last edited", async () => {
   const human = { __typename: "User", login: "maintainer", databaseId: 100 };
   const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
   const stranger = { __typename: "User", login: "stranger", databaseId: 999 };
@@ -336,13 +370,27 @@ test("the spec text keeps only what trusted humans other than the PR author wrot
   ]);
   const byMaintainer = { issues: [issue], pulls: [pull({ user: { id: 100, login: "Maintainer", type: "User" } })] };
   const byAuthorRecord = (await resolve(byMaintainer, { verifyAuthors: "any" })).linkedIssues[0];
-  assert.deepEqual(byAuthorRecord.spec_comments, [], "the PR author's comments");
+  assert.deepEqual(
+    byAuthorRecord.spec_comments,
+    [
+      { id: 1, updated_at: "2026-10-11T00:00:00Z" },
+      { id: 6, updated_at: "2026-10-16T00:00:00Z" },
+    ],
+    "a trusted PR author's comments",
+  );
   const editedBody = { ...issue, lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
   assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, null, "a body the lanes App last edited");
   const byAuthor = (await resolve(byMaintainer, { verifyAuthors: "any" })).specText[0];
-  assert.deepEqual(byAuthor, { number: 7, body: null, comments: [] }, "the PR author's own text");
+  assert.deepEqual(byAuthor, { number: 7, body: "the spec", comments: ["kept", "edited by the human"] }, "a trusted PR author's own text");
   const lanesIssue = { ...issue, author: lanes };
   assert.equal((await resolve({ issues: [lanesIssue] })).specText[0].body, null, "an issue the lanes App wrote");
+  const strangerIssue = { ...issue, author: stranger, comments: { totalCount: 1, nodes: [comment("by the stranger", stranger)] } };
+  const byStranger = { issues: [strangerIssue], pulls: [pull({ user: { id: 999, login: "stranger", type: "User" } })] };
+  assert.deepEqual(
+    (await resolve(byStranger, { verifyAuthors: "any" })).specText[0],
+    { number: 7, body: null, comments: [] },
+    "an untrusted PR author's own text",
+  );
 });
 
 test("the linked issues record each body's last editor", async () => {
