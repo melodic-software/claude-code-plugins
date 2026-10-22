@@ -282,6 +282,9 @@ check "--uncommitted checks an untracked #! file's mode on disk" \
 run CHECK_DATA_ROOT="$repo" -- --uncommitted
 check "--uncommitted under the lane's CHECK_DATA_ROOT still checks the work tree" \
   '[[ $RC == 1 && $ERR == *"new-tool starts with #!"* ]]'
+run CHECK_AFFECTED_SCRIPT_EXEC_BIT=1 -- --uncommitted
+check "--uncommitted with CHECK_AFFECTED_SCRIPT_EXEC_BIT judges a new #! file as executable, as apply-patch commits it" \
+  '[[ $RC == 0 && $OUT == *"over 1 changed files"* && ! -x $repo/new-tool ]]'
 chmod +x "$repo/new-tool"
 run -- --uncommitted
 check "--uncommitted passes once the file is executable on disk" \

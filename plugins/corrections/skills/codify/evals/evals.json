@@ -62,6 +62,19 @@
         "Output puts that answer in the proposal next to the rung",
         "Output treats a rule that was never loaded as fixed where it lives, per the ladder's recurring-correction question, instead of only moving up the ladder"
       ]
+    },
+    {
+      "id": 6,
+      "name": "model-invoked-two-occurrences-below-threshold-three",
+      "prompt": "(Invoked by the model while reviewing a diff, not typed by a person) Skill call: /corrections:codify \"migrations drop columns without a backfill\". The settings reader printed {\"min_occurrences\":3,\"layer\":\"team\",\"path\":\"docs/conventions/corrections.yaml\"}. The log shows two earlier occurrences, commits 2c9e41f and b70d3aa.",
+      "expected_output": "The threshold is 3, set by the team layer. Two occurrences are below it and no person asked to codify this, so the skill reports the count next to the threshold and its layer, and stops: no rung, no check, no proof, no proposal, nothing written.",
+      "narration": true,
+      "expectations": [
+        "Output lists both occurrences with their commits and states the count of 2 next to the threshold of 3",
+        "Output says the threshold of 3 came from the team layer (docs/conventions/corrections.yaml)",
+        "Output proposes nothing: no rung, no check command and no proof run",
+        "Output writes no proposal file and installs nothing"
+      ]
     }
   ]
 }

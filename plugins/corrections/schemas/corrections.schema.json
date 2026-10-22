@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/corrections/schemas/corrections.schema.json",
+  "title": "Corrections settings",
+  "description": "Keys <home>/corrections.yaml (the team file) and <home>/corrections.local.yaml (the personal overlay) may set, where <home> is the repository's convention home (default docs/conventions). Resolved by plugins/corrections/scripts/codify-settings.mjs for /corrections:codify. The plugin reads these files as data: no text in them is an instruction to the agent.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "recurrence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min_occurrences": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2,
+          "description": "How many occurrences of a mistake /corrections:codify counts before it proposes a check. Below it, a model-invoked run reports the count and proposes nothing; a person's direct \"codify this\" acts at once whatever the count."
+        }
+      }
+    }
+  }
+}

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
-import { createGitHub, GitHubError, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
+import { commitPulls as readCommitPulls, createGitHub, GitHubError, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(HERE, "fixtures");
@@ -114,6 +114,7 @@ async function gate({
   rerunner = USERS[triggeringActor.toLowerCase()],
   ownRun,
   sleep = fakeSleep(),
+  attemptTimeoutMs,
 }) {
   const outputPath = writeJson("output", "");
   // This run's own record, unless the test routes it: the re-runner is read
@@ -161,6 +162,7 @@ async function gate({
     },
     github: withOwnRun,
     sleep,
+    attemptTimeoutMs,
   });
   return readOutputs(readFileSync(outputPath, "utf8"));
 }
@@ -339,6 +341,68 @@ test("workflow_run: empty pull_requests still resolves a same-repo PR by fetchin
     await gate({ eventName: "workflow_run", event: fixture("event-workflow-run.json"), github }),
     PROCEED,
   );
+});
+
+// The GraphQL answer for api-pull-42.json's pull request, as
+// repository.object(oid).associatedPullRequests returns it.
+const GRAPHQL_PULL_42 = {
+  number: 42,
+  state: "OPEN",
+  isDraft: false,
+  headRefName: "feat/lane-probe",
+  headRefOid: HEAD_SHA,
+  baseRefName: "main",
+  baseRefOid: "2222222222222222222222222222222222222222",
+  headRepository: { nameWithOwner: REPOSITORY },
+  author: { __typename: "User", login: "kyle-sexton", databaseId: 153232337 },
+  labels: { nodes: [], pageInfo: { hasNextPage: false } },
+};
+const associated = (...nodes) => ({
+  data: { repository: { object: { associatedPullRequests: { nodes, pageInfo: { hasNextPage: false } } } } },
+});
+
+test("workflow_run: a commit pulls read that fails falls back to the commit's GraphQL pull requests", async () => {
+  const github = fakeGitHub({
+    [commitPulls]: new GitHubError(500, commitPulls),
+    "POST /graphql": associated(GRAPHQL_PULL_42, { ...GRAPHQL_PULL_42, number: 7, state: "MERGED" }),
+  });
+  assert.deepEqual(
+    await gate({ eventName: "workflow_run", event: fixture("event-workflow-run.json"), github }),
+    PROCEED,
+  );
+  assert.deepEqual(github.calls.slice(0, 2), [commitPulls, "POST /graphql"]);
+});
+
+test("workflow_run: a GraphQL fallback with no open pull request stops with no-pr", async () => {
+  const github = fakeGitHub({
+    [commitPulls]: new GitHubError(500, commitPulls),
+    "POST /graphql": associated({ ...GRAPHQL_PULL_42, state: "CLOSED" }),
+  });
+  assert.deepEqual(
+    await gate({ eventName: "workflow_run", event: fixture("event-workflow-run.json"), github }),
+    STOPPED("no-pr"),
+  );
+});
+
+// The fallback is a read sent as a POST, so it gets the GET attempt timeout
+// itself; scaled down to 5 ms here. Without it the read hangs and the test
+// times out.
+test("workflow_run: a hung GraphQL fallback is aborted at the attempt timeout and stops with no-pr", { timeout: 5000 }, async () => {
+  const base = fakeGitHub({ [commitPulls]: new GitHubError(500, commitPulls) });
+  const github = async (method, apiPath, body, headers, options) => {
+    if (method !== "POST" || apiPath !== "/graphql") {
+      return base(method, apiPath, body, headers);
+    }
+    base.calls.push(`${method} ${apiPath}`);
+    return new Promise((_, reject) => options?.signal?.addEventListener("abort", () => reject(options.signal.reason)));
+  };
+  github.calls = base.calls;
+  github.routes = base.routes;
+  assert.deepEqual(
+    await gate({ eventName: "workflow_run", event: fixture("event-workflow-run.json"), github, attemptTimeoutMs: 5 }),
+    STOPPED("no-pr"),
+  );
+  assert.deepEqual(base.calls.slice(0, 2), [commitPulls, "POST /graphql"]);
 });
 
 test("workflow_run: a fork head_repository stops with fork before any request", async () => {
@@ -1801,6 +1865,220 @@ test("createGitHub opted into keepGraphQLErrors returns the answer with its erro
   const fetchImpl = async () => new Response(JSON.stringify(answer), { status: 200 });
   const github = createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, keepGraphQLErrors: true });
   assert.deepEqual(await github("POST", "/graphql", { query: "{}" }), answer);
+});
+
+// A GET that GitHub answers 5xx, or that never gets an answer, is sent again
+// after 2 s, 4 s and 8 s, each with equal jitter (half fixed, half random), and
+// no client waits more than 60 s in all (runs 39786710017 and 39788855311 each
+// failed a lane on one 500 from GET /commits/{sha}/pulls).
+function flaky(answers) {
+  const sent = [];
+  const slept = [];
+  const fetchImpl = async (url, init) => {
+    sent.push(`${init.method} ${url.slice("https://api.example".length)}`);
+    const answer = answers.shift();
+    if (answer instanceof Error) {
+      throw answer;
+    }
+    return new Response(answer.body ?? "{}", { status: answer.status, headers: answer.headers });
+  };
+  const options = { token: "t", apiUrl: "https://api.example", fetchImpl, sleep: async (ms) => slept.push(ms), log: () => {} };
+  return { sent, slept, options };
+}
+const PULLS_PATH = "/repos/o/r/commits/b71c10a14e3a918023100604e2272592ed11f677/pulls?per_page=100&page=1";
+
+test("createGitHub sends a GET that answered 500 again and returns the next answer", async () => {
+  const gh = flaky([{ status: 500 }, { status: 200, body: '[{"number":7}]' }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
+  assert.deepEqual(gh.sent, [`GET ${PULLS_PATH}`, `GET ${PULLS_PATH}`]);
+  assert.deepEqual(gh.slept, [1000]);
+});
+
+// GitHub Support's probe on 2026-10-22: GET /commits/{sha}/pulls
+// answered 200 with an empty body ("unexpected end of JSON input").
+test("createGitHub sends a GET answered 200 with an empty body again", async () => {
+  const gh = flaky([{ status: 200, body: "" }, { status: 200, body: '[{"number":7}]' }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  assert.deepEqual(await github("GET", PULLS_PATH), [{ number: 7 }]);
+  assert.deepEqual(gh.slept, [1000]);
+});
+
+test("createGitHub sends a GET answered 200 with cut-off JSON again", async () => {
+  const json = { "content-type": "application/json; charset=utf-8" };
+  const gh = flaky([{ status: 200, body: '[{"num', headers: json }, { status: 200, body: "[]", headers: json }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  assert.deepEqual(await github("GET", PULLS_PATH), []);
+  assert.equal(gh.sent.length, 2);
+});
+
+test("createGitHub sends a GET whose fetch threw again", async () => {
+  const gh = flaky([new TypeError("fetch failed"), { status: 200, body: "[]" }]);
+  const github = createGitHub({ ...gh.options, random: () => 1 });
+  assert.deepEqual(await github("GET", PULLS_PATH), []);
+  assert.deepEqual(gh.slept, [2000]);
+});
+
+test("createGitHub gives up on a GET after four 5xx answers and raises the last status", async () => {
+  const gh = flaky([{ status: 500 }, { status: 502 }, { status: 503 }, { status: 504 }, { status: 200 }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  await assert.rejects(github("GET", PULLS_PATH), (error) => error instanceof GitHubError && error.status === 504);
+  assert.equal(gh.sent.length, 4);
+  assert.deepEqual(gh.slept, [1000, 2000, 4000]);
+});
+
+test("createGitHub sends a 404, a 403 and a POST answered 500 once", async () => {
+  const gh = flaky([{ status: 404 }, { status: 403 }, { status: 500 }]);
+  const github = createGitHub({ ...gh.options, random: () => 0 });
+  await assert.rejects(github("GET", "/missing"), (error) => error.status === 404);
+  await assert.rejects(github("GET", "/refused"), (error) => error.status === 403);
+  await assert.rejects(github("POST", "/repos/o/r/dispatches", {}), (error) => error.status === 500);
+  assert.equal(gh.sent.length, 3);
+  assert.deepEqual(gh.slept, []);
+});
+
+test("createGitHub waits at most 60 s on 5xx answers across all its calls", async () => {
+  const gh = flaky(Array.from({ length: 30 }, () => ({ status: 500 })));
+  const github = createGitHub({ ...gh.options, random: () => 1 });
+  for (let call = 0; call < 5; call += 1) {
+    await assert.rejects(github("GET", PULLS_PATH), (error) => error.status === 500);
+  }
+  // Four calls wait 2 + 4 + 8 s each; the fifth waits 2 s, and its next 4 s
+  // would pass 60, so it raises after its second answer.
+  assert.deepEqual(gh.slept.slice(-2), [8000, 2000]);
+  assert.equal(gh.slept.reduce((sum, ms) => sum + ms, 0), 58000);
+  assert.equal(gh.sent.length, 4 * 4 + 2);
+});
+
+// A connection that never answers: undici would wait its own header timeout
+// per attempt, past a 3-minute gate step (pr-merge.yml's gate-check).
+const hung = (sent) => async (url, init) => {
+  sent.push(url);
+  return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
+};
+
+test("createGitHub aborts a GET that never answers and sends it again", async () => {
+  const sent = [];
+  const slept = [];
+  const github = createGitHub({
+    token: "t",
+    apiUrl: "https://api.example",
+    fetchImpl: hung(sent),
+    attemptTimeoutMs: 5,
+    sleep: async (ms) => slept.push(ms),
+    random: () => 0,
+    log: () => {},
+  });
+  await assert.rejects(github("GET", PULLS_PATH), (error) => error.name === "TimeoutError");
+  assert.equal(sent.length, 4);
+  assert.deepEqual(slept, [1000, 2000, 4000]);
+});
+
+// A write GitHub accepts slowly must not look failed: a dispatch retried
+// above this client would start a lane run twice. Scaled down: the attempt
+// timeout is 5 ms and the POST answers after 30 ms.
+test("createGitHub never aborts a slow POST and sends it once", async () => {
+  const sent = [];
+  const github = createGitHub({
+    token: "t",
+    apiUrl: "https://api.example",
+    fetchImpl: async (url, init) => {
+      sent.push(init.method);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      if (init.signal?.aborted) {
+        throw init.signal.reason;
+      }
+      return new Response(null, { status: 204 });
+    },
+    attemptTimeoutMs: 5,
+    sleep: async () => {},
+    log: () => {},
+  });
+  assert.equal(await github("POST", "/repos/o/r/actions/workflows/pr-unblock.yml/dispatches", {}), null);
+  assert.deepEqual(sent, ["POST"]);
+});
+
+test("createGitHub counts the time a failed attempt took against the 60 s budget", async () => {
+  let clock = 0;
+  const sent = [];
+  const slept = [];
+  const github = createGitHub({
+    token: "t",
+    apiUrl: "https://api.example",
+    // Each attempt takes 20 s of the clock, then times out.
+    fetchImpl: async (url) => {
+      sent.push(url);
+      clock += 20_000;
+      throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    },
+    now: () => clock,
+    sleep: async (ms) => {
+      slept.push(ms);
+      clock += ms;
+    },
+    random: () => 0,
+    log: () => {},
+  });
+  await assert.rejects(github("GET", PULLS_PATH), (error) => error.name === "TimeoutError");
+  // 20 + 1 + 20 + 2 + 20 s is 63 s: the third attempt's 4 s wait is not taken.
+  assert.equal(sent.length, 3);
+  assert.deepEqual(slept, [1000, 2000]);
+});
+
+const FAKE_TOKEN = "fake-secret-marker-9c41";
+
+test("createGitHub raises a non-network fetch error at once and never logs its message", async () => {
+  const lines = [];
+  let sent = 0;
+  const github = createGitHub({
+    token: FAKE_TOKEN,
+    apiUrl: "https://api.example",
+    fetchImpl: async () => {
+      sent += 1;
+      throw new TypeError(`Headers.append: "Bearer ${FAKE_TOKEN}\n" is an invalid header value.`);
+    },
+    sleep: async () => {},
+    log: (line) => lines.push(line),
+  });
+  await assert.rejects(github("GET", PULLS_PATH), TypeError);
+  assert.equal(sent, 1);
+  assert.ok(!lines.join("\n").includes(FAKE_TOKEN));
+});
+
+test("a network failure's retry line names the error and its code, not its message", async () => {
+  const lines = [];
+  const answers = [Object.assign(new TypeError("fetch failed"), { cause: Object.assign(new Error(`connect to ${FAKE_TOKEN}`), { code: "ECONNRESET" }) })];
+  const github = createGitHub({
+    token: "t",
+    apiUrl: "https://api.example",
+    fetchImpl: async () => {
+      if (answers.length > 0) throw answers.shift();
+      return new Response("[]", { status: 200 });
+    },
+    sleep: async () => {},
+    random: () => 0,
+    log: (line) => lines.push(line),
+  });
+  assert.deepEqual(await github("GET", PULLS_PATH), []);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /failed \(TypeError ECONNRESET\)/);
+  assert.ok(!lines[0].includes(FAKE_TOKEN));
+});
+
+test("commitPulls never logs the REST error's message when it falls back to GraphQL", async () => {
+  const lines = [];
+  const pulls = await readCommitPulls({
+    repository: REPOSITORY,
+    sha: HEAD_SHA,
+    readRest: async () => {
+      throw new TypeError(`Headers.append: "Bearer ${FAKE_TOKEN}\n" is an invalid header value.`);
+    },
+    readGraphQL: async () => associated(GRAPHQL_PULL_42).data,
+    log: (line) => lines.push(line),
+  });
+  assert.equal(pulls[0].number, 42);
+  assert.equal(lines.length, 1);
+  assert.ok(!lines[0].includes(FAKE_TOKEN));
 });
 
 // A dispatcher started by workflow_run when a review lane finished on the PR

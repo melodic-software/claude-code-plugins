@@ -9,8 +9,8 @@ from a completed success at this pull request's head; a FAIL at another head
 of the pull request goes to a human unless a counted pass at the head clears
 every check; an unreadable FAIL blocks; a pull request
 older than 80 days goes to a human; a pass needs every linked issue written
-and last edited by a trusted human other than the author, unchanged since the
-judgment; the Actions reads use the Actions token; a Dependabot pull request
+and last edited by a trusted human, the pull request's author included,
+unchanged since the judgment; the Actions reads use the Actions token; a Dependabot pull request
 needs no verdict.
 
 The artifact and run shapes follow responses recorded from
@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
@@ -202,6 +203,7 @@ class FakeGitHub:
         self.calls: list[list[str]] = []
         self.envs: list[tuple[list[str], Any]] = []
         self.fail: set[str] = set()
+        self.fail_status = 502
         # The PR's closing issues now: (number, repository).
         self.closing: list[tuple[int, str]] = [(7, REPO)]
         self.closing_total: int | None = None
@@ -272,7 +274,9 @@ class FakeGitHub:
         path = next(a for a in args if a.startswith("repos/"))
         kind = next((k for k in self.fail if k in path), None)
         if kind:
-            return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
+            return subprocess.CompletedProcess(
+                args, 1, "", f"gh: boom (HTTP {self.fail_status})"
+            )
         if path == f"repos/{REPO}/actions/artifacts?per_page=100":
             pages = [
                 self.artifacts[i : i + 2] for i in range(0, len(self.artifacts), 2)
@@ -299,6 +303,18 @@ class FakeGitHub:
             sha = path[len(compare) :].split("...")[0]
             return ok({"status": "ahead" if sha in self.on_main else "diverged"})
         raise AssertionError(f"unexpected gh call: {args}")
+
+
+class OrderedSet(set[str]):
+    """A set that iterates in the order given, standing in for whatever order
+    another process's string hashing gives."""
+
+    def __init__(self, items: list[str]):
+        super().__init__(items)
+        self.order = items
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.order)
 
 
 def passing(*extra: dict[str, Any], runs: dict[int, Any] | None = None) -> FakeGitHub:
@@ -639,10 +655,12 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
         )
         self.assertEqual(read(fake).refusal, "verify:untrusted-spec")
 
-    def test_an_unreadable_tied_fail_keeps_the_earlier_fail(self) -> None:
+    def test_an_unreadable_tied_fail_refuses_without_a_human(self) -> None:
         # Run 7 is not in the fake, so the tied FAIL at the head is unread.
         fake = self.earlier_fail(OLDER_START, artifact(named(HEAD, "fail"), 7))
-        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertFalse(evidence.needs_human)
 
 
 class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
@@ -650,7 +668,8 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
     change at the head (the stable patch id of its diff from the merge base
     with main) differs from its change at every FAILed head: a head that only
     merges main, or adds an empty commit, keeps the FAIL (owner decision
-    2026-10-21), and a change that cannot be read keeps it too."""
+    2026-10-21), and a diff that holds no change keeps it too; one that
+    cannot be read refuses `verify:unreadable`."""
 
     earlier_fail = staticmethod(ACountedPassAtTheHeadClearsAnEarlierFail.earlier_fail)
 
@@ -714,16 +733,38 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
         fake.diffs[IN_PR] = fake.diffs[HEAD]
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
-    def test_a_change_that_cannot_be_read_refuses(self) -> None:
+    def test_a_change_with_no_lines_keeps_the_fail(self) -> None:
         for sha in (EARLIER, HEAD):
-            for broken in ("unread", "empty"):
-                with self.subTest(sha=sha, broken=broken):
-                    fake = self.earlier_fail()
-                    if broken == "unread":
-                        del fake.diffs[sha]
-                    else:
-                        fake.diffs[sha] = ""
-                    self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+            with self.subTest(sha=sha):
+                fake = self.earlier_fail()
+                fake.diffs[sha] = ""
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_a_head_github_no_longer_has_keeps_the_fail_for_a_human(self) -> None:
+        # A compare that answers 404 (a garbage-collected or force-pushed-away
+        # head) holds no readable change, which no later read will find.
+        for sha in (EARLIER, HEAD):
+            with self.subTest(sha=sha):
+                fake = self.earlier_fail()
+                del fake.diffs[sha]
+                evidence = read(fake)
+                self.assertEqual(evidence.refusal, "verify:earlier-fail")
+                self.assertTrue(evidence.needs_human)
+
+    def test_the_verdict_does_not_depend_on_the_order_of_failed_heads(self) -> None:
+        # EARLIER holds the head's own change; UNRELATED's read fails.
+        fake = self.earlier_fail()
+        fake.diffs[EARLIER] = fake.diffs[HEAD]
+        fake.fail = {f"compare/main...{UNRELATED}"}
+        outcomes = set()
+        for order in ([EARLIER, UNRELATED], [UNRELATED, EARLIER]):
+            with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+                reader = ve.Reader(REPO, "main", now=NOW)
+                try:
+                    outcomes.add(reader._change_differs(HEAD, OrderedSet(order)))
+                except ve._Unreadable:
+                    outcomes.add("unreadable")
+        self.assertEqual(len(outcomes), 1, outcomes)
 
     def test_a_head_that_only_adds_blank_lines_refuses(self) -> None:
         fake = self.earlier_fail()
@@ -1057,6 +1098,74 @@ class UnreadableReadsBlock(unittest.TestCase):
         self.assertEqual(read(capped).refusal, "verify:unreadable")
 
 
+class AFailedReadRefusesWithoutAHuman(unittest.TestCase):
+    """Issue #9063: a read that fails (a rate limit, pr-merge run
+    39725996983) refuses `verify:unreadable`, which the next run re-derives,
+    never `verify:earlier-fail`, which holds the head for a human."""
+
+    earlier_fail = staticmethod(ACountedPassAtTheHeadClearsAnEarlierFail.earlier_fail)
+
+    @staticmethod
+    def foreign_fail(fake: FakeGitHub) -> FakeGitHub:
+        """Adds another pull request's FAIL (run 3) whose record cannot be
+        read."""
+        fake.artifacts.append(artifact(named(UNRELATED, "fail", 99), 3))
+        fake.runs[3] = run(3)
+        return fake
+
+    def test_an_unreadable_foreign_record_beside_a_cleared_fail(self) -> None:
+        fake = self.foreign_fail(self.earlier_fail())
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertFalse(evidence.needs_human)
+        # The next run reads the record and the cleared FAIL merges.
+        fake.records[named(UNRELATED, "fail", 99)] = record(
+            99, UNRELATED, verdict="fail", head_ref="feat/y"
+        )
+        self.assertIsNone(read(fake).refusal)
+
+    def test_an_uncleared_earlier_fail_still_goes_to_a_human(self) -> None:
+        fake = self.foreign_fail(
+            FakeGitHub([artifact(named(EARLIER, "fail"), 2)], {2: run(2)})
+        )
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail")
+        self.assertTrue(evidence.needs_human)
+
+    def test_a_fail_at_the_head_still_goes_to_a_human(self) -> None:
+        fake = self.foreign_fail(
+            FakeGitHub([artifact(named(HEAD, "fail"), 2)], {2: run(2)})
+        )
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertTrue(evidence.needs_human)
+
+    def test_a_failed_run_time_read(self) -> None:
+        # A second gate process counts the FAIL from the shared run record,
+        # then reads its run again for the time, under a rate limit.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        cache = str(pathlib.Path(tmp.name, "run.json"))
+        fake = self.earlier_fail()
+        with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": cache}):
+            self.assertIsNone(read(fake).refusal)
+            fake.fail = {"actions/runs/2"}
+            evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertFalse(evidence.needs_human)
+
+    def test_a_failed_change_read(self) -> None:
+        for sha in (EARLIER, HEAD):
+            for status in (403, 502):
+                with self.subTest(sha=sha, status=status):
+                    fake = self.earlier_fail()
+                    fake.fail = {f"compare/main...{sha}"}
+                    fake.fail_status = status
+                    evidence = read(fake)
+                    self.assertEqual(evidence.refusal, "verify:unreadable")
+                    self.assertFalse(evidence.needs_human)
+
+
 class AnOldPullRequestGoesToAHuman(unittest.TestCase):
     def test_older_than_80_days_is_too_old(self) -> None:
         evidence = read(passing(), pull(created_at="2026-07-27T23:00:00Z"))
@@ -1097,15 +1206,33 @@ class TheSpecMustBeTrusted(unittest.TestCase):
                 self.assertTrue(evidence.needs_human)
         self.assertEqual(self.with_issues([]).refusal, "verify:untrusted-spec")
 
-    def test_the_pr_authors_own_issue_does_not(self) -> None:
-        evidence = self.with_issues([TRUSTED_ISSUE], user={"login": "Maintainer"})
-        self.assertEqual(evidence.refusal, "verify:untrusted-spec")
+    def test_a_trusted_human_authors_own_issue_allows(self) -> None:
+        for user in ({"login": "Maintainer"}, {"login": "maintainer"}, {}):
+            with self.subTest(user=user):
+                self.assertIsNone(self.with_issues([TRUSTED_ISSUE], user=user).refusal)
 
-    def test_a_pull_request_with_no_readable_author_does_not(self) -> None:
-        # With no author login, no issue author can be shown to be someone else.
-        self.assertEqual(
-            self.with_issues([TRUSTED_ISSUE], user={}).refusal, "verify:untrusted-spec"
-        )
+    def test_an_untrusted_authors_own_issue_does_not(self) -> None:
+        cases = {
+            "the lanes App": (
+                {
+                    **TRUSTED_ISSUE,
+                    "author_login": "agent-lanes[bot]",
+                    "author_id": 200,
+                    "author_type": "Bot",
+                },
+                {"login": "agent-lanes[bot]"},
+            ),
+            "an unlisted user": (
+                {**TRUSTED_ISSUE, "author_login": "x", "author_id": 999},
+                {"login": "x"},
+            ),
+        }
+        for label, (issue, user) in cases.items():
+            with self.subTest(label):
+                self.assertEqual(
+                    self.with_issues([issue], user=user).refusal,
+                    "verify:untrusted-spec",
+                )
 
     def test_every_linked_issue_must_be_trusted(self) -> None:
         # A trivially satisfied human issue beside the lanes App's own.
@@ -1134,33 +1261,15 @@ class TheSpecMustBeTrusted(unittest.TestCase):
                 "editor_id": 999,
                 "editor_type": "User",
             },
-            "the PR author": {
-                "editor_login": "maintainer",
-                "editor_id": 100,
-                "editor_type": "User",
-            },
             "no editor": {"editor_login": None, "editor_id": None, "editor_type": None},
         }
         for label, editor in cases.items():
             with self.subTest(label):
-                user = (
-                    {"login": "maintainer"}
-                    if label == "the PR author"
-                    else {"login": "agent-lanes[bot]"}
-                )
-                issue = {**edited, **editor}
-                if label == "the PR author":
-                    # The author must differ from the issue author too, so
-                    # only the edit decides: another trusted human wrote it.
-                    issue = {**issue, "author_login": "other", "author_id": 101}
                 fake = passing()
-                fake.actors["actors"].append(
-                    {"id": 101, "login": "other", "kind": "human"}
+                fake.records[named(HEAD, "pass")] = record(
+                    linked_issues=[{**edited, **editor}]
                 )
-                fake.records[named(HEAD, "pass")] = record(linked_issues=[issue])
-                self.assertEqual(
-                    read(fake, pull(user=user)).refusal, "verify:untrusted-spec"
-                )
+                self.assertEqual(read(fake).refusal, "verify:untrusted-spec")
         trusted = {
             **edited,
             "editor_login": "maintainer",
@@ -1168,6 +1277,10 @@ class TheSpecMustBeTrusted(unittest.TestCase):
             "editor_type": "User",
         }
         self.assertIsNone(self.with_issues([trusted]).refusal)
+        # The PR author editing their own issue is still a trusted human.
+        self.assertIsNone(
+            self.with_issues([trusted], user={"login": "maintainer"}).refusal
+        )
 
     def test_a_record_for_another_head_or_an_unreadable_list_refuses(self) -> None:
         fake = passing()
@@ -1183,8 +1296,8 @@ class TheSpecMustBeTrusted(unittest.TestCase):
 
 class TheSpecCommentsMustBeTheJudgedOnes(unittest.TestCase):
     """The trusted comments on each linked issue now (by a User on the
-    trusted list's humans other than the PR author, last edited if ever by
-    one) must be the ones the verdict recorded, by id and update time."""
+    trusted list's humans, last edited if ever by one) must be the ones the
+    verdict recorded, by id and update time."""
 
     RECORDED = [{"id": 1, "updated_at": "2026-10-12T00:00:00Z"}]
 
@@ -1229,15 +1342,12 @@ class TheSpecCommentsMustBeTheJudgedOnes(unittest.TestCase):
         ]
         self.assertIsNone(self.judge(live))
 
-    def test_the_pr_authors_comments_are_not_part_of_the_spec(self) -> None:
-        other = {**TRUSTED_ISSUE, "author_login": "other", "author_id": 101}
-        fake = passing()
-        fake.actors["actors"].append({"id": 101, "login": "other", "kind": "human"})
-        fake.records[named(HEAD, "pass")] = record(
-            linked_issues=[{**other, "spec_comments": []}]
+    def test_a_trusted_pr_authors_comments_are_part_of_the_spec(self) -> None:
+        user = {"login": "maintainer"}
+        self.assertIsNone(self.judge([comment(1, HUMAN)], user=user))
+        self.assertEqual(
+            self.judge([comment(1, HUMAN)], [], user=user), "verify:spec-changed"
         )
-        fake.closing_comments = {7: [comment(1, HUMAN)]}
-        self.assertIsNone(read(fake, pull(user={"login": "maintainer"})).refusal)
 
     def test_a_partial_comment_read_or_a_malformed_record_refuses(self) -> None:
         fake = passing()
