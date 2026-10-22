@@ -137,6 +137,13 @@ test("a lane branch with no PR is kept while its issue closed under 14 days ago,
   ]);
 });
 
+test("a branch closed exactly min-age-days ago is deleted", async () => {
+  const name = lane(16);
+  const w = world({ branches: [{ name, sha: sha("9") }], issues: { 16: closedIssue("2026-10-07T12:00:00Z") } });
+  const r = await run(w);
+  assert.deepEqual(r.deletes, [deletePath(name)]);
+});
+
 test("the age counts from the later of PR close and issue close", async () => {
   const name = lane(15);
   const w = world({
