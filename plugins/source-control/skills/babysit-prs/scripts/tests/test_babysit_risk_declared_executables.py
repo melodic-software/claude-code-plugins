@@ -696,7 +696,7 @@ class ScoreUnattendedTests(unittest.TestCase):
             floor_script_scopes=(),
         )
         eligible = types.SimpleNamespace(
-            eligible=True, dependabot=None, work_class="C2", adoption=None
+            eligible=True, dependabot=None, work_class="C2", adoption=None, issue=None
         )
         start = policy.UnattendedPolicy(
             None,

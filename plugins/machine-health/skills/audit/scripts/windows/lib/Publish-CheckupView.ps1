@@ -16,13 +16,24 @@ place. Each outcome is logged and appended to the report under
 A synced StateBase has no latest.json, so -StateWritable $false builds
 nothing, prunes nothing and leaves the report alone.
 
-Returns the page path when a page was built, else nothing.
+Returns the page path when a page was built, else nothing. Get-CheckupViewPath
+names that path before the build, for latest.json.
 #>
 
 . (Join-Path $PSScriptRoot 'Invoke-NativeCommand.ps1')
 . (Join-Path $PSScriptRoot 'Get-RemediationId.ps1')
 . (Join-Path $PSScriptRoot 'Remove-OldCheckupView.ps1')
 . (Join-Path $PSScriptRoot 'Write-MachineHealthLog.ps1')
+
+function Get-CheckupViewPath {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)] [string] $StateBase,
+        [Parameter(Mandatory = $true)] [string] $RunStamp
+    )
+    Join-Path $StateBase "views\checkup-$RunStamp.html"
+}
 
 function Publish-CheckupView {
     [CmdletBinding()]
@@ -49,7 +60,7 @@ function Publish-CheckupView {
             '_No decision page: Node.js was not found, so this markdown report is the only output._'
         }
         'Ok' {
-            $pagePath = Join-Path $viewsDir "checkup-$RunStamp.html"
+            $pagePath = Get-CheckupViewPath -StateBase $StateBase -RunStamp $RunStamp
             Write-MachineHealthLog "checkup_view_built path=$pagePath"
             try {
                 $pruned = @(Remove-OldCheckupView -ViewsDir $viewsDir -CurrentStamp $RunStamp)

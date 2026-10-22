@@ -4,6 +4,7 @@
                                          [--adopt-tunnel PID URL]
                                          [--tunnel-hostname H --tunnel-token-file F]
   share.py --dir DATA_DIR stop [--keep-tunnel]
+  share.py --dir DATA_DIR live-stop ID
   share.py --dir DATA_DIR restart
   share.py --dir DATA_DIR status
   share.py --dir DATA_DIR url [--owner]
@@ -293,6 +294,40 @@ def creation(d, a, resumed):
     return port, (pid, url)
 
 
+def ended_session(d):
+    """True when the data folder's state.json says the session has ended."""
+    return (((read_json(d / "state.json") or {}).get("session") or {}).get("phase") or {}).get("kind") == "ended"
+
+
+def kept_notice(ports):
+    """D11: a server the owner runs on a port is theirs; ending its live prototype never stops it."""
+    for port in sorted(set(ports)):
+        print(f"the server on port {port} that a live prototype showed keeps running: it is yours, so stop it yourself when you are done", file=sys.stderr)
+
+
+def end_lives(d, s, lid=None):
+    """End one live prototype (`lid`) or every one: through the running server, so the page says so at once, then
+    straight from the records (`.shared-live/`) for whatever the server did not end, as when it is down. The ids ended,
+    and the ports of the owner's servers that keep running."""
+    ended, ports = [], []
+    if s is not None:
+        code, body = call(s, "POST", "/api/live/stop", {} if lid is None else {"id": lid})
+        if code == 200:
+            ended, ports = body.get("ended", []), body.get("keptPorts", [])
+        elif lid is not None:
+            raise Refused(1, f"live-stop refused: {body.get('error', '')}: {body.get('message', '')}", {"ok": False, **body})
+    records = tunnel.live_records(d)
+    for path, rec in records:
+        if (lid is None or rec["id"] == lid) and "endedAt" not in rec:
+            tunnel.end_live(path, "stopped")
+            ended.append(rec["id"])
+            if "server" not in rec and isinstance(rec.get("port"), int):
+                ports.append(rec["port"])
+    if lid is not None and s is None and not any(rec["id"] == lid for _, rec in records):
+        raise Refused(1, f"no live prototype {lid} in this session")
+    return sorted(set(ended)), ports
+
+
 def bring_up(d, a):
     """ensure-running: start or reuse the server and the tunnel."""
     problem = detached.data_dir_problem(d)
@@ -314,6 +349,9 @@ def bring_up(d, a):
             raise Refused(1, f"this session's guest port is {ports['guest']}; --guest-port applies only when a session is created")
         s = live(d)
         if s is None:
+            over = ended_session(d)
+            for rec in tunnel.sweep_live(d, every=over, reason="session-ended" if over else "failed"):  # after a reboot or a crash
+                print(f"live prototype {rec['id']}: nothing of it was running any more, so it has ended", file=sys.stderr)
             if wanted is not None and not bridge.port_free(wanted):
                 raise Refused(2, f"port {wanted} is busy: the guest listener cannot start there")
             guest = wanted if wanted is not None else ports.get("guest") or 0
@@ -374,6 +412,9 @@ def cmd_stop(d, a):
     stopped = []
     with detached.locked(d / LOCK):
         s = bridge.read_session(d, NAME)
+        lives, ports = end_lives(d, s if s and bridge.running(d, s) else None)  # every live prototype ends with the session's server
+        if lives:
+            stopped.append("lives")
         if s and bridge.running(d, s):
             watcher = (bridge.watcher_lease(d, NAME) or {}).get("pid")
             if watcher:
@@ -391,7 +432,23 @@ def cmd_stop(d, a):
             stopped.append("tunnel")
         if adopted and not a.keep_tunnel:
             print(f"the adopted cloudflared (pid {adopted['pid']}) keeps running; end that process yourself to close its link", file=sys.stderr)
-    return {"ok": True, "stopped": stopped}
+    kept_notice(ports)
+    return {"ok": True, "stopped": stopped, **({"lives": lives} if lives else {})}
+
+
+def cmd_live_stop(d, a):
+    """End one live prototype: its tunnel and the static server the plugin started; a server the owner runs keeps
+    running, and this says so."""
+    if not session_live_id(a.id):
+        raise Refused(1, f"a live prototype's id looks like L1, got {a.id!r}")
+    with detached.locked(d / LOCK):
+        ended, ports = end_lives(d, live(d), a.id)
+    kept_notice(ports)
+    return {"ok": True, "ended": ended}
+
+
+def session_live_id(v):
+    return bool(re.fullmatch(r"L[1-9][0-9]{0,5}", v or ""))
 
 
 def cmd_restart(d, a):
@@ -429,6 +486,7 @@ def cmd_status(d, a):
             "queue": None,
             "unhandled": None,
             "lease": None,
+            "lives": stopped_lives(d, doc),
         }
     st = status_of(s)
     return {
@@ -442,7 +500,19 @@ def cmd_status(d, a):
         "queue": st["queue"],
         "unhandled": st["unhandled"],
         "lease": st["lease"],
+        "lives": st.get("lives", []),
     }
+
+
+def stopped_lives(d, doc):
+    """status with the server down: each live entry as state.json last had it, and whether anything of it still runs."""
+    records = dict((rec["id"], rec) for _, rec in tunnel.live_records(d))
+    out = []
+    for e in doc.get("lives") or []:
+        rec = records.get(e.get("id")) or {}
+        running = "endedAt" not in rec and (tunnel.tunnel_running(rec) or tunnel.server_running(rec))
+        out.append({"id": e.get("id"), "label": e.get("label"), "status": (e.get("status") or {}).get("kind"), "processes": "running" if running else "stopped"})
+    return out
 
 
 def cmd_url(d, a):
@@ -775,6 +845,9 @@ def parser():
     s = sub.add_parser("stop")
     s.add_argument("--keep-tunnel", action="store_true", help="keep the tunnel and the guest link")
     s.set_defaults(fn=cmd_stop)
+    s = sub.add_parser("live-stop")
+    s.add_argument("id", help="the live prototype, like L1")
+    s.set_defaults(fn=cmd_live_stop)
     sub.add_parser("restart").set_defaults(fn=cmd_restart)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     s = sub.add_parser("url")
