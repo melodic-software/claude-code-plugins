@@ -73,17 +73,22 @@ const MERGE_BASE_GIT_DENIED = [
   "Bash(git push *)",
   "Bash(git pull *)",
   "Bash(git submodule *)",
-  "Bash(git *--no-index*)",
-  "Bash(git *--output*)",
+  "Bash(git *--no-i*)",
+  "Bash(git *--out*)",
   "Bash(git *--git-dir*)",
   "Bash(git *--work-tree*)",
   "Bash(git *.git/*)",
-  "Bash(git *.git\\*)",
-  "Bash(git *--ext-diff*)",
-  "Bash(git *--textconv*)",
+  "Bash(git *--ext*)",
+  "Bash(git *--text*)",
   "Bash(git blame *)",
-  "Bash(git *--contents*)",
+  "Bash(git *--cont*)",
   "Bash(git grep *)",
+  "Bash(git *--pathspec*)",
+  "Bash(git * /*)",
+  "Bash(git *../*)",
+  "Bash(git *..)",
+  "Bash(git *'*)",
+  'Bash(git *"*)',
 ];
 // The deny rules other than the write lanes' shell and git sets.
 const ownDenied = (denied) =>
@@ -160,7 +165,7 @@ function stage(overrides) {
   // The --allowedTools list itself, split at the top-level commas.
   // claude-code-action reads a `\"` inside the quoted list as a literal quote.
   const allowed = (/--allowedTools "((?:[^"\\]|\\.)*)"/.exec(args)?.[1] ?? "").replaceAll('\\"', '"').split(/,(?![^(]*\))/);
-  const denied = (/--disallowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(",").filter(Boolean);
+  const denied = ((/--disallowedTools "((?:\\.|[^"\\])*)"/.exec(args)?.[1] ?? "").replaceAll('\\"', '"')).split(",").filter(Boolean);
   const prompt = /^prompt<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "";
   const plugins = (/^plugins<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "").split("\n").filter(Boolean);
   const jobEnv = readFileSync(envFile, "utf8");
@@ -225,7 +230,7 @@ test("prepare: merge-base leaves out the commit tool and the instruction to comm
   assert.ok(!args.includes("chmod"), args);
   // Still a writing skill: it edits and stages its resolution.
   assert.match(args, /--allowedTools "Skill\(source-control:resolve-conflicts\),Read\([^)]*\),Edit,Write,Agent,Grep,Glob,Edit\(/);
-  assert.ok(args.includes(`--disallowedTools "WebFetch,WebSearch,${MERGE_BASE_GIT_DENIED.join(",")},${SHELL_DENIED.join(",")}"`), args);
+  assert.ok(args.includes(`--disallowedTools "WebFetch,WebSearch,${MERGE_BASE_GIT_DENIED.map((rule) => rule.replaceAll('"', '\\"')).join(",")},${SHELL_DENIED.join(",")}"`), args);
 });
 
 // pr-run-activity.md, "Skill activities": each listed check runs from the base
@@ -254,7 +259,7 @@ test("a listed check gets a no-argument wrapper that runs the base copy against 
     [`Bash(${wrapper})`],
   );
   assert.ok(args.includes(wrapper), "the system prompt names the check");
-  const denied = (/--disallowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(",");
+  const denied = ((/--disallowedTools "((?:\\.|[^"\\])*)"/.exec(args)?.[1] ?? "").replaceAll('\\"', '"')).split(",");
   assert.ok(denied.includes(`Edit(/${checksDir}/**)`) && denied.includes(`Write(/${checksDir}/**)`), denied.join(" | "));
   const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", wrapper], { encoding: "utf8" });
   assert.notEqual(write.status, 0, "the wrapper is read-only");

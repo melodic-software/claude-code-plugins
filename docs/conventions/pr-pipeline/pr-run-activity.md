@@ -427,8 +427,10 @@ including read-only ones that run with no allow rule (`echo`, `printf`, `cat`, `
 `Bash(<command> *)`), and `Read(//proc/**)`; the skill reads files with `Read`, `Grep` and `Glob`.
 Every activity whose effect is not `read` also gets `Bash(git *)`: it reaches git only through
 the base wrappers. In `merge-base` mode, whose skill resolves the merge with git, the rules instead
-deny git's global options, the subcommands that read config or reach a remote, and the flags or
-paths that read a file outside the index (including `blame` and `grep`) or run a diff or text-conversion program.
+deny git's global options, the subcommands that read config or reach a remote, absolute and parent
+paths, quotes, and the flags (in any prefix form) or commands that read a file outside the index
+(including `blame` and `grep`) or run a diff or text-conversion program. Rules match command text,
+so that list is best-effort; it goes when `resolve-conflicts` moves to the read runner.
 `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
