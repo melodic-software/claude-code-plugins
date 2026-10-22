@@ -112,10 +112,12 @@ Callers use `buffer.sh`, not an adapter:
 
 The binding is `<home>/findings-buffer.yaml`, personal overlay `<home>/findings-buffer.local.yaml`,
 read through the config cascade (`<home>` from the convention-home pointer line, default
-`docs/conventions`). Its one key, `adapter`, is `local-file` (the default) or a repository-relative
-directory that must resolve physically inside the repository, hold `append.sh` and `read.sh` as
-regular files, and carry a `capabilities.json` whose `schema_version` MAJOR is `1`. A missing or
-refused binding uses `local-file` and says so on stderr. Exits as in [Exit codes](#exit-codes); `3`
+`docs/conventions`). Its one key, `adapter`, is `local-file` (the default) or the bare name of an
+adapter the plugin ships under `tools/findings-buffer/adapters/`. That directory must resolve
+physically inside `adapters/`, hold `append.sh` and `read.sh` as executable regular files, and carry
+a `capabilities.json` whose `schema_version` MAJOR is `1`. The binding is a file the repository
+writes, so it never names repository code: a path, or a name the plugin does not ship, is refused.
+A missing or refused binding uses `local-file` and says so on stderr. Exits as in [Exit codes](#exit-codes); `3`
 also means `node` or `python3` is missing.
 
 ## Conformance

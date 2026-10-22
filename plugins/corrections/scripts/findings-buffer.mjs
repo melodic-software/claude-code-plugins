@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Node half of tools/findings-buffer/buffer.sh. Three subcommands:
 //   adapter --project DIR   print the bound adapter: `local-file`, or the physical directory of the
-//                           adapter <home>/findings-buffer.yaml (overlay .local.yaml) declares,
+//                           plugin adapter <home>/findings-buffer.yaml (overlay .local.yaml) names,
 //                           resolved through the config cascade (lib/config-cascade.mjs, ADR 0075).
+//                           Only the plugin's own tools/findings-buffer/adapters/ are run: a binding
+//                           is repository-writable, so it never names repository code.
 //                           A missing or unusable binding prints `local-file` and says why on stderr.
 //   prepare                 JSONL rows on stdin (already redacted) -> capped rows with obs_id and ts.
 //   dedupe                  JSONL rows on stdin -> the first row per obs_id, as read.
@@ -26,7 +28,8 @@ const BUDGET = CAP - 28 - 38;
 const FLOOR = 64;
 const OBS_ID = /^[0-9a-f]{16}$/;
 const TS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
-const HOME_TOKEN = /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*\/?$/;
+const ADAPTERS = join(ROOT, "tools/findings-buffer/adapters");
+const NAME = /^[A-Za-z0-9._-]+$/;
 
 const say = (text) => process.stderr.write(`findings-buffer: ${text}\n`);
 const bytes = (value) => Buffer.byteLength(JSON.stringify(value), "utf8");
@@ -54,20 +57,20 @@ function conventionHome(project) {
   return { home: null, why: `the convention home is unresolved (${cause})` };
 }
 
-/** Why the adapter directory `token` is unusable, or {dir} with its physical path. */
-function checkAdapter(project, token) {
-  if (!HOME_TOKEN.test(token) || token.split("/").some((s) => s === "." || s === "..")) {
-    return { why: "not a repository-relative path of [A-Za-z0-9._-] segments without . or .." };
+/** Why the plugin adapter named `token` is unusable, or {dir} with its physical path. */
+function checkAdapter(token) {
+  if (!NAME.test(token) || token === "." || token === "..") {
+    return { why: "not the bare name of a plugin adapter; a repository path is never run" };
   }
-  let realProject;
+  let base;
   let dir;
   try {
-    realProject = realpathSync(project);
-    dir = realpathSync(resolvePath(project, token));
+    base = realpathSync(ADAPTERS);
+    dir = realpathSync(join(ADAPTERS, token));
   } catch {
-    return { why: "the directory does not exist" };
+    return { why: "the plugin ships no adapter by that name" };
   }
-  if (!dir.startsWith(realProject + sep)) return { why: "it resolves outside the repository" };
+  if (!dir.startsWith(base + sep)) return { why: "it resolves outside the plugin's adapters directory" };
   if (!statSync(dir).isDirectory()) return { why: "not a directory" };
   for (const verb of ["append.sh", "read.sh"]) {
     let real;
@@ -117,7 +120,7 @@ function adapter(project) {
   }
   if (token === "local-file") return "local-file";
   const file = out.layers.find((l) => l.name === from)?.path ?? `${home}/${PLUGIN}.yaml`;
-  const checked = checkAdapter(project, token);
+  const checked = checkAdapter(token);
   if (checked.why) {
     say(`adapter ${JSON.stringify(token)} from ${file} is refused (${checked.why}); using local-file`);
     return "local-file";

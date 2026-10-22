@@ -9,8 +9,9 @@ All notable changes to the `corrections` plugin are documented here. Format foll
 
 - `tools/findings-buffer/buffer.sh append|read [--since <UTC ISO-8601>]`: the findings-buffer core.
   It picks the adapter from `<home>/findings-buffer.yaml` (overlay `findings-buffer.local.yaml`,
-  default `local-file`) through the config cascade, refusing an adapter directory outside the
-  repository. `append` redacts string values with the vendored gitleaks rules, caps each row at 2048
+  default `local-file`) through the config cascade. Only adapters the plugin ships under
+  `tools/findings-buffer/adapters/` are run; a binding naming a repository path is refused, so a
+  cloned repository cannot make the buffer run its own code. `append` redacts string values with the vendored gitleaks rules, caps each row at 2048
   bytes, sets `obs_id` and `ts`, and falls back to `local-file` when the bound adapter's append
   fails. `read` merges the bound adapter's rows with the `local-file` rows and drops repeat
   `obs_id`s.

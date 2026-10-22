@@ -38,6 +38,11 @@ done
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 N=0
+# The core runs only adapters shipped under the plugin's own adapters/, so the cases run a copy of
+# the plugin with their fake adapters installed there.
+cp -R "$REPO_ROOT/plugins/corrections" "$TEST_TMPDIR/plugin"
+BUFFER="$TEST_TMPDIR/plugin/tools/findings-buffer/buffer.sh"
+ADAPTERS="$TEST_TMPDIR/plugin/tools/findings-buffer/adapters"
 
 # new_repo: sets R to a new empty git repository.
 new_repo() {
@@ -51,16 +56,17 @@ bind() {
   mkdir -p "$1/docs/conventions"
   printf 'adapter: %s\n' "$2" >"$1/docs/conventions/findings-buffer.yaml"
 }
-# fake_adapter <repo> <dir> <append-exit>: an adapter that copies each append to
-# <dir>/captured.jsonl and exits <append-exit>; read.sh prints that file.
+# fake_adapter <dir> <append-exit>: an adapter that copies each append to <dir>/captured.jsonl
+# and exits <append-exit>; read.sh prints that file.
 fake_adapter() {
-  local d="$1/$2"
+  local d="$1"
+  rm -rf "$d"
   mkdir -p "$d"
   printf '{"schema_version":"1.0","adapter":"fake"}\n' >"$d/capabilities.json"
   cat >"$d/append.sh" <<EOF
 #!/usr/bin/env bash
 cat >>"\$(dirname "\$0")/captured.jsonl"
-exit $3
+exit $2
 EOF
   cat >"$d/read.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -98,8 +104,8 @@ check "no binding: stderr names local-file" grep -q "local-file" <<<"$ERR"
 
 # 2. A bound adapter that fails falls back to the local file.
 new_repo
-fake_adapter "$R" adapters/broken 1
-bind "$R" adapters/broken
+fake_adapter "$ADAPTERS/broken" 1
+bind "$R" broken
 run "$R" append < <(printf '%s\n' "$ROW")
 DETAIL="exit $RC; stderr: $ERR"
 check "failing adapter: append still exits 0" test "$RC" -eq 0
@@ -112,58 +118,58 @@ check "failing adapter: read merges the adapter and fallback rows, once per obs_
 
 # 3. A retried row keeps its obs_id and reads back once.
 new_repo
-fake_adapter "$R" adapters/ok 0
-bind "$R" adapters/ok
+fake_adapter "$ADAPTERS/ok" 0
+bind "$R" ok
 run "$R" append < <(printf '%s\n' "$ROW")
 run "$R" append < <(printf '%s\n' "$ROW")
-IDS="$(jq -r .obs_id "$R/adapters/ok/captured.jsonl" | sort -u | wc -l)"
-DETAIL="captured: $(cat "$R/adapters/ok/captured.jsonl")"
+IDS="$(jq -r .obs_id "$ADAPTERS/ok/captured.jsonl" | sort -u | wc -l)"
+DETAIL="captured: $(cat "$ADAPTERS/ok/captured.jsonl")"
 check "retry: both appends reach the adapter with one obs_id" \
-  test "$(wc -l <"$R/adapters/ok/captured.jsonl")" -eq 2 -a "$IDS" -eq 1
+  test "$(wc -l <"$ADAPTERS/ok/captured.jsonl")" -eq 2 -a "$IDS" -eq 1
 run "$R" read
 DETAIL="exit $RC; out: $OUT"
 check "retry: read returns the row once" test "$RC" -eq 0 -a "$(grep -c . <<<"$OUT")" -eq 1
 OTHER='{"kind":"lint","session":"s2","msg":"unused variable"}'
 run "$R" append < <(printf '%s\n' "$OTHER")
-DETAIL="captured: $(cat "$R/adapters/ok/captured.jsonl")"
+DETAIL="captured: $(cat "$ADAPTERS/ok/captured.jsonl")"
 check "retry: the same finding in another session gets its own obs_id" \
-  test "$(jq -r .obs_id "$R/adapters/ok/captured.jsonl" | sort -u | wc -l)" -eq 2
+  test "$(jq -r .obs_id "$ADAPTERS/ok/captured.jsonl" | sort -u | wc -l)" -eq 2
 run "$R" append < <(printf '{"obs_id":"0123456789abcdef","msg":"caller id"}\n')
-check "a caller obs_id of 16 hex characters is kept" grep -q '"obs_id":"0123456789abcdef"' "$R/adapters/ok/captured.jsonl"
+check "a caller obs_id of 16 hex characters is kept" grep -q '"obs_id":"0123456789abcdef"' "$ADAPTERS/ok/captured.jsonl"
 
 # 4. A planted fake token is redacted before it reaches the adapter.
 new_repo
-fake_adapter "$R" adapters/ok 0
-bind "$R" adapters/ok
+fake_adapter "$ADAPTERS/ok" 0
+bind "$R" ok
 TOKEN="$(printf '%s%s%s' AKIA IOSFODNN7 EXAMPLE)"
 run "$R" append < <(printf '{"msg":"export AWS_ACCESS_KEY_ID=%s then deploy","nested":{"list":["%s"]}}\n' "$TOKEN" "$TOKEN")
-DETAIL="exit $RC; captured: $(cat "$R/adapters/ok/captured.jsonl" 2>/dev/null)"
+DETAIL="exit $RC; captured: $(cat "$ADAPTERS/ok/captured.jsonl" 2>/dev/null)"
 check "redaction: append exits 0" test "$RC" -eq 0
-check "redaction: the token never reaches the adapter" test "$(grep -c "$TOKEN" "$R/adapters/ok/captured.jsonl")" -eq 0
-check "redaction: a redaction marker takes its place" grep -q '<redacted:' "$R/adapters/ok/captured.jsonl"
+check "redaction: the token never reaches the adapter" test "$(grep -c "$TOKEN" "$ADAPTERS/ok/captured.jsonl")" -eq 0
+check "redaction: a redaction marker takes its place" grep -q '<redacted:' "$ADAPTERS/ok/captured.jsonl"
 run "$R" append < <(printf '{"msg":"keyed","%s":"v"}\n' "$TOKEN")
-DETAIL="exit $RC; captured: $(tail -n 1 "$R/adapters/ok/captured.jsonl" 2>/dev/null)"
+DETAIL="exit $RC; captured: $(tail -n 1 "$ADAPTERS/ok/captured.jsonl" 2>/dev/null)"
 check "redaction: a token used as an object key never reaches the adapter" \
-  test "$RC" -eq 0 -a "$(grep -c "$TOKEN" "$R/adapters/ok/captured.jsonl")" -eq 0
+  test "$RC" -eq 0 -a "$(grep -c "$TOKEN" "$ADAPTERS/ok/captured.jsonl")" -eq 0
 
 # 5. An oversize row is capped.
 new_repo
-fake_adapter "$R" adapters/ok 0
-bind "$R" adapters/ok
+fake_adapter "$ADAPTERS/ok" 0
+bind "$R" ok
 BIG="$(head -c 6000 /dev/zero | tr '\0' 'x')"
 run "$R" append < <(printf '{"session":"s1","msg":"%s","small":"keep"}\n' "$BIG")
 run "$R" append < <(printf '{"session":"s1","msg":"%s","small":"keep"}\n' "$BIG")
-LINE="$(head -n 1 "$R/adapters/ok/captured.jsonl")"
+LINE="$(head -n 1 "$ADAPTERS/ok/captured.jsonl")"
 DETAIL="exit $RC; bytes: $(printf '%s' "$LINE" | wc -c)"
 check "cap: the stored row is at most 2048 bytes" test "$(printf '%s' "$LINE" | wc -c)" -le 2048
 DETAIL="row: ${LINE:0:200}"
 GOT="$(jq -r '(.truncated == true) and (.small == "keep") and (.session == "s1")' <<<"$LINE")"
 check "cap: the row says it was truncated and keeps its short values" test "$GOT" == true
 check "cap: a retried oversize row keeps its obs_id" \
-  test "$(jq -r .obs_id "$R/adapters/ok/captured.jsonl" | sort -u | wc -l)" -eq 1
+  test "$(jq -r .obs_id "$ADAPTERS/ok/captured.jsonl" | sort -u | wc -l)" -eq 1
 ARR="$(printf '"%s",' $(seq 1 600) | sed 's/,$//')"
 run "$R" append < <(printf '{"session":"s1","list":[%s]}\n' "$ARR")
-LINE="$(tail -n 1 "$R/adapters/ok/captured.jsonl")"
+LINE="$(tail -n 1 "$ADAPTERS/ok/captured.jsonl")"
 DETAIL="exit $RC; row: ${LINE:0:200}"
 SIZE="$(printf '%s' "$LINE" | wc -c)"
 GOT="$(jq -r '(.truncated == true) and (.list | type == "string")' <<<"$LINE")"
@@ -172,14 +178,14 @@ check "cap: a large array is replaced by a size note, never rejected" \
 HALF="$(head -c 1500 /dev/zero | tr '\0' 'y')"
 run "$R" append < <(printf '{"session":"s1","first":"%s","second":"%s"}\n' "$HALF" "$HALF")
 run "$R" append < <(printf '{"second":"%s","first":"%s","session":"s1"}\n' "$HALF" "$HALF")
-DETAIL="obs_ids: $(tail -n 2 "$R/adapters/ok/captured.jsonl" | jq -r .obs_id | tr '\n' ' ')"
+DETAIL="obs_ids: $(tail -n 2 "$ADAPTERS/ok/captured.jsonl" | jq -r .obs_id | tr '\n' ' ')"
 check "cap: key order does not change what is trimmed or the obs_id" \
-  test "$(tail -n 2 "$R/adapters/ok/captured.jsonl" | jq -r .obs_id | sort -u | wc -l)" -eq 1
+  test "$(tail -n 2 "$ADAPTERS/ok/captured.jsonl" | jq -r .obs_id | sort -u | wc -l)" -eq 1
 
 # 6. A redaction failure writes nothing anywhere.
 new_repo
-fake_adapter "$R" adapters/ok 0
-bind "$R" adapters/ok
+fake_adapter "$ADAPTERS/ok" 0
+bind "$R" ok
 SHIM="$TEST_TMPDIR/shim"
 mkdir -p "$SHIM"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$SHIM/python3"
@@ -188,27 +194,32 @@ PATH="$SHIM:$PATH" run "$R" append < <(printf '%s\n' "$ROW")
 DETAIL="exit $RC; stderr: $ERR"
 check "redaction failure: append exits non-zero" test "$RC" -ne 0
 check "redaction failure: nothing reaches the adapter or the local file" \
-  test ! -e "$R/adapters/ok/captured.jsonl" -a ! -e "$R/.work/buffer/findings.jsonl"
+  test ! -e "$ADAPTERS/ok/captured.jsonl" -a ! -e "$R/.work/buffer/findings.jsonl"
 
-# 7. An adapter path outside the repository is an invalid binding.
+# 7. A binding never runs repository code: only a plugin adapter name is accepted.
 new_repo
-OUTSIDE="$R"
-fake_adapter "$OUTSIDE" evil 0
-new_repo
-bind "$R" "../$(basename "$OUTSIDE")/evil"
+fake_adapter "$R/evil" 0
+fake_adapter "$R/tools/evil" 0
+for token in evil tools/evil ./evil; do
+  bind "$R" "$token"
+  run "$R" append < <(printf '%s\n' "$ROW")
+  DETAIL="exit $RC; stderr: $ERR"
+  check "a committed binding to repository code ($token): append uses local-file and says so" \
+    used_local "$RC" "$R" "$ERR"
+done
+check "a committed binding to repository code: it never runs" \
+  test ! -e "$R/evil/captured.jsonl" -a ! -e "$R/tools/evil/captured.jsonl"
+bind "$R" ".."
 run "$R" append < <(printf '%s\n' "$ROW")
 DETAIL="exit $RC; stderr: $ERR"
-check "a dotdot adapter path: append uses local-file and says so" \
-  used_local "$RC" "$R" "$ERR"
-check "a dotdot adapter path: the outside adapter never runs" test ! -e "$OUTSIDE/evil/captured.jsonl"
-new_repo
-ln -s "$OUTSIDE/evil" "$R/linked"
+check "a dotdot adapter name: append uses local-file and says so" used_local "$RC" "$R" "$ERR"
+ln -s "$R/evil" "$ADAPTERS/linked"
 bind "$R" linked
 run "$R" append < <(printf '%s\n' "$ROW")
 DETAIL="exit $RC; stderr: $ERR"
-check "a symlink to an outside adapter: append uses local-file and says so" \
+check "a plugin adapter name that links outside adapters/: append uses local-file and says so" \
   used_local "$RC" "$R" "$ERR"
-check "a symlink to an outside adapter: it never runs" test ! -e "$OUTSIDE/evil/captured.jsonl"
+check "a plugin adapter name that links outside adapters/: it never runs" test ! -e "$R/evil/captured.jsonl"
 
 # Usage.
 new_repo
@@ -219,17 +230,17 @@ check "a bad --since exits 2" test "$RC" -eq 2
 
 # --since reaches both reads: an old row in the bound adapter and one in the local file are left out.
 new_repo
-fake_adapter "$R" adapters/broken 1
-cat >"$R/adapters/broken/read.sh" <<'EOF'
+fake_adapter "$ADAPTERS/broken" 1
+cat >"$ADAPTERS/broken/read.sh" <<'EOF'
 #!/usr/bin/env bash
 f="$(dirname "$0")/captured.jsonl"
 [[ -f "$f" ]] || exit 0
 if [[ "${1:-}" == --since ]]; then jq -c --arg s "$2" 'select(.ts >= $s)' "$f"; else cat "$f"; fi
 EOF
-bind "$R" adapters/broken
+bind "$R" broken
 run "$R" append < <(printf '%s\n' "$ROW")
 old_row() { printf '{"ts":"2020-01-01T00:00:00Z","session":"s1","msg":"%s","obs_id":"%s"}\n' "$1" "$2"; }
-old_row "old adapter row" aaaaaaaaaaaaaaaa >>"$R/adapters/broken/captured.jsonl"
+old_row "old adapter row" aaaaaaaaaaaaaaaa >>"$ADAPTERS/broken/captured.jsonl"
 old_row "old local row" bbbbbbbbbbbbbbbb >>"$R/.work/buffer/findings.jsonl"
 run "$R" read --since 2025-01-01T00:00:00Z
 DETAIL="exit $RC; out: $OUT"
