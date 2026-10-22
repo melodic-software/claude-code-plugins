@@ -2135,7 +2135,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (S.fly !== "notes") return;
     if (document.activeElement !== $("noteText")) { renderFly(); return; }
     const b = document.querySelector("[data-sendnote]"); if (!b || S.api < 2) return; // typing: update Send note in place so the draft keeps focus
-    b.disabled = closed(); b.nextElementSibling.textContent = closed() ? closedWhy() : "Ctrl+Enter";
+    b.disabled = closed(); b.nextElementSibling.textContent = closed() ? closedWhy() : QuestionShape.keyHint("send");
   }
   function connect(){ // every (re)opened stream re-fetches /api/state, so nothing that happened meanwhile is missed
     if (!window.EventSource) { startPoll(); return; }
