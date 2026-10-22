@@ -151,7 +151,7 @@ shipped catalog, no remediations approved), so an absent overlay or absent appro
    the [roots block](#resolving-the-state-root):
 
    ```powershell
-   . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); Test-MonthlyRunCurrent -PluginRoot $pluginRoot -StateBase $stateRoot
+   . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); Test-MonthlyRunCurrent -PluginRoot $pluginRoot -StateBase $stateRoot -ReportRoot $reportRoot
    ```
 
    FAIL when `WrapperCurrent` or `SettingsCurrent` is false, or it throws: the copy pins an older plugin root or wrapper, or lacks its deny settings, so the next
@@ -309,8 +309,8 @@ to the orchestrator's default. Before step 1 of either route, run, appended to t
 . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); Assert-ScheduleRoot -PluginRoot $pluginRoot -StateBase $stateRoot -ReportRoot $reportRoot; if ($reportRoot) { $reportRoot } else { Join-Path $env:USERPROFILE 'Documents\MachineHealth' }
 ```
 
-It throws when any of them holds a single quote (`'` or U+2018 to U+201B), a control character or
-a line break; then report its message and offer neither route. Otherwise it prints the report
+It throws when any of them holds a single quote (`'` or U+2018 to U+201B), a control character, a
+line break or one of `% & | < > ^`; then report its message and offer neither route. Otherwise it prints the report
 folder the monthly runs will write to: show it to the owner with the task.
 
 **Desktop task** (recommended where the Claude Desktop app is open on the first of the month):
@@ -343,18 +343,19 @@ limit (its `-TimeoutSeconds` default) and records each run in
 without prompting, every call no allow rule covers. The command-line allow rules are Read; Write or
 Edit of `<StateBase>/TODO.md` (one `Edit(/TODO.md)` rule covers both tools; the wrapper starts the
 run in `<StateBase>`, where a command-line `/path` rule is anchored); and exactly two shell
-commands through the Bash tool,
-`pwsh -NoProfile -File '${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/windows/Invoke-MachineHealthCheck.ps1' *`
-and the same for `Format-ShortReport.ps1`, with this plugin root written into the copy. WebFetch,
+commands through the Bash tool, the two `--scheduled` commands audit SKILL.md prints, matched
+exactly, with the plugin root, `<StateBase>` and the report folder written into the copy: any other
+argument, such as a different `-StateBase`, is denied. WebFetch,
 WebSearch and `pwsh -NoProfile -File -` (a script read from stdin) are denied, and no MCP server
 loads. The run also gets `--settings <StateBase>/scheduler/scheduled-settings.json`, whose deny
 rules block git, gh, download commands and the tools that write or act outside `TODO.md`; a deny
 beats every allow rule, the owner's own included. The owner's other allow rules still apply.
 
-A plugin update moves the plugin root, and the copy keeps the old one. The next run's audit
+A plugin update moves the plugin root, and a changed `report_dir` option moves the report folder;
+the copy keeps the old ones. The next run's audit
 commands then match no allow rule and are denied, so it fails (`latest_newer` false); once the old
 root is gone the wrapper refuses to start; and `check` step 6 FAILs the stale copy. Rerunning
-`schedule` after an update rewrites it.
+`schedule` after either change rewrites it.
 
 1. Present the task: the `schtasks` command in step 2, which names it `machine-health monthly`,
    runs it only while the owner is logged on (`/it`), and runs
@@ -374,7 +375,7 @@ root is gone the wrapper refuses to start; and `check` step 6 FAILs the stale co
    tool (Git Bash would rewrite slash-led arguments such as `/create` as paths):
 
    ```powershell
-   . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); $i = Install-MonthlyRun -PluginRoot $pluginRoot -StateBase $stateRoot; $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source; schtasks /create /f /tn 'machine-health monthly' /sc MONTHLY /d 1 /st 09:00 /it /tr ('"{0}" -NoProfile -File "{1}"' -f $pwsh, $i.WrapperPath)
+   . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); $i = Install-MonthlyRun -PluginRoot $pluginRoot -StateBase $stateRoot -ReportRoot $reportRoot; $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source; schtasks /create /f /tn 'machine-health monthly' /sc MONTHLY /d 1 /st 09:00 /it /tr ('"{0}" -NoProfile -File "{1}"' -f $pwsh, $i.WrapperPath)
    ```
 
    It writes the wrapper, with the plugin root filled in, and `scheduled-settings.json` into

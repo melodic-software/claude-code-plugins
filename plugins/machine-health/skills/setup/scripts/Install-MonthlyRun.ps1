@@ -17,7 +17,8 @@ Set-StrictMode -Version 3.0
 $script:MonthlyRunTemplates = Join-Path (Split-Path -Parent $PSScriptRoot) 'templates'
 
 # The wrapper and the scheduled audit type these roots inside single quotes, which PowerShell also
-# closes with U+2018 to U+201B.
+# closes with U+2018 to U+201B, and the wrapper refuses % & | < > ^ in any argument when claude is
+# a .cmd, which cmd.exe re-parses.
 function Assert-ScheduleRoot {
     [CmdletBinding()]
     param(
@@ -31,28 +32,36 @@ function Assert-ScheduleRoot {
         if ($root.Value -match "[\x00-\x1f\x7f'\u2018-\u201b]") {
             throw "The $($root.Name) holds a single quote (' or U+2018 to U+201B), a control character or a line break, which a scheduled run cannot type inside single quotes."
         }
+        if ($root.Value -match '[%&|<>^]') {
+            throw "The $($root.Name) holds one of % & | < > ^, which the monthly run refuses to pass through cmd.exe."
+        }
     }
 }
 
-# The wrapper text with the plugin root written in, as setup installs it.
+# The wrapper text with the roots written in, as setup installs it; its allow rules name them.
 function Get-MonthlyRunText {
     [CmdletBinding()]
     [OutputType([string])]
-    param([Parameter(Mandatory)] [string] $PluginRoot)
+    param(
+        [Parameter(Mandatory)] [string] $PluginRoot,
+        [Parameter(Mandatory)] [string] $StateBase,
+        [string] $ReportRoot
+    )
 
-    Assert-ScheduleRoot -PluginRoot $PluginRoot
-    [System.IO.File]::ReadAllText((Join-Path $script:MonthlyRunTemplates 'monthly-run.ps1')).Replace('__PLUGIN_ROOT__', $PluginRoot)
+    Assert-ScheduleRoot -PluginRoot $PluginRoot -StateBase $StateBase -ReportRoot $ReportRoot
+    [System.IO.File]::ReadAllText((Join-Path $script:MonthlyRunTemplates 'monthly-run.ps1')).
+    Replace('__PLUGIN_ROOT__', $PluginRoot).Replace('__STATE_ROOT__', $StateBase).Replace('__REPORT_ROOT__', $ReportRoot)
 }
 
 function Install-MonthlyRun {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string] $PluginRoot,
-        [Parameter(Mandatory)] [string] $StateBase
+        [Parameter(Mandatory)] [string] $StateBase,
+        [string] $ReportRoot
     )
 
-    Assert-ScheduleRoot -PluginRoot $PluginRoot -StateBase $StateBase
-    $text = Get-MonthlyRunText -PluginRoot $PluginRoot
+    $text = Get-MonthlyRunText -PluginRoot $PluginRoot -StateBase $StateBase -ReportRoot $ReportRoot
     $dir =New-Item -ItemType Directory -Force -Path (Join-Path $StateBase 'scheduler')
     $wrapper = Join-Path $dir.FullName 'monthly-run.ps1'
     $settings = Join-Path $dir.FullName 'scheduled-settings.json'
@@ -65,7 +74,8 @@ function Test-MonthlyRunCurrent {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string] $PluginRoot,
-        [Parameter(Mandatory)] [string] $StateBase
+        [Parameter(Mandatory)] [string] $StateBase,
+        [string] $ReportRoot
     )
 
     $dir = Join-Path $StateBase 'scheduler'
@@ -74,7 +84,7 @@ function Test-MonthlyRunCurrent {
     $hash = { param($Path) (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash }
     [pscustomobject]@{
         WrapperCurrent  = (Test-Path -LiteralPath $wrapper -PathType Leaf) -and
-            [System.IO.File]::ReadAllText($wrapper) -ceq (Get-MonthlyRunText -PluginRoot $PluginRoot)
+            [System.IO.File]::ReadAllText($wrapper) -ceq (Get-MonthlyRunText -PluginRoot $PluginRoot -StateBase $StateBase -ReportRoot $ReportRoot)
         SettingsCurrent = (Test-Path -LiteralPath $settings -PathType Leaf) -and
             (& $hash $settings) -eq (& $hash (Join-Path $script:MonthlyRunTemplates 'scheduled-settings.json'))
     }

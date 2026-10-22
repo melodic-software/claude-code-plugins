@@ -15,10 +15,12 @@ BeforeAll {
 }
 
 Describe 'Get-MonthlyRunText' -Tag 'lib' {
-    It 'writes the plugin root into the wrapper as a single-quoted literal and leaves no token' {
-        $text = Get-MonthlyRunText -PluginRoot $script:Root
+    It 'writes the three roots into the wrapper as single-quoted literals and leaves no token' {
+        $text = Get-MonthlyRunText -PluginRoot $script:Root -StateBase 'C:/Profile/A B/data' -ReportRoot 'D:/Reports'
         $text | Should -Match ([regex]::Escape("`$pluginRoot = 'C:/Profile/A B/plugins/cache/machine-health/1.2.3'"))
-        $text | Should -Not -Match '__PLUGIN_ROOT__'
+        $text | Should -Match ([regex]::Escape("`$stateRoot = 'C:/Profile/A B/data'"))
+        $text | Should -Match ([regex]::Escape("`$reportRoot = 'D:/Reports'"))
+        $text | Should -Not -Match '__(PLUGIN|STATE|REPORT)_ROOT__'
     }
 
     It 'refuses a plugin root holding <Case>' -ForEach @(
@@ -31,7 +33,13 @@ Describe 'Get-MonthlyRunText' -Tag 'lib' {
         @{ Case = 'a line feed'; Char = "`n" }
         @{ Case = 'a carriage return'; Char = "`r" }
     ) {
-        { Get-MonthlyRunText -PluginRoot "C:/Profile/a$($Char)b" } | Should -Throw '*plugin root*'
+        { Get-MonthlyRunText -PluginRoot "C:/Profile/a$($Char)b" -StateBase 'C:/data' } | Should -Throw '*plugin root*'
+    }
+
+    It 'refuses a root holding <Char>, which the wrapper will not pass through cmd.exe' -ForEach @(
+        @{ Char = '%' }, @{ Char = '&' }, @{ Char = '|' }, @{ Char = '<' }, @{ Char = '>' }, @{ Char = '^' }
+    ) {
+        { Get-MonthlyRunText -PluginRoot $script:Root -StateBase "C:/a$($Char)b" } | Should -Throw '*state folder*cmd.exe*'
     }
 }
 
@@ -89,6 +97,11 @@ Describe 'Install-MonthlyRun and Test-MonthlyRunCurrent' -Tag 'lib' {
         $r = Test-MonthlyRunCurrent -PluginRoot 'C:/Profile/A B/plugins/cache/machine-health/1.2.4' -StateBase $script:Base
         $r.WrapperCurrent | Should -BeFalse
         $r.SettingsCurrent | Should -BeTrue
+    }
+
+    It 'reports the wrapper stale once the report option changes' {
+        (Test-MonthlyRunCurrent -PluginRoot $script:Root -StateBase $script:Base -ReportRoot 'D:/Reports').WrapperCurrent |
+            Should -BeFalse
     }
 
     It 'reports the settings file stale when it was changed or removed' {

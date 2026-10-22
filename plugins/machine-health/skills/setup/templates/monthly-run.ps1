@@ -13,21 +13,19 @@ before setup wrote the root in, so the copy in the plugin install never runs.
 
 The audit runs in dontAsk mode. Its allow rules are Read, Write or Edit of
 <StateBase>/TODO.md (the one Edit(/TODO.md) rule covers both tools), and two
-commands through the Bash tool, matched as written (the PowerShell tool approves
-no pwsh call by rule):
-pwsh -NoProfile -File '<root>/skills/audit/scripts/windows/<script>.ps1' ...
-for Invoke-MachineHealthCheck.ps1 and Format-ShortReport.ps1, where <root> is
-the plugin root setup wrote in. pwsh reading a script from stdin (-File -),
+commands through the Bash tool, each matched exactly as audit SKILL.md prints it
+for --scheduled, with the plugin root, state folder and report folder setup wrote
+in (the PowerShell tool approves no pwsh call by rule). pwsh reading a script from stdin (-File -),
 WebFetch and WebSearch are denied, and no MCP server loads.
 scheduled-settings.json adds deny rules for git, gh, download commands and the
 tools that write or act outside TODO.md; a deny beats every allow rule,
 the owner's own included. Anything else is denied instead of prompting, unless
 the owner's own settings allow it.
 
-A plugin update moves the plugin root. The next run's audit commands then no
-longer match the allow rules and are denied, so the run fails; once the old
-root is gone the wrapper refuses to start. Rerunning setup's schedule step
-rewrites the copy.
+A plugin update moves the plugin root, and a changed report_dir option moves the
+report folder. The next run's audit commands then no longer match the allow
+rules and are denied, so the run fails; once the old root is gone the wrapper
+refuses to start. Rerunning setup's schedule step rewrites the copy.
 
 The run counts as ok only when all of these hold: claude exits 0 within the
 timeout, its JSON result has is_error false, the result's first line is the
@@ -69,8 +67,11 @@ if ((Split-Path -Leaf $PSScriptRoot) -cne 'scheduler') {
     exit 2
 }
 
-# Setup writes its ${CLAUDE_PLUGIN_ROOT} over this token when it installs the copy.
+# Setup writes its ${CLAUDE_PLUGIN_ROOT}, ${CLAUDE_PLUGIN_DATA} and report_dir option (empty when
+# unset) over these tokens when it installs the copy, as the scheduled audit will type them.
 $pluginRoot = '__PLUGIN_ROOT__'
+$stateRoot = '__STATE_ROOT__'
+$reportRoot = '__REPORT_ROOT__'
 if ($pluginRoot -ceq ('__PLUGIN' + '_ROOT__')) {
     Write-Error 'monthly-run.ps1 runs only as written by /machine-health:setup schedule, which fills in the plugin root.' -ErrorAction Continue
     exit 2
@@ -80,8 +81,12 @@ $stateBase = Split-Path -Parent $PSScriptRoot
 $logsDir = Join-Path $stateBase 'logs'
 $settingsPath = Join-Path $PSScriptRoot 'scheduled-settings.json'
 $marker = 'machine-health checkup '
-$auditScripts = foreach ($name in 'Invoke-MachineHealthCheck', 'Format-ShortReport') { "$pluginRoot/skills/audit/scripts/windows/$name.ps1" }
-$shellRules = foreach ($path in $auditScripts) { "Bash(pwsh -NoProfile -File '$path' *)" }
+# Exact commands, no wildcard: any other argument, such as another -StateBase whose catalog
+# overlay names its own check scripts, matches no rule and is denied.
+$scripts = "$pluginRoot/skills/audit/scripts/windows"
+$outputArg = if ($reportRoot) { "-OutputBase '$reportRoot' " } else { '' }
+$shellRules = "Bash(pwsh -NoProfile -File '$scripts/Invoke-MachineHealthCheck.ps1' $outputArg-StateBase '$stateRoot' -RunMode on-demand -SampleSeconds 60 -SkipBanner)",
+    "Bash(pwsh -NoProfile -File '$scripts/Format-ShortReport.ps1' -LatestPath '$stateRoot/state/latest.json')"
 # Each tool list is variadic, so an option follows each one.
 $auditArgs = @('-p', '/machine-health:audit on-demand --scheduled', '--permission-mode', 'dontAsk', '--settings', $settingsPath,
     '--allowedTools', 'Read', 'Edit(/TODO.md)') + $shellRules +
@@ -104,7 +109,7 @@ $text = @{ out = [System.Text.StringBuilder]::new(); err = [System.Text.StringBu
 $pending = @{}
 $process = $null
 try {
-    foreach ($path in $auditScripts) {
+    foreach ($path in "$scripts/Invoke-MachineHealthCheck.ps1", "$scripts/Format-ShortReport.ps1") {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "$path is gone, so a plugin update moved the plugin root; rerun /machine-health:setup schedule."
         }

@@ -62,8 +62,9 @@ switch ($env:MH_SHIM_MODE) {
 
     # The audit command lines, as audit SKILL.md steps 4 and 8 write them, are the only shell commands allowed.
     function Get-ExpectedArgumentList([string] $Base) {
-        $orchestrator = "pwsh -NoProfile -File '$script:PluginRoot/skills/audit/scripts/windows/Invoke-MachineHealthCheck.ps1' *"
-        $shortReport = "pwsh -NoProfile -File '$script:PluginRoot/skills/audit/scripts/windows/Format-ShortReport.ps1' *"
+        $orchestrator = "pwsh -NoProfile -File '$script:PluginRoot/skills/audit/scripts/windows/Invoke-MachineHealthCheck.ps1' " +
+            "-StateBase '$Base' -RunMode on-demand -SampleSeconds 60 -SkipBanner"
+        $shortReport = "pwsh -NoProfile -File '$script:PluginRoot/skills/audit/scripts/windows/Format-ShortReport.ps1' -LatestPath '$Base/state/latest.json'"
         @('-p', '/machine-health:audit on-demand --scheduled', '--permission-mode', 'dontAsk',
             '--settings', (Join-Path $Base 'scheduler\scheduled-settings.json'),
             '--allowedTools', 'Read', 'Edit(/TODO.md)', "Bash($orchestrator)", "Bash($shortReport)",
@@ -72,11 +73,12 @@ switch ($env:MH_SHIM_MODE) {
     }
 
     function Invoke-Wrapper([string] $Mode, [string[]] $Command, [int] $TimeoutSeconds = 120, [int] $StreamWaitSeconds = 30,
-        [string] $Folder = 'scheduler', [string] $PluginRoot = $script:PluginRoot, [switch] $Unrendered, [switch] $NoSettings) {
+        [string] $Folder = 'scheduler', [string] $PluginRoot = $script:PluginRoot, [string] $ReportRoot, [switch] $Unrendered,
+        [switch] $NoSettings) {
         $base = Join-Path $TestDrive ([guid]::NewGuid().ToString('n'))
         New-Item -ItemType Directory -Path (Join-Path $base 'state') | Out-Null
         @{ run_id = $script:OldRunId; hostname = 'TESTHOST' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $base 'state\latest.json')
-        $wrapper = (Install-MonthlyRun -PluginRoot $PluginRoot -StateBase $base).WrapperPath
+        $wrapper = (Install-MonthlyRun -PluginRoot $PluginRoot -StateBase $base -ReportRoot $ReportRoot).WrapperPath
         if ($Unrendered) { Copy-Item -LiteralPath $script:Template -Destination $wrapper -Force }
         if ($NoSettings) { Remove-Item -LiteralPath (Join-Path $base 'scheduler\scheduled-settings.json') }
         if ($Folder -cne 'scheduler') {
@@ -137,19 +139,25 @@ Describe 'monthly-run wrapper' -Tag 'lib' {
         $r.LogNames | Where-Object { $_ -like '*.tmp' } | Should -BeNullOrEmpty
     }
 
-    It 'allows exactly the two commands audit SKILL.md prints for --scheduled, with the root setup wrote in' {
-        $r = Invoke-Wrapper 'ok'
+    It 'allows exactly the two commands audit SKILL.md prints for --scheduled, with the roots setup wrote in, when the report option is <Case>' -ForEach @(
+        @{ Case = 'set'; Report = 'D:/Reports/machine health' }
+        @{ Case = 'unset'; Report = '' }
+    ) {
+        $r = Invoke-Wrapper 'ok' -ReportRoot $Report
         $shimArgs = @(Get-Content -Raw -LiteralPath (Join-Path $r.Base 'shim-args.json') | ConvertFrom-Json)
         $allowed = $shimArgs[([array]::IndexOf($shimArgs, '--allowedTools') + 1)..([array]::IndexOf($shimArgs, '--disallowedTools') - 1)]
-        $prefixes = @($allowed | Where-Object { $_ -like 'Bash(*' } | ForEach-Object { $_ -replace '^Bash\((.*) \*\)$', '$1' })
+        $rules = @($allowed | Where-Object { $_ -like 'Bash(*' } | ForEach-Object { $_ -replace '^Bash\((.*)\)$', '$1' })
         $skillText = Get-Content -Raw -LiteralPath (Join-Path $script:SkillRoot 'SKILL.md')
+        # Typed as step 4 says: the run mode on-demand, and no -OutputBase when the option is unset.
         $commands = @([regex]::Matches($skillText, '(?m)^[ \t]*```text\r?\n[ \t]*(pwsh -NoProfile -File .*)$') | ForEach-Object {
-                $_.Groups[1].Value.TrimEnd().Replace('${CLAUDE_PLUGIN_ROOT}', $script:PluginRoot)
+                $c = $_.Groups[1].Value.TrimEnd()
+                if (-not $Report) { $c = $c.Replace(" -OutputBase '<report-root>'", '') }
+                $c.Replace('${CLAUDE_PLUGIN_ROOT}', $script:PluginRoot).Replace('<state-root>', $r.Base).
+                Replace('<report-root>', $Report).Replace('<mode>', 'on-demand')
             })
 
         $commands.Count | Should -Be 2
-        $prefixes.Count | Should -Be 2
-        foreach ($prefix in $prefixes) { @($commands | Where-Object { $_.StartsWith("$prefix ") }).Count | Should -Be 1 }
+        $rules | Should -Be $commands
     }
 
     It 'records which claude it ran in the stderr log' {
@@ -167,12 +175,10 @@ Describe 'monthly-run wrapper' -Tag 'lib' {
     }
 
     It 'refuses a .cmd claude when an argument holds a character cmd.exe would expand' {
-        $root = (Join-Path $TestDrive 'plugin%TEMP%root').Replace('\', '/')
-        $scripts = New-Item -ItemType Directory -Force -Path "$root/skills/audit/scripts/windows"
-        foreach ($name in 'Invoke-MachineHealthCheck.ps1', 'Format-ShortReport.ps1') { New-Item -ItemType File -Force -Path (Join-Path $scripts $name) | Out-Null }
+        # Setup refuses such a character in a root (Assert-ScheduleRoot), so it arrives in a leading argument.
         $cmd = Join-Path $TestDrive 'claude-shim.cmd'
         Set-Content -LiteralPath $cmd -Value "@`"$script:Pwsh`" -NoProfile -File `"$script:Shim`" %*"
-        $r = Invoke-Wrapper 'ok' -Command @($cmd) -PluginRoot $root
+        $r = Invoke-Wrapper 'ok' -Command @($cmd, '--note=%TEMP%')
         $r.StatusFiles.Count | Should -Be 1
         $r.Status.ok | Should -BeFalse
         $r.Status.exit_code | Should -BeNullOrEmpty
