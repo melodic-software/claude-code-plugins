@@ -2130,6 +2130,12 @@
       tourH.textContent = s.h; tourT.textContent = s.t;
       tourBack.hidden = TT.i === 0;
       tourNext.textContent = last ? "Done" : "Next";
+      placeTour(el);
+      tourNext.focus({ preventScroll: true });
+    }
+    /** Draw the ring round the step's target and put the card beside it; again after any re-render or resize moves it. */
+    function placeTour(el = TT.steps[TT.i]?.at()) {
+      if (!shown(el)) return;
       el.scrollIntoView({ block: "nearest", behavior: "auto" });
       const R = root.getBoundingClientRect(), r = el.getBoundingClientRect();
       const box = { l: Math.max(R.left + 4, r.left - 4), t: Math.max(R.top + 4, r.top - 4), r: Math.min(R.right - 4, r.right + 4), b: Math.min(R.bottom - 4, r.bottom + 4) };
@@ -2143,7 +2149,6 @@
       if (box.b + 12 + h <= R.bottom - 12) cs.insetBlockStart = box.b - R.top + 12 + "px";
       else if (box.t - 12 - h >= R.top + 12) cs.insetBlockStart = box.t - R.top - 12 - h + "px";
       else cs.insetBlockEnd = "12px";
-      tourNext.focus({ preventScroll: true });
     }
     tourNext.onclick = () => { if (TT.i >= TT.steps.length - 1) return endTour("done"); TT.i++; paintTour(); };
     tourBack.onclick = () => { if (TT.i > 0) { TT.i--; paintTour(); } };
@@ -2154,7 +2159,7 @@
     });
     // A click outside the card does nothing: the tour ends only by Skip, Done or Escape.
     on(tour, "pointerdown", e => { if (!tourCard.contains(e.target)) e.preventDefault(); });
-    const tourMove = () => { if (!tour.hidden) paintTour(); };
+    const tourMove = () => { if (!tour.hidden) placeTour(); };
     on(window, "resize", tourMove);
 
     // Ask Claude: right drawer on desktop, bottom sheet on phones.
@@ -7750,7 +7755,8 @@
 
       // a color someone just chose: repaint their avatars wherever they are
       for (const a of root.querySelectorAll(".core-avatar[data-who]")) { const c = Core.colorFor(a.dataset.who); if (a.style.getPropertyValue("--av") !== c) a.style.setProperty("--av", c); }
-      requestAnimationFrame(() => { measureAll(); if (toast.classList.contains("vf-on")) placeToast(); });
+      tourMove();
+      requestAnimationFrame(() => { measureAll(); if (toast.classList.contains("vf-on")) placeToast(); tourMove(); });
     }
 
     applyTheme();
