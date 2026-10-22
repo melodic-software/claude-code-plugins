@@ -868,10 +868,10 @@ except six:
   file scores HIGH with the floor), `c2-contradictions` (true
   scores a removed, renamed or copied file, a schema change or more than one plugin MED),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository lists
-  `floor-paths` and `floor-script-scopes` and sets `high-path-floor: true` (owner decision
-  2026-10-18, reversing Q661: lanes may edit runnable plugin files and fix-ci's patch guard
-  covers only `.github/**` and agent instruction paths), so a lane pull request on the floor waits for a human; the non-author verifier
-  verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
+  `floor-paths` and `floor-script-scopes` and sets `high-path-floor: false` (owner decision
+  Q681, 2026-10-22: no protected-path blocking until throughput is tuned, hardened later), so
+  the non-author verifier verdict, both AI review lanes, `ci-status` and the post-merge revert
+  breaker gate every lane pull request; setting it `true` brings the floor back. It
   leaves the rest off (owner decision,
   2026-10-17). The local babysit lane ignores the other switches and keeps the rest of
   the fixed floor, both caps and the C2 contradictions, but `high-path-floor` governs it too:

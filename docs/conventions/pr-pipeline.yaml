@@ -685,14 +685,14 @@ merge:
     mode: enforce
     majors: hold
   # The HIGH path floor, floor-paths, floor-script-scopes and the capability
-  # check are on (owner decision 2026-10-18, reversing Q661): lanes may edit
-  # runnable plugin files (the #8184 scope), and fix-ci's patch guard
-  # covers only .github/** and agent instruction paths. The scorer's fixed HIGH floor (.github/**,
-  # docs/conventions/**, agent instructions, hooks, lib/, scripts/, package
-  # manifests and more) now applies in the pr-merge lane too. A lane PR
-  # touching a floor path or script, or changing
-  # capability frontmatter in a SKILL.md, agents/**/*.md or commands/**/*.md,
-  # scores HIGH and waits for a human, who merges it in person. A denied path
+  # check are off (owner decision Q681, 2026-10-22: no protected-path blocking
+  # until throughput is tuned, harden later; the review lanes flag risky
+  # changes). floor-paths and floor-script-scopes stay listed so `true` brings
+  # the floor back unchanged. With it true, a lane PR touching the scorer's
+  # fixed HIGH floor (.github/**, docs/conventions/**, agent instructions,
+  # hooks, lib/, scripts/, package manifests and more), a floor path or
+  # script, or capability frontmatter in a SKILL.md, agents/**/*.md or
+  # commands/**/*.md scores HIGH and waits for a human. A denied path
   # would instead make the PR ineligible. The switch governs both lanes: in
   # the local babysit lane, false would leave out floor-paths,
   # floor-script-scopes, the capability check and the floor entries for
@@ -708,7 +708,7 @@ merge:
   # verifier verdict.
   diff-check:
     denied-paths: []
-    high-path-floor: true
+    high-path-floor: false
     floor-paths:
       - "docs/adr/**"
       - "**/bin/**"
