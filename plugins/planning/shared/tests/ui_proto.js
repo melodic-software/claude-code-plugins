@@ -8,7 +8,8 @@
 // question's Claude thread on the main page and in the round's digest for Claude; picking a variant; the variant's
 // sandbox (no access to the page or its storage, and a forged pin message is ignored); a second pick while a note is
 // open; a variant that navigates its frame away (dropped, and the page it goes to refused); the owner token kept out of every link and
-// the address bar, the owner still the owner after a reload and on the pages its links open; the phone layout; no 429,
+// the address bar, the owner still the owner after a reload and on the pages its links open; the phone layout; the
+// Prototypes switches in the Host settings (a view switched off leaves guests' pages, the owner told which); no 429,
 // no CSP violation and no page error.
 //   node plugins/planning/shared/tests/ui_proto.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
@@ -274,6 +275,54 @@ async function main() {
     const digest = doc.log.events.find(e => e.kind === "round-sent")?.digest;
     ok("the round's digest hands Claude each note with its element", JSON.stringify(digest?.annotations?.map(x => [x.variant, x.element, x.text])) === JSON.stringify([
       ["v-1", BUTTON_PATH, "Make the total sit next to Pay now."], ["v-2", "img", "This band hides the address."], ["v-1", "html", "Too long for a phone."]]), JSON.stringify(digest?.annotations));
+
+    // ---------- which prototype views guests get (the prototypeTiers setting) ----------
+    await away.close(); // its variant leaves its page whenever it is framed again
+    await owner.locator(".vf-q", { hasText: "Which checkout layout?" }).first().click();
+    await owner.click(".vf-gear");
+    const tierRow = label => owner.locator(".vf-settings .vf-sw-row", { hasText: label });
+    const rows = await owner.evaluate(() => {
+      const h = [...document.querySelectorAll(".vf-settings .vf-pop-sub")].find(x => x.textContent === "Prototypes");
+      const out = [];
+      for (let n = h?.nextElementSibling; n?.dataset.tier; n = n.nextElementSibling) out.push([n.querySelector(".vf-sw-label").textContent, n.getAttribute("role"), n.getAttribute("aria-checked")]);
+      return out;
+    });
+    ok("the settings list Screenshots, HTML snapshots and Live prototypes under Prototypes, live off", JSON.stringify(rows) === JSON.stringify([
+      ["Screenshots", "switch", "true"], ["HTML snapshots", "switch", "true"], ["Live prototypes", "switch", "false"]]), JSON.stringify(rows));
+    // one settings write a second (the per-route write limit), so each click waits for the last one to land and a second more
+    const setTier = async (label, want) => {
+      await tierRow(label).click();
+      const saved = await until(owner, w => JSON.stringify(window.Core.state.settings.prototypeTiers) === w, JSON.stringify(want));
+      await owner.waitForTimeout(1100);
+      return saved;
+    };
+    ok("Screenshots off saves the list without it", await setTier("Screenshots", ["snapshot"]));
+    ok("  and its switch shows off", (await tierRow("Screenshots").getAttribute("aria-checked")) === "false");
+    await owner.keyboard.press("Escape");
+    ok("the owner still sees the picture variant, named as hidden from guests", await until(owner, () => document.querySelector(".vf-proto-meta")?.textContent.endsWith("Hidden from guests: Two steps (screenshots off).")
+      && !!document.querySelector(".vf-proto-tile img")), await owner.evaluate(() => document.querySelector(".vf-proto-meta")?.textContent));
+    await proto.locator(".vp-tab", { hasText: "Two steps" }).click();
+    ok("a guest's picture variant shows that the view is off, with no picture and no Annotate", await until(proto, () => document.querySelector(".vp-stage .vp-off")?.textContent.startsWith("This view is off")
+      && !document.querySelector(".vp-img") && document.querySelector(".vp-annotate").hidden));
+    ok("  and the guest's state holds no picture variant asset", await until(proto, a => !JSON.stringify(window.Core.snapshot().questions).includes(a), v2));
+    await proto.locator(".vp-tab", { hasText: "One page" }).click();
+    ok("the html variant still runs for the guest", await until(proto, a => document.querySelector(".vp-frame")?.getAttribute("src") === `/assets/${a}?pin=1`, v1));
+    await owner.click(".vf-gear");
+    ok("HTML snapshots off too leaves no view", await setTier("HTML snapshots", []));
+    await owner.keyboard.press("Escape");
+    ok("the guest's question shows as text with the note, no tile and no Open prototype", await until(gus, () => {
+      const box = document.querySelector(".vf-proto");
+      return box && !box.hidden && box.querySelector(".vf-proto-tile").hidden && box.querySelector(".vf-proto-open").hidden
+        && box.querySelector(".vf-proto-meta").textContent.endsWith("Prototype views are off in this session.");
+    }), await gus.evaluate(() => document.querySelector(".vf-proto-meta")?.textContent));
+    ok("the guest's open html variant is taken down", await until(proto, () => !document.querySelector(".vp-frame") && !!document.querySelector(".vp-stage .vp-off")));
+    await owner.click(".vf-gear");
+    ok("Live prototypes on is stored", await setTier("Live prototypes", ["live"]));
+    ok("turning both views back on keeps the canonical order", await setTier("Screenshots", ["screenshot", "live"]) && await setTier("HTML snapshots", ["screenshot", "snapshot", "live"]));
+    ok("Live prototypes off restores the default", await setTier("Live prototypes", ["screenshot", "snapshot"]));
+    await owner.keyboard.press("Escape");
+    ok("the guest's html variant runs again", await until(proto, a => document.querySelector(".vp-frame")?.getAttribute("src") === `/assets/${a}?pin=1`, v1));
+
     await owner.evaluate(() => window.Core.endSession(true));
     ok("once the session ends, a guest's Choose is disabled and says the session has ended (B6)", await until(proto, () => {
       const b = document.querySelector(".vp-choose"); return b.disabled && b.title === "This session has ended."; }),

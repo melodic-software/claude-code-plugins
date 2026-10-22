@@ -47,6 +47,7 @@
   stage.append(cmpPane, mainPane);
   const side = E("aside", "vp-side"); side.setAttribute("aria-label", "Notes");
   const qText = E("p", "vp-qtext");
+  const offNote = E("p", "vp-offnote"); offNote.hidden = true; // the owner's: which views guests do not get (prototypeTiers)
   const versNav = E("nav", "vp-versions"), versH = E("h2", "vf-h2 vp-versions-h"), versList = E("ol", "vp-vers");
   versNav.append(versH, versList); versNav.hidden = true;
   const composer = E("form", "vp-composer"); composer.hidden = true; composer.setAttribute("aria-label", "New note");
@@ -63,13 +64,16 @@
   const notesH = E("h2", "vf-h2 vp-notes-h");
   const notes = E("ol", "vp-notes"); notes.setAttribute("aria-label", "Notes on this variant");
   const empty = E("p", "vf-empty vp-empty");
-  side.append(qText, versNav, wholeBtn, composer, notesH, notes, empty);
+  side.append(qText, offNote, versNav, wholeBtn, composer, notesH, notes, empty);
   body.append(stage, side);
   const missing = E("p", "vf-empty vp-missing"); missing.hidden = true;
   root.append(top, bar, hint, body, missing);
 
-  // The stage: an iframe for an html variant, a picture with its own pin layer for an image one.
+  // The stage: an iframe for an html variant, a picture with its own pin layer for an image one, a notice for a variant
+  // whose view the session switched off (its state then holds no asset).
   let frame = null, img = null, layer = null, shownVariant = "", readySeen = false;
+  const OFF_TEXT = "This view is off in this session. You can still choose this variant.";
+  const OFF_NAME = { screenshot: "screenshots are off", snapshot: "HTML snapshots are off" };
   const send = m => frame?.contentWindow?.postMessage(m, "*"); // the sandboxed frame has no origin to name
 
   // ---------- state ----------
@@ -137,11 +141,14 @@
 
   // ---------- the stage and its pins ----------
   function mountStage(v) {
-    if (shownVariant === v.id) return;
-    shownVariant = v.id; ui.ready = false; ui.pinsKey = ""; readySeen = false;
+    const key = `${v.id}|${v.asset || ""}`; // a view switched off or back on mounts afresh
+    if (shownVariant === key) return;
+    shownVariant = key; ui.ready = false; ui.pinsKey = ""; readySeen = false;
     frame = img = layer = null;
     stage.setAttribute("aria-label", `Variant ${v.label}`);
-    if (isHtml(v)) {
+    if (!v.asset) {
+      mainView.replaceChildren(E("p", "vp-left vp-off", OFF_TEXT));
+    } else if (isHtml(v)) {
       const f = frame = E("iframe", "vp-frame");
       f.setAttribute("sandbox", "allow-scripts"); // plus the asset's own CSP sandbox; never allow-same-origin
       f.setAttribute("referrerpolicy", "no-referrer");
@@ -215,14 +222,16 @@
    *  it posts is read; an html one runs in the same sandbox as the variant, and one that leaves its page is dropped. */
   let cmpShown = "";
   function mountCompare(other) {
-    const key = other ? `${other.qid}.${other.variant}.${other.asset}` : "";
+    const key = other ? `${other.qid}.${other.variant}.${other.asset || ""}` : "";
     if (other) cmpCap.firstChild.textContent = vname(other) + (other.current ? " · Current" : "");
     if (cmpShown === key) return;
     cmpShown = key;
     stage.dataset.split = String(!!other);
     cmpPane.hidden = mainCap.hidden = !other;
     if (!other) { cmpView.replaceChildren(); return; }
-    if (isHtml(other)) {
+    if (!other.asset) {
+      cmpView.replaceChildren(E("p", "vp-left vp-off", "This view is off in this session."));
+    } else if (isHtml(other)) {
       const f = E("iframe", "vp-cmp-frame");
       f.setAttribute("sandbox", "allow-scripts"); // plus the asset's own CSP sandbox; never allow-same-origin
       f.setAttribute("referrerpolicy", "no-referrer");
@@ -370,6 +379,7 @@
     const v = current(q);
     if (!v) return;
     if (ui.variant !== v.id) ui.variant = v.id;
+    if (!v.asset && ui.annotate) { ui.annotate = false; closeComposer(); } // nothing to pin a note to
     document.title = `${q.id}: ${q.short || q.text}`;
     title.textContent = `${q.id}: ${q.short || q.text}`;
     qText.textContent = q.text;
@@ -383,10 +393,14 @@
     annotateBtn.setAttribute("aria-pressed", String(ui.annotate));
     annotateBtn.textContent = ui.annotate ? "Annotate: on" : "Annotate";
     root.dataset.annotate = String(ui.annotate);
-    hint.textContent = ui.annotate
+    hint.textContent = !v.asset ? OFF_TEXT : ui.annotate
       ? `${matchMedia("(pointer: coarse)").matches ? "Tap" : "Click"} the part of ${v.label} your note is about. Esc turns Annotate off.`
       : "Try each variant. Turn on Annotate to pin a note to any part of it.";
     wholeBtn.hidden = !ui.annotate || !!ui.draft;
+    annotateBtn.hidden = !v.asset;
+    const hidden = Core.me.isOwner ? variants(q).filter(x => Core.viewOff(x)) : [];
+    offNote.hidden = !hidden.length;
+    offNote.textContent = hidden.length ? `Hidden from guests: ${hidden.map(x => `${x.label} (${OFF_NAME[Core.viewOff(x)]})`).join(", ")}.` : "";
     const ro = readOnly(q), rec = mine(), chosen = rec?.pick === v.id;
     chooseBtn.textContent = chosen ? `You chose ${v.label}` : `Choose ${v.label}`;
     chooseBtn.setAttribute("aria-pressed", String(chosen));
