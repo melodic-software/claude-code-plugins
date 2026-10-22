@@ -1,5 +1,37 @@
 # Changelog: session-flow plugin
 
+## [1.0.0] - 2026-10-22
+
+### Added
+
+- **`/session-flow:orchestrate coordinator [<area>]`** ([#8642](https://github.com/melodic-software/claude-code-plugins/issues/8642)). Arms a session as the one coordinator for an area, on any surface including a plain CLI session. The coordinator delegates the area's work to workers and keeps no store of its own: state lives in the tracker and the repository's durable files. The skill also gains a `## Next` section naming `/planning:draft-goal-condition`.
+- **The `workflow` continuation router records three rules.** Mid-phase, bulk work goes to subagents before compacting; a cleared conversation stays resumable (with a pointer to the upstream sessions page); handoff and questionnaire files stay in the memory dir.
+
+- The setup apply writer writes the settings file into the repository's convention home, read from the pointer region in AGENTS.md or CLAUDE.md, instead of the fixed docs/conventions. A repository with no region is offered one: with --yes the writer adds the region where the repository already keeps instructions (a new AGENTS.md only when neither file exists) and the overlay ignore line to .gitignore in the same step, and announces both. Without --yes it prints the offer and still creates a missing settings file in docs/conventions; changing an existing file, the region and the ignore line wait for --yes. --home names the home to offer, and --decline records a declined line so the offer is not made again. A home the repository already had lists the settings file in conventions-index.md. --home refuses a value holding a backtick or line break.
+
+- Retro codify now judges a lesson a check could assert against the ladder copy's "Guardrail criterion" section and reports a recurring mistake that meets it but has no check as a "no guardrail" finding. A new eval case covers it.
+
+- **`/session-flow:orient catch-up` answers "what happened since my last message, and what needs me"** ([#8640](https://github.com/melodic-software/claude-code-plugins/issues/8640)). The reply opens with a "Needs you" section (the count of decisions only the user can make), then what happened with what it means, then each decision with why now, options and costs, a recommendation, what happens if unanswered, and what is unknown. It anchors at the user's own last message and re-checks the pull requests, CI runs and agents the chat touched, read-only. The four-part briefing stays the default scope. A new `orient_catch_up_word_cap` setting caps the reply (default 250, minimum 150). Adapted from the pstack [`ketchup`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/ketchup) skill.
+
+### Changed
+
+- **`continue-in-background` launches only with a checkable completion condition** ([#8739](https://github.com/melodic-software/claude-code-plugins/issues/8739)). The launch payload is now `/goal` plus the save-point's goal region, so the detached session works until a fresh evaluator confirms the condition. With no goal applying, the skill drafts one with `/planning:draft-goal-condition`, shows it, and launches only once the user confirms. With no checkable condition it does not launch and says how to supply one. On prompt-only the resume region travels after the goal region, within the condition limit.
+- **The `workflow` continuation router's away-from-keyboard brief carries a checkable completion condition** (`/goal` or a Stop-hook check).
+
+- Synced the shared `exec-bash.mjs` launcher, which gains an opt-in `--fail-closed` flag. This plugin's hooks do not pass it, so their behavior is unchanged.
+
+- The bundled enforcement ladder copy is now 2.0.0: four tiers, a "runs at" column, renamed and added rung ids (`shared-helper`, `harness-setting`, `action-guard`, `scaffold`, `automated-review`, `instruction`, `skill`, `human-review`) and the guardrail criterion.
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line.
+
+### Fixed
+
+- **`continue-in-background --cloud` falls back to a local background session when the CLI refuses the cloud launch for lack of a terminal** ([#8792](https://github.com/melodic-software/claude-code-plugins/issues/8792)). Before, a refused launch ended with the `/clear`-then-paste instruction, which stalled a run meant to continue while the user was away. The goal probe record now holds the refused-launch probe and still marks cloud goal arming as unprobed.
+
+### Security
+
+- The running-retro observer now redacts a stateless GitHub App installation token (`ghs_` followed by a JWT, with no app id) whole, where it used to leave the JWT payload and signature in its output; the save-point secret scan flags it whole. Both use GitHub's recommended `ghs_` regex.
+
 ## [0.62.0] - 2026-10-20
 
 ### Added

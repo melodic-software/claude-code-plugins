@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.23.8] - 2026-10-22
+
+### Fixed
+
+- The skill-authoring vendor hazard scan in `update.test.sh` now flags a process-substitution fetch such as `bash <(curl -s URL)`.
+
 ## [0.23.7] - 2026-10-20
 
 ### Fixed
