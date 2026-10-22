@@ -13,3 +13,5 @@ bump: patch
   directory is approved. It denies `git`, the `user-scope.sh` script, `NotebookEdit` on the
   staged plugin and the write lanes' shell deny set. The staging step also makes `.lane/prompt.md`
   and `.lane/` read-only, so a script's `--out` lands only in `.lane/scratch`.
+- Write lanes also deny `wc`, a read-only command that runs with no allow rule and can print
+  file contents in its errors.

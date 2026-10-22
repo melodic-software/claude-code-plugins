@@ -216,7 +216,7 @@ runs:
         # A skill that edits reads files with Read, Grep and Glob, so these
         # deny every command that can print a file or the environment,
         # read-only or a text filter.
-        shell_denied=("Bash(echo *)" "Bash(printf *)" "Bash(cat *)" "Bash(head *)" "Bash(tail *)" "Bash(grep *)" "Bash(find *)" "Bash(env *)" "Bash(printenv *)" "Bash(strings *)" "Bash(od *)" "Bash(xxd *)" "Bash(diff *)" "Bash(sed *)" "Bash(awk *)" "Bash(sort *)" "Bash(cut *)" "Bash(tr *)" "Bash(base64 *)" "Bash(nl *)" "Bash(tac *)" "Bash(rev *)" "Bash(uniq *)" "Bash(fold *)" "Bash(column *)" "Bash(jq *)" "Bash(xargs *)" "Bash(more *)" "Bash(less *)")
+        shell_denied=("Bash(echo *)" "Bash(printf *)" "Bash(cat *)" "Bash(head *)" "Bash(tail *)" "Bash(grep *)" "Bash(find *)" "Bash(env *)" "Bash(printenv *)" "Bash(strings *)" "Bash(od *)" "Bash(xxd *)" "Bash(diff *)" "Bash(sed *)" "Bash(awk *)" "Bash(sort *)" "Bash(cut *)" "Bash(tr *)" "Bash(base64 *)" "Bash(nl *)" "Bash(tac *)" "Bash(rev *)" "Bash(uniq *)" "Bash(fold *)" "Bash(column *)" "Bash(jq *)" "Bash(xargs *)" "Bash(more *)" "Bash(less *)" "Bash(wc *)")
         # run-claude-cli: the CLI runs with --restricted in the checkout and
         # reads nothing outside it, so everything the skill reads is staged
         # here and copied to .lane/ after the head checkout, where the rules

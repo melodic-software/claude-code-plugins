@@ -54,6 +54,7 @@ const SHELL_DENIED = [
   "Bash(xargs *)",
   "Bash(more *)",
   "Bash(less *)",
+  "Bash(wc *)",
   "Read(//proc/**)",
   `Read(/${WORKSPACE}/.git/**)`,
 ];
