@@ -101,7 +101,8 @@ async page => { // the question page itself: choices, chips, banners, header and
     // #8085: at phone widths an id chip in Activity or Notes keeps each id on one line, even beside long text
     const toggle = panel => page.evaluate(p => document.querySelector('.strip [data-panel="' + p + '"]').click(), panel);
     const onOneLine = () => page.evaluate(() => {
-      const lines = el => { const r = document.createRange(); r.selectNodeContents(el); return new Set([...r.getClientRects()].map(x => Math.round(x.top))).size; };
+      // Baseline-aligned boxes in two fonts have different tops on one line, so a rect starts a new line only below the last one's bottom.
+      const lines = el => { const r = document.createRange(); r.selectNodeContents(el); let n = 0, bottom = -Infinity; for (const x of [...r.getClientRects()].sort((a, b) => a.top - b.top)) { if (x.top >= bottom - 1) n++; bottom = Math.max(bottom, x.bottom); } return n; };
       const chips = [...document.querySelectorAll("aside.fly.open .ref b, aside.fly.open .rrange")];
       return {n: chips.length, split: chips.filter(c => lines(c) > 1).map(c => c.textContent), page: document.scrollingElement.scrollWidth - innerWidth};
     });
