@@ -740,6 +740,26 @@ batches from how many page views, and how many were dropped.
 The owner's own page views stay out of the timings. A summary counts at its batch's time, for
 `--since` and for a fingerprint's last repeat. `logs --errors` leaves batches out.
 
+## Themes
+
+The page's theme is a mode, an accent and a palette. The owner sets the default for everyone in
+Session settings ("Default theme for everyone", the `theme` setting); each person can choose their
+own in their card ("Theme, just for you", the `theme`, `accent` and `palette` prefs), which wins on
+their own page.
+
+| Part | Values | Default |
+|---|---|---|
+| `mode` | `system` (follows the device), `light`, `dark` | `system` |
+| `accent` | `teal`, `indigo`, `violet`, `amber` | `teal` |
+| `palette` | `default`, `midnight`, `slate`, `paper`, `contrast` (High contrast) | `default` |
+
+Each palette has a light and a dark variant, chosen by the mode, and sets the whole page's surfaces
+and text. The accent applies over every palette except High contrast, which uses its own accent; with
+High contrast chosen for yourself, your accent swatches are disabled and say so. The owner's default
+accent stays settable, since it still reaches anyone who picks another palette. `palette` is optional
+in the `theme` setting: a session written before palettes has none, loads as it was, and shows the
+default palette until the owner, or a person for themselves, picks one.
+
 ## Data contract
 
 One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
@@ -1033,6 +1053,11 @@ with keyboards at 320 to 430 px wide.
 contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an
 element of an html variant and to a spot of a picture, the notes in the Claude thread and the
 digest, the variant's sandbox, and a forged pin message being ignored.
+
+`ui_contrast.js` checks WCAG 2.2 AA contrast on the main page states in every palette, in light
+and dark: text and placeholders, field edges, icon-only buttons and the Propose button's edge; per
+palette, mode and accent, the accent's text on every surface, text on the accent and the ten person
+colors; and that a palette picked in Session settings or in a person's own card applies on the page.
 
 `ui_layout.js` checks no page scroll at five sizes and 200% zoom in both themes, 44 px phone
 targets, no sideways scroll in Ask Claude on a phone with "Run it on my own Claude" on, the

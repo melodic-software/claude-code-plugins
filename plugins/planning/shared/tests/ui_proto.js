@@ -2,7 +2,7 @@
 // The prototype page (Q98) in real browsers, against `share.sh ensure-running` with the fake cloudflared: the owner on a
 // desktop, a guest on a desktop who opens the prototype from the question's "Open prototype" link, and a guest on a
 // 390x844 phone with touch who opens /proto/<qid> directly, in separate browser contexts (separate storage). Covered:
-// the preview tile and its link; the variant switcher (click and arrow keys); the Annotate toggle; a note pinned to an
+// the preview tile and its link; the session's palette on the prototype page; the variant switcher (click and arrow keys); the Annotate toggle; a note pinned to an
 // element inside an html variant (its path and box reach the server, its pin is drawn in the variant, and the variant's
 // own click handler does not run while Annotate is on); a note on a spot of a picture variant; the notes in the
 // question's Claude thread on the main page and in the round's digest for Claude; picking a variant; the variant's
@@ -94,6 +94,10 @@ async function main() {
     await ownerProto.waitForLoadState();
     ok("the owner's Open prototype opens /proto/Q1 as the owner", new URL(ownerProto.url()).pathname === "/proto/Q1" && await isOwner(ownerProto), ownerProto.url());
     await until(ownerProto, () => document.querySelector(".vp-back")?.getAttribute("href") === "/");
+    await solo.evaluate(() => window.Core.saveSettings({ theme: { palette: "contrast" } }));
+    ok("the prototype page shows the session's palette", await until(ownerProto, () => document.querySelector(".vp-app")?.dataset.palette === "contrast"),
+      await ownerProto.evaluate(() => document.querySelector(".vp-app")?.dataset.palette));
+    await solo.evaluate(() => window.Core.saveSettings({ theme: { palette: "default" } }));
     const protoShown = await tokenShown(ownerProto);
     ok("the prototype tab's address and links hold no owner token", protoShown.hash === "" && protoShown.hrefs.length === 0, JSON.stringify(protoShown));
     ok("the prototype tab has no handle on the page that opened it", (await ownerProto.evaluate(() => window.opener)) === null);
