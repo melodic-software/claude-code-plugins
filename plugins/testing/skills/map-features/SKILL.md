@@ -1,8 +1,8 @@
 ---
-description: "Write a feature map for one app in this repository: a project skill (default .claude/skills/feature-map/) with an index naming the launch recipe, the driver and a doctor command, and a file for each user-facing feature listing its parts, entry points, drive steps and traps, so /testing:run-e2e can drive every entry point a change touches. Proves the map by driving one mapped feature through /testing:run-e2e before reporting done. Use when: 'map the features of this app', 'write a feature map', 'set up a feature map for e2e runs'. User-invoked only."
+description: "Write a feature map for one app in this repository: a project skill (default .claude/skills/feature-map/) with an index naming the launch recipe, the driver and a doctor command, and a file for each user-facing feature listing its parts, entry points, drive steps and traps, so /testing:run-e2e can drive every entry point a change touches. Proves the map by driving one mapped feature through /testing:run-e2e before reporting done. Use when: 'map the features of this app', 'write a feature map', 'set up a feature map for e2e runs'."
 argument-hint: "[app] [--dir <path>]"
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 metadata:
   workflow-stage: test
   summary: Write a feature map that /testing:run-e2e drives entry point by entry point
