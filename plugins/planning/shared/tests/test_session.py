@@ -5904,6 +5904,20 @@ class TestPictureOnlyAnswer(UploadCase):
         self.assertNotIn("attachments", self.s.state["locks"]["Q1"]["source"])
         self.assertIsNone(session.document_error(self.disk()))
 
+    def test_a_late_disagree_on_a_locked_picture_only_answer_reaches_the_digest_with_its_picture(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.act("lock", HOST, {"qid": "Q1", "card": f"p:{self.ann}"})
+        self.send()
+        self.ack(1)
+        self.open_round(text_q("Q5"))
+        self.act("disagree", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "reason": "Wrong picture"})
+        self.send()
+        ev = self.events("round-sent")[-1]
+        self.assertEqual((ev["digest"]["round"], ev["digest"]["possiblyReopened"][0]["disagreements"]),
+                         (2, [{"text": "", "attachments": [uid], "reason": "Wrong picture"}]))
+        self.assertIsNone(support_event_error(ev))
+
     def test_a_picture_only_answer_in_a_sent_round_stays_when_its_picture_goes(self):
         uid = self.offered_and_accepted(self.ann)
         self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})

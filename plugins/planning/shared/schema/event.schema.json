@@ -305,7 +305,7 @@
                   "type": "object",
                   "required": ["text", "reason"],
                   "additionalProperties": false,
-                  "properties": {"text": {"type": "string"}, "reason": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
+                  "properties": {"text": {"type": "string"}, "attachments": {"$ref": "#/$defs/answerFiles"}, "reason": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
                 }
               }
             }
