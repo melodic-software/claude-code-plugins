@@ -24,7 +24,10 @@ name: post-merge-demotion-alert
 # applies the same rule). A check is a failed job, or one gate the hygiene
 # aggregator names in a titled annotation; the lane aggregator ci-status adds
 # nothing beside another failed job, and the gitleaks gate, which scans every
-# branch on these events, counts against no merge.
+# branch on these events, counts against no merge. Of those, a run whose every
+# newly failing test-leg suite is outside the affected set of the merges since
+# main's last green full run, or quarantined, files nothing but each suite's
+# quarantine issue (babysit_postmerge.py --judge-run, run from main's tip).
 #
 # Beside a new record of a full run, it files one fix issue per newly failing
 # check (at most 5) and dispatches intake-triage.yml for each, so an agent can
@@ -60,9 +63,8 @@ name: post-merge-demotion-alert
 # .github/scripts/post-merge-demotion-alert/ tests the report job.
 
 on:
-  # The alert job checks out nothing and runs no action; the report job checks
-  # out main's tip and runs main's own scripts. So no code from the triggering
-  # run executes here. Each
+  # Both jobs check out main's tip and run only main's own scripts, so no code
+  # from the triggering run executes here. Each
   # step reads the event's fields through env and acts only on runs of this
   # repository's main branch.
   workflow_run: # zizmor: ignore[dangerous-triggers]
@@ -122,6 +124,16 @@ jobs:
       # 'true' when a dispatched run stayed red and main recovered since.
       recovered: ${{ steps.file.outputs.recovered }}
     steps:
+      # main's tip, for babysit_postmerge.py --judge-run and the plan script it
+      # runs in a worktree of the failing SHA; full history for that worktree.
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          fetch-depth: 0
+          persist-credentials: false
+
       # A workflow_run event's fields pass through as they are. A dispatch's
       # run id is read back from the API, as attempt 1 of the run: accepted
       # only from github-actions[bot] (actor id 41898282) or a listed human,
@@ -401,6 +413,16 @@ jobs:
               fi
             fi
             newly="$(paste -sd ';' "$now" | sed 's/;/, /g')"
+            # Every newly failing suite outside the merges' affected set or
+            # quarantined: file or comment on each suite's quarantine issue,
+            # and no record. Any other exit (1 a suite demotes, else the judge
+            # failed) files as before.
+            if python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+              --repo "$GITHUB_REPOSITORY" --judge-run "$RUN_ID" --attempt "$RUN_ATTEMPT" \
+              --checks-file "$now" --file-quarantine; then
+              echo "::notice::$RUN_URL failed only in suites outside the merges' affected set or quarantined: not a demotion"
+              exit 0
+            fi
           fi
           # A run's URL names no attempt, so every sighting names its attempt:
           # a later failing attempt of a recorded run is a new sighting.

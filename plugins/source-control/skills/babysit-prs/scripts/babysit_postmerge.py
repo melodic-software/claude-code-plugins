@@ -51,6 +51,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -121,6 +122,38 @@ FAILED_CONCLUSIONS = (
 LANE_AGGREGATE_JOB = "ci-status"
 HYGIENE_AGGREGATE_STEP = "Aggregate hygiene results"
 UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
+# A newly failing check demotes only when one of its failing suites is in the
+# affected set of the merges since the branch's last green full run, or no
+# suite can be named. The unit is the suite (a test file). Only a test leg
+# whose one failed step is its suite step names its suites, from its log: the
+# runner's `FAIL: <suite>` lines, or each pytest invocation's summary. The
+# affected set is scripts/plan-test-lanes.sh, the PR runs' own selector, over
+# the diff from the last green full run's SHA, run in a worktree of the red
+# run's SHA. A suite outside the set, or one with an open quarantine issue,
+# demotes nothing: an out-of-set suite with no such issue gets one
+# (`file_quarantines`). A quarantine issue older than `merge.quarantine-days`
+# no longer excuses its suite, and the merge gate's own suites are never
+# excused. post-merge-demotion-alert.yml applies the same rule through
+# `--judge-run`.
+SUITE_STEPS = {
+    "Run this leg's shell suites": "bash",
+    "Run this leg's Python suites": "python",
+}
+PLAN_SCRIPT = "scripts/plan-test-lanes.sh"
+PLAN_TIMEOUT_SECONDS = 600
+# The merge gate's own suites, by path prefix: their failure always demotes.
+GATE_SUITE_PREFIXES = (
+    "plugins/source-control/skills/babysit-prs/scripts/",
+    "docs/conventions/pr-pipeline/",
+    ".github/actions/",
+    ".github/scripts/pr-merge/",
+    ".github/scripts/post-merge-demotion-alert/",
+    "scripts/post-merge-demotion-alert.",
+)
+QUARANTINE_NOTE = "The quarantined suite failed again: "
+BORN_TRIAGED = "<!-- work-items:born-triaged -->"
+CODEOWNERS_PATHS = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
+_SUITE_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._/-]*")
 
 SIGNAL_SCHEDULE = "schedule"
 SIGNAL_DISPATCH = "dispatch"
@@ -174,6 +207,17 @@ class Rerun:
 
 
 @dataclass(frozen=True)
+class Quarantine:
+    """A failing suite excused from demotion: outside the affected set (no
+    open quarantine issue yet, `file_quarantines` files one) or under an open
+    one that has not expired (it gets a sighting comment)."""
+
+    suite: str
+    run_url: str
+    sha: str
+
+
+@dataclass(frozen=True)
 class MergeState:
     merge: AutoMerge
     verified: bool
@@ -196,6 +240,7 @@ class PostMergeVerdict:
     warnings: tuple[str, ...] = ()
     # The branch judged: the caller's, or the repository's default branch.
     branch: str | None = None
+    quarantines: tuple[Quarantine, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -254,6 +299,10 @@ class PostMergeVerdict:
             ],
             "flakes": list(self.flakes),
             "unattributed": list(self.unattributed),
+            "quarantines": [
+                {"suite": q.suite, "run": q.run_url, "sha": q.sha}
+                for q in self.quarantines
+            ],
             "needsDispatch": self.needs_dispatch,
             "warnings": list(self.warnings),
             "branch": self.branch,
@@ -262,6 +311,14 @@ class PostMergeVerdict:
 
 def demotion_marker(sha: str, signal: str) -> str:
     return f"<!-- babysit-merge-demotion sha={sha} signal={signal} -->"
+
+
+def quarantine_marker(suite: str) -> str:
+    return f"<!-- post-merge-quarantine suite={suite} -->"
+
+
+def is_gate_suite(suite: str) -> bool:
+    return suite.startswith(GATE_SUITE_PREFIXES)
 
 
 # --- GitHub access ------------------------------------------------------------------
@@ -528,6 +585,122 @@ def _full_history_clones() -> list[Path]:
     return roots
 
 
+_LOG_STAMP = re.compile(r"^\ufeff?\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z ?")
+_BASH_START = re.compile(r"=== (\S+) ===")
+_BASH_PASS = re.compile(r"PASS: (\S+)")
+_BASH_FAIL = re.compile(
+    r"FAIL: (\S+)(?: \(no result recorded; the worker never reported\))?"
+)
+_BASH_ADVISORY = re.compile(
+    r"(?:::warning::|##\[warning\])(\S+) failed \(exit \d+\) but is advisory"
+)
+_PYTEST_CALL = re.compile(r"python -m pytest .* -- (\S+)")
+_PYTEST_SUMMARY = re.compile(
+    r"=*\s*(no tests ran|\d+ [a-z]+(?:, \d+ [a-z]+)*) in \d+(?:\.\d+)?s\b.*"
+)
+
+
+def suite_failures(log: str, kind: str) -> frozenset[str] | None:
+    """The suites a test leg's log shows failing, or None when the log cannot
+    name every one: a suite with no result, a discriminating skip (which
+    fails the leg with no suite failed), or no failing suite at all.
+    `kind` is "bash" (scripts/run-plugin-tests.sh) or "python" (one pytest
+    invocation per suite, echoed by `xargs -t`)."""
+    lines = [_LOG_STAMP.sub("", line.rstrip("\r")) for line in log.split("\n")]
+    failed: set[str] = set()
+    if kind == "bash":
+        started: set[str] = set()
+        passed: set[str] = set()
+        advisory: set[str] = set()
+        for line in lines:
+            if line.startswith("DISCRIMINATING SKIP"):
+                return None
+            if m := _BASH_START.fullmatch(line):
+                started.add(m[1])
+            elif m := _BASH_PASS.fullmatch(line):
+                passed.add(m[1])
+            elif m := _BASH_FAIL.fullmatch(line):
+                failed.add(m[1])
+            elif m := _BASH_ADVISORY.match(line):
+                advisory.add(m[1])
+        if started - passed - failed:
+            return None
+        failed -= advisory
+    else:
+        suite: str | None = None
+        outcome: str | None = None
+        for line in [*lines, None]:
+            m = _PYTEST_CALL.fullmatch(line) if line is not None else None
+            if line is None or m:
+                if suite is not None:
+                    if outcome is None:
+                        return None
+                    if outcome == "failed":
+                        failed.add(suite)
+                suite, outcome = (m[1], None) if m else (None, None)
+            elif suite is not None and (s := _PYTEST_SUMMARY.fullmatch(line)):
+                words = {w.split(" ")[-1] for w in s[1].split(", ")}
+                bad = s[1] == "no tests ran" or words & {"failed", "error", "errors"}
+                outcome = "failed" if bad else "passed"
+    if not failed or not all(_SUITE_RE.fullmatch(f) for f in failed):
+        return None
+    return frozenset(failed)
+
+
+def affected_suites(base_sha: str, head_sha: str) -> frozenset[str] | None:
+    """The suites the PR runs' selector picks for the change `base_sha..
+    head_sha`: every suite of `PLAN_SCRIPT`'s bash and Python plans, run in a
+    temporary worktree of `head_sha` in a local full-history clone holding
+    both commits. None when no clone holds them, the tree has no plan
+    script, or the plan fails."""
+    if not (_FULL_SHA.fullmatch(base_sha) and _FULL_SHA.fullmatch(head_sha)):
+        return None
+    root = next(
+        (
+            r
+            for r in policy._clones_holding(head_sha)
+            if policy._git(r, "cat-file", "-e", f"{base_sha}^{{commit}}") is not None
+        ),
+        None,
+    )
+    if root is None:
+        return None
+    with tempfile.TemporaryDirectory(prefix="postmerge-affected-") as tmp:
+        tree = Path(tmp) / "tree"
+        if (
+            policy._git(root, "worktree", "add", "--detach", str(tree), head_sha)
+            is None
+        ):
+            return None
+        try:
+            if not (tree / PLAN_SCRIPT).is_file():
+                return None
+            try:
+                proc = run_command(
+                    ["bash", PLAN_SCRIPT, "--base", base_sha],
+                    allowed_executables=("bash",),
+                    check=False,
+                    cwd=tree,
+                    timeout_seconds=PLAN_TIMEOUT_SECONDS,
+                )
+            except (RuntimeError, ValueError, OSError):
+                return None
+            if proc.returncode != 0:
+                return None
+            suites: set[str] = set()
+            for line in proc.stdout.splitlines():
+                key, _, value = line.partition("=")
+                if key in ("bash_plan", "python_plan"):
+                    try:
+                        legs = json_object(json.loads(value))
+                    except ValueError:
+                        return None
+                    suites |= {str(x) for leg in legs.values() for x in json_array(leg)}
+            return frozenset(suites)
+        finally:
+            policy._git(root, "worktree", "remove", "--force", str(tree))
+
+
 @dataclass
 class _Context:
     owner: str
@@ -546,14 +719,172 @@ class _Context:
     baseline_cache: dict[tuple[str, datetime], frozenset[str] | None] = field(
         default_factory=dict
     )
+    # When quarantine issues are judged, and `merge.quarantine-days` (None:
+    # read at the red run's head the first time it is needed).
+    now: datetime = field(default_factory=lambda: datetime.now(UTC))
+    quarantine_days: int | None = None
+    # The failed jobs of each attempt by check name, and each job's suites.
+    check_jobs: dict[tuple[int, int], dict[str, dict[str, Any]]] = field(
+        default_factory=dict
+    )
+    suite_cache: dict[Any, frozenset[str] | None] = field(default_factory=dict)
+    affected_cache: dict[int, frozenset[str] | None] = field(default_factory=dict)
+    demoting_cache: dict[tuple[int, int, frozenset[str]], frozenset[str]] = field(
+        default_factory=dict
+    )
+    # Each suite's newest open quarantine issue by a filer; None until read.
+    quarantine_issues: dict[str, dict[str, Any]] | None = None
+    # Excused failing suites, by (suite, sighting).
+    quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
 
     def regressions(self, signal: str, run: Run, merged_at: datetime) -> frozenset[str]:
         """The checks failing on red full run `run` that were not failing on
-        the newest completed run of the same event before the merge. With no
+        the newest completed run of the same event before the merge, less the
+        test legs whose every failing suite is excused (`demoting`). With no
         such run, every failing check counts, as before the baseline existed."""
-        failing = self.failing_checks(run.id, 2 if run.id in self.red_on_rerun else 1)
+        attempt = 2 if run.id in self.red_on_rerun else 1
+        failing = self.failing_checks(run.id, attempt)
         baseline = self._baseline(signal, merged_at) if failing else None
-        return failing if baseline is None else failing - baseline
+        new = failing if baseline is None else failing - baseline
+        return self.demoting(run, attempt, new) if new else new
+
+    def demoting(
+        self, run: Run, attempt: int, checks: frozenset[str]
+    ) -> frozenset[str]:
+        """The checks among `checks` (failing on `attempt` of `run`) that
+        demote: any whose suites cannot be named, and any with a failing
+        suite that is a gate suite, is under an expired quarantine issue, or
+        is in the merges' affected set, or with no computable set. Each other
+        failing suite is recorded in `quarantines`."""
+        key = (run.id, attempt, checks)
+        if key in self.demoting_cache:
+            return self.demoting_cache[key]
+        named = {c: self.failing_suites(run.id, attempt, c) for c in checks}
+        demote = {c for c, suites in named.items() if suites is None}
+        judged = {c: suites for c, suites in named.items() if suites is not None}
+        sighting = f"{run.url}/attempts/{attempt}"
+        excused: list[Quarantine] = []
+        if judged:
+            issues = self._quarantine_issues()
+            days = self._quarantine_days(run.head_sha)
+            for check, suites in judged.items():
+                for suite in sorted(suites):
+                    issue = issues.get(suite)
+                    if is_gate_suite(suite):
+                        demote.add(check)
+                    elif issue is not None:
+                        created = _time(issue.get("created_at"))
+                        if self.now >= created + timedelta(days=days):
+                            demote.add(check)
+                        else:
+                            excused.append(Quarantine(suite, sighting, run.head_sha))
+                    elif (affected := self.affected(run)) is None or suite in affected:
+                        demote.add(check)
+                    else:
+                        excused.append(Quarantine(suite, sighting, run.head_sha))
+        for q in excused:
+            self.quarantines[(q.suite, q.run_url)] = q
+        self.demoting_cache[key] = frozenset(demote)
+        return self.demoting_cache[key]
+
+    def failing_suites(
+        self, run_id: int, attempt: int, check: str
+    ) -> frozenset[str] | None:
+        """The suites failing check `check` names, or None: the check is not
+        a test leg whose one failed step is its suite step, or its log cannot
+        be read or name them (`suite_failures`)."""
+        self.failing_checks(run_id, attempt)
+        job = self.check_jobs.get((run_id, attempt), {}).get(check)
+        if job is None:
+            return None
+        failed = {
+            str(s.get("name") or "")
+            for s in map(json_object, json_array(job.get("steps")))
+            if s.get("conclusion") in FAILED_CONCLUSIONS
+        }
+        kind = SUITE_STEPS.get(next(iter(failed))) if len(failed) == 1 else None
+        job_id = job.get("id")
+        if kind is None or not isinstance(job_id, int):
+            return None
+        if job_id not in self.suite_cache:
+            try:
+                proc = gh_capture(
+                    [
+                        "api",
+                        f"repos/{self.owner}/{self.name}/actions/jobs/{job_id}/logs",
+                    ]
+                )
+            except (RuntimeError, ValueError, OSError):
+                proc = None
+            self.suite_cache[job_id] = (
+                suite_failures(proc.stdout or "", kind)
+                if proc is not None and proc.returncode == 0
+                else None
+            )
+        return self.suite_cache[job_id]
+
+    def affected(self, run: Run) -> frozenset[str] | None:
+        """The affected set of the merges between the branch's newest green
+        full run before `run` and `run` itself (`affected_suites`), or None
+        when there is no such run or the set cannot be computed."""
+        if run.id not in self.affected_cache:
+            created = quote(
+                f"<{run.created_at.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}",
+                safe="",
+            )
+            greens: list[Run] = []
+            for event in FULL_RUN_EVENTS.values():
+                listing = _read(
+                    [
+                        "api",
+                        f"repos/{self.owner}/{self.name}/actions/workflows/{FULL_RUN_WORKFLOW}"
+                        f"/runs?event={event}&branch={quote(self.branch, safe='')}"
+                        f"&status=success&created={created}&per_page=20",
+                    ],
+                    f"{FULL_RUN_WORKFLOW} {event} green runs",
+                )
+                greens += [
+                    r
+                    for r in map(
+                        Run.from_api,
+                        json_array(json_object(listing).get("workflow_runs")),
+                    )
+                    if r.conclusion == "success"
+                    and r.head_branch == self.branch
+                    and r.created_at < run.created_at
+                    and r.head_sha != run.head_sha
+                ]
+            green = max(greens, key=lambda r: r.created_at, default=None)
+            self.affected_cache[run.id] = (
+                None if green is None else affected_suites(green.head_sha, run.head_sha)
+            )
+        return self.affected_cache[run.id]
+
+    def _quarantine_days(self, sha: str) -> int:
+        if self.quarantine_days is None:
+            self.quarantine_days = policy.read_config_at(
+                f"{self.owner}/{self.name}", sha
+            ).quarantine_days
+        return self.quarantine_days
+
+    def _quarantine_issues(self) -> dict[str, dict[str, Any]]:
+        """Each suite's newest open quarantine issue that a filer opened
+        (the agent identity or github-actions[bot]): a quarantine anyone
+        else opens counts for nothing."""
+        if self.quarantine_issues is None:
+            found: dict[str, dict[str, Any]] = {}
+            for issue in _demotion_issues(
+                self.owner, self.name, (self.identity, *DEMOTION_FILERS)
+            ):
+                suite = _quarantined_suite(issue.get("body"))
+                if suite is None or issue.get("state") != "open":
+                    continue
+                if suite not in found or str(issue.get("created_at")) > str(
+                    found[suite].get("created_at")
+                ):
+                    found[suite] = issue
+            self.quarantine_issues = found
+        return self.quarantine_issues
 
     def _baseline(self, signal: str, before: datetime) -> frozenset[str] | None:
         key = (signal, before)
@@ -608,10 +939,12 @@ class _Context:
             checks: set[str] = (
                 set() if jobs else {f"{FULL_RUN_WORKFLOW}: no failed jobs"}
             )
+            by_name: dict[str, dict[str, Any]] = {}
             for job in jobs:
                 name = str(job.get("name") or "")
                 if name == LANE_AGGREGATE_JOB and len(jobs) > 1:
                     continue
+                by_name[name] = job
                 gates = self._failed_gates(job.get("id"))
                 steps = {
                     str(s.get("name") or "")
@@ -621,6 +954,7 @@ class _Context:
                 if not gates or steps - {HYGIENE_AGGREGATE_STEP}:
                     checks.add(name)
                 checks |= {f"{name}: {g}" for g in gates - UNATTRIBUTABLE_GATES}
+            self.check_jobs[key] = by_name
             self.checks_cache[key] = frozenset(checks)
         return self.checks_cache[key]
 
@@ -1023,6 +1357,7 @@ def check(
     pinned_sha: Callable[[AutoMerge], str | None] | None = None,
     branch: str | None = None,
     lane_merges_only: bool = False,
+    quarantine_days: int | None = None,
 ) -> PostMergeVerdict:
     """Judge every auto-merge into `branch` since `merged_since`; with no
     `branch`, the repository's default branch, read once from the repos API.
@@ -1076,7 +1411,14 @@ def check(
             _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor),
             key=lambda r: r.created_at,
         )
-        ctx = _Context(owner, name, identity, branch=branch)
+        ctx = _Context(
+            owner,
+            name,
+            identity,
+            branch=branch,
+            now=now,
+            quarantine_days=quarantine_days,
+        )
         tally = _Tally()
         states = tuple(
             _judge(
@@ -1101,6 +1443,7 @@ def check(
         unattributed=tuple(tally.unattributed),
         warnings=tuple(warnings),
         branch=branch,
+        quarantines=tuple(ctx.quarantines.values()),
     )
 
 
@@ -1374,6 +1717,15 @@ def _first_line(text: Any) -> str:
     return str(text or "").lstrip().split("\n", 1)[0].strip()
 
 
+_QUARANTINE_RE = re.compile(r"<!-- post-merge-quarantine suite=(\S+) -->")
+
+
+def _quarantined_suite(body: Any) -> str | None:
+    """The suite a quarantine issue's first line names, or None."""
+    match = _QUARANTINE_RE.fullmatch(_first_line(body))
+    return match[1] if match and _SUITE_RE.fullmatch(match[1]) else None
+
+
 def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
     merge = failure.merge
     others = ", ".join(f"#{m.number} (`{m.merge_commit}`)" for m in also)
@@ -1450,6 +1802,183 @@ def _same_run(failure: Failure, body: Any) -> bool:
     return any(line.startswith(prefix) for line in _lines(body))
 
 
+def _codeowners_pattern(pattern: str) -> re.Pattern[str]:
+    """A CODEOWNERS pattern as a regex over a repository path, with
+    gitignore's rules: a leading or inner `/` anchors it at the root, `**`
+    spans directories, `*` and `?` do not, and a pattern also matches every
+    path under a directory it names."""
+    anchored = "/" in pattern.rstrip("/")
+    body = pattern.strip("/")
+    out = ""
+    i = 0
+    while i < len(body):
+        if body.startswith("**", i):
+            out += ".*"
+            i += 2
+        elif body[i] == "*":
+            out += "[^/]*"
+            i += 1
+        elif body[i] == "?":
+            out += "[^/]"
+            i += 1
+        else:
+            out += re.escape(body[i])
+            i += 1
+    return re.compile(("" if anchored else "(?:.*/)?") + out + "(?:/.*)?")
+
+
+def suite_owner(text: str, suite: str) -> str | None:
+    """The first user login the last CODEOWNERS rule matching `suite`
+    names, or None: no rule matches, the rule names no owner, or only teams
+    and emails, which an issue cannot be assigned to."""
+    owners: list[str] | None = None
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        pattern, *names = line.split()
+        if _codeowners_pattern(pattern).fullmatch(suite):
+            owners = names
+    return next(
+        (o[1:] for o in owners or () if o.startswith("@") and "/" not in o), None
+    )
+
+
+def _codeowners(owner: str, name: str, sha: str) -> str:
+    """The CODEOWNERS file GitHub reads at `sha`, or "" when none reads."""
+    for path in CODEOWNERS_PATHS:
+        try:
+            proc = gh_capture(
+                [
+                    "api",
+                    "-H",
+                    "Accept: application/vnd.github.raw+json",
+                    f"repos/{owner}/{name}/contents/{path}?ref={sha}",
+                ]
+            )
+        except (RuntimeError, ValueError, OSError):
+            return ""
+        if proc.returncode == 0:
+            return proc.stdout or ""
+    return ""
+
+
+def _quarantine_body(q: Quarantine, branch: str, days: int) -> str:
+    return "\n".join(
+        [
+            quarantine_marker(q.suite),
+            "",
+            f"The suite `{q.suite}` failed on {branch} outside the affected set of the",
+            "merges since the last green full run, so no merge caused it and it demotes",
+            "nothing. It is quarantined: it keeps running, and while this issue is open its",
+            f"failures demote no unattended merge, for at most {days} days from when this",
+            "issue was filed (`merge.quarantine-days`); after that they demote again. Fix",
+            "the suite, then close this issue.",
+            "",
+            f"- Suite: `{q.suite}`",
+            f"- Failing run: {q.run_url}",
+            f"- Main at the failing run: `{q.sha}`",
+            "",
+            BORN_TRIAGED,
+        ]
+    )
+
+
+def file_quarantines(
+    repo: str,
+    quarantines: Iterable[Quarantine],
+    *,
+    agent_identity: str,
+    branch: str,
+    days: int,
+    report: dict[str, Any],
+    label: str | None = None,
+) -> None:
+    """File one quarantine issue per suite with no open one (needs-human,
+    assigned to the suite's CODEOWNERS user when a rule names one), or
+    comment each new sighting on the open one. Only the filers' issues and
+    comments count. Appends issue numbers to `report["issues"]` and
+    `report["comments"]`; raises `PostMergeReadError` or
+    `PostMergeWriteError`."""
+    owner, name = _split_repo(repo)
+    filers = (agent_identity, *DEMOTION_FILERS)
+    keys = {_login_key(f) for f in filers}
+    open_issues: dict[str, dict[str, Any]] = {}
+    for issue in _demotion_issues(owner, name, filers):
+        suite = _quarantined_suite(issue.get("body"))
+        if suite is not None and issue.get("state") == "open":
+            open_issues.setdefault(suite, issue)
+    role_label = label or _role_label(owner, name)
+    codeowners: dict[str, str] = {}
+    for q in quarantines:
+        if not _SUITE_RE.fullmatch(q.suite):
+            continue
+        issue = open_issues.get(q.suite)
+        if issue is None:
+            if q.sha not in codeowners:
+                codeowners[q.sha] = _codeowners(owner, name, q.sha)
+            assignee = suite_owner(codeowners[q.sha], q.suite)
+            body = _quarantine_body(q, branch, days)
+            args = [
+                "api",
+                "-X",
+                "POST",
+                f"repos/{owner}/{name}/issues",
+                "-f",
+                f"title=Quarantined suite fails on {branch}: {q.suite}",
+                "-f",
+                f"body={body}",
+                "-f",
+                f"labels[]={role_label}",
+            ]
+            try:
+                filed = _write(
+                    [*args, *(["-f", f"assignees[]={assignee}"] if assignee else [])],
+                    f"file the quarantine issue for {q.suite}",
+                )
+            except PostMergeWriteError:
+                if not assignee:
+                    raise
+                # An owner the repository cannot assign: file it unassigned.
+                filed = _write(args, f"file the quarantine issue for {q.suite}")
+            number = json_object(filed).get("number")
+            if not isinstance(number, int):
+                raise PostMergeWriteError(
+                    "the filed quarantine issue carried no number"
+                )
+            report["issues"].append(number)
+            open_issues[q.suite] = {"number": number, "body": body, "notes": []}
+            continue
+        number = issue.get("number")
+        if "notes" not in issue:
+            issue["notes"] = [
+                c.get("body")
+                for c in _paginated(
+                    f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
+                    f"#{number} comments",
+                )
+                if _login_key(json_object(c.get("user")).get("login")) in keys
+            ]
+        note = f"{QUARANTINE_NOTE}{q.run_url}"
+        if f"- Failing run: {q.run_url}" in _lines(issue.get("body")) or any(
+            note in _lines(b) for b in issue["notes"]
+        ):
+            continue
+        _write(
+            [
+                "api",
+                "-X",
+                "POST",
+                f"repos/{owner}/{name}/issues/{number}/comments",
+                "-f",
+                f"body={note}",
+            ],
+            f"comment on #{number}",
+        )
+        report["comments"].append(number)
+        issue["notes"].append(note)
+
+
 def remediate(
     repo: str,
     verdict: PostMergeVerdict,
@@ -1471,12 +2000,28 @@ def remediate(
         "issues": [],
         "comments": [],
         "reopened": [],
+        "quarantine": {"issues": [], "comments": []},
         "telemetry": {"demotion_events": 0},
         "errors": [],
     }
+    owner, name = _split_repo(repo)
+    if verdict.quarantines:
+        try:
+            file_quarantines(
+                repo,
+                verdict.quarantines,
+                agent_identity=agent_identity,
+                branch=branch or verdict.branch or "the default branch",
+                days=policy.read_config_at(
+                    repo, verdict.quarantines[0].sha
+                ).quarantine_days,
+                report=report["quarantine"],
+                label=label,
+            )
+        except (PostMergeReadError, PostMergeWriteError, policy.PolicyReadError) as exc:
+            report["errors"].append(f"quarantine issue: {exc}")
     if not verdict.failures:
         return report
-    owner, name = _split_repo(repo)
     try:
         # The queue is the judged branch's unless the caller names another.
         queue_branch = branch or verdict.branch
@@ -1855,6 +2400,70 @@ def _preflight(repo: str, identity: str | None, self_logins: Collection[str]) ->
     return 2 if refusal else 0
 
 
+def _judge_run(args: argparse.Namespace) -> int:
+    """`--judge-run`: which of one red full run's newly failing checks demote
+    (`_Context.demoting`), with the identity read from the default branch
+    when not given. Exit 0 none, 1 some, 2 a refused identity or no check,
+    3 unreadable, 4 a quarantine write failed. Writes only with
+    --file-quarantine."""
+    report: dict[str, Any] = {"ok": False}
+    try:
+        with open(args.checks_file, encoding="utf-8") as handle:
+            checks = frozenset(line.strip() for line in handle if line.strip())
+        identity = args.agent_identity or policy.resolve(args.repo).agent_identity
+        refusal = policy.resolve_identity(identity, identity, args.self_login).reason
+        if refusal or not identity or not checks:
+            report["error"] = refusal or "no agent identity or no checks"
+            code = 2
+        else:
+            owner, name = _split_repo(args.repo)
+            run = Run.from_api(
+                _read(
+                    [
+                        "api",
+                        f"repos/{owner}/{name}/actions/runs/{args.judge_run}"
+                        f"/attempts/{args.attempt}",
+                    ],
+                    f"run {args.judge_run}",
+                )
+            )
+            ctx = _Context(
+                owner, name, _login_key(identity), branch=run.head_branch or ""
+            )
+            demoting = ctx.demoting(run, args.attempt, checks)
+            quarantines = list(ctx.quarantines.values())
+            report = {
+                "ok": not demoting,
+                "run": f"{run.url}/attempts/{args.attempt}",
+                "demoting": sorted(demoting),
+                "quarantines": [
+                    {"suite": q.suite, "run": q.run_url, "sha": q.sha}
+                    for q in quarantines
+                ],
+            }
+            code = EXIT_FAILURE if demoting else 0
+            if args.file_quarantine and quarantines:
+                report["quarantine"] = {"issues": [], "comments": []}
+                try:
+                    file_quarantines(
+                        args.repo,
+                        quarantines,
+                        agent_identity=identity,
+                        branch=ctx.branch,
+                        days=ctx._quarantine_days(run.head_sha),
+                        report=report["quarantine"],
+                    )
+                except (PostMergeReadError, PostMergeWriteError) as exc:
+                    report["error"] = f"quarantine issue: {exc}"
+                    code = code or EXIT_WRITE_FAILED
+    except (OSError, PostMergeReadError, policy.PolicyReadError) as exc:
+        report = {"ok": False, "error": f"unreadable: {exc}"}
+        code = EXIT_UNREADABLE
+    json.dump(report, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+    return code
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="babysit_postmerge.py",
@@ -1906,6 +2515,23 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     mode.add_argument(
+        "--judge-run",
+        type=int,
+        metavar="RUN_ID",
+        help=(
+            "judge one red full run's newly failing checks (--checks-file, one "
+            "per line) by suite: exit 0 when none demotes, 1 when one does "
+            "(post-merge-demotion-alert.yml); read-only unless --file-quarantine"
+        ),
+    )
+    parser.add_argument("--attempt", type=int, default=1, help="with --judge-run")
+    parser.add_argument("--checks-file", help="with --judge-run")
+    parser.add_argument(
+        "--file-quarantine",
+        action="store_true",
+        help="with --judge-run: file or comment on each excused suite's quarantine issue",
+    )
+    mode.add_argument(
         "--preflight",
         action="store_true",
         help=(
@@ -1917,8 +2543,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.preflight:
         return _preflight(args.repo, args.agent_identity, args.self_login)
+    if args.file_quarantine and args.judge_run is None:
+        parser.error("--file-quarantine needs --judge-run")
+    if args.judge_run is not None:
+        if not args.checks_file:
+            parser.error("--judge-run needs --checks-file")
+        return _judge_run(args)
     if args.agent_identity is None:
-        parser.error("--agent-identity is required except with --preflight")
+        parser.error(
+            "--agent-identity is required except with --preflight or --judge-run"
+        )
 
     # Only a dedicated App identity can be judged, and only that identity may
     # remediate: its dispatches, re-runs and filed issues are what the check
