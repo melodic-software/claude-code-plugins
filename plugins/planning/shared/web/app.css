@@ -547,7 +547,7 @@
 }
 .app .vf-ta { resize: none; min-block-size: 64px; line-height: 1.5; overflow-y: hidden; }
 .app :is(.vf-ta, .vf-input)::placeholder { color: var(--faint); }
-.app :is(.vf-ta, .vf-input):focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.app :is(.vf-ta, .vf-input):focus-visible { outline: none; border-color: var(--accent-text); /* 4.5:1 on every surface, so the edge keeps 3:1 (1.4.11) */ box-shadow: 0 0 0 3px var(--accent-soft); }
 .app .vf-crow { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-block-start: 8px; }
 .app .vf-hint { margin-inline-end: auto; color: var(--faint); font-size: 11.5px; }
 /* the key hint ("Ctrl + Enter to send") is one line, cut with an ellipsis where its row is short; it takes the row's free
@@ -629,15 +629,22 @@
   display: grid; place-items: center; box-shadow: 0 0 0 2px var(--bg);
 }
 .app .vf-fab-badge:empty { display: none; }
+/* The chat is a full-height column on the right, under the top bar. From 1100px wide the page makes room for it, so the
+   question and the chat read side by side; narrower, it overlays the page like a drawer (and app.js makes it modal). */
 .app .vf-chat {
-  position: absolute; z-index: 31; inset-inline-end: 20px; inset-block-end: calc(84px + var(--tabs-h));
-  inline-size: min(380px, calc(100% - 40px)); block-size: min(560px, calc(100% - 120px));
+  position: absolute; z-index: 31; inset-block: 48px 0; inset-inline-end: 0; inline-size: min(380px, 100%);
   display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto auto;
-  background: var(--pane); border: 1px solid var(--line-strong); border-radius: var(--r-lg); box-shadow: var(--shadow-pop);
-  transform-origin: bottom right;
+  background: var(--pane); border-inline-start: 1px solid var(--line-strong); box-shadow: var(--shadow-pop);
+  transform-origin: right center;
+}
+/* the panel's x closes it, so the chat button steps aside while it is open */
+.app:has(> .vf-chat:not([hidden])) > .vf-fab { display: none; }
+@media (min-width: 1100px) {
+  .app .vf-chat { box-shadow: none; }
+  .app:not([data-waiting]):has(> .vf-chat:not([hidden])) > .vf-body { margin-inline-end: 380px; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .app .vf-chat:not([hidden]) { animation: vf-pop-in 250ms var(--ease-out) both; }
+  .app .vf-chat:not([hidden]) { animation: vf-drawer-in 300ms var(--ease-drawer) both; }
 }
 .app .vf-chat-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 10px 14px; border-block-end: 1px solid var(--line); }
 .app .vf-chat-title { display: flex; align-items: baseline; gap: 8px; }
@@ -809,10 +816,10 @@
   }
   .app .vf-fab .vf-ico { inline-size: 22px; block-size: 22px; }
   .app .vf-fab-badge { inset-block-start: 6px; inset-inline-end: 8px; }
+  /* the chat takes the whole screen */
   .app .vf-chat {
-    inset-inline: 0; inset-block-end: 0; inline-size: auto; block-size: 80%;
-    border-radius: var(--r-lg) var(--r-lg) 0 0; border-block-end: 0; padding-block-end: env(safe-area-inset-bottom);
-    transform-origin: bottom center;
+    inset: 0; inline-size: auto; border-inline-start: 0;
+    padding-block: env(safe-area-inset-top) env(safe-area-inset-bottom); transform-origin: bottom center;
   }
   .app .vf-pop { inline-size: min(340px, calc(100% - 16px)); }
 
@@ -1223,6 +1230,9 @@
   .app .vf-composer > .vf-crow { margin: 0; flex: none; }
   .app .vf-composer .vf-hint { display: none; }
   .app .vf-fab { inline-size: 44px; block-size: 44px; inset-block-end: calc(8px + var(--tabs-h)); }
+}
+@media (max-height: 560px) and (min-width: 721px) {
+  .app .vf-chat { inset-block-start: 44px; } /* under the shorter top bar */
 }
 @media (max-height: 560px) and (max-width: 720px) {
   .app { --tabs-h: calc(48px + env(safe-area-inset-bottom)); }
@@ -2001,7 +2011,10 @@
   font-weight: 600; overflow-wrap: anywhere; box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
 .app .vf-mention-me { color: var(--brass-text); background: var(--brass-soft); }
-.app .vf-msg-mine .vf-mention { color: inherit; background: color-mix(in oklch, var(--on-accent) 16%, transparent); }
+/* in a chat bubble an outline, not a fill: the text keeps its contrast on the bubble (accent-text on any surface, on-accent
+   on the accent) */
+.app .vf-bubble .vf-mention { background: none; box-shadow: inset 0 0 0 1px color-mix(in oklch, currentColor 45%, transparent); }
+.app .vf-msg-mine .vf-mention { color: inherit; }
 .app .vf-mentions { z-index: 60; inline-size: 260px; padding: 4px; display: grid; gap: 1px; grid-template-columns: minmax(0, 1fr); align-content: start; overflow-y: auto; overscroll-behavior: contain; }
 .app .vf-mentions:not([hidden]) { animation: none; } /* it follows every keystroke: no entrance */
 .app .vf-mopt { display: flex; align-items: center; gap: 8px; min-block-size: 36px; padding: 4px 8px; border-radius: var(--r-sm); cursor: pointer; }
@@ -2294,7 +2307,6 @@
   /* an on-screen keyboard is up: the tab bar steps aside so the field and its send button keep the room */
   .app[data-kb] { --tabs-h: 0px; }
   .app[data-kb] .vf-tabs, .app[data-kb] .vf-fab:not([aria-expanded="true"]) { display: none; }
-  .app[data-kb] .vf-chat { block-size: calc(100% - 8px); border-radius: var(--r-lg) var(--r-lg) 0 0; }
   /* the keyboard covers the home indicator, so a sheet sits right on the keyboard without the bottom safe-area inset */
   .app[data-kb] :is(.vf-chat, .vf-drawer, .vf-pop.vf-panel) { padding-block-end: 0; }
   .app[data-kb] :is(.vf-drawer, .vf-pop.vf-panel) { max-block-size: calc(100% - 8px); }
@@ -2620,7 +2632,11 @@
 .app .vf-proto-tile img { inline-size: 100%; block-size: 100%; object-fit: cover; object-position: top; }
 .app .vf-proto-info { display: grid; gap: 6px; min-inline-size: 0; }
 .app .vf-proto-meta { margin: 0; color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
-.app .vf-proto-open { justify-self: start; text-decoration: none; }
+.app .vf-proto-open { flex: none; text-decoration: none; }
+.app .vf-proto-go { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-inline-size: 0; }
+.app .vf-proto-go[hidden], .app .vf-proto-look[hidden] { display: none; }
+.app .vf-proto-look { flex: 1 1 16ch; min-inline-size: 0; margin: 0; font-size: 12.5px; overflow-wrap: anywhere; }
+.app .vf-proto-look-h, .vp-app .vp-look-h { font-weight: 600; }
 .app .vf-proto-versions { display: grid; gap: 8px; }
 .app .vf-proto-versions[hidden] { display: none; }
 .app .vf-proto-vline { display: grid; gap: 4px; }
@@ -2641,9 +2657,13 @@
 .vp-app .vp-live { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
 .vp-app .vp-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px 0; }
 .vp-app .vp-bar[hidden], .vp-app .vp-hint[hidden], .vp-app .vp-body[hidden] { display: none; }
-.vp-app .vp-tabs { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--sunk); }
-.vp-app .vp-tab { display: inline-flex; align-items: center; gap: 6px; min-block-size: 32px; }
-.vp-app .vp-tab[aria-selected="true"] { background: var(--raise); color: var(--text); box-shadow: 0 1px 2px oklch(0 0 none / 0.25); }
+.vp-app .vp-tabs, .vp-app .vp-viewseg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--sunk); }
+.vp-app .vp-tab, .vp-app .vp-viewbtn { display: inline-flex; align-items: center; gap: 6px; min-block-size: 32px; }
+.vp-app .vp-tab[aria-selected="true"], .vp-app .vp-viewbtn[aria-pressed="true"] { background: var(--raise); color: var(--text); box-shadow: 0 1px 2px oklch(0 0 none / 0.25); }
+.vp-app .vp-look { flex-basis: 100%; display: grid; gap: 2px; margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.vp-app .vp-look[hidden], .vp-app .vp-viewseg[hidden], .vp-app .vp-look-q:empty, .vp-app .vp-look-v:empty { display: none; }
+.vp-app .vp-shot { display: grid; gap: 4px; margin: 0 0 12px; }
+.vp-app .vp-shot-cap { justify-self: center; color: var(--muted); font-size: 12px; }
 .vp-app .vp-tab-n { min-inline-size: 18px; padding-inline: 5px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-text); font-size: 11px; text-align: center; }
 .vp-app .vp-annotate[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-text); border-color: color-mix(in oklch, var(--accent) 60%, transparent); }
 .vp-app .vp-choose[aria-pressed="true"] { background: var(--brass); color: var(--on-brass); }
@@ -2699,7 +2719,7 @@
   .vp-app .vp-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 58fr) minmax(0, 42fr); }
   .vp-app .vp-side { border-inline-start: 0; border-block-start: 1px solid var(--line); }
   .vp-app .vp-stage[data-split="true"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
-  .vp-app .vp-tab, .vp-app .vp-bar .vf-btn { min-block-size: 40px; }
+  .vp-app .vp-tab, .vp-app .vp-viewbtn, .vp-app .vp-bar .vf-btn { min-block-size: 40px; }
   .vp-app .vp-choose { flex-basis: 100%; }
 }
 /* The host's review view in the Inbox, and the Ask boxes' Everyone / Just me. */
