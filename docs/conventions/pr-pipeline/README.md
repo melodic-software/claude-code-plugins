@@ -1589,7 +1589,10 @@ the log and step summary carry one line
 annotation titled `admission paused`). Under it, `admission_room` is how many more issues may be
 admitted now. The queued cap gates only new `agent-ready` labels, never a run: a queued issue
 leaves the count only by running, so pausing runs on it would hold the count shut. A queued read
-that fails leaves admissions open (`admission_basis: fail-open`) and changes no run pause. The
+that fails leaves admissions open (`admission_basis: fail-open`) and changes no run pause. A
+search that answers `incomplete_results: true` (a degraded search can answer a false empty) is
+unknown, not failed: on or after `pause-from` admissions pause (`admission_basis` and
+`admission_reason` `search-incomplete`), with a `check-wip-cap` warning, and no run pause changes. The
 search lists at most 1,000 issues: past that, the issues it counted but did not list count as
 queued, and admissions pause (`queued_truncated: true`).
 
@@ -1643,8 +1646,8 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 | `pause_from`, `paused` | The pause date and whether the lane pauses now. |
 | `pause_reason` | `wip`, `held-cap` or `wip,held-cap` while paused; null otherwise. |
 | `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
-| `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
-| `admission_basis` | `read`, or `fail-open` when the queued count could not be read. |
+| `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued` or `search-incomplete` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
+| `admission_basis` | `read`; `fail-open` when the queued count could not be read; `search-incomplete` when a search answered `incomplete_results: true`. |
 
 ## Adoption
 

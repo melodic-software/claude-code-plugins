@@ -112,7 +112,33 @@ test("the open listing pages until a short page", async () => {
 
 test("a search that answers incomplete results is an unknown read", async () => {
   const reads = await read({ open: [pr()], merged: 0, admitted: 3, incomplete: true });
-  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null });
+  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null, searchIncomplete: true });
+});
+
+// During a GitHub search incident the API answered total_count 0 with
+// incomplete_results true for a repository with about 600 open issues
+// (2026-10-22). A failed read keeps admissions open; an incomplete one is
+// evidence the search itself is degraded, so past pause-from it closes them.
+test("an incomplete search answer closes new admissions past pause-from, and only then", async () => {
+  const reads = await read({ open: [], merged: 0, admitted: 0, queued: [], incomplete: true });
+  const closed = status(reads, { "pause-from": "2026-10-01" });
+  assert.equal(closed.admission_open, false);
+  assert.equal(closed.admission_room, 0);
+  assert.equal(closed.admission_reason, "search-incomplete");
+  assert.equal(closed.admission_basis, "search-incomplete");
+  assert.equal(closed.paused, false);
+  const unset = status(reads);
+  assert.equal(unset.admission_open, true);
+  assert.equal(unset.admission_room, null);
+  assert.equal(unset.admission_basis, "search-incomplete");
+});
+
+test("a search answer with no incomplete_results field is a failed read, not an incomplete one", async () => {
+  const reads = await read({ open: [pr()], merged: 48, queued: null });
+  assert.equal(reads.searchIncomplete, false);
+  const result = status(reads, { "pause-from": "2026-10-01" });
+  assert.equal(result.admission_open, true);
+  assert.equal(result.admission_basis, "fail-open");
 });
 
 test("no read is made once the rate limit has nothing left; those reads are unknown", async () => {
@@ -630,6 +656,14 @@ test("main pauses new admissions over this repository's queued cap past pause-fr
   const under = await runMain({ open, merged: 24, queued: [] }, {}, pastConfig());
   assert.equal(under.admissionOpen, "true");
   assert.ok(!under.logs.some((l) => l.includes("admission paused")));
+});
+
+test("main closes new admissions and warns when the search answers incomplete results", async () => {
+  const result = await runMain({ open: [], merged: 0, admitted: 0, queued: [], incomplete: true }, {}, pastConfig());
+  assert.equal(result.admissionOpen, "false");
+  assert.equal(result.wip.admission_basis, "search-incomplete");
+  const warning = result.logs.find((line) => line.includes("search-incomplete"));
+  assert.ok(warning?.startsWith("::warning title=check-wip-cap::"), result.logs.join("\n"));
 });
 
 test("a queued read that fails keeps the run's read basis and leaves admissions open", async () => {
