@@ -345,6 +345,9 @@ class FakeGh:
             return completed({"permission": value})
         if endpoint.startswith(f"repos/{REPO}/contents/"):
             return completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
+        if endpoint.startswith(f"repos/{REPO}/contents?ref="):
+            # A readable tree without the config: every config key at its default.
+            return completed([])
         raise AssertionError(f"unexpected gh call: {args}")
 
     def _graphql(self, joined: str) -> subprocess.CompletedProcess[str]:

@@ -19,7 +19,9 @@ pinned SHA to read back; any other enqueue verifies on the dispatch and canary
 runs alone. A red full run is attributed after one `rerun-failed-jobs` the
 wrapper triggers: red again is a failure, green is a flake. A red full run the
 pr-merge lane dispatched gets that one re-run from pr-merge.yml's own
-`post-merge-dispatch` job, which records it (`_Context.lane_rerun`). It counts only
+`post-merge-dispatch` job, which records it (`_Context.lane_rerun`); with
+`--lane-merges-only` a recent one gets it when no judged merge covers it,
+if a newly failing check demotes (`_lane_reruns`). It counts only
 for checks that were not already failing on the newest completed run of the
 same event before the merge (`_Context.regressions`); with none left it is
 reported as unattributed and passes like a green run.
@@ -92,6 +94,14 @@ LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
 # the re-run record.
 LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
 LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
+# With `--lane-merges-only`, a red attempt 1 of a lane-dispatched full run
+# created within red-main.confirm-wait-minutes plus this, with a newly failing
+# check that demotes (`_Context.regressions`), gets that re-run even when no
+# lane merge it covers is judged (`_Context.lane_rerun_lookback`).
+# post-merge-demotion-alert.yml waits confirm-wait-minutes after such a run
+# ends for it, and a later re-run changes no filing; this covers the run
+# itself (about 20 minutes) with margin (judgment).
+FULL_RUN_ALLOWANCE = timedelta(minutes=50)
 DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
 HUMAN_GATED_ROLE = "human-gated"
@@ -781,6 +791,9 @@ class _Context:
     # read at the red run's head the first time it is needed).
     now: datetime = field(default_factory=lambda: datetime.now(UTC))
     quarantine_days: int | None = None
+    # `red-main.confirm-wait-minutes` plus FULL_RUN_ALLOWANCE (None: read at
+    # the branch tip the first time it is needed).
+    lane_rerun_window: timedelta | None = None
     # The failed jobs of each attempt by check name, and each job's suites.
     check_jobs: dict[tuple[int, int], dict[str, dict[str, Any]]] = field(
         default_factory=dict
@@ -979,6 +992,14 @@ class _Context:
                 f"{self.owner}/{self.name}", sha
             ).quarantine_days
         return self.quarantine_days
+
+    def lane_rerun_lookback(self) -> timedelta:
+        if self.lane_rerun_window is None:
+            wait = policy.read_config_at(
+                f"{self.owner}/{self.name}", self._branch_tip()
+            ).confirm_wait_minutes
+            self.lane_rerun_window = timedelta(minutes=wait) + FULL_RUN_ALLOWANCE
+        return self.lane_rerun_window
 
     def _quarantine_issues(self) -> dict[str, dict[str, Any]]:
         """Each suite's newest open quarantine issue that a filer opened
@@ -1468,6 +1489,41 @@ def _judge(
     return MergeState(merge, verified, tuple(pending), dispatch_covered=bool(own))
 
 
+def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
+    """Mark each red attempt 1 of a lane-dispatched full run created within
+    `_Context.lane_rerun_lookback`, with a newly failing check that demotes, for the
+    lane's one re-run, newest first after any a judged merge marked. A run
+    at attempt 2 is never marked again. The probe files no quarantine (the
+    alert's `--judge-run` does), and a failed read is a warning, not an
+    unreadable verdict."""
+    excused = dict(ctx.quarantines)
+    try:
+        runs = _runs(
+            ctx.owner,
+            ctx.name,
+            FULL_RUN_WORKFLOW,
+            "workflow_dispatch",
+            ctx.branch,
+            now - ctx.lane_rerun_lookback(),
+        )
+        for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
+            if (
+                run.id not in tally.reruns
+                and run.attempt == 1
+                and ctx.outcome(run, attributable=True)[0] == RERUN
+                and ctx.lane_dispatched(run)
+                and ctx.regressions(SIGNAL_DISPATCH, run, run.created_at)
+            ):
+                tally.reruns[run.id] = Rerun(
+                    run.id, run.url, SIGNAL_DISPATCH, lane=True
+                )
+    except (PostMergeReadError, policy.PolicyReadError) as exc:
+        return [f"lane-rerun-unreadable: {exc}"]
+    finally:
+        ctx.quarantines = excused
+    return []
+
+
 def check(
     repo: str,
     *,
@@ -1511,8 +1567,24 @@ def check(
             elif derived is not None:
                 merges.append(derived)
         merges.sort(key=lambda m: (str(m.merged_at), m.number))
+        ctx = _Context(
+            owner,
+            name,
+            identity,
+            branch=branch,
+            now=now,
+            quarantine_days=quarantine_days,
+        )
+        tally = _Tally()
         if not merges:
-            return PostMergeVerdict(True, warnings=tuple(warnings), branch=branch)
+            if lane_merges_only:
+                warnings += _lane_reruns(ctx, now, tally)
+            return PostMergeVerdict(
+                True,
+                reruns=tuple(tally.reruns.values()),
+                warnings=tuple(warnings),
+                branch=branch,
+            )
         floor = (
             min(_time(m.merged_at) for m in merges if m.merged_at)
             if any(m.merged_at for m in merges)
@@ -1532,15 +1604,6 @@ def check(
             _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor),
             key=lambda r: r.created_at,
         )
-        ctx = _Context(
-            owner,
-            name,
-            identity,
-            branch=branch,
-            now=now,
-            quarantine_days=quarantine_days,
-        )
-        tally = _Tally()
         states = tuple(
             _judge(
                 merge,
@@ -1553,6 +1616,8 @@ def check(
             )
             for merge in merges
         )
+        if lane_merges_only:
+            warnings += _lane_reruns(ctx, now, tally)
     except (PostMergeReadError, policy.PolicyReadError) as exc:
         return PostMergeVerdict(False, f"unreadable: {exc}")
     return PostMergeVerdict(

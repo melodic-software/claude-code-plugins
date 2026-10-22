@@ -41,9 +41,11 @@ name: pr-merge
 # it), so when it ends red the same job sends its run id and head SHA to
 # post-merge-demotion-alert.yml through workflow_dispatch, which files the
 # post-merge record and fix issues and reports the red-main culprit once the
-# re-run fails too. A red run inside a lane merge's attribution window gets
-# its one re-run from the post-merge-dispatch job, which records it; a red
-# run with no lane merge to charge gets none, and the alert judges attempt 1
+# re-run fails too. A red run this workflow dispatched gets its one re-run
+# from the post-merge-dispatch job, which records it, when it is inside a lane
+# merge's attribution window, or was created within
+# red-main.confirm-wait-minutes plus 50 minutes and demotes by the
+# affected-set rule. Any other gets none, and the alert judges attempt 1
 # after red-main.confirm-wait-minutes. For a lane merge the merge job's
 # post-merge check also files the demotion record once it reads the run red,
 # and either filer's record is found by the other through its failing run.

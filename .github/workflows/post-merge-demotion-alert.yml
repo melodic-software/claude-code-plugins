@@ -44,10 +44,10 @@ name: post-merge-demotion-alert
 # pr-require-checks run on this repository's main that github-actions[bot]
 # dispatched, at that head SHA. Red is
 # any conclusion in babysit_postmerge.py's FAILED_CONCLUSIONS. A red run
-# inside a lane merge's attribution window gets its one re-run from pr-merge's
-# post-merge-dispatch job, and one with no lane merge to charge gets none, so
-# the alert waits for a re-run as long as the report job does
-# (red-main.confirm-wait-minutes) and starts none itself. Once a newer
+# inside a lane merge's attribution window, or one that demotes by the
+# affected-set rule, gets its one re-run from pr-merge's post-merge-dispatch
+# job, and any other gets none, so the alert waits for a re-run as long as
+# the report job does (red-main.confirm-wait-minutes) and starts none itself. Once a newer
 # pr-require-checks run on this repository's main has passed, main already
 # recovered: no record, fix issue or report is filed. The wait checks for one
 # at each poll while the re-run is pending and ends early on a hit; a lookup
@@ -324,9 +324,10 @@ jobs:
             # the POST fails and the wait reads its attempt instead. A re-run
             # that does not finish within 20 minutes leaves attempt 1 judged.
             # A bot-started run sent by workflow_dispatch starts no re-run
-            # here either: pr-merge re-runs it only inside a lane merge's
-            # attribution window, so the wait for a re-run is
-            # red-main.confirm-wait-minutes (40), as the report job's.
+            # here either: pr-merge re-runs it inside a lane merge's
+            # attribution window or when it demotes, so the wait for a
+            # re-run is red-main.confirm-wait-minutes (40), as the report
+            # job's.
             # A dispatched red files nothing, and the report job skips it,
             # once a newer full run on this repository's main has passed: main
             # already recovered. newer_green prints that run as <id>\t<sha>,
