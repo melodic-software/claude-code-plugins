@@ -803,7 +803,7 @@ one page view's record, counted as `dropped`. In one on one the host knows who t
 these totals are that guest's: what keeps them unlinked is that they carry no pid, fingerprint,
 browser or page view, and no time but the session's end. A one-guest session's counts are kept
 only while its held batch is under 100,000 bytes, pairs included; past that a summary is dropped
-whole.
+whole, and a crash or `share.sh stop` on Windows (below) loses them all.
 
 Never recorded: what anyone types, answers, chat, names, the address or its fragment, text on the
 page, or a credential. Help says so in one line, with a "What this page records" link to the plain
