@@ -92,11 +92,13 @@
   const variants = q => q?.variants || [];
   /** The view of `v` on the stage: its snapshot unless the person picked its screenshots, or it has none. */
   const shownView = v => (views(v).snapshot && !(ui.view === "shots" && views(v).shots.length) ? "snapshot" : "shots");
-  /** The screenshot (0-based) a note is pinned on, or -1 for the snapshot: "img" is the first, "img:nth-of-type(k)" the
-   *  k-th; any other path is on the snapshot, or on the first picture of a variant with none (an earlier note). */
+  /** The screenshot (0-based) a note is pinned on, -1 for the snapshot, or null when this viewer holds no such view:
+   *  "img" is the first screenshot, "img:nth-of-type(k)" the k-th; any other path is on the snapshot, or on the first
+   *  picture of a variant with none (an earlier build's note). */
   const shotOf = (v, selector) => {
     const { shots, snapshot } = views(v), k = selector === "img" ? 1 : +((selector.match(/^img:nth-of-type\(([1-9][0-9]*)\)$/) || [])[1] || 0);
-    return k && shots.length ? Math.min(k, shots.length) - 1 : snapshot ? -1 : 0;
+    if (k) return k <= shots.length ? k - 1 : null;
+    return snapshot ? -1 : shots.length ? 0 : null;
   };
   const shotSelector = k => (k ? `img:nth-of-type(${k + 1})` : "img");
   const current = q => variants(q).find(v => v.id === ui.variant) || variants(q)[0] || null;

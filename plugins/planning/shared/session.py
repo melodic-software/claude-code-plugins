@@ -220,7 +220,6 @@ ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg|html)")
 IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")  # an image asset's file name
 SVG_ASSET = re.compile(r"[0-9a-f]{16}\.svg")
 HTML_ASSET = re.compile(r"[0-9a-f]{16}\.html")  # a prototype variant's snapshot
-MAX_SHOTS = 4  # judgment: screenshots per prototype variant, enough for a short flow; state.schema.json variant shots
 VARIANT = re.compile(r"v-[1-9][0-9]?")
 # A note's element path (Annotation.anchor.selector), written by the prototype page's pin helper: "img" on an
 # image variant, else tag names from the variant's root down, each with its place among same-tag siblings,

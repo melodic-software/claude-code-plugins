@@ -368,6 +368,9 @@ async function main() {
     await flow.locator(".vp-tab", { hasText: "Flow" }).click();
     ok("Flow shows the guest its snapshot alone, with no choice of views", await until(flow, ([html, a, b]) => document.querySelector(".vp-frame")?.getAttribute("src") === `/assets/${html}?pin=1`
       && !document.querySelector(".vp-viewseg").checkVisibility() && ![a, b].some(x => JSON.stringify(window.Core.snapshot().questions).includes(x)), [v1, shot1, shot2]));
+    await flow.frameLocator(".vp-frame").locator("#pay").waitFor();
+    await flow.waitForTimeout(500); // the pins go once the frame says it is ready
+    ok("  and puts no pin of the second screenshot's note on the snapshot", (await flow.frameLocator(".vp-frame").locator("html > div[aria-hidden=true] > div").count()) === 0);
     await proto.locator(".vp-tab", { hasText: "One page" }).click();
     ok("the html variant still runs for the guest", await until(proto, a => document.querySelector(".vp-frame")?.getAttribute("src") === `/assets/${a}?pin=1`, v1));
     await owner.click(".vf-gear");
