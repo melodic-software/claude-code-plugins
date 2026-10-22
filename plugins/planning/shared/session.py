@@ -132,6 +132,8 @@ MAX_ANNOTATIONS = 2000  # judgment: notes across all prototype questions; at the
 MAX_MY_NOTES = 30  # judgment: notes one person pins on one prototype question
 MAX_SELECTOR = 1000  # judgment: characters in a note's element path; 32 levels of tag:nth-of-type(n) fit
 MAX_SUGGESTIONS = 200  # judgment: suggestions kept per question, oldest dropped first
+MAX_DECISIONS = 1000  # judgment: decision log entries kept, oldest dropped first; state.schema.json decisions maxItems
+DISAGREE_CHURN_WINDOW = 60.0  # judgment: seconds within which a take-back and a raise again by the same person log nothing
 MAX_HISTORY = 50  # judgment: earlier versions kept per answer the owner hid or edited; the original stays, the oldest after it go first
 MAX_CHAT_EMOJI = 20  # distinct emoji on one chat message (Phase 4c item 6)
 MAX_MY_CHAT_EMOJI = 6  # judgment: emoji one person puts on one chat message
@@ -3230,7 +3232,8 @@ class Session:
             if locked is not None and ref == locked:  # a Disagree on a rejected alternative raises nothing
                 raised = {e["by"] for _, e in self._reopened(q["id"])}
                 if on and pid not in raised:
-                    self._decided(q["id"], "late-disagree", pid, card=ref, reason=reason)
+                    if not self._undo_take_back(q["id"], pid):
+                        self._decided(q["id"], "late-disagree", pid, card=ref, reason=reason)
                     self._flag(q["id"], {"kind": "possibly-reopened"})
                 elif not on and raised and not any(d["pid"] in raised and d["card"] == locked for d in kept):
                     self._decided(q["id"], "withdrawn", pid)  # the last late Disagree on it went: it is no longer reopened
@@ -3333,8 +3336,35 @@ class Session:
                 kept = [f for f in d["needsReview"] if not (f["because"] == qid and f["why"] == {"kind": "possibly-reopened"})]
                 cleared += len(d["needsReview"]) - len(kept)
                 d["needsReview"] = kept
-        self.state.setdefault("decisions", []).append({"at": self.now(), "qid": qid, "kind": kind, "by": by, **fields})
+        log = self.state.setdefault("decisions", [])
+        seq = 1 + max((e.get("seq", i) for i, e in enumerate(log)), default=-1)
+        log.append({"at": self.now(), "qid": qid, "kind": kind, "by": by, "seq": seq, **fields})
+        self._trim_decisions()
         return cleared
+
+    def _undo_take_back(self, qid, pid):
+        """pid raises a Disagree again on qid's locked answer soon after their take-back ended its late Disagrees:
+        drop that `withdrawn` entry rather than log a new pair. True when pid's own late Disagree is back in force."""
+        log = self.state.get("decisions", [])
+        last = next((i for i in range(len(log) - 1, -1, -1) if log[i]["qid"] == qid), None)
+        if last is None or log[last]["kind"] != "withdrawn" or log[last]["by"] != pid or self.now() - log[last]["at"] > DISAGREE_CHURN_WINDOW:
+            return False
+        del log[last]
+        return any(e["by"] == pid for _, e in self._reopened(qid))
+
+    def _trim_decisions(self):
+        """Keep the log at MAX_DECISIONS, oldest first, sparing what a locked decision still reads: its late
+        Disagrees in force and its last `lock-change`, which names the answer a reworded lock stands on."""
+        log = self.state["decisions"]
+        over = len(log) - MAX_DECISIONS
+        if over <= 0:
+            return
+        keep = set()
+        for qid in self.state["locks"]:
+            keep.update(i for i, _ in self._reopened(qid))
+            keep.update(i for i in [next((i for i in range(len(log) - 1, -1, -1) if log[i]["qid"] == qid and log[i]["kind"] == "lock-change"), None)] if i is not None)
+        drop = set(sorted(range(len(log)), key=lambda i: (i in keep, i))[:over])
+        log[:] = [e for i, e in enumerate(log) if i not in drop]
 
     def _reopened(self, qid):
         """(log index, entry) of each late Disagree logged on qid since its decision was last made, changed, unlocked or kept: while there
@@ -5150,7 +5180,7 @@ class Session:
 
     def _reopen_items(self):
         """The owner's `reopen:` Inbox items: a locked decision someone disagreed with late. The key names the newest
-        such Disagree's place in the log, so each new one makes the item unread again; `n`, `by` and `at` count and
+        such Disagree's `seq` in the log, so each new one makes the item unread again; `n`, `by` and `at` count and
         name the late Disagrees with the locked answer people hold now, as the digest does."""
         out = []
         for qid in self.state["locks"]:
@@ -5159,7 +5189,7 @@ class Session:
                 card = self._locked_card(qid)
                 holding = {d["pid"] for d in self.state.get("disagreements", {}).get(qid, []) if d["card"] == card}
                 held = [e for _, e in acts if e["by"] in holding] or [acts[-1][1]]
-                out.append({"key": f"reopen:{qid}:{acts[-1][0]}", "kind": "reopen", "id": qid, "qid": qid, "by": held[-1]["by"], "at": held[-1]["at"],
+                out.append({"key": f"reopen:{qid}:{acts[-1][1].get('seq', acts[-1][0])}", "kind": "reopen", "id": qid, "qid": qid, "by": held[-1]["by"], "at": held[-1]["at"],
                             "n": len(held), "card": card})
         return out
 

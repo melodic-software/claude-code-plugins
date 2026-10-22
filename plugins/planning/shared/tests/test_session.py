@@ -3847,6 +3847,42 @@ class TestLateDisagreeOnALock(ReopenCase):
         self.assertNotIn("Q1", self.s.state["disagreements"])
 
 
+class TestDecisionLogBound(ReopenCase):
+    """A guest toggling Disagree on a locked answer cannot grow the decision log without bound."""
+
+    def toggle(self, pid, qid, n, gap=0.0):
+        for i in range(n):
+            self.clock.tick(gap)
+            self.act("disagree", pid, {"qid": qid, "card": "c:rec", "reason": "Too costly", "on": i % 2 == 0})
+
+    def test_a_thousand_quick_toggles_leave_one_late_disagree_and_one_take_back(self):
+        self.toggle(self.cy, "Q1", 1000)
+        self.assertEqual([e["kind"] for e in self.s.state["decisions"] if e["qid"] == "Q1"], ["lock", "late-disagree", "withdrawn"])
+        self.toggle(self.cy, "Q1", 1)
+        self.assertEqual([e["kind"] for e in self.s.state["decisions"] if e["qid"] == "Q1"], ["lock", "late-disagree"])
+        self.assertEqual((len(self.reopen_rows()), len(self.flags("Q2"))), (1, 1))
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_take_back_and_raise_again_after_the_window_are_both_logged(self):
+        self.toggle(self.cy, "Q1", 3, gap=session.DISAGREE_CHURN_WINDOW + 1)
+        self.assertEqual([e["kind"] for e in self.s.state["decisions"] if e["qid"] == "Q1"], ["lock", "late-disagree", "withdrawn", "late-disagree"])
+
+    def test_a_thousand_slow_toggles_stay_under_the_cap_and_keep_a_held_disagree(self):
+        cap = 6
+        with mock.patch.object(session, "MAX_DECISIONS", cap):
+            self.act("lock", HOST, {"qid": "Q3", "card": "c:rec"})
+            self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "reason": "Wrong call"})
+            row = self.reopen_rows()
+            self.toggle(self.cy, "Q3", 1000, gap=session.DISAGREE_CHURN_WINDOW + 1)
+            self.assertLessEqual(len(self.s.state["decisions"]), cap)
+            self.assertEqual(self.reopen_rows(), row)
+            self.assertEqual((row[0]["by"], row[0]["n"], len(self.flags("Q2"))), (self.bo, 1, 1))
+            self.act("disagree", self.cy, {"qid": "Q3", "card": "c:rec", "reason": "Too costly"})
+            self.assertEqual(sorted(r["qid"] for r in self.reopen_rows()), ["Q1", "Q3"])
+            self.assertIsNone(session.document_error(self.disk()))
+        self.assertEqual(session.schema.load("state", session.SCHEMA_DIR)["properties"]["decisions"]["maxItems"], session.MAX_DECISIONS)
+
+
 class TestPossiblyReopened(ReopenCase):
     def test_one_late_disagree_raises_one_owner_row_and_flags_each_dependent_once(self):
         self.assertEqual(self.reopen_rows(), [])
@@ -3890,7 +3926,7 @@ class TestPossiblyReopened(ReopenCase):
         self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
         self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
         self.assertEqual((self.reopen_rows(), self.flags("Q2"), self.flags("Q3")), ([], [], []))
-        self.assertEqual(self.s.state["decisions"][-1], {"at": self.clock.t, "qid": "Q1", "kind": "withdrawn", "by": self.cy})
+        self.assertEqual(self.s.state["decisions"][-1], {"at": self.clock.t, "qid": "Q1", "kind": "withdrawn", "by": self.cy, "seq": 2})
         self.send()
         d = self.events("round-sent")[-1]["digest"]
         self.assertEqual((d["possiblyReopened"], d["needsReview"]), ([], []))
@@ -3986,7 +4022,7 @@ class TestKeepOrUnlock(ReopenCase):
         for qid in ("Q2", "Q3"):
             self.assertEqual([f["why"]["kind"] for f in self.question(qid)["needsReview"]], ["lock-changed"], qid)
         last = self.s.state["decisions"][-1]
-        self.assertEqual(last, {"at": self.clock.t, "qid": "Q1", "kind": "kept", "by": HOST})
+        self.assertEqual(last, {"at": self.clock.t, "qid": "Q1", "kind": "kept", "by": HOST, "seq": 3})
         self.assertEqual(self.s.state["locks"]["Q1"]["source"]["text"], "Recommended, reworded.")
 
     def test_keep_is_the_owners_and_needs_a_raised_row(self):
@@ -4000,7 +4036,7 @@ class TestKeepOrUnlock(ReopenCase):
         self.act("unlock", HOST, {"qid": "Q1"})
         self.assertEqual(self.reopen_rows(), [])
         self.assertEqual(self.question("Q2")["needsReview"][-1]["why"], {"kind": "unlocked"})
-        self.assertEqual(self.s.state["decisions"][-1], {"at": self.clock.t, "qid": "Q1", "kind": "unlock", "by": HOST})
+        self.assertEqual(self.s.state["decisions"][-1], {"at": self.clock.t, "qid": "Q1", "kind": "unlock", "by": HOST, "seq": 2})
 
     def test_changing_the_locked_text_ends_it_and_the_flags_it_raised(self):
         self.raise_it()
@@ -4042,17 +4078,17 @@ class TestDecisionLog(ReopenCase):
         self.act("unlock", self.ann, {"qid": "Q1"})
         unlock_at = self.clock.t
         self.assertEqual(self.s.state["decisions"], [
-            {"at": lock_at, "qid": "Q1", "kind": "lock", "by": HOST, "text": "Recommended for Q1."},
-            {"at": late_at, "qid": "Q1", "kind": "late-disagree", "by": self.cy, "card": "c:rec", "reason": "Too costly"},
-            {"at": change_at, "qid": "Q1", "kind": "lock-change", "by": self.ann, "text": "Reworded", "card": "c:rec"},
-            {"at": unlock_at, "qid": "Q1", "kind": "unlock", "by": self.ann},
+            {"at": lock_at, "qid": "Q1", "kind": "lock", "by": HOST, "seq": 0, "text": "Recommended for Q1."},
+            {"at": late_at, "qid": "Q1", "kind": "late-disagree", "by": self.cy, "seq": 1, "card": "c:rec", "reason": "Too costly"},
+            {"at": change_at, "qid": "Q1", "kind": "lock-change", "by": self.ann, "seq": 2, "text": "Reworded", "card": "c:rec"},
+            {"at": unlock_at, "qid": "Q1", "kind": "unlock", "by": self.ann, "seq": 3},
         ])
         self.assertLess(lock_at, late_at)
 
     def test_a_used_suggestion_is_a_lock_change(self):
         sid = self.act("suggest", self.bo, {"qid": "Q1", "text": "Collapse it"})["id"]
         self.act("act_on_suggestion", HOST, {"qid": "Q1", "id": sid, "action": "use"})
-        self.assertEqual(self.s.state["decisions"][-1], {"at": self.clock.t, "qid": "Q1", "kind": "lock-change", "by": HOST, "text": "Collapse it"})
+        self.assertEqual(self.s.state["decisions"][-1], {"at": self.clock.t, "qid": "Q1", "kind": "lock-change", "by": HOST, "seq": 1, "text": "Collapse it"})
 
     def test_a_poll_closed_and_reopened_is_logged(self):
         self.send()
@@ -4063,8 +4099,8 @@ class TestDecisionLog(ReopenCase):
         closed = self.clock.t
         self.act("unlock", HOST, {"qid": "Q5"})
         self.assertEqual([e for e in self.s.state["decisions"] if e["qid"] == "Q5"], [
-            {"at": closed, "qid": "Q5", "kind": "poll-close", "by": HOST},
-            {"at": self.clock.t, "qid": "Q5", "kind": "poll-reopen", "by": HOST},
+            {"at": closed, "qid": "Q5", "kind": "poll-close", "by": HOST, "seq": 1},
+            {"at": self.clock.t, "qid": "Q5", "kind": "poll-reopen", "by": HOST, "seq": 2},
         ])
 
     def test_only_the_owners_snapshot_carries_the_log(self):
