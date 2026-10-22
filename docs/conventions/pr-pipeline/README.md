@@ -1725,8 +1725,9 @@ and only for attempt 1 of a red `pr-require-checks.yml` run on this repository's
 `github-actions[bot]` dispatched. Red is any conclusion `babysit_postmerge.py` counts as failed:
 `failure`, `timed_out`, `cancelled`, `startup_failure` or `action_required`, so a run cancelled
 on a time-budget overrun files its record and fix issues too; only a `failure` reaches this
-report (rule 1). A red run inside a lane merge's attribution window gets its one re-run from
-pr-merge's `post-merge-dispatch` job; a red run with no lane merge to charge gets none. Both jobs
+report (rule 1). A red run gets its one re-run from pr-merge's `post-merge-dispatch` job when it
+is inside a lane merge's attribution window, or is under 90 minutes old and demotes by the
+affected-set rule; any other red run gets none. Both jobs
 wait for a re-run for up to `confirm-wait-minutes`, so the record, its fix issues and this report
 follow the merge instead of the next scheduled run. A dispatched red, whether its re-run failed or
 never finished within that wait, files nothing once a newer `pr-require-checks` run on this
@@ -1742,8 +1743,7 @@ and reports by run and attempt.
    `failure` or a gate the hygiene aggregator titles (never the all-branches gitleaks gate). A
    cancelled, timed-out or not-started run, a re-run that passes or never finishes within
    `confirm-wait-minutes`, and the canary never trigger it. The job waits for the re-run because
-   pr-merge starts the one for a run it dispatched inside a lane merge's attribution window, and
-   that re-run raises no event of its own.
+   pr-merge starts the one for a run it dispatched, and that re-run raises no event of its own.
 2. **Culprit.** The range is the first-parent merges since `main`'s last green full run. A
    merge is red when its own full run is a confirmed red in a check the head also fails, and
    green when it passed. The culprit is the one merge that is red while its parent is green (the

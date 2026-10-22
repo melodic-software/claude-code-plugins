@@ -46,6 +46,7 @@ import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear 
 import babysit_postmerge as pm  # noqa: E402
 from test_babysit_postmerge import (  # noqa: E402
     FIXTURES,
+    HEAD_SHA,
     IDENTITY,
     LATER_SHA,
     OTHER_SHA,
@@ -57,6 +58,7 @@ from test_babysit_postmerge import (  # noqa: E402
     completed,
     dispatch_run,
     failed_job,
+    identity_merge,
     schedule_run,
 )
 
@@ -449,6 +451,112 @@ class JudgeRunCli(AffectedBase):
             clock.now.return_value = datetime(2026, 10, 12, 11, 0, tzinfo=UTC)
             code, report = self.judge(baseline=("test-bash (0)",))
         self.assertEqual((code, report["demoting"]), (0, []))
+
+
+class LaneRerunOutsideAWindow(AffectedBase):
+    """#9126, owner decision 2026-10-22: in the pr-merge lane's check
+    (`--lane-merges-only`), a red attempt 1 of a full run the lane
+    dispatched, with a failing suite inside the affected set, is marked for
+    post-merge-dispatch's one re-run even when no lane merge is judged.
+    post-merge-demotion-alert.yml then demotes only on a red attempt 2. The
+    fixture's one merge is another App's, so the lane judges none."""
+
+    BOT = by("github-actions[bot]")
+    NOW = datetime(2026, 10, 12, 11, 0, tzinfo=UTC)
+
+    def lane_red(self, log: str, **run: Any) -> None:
+        """Run 11, dispatched by pr-merge.yml on main, red on attempt 1 in
+        one test-bash leg (job 112) whose log is `log`."""
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                11, "failure", actor=self.BOT, triggering_actor=self.BOT, **run
+            ),
+        )
+        self.gh.attempts[(11, 1)] = dispatch_run(
+            11, "failure", actor=self.BOT, triggering_actor=self.BOT
+        )
+        self.gh.jobs[(11, 1)] = [
+            failed_job(112, "test-bash (0)", "Run this leg's shell suites")
+        ]
+        self.fake.logs[112] = log
+        self.gh.artifacts["pr-merge-dispatched-11"] = [
+            {"id": 9, "name": "pr-merge-dispatched-11", "workflow_run": {"id": 500}}
+        ]
+        self.gh.run_records[500] = {
+            "id": 500,
+            "path": ".github/workflows/pr-merge.yml",
+            "event": "push",
+            "head_branch": "main",
+            "head_sha": LATER_SHA,
+            "repository": {"full_name": REPO},
+            "head_repository": {"full_name": REPO},
+        }
+
+    def lane_check(self, *, lane_merges_only: bool = True) -> pm.PostMergeVerdict:
+        return pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=lambda actor: False,
+            merged_since=datetime(2026, 10, 12, 0, 0, tzinfo=UTC),
+            now=self.NOW,
+            pinned_sha=lambda merge: None,
+            lane_merges_only=lane_merges_only,
+        )
+
+    def lane_reruns(self, verdict: pm.PostMergeVerdict) -> list[tuple[int, bool]]:
+        return [(r["runId"], r["laneDispatched"]) for r in verdict.report()["reruns"]]
+
+    def test_an_in_set_red_is_marked_for_the_lanes_one_rerun(self) -> None:
+        self.lane_red(bash_log((TOUCHED, False)))
+        verdict = self.lane_check()
+        self.assertEqual(verdict.merges, ())
+        self.assertEqual(self.lane_reruns(verdict), [(11, True)])
+        self.assertEqual(pm.verdict_exit(verdict), 0)
+
+    def test_an_out_of_set_red_gets_no_rerun_and_files_no_quarantine(self) -> None:
+        # The alert's --judge-run already excuses and quarantines it. A lane
+        # merge is judged, so the verdict carries quarantines, but run 11's
+        # head lacks it.
+        self.gh.merged = [identity_merge(number=7002)]
+        self.lane_red(bash_log((FLAKY, False)), head_sha=HEAD_SHA)
+        verdict = self.lane_check()
+        self.assertEqual([m.merge.number for m in verdict.merges], [7002])
+        self.assertEqual(self.lane_reruns(verdict), [])
+        self.assertEqual(verdict.quarantines, ())
+
+    def test_a_red_with_its_attempt_2_gets_no_second_rerun(self) -> None:
+        self.lane_red(bash_log((TOUCHED, False)), run_attempt=2)
+        self.assertEqual(self.lane_reruns(self.lane_check()), [])
+
+    def test_a_red_older_than_the_alerts_wait_gets_no_rerun(self) -> None:
+        self.lane_red(bash_log((TOUCHED, False)), created_at="2026-10-12T09:00:00Z")
+        self.assertEqual(self.lane_reruns(self.lane_check()), [])
+
+    def test_a_red_the_lane_did_not_dispatch_gets_no_rerun(self) -> None:
+        self.lane_red(bash_log((TOUCHED, False)))
+        self.gh.artifacts.clear()
+        self.assertEqual(self.lane_reruns(self.lane_check()), [])
+
+    def test_without_the_lane_flag_nothing_is_marked(self) -> None:
+        # Local babysit judges the other App's merge, whose window run 11
+        # is not in (its head lacks the merge), and adds no lane re-run.
+        self.lane_red(bash_log((TOUCHED, False)), head_sha=OTHER_SHA)
+        verdict = self.lane_check(lane_merges_only=False)
+        self.assertEqual(self.lane_reruns(verdict), [])
+
+    def test_an_unreadable_lane_record_warns_and_leaves_the_verdict_readable(
+        self,
+    ) -> None:
+        self.lane_red(bash_log((TOUCHED, False)))
+        self.gh.fail_reads.add("name=pr-merge-dispatched-11")
+        verdict = self.lane_check()
+        self.assertTrue(verdict.readable)
+        self.assertEqual(self.lane_reruns(verdict), [])
+        self.assertTrue(
+            any(w.startswith("lane-rerun-unreadable: ") for w in verdict.warnings)
+        )
 
 
 class AffectedSuites(unittest.TestCase):
