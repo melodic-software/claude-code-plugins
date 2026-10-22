@@ -3,6 +3,12 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3] - 2026-10-22
+
+### Fixed
+
+- Reject a team-file `output_home` or `research_paths` entry with a dot-leading segment anywhere in it (such as `docs/.env` or `a/b/.git`), not only as the first segment.
+
 ## [0.2.2] - 2026-10-20
 
 ### Fixed

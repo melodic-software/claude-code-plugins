@@ -1,0 +1,19 @@
+2026-10-22T00:20:01.0383746Z === plugins/harness-ops/skills/observability/claude-observability.test.sh ===
+2026-10-22T00:20:01.0394819Z PASS: [1] file set: one session file plus the shared file
+2026-10-22T00:20:01.0395721Z PASS: [2] bash-format key present
+2026-10-22T00:20:01.0450141Z PASS: plugins/harness-ops/skills/observability/claude-observability.test.sh
+2026-10-22T00:25:57.5009063Z === plugins/planning/shared/tests/ui.test.sh ===
+2026-10-22T00:25:57.5020330Z == ui_acceptance.js 111s
+2026-10-22T00:25:57.5021596Z PASS join dialog: shows only the heading, the invite line, the name prompt, the name box, Join and the host's sign-in link
+2026-10-22T00:25:57.5079555Z PASS round lifecycle: while Claude is working the owner has no Cancel
+2026-10-22T00:25:57.5080158Z PASS round lifecycle: five minutes into working, the step says how long
+2026-10-22T00:25:57.5080952Z PASS round reset: while Claude is working the owner's Host view offers Reset round
+2026-10-22T00:25:57.5081486Z PASS round reset: a guest never has the control
+2026-10-22T00:25:57.5082175Z FAIL: plugins/planning/shared/tests/ui.test.sh
+2026-10-22T00:25:57.5082803Z PASS round reset: the confirm step says the round reopens and Claude's preparation is refused
+2026-10-22T00:25:57.5083405Z PASS round reset: Keep waiting leaves Claude working
+2026-10-22T00:25:57.5854690Z ui_welcome: 33 passed, 0 failed
+2026-10-22T00:25:57.5854988Z slowest: ui_layout.js 200s, ui_presence.js 195s, ui_presence_dots.js 112s
+2026-10-22T00:25:57.5855112Z FAIL: ui_keyboard.js
+2026-10-22T00:25:59.1056026Z Plugin test aggregate: 12 optional SKIP(s), 0 DISCRIMINATING SKIP(s).
+2026-10-22T00:25:59.1057296Z Suites with skipped coverage (exit 0 here is NOT evidence those cases ran):

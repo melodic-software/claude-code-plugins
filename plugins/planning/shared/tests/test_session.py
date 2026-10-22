@@ -2996,6 +2996,17 @@ class TestSessionControls(SessionCase):
         self.refused("bad-field", "update_settings", HOST, {"theme": {"accent": "pink"}})
         self.refused("owner-only", "update_settings", self.ann, {"voting": False})
 
+    def test_the_theme_takes_a_palette_beside_mode_and_accent_and_refuses_an_unknown_one(self):
+        # the palettes are the ones the feature names: Default, Midnight, Slate, Paper and High contrast
+        for palette in ("default", "midnight", "slate", "paper", "contrast"):
+            out = self.act("update_settings", HOST, {"theme": {"palette": palette}})
+            self.assertEqual(out["settings"]["theme"], {"mode": "system", "accent": "teal", "palette": palette})
+        for bad in ("neon", "Paper", "", None, 1):
+            self.refused("bad-field", "update_settings", HOST, {"theme": {"palette": bad}})
+        self.assertEqual(self.act("set_prefs", self.ann, {"set": {"palette": "paper"}})["prefs"], {"palette": "paper"})
+        self.refused("bad-field", "set_prefs", self.ann, {"set": {"palette": "neon"}})
+        self.assertIsNone(session.state_error(self.disk()))
+
     def test_the_owner_sets_which_pop_ups_guests_start_with(self):
         # round 11: the host's defaults for a guest's three pop-up switches; absent, all three are on (the page's default)
         self.assertNotIn("guestPopups", self.s.snapshot(self.ann)["settings"])
@@ -6631,6 +6642,20 @@ class TestStateFromE27acc5(StateFixtureCase):
         self.assertEqual(s.snapshot(bo)["files"][uid]["status"], "done")
         self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
         session.Session.load(s.path, validate_writes=True)
+
+    def test_a_theme_written_without_a_palette_loads_unchanged_and_takes_one(self):
+        s = self.load("state-written-e27acc5.json")
+        bo = "tok0004x9"
+        self.assertEqual(s.snapshot(bo)["settings"]["theme"], {"mode": "system", "accent": "teal"})  # absent: the default palette
+        s.clock.tick()
+        s.update_settings(HOST, {"names": "initials"})  # another write leaves the theme as it was written
+        self.assertEqual(json.loads(s.path.read_text(encoding="utf-8"))["session"]["settings"]["theme"], {"mode": "system", "accent": "teal"})
+        s.update_settings(HOST, {"theme": {"palette": "midnight"}})
+        s.set_prefs(bo, {"set": {"palette": "contrast"}})
+        self.assertIsNone(session.document_error(json.loads(s.path.read_text(encoding="utf-8"))))
+        reloaded = session.Session.load(s.path, validate_writes=True)
+        self.assertEqual(reloaded.state["session"]["settings"]["theme"], {"mode": "system", "accent": "teal", "palette": "midnight"})
+        self.assertEqual(reloaded.snapshot(bo)["me"]["prefs"]["palette"], "contrast")
 
 
 # ---------------------------------------------------------------------------------------------

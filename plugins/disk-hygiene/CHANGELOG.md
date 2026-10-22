@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.19] - 2026-10-22
+
+### Changed
+
+- Synced the shared `exec-bash.mjs` launcher, which gains an opt-in `--fail-closed` flag. This plugin's hooks do not pass it, so their behavior is unchanged.
+
+### Security
+
+- The guard decision log now redacts a stateless GitHub App installation token (`ghs_` followed by a JWT, with no app id) whole, where it used to leave the JWT payload and signature in the record, using GitHub's recommended `ghs_` regex.
+
 ## [0.43.18] - 2026-10-20
 
 ### Removed

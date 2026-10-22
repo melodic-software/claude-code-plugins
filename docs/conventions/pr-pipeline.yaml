@@ -5,16 +5,27 @@ activities:
   fix-docs:
     skill: ai-slop:audit
     args: fix
-    effect: mutate-branch
+    # Runs the skill's detect script on head files, so no write token: the
+    # read runner turns its uncommitted fixes into a patch that apply-patch
+    # pushes under patch-rules.json's default row.
+    effect: read
+    applied-by:
+      patch: apply-patch
+    # No web access: under the default row apply-patch can push more than
+    # markdown, so a page the run read could steer a push or carry a key out.
     gating: advisory
     # Head markdown can quote issue, PR or web text.
     reads-untrusted: true
     inputs: [changed-paths]
+    # The auto-mode classifier approves tool calls no rule allows, so the
+    # skill's own scripts run without a Bash rule per command; the run fails
+    # red unless the CLI reports the mode (ADR 0049).
+    permission-mode: auto
     applies-when:
       paths: ["**/*.md"]
       labels-absent: [do-not-merge, needs-human]
-      # Skips a draft PR before any model turn, since the promote step drops
-      # a draft's commits anyway.
+      # Skips a draft PR before any model turn: pipeline lanes leave drafts
+      # alone.
       draft: [false]
   resolve-conflicts:
     skill: source-control:resolve-conflicts
@@ -143,11 +154,12 @@ activities:
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
   apply-patch:
-    # Applies fix-ci's patch to the head fix-ci worked on and pushes it as one
-    # commit, without force. A script, no model, and it runs no head code;
-    # patch-rules.json's ci-context row holds what it admits. Before the mint
-    # the runner checks the patch artifact and the head, and an empty,
-    # invalid or unappliable patch goes to a person.
+    # Applies a producer's patch (fix-ci's, fix-docs's) to the head the
+    # producer worked on and pushes it as one commit, without force. A
+    # script, no model, and it runs no head code; the patch-rules.json row of
+    # the producer's prepare mode (default for none) holds what it admits.
+    # Before the mint the runner checks the patch artifact and the head, and
+    # an empty, invalid or unappliable patch goes to a person.
     script: .github/scripts/apply-patch/apply-patch.mjs
     prepare: apply-patch
     # Pushes the fix to the pull request's branch, nothing else.
@@ -334,10 +346,6 @@ lanes:
         needs:
           - resolve-issue
           - apply-issue-patch
-  pr-refine:
-    stage: refine
-    slots:
-      - activity: fix-docs
   pr-unblock:
     stage: unblock
     slots:
@@ -356,9 +364,12 @@ lanes:
       # Started by pr-unblock-dispatch.yml for lanes App PRs whose ci-status
       # failed.
       - activity: fix-ci
-      # Runs after fix-ci, in its own job with its own token.
+      # Started by pr-unblock-dispatch.yml once per ready PR that changes a
+      # Markdown file.
+      - activity: fix-docs
+      # Runs after fix-ci or fix-docs, in its own job with its own token.
       - activity: apply-patch
-        needs: [fix-ci]
+        needs: [fix-ci, fix-docs]
       # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
         needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch]
@@ -406,9 +417,16 @@ models:
       workload: code
       effort-role: verifier
       max-turns: 75
+    # A mechanical worker (prose fixes against a rule catalog), from the
+    # multi-agent role map; the turn budget standard gave.
+    docs-fix:
+      role: worker
+      workload: mechanical
+      max-turns: 75
   default-profile: standard
   routes:
     fix-ci: code-fix
+    fix-docs: docs-fix
     verify-pr: review
     review-code: pr-review
     review-security: pr-review
@@ -486,6 +504,8 @@ limits:
   # a timeout). 1 retries once; a second failure on the same head is a
   # pattern for a person, not a retry.
   fix-ci-restarts: 1
+  # fix-docs runs one pr-unblock-dispatch run starts, matching fix-ci-per-run.
+  fix-docs-per-run: 2
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
   wip-cap: 12
@@ -614,6 +634,12 @@ merge:
   # whatever a later pass says, so pushing until the verifier passes once
   # does not merge it (owner decision 2026-10-21).
   max-verify-fails: 3
+  # Days a suite failing on main outside the merges' affected set stays
+  # quarantined: its quarantine issue excuses its failures from demotion
+  # until it closes or is this old, then they demote again, even when the
+  # suite was already red before the merge. 7 is judgment (owner decision
+  # Q645 left the default to planning); at most 30.
+  quarantine-days: 7
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane

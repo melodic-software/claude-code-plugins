@@ -314,7 +314,12 @@ SETTING_VALUES = {
     "names": ("full", "initials", "someone"),
     "claudeTake": ("answerFirst", "always"),
 }
-THEME_VALUES = {"mode": ("system", "light", "dark"), "accent": ("teal", "indigo", "violet", "amber")}
+# palette is optional: absent is "default", so a theme written before palettes loads and is written back as it was.
+THEME_VALUES = {
+    "mode": ("system", "light", "dark"),
+    "accent": ("teal", "indigo", "violet", "amber"),
+    "palette": ("default", "midnight", "slate", "paper", "contrast"),
+}
 
 
 def _is_int(v):
@@ -329,6 +334,7 @@ PREFS = {
     "expandedRounds": lambda v: isinstance(v, list) and len(v) <= 100 and all(_is_int(n) and 1 <= n <= 9999 for n in v),
     "theme": lambda v: v in THEME_VALUES["mode"],
     "accent": lambda v: v in THEME_VALUES["accent"],
+    "palette": lambda v: v in THEME_VALUES["palette"],
     "follow": lambda v: isinstance(v, bool),
     "mute": lambda v: isinstance(v, list) and len(v) <= len(NOTIFY_KINDS) and all(k in NOTIFY_KINDS for k in v),
     "tour": lambda v: v in ("done", "skipped"),
@@ -6293,7 +6299,8 @@ def _settings_patch(settings, patch):
             raise _bad(k, f"{k} is not a setting.")
         if k == "theme":
             if not isinstance(v, dict) or set(v) - set(THEME_VALUES) or any(v[t] not in THEME_VALUES[t] for t in v):
-                raise _bad("theme", "theme takes mode (system, light, dark) and accent (teal, indigo, violet, amber).")
+                raise _bad("theme", "theme takes mode (" + ", ".join(THEME_VALUES["mode"]) + "), accent (" + ", ".join(THEME_VALUES["accent"])
+                           + ") and palette (" + ", ".join(THEME_VALUES["palette"]) + ").")
         elif k == "guestPopups":
             if not isinstance(v, list) or any(x not in GUEST_POPUPS for x in v) or len(set(v)) != len(v):
                 raise _bad(k, f"guestPopups is a list of {', '.join(GUEST_POPUPS)}, each at most once.")
