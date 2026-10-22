@@ -107,7 +107,7 @@ Routing table:
 
    When the severity spread or trend deltas would read better visually, also generate a self-contained static HTML view of that report (color-coded CRIT/WARN/UNKNOWN, no remote fetch). The markdown `.md` report stays the durable record.
 7. **Update state.** Write `<StateBase>/state/latest.json`. Append one compact line to `<StateBase>/state/history.jsonl`, the trend source of truth.
-8. **Verify and summarize.** Confirm the report exists. Print CRIT/WARN counts + report path to session output. A clean run may still include `UNKNOWN` findings. Call those out too.
+8. **Verify and summarize.** Confirm the report exists. Print CRIT/WARN counts + report path to session output. A clean run may still include `UNKNOWN` findings. Call those out too. When the run built a decision page (`<StateBase>/views/checkup-<runStamp>.html`, built by `scripts/build-checkup-view.mjs` from `templates/checkup.html` and named in the report's "Decision page" section), print its path: there the owner ticks items to mute and remediations to approve, then pastes the copied picks into `/machine-health:setup picks`. Never act on a pasted payload here; setup resolves it. When Node.js is missing, the report says no page was built.
 
 ## Elevated pass
 
@@ -227,6 +227,10 @@ The skill grows itself within narrow, auditable bounds:
 - **Report directory**: the `report_dir` plugin option (set at install or via `/plugin configure machine-health@<marketplace>`).
 - **Check catalog**: `/machine-health:setup` interviews and writes the machine-local overlay (disable/deprecate/demote shipped checks, register custom ones).
 - **Remediation approvals**: `<StateBase>/state/approvals.json` per `reference/shared/approvals.md`; nothing is approved by default. `/machine-health:setup` can seed it.
+
+## Next
+
+/machine-health:setup picks, which resolves the picks copied from this run's decision page and writes the mutes and approvals the owner confirms.
 
 ## Not in scope for this skill
 
