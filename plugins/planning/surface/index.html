@@ -1237,7 +1237,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re || c.wn ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" && !c.who ? " d" : c.kind === "hedged" ? " h" : "";
     const armed = armedOf(cs);
     $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && !c.wn && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
-      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
+      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + inline(c.label) + "</b> " + inline(c.text) + "</span></label>").join("");
     const needText = armed && needsNote(armed) && !(armed.who ? named(text) : text), frozen = wrapFreeze() > 0;
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
