@@ -630,6 +630,17 @@ test("dispatcher: a dispatcher run a listed human dispatched proceeds", async ()
   assert.deepEqual(await dispatched({ github }), PROCEED);
 });
 
+// A scheduled run's actor is whoever last edited the cron, so, as for push, it
+// is not checked.
+test("dispatcher: a scheduled dispatcher run on the default branch proceeds", async () => {
+  const github = fakeGitHub(
+    dispatcherRoutes({
+      dispatcher: { event: "schedule", actor: STRANGER, triggering_actor: STRANGER },
+    }),
+  );
+  assert.deepEqual(await dispatched({ github }), PROCEED);
+});
+
 for (const [label, overrides] of [
   ["created before the dispatcher run started", { self: { created_at: "2026-10-11T12:00:04Z" } }],
   ["created after the dispatcher run's updated_at", { self: { created_at: "2026-10-11T12:05:01Z" } }],
@@ -638,8 +649,11 @@ for (const [label, overrides] of [
     dispatcher: { path: `${DISPATCHER_WORKFLOW}@refs/heads/feat/x` },
   }],
   ["the run's branch is not the default branch", { dispatcher: { head_branch: "feat/forged" } }],
-  ["the run's event is schedule, even with a listed human actor", {
-    dispatcher: { event: "schedule", actor: KYLE, triggering_actor: KYLE },
+  ["the run's event is schedule on another branch", {
+    dispatcher: { event: "schedule", head_branch: "feat/forged" },
+  }],
+  ["the run's event is schedule from another workflow", {
+    dispatcher: { event: "schedule", path: ".github/workflows/ci.yml" },
   }],
   ["the run's event is pull_request, even with a listed human actor", {
     dispatcher: { event: "pull_request", actor: KYLE, triggering_actor: KYLE },
