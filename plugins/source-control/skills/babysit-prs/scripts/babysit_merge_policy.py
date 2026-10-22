@@ -486,6 +486,11 @@ RISK_ESCALATION_MINUTES = 60
 # `MAX_QUARANTINE_DAYS`.
 QUARANTINE_DAYS = 7
 MAX_QUARANTINE_DAYS = 30
+# `red-main.confirm-wait-minutes` when absent or not a whole number from 0 to
+# `MAX_CONFIRM_WAIT_MINUTES`, as `RED_MAIN_DEFAULTS` in
+# .github/scripts/post-merge-demotion-alert/red-main.mjs resolves it.
+CONFIRM_WAIT_MINUTES = 40
+MAX_CONFIRM_WAIT_MINUTES = 45
 # The default `merge.max-verify-fails`: three heads' FAILs is a pull request
 # the verifier keeps refusing, not one noisy verdict (owner decision
 # 2026-10-21).
@@ -585,6 +590,11 @@ class PipelineConfig:
     # default branch stop demoting (`babysit_postmerge`). Absent, or anything
     # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
     quarantine_days: int = QUARANTINE_DAYS
+    # `red-main.confirm-wait-minutes`: minutes post-merge-demotion-alert.yml
+    # waits for the re-run of a red full run pr-merge dispatched
+    # (`babysit_postmerge`). Absent, or anything but a whole number from 0 to
+    # `MAX_CONFIRM_WAIT_MINUTES`, is `CONFIRM_WAIT_MINUTES`.
+    confirm_wait_minutes: int = CONFIRM_WAIT_MINUTES
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -727,6 +737,7 @@ def read_config_at(
             ("adoption.idle-hours", False),
             ("adoption.spec-from-body-apps", True),
             ("merge.quarantine-days", False),
+            ("red-main.confirm-wait-minutes", False),
         ],
     )
     if values is None:
@@ -840,6 +851,16 @@ def read_config_at(
             f"{MAX_QUARANTINE_DAYS}"
         )
         quarantine_days = None
+    confirm_wait = scalar("red-main.confirm-wait-minutes")
+    if confirm_wait is not None and not (
+        re.fullmatch(r"0|[1-9][0-9]?", confirm_wait)
+        and int(confirm_wait) <= MAX_CONFIRM_WAIT_MINUTES
+    ):
+        notes.append(
+            f"red-main.confirm-wait-minutes {confirm_wait!r} is not a whole number "
+            f"from 0 to {MAX_CONFIRM_WAIT_MINUTES}"
+        )
+        confirm_wait = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -868,6 +889,9 @@ def read_config_at(
         adoption_idle_hours=idle_hours,
         spec_from_body_apps=tuple(int(i) for i in body_apps),
         quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
+        confirm_wait_minutes=int(confirm_wait)
+        if confirm_wait is not None
+        else CONFIRM_WAIT_MINUTES,
     )
 
 

@@ -97,11 +97,22 @@ Infer `format` the same way:
 | `scale` | how much or how often: `1` to a `max` of 3 to 10, with `labels` for both ends (and `mid` if useful) |
 | `rank` | an order of priority among three to six options |
 | `confirm` | "Did you mean this?" on a screenshot with a marked area |
-| `prototype` | two to six variants on their own page |
+| `prototype` | two to six variants on their own page, with `lookAt`: where to look and the step that shows it |
 
 Only `text` carries a `recommendation`; elsewhere the options are the cards. Never write a
 "Something else" or "Other" option: the server adds one to `choice`, `multi` and `rank`, and
 `scale` and `confirm` take a comment.
+
+On a `multi` question where "none of these applies" is a plausible answer, set `none: true` in its
+`format`; never write a "None of these" option yourself, which the server refuses on `multi`. The
+server adds "None of these" last, keeps it apart from every other pick, and counts it in the digest
+as its own row, apart from a Pass. Leave it off a `multi` where at least one option always applies.
+`choice` takes no `none`.
+
+A `prototype` question's `format` carries `lookAt`, at most 200 characters: the area the variants
+change and the step that shows it ("Open the chat with the round button at bottom right, then switch
+variants"), so nobody switches variants and sees nothing change. Each variant may add its own
+`lookAt` when where to look differs for it.
 
 A diagram or chart goes in `references` as `{kind: "diagram", asset, alt, caption?}`: an SVG
 added with `add-asset`, drawn with whatever this session has or by hand. `alt` is required and

@@ -33,7 +33,12 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import {
+  commitPulls,
+  createGitHub,
+  graphQLReader,
+  loadTrustedList,
+} from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 export const UPSTREAM_PATH = ".github/workflows/pr-require-checks.yml";
 export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
@@ -127,17 +132,24 @@ export async function countedBy({ github, repository, runId, verdict, base }) {
   }
 }
 
-// Every pull request the commit belongs to; a read that fails throws.
+// Every pull request the commit belongs to, read through GraphQL when the
+// REST pages fail (commitPulls); a read that fails both ways throws.
 async function pullsOfCommit(github, repository, head) {
-  const pulls = [];
-  for (let page = 1; page <= MAX_PAGES; page += 1) {
-    const batch = await github("GET", `/repos/${repository}/commits/${head}/pulls?per_page=100&page=${page}`);
-    pulls.push(...batch);
-    if (batch.length < 100) {
-      return pulls;
+  const readRest = async () => {
+    const pulls = [];
+    for (let page = 1; page <= MAX_PAGES; page += 1) {
+      const batch = await github("GET", `/repos/${repository}/commits/${head}/pulls?per_page=100&page=${page}`);
+      if (!Array.isArray(batch)) {
+        throw new Error(`page ${page} is not a list`);
+      }
+      pulls.push(...batch);
+      if (batch.length < 100) {
+        return pulls;
+      }
     }
-  }
-  throw new Error(`the pull requests of ${head} have more than ${MAX_PAGES} pages`);
+    throw Object.assign(new Error(`the pull requests of ${head} have more than ${MAX_PAGES} pages`), { fallback: false });
+  };
+  return commitPulls({ repository, sha: head, readRest, readGraphQL: graphQLReader(github) });
 }
 
 // The names that hold a counted verdict at the head: this PR's PASS,

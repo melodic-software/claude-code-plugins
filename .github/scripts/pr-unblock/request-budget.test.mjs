@@ -182,3 +182,37 @@ test("a permission 403 is not waited on", async () => {
   assert.deepEqual(time.slept, []);
   assert.equal(gh.sent.length, 1);
 });
+
+// A GET answered 5xx is sent again after a backoff, as createGitHub's are
+// (check-trusted-trigger.mjs): run 39788855311 failed the feedback dispatch on
+// one 500 from GET /commits/{sha}/pulls.
+const PULLS = "https://api.example/repos/o/r/commits/db53ee51744631cd5ee03d76bf87873fe1ce59f9/pulls";
+
+test("a GET answered 500 is sent again after a backoff and the next answer returned", async () => {
+  const gh = github([{ status: 500 }, { status: 200, body: '[{"number":7}]', headers: rate(3994) }]);
+  const time = clock(RESET - 3000);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, random: () => 0, ...time });
+  const response = await budget.fetch(PULLS, { headers: {} });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), [{ number: 7 }]);
+  assert.deepEqual(time.slept, [1000]);
+  assert.equal(gh.sent.length, 2);
+});
+
+test("a GET that keeps answering 503 returns the fourth 503", async () => {
+  const gh = github([{ status: 503 }, { status: 503 }, { status: 503 }, { status: 503 }, { status: 200 }]);
+  const time = clock(RESET - 3000);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, random: () => 0, ...time });
+  assert.equal((await budget.fetch(PULLS, { headers: {} })).status, 503);
+  assert.deepEqual(time.slept, [1000, 2000, 4000]);
+  assert.equal(gh.sent.length, 4);
+});
+
+test("a POST answered 500 is returned at once", async () => {
+  const gh = github([{ status: 500 }]);
+  const time = clock(RESET - 3000);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, random: () => 0, ...time });
+  assert.equal((await budget.fetch("https://api.example/repos/o/r/dispatches", { method: "POST", headers: {} })).status, 500);
+  assert.deepEqual(time.slept, []);
+  assert.equal(gh.sent.length, 1);
+});

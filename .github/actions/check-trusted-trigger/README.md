@@ -57,7 +57,8 @@ condition 1 and the actor and author parts of condition 2).
   - its `head_sha` is an ancestor of the branch tip: the tip SHA is resolved once through
     `GET /git/ref/heads/{default branch}`, and `GET /compare/{head_sha}...{tip SHA}` reports
     `ahead` or `identical`;
-  - its `event` is `push`, or `workflow_dispatch` with an `actor` listed as `kind: human`;
+  - its `event` is `push`, `schedule`, or `workflow_dispatch` with an `actor` listed as
+    `kind: human`;
   - when its `run_attempt` is above 1, its `triggering_actor` is listed as `kind: human`;
   - this run's own `created_at` falls between the dispatcher run's `run_started_at` and the
     earlier of its `updated_at` and ten minutes after `run_started_at`, inclusive. The window is
