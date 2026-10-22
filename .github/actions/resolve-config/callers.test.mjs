@@ -956,15 +956,43 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
   assert.ok(launchers.includes("pr-run-activity-read.yml run act-key") && launchers.includes("pr-run-activity-read.yml run act-token"), launchers.join(", "));
 });
 
+// Launcher SHAs checked to pass `--permission-prompts none` unconditionally,
+// under which the default mode denies every call no rule allows, as dontAsk
+// does; check-permission-mode.sh accepts default for dontAsk on that basis.
+// 7b362428: lane.cjs:311-312, in cliArgs. A pin bump fails here until its
+// lane.cjs is read and its SHA added.
+const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set(["7b362428c76085a160e28656cd2c75c3147a69ff"]);
+
+test("pr-run-activity-read.yml: every run-claude-cli pin is a launcher checked to pass --permission-prompts none", () => {
+  const pins = [];
+  for (const [id, job] of Object.entries(workflow("pr-run-activity-read.yml").jobs ?? {})) {
+    for (const step of job.steps ?? []) {
+      const uses = String(step.uses ?? "");
+      if (!uses.includes("/run-claude-cli@")) continue;
+      const sha = uses.slice(uses.indexOf("@") + 1);
+      pins.push(sha);
+      assert.match(sha, /^[0-9a-f]{40}$/, `${id} ${step.id} pins a full SHA`);
+      assert.ok(PERMISSION_PROMPTS_NONE_LAUNCHERS.has(sha), `${id} ${step.id}: ${sha} is not checked to pass --permission-prompts none`);
+    }
+  }
+  assert.ok(pins.length >= 2, pins.join(", "));
+});
+
 // Each launcher leg is followed by a check that the CLI's init message
-// reports the permission mode the base config asked for; a mismatch, a
-// missing init message or an empty mode fails it. The key leg's credit stop
-// hands off unchecked.
+// reports the permission mode the base config asked for, or default for
+// dontAsk; any other mismatch, a missing init message or an empty mode fails
+// it. The key leg's credit stop hands off unchecked. The check runs from the
+// base copy in RUNNER_TEMP; check-permission-mode.test.sh holds its cases.
 test("pr-run-activity-read.yml: each launcher leg is followed by a check of the CLI's reported permission mode", (t) => {
   const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
   const at = (id) => steps.findIndex((s) => s.id === id);
   const dir = mkdtempSync(join(tmpdir(), "mode-check-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const copy = steps.find((s) => s.name === "Copy the patch collector and the output sealer from the base");
+  assert.match(copy.run, /cp [^\n]*\.base\/\.github\/scripts\/read-patch\/check-permission-mode\.sh [^\n]*"\$DEST\/"/);
+  assert.ok(steps.indexOf(copy) < at("act-key"));
+  mkdirSync(join(dir, "read-patch"));
+  writeFileSync(join(dir, "read-patch", "check-permission-mode.sh"), read("../../scripts/read-patch/check-permission-mode.sh"));
   const file = (name, messages) => {
     const path = join(dir, name);
     writeFileSync(path, typeof messages === "string" ? messages : JSON.stringify(messages));
@@ -978,9 +1006,11 @@ test("pr-run-activity-read.yml: each launcher leg is followed by a check of the 
     assert.equal(step.env.MODE, "${{ steps.config.outputs.permission-mode }}");
     assert.ok(!writesSummary(step), `${check} writes no summary`);
     const runs = (mode, execution) =>
-      spawnSync("bash", ["-e", "-c", step.run], { env: { PATH: process.env.PATH, MODE: mode, EXECUTION_FILE: execution } }).status;
+      spawnSync("bash", ["-e", "-c", step.run], { env: { PATH: process.env.PATH, RUNNER_TEMP: dir, MODE: mode, EXECUTION_FILE: execution } }).status;
     assert.equal(runs("auto", file(`${check}-auto.json`, init("auto"))), 0);
     assert.equal(runs("dontAsk", file(`${check}-dontask.json`, init("dontAsk"))), 0);
+    assert.equal(runs("dontAsk", file(`${check}-default.json`, init("default"))), 0, "default for dontAsk");
+    assert.equal(runs("auto", file(`${check}-auto-default.json`, init("default"))), 1, "default for auto");
     assert.equal(runs("auto", file(`${check}-other.json`, init("dontAsk"))), 1, "another mode");
     assert.equal(runs("auto", file(`${check}-none.json`, [{ type: "result", subtype: "success" }])), 1, "no init message");
     assert.equal(runs("auto", join(dir, "missing.json")), 1, "no execution file");

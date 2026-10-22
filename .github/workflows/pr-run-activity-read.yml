@@ -780,7 +780,7 @@ jobs:
           echo "ready=true" >>"$GITHUB_OUTPUT"
 
       # The collector writes the patch in patch mode and checks the tree is
-      # clean otherwise. The sealer and its public key go with it: the head
+      # clean otherwise; the mode check reads each launcher leg. The sealer and its public key go with it: the head
       # checkout replaces .base, and the head's own key file is the PR's.
       # Head code can rewrite either copy, as it can the collector's; a
       # forged sealer gains nothing the model job does not already hold.
@@ -791,7 +791,7 @@ jobs:
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
         run: |
           mkdir -p "$DEST" "$SEAL_DIR"
-          cp .base/.github/scripts/read-patch/collect-patch.sh "$DEST/"
+          cp .base/.github/scripts/read-patch/collect-patch.sh .base/.github/scripts/read-patch/check-permission-mode.sh "$DEST/"
           cp .base/.github/actions/seal-lane-output/action.yml .base/.github/actions/seal-lane-output/seal.mjs \
             .base/.github/lane-keys/scan-carrier.pub "$SEAL_DIR/"
 
@@ -956,7 +956,8 @@ jobs:
 
       # The CLI's init message reports the permission mode the leg ran in. A
       # leg in another mode, or with no init message, fails the job, so no
-      # patch is collected; a credit stop hands off unchecked. It reads only
+      # patch is collected; a credit stop hands off unchecked. Asked for
+      # dontAsk, default passes: see check-permission-mode.sh. It reads only
       # that field and writes no summary.
       - name: Check the API key leg's permission mode
         id: mode-key
@@ -966,12 +967,7 @@ jobs:
         env:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file }}
           MODE: ${{ steps.config.outputs.permission-mode }}
-        run: |
-          mode=$(jq -r 'if type == "array" then ([.[] | select(.type? == "system" and .subtype? == "init")] | first | .permissionMode // "") else "" end' "$EXECUTION_FILE" 2>/dev/null) || mode=""
-          if [ -z "$MODE" ] || [ "$mode" != "$MODE" ]; then
-            echo "::error::permission-mode: the leg's init message does not report the mode asked for ($MODE)"
-            exit 1
-          fi
+        run: bash "$RUNNER_TEMP/read-patch/check-permission-mode.sh"
 
       - name: Run the skill on the OAuth token
         id: act-token
@@ -1007,12 +1003,7 @@ jobs:
         env:
           EXECUTION_FILE: ${{ steps.act-token.outputs.execution-file }}
           MODE: ${{ steps.config.outputs.permission-mode }}
-        run: |
-          mode=$(jq -r 'if type == "array" then ([.[] | select(.type? == "system" and .subtype? == "init")] | first | .permissionMode // "") else "" end' "$EXECUTION_FILE" 2>/dev/null) || mode=""
-          if [ -z "$MODE" ] || [ "$mode" != "$MODE" ]; then
-            echo "::error::permission-mode: the leg's init message does not report the mode asked for ($MODE)"
-            exit 1
-          fi
+        run: bash "$RUNNER_TEMP/read-patch/check-permission-mode.sh"
 
       # Issue mode, on claude-code-action until the issue lane moves to the
       # launcher. A failure does not stop the job here: the next step fails
