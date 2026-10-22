@@ -561,6 +561,8 @@ class Unattended(unittest.TestCase):
         # check's): a config, or an exception to raise. Empty reads
         # `self.config`.
         self.head_configs: list[Any] = []
+        # True runs the real `enabled_since` over the stubbed reads.
+        self.real_enabled_since = False
 
     def _dependabot_eligibility(self, *args: Any, **kwargs: Any) -> Any:
         self.dependabot_kwargs.append(kwargs)
@@ -684,10 +686,16 @@ class Unattended(unittest.TestCase):
                 policy, "permission_reader", side_effect=self.permission_reader
             ),
             mock.patch.object(policy, "read_demotion", return_value=self.demotion),
-            mock.patch.object(
-                policy,
-                "enabled_since",
-                return_value=datetime(2026, 10, 1, tzinfo=UTC),
+            *(
+                []
+                if self.real_enabled_since
+                else [
+                    mock.patch.object(
+                        policy,
+                        "enabled_since",
+                        return_value=datetime(2026, 10, 1, tzinfo=UTC),
+                    )
+                ]
             ),
             mock.patch.object(postmerge, "check", self.post_check),
             mock.patch.object(policy, "read_rung_cap", self.read_cap),
@@ -1751,6 +1759,75 @@ class EachRefusalMakesNoMergeCall(Unattended):
         code, out = self.run_main()
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:MED")
+
+
+class BaseConfigParseError(Unattended):
+    """A base whose pipeline config the reader rejects answers to the default
+    branch head's config alone; a base read failure still refuses."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.main_head = "d" * 40
+        self.base_read: Any = dataclasses.replace(
+            self.config, rung="off", error="config-parse-error"
+        )
+        self.main_read: Any = dataclasses.replace(self.config, base_sha=self.main_head)
+
+    def _read_config_at(self, repo: str, sha: str, *args: Any) -> Any:
+        read = self.base_read if sha == BASE else self.main_read
+        if isinstance(read, Exception):
+            raise read
+        return read
+
+    def test_the_default_branch_head_config_stands_in_for_an_unparsable_base(
+        self,
+    ) -> None:
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out.get("blockers"))
+        self.assertIsNone(out["unattended"]["reason"])
+        self.assertEqual(
+            out["unattended"]["baseConfigFallback"],
+            f"{policy.CONFIG_PATH} at {BASE}: config-parse-error; "
+            f"read at the default branch head {self.main_head}",
+        )
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_the_floor_is_read_from_the_default_branch_head_history(self) -> None:
+        # The real `enabled_since` walks the history of the commit the config
+        # came from; the base's own history holds only unparsable configs.
+        self.real_enabled_since = True
+        local = mock.patch.object(policy, "_local_history", return_value=None)
+        local.start()
+        self.addCleanup(local.stop)
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out.get("blockers"))
+        self.assertIsNone(out["unattended"]["reason"])
+        self.assertEqual(out["unattended"]["mergedSince"], "2026-10-01T00:00:00+00:00")
+
+    def _get(self, endpoint: str) -> tuple[int | None, Any]:
+        if endpoint.startswith("repos/owner/repo/commits?sha="):
+            sha = endpoint.split("sha=", 1)[1].split("&", 1)[0]
+            commit = {"committer": {"date": "2026-10-01T00:00:00Z"}}
+            return 200, [{"sha": sha, "commit": commit}]
+        return super()._get(endpoint)
+
+    def test_an_unparsable_default_branch_config_too_refuses(self) -> None:
+        self.main_read = dataclasses.replace(self.main_read, error="config-parse-error")
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertIn("unattended merge policy unreadable", out["error"])
+        self.assertIn(
+            f"at the default branch head {self.main_head}: config-parse-error",
+            out["error"],
+        )
+        self.assertEqual(self.log, [])
+
+    def test_a_base_read_failure_refuses_without_the_fallback(self) -> None:
+        self.base_read = policy.PolicyReadError("pr-pipeline.yaml (status 502)")
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertIn("status 502", out["error"])
+        self.assertEqual(self.log, [])
 
 
 class CheckInputsChangedOnTheBase(Unattended):
