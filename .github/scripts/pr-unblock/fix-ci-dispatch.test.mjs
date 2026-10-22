@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { createGitHubApi } from "./dispatch.mjs";
-import { dispatchCiFixes, LIST_QUERY } from "./fix-ci-dispatch.mjs";
+import { dispatchCiFixes, humanGatedLabel, LIST_QUERY, skipReason } from "./fix-ci-dispatch.mjs";
 
 // The lanes App bot's user id and the GitHub Actions app id
 // (.github/standards/trusted-actors/trusted-actors.json; dispatch.mjs).
@@ -241,6 +241,96 @@ test("a failed dispatch, or one with no usable run id, counts as failed and stil
   assert.deepEqual(result, { dispatched: [], failed: 2 });
 });
 
+// Owner decision Q22 (2026-10-22): a non-draft PR by an adoptable owner
+// account is a candidate once both it and its head commit are 24 hours idle.
+const OWNER = 153232337;
+const hoursAgo = (hours) => new Date(NOW - hours * 3_600_000).toISOString();
+const ADOPTION = { ownerIds: [OWNER], idleHours: 24 };
+
+function ownerPr(number, { updated = 25, committed = 25, committedDate = hoursAgo(committed), ...overrides } = {}) {
+  const node = pr(number, { author: { login: "kyle-sexton", databaseId: OWNER }, updatedAt: hoursAgo(updated), ...overrides });
+  node.commits.nodes[0].commit.committedDate = committedDate;
+  return node;
+}
+
+test("an adoptable owner's PR idle 25 hours whose ci-status failed is dispatched", async () => {
+  const { result } = await run({ pages: [[ownerPr(9)]] }, { adoption: ADOPTION, now: NOW });
+  assert.deepEqual(result, { dispatched: [{ number: 9, workflowRunId: "7009" }], failed: 0 });
+});
+
+test("an owner PR active within the idle window is skipped with a reason", () => {
+  const options = { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: "pr-unblock / fix-ci", holdLabels: ["do-not-merge", "needs-human"], restarts: 1, adoption: ADOPTION, now: NOW };
+  assert.equal(skipReason(ownerPr(1, { updated: 2, committed: 2 }), options), "owner PR or its head commit active in the last 24 hour(s)");
+  // Idle means both: an old PR with a fresh commit, or the reverse, is active.
+  assert.equal(skipReason(ownerPr(2, { updated: 25, committed: 2 }), options), "owner PR or its head commit active in the last 24 hour(s)");
+  assert.equal(skipReason(ownerPr(3, { updated: 2, committed: 25 }), options), "owner PR or its head commit active in the last 24 hour(s)");
+  assert.equal(skipReason(ownerPr(4), options), "");
+});
+
+test("owner drafts, holds, unlisted or spoofed users and unreadable dates are left alone, each for its reason", async () => {
+  const options = { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: "pr-unblock / fix-ci", holdLabels: ["do-not-merge", "needs-human"], restarts: 1, adoption: ADOPTION, now: NOW };
+  const unlisted = "not opened by the lanes App or an adoptable owner";
+  const active = "owner PR or its head commit active in the last 24 hour(s)";
+  const cases = [
+    [ownerPr(1, { isDraft: true }), "not a ready same-repository PR into the base"],
+    [ownerPr(2, { labels: { nodes: [{ name: "do-not-merge" }] } }), "held"],
+    [ownerPr(3, { labels: { nodes: [{ name: "needs-human" }] } }), "held"],
+    [ownerPr(4, { body: "Closes #1\n\nHold: until the demo\n" }), "held by a Hold: line"],
+    [ownerPr(5, { author: { login: "octocat", databaseId: 4242 } }), unlisted],
+    // The id decides, never the login.
+    [ownerPr(6, { author: { login: "kyle-sexton", databaseId: 4242 } }), unlisted],
+    [ownerPr(7, { author: null }), unlisted],
+    // An unreadable date is not proof of idleness.
+    [ownerPr(8, { updatedAt: "not a date" }), active],
+    [ownerPr(9, { committedDate: "not a date" }), active],
+  ];
+  for (const [node, reason] of cases) {
+    assert.equal(skipReason(node, options), reason, `#${node.number}`);
+  }
+  const { result } = await run({ pages: [cases.map(([node]) => node)] }, { adoption: ADOPTION, now: NOW });
+  assert.deepEqual(result.dispatched, []);
+  const none = await run({ pages: [[ownerPr(10)]] }, { now: NOW });
+  assert.deepEqual(none.result.dispatched, [], "with no adoption list no owner PR is adopted");
+});
+
+test("adoption.held skips every owner PR with its reason and leaves lanes App PRs alone", () => {
+  const held = "base tracker config unreadable, so its human-gated label is unknown";
+  const options = { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: "pr-unblock / fix-ci", holdLabels: ["do-not-merge", "needs-human"], restarts: 1, adoption: { ...ADOPTION, held }, now: NOW };
+  assert.equal(skipReason(ownerPr(15), options), held);
+  assert.equal(skipReason(pr(16), options), "");
+});
+
+test("a listed owner id is adopted whatever its login", async () => {
+  const { result } = await run({ pages: [[ownerPr(11, { author: { login: "someone-else", databaseId: OWNER } })]] }, { adoption: ADOPTION, now: NOW });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [11]);
+});
+
+test("a Hold: line holds an owner PR in any case, after any whitespace, and after a bare CR", () => {
+  const options = { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: "pr-unblock / fix-ci", holdLabels: ["do-not-merge", "needs-human"], restarts: 1, adoption: ADOPTION, now: NOW };
+  for (const body of ["  Hold: demo", "hold: demo", "x\rHold: y", " Hold: z", "\u00a0Hold: nbsp", "Closes #1\r\n\tHOLD: tab"]) {
+    assert.equal(skipReason(ownerPr(12, { body }), options), "held by a Hold: line", JSON.stringify(body));
+  }
+  // Not a line start, or a newline before the word on the same "line": no hold.
+  for (const body of ["Closes #1. Hold: not at a line start", "Holding: no colon after hold", "x\n\nThe word hold: mid-line"]) {
+    assert.equal(skipReason(ownerPr(12, { body }), options), "", JSON.stringify(body));
+  }
+});
+
+test("the human-gated label comes from the tracker config, else needs-human", () => {
+  assert.equal(humanGatedLabel(null), "needs-human");
+  assert.equal(humanGatedLabel('{"config":{"lease_ttl_hours":24}}'), "needs-human");
+  assert.equal(humanGatedLabel('{"config":{"role_labels":{"human-gated":"  human-gated  "}}}'), "human-gated");
+  assert.equal(humanGatedLabel('{"config":{"role_labels":{"human-gated":"   "}}}'), "needs-human");
+  assert.equal(humanGatedLabel('{"config":"x"}'), "needs-human");
+  assert.throws(() => humanGatedLabel("{not json"));
+});
+
+test("lanes App PRs keep their rules: no idle wait, and a Hold: line does not hold them", async () => {
+  const fresh = pr(8, { body: "Closes #1\n\nHold: a human merges this\n", updatedAt: hoursAgo(0) });
+  const { result } = await run({ pages: [[fresh]] }, { adoption: ADOPTION, now: NOW });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [8]);
+});
+
 test("the adapter sends one query naming the PR, its last commit's check rollup and rateLimit cost", async () => {
   const requests = [];
   const api = createGitHubApi({
@@ -262,7 +352,7 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
   assert.equal(requests[0].url, "https://api.example/graphql");
   assert.equal(requests[0].body.query, LIST_QUERY);
   assert.deepEqual(requests[0].body.variables, { owner: "octo", name: "repo", base: "main", after: null });
-  for (const field of ["rateLimit", "cost", "statusCheckRollup", "commits(last: 1)", "databaseId"]) {
+  for (const field of ["rateLimit", "cost", "statusCheckRollup", "commits(last: 1)", "databaseId", "... on User { databaseId }", "updatedAt", "committedDate", "body"]) {
     assert.ok(LIST_QUERY.includes(field), field);
   }
 });
@@ -276,6 +366,17 @@ test("a head whose ci-status failed on infra only gets no fix-ci run, and takes 
   );
   assert.deepEqual(api.calls.jobs, [head(5), head(6), head(7)]);
   assert.ok(lines.includes("skip fix-ci #5: infra failure, re-run job owns it"));
+});
+
+test("an adopted owner PR whose ci-status failed on infra only is the reconciler's too", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const requiredRuns = new Map([[head(13), { run: tested(1), jobs: INFRA_JOBS }]]);
+  const { lines, result } = await run({ pages: [[ownerPr(13), ownerPr(14)]], requiredRuns }, { adoption: ADOPTION, now: NOW });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [14],
+  );
+  assert.ok(lines.includes("skip fix-ci #13: infra failure, re-run job owns it"));
 });
 
 test("a head whose required run's jobs cannot be read gets no fix-ci run this time", async () => {

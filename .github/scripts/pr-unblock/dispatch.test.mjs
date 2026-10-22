@@ -502,7 +502,7 @@ async function runMain(apiOptions, limits = LIMIT_DEFAULTS) {
         GITHUB_OUTPUT: output,
         APP_SENDER_ID: String(LANES_APP),
       },
-      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits },
+      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}) },
     );
     return { code, output: readFileSync(output, "utf8") };
   } finally {
@@ -618,7 +618,7 @@ test("without the lanes App sender id main still dispatches conflicts, dispatche
     writeFileSync(output, "");
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: output },
-      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS },
+      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
     );
     assert.equal(code, 1);
     assert.equal(readFileSync(output, "utf8"), "run-ids=9150\n");
@@ -640,7 +640,7 @@ test("main appends each run id to RUN_IDS_FILE as soon as its dispatch returns",
     };
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), RUN_IDS_FILE: file },
-      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS },
+      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
     );
     assert.deepEqual(seen, ["", "9160\n"], "the first id is on disk before the second dispatch");
     assert.equal(readFileSync(file, "utf8"), "9160\n", "an id that is not a run id is not recorded");
@@ -854,7 +854,7 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
   };
   // A recorded head no open PR carries any more is dropped.
   writeFileSync(path, JSON.stringify({ version: 1, handled: { [CHECK_NAME]: ["f".repeat(40)] }, dispatched: {} }));
-  const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS });
+  const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) });
   try {
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
