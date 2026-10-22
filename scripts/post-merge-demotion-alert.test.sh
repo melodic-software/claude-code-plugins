@@ -894,6 +894,19 @@ else
   fail "baseline-red, judge 0: rc=$RC log='$LOG' out='$OUT'"
 fi
 
+# A mixed run: the newly red check is excused, a baseline-red one demotes on
+# an expired quarantine; the record and its fix issue name the one that demoted.
+JUDGE=1 JUDGE_DEMOTING='["lint-shell"]' RUNS="$(baseline_run 4141 failure)" \
+  JOBS="$(job 1 test-bash 'Run the bash tests'),$(job 3 lint-shell ShellCheck)" \
+  BASE_JOBS="$(job 2 lint-shell ShellCheck)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: lint-shell"$'\n'* &&
+  "$(cat "$TMP_ROOT/stub/judge.checks")" == test-bash && "$(cat "$TMP_ROOT/stub/judge.baseline")" == lint-shell &&
+  "$(fixes)" -eq 1 && "$(fix_post 1)" == *"post-merge-fix check=lint-shell"* ]]; then
+  ok "a judge exit 1 names the checks it demoted, not the excused newly red ones"
+else
+  fail "mixed run: rc=$RC log='$LOG' out='$OUT' fields='$(post_fields)'"
+fi
+
 # --- Fix issues for an agent (#7535) ------------------------------------------
 # Beside a new record of a full run, one fix issue per newly failing check, at
 # most 5, each sent to intake triage. Its text is fixed: the check name (in a

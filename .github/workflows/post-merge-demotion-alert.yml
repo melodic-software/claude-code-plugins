@@ -428,19 +428,24 @@ jobs:
               --repo "$GITHUB_REPOSITORY" --judge-run "$RUN_ID" --attempt "$RUN_ATTEMPT" \
               --checks-file "$now" --baseline-checks-file "$kept" --file-quarantine)" || judged=$?
             printf '%s\n' "$judgment"
-            if [[ ! -s "$now" ]]; then
-              if [[ "$judged" -eq 1 ]]; then
-                jq -r '.demoting[]?' <<<"$judgment" >"$now" 2>/dev/null || true
-              fi
-              if [[ ! -s "$now" ]]; then
-                echo "::warning::$RUN_URL failed only on checks already failing before ${RUN_SHA:0:12} (run $base_id): not a demotion"
-                exit 0
-              fi
-              echo "::warning::$RUN_URL failed on checks already failing before ${RUN_SHA:0:12}, whose suites' quarantine expired: a demotion"
-            elif [[ "$judged" -eq 0 ]]; then
+            if [[ "$judged" -eq 0 && -s "$now" ]]; then
               echo "::notice::$RUN_URL failed only in suites outside the merges' affected set or quarantined: not a demotion"
               echo 'excused=true' >>"$GITHUB_OUTPUT"
               exit 0
+            fi
+            # Exit 1 names the checks that demote, a baseline-red one among
+            # them; the record and fix issues follow that list when it reads.
+            newly_red="$(cat "$now")"
+            if [[ "$judged" -eq 1 ]] &&
+              demoted="$(jq -r '.demoting[]?' <<<"$judgment" 2>/dev/null)" && [[ -n "$demoted" ]]; then
+              printf '%s\n' "$demoted" >"$now"
+            fi
+            if [[ ! -s "$now" ]]; then
+              echo "::warning::$RUN_URL failed only on checks already failing before ${RUN_SHA:0:12} (run $base_id): not a demotion"
+              exit 0
+            fi
+            if [[ -z "$newly_red" ]]; then
+              echo "::warning::$RUN_URL failed on checks already failing before ${RUN_SHA:0:12}, whose suites' quarantine expired: a demotion"
             fi
             newly="$(paste -sd ';' "$now" | sed 's/;/, /g')"
           fi
