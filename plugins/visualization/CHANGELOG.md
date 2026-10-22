@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.8] - 2026-10-22
+
+### Security
+
+- Credential guards now catch stateless GitHub App installation tokens (`ghs_` followed by a JWT), using GitHub's recommended `ghs_` regex where a guard matches the whole token.
+
 ## [0.12.7] - 2026-10-20
 
 ### Added

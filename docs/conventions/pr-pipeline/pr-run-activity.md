@@ -65,6 +65,8 @@ permissions, and passes no App key.
 | `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, that job's `head-sha` output, passed to the gate and the broker (step 3) |
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the model job's `feedback-run-attempt` output, which names the replies artifact so a re-run of the reply job alone still finds it |
 | `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop` or `no-key` for its fallback call, on `claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
+| `model-rung` | `''` | Read file only: the model rung the activity's profile runs at, resolve-config's `model-rung` (`1` takes its `escalate-to`) |
+| `patch-model-rung` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the rung the patch's producer ran at; at `0` (or empty) an empty fix-ci patch may skip `rung-up` |
 | `ci-context-attempt`, `ci-context-sha256` | `''` | Read file only: for [`prepare: ci-context`](#prepare-ci-context), the attempt naming the `ci-context-<attempt>` artifact and its file's SHA-256 |
 | `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity`, `patch-prepare`, `reply-attempt` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the read model job's outputs, its activity name and that activity's prepare mode, which picks the `patch-rules.json` row (empty: `default`) |
 
@@ -159,10 +161,11 @@ the broker request, and no other permission; it never holds `checks: write` or `
 3. [`check-kill-switch`](../../../.github/actions/check-kill-switch/README.md), then
    [`check-trusted-trigger`](../../../.github/actions/check-trusted-trigger/README.md). Neither has
    `continue-on-error`. A stop at either ends the job green with no token minted and no head
-   checked out; the check is neutral, with one exception. The gate reads the re-runner's id from
+   checked out; the check is neutral, with two exceptions. The gate reads the re-runner's id from
    the run's own record, so a re-run started by an account not on the list, by a denied account,
    or with no readable triggering actor stops with `untrusted-rerunner`, and that check is a
-   failure: a re-run cannot turn an earlier red check on the same SHA neutral. The write file also
+   failure: a re-run cannot turn an earlier red check on the same SHA neutral. A PR whose base is
+   not the default branch stops with `untrusted-base`, also a failure. The write file also
    denies `AUTOMATION_LANES_APP_SENDER_ID`, so the lanes App bot as sender or `workflow_run` actor
    stops it with `bot-actor` (neutral) and one write activity never chains into the next. The read
    file denies nothing, so a `workflow_run` read lane still runs after a bot push; the bot's own
@@ -514,11 +517,14 @@ A slash command whose expansion fails ends with a `success` result and no model 
 reports success, but the skill did nothing. A skill pre-compute (`` !`...` ``) line with a command
 that matches no `allowed-tools` grant does this under `--permission-mode dontAsk`. A step after the
 skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` is empty. It writes
-`subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, any `<local-command-stderr>`
-text, `denied`, one `{tool_name, input}` for each of the first 20 calls the permission mode denied,
-where `input` is the call's `command`, else `file_path`, else `path`, else `pattern` (null when it
-has none), cut to 300 characters, and `denied_total`, the count of all of them; the 20 keep a read
-run's file under its 32768-byte carry cap. It writes them to `act-turns.json`, which goes into the
+`subtype` and up to 10 model names, each cut to 100 characters, `is_error`, `num_turns`,
+`duration_ms`, the first 4 `<local-command-stderr>` messages, each cut to 2000 characters, with
+`local_command_stderr_total` counting all of them, `denied`, one `{tool_name, input}` for each of
+the first 20 calls the permission mode denied, where `tool_name` is cut to 100 characters and
+`input` is the call's `command`, else `file_path`, else `path`, else `pattern` (null when it has
+none), cut to 300 characters, and `denied_total`, the count of all of them. Until the file fits
+the 32768-byte cap a read run's scan job carries it under, the oldest stderr messages drop first,
+then denials from the end. It writes them to `act-turns.json`, which goes into the
 same artifact and onto the step summary, where each denial shows as `tool: input` followed by
 `(+N more)` when some were cut; in the write file the lane token is cut out
 of both. In a PR-mode read run, `act-turns.json` is sealed with the reply for the scan job, which
@@ -997,7 +1003,8 @@ warns of a [classifier gap](README.md#classifier-gaps).
 
 ### prepare: ci-context
 
-pr-unblock's `fix-ci` fixes a lanes App pull request's failing checks in four jobs, so no model
+pr-unblock's `fix-ci` fixes a lanes App or [adopted](README.md#adoption) owner pull request's
+failing checks in four jobs, so no model
 holds a write token: a base job, a read model job in this mode on the automations role's API key,
 its fallback call on the role's OAuth token after a credit stop or with the key empty
 ([Two calls on one credential each](#two-calls-on-one-credential-each)), and an
@@ -1046,7 +1053,10 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
 1. Before the mint, the write file downloads `patch-<lane>-<patch-activity>-<patch-attempt>`
    and the model job's reply, and runs the script's `select` with no token. A gated head other
    than `patch-head-sha` skips `superseded-sha` (the row's `skip-moved-head`), and the script checks it again. An `empty` patch escalates `ci-fix-empty`
-   (`ci-fix-escalated` when the report escalated a check). A `patch-state` other than `written`
+   (`ci-fix-escalated` when the report escalated a check), except that at `patch-model-rung` 0 a
+   report whose every escalated check is `unfixed` or `not-reproducible` skips `rung-up` with no
+   escalation (output `rung-up` `true`), so the caller runs the producer once more at
+   `model-rung` 1. A `patch-state` other than `written`
    or `empty`, or an artifact that is not exactly one regular `patch.diff` of at most 1 MiB with
    that SHA-256 and no credential shape, escalates `ci-fix-invalid`. Each skips `awaiting-human`
    with nothing minted. A report that escalated a check sets `ci-fix-escalated` and proceeds, so

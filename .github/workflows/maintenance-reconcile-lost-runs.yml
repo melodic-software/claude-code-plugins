@@ -12,6 +12,17 @@ name: maintenance-reconcile-lost-runs
 # twice. A pr-verify run that ended startup_failure with no jobs is held for
 # a person, not re-run.
 #
+# A CI run on the PR's current head that ended failure only from an outside
+# outage (each failed job hit its time limit, failed in an install step, or
+# lost its runner: infra-failure.mjs) has its failed jobs re-run, at most
+# twice per run, 15 then 30 minutes after the attempt ended, and only while
+# status.npmjs.org and githubstatus.com both show indicator none. A run with
+# any other failure is never re-run.
+#
+# An intake-label-needs-triage run an issue event started whose first attempt
+# failed (a rate limit, most often) left the issue without its floor label;
+# its failed jobs are re-run once, taking no place under the cap.
+#
 # pr-verify's trigger check trusts a re-run github-actions[bot] starts only
 # through this run's record of it: the plan step names an artifact
 # reconcile-rerun-<run id>-2-<head sha> for each pr-verify run it will re-run,

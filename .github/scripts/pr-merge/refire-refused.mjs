@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// refire-refused.mjs: gives a pull request a new head when a pr-refine or
-// pr-unblock run on its current head failed at "Request the lane token"
-// because the token broker refused it as workflow-modified. A rerun
-// keeps its first event's workflow files, so no rerun can pass; a new head
-// starts fresh pull_request events, which run main's files. No model.
+// refire-refused.mjs: gives a pull request a new head when a pr-unblock run
+// on its current head failed at "Request the lane token" because the token
+// broker refused it as workflow-modified. A rerun keeps its first event's
+// workflow files, so no rerun can pass; after the new head, the next
+// pr-unblock run uses main's files. No model.
 //
 // The new head is an empty commit: the head's own tree, the head as its only
 // parent, made with the lanes App token through the Git Data API and moved
@@ -60,14 +60,6 @@ const WRITE_RUNNER = ".github/workflows/pr-run-activity-write.yml";
 // the broker compares for it (the caller, the write runner, a dispatcher), and
 // what the marker comment says starts after the empty commit.
 const LANES = Object.freeze({
-  "pr-refine.yml": {
-    events: ["pull_request"],
-    files: [".github/workflows/pr-refine.yml", WRITE_RUNNER],
-    after: "pr-merge pushes an empty commit so new runs start on main's files.",
-    // pr-refine.yml has no synchronize trigger, so the push starts no pr-refine run.
-    starts:
-      " The push starts no pr-refine run itself: pr-refine runs again when the pull request is reopened or a listed person dispatches `pr-refine` with its number.",
-  },
   // GitHub runs no pull_request workflow on a conflicting PR, and
   // pr-unblock-dispatch runs only on a push to main or a listed person's
   // dispatch, so the empty commit starts no conflict-resolution run itself.
@@ -119,7 +111,7 @@ export function qualifies(pull, repo, ids) {
 }
 
 // `lane` is the lane's workflow file, a key of LANES.
-export const refireComment = (path, blob, head, lane = "pr-refine.yml") =>
+export const refireComment = (path, blob, head, lane) =>
   `<!-- pr-lane-refire ${path}@${blob} head ${head} -->\nA lane run on this pull request's head failed because the token broker refused it as workflow-modified: \`${path}\` changed on main after the run's event, and a rerun keeps the old file. ${LANES[lane].after} It does this once per version of that file, so if a run fails the same way again, a person looks at it.${LANES[lane].starts ?? ""}`;
 
 const commitMessage = (path) =>
@@ -144,7 +136,7 @@ async function failedRuns(actions, repo, file, now) {
 }
 
 // The open PR whose current head the run is about, or undefined.
-async function pullOfRun({ actions, repo, run, lane, byHead, byNumber, ids, appId, mainSha }) {
+async function pullOfRun({ actions, repo, run, lane, byNumber, ids, appId, mainSha }) {
   if (!lane.events.includes(run.event) || run.repository?.full_name !== repo) {
     return undefined;
   }
@@ -155,9 +147,6 @@ async function pullOfRun({ actions, repo, run, lane, byHead, byNumber, ids, appI
   const dispatcher = (user) => run.event === "workflow_dispatch" && user?.id === ACTIONS_BOT_ID && run.run_attempt === 1;
   if (![run.actor, run.triggering_actor].every((user) => listed(user) || dispatcher(user))) {
     return undefined;
-  }
-  if (run.event !== "workflow_dispatch") {
-    return run.head_repository?.full_name === repo ? byHead.get(run.head_sha) : undefined;
   }
   // A dispatched run is on main; its title names the PR, and the check its
   // report job posted on the PR's current head links back to it.
@@ -301,7 +290,6 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     }
 
     const open = (await paginate(github, `/repos/${repo}/pulls?state=open&base=main`)).filter((pull) => qualifies(pull, repo, ids));
-    const byHead = new Map(open.map((pull) => [pull.head.sha, pull]));
     const byNumber = new Map(open.map((pull) => [pull.number, pull]));
     let failed = 0;
     // One refused file per PR, the first found.
@@ -317,7 +305,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       }
       for (const run of runs) {
         try {
-          const pull = await pullOfRun({ actions, repo, run, lane, byHead, byNumber, ids, appId, mainSha });
+          const pull = await pullOfRun({ actions, repo, run, lane, byNumber, ids, appId, mainSha });
           if (pull === undefined || refused.has(pull.number)) {
             continue;
           }

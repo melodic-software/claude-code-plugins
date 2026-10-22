@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state",
   "title": "Shared interview session file",
-  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements`, `reports`, `passes`, `lateActs` and a question's `for` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks). A mention in text a person wrote is stored as `<@pid>` (session.py MENTION), so it shows the person's current name.",
+  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, a variant's `previous` names a variant of an earlier prototype question that no other variant names, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements`, `reports`, `passes`, `lateActs`, `decisions`, a question's `for` and a variant's `previous` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks). A mention in text a person wrote is stored as `<@pid>` (session.py MENTION), so it shows the person's current name.",
   "type": "object",
   "required": [
     "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
@@ -51,7 +51,7 @@
       "additionalProperties": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/notification"}}
     },
     "inboxSeen": {
-      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join:/people: and an id for the owner) and the status each had then; an item whose status moved since is unread.",
+      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join:/people: and an id, or reopen:<qid>:<n> for the owner) and the status each had then; an item whose status moved since is unread.",
       "type": "object",
       "additionalProperties": {
         "type": "object",
@@ -113,6 +113,26 @@
       "additionalProperties": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/cardRef"}}}
     },
     "cleared": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/clearedCard"}}},
+    "decisions": {
+      "description": "The decision log, oldest first; only the owner reads it. Each entry is one lock (`text`), change to the locked text (`lock-change`, `text`), unlock, poll closed or reopened, late Disagree on the locked answer (`late-disagree`, with the `card` and `reason`), the last of them taken back (`withdrawn`) or Keep decision (`kept`); a `lock-change` that rewords the locked answer names it in `card`, with when, the question, who and `seq`, which numbers entries in order and keys the owner's Inbox item. Kept to session.py MAX_DECISIONS, oldest first, sparing a locked decision's late Disagrees in force and its last lock-change; a take-back followed soon by the same person's raise again drops the take-back and moves that person's late Disagree to the end with a new `seq`, instead of adding entries. A question's decision is possibly reopened while late-disagree entries follow its last other entry. Optional: a file written before it has none.",
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "required": ["at", "qid", "kind", "by"],
+        "additionalProperties": false,
+        "properties": {
+          "at": {"$ref": "#/$defs/ts"},
+          "qid": {"$ref": "#/$defs/qid"},
+          "kind": {"enum": ["lock", "lock-change", "unlock", "poll-close", "poll-reopen", "late-disagree", "withdrawn", "kept"]},
+          "by": {"$ref": "#/$defs/pid"},
+          "text": {"$ref": "#/$defs/text"},
+          "card": {"$ref": "#/$defs/cardRef"},
+          "reason": {"$ref": "#/$defs/note"},
+          "seq": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
     "log": {"$ref": "#/$defs/eventLog"}
   },
   "$defs": {
@@ -360,7 +380,18 @@
       "type": "object",
       "required": ["id", "label", "asset"],
       "additionalProperties": false,
-      "properties": {"id": {"type": "string"}, "label": {"$ref": "#/$defs/text"}, "asset": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg|html)$"}}
+      "description": "previous: the variant of an earlier prototype question this one revises, so the variants form one prototype's versions; each variant has at most one next version.",
+      "properties": {
+        "id": {"type": "string"},
+        "label": {"$ref": "#/$defs/text"},
+        "asset": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg|html)$"},
+        "previous": {
+          "type": "object",
+          "required": ["qid", "variant"],
+          "additionalProperties": false,
+          "properties": {"qid": {"type": "string"}, "variant": {"type": "string"}}
+        }
+      }
     },
     "format": {
       "oneOf": [
@@ -498,6 +529,7 @@
           "oneOf": [
             {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["lock-changed"]}}},
             {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["unlocked"]}}},
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["possibly-reopened"]}}},
             {
               "type": "object",
               "required": ["kind", "suggestion"],
@@ -1053,6 +1085,7 @@
         "shown": {"const": true, "description": "The owner approved this guest's received picture: everyone who sees what carries it sees it."},
         "draft": {"const": true, "description": "Offered from a form and not sent with anything yet: never shown under its question."},
         "carried": {"const": true, "description": "A record has carried it: never shown under its question again, even once nothing carries it."},
+        "avatar": {"const": true, "description": "Offered as its sender's profile picture: a PNG, JPEG or WebP of at most 256 KB that no record carries. Once received it replaces their last one; a guest's shows to others once the owner approves it (shown)."},
         "chunks": {"type": "integer", "minimum": 0},
         "status": {
           "oneOf": [
@@ -1152,6 +1185,8 @@
         "tour": {"$ref": "#/$defs/pref"},
         "toolbar": {"$ref": "#/$defs/pref"},
         "autoAdvance": {"$ref": "#/$defs/pref"},
+        "readAloud": {"$ref": "#/$defs/pref"},
+        "dictate": {"$ref": "#/$defs/pref"},
         "popups": {"$ref": "#/$defs/pref"}
       }
     },

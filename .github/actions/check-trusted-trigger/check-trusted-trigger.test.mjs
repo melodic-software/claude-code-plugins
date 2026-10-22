@@ -387,6 +387,50 @@ test("workflow_run: an unlisted actor of the failed run stops with untrusted-act
   );
 });
 
+// Base branch: lanes read the list and scripts from the base, and only the
+// default branch is a trusted base.
+
+test("pull_request: a PR stacked on a non-default branch stops with untrusted-base", async () => {
+  const event = fixture("event-pull-request.json");
+  event.repository.default_branch = "main";
+  event.pull_request.base.ref = "feat/stack-parent";
+  assert.deepEqual(await gate({ eventName: "pull_request", event }), STOPPED("untrusted-base"));
+});
+
+test("pull_request: a PR into a default branch not named main proceeds", async () => {
+  const event = fixture("event-pull-request.json");
+  event.repository.default_branch = "trunk";
+  event.pull_request.base.ref = "trunk";
+  assert.deepEqual(await gate({ eventName: "pull_request", event }), PROCEED);
+});
+
+test("pull_request: a payload with no default branch stops with untrusted-base", async () => {
+  const event = fixture("event-pull-request.json");
+  delete event.repository.default_branch;
+  assert.deepEqual(await gate({ eventName: "pull_request", event }), STOPPED("untrusted-base"));
+});
+
+test("workflow_dispatch: a fetched PR on a non-default base stops with untrusted-base", async () => {
+  const event = fixture("event-workflow-dispatch.json");
+  event.repository.default_branch = "main";
+  const pull = fixture("api-pull-42.json");
+  pull.base.ref = "feat/stack-parent";
+  const github = fakeGitHub({ [`GET /repos/${REPOSITORY}/pulls/42`]: pull });
+  assert.deepEqual(
+    await gate({ eventName: "workflow_dispatch", event, github, prNumber: "42" }),
+    STOPPED("untrusted-base"),
+  );
+});
+
+test("workflow_run: a PR on a non-default base stops with untrusted-base", async () => {
+  const event = fixture("event-workflow-run.json");
+  event.repository.default_branch = "main";
+  const pull = fixture("api-pull-42.json");
+  pull.base.ref = "feat/stack-parent";
+  const github = fakeGitHub({ [commitPulls]: [pull] });
+  assert.deepEqual(await gate({ eventName: "workflow_run", event, github }), STOPPED("untrusted-base"));
+});
+
 // workflow_dispatch sent by github-actions[bot] with a dispatcher run (probe row R-ACT)
 
 const DISPATCHER_RUN_ID = "38155572048";
@@ -690,11 +734,11 @@ test("dispatcher: a malformed own run id stops with untrusted-actor", async () =
   assert.deepEqual(await dispatched({ github, runId: "" }), STOPPED("untrusted-actor"));
 });
 
-test("dispatcher: a payload without the default branch stops with untrusted-actor", async () => {
+test("dispatcher: a payload without the default branch stops with untrusted-base", async () => {
   const event = fixture("event-workflow-dispatch-dispatcher.json");
   delete event.repository.default_branch;
   const github = fakeGitHub(dispatcherRoutes());
-  assert.deepEqual(await dispatched({ github, event }), STOPPED("untrusted-actor"));
+  assert.deepEqual(await dispatched({ github, event }), STOPPED("untrusted-base"));
 });
 
 test("dispatcher: a sender named github-actions[bot] under another id is not the dispatcher bot", async () => {
@@ -1228,12 +1272,11 @@ test("reconciler re-run: a tag sharing the default branch name does not vouch", 
   assert.deepEqual(await reconcilerRerun({ github }), STOPPED("untrusted-rerunner"));
 });
 
-test("reconciler re-run: a payload without the default branch does not vouch", async () => {
+test("reconciler re-run: a payload without the default branch stops with untrusted-base", async () => {
+  const event = rerunEvent();
+  delete event.repository.default_branch;
   const github = fakeGitHub(rerunRoutes());
-  assert.deepEqual(
-    await reconcilerRerun({ github, event: fixture("event-workflow-run.json") }),
-    STOPPED("untrusted-rerunner"),
-  );
+  assert.deepEqual(await reconcilerRerun({ github, event }), STOPPED("untrusted-base"));
 });
 
 test("reconciler re-run: a failed attempt read refuses", async () => {

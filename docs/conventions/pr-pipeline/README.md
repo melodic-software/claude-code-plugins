@@ -19,6 +19,7 @@
 - [Loop caps](#loop-caps)
 - [Limits](#limits)
 - [WIP cap](#wip-cap)
+- [Adoption](#adoption)
 - [Red main](#red-main)
 - [Branch cleanup](#branch-cleanup)
 - [Planning lane work](#planning-lane-work)
@@ -219,12 +220,22 @@ universal set, an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` o
 `.gitmodules`, `CODEOWNERS`), or more than 300 paths
 ([`prepare: ci-context`](pr-run-activity.md#prepare-ci-context),
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
-unappliable patch, or a check the model escalated, goes to `report-escalation`. The same
+unappliable patch, or a check the model escalated, goes to `report-escalation`, with one
+exception: a run at `model-rung` 0 that changed nothing and escalated only `unfixed` or
+`not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
+runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
+`fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). `report-escalation`
+hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
+`ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
+workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
+pushes and `ci-status` stays red. `protected-path`, `weaken-required` and `flaky` go to a person
+without a retry. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
-same-repository ones into `main` that the lanes App opened (by bot id), with no `do-not-merge`
-or `needs-human` label, whose head's `ci-status` check run from the GitHub Actions app ended
-`failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
+same-repository ones into `main` that the lanes App opened (by bot id), or that an owner in
+[`adoption`](#adoption) opened and left idle, with no `do-not-merge`, `needs-human` or tracker
+human-gated label,
+whose head's `ci-status` check run from the GitHub Actions app ended `failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
 untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
 and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
@@ -558,7 +569,8 @@ missed), `prerequisite-missing` (among others, mergeability still unknown at the
 bounded re-reads), `cost-gated`, `awaiting-human` (among others, a `labels-absent` label is on the
 PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no same-repository PR, or an
 actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
-write lane's mint for a workflow file the PR itself changes), or, for an issue run under
+write lane's mint for a workflow file the PR itself changes), `rung-up` (a fix-ci run's patch is
+held back for one retry one model rung up, [Lanes](#lanes)), or, for an issue run under
 `models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
 account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
 `split`). Issue mode posts no check, so work-resolve-issue.yml reports those four dimension skips
@@ -1406,6 +1418,10 @@ Each profile under `models.profiles` names:
   through the run's `settings` env; `inherit` sets nothing. A spawn's own `model` and an agent
   definition's still win.
 - `max-turns`: the turn budget, passed as `--max-turns`.
+- `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
+  (resolve-config's `model-rung` input) takes it in place of this one; at most one rung, so the
+  target's own `escalate-to` is never followed, and a profile with none refuses `model-rung` 1
+  (`no-rung-up`). Only the selected slot climbs, and only fix-ci's retry passes `model-rung` 1.
 
 A role profile names a multi-agent role in place of `model`, and never both: `role`, `workload`
 and `effort-role`, plus `max-turns`. It has no `model` or `effort` key, so it can name neither
@@ -1450,7 +1466,16 @@ its slot cannot give it more turns than its timeout allows; without `issue-dimen
 timeout is 25 minutes. This repository's budgets are owner-approved starting values, tuned in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.issue-dimensions`) from per-run measures. Large
 is `split`, and Uncertainty Known, Knowable and Unknown map to `run`, `research-first` and
-`probe-first`. No model name is set here.
+`probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
+in place of its route's; the dimensions' turn cap still replaces that profile's `max-turns`. A
+complexity with no entry, or an issue not assessed, keeps the route's profile. The config
+reader rejects a key that is not a complexity and a value that is not a profile.
+
+Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
+triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
+(`code-xhigh`) for a high-Complexity issue and fix-ci's one retry, and Fable above it. The Fable
+rung is off: no profile names `fable` or `best`, so no route, rung or Complexity reaches it; it
+waits on an owner decision and a per-week Fable allowance for the lanes.
 
 ## Funding
 
@@ -1549,9 +1574,13 @@ longer pauses (`pause-from` cleared or in the future); with no saved state (none
 or the cache evicted it), the check fails open and the run starts. Without a merged count the
 cap is `limits.wip-cap`. A held PR's age runs from when it opened.
 
-Queued work is the open `agent-ready` issues no open lane PR names on its first body line
-(`Closes #<n>` or `Refs: #<n>`, as report-outcome writes it), plus the held lane PRs. The lane
-branch is not matched: the search answer carries no head ref. The queued cap is
+Queued work is the open `agent-ready` issues no open lane PR names, plus the held lane PRs. A lane
+PR names its issue on its first body line (`Closes #<n>` or `Refs: #<n>`, as report-outcome writes
+it), or else by its head branch `work-resolve-issue/issue-<n>-<run>-<attempt>`: the search answer
+carries no head ref, so each open lane PR whose first line names no issue (a person edited it) costs
+one pull request read, and one that fails leaves the PR unmatched. A dimension-skipped issue
+whose report-skip failed keeps `agent-ready` with no run; work-unblock's sweep re-fires that failed
+run like any other, and the fresh run's report-skip hands the issue back. The queued cap is
 `max(limits.admission-factor × lane merges per hour, limits.admission-min-per-hour) ×
 merge-rate-window-hours`, with the floor alone when the merged count cannot be read. At or over it,
 on or after `pause-from`, new admissions pause: the step output `admission-open` is `false`, and
@@ -1573,6 +1602,22 @@ revisited; any other is left as is with a warning annotation, since re-admitting
 `admission-deferred`, a held one stays deferred, and any other loses it. Restarts, re-fires and relabels re-run issues already admitted and are never
 paced. This queued cap replaces the admission window (`limits.admission-window-hours`) and owner
 decisions Q2, Q17 and Q22 of the 2026-10-21 lane-flow interview.
+
+work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
+group, queued, never cancelled), so a burst of closes or a close run beside the hourly sweep cannot
+each admit the full room. The search index can still lag an `agent-ready` label added moments
+before, so a run right after another may read the room as one admission too wide.
+
+The queued cap paces only work-unblock's new `agent-ready` labels. Every other writer is exempt by
+design (owner decision 2026-10-22, #8966), and the issues it labels still count as queued work:
+
+| Writer | Paced |
+|---|---|
+| work-unblock adding `agent-ready` to an unblocked or deferred issue | Yes |
+| work-unblock's restarts, re-fires and relabels (remove and re-add on an admitted issue) | No: they re-run work already admitted |
+| A person adding the label by hand | No |
+| A person-run skill: `/work-items:triage`, `/work-items:decompose`, `/work-items:attend-queue`, `/work-items:track` | No: a person's account, their call |
+| `post-merge-demotion-alert.yml` red-main fix issues | No: it files them unlabeled and reopens one on a repeat failure keeping the `agent-ready` a person gave it, which work-unblock relabels; guardrail work |
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
 and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause;
@@ -1600,6 +1645,37 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 | `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
 | `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
 | `admission_basis` | `read`, or `fail-open` when the queued count could not be read. |
+
+## Adoption
+
+The `adoption` section names owner accounts whose pull requests the lanes take over once the owner
+has left them (owner decision Q22, 2026-10-22). This grants the lanes unattended power over PRs a
+person opened. A PR is adopted when all of these hold:
+
+- one of `owner-ids` opened it (the author's numeric user id);
+- it is not a draft, it is a same-repository PR into `main`, and it carries no `do-not-merge`,
+  `needs-human` or human-gated label (`config.role_labels["human-gated"]` in the base
+  `.work-item-tracker.json`, as pr-merge resolves it; a tracker file that is not JSON holds every
+  owner PR for the run and fails the dispatcher run, while lanes App PRs proceed under the other
+  two labels);
+- no body line starts with `Hold:`, read as babysit reads it: any case, after any non-newline
+  whitespace (NBSP included), with a bare CR also ending a line;
+- its last update (`updatedAt`) and its head commit's committer date are both at least
+  `idle-hours` old. Neither one alone is enough.
+
+An adopted PR whose `ci-status` failed is dispatched `fix-ci` like a lanes App PR, under the same
+`limits.fix-ci-per-run`, `limits.fix-ci-restarts` and `loop.fix-ci-rounds`. The run still needs
+the author on the trusted-actor list, as every pr-unblock run does. A pushed fix commit updates the
+PR and its head, so the next fix waits another `idle-hours`: an owner PR gets at most one fix
+round per idle window. A lanes App PR waits for no idle window, and its
+`Hold: a human merges this` line holds the merge, not a CI fix. While `owner-ids` lists anyone,
+the human-gated label holds a lanes App PR from `fix-ci` too; with `owner-ids` empty the tracker
+file is not read, and only `do-not-merge` and `needs-human` hold.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `idle-hours` | 24 | Hours both the PR and its head commit must be unchanged; 1 to 720. |
+| `owner-ids` | `[]` | User ids whose PRs are adopted. Empty: none. |
 
 ## Red main
 
@@ -1669,7 +1745,13 @@ The job reads the leaf through the base checkout's resolve-config (`redMainFromB
 the resolver refuses fails it. It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`,
 `contents` and `pull-requests` read, `issues: write`), reads REST only, 300 ms apart and within 300
 calls, and stops on any failed read. A range of more than 25 merges pins no culprit. The kill switch stops it, and it skips an event the lanes App
-sent. Owner decision 2026-10-20: `dry-run` stays true for 3 days of reports with no wrong blame
+sent. Reports run one at a time in one repository-wide concurrency group, which keeps one pending
+report and cancels the one before it. The next report names every red full run since the last
+green one that has no report on the log, and its range covers their merges, so a cancelled report
+re-decides there instead of dropping. The log is the oldest `github-actions[bot]` issue (user id
+41898282) carrying the log marker, and only that account's comments on it count toward the cap and
+the dedupe. Any workflow's `GITHUB_TOKEN` posts as that account, so a comment there can still use
+up the cap, which only sends a culprit to a person. Owner decision 2026-10-20: `dry-run` stays true for 3 days of reports with no wrong blame
 before any revert merges.
 
 ## Branch cleanup

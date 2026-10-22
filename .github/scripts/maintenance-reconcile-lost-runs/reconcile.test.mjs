@@ -18,7 +18,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { JUDGE_STEP, main } from "./reconcile.mjs";
+import { GITHUB_STATUS_URL, JUDGE_STEP, main, NPM_STATUS_URL } from "./reconcile.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-19T20:00:00Z");
@@ -29,6 +29,18 @@ const REVIEW = ".github/workflows/pr-review-hosted.yml";
 const VERIFY = ".github/workflows/pr-verify.yml";
 const MAIN_TIP = "e".repeat(40);
 const sha = (n) => String(n).padStart(40, "0");
+
+const fixture = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
+// Recorded status.json pages: npm's during its 2026-10-22 install incident
+// (indicator minor) and GitHub's with nothing open (indicator none).
+const NPM_DOWN = fixture("npm-status.json");
+const GITHUB_OK = fixture("github-status.json");
+const NPM_OK = { ...NPM_DOWN, status: { indicator: "none", description: "All Systems Operational" } };
+const UPSTREAM_OK = { [NPM_STATUS_URL]: NPM_OK, [GITHUB_STATUS_URL]: GITHUB_OK };
+// pr-require-checks run 39710654665's latest jobs: two time-limit cancels and a
+// real lint-shell failure. Without lint-shell, its failures are infra only.
+const MIXED_JOBS = fixture("jobs-39710654665.json").jobs;
+const INFRA_JOBS = MIXED_JOBS.filter((j) => j.name !== "lint-shell");
 
 const statusWith = (actions) => ({
   ...STATUS,
@@ -42,7 +54,7 @@ const pr = (number, { draft = false, repo = REPO, autoMerge = null } = {}) => ({
   base: { ref: "main" },
   head: { sha: sha(number), ref: `fix/${number}`, repo: { full_name: repo } },
 });
-const run = (id, head, { path = CHECKS, conclusion = "cancelled", status = "completed", attempt = 1, created = "2026-10-19T18:59:43Z", event = "pull_request" } = {}) => ({
+const run = (id, head, { path = CHECKS, conclusion = "cancelled", status = "completed", attempt = 1, created = "2026-10-19T18:59:43Z", updated = created, event = "pull_request", jobs } = {}) => ({
   id,
   path,
   event,
@@ -52,8 +64,9 @@ const run = (id, head, { path = CHECKS, conclusion = "cancelled", status = "comp
   workflow_id: path.length,
   head_sha: head,
   created_at: created,
-  updated_at: created,
+  updated_at: updated,
   head_repository: { full_name: REPO },
+  jobs,
 });
 
 function fakeGitHub({ pulls, runs = [], fail = {} }) {
@@ -90,7 +103,12 @@ function fakeGitHub({ pulls, runs = [], fail = {} }) {
       const found = byId.get(Number(jobs[1]))?.jobs ?? [];
       return { total_count: found.length, jobs: found };
     }
-    const one = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)(\/rerun)?$/.exec(path);
+    const latest = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/jobs\?filter=latest&per_page=100$/.exec(path);
+    if (method === "GET" && latest) {
+      const found = byId.get(Number(latest[1]))?.jobs ?? [];
+      return { total_count: found.length, jobs: found };
+    }
+    const one = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)(\/rerun|\/rerun-failed-jobs)?$/.exec(path);
     if (one && method === "GET") {
       return byId.get(Number(one[1]));
     }
@@ -104,7 +122,7 @@ function fakeGitHub({ pulls, runs = [], fail = {} }) {
 
 // Runs the workflow's two steps: plan, then, when the plan step succeeds,
 // act. The upload steps between them read the plan's record-N outputs.
-async function reconcile({ pulls, runs, status = STATUS, env = {}, fail, github: wrap = (g) => g } = {}) {
+async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK, env = {}, fail, github: wrap = (g) => g } = {}) {
   const { github, calls } = fakeGitHub({ pulls, runs, fail });
   const sleeps = [];
   const order = [];
@@ -124,11 +142,12 @@ async function reconcile({ pulls, runs, status = STATUS, env = {}, fail, github:
       main({
         env: { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", ...files, ...env, MODE: mode },
         github: tracked,
-        fetchStatus: async () => {
-          if (status instanceof Error) {
-            throw status;
+        fetchStatus: async (url) => {
+          const page = upstream[url] ?? status;
+          if (page instanceof Error) {
+            throw page;
           }
-          return status;
+          return page;
         },
         sleep: async (ms) => {
           sleeps.push(ms);
@@ -142,8 +161,10 @@ async function reconcile({ pulls, runs, status = STATUS, env = {}, fail, github:
       [...readFileSync(files.GITHUB_OUTPUT, "utf8").matchAll(/^([a-z0-9-]+)<<(\S+)\n([^\n]*)\n\2$/gm)].map((m) => [m[1], m[3]]),
     );
     const code = planCode === 0 ? await step("act") : planCode;
-    const reruns = calls.filter((c) => c.startsWith("POST ")).map((c) => Number(/runs\/([0-9]+)\/rerun$/.exec(c)[1]));
-    return { code, planCode, planWrites, outputs, calls, reruns, sleeps, order };
+    const posted = (suffix) => calls.filter((c) => c.startsWith("POST ") && c.endsWith(suffix)).map((c) => Number(/runs\/([0-9]+)\//.exec(c)[1]));
+    const reruns = posted("/rerun");
+    const failedJobReruns = posted("/rerun-failed-jobs");
+    return { code, planCode, planWrites, outputs, calls, reruns, failedJobReruns, sleeps, order };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -530,4 +551,120 @@ test("act says why it exits 1 when the plan recorded listing failures", async (t
   const errors = log.mock.calls.map((c) => String(c.arguments[0])).filter((l) => l.startsWith("::error title=reconcile::the plan step"));
   assert.equal(code, 1);
   assert.deepEqual(errors, ["::error title=reconcile::the plan step recorded 1 listing failures and 0 re-runs failed; see the Find lost runs step"]);
+});
+
+// A failed CI run whose failures are infra only: its failed jobs are re-run,
+// at most twice per head, 15 then 30 minutes after the attempt ended, while
+// npm and GitHub both report indicator none.
+const failed = (id, head, { jobs = INFRA_JOBS, attempt = 1, updated = "2026-10-19T19:30:00Z", ...opts } = {}) =>
+  run(id, head, { conclusion: "failure", jobs, attempt, updated, ...opts });
+
+test("an infra-only failed run has its failed jobs re-run", async () => {
+  const { code, reruns, failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1))] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [101]);
+  assert.deepEqual(reruns, []);
+});
+
+test("a failed run with any real failure is not re-run", async () => {
+  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: MIXED_JOBS })] });
+  assert.equal(code, 0);
+  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+});
+
+test("an infra-only run already at attempt 3 is not re-run again", async () => {
+  const { calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { attempt: 3 })] });
+  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+});
+
+test("an infra-only run waits 15 minutes after attempt 1 and 30 after attempt 2", async () => {
+  const cases = [
+    [1, "2026-10-19T19:50:00Z", []],
+    [1, "2026-10-19T19:44:00Z", [101]],
+    [2, "2026-10-19T19:40:00Z", []],
+    [2, "2026-10-19T19:29:00Z", [101]],
+  ];
+  for (const [attempt, updated, expected] of cases) {
+    const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { attempt, updated })] });
+    assert.deepEqual(failedJobReruns, expected, `attempt ${attempt} ended ${updated}`);
+  }
+});
+
+test("an infra-only run waits while npm or GitHub reports an incident, or either page is unreadable", async () => {
+  const upstreams = [
+    { [NPM_STATUS_URL]: NPM_DOWN, [GITHUB_STATUS_URL]: GITHUB_OK },
+    { [NPM_STATUS_URL]: NPM_OK, [GITHUB_STATUS_URL]: { ...GITHUB_OK, status: { indicator: "minor" } } },
+    { [NPM_STATUS_URL]: new Error("fetch failed"), [GITHUB_STATUS_URL]: GITHUB_OK },
+    { [NPM_STATUS_URL]: NPM_OK, [GITHUB_STATUS_URL]: {} },
+  ];
+  for (const upstream of upstreams) {
+    const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1))], upstream });
+    assert.equal(code, 0);
+    assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  }
+});
+
+test("an upstream incident does not hold back a lost run's re-run", async () => {
+  const upstream = { [NPM_STATUS_URL]: NPM_DOWN, [GITHUB_STATUS_URL]: GITHUB_OK };
+  const { reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2)], runs: [run(101, sha(1)), failed(102, sha(2))], upstream });
+  assert.deepEqual(reruns, [101]);
+  assert.deepEqual(failedJobReruns, []);
+});
+
+test("an infra-only run re-run since the listing is left alone", async () => {
+  const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1))], github: rerunSinceListing(101) });
+  assert.deepEqual(failedJobReruns, []);
+});
+
+test("a failed contract-only run on top of an infra-only run does not hide it", async () => {
+  // Head 60eae294 on 2026-10-22: run 39710654665 hit its time limits and
+  // contract-only run 39710676298 failed 14 seconds after it was created.
+  const contract = failed(102, sha(1), { jobs: fixture("jobs-39716948399.json").jobs, created: "2026-10-19T18:59:57Z" });
+  const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1)), contract] });
+  assert.deepEqual(failedJobReruns, [101]);
+});
+
+test("a re-run still going under a newer failed contract-only run takes a place under the cap", async () => {
+  // PR 1's attempt-2 run is in progress; a contract-only run failed on top of it.
+  const contract = failed(102, sha(1), { jobs: fixture("jobs-39716948399.json").jobs, created: "2026-10-19T18:59:57Z" });
+  const runs = [run(101, sha(1), { status: "in_progress", attempt: 2 }), contract, run(201, sha(2)), run(202, sha(3)), run(203, sha(4))];
+  const { reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3), pr(4)], runs });
+  assert.deepEqual(reruns, [201, 202]);
+  assert.deepEqual(failedJobReruns, []);
+});
+
+// An issue's floor-label run whose first attempt failed (a rate limit left
+// the issue unlabeled) has its failed jobs re-run once.
+const INTAKE = ".github/workflows/intake-label-needs-triage.yml";
+const intakeRun = (id, opts = {}) => run(id, MAIN_TIP, { path: INTAKE, event: "issues", conclusion: "failure", ...opts });
+
+test("a failed first attempt of the floor-label run has its failed jobs re-run once", async () => {
+  const { code, failedJobReruns, reruns } = await reconcile({ pulls: [], runs: [intakeRun(301)] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [301]);
+  assert.deepEqual(reruns, []);
+});
+
+test("floor-label runs at attempt 2, older than the lookback, or from another event are left alone", async () => {
+  const runs = [
+    intakeRun(301, { attempt: 2 }),
+    intakeRun(302, { created: "2026-10-18T19:00:00Z" }),
+    intakeRun(303, { event: "workflow_dispatch" }),
+    intakeRun(304, { conclusion: "success" }),
+  ];
+  const { failedJobReruns, calls } = await reconcile({ pulls: [], runs });
+  assert.deepEqual(failedJobReruns, []);
+  assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
+});
+
+test("a floor-label run re-run since the listing is left alone", async () => {
+  const { failedJobReruns } = await reconcile({ pulls: [], runs: [intakeRun(301)], github: rerunSinceListing(301) });
+  assert.deepEqual(failedJobReruns, []);
+});
+
+test("a floor-label re-run takes no place under the cap of 3", async () => {
+  const runs = [run(201, sha(1)), run(202, sha(2)), run(203, sha(3)), intakeRun(301)];
+  const { reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3)], runs });
+  assert.deepEqual(reruns.sort(), [201, 202, 203]);
+  assert.deepEqual(failedJobReruns, [301]);
 });

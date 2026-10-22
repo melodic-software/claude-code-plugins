@@ -17,6 +17,6 @@
     },
     "repository": { "id": 1, "full_name": "melodic-software/claude-code-plugins" }
   },
-  "repository": { "id": 1, "full_name": "melodic-software/claude-code-plugins" },
+  "repository": { "id": 1, "full_name": "melodic-software/claude-code-plugins", "default_branch": "main" },
   "sender": { "login": "kyle-sexton", "id": 153232337, "type": "User" }
 }

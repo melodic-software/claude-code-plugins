@@ -106,9 +106,11 @@ the `limits` ([README, Limits](../../../docs/conventions/pr-pipeline/README.md#l
 `merge.rung` `off`, `stack-landing` `manual`. A skill slot carries `models`: its profile name and
 that profile's `model`, `effort` (null when unset), `subagent-model` (`inherit` when unset) and
 `max-turns`, from its activity's route, else `models.default-profile`, else, with no `models`
-block, the built-in `standard` profile (model `default`, 75 turns); a script slot carries `models`
+block, the built-in `standard` profile (model `default`, 75 turns); at input `model-rung` 1 the
+profile's `escalate-to` replaces it, one rung at most; a script slot carries `models`
 null. A skill slot with input `issue`, in a config with `models.issue-dimensions`, also carries
-`issue-dimensions` and `timeout-minutes`, and its `max-turns` is the dimensions' turn cap. The
+`issue-dimensions` and `timeout-minutes`, and its `max-turns` is the dimensions' turn cap; its
+Complexity's `complexity-profiles` entry, when there is one, replaces the route's profile. The
 issue's field values are read over REST (`issue-field-values`, which needs `issues: read`) and
 their setters from the GraphQL field events, unless input `issue-dimensions` names what an
 earlier resolve read. A value counts only when its latest setter is a listed human on the base

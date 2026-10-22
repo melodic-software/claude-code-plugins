@@ -82,14 +82,14 @@ valid() {
 
 MSG=$'feat(alpha): add the widget\n\nThe widget does one thing.\nIt does it well.\n\nCo-Authored-By: Someone <s@x.y>\nRefs: #12'
 
-# 1. No scripts/fragment-plugins.txt: nothing written, exit 0.
+# No scripts/fragment-plugins.txt: nothing written, exit 0.
 r=$(mkrepo --no-list)
 out=$(write "$r" "$MSG")
 assert_exit "no list: exit 0" 0 "$?"
 assert_eq "no list: no output" "" "$out"
 assert_eq "no list: no fragment" 0 "$(nfrag "$r")"
 
-# 2. feat touching a listed and an unlisted plugin: one fragment, for alpha.
+# feat touching a listed and an unlisted plugin: one fragment, for alpha.
 r=$(mkrepo)
 out=$(write "$r" "$MSG")
 assert_exit "feat: exit 0" 0 "$?"
@@ -99,7 +99,7 @@ want=$'---\nbump: minor\n---\n\n### Added\n\n- add the widget\n\n  The widget do
 assert_eq "feat: minor, Added, body indented, trailers dropped" "$want" "$(frag "$r" "$out")"
 valid "feat fragment validates" "$r" "$out"
 
-# 3. Type to bump and section.
+# Type to bump and section.
 for row in 'fix(a): x|patch|### Fixed' 'perf: x|patch|### Changed' 'feat!: x|major|### Added' \
   'refactor(a)!: x|major|### Changed' 'docs: x|none|No release needed (docs): x' \
   'chore: x|none|' 'test: x|none|' 'ci: x|none|' 'refactor: x|none|' 'style: x|none|' 'build: x|none|'; do
@@ -121,8 +121,8 @@ out=$(write "$r" $'feat: y\r\n\r\nWhy.\r\n\r\nBREAKING-CHANGE: old flag removed\
 assert_eq "CRLF, BREAKING-CHANGE among trailers: other trailers dropped" \
   $'---\nbump: major\n---\n\n### Added\n\n- y\n\n  Why.\n\n  **Breaking:** old flag removed' "$(frag "$r" "$out")"
 
-# 4. A second commit on the branch appends to the branch's fragment and raises
-#    the bump only upward; a none commit leaves it alone.
+# A second commit on the branch appends to the branch's fragment and raises
+# the bump only upward; a none commit leaves it alone.
 r=$(mkrepo)
 out=$(write "$r" "fix: first")
 git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: first" >/dev/null
@@ -141,15 +141,15 @@ assert_eq "none on a released fragment: nothing written" "" "$out4"
 assert_not_contains "none on a released fragment: unchanged" "$(frag "$r" "$out")" "fourth"
 [[ -n "$out3" ]] || fail "third commit reported its fragment" path ""
 
-# 5. A none fragment followed by a feat becomes a minor fragment with no reason
-#    line left before its first section.
+# A none fragment followed by a feat becomes a minor fragment with no reason
+# line left before its first section.
 r=$(mkrepo)
 out=$(write "$r" "docs: first")
 write "$r" "feat: second" >/dev/null
 assert_eq "none then feat" $'---\nbump: minor\n---\n\n### Added\n\n- second' "$(frag "$r" "$out")"
 valid "none then feat validates" "$r" "$out"
 
-# 6. --base fills only the plugins with no branch fragment.
+# --base fills only the plugins with no branch fragment.
 r=$(mkrepo)
 git -C "$r" commit -qm "feat: committed without a fragment" >/dev/null
 out=$(write "$r" "feat(alpha): the pull request" --base main)
@@ -159,7 +159,7 @@ out=$(write "$r" "feat(alpha): the pull request" --base main)
 assert_eq "--base: a covered plugin is left alone" "" "$out"
 assert_eq "--base: still one fragment" 1 "$(nfrag "$r")"
 
-# 7. A subject the mapping cannot read needs --level.
+# A subject the mapping cannot read needs --level.
 r=$(mkrepo)
 out=$(write "$r" "Add the widget")
 assert_exit "non-Conventional subject: exit 2" 2 "$?"
@@ -173,21 +173,21 @@ r=$(mkrepo)
 out=$(write "$r" "feat: x" --level none)
 assert_contains "--level overrides the type" "$(frag "$r" "$out")" "bump: none"
 
-# 8. An unmappable subject that touches no listed plugin is not refused.
+# An unmappable subject that touches no listed plugin is not refused.
 r=$(mkrepo)
 git -C "$r" reset -q -- plugins/alpha >/dev/null
 out=$(write "$r" "Update beta docs")
 assert_exit "unmappable subject, no listed plugin: exit 0" 0 "$?"
 assert_eq "unmappable subject, no listed plugin: nothing written" 0 "$(nfrag "$r")"
 
-# 9. A rerun after a failed commit does not add the entry twice.
+# A rerun after a failed commit does not add the entry twice.
 r=$(mkrepo)
 out=$(write "$r" "fix: once")
 write "$r" "fix: once" >/dev/null
 assert_eq "rerun: the entry appears once" 1 "$(grep -c -- '- once' "$r/$out")"
 
-# 9b. The same description under another type is a new entry, not a rerun, and
-#     a body line that only contains the entry text does not count either.
+# The same description under another type is a new entry, not a rerun, and
+# a body line that only contains the entry text does not count either.
 r=$(mkrepo)
 out=$(write "$r" "fix: update docs")
 git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: update docs" >/dev/null
@@ -201,8 +201,8 @@ echo three >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
 write "$r" "fix: second" >/dev/null
 assert_eq "entry text inside a body line: still written" 1 "$(grep -c '^- second$' "$r/$out")"
 
-# 10. A fragment main already holds, from an earlier branch with the same name,
-#     is not this branch's: a new fragment is written and the old one untouched.
+# A fragment main already holds, from an earlier branch with the same name,
+# is not this branch's: a new fragment is written and the old one untouched.
 r=$(mkrepo)
 out=$(write "$r" "fix: earlier change")
 {
@@ -219,8 +219,8 @@ assert_eq "same slug on main: the merged fragment is untouched" "$old" "$(cat "$
 out3=$(write "$r" "feat: later change" --base main)
 assert_eq "same slug on main, --base: the staged fragment counts as the branch's" "" "$out3"
 
-# 10b. A listed name with no plugin and a docs/conventions/<name>/CHANGELOG.md
-#      is a convention: a change under that directory gets a fragment for it.
+# A listed name with no plugin and a docs/conventions/<name>/CHANGELOG.md
+# is a convention: a change under that directory gets a fragment for it.
 r=$(mkrepo)
 {
   git -C "$r" reset -q
@@ -234,8 +234,8 @@ r=$(mkrepo)
 out=$(write "$r" "fix(demo): y")
 assert_eq "convention: one fragment, for demo" ".changes/demo/feat-x-00000001.md" "$out"
 
-# 11. Two releasing commits of the same type share one heading, and a later
-#     entry lands under the matching heading when another follows it.
+# Two releasing commits of the same type share one heading, and a later
+# entry lands under the matching heading when another follows it.
 r=$(mkrepo)
 out=$(write "$r" "fix: one")
 git -C "$r" add -A >/dev/null && git -C "$r" commit -qm "fix: one" >/dev/null
@@ -253,8 +253,8 @@ assert_eq "fix, feat, fix: the late fix sits under Fixed" $'### Fixed\n\n- one\n
   "$(sed -n '/^### Fixed/,$p' "$r/$out")"
 valid "merged headings validate" "$r" "$out"
 
-# 12. A fragment already on the merge base is never edited, and nothing is
-#     written while a merge is in progress.
+# A fragment already on the merge base is never edited, and nothing is
+# written while a merge is in progress.
 r=$(mkrepo)
 {
   git -C "$r" commit -qm "feat: alpha work"
@@ -277,7 +277,8 @@ out=$(write "$r" "fix: after merge")
 assert_eq "after the merge: a new branch fragment, not main's" 2 "$(nfrag "$r")"
 assert_eq "after the merge: main's fragment is unchanged" "$before" "$(cat "$r/.changes/alpha/fix-other-00000009.md")"
 
-# 13. Usage errors.
+# Usage errors.
+r=$(mkrepo)
 out=$(write "$r" "feat: x" --level huge)
 assert_exit "bad --level: exit 2" 2 "$?"
 
