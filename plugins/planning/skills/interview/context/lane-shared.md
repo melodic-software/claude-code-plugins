@@ -264,8 +264,8 @@ a reshaping answer and re-ask what it invalidates. An entry marked `possiblyReop
 change: hold its question as it stands until the decision it names is kept, changed or unlocked.
 
 A `possiblyReopened` entry is a locked decision someone disagreed with after its round closed:
-`locked` is the decision, and each of `disagreements` is the answer a person disagreed with
-(`text`) and why (`reason`). The decision stands and its register row stays `answered`; the page
+`locked` is the decision, and each of `disagreements` is the locked answer a person disagreed with
+(`text`) and why (`reason`). Taking back the last such Disagree ends the entry. The decision stands and its register row stays `answered`; the page
 never changes it. Tell the owner in the terminal, with your recommendation to keep it or unlock it
 and why, from the reasons and what else the session settled; the owner decides on the page (Keep
 decision or Unlock). An unlock arrives in a later digest as a `needsReview` entry without that mark;

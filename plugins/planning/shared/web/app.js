@@ -1798,7 +1798,8 @@
     decPop.append(dpH, E("p", "vf-pop-note", "Only you see this, oldest first."), dpList, dpEmpty);
     const DECIDED = { lock: e => `Locked: ${e.text}`, "lock-change": e => `Changed the locked answer: ${e.text}`, unlock: () => "Unlocked",
       "poll-close": () => "Closed the poll", "poll-reopen": () => "Reopened the poll",
-      "late-disagree": e => `Disagreed after the round closed, so it may be reopened: ${e.reason}`, kept: () => "Kept the decision" };
+      "late-disagree": e => `Disagreed after the round closed, so it may be reopened: ${e.reason}`,
+      withdrawn: () => "Took back the last late Disagree, so it is no longer reopened", kept: () => "Kept the decision" };
     /** A decision list, oldest first: who and when (the time in full on hover), then what happened. */
     function fillDecisions(ol, list, withQ) {
       const sig = JSON.stringify([list.map(e => [e.ts, e.kind, e.by, e.text, e.reason]), withQ, Math.floor(Date.now() / 60000)]);
@@ -6701,12 +6702,12 @@
       return j.n ? ` (${ordinal(j.n)} waiting${hint ? `; ${hint}` : ""})` : "";
     };
     /** A possibly reopened decision: the locked answer, and the reason each person who disagreed late holds now. */
-    function reopenText(qid, n) {
+    function reopenText(qid, n, card) {
       const who = new Set();
       for (const e of Core.state.decisions) if (e.qid === qid) { if (e.kind === "late-disagree") who.add(e.cid); else who.clear(); }
       const said = new Map(Core.answersFor(qid).map(a => [a.ref, a.text]));
       return `${n} late Disagree${n === 1 ? "" : "s"}. Locked: ${Core.lockOf(qid)?.text || ""}\nThe decision stands until you keep it or unlock it.`
-        + (Core.state.disagreements[qid] || []).filter(d => who.has(d.cid)).map(d => `\n${disp(d.name)} disagrees with "${said.get(d.card) ?? "an answer"}": ${d.reason}`).join("");
+        + (Core.state.disagreements[qid] || []).filter(d => who.has(d.cid) && d.card === card).map(d => `\n${disp(d.name)} disagrees with "${said.get(d.card) ?? "an answer"}": ${d.reason}`).join("");
     }
     function makeQItem(it) {
       const li = E("li", "vf-qitem");
@@ -6751,7 +6752,7 @@
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
         : it.m ? `${it.m.fromName} says they were ${it.m.toName} before. Approve to join them: ${it.m.fromName}'s answers and votes move to ${it.m.toName}.`
         : it.ready ? `${youOr(it.ready.cid, it.ready.by)} marked round ${curRound().current} ready to send.`
-        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.c ? proposalText(it.c) : it.o ? reopenText(it.qid, it.o.n) : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.asked ? "Asked Claude. " : ""}${it.f.text}` : "";
+        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.c ? proposalText(it.c) : it.o ? reopenText(it.qid, it.o.n, it.o.card) : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.asked ? "Asked Claude. " : ""}${it.f.text}` : "";
       k.text.hidden = !txt;
       if (txt) fillClamp(k.text, "q:" + it.id, txt, `${QT[it.t]} from ${disp(person[1] || "someone")}`, q ? `${q.id}: ${q.text}` : "");
       if (k.up) fillUpRow(k.up, it.u);

@@ -3178,14 +3178,33 @@ class Session:
             kept = [d for d in by_q.get(q["id"], []) if not (d["pid"] == pid and d["card"] == ref)]
             if on:
                 kept.append({"pid": pid, "card": ref, "reason": reason, "at": self.now()})
-                if q["id"] in st["locks"] and pid not in {e["by"] for _, e in self._reopened(q["id"])}:
-                    self._decided(q["id"], "late-disagree", pid, card=ref, reason=reason)
-                    self._flag(q["id"], {"kind": "possibly-reopened"})
             if kept:
                 by_q[q["id"]] = kept
             else:
                 by_q.pop(q["id"], None)
+            locked = self._locked_card(q["id"])
+            if locked is not None and ref == locked:  # a Disagree on a rejected alternative raises nothing
+                raised = {e["by"] for _, e in self._reopened(q["id"])}
+                if on and pid not in raised:
+                    self._decided(q["id"], "late-disagree", pid, card=ref, reason=reason)
+                    self._flag(q["id"], {"kind": "possibly-reopened"})
+                elif not on and raised and not any(d["pid"] in raised and d["card"] == locked for d in kept):
+                    self._decided(q["id"], "withdrawn", pid)  # the last late Disagree on it went: it is no longer reopened
             return {"disagree": on}
+
+    def _locked_card(self, qid):
+        """The answer qid is locked on: the card it was locked on or its locked text was edited from, kept through a
+        rewording; None when it is not locked, or its text came from a suggestion."""
+        lk = self.state["locks"].get(qid)
+        src = lk["source"] if lk else {}
+        if src.get("kind") == "card":
+            return src["card"]
+        if src.get("kind") == "edited" and (src.get("from") or "").startswith(("p:", "c:", "o:")):
+            return src["from"]
+        if src.get("kind") == "edited" and src.get("from") is None:  # reworded: the log names the answer it rewords
+            last = next((e for e in reversed(self.state.get("decisions", ())) if e["qid"] == qid and e["kind"] == "lock-change"), None)
+            return last.get("card") if last else None
+        return None
 
     # -- locks and suggestions ---------------------------------------------------------------
 
@@ -3260,7 +3279,8 @@ class Session:
 
     def _decided(self, qid, kind, by, **fields):
         """Append one entry to the decision log (`decisions`, the owner's alone): a lock, a change to the locked
-        text, an unlock, a poll closed or reopened, a late Disagree on a lock, or the owner keeping the decision. Any
+        text, an unlock, a poll closed or reopened, a late Disagree on a lock, the last such Disagree taken back
+        (`withdrawn`), or the owner keeping the decision. Any
         entry but a late Disagree ends a possibly reopened decision, so the `possibly-reopened` flags it put on
         dependents go; returns how many went."""
         cleared = 0
@@ -3436,10 +3456,11 @@ class Session:
                     self._card(q["id"], source)
                 else:
                     used = self._suggestion(q["id"], source)
+            reworded = self._locked_card(q["id"]) if source is None else None  # new words for the same answer
             st["locks"][q["id"]] = {"at": now, "by": pid, "source": {"kind": "edited", "text": text, "from": source}}
             if used is not None and used["status"]["kind"] == "open":
                 used["status"] = {"kind": "used", "at": now}
-            self._decided(q["id"], "lock-change", pid, text=text)
+            self._decided(q["id"], "lock-change", pid, text=text, **({"card": reworded} if reworded else {}))
             return {"flagged": self._lock_changed(q, text)}
 
     def keep_decision(self, pid, body):
@@ -5074,7 +5095,8 @@ class Session:
             acts = self._reopened(qid)  # a removed person's too: the flags they raised stay until Keep or Unlock
             if acts:
                 i, last = acts[-1]
-                out.append({"key": f"reopen:{qid}:{i}", "kind": "reopen", "id": qid, "qid": qid, "by": last["by"], "at": last["at"], "n": len(acts)})
+                out.append({"key": f"reopen:{qid}:{i}", "kind": "reopen", "id": qid, "qid": qid, "by": last["by"], "at": last["at"], "n": len(acts),
+                            "card": self._locked_card(qid)})
         return out
 
     @staticmethod
@@ -5233,7 +5255,8 @@ class Session:
         for i in self._reopen_items():
             q = self._question(i["qid"])
             raised = list(dict.fromkeys(e["by"] for _, e in self._reopened(q["id"])))  # each reason as it is now; a take-back drops it
-            held = [d for p in raised if self._active(p) for d in st.get("disagreements", {}).get(q["id"], []) if d["pid"] == p]
+            locked = self._locked_card(q["id"])
+            held = [d for p in raised if self._active(p) for d in st.get("disagreements", {}).get(q["id"], []) if d["pid"] == p and d["card"] == locked]
             lines = [{"text": t, "reason": d["reason"], **by(d["pid"])} for d in held if (t := self._card_text_or_none(q, d["card"])) is not None]
             reopened.append({"id": q["id"], "locked": st["locks"][q["id"]]["source"]["text"], "disagreements": lines})
         results, more, chars = [], 0, 0

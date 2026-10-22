@@ -114,7 +114,7 @@
     },
     "cleared": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/clearedCard"}}},
     "decisions": {
-      "description": "The decision log, oldest first, append-only; only the owner reads it. Each entry is one lock (`text`), change to the locked text (`lock-change`, `text`), unlock, poll closed or reopened, late Disagree on a lock (`late-disagree`, with the `card` and `reason`) or Keep decision (`kept`), with when, the question and who. A question's decision is possibly reopened while late-disagree entries follow its last other entry. Optional: a file written before it has none.",
+      "description": "The decision log, oldest first, append-only; only the owner reads it. Each entry is one lock (`text`), change to the locked text (`lock-change`, `text`), unlock, poll closed or reopened, late Disagree on the locked answer (`late-disagree`, with the `card` and `reason`), the last of them taken back (`withdrawn`) or Keep decision (`kept`); a `lock-change` that rewords the locked answer names it in `card`, with when, the question and who. A question's decision is possibly reopened while late-disagree entries follow its last other entry. Optional: a file written before it has none.",
       "type": "array",
       "items": {
         "type": "object",
@@ -123,7 +123,7 @@
         "properties": {
           "at": {"$ref": "#/$defs/ts"},
           "qid": {"$ref": "#/$defs/qid"},
-          "kind": {"enum": ["lock", "lock-change", "unlock", "poll-close", "poll-reopen", "late-disagree", "kept"]},
+          "kind": {"enum": ["lock", "lock-change", "unlock", "poll-close", "poll-reopen", "late-disagree", "withdrawn", "kept"]},
           "by": {"$ref": "#/$defs/pid"},
           "text": {"$ref": "#/$defs/text"},
           "card": {"$ref": "#/$defs/cardRef"},

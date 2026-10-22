@@ -231,17 +231,20 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   `lateActs` (`{qid: {pid: {round, at}}}`), and the next digest's `late` lists what that person
   holds there, each with `act`. A locked question takes none of them (409 `locked`; Suggest a change
   proposes new text) except a Disagree once its round closed.
-- **Possibly reopened.** The first late Disagree each person gives on a locked `decide` question
-  raises "possibly reopened": the owner's Inbox gets a `reopen:` item with Keep decision and Unlock,
-  the digest lists it under `possiblyReopened` (the locked text, and each Disagree the people who
-  disagreed late hold now, with the answer it names), and every question whose `dependsOn` names it gets a `possibly-reopened` review
+- **Possibly reopened.** The first late Disagree each person gives with the locked answer of a
+  `decide` question (the answer it was locked on, or the one its locked text was edited from or
+  reworded; a lock taken from a suggestion has none) raises "possibly reopened": the owner's Inbox
+  gets a `reopen:` item with Keep decision and Unlock, the digest lists it under `possiblyReopened`
+  (the locked text, and each Disagree with the locked answer the people who disagreed late hold
+  now), and every question whose `dependsOn` names it gets a `possibly-reopened` review
   flag, which everyone sees as "Needs review: Q1 may be reopened". The question, its lock and its
   answers never change on their own. A poll never raises it: a closed poll chose no answer.
   `POST /api/decision/keep {qid}` (owner) keeps the decision: the item goes, so do the
   `possibly-reopened` flags it raised, and the log records it; 409 `not-reopened` when nothing is
   raised. Unlock is the usual unlock, which flags the dependents `unlocked`; Unlock or a change to the
-  locked text also ends it, with those flags. A newer late Disagree
-  raises the item again, unread.
+  locked text also ends it, with those flags, and so does taking back the last of those Disagrees
+  (logged `withdrawn`). A late Disagree with a rejected alternative is kept and raises nothing. A
+  newer late Disagree raises the item again, unread.
 - **Digest.** `multi` reports picks per option; `scale` the count per value, the mean (two places)
   and the median; `rank` Borda totals (with n options a first place scores n-1, a last 0) and how
   many gave each full order. Each lists people's own options with their backers, and the comments.
@@ -313,9 +316,10 @@ the log, and a guest's own Claude through `/api/mine/requests`, gets "@Name", or
 `digestNames` is off (for a guest's own Claude, where names are masked to that guest).
 
 **Decision history.** `decisions` in `state.json` is an append-only log, oldest first, of each
-lock (with its text), change to the locked text (`lock-change`), `unlock`, `poll-close`,
-`poll-reopen`, late Disagree on a lock (`late-disagree`, with the answer and reason) and Keep
-decision (`kept`), each with when, the question and who. A question's decision is possibly
+lock (with its text), change to the locked text (`lock-change`, with the answer when it only
+rewords it), `unlock`, `poll-close`,
+`poll-reopen`, late Disagree with the locked answer (`late-disagree`, with the answer and reason),
+the last of them taken back (`withdrawn`) and Keep decision (`kept`), each with when, the question and who. A question's decision is possibly
 reopened while `late-disagree` entries follow its last other entry. Only the owner reads it, in the
 owner's snapshot as `decisions`: a History fold under each question and Decisions in Help (More on
 a phone). A session saved before the log starts with none.

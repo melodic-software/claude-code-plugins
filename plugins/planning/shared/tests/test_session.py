@@ -3864,6 +3864,54 @@ class TestPossiblyReopened(ReopenCase):
         self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
         self.assertEqual((self.reopen_rows(), self.flags("Q2")), ([], []))
 
+    def test_a_late_disagree_on_a_rejected_alternative_is_kept_and_raises_nothing(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:a", "reason": "Porto was never right"})
+        self.assertEqual([(d["pid"], d["card"]) for d in self.s.state["disagreements"]["Q1"]], [(self.cy, "c:a")])
+        self.assertEqual((self.reopen_rows(), self.flags("Q2"), self.flags("Q3")), ([], [], []))
+        self.assertEqual([e["kind"] for e in self.s.state["decisions"]], ["lock"])
+
+    def test_taking_back_the_only_late_disagree_ends_it_and_is_logged(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
+        self.assertEqual((self.reopen_rows(), self.flags("Q2"), self.flags("Q3")), ([], [], []))
+        self.assertEqual(self.s.state["decisions"][-1], {"at": self.clock.t, "qid": "Q1", "kind": "withdrawn", "by": self.cy})
+        self.send()
+        d = self.events("round-sent")[-1]["digest"]
+        self.assertEqual((d["possiblyReopened"], d["needsReview"]), ([], []))
+
+    def test_taking_back_one_of_two_late_disagrees_keeps_it(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "reason": "Users want it"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
+        self.assertEqual(len(self.reopen_rows()), 1)
+        self.assertEqual([f["because"] for f in self.flags("Q2")], ["Q1"])
+        self.assertNotIn("withdrawn", [e["kind"] for e in self.s.state["decisions"]])
+
+    def test_a_reworded_lock_still_names_its_answer_and_a_suggestion_lock_none(self):
+        self.act("edit_lock", HOST, {"qid": "Q1", "text": "Recommended, reworded."})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.assertEqual(len(self.reopen_rows()), 1)
+        self.act("keep_decision", HOST, {"qid": "Q1"})
+        sid = self.act("suggest", self.bo, {"qid": "Q1", "text": "Collapse it"})["id"]
+        self.act("act_on_suggestion", HOST, {"qid": "Q1", "id": sid, "action": "use"})
+        self.act("disagree", self.ann, {"qid": "Q1", "card": "c:rec", "reason": "Lost the point"})
+        self.assertEqual(self.reopen_rows(), [])
+
+    def test_the_digest_and_row_name_only_disagreements_with_the_locked_answer(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:a", "reason": "Porto is worse"})
+        self.assertEqual(self.reopen_rows()[0]["card"], "c:rec")
+        self.send()
+        (item,) = self.events("round-sent")[-1]["digest"]["possiblyReopened"]
+        self.assertEqual(item["disagreements"], [{"text": "Recommended for Q1.", "reason": "Too costly"}])
+
+    def test_a_disagree_after_a_withdrawal_raises_it_again(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly after all"})
+        self.assertEqual(len(self.reopen_rows()), 1)
+        self.assertEqual([f["because"] for f in self.flags("Q2")], ["Q1"])
+
     def test_the_row_stays_while_its_flags_do_after_the_disagreer_is_removed(self):
         self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
         self.act("set_removed", HOST, {"pid": self.cy, "on": True})
@@ -3972,7 +4020,7 @@ class TestDecisionLog(ReopenCase):
         self.assertEqual(self.s.state["decisions"], [
             {"at": lock_at, "qid": "Q1", "kind": "lock", "by": HOST, "text": "Recommended for Q1."},
             {"at": late_at, "qid": "Q1", "kind": "late-disagree", "by": self.cy, "card": "c:rec", "reason": "Too costly"},
-            {"at": change_at, "qid": "Q1", "kind": "lock-change", "by": self.ann, "text": "Reworded"},
+            {"at": change_at, "qid": "Q1", "kind": "lock-change", "by": self.ann, "text": "Reworded", "card": "c:rec"},
             {"at": unlock_at, "qid": "Q1", "kind": "unlock", "by": self.ann},
         ])
         self.assertLess(lock_at, late_at)

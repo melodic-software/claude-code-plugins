@@ -288,7 +288,7 @@
           }
         },
         "possiblyReopened": {
-          "description": "Locked decisions someone disagreed with after their round closed, until the owner keeps, changes or unlocks each: the locked text, and each Disagree the people who disagreed late hold now, with the answer it names (`by` with digestNames). The decision stands. Absent in a digest from before this field.",
+          "description": "Locked decisions someone disagreed with after their round closed, until the owner keeps, changes or unlocks each: the locked text, and each Disagree with the locked answer the people who disagreed late hold now, with that answer's text (`by` with digestNames). The decision stands. Absent in a digest from before this field.",
           "type": "array",
           "items": {
             "type": "object",
