@@ -871,7 +871,15 @@ def check_grader_syntax(case, path, name, options, findings):
     """Python-only syntax in every pattern a grader hands to JavaScript."""
     kind = options.get("type")
     if kind == "regex":
-        check_js_syntax(case, path, name, "pattern", options.get("pattern"), findings)
+        check_js_syntax(
+            case,
+            path,
+            name,
+            "pattern",
+            options.get("pattern"),
+            findings,
+            options.get("flags") or "",
+        )
     elif kind == "tool_used":
         check_js_syntax(
             case, path, name, "input_match", options.get("input_match"), findings
@@ -963,8 +971,13 @@ def collect_graders(case_dir, case, yaml_data, findings):
 # --------------------------------------------------------------------------
 
 
-def python_only_tokens(pattern):
-    """The Python-only regex tokens in `pattern`, in order and without repeats."""
+def python_only_tokens(pattern, flags=""):
+    """The Python-only regex tokens in `pattern`, in order and without repeats.
+
+    Under the `u` or `v` flag JavaScript rejects `[\\A]` as an invalid escape, so
+    a class escape is flagged there; without them it is a literal letter.
+    """
+    strict_classes = "u" in flags or "v" in flags
     tokens = []
 
     def add(token):
@@ -976,7 +989,7 @@ def python_only_tokens(pattern):
         char = pattern[index]
         if char == "\\":
             following = pattern[index + 1 : index + 2]
-            if following in PY_ONLY_ESCAPES and not in_class:
+            if following in PY_ONLY_ESCAPES and (strict_classes or not in_class):
                 add("\\" + following)
             index += 2
             if following in "upP" and pattern[index : index + 1] == "{":
@@ -1014,11 +1027,11 @@ def python_only_tokens(pattern):
     return tokens
 
 
-def check_js_syntax(case, path, name, field, pattern, findings):
+def check_js_syntax(case, path, name, field, pattern, findings, flags=""):
     """FAIL each Python-only token a pattern uses: JavaScript rejects or misreads it."""
     if not isinstance(pattern, str):
         return
-    for token in python_only_tokens(pattern):
+    for token in python_only_tokens(pattern, flags if isinstance(flags, str) else ""):
         findings.append(
             Finding(
                 "FAIL",

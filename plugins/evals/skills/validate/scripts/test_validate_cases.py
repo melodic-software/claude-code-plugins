@@ -1282,14 +1282,26 @@ class JavaScriptSyntax(ValidatorTestCase):
         self.assertNotIn("Python-only", self.validate().stdout)
 
     def test_brace_escapes_and_class_members_are_not_flagged(self):
-        # `\u{41}+` is a code point escape then a quantifier, and `[\A]` holds a
-        # literal A in JavaScript; neither is Python-only syntax.
+        # `\u{41}+` is a code point escape then a quantifier; without the `u` or
+        # `v` flag `[\A]` holds a literal A in JavaScript. Neither is Python-only.
         self.case(
             "c",
             prompt=CLEAN_PROMPT,
-            graders={"g": regex_grader("\\\\u{41}+\\\\p{L}+[\\\\A]", "flags: u\n")},
+            graders={"g": regex_grader("\\\\u{41}+\\\\p{L}+", "flags: u\n")},
         )
         self.assertNotIn("Python-only", self.validate().stdout)
+        self.case("d", prompt=CLEAN_PROMPT, graders={"g": regex_grader("[\\\\A]x")})
+        self.assertNotIn("Python-only", self.validate().stdout)
+
+    def test_class_escape_is_flagged_under_the_unicode_flags(self):
+        # Under `u` or `v`, `[\A]` is an invalid escape in JavaScript.
+        for flag in ("u", "v"):
+            self.case(
+                "c",
+                prompt=CLEAN_PROMPT,
+                graders={"g": regex_grader("[\\\\A]x", "flags: %s\n" % flag)},
+            )
+            self.assertIn("Python-only", self.validate().stdout)
 
     @unittest.skipUnless(HAS_NODE, "node is not installed")
     def test_a_sample_javascript_sorts_the_other_way_fails(self):
