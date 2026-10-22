@@ -19,7 +19,10 @@ BeforeDiscovery {
         @{ Case = 'U+2019 around $( )'; Root = "C:\x$([char]0x2019) `$(New-Item canary) $([char]0x2019)" }
         @{ Case = 'U+2019 around a statement'; Root = "C:\x$([char]0x2019); New-Item canary; $([char]0x2019)" }
         @{ Case = 'an apostrophe'; Root = "C:\x'; New-Item canary; '" }
+        @{ Case = 'U+2018 around $( )'; Root = "C:\x$([char]0x2018) `$(New-Item canary) $([char]0x2018)" }
+        @{ Case = 'U+201A around a statement'; Root = "C:\x$([char]0x201A); New-Item canary; $([char]0x201A)" }
         @{ Case = 'U+201B around $( )'; Root = "C:\x$([char]0x201B) `$(New-Item canary) $([char]0x201B)" }
+        @{ Case = 'a backtick before an apostrophe'; Root = "C:\x``'; New-Item canary; '" }
         @{ Case = 'a leading here-string close'; Root = "'@ `$(New-Item canary)" }
         @{ Case = 'a leading U+2019 here-string close'; Root = "$([char]0x2019)@; New-Item canary" }
     )
@@ -94,7 +97,8 @@ Describe 'audit SKILL.md command templates' -Tag 'skill' {
             @{ Name = 'import'; Index = 4; Expected = @('&', '.', 'Get-ElevatedLaunch', 'Join-Path', 'Join-Path') }
         ) {
             $command = if ($Index -eq 0) { '' } else { $script:AuditBlocks[$Index].Replace('<ScriptSha256>', 'AB' * 32) }
-            $text = Join-RootsCommand (Format-RootTemplate -Text $script:AuditBlocks[0] -Token $script:AuditTokens -Value $Root) $command
+            # Substituted across the command too, so a command that types a token itself fails.
+            $text = Format-RootTemplate -Text (Join-RootsCommand $script:AuditBlocks[0] $command) -Token $script:AuditTokens -Value $Root
 
             $parsed = Get-CommandList $text
 
@@ -160,7 +164,7 @@ Describe 'setup SKILL.md command templates' -Tag 'skill' {
                 $script:SetupBlocks[$Index].Replace('<action> <arguments>', 'approve -RemediationId clear-temp-files').
                 Replace('<confirmed mute numbers>', '1, 2').Replace('<confirmed approval numbers>', '3')
             }
-            $text = Join-RootsCommand (Format-RootTemplate -Text $script:SetupBlocks[0] -Token $script:SetupTokens -Value $Root) $command
+            $text = Format-RootTemplate -Text (Join-RootsCommand $script:SetupBlocks[0] $command) -Token $script:SetupTokens -Value $Root
 
             $parsed = Get-CommandList $text
 
