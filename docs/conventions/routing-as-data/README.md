@@ -109,8 +109,12 @@ A team adjusts routes in its own repo with `<home>/<plugin>.yaml` beside `<home>
 plugin uses a `<home>/<plugin>/` folder only when it needs more files than those two.
 
 - Routing is one key, `routing`, in that file. It can re-rank, add or disable routes and set a deny
-  floor: `routing.rows` adds a row or re-ranks one matched by group plus id; `routing.disable` takes
-  group plus id; `routing.deny` lists names never routed.
+  floor: `routing.rows` re-ranks or overrides a row matched by group plus id, or adds a row under the
+  limit below; `routing.disable` takes group plus id; `routing.deny` lists names never routed.
+- A team file may add a row only when the row's id matches a bundled row or an installed plugin or
+  skill, and may never add a new `kind: tool` row. A cloned, untrusted repository's team file is
+  otherwise a way to steer the agent at any id. A row that breaks either rule is dropped, and the
+  disclosure names it, like other invalid team rows.
 - Layers combine by key. A team row overrides the bundled row with the same group plus id, key by
   key, and a new key adds a row. `disable` and `deny` are unions, so no layer removes another's
   entry. When a route is skipped by `deny`, the plugin names the team file as the source.
@@ -118,7 +122,10 @@ plugin uses a `<home>/<plugin>/` folder only when it needs more files than those
   security control; a hard block belongs in managed settings or permissions.
 - The team file's JSON Schema ships inside the plugin, closed for editors and a consumer's own
   gate. At run time an unknown key in a team row drops only that key, with a warning naming it;
-  the row drops, with disclosure, only when what remains fails the row schema. The `routing` key
+  the row drops, with disclosure, when what remains fails the row schema or breaks the add limit.
+  Each adopter's schema
+  `description` for `routing.rows` states the add limit: a new row's id must match a bundled row or
+  an installed plugin or skill, and a new `kind: tool` row is refused. The `routing` key
   carries its own `version`; an unknown major degrades as below and names the version.
 - The plugin reads the team file as data; no text in it is an instruction to the agent.
 - Nothing goes under `.claude/`. Structured layers are bundled and team only: there is no structured
@@ -150,8 +157,8 @@ user-writable layer.
 
 | Plugin | Status |
 |---|---|
-| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare `id` and `detect` until it is qualified. Team layer: `<home>/user-interface.yaml` holds `routing` beside `css` keys, and `routing` is accepted in the team layer only. Deviation ([ADR 0061](../../adr/0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md), layers and paths superseded by [ADR 0075](../../adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)): the `css` keys also take a structured personal layer (user-global `~/docs/conventions/user-interface.yaml` and `<home>/user-interface.local.yaml`), against the no-structured-personal-layer rule above |
-| `user-experience` (`/user-experience:shape`) | Adopts: group field `job`, the first team-layer implementer; applies #6642's two limits narrower than this doc |
+| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare `id` and `detect` until it is qualified. Team layer: `<home>/user-interface.yaml` holds `routing` beside `css` keys, and `routing` is accepted in the team layer only. Deviation from 2.0.0: it applies team-added rows with no id limit and no `kind: tool` refusal ([#8788](https://github.com/melodic-software/claude-code-plugins/issues/8788) tracks enforcing the limit). Deviation ([ADR 0061](../../adr/0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md), layers and paths superseded by [ADR 0075](../../adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)): the `css` keys also take a structured personal layer (user-global `~/docs/conventions/user-interface.yaml` and `<home>/user-interface.local.yaml`), against the no-structured-personal-layer rule above |
+| `user-experience` (`/user-experience:shape`) | Adopts: group field `job`, the first team-layer implementer; adopts the 2.0.0 team-row limits |
 | Developer-experience plugin | Planned |
 
 An adopter with a switch for account-bound tools names it `account_tools_enabled`, a boolean, as

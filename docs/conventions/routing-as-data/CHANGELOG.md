@@ -4,6 +4,15 @@ Notable changes to the routing-as-data contract (SemVer). Changing a required ro
 rule, the team-file operations or the degradation rule is a major bump; additive guidance is a minor
 bump; docs-only clarification is a patch.
 
+## [2.0.0] - 2026-10-22
+
+- Team layer, breaking: `routing.rows` may re-rank or override an existing row, and may add a row
+  only when its id matches a bundled row or an installed plugin or skill. A team file may not add a
+  new `kind: tool` row. A row that breaks either rule is dropped, and the disclosure names it. Each
+  adopter's team-file schema `description` states the same rule.
+- Adopters: `user-experience` adopts the 2.0.0 limits; `user-interface` records a deviation, applying
+  team-added rows with no id limit, tracked in #8788.
+
 ## [1.0.1] - 2026-10-09
 
 - Adopters: `user-experience` moves from Planned to Adopts (group field `job`, first team-layer
