@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.90.0] - 2026-10-22
+
+### Changed
+
+- `/planning:interview` now passes the `tunnel_hostname` and `tunnel_token_file` options to a shared session, so a configured named tunnel starts without restating it; an unset hostname runs a quick tunnel.
+
+## [0.89.0] - 2026-10-22
+
+### Added
+
+- On the shared interview page, a pick-any question can offer "None of these": Claude asks for it with `none: true` on a `multi` format, the server adds the option and refuses a Claude-written one, it excludes every other pick (picking it clears them, picking another clears it), and the digest counts it as its own row, apart from a Pass or an empty pick.
+
+### Fixed
+
+- `/planning:interview` page protocol (`surface.md`) now points at `lane-page.md` for the page start command and the "Question surface: the page" rule, which moved out of `SKILL.md`.
+
 ## [0.88.2] - 2026-10-22
 
 ### Removed

@@ -121,6 +121,14 @@
           "description": "The page's accent color.",
           "enum": ["teal", "indigo", "violet", "amber"],
           "default": "teal"
+        },
+        "prototype_tiers": {
+          "description": "Which prototype views guests get. screenshot: picture variants. snapshot: self-contained HTML variants. live: a linked prototype server. An empty list shows prototype questions as text. The owner always sees every view.",
+          "type": "array",
+          "items": {"enum": ["screenshot", "snapshot", "live"]},
+          "maxItems": 3,
+          "uniqueItems": true,
+          "default": ["screenshot", "snapshot"]
         }
       }
     }

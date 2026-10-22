@@ -201,7 +201,8 @@
 .app .vf-vote .vf-i { inline-size: 14px; block-size: 14px; }
 @media (hover: hover) and (pointer: fine) {
   .app .vf-btn-ghost:hover:not(:disabled), .app .vf-tbtn:hover, .app .vf-propose:hover { background: var(--raise); color: var(--text); }
-  .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--accent) 88%, white); }
+  /* Toward --text, away from the label in every light and dark pairing but light amber, which keeps margin: 4.5:1 (ui_contrast.js). */
+  .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
   .app .vf-btn-brass:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--brass) 88%, white); }
   .app .vf-q:hover { background: var(--raise); color: var(--text); }
   .app .vf-vote:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
@@ -2676,8 +2677,9 @@
 .vp-app .vp-pin-on { background: oklch(0.75 0.16 70); }
 .vp-app .vp-side { display: grid; align-content: start; gap: 10px; min-block-size: 0; overflow: auto; padding: 12px; border-inline-start: 1px solid var(--line); background: var(--pane); }
 .vp-app .vp-qtext { margin: 0; font-size: 13.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.vp-app .vp-offnote { margin: 0; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
 .vp-app .vp-whole { justify-self: start; }
-.vp-app .vp-whole[hidden], .vp-app .vp-composer[hidden], .vp-app .vp-empty[hidden], .vp-app .vp-missing[hidden] { display: none; }
+.vp-app .vp-whole[hidden], .vp-app .vp-composer[hidden], .vp-app .vp-empty[hidden], .vp-app .vp-missing[hidden], .vp-app .vp-annotate[hidden], .vp-app .vp-offnote[hidden] { display: none; }
 .vp-app .vp-composer { display: grid; gap: 6px; padding: 10px; border: 1px solid color-mix(in oklch, var(--accent) 50%, transparent); border-radius: var(--r-md); }
 .vp-app .vp-where { margin: 0; font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
 .vp-app .vp-ta { min-block-size: 72px; overflow-y: auto; }

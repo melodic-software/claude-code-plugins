@@ -5297,6 +5297,70 @@ class TestPrototypeVersions(SessionCase):
                 self.assertIsNotNone(session.document_error(doc))
 
 
+class TestPrototypeTiers(SessionCase):
+    """The `prototypeTiers` setting: which prototype views the session offers (screenshot, snapshot, live). Absent,
+    screenshots and HTML snapshots are on and live is off. A tier switched off leaves the stored question whole; only
+    what guests are sent changes: an image variant's asset leaves their state while screenshots are off, an html one
+    while snapshots are off, and the owner still sees both."""
+
+    OPT_PIC, REF_PIC = "1111222233334444.png", "aaaabbbbccccdddd.webp"  # not the variant's picture, so each check is its own
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.lee = self.people("Ann", "Lee")
+        self.act("set_role", HOST, {"pid": self.lee, "role": "leader"})
+        pick = {**choice_q("Q2"), "format": {"kind": "choice", "options": [{"id": "opt-1", "label": "Card", "image": self.OPT_PIC}, {"id": "opt-2", "label": "Saved"}]}}
+        self.open_round(proto_q("Q1", ("v-1", "One page", HTML), ("v-2", "Two steps", PNG)), pick, text_q("Q3", references=[{"kind": "image", "asset": self.REF_PIC}]))
+
+    def variants(self, pid):
+        return next(q for q in self.s.snapshot(pid)["questions"] if q["id"] == "Q1")["format"]["variants"]
+
+    def test_absent_means_screenshots_and_snapshots_and_stays_absent_until_the_owner_sets_it(self):
+        self.assertNotIn("prototypeTiers", self.disk()["session"]["settings"])
+        self.assertEqual(session.prototype_tiers(self.s.state["session"]["settings"]), ["screenshot", "snapshot"])
+        self.assertEqual([v.get("asset") for v in self.variants(self.ann)], [HTML, PNG])
+        out = self.act("update_settings", HOST, {"prototypeTiers": ["live", "snapshot", "screenshot"]})
+        self.assertEqual(out["settings"]["prototypeTiers"], ["screenshot", "snapshot", "live"])  # canonical order
+        self.assertEqual(self.disk()["session"]["settings"]["prototypeTiers"], ["screenshot", "snapshot", "live"])
+        self.assertEqual(self.act("update_settings", HOST, {"prototypeTiers": []})["settings"]["prototypeTiers"], [])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_tier_twice_an_unknown_tier_or_not_a_list_is_refused_and_only_the_owner_sets_it(self):
+        for bad in (["live", "live"], ["video"], "live", [1], None, {"live": True}):
+            with self.subTest(bad=bad):
+                self.refused("bad-field", "update_settings", HOST, {"prototypeTiers": bad}, http=400)
+        self.refused("owner-only", "update_settings", self.lee, {"prototypeTiers": []})
+        self.assertNotIn("prototypeTiers", self.disk()["session"]["settings"])
+
+    def test_screenshots_off_takes_picture_variants_out_of_guests_state_only(self):
+        self.act("update_settings", HOST, {"prototypeTiers": ["snapshot"]})
+        for pid in (self.ann, self.lee):
+            snap = self.s.snapshot(pid)
+            self.assertEqual(self.variants(pid), [{"id": "v-1", "label": "One page", "asset": HTML}, {"id": "v-2", "label": "Two steps"}])
+            self.assertNotIn(PNG, json.dumps(snap))
+            q2, q3 = (next(q for q in snap["questions"] if q["id"] == i) for i in ("Q2", "Q3"))
+            self.assertEqual(q2["format"]["options"][0]["image"], self.OPT_PIC)  # option pictures stay
+            self.assertEqual(q3["references"][0]["asset"], self.REF_PIC)  # and references
+        self.assertEqual([v.get("asset") for v in self.variants(HOST)], [HTML, PNG])
+        self.assertEqual(self.question("Q1")["format"]["variants"][1]["asset"], PNG)  # the record stays whole
+        self.assertFalse(self.s.asset_hidden(self.ann, PNG))  # pictures are shared with options and references
+
+    def test_snapshots_off_takes_html_variants_out_of_guests_state_and_hides_html_assets_from_them(self):
+        self.act("update_settings", HOST, {"prototypeTiers": ["screenshot"]})
+        self.assertEqual(self.variants(self.ann), [{"id": "v-1", "label": "One page"}, {"id": "v-2", "label": "Two steps", "asset": PNG}])
+        self.assertEqual([v.get("asset") for v in self.variants(HOST)], [HTML, PNG])
+        self.assertEqual([self.s.asset_hidden(p, HTML) for p in (self.ann, self.lee, HOST)], [True, True, False])
+        self.act("update_settings", HOST, {"prototypeTiers": ["screenshot", "snapshot"]})
+        self.assertFalse(self.s.asset_hidden(self.ann, HTML))
+        self.assertEqual([v.get("asset") for v in self.variants(self.ann)], [HTML, PNG])
+
+    def test_every_tier_off_leaves_the_question_and_its_picks(self):
+        self.act("update_settings", HOST, {"prototypeTiers": []})
+        self.assertEqual(self.variants(self.ann), [{"id": "v-1", "label": "One page"}, {"id": "v-2", "label": "Two steps"}])
+        self.act("pick", self.ann, {"qid": "Q1", "option": "v-2", "view": "focus"})
+        self.assertEqual([c["pick"] for c in self.s.snapshot(self.ann)["cards"]["Q1"] if c.get("pid") == self.ann], ["v-2"])
+
+
 class TestImageReferenceRect(SessionCase):
     """An image reference's rect (Reference, Contracts) is kept through open-round, the file and a reload. A verifier
     reported it gone after an open-round on 6579f21; this pins the round trip through each write path."""
@@ -5570,6 +5634,17 @@ class TestStateFromF6f1318Versions(StateFixtureCase):
         reloaded = session.Session.load(s.path, validate_writes=True)
         self.assertEqual(reloaded.state["questions"][-1]["format"]["variants"][0]["previous"], {"qid": "Q1", "variant": "v-1"})
         self.assertNotIn("previous", reloaded.state["questions"][0]["format"]["variants"][0])
+
+    def test_a_state_from_before_prototype_tiers_round_trips_byte_equal_and_shows_both_views(self):
+        raw = (FIXTURES / "state-written-f6f1318.json").read_text(encoding="utf-8")
+        s = self.load("state-written-f6f1318.json")
+        self.assertNotIn("prototypeTiers", s.state["session"]["settings"])
+        self.assertEqual(json.dumps(s.state, ensure_ascii=False) + "\n", raw)  # written back as it was read
+        guest = next(p for p in s.state["people"] if p != HOST)
+        shown = [v.get("asset") for v in s.snapshot(guest)["questions"][0]["format"]["variants"]]
+        self.assertEqual(shown, [v["asset"] for v in s.state["questions"][0]["format"]["variants"]])
+        s.update_settings(HOST, {"names": "initials"})  # another setting leaves prototypeTiers absent
+        self.assertNotIn("prototypeTiers", json.loads(s.path.read_text(encoding="utf-8"))["session"]["settings"])
 
 
 class TestStateFrom3153973(StateFixtureCase):

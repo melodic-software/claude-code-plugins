@@ -248,6 +248,17 @@ class TestFormatsReactionsPresence(unittest.TestCase):
         del d["reason"]
         self.assertIn("missing required 'reason'", schema.first_error(state, STATE))
 
+    def test_prototype_tiers_is_an_optional_list_of_the_three_views(self):
+        state = fixture("state-full.json")
+        self.assertNotIn("prototypeTiers", state["session"]["settings"])  # a file from before it stays valid
+        self.assertIsNone(schema.first_error(state, STATE))
+        for ok in ([], ["screenshot"], ["screenshot", "snapshot", "live"]):
+            state["session"]["settings"]["prototypeTiers"] = ok
+            self.assertIsNone(schema.first_error(state, STATE), ok)
+        for bad in (["video"], "live", ["screenshot", "snapshot", "live", "live"]):
+            state["session"]["settings"]["prototypeTiers"] = bad
+            self.assertIsNotNone(schema.first_error(state, STATE), bad)
+
     def test_a_file_from_before_disagreements_is_still_valid(self):
         state = fixture("state-full.json")
         del state["disagreements"]
