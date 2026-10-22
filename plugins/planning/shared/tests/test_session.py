@@ -3883,7 +3883,8 @@ class TestPossiblyReopened(ReopenCase):
         self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
         self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "reason": "Users want it"})
         self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
-        self.assertEqual(len(self.reopen_rows()), 1)
+        (row,) = self.reopen_rows()
+        self.assertEqual((row["n"], row["by"]), (1, self.bo))  # the Disagrees held now: Bo's alone
         self.assertEqual([f["because"] for f in self.flags("Q2")], ["Q1"])
         self.assertNotIn("withdrawn", [e["kind"] for e in self.s.state["decisions"]])
 
@@ -3904,6 +3905,13 @@ class TestPossiblyReopened(ReopenCase):
         self.send()
         (item,) = self.events("round-sent")[-1]["digest"]["possiblyReopened"]
         self.assertEqual(item["disagreements"], [{"text": "Recommended for Q1.", "reason": "Too costly"}])
+
+    def test_the_row_names_the_newest_disagree_still_held(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "reason": "Users want it"})
+        self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "on": False})
+        (row,) = self.reopen_rows()
+        self.assertEqual((row["n"], row["by"]), (1, self.cy))
 
     def test_a_disagree_after_a_withdrawal_raises_it_again(self):
         self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})

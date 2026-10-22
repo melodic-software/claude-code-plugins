@@ -5089,14 +5089,17 @@ class Session:
 
     def _reopen_items(self):
         """The owner's `reopen:` Inbox items: a locked decision someone disagreed with late. The key names the newest
-        such Disagree's place in the log, so each new one makes the item unread again."""
+        such Disagree's place in the log, so each new one makes the item unread again; `n`, `by` and `at` count and
+        name the late Disagrees with the locked answer people hold now, as the digest does."""
         out = []
         for qid in self.state["locks"]:
             acts = self._reopened(qid)  # a removed person's too: the flags they raised stay until Keep or Unlock
             if acts:
-                i, last = acts[-1]
-                out.append({"key": f"reopen:{qid}:{i}", "kind": "reopen", "id": qid, "qid": qid, "by": last["by"], "at": last["at"], "n": len(acts),
-                            "card": self._locked_card(qid)})
+                card = self._locked_card(qid)
+                holding = {d["pid"] for d in self.state.get("disagreements", {}).get(qid, []) if d["card"] == card}
+                held = [e for _, e in acts if e["by"] in holding] or [acts[-1][1]]
+                out.append({"key": f"reopen:{qid}:{acts[-1][0]}", "kind": "reopen", "id": qid, "qid": qid, "by": held[-1]["by"], "at": held[-1]["at"],
+                            "n": len(held), "card": card})
         return out
 
     @staticmethod
