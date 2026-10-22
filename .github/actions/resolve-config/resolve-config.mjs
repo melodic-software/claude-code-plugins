@@ -372,6 +372,14 @@ export function loopFromBase(env) {
   return resolveLoop(filesUnderBase(basePath, configPath), { configPath });
 }
 
+// The base config's `adoption` section as set, after the same file checks as
+// resolve(), for fix-ci-dispatch.mjs, which applies its defaults.
+export function adoptionFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  return loadConfig(filesUnderBase(basePath, configPath), { configPath }).adoption ?? {};
+}
+
 // The base config's `red-main` leaf as set and `merge.agent-identity`, after
 // the same file checks as resolve(), for the post-merge red-main report. The
 // leaf's defaults have one copy, in
