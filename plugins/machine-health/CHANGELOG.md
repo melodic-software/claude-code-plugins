@@ -3,6 +3,34 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-10-22
+
+### Added
+
+- Finding mutes: a new `<StateBase>/state/mutes.json`, validated by `catalog/schemas/mutes.schema.json`, records list items the owner has marked as expected. Each item is named by a stable FindingKey; the orchestrator reads the file without creating or migrating anything and passes each list-style check its muted keys as a `-MutedKeys` argument, and a muted item stays listed but no longer counts toward the check's severity. `approvals.json` and its schema are unchanged. A downgraded plugin ignores mutes.json, so muted items raise severity again until the upgrade; nothing FAILs and nothing is stripped.
+
+- New `storage-top-n` check (category `storage`, no admin): lists the 15 largest folders directly under `%USERPROFILE%` and under the reclaim locations (`%TEMP%`, your Recycle Bin, `%ProgramData%\Package Cache`, `Windows.old`), each as a mutable INFO item with its logical size, its allocated size when it holds at most 10,000 files, and a reclaim hint. The scan never descends a OneDrive sync root or any other junction or symlinked folder and never opens a file for its content, so cloud-only files are not downloaded; each skipped sync root is listed as "skipped: cloud sync root". One 60-second budget covers the whole scan; a cut scan says so in `scan_complete`.
+
+- `/machine-health:setup apply` takes `revoke=<remediation>` to withdraw an approval and `unmute=<key>` to remove a finding mute under every check.
+- One audit runs at a time per state folder: a second run emits a complete run snapshot with one UNKNOWN `run-lock` result naming `state/run.lock` and writes nothing; the lock is released on every exit path.
+- A state folder that a OneDrive variable names, or that sits under one, is detected: the run still runs the checks and writes the markdown report, adds one UNKNOWN `state-location` result, and creates or writes nothing else under the state folder (when the report folder is inside it, the report is still written there); a report folder under a sync root only warns. A folder under a reparse point carrying a cloud attribute only warns.
+
+- The audit adds `startup-items`, which lists everything that starts at logon (Run and RunOnce keys, Startup folders, logon tasks) with its Task Manager enabled state, and `app-last-use`, which lists installed apps with "no launch recorded since" the date the launch records begin; the startup inventory moves out of `services`.
+
+- **New checks: `browser-extensions`, `network-listeners` and `firewall-rules`.** The audit now lists every Chrome, Edge and Firefox extension plus the browsers' forced-install policies, every listening port with the program that owns it, and the inbound allow firewall rules that did not ship with Windows, noting rules whose program is gone; each entry can be muted, and unpacked, sideloaded or high-permission extensions and exposed unsigned listeners raise a warning, while firewall rules stay informational.
+
+- Two new checks and a report appendix for list items: `top-processes` names what is using the CPU and memory over a sampled window (set by the orchestrator's new `-SampleSeconds`; disk latency is graded only on a sustained window), graded against Microsoft Learn's Windows Server bands and labeled as such; `backup-status` reports whether anything backs the machine up (system image, restore points, File History, Windows Backup, OneDrive Known Folder Move), with restore points and wbadmin read only elevated; and every list-style check's items now appear in the report appendix by title, severity and muted state, never showing a Defender exclusion's value.
+
+### Changed
+
+- The pre-run elevation banner's "Covered non-elevated" list now names every enabled check that runs without admin, read from the catalog, instead of a fixed list that had fallen behind; `reference/windows/elevation-matrix.md` points to `Get-ElevationMatrix.ps1` instead of keeping its own copy of the table.
+
+- `approvals.json` is now read with `FileShare.ReadWrite | FileShare.Delete`, so a writer replacing the file no longer makes a run fall back to "nothing approved".
+
+- `approvals.json` and `mutes.json` are written only through `Set-ApprovalState`, which holds `state/approvals.lock`, validates the schema before writing, and replaces the file atomically; the one-time TODO.md migration uses the same replace. Hand edits of either file are unsupported while an audit or setup session runs.
+
+- `defender` now reads detection history from the Defender event log, so detections older than Defender's own purge window still show: a recent detection with no recorded remediation is CRIT, a remediated one WARN, an older one INFO, a recent path exclusion added outside the known-safe list WARN, and a log too short to cover the window is never OK; `defender-exclusions` lists each exclusion as a mutable item and reports `list_state: masked` when the lists are hidden instead of a reading. Exclusion values land in `latest.json`, the run's stdout snapshot (and so the agent's context) and the elevated run's result and log, and stay out of the markdown report, which shows counts only; the audit skill now treats every machine-derived string as data, never instructions.
+
 ## [0.16.10] - 2026-10-20
 
 ### Fixed

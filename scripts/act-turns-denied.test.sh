@@ -3,8 +3,12 @@
 # pr-run-activity files records each permission_denials entry as
 # {tool_name, input} in act-turns.json, keeping the first 20 with denied_total
 # counting all, and the step summary shows each as `tool: input`, then
-# `(+N more)` for any cut. Entries drop from the end until denied serializes to
-# at most 8192 bytes, and a worst-case read-lane file fits its carry cap. The write file's step writes the summary itself; the read
+# `(+N more)` for any cut. Tool names are cut to 100 characters, at most 4
+# stderr messages are kept with local_command_stderr_total counting all, and
+# denied entries drop from the end until denied serializes to at most 8192
+# bytes. A worst-case file, every field at its limit in 6-byte-escaped
+# characters, fits the 32768-byte carry cap in both lanes, with the oldest
+# stderr entries dropped first. The write file's step writes the summary itself; the read
 # file's writes none, and its summary steps (the scan job's, after the leak
 # scan, and issue mode's) render the act-turns.json it wrote. Runs each step's
 # github-script body against a canned execution file with a stub `core` whose
@@ -161,27 +165,42 @@ for (const lane of ["write", "read"]) {
     rmSync(dir, { recursive: true, force: true });
   }
   {
-    // One entry over the budget on its own: its input halves until it fits.
-    const one = [{ tool_name: "x".repeat(7000), tool_input: { command: "\x1b".repeat(300) } }];
+    // A long tool name of 6-byte-escaped characters is cut to 100 characters,
+    // and the entry keeps its 300-character input.
+    const one = [{ tool_name: "\x1b".repeat(7000), tool_input: { command: "\x1b".repeat(1000) } }];
     const { turns } = await runActTurns(lane, wf, [result({ permission_denials: one })]);
     const kept = (turns && JSON.parse(turns))?.denied ?? [];
-    const bytes = Buffer.byteLength(JSON.stringify(kept), "utf8");
-    say(kept.length === 1 && kept[0].input === "\x1b".repeat(150) && bytes <= 8192,
-      `${lane}: a lone oversized entry keeps its input halved to 150 characters (${bytes} bytes)`);
+    say(kept.length === 1 && kept[0].tool_name === "\x1b".repeat(100) && kept[0].input === "\x1b".repeat(300),
+      `${lane}: a 7000-character tool name is cut to 100 characters and its input to 300`);
   }
-  if (lane === "read") {
-    // Worst case: 100 denials of 6-byte-escaped characters and 6 stderr messages
-    // of 2-byte-escaped ones; the file must fit the 32768-byte carry cap.
-    const q = '"';
-    const many = Array.from({ length: 100 }, () => ({
-      tool_name: "mcp__github_inline_comment__create_inline_comment",
-      tool_input: { command: "\x1b".repeat(1000) },
-    }));
-    const stderr = { type: "user", message: { content: `<local-command-stderr>${q.repeat(5000)}` } };
+  {
+    // Six stderr messages: the first 4 are kept, local_command_stderr_total counts all 6.
+    const stderr = (n) => ({ type: "user", message: { content: `<local-command-stderr>failure ${n}</local-command-stderr>` } });
+    const { turns } = await runActTurns(lane, wf, [...[1, 2, 3, 4, 5, 6].map(stderr), result()]);
+    const recorded = turns && JSON.parse(turns);
+    say(JSON.stringify(recorded?.local_command_stderr) === JSON.stringify([1, 2, 3, 4].map((n) => `<local-command-stderr>failure ${n}</local-command-stderr>`))
+      && recorded?.local_command_stderr_total === 6,
+      `${lane}: six stderr messages keep the first 4, with local_command_stderr_total 6`);
+  }
+  {
+    // Worst case: every field at its limit in 6-byte-escaped characters: the
+    // subtype, 12 model names, 100 denials with long tool names and inputs,
+    // and 6 stderr messages; the file must fit the 32768-byte carry cap.
+    const esc = (n) => "\x1b".repeat(n);
+    const many = Array.from({ length: 100 }, () => ({ tool_name: esc(1000), tool_input: { command: esc(1000) } }));
+    const modelUsage = Object.fromEntries(Array.from({ length: 12 }, (_, n) => [`${n}${esc(1000)}`, {}]));
+    const stderr = { type: "user", message: { content: `<local-command-stderr>${esc(5000)}` } };
     const { dir, turns } = await runActTurns(lane, wf,
-      [...Array(6).fill(stderr), result({ permission_denials: many })]);
+      [...Array(6).fill(stderr), result({ subtype: esc(1000), modelUsage, permission_denials: many })]);
     const bytes = Buffer.byteLength(turns ?? "", "utf8");
-    say(turns !== null && bytes <= 32768, `read: worst-case act-turns.json is ${bytes} bytes, within the 32768-byte carry cap`);
+    say(turns !== null && bytes <= 32768, `${lane}: worst-case act-turns.json is ${bytes} bytes, within the 32768-byte carry cap`);
+    const recorded = turns && JSON.parse(turns);
+    say(recorded?.local_command_stderr_total === 6 && recorded.local_command_stderr.length < 4,
+      `${lane}: worst case drops stderr entries (${recorded?.local_command_stderr?.length} kept) and records local_command_stderr_total 6`);
+    say(recorded?.denied?.length > 0 && recorded.denied.every((d) => d.tool_name.length <= 100) && recorded.denied_total === 100,
+      `${lane}: worst case keeps ${recorded?.denied?.length} denials, each tool name within 100 characters, with denied_total 100`);
+    say(recorded?.subtype?.length === 100 && recorded.models.length === 10 && recorded.models.every((m) => m.length <= 100),
+      `${lane}: worst case cuts subtype to 100 characters and keeps 10 model names within 100 characters`);
     rmSync(dir, { recursive: true, force: true });
   }
 }

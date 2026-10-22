@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.4] - 2026-10-22
+
+### Fixed
+
+- The bundled-simplify pointer to the `/code-review` local page targets `code-review-local`, the page that holds that section.
+
 ## [0.30.3] - 2026-10-20
 
 ### Added

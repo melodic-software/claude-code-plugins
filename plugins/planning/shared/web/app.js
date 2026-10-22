@@ -1053,10 +1053,12 @@
     sortSel.s.onchange = () => setTb({ sort: sortSel.s.value });
     const chips = E("div", "vf-chips"); chips.setAttribute("role", "group"); chips.setAttribute("aria-label", "Show questions");
     const chipBtns = {};
-    const FILTERS = [["all", "All"], ["open", "Open"], ["locked", "Locked"], ["review", "Needs review"], ["mine", "Mine"], ["research", "Has research"]];
+    const FILTERS = [["all", "All"], ["open", "Open"], ["locked", "Locked"], ["review", "Needs review"], ["mine", "Mine"], ["research", "Has research"], ["proto", "Prototypes"]];
     const FILTER_LABEL = Object.fromEntries(FILTERS);
     for (const [k, label] of FILTERS) {
-      const b = btn("vf-fchip", label); b.onclick = () => setTb({ filter: k }); chips.append(b); chipBtns[k] = b;
+      const b = btn("vf-fchip", label); chips.append(b); chipBtns[k] = b;
+      // Prototypes shows every round's, so it clears the round choice; the rail opens each round while it is on.
+      b.onclick = () => setTb(k === "proto" ? { filter: k, round: "all" } : { filter: k });
     }
     const roundSel = selWrap("Round", [["all", "All rounds"]]);
     roundSel.s.onchange = () => { setTb({ round: roundSel.s.value }); board.scrollLeft = 0; };
@@ -1076,6 +1078,7 @@
         case "review": return !!q.needsReview;
         case "mine": return hasAnswered(q.id) || Core.state.ideas.some(i => isMe(i.cid) && i.qid === q.id);
         case "research": return !!(Core.state.research?.[q.id] || []).length;
+        case "proto": return q.formatKind === "prototype";
         default: return true;
       }
     }
@@ -1324,7 +1327,8 @@
     protoTile.target = "_blank"; protoTile.rel = "noopener noreferrer"; protoTile.tabIndex = -1; protoTile.setAttribute("aria-hidden", "true");
     const protoMeta = E("p", "vf-proto-meta"), protoOpen = E("a", "vf-btn vf-btn-primary vf-btn-sm vf-proto-open", "Open prototype");
     protoOpen.target = "_blank"; protoOpen.rel = "noopener noreferrer";
-    protoInfo.append(protoMeta, protoOpen);
+    const protoVers = E("div", "vf-proto-versions"); protoVers.hidden = true;
+    protoInfo.append(protoMeta, protoVers, protoOpen);
     protoBox.append(protoTile, protoInfo);
     fmtBox.append(fmtHint, protoBox, optGrid, multiList, scaleBox, rankList, confirmFig, cfRow, otherBox, fmtActs, fmtNote, fmtRes);
     // Layout A: Answers, then "Claude on this question", one column at every width. The Claude section starts folded to its
@@ -6047,6 +6051,33 @@
       protoMeta.textContent = `${vs.length} variants: ${vs.map(v => v.label).join(", ")}. ${n ? `${n} note${n === 1 ? "" : "s"} pinned so far.` : "Try them and pin notes on any part."}`;
       protoOpen.href = protoTile.href = Core.pageLink(`/proto/${q.id}`);
       protoOpen.setAttribute("aria-label", `Open prototype for ${q.id} in a new tab`);
+      renderProtoVersions(q, vs);
+    }
+    const newTab = (a, href) => { a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; };
+    /** Each variant with earlier or later versions on other prototype questions: every version, the current one marked,
+     *  and a link to see this one (or, on the current one, its previous) beside the current one. */
+    function renderProtoVersions(q, vs) {
+      const lines = vs.map(v => Core.versionsOf(q.id, v.id)).filter(l => l.length > 1), key = JSON.stringify(lines);
+      if (protoVers._key === key) return;
+      protoVers._key = key;
+      protoVers.hidden = !lines.length;
+      protoVers.replaceChildren(...lines.map(line => {
+        const here = line.find(x => x.qid === q.id), cur = line.at(-1), other = here.current ? line.at(-2) : here;
+        const ol = E("ol", "vf-proto-line");
+        ol.setAttribute("aria-label", `Versions of ${here.label}`);
+        ol.append(...line.map(x => {
+          const li = E("li"), a = newTab(E("a", "vf-proto-ver", `v${x.n} · ${x.qid} · ${x.label}`), Core.pageLink(`/proto/${x.qid}`, { v: x.variant }));
+          a.setAttribute("aria-label", `Open version ${x.n} of ${line.length}, ${x.label}, on ${x.qid}${x.current ? ", the current version" : ""}, in a new tab`);
+          li.append(a, ...(x.current ? [E("span", "vf-proto-cur", "Current")] : []));
+          return li;
+        }));
+        const cmp = newTab(E("a", "vf-proto-cmp", `Compare v${other.n} and v${cur.n} side by side`),
+          Core.pageLink(`/proto/${cur.qid}`, { v: cur.variant, with: `${other.qid}.${other.variant}` }));
+        cmp.setAttribute("aria-label", `Compare version ${other.n} and version ${cur.n} of ${here.label} side by side, in a new tab`);
+        const box = E("div", "vf-proto-vline");
+        box.append(ol, cmp);
+        return box;
+      }));
     }
 
     // ---------- choice and confirm questions (Q76) ----------
@@ -7174,10 +7205,10 @@
       }, (g, n) => {
         const k = g._k, list = byRound.get(n) || [], isCur = n === cur, inRound = qs.filter(x => roundOf(x) === n);
         const decided = inRound.filter(x => Core.lockOf(x.id)).length, all = inRound.length > 0 && decided === inRound.length;
-        const expanded = isCur || openRounds().has(n);
+        const expanded = isCur || tf.filter === "proto" || openRounds().has(n);
         g.classList.toggle("vf-round-cur", isCur);
         k.cu._paint(cuNow?.n === n ? cuNow : null);
-        k.toggle.hidden = isCur; k.curHead.hidden = !isCur;
+        k.toggle.hidden = isCur || tf.filter === "proto"; k.curHead.hidden = !isCur;
         k.toggle.setAttribute("aria-expanded", String(expanded));
         // ux-review-2 #7: guests count what they answered; "decided" is the moderators' word.
         const done = mod ? decided : inRound.filter(mineDone).length, word = mod ? "decided" : "answered";

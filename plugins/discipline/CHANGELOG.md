@@ -5,6 +5,38 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.22.0] - 2026-10-22
+
+### Added
+
+- be-ambitious deepens work already in progress
+
+  Typed after work, alone or with feedback such as "too shallow",
+  /discipline:be-ambitious now deepens that work. It answers the four depth
+  questions (what a top practitioner would add, the rawest material, the
+  methods and tools, an outside check), rewrites the brief, and redoes the
+  work without waiting, reporting what the outside check showed. It pauses
+  only when the new brief changes the goal, widens the scope, or needs a
+  decision, money or access only the user can give. Typed bare after an
+  aside, it raises the request still waiting on the user's answer.
+
+- The setup apply writer writes the settings file into the repository's convention home, read from the pointer region in AGENTS.md or CLAUDE.md, instead of the fixed docs/conventions. A repository with no region is offered one: with --yes the writer adds the region where the repository already keeps instructions (a new AGENTS.md only when neither file exists) and the overlay ignore line to .gitignore in the same step, and announces both. Without --yes it prints the offer and still creates a missing settings file in docs/conventions; changing an existing file, the region and the ignore line wait for --yes. --home names the home to offer, and --decline records a declined line so the offer is not made again. A home the repository already had lists the settings file in conventions-index.md. --home refuses a value holding a backtick or line break.
+
+- reuse-or-replace writes paved-path entries; lever-check gains a migration row
+
+  /discipline:reuse-or-replace is now the one skill that writes paved-path
+  entries. When work sets a new way for a recurring concern or openly
+  replaces a listed one, it drafts the entry (concern, chosen way, enforcing
+  check or none) and writes it only after you say yes. With no index row or
+  file it offers to create both, and an unattended run only proposes. The
+  lever check gains a migration row: a change that moves many sites to a new
+  way uses an established codemod or structural-rewrite tool first, then a
+  written script, then hand edits.
+
+### Changed
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line.
+
 ## [0.21.2] - 2026-10-20
 
 ### Added
