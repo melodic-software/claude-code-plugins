@@ -107,11 +107,9 @@ it must pass, near misses it must reject, an empty answer, and an answer to a di
 | With `node` on PATH: a regex that does not compile under JavaScript, or a sample JavaScript's `RegExp` sorts the other way | FAIL |
 | An `llm` or `baseline` grader with samples: they need a paid judge calibration run | WARN |
 
-`claude plugin eval` runs patterns with a JavaScript engine and the offline check uses Python's
-`re`, so a token only Python reads (JavaScript takes `\A` as a literal `A`, and rejects it under
-the `u` flag) would pass here and fail the paid run. The token check needs nothing installed; when
-`node` is on PATH the script also runs each regex grader and its samples through `RegExp`, and
-without `node` it skips that part silently.
+The script FAILs the Python-only tokens listed above; that check needs nothing installed. When
+`node` is on PATH it also grades each regex grader and its samples through `RegExp`, and without
+`node` it skips that part silently.
 
 The script never calls a judge. Samples on an `llm` grader are the labeled answers a calibration
 run feeds the judge, and that run is the operator's to start.
