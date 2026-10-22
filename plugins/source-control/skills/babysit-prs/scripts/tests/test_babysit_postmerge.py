@@ -205,6 +205,15 @@ class FakeGh:
         # Check-run annotations by job id, or the HTTP status the read fails with.
         self.annotations: dict[int, list[dict[str, Any]] | int] = {}
 
+        # Runs a listing drops but a read by head SHA still returns, and a
+        # listing's total_count where it differs from the runs it serves.
+        self.unlisted: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        self.total_counts: dict[tuple[str, str], int] = {}
+        # Issues a creator's listing omits for its next reads, as a listing
+        # that lags a record filed minutes ago does.
+        self.late_issues: list[dict[str, Any]] = []
+        self.late_reads: dict[str, int] = {}
+
     def add_runs(self, workflow: str, event: str, *runs: dict[str, Any]) -> None:
         self.runs.setdefault((workflow, event), []).extend(runs)
 
@@ -237,9 +246,17 @@ class FakeGh:
         if "/actions/workflows/" in endpoint and "/runs?" in endpoint:
             workflow = endpoint.split("/actions/workflows/")[1].split("/")[0]
             event = endpoint.split("event=")[1].split("&")[0]
+            runs = self.runs.get((workflow, event), [])
+            if "head_sha=" in endpoint:
+                sha = endpoint.split("head_sha=")[1].split("&")[0]
+                runs = [
+                    r
+                    for r in runs + self.unlisted.get((workflow, event), [])
+                    if r["head_sha"] == sha
+                ]
             page = {
-                "total_count": 0,
-                "workflow_runs": self.runs.get((workflow, event), []),
+                "total_count": self.total_counts.get((workflow, event), len(runs)),
+                "workflow_runs": runs,
             }
             return completed([page] if "--slurp" in args else page)
         if endpoint.split("?")[0].endswith("/jobs"):
@@ -311,9 +328,13 @@ class FakeGh:
             creator = endpoint.split("creator=")[1].split("&")[0]
             from urllib.parse import unquote
 
-            return completed(
-                [[i for i in self.issues if i["user"]["login"] == unquote(creator)]]
-            )
+            creator = unquote(creator)
+            issues = self.issues
+            if self.late_reads.get(creator, 0) > 0:
+                self.late_reads[creator] -= 1
+            else:
+                issues = issues + self.late_issues
+            return completed([[i for i in issues if i["user"]["login"] == creator]])
         if endpoint == f"repos/{REPO}/issues":
             return completed({"number": 9001})
         if "/collaborators/" in endpoint and endpoint.endswith("/permission"):
@@ -667,6 +688,101 @@ class Verification(CheckCase):
         verdict = self.check(now=datetime(2026, 10, 12, 17, 0, tzinfo=UTC))
         self.assertTrue(verdict.merges[0].verified)
         self.assertEqual(verdict.reruns, ())
+
+
+class DroppedDispatchListing(CheckCase):
+    """A listing that answers without runs it holds (a degraded API) must
+    not read as "no dispatch run": past the deadline, a read by the merge
+    commit that finds a run the listing lacked leaves the verdict unreadable,
+    and only a read that also finds none lets the failure stand."""
+
+    LATE = datetime(2026, 10, 12, 16, 1, tzinfo=UTC)
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+
+    def unlisted_lane_dispatch(self) -> None:
+        """A green run pr-merge.yml dispatched at the merge commit, with its
+        record, which the dispatch listing drops."""
+        bot = by("github-actions[bot]")
+        self.gh.unlisted[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(11, head_sha=MERGE_SHA, actor=bot, triggering_actor=bot)
+        ]
+        self.gh.artifacts["pr-merge-dispatched-11"] = [
+            {"id": 9, "name": "pr-merge-dispatched-11", "workflow_run": {"id": 500}}
+        ]
+        self.gh.run_records[500] = {
+            "id": 500,
+            "path": ".github/workflows/pr-merge.yml",
+            "event": "schedule",
+            "head_branch": "main",
+            "head_sha": LATER_SHA,
+            "repository": {"full_name": REPO},
+            "head_repository": {"full_name": REPO},
+        }
+
+    def test_a_run_the_listing_dropped_makes_the_verdict_unreadable(self) -> None:
+        self.unlisted_lane_dispatch()
+        verdict = self.check(now=self.LATE)
+        self.assertFalse(verdict.readable)
+        self.assertTrue(verdict.reason.startswith("unreadable:"), verdict.reason)
+        self.assertEqual(verdict.failures, ())
+
+    def test_a_dropped_run_files_no_record_under_remediate(self) -> None:
+        self.unlisted_lane_dispatch()
+        out = io.StringIO()
+        with (
+            contextlib.redirect_stdout(out),
+            mock.patch.object(pm, "_default_is_human", return_value=human),
+        ):
+            code = pm.main(
+                [
+                    "--repo",
+                    REPO,
+                    "--agent-identity",
+                    IDENTITY,
+                    "--since",
+                    SINCE.isoformat(),
+                    "--remediate",
+                ]
+            )
+        self.assertEqual(code, 3)
+        self.assertNotIn(
+            f"repos/{REPO}/issues", [w[3] for w in self.gh.writes() if len(w) > 3]
+        )
+
+    def test_no_run_at_the_merge_commit_leaves_the_failure_standing(self) -> None:
+        verdict = self.check(now=self.LATE)
+        self.assertTrue(verdict.readable)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+        self.assertTrue(
+            any(
+                f"head_sha={MERGE_SHA}" in " ".join(c)
+                and "event=workflow_dispatch" in " ".join(c)
+                for c in self.gh.calls
+            )
+        )
+
+    def test_a_failed_read_by_the_merge_commit_is_unreadable(self) -> None:
+        self.gh.fail_reads.add(f"head_sha={MERGE_SHA}")
+        verdict = self.check(now=self.LATE)
+        self.assertFalse(verdict.readable)
+        self.assertEqual(verdict.failures, ())
+
+    def test_a_listing_short_of_its_total_count_is_unreadable(self) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.total_counts[("pr-require-checks.yml", "workflow_dispatch")] = 2
+        verdict = self.check()
+        self.assertFalse(verdict.readable)
+        self.assertIn("total_count", verdict.reason)
+
+    def test_a_listing_matching_its_total_count_reads(self) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.total_counts[("pr-require-checks.yml", "workflow_dispatch")] = 1
+        verdict = self.check()
+        self.assertTrue(verdict.readable)
+        self.assertTrue(verdict.merges[0].verified)
 
 
 class LaneDispatch(CheckCase):
@@ -1463,6 +1579,32 @@ class Remediation(CheckCase):
         self.assertEqual(events, [1])
         self.assertEqual(report["dequeued"], [7010])
         self.assertEqual(report["telemetry"], {"demotion_events": 1})
+
+    def test_a_record_the_first_listing_lacked_is_matched_not_filed_again(
+        self,
+    ) -> None:
+        verdict = self.failing_verdict()
+        marker = f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=read-back -->"
+        self.gh.late_issues = [
+            {
+                "number": 8010,
+                "state": "open",
+                "body": f"{marker}\n- Detail: {verdict.failures[0].detail}",
+                "user": {"login": IDENTITY},
+            }
+        ]
+        self.gh.late_reads = {IDENTITY: 1}
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertNotIn(
+            f"repos/{REPO}/issues", [w[3] for w in self.gh.writes() if len(w) > 3]
+        )
+        self.assertEqual(report["issues"], [])
+        self.assertEqual(report["errors"], [])
+
+    def test_a_record_absent_from_both_listings_is_filed(self) -> None:
+        verdict = self.failing_verdict()
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["issues"], [9001])
 
     def test_remediate_never_dequeues_another_actors_entry(self) -> None:
         verdict = self.failing_verdict()

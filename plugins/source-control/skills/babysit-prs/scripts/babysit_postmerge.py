@@ -391,11 +391,25 @@ def _write(args: list[str], label: str) -> Any:
 def _paginated(
     endpoint: str, label: str, items_key: str | None = None
 ) -> list[dict[str, Any]]:
+    """Every item of a paginated listing. An object listing whose
+    `total_count` exceeds the items its pages carried answered short (a
+    degraded API can), so it raises rather than read as complete."""
     payload = _read(["api", endpoint, "--paginate", "--slurp"], label)
     try:
-        return flatten_paginated_items(payload, label, items_key=items_key)
+        items = flatten_paginated_items(payload, label, items_key=items_key)
     except RuntimeError as exc:
         raise PostMergeReadError(str(exc)) from exc
+    if items_key is not None:
+        pages = payload if is_json_array(payload) else [payload]
+        total = max(
+            (p["total_count"] for p in pages if isinstance(p.get("total_count"), int)),
+            default=0,
+        )
+        if total > len(items):
+            raise PostMergeReadError(
+                f"{label}: total_count {total}, but {len(items)} returned"
+            )
+    return items
 
 
 def _graphql(
@@ -780,6 +794,29 @@ class _Context:
     quarantine_issues: dict[str, dict[str, Any]] | None = None
     # Excused failing suites, by (suite, sighting).
     quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
+    # The ids of the branch's dispatch runs at each merge commit, read by SHA.
+    dispatch_at_cache: dict[str, frozenset[int]] = field(default_factory=dict)
+
+    def dispatch_runs_at(self, commit: str) -> frozenset[int]:
+        """The ids of the branch's full-run dispatches at `commit`, read by
+        head SHA with no created filter: a check independent of the dated
+        listing. A failed or short read raises."""
+        if commit not in self.dispatch_at_cache:
+            self.dispatch_at_cache[commit] = frozenset(
+                r.id
+                for r in map(
+                    Run.from_api,
+                    _paginated(
+                        f"repos/{self.owner}/{self.name}/actions/workflows/{FULL_RUN_WORKFLOW}"
+                        f"/runs?event=workflow_dispatch&branch={quote(self.branch, safe='')}"
+                        f"&head_sha={commit}&per_page=100",
+                        f"{FULL_RUN_WORKFLOW} dispatch runs at {commit[:12]}",
+                        "workflow_runs",
+                    ),
+                )
+                if r.head_branch == self.branch
+            )
+        return self.dispatch_at_cache[commit]
 
     def regressions(self, signal: str, run: Run, merged_at: datetime) -> frozenset[str]:
         """The checks failing on red full run `run` that were not failing on
@@ -1409,6 +1446,14 @@ def _judge(
 
     deadline = merged_at + DISPATCH_DEADLINE
     if not any(r.created_at <= deadline for r in own) and now > deadline:
+        # A listing can answer without runs it holds, so the absence is read
+        # again by the merge commit: a run there the listing lacked proves the
+        # listing incomplete, and the verdict is unreadable, not a failure.
+        listed = {r.id for signal, r in full_runs if signal == SIGNAL_DISPATCH}
+        if ctx.dispatch_runs_at(commit) - listed:
+            raise PostMergeReadError(
+                f"#{merge.number}: the dispatch listing lacked a run at {commit[:12]}"
+            )
         failures.append(
             Failure(
                 SIGNAL_DISPATCH,
@@ -1890,6 +1935,21 @@ def _recorded(failure: Failure, record: dict[str, Any], notes: Iterable[Any]) ->
     return any(note in _lines(body) for body in notes)
 
 
+def _record_of(
+    failure: Failure, issues: Iterable[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """The record among `issues` holding `failure`: its marker, or the same run."""
+    return next(
+        (
+            i
+            for i in issues
+            if _first_line(i.get("body")) == failure.marker
+            or _same_run(failure, i.get("body"))
+        ),
+        None,
+    )
+
+
 def _same_run(failure: Failure, body: Any) -> bool:
     """Whether a demotion record names the same failing run, any attempt. The
     alert workflow keys its marker on the run's head SHA and this check on the
@@ -2154,15 +2214,16 @@ def remediate(
             if (failure.marker, _sighting(failure)) in seen:
                 continue
             seen.add((failure.marker, _sighting(failure)))
-            match = records.get(failure.marker) or next(
-                (
-                    i
-                    for i in existing
-                    if _first_line(i.get("body")) == failure.marker
-                    or _same_run(failure, i.get("body"))
-                ),
-                None,
-            )
+            match = records.get(failure.marker) or _record_of(failure, existing)
+            if match is None:
+                # A listing can answer without a record filed minutes ago, so
+                # it is read again just before a new record is filed.
+                match = _record_of(
+                    failure,
+                    _demotion_issues(owner, name, (agent_identity, *DEMOTION_FILERS)),
+                )
+                if match is not None:
+                    existing.append(match)
             if match is None:
                 # The record names every merge this run charges; those merges
                 # then find it by run below.
