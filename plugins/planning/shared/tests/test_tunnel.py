@@ -13,6 +13,7 @@ import re
 import stat
 import subprocess
 import sys
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -199,6 +200,7 @@ class TestExit(TunnelCase):
         names it (`tail cloudflared.log`), carries it too. Only our process's start tells them apart."""
         rec = tunnel.ensure(self.d, 4321)
         self.addCleanup(detached.stop, rec["pid"], rec["marker"])
+        time.sleep(1.1)  # macOS ps reports a start to the second; a pid the OS reuses comes from a later start
         other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", rec["marker"]])
         self.addCleanup(lambda: (other.kill(), other.wait()))
         self.assertTrue(detached.alive(other.pid, rec["marker"]))  # the name alone would pass it
@@ -231,6 +233,7 @@ class TestExit(TunnelCase):
     def test_a_record_from_before_process_start_naming_another_program_of_the_name_is_not_ours(self):
         rec = tunnel.ensure(self.d, 4321)
         self.addCleanup(detached.stop, rec["pid"], rec["marker"])
+        time.sleep(1.1)  # macOS ps reports a start to the second; a pid the OS reuses comes from a later start
         other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", rec["marker"]])
         self.addCleanup(lambda: (other.kill(), other.wait()))
         self.legacy(pid=other.pid)
