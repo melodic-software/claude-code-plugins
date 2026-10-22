@@ -74,6 +74,15 @@ lane or any other surface keeps `L2`.
   (`DEFAULT_WORKFLOW_TOKEN`, `action.yml:308` at `ed670b4`), so every job that runs the model
   grants that token only `contents: read` and `pull-requests: read` (the trigger gate reads the
   PR with it before any App token exists), and every write goes through the App token.
+- A lane activity may run its model in Claude Code's auto mode (`permission-mode: auto` in
+  `pr-pipeline.yaml`; `fix-docs` alone so far), where the auto-mode classifier approves tool calls
+  no rule allows, in place of dontAsk, which denies them. Only the read runner's
+  `run-claude-cli` launcher takes it: a job with no write token whose CLI runs with
+  `--restricted`, with credentials scrubbed from the environment of the commands it runs
+  (`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`), and whose run job fails red unless the CLI's init message
+  reports the mode asked for. What the classifier approves still runs with the job's read-only
+  token and open network, so a steered run reaches what those reach, and its change still leaves
+  only as a patch that `apply-patch` checks.
 - A listed bot (a review bot, dependabot) can relay text someone else wrote, such as a quote from
   a PR thread or upstream release notes, and the filter keeps it because it judges the item's
   author. This is accepted in the same class as web pages.
