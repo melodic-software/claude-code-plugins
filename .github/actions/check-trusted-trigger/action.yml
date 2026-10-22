@@ -138,7 +138,7 @@ outputs:
     description: "`true` when the lane may proceed, otherwise `false`."
     value: ${{ steps.check.outputs.proceed }}
   reason:
-    description: "`ok`, `fork`, `no-pr`, `head-lag`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author` or `list-unreadable`."
+    description: "`ok`, `fork`, `no-pr`, `head-lag`, `untrusted-base`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author` or `list-unreadable`."
     value: ${{ steps.check.outputs.reason }}
   pr-number:
     description: The resolved PR number; empty unless proceed is `true`.

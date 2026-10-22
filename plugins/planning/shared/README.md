@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -346,6 +346,16 @@ for a free-form selector an earlier build took.
   dropped: the page stops posting to it, ignores it, and says it tried to leave its page. The
   page's `frame-src 'self'` already refuses a page from another site in the frame.
   `server.py` refuses to start when the helper holds `</script`, `<script` or `<!--`.
+- **Versions.** A variant may name the variant it revises on an earlier prototype question,
+  `previous: {qid, variant}` (400 `bad-field` when that is not a variant of an earlier prototype
+  question, or another variant already revises it), so one prototype's versions form one line,
+  the newest current. The question card lists each line as `v<n> · <qid> · <label>`, each version
+  opening its own page, the current one marked, with a link that shows another version beside the
+  current one. The page lists them too; Side by side (`#with=<qid>.<variant>`) shows the older of
+  two beside the newer, framed with the same sandbox and no pin helper, so it takes no notes and
+  nothing it posts is read, and dropped if it leaves its page. Notes stay on the version they were
+  pinned to. The toolbar's Prototypes filter lists every round's prototype questions and opens the
+  rounds that hold them.
 - **Owner token.** Links to session pages (`Core.pageLink`) never hold it. The page keeps it in
   the tab's `sessionStorage`, takes it out of the address bar, and uses it again only on a reload
   or Back in that tab; when the owner follows a session link, `core.js` opens the page with
@@ -679,13 +689,13 @@ quoted when it holds a space, so only a newline ends an entry; `logs` splits on 
 |---|---|---|
 | `request` | INFO for 2xx/3xx, WARNING for 4xx, ERROR for 5xx | `method route status ms` and `pid` (the acting person's id, once known); a refusal adds `code field message` (its error body); a 5xx adds `trace`, the last 8000 characters of the traceback of the bug or of the session's refusal where it was raised. The one exception is 503 `busy`, answered before any request is read: `method=- route=- status=503 ms=0.0 code=busy message=...`, no pid, no trace. A `summary` the server takes gets no entry |
 | `client` | WARNING | `pid kind message source route code ua fp`, as the page sent them: a fault |
-| `summary-batch` | INFO | `summaries dropped data`: every `summary` taken since the last batch, written every 10 minutes and when the server stops, if there was one. `data` is a JSON array of `[message, ua]` pairs, sorted, in ASCII with each space as `\u0020`, so it ends the line; `dropped` counts summaries past the batch's 100,000 bytes. No pid, and no time but the batch's |
+| `summary-batch` | INFO | `summaries dropped counts data`: every `summary` taken since the last batch, written every 10 minutes and when the server stops, if there was one and it came from at least 2 guests or only the owner. `counts` is a JSON object of the summaries' `rep:`, `use:`, `rage:` and `dead:` counts added up; `data` is a JSON array of `[message, device]` pairs, the rest of each summary, sorted; both in ASCII with each space as `\u0020`. `dropped` counts summaries past the batch's 100,000 bytes, and at shutdown those from a single guest (see below). No pid, and no time but the batch's |
 
 ```text
 2026-10-17 13:21:56,794 WARNING request method=POST route=/api/person/role status=400 ms=0.5 pid=host code=bad-field field=role message="role must be one of leader, guest."
 2026-10-17 13:21:57,102 ERROR request method=POST route=/api/rename status=500 ms=1.2 pid=pidAnn001 code=state-invalid message="The server could not do that; nothing was written." trace="Traceback (most recent call last):\x0a  File \x22...\x22 ..."
 2026-10-17 13:21:58,330 WARNING client pid=pidAnn001 kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d
-2026-10-17 13:30:00,412 INFO summary-batch summaries=1 dropped=0 data=[["pv=0a1b2c3d\u0020lat:/api/vote=0,3,1\u0020rb:/api/vote=1\u0020gap=900\u0020rep:1a2b3c4d=2\u0020inp=184:pointer:vf-vote\u0020lcp=1200:vf-qtext","safari\u0020phone"]]
+2026-10-17 13:30:00,412 INFO summary-batch summaries=2 dropped=0 counts={"dead:vf-pencil":1,"rep:1a2b3c4d":2,"use:vf-vote":5} data=[["pv=0a1b2c3d\u0020lat:/api/vote=0,3,1\u0020rb:/api/vote=1\u0020gap=900\u0020inp=184:pointer:vf-vote\u0020lcp=1200:vf-qtext","phone"],["pv=5e6f7a8b\u0020gap=400","computer"]]
 ```
 
 A pid is no credential. No entry holds a token, secret, guest key, owner link, request body, answer
@@ -712,11 +722,24 @@ so a summary with a time of its own could be matched to them. A summary holds `p
 page's INP counts once; `owner=1` on the owner's page; `lat:<route>` tap-to-answer counts per
 bucket (upper edges 100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000 and 10000 ms, then above),
 measured with `performance.now()`; `rb:<route>` optimistic changes rolled back; `gap`, ms from the
-page showing again to its first good poll; `rep:<fp>` repeats; `inp` (ms, interaction type,
+page showing again to its first good poll; `rep:<fp>` repeats; `use:<control>` taps, `rage:<control>`
+rage taps (the third tap on one control within a second of the first) and `dead:<control>` dead taps (a tap
+after which the page changes nothing, no DOM change and no scroll, for a second; never a link that opens
+elsewhere), counted on a person's taps on buttons, `input` buttons, links, `role=button` and `summary`, a
+disabled control getting no tap; `inp` (ms, interaction type,
 component) and `lcp` (ms, component) from the vendored web-vitals build, the component `-` where
 web-vitals names its target by a selector or an id instead (an element gone before it measured), or `inp=missing`,
 `lcp=missing`, `vitals=missing` where the browser API or the file is missing. What does not fit in
-500 characters waits for the next summary. Nothing is sampled.
+500 characters waits for the next summary. Nothing is sampled. A control is named by its first `vf-` or
+`core-` class (letters and hyphens) that is not a style class such as `vf-btn`, on it or its nearest
+ancestor, never by its text, label or id.
+
+The server keeps only the device word of a summary's `ua` (`phone`, `tablet` or `computer`, else
+`unknown`) and lifts every `rep:`, `use:`, `rage:` and `dead:` token out of the summary into the batch's
+`counts`, dropping one not shaped like a fingerprint or a `vf-`/`core-` class name. A batch is written
+only once at least 2 guests sent summaries to it (or only the owner did): with fewer it waits for the
+next batch, and at shutdown its summaries are only counted as `dropped`. So no pair holds a fingerprint
+or a browser that would match it to a fault entry's pid, and no batch's counts are one guest's.
 
 Never recorded: what anyone types, answers, chat, names, the address or its fragment, text on the
 page, or a credential. Help says so in one line, with a "What this page records" link to the plain
@@ -740,7 +763,8 @@ to the second) and device and browser classes, refusals by route and code (from 
 server's entries), network failures and unanswered actions by route, tap-to-answer p50 and p95 by
 route (the upper edge of the bucket) beside the server's own `ms`, rollbacks and their rate,
 reconnect gaps (over 10 s, worst, by device), layout anomalies by device kind, INP and LCP p75 by
-device with the count of page views missing the API, and how many summaries came in how many
+device with the count of page views missing the API, taps, rage taps and dead taps by control
+(`features`), and how many summaries came in how many
 batches from how many page views, and how many were dropped.
 The owner's own page views stay out of the timings. A summary counts at its batch's time, for
 `--since` and for a fingerprint's last repeat. `logs --errors` leaves batches out.
@@ -960,6 +984,7 @@ node plugins/planning/shared/tests/ui_lists.js
 node plugins/planning/shared/tests/ui_moderation.js
 node plugins/planning/shared/tests/ui_acceptance.js
 node plugins/planning/shared/tests/ui_proto.js
+node plugins/planning/shared/tests/ui_proto_versions.js
 node plugins/planning/shared/tests/ui_connect.js
 node plugins/planning/shared/tests/ui_uploads.js
 node plugins/planning/shared/tests/ui_attach_paste.js
@@ -1057,7 +1082,10 @@ with keyboards at 320 to 430 px wide.
 `ui_proto.js` checks the prototype page on a desktop and a 390x844 phone in separate browser
 contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an
 element of an html variant and to a spot of a picture, the notes in the Claude thread and the
-digest, the variant's sandbox, and a forged pin message being ignored.
+digest, the variant's sandbox, and a forged pin message being ignored. `ui_proto_versions.js` checks
+a prototype revised in a later round: the Prototypes filter finding both rounds' prototypes without
+scrolling, the later question's version list with the current version marked, opening version 1
+from it, the two side by side on a desktop and stacked on a phone, and a note staying on its version.
 
 `ui_contrast.js` checks WCAG 2.2 AA contrast on the main page states in every palette, in light
 and dark: text and placeholders, field edges, icon-only buttons and the Propose button's edge; per

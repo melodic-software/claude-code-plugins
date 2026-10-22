@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.0] - 2026-10-22
+
+### Changed
+
+- Decompose copies the Brief's Problem, the Goal's Intent, Vision and conflict-preference lines, and the load-bearing assumptions each slice depends on into container bodies and stand-alone items; `/work-items:work` passes them to the worker.
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line. For triage's `set-dimensions.sh`, a `models.issue-dimensions` block in `docs/conventions/pr-pipeline.yaml` must now write each `options` map and each size in block style.
+- `set-dimensions.sh` now names the parser's line and message when `docs/conventions/pr-pipeline.yaml` does not parse, not only the file.
+
 ## [2.10.0] - 2026-10-20
 
 ### Changed

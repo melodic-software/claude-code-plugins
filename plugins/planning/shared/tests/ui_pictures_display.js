@@ -175,7 +175,10 @@ async function main() {
     for (const page of [owner, ann]) { await page.keyboard.press("Escape"); await page.locator(".vf-q", { hasText: "Which box art" }).first().click(); }
     ok("the owner sees the locked picture-only answer's picture in the locked view", await lockPic(owner),
       await owner.evaluate(() => document.querySelector(".vf-lock")?.outerHTML.slice(0, 300)));
-    ok("  a guest sees no picture there before the owner approves it", !(await ann.evaluate(() => !!document.querySelector(".vf-lock:not([hidden]) .vf-attlist .vf-uppic img"))));
+    // Her lock view first shows the picture's place, waiting for the host; only then is "no picture" a reading of it.
+    ok("  a guest sees no picture there before the owner approves it", await until(ann, () => !!document.querySelector(".vf-lock:not([hidden]) .vf-attlist .vf-uppic-wait"), null, 10000)
+      && (await ann.evaluate(() => !document.querySelector(".vf-lock .vf-attlist .vf-uppic:not(.vf-uppic-wait), .vf-lock .vf-attlist img[src]")))
+      && (await readBack(ann, boPic)) === 404, await ann.evaluate(() => document.querySelector(".vf-lock")?.outerHTML.slice(0, 300)));
     await owner.evaluate(id => window.Core.uploadAct(id, "approve"), boPic);
     ok("  and once approved, the guest sees it in the locked view", await lockPic(ann), await ann.evaluate(() => document.querySelector(".vf-lock")?.outerHTML.slice(0, 300)));
 

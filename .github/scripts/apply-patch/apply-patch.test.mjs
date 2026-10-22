@@ -743,8 +743,59 @@ test("an empty patch-state whose report escalated a check names ci-fix-escalated
   writeFileSync(join(reportDir, "reply.txt"), "lint-shell: escalated not-reproducible needs a secret\n");
   const head = "a".repeat(40);
   const base = { row: row("ci-context"), patchState: "empty", patchSha256: "", patchHeadSha: head, headSha: head, patchDir: scratch(t) };
-  assert.deepEqual(select({ ...base, reportDir }), { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" });
+  assert.deepEqual(select({ ...base, reportDir, rung: 1 }), { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" });
   assert.equal(select({ ...base, reportDir: scratch(t) }).escalationReason, "ci-fix-empty");
+});
+
+// A fix-ci run that changed nothing and escalated only
+// unfixed or not-reproducible checks retries once, one model rung up, instead
+// of handing the PR to a person; protected-path, weaken-required and flaky
+// stay with a person, and a rung-1 run never retries again.
+for (const [why, reply, rung, want] of [
+  ["unfixed at rung 0", "test-node: escalated unfixed three fixes failed\n", 0, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
+  ["unfixed and not-reproducible at rung 0", "a: escalated unfixed x\nb: escalated not-reproducible y\nc: fixed\n", 0, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
+  ["unfixed at rung 1", "test-node: escalated unfixed three fixes failed\n", 1, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
+  ["protected-path at rung 0", "lint: escalated protected-path edits .github\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
+  ["weaken-required beside unfixed at rung 0", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
+  ["flaky at rung 0", "a: escalated flaky x\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
+]) {
+  test(`an empty fix-ci patch escalating ${why} selects ${want.skipReason}`, (t) => {
+    const reportDir = scratch(t);
+    writeFileSync(join(reportDir, "reply.txt"), reply);
+    const head = "a".repeat(40);
+    const base = { row: row("ci-context"), patchState: "empty", patchSha256: "", patchHeadSha: head, headSha: head, patchDir: scratch(t) };
+    assert.deepEqual(select({ ...base, reportDir, rung }), want);
+  });
+}
+
+test("a written fix-ci patch with an unfixed check still pushes and escalates, whatever the rung", (t) => {
+  const dir = scratch(t);
+  writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
+  const reportDir = scratch(t);
+  writeFileSync(join(reportDir, "reply.txt"), "test-node: escalated unfixed x\n");
+  const head = "a".repeat(40);
+  const base = { row: row("ci-context"), patchState: "written", patchSha256: sha256("diff --git a/x b/x\n"), patchHeadSha: head, headSha: head, patchDir: dir, reportDir };
+  assert.deepEqual(select({ ...base, rung: 0 }), { proceed: true, skipReason: "", escalationReason: "ci-fix-escalated" });
+});
+
+test("select reads the rung from MODEL_RUNG and refuses any other value", async (t) => {
+  const reportDir = scratch(t);
+  writeFileSync(join(reportDir, "reply.txt"), "test-node: escalated unfixed x\n");
+  const head = "a".repeat(40);
+  const baseDir = scratch(t);
+  mkdirSync(join(baseDir, dirname(RULES_PATH)), { recursive: true });
+  writeFileSync(join(baseDir, RULES_PATH), JSON.stringify(RULES));
+  const outputFor = async (rung) => {
+    const out = join(scratch(t), "out");
+    writeFileSync(out, "");
+    const env = { BASE_DIR: baseDir, PATCH_PREPARE: "ci-context", PATCH_STATE: "empty", PATCH_HEAD_SHA: head, HEAD_SHA: head, PATCH_DIR: scratch(t), REPORT_DIR: reportDir, GITHUB_OUTPUT: out, MODEL_RUNG: rung };
+    await main(["select"], env, { log: () => {} });
+    return readFileSync(out, "utf8");
+  };
+  assert.match(await outputFor("1"), /^skip-reason=awaiting-human$/m);
+  assert.match(await outputFor("0"), /^skip-reason=rung-up$/m);
+  assert.match(await outputFor(""), /^skip-reason=rung-up$/m);
+  await assert.rejects(() => outputFor("2"), /MODEL_RUNG/);
 });
 
 // --- select and main ---

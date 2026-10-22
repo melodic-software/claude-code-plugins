@@ -120,6 +120,9 @@ function fakeApi({
       }
       return checked.has(sha) ? [SUCCESS_RUN] : [];
     },
+    async readRequiredRun() {
+      return { run: null, jobs: [] };
+    },
     async listWorkflowRuns(workflow) {
       calls.runs.push(workflow);
       if (workflowRuns instanceof Error) {
@@ -735,6 +738,52 @@ test("the GitHub adapter calls the documented endpoints", async () => {
     requests[3].url,
     "https://api.example/repos/octo/repo/actions/workflows/pr-unblock.yml/runs?event=workflow_dispatch&per_page=100",
   );
+});
+
+test("the required-run read takes the newest pr-require-checks run that tested the head", async () => {
+  const head = "c".repeat(40);
+  const urls = [];
+  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure" });
+  // Run 14 is a contract-only run (only ci-status ran), stepped past.
+  const contractOnly = [
+    { name: "ci-status", conclusion: "failure" },
+    { name: "lint-repo", conclusion: "skipped" },
+  ];
+  const responses = [
+    {
+      total_count: 4,
+      workflow_runs: [
+        failed(11, ".github/workflows/pr-require-checks.yml", "2026-10-22T02:00:00Z"),
+        failed(12, ".github/workflows/pr-require-checks.yml", "2026-10-22T03:00:00Z"),
+        failed(13, ".github/workflows/pr-test-windows.yml", "2026-10-22T04:00:00Z"),
+        failed(14, ".github/workflows/pr-require-checks.yml", "2026-10-22T03:00:14Z"),
+      ],
+    },
+    { total_count: 2, jobs: contractOnly },
+    { total_count: 1, jobs: [{ name: "test-node", conclusion: "cancelled" }] },
+    { total_count: 0, workflow_runs: [] },
+  ];
+  const api = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      urls.push(url);
+      return { ok: true, status: 200, json: async () => responses.shift() };
+    },
+  });
+  assert.deepEqual(await api.readRequiredRun(head), {
+    run: failed(12, ".github/workflows/pr-require-checks.yml", "2026-10-22T03:00:00Z"),
+    jobs: [{ name: "test-node", conclusion: "cancelled" }],
+  });
+  assert.deepEqual(urls, [
+    `https://api.example/repos/octo/repo/actions/runs?head_sha=${head}&event=pull_request&per_page=100`,
+    "https://api.example/repos/octo/repo/actions/runs/14/jobs?filter=latest&per_page=100",
+    "https://api.example/repos/octo/repo/actions/runs/12/jobs?filter=latest&per_page=100",
+  ]);
+  assert.deepEqual(await api.readRequiredRun(head), { run: null, jobs: [] });
+  await assert.rejects(api.readRequiredRun("main"), /not a commit SHA/);
 });
 
 // The record a run leaves: the next run, against the same GitHub state,

@@ -3,6 +3,18 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.2] - 2026-10-22
+
+### Changed
+
+- **Bump pillow from 12.3.0 to 13.0.0 in /plugins/playwright/skills/demo-video** (#8751).
+
+- Synced the shared `exec-bash.mjs` launcher, which gains an opt-in `--fail-closed` flag. This plugin's hooks do not pass it, so their behavior is unchanged.
+
+### Fixed
+
+- `/playwright:demo-video` quality control no longer crashes on the last frame of a video or shows the next frame in about one contact-sheet tile in three. It seeks half a frame before each frame, and a short ffmpeg read now fails with an error naming the frame index and its timestamp.
+
 ## [0.13.1] - 2026-10-20
 
 ### Changed
