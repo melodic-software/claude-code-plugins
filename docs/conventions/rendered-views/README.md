@@ -638,7 +638,7 @@ Two emitters stay off `lib/html-escape.mjs`. Each is held to the baseline above 
   emitter uses `html.escape` and never passes `quote=False`.
 - **`/playbooks:repo-sweep` page.** `render.sh` splices one JSON document into the template's
   `<script type="application/json">` block and rewrites every `<` in it to the six characters backslash, `u003c`. In a data
-  block the only way out is a `</script>` sequence, and with no `<` left in the text none can form;
+  block the only way out is a `</script>` sequence, and with no `<` left in the text none can form.
   That escape parses back to `<` in `JSON.parse`. The template renders the parsed values with
   `textContent` only, so nothing from the JSON is read as markup. The splice must stay at exactly
   one token inside a non-executing data block; JSON placed in an executable script block, or
