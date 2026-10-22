@@ -739,6 +739,7 @@
                 "kind": {"enum": ["card"]},
                 "card": {"$ref": "#/$defs/cardRef"},
                 "text": {"type": "string"},
+                "attachments": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}, "description": "The locked answer's files, while they last."},
                 "editedBy": {"description": "The locked text is the owner's edit of the answer, not its author's words.", "enum": ["host"]}
               }
             },

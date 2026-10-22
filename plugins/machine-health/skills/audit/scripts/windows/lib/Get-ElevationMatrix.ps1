@@ -85,5 +85,12 @@ function Get-ElevationMatrix {
             Fields        = @('prefetch_state', 'bam_state')
             Reason        = 'The Prefetch folder and the BAM registry key refuse a standard token.'
         }
+        [pscustomobject]@{
+            Feature       = 'Restore points and system image versions'
+            CheckId       = 'backup-status'
+            AdminRequired = $true
+            Fields        = @('restore_points', 'system_image')
+            Reason        = 'The SystemRestore CIM class and wbadmin get versions refuse a non-elevated caller.'
+        }
     )
 }

@@ -36,7 +36,7 @@ const ROUND_LINE = /^<!-- pr-unblock:review-dependency-round head=([0-9a-f]{40})
 // The pulls files listing stops here
 // (docs.github.com/en/rest/pulls/pulls#list-pull-requests-files, as of
 // 2026-10-15; recheck when that section changes its limit).
-const FILES_CAP = 3000;
+export const FILES_CAP = 3000;
 // Lockfile patches run long; the model reads the rest from the checkout.
 // Judgment, sized to keep the context file well inside one model turn.
 const PATCH_CAP = 20_000;
@@ -265,6 +265,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
     });
+  const config = readConfig(env.DEPENDABOT_CONFIG, log);
   const result = await select({
     api: client,
     pr,
@@ -273,7 +274,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
     dependabotId: dependabotIdFrom(env.TRUSTED_ACTORS),
     repository: env.GITHUB_REPOSITORY,
     maxRounds: maxRoundsFrom(env.DEPENDENCY_REVIEW_ROUNDS),
-    config: readConfig(env.DEPENDABOT_CONFIG, log),
+    config,
     policy: readPolicy(env.DEPENDABOT_POLICY, log),
     provenance,
   });
@@ -290,6 +291,9 @@ export async function main(argv, env, { api, log = (line) => console.log(line), 
   // Each matched review-only entry's control, which a merge verdict must
   // quote (apply-dependency-verdict.mjs); JSON keeps it on one line.
   output("controls", JSON.stringify(reviewControls(result.classification)));
+  // The base config's [ecosystem, directory] pairs, which bound the paths a
+  // fix may change (inFixScope); an unreadable config is [] and admits none.
+  output("config-pairs", JSON.stringify(config ?? []));
   const gaps = classifierGaps(result.classification?.tier === "review" ? result.classification.reasons : []);
   if (gaps.length) {
     log(`::warning::classifier gap: #${pr} goes to review only because the classifier could not read it (${gaps.join(", ")}); fix the classifier, not the pull request`);
