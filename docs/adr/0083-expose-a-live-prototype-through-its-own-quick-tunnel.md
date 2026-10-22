@@ -59,6 +59,14 @@ add a forwarding route to the guest listener's boundary.
    - `share.sh stop`;
    - `share.sh live-stop <id>`.
 
+   The owner's Stop is the guest listener's owner route `POST /api/live/stop {id}`. The two
+   `share.sh` commands reach a running server through the control listener's
+   `POST /api/live/stop`, which takes the control token like every control-listener POST and is
+   never tunneled (ADR 0077). A body `{"id": <id>}` ends that entry; a body without `id` ends every
+   entry not yet ended. It answers `{ok, ended, keptPorts}`: the ids ended, and the ports of
+   owner-run servers, which keep running. `share.sh` then ends from `.shared-live/` any record the
+   server did not end, as when no server runs.
+
    `ensure-running` and server shutdown sweep the records. A record whose processes are gone, or
    that belongs to an ended session, ends.
 
