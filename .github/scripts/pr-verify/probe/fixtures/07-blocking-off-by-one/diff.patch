@@ -1,0 +1,40 @@
+diff --git a/plugins/sample-kit/scripts/history.mjs b/plugins/sample-kit/scripts/history.mjs
+index 5e6f7a8..9b0c1d2 100644
+--- a/plugins/sample-kit/scripts/history.mjs
++++ b/plugins/sample-kit/scripts/history.mjs
+@@ -1,10 +1,17 @@
+ import { readFileSync, writeFileSync } from "node:fs";
+
++export const MAX_HISTORY = 5;
++
++// The newest MAX_HISTORY entries, oldest first.
++export function trimHistory(entries) {
++  return entries.slice(entries.length - MAX_HISTORY + 1);
++}
++
+ export function appendHistory(file, entry) {
+   const entries = JSON.parse(readFileSync(file, "utf8"));
+   entries.push(entry);
+-  writeFileSync(file, JSON.stringify(entries));
++  writeFileSync(file, JSON.stringify(trimHistory(entries)));
+ }
+
+ export function readHistory(file) {
+   return JSON.parse(readFileSync(file, "utf8"));
+diff --git a/plugins/sample-kit/scripts/history.test.mjs b/plugins/sample-kit/scripts/history.test.mjs
+index 6f7a8b9..0c1d2e3 100644
+--- a/plugins/sample-kit/scripts/history.test.mjs
++++ b/plugins/sample-kit/scripts/history.test.mjs
+@@ -1,4 +1,11 @@
+ import assert from "node:assert/strict";
+ import { test } from "node:test";
+
+-import { appendHistory } from "./history.mjs";
++import { appendHistory, MAX_HISTORY, trimHistory } from "./history.mjs";
++
++test("trimHistory keeps the newest entries", () => {
++  const kept = trimHistory([1, 2, 3, 4, 5, 6, 7]);
++  assert.ok(kept.length <= MAX_HISTORY);
++  assert.equal(kept.at(-1), 7);
++  assert.ok(!kept.includes(1));
++});

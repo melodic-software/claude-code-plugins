@@ -13,9 +13,10 @@
 #
 # --uncommitted is for a run that commits through an API from the files on
 # disk rather than in the checkout, such as the issue lane: it commits the work
-# tree, untracked files and file modes included, through a temporary index (the
-# checkout's HEAD and index stay as they are), checks that commit out in a
-# temporary worktree, and runs the checks there.
+# tree, untracked files and file modes included, through a temporary index and
+# object directory, checks that commit out in a scratch repository, and runs
+# the checks there. Nothing is written under .git, so the checkout's HEAD,
+# index and worktree list stay as they are.
 #
 # Each check calls the script or tool CI calls; none restates a check's logic.
 # The changed set is <merge-base of HEAD and the base>..HEAD, committed work
@@ -100,21 +101,49 @@ fi
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
 if ((uncommitted)); then
+  # The scratch repository has no remote, so the base is fetched and resolved
+  # to a commit here, and the inner run gets that commit and --no-fetch.
   if [[ -z "$base" ]]; then
-    base="$(git rev-parse HEAD)" || exit 2
+    base=HEAD
+  elif ((fetch)) && [[ "$base" == */* ]]; then
+    git fetch --quiet "${base%%/*}" "${base#*/}" 2>/dev/null || export CHECK_AFFECTED_FETCH_FAILED=1
   fi
+  base="$(git rev-parse --verify --quiet "$base^{commit}")" || {
+    echo "check-affected: cannot resolve the base to a commit" >&2
+    exit 2
+  }
+  # Nothing is written under .git, which the lane's sandbox can make read-only:
+  # new objects go to $snap/objects, and the commit is checked out in a scratch
+  # repository whose alternates borrow every other object from this one.
   snap="$(mktemp -d)" || exit 2
-  trap 'git worktree remove --force "$snap/tree" >/dev/null 2>&1; rm -rf "$snap"' EXIT
+  trap 'rm -rf "$snap"' EXIT
+  objects="$(cd "$(git rev-parse --git-common-dir)/objects" && pwd -P)" || exit 2
   index="$(git rev-parse --git-path index)" || exit 2
+  shallow="$(git rev-parse --git-path shallow)" || exit 2
   [[ ! -f "$index" ]] || cp "$index" "$snap/index" || exit 2
-  GIT_INDEX_FILE="$snap/index" git add -A || exit 2
-  tree="$(GIT_INDEX_FILE="$snap/index" git write-tree)" || exit 2
+  mkdir "$snap/objects" || exit 2
+  export GIT_INDEX_FILE="$snap/index" GIT_OBJECT_DIRECTORY="$snap/objects" GIT_ALTERNATE_OBJECT_DIRECTORIES="$objects"
+  # The lane's sandbox masks dotfiles with /dev/null, a device git will not
+  # add, so only files, symlinks, repositories and deletions are staged.
+  # An empty pathspec would make add -A stage everything, so none means no add.
+  paths=()
+  while IFS= read -r -d '' f; do
+    if [[ -f "$f" || -L "$f" || -d "$f" || ! -e "$f" ]]; then paths+=("$f"); fi
+  done < <(git ls-files -z --modified --others --exclude-standard)
+  if ((${#paths[@]})); then
+    printf '%s\0' "${paths[@]}" | git add -A --pathspec-from-file=- --pathspec-file-nul || exit 2
+  fi
+  tree="$(git write-tree)" || exit 2
   commit="$(git -c user.name=check-affected -c user.email=check-affected@localhost \
     commit-tree "$tree" -p HEAD -m 'check-affected: uncommitted work')" || exit 2
-  git -c core.hooksPath=/dev/null worktree add --quiet --detach "$snap/tree" "$commit" || exit 2
-  args=(--base "$base")
+  unset GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+  git -c init.defaultBranch=snapshot init --quiet --template= "$snap/tree" || exit 2
+  printf '%s\n' "$snap/objects" "$objects" >"$snap/tree/.git/objects/info/alternates" || exit 2
+  # A shallow clone's boundary, so history walks stop where the clone does.
+  [[ ! -f "$shallow" ]] || cp "$shallow" "$snap/tree/.git/shallow" || exit 2
+  git -C "$snap/tree" -c core.hooksPath=/dev/null checkout --quiet --detach "$commit" || exit 2
+  args=(--base "$base" --no-fetch)
   ((run_tests)) && args+=(--tests)
-  ((fetch)) || args+=(--no-fetch)
   rc=0
   (cd "$snap/tree" && bash "$tools/scripts/check-affected.sh" "${args[@]}") || rc=$?
   exit "$rc"
@@ -162,6 +191,7 @@ run_check() {
 # A remote-tracking base is refreshed first, so the stale-base check compares
 # against the tip a merge would land on. A failed fetch skips that check only.
 fetched=1
+[[ -z "${CHECK_AFFECTED_FETCH_FAILED-}" ]] || fetched=0
 if ((fetch)) && [[ "$base" == */* ]]; then
   git fetch --quiet "${base%%/*}" "${base#*/}" 2>/dev/null || fetched=0
 fi
@@ -294,6 +324,7 @@ fi
 typos_check() {
   typos --config "$1" --force-exclude \
     --exclude 'plugins/*/skills/*/vendor/**' \
+    --exclude 'plugins/*/tools/*/vendor/**' \
     --exclude 'plugins/testing/skills/audit/evals/judge-calibration/cases/**' \
     -- "${changed[@]}" || return 1
 }

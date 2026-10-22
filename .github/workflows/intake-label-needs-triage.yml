@@ -56,7 +56,7 @@ jobs:
     if: ${{ !cancelled() && needs.born-triaged.outputs.skip != 'true' }}
     permissions:
       issues: write # passed to the reusable, which reads and adds issue labels
-    uses: melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@182aca3ad32b79fd002def94e58eb498ac49e7af # v0.42.0
+    uses: melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
     with:
       runner: ubuntu-24.04
       label: needs-triage

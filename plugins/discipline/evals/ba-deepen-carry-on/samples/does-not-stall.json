@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Redone. notes/incident.md now names release 4.18.2 on acme-eu, which lowered PAYMENTS_TIMEOUT_MS from 3000 to 800, as the cause, with the counts from scripts/errors_by.sh behind it.",
+      "why": "reports the redone work as done"
+    },
+    {
+      "answer": "Brief, deepened: find the cause from the raw log, split by tenant and release, and confirm it with a count. That keeps the goal and scope, so I carried on.\n\nDone: the write-up is rewritten, and the counts put 64 of 67 errors on acme-eu after the 4.18.2 deploy.",
+      "why": "shows the brief and carries on without waiting"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is the deeper brief: read logs/checkout.log, split errors by tenant and release, and confirm with scripts/errors_by.sh. Reply \"accept\" and I'll redo notes/incident.md to it.",
+      "why": "stops for a go-ahead the unchanged scope did not need"
+    },
+    {
+      "answer": "Plan for a deeper write-up: 1) read the raw log, 2) group the errors, 3) match them to deploys, 4) rewrite the note. Want me to go ahead?",
+      "why": "offers a plan without doing it"
+    }
+  ]
+}

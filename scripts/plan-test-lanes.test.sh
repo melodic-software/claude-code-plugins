@@ -42,6 +42,10 @@ for s in a b c d e f g h; do
   mk "plugins/$s/$s.sh" "echo $s"
   mk "plugins/$s/$s.test.sh" "bash \"\$(dirname \"\$0\")/$s.sh\""
 done
+# a.test.sh also reads a stylesheet, which the inert list keeps off the Windows plan.
+mk plugins/a/a.css "p {}"
+printf 'cat a.css\n' >>"$repo/plugins/a/a.test.sh"
+printf 'plugins/a/*.css # a stylesheet no Windows step reads\n' >"$repo/scripts/test-windows-inert-paths.txt"
 mk plugins/animation/anim.sh
 mk plugins/animation/anim.test.sh
 mk plugins/speech/sp.sh
@@ -178,6 +182,20 @@ plan -- plugins/animation/requirements.txt
 is "$(suites python | tr '\n' ' ')" "plugins/p/test_p.py plugins/q/test_q.py "
 check "the animation lock test-python installs is a Python pin" $?
 
+# 925 suite-seconds would take ceil(925/180) = 6 legs; test-python stops at 5.
+# Longest first onto the least-loaded leg: p, r, s, q and t open the five legs,
+# then u joins t (95), v joins q (100) and w joins s (110).
+cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
+for s in r s t u v w; do mk "plugins/$s/test_$s.py" "assert True"; done
+printf '%s\n' "plugins/r/test_r.py 190" "plugins/s/test_s.py 110" "plugins/t/test_t.py 95" \
+  "plugins/u/test_u.py 90" "plugins/v/test_v.py 80" "plugins/w/test_w.py 60" >>"$repo/scripts/suite-seconds.txt"
+plan -- .python-version
+for s in r s t u v w; do rm -rf "${repo:?}/plugins/$s"; done
+cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
+is "$(key python_legs)" "[0,1,2,3,4]" &&
+  grep -q 'python: 8 suite(s), 925 suite-seconds, 5 leg(s): 200s/1 190s/1 170s/2 180s/2 185s/2' "$ERR"
+check "test-python packs by suite-seconds onto at most 5 legs, longest first to the least-loaded leg" $?
+
 plan -- lib/w.mjs
 is "$(suites bash)" "lib/w.test.sh" && is "$(key node)" false
 check "a Node suite with a sibling .test.sh runs through it on test-bash" $?
@@ -215,6 +233,19 @@ check "a Node pin runs every Node package" $?
 plan -- plugins/ps/x.ps1
 is "$(key windows_steps)" '["plugins/ps/run.ps1"]' && is "$(key windows_jobs)" '["win-b"]' && is "$(key bash)" false
 check "a Pester suite starts the test-windows step a pattern names, and no Linux lane" $?
+
+plan -- plugins/a/a.css
+is "$(suites bash)" "plugins/a/a.test.sh" && is "$(key windows_jobs)" "[]" && is "$(key windows_steps)" "[]"
+check "a change made only of inert paths runs their Linux suites and no Windows step" $?
+
+plan -- plugins/a/a.css plugins/b/b.sh
+is "$(suites bash | tr '\n' ' ')" "plugins/a/a.test.sh plugins/b/b.test.sh " &&
+  is "$(key windows_jobs)" '["win-b"]' && is "$(key windows_steps)" '["plugins/b/b.test.sh"]'
+check "beside an inert path, a path the list does not name still starts its Windows step" $?
+
+plan -- scripts/test-windows-inert-paths.txt
+is "$(key windows_jobs)" '["win-a","win-b"]'
+check "a change to the inert list runs every Windows step" $?
 
 plan -- plugins/z/data.cfg
 is "$(key unmapped)" 1 && is "$(key bash)" false && is "$(key python)" false

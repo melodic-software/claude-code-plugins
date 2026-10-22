@@ -17,6 +17,12 @@ after(() => rmSync(scratch, { recursive: true, force: true }));
 const HOME = join(scratch, "home");
 mkdirSync(join(HOME, ".claude/skills/vercel-react-view-transitions"), { recursive: true });
 
+/** The convention-home resolver applies only inside a git work tree, so a scratch project that binds a home is one. */
+function gitInit(dir) {
+  const r = spawnSync("git", ["init", "-q", dir], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+}
+
 /** Runs detect.mjs as a CLI; `env` replaces the child's environment when given. */
 function detect(args, env, cwd) {
   const r = spawnSync(process.execPath, [DETECT, ...args], { encoding: "utf8", env, cwd });
@@ -150,7 +156,7 @@ describe("--config", () => {
     assert.deepEqual(config.values, {
       version: 1,
       css: {
-        browser_target: "> 1%",
+        browser_target: "last 2 versions",
         techniques: { disable: [] },
         rules: { disable: ["hover", "motion"] },
         important: "utilities-only",
@@ -170,10 +176,11 @@ describe("--config", () => {
     });
   });
 
-  test("provenance names the layer of every key across all five layers", () => {
+  test("provenance names the layer of every key across all four layers; the user-home file is not read", () => {
+    assert.deepEqual(config.layers.map((l) => l.name), ["defaults", "userConfig", "team", "local"]);
     assert.deepEqual(config.provenance, {
       version: "team",
-      "css.browser_target": "user",
+      "css.browser_target": "userConfig",
       "css.techniques.disable": ["defaults"],
       "css.rules.disable": ["defaults", "team", "local"],
       "css.important": "team",
@@ -198,7 +205,7 @@ describe("--config", () => {
   });
 
   test("routing is rejected in every layer but the team layer", () => {
-    for (const name of ["userConfig", "user", "local"]) {
+    for (const name of ["userConfig", "local"]) {
       assert.ok(layer(name).errors.some((e) => /"routing": accepted only in the team layer/.test(e)), `${name}: ${JSON.stringify(layer(name).errors)}`);
     }
     assert.deepEqual(layer("team").errors, []);
@@ -332,6 +339,7 @@ describe("--config", () => {
   test("--team reads a convention home whose name merely starts with two dots", () => {
     const dir = join(scratch, "dotdot-home");
     mkdirSync(join(dir, "..conf"), { recursive: true });
+    gitInit(dir);
     writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome is `..conf`.\n<!-- END GENERATED: convention-home -->\n");
     writeFileSync(join(dir, "..conf/user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
     const team = join(scratch, "team-dotdot.yaml");
@@ -352,6 +360,7 @@ describe("--config", () => {
   test("a broken pointer line reads neither the team nor the local layer", () => {
     const dir = join(scratch, "broken-pointer");
     mkdirSync(join(dir, "docs/conventions"), { recursive: true });
+    gitInit(dir);
     writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome is `missing-dir`.\n<!-- END GENERATED: convention-home -->\n");
     writeFileSync(join(dir, "docs/conventions/user-interface.yaml"), "css:\n  important: allow\nrouting:\n  version: 1\n  deny:\n    - figma\n");
     writeFileSync(join(dir, "docs/conventions/user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
@@ -364,12 +373,37 @@ describe("--config", () => {
     for (const name of ["team", "local"]) assert.equal(broken.layers.find((l) => l.name === name).state, "absent", name);
   });
 
+  for (const [label, bind, reason] of [
+    ["a declined region", (dir) => {
+      gitInit(dir);
+      writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\ndeclined\n<!-- END GENERATED: convention-home -->\n");
+    }, /declined/],
+    ["a project outside any git work tree", () => {}, /not applicable/],
+  ]) {
+    test(`${label} reads neither the team nor the local layer: bundled defaults apply`, () => {
+      const dir = join(scratch, `no-home-${label.replace(/\W+/g, "-")}`);
+      mkdirSync(join(dir, "docs/conventions"), { recursive: true });
+      bind(dir);
+      writeFileSync(join(dir, "docs/conventions/user-interface.yaml"), "css:\n  important: allow\n");
+      writeFileSync(join(dir, "docs/conventions/user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
+      const { config: c } = detect(["--project", dir, ...seams, "--config"]);
+      assert.equal(c.home, null);
+      assert.match(c.home_skipped, reason);
+      assert.ok(!("home_error" in c));
+      assert.equal(c.values.css.important, "avoid");
+      assert.equal(c.provenance["css.important"], "defaults");
+      assert.equal(c.values.css.token_fallback, "ask");
+      for (const name of ["team", "local"]) assert.equal(c.layers.find((l) => l.name === name).state, "absent", name);
+    });
+  }
+
   test("--team refuses a local layer whose convention home leaves the project", () => {
     const outside = join(scratch, "outside-home");
     mkdirSync(outside, { recursive: true });
     writeFileSync(join(outside, "user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
     const dir = join(scratch, "linked-home");
     mkdirSync(join(dir, "docs"), { recursive: true });
+    gitInit(dir);
     symlinkSync(outside, join(dir, "docs/conventions"), "junction");
     const team = join(scratch, "team-linked.yaml");
     writeFileSync(team, "css:\n  important: allow\n");
@@ -389,6 +423,140 @@ describe("--config", () => {
     assert.equal(u.state, "invalid");
     assert.match(u.errors.join("\n"), /bad-user-config\.json/);
     assert.equal(c.values.css.important, "avoid");
+  });
+});
+
+describe("--config team routing applied to routes", () => {
+  const PROJECT = join(FIX, "no-ds");
+  const args = ["--project", PROJECT, ...seams, "--config"];
+  const teamFile = (name, text) => {
+    const file = join(scratch, name);
+    writeFileSync(file, text);
+    return file;
+  };
+  const ROW = "      kind: plugin\n      detect: brand-tool@brand-market\n      account: none\n      status: confirmed\n      platforms:\n        - linux\n      as_of: 2026-10-10\n      pointer: https://example.com/brand\n";
+  const row = (routes, concern, id) => routes.find((r) => r.concern === concern && r.id === id);
+
+  test("without a team file the routes are the bundled rows and nothing is skipped", () => {
+    const out = detect(args);
+    const bundled = JSON.parse(readFileSync(join(PLUGIN, "reference/routing.json"), "utf8")).rows;
+    assert.deepEqual(out.routes, bundled);
+    assert.deepEqual(out.skipped, []);
+    assert.ok(!("routing_notes" in out));
+  });
+
+  test("a team row with a bundled concern and id overrides it key by key", () => {
+    const team = teamFile("route-override.yaml", "routing:\n  version: 1\n  rows:\n    - concern: typography-color\n      id: frontend-design@claude-plugins-official\n      rank: 1\n      status: deferred\n");
+    const out = detect([...args, "--team", team]);
+    const changed = row(out.routes, "typography-color", "frontend-design@claude-plugins-official");
+    assert.equal(changed.rank, 1);
+    assert.equal(changed.status, "deferred");
+    assert.equal(changed.detect, "frontend-design@claude-plugins-official", "keys the team row omits keep the bundled value");
+    assert.equal(out.routes.length, JSON.parse(readFileSync(join(PLUGIN, "reference/routing.json"), "utf8")).rows.length);
+  });
+
+  test("a team row naming no bundled row adds a route", () => {
+    const team = teamFile("route-add.yaml", `routing:\n  version: 1\n  rows:\n    - concern: typography-color\n      rank: 1\n      id: brand-tool@brand-market\n${ROW}`);
+    const out = detect([...args, "--team", team]);
+    assert.equal(row(out.routes, "typography-color", "brand-tool@brand-market").rank, 1);
+  });
+
+  test("a team row whose detect is a path is not applied and the note names it", () => {
+    const team = teamFile(
+      "route-path.yaml",
+      "routing:\n  version: 1\n  rows:\n    - concern: typography-color\n      rank: 1\n      id: /evil\n      kind: skill\n      detect: ../../outside\n      account: none\n      status: confirmed\n      platforms:\n        - linux\n      as_of: 2026-10-10\n      pointer: https://example.com/x\n",
+    );
+    const out = detect([...args, "--team", team]);
+    assert.equal(row(out.routes, "typography-color", "/evil"), undefined);
+    assert.match(out.routing_notes.join("\n"), /\/evil not applied.*not a path/);
+  });
+
+  test("disable removes the route and lists it as skipped by disable", () => {
+    const team = teamFile("route-disable.yaml", "routing:\n  version: 1\n  disable:\n    - concern: typography-color\n      id: /playgrounds:use\n");
+    const out = detect([...args, "--team", team]);
+    assert.equal(row(out.routes, "typography-color", "/playgrounds:use"), undefined);
+    assert.ok(row(out.routes, "mockups-variants", "/prototype:explore-directions"), "the same id under another concern stays");
+    assert.deepEqual(out.skipped, [{ concern: "typography-color", id: "/playgrounds:use", by: "disable", source: team }]);
+    assert.ok(!out.installed.includes("/playgrounds:use"));
+  });
+
+  test("deny removes every route it names, installed ones from installed, and names the team file", () => {
+    const team = teamFile("route-deny.yaml", "routing:\n  version: 1\n  deny:\n    - figma\n");
+    const out = detect([...args, "--team", team]);
+    assert.ok(!out.routes.some((r) => r.detect.startsWith("figma")));
+    const denied = out.skipped.filter((s) => s.by === "deny");
+    assert.deepEqual([...new Set(denied.map((s) => s.id))], ["figma@claude-plugins-official"]);
+    assert.ok(denied.length > 1, "one route per concern holding the figma row");
+    for (const s of denied) assert.deepEqual([s.name, s.source], ["figma", team]);
+  });
+
+  test("a denied plugin that is installed leaves installed and reachable", () => {
+    assert.ok(detect(args).installed.includes("frontend-design@claude-plugins-official"));
+    const team = teamFile("route-deny-installed.yaml", "routing:\n  version: 1\n  deny:\n    - frontend-design\n");
+    const out = detect([...args, "--team", team]);
+    assert.ok(!out.installed.includes("frontend-design@claude-plugins-official"));
+    assert.ok(!("frontend-design@claude-plugins-official" in out.reachable));
+  });
+
+  test("deny and disable together are unions", () => {
+    const team = teamFile("route-union.yaml", "routing:\n  version: 1\n  disable:\n    - concern: typography-color\n      id: /playgrounds:use\n  deny:\n    - canva\n"); // spellchecker:disable-line
+    const out = detect([...args, "--team", team]);
+    assert.deepEqual(out.skipped.map((s) => s.by).sort(), ["deny", "disable"]);
+  });
+
+  test("a malformed team file degrades to the bundled routes with a disclosure", () => {
+    const team = teamFile("route-malformed.yaml", "routing: [unclosed\n  deny: figma\n");
+    const out = detect([...args, "--team", team]);
+    const bundled = JSON.parse(readFileSync(join(PLUGIN, "reference/routing.json"), "utf8")).rows;
+    assert.deepEqual(out.routes, bundled);
+    assert.deepEqual(out.skipped, []);
+    assert.match(out.routing_notes.join("\n"), new RegExp(`${team.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")} has \\d+ problems?.*built-in routes are used`));
+  });
+
+  test("a team routing an unknown version or with a dropped entry is disclosed, and the valid rest applies", () => {
+    const v2 = teamFile("route-v2.yaml", "routing:\n  version: 2\n  deny:\n    - figma\n");
+    const dropped = detect([...args, "--team", v2]);
+    assert.deepEqual(dropped.skipped, []);
+    assert.match(dropped.routing_notes.join("\n"), /has \d+ problems?/);
+    const partial = teamFile("route-partial.yaml", "routing:\n  version: 1\n  deny:\n    - 5\n    - canva\n"); // spellchecker:disable-line
+    const out = detect([...args, "--team", partial]);
+    assert.ok(out.skipped.some((s) => s.by === "deny" && s.name === "canva")); // spellchecker:disable-line
+    assert.match(out.routing_notes.join("\n"), /has \d+ problems?/);
+  });
+
+  test("a bad non-routing key is not disclosed as a routing problem, and team routing applies", () => {
+    const team = teamFile("route-css-bogus.yaml", "css:\n  bogus: 1\nrouting:\n  version: 1\n  deny:\n    - canva\n"); // spellchecker:disable-line
+    const out = detect([...args, "--team", team]);
+    assert.ok(!("routing_notes" in out));
+    assert.ok(out.skipped.some((s) => s.by === "deny" && s.name === "canva")); // spellchecker:disable-line
+  });
+
+  test("a bad non-routing key with no team routing gives no routing note", () => {
+    const team = teamFile("route-css-only.yaml", "css:\n  bogus: 1\n");
+    const out = detect([...args, "--team", team]);
+    assert.ok(!("routing_notes" in out));
+  });
+
+  test("a routing key that is not a mapping is disclosed as one problem beside a bad non-routing key", () => {
+    const team = teamFile("route-not-mapping.yaml", "css:\n  bogus: 1\nrouting: 5\n");
+    const out = detect([...args, "--team", team]);
+    assert.match(out.routing_notes.join("\n"), / has 1 problem \(/);
+  });
+
+  test("a broken pointer line applies no team routing and says so", () => {
+    const dir = join(scratch, "route-broken-pointer");
+    mkdirSync(join(dir, "docs/conventions"), { recursive: true });
+    gitInit(dir);
+    writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome is `missing-dir`.\n<!-- END GENERATED: convention-home -->\n");
+    writeFileSync(join(dir, "docs/conventions/user-interface.yaml"), "routing:\n  version: 1\n  deny:\n    - figma\n");
+    const out = detect(["--project", dir, ...seams, "--config"]);
+    assert.ok(out.routes.some((r) => r.detect.startsWith("figma")));
+    assert.match(out.routing_notes.join("\n"), /missing-dir.*no team overrides or deny floor/);
+  });
+
+  test("routes are absent unless --config is asked for", () => {
+    const out = detect(["--project", PROJECT, ...seams]);
+    assert.ok(!("routes" in out) && !("skipped" in out));
   });
 });
 

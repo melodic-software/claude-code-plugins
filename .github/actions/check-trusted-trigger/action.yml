@@ -1,8 +1,8 @@
 name: Check trusted trigger
 description: >
   Gate a CI lane on its trigger: the PR must come from this repository, and
-  both the event actor and the PR author must be on the trusted-actor list,
-  matched by numeric user id. Handles pull_request, workflow_dispatch (with a
+  the event actor, the PR author and the re-runner must be on the
+  trusted-actor list, matched by numeric user id. Handles pull_request, workflow_dispatch (with a
   PR number) and workflow_run. A workflow_dispatch sent by
   github-actions[bot] proceeds only through a checked dispatcher run. With
   require-pr false it checks the actors only and reads no PR. Always exits 0
@@ -30,9 +30,12 @@ inputs:
     default: ""
   github-token:
     description: >
-      Token that can read the PR, used on workflow_dispatch and workflow_run
-      to fetch it, and on a dispatcher-sent run to read both run records and
-      compare commits.
+      Token that can read the PR and this run's own record. It reads the
+      re-runner's id from this run on every path, fetches the PR on
+      workflow_dispatch and workflow_run, and on a dispatcher-sent run or a
+      reconciler re-run reads the run records and artifacts and compares
+      commits. A token that cannot read this run stops the lane with
+      untrusted-rerunner.
     required: false
     default: ${{ github.token }}
   denied-actor-ids:
@@ -44,8 +47,9 @@ inputs:
     default: ""
   triggering-actor:
     description: >
-      The login that started this run attempt, which differs from the event
-      actor on a re-run. Must be on the list; empty stops the lane.
+      The login that started this run attempt. Only `github-actions[bot]`
+      with reconciler-workflow set routes to the reconciler check; every other
+      re-runner is checked by the id in this run's own record.
     required: false
     default: ${{ github.triggering_actor }}
   dispatcher-run-id:
@@ -98,6 +102,14 @@ inputs:
       every dispatcher-sent run.
     required: false
     default: ""
+  reconciler-workflow:
+    description: >
+      The workflow path of the lost-run reconciler. A re-run github-actions[bot]
+      started proceeds only as that workflow's recorded re-run of this run's
+      first attempt (the README's reconciler section). Empty keeps every
+      github-actions[bot] re-run stopped with untrusted-rerunner.
+    required: false
+    default: ""
   require-kind:
     description: >
       Empty accepts any listed actor. `human` narrows the actor-only checks
@@ -126,7 +138,7 @@ outputs:
     description: "`true` when the lane may proceed, otherwise `false`."
     value: ${{ steps.check.outputs.proceed }}
   reason:
-    description: "`ok`, `fork`, `no-pr`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author` or `list-unreadable`."
+    description: "`ok`, `fork`, `no-pr`, `head-lag`, `untrusted-base`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author` or `list-unreadable`."
     value: ${{ steps.check.outputs.reason }}
   pr-number:
     description: The resolved PR number; empty unless proceed is `true`.
@@ -162,6 +174,7 @@ runs:
         EXPECTED_UPSTREAM_HEAD: ${{ inputs.expected-upstream-head }}
         LANES_APP_ID: ${{ inputs.lanes-app-id }}
         DISPATCHED_WORKFLOW: ${{ inputs.dispatched-workflow }}
+        RECONCILER_WORKFLOW: ${{ inputs.reconciler-workflow }}
         REQUIRE_KIND: ${{ inputs.require-kind }}
         APP_LABEL: ${{ inputs.app-label }}
         REQUIRE_PR: ${{ inputs.require-pr }}

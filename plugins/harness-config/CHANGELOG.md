@@ -5,6 +5,44 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.0.0] - 2026-10-22
+
+### Added
+
+- `/harness-config:audit-automation-gaps` now points at the ladder copy's "Guardrail criterion" section as the bar a proposed check meets before a PASS verdict.
+
+### Changed
+
+- The bundled enforcement ladder copy is now 2.0.0: four tiers, a "runs at" column, renamed and added rung ids (`shared-helper`, `harness-setting`, `action-guard`, `scaffold`, `automated-review`, `instruction`, `skill`, `human-review`) and the guardrail criterion.
+
+- `/harness-config:audit-automation-gaps` names the weakest ladder rung `automated-review`, the ladder 2.0.0 id, instead of `llm-only`.
+
+### Security
+
+- The settings audit matches stateless GitHub App installation tokens (`ghs_` followed by a JWT, with no app id) with GitHub's recommended `ghs_` regex.
+
+## [1.16.0] - 2026-10-20
+
+### Added
+
+- `setup wsl-profile`: prints an opt-in WSL hardening settings block (`Read` deny rules for Linux secret stores, `Edit` deny rules for the Windows host's Claude config using `//` paths, a pinned `env.TMPDIR`) with the running user's paths filled in, and writes nothing. `reference/wsl-profile.md` documents the detection rule, the limits of deny rules and the host steps; `wsl-profile.sh lint` fails on any `Write(path)` rule or non-`//` path rule.
+
+- Shared `resolve-convention-home.sh` synced: `--ref` (a 40-hex commit id or `origin/<name>`) reads the pointer and the home as committed, `-` reads the region from stdin, a `declined` line in the region exits 4 so the caller does not ask again, and a root that is `$HOME`, an ancestor of it or outside a git work tree exits 5 (not applicable).
+
+### Changed
+
+- Posture P11 example headings are now "Needs you", "Waiting on me", "Done", "Found".
+
+- With no `--root`, `resolve-convention-home.sh` reads the git toplevel of `CLAUDE_PROJECT_DIR` (else of the current directory): one home per git root.
+
+### Fixed
+
+- Upstream pointer records now carry exact section anchors, an as-of date and a recheck trigger: the built-in-mods settings record in the `AGENTS.md` liveness reference, the mods-versus-hooks pointer in the automation-gap checklist, the `--bare` pointer in `unhobble`, and the features-overview, subagent-startup and context-engineering-blog citations in the `audit-instructions` criteria. The context-engineering blog citation now uses its `claude.dev` URL.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+- A `CLAUDE.md` symlinked to `AGENTS.md`, or the reverse, no longer prints a `duplicate:` notice.
+
 ## [1.15.0] - 2026-10-18
 
 ### Added

@@ -524,6 +524,47 @@
         "It commits those deletions on their own as the first refactor commit, before any PickPlanner move",
         "It ends by naming where reader load fell, or reverts the reshape when it cannot name one"
       ]
+    },
+    {
+      "id": 40,
+      "name": "autonomous-invented-item-recorded-not-asked",
+      "narration": true,
+      "prompt": "/implementation:implement - autonomous goal-loop run, no human in the turn cycle. Phase 2 of the approved plan adds a CSV export to the reports page. While working, you notice the reports page would also benefit from a PDF export, which the plan never mentions. Continue the phase.",
+      "expected_output": "Step 3.5 classifies the PDF export as invented mid-implement. With nobody to answer, it does not call AskUserQuestion and does not build the PDF export. It appends a human-decision entry for the PDF export, naming its category, to DEVIATIONS.md, finishes the CSV export the plan calls for, and leaves the PDF entry for Step 5's fold-back.",
+      "files": [],
+      "expectations": [
+        "Does NOT call AskUserQuestion about the PDF export",
+        "Does NOT implement the PDF export",
+        "Appends a human-decision entry for the PDF export to DEVIATIONS.md",
+        "Completes the CSV export the plan calls for"
+      ]
+    },
+    {
+      "id": 41,
+      "name": "feature-block-fewer-lines-check",
+      "prompt": "/implementation:implement feature - phase 1 of the approved plan adds `active_emails` (the normalized emails of active users) to the user module. The block is written in evals/fixtures/redundant-feature-block.py and its tests pass. Finish the block and commit.",
+      "expected_output": "Before counting the block done, the execution cadence's fewer-lines check asks whether it could say the same thing in fewer lines with identical behavior. The fixture has a redundant else/pass branch and a throwaway accumulator that a comprehension replaces, so the skill shrinks it, keeps the tests green, and only then commits.",
+      "files": ["evals/fixtures/redundant-feature-block.py"],
+      "expectations": [
+        "Runs the fewer-lines check on the finished block before the commit checkpoint",
+        "Shrinks the redundant block (the empty else branch and the accumulator loop) while keeping behavior identical",
+        "Re-runs the build and tests after shrinking and commits only at green",
+        "Does NOT add features or behavior while shrinking"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "reads-only-the-paved-path-entries-for-edited-paths",
+      "narration": true,
+      "prompt": "/implementation:implement feature add a nightly export job under jobs/. The repository's docs/standards/README.md has a paved-path row pointing at docs/standards/paved-paths.md, which lists three concerns: scheduled jobs (jobs/ registry with the shared retry wrapper), new API routes (routes/ template) and table column changes (migrations/ generator). There is no .claude/standards.yaml.",
+      "expected_output": "Before the first edit, resolves the standards index at docs/standards/README.md (no standards_dir override), finds the paved-path row, and reads only the scheduled-jobs entry because the job under jobs/ touches that concern alone. It does not load the API-route or column-change entries. It builds the job through the jobs/ registry and the shared retry wrapper. A plan's per-phase criteria lines, if present, still win over the entry.",
+      "files": [],
+      "expectations": [
+        "Resolves docs/standards/README.md as the index because no standards_dir is set",
+        "Reads the scheduled-jobs paved-path entry before the first edit",
+        "Does NOT read the API-route or column-change entries, which the edited paths do not touch",
+        "Builds the job through the registry and shared retry wrapper the entry names"
+      ]
     }
   ]
 }

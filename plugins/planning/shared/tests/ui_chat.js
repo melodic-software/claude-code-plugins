@@ -9,7 +9,7 @@
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the triage rows (badge, 3 messages, 2 s) and the messages this suite posts, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 // The iOS Safari keyboard, as WebKit implements it. The layout viewport and innerHeight stay; visualViewport's height
 // drops by the keyboard (https://www.bram.us/2021/09/13/prevent-items-from-being-hidden-underneath-the-virtual-keyboard-by-means-of-the-virtualkeyboard-api/).
 // On an iPhone a focused text field always forces a reveal (WKContentViewInteraction.mm passes requiresAccessoryView as
@@ -147,6 +147,11 @@ async function main() {
     }
     const chipOn = page => until(page, () => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const c = li?.querySelector(".vf-mreact"); return !!c && c.textContent === "👍1" && c.getBoundingClientRect().height > 0; });
     ok("React's quick row adds 👍, and the chip appears for the reactor and the host", await chipOn(pia) && await chipOn(owner));
+    // The WAI-ARIA APG toggle button: aria-pressed carries the state, and the label names no action that flips with it.
+    const chipA11y = page => page.evaluate(() => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const c = li?.querySelector(".vf-mreact"); return c && [c.getAttribute("aria-pressed"), c.getAttribute("aria-label")]; });
+    const [onP, onL] = (await chipA11y(pia)) || [], [offP, offL] = (await chipA11y(owner)) || [];
+    ok("  the chip is a toggle: pressed for the reactor, not for the host, and its label names no action (APG)", onP === "true" && offP === "false"
+      && ![onL, offL].some(l => !l || /take|add|back/i.test(l)), JSON.stringify({ onP, onL, offP, offL }));
     if (await pia.locator(".vf-msg", { hasText: "New C" }).locator(".vf-mreact").count()) await pia.locator(".vf-msg", { hasText: "New C" }).locator(".vf-mreact").tap();
     const rowGone = page => until(page, () => { const li = [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C")); const r = li?.querySelector(".vf-mreacts"); return !!li && !li.querySelector(".vf-mreact") && (!r || r.getBoundingClientRect().height === 0); });
     ok("tapping the chip takes the reaction back and the row goes away", await rowGone(pia) && await rowGone(owner));
@@ -157,7 +162,7 @@ async function main() {
     await joinAs(kia, "Kia");
     await kia.evaluate(() => { document.querySelector(".vf-fab").click(); });
     const n20 = await until(kia, () => document.querySelectorAll(".vf-mlist .vf-msg").length >= 20 && [...document.querySelectorAll(".vf-mlist .vf-msg")].pop().textContent.includes("More 2"));
-    await kia.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => null))));
+    const kiaStill = await settled(kia, { rects: true });
     // The newest message whole between the list's top edge and the message field, inside the visual viewport.
     const newest = text => until(kia, t => {
       const sc = document.querySelector(".vf-mscroll").getBoundingClientRect(), form = document.querySelector(".vf-mform").getBoundingClientRect();
@@ -167,7 +172,7 @@ async function main() {
     const where = () => kia.evaluate(() => { const sc = document.querySelector(".vf-mscroll"); return `${sc.scrollHeight - sc.scrollTop - sc.clientHeight} px below the list's bottom edge, visual viewport ${visualViewport.height}`; });
     await kia.locator(".vf-minput").tap();
     await keyboard(kia, true);
-    ok("390x844, 20+ messages, at the newest: with the keyboard up the newest message is whole above the field", n20 && await newest("More 2"), await where());
+    ok("390x844, 20+ messages, at the newest: with the keyboard up the newest message is whole above the field", n20 && kiaStill && await newest("More 2"), `${await where()}${kiaStill ? "" : ", not settled"}`);
     if (process.env.KBD_SHOTS) { const vv = await kia.evaluate(() => [visualViewport.offsetTop, visualViewport.height]); await kia.screenshot({ path: require("node:path").join(process.env.KBD_SHOTS, "chat-390x844-keyboard.png"), clip: { x: 0, y: vv[0], width: 390, height: vv[1] } }); }
     await kia.keyboard.insertText("Line one\nLine two\nLine three");
     ok("390x844, keyboard up: typing 3 lines keeps the newest message in view", await newest("More 2"), await where());
@@ -198,7 +203,7 @@ async function main() {
       shell.push(...(await docScroll(p)).map(x => `${name}, default view: ${x}`));
       await p.locator(".vf-fab").tap();
       await until(p, () => document.querySelectorAll(".vf-mlist .vf-msg").length >= 30 && [...document.querySelectorAll(".vf-mlist .vf-msg")].pop().textContent.includes("Later 9"), null, 5000);
-      await p.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => null))));
+      if (!(await settled(p, { rects: true }))) shell.push(`${name}, chat open: did not settle`);
       const f = await p.evaluate(() => document.activeElement?.className || "");
       if (/vf-minput/.test(f)) autoFocus.push(`${name}: opening the chat focused the message box`);
       shell.push(...(await docScroll(p)).map(x => `${name}, chat open: ${x}`));

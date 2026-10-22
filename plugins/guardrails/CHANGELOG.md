@@ -3,6 +3,74 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.4] - 2026-10-22
+
+### Fixed
+
+- **`block-unresolved-pr-merge` no longer reports a superseded contract-only `ci-status` as failing (#8716).** When a full run is in flight on the head, the contract-only `ci-status` run fails with the annotation `superseded by full run <url>/actions/runs/<id> in flight on <sha>`, and the guard counted that red run as `Failing checks: ci-status`. A failed run whose only failure annotations are that marker for the PR's head and the runner's `Process completed with exit code <n>.` line no longer counts: the named full run's `ci-status` decides, and until that run exists the check is pending, so an immediate merge waits and an auto-merge or merge-queue request goes ahead. Any other failure annotation, such as a contract step's own error, leaves the failure standing. The guard reads annotations only for failed check runs, three at most; a failed read leaves the failure standing.
+
+- A guard row launched through `exec-bash.mjs` now blocks (exit 2) when its bash child crashes or is killed, instead of exiting 1 and letting the tool call through. Every `run-guards.sh` row in `hooks.json` passes the new opt-in `--fail-closed` flag, so a non-zero exit other than 2 (such as 139 from a SIGSEGV), a signal death, or a spawn error denies the call with one stderr line naming the script and the cause. A missing bash still exits 1. Under `--fail-closed` on Windows, where Git Bash reports a signal death as an exit code (2816 for SIGSEGV), the line names the signal.
+
+- **`block-unresolved-pr-merge` no longer refuses a read-only command that names "PR Merge" in prose beside a backtick (#8657).** The backtick refusal matched `pr merge` anywhere in the text, so a `jq` filter testing for "Gated PR Merge" next to a backtick in a `grep` pattern, or a heredoc `gh issue comment --body-file -` body that named the guard and used a backtick, was refused as a merge. A `pr merge` now counts only when the word before `pr` is `gh` once quotes and backslashes are dropped (`gh`, `/usr/bin/gh`, `gh.exe`, `g""h`), or holds a `$` or backtick so the command word cannot be read (`$GH`, `gh${IFS}pr`); those still fail closed. Words bash drops before argv are stepped over first, so empty quotes or a backslash glued to `pr` (`gh ''pr`, `gh \pr`) and a redirection between `gh` and `pr` (`gh 2>&1 pr`, `gh > /dev/null pr`, `gh</dev/null pr`) still read as gh. The REST merge route and GraphQL mutation names still refuse wherever they appear.
+
+### Security
+
+- Secret-pattern detection now blocks a stateless GitHub App installation token (`ghs_` followed by a JWT, with no app id) whose JWT header holds a `-` or `_`, using GitHub's recommended `ghs_` regex.
+
+## [0.55.3] - 2026-10-20
+
+### Fixed
+
+- **`block-unresolved-pr-merge` fails closed when it cannot resolve the merge target (#8598).** A `gh pr merge` or REST merge whose repository or PR number came from a shell variable (`-R $R`, `$n` in a loop), `$(...)` or backticks used to run unchecked with a notice, so any variable skipped the thread, change-request and check gate. Those merges, and a bare `gh pr merge` whose current branch cannot be read or has no open PR, are now blocked with the fix: write `gh pr merge <number> -R owner/repo` literally. A Bash command whose text is merge-shaped (`pr merge`, a `pulls/.../merge` route, a merge mutation name) and holds any backtick, quoted or not, is blocked too, since a backtick substitution can change or hide the target the guard reads (pass a body that holds one with `--body-file`), and so is a `pr merge` or REST merge route continued with a backslash-newline (write the merge on one line), and so is a command holding more than one merge, of which only the first used to be checked: run each merge as its own command. A literal target is checked as before, whatever other flags (`--body`, `--match-head-commit`) take from a variable.
+
+## [0.55.2] - 2026-10-20
+
+### Fixed
+
+- **`run-guards.sh` no longer loses a deep guard's deny on a small stack (#7667).** A guard's `exit` ran the next guard from inside the `exit` call, on top of the finished guard's whole stack, so a guard that exited deep (`block-dangerous-git`'s alias walk at its 128-analysis cap) left too little stack for the rest of the chain; the process crashed after the deny was printed (exit 139 on Linux, exit 0 on Git Bash, which does not block the call). `exit` now records the status and unwinds the guard back to the dispatcher's loop, and after a deep exit the rest of the chain runs in a forked process, so a later guard that runs out of stack cannot take the verdict with it: a rest that reports nothing denies the call. Not covered: a stack so small that the first guard's own alias walk overflows it (under about 700 KB on Linux), which needs a smaller walk, not a dispatcher change.
+
+## [0.55.1] - 2026-10-20
+
+### Fixed
+
+- `block-dangerous-git` and `block-noncanonical-commit` cap how deep their git alias walk nests, sized to the process's stack, and deny past the cap. A long inline alias chain used to overflow a small stack (512 KB) and crash the guard with exit 139, which Claude Code lets through; it now exits 2 with the alias-chain deny. Without `/proc` (macOS, Git Bash) or with an unlimited stack the cap falls back to 25 levels, and no stack raises it past 409. The test overrides can only lower the cap.
+
+## [0.55.0] - 2026-10-20
+
+### Changed
+
+- The `reference-verify` pre-push entry reads pushed files through the shared check library's `checks_file_text` and `checks_regular_file` instead of its own copies; what it reports is unchanged.
+
+### Fixed
+
+- `pre-commit-content` decides a file is binary from a NUL byte in its content, not from `--numstat`, and reads the range diff with `--text`, so a tracked `-diff` attribute (`*.yml -diff`) no longer turns the content scan off for a text file.
+- `block-no-verify` allows `git config core.hooksPath .githooks` only at local scope and only while `.githooks/` holds the guardrails dispatcher; `--global`, `--system`, `--worktree` and `--file` are refused.
+- `reference-verify` verifies a changed file whose name git quotes (`"`, `\` or a control byte) in full instead of skipping it.
+- `block-no-verify` allows `git config core.hooksPath .githooks` only when `.githooks/` is a real directory and the dispatcher file it reads is a regular file, not a symlink, so a marker from outside the clone no longer counts.
+- The shared git-hook check library drops a file whose content holds a NUL byte in its first 8000 bytes from the changed-line ranges, so `reference-verify` never reads binary content as changed lines.
+
+- The `pre-commit-content` git hook no longer skips a staged file holding a NUL byte. It scans that file's whole raw content for the secret patterns and blocks on a match, so one NUL byte can no longer hide a token. A second pass with the NUL bytes removed catches a token in UTF-16LE text, such as a Windows `.reg` export or PowerShell `>` output. An ordinary binary with no match still commits, and such a file is not judged for machine-specific paths.
+
+## [0.54.0] - 2026-10-20
+
+### Added
+
+- **`block-fix-request-post`: an agent can no longer post the PR-fix lane fix request (#8438).** The address-feedback lane acts, with push credentials, on a comment line starting `PR-fix lane: please fix this finding` from someone with write access, and a local session posts with the owner's token. The guard blocks that line in `gh pr|issue comment|review|create|edit`, a writing `gh api` (GraphQL only for a mutation), `curl` with a body to a GitHub API route, and the GitHub MCP server's comment, review, issue and pull-request write tools. It reads the body inline, from heredocs, and from body files (`--body-file`, `-F k=@file`, `--input`, `-d @file`, `cat`, `<`). A line after `>`, inside a fence, or a mention later in a line passes, as does a command that only reads or greps the phrase. On by default; `block_fix_request_post_enabled` turns it off.
+
+### Changed
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- `block-convention-violation` and the `commit-msg-convention` git hook no longer read a failing convention resolver as "no convention tracked". Exit 1 with empty stderr stays quiet; exit 1 with a diagnostic (a non-ERE pattern, a broken `convention_source`) or exit 2 now fails open for that key alone with a notice naming the check that did not run, carrying the resolver's diagnostic: once per session on both channels from the guard, on stderr from the git hook. A key that resolved still enforces, and a failed resolution is not cached.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.53.0] - 2026-10-18
 
 ### Added

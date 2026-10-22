@@ -412,9 +412,8 @@ from the two together (see
   over the first-party `playground` plugin on `claude-plugins-official`, which the cloud bootstrap
   does not install, so enabled here it could only ever print install commands. An off-by-default
   plugin with no key here stays off; an operator who wants one turns it on with `/plugin enable`.
-  Two off-by-default plugins bundle MCP servers that need `userConfig` credentials this
-  environment has no reason to hold, `miro` (`miro_api_token`, no key here) and `dometrain-mcp`
-  (`dometrain_api_key`, pinned off by a default-matching `false` key), set with
+  One off-by-default plugin bundles an MCP server that needs a `userConfig` credential this
+  environment has no reason to hold: `miro` (`miro_api_token`, no key here), set with
   `/plugin configure`.
 
 ### GitHub MCP tools vs the gh CLI

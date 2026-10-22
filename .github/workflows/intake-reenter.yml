@@ -1,0 +1,96 @@
+name: intake-reenter
+
+# Sends an answered issue back to intake triage. A listed human's
+# `**Decision recorded.**` comment on a `status: needs-decision` issue, or the
+# author's or a listed human's reply on a `status: needs-info` issue, takes
+# the status label off (and `needs-human`, for a decision), adds
+# `needs-triage`, and dispatches intake-triage.yml once when intake admits
+# the issue's author (a listed human or the lanes App). It never adds
+# `agent-ready`. The rules are in .github/scripts/intake-reenter/reenter.mjs.
+#
+# No model and no App token: the job's GITHUB_TOKEN edits labels and starts
+# the dispatch, as the triage sweep's does, and intake-triage admits
+# github-actions[bot] as a dispatcher. The script reads the issue and comment
+# back from the API; nothing from the event but their numbers reaches it, and
+# no comment text reaches a shell. issue_comment runs this file from the
+# default branch only.
+#
+# Accepted exposure: only a trusted comment decides whether a re-entry
+# happens, and the triage run it starts passes the model only comments whose
+# author id is in intake-triage.yml's allowed-author-ids (a person) or
+# allowed-bot-sender-ids (a bot), never the lane's own triage comment. That
+# bot list holds github-actions[bot], the dispatcher, so any other comment a
+# workflow posts with a GITHUB_TOKEN counts as trusted too. The
+# issue's title and body still reach the model on each re-entry, and that
+# text, like the trusted comments, stays untrusted data. The model holds no
+# GitHub token and only Read, Grep and Glob; a job with no model applies only
+# allowlisted labels, posts with mentions broken, and never adds
+# `agent-ready`.
+on:
+  # Runs from the default branch; the job's `if` drops PR, bot and App
+  # comments, and only the issue and comment numbers reach the script.
+  issue_comment: # zizmor: ignore[dangerous-triggers]
+    types: [created]
+
+permissions: {}
+
+jobs:
+  reenter:
+    # Pull request comments, bot and App-posted comments, closed issues and
+    # issues without a parked status label stop here, before a runner starts.
+    if: >-
+      !github.event.issue.pull_request
+      && github.event.issue.state == 'open'
+      && github.event.comment.user.type == 'User'
+      && !github.event.comment.performed_via_github_app
+      && (contains(github.event.issue.labels.*.name, 'status: needs-decision')
+          || contains(github.event.issue.labels.*.name, 'status: needs-info'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out main
+      issues: write # read the issue and comments; edit its labels
+      actions: write # dispatch intake-triage.yml
+    # Every comment on a parked issue starts a run, so runs wait in line
+    # (`queue: max`): the default keeps one waiting run and cancels it when a
+    # later comment arrives, which would drop an answer behind a chat reply.
+    concurrency:
+      group: intake-reenter-${{ github.event.issue.number }}
+      queue: max
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing read or labeled"
+
+      - name: Send the answered issue back to triage
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          KILL_SWITCH: proceed
+        run: node .base/.github/scripts/intake-reenter/reenter.mjs

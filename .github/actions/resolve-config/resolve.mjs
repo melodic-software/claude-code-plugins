@@ -336,17 +336,23 @@ export function checkAppliedBySupported(selected, supported = "") {
   }
 }
 
-// What the schema cannot check about `models`: every profile a route or
-// default-profile names exists, and every route names a skill activity or a
-// run route, so a mistyped route cannot silently take the default.
+// What the schema cannot check about `models`: every profile a route,
+// default-profile, escalate-to or complexity profile names exists, a
+// complexity profile's key is a complexity, and every route names a skill
+// activity or a run route, so a mistyped route cannot silently take the default.
 function checkModels(models, activities) {
   if (models === undefined) {
     return;
   }
   const { profiles } = models;
+  const complexityProfiles = models["issue-dimensions"]?.["complexity-profiles"] ?? {};
   for (const [route, profile] of [
     ["default-profile", models["default-profile"]],
     ...Object.entries(models.routes ?? {}),
+    ...Object.entries(profiles).flatMap(([name, values]) =>
+      values["escalate-to"] === undefined ? [] : [[`profiles.${name}.escalate-to`, values["escalate-to"]]],
+    ),
+    ...Object.entries(complexityProfiles).map(([complexity, profile]) => [`complexity-profiles.${complexity}`, profile]),
   ]) {
     if (!Object.hasOwn(profiles, profile)) {
       throw new Rejection(
@@ -366,6 +372,14 @@ function checkModels(models, activities) {
   }
   if (models["issue-dimensions"] !== undefined) {
     checkDimensions(models["issue-dimensions"]);
+    const known = models["issue-dimensions"].complexity;
+    const stray = Object.keys(complexityProfiles).find((complexity) => !Object.hasOwn(known, complexity));
+    if (stray !== undefined) {
+      throw new Rejection(
+        "undefined-dimension",
+        `models.issue-dimensions.complexity-profiles names \`${stray}\`, which is not a key of complexity`,
+      );
+    }
   }
 }
 
@@ -682,16 +696,81 @@ function grantFor(effectGrants, effect) {
   return Object.freeze({ ...row });
 }
 
+// The owner's model for a role route that resolves to no alias: CI has no
+// session, so `inherit`, a missing role map or role, and any value that is not
+// an alias (`default`, a model ID) all run on it. The frontier tier (`fable`,
+// and `best`, which may resolve to it) never routes automatically, so it runs
+// on it too.
+const FALLBACK_MODEL = "opus";
+const ROUTED_ALIASES = new Set(["haiku", "opus", "sonnet"]);
+const EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
+
+// The multi-agent role map (plugins/multi-agent/reference/defaults.yaml) as
+// data, or null when its text is absent or does not parse (an alias included).
+function roleMapOf(text) {
+  if (typeof text !== "string") {
+    return null;
+  }
+  const document = parseDocument(text, { maxAliasCount: 0, merge: false, uniqueKeys: true });
+  if (document.errors.length > 0) {
+    return null;
+  }
+  let map;
+  try {
+    map = document.toJS({ maxAliasCount: 0 });
+  } catch {
+    return null;
+  }
+  return isObject(map?.roles) ? map : null;
+}
+
+const roleOf = (roleMap, name) =>
+  roleMap !== null && Object.hasOwn(roleMap.roles, name) && isObject(roleMap.roles[name])
+    ? roleMap.roles[name]
+    : {};
+
+// A role profile's model and effort from the role map: the workload's value
+// over the role's own, `effort-role` naming the role whose effort applies.
+function roleModels(values, roleMapText) {
+  const roleMap = roleMapOf(roleMapText);
+  const role = roleOf(roleMap, values.role);
+  const workload = isObject(role.workloads) && isObject(role.workloads[values.workload])
+    ? role.workloads[values.workload]
+    : {};
+  const model = workload.model ?? role.model;
+  const effortRole = values["effort-role"] === undefined ? undefined : roleOf(roleMap, values["effort-role"]);
+  const effort = effortRole === undefined ? (workload.effort ?? role.effort) : effortRole.effort;
+  return {
+    role: values.role,
+    ...(values.workload === undefined ? {} : { workload: values.workload }),
+    model: ROUTED_ALIASES.has(model) ? model : FALLBACK_MODEL,
+    effort: EFFORTS.has(effort) ? effort : null,
+  };
+}
+
 // The profile a route takes, with every default applied: its route's profile,
 // else default-profile; the built-in one when the config has no `models`.
-function routeModels(models = BUILTIN_MODELS, route) {
+const routeProfile = (models, route) => {
   const routes = models.routes ?? {};
-  const profile = Object.hasOwn(routes, route) ? routes[route] : models["default-profile"];
+  return Object.hasOwn(routes, route) ? routes[route] : models["default-profile"];
+};
+
+// A profile's resolved values, at `rung` 1 its escalate-to profile's: one
+// rung at most, never the escalate-to's own, and a profile with no rung above
+// is refused, so a retry never reruns the same model. A role profile takes
+// its model and effort from the role map.
+function profileModels(models, start, roleMapText, rung = 0) {
+  const climbed = rung === 1 ? models.profiles[start]["escalate-to"] : undefined;
+  if (rung === 1 && climbed === undefined) {
+    throw new Rejection("no-rung-up", `model rung 1 asks for the rung above profile \`${start}\`, which names no escalate-to`);
+  }
+  const profile = climbed ?? start;
   const values = models.profiles[profile];
   return {
     profile,
-    model: values.model,
-    effort: values.effort ?? null,
+    ...(values.role === undefined
+      ? { model: values.model, effort: values.effort ?? null }
+      : roleModels(values, roleMapText)),
     "subagent-model": values["subagent-model"] ?? "inherit",
     "max-turns": values["max-turns"],
   };
@@ -717,6 +796,17 @@ export function modelSettings(models) {
     : JSON.stringify({ env: { CLAUDE_CODE_SUBAGENT_MODEL: models["subagent-model"] } });
 }
 
+const routeModels = (models = BUILTIN_MODELS, route, roleMapText, rung = 0) =>
+  profileModels(models, routeProfile(models, route), roleMapText, rung);
+
+// The model rung a run asks for: 0 (or none) is its profile, 1 the rung above.
+function checkRung(rung) {
+  if (rung !== undefined && rung !== 0 && rung !== 1) {
+    throw new Rejection("invalid-rung", `model rung \`${rung}\` is neither 0 nor 1`);
+  }
+  return rung ?? 0;
+}
+
 // The resolved profile of a run that is no lane activity (RUN_ROUTES), after
 // the same file checks as resolve().
 export function resolveRoute(files, { route, configPath }) {
@@ -726,16 +816,17 @@ export function resolveRoute(files, { route, configPath }) {
       `\`${route}\` is not a run route; one of ${[...RUN_ROUTES].join(", ")} is required`,
     );
   }
-  return routeModels(loadConfig(files, { configPath }).models, route);
+  return routeModels(loadConfig(files, { configPath }).models, route, files.roleMap);
 }
 
 function resolveSlot(
   { name, activity, predicate, predicates, enabled, needs },
-  { effectGrants, codeowners, trustedActors },
+  { effectGrants, codeowners, trustedActors, roleMap },
   facts,
   decided,
   models,
   pinnedDimensions,
+  rung,
 ) {
   const grant = grantFor(effectGrants, activity.effect);
   let outcome = { applies: null, skipReason: null };
@@ -769,7 +860,7 @@ function resolveSlot(
     }
   }
   const kind = activity.skill === undefined ? "script" : "skill";
-  let runModels = kind === "skill" ? routeModels(models, name) : null;
+  let runModels = kind === "skill" ? routeModels(models, name, roleMap, rung) : null;
   let sizing = {};
   if (dimensionedBy(activity, models)) {
     const config = models["issue-dimensions"];
@@ -793,6 +884,11 @@ function resolveSlot(
       outcome = { applies: false, skipReason: budget.skip };
     }
     if (budget.skip === null) {
+      // The issue's Complexity may pick the profile the run starts on.
+      const start = config["complexity-profiles"]?.[dims.complexity];
+      if (start !== undefined) {
+        runModels = profileModels(models, start, roleMap, rung);
+      }
       runModels = { ...runModels, "max-turns": budget["max-turns"] };
     }
     sizing = { "issue-dimensions": budget.pin, "timeout-minutes": budget["timeout-minutes"] };
@@ -807,6 +903,7 @@ function resolveSlot(
     ...(activity["self-checks"] === undefined ? {} : { "self-checks": activity["self-checks"] }),
     ...(activity["verify-scripts"] === undefined ? {} : { "verify-scripts": activity["verify-scripts"] }),
     ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
+    ...(activity["permission-mode"] === undefined ? {} : { "permission-mode": activity["permission-mode"] }),
     ...(activity["applied-by"] === undefined ? {} : { "applied-by": activity["applied-by"] }),
     effect: activity.effect,
     gating: activity.gating,
@@ -880,8 +977,9 @@ const limitsOf = (limits = {}) => ({
   "turn-cap-restarts": limits["turn-cap-restarts"] ?? 0,
   "fix-ci-per-run": limits["fix-ci-per-run"] ?? 2,
   "fix-ci-restarts": limits["fix-ci-restarts"] ?? 1,
-  "admission-window-hours": limits["admission-window-hours"] ?? 24,
+  "fix-docs-per-run": limits["fix-docs-per-run"] ?? 2,
   "admission-factor": limits["admission-factor"] ?? 0.8,
+  "admission-min-per-hour": limits["admission-min-per-hour"] ?? 1,
 });
 
 const loopOf = (loop = {}) => ({
@@ -913,14 +1011,16 @@ export function resolveWipLeaf(files, { configPath }) {
 
 export function resolve(
   files,
-  { lane, activity, configPath, basePath, facts, pinnedDimensions },
+  { lane, activity, configPath, basePath, facts, pinnedDimensions, rung },
 ) {
+  const modelRung = checkRung(rung);
   const doc = loadConfig(files, { configPath });
   const section = laneSection(doc, lane);
   const entries = laneSlots(doc, lane);
   const index = selectedIndex(entries, lane, activity);
   const slots = entries.map((entry, i) =>
-    resolveSlot(entry, files, facts, decides(i, index), doc.models, pinnedDimensions),
+    // Only the selected slot runs, so only it climbs.
+    resolveSlot(entry, files, facts, decides(i, index), doc.models, pinnedDimensions, i === index ? modelRung : 0),
   );
   return {
     version: 1,

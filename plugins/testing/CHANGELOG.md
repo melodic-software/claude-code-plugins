@@ -3,6 +3,53 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0] - 2026-10-22
+
+### Added
+
+- `fix-until-green` returns `testEdits`, the changed test, snapshot, fixture and runner config files matched by path. When a green run has any, a runner re-runs the command in a throwaway worktree with those files as they stood at the start (`baseRerun`). The main tree's ignored dependency directories are linked in. A test failure there stops as `green-needs-test-edits` for a person to decide, a command that could not run stops as `base-rerun-env-failed`, and nothing is reverted.
+
+- `/testing:test-value` flags two judgment-only shapes: an absence check with no paired presence case (fix: add a case where another input produces the value; a test that already has one is kept), and assertions that never reach the subject (fix: assert what the subject returns or changes). Three eval cases cover them.
+
+### Changed
+
+- Synced the shared `exec-bash.mjs` launcher, which gains an opt-in `--fail-closed` flag. This plugin's hooks do not pass it, so their behavior is unchanged.
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line.
+
+### Fixed
+
+- The `test_guards_enabled` option description said the hook asks for a reason. It adds an advisory note, and denies an added skip or removed test block only under `rules: {test-weaken-block: error}`; it never asks.
+
+## [0.29.0] - 2026-10-20
+
+### Added
+
+- `browser_driver` setting for `/testing:run-e2e`: the command name of the one browser tool a `playwright` drive uses (default `playwright-cli`), resolved through the same cascade as `e2e_driver` by `resolve-config.sh e2e` and as a `userConfig` option. `scripts/check-browser-driver.sh` stops the run before any drive, naming the setting, the value and its source, when that command is not on PATH; no other browser tool is substituted.
+
+## [0.28.0] - 2026-10-20
+
+### Added
+
+- `/testing:audit` findings carry `[project: ...; ci: yes|no|unknown; kind: ...]`: the owning C# project (nearest `.csproj`), whether a `.github/workflows` `dotnet test` or `dotnet build` targets it, and its kind (`unit`, `integration`, `functional`, `architecture`, `live`, `operational`) from name tokens and package references, or `unknown`. A finding in a `live` or `operational` project (`*.Provisioning.*`, `*.Smoke.*`) warns not to run its tests, and findings in CI-run unit projects rank first. A new `project_kinds` config key (`<glob>=<kind>`) overrides the kind. Nothing is built or run, and a workflow that does not parse gives `ci: unknown`.
+
+### Changed
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+- **build: Bump @axe-core/playwright from 4.13.0 to 4.14.0 in /plugins/testing/evals/ui-defects/harness in the npm-minor-patch group** (#8350).
+  - `@axe-core/playwright` 4.13.0→4.14.0
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.27.3] - 2026-10-18
 
 ### Added

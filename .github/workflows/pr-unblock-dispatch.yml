@@ -8,17 +8,22 @@ name: pr-unblock-dispatch
 # The same run dispatches review-dependency for each open Dependabot PR the
 # classifier sorts `review` whose head has no review-dependency check run yet
 # (.github/scripts/pr-unblock/dependency-dispatch.mjs), and fix-ci for each
-# open lanes App PR whose head's ci-status failed and has no fix-ci run yet,
+# open lanes App PR, or idle PR of an owner in the config's `adoption`
+# section, whose head's ci-status failed and has no fix-ci run yet,
 # at most limits.fix-ci-per-run per run, from one GraphQL query whose
-# rateLimit.cost it logs (.github/scripts/pr-unblock/fix-ci-dispatch.mjs). No
+# rateLimit.cost it logs (.github/scripts/pr-unblock/fix-ci-dispatch.mjs). It
+# also dispatches fix-docs once per open, ready PR a person opened into main
+# that changes a Markdown file, carries no hold label and never had a fix-docs
+# check run, at most limits.fix-docs-per-run per run, from its own logged
+# GraphQL listing (.github/scripts/pr-unblock/fix-docs-dispatch.mjs). No
 # schedule: the broker accepts a dispatcher run started by a push or a listed
 # human only.
 #
 # No model and no App token: the job's GITHUB_TOKEN can only read and start
 # workflow runs. A run started by hand, or a re-run of a push run, must come
 # from a listed trusted human. The dispatched lane runs its own trigger gate,
-# kill switch and config. Only the fix-ci listing filters by author and hold
-# label, to spend no model run on a PR the lane would skip.
+# kill switch and config. Only the fix-ci and fix-docs listings filter by
+# author and hold label, to spend no model run on a PR the lane would skip.
 #
 # The token's budget is logged at the start and end of the job
 # (.github/actions/log-api-budget), and the script logs its own call counts.
@@ -103,8 +108,6 @@ jobs:
           require-pr: false
           require-kind: human
           dispatched-workflow: .github/workflows/pr-unblock.yml
-          # Actor-only mode reads no PR or run, so the gate gets no token.
-          github-token: ""
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           triggering-actor: ${{ github.triggering_actor }}
@@ -137,14 +140,15 @@ jobs:
           key: pr-unblock-dispatch-record-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: pr-unblock-dispatch-record-
 
-      - name: Dispatch pr-unblock for conflicting, review-tier Dependabot and failing lanes App PRs
+      - name: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs
         id: dispatch
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # fix-ci starts only on PRs the lanes App opened, matched by this id.
+          # fix-ci starts on PRs the lanes App opened, matched by this id, and
+          # on idle PRs of the owners in the config's `adoption` section.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           RUN_IDS_FILE: ${{ runner.temp }}/pr-unblock-run-ids
           DISPATCH_RECORD: ${{ runner.temp }}/pr-unblock-dispatch-record.json

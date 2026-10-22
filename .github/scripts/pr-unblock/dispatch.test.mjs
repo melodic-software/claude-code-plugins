@@ -72,6 +72,7 @@ function fakeApi({
   runIds = new Map(),
   workflowRuns = [],
   ciFixPulls = [],
+  docsPulls = [],
 } = {}) {
   const calls = { list: [], get: [], checks: [], dispatch: [], runs: [] };
   let round = 0;
@@ -79,6 +80,12 @@ function fakeApi({
     calls,
     async listCiFixCandidates() {
       return { rateLimit: { cost: 1, remaining: 4999 }, pullRequests: { nodes: ciFixPulls, pageInfo: { hasNextPage: false, endCursor: null } } };
+    },
+    async listDocsFixCandidates() {
+      return { rateLimit: { cost: 1, remaining: 4999 }, pullRequests: { nodes: docsPulls, pageInfo: { hasNextPage: false, endCursor: null } } };
+    },
+    async readDocsFixHistory() {
+      return { rateLimit: { cost: 1, remaining: 4999 }, pullRequest: { commits: { nodes: [] } } };
     },
     async listOpenPulls({ base, after }) {
       calls.list.push({ base, after });
@@ -112,6 +119,9 @@ function fakeApi({
         return checked.get(sha) ?? [];
       }
       return checked.has(sha) ? [SUCCESS_RUN] : [];
+    },
+    async readRequiredRun() {
+      return { run: null, jobs: [] };
     },
     async listWorkflowRuns(workflow) {
       calls.runs.push(workflow);
@@ -492,7 +502,7 @@ async function runMain(apiOptions, limits = LIMIT_DEFAULTS) {
         GITHUB_OUTPUT: output,
         APP_SENDER_ID: String(LANES_APP),
       },
-      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits },
+      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}) },
     );
     return { code, output: readFileSync(output, "utf8") };
   } finally {
@@ -529,7 +539,7 @@ test("main writes the recorded ids and exits 1 when another dispatch failed", as
 test("main records a review-dependency dispatch beside the conflict dispatches", async () => {
   const dependabot = pr(131, {
     mergeable: "MERGEABLE",
-    author: { login: "dependabot[bot]" },
+    author: { login: "dependabot", databaseId: 49699333 },
     headRefName: "dependabot/npm_and_yarn/x-2.0.0",
     title: "build(deps): bump x from 1.0.0 to 2.0.0",
     body: "",
@@ -577,6 +587,30 @@ test("main records fix-ci dispatches beside the others, capped by limits.fix-ci-
   assert.deepEqual(fallback, { code: 0, output: "run-ids=9141 9142\n" }, "with no fix-ci limit the default of 2 holds");
 });
 
+// A ready PR a person opened that changes Markdown, as fix-docs-dispatch.mjs lists it.
+const docsPull = (number) => {
+  const head = String(number).padStart(40, "d");
+  return {
+    number,
+    isDraft: false,
+    isCrossRepository: false,
+    baseRefName: "main",
+    headRefOid: head,
+    author: { __typename: "User", login: "someone" },
+    labels: { nodes: [] },
+    files: { nodes: [{ path: "README.md" }], pageInfo: { hasNextPage: false } },
+    commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [] } } } }] },
+  };
+};
+
+test("main records fix-docs dispatches beside the others, capped by limits.fix-docs-per-run", async () => {
+  const docsPulls = [docsPull(171), docsPull(172), docsPull(173)];
+  const capped = await runMain({ pages: [[pr(170)]], docsPulls }, { ...LIMIT_DEFAULTS, "fix-docs-per-run": 1 });
+  assert.deepEqual(capped, { code: 0, output: "run-ids=9170 9171\n" });
+  const fallback = await runMain({ pages: [[]], docsPulls });
+  assert.deepEqual(fallback, { code: 0, output: "run-ids=9171 9172\n" }, "with no fix-docs limit the default of 2 holds");
+});
+
 test("without the lanes App sender id main still dispatches conflicts, dispatches no fix-ci, and exits 1", async () => {
   const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
   try {
@@ -584,7 +618,7 @@ test("without the lanes App sender id main still dispatches conflicts, dispatche
     writeFileSync(output, "");
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: output },
-      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS },
+      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
     );
     assert.equal(code, 1);
     assert.equal(readFileSync(output, "utf8"), "run-ids=9150\n");
@@ -606,7 +640,7 @@ test("main appends each run id to RUN_IDS_FILE as soon as its dispatch returns",
     };
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), RUN_IDS_FILE: file },
-      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS },
+      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
     );
     assert.deepEqual(seen, ["", "9160\n"], "the first id is on disk before the second dispatch");
     assert.equal(readFileSync(file, "utf8"), "9160\n", "an id that is not a run id is not recorded");
@@ -706,6 +740,52 @@ test("the GitHub adapter calls the documented endpoints", async () => {
   );
 });
 
+test("the required-run read takes the newest pr-require-checks run that tested the head", async () => {
+  const head = "c".repeat(40);
+  const urls = [];
+  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure" });
+  // Run 14 is a contract-only run (only ci-status ran), stepped past.
+  const contractOnly = [
+    { name: "ci-status", conclusion: "failure" },
+    { name: "lint-repo", conclusion: "skipped" },
+  ];
+  const responses = [
+    {
+      total_count: 4,
+      workflow_runs: [
+        failed(11, ".github/workflows/pr-require-checks.yml", "2026-10-22T02:00:00Z"),
+        failed(12, ".github/workflows/pr-require-checks.yml", "2026-10-22T03:00:00Z"),
+        failed(13, ".github/workflows/pr-test-windows.yml", "2026-10-22T04:00:00Z"),
+        failed(14, ".github/workflows/pr-require-checks.yml", "2026-10-22T03:00:14Z"),
+      ],
+    },
+    { total_count: 2, jobs: contractOnly },
+    { total_count: 1, jobs: [{ name: "test-node", conclusion: "cancelled" }] },
+    { total_count: 0, workflow_runs: [] },
+  ];
+  const api = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      urls.push(url);
+      return { ok: true, status: 200, json: async () => responses.shift() };
+    },
+  });
+  assert.deepEqual(await api.readRequiredRun(head), {
+    run: failed(12, ".github/workflows/pr-require-checks.yml", "2026-10-22T03:00:00Z"),
+    jobs: [{ name: "test-node", conclusion: "cancelled" }],
+  });
+  assert.deepEqual(urls, [
+    `https://api.example/repos/octo/repo/actions/runs?head_sha=${head}&event=pull_request&per_page=100`,
+    "https://api.example/repos/octo/repo/actions/runs/14/jobs?filter=latest&per_page=100",
+    "https://api.example/repos/octo/repo/actions/runs/12/jobs?filter=latest&per_page=100",
+  ]);
+  assert.deepEqual(await api.readRequiredRun(head), { run: null, jobs: [] });
+  await assert.rejects(api.readRequiredRun("main"), /not a commit SHA/);
+});
+
 // The record a run leaves: the next run, against the same GitHub state,
 // dispatches the same PRs and skips the reads the record makes redundant.
 // #1 conflicts at a head a successful run handled; #2 conflicts and is new;
@@ -774,7 +854,7 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
   };
   // A recorded head no open PR carries any more is dropped.
   writeFileSync(path, JSON.stringify({ version: 1, handled: { [CHECK_NAME]: ["f".repeat(40)] }, dispatched: {} }));
-  const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS });
+  const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) });
   try {
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);

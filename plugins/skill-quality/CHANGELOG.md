@@ -3,6 +3,42 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.2] - 2026-10-22
+
+### Changed
+
+- The evals schema's `id` description now says to give a new case a slug id (its kebab-case name) rather than the next integer, so parallel pull requests never claim the same id ([#8464](https://github.com/melodic-software/claude-code-plugins/issues/8464)).
+
+## [0.31.1] - 2026-10-22
+
+### Fixed
+
+- run a skill's script tests only inside the current repository
+
+  Check 7 runs a skill's `scripts/*.test.sh` only when the git work tree the
+  check was started from tracks the test file, or holds it untracked and not
+  ignored in a skills root that already has a tracked file (a new skill not
+  committed yet), root mode included; an exported `GIT_DIR` or
+  `GIT_WORK_TREE` does not change that answer. A test in another
+  repository, in none, ignored, tracked only by a nested repository, in a
+  skills root with no tracked file (a plugin copy under a home-directory
+  repo), or checked from outside any repository is skipped with a note, so
+  checking an installed plugin copy never executes its code.
+
+## [0.31.0] - 2026-10-20
+
+### Added
+
+- Check 8 also accepts a `vendor/` change paired with a `metadata.upstream-sha` bump that equals the content hash it recomputes offline (SHA-256 of the single vendored non-dotfile with CR removed, or of the sorted per-file hash lines for several files), so a resync whose upstream changed bytes without a version bump passes. A sha that does not match fails, naming both hashes.
+
+## [0.30.1] - 2026-10-20
+
+### Fixed
+
+- All planning rows (design, interview, plan and PRD) leave the settings-token baseline, since those skills now state each token with an inline fallback.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.30.0] - 2026-10-18
 
 ### Added

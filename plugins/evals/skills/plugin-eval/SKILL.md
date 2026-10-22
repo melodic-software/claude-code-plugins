@@ -34,23 +34,26 @@ row under [Sources](#sources). Background for a human reader:
 
 ## Preflight
 
-Print every field, in this order, before anything else:
+Print every field, in order, before anything else (the last two: [probe](reference/sandboxes.md)):
 
 ```text
-cli_version:     <claude --version>
-floor_met:       <true | false>
-git_version:     <git --version | none>
-platform:        <windows | wsl2 | linux | darwin | other>
-sandbox_backend: <present | absent | not-ready | unknown> (missing: <binaries that did not resolve> | links: <paths>)
-target_type:     <plugin | wrapped-skill | wrapped-agent | rules>
-suite_tools:     <read-only | the gated tools the cases request>
-same_model:      <yes | no | unknown | off> (tested <model>, judge <model>)
-estimate_usd:    roughly <n> (cases x runs x arms, plus judge calls)
-ceiling:         <n> USD | unlimited
+cli_version:         <claude --version>
+floor_met:           <true | false>
+git_version:         <git --version | none>
+platform:            <windows | wsl2 | linux | darwin | other>
+sandbox_backend:     <present | absent | not-ready | unknown> (missing: <binaries that did not resolve> | links: <paths>)
+target_type:         <plugin | wrapped-skill | wrapped-agent | rules>
+suite_tools:         <read-only | the gated tools the cases request>
+same_model:          <yes | no | unknown | off> (tested <model>, judge <model>)
+estimate_usd:        roughly <n> (cases x runs x arms, plus judge calls)
+ceiling:             <n> USD | unlimited
+leftover_sandboxes:  <n> sandboxes (<total size> in <tmp>) | unknown
+tmp_free:            <free space on the temp dir's filesystem> | unknown
 ```
 
-**Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read
-`claude --version` and let the number decide. `floor_met: false` stops the run and reports the
+Preflight removes nothing and blocks on neither of the last two fields. When `leftover_sandboxes` is above zero, print `chmod -R u+w <tmp>/claude-eval-*` then `rm -rf <tmp>/claude-eval-*` for the user to run, note that a directory `chmod` cannot enter still needs `sudo rm -rf`, and report an unreadable path as `unknown`, never `0`.
+
+**Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
 floor; nothing else is worth doing on a binary that cannot execute a case. `plugin eval is
 currently in early access` means an older binary: updating fixes it, no sign-up. `plugin eval is
 currently unavailable` means Anthropic has switched the command off for now, possibly by account
@@ -77,8 +80,7 @@ this session's own host, which may not be the machine that will run the eval.
 Then, when the table gives `present`, a case requests `Bash` or `PowerShell`, and
 `find "${DOCKER_CONFIG:-$HOME/.docker}/" -mindepth 1 -type l` (read-only) prints a path, override
 to `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store
-with a link inside it (the store's root may itself be a link), so the CLI refuses the whole `Bash`-granting pass, read-only cases included
-(every run ends at 0 turns with a run error naming the credential store). On `platform: darwin`
+with a link inside it (the store's root may itself be a link), so the CLI refuses the whole `Bash`-granting pass, read-only cases included (every run ends at 0 turns with a run error naming the credential store). On `platform: darwin`
 with `cli_version` 2.1.293 or later, ignore links under `~/.docker/bin` (Docker Desktop's own); an
 older client, or a `$DOCKER_CONFIG` store elsewhere, keeps them `not-ready`. `Write` and `Edit` run
 outside the shell sandbox and do not trigger it.
@@ -107,11 +109,10 @@ ungranted tool is removed and reported on stderr as `not granted`.
 ### Worktree isolation
 
 Under Claude Code's worktree isolation a Bash guard can refuse the CLI; which session shapes it
-covers is in [records](reference/records.md#worktrees). It matters only when `run` or `init`
-invokes the CLI. Never retry, wrap, reroute, or otherwise bypass a refusal. Build the command with
-absolute paths: for `run`, an absolute `<target>` and `--json` path inside the worktree; for
-`init`, `cd <absolute plugin root> && claude plugin eval init --bare <name>`. Take the first route
-that fits:
+covers is in [records](reference/records.md#worktrees). It matters only when `run` or `init` invokes
+the CLI. Never retry, wrap, reroute, or otherwise bypass a refusal. Build the command with absolute
+paths: for `run`, an absolute `<target>` and `--json` path inside the worktree; for `init`,
+`cd <absolute plugin root> && claude plugin eval init --bare <name>`. Take the first route that fits:
 
 1. A `run` in a session entered with `EnterWorktree`: ask the user whether to leave the worktree
    for it. Only on a yes, `ExitWorktree` with `keep`, run it, then `EnterWorktree` back by the

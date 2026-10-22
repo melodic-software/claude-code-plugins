@@ -1,7 +1,7 @@
 """The shared interview session's server: one process, two 127.0.0.1 listeners. Python 3 stdlib.
 
 Usage: python server.py --dir DATA_DIR [--guest-port P] [--control-port P] [--nonce N]
-                        [--defaults-file F | --initial-state F]
+                        [--defaults-file F]
 
 Start it through `share.sh ensure-running`, which starts it detached and reuses a running one.
 No secret travels on this command line: the control token and the owner token come from
@@ -11,14 +11,20 @@ No secret travels on this command line: the control token and the owner token co
   tunnel's only target. Its own handler: Host and Origin checks, JSON-only POSTs with the body cap
   checked before reading, security headers on every answer, a per-address rate limit, and the
   auth class of each route. Identity is the `X-Owner-Token` or `X-Session-Secret` header, never a
-  body field.
+  body field; `/assets/*` also takes the signed cookie each `/api/state` answer sets, since an
+  `<img>` or a frame sends no header.
 - Control listener (`--control-port`): session_bridge's `LoopbackHandler` with NAME `shared`
   (token header `X-Shared-Token`), for `share.sh`, `watch.sh` and `wake.sh` only, never tunneled.
   It adds `POST /api/ops` (Claude's ops) and `GET /api/status`.
 
 The domain rules live in session.py; this file routes, authenticates, caps and renders. It also
 watches the tunnel (tunnel.py): when its process exits it starts a new one, allows the new host and
-records the new link, so the owner's view says to share it again.
+records the new link, so the owner's view says to share it again (a named tunnel comes back at the
+same address). After a switch to another address it still allows the retired tunnel's host while
+that tunnel runs, and answers a page there with the new address only, so the page can move there
+with its identity (core.js). A switch happens only once the new address proves it reaches this
+server: share.py asks the control route `POST /api/tunnel-check`, and the server fetches
+`<address>/api/tunnel-probe/<nonce>` and expects the answer only it knows.
 """
 
 from __future__ import annotations
@@ -27,6 +33,8 @@ import argparse
 import collections
 import contextlib
 import hashlib
+import hmac
+import http.client
 import ipaddress
 import json
 import logging
@@ -35,6 +43,7 @@ import re
 import secrets
 import signal
 import socket
+import ssl
 import sys
 import threading
 import time
@@ -49,7 +58,6 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 import detached  # noqa: E402  (beside this file; sys.path is set just above)
-import migrate  # noqa: E402
 import session  # noqa: E402
 import session_bridge  # noqa: E402
 import tunnel  # noqa: E402
@@ -61,8 +69,8 @@ PORTS = ".shared-ports.json"
 OWNER_LINK = ".owner-link"
 STATE = "state.json"
 DEFAULTS = "defaults.json"
-IMPORT_DEFAULTS = ("import", "guestPort", "adoptTunnel")  # defaults.json keys share.py reads; the server ignores them
-OLD_PAGE_BANNER = "This page was updated: reload"
+IMPORT_DEFAULTS = ("guestPort", "adoptTunnel")  # defaults.json keys share.py reads; the server ignores them
+MIN_OWNER_TOKEN = 16  # an owner token as short as the prototype's (token_urlsafe(12)) is kept: its owner link survives a restart
 WEB = HERE / "web"
 STATIC = {
     "/": ("index.html", "text/html"),
@@ -145,13 +153,23 @@ CLIENT_PER_MINUTE = 20  # judgment: entries one person's page may log a minute; 
 SUMMARY_PER_MINUTE = 6  # judgment: a page sends one summary each time it hides; tab switching rarely passes this
 SUMMARY_BATCH_SECONDS = 600  # judgment: summaries held per batch; long enough that many people's summaries share one
 SUMMARY_BATCH_BYTES = 100_000  # judgment: the most one batch entry holds; a summary past it is counted as dropped
+SUMMARY_MIN_SENDERS = 2  # judgment: a batch is written only once this many guests sent to it (or only the owner did),
+# so its counts and pairs are never one guest's; below it a batch waits for the next, and at shutdown is only counted
+# A summary's count tokens, added up per batch and never left in its pair: a repeat's fingerprint is also on its fault
+# entry, which names the person, and a component's taps (use, rage, dead) are no one's. Any other token with one of
+# these prefixes is dropped, so no text rides along.
+COUNT_PREFIXES = ("rep:", "use:", "rage:", "dead:")
+COUNT_TOKEN = re.compile(r"(rep:[0-9a-f]{1,16}|(?:use|rage|dead):(?:vf|core)-[a-z-]{1,60})=(\d{1,6})", re.ASCII)
+DEVICES = ("phone", "tablet", "computer")  # web/core.js deviceKind(); a summary keeps only this word of its ua
 TUNNEL_POLL = 1.0  # seconds between tunnel checks
 TUNNEL_BACKOFF_MAX = 60.0
 PRESENCE_TICK = 5  # the snapshot ETag moves at least this often, so expired presence shows
+ASSET_COOKIE_SECONDS = 900  # judgment: an asset cookie's life; every /api/state answer renews it, so an open page keeps it
 
 # The guest routes: path -> (auth class, session method). Classes (Contracts, "Auth classes"):
 # public needs no identity; person needs a secret or the owner token; moderator is a person whose
-# role session.py checks; owner needs the X-Owner-Token header itself. The upload chunk route takes raw bytes,
+# role session.py checks; owner needs the X-Owner-Token header itself, the owner link's token or a signed-in device's
+# credential; host needs the owner link's token, never a device's. The upload chunk route takes raw bytes,
 # not JSON, so GuestHandler.upload_chunk serves it (UPLOAD_CHUNK).
 ROUTES = {
     "/api/join": ("public", "join"),
@@ -175,8 +193,10 @@ ROUTES = {
     "/api/suggestion/act": ("moderator", "act_on_suggestion"),
     "/api/lock/edit": ("moderator", "edit_lock"),
     "/api/review/clear": ("moderator", "clear_review"),
+    "/api/decision/keep": ("owner", "keep_decision"),
     "/api/propose": ("person", "propose"),
     "/api/proposal/act": ("moderator", "act_on_proposal"),
+    "/api/proposal/all": ("owner", "approve_proposals"),
     "/api/chat": ("person", "chat"),
     "/api/chat/propose": ("moderator", "propose_from_chat"),
     "/api/chat/react": ("person", "react_chat"),
@@ -192,7 +212,7 @@ ROUTES = {
     "/api/session/intro": ("owner", "set_intro"),
     "/api/annotate": ("person", "annotate"),
     "/api/request": ("person", "request"),
-    "/api/request/act": ("owner", "act_on_request"),
+    "/api/request/act": ("person", "act_on_request"),  # session.py: move is the asker's or the owner's, the rest the owner's
     "/api/result/share": ("person", "share_result"),
     "/api/round/ready": ("moderator", "ready_round"),
     "/api/round/send": ("owner", "send_round"),
@@ -207,12 +227,16 @@ ROUTES = {
     "/api/person/merge": ("owner", "merge_people"),
     "/api/merge-request": ("person", "request_merge"),
     "/api/merge-request/act": ("owner", "act_on_merge_request"),
+    "/api/claude-proposal/act": ("owner", "act_on_claude_proposal"),
     "/api/session/settings": ("owner", "update_settings"),
     "/api/session/title": ("owner", "set_title"),
     "/api/session/goal": ("owner", "set_goal"),
     "/api/session/end": ("owner", "end_session"),
     "/api/link/guest": ("owner", "rotate_guest_link"),
-    "/api/link/owner": ("owner", "rotate_owner_link"),
+    "/api/link/owner": ("host", "rotate_owner_link"),  # it answers the new owner token, which no other device holds
+    "/api/owner/pair": ("host", "pair_device"),
+    "/api/owner/pair/redeem": ("public", "redeem_pairing"),
+    "/api/owner/devices/revoke": ("owner", "revoke_device"),
     "/api/mine/requests/claim": ("person", "claim_my_request"),
     "/api/mine/requests/result": ("person", "post_my_result"),
     "/api/mine/requests/fail": ("person", "fail_my_request"),
@@ -232,17 +256,18 @@ GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("pers
 # The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
 # requests. Anywhere else the header answers 401, so the key never acts as the person's session secret.
 WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
-BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_MAX, "/api/report/add": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}  # path -> bytes, where not session.BODY_MAX
+BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_SEND_MAX, "/api/report/add": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}  # path -> bytes, where not session.BODY_MAX
 SERVER_ERROR = ("state-invalid", "The server could not do that; nothing was written.")
 
 
 def batch_json(items):
-    """A summary batch's [message, ua] pairs as one line of ASCII with no space, so it is the last field of its entry."""
+    """A summary batch's counts or [message, device] pairs as ASCII with no space, so each is one field of its entry."""
     return json.dumps(items, separators=(",", ":")).replace(" ", "\\u0020")
 
 
 def client_fields(body):
-    """A client-log body checked against CLIENT_FIELDS: strings within their limits, a known kind, a message."""
+    """A client-log body checked against CLIENT_FIELDS: strings within their limits, a known kind, a message; each
+    string with its hidden characters dropped (session._visible), as every text field a guest sends."""
     extra = sorted(set(body) - set(CLIENT_FIELDS))
     if extra:
         raise DomainError(400, "bad-field", f"{extra[0][:40]} is not a client-log field.", field=extra[0][:40])
@@ -252,11 +277,12 @@ def client_fields(body):
             raise DomainError(400, "bad-field", f"{k} must be a string.", field=k)
         if v is not None and len(v) > limit:
             raise DomainError(400, "too-long", f"{k} allows at most {limit} characters.", field=k, max=limit)
-    if body.get("kind") not in CLIENT_KINDS:
+    out = {k: None if body.get(k) is None else session._visible(body[k]) for k in CLIENT_FIELDS}  # what a guest's text may hold
+    if out["kind"] not in CLIENT_KINDS:
         raise DomainError(400, "bad-field", f"kind must be one of {', '.join(CLIENT_KINDS)}.", field="kind")
-    if not body.get("message"):
+    if not out["message"]:
         raise DomainError(400, "empty", "message is empty.", field="message")
-    return {k: body.get(k) for k in CLIENT_FIELDS}
+    return out
 
 
 class StartRefused(Exception):
@@ -280,6 +306,27 @@ def build_hash():
     return h.hexdigest()[:12]
 
 
+PROBE_PATH = re.compile(r"/api/tunnel-probe/([0-9a-f]{32})")
+PROBE_SECONDS = 30.0  # judgment: how long a new tunnel address may take to start reaching this server
+
+
+def probe_target(url):
+    """(connection, Host header) for fetching through `url`, an https address. SHARED_PROBE_ORIGIN (tests) sends the
+    request to a loopback http origin instead, with the same Host."""
+    host = urlparse(url).hostname or ""
+    origin = urlparse(os.environ.get("SHARED_PROBE_ORIGIN") or "")
+    if origin.scheme == "http" and origin.hostname in ("127.0.0.1", "localhost"):
+        return http.client.HTTPConnection(origin.hostname, origin.port or 80, timeout=5), host
+    return http.client.HTTPSConnection(host, 443, timeout=5, context=ssl.create_default_context()), host
+
+
+def tunnel_kind(rec, up):
+    """What a status says of the tunnel: named or quick while it runs, down when it does not, off with no record."""
+    if not rec:
+        return "off"
+    return ("named" if tunnel.config(rec)[0] else "quick") if up else "down"
+
+
 def read_json(path):
     try:
         doc = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -291,10 +338,9 @@ def read_json(path):
 def ensure_secrets(d):
     """The control and owner tokens from the 0600 secrets file, making any that is missing, plus
     `ownerAt`, when the owner token was issued: None for a new token or a file that does not say,
-    which settle_owner_token decides once the session is open. An owner token as short as the
-    prototype's (migrate.MIN_OWNER_TOKEN) is kept, so an imported owner link survives a restart."""
+    which settle_owner_token decides once the session is open."""
     have = read_json(d / SECRETS) or {}
-    least = {"control": 32, "owner": migrate.MIN_OWNER_TOKEN}
+    least = {"control": 32, "owner": MIN_OWNER_TOKEN}
     out = {k: have[k] if isinstance(have.get(k), str) and len(have[k]) >= n else secrets.token_urlsafe(32) for k, n in least.items()}
     at = have.get("ownerAt")
     dated = out["owner"] == have.get("owner") and isinstance(at, (int, float)) and not isinstance(at, bool)
@@ -324,58 +370,13 @@ def settle_owner_token(d, s, creds, log):
         detached.write_private(d / SECRETS, json.dumps(creds) + "\n")
 
 
-def prototype_import(d, src, text, creds):
-    """For a session created from the prototype's state file: keep its owner token as the owner's
-    credential (the open owner tabs keep working) and copy the assets its questions show from the
-    `assets/` folder beside that file. A one-line summary for server.log, or "" for another file."""
-    doc = json.loads(text)
-    if migrate.version_of(doc) != 0:
-        return ""
-    token = migrate.prototype_owner_token(doc)
-    if token:
-        creds.update(owner=token, ownerAt=None)
-    copied, missing = 0, 0
-    for name in migrate.prototype_assets(doc):
-        f = src.parent / "assets" / name
-        if f.is_symlink() or not f.is_file() or f.stat().st_size > session.ASSET_MAX:
-            missing += 1
-            continue
-        dest = d / "assets" / name
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        if not dest.exists():
-            dest.write_bytes(f.read_bytes())
-        ext = name.rsplit(".", 1)[1]
-        meta = {"id": name, "kind": session.ASSET_KINDS[ext], "bytes": dest.stat().st_size, "at": time.time(), "scale": 1}
-        detached.write_private(d / "assets" / f".{name}.json", json.dumps(meta) + "\n")
-        copied += 1
-    return f"owner link {'kept' if token else 'issued anew'}; {copied} assets copied, {missing} not found"
-
-
-def open_session(d, creds, log, *, defaults_file=None, initial_state=None):
-    """The session in d/state.json: loaded and migrated, or created from defaults.json or from
-    `initial_state` (a session file from elsewhere, run through migrate.py and validated as
-    any load is). The owner token in `creds` (from ensure_secrets) becomes the owner's
-    credential unless the session rotated the owner link after it was issued."""
+def open_session(d, creds, log, *, defaults_file=None):
+    """The session in d/state.json: loaded, or created from defaults.json. The owner token in `creds` (from
+    ensure_secrets) becomes the owner's credential unless the session rotated the owner link after it was issued."""
     path = d / STATE
     version = plugin_version()
-    notes = []
     try:
-        if not path.exists() and initial_state is not None:
-            text = Path(initial_state).read_text(encoding="utf-8")
-            backup = path.with_name("state.v0.json")
-            had_backup = backup.exists()
-            detached.write_private(path, text)
-            try:
-                s = session.Session.load(path, plugin_version=version, notes=notes)
-            except BaseException:
-                path.unlink(missing_ok=True)
-                if not had_backup:
-                    backup.unlink(missing_ok=True)
-                raise
-            imported = prototype_import(d, Path(initial_state), text, creds)
-            if imported:
-                log.info("imported the prototype's state from %s: %s", loggable(initial_state, 400), imported)
-        elif not path.exists():
+        if not path.exists():
             src = Path(defaults_file) if defaults_file else d / DEFAULTS
             defaults = read_json(src) if src.exists() else {}
             if defaults is None or set(defaults) - {"settings", "title", "goal", *IMPORT_DEFAULTS}:
@@ -389,13 +390,11 @@ def open_session(d, creds, log, *, defaults_file=None, initial_state=None):
                 owner_token=creds["owner"],
             )
         else:
-            s = session.Session.load(path, plugin_version=version, notes=notes)
-        for line in notes:
-            log.warning("%s", loggable(line, 400))
+            s = session.Session.load(path, plugin_version=version)
         settle_owner_token(d, s, creds, log)
         s.reset_owner_token(creds["owner"], creds["ownerAt"])
         return s
-    except (migrate.MigrationError, DomainError, OSError) as exc:
+    except (DomainError, OSError) as exc:
         raise StartRefused(getattr(exc, "message", None) or str(exc)) from exc
 
 
@@ -487,7 +486,6 @@ class ControlHub(session_bridge.LoopbackWatcher):
             "session": app.session.state["session"]["title"],
             "guestPort": app.guest_port,
             "publicUrl": app.public_url,
-            "schemaVersion": app.session.state["schemaVersion"],
             "build": app.build,
         }
 
@@ -507,15 +505,19 @@ class ControlHandler(session_bridge.LoopbackHandler):
             ok=True,
             publicUrl=app.public_url,
             guestPort=app.guest_port,
-            tunnel="quick" if rec and app.tunnel_up else ("down" if rec else "off"),
+            tunnel=tunnel_kind(rec, app.tunnel_up),
             lease=self.hub.lease_view(),
         )
         return self.send(200, out)
 
     def route_post(self, path, msg):
+        app = self.hub.app
+        if path == "/api/tunnel-check":
+            url = msg.get("url")
+            problem = app.probe_tunnel(url) if isinstance(url, str) else "url must be a string"
+            return self.send(200, {"ok": problem is None, **({"error": problem} if problem else {})})
         if path != "/api/ops":
             return self.send(404, {"error": "not found"})
-        app = self.hub.app
         try:
             out = app.session.apply(msg)
         except DomainError as exc:
@@ -747,14 +749,21 @@ class GuestHandler(BaseHTTPRequestHandler):
     def authorize(self, auth):
         if auth == "public":
             return self.identity() if self.headers.get("X-Owner-Token") else None
-        if auth == "owner" and not self.headers.get("X-Owner-Token"):
+        if auth in ("owner", "host") and not self.headers.get("X-Owner-Token"):
             raise DomainError(403, "owner-only", "Only the owner can do that.")
+        if auth == "host" and not self.app.session.is_owner_token(self.headers["X-Owner-Token"]):
+            self.identity()  # a stale credential answers 401 as anywhere else
+            raise DomainError(403, "host-device-only", "Do that on the device that opened your owner link.")
         pid = self.identity()
         if pid is None:
             raise DomainError(401, "unknown-session", "Join the session first.")
         return pid
 
     def do_GET(self):
+        probe = PROBE_PATH.fullmatch(urlparse(self.path).path)
+        if probe:  # before the Host check: the probe arrives on an address not yet allowed; it answers a pending nonce only
+            answer = self.app.answer_probe(probe.group(1))
+            return self.send(200, {"probe": answer}) if answer else self.send(404, {"error": "not-found"})
         if self.refused():
             return None
         url = urlparse(self.path)
@@ -770,7 +779,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             if m and self.app.session.is_prototype(m.group(1)):
                 return self.static("proto.html", "text/html")
             if url.path == "/api/state":
-                return self.state(url.query)
+                return self.state()
             if url.path in GET_ROUTES:
                 auth, method = GET_ROUTES[url.path]
                 pid = self.authorize(auth)
@@ -790,7 +799,32 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(404, "not-found", "Nothing here."))
         return self.send(200, f.read_bytes(), ctype)
 
+    def asset_cookie(self, pid):
+        """The Set-Cookie that lets this browser's <img> and frame requests read /assets/ as `pid` for a while."""
+        exp = int(time.time()) + ASSET_COOKIE_SECONDS
+        secure = "; Secure" if self.headers.get("Host") in {h for h in (self.app.tunnel_host, self.app.retired_host) if h} else ""
+        value = f"{pid}.{exp}.{self.app.asset_sign(pid, exp)}"
+        return f"{self.app.asset_cookie}={value}; Path=/assets/; Max-Age={ASSET_COOKIE_SECONDS}; HttpOnly; SameSite=Strict{secure}"
+
+    def asset_reader(self):
+        """The pid an asset request reads as: a credential header, else an unexpired asset cookie whose person may
+        still read (a removed person's cookie reads nothing). DomainError 401 without either."""
+        pid = self.identity()
+        if pid is None:
+            for part in (self.headers.get("Cookie") or "").split(";"):
+                name, _, value = part.strip().partition("=")
+                who, _, rest = value.partition(".")
+                exp, _, sig = rest.partition(".")
+                ok_exp = exp.isascii() and exp.isdigit() and len(exp) <= 12
+                if name == self.app.asset_cookie and ok_exp and int(exp) >= time.time() and hmac.compare_digest(sig.encode(), self.app.asset_sign(who, int(exp)).encode()):
+                    pid = self.app.session.check(who)
+                    break
+        if pid is None:
+            raise DomainError(401, "unknown-session", "Join the session first.")
+        return pid
+
     def asset(self, aid, ext, *, pin=False):
+        self.asset_reader()
         f = self.app.dir / "assets" / aid
         if not f.is_file():
             return self.fail(DomainError(404, "not-found", "No such asset."))
@@ -799,25 +833,26 @@ class GuestHandler(BaseHTTPRequestHandler):
         body = f.read_bytes() + (f"\n<script>{PIN_HELPER}</script>\n".encode() if pin else b"")
         return self.send(200, body, "text/html", {"Content-Security-Policy": HTML_ASSET_CSP, "Content-Disposition": "inline", "X-Frame-Options": "SAMEORIGIN"})
 
-    def state(self, query=""):
+    def state(self):
         app = self.app
+        if app.moved(self.headers.get("Host", "")):  # the old address after a switch: only where the session went
+            return self.send(200, {"moved": app.public_url})
         pid = self.identity()
         if pid is None:
             return self.send(200, app.session.anonymous_view())
-        if app.old_pages and not query:
-            return self.send(200, app.old_page_view())
         tag, sent = app.etag(pid), self.headers.get("If-None-Match") or ""
+        extra = {"ETag": tag, "Set-Cookie": self.asset_cookie(pid)}
         if sent == tag:  # identity() already refused a removed or waiting person
-            return self.send(304, b"", extra={"ETag": tag})
+            return self.send(304, b"", extra=extra)
         if sent.rsplit(".", 2)[0] == tag.rsplit(".", 2)[0]:  # only presence or the clock moved: send just that part
-            return self.send(200, {"rev": app.session.state["rev"], "presenceOnly": True, **app.session.presence_view(pid)}, extra={"ETag": tag})
+            return self.send(200, {"rev": app.session.state["rev"], "presenceOnly": True, **app.session.presence_view(pid)}, extra=extra)
         snap = app.session.snapshot(pid)
         snap["build"] = app.build
         if snap["me"]["role"] in ("owner", "leader"):
             share = dict(app.session.state["session"]["share"])
-            share["tunnel"] = "quick" if app.tunnel_up else "down"
+            share["tunnel"] = tunnel_kind(tunnel.read(app.dir), True) if app.tunnel_up else "down"
             snap["share"] = share
-        return self.send(200, snap, extra={"ETag": tag})
+        return self.send(200, snap, extra=extra)
 
     def do_POST(self):
         if self.refused():
@@ -829,6 +864,12 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.upload_chunk()
         if path not in ROUTES and path != CLIENT_LOG:
             return self.fail(DomainError(404, "not-found", "Nothing here."))
+        if path != CLIENT_LOG:  # who sends it is settled from headers before any of the body is read
+            auth, method = ROUTES[path]
+            try:
+                pid = self.authorize(auth)
+            except DomainError as exc:
+                return self.fail(exc)
         if not self.headers.get("Content-Type", "").lower().startswith("application/json"):
             return self.fail(DomainError(415, "json-required", "Send JSON with Content-Type: application/json."))
         cap = BODY_CAPS.get(path, session.BODY_MAX)
@@ -840,10 +881,11 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(400, "bad-json", "The request needs a Content-Length."))
         if length > cap:
             return self.fail(DomainError(413, "body-too-large", f"The body allows at most {cap} bytes.", max=cap))
+        seconds = session.REPORT_SECONDS if path == "/api/report" else session.BODY_SECONDS  # up to four pictures take longer
         try:
-            raw = self.read_body(length)
+            raw = self.read_body(length, seconds)
         except TimeoutError:
-            return self.fail(DomainError(408, "body-timeout", f"The body must arrive within {session.BODY_SECONDS:.0f} s."))
+            return self.fail(DomainError(408, "body-timeout", f"The body must arrive within {seconds:.0f} s."))
         if raw is None:
             return None
         try:
@@ -854,18 +896,18 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(400, "bad-json", "The body must be a JSON object."))
         if path == CLIENT_LOG:
             return self.client_log(body)
-        auth, method = ROUTES[path]
         app = self.app
         try:
-            pid = self.authorize(auth)
             fn = getattr(app.session, method)
-            out = fn(pid, body, address=self.address()) if method == "join" else fn(pid, body)
+            out = fn(pid, body, address=self.address()) if method in ("join", "redeem_pairing") else fn(pid, body)
         except DomainError as exc:
             return self.fail(exc)
         except Exception:  # a bug: the transaction rolled back, so nothing was written
             return self.crash()
         if method == "rotate_owner_link":
             app.write_owner_link()
+        if method in ("rotate_owner_link", "revoke_device", "end_session"):
+            app._asset_key = secrets.token_bytes(32)  # an asset cookie names the host, not the device: every one ends
         app.changed()
         return self.send(200, {"ok": True, **out})
 
@@ -931,7 +973,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         except DomainError as exc:
             return self.fail(exc)
         if usage:
-            self.app.hold_summary(fields["message"], fields["ua"])
+            self.app.hold_summary(fields["message"], fields["ua"], None if self.headers.get("X-Owner-Token") else pid)
             self.unlogged = True
         else:
             self.app.log.warning("%s", entry("client", pid=pid, **fields))
@@ -950,7 +992,7 @@ class GuestHandler(BaseHTTPRequestHandler):
 class App:
     """Both listeners, the session and the tunnel watch for one data dir."""
 
-    def __init__(self, data_dir, *, guest_port=0, control_port=0, nonce="", defaults_file=None, initial_state=None, watch_tunnel=True):
+    def __init__(self, data_dir, *, guest_port=0, control_port=0, nonce="", defaults_file=None, watch_tunnel=True):
         self.dir = Path(data_dir).resolve()
         problem = detached.data_dir_problem(self.dir)
         if problem:
@@ -959,32 +1001,35 @@ class App:
         detached.make_private_dir(self.dir / session.STAGING)
         self.log = make_logger(self.dir)
         self.secrets = ensure_secrets(self.dir)
-        self.session = open_session(self.dir, self.secrets, self.log, defaults_file=defaults_file, initial_state=initial_state)
+        self.session = open_session(self.dir, self.secrets, self.log, defaults_file=defaults_file)
         self.session.on_owner_token = self.owner_rotated
         swept = self.session.recover_uploads()
         if swept:
             self.log.info("uploads: deleted %d partial or unclaimed files", swept)
-        self.old_pages = (self.dir / "state.v0.json").exists()  # imported from the prototype: its open tabs may still poll
         self.build = build_hash()
+        self._asset_key = secrets.token_bytes(32)  # signs asset cookies; a restart ends them, and the next poll renews them
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
         self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)  # keyed by pid
         self.image_bucket = Bucket(IMAGE_PER_MINUTE / 60, IMAGE_PER_MINUTE)  # GET /api/upload/image, keyed by pid
         self.summary_bucket = Bucket(SUMMARY_PER_MINUTE / 60, SUMMARY_PER_MINUTE)  # keyed by pid, kept in memory only
-        self._summary_lock, self._summaries, self._summary_bytes, self._dropped = threading.Lock(), [], 0, 0
+        self._summary_lock, self._summaries, self._counts, self._senders, self._summary_bytes, self._dropped = threading.Lock(), [], collections.Counter(), set(), 0, 0
         self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
         self.tunnel_host = ""
+        self.retired_host = ""  # the address before a switch, while its tunnel still runs
         self.tunnel_up = False
         self._next_tunnel_try = 0.0
         self._backoff = 2.0
         self._last_sync = 0.0
         self._stop = threading.Event()
         self._chunk_lock, self._chunk_readers = threading.Lock(), set()
+        self._probe_lock, self._probes = threading.Lock(), {}  # nonce asked -> (answer, expiry)
         self.guest = GuestServer(("127.0.0.1", guest_port), GuestHandler)
         self.guest.app = self
         self.guest_port = self.guest.server_address[1]
         self.local_hosts = {f"127.0.0.1:{self.guest_port}", f"localhost:{self.guest_port}"}
+        self.asset_cookie = f"shared-assets-{self.guest_port}"  # cookies ignore the port: two local sessions keep their own
         handler = type("SharedControlHandler", (ControlHandler,), {})  # its own class: start() sets hub on it
         self.control, self.hub = session_bridge.start(handler, lambda port: ControlHub(port, self.dir, self), control_port, nonce)
         self.control_port = self.hub.port
@@ -1006,26 +1051,48 @@ class App:
             with self._chunk_lock:
                 self._chunk_readers.discard(pid)
 
-    def hold_summary(self, message, ua):
-        """Keep a usage summary for the next batch; one past SUMMARY_BATCH_BYTES is only counted, as dropped."""
-        item = [message, ua or ""]
-        size = len(batch_json([item]))
+    def hold_summary(self, message, ua, sender=None):
+        """Keep a usage summary for the next batch: its count tokens (COUNT_TOKEN) added to the batch's counts, the
+        rest as a [message, device] pair; `sender`, a guest's pid (None for the owner), only in memory, to count the
+        batch's guests. One past SUMMARY_BATCH_BYTES is only counted, as dropped."""
+        words, counts = [], collections.Counter()
+        for t in message.split(" "):
+            m = COUNT_TOKEN.fullmatch(t)
+            if m:
+                counts[m[1]] += int(m[2])
+            elif not t.startswith(COUNT_PREFIXES):
+                words.append(t)
+        dev = (ua or "").split(" ")[-1]
+        item = [" ".join(words), dev if dev in DEVICES else "unknown"]
         with self._summary_lock:
+            size = len(batch_json([item])) + sum(len(k) + 10 for k in counts if k not in self._counts)
             if self._summary_bytes + size > SUMMARY_BATCH_BYTES:
                 self._dropped += 1
             else:
                 self._summaries.append(item)
+                self._counts.update(counts)
                 self._summary_bytes += size
+                if sender:
+                    self._senders.add(sender)
 
-    def flush_summaries(self):
+    def flush_summaries(self, stopping=False):
         """One summary-batch entry (README "Logs") for the summaries held since the last, sorted so their arrival order
-        is gone too; none when there were none."""
+        is gone too, and their counts; none when there were none. Summaries from 1 to SUMMARY_MIN_SENDERS - 1 guests
+        wait for the next batch, or at shutdown are only counted, as dropped."""
         with self._summary_lock:
-            items, dropped = sorted(self._summaries), self._dropped
-            self._summaries, self._summary_bytes, self._dropped = [], 0, 0
             self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
+            few = 0 < len(self._senders) < SUMMARY_MIN_SENDERS
+            if few and not stopping:
+                return
+            items, counts, dropped = sorted(self._summaries), dict(sorted(self._counts.items())), self._dropped
+            self._summaries, self._counts, self._senders, self._summary_bytes, self._dropped = [], collections.Counter(), set(), 0, 0
+        if few:
+            items, counts, dropped = [], {}, dropped + len(items)
         if items or dropped:
-            self.log.info("summary-batch summaries=%d dropped=%d data=%s", len(items), dropped, batch_json(items))
+            self.log.info("summary-batch summaries=%d dropped=%d counts=%s data=%s", len(items), dropped, batch_json(counts), batch_json(items))
+
+    def asset_sign(self, pid, exp):
+        return hmac.new(self._asset_key, f"{pid}.{exp}".encode(), hashlib.sha256).hexdigest()
 
     @property
     def local_url(self):
@@ -1042,23 +1109,64 @@ class App:
     def host_ok(self, host, origin):
         if not host:
             return False
-        if host not in self.local_hosts and host != self.tunnel_host:
+        public = {h for h in (self.tunnel_host, self.retired_host) if h}
+        if host not in self.local_hosts and host not in public:
             now = time.monotonic()
             if now - self._last_sync > 1.0:  # a tunnel share.py just started may not be seen yet
                 self._last_sync = now
                 self.sync_tunnel(restart=False)
-            if host != self.tunnel_host or not host:
+            public = {h for h in (self.tunnel_host, self.retired_host) if h}
+            if host not in public:
                 return False
         if origin is None:
             return True
-        return origin in {f"http://{h}" for h in self.local_hosts} or (bool(self.tunnel_host) and origin == f"https://{self.tunnel_host}")
+        return origin in {f"http://{h}" for h in self.local_hosts} or origin in {f"https://{h}" for h in public}
 
-    def old_page_view(self):
-        """What a prototype page that is still open gets for its state poll: its banner text as the
-        title, and no other key, so its script falls back to the empty state it starts with before
-        its first poll. `schemaVersion` is there for a prototype page that reloads on seeing it."""
-        st = self.session.state
-        return {"schemaVersion": st["schemaVersion"], "rev": st["rev"], "outdated": True, "title": OLD_PAGE_BANNER}
+    def answer_probe(self, nonce):
+        """The answer to a pending probe nonce, once, else None."""
+        with self._probe_lock:
+            now = time.monotonic()
+            self._probes = {k: v for k, v in self._probes.items() if v[1] > now}
+            hit = self._probes.pop(nonce, None)
+        return hit[0] if hit else None
+
+    def probe_tunnel(self, url):
+        """None once `url` (an https address) reaches this server: a fetch of <url>/api/tunnel-probe/<nonce> gets back the
+        answer only this process knows. Else why not, after PROBE_SECONDS of tries."""
+        if urlparse(url).scheme != "https" or not urlparse(url).hostname:
+            return f"{url!r} is not an https address"
+        nonce, answer = secrets.token_hex(16), secrets.token_hex(16)
+        seconds = float(os.environ.get("SHARED_PROBE_SECONDS") or PROBE_SECONDS)
+        with self._probe_lock:
+            self._probes[nonce] = (answer, time.monotonic() + seconds + 5)
+        deadline, why = time.monotonic() + seconds, "no answer"
+        while True:
+            conn, host = probe_target(url)
+            try:
+                conn.request("GET", f"/api/tunnel-probe/{nonce}", headers={"Host": host})
+                resp = conn.getresponse()
+                body = resp.read(4096)
+                try:
+                    got = json.loads(body).get("probe") if resp.status == 200 else None
+                except (ValueError, AttributeError):
+                    got = None
+                if got == answer:
+                    return None
+                why = f"HTTP {resp.status}" + (", and not this server's answer" if resp.status == 200 else "")
+            except (OSError, http.client.HTTPException) as exc:
+                why = str(exc) or type(exc).__name__
+            finally:
+                conn.close()
+            if time.monotonic() >= deadline:
+                with self._probe_lock:
+                    self._probes.pop(nonce, None)
+                self.log.warning("tunnel check: %s does not reach this server (%s)", url, loggable(why))
+                return f"{url} does not reach this server ({why})"
+            time.sleep(1.0)
+
+    def moved(self, host):
+        """True when `host` is the retired tunnel's: the session now answers at public_url."""
+        return bool(self.retired_host) and host == self.retired_host and host != self.tunnel_host and bool(self.public_url)
 
     def etag(self, pid):
         tick = int(time.time() // PRESENCE_TICK)
@@ -1075,14 +1183,17 @@ class App:
         rec = tunnel.read(self.dir)
         if rec is None:
             self.tunnel_up = False
+            self.retired_host = ""
             return
+        old = tunnel.retired(self.dir)
+        self.retired_host = tunnel.host(old["url"]) if old else ""
         live = tunnel.alive(self.dir)
         if (live is None or live.get("port") != self.guest_port) and restart and self.watch_tunnel:
             if time.monotonic() < self._next_tunnel_try:
                 self.tunnel_up = False
                 return
             try:
-                live = tunnel.ensure(self.dir, self.guest_port)
+                live = tunnel.ensure(self.dir, self.guest_port, *tunnel.config(rec))  # a named tunnel comes back at its address
                 self._backoff = 2.0
                 self.log.info("tunnel started: %s", live["url"])
             except (tunnel.TunnelDown, TimeoutError) as exc:
@@ -1102,11 +1213,15 @@ class App:
     def watch(self):
         while not self._stop.wait(TUNNEL_POLL):
             try:
+                tunnel.sweep(self.dir)
                 self.sync_tunnel()
-                if time.monotonic() >= self._batch_at:
-                    self.flush_summaries()
             except Exception:  # the watch must outlive any one bad pass
                 self.log.error("%s", entry("tunnel-watch", trace=trace()))
+            if time.monotonic() >= self._batch_at:
+                try:
+                    self.flush_summaries()
+                except Exception:  # nor may a failed batch stop the tunnel watch
+                    self.log.error("%s", entry("summary-batch-failed", trace=trace()))
 
     def serve(self):
         """Serve both listeners and watch the tunnel in threads; returns at once."""
@@ -1120,7 +1235,7 @@ class App:
         serving = getattr(self, "threads", None)  # shutdown() waits for serve_forever, so only once serving
         if serving:
             self.guest.shutdown()
-        self.flush_summaries()  # before the control listener goes, so `share.sh stop` returns after it
+        self.flush_summaries(stopping=True)  # before the control listener goes, so `share.sh stop` returns after it
         if serving:
             self.control.shutdown()
         self.guest.server_close()
@@ -1137,10 +1252,9 @@ def main(argv=None):
     p.add_argument("--control-port", type=int, default=0, help="control listener port; 0 picks a free one")
     p.add_argument("--nonce", default="", help="echoed into the session files so share.py knows its own start")
     p.add_argument("--defaults-file", help="settings for a new session (default <dir>/defaults.json)")
-    p.add_argument("--initial-state", help="a session file to start a new session from (run through migrate.py, then validated)")
     a = p.parse_args(argv)
     try:
-        app = App(a.dir, guest_port=a.guest_port, control_port=a.control_port, nonce=a.nonce, defaults_file=a.defaults_file, initial_state=a.initial_state)
+        app = App(a.dir, guest_port=a.guest_port, control_port=a.control_port, nonce=a.nonce, defaults_file=a.defaults_file)
     except StartRefused as exc:
         print(f"refused: {exc}", file=sys.stderr)
         return 1

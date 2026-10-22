@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\nA failed upload is retried forever.\n\n## Fix\n\nCap upload attempts at 3 in total: try, retry twice, then throw `upload failed after 3 attempts`.\n\n## Done when\n\n- [ ] At most 3 attempts are made.\n- [ ] A test with an always-failing request counts exactly 3 attempts."
+  },
+  "pr": {
+    "title": "fix(sample-kit): cap upload attempts at three",
+    "body": "Bounds the upload retry loop and adds a test."
+  }
+}

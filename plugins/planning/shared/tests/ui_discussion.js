@@ -10,7 +10,7 @@
 // Expected values come from the approved spec (.work spec-question-screen.md, followups item 10, mockup variant A) and
 // the texts this suite writes, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs, openClaude } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs, openClaude } = require("./browser_harness");
 
 const ANN1 = "Should the summary stay pinned on phones?", ANN1_EDIT = "Should the summary stay pinned on phones and tablets?";
 const OFF = "Unrelated: lunch at noon?", BO_ASK = "@Claude what do the big shops do on phones?", ANSWER = "Most keep a sticky total bar at the bottom.";
@@ -22,7 +22,6 @@ const head = page => page.evaluate(() => ({ open: document.querySelector(".vf-di
 const shown = page => page.evaluate(() => [...document.querySelectorAll(".vf-disc-list > .vf-cm")].map(li => ({
   name: li.querySelector(".vf-cm-name").textContent, text: li.querySelector(".vf-cm-txt").textContent, edited: !li.querySelector(".vf-cm-edited").hidden,
   hidden: !li.querySelector(".vf-cm-hidden").hidden, isNew: !li.querySelector(".vf-cm-new").hidden,
-  acts: [...li.querySelectorAll(".vf-cm-acts .vf-lbtn")].filter(b => !b.hidden).map(b => b.textContent),
   became: li.querySelector(".vf-cm-became").hidden ? "" : li.querySelector(".vf-cm-became-t").textContent })));
 const openDisc = async page => { if ((await page.getAttribute(".vf-disc-head", "aria-expanded")) !== "true") await page.click(".vf-disc-head"); return until(page, () => !document.querySelector(".vf-disc-body").hidden); };
 /** Post through the composer once the last post finished (its field cleared, Post enabled again). */
@@ -32,6 +31,16 @@ const post = async (page, text) => {
   return until(page, t => (window.Core.state.discussions.Q1 || []).some(c => c.text === t), text, 10000);
 };
 const cm = (page, text) => page.locator(".vf-disc-list > .vf-cm", { hasText: text });
+/** F4: the Edit, Delete and Hide/Show a comment's ⋯ menu offers, the same menu as a chat message's. */
+const acts = async (page, text) => {
+  await cm(page, text).locator(".vf-cm-more").click();
+  await until(page, () => !document.querySelector(".vf-msgmenu").hidden);
+  const a = await page.evaluate(() => [...document.querySelectorAll(".vf-msgmenu [role=menuitem]")].filter(b => !b.hidden).map(b => b.textContent.trim()).filter(t => ["Edit", "Delete", "Hide", "Show"].includes(t)));
+  await page.keyboard.press("Escape");
+  return a;
+};
+/** Pick one entry from a comment's ⋯ menu. */
+const pick = async (page, text, label) => { await cm(page, text).locator(".vf-cm-more").click(); await page.locator(".vf-msgmenu [role=menuitem]", { hasText: label }).click(); };
 const railQ = (page, qid) => page.locator(".vf-q", { hasText: qid === "Q1" ? "Where should" : "Which default" }).first();
 const DRAFT = "@Claude a draft typed on Q1", ANN_ASK = "@Claude is a sticky bar common?";
 
@@ -76,11 +85,20 @@ async function main() {
 
     // ---------- edit and delete one's own only ----------
     await openDisc(bo);
-    rows = await shown(bo);
-    ok("Bo sees no Edit, Delete or Hide on Ann's comments", rows.length === 2 && rows.every(r => !r.acts.some(a => ["Edit", "Delete", "Hide"].includes(a))), JSON.stringify(rows));
-    rows = await shown(ann);
-    ok("Ann sees Edit and Delete on her own, and no Hide", rows.length === 2 && rows.every(r => r.acts.join() === "Edit,Delete"), JSON.stringify(rows));
-    await cm(ann, ANN1).locator(".vf-lbtn", { hasText: "Edit" }).click();
+    const boActs = [await acts(bo, ANN1), await acts(bo, OFF)];
+    ok("Bo's menu on Ann's comments has no Edit, Delete or Hide", boActs.every(a => a.length === 0), JSON.stringify(boActs));
+    await cm(bo, ANN1).locator(".vf-cm-more").click();
+    const boMenu = await bo.evaluate(() => [...document.querySelectorAll(".vf-msgmenu [role=menuitem]")].filter(b => !b.hidden).map(b => b.textContent.trim()));
+    ok("a comment's ⋯ opens the chat's message menu: Reply, React, Propose as question, Ask Claude about this, Copy", JSON.stringify(boMenu) === JSON.stringify(["Reply", "🙂React", "Propose as question", "Ask Claude about this", "Copy"]), JSON.stringify(boMenu));
+    await bo.locator(".vf-msgmenu [role=menuitem]", { hasText: "Reply" }).click();
+    ok("  Reply names Ann in the comment box", await until(bo, () => document.querySelector(".vf-disc-ta").value === "@Ann " && document.activeElement === document.querySelector(".vf-disc-ta")));
+    await bo.fill(".vf-disc-ta", "");
+    await cm(bo, ANN1).locator(".vf-cm-txt").dispatchEvent("pointerdown", { pointerType: "touch", isPrimary: true });
+    ok("  a long press on the comment opens the same menu", await until(bo, () => !document.querySelector(".vf-msgmenu").hidden, null, 3000));
+    await bo.keyboard.press("Escape");
+    const annActs = [await acts(ann, ANN1), await acts(ann, OFF)];
+    ok("Ann's menu on her own has Edit and Delete, and no Hide", annActs.every(a => a.join() === "Edit,Delete"), JSON.stringify(annActs));
+    await pick(ann, ANN1, "Edit");
     await cm(ann, ANN1).locator(".vf-cm-edit textarea").fill(ANN1_EDIT);
     await cm(ann, ANN1).locator(".vf-cm-edit button[type=submit]").click();
     ok("her edit shows to Bo, marked edited", await until(bo, t => [...document.querySelectorAll(".vf-cm")].some(li => li.querySelector(".vf-cm-txt").textContent === t && !li.querySelector(".vf-cm-edited").hidden), ANN1_EDIT));
@@ -94,14 +112,15 @@ async function main() {
 
     // ---------- the owner hides one ----------
     await openDisc(owner);
-    rows = await shown(owner);
-    ok("the host sees Hide on every comment", rows.length === 2 && rows.every(r => r.acts.includes("Hide")), JSON.stringify(rows));
-    await cm(owner, OFF).locator(".vf-cm-hide").click();
+    const ownerActs = [await acts(owner, ANN1_EDIT), await acts(owner, OFF)];
+    ok("the host's menu has Hide on every comment", ownerActs.every(a => a.includes("Hide")), JSON.stringify(ownerActs));
+    await pick(owner, OFF, "Hide");
     ok("hiding it takes it out of Bo's Discussion and his page's data", await until(bo, t => document.querySelectorAll(".vf-disc-list > .vf-cm").length === 1 && !JSON.stringify(window.Core.snapshot()).includes(t), OFF));
     ok("  Ann still sees it, marked Hidden", await until(ann, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && !li.querySelector(".vf-cm-hidden").hidden), OFF));
-    ok("  and the host sees it marked Hidden with Show", await until(owner, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && !li.querySelector(".vf-cm-hidden").hidden && li.querySelector(".vf-cm-hide").textContent === "Show"), OFF));
+    ok("  and the host sees it marked Hidden with Show", await until(owner, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && !li.querySelector(".vf-cm-hidden").hidden), OFF)
+      && (await acts(owner, OFF)).includes("Show"));
     await ann.waitForTimeout(1100);
-    await cm(ann, OFF).locator(".vf-lbtn", { hasText: "Delete" }).click();
+    await pick(ann, OFF, "Delete");
     await ann.click("dialog.vf-cdlg[open] .vf-btn-danger-solid");
     ok("Ann deletes her own comment after confirming", await until(ann, t => ![...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)), OFF));
     ok("  and it is gone for the host too", await until(owner, () => document.querySelector(".vf-disc-count").textContent === "1 comment"));
@@ -110,7 +129,8 @@ async function main() {
     await bo.waitForTimeout(1100);
     await post(bo, BO_ASK);
     ok("Bo's @Claude comment reads Sent to Claude, waiting", await until(bo, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && li.querySelector(".vf-cm-became-t").textContent.startsWith("Sent to Claude")), BO_ASK), JSON.stringify(await shown(bo)));
-    ok("  and offers Delete but no Edit on it", (await shown(bo)).some(r => r.text === BO_ASK && r.acts.join() === "Delete"), JSON.stringify(await shown(bo)));
+    const askActs = await acts(bo, BO_ASK);
+    ok("  and offers Delete but no Edit on it", askActs.join() === "Delete", JSON.stringify(askActs));
     ok("Ann, who sees neither the request nor its answer, reads Sent to Claude with no status", await until(ann, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && li.querySelector(".vf-cm-became-t").textContent === "Sent to Claude"), BO_ASK), JSON.stringify(await shown(ann)));
     const rid = await owner.evaluate(async t => {
       for (let i = 0; i < 50 && !(window.Core.state.requests || []).some(r => r.text === t); i++) await new Promise(r => setTimeout(r, 100));
@@ -155,22 +175,21 @@ async function main() {
     ok("Ann's @Claude comment posts", await post(ann, ANN_ASK));
     await openDisc(owner);
     await until(owner, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)), ANN_ASK);
-    await cm(owner, ANN_ASK).locator(".vf-cm-hide").click();
-    ok("hidden, Ann still sees Delete on it", await until(ann, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && !li.querySelector(".vf-cm-hidden").hidden
-      && [...li.querySelectorAll(".vf-cm-acts .vf-lbtn")].some(b => b.textContent === "Delete" && b.offsetParent !== null)), ANN_ASK), JSON.stringify(await shown(ann)));
-    if (await cm(ann, ANN_ASK).locator(".vf-lbtn", { hasText: "Delete" }).isVisible()) {
-      await cm(ann, ANN_ASK).locator(".vf-lbtn", { hasText: "Delete" }).click();
-      await ann.click("dialog.vf-cdlg[open] .vf-btn-danger-solid");
-    }
+    await pick(owner, ANN_ASK, "Hide");
+    ok("hidden, Ann still sees Delete on it", await until(ann, t => [...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t) && !li.querySelector(".vf-cm-hidden").hidden), ANN_ASK)
+      && (await acts(ann, ANN_ASK)).includes("Delete"), JSON.stringify(await shown(ann)));
+    await pick(ann, ANN_ASK, "Delete");
+    await ann.click("dialog.vf-cdlg[open] .vf-btn-danger-solid");
     ok("  and deletes it", await until(ann, t => ![...document.querySelectorAll(".vf-cm")].some(li => li.textContent.includes(t)), ANN_ASK));
 
     // ---------- 390 phone ----------
+    const still = await settled(bo, { rects: true });
     const fit = await bo.evaluate(() => {
       const r = document.querySelector(".vf-disc").getBoundingClientRect(), hd = document.querySelector(".vf-disc-head").getBoundingClientRect();
       return { left: r.left, right: r.right, w: innerWidth, head: hd.height, page: document.documentElement.scrollWidth,
         rows: [...document.querySelectorAll(".vf-cm")].every(li => li.getBoundingClientRect().right <= innerWidth) };
     });
-    ok("390: the Discussion fits the screen with a 44px head and nothing scrolls sideways", fit.left >= 0 && fit.right <= fit.w && fit.head >= 44 && fit.page <= fit.w && fit.rows, JSON.stringify(fit));
+    ok("390: the Discussion fits the screen with a 44px head and nothing scrolls sideways", still && fit.left >= 0 && fit.right <= fit.w && fit.head >= 44 && fit.page <= fit.w && fit.rows, JSON.stringify({ still, ...fit }));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));

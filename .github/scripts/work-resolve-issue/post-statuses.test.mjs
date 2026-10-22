@@ -274,3 +274,81 @@ test("main fails when the branch head cannot be read", async () => {
     },
   );
 });
+
+// A resumed run that committed nothing kept no branch, and report-outcome
+// opens its PR from the branch it resumed at the tip run-checks checked, so
+// this run's statuses go on that tip, replacing the earlier run's.
+const RESUMED = "work-resolve-issue/issue-77-100-1";
+const TIP = "e".repeat(40);
+const resumedChecks = (branch = RESUMED, results = [{ check: "scripts/check-changelog-fragments.sh --check", exit: 0 }]) =>
+  JSON.stringify({ version: 1, branch, tip: TIP, results });
+const APP_COMMIT = {
+  author: { login: "melodic-automation-lanes[bot]" },
+  committer: { login: "web-flow" },
+  commit: { verification: { verified: true } },
+};
+const resumedRoutes = (commits = [APP_COMMIT], refTip = TIP) => [
+  ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+  ...(refTip ? [["GET", new RegExp(`/git/ref/heads/${RESUMED}$`), 200, { object: { sha: refTip } }]] : []),
+  ["GET", new RegExp(`/compare/main\\.\\.\\.${TIP}$`), 200, { commits, total_commits: commits.length }],
+  ["POST", new RegExp(`/statuses/${TIP}$`), 201, {}],
+];
+
+test("main posts a resumed run's statuses on the resumed branch's checked tip", async () => {
+  await withOutcome(
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", resume: RESUMED }) },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch(resumedRoutes());
+      const run = { ...env(dir), RESUME_BRANCH: RESUMED, RUNNER_CHECKS: resumedChecks() };
+      assert.equal(await main({ env: run, fetch }), 0);
+      const posted = calls.filter((c) => c.method === "POST");
+      assert.ok(posted.length > 0, "no status was posted");
+      assert.ok(posted.every((c) => c.path === `/repos/o/r/statuses/${TIP}`), JSON.stringify(posted.map((c) => c.path)));
+      assert.equal(byContext(posted.map((c) => c.body))["pipeline/resolve-issue"], "success");
+    },
+  );
+});
+
+// lane.json can be rewritten by code the model started, so its resume counts
+// only when it equals the runner's resume branch and the branch passed the
+// gate report-outcome opens its PR on: a check ran, none failed, and every
+// commit ahead of the default branch is the lanes App's.
+test("main posts nothing for a resumed run whose resume or check results do not match the runner's", async () => {
+  for (const [label, resume, runner, checks, commits] of [
+    ["a failing check", RESUMED, RESUMED, resumedChecks(RESUMED, [{ check: "x", exit: 1 }])],
+    ["no check ran", RESUMED, RESUMED, resumedChecks(RESUMED, [])],
+    ["a commit not the App's", RESUMED, RESUMED, resumedChecks(), [APP_COMMIT, { ...APP_COMMIT, author: { login: "stranger" } }]],
+    ["no runner resume branch", RESUMED, "", resumedChecks()],
+    ["a lane.json resume that is not the runner's", "work-resolve-issue/issue-77-99-1", RESUMED, resumedChecks()],
+    ["no check results", RESUMED, RESUMED, ""],
+    ["check results for another branch", RESUMED, RESUMED, resumedChecks("work-resolve-issue/issue-77-99-1")],
+  ]) {
+    await withOutcome(
+      { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", resume }) },
+      async (dir) => {
+        const { fetch, calls } = fakeFetch(resumedRoutes(commits));
+        assert.equal(await main({ env: { ...env(dir), RESUME_BRANCH: runner, RUNNER_CHECKS: checks }, fetch }), 0, label);
+        assert.deepEqual(calls.filter((c) => c.method === "POST"), [], label);
+      },
+    );
+  }
+});
+
+// The statuses belong on the tip the PR opens from, so a resumed branch that
+// moved past the checked tip, or whose ref cannot be read, gets none.
+test("main posts nothing for a resumed branch no longer at the checked tip", async () => {
+  for (const [label, refTip] of [
+    ["a moved branch", "f".repeat(40)],
+    ["an unreadable ref", null],
+  ]) {
+    await withOutcome(
+      { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: "", resume: RESUMED }) },
+      async (dir) => {
+        const { fetch, calls } = fakeFetch(resumedRoutes([APP_COMMIT], refTip));
+        const run = { ...env(dir), RESUME_BRANCH: RESUMED, RUNNER_CHECKS: resumedChecks() };
+        assert.equal(await main({ env: run, fetch }), 0, label);
+        assert.deepEqual(calls.filter((c) => c.method === "POST"), [], label);
+      },
+    );
+  }
+});

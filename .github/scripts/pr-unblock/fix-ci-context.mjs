@@ -16,7 +16,8 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
 
-// The trailer apply-ci-fix.mjs writes on every fix commit; a round is one.
+// The trailer apply-patch.mjs writes on every fix commit, from the ci-context
+// row of patch-rules.json; a round is one.
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/fix-ci";
 const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
 // The aggregate of the others: fixing them fixes it.
@@ -38,7 +39,7 @@ export function countFixRounds(commits, appId) {
   ).length;
 }
 
-// The last lines of a job log, without the runner's timestamps or ANSI colour.
+// The last lines of a job log, without the runner's timestamps or ANSI color.
 export function logExcerpt(text) {
   const lines = String(text)
     .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
@@ -53,12 +54,17 @@ export function logExcerpt(text) {
   return excerpt;
 }
 
-// The latest run of each check name, when it failed.
+// A contract-only run skips every lane, and ci-status then carries the last
+// full run's recorded verdict forward, so a skip says nothing about a check.
+const SILENT = new Set(["skipped", "neutral"]);
+const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
+
+// The latest run of each check name that is not a skip, when it failed.
 function failingChecks(checkRuns) {
   const latest = new Map();
   for (const run of checkRuns) {
     const kept = latest.get(run.name);
-    if (!kept || run.id > kept.id) {
+    if (!kept || (silent(kept) && !silent(run)) || (silent(kept) === silent(run) && run.id > kept.id)) {
       latest.set(run.name, run);
     }
   }

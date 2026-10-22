@@ -1,6 +1,8 @@
 // The prototype page (Q98), /proto/<qid>: one prototype question's variants, a switcher between them, an Annotate
 // toggle, and notes pinned to elements of a variant. Notes go to the server (/api/annotate), which shows them in the
-// question's Claude thread and hands them to Claude with the round. Identity, polling and actions come from core.js.
+// question's Claude thread and hands them to Claude with the round. A variant that revises one on an earlier prototype
+// question (its `previous`) lists every version, and shows any of them side by side with it.
+// Identity, polling and actions come from core.js.
 // A variant is untrusted: an html one runs framed from /assets/ in a sandbox with no same origin, and only the pin
 // helper inside it (proto-pin.js) talks to this page, by postMessage; every message is checked here before use.
 (() => {
@@ -16,7 +18,7 @@
   const WHOLE = { x: 0, y: 0, w: 100, h: 100 };
   const isHtml = v => /\.html$/.test(v?.asset || "");
   const params = new URLSearchParams(location.hash.slice(1));
-  const ui = { variant: params.get("v") || "", annotate: false, draft: null, active: params.get("n") || "", ready: false, pinsKey: "", listKey: "" };
+  const ui = { variant: params.get("v") || "", with: params.get("with") || "", annotate: false, draft: null, active: params.get("n") || "", ready: false, pinsKey: "", listKey: "" };
   Core.context = () => ({ view: "prototype" });
 
   // ---------- the page ----------
@@ -35,8 +37,18 @@
   const hint = E("p", "vp-hint"); hint.id = "vp-hint";
   const body = E("div", "vp-body");
   const stage = E("section", "vp-stage"); stage.id = "vp-stage"; stage.setAttribute("role", "tabpanel");
+  // Side by side: an earlier or later version of the shown variant (cmpPane) beside it (mainPane, where notes pin).
+  const capText = () => E("span", "vp-pane-cap-t");
+  const cmpPane = E("figure", "vp-pane vp-pane-cmp"), cmpCap = E("figcaption", "vp-pane-cap"), cmpView = E("div", "vp-view");
+  const cmpClose = btn("vf-btn vf-btn-ghost vf-btn-sm vp-cmp-close", "Close side by side");
+  cmpCap.append(capText(), cmpClose); cmpPane.append(cmpCap, cmpView); cmpPane.hidden = true;
+  const mainPane = E("div", "vp-pane vp-pane-main"), mainCap = E("p", "vp-pane-cap"), mainView = E("div", "vp-view");
+  mainCap.append(capText()); mainCap.hidden = true; mainPane.append(mainCap, mainView);
+  stage.append(cmpPane, mainPane);
   const side = E("aside", "vp-side"); side.setAttribute("aria-label", "Notes");
   const qText = E("p", "vp-qtext");
+  const versNav = E("nav", "vp-versions"), versH = E("h2", "vf-h2 vp-versions-h"), versList = E("ol", "vp-vers");
+  versNav.append(versH, versList); versNav.hidden = true;
   const composer = E("form", "vp-composer"); composer.hidden = true; composer.setAttribute("aria-label", "New note");
   const where = E("p", "vp-where");
   const ta = E("textarea", "vf-ta vp-ta"); ta.id = "vp-note"; ta.rows = 3; ta.maxLength = 2000;
@@ -51,7 +63,7 @@
   const notesH = E("h2", "vf-h2 vp-notes-h");
   const notes = E("ol", "vp-notes"); notes.setAttribute("aria-label", "Notes on this variant");
   const empty = E("p", "vf-empty vp-empty");
-  side.append(qText, wholeBtn, composer, notesH, notes, empty);
+  side.append(qText, versNav, wholeBtn, composer, notesH, notes, empty);
   body.append(stage, side);
   const missing = E("p", "vf-empty vp-missing"); missing.hidden = true;
   root.append(top, bar, hint, body, missing);
@@ -67,13 +79,11 @@
   const current = q => variants(q).find(v => v.id === ui.variant) || variants(q)[0] || null;
   const notesOn = vid => (S().annotations || []).filter(a => a.qid === qid && a.variant === vid);
   const mine = () => Core.answersFor(qid).find(a => a.cid === Core.me.cid && !a.claude && !a.option);
-  const ago = ts => {
-    const s = Math.max(0, Math.round((S().serverTime || Date.now() / 1000) - ts));
-    return s < 60 ? "just now" : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : `${Math.floor(s / 86400)} d ago`;
-  };
   const say = text => { live.textContent = ""; requestAnimationFrame(() => { live.textContent = text; }); };
   function readOnly(q) {
     const r = (S().rounds || []).find(x => x.n === q.round);
+    if (S().youRemoved) return "The host removed you from this session.";
+    if (S().ended && !Core.me.isOwner) return "This session has ended.";
     if (Core.lockOf(qid)) return "Locked. The choice is decided.";
     if (!r) return "This question's round has not opened yet.";
     if (r.status === "sent" || r.status === "working") return "This round went to Claude, so picks wait for the next one.";
@@ -85,14 +95,15 @@
     const mode = p.theme || t.mode || "system";
     root.dataset.theme = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
     root.dataset.accent = p.accent || t.accent || "teal";
+    root.dataset.palette = p.palette || t.palette || "default";
   }
 
   // ---------- variant switcher ----------
   function selectVariant(vid, { focus = false } = {}) {
     if (vid === ui.variant) return;
     closeComposer(); // its spot was on the variant being left
-    ui.variant = vid; ui.active = "";
-    const h = new URLSearchParams(location.hash.slice(1)); h.set("v", vid); h.delete("n");
+    ui.variant = vid; ui.active = ""; ui.with = ""; // another variant has its own versions
+    const h = new URLSearchParams(location.hash.slice(1)); h.set("v", vid); h.delete("n"); h.delete("with");
     history.replaceState(null, "", location.pathname + "#" + h);
     render();
     if (focus) tabs.querySelector(`[data-v="${CSS.escape(vid)}"]`)?.focus();
@@ -140,7 +151,7 @@
       let loads = 0;
       f.addEventListener("load", () => { if (++loads > 1 && frame === f) leftPage(v); });
       f.src = `/assets/${v.asset}?pin=1`;
-      stage.replaceChildren(f);
+      mainView.replaceChildren(f);
     } else {
       const wrap = E("div", "vp-imgwrap");
       img = E("img", "vp-img"); img.alt = `Prototype variant ${v.label}`; img.src = `/assets/${v.asset}`;
@@ -154,7 +165,7 @@
         const x = Math.min(94, Math.max(0, Math.round((px - 3) * 100) / 100)), y = Math.min(94, Math.max(0, Math.round((py - 3) * 100) / 100));
         openComposer({ selector: "img", rect: { x, y, w: 6, h: 6 } }, "this spot on the picture");
       });
-      stage.replaceChildren(wrap);
+      mainView.replaceChildren(wrap);
     }
   }
   function leftPage(v) {
@@ -164,8 +175,83 @@
     const again = btn("vf-btn vf-btn-ghost vf-btn-sm", "Load it again");
     again.onclick = () => { shownVariant = ""; render(); };
     note.append(E("p", null, "This variant tried to leave its page, so it is not shown."), again);
-    stage.replaceChildren(note);
+    mainView.replaceChildren(note);
   }
+
+  // ---------- versions ----------
+  const vname = x => `v${x.n} · ${x.qid} · ${x.label}`;
+  /** A link to another question's prototype page opens a new tab, as the question's own links do; one to this page
+   *  only changes the fragment. */
+  const versionLink = (a, to, params) => {
+    a.href = Core.pageLink(`/proto/${to}`, params);
+    if (to !== qid) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
+    return a;
+  };
+  /** The shown variant's versions, when it has more than one: each links to its own page, the shown one and the
+   *  current one marked, and Side by side shows the newer of the two in the main pane with the older beside it. */
+  function renderVersions(v, line, me) {
+    versNav.hidden = !me;
+    if (!me) return;
+    versH.textContent = `Version ${me.n} of ${line.length}`;
+    versNav.setAttribute("aria-label", `Versions of ${v.label}`);
+    const key = JSON.stringify([line, me.n]);
+    if (versList._key === key) return;
+    versList._key = key;
+    versList.replaceChildren(...line.map(x => {
+      const li = E("li", "vp-ver-row"), a = versionLink(E("a", "vp-ver", vname(x)), x.qid, { v: x.variant });
+      li.append(a);
+      if (x === me) a.setAttribute("aria-current", "page");
+      if (x.current) li.append(E("span", "vp-ver-cur", "Current"));
+      if (x !== me) {
+        const [newer, older] = x.n > me.n ? [x, me] : [me, x], c = E("a", "vf-btn vf-btn-ghost vf-btn-sm vp-ver-cmp", "Side by side");
+        versionLink(c, newer.qid, { v: newer.variant, with: `${older.qid}.${older.variant}` });
+        c.setAttribute("aria-label", `Show version ${x.n} beside version ${me.n}`);
+        li.append(c);
+      }
+      return li;
+    }));
+  }
+  /** The version named by `with` beside the shown one: framed with no pin helper, so it takes no notes and nothing
+   *  it posts is read; an html one runs in the same sandbox as the variant, and one that leaves its page is dropped. */
+  let cmpShown = "";
+  function mountCompare(other) {
+    const key = other ? `${other.qid}.${other.variant}.${other.asset}` : "";
+    if (other) cmpCap.firstChild.textContent = vname(other) + (other.current ? " · Current" : "");
+    if (cmpShown === key) return;
+    cmpShown = key;
+    stage.dataset.split = String(!!other);
+    cmpPane.hidden = mainCap.hidden = !other;
+    if (!other) { cmpView.replaceChildren(); return; }
+    if (isHtml(other)) {
+      const f = E("iframe", "vp-cmp-frame");
+      f.setAttribute("sandbox", "allow-scripts"); // plus the asset's own CSP sandbox; never allow-same-origin
+      f.setAttribute("referrerpolicy", "no-referrer");
+      f.title = `Version ${other.n}: ${other.label}`;
+      let loads = 0;
+      f.addEventListener("load", () => {
+        if (++loads > 1 && f.isConnected) cmpView.replaceChildren(E("p", "vp-left", "This version tried to leave its page, so it is not shown."));
+      });
+      f.src = `/assets/${other.asset}`;
+      cmpView.replaceChildren(f);
+    } else {
+      const im = E("img", "vp-cmp-img"); im.alt = `Version ${other.n}: ${other.label}`; im.src = `/assets/${other.asset}`;
+      cmpView.replaceChildren(im);
+    }
+  }
+  cmpClose.onclick = () => {
+    ui.with = "";
+    const h = new URLSearchParams(location.hash.slice(1)); h.delete("with");
+    history.replaceState(null, "", location.pathname + (h.toString() ? "#" + h : ""));
+    render();
+    say("Side by side is closed.");
+  };
+  // A version link to this same page only changes the address's fragment.
+  addEventListener("hashchange", () => {
+    const h = new URLSearchParams(location.hash.slice(1)), nv = h.get("v") || ui.variant;
+    if (nv !== ui.variant) closeComposer(); // a note being written stays while only the side-by-side version changes
+    ui.variant = nv; ui.with = h.get("with") || ""; ui.active = h.get("n") || "";
+    render();
+  });
   /** Numbered pins for the shown variant's notes (1 is the oldest), plus the draft's while a note is being written. */
   function pinsFor(v) {
     const list = notesOn(v.id).map((a, i) => ({ n: i + 1, selector: a.selector, rect: a.rect || WHOLE, active: a.id === ui.active }));
@@ -248,7 +334,7 @@
   // ---------- notes ----------
   function renderNotes(v) {
     const list = notesOn(v.id);
-    const key = JSON.stringify([v.id, ui.active, list.map(a => [a.id, a.text, a.name, a.cid, ago(a.ts)])]);
+    const key = JSON.stringify([v.id, ui.active, list.map(a => [a.id, a.text, a.name, a.cid, Core.since(a.ts)])]);
     notesH.textContent = `Notes on ${v.label} (${list.length})`;
     empty.textContent = "No notes on this variant yet. Turn on Annotate, then click the part you want to comment on.";
     empty.hidden = list.length > 0;
@@ -258,8 +344,8 @@
       const li = E("li", "vp-note" + (a.id === ui.active ? " vp-note-on" : ""));
       const b = btn("vp-note-btn");
       const head = E("span", "vp-note-head");
-      head.append(E("span", "vp-pin vp-pin-static", String(i + 1)), Core.avatar(a.cid, a.name, 20),
-        E("span", "vp-note-who", a.cid === Core.me.cid ? "You" : a.name), E("span", "vf-card-time", ago(a.ts)));
+      head.append(E("span", "vp-pin vp-pin-static", String(i + 1)), Core.avatar(a.cid, a.name, 22),
+        E("span", "vp-note-who", a.cid === Core.me.cid ? "You" : a.name), E("span", "vf-card-time", Core.since(a.ts)));
       b.append(head, E("span", "vp-note-text", a.text));
       b.setAttribute("aria-label", `Note ${i + 1} from ${a.cid === Core.me.cid ? "you" : a.name}: ${a.text}. Show it on the prototype.`);
       b.onclick = () => { ui.active = a.id; render(); send({ type: "focus", n: i + 1 }); };
@@ -289,6 +375,11 @@
     qText.textContent = q.text;
     renderTabs(q, v);
     mountStage(v);
+    const line = Core.versionsOf(qid, v.id), me = line.length > 1 ? line.find(x => x.qid === qid && x.variant === v.id) : null;
+    const [wq, wv] = ui.with.split("."), other = me ? line.find(x => x !== me && x.qid === wq && x.variant === wv) || null : null;
+    renderVersions(v, line, me);
+    mountCompare(other);
+    if (me) mainCap.firstChild.textContent = vname(me) + (me.current ? " · Current" : "");
     annotateBtn.setAttribute("aria-pressed", String(ui.annotate));
     annotateBtn.textContent = ui.annotate ? "Annotate: on" : "Annotate";
     root.dataset.annotate = String(ui.annotate);

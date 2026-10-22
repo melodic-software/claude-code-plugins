@@ -4,17 +4,19 @@
 // default, and opens by itself for the person whose request Claude just answered (not for someone with nothing new);
 // a Claude card reads "<Name> asked", the ask, a 1px line, "Claude", the answer, with ask and answer at one font size,
 // and a running request shows its progress line under "Claude"; in a row of option cards with 1- and 2-line labels and
-// 0 or 1 picks every "Choose" button's top is equal within 1 px at 1440 and 1024 wide.
+// 0 or 1 picks every "Choose" button's top is equal within 1 px at 1440 and 1024 wide; a question's stored context shows
+// right under its text, and a question without one shows none (F:30).
 //   node plugins/planning/shared/tests/ui_question_layout.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the approved spec (.work spec-question-screen.md: layout A, soft-rule cards, item 12 option
 // alignment, 1 px tolerance) and the texts this suite writes, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs, openClaude } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs, openClaude } = require("./browser_harness");
 
 const CHOICE = "Which payment method should checkout offer first?", TEXT = "Where should the order summary sit?";
 const ASK = "How do the big shops place the order summary?", ANSWER = "Most keep it in a right column on desktop.";
 const ASK2 = "And on phones?", LOCKQ = "Which side should the totals sit on?";
+const CTX = "Today the summary sits under the form, so on phones the total is off screen until the last step.";
 const OPTS = [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "A wallet such as PayPal, Apple Pay or Google Pay, whichever the shopper already has" },
   { id: "opt-3", label: "Bank transfer" }, { id: "opt-4", label: "Pay later in three parts, with no interest for the first month" }];
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
@@ -42,7 +44,7 @@ async function main() {
   try {
     const A = await s.start("qlayout");
     s.apply(A.dir, [{ op: "set-title", title: "Question layout checks" }, { op: "open-round", questions: [
-      q("Q1", CHOICE, { kind: "choice", options: OPTS }), q("Q2", TEXT, { kind: "text" }), q("Q3", LOCKQ, { kind: "text" })] }]);
+      q("Q1", CHOICE, { kind: "choice", options: OPTS }), { ...q("Q2", TEXT, { kind: "text" }), context: CTX }, q("Q3", LOCKQ, { kind: "text" })] }]);
     const owner = await rec.open(A.ownerUrl);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
     const ann = await rec.open(A.localUrl, { context: { viewport: { width: 1440, height: 900 } } });
@@ -59,6 +61,19 @@ async function main() {
     }
     await ann.setViewportSize({ width: 1440, height: 900 });
 
+    // ---------- F:30: the question's stored context, under its text ----------
+    const ctxOf = page => page.evaluate(() => {
+      const c = document.querySelector(".vf-qctx"), t = document.querySelector(".vf-qtext");
+      return { shown: !!c && !c.hidden && c.getClientRects().length > 0, text: c?.textContent.trim() || "",
+        under: !!c && !!t && c.getBoundingClientRect().top >= t.getBoundingClientRect().bottom - 1 };
+    });
+    await go(ann, TEXT);
+    const c2 = await ctxOf(ann);
+    ok("F:30: a question with a stored context shows it right under the question text", c2.shown && c2.text.startsWith(CTX) && c2.under, JSON.stringify(c2));
+    await go(ann, CHOICE);
+    const c1 = await ctxOf(ann);
+    ok("  and a question without one shows none", !c1.shown, JSON.stringify(c1));
+
     // ---------- (c) option cards: every Choose button in a row at one height ----------
     await go(ann, CHOICE);
     await go(bo, CHOICE);
@@ -70,17 +85,18 @@ async function main() {
       }
       for (const [w, h] of [[1440, 900], [1024, 768]]) {
         await ann.setViewportSize({ width: w, height: h });
-        await ann.waitForTimeout(150);
+        const still = await settled(ann, { rects: true });
         const r = await chooseSpread(ann);
         const mixed = r.lines.some(n => n === 1) && r.lines.some(n => n >= 2);
         ok(`${w} wide, ${picked ? "after picking (0 or 1 picks shown)" : "before picking"}: every Choose button in a row of 1- and 2-line cards has one top (within 1 px)`,
-          r.rows >= 1 && mixed && r.spread <= 1, JSON.stringify(r));
+          still && r.rows >= 1 && mixed && r.spread <= 1, JSON.stringify({ still, ...r }));
         if (picked) ok(`${w} wide: the feet read 1 pick or "No picks yet"`, r.feet.includes("1 person chose this") && r.feet.includes("No picks yet"), JSON.stringify(r.feet));
       }
     }
     await ann.setViewportSize({ width: 390, height: 844 });
+    const phoneStill = await settled(ann, { rects: true });
     const phone = await ann.evaluate(() => [...document.querySelectorAll(".vf-opts > .vf-opt")].map(li => Math.round(li.getBoundingClientRect().left)));
-    ok("390 wide: options stay one per row", new Set(phone).size === 1 && phone.length === OPTS.length + 1, JSON.stringify(phone));
+    ok("390 wide: options stay one per row", phoneStill && new Set(phone).size === 1 && phone.length === OPTS.length + 1, JSON.stringify({ still: phoneStill, phone }));
     await ann.setViewportSize({ width: 1440, height: 900 });
 
     // ---------- (b) the Claude section: folded by default, opens by itself on an unread result ----------
@@ -121,7 +137,7 @@ async function main() {
         askFs: fs(askBox.querySelector(".vf-cbox")), ansFs: fs(ansBox.querySelector(".vf-cbox")),
         rule: getComputedStyle(askBox).borderBottomWidth, order: askBox.compareDocumentPosition(ansBox) === Node.DOCUMENT_POSITION_FOLLOWING };
     });
-    ok("the card reads \"Ann (you) asked\", the ask, a 1px line, then \"Claude\" and the answer", card.askLbl === "Ann (you) asked" && card.ansLbl === "Claude" && card.rule === "1px" && card.order, JSON.stringify(card));
+    ok("the card reads \"You asked\", the ask, a 1px line, then \"Claude\" and the answer", card.askLbl === "You asked" && card.ansLbl === "Claude" && card.rule === "1px" && card.order, JSON.stringify(card));
     ok("ask and answer text have the same computed font-size", card.askFs === card.ansFs, JSON.stringify(card));
     await ann.evaluate(t => window.Core.request("Q2", "ask", t), ASK2);
     const req2 = await owner.evaluate(async t => {
@@ -143,16 +159,16 @@ async function main() {
     // ---------- the chat button never covers the end of the page ----------
     for (const [w, h] of [[1440, 900], [390, 844]]) {
       await ann.setViewportSize({ width: w, height: h });
-      await ann.waitForTimeout(200);
+      const still = await settled(ann, { rects: true });
       const hit = await ann.evaluate(() => {
         const sc = document.querySelector(".vf-scroll"); sc.scrollTop = sc.scrollHeight;
         const f = document.querySelector(".vf-fab").getBoundingClientRect();
         return [...document.querySelectorAll(".vf-clsec :is(button, a[href], textarea, input, select)")].filter(e => e.getClientRects().length).map(e => [e, e.getBoundingClientRect()])
           .filter(([, r]) => r.left < f.right && r.right > f.left && r.top < f.bottom && r.bottom > f.top).map(([e]) => e.className || e.textContent);
       });
-      ok(`${w}x${h}: scrolled to the bottom, the chat button covers no control in the Claude section`, hit.length === 0, JSON.stringify(hit));
+      ok(`${w}x${h}: scrolled to the bottom, the chat button covers no control in the Claude section`, still && hit.length === 0, JSON.stringify({ still, hit }));
     }
-    // ---------- the disabled composer's placeholder fits a phone's one line ----------
+    // ---------- the composer's placeholder before a pick fits a phone's one line (it works before a pick: the owner's call) ----------
     const cy = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
     await joinAs(cy, "Cy");
     await until(cy, t => document.querySelector(".vf-qtext")?.textContent === t, CHOICE);
@@ -161,7 +177,7 @@ async function main() {
       cx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
       return { text: ta.placeholder, need: Math.ceil(cx.measureText(ta.placeholder).width), room: Math.floor(ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)), disabled: ta.disabled };
     });
-    ok("390: the disabled composer's placeholder fits its line", fit.disabled && fit.need <= fit.room, JSON.stringify(fit));
+    ok("390: the composer's placeholder before a pick fits its line", !fit.disabled && fit.need <= fit.room, JSON.stringify(fit));
 
     // ---------- a lock and a last suggestion that go clear on another page without a reload ----------
     await ann.setViewportSize({ width: 1440, height: 900 });

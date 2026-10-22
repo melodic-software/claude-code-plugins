@@ -1,0 +1,39 @@
+diff --git a/plugins/sample-kit/README.md b/plugins/sample-kit/README.md
+index 2b3c4d5..6e7f8a9 100644
+--- a/plugins/sample-kit/README.md
++++ b/plugins/sample-kit/README.md
+@@ -30,3 +30,6 @@ Status
+
+ `sample-kit status` prints whether the last sync succeeded and how many
+ changes are waiting.
++
++`sample-kit status --json` prints the same as one JSON object,
++`{"ok": true, "pending": 0}`, for scripts.
+diff --git a/plugins/sample-kit/scripts/status.mjs b/plugins/sample-kit/scripts/status.mjs
+index 3c4d5e6..7f8a9b0 100644
+--- a/plugins/sample-kit/scripts/status.mjs
++++ b/plugins/sample-kit/scripts/status.mjs
+@@ -5,7 +5,11 @@ import { readState } from "./state.mjs";
+
+-export function status(dir) {
++export function status(dir, { json = false } = {}) {
+   const state = readState(dir);
+   const ok = state.lastSync?.result === "success";
+   const pending = state.queue.length;
++  if (json) {
++    console.log(JSON.stringify({ ok, pending }));
++    return;
++  }
+   console.log(`${ok ? "synced" : "not synced"}; ${pending} pending`);
+ }
+diff --git a/plugins/sample-kit/scripts/cli.mjs b/plugins/sample-kit/scripts/cli.mjs
+index 4d5e6f7..8a9b0c1 100644
+--- a/plugins/sample-kit/scripts/cli.mjs
++++ b/plugins/sample-kit/scripts/cli.mjs
+@@ -21,5 +21,5 @@ switch (command) {
+   case "status":
+-    status(process.cwd());
++    status(process.cwd(), { json: args.includes("--json") });
+     break;
+   case "sync":
+     await sync(process.cwd());

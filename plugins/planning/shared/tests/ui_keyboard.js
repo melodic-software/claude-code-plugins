@@ -17,7 +17,7 @@
 // to the invoking element, or where it was when a shortcut opened it), the server contract (session.py pick: one pick
 // per person) and core.js's join dialog rule (it stays open until the join succeeds), never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs } = require("./browser_harness");
 
 const PRESSES = 30;
 const DESK = { viewport: { width: 1440, height: 900 } };
@@ -26,6 +26,16 @@ const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const q = (id, text, format) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format });
 
 const describe = () => { const a = document.activeElement; return a ? `${a.tagName.toLowerCase()}.${[...a.classList].join(".")} "${(a.getAttribute("aria-label") || a.textContent || "").trim().replace(/\s+/g, " ").slice(0, 30)}"` : "nothing"; };
+/** In the page: true once the tour ring has stopped moving and is drawn round `sel`, its box the target's grown by 4 px a
+ *  side and kept 4 px inside the page (placeTour), within 2 px. Read in one go, so no re-layout falls between the two. */
+const ringOnTarget = sel => {
+  const g = document.querySelector(".vf-tour-ring"), el = document.querySelector(sel);
+  if (!el || g.getAnimations().length) return false;
+  const ring = g.getBoundingClientRect(), R = document.querySelector(".app").getBoundingClientRect(), r = el.getBoundingClientRect();
+  const near = (a, b) => Math.abs(a - b) <= 2;
+  return near(ring.left, Math.max(R.left + 4, r.left - 4)) && near(ring.top, Math.max(R.top + 4, r.top - 4))
+    && near(ring.right, Math.min(R.right - 4, r.right + 4)) && near(ring.bottom, Math.min(R.bottom - 4, r.bottom + 4));
+};
 const shownSel = sel => { const el = document.querySelector(sel); return !!el && !el.hidden && el.getClientRects().length > 0 && (el.tagName !== "DIALOG" || el.open); };
 
 /** Tab then Shift+Tab, PRESSES each; the first press per direction that leaves the surface, or none. */
@@ -276,9 +286,11 @@ async function main() {
     await until(gus, () => (window.Core.snapshot().cards.Q2 || []).some(c => c.ref === "p:host"));
     async function swept(page, name, { scope, open, close } = {}) {
       try { if (open) await open(); } catch (e) { ok(`Tab sweep, ${name}: the view opens`, false, String(e.message).split("\n")[0]); return; }
-      await page.waitForTimeout(250);
+      // Swept once the view holds still: each control's resting look is the baseline its focus ring is told from.
+      const still = await settled(page, { rects: true });
       const r = await sweep(page, scope);
-      ok(`Tab sweep, ${name}: all ${r.total} controls take focus from Tab`, r.total > 0 && r.missed.length === 0, `${r.missed.length} missed: ${r.missed.slice(0, 6).join(", ")}`);
+      ok(`Tab sweep, ${name}: all ${r.total} controls take focus from Tab`, still && r.total > 0 && r.missed.length === 0,
+        `${still ? "" : "not settled; "}${r.missed.length} missed: ${r.missed.slice(0, 6).join(", ")}`);
       ok(`Tab sweep, ${name}: each shows a focus ring`, r.noRing.length === 0, r.noRing.slice(0, 6).join(", "));
       ok(`Tab sweep, ${name}: each is on screen and not covered when focused`, r.hidden.length === 0, r.hidden.slice(0, 6).join(", "));
       if (close) await close();
@@ -310,6 +322,50 @@ async function main() {
     await swept(pia, "chat sheet (phone)", { scope: "section.vf-chat", open: () => pia.locator(".vf-fab").click(), close: esc(pia) });
     await swept(phoneOwner, "More sheet (phone)", { scope: ".vf-moresheet", open: tab(phoneOwner, "More"), close: esc(phoneOwner) });
     await swept(phoneOwner, "owner Host view (phone)", { open: async () => { await tab(phoneOwner, "More")(); await phoneOwner.locator(".vf-msitem", { hasText: "Host view" }).click(); } });
+    // One person, two tabs on two questions: the phone tab on the guest's question and hidden, the desktop tab on another
+    // and focused after it. The host shows on the desktop tab's question only (the tab focused or shown last), so the
+    // guest's page never says "The host is on this question" while it is sampled every 250 ms, whichever tab beats last.
+    const piaQ = await pia.evaluate(() => document.querySelector(".vf-qtext")?.textContent);
+    const qidOf = (page, text) => page.evaluate(t => window.Core.state.questions.find(x => x.text === t)?.id, text);
+    const phoneQ = await qidOf(phoneOwner, piaQ), deskQ = await qidOf(owner, "Did you mean this button?"); // Gus is there already, so the tour below has its own question
+    await phoneOwner.evaluate(id => window.Core.setFocus(id), phoneQ);
+    await phoneOwner.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }); document.dispatchEvent(new Event("visibilitychange")); });
+    await owner.evaluate(id => { window.Core.setFocus(id); window.dispatchEvent(new Event("focus")); }, deskQ);
+    const hostQ = () => pia.evaluate(() => window.Core.owner()?.q);
+    const settledOnDesk = await until(pia, id => window.Core.owner()?.q === id, deskQ, 10000);
+    const samples = [];
+    for (let i = 0; i < 24; i++) { samples.push([await hostQ(), await pia.evaluate(() => !document.querySelector(".vf-onit").hidden)]); await pia.waitForTimeout(250); }
+    const flips = samples.filter(([q, shown]) => q !== deskQ || shown).length;
+    ok("a host with two tabs shows on the question of the tab focused last, never flipping", phoneQ && deskQ && phoneQ !== deskQ && settledOnDesk && flips === 0,
+      `phone on ${phoneQ}, desktop on ${deskQ}, settled: ${settledOnDesk}, ${flips} of 24 samples off the desktop's question or showing the host here`);
+    // The phone is used again and locked, while the desktop window keeps focus and fires nothing: the phone holds the newer
+    // focus time but is hidden, so the host stays on the desktop's (visible) question.
+    await phoneOwner.evaluate(() => {
+      const show = state => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state }); document.dispatchEvent(new Event("visibilitychange")); };
+      show("visible"); setTimeout(() => show("hidden"), 1500);
+    });
+    await phoneOwner.waitForTimeout(4500); // the shown beat, the hidden one, and a regular beat after it
+    const locked = [];
+    for (let i = 0; i < 24; i++) { locked.push(await hostQ()); await pia.waitForTimeout(250); }
+    const lockedOff = locked.filter(x => x !== deskQ).length;
+    ok("  and a locked phone used after the desktop does not take the host off the desktop's question", lockedOff === 0,
+      `${lockedOff} of 24 samples off the desktop's question (${[...new Set(locked)].join(", ")})`);
+    // Both tabs on screen: the phone shown first, the desktop focused 3 s later. From then on every phone beat reaches the
+    // server 5 s late, so its age of the same focus arrives stale; the phone's focus must stay where its first beat put it.
+    await phoneOwner.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" }); document.dispatchEvent(new Event("visibilitychange")); });
+    await phoneOwner.waitForTimeout(2500);
+    await phoneOwner.route("**/api/heartbeat", async r => { await new Promise(res => setTimeout(res, 5000)); await r.continue().catch(() => {}); });
+    await owner.waitForTimeout(500);
+    await owner.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await pia.waitForTimeout(9000); // a delayed phone beat lands
+    const late = [];
+    for (let i = 0; i < 24; i++) { late.push(await hostQ()); await pia.waitForTimeout(250); }
+    const lateOff = late.filter(x => x !== deskQ).length;
+    ok("  and a phone's late beats do not move its earlier focus past the desktop's", lateOff === 0,
+      `${lateOff} of 24 samples off the desktop's question (${[...new Set(late)].join(", ")})`);
+    await phoneOwner.unroute("**/api/heartbeat");
+    // Closed, so the tour below starts with no one else on that question and moves its target only when it means to.
+    await phoneOwner.close();
 
     // ---------- triage 4: the first-visit tour (optional, skippable, re-opened from Help, remembered by the `tour` pref) ----------
     const tia = await rec.open(A.localUrl, { context: DESK });
@@ -322,29 +378,37 @@ async function main() {
     // transitions), and still lands on the step's target: its box is the target's grown by 4 px a side (paintTour).
     ok("the tour ring transitions translate only, never a layout property", await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty) === "translate",
       await tia.evaluate(() => getComputedStyle(document.querySelector(".vf-tour-ring")).transitionProperty));
+    const alone = await until(tia, () => document.querySelector(".vf-onit").hidden, null, 10000); // no one else on this question
     await tia.click(".vf-tour-row .vf-btn-primary");
-    await tia.evaluate(() => Promise.all(document.querySelector(".vf-tour-ring").getAnimations().map(a => a.finished.catch(() => null)))); // the ring's move ends
-    const ringFit = await tia.evaluate(() => {
-      const ring = document.querySelector(".vf-tour-ring").getBoundingClientRect(), R = document.querySelector(".app").getBoundingClientRect();
-      // The target is the element the ring was drawn round: the largest one whose box, grown by 4 px and kept 4 px
-      // inside the page, matches the ring's within 2 px.
-      const near = (a, b) => Math.abs(a - b) <= 2;
-      return [...document.querySelectorAll(".app *")].some(el => {
-        if (el.closest(".vf-tour")) return false;
-        const r = el.getBoundingClientRect();
-        return r.width > 0 && near(ring.left, Math.max(R.left + 4, r.left - 4)) && near(ring.top, Math.max(R.top + 4, r.top - 4))
-          && near(ring.right, Math.min(R.right - 4, r.right + 4)) && near(ring.bottom, Math.min(R.bottom - 4, r.bottom + 4));
-      });
-    });
-    ok("after Next the ring has moved onto the next step's target", ringFit);
+    ok("after Next the ring has moved onto the next step's target", await until(tia, ringOnTarget, ".vf-fmt"));
+    // The ring follows its target when the page re-lays-out under the open tour: another person arriving on this
+    // question shows "is on this question" above the options and pushes them down.
+    const fmtTop = () => tia.evaluate(() => document.querySelector(".vf-fmt").getBoundingClientRect().top);
+    const top0 = await fmtTop();
+    await openQ(gus, await tia.textContent(".vf-qtext"))();
+    const pushed = await until(tia, () => !document.querySelector(".vf-onit").hidden);
+    ok("  and stays on it when the page moves it", alone && pushed && await fmtTop() > top0 && await until(tia, ringOnTarget, ".vf-fmt"),
+      `alone on the question before: ${alone}, "on this question" shown after: ${pushed}`);
     let escaped = 0;
     for (let i = 0; i < PRESSES; i++) { await tia.keyboard.press(i % 2 ? "Shift+Tab" : "Tab"); if (!(await tia.evaluate(c => document.querySelector(c).contains(document.activeElement), card))) escaped++; }
     ok(`${PRESSES} Tab and Shift+Tab presses keep focus inside the tour`, escaped === 0, `${escaped} left it`);
-    let steps = 2; // the ring check above pressed Next once
-    while (steps < 10 && (await tia.evaluate(() => document.querySelector(".vf-tour-row .vf-btn-primary").textContent)) === "Next") { await tia.click(".vf-tour-row .vf-btn-primary"); steps++; }
-    await tia.click(".vf-tour-row .vf-btn-primary"); // Done
-    ok("Done ends the tour and the `tour` pref says done (server state)", await until(tia, () => document.querySelector(".vf-tour").hidden && window.Core.snapshot()?.me?.prefs?.tour === "done"), `${steps} steps`);
-    ok("the tour walks at least the questions, the answer, the answer box, others' answers, the chat and Help", steps >= 6, `${steps} steps`);
+    /** Every step's heading from here to Done, which ends the tour. */
+    const walk = async page => {
+      const seen = [];
+      for (let i = 0; i < 20; i++) {
+        seen.push(await page.textContent(".vf-tour-h"));
+        const last = (await page.textContent(".vf-tour-row .vf-btn-primary")) === "Done";
+        await page.click(".vf-tour-row .vf-btn-primary");
+        if (last) break;
+      }
+      return seen;
+    };
+    const steps = await walk(tia); // from the second step: the ring check above pressed Next once
+    ok("Done ends the tour and the `tour` pref says done (server state)", await until(tia, () => document.querySelector(".vf-tour").hidden && window.Core.snapshot()?.me?.prefs?.tour === "done"), steps.join(" | "));
+    // Follow-up 38: a guest's tour adds the Discussion, Ask Claude (and @Claude), and the Inbox; none of the host's steps.
+    const GUEST_STEPS = ["Your answer box", "Everyone's answers", "Discussion", "Ask Claude", "Chat with people", "Your Inbox", "Help is here"];
+    ok("a guest's tour walks the answer box, others' answers, the Discussion, Ask Claude, the chat, the Inbox and Help", GUEST_STEPS.every(h => steps.includes(h)), steps.join(" | "));
+    ok("  and none of the host's steps", !steps.some(h => ["Share the link", "Needs you", "Send the round"].includes(h)), steps.join(" | "));
     ok("once done, the first view stops offering the tour", await until(tia, () => document.querySelector(".vf-orient-tour").hidden));
     await tia.click(".vf-keysbtn");
     await tia.click(".vf-help-tour");
@@ -352,6 +416,28 @@ async function main() {
     await tia.keyboard.press("Escape");
     ok("Escape skips the tour, the pref says skipped, and focus goes back to the Help button", await until(tia, () => document.querySelector(".vf-tour").hidden
       && window.Core.snapshot()?.me?.prefs?.tour === "skipped" && document.activeElement?.classList.contains("vf-keysbtn")));
+
+    // Follow-up 38: the host's tour, from Help: Share, Needs you (Run and Approve) and Send, each on its real control.
+    await owner.click(".vf-keysbtn");
+    await owner.click(".vf-help-tour");
+    await until(owner, c => !!document.querySelector(c)?.offsetParent, card);
+    const hostSteps = [];
+    for (let i = 0; i < 20; i++) {
+      const h = await owner.textContent(".vf-tour-h");
+      // What the ring is drawn round once it stops moving: the control each host step names.
+      const at = await owner.waitForFunction(() => {
+        const g = document.querySelector(".vf-tour-ring");
+        if (g.getAnimations().length) return null;
+        const ring = g.getBoundingClientRect(), mid = [(ring.left + ring.right) / 2, (ring.top + ring.bottom) / 2];
+        return [[".vf-sharebtn", ".vf-bell", ".vf-round-cur .vf-send"].find(sel => { const r = document.querySelector(sel)?.getBoundingClientRect(); return r && r.width && Math.abs((r.left + r.right) / 2 - mid[0]) < 2 && Math.abs((r.top + r.bottom) / 2 - mid[1]) < 2; }) || ""];
+      }, null, { timeout: 8000 }).then(v => v.jsonValue()).then(v => v[0], () => "(the ring never stopped)");
+      hostSteps.push(`${h}@${at}`);
+      const last = (await owner.textContent(".vf-tour-row .vf-btn-primary")) === "Done";
+      await owner.click(".vf-tour-row .vf-btn-primary");
+      if (last) break;
+    }
+    ok("the host's tour rings Share, the Inbox for Needs you, and the round's Send", ["Share the link@.vf-sharebtn", "Needs you@.vf-bell", "Send the round@.vf-round-cur .vf-send"].every(x => hostSteps.includes(x)), hostSteps.join(" | "));
+    ok("  and skips a guest's Discussion and chat steps", !hostSteps.some(x => /^(Discussion|Chat with people)@/.test(x)), hostSteps.join(" | "));
 
     // animation-audit I4: once the round is sent, the current step's dot breathes a few times and stops (WCAG 2.2.2:
     // no auto-playing motion past 5 s beside other content).

@@ -1,0 +1,7 @@
+{
+  "class": "blocking",
+  "expected": "fail",
+  "scored": "main",
+  "defect": "the done-when criterion for a test of `status --json` is not delivered: the diff has no test",
+  "mentions": ["no test", "test is missing", "missing test", "without a test", "lacks a test", "test.*not (included|added|present|delivered)", "third (criterion|done-when)"]
+}

@@ -3,6 +3,30 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.19] - 2026-10-22
+
+### Changed
+
+- Synced the shared `exec-bash.mjs` launcher, which gains an opt-in `--fail-closed` flag. This plugin's hooks do not pass it, so their behavior is unchanged.
+
+## [0.19.18] - 2026-10-20
+
+### Fixed
+
+- The clean skill's destructive guard now gates only while a mutating clean run is open, tracked by a per-session run marker that `scan` and `scan-batch` never write, so it no longer blocks unrelated commands for the rest of the session.
+- On the Bash tool the guard matches each command's parsed words instead of the raw text, so destructive text inside a quoted argument (an issue comment body, a commit message) no longer blocks the command.
+- The run marker's idle timeout counts from the last run of one of the clean skill's mutating scripts (dry-run included) or acknowledged or destructive command, so ordinary shell calls, including ones that only name a script, no longer keep a marker alive after a run that skipped its close step, while a long dry-run or confirmation phase still reaches its apply gated.
+
+## [0.19.17] - 2026-10-20
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.19.16] - 2026-10-18
 
 ### Fixed

@@ -6,6 +6,7 @@ async page => { // the user journey in order on one page, no reload after phase 
   const PHASE = __PHASE__;
   const base = "http://127.0.0.1:__PORT__/";
   const state = async () => (await page.request.get(base + "api/state")).json();
+  const plainBeside = async re => { const a = (await state()).questions.activity, i = a.findIndex(e => re.test(e.text)), after = a.slice(i + 1); return i >= 0 && after.some(e => e.notes && !e.asks) && after.filter(e => e.asks).length === 1; }; // after the activity entry: a plain Notes reply and one that asks
   const events = async () => (await state()).responses.events;
   const last = async () => { const e = await events(); return e[e.length - 1]; };
   const sel = async () => page.evaluate(() => (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q || (document.querySelector('.sumbtn[aria-current="true"]') ? "summary" : null));
@@ -62,13 +63,23 @@ async page => { // the user journey in order on one page, no reload after phase 
     await pick("Q3"); await page.fill("#note", "Keep the cache small");
     await pick("Q4"); await page.fill("#note", "Challenge: Fails a build that runs past ten minutes on a slow machine?");
     const aa = await page.$('[data-acceptall="g2"]');
-    ok("Accept all offered on the group for the two opened questions", !!aa && /Accept all \(2\)/.test(aa ? await aa.textContent() : ""));
+    ok("Accept all on the group counts every open question, opened or not", !!aa && /Accept all \(3\)/.test(aa ? await aa.textContent() : ""), aa ? await aa.textContent() : "");
     await aa.click(); await page.waitForTimeout(200);
+    const dlgAll = await page.evaluate(() => document.getElementById("dlgBody").innerText);
+    ok("the all-questions dialog lists the unopened Q5 beside Q3 and names no unopened exclusion", /Q3/.test(dlgAll) && /Q5/.test(dlgAll) && !/you have not opened/.test(dlgAll) && /challenges a commitment: Q4/.test(dlgAll), dlgAll.replace(/\s+/g, " ").slice(0, 300));
+    ok("the all-questions dialog shows Q3's commitment as unconfirmed and Q3's full recommendation", /Commits you to, stays unconfirmed: Rebuilds the cache when the lock file changes/.test(dlgAll) && /Entries expire after fourteen days\./.test(dlgAll), dlgAll.replace(/\s+/g, " ").slice(0, 400));
+    await tap("#dlgCancel", 200);
+    // select Q3 and Q4 with the rail checkboxes: Accept selected takes just those
+    await page.check('[data-pick="Q3"]'); await page.check('[data-pick="Q4"]'); await page.waitForTimeout(150);
+    const sb = await page.$('[data-acceptsel="g2"]');
+    ok("two selected questions turn Accept all into Accept selected (2)", !!sb && /Accept selected \(2\)/.test(sb ? await sb.textContent() : "") && !(await page.$('[data-acceptall="g2"]')));
+    await sb.click(); await page.waitForTimeout(200);
     const dlg = await page.evaluate(() => document.getElementById("dlgBody").innerText);
-    ok("the dialog lists Q3 with its carried note", /Q3/.test(dlg) && /Note: Keep the cache small/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 200));
-    ok("the dialog leaves out the Challenge note and the unopened question, and says there is no batch undo", /challenges a commitment: Q4/.test(dlg) && /1 open question you have not opened/.test(dlg) && /cannot be undone as one step/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 300));
+    ok("the dialog lists Q3 with its carried note", /Q3/.test(dlg) && /Note: Keep the cache small/.test(dlg) && !/Q5/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 200));
+    ok("the dialog leaves out the Challenge note and says there is no batch undo", /challenges a commitment: Q4/.test(dlg) && /cannot be undone as one step/.test(dlg), dlg.replace(/\s+/g, " ").slice(0, 300));
     await tap("#dlgOk", 900);
     const acc = (await events()).filter(e => e.kind === "accept" && ["Q3", "Q4", "Q5"].includes(e.id));
+    ok("no commitment on Q3 is confirmed by the accept", !(await events()).some(e => e.kind === "confirm" && e.id === "Q3"));
     const drafts = await page.evaluate(() => Object.keys(localStorage).filter(k => /:draft:Q[34]$/.test(k)).map(k => k.slice(-2)).sort().join(","));
     ok("one accept for Q3 carrying its note, none for Q4; only Q3's draft is cleared", acc.length === 1 && acc[0].id === "Q3" && acc[0].text === "Keep the cache small" && drafts === "Q4", JSON.stringify(acc) + " drafts " + drafts);
 
@@ -207,13 +218,14 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.waitForTimeout(900); // SSE brings the research result, round 2 and the Notes reply
 
     // on the summary
-    ok("the notice shows on the summary: Claude replied in Notes, with Open Notes and All activity", await sel() === "summary" && /Claude replied in Notes/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Open Notes" && (await text("#notice [data-allact]")) === "All activity", await text("#notice"));
+    ok("a Claude reply to your note goes to the log and raises no notice", !/Claude replied in Notes/.test(await text("#notice")) && (await state()).questions.activity.some(e => e.notes && !e.asks && /Note reply saved/.test(e.text)), await text("#notice"));
+    ok("the notice shows on the summary: Claude posted in Notes, with Open Notes and All activity", await sel() === "summary" && /Claude posted in Notes/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Open Notes" && (await text("#notice [data-allact]")) === "All activity", await text("#notice"));
     const acts = (await state()).questions.activity, newest = acts[acts.length - 1].text;
     ok("the hold and status are gone and the Claude line falls back to the newest entry", !/Pending research/.test(await text('.qbtn[data-q="Q3"]')) && await page.$eval("#pendBtn", el => el.hidden) && (await text("#claudeLine")).startsWith(newest), await text("#claudeLine"));
     ok("the header derives Round 2 · Interview", (await text("#roundLbl")) === "Round 2 · Interview", await text("#roundLbl"));
     await tap("#notice [data-go]", 300);
-    ok("Open shows Claude's reply in Notes", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && /Yes, on track/.test(document.getElementById("fbody").innerText)));
-    ok("the notice moves on to Round 2 added, and Go names the question it opens", /Round 2 added: Q6, Q7/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go to Q6", await text("#notice"));
+    ok("Open shows Claude's reply in Notes", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && /Yes, on track/.test(document.getElementById("fbody").innerText) && /retry count stay at three/.test(document.getElementById("fbody").innerText)));
+    ok("the notice moves on to the reply on Q3, not to Round 2 added, and Go names the question it opens", /replied on Q3/i.test(await text("#notice")) && !/Round 2 added/.test(await text("#notice")) && (await text("#notice [data-go]")) === "Go to Q3", await text("#notice"));
     // #7755: the timestamp and separator dot on Claude's blue note reach 4.5:1 in the light theme
     await page.emulateMedia({colorScheme: "light"}); await page.waitForTimeout(100);
     const noteRatios = await page.$$eval(".nmsg.claude .hl time, .nmsg.claude .hl .dot", els => els.map(el => {
@@ -234,13 +246,14 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.selectOption("#filter", "answered"); await page.waitForTimeout(200);
     const ansSecs = await page.$$eval(".rail-list .sec", els => els.map(el => ({c: el.dataset.collapsed, n: [...el.querySelectorAll(".qbtn")].filter(b => b.offsetParent).length})));
     ok("the Answered filter expands every group that holds a match and shows its questions", ansSecs.length > 0 && ansSecs.every(s => s.c === "false" && s.n > 0), JSON.stringify(ansSecs));
+    await page.selectOption("#filter", "open"); await page.waitForTimeout(200); // Open hides the answered Q3
     await tap("#railBtn", 200);
     await tap("#notice [data-go]", 400);
-    ok("Go resets the filter, shows the rail and says so", await page.$eval("#filter", el => el.value) === "all" && !(await page.$eval("#layout", el => el.classList.contains("norail"))) && /Showing all to reveal Q6/.test(await text("#toast")), await text("#toast"));
-    ok("Go selects Q6 and moves focus to its heading", await sel() === "Q6" && await focused() === "qhead", await sel() + " " + await focused());
+    ok("Go resets the filter, shows the rail and says so", await page.$eval("#filter", el => el.value) === "all" && !(await page.$eval("#layout", el => el.classList.contains("norail"))) && /Showing all to reveal Q3/.test(await text("#toast")), await text("#toast"));
+    ok("Go selects Q3 and moves focus to its heading", await sel() === "Q3" && await focused() === "qhead", await sel() + " " + await focused());
 
     // commitments, page side
-    await arm("a"); await tap("[data-save]", 700);
+    await pick("Q6"); await arm("a"); await tap("[data-save]", 700);
     ok("the header counts commitments on accepted questions only", (await text("#assumeCount")) === "5 to confirm", await text("#assumeCount"));
     const inView = s => page.$eval(s, el => { const r = el.getBoundingClientRect(), v = document.getElementById("dscroll").getBoundingClientRect(); return r.top >= v.top - 2 && r.top < v.bottom; }).catch(() => false);
     await pick("Q6");
@@ -265,7 +278,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the Claude line opens Activity, newest first with times and question links, and clears the badge", panel.open && panel.title === "Activity" && panel.first.includes(all[all.length - 1].text) && panel.times === all.length && panel.refs > 0 && panel.badge, JSON.stringify(panel).slice(0, 200));
     const split = await page.evaluate(() => { const log = document.getElementById("actLog"); return {needs: document.getElementById("actNeeds").textContent, log: log ? log.querySelector("summary").textContent : "", open: log ? log.open : null, inLog: log ? [...log.querySelectorAll("li")].map(li => li.textContent) : []}; });
     const nn = +/\((\d+)\)/.exec(split.needs)[1], nl = +/\((\d+)\)/.exec(split.log)[1];
-    ok("Activity splits Needs you from a collapsed Log that holds the ledger churn", nn > 0 && nn + nl === all.length && split.open === false && split.inLog.some(t => /Added a retry note to Q1/.test(t)) && !split.inLog.some(t => /Round 2 added/.test(t)), JSON.stringify(split).slice(0, 240));
+    ok("Activity splits Needs you from a collapsed Log that holds the ledger churn, the added round and the reply to your note", nn > 0 && nn + nl === all.length && split.open === false && split.inLog.some(t => /Added a retry note to Q1/.test(t)) && split.inLog.some(t => /Round 2 added/.test(t)) && split.inLog.some(t => /Note reply saved/.test(t)), JSON.stringify(split).slice(0, 240));
     const seen = await page.evaluate(() => Object.keys(localStorage).filter(k => /:actSeen$/.test(k)).map(k => localStorage.getItem(k)).join(""));
     ok("the seen marker stores no entry text", seen.length > 0 && !seen.includes("Round 2 added"), seen.slice(0, 120));
     ok("the seen marker keys each entry by its seq", all.every(e => Number.isInteger(e.seq)) && all.every(e => JSON.parse(seen).includes("s" + e.seq)), seen.slice(0, 120));
@@ -278,7 +291,7 @@ async page => { // the user journey in order on one page, no reload after phase 
   if (PHASE === 4) {
     await page.waitForTimeout(900); // SSE brings Claude's confirm-commitments and the restatement
     const nt4 = await text("#notice");
-    ok("a restatement to confirm keeps the notice over the Notes reply that followed it", /restated the shared understanding/i.test(nt4) && !/Claude replied in Notes/.test(nt4) && (await text("#notice [data-go]")) === "Go to the summary" && (await state()).questions.notes.length > 0, nt4);
+    ok("a restatement to confirm keeps the notice over the asking Notes reply that followed it", /restated the shared understanding/i.test(nt4) && !/Claude replied in Notes/.test(nt4) && (await text("#notice [data-go]")) === "Go to the summary" && (await state()).questions.notes.length > 0, nt4);
 
     // Claude-side confirmation and Confirm all
     ok("Claude's confirmation leaves Q2's list, shows its reason and lowers the count", !(await page.$('#toConfirm [data-cq="Q2"]')) && /Q2 \(Confirmed in the terminal\)/.test(await text("#byClaude")) && (await text("#assumeCount")) === "3 to confirm", (await text("#assumeCount")) + " / " + await text("#byClaude"));
@@ -421,6 +434,12 @@ async page => { // the user journey in order on one page, no reload after phase 
       }
       ok("at " + w + " px the long Claude line and hold keep the page, Wrap up and the counts in the viewport", fit.every(f => f.scroll <= f.W && f.wrap && f.counts && f.line > 400), JSON.stringify(fit));
     }
+    // #8085: at 390x844, after load, the question title is fully on the first screen with the long Claude line in the header
+    await page.setViewportSize({width: 390, height: 844});
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(600);
+    const first = await page.evaluate(() => { const t = document.querySelector("main.detail h3"), r = t && t.getBoundingClientRect(), c = document.getElementById("claudeLine"); return {bottom: r ? Math.round(r.bottom) : null, scroll: scrollY, head: Math.round(document.querySelector("header.top").getBoundingClientRect().height), line: c.hidden ? 0 : Math.round(c.getBoundingClientRect().height), text: c.hidden ? 0 : document.getElementById("clText").textContent.length}; });
+    ok("at 390x844 the question title ends within the first screen with scroll at 0, the Claude line held to two lines", first.bottom !== null && first.bottom <= 844 && first.scroll === 0 && first.text > 400 && first.line < 60, JSON.stringify(first));
+    await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(200);
   }
   if (PHASE === 7) { // the shell cleared Q3's hold
     await page.waitForTimeout(900);
@@ -435,10 +454,11 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("once an event waits on Claude the pill says Not listening: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
     await page.evaluate(b => { window.__badge7 = b; }, await badge());
   }
-  if (PHASE === 14) { // the shell added Q9; the user answers it with their own text
+  if (PHASE === 14) { // the shell added Q9 and posted a Notes reply that asks; the user answers Q9 with their own text
     await page.waitForSelector('.qbtn[data-q="Q9"]', {state: "attached", timeout: 5000});
     const nq = await page.evaluate(() => { const t = document.getElementById("needToast"); return {hidden: t.hidden, text: t.innerText}; });
-    ok("a new Needs-you entry raises a dismissible toast naming it", !nq.hidden && /Q9/.test(nq.text) && /Dismiss/.test(nq.text), JSON.stringify(nq));
+    ok("an added question goes to the log and raises no toast", !/Added Q9/.test(nq.text) && (await state()).questions.activity.some(e => e.added && !e.asks && /Added Q9/.test(e.text)), JSON.stringify(nq));
+    ok("a new Needs-you entry raises a dismissible toast naming it", !nq.hidden && /Claude posted in Notes/.test(nq.text) && /Dismiss/.test(nq.text), JSON.stringify(nq));
     await page.evaluate(() => {
       window.__np = {asked: 0, made: []};
       window.Notification = class { constructor(t, o) { window.__np.made.push((o || {}).body || t); } static permission = "default"; static requestPermission() { window.__np.asked++; window.Notification.permission = "granted"; return Promise.resolve("granted"); } };
@@ -455,9 +475,10 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the own answer on Q9 is saved from the page with the note still focused", own.id === "Q9" && own.kind === "own" && own.text === "what are the patterns?", JSON.stringify(own));
     await setHidden(true); // phase 15's revision lands on a hidden tab
   }
-  if (PHASE === 15) { // the shell revised Q9's recommendation in response to that own text
+  if (PHASE === 15) { // the shell revised Q9's recommendation in response to that own text, then posted a Notes reply that asks
     await page.waitForTimeout(900);
     ok("a Needs-you entry on a hidden tab raises the browser notification the user enabled", await page.evaluate(() => window.__np.made.length) >= 1, JSON.stringify(await page.evaluate(() => window.__np)));
+    ok("the revision on a hidden tab goes to the log and raises no notification", !(await page.evaluate(() => window.__np.made)).some(t => /Revised Q9/.test(t)), JSON.stringify(await page.evaluate(() => window.__np)));
     await setHidden(false); await page.waitForTimeout(900);
     await pick("Q9");
     ok("the revision sets the own answer aside: the rail reads Open and the card says the answer no longer counts", (await text('.qbtn[data-q="Q9"] .chip')) === "Open" && /Own answer: .*aside\. It no longer counts\./.test(await text("#cur")) && !(await page.$('[data-act="reopen"]')), (await text('.qbtn[data-q="Q9"] .chip')) + " / " + await text("#cur"));
@@ -542,7 +563,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     const df = await page.evaluate(() => { const d = document.getElementById("reDiff"); return d ? {head: d.querySelector("b").textContent, sec: [...d.querySelectorAll("h5")].map(h => h.textContent).join(), del: [...d.querySelectorAll("del")].map(x => x.textContent.trim()).join("|"), ins: [...d.querySelectorAll("ins")].map(x => x.textContent.trim()).join("|")} : null; });
     ok("the restatement shows a line diff against the newest confirmed rev", !!df && /rev 2/.test(df.head) && df.sec === "Constraints" && /Builds stop at ten minutes\./.test(df.del) && /share one cache/.test(df.ins), JSON.stringify(df));
     ok("after the wrap-up the banner is not shown, since Confirm is gone", await page.$eval("#reBanner", el => el.hidden));
-    const sum = await page.evaluate(() => {
+    const sumProbe = () => page.evaluate(() => {
       const broken = [], tbl = document.querySelector("table.sum");
       tbl.querySelectorAll("td, th").forEach(c => {
         const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
@@ -556,7 +577,16 @@ async page => { // the user journey in order on one page, no reload after phase 
       return {broken, n: rows.length, empty: rows.filter(r => !r.cells[2].textContent.trim()).length, chip: Math.max(...[...tbl.querySelectorAll(".ref b")].map(b => b.getBoundingClientRect().height)),
         q5: (rows.find(r => r.cells[0].textContent.startsWith("Q5")) || {cells: [{}, {}, {}]}).cells[2].textContent, q9: (rows.find(r => r.cells[0].textContent.startsWith("Q9")) || {cells: [{}, {}, {}]}).cells[2].textContent};
     });
+    const sum = await sumProbe();
     ok("at 1024 px no Decisions cell breaks inside a word and each id chip stays on one line", sum.n > 5 && sum.broken.length === 0 && sum.chip < 24, JSON.stringify(sum));
+    // #8085: at 390 px the cells still wrap only at word boundaries, a long token scrolls the table's own container, and the page stays put
+    await page.setViewportSize({width: 390, height: 844}); await page.waitForTimeout(300);
+    const sum390 = await sumProbe(), cells390 = await page.evaluate(() => {
+      const bad = [...document.querySelectorAll("table.sum th, table.sum td, table.sum td *")].filter(c => { const s = getComputedStyle(c); return s.wordBreak === "break-all" || s.overflowWrap === "anywhere"; }).length;
+      return {bad, page: document.scrollingElement.scrollWidth, W: innerWidth};
+    });
+    ok("at 390 px no Decisions cell breaks inside a word, has break-all or anywhere, or scrolls the page", sum390.n > 5 && sum390.broken.length === 0 && sum390.chip < 24 && cells390.bad === 0 && cells390.page <= cells390.W, JSON.stringify({sum390, cells390}));
+    await page.setViewportSize({width: 1024, height: 800}); await page.waitForTimeout(300);
     ok("every answered row shows what was decided", sum.empty === 0 && /Pin it to the lock file\./.test(sum.q5) && /^All of them/.test(sum.q9), JSON.stringify(sum));
     ok("after the wrap-up the summary shows no Confirm, Something's off or Confirm all", !(await page.$("[data-understand]")) && !(await page.$("[data-confirmall]")) && (await page.$$("#toConfirm [data-confirm]")).length > 0 && /Not confirmed; wrap-up already sent/.test(await text("#uDone")), await text("#restate"));
     ok("only one control is labeled Finish: export and end the session, and it sends the wrap-up event", await page.$$eval("button", bs => bs.filter(b => b.textContent.trim() === "Finish: export and end the session").map(b => b.hasAttribute("data-wrapup")).join()) === "true");
@@ -578,7 +608,8 @@ async page => { // the user journey in order on one page, no reload after phase 
   if (PHASE === 9) { // the shell added one activity entry while the tab was hidden
     await page.waitForTimeout(900);
     const base = await text("#title");
-    ok("a Needs-you entry that lands while the tab is hidden prefixes the title with a count, and the log entry beside it adds none", await page.title() === "(1) " + base && (await state()).questions.activity.some(e => /again while the tab was hidden/.test(e.text)), await page.title());
+    ok("an asking Notes reply that lands while the tab is hidden prefixes the title with a count, and the log entry beside it adds none", await page.title() === "(1) " + base && (await state()).questions.activity.some(e => /again while the tab was hidden/.test(e.text)), await page.title());
+    ok("a plain Notes reply that lands while the tab is hidden adds no count", await page.title() === "(1) " + base && await plainBeside(/again while the tab was hidden/), await page.title());
     await setHidden(false); await page.waitForTimeout(200);
     ok("showing the tab again restores the plain title", await page.title() === base, await page.title());
     ok("a note with no reply target reads Claude posted in Notes", /Claude posted in Notes/.test(await text("#needToast")), await text("#needToast"));
@@ -594,6 +625,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.waitForFunction(b => document.title === "(1) " + b, base, {timeout: 15000}).catch(() => {});
     await page.waitForTimeout(1500); // keep the period in which mark-seen would run, so a late reset still fails
     ok("an open Activity panel marking entries seen does not hide the title count", await page.title() === "(1) " + base, await page.title());
+    ok("with the panel open a plain Notes reply adds no count", await page.title() === "(1) " + base && await plainBeside(/with the panel open/), await page.title());
     await setHidden(false); await page.waitForTimeout(200);
   }
   if (PHASE === 12) { // reload so the page loads already hidden: no visibilitychange fires
@@ -605,10 +637,11 @@ async page => { // the user journey in order on one page, no reload after phase 
     const base = await text("#title");
     await page.waitForFunction(b => document.title === "(1) " + b, base, {timeout: 15000}).catch(() => {});
     ok("activity landing on a page loaded hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
+    ok("on a page loaded hidden a plain Notes reply adds no count", await page.title() === "(1) " + base && await plainBeside(/after the page loaded hidden/), await page.title());
     await setHidden(false); await page.waitForTimeout(200);
     const sent = await post({kind: "note", text: "first note"});
     await page.request.get((await page.evaluate(() => location.origin)) + "/api/wait?after=0&timeout=1", {headers: {"X-Interview-Token": await token()}}); // delivers it: a wake is in flight
-    await page.waitForTimeout(300);
+    await until(() => /^Claude is working on /.test(document.getElementById("workLine").textContent), 5000); // the page has seen the delivery, the state queued() reads
     ok("the first note posted", sent.ok(), sent.status());
     await page.click("#title"); await page.keyboard.press("l"); await page.click("#flyClose").catch(() => {});
     await page.evaluate(() => document.querySelector('[data-panel="notes"]').click()); await page.waitForTimeout(300);

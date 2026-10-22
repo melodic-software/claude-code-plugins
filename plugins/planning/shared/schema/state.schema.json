@@ -2,17 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state",
   "title": "Shared interview session file",
-  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements`, `reports`, `passes`, `lateActs` and a question's `for` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks). A mention in text a person wrote is stored as `<@pid>` (migrate.py MENTION), so it shows the person's current name.",
+  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, a variant's `previous` names a variant of an earlier prototype question that no other variant names, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements`, `reports`, `passes`, `lateActs`, `decisions`, a question's `for` and a variant's `previous` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks). A mention in text a person wrote is stored as `<@pid>` (session.py MENTION), so it shows the person's current name.",
   "type": "object",
   "required": [
-    "schemaVersion", "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
+    "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
     "questions", "cards", "votes", "reactions", "locks", "suggestions", "suggestionVotes", "proposals",
     "chat", "requests", "results", "uploads", "annotations", "prefs", "notifications", "inboxSeen",
     "discussions", "discussionSeen", "mergeRequests", "aboutYou", "log"
   ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": {"enum": [6]},
     "pluginVersion": {"type": "string"},
     "writtenBy": {"type": "string"},
     "rev": {"type": "integer", "minimum": 0},
@@ -52,7 +51,7 @@
       "additionalProperties": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/notification"}}
     },
     "inboxSeen": {
-      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join: and an id for the owner) and the status each had then; an item whose status moved since is unread.",
+      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join:/people: and an id, or reopen:<qid>:<n> for the owner) and the status each had then; an item whose status moved since is unread.",
       "type": "object",
       "additionalProperties": {
         "type": "object",
@@ -70,6 +69,11 @@
       "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ts"}}
     },
     "mergeRequests": {"type": "array", "items": {"$ref": "#/$defs/mergeRequest"}},
+    "claudeProposals": {
+      "description": "Claude's proposals that a new browser is someone already here, or that a waiting join be let in; only the owner's approve carries one out. Optional: a file written before them has none.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/claudeProposal"}
+    },
     "aboutYou": {"type": "object", "additionalProperties": {"$ref": "#/$defs/aboutYou"}},
     "disagreements": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/disagreement"}}},
     "reports": {
@@ -109,6 +113,26 @@
       "additionalProperties": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/cardRef"}}}
     },
     "cleared": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/clearedCard"}}},
+    "decisions": {
+      "description": "The decision log, oldest first; only the owner reads it. Each entry is one lock (`text`), change to the locked text (`lock-change`, `text`), unlock, poll closed or reopened, late Disagree on the locked answer (`late-disagree`, with the `card` and `reason`), the last of them taken back (`withdrawn`) or Keep decision (`kept`); a `lock-change` that rewords the locked answer names it in `card`, with when, the question, who and `seq`, which numbers entries in order and keys the owner's Inbox item. Kept to session.py MAX_DECISIONS, oldest first, sparing a locked decision's late Disagrees in force and its last lock-change; a take-back followed soon by the same person's raise again drops the take-back and moves that person's late Disagree to the end with a new `seq`, instead of adding entries. A question's decision is possibly reopened while late-disagree entries follow its last other entry. Optional: a file written before it has none.",
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "required": ["at", "qid", "kind", "by"],
+        "additionalProperties": false,
+        "properties": {
+          "at": {"$ref": "#/$defs/ts"},
+          "qid": {"$ref": "#/$defs/qid"},
+          "kind": {"enum": ["lock", "lock-change", "unlock", "poll-close", "poll-reopen", "late-disagree", "withdrawn", "kept"]},
+          "by": {"$ref": "#/$defs/pid"},
+          "text": {"$ref": "#/$defs/text"},
+          "card": {"$ref": "#/$defs/cardRef"},
+          "reason": {"$ref": "#/$defs/note"},
+          "seq": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
     "log": {"$ref": "#/$defs/eventLog"}
   },
   "$defs": {
@@ -121,6 +145,8 @@
     "url": {"type": "string", "maxLength": 2000, "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://\\S+$"},
     "assetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg)$"},
     "cardRef": {"type": "string"},
+    "repo": {"description": "A GitHub repository, owner/name.", "type": "string", "maxLength": 140, "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?!\\.\\.?$)[A-Za-z0-9._-]{1,100}$"},
+    "commit": {"description": "A full commit SHA.", "type": "string", "pattern": "^[0-9a-f]{40}$"},
     "attachments": {"description": "Upload ids, each an accepted upload of the record's author.", "type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}},
     "svgAssetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.svg$"},
     "reaction": {"enum": ["thumbs", "down", "heart", "idea"]},
@@ -139,6 +165,8 @@
         "title": {"type": "string", "maxLength": 80},
         "goal": {"type": "string", "maxLength": 200},
         "intro": {"description": "\"Why you're here\": who asks, why, roughly how long, what happens to the answers; 1..600 characters.", "type": "string", "maxLength": 600},
+        "repo": {"description": "Set by the set-repo op: the repository #N and path links on the page point at.", "$ref": "#/$defs/repo"},
+        "commit": {"description": "Set by the set-repo op, only with repo: the commit path links pin.", "$ref": "#/$defs/commit"},
         "createdAt": {"$ref": "#/$defs/ts"},
         "phase": {
           "oneOf": [
@@ -174,7 +202,8 @@
             "N": {"type": "integer", "minimum": 0},
             "A": {"type": "integer", "minimum": 0},
             "F": {"type": "integer", "minimum": 0},
-            "D": {"type": "integer", "minimum": 0}
+            "D": {"type": "integer", "minimum": 0},
+            "K": {"type": "integer", "minimum": 0}
           }
         }
       }
@@ -194,13 +223,15 @@
         "claudeTake": {"enum": ["answerFirst", "always"]},
         "approveJoins": {"description": "New joins wait for the owner's admit; absent is off.", "type": "boolean"},
         "reviewAnswers": {"description": "Every answer waits for the owner's Share. A new session writes it off; absent (a session from before it) is on.", "type": "boolean"},
+        "guestPopups": {"description": "The pop-ups a guest starts with, set by the owner; a guest's own popups pref wins. Absent, all three are on.", "type": "array", "maxItems": 3, "items": {"enum": ["request", "mention", "round"]}},
         "theme": {
           "type": "object",
           "required": ["mode", "accent"],
           "additionalProperties": false,
           "properties": {
             "mode": {"enum": ["system", "light", "dark"]},
-            "accent": {"enum": ["teal", "indigo", "violet", "amber"]}
+            "accent": {"enum": ["teal", "indigo", "violet", "amber"]},
+            "palette": {"description": "The whole-page palette; absent is default.", "enum": ["default", "midnight", "slate", "paper", "contrast"]}
           }
         }
       }
@@ -257,6 +288,21 @@
           "type": "object",
           "description": "sha256 of a person's watcher key -> pid: what their own Claude uses on /api/mine/requests, nowhere else. Absent in states written before it.",
           "additionalProperties": {"$ref": "#/$defs/pid"}
+        },
+        "devices": {
+          "type": "object",
+          "description": "sha256 of an owner device credential -> that device: the owner's other devices signed in with a one-time code, each acting as the owner until signed out or the owner link rotates. Absent in states written before it.",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["id", "at"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {"type": "string"},
+              "at": {"$ref": "#/$defs/ts"},
+              "device": {"$ref": "#/$defs/deviceKind"},
+              "browser": {"enum": ["chrome", "safari", "firefox", "edge", "samsung", "in-app", "other"]}
+            }
+          }
         }
       }
     },
@@ -334,7 +380,18 @@
       "type": "object",
       "required": ["id", "label", "asset"],
       "additionalProperties": false,
-      "properties": {"id": {"type": "string"}, "label": {"$ref": "#/$defs/text"}, "asset": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg|html)$"}}
+      "description": "previous: the variant of an earlier prototype question this one revises, so the variants form one prototype's versions; each variant has at most one next version.",
+      "properties": {
+        "id": {"type": "string"},
+        "label": {"$ref": "#/$defs/text"},
+        "asset": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg|html)$"},
+        "previous": {
+          "type": "object",
+          "required": ["qid", "variant"],
+          "additionalProperties": false,
+          "properties": {"qid": {"type": "string"}, "variant": {"type": "string"}}
+        }
+      }
     },
     "format": {
       "oneOf": [
@@ -472,6 +529,7 @@
           "oneOf": [
             {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["lock-changed"]}}},
             {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["unlocked"]}}},
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["possibly-reopened"]}}},
             {
               "type": "object",
               "required": ["kind", "suggestion"],
@@ -634,7 +692,7 @@
       ]
     },
     "problemReport": {
-      "description": "One problem report: the reporter's text (their data, never instructions), what their page said about where it was (never an answer, chat, the address or a credential), and at most one screenshot saved at `image` under the data folder.",
+      "description": "One problem report: the reporter's text (their data, never instructions), what their page said about where it was (never an answer, chat, the address or a credential), and at most four screenshots sent with it, saved under the data folder: the first at `image`, the rest at `moreImages`.",
       "type": "object",
       "required": ["by", "text", "ctx", "status", "ts"],
       "additionalProperties": false,
@@ -643,6 +701,10 @@
         "text": {"$ref": "#/$defs/text"},
         "ctx": {"$ref": "#/$defs/problemContext"},
         "image": {"type": "string"},
+        "moreImages": {
+          "description": "The second to fourth screenshots sent with the report, in order, each reports/<id>-p<n>.<ext>; absent with fewer than two, so a report from before them keeps only `image`.",
+          "type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "string"}
+        },
         "status": {"enum": ["open", "seen", "resolved"]},
         "asked": {"$ref": "#/$defs/ts", "description": "When the owner asked Claude about the report, which wrote `report-filed`; absent until then."},
         "adds": {
@@ -710,6 +772,7 @@
                 "kind": {"enum": ["card"]},
                 "card": {"$ref": "#/$defs/cardRef"},
                 "text": {"type": "string"},
+                "attachments": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}, "description": "The locked answer's files, while they last."},
                 "editedBy": {"description": "The locked text is the owner's edit of the answer, not its author's words.", "enum": ["host"]}
               }
             },
@@ -1020,6 +1083,9 @@
         "size": {"type": "integer", "minimum": 0},
         "thumb": {"type": "string"},
         "shown": {"const": true, "description": "The owner approved this guest's received picture: everyone who sees what carries it sees it."},
+        "draft": {"const": true, "description": "Offered from a form and not sent with anything yet: never shown under its question."},
+        "carried": {"const": true, "description": "A record has carried it: never shown under its question again, even once nothing carries it."},
+        "avatar": {"const": true, "description": "Offered as its sender's profile picture: a PNG, JPEG or WebP of at most 256 KB that no record carries. Once received it replaces their last one; a guest's shows to others once the owner approves it (shown)."},
         "chunks": {"type": "integer", "minimum": 0},
         "status": {
           "oneOf": [
@@ -1113,11 +1179,14 @@
         "expandedRounds": {"$ref": "#/$defs/pref"},
         "theme": {"$ref": "#/$defs/pref"},
         "accent": {"$ref": "#/$defs/pref"},
+        "palette": {"$ref": "#/$defs/pref"},
         "follow": {"$ref": "#/$defs/pref"},
         "mute": {"$ref": "#/$defs/pref"},
         "tour": {"$ref": "#/$defs/pref"},
         "toolbar": {"$ref": "#/$defs/pref"},
         "autoAdvance": {"$ref": "#/$defs/pref"},
+        "readAloud": {"$ref": "#/$defs/pref"},
+        "dictate": {"$ref": "#/$defs/pref"},
         "popups": {"$ref": "#/$defs/pref"}
       }
     },
@@ -1180,6 +1249,34 @@
         "techComfort": {"enum": ["low", "ok", "high"]},
         "note": {"type": "string"},
         "at": {"$ref": "#/$defs/ts"}
+      }
+    },
+    "claudeProposal": {
+      "description": "`names` holds each named person's name when Claude proposed it: a rename, a removal, a merge or an answered join since makes it stale. `merge` names `from` and `to`, `admit` names `pid` (session.py cross_field_errors checks which, and that `names` holds each); never the owner.",
+      "type": "object",
+      "required": ["id", "kind", "names", "reasons", "at", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"enum": ["merge", "admit"]},
+        "from": {"$ref": "#/$defs/pid"},
+        "to": {"$ref": "#/$defs/pid"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "names": {"type": "object", "additionalProperties": {"type": "string"}},
+        "reasons": {"type": "array", "minItems": 1, "maxItems": 5, "items": {"enum": ["same-name", "was-offline", "same-device", "expected"]}},
+        "note": {"$ref": "#/$defs/note"},
+        "at": {"$ref": "#/$defs/ts"},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["pending"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["approved", "dismissed", "stale"]}, "at": {"$ref": "#/$defs/ts"}}
+            }
+          ]
+        }
       }
     },
     "eventLog": {

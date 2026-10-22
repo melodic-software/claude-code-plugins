@@ -1,5 +1,14 @@
 # Changelog for the standards convention
 
+## 1.1.1 - 2026-10-21
+
+Wording only. The Paved paths section's readers bullets now name a writer: `reuse-or-replace` is
+the one skill that writes entries, and only after the user says yes, with other skills proposing
+entries to it. It also names `plan`, `implement` (only the entries for the concerns the paths it
+edits touch) and review as readers. The index shape, the resolution ladder and the migration rules
+are unchanged. An index at 1.1.0 is older than the bundled contract, so setup offers the guided
+migration.
+
 ## 1.1.0 - 2026-10-04
 
 Additive. The Surface column gains the recommended kind `paved-path`, and a new Paved paths

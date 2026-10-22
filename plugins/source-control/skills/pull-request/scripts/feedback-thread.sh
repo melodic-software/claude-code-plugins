@@ -44,23 +44,32 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
 repo=$(jq -er '.repository | select(test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))' "$threads_file") ||
   die 2 "the thread file names no repository"
 
-# Not under .github/ in any letter case, with no empty, . or .. segment, and
-# in a kept thread's scope: its path, a file in the plugins/<p>/ directory
-# it sits in (not under hooks/, .claude-plugin/ or a .claude/ directory, not
-# a CLAUDE.md or AGENTS.md, and not a .sh, .py, .mjs, .js or .ts file), or a
-# test file in its directory. The same rule as
+# Not under .github/ in any letter case, with no empty, . or .. segment, of
+# plain ASCII segments, and in a kept thread's scope: its path, a file in the
+# plugins/<p>/ directory it sits in that is no instruction path (CLAUDE.md,
+# AGENTS.md, .mcp.json, .lsp.json, .gitmodules, CODEOWNERS, a .claude or
+# .claude-plugin directory, a plugin's hooks, monitors or bin) and no script
+# or code file, a test file in its directory, or a path in its named_paths
+# (the files a write-access fix request named) in that same plugins/<p>/
+# directory that is no instruction path. The same rule as
 # .github/scripts/pr-unblock/thread-scope.mjs, which the promote step and
 # the reply job apply.
 allowed() {
   [[ ! ${1,,} =~ ^\.github(/|$) && ! $1 =~ (^|/)\.{0,2}(/|$) ]] &&
     jq -e --arg p "$1" '
       def dir: sub("[^/]*$"; "");
-      (if $p | test("^plugins/[^/]+/(hooks|\\.claude-plugin)/|\\.(sh|py|mjs|js|ts)$|(^|/)(claude|agents)\\.md$|(^|/)\\.claude/"; "i")
-       then null else first($p | capture("^(?<c>plugins/[^/]+/)").c) // null end) as $plugin
+      def plugin: first(capture("^(?<c>plugins/[^/]+/)").c) // null;
+      ($p | test("^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*$")) as $plain
+      | ($p | test("(^|/)((claude|agents)\\.md|\\.mcp\\.json|\\.lsp\\.json|\\.gitmodules|codeowners)$|(^|/)\\.claude(-plugin)?(/|$)|(^|/)plugins/[^/]+/(hooks|monitors|bin)(/|$)"; "i")) as $instruction
+      | (if $instruction or ($p | test("\\.(sh|bash|zsh|ps1|py|mjs|cjs|js|ts|mts|cts)$"; "i"))
+         then null else $p | plugin end) as $plugin
       | ($p | sub("^.*/"; "") | test("^(test_[^/]*\\.py|[^/]*_test\\.py|[^/]*\\.(test|spec)\\.[^/]+)$")) as $test
-      | any(.threads[].path; . == $p
-          or ($plugin != null and startswith($plugin))
-          or ($test and dir == ($p | dir)))' "$threads_file" >/dev/null
+      | (if $instruction then null else $p | plugin end) as $named
+      | $plain and any(.threads[]; .path as $t
+          | $t == $p
+          or ($plugin != null and ($t | startswith($plugin)))
+          or ($test and ($t | dir) == ($p | dir))
+          or ($named != null and ($t | plugin) == $named and any(.named_paths[]?; . == $p)))' "$threads_file" >/dev/null
 }
 
 cmd_list() {
@@ -98,7 +107,13 @@ cmd_record() {
 
   # The same rules the reply job enforces, so a refusal comes now, while the
   # skill can still fix its file: the note holds no control or direction
-  # character, no HTML comment, and nothing shaped like a GitHub token.
+  # character, no HTML comment, and nothing shaped like a GitHub token. Token
+  # shapes from
+  # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+  # and the stateless installation token (ghs_ then a JWT) from
+  # https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+  # whose header gh[opsur]_[A-Za-z0-9]{20} matches; this prefix check is not GitHub's recommended regex
+  # (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
   local d
   d=$(jq -ec --arg id "$id" '
     def path_line: type == "string" and test("^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*:[1-9][0-9]{0,6}$")
@@ -112,7 +127,7 @@ cmd_record() {
     | select(.note | explode | all(. == 9 or . == 10 or (. >= 32 and . != 127
         and (. < 128 or . > 159) and (. < 8203 or . > 8207) and (. < 8234 or . > 8238)
         and (. < 8288 or . > 8297) and . != 65279)))
-    | select(.note | test("<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|github_pat_") | not)
+    | select(.note | test("<!--|-->|gh[opsur]_[A-Za-z0-9]{20}|ghs_[0-9]+_|github_pat_") | not)
     | select(if .disposition == "VALID" then (.fix_sha | type == "string" and test("^[0-9a-f]{40}$"))
              else (.fix_sha // "") == "" end)
     | {thread: $id, disposition, evidence: (.evidence // []), fix_sha: (.fix_sha // ""), note}' "$real") ||

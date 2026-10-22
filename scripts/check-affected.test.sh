@@ -248,7 +248,43 @@ chmod +x "$repo/scripts/validate-plugins.sh"
 run PATH="$tmp/bin:$PATH" -- --uncommitted
 check "--uncommitted validates a plugin that only untracked files touch" \
   '[[ $RC == 1 && $ERR == *"FAIL validate-plugins"* && $ERR == *"validate-plugins ran: --only demo"* ]]'
-rm -rf "$repo/new-tool" "$repo/plugins" "$repo/scripts/validate-plugins.sh"
+rm -rf "$repo/plugins" "$repo/scripts/validate-plugins.sh"
+# The lane's sandbox masks dotfiles in the checkout with /dev/null, a device git
+# refuses to add; it is skipped and the regular untracked file still checked.
+if bwrap --bind / / --dev /dev true 2>/dev/null; then
+  chmod -x "$repo/new-tool"
+  : >"$repo/.bash_profile"
+  RC=0
+  OUT="$(cd "$repo" && bwrap --bind / / --dev /dev --ro-bind /dev/null "$repo/.bash_profile" --ro-bind /dev/null "$repo/notes.txt" \
+    bash scripts/check-affected.sh --uncommitted 2>"$tmp/err")" || RC=$?
+  ERR="$(cat "$tmp/err")"
+  check "--uncommitted skips untracked and tracked device nodes and still checks the regular file beside it" \
+    '[[ $RC == 1 && $ERR == *"new-tool starts with #!"* && $ERR != *"can only add regular files"* ]]'
+  rm -f "$repo/.bash_profile"
+  # The lane's sandbox can leave .git read-only; the snapshot must not write there.
+  RC=0
+  OUT="$(cd "$repo" && bwrap --bind / / --dev /dev --ro-bind "$repo/.git" "$repo/.git" \
+    bash scripts/check-affected.sh --uncommitted --base base 2>"$tmp/err")" || RC=$?
+  ERR="$(cat "$tmp/err")"
+  check "--uncommitted runs the checks with a read-only .git" \
+    '[[ $RC == 1 && $ERR == *"new-tool starts with #!"* && $ERR != *"Read-only file system"* ]]'
+else
+  ok "SKIP device-node and read-only .git cases (bwrap cannot start here)"
+fi
+rm -rf "$repo/new-tool"
+# The inner run lints from the scratch repository, with the rcfile beside the
+# outer copy of the script; an optional check the rcfile enables proves it read it.
+if grep -q -- --rcfile <<<"$(shellcheck --help 2>&1)"; then
+  cp "$SELF_DIR/../.shellcheckrc" "$repo/.shellcheckrc"
+  printf '#!/usr/bin/env bash\nif [ -n "${1:-}" ]; then echo hi; fi\n' >"$repo/lint-me.sh"
+  chmod +x "$repo/lint-me.sh"
+  run -- --uncommitted
+  check "--uncommitted lints a changed shell file with the repository's .shellcheckrc" \
+    '[[ $RC == 1 && $ERR == *"FAIL shellcheck"* && $ERR == *"SC2292"* && $ERR != *"unrecognized option"* ]]'
+  rm -f "$repo/.shellcheckrc" "$repo/lint-me.sh"
+else
+  ok "SKIP --uncommitted shellcheck case (no shellcheck with --rcfile here)"
+fi
 check "--uncommitted leaves HEAD, the index and the worktree list as they were" '[[ $(state) == "$before" ]]'
 
 run -- --bogus

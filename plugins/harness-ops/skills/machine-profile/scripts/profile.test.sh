@@ -216,6 +216,21 @@ refuse "blocked without a guard is refused" '{"key":"k","value":"v","verdict":"b
 refuse "set without supplied_by is refused" '{"key":"k","value":"v","verdict":"set","observed_by":"ls","mode":"observed"}'
 refuse "a credential value is refused" '{"key":"k","value":"ghp_abcdefghijklmnopqrstuvwxyz0123","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a new-format GitHub App token value is refused" '{"key":"k","value":"ghs'"_1234567_eyJFAKE.FAKEpayload.FAKEsignature"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+# A stateless installation token is ghs_ then a JWT of about 520 characters, with no
+# app id. The RS256 header encodes to exactly 36 alphanumerics; the kid header carries
+# a '-' 16 characters in, before any alphanumeric minimum is met. Payload and signature
+# are fake, and every token is built at run time.
+b64url() { printf '%s' "$1" | base64 | tr -d '\n=' | tr '+/' '-_'; }
+jwt_tail=".$(b64url '{"sub":"FAKE-not-a-real-token","iat":0}').$(b64url "$(printf 'FAKE signature, not a real token?>%.0s' {1..10})")"
+for header in "$(b64url '{"alg":"RS256","typ":"JWT"}')" "$(b64url '{"kid":"k?~>","alg":"RS256","typ":"JWT"}')"; do
+  for prefix in "ghs""_" "ghs""_123456_"; do
+    refuse "a stateless GitHub App token (${prefix}${header:0:16}...) is refused" '{"key":"k","value":"'"$prefix$header$jwt_tail"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+    refuse "the token after a literal \\n (${prefix}${header:0:16}...) is refused" '{"key":"k","value":"line\\n'"$prefix$header$jwt_tail"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+  done
+done
+for placeholder in ghs_job ghs_lane 3e7fef0587433cfb07332dbeabf0d79fc0baadf3 highs_and_lows_of_the_market_over_the_year laughs_out_loud_at_the_whole_long_meeting_today; do
+  accept "the placeholder $placeholder is accepted" '{"key":"k","value":"'"$placeholder"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+done
 # A JWS whose header carries a certificate chain (x5c) runs to many hundreds of characters.
 long_jwt="eyJ$(printf 'A%.0s' {1..900}).FAKEpayload.FAKEsignature"
 refuse "a JWT with a 900-character header is refused" '{"key":"k","value":"'"$long_jwt"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
@@ -232,7 +247,7 @@ for shape in 'ghs_1_-:50000' 'ghs_1_eyJ:30000' 'ghs_1_eyJa.:30000' 'ghs_1_eyJ-:3
   expect_eq "validating '$unit' x$count finishes" finished "$([[ $rc -ne 124 ]] && echo finished || echo "timed out")"
 done
 refuse "a credential key is refused" '{"key":"api_token","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
-refuse "a sensitive userConfig key is refused" '{"key":"dometrain-mcp.dometrain_api_key","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+refuse "a sensitive userConfig key is refused" '{"key":"example-plugin.example_api_key","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "an AWS access key value is refused" '{"key":"k","value":"AKIA'"IOSFODNN7EXAMPLE"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a Slack token value is refused" '{"key":"k","value":"xoxb-123456789012-abcdefghij","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a URL with an embedded password is refused" '{"key":"k","value":"postgres://admin:Sup3rPassw0rd@host/db","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'

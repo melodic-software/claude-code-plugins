@@ -19,6 +19,12 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 HEAD=$(printf 'a%.0s' {1..40})
 FIX=$(printf 'f%.0s' {1..40})
 TOKEN=ghs_secretlanetoken1234567890
+# The stateless installation token is ghs_ then a JWT of about 520 characters: three
+# base64url segments joined by '.', each segment obviously fake. Built at run time.
+SEG=$(printf 'FAKE-not_a_token%.0s' {1..10})
+STATELESS="ghs""_123456_$SEG.$SEG.$SEG"
+JSEG=$(printf 'eyJGAKEnotAtoken%.0s' {1..10})
+JWT_TOKEN="ghs""_$JSEG.$JSEG.$JSEG"
 
 mkdir -p "$TEST_TMPDIR/bin"
 cat >"$TEST_TMPDIR/bin/gh" <<'STUB_EOF'
@@ -110,6 +116,38 @@ for path in plugins/q/evals/c/samples/y.json plugins/pp/README.md plugins/README
   assert_exit "check-paths refuses $path" 1 "$?"
 done
 
+# check-paths: a kept thread's named_paths join its scope only in its own plugins/<p>/ directory,
+# never under .github/, never an instruction path, and never off normal form. run-transcript.js is
+# the file #8116's thread PRRT_kwDOTCGFQM6tojDu was refused.
+setup
+T=plugins/knowledge/skills/video-digest/extraction/transcript
+run check-paths "$T/run-transcript.js" >/dev/null 2>&1
+assert_exit "check-paths refuses a .js file no thread names" 1 "$?"
+jq --arg t "$T" '.threads += [{"id":"PRRT_n","path":($t + "/write-transcript.js"),"root_comment_id":500,"comments":[],
+  "named_paths":[($t + "/run-transcript.js"), "plugins/other/x.js", ".github/workflows/x.yml",
+    "plugins/knowledge/AGENTS.md", "plugins/knowledge/hooks/guard.sh", "plugins/knowledge/.claude-plugin/plugin.json",
+    "plugins/knowledge/.mcp.json", "plugins/knowledge/skills/s/CLAUDE.md", "plugins/knowledge/.claude/settings.json",
+    "plugins/knowledge/../other/x.js", "plugins/knowledge/a b.js"]}]' \
+  "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+run check-paths "$T/run-transcript.js" >/dev/null 2>&1
+assert_exit "check-paths allows a same-plugin file a fix request named" 0 "$?"
+for path in plugins/other/x.js .github/workflows/x.yml plugins/knowledge/AGENTS.md plugins/knowledge/hooks/guard.sh \
+  plugins/knowledge/.claude-plugin/plugin.json plugins/knowledge/.mcp.json plugins/knowledge/skills/s/CLAUDE.md \
+  plugins/knowledge/.claude/settings.json plugins/knowledge/../other/x.js "plugins/knowledge/a b.js" "$T/run-watch.js"; do
+  run check-paths "$path" >/dev/null 2>&1
+  assert_exit "check-paths refuses named $path" 1 "$?"
+done
+
+# check-paths: instruction segments with no trailing /, plugin monitors, bin and .lsp.json, more
+# code files, and non-ASCII letters stay out of the plugin-wide scope
+run check-paths plugins/knowledge/README.md >/dev/null 2>&1
+assert_exit "check-paths allows a plain file in the named thread's plugin" 0 "$?"
+for path in plugins/knowledge/hooks plugins/knowledge/.claude plugins/knowledge/monitors/monitors.json plugins/knowledge/bin/tool \
+  plugins/knowledge/.lsp.json plugins/knowledge/lib/x.cjs plugins/knowledge/lib/x.ps1 "plugins/knowledge/hooKs/hooks.json" "plugins/knowledge/AGENTſ.md"; do
+  run check-paths "$path" >/dev/null 2>&1
+  assert_exit "check-paths refuses $path" 1 "$?"
+done
+
 # record VALID: checked against the lane branch and appended, nothing posted
 setup
 disposition "{\"disposition\":\"VALID\",\"evidence\":[\"src/a.js:3\"],\"fix_sha\":\"$FIX\",\"note\":\"Guarded the null case.\"}"
@@ -135,6 +173,13 @@ run record PRRT_b "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "an UNCERTAIN record with no evidence succeeds" 0 "$?"
 assert_eq "both are recorded in order" "INCORRECT UNCERTAIN" "$(jq -rs 'map(.disposition) | join(" ")' "$STUB/replies.jsonl")"
 assert_eq "INCORRECT and UNCERTAIN make no API call" 0 "$(wc -l <"$STUB/calls")"
+
+# a note naming a token placeholder and a commit sha is recorded, still with no API call
+setup
+disposition "{\"disposition\":\"UNCERTAIN\",\"note\":\"The fixture uses ghs_job; see $FIX.\"}"
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a note naming a token placeholder and a commit sha is recorded" 0 "$?"
+assert_eq "the placeholder note record makes no API call" 0 "$(wc -l <"$STUB/calls")"
 
 # the note limit counts code points, as the reply job does: 2000 emoji pass,
 # 2001 are refused
@@ -184,6 +229,8 @@ for bad in \
   '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"bell \u0007 here"}' \
   '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"safe‮evil"}' \
   "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"token $TOKEN\"}" \
+  "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"token $STATELESS\"}" \
+  "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"token $JWT_TOKEN\"}" \
   'not json'; do
   setup
   disposition "$bad"

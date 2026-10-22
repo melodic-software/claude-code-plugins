@@ -1,0 +1,141 @@
+name: maintenance-reconcile-lost-runs
+
+# Re-runs PR CI and verify runs a GitHub outage ended without a result, so
+# nobody has to re-run them by hand. Every 30 minutes it looks at each open,
+# non-draft pull request into main from a branch of this repository, and at
+# the last day's pr-verify runs. A CI workflow whose newest run on the PR's
+# current head, or a pr-verify run, ended cancelled, timed_out or
+# startup_failure, on its first attempt, is re-run once with this job's own
+# token. The attempt number is the record: a run at attempt 2 was already
+# re-run and is never touched again. A pr-verify run whose judge step started,
+# or none of whose jobs started, is left to a person, so a head is never judged
+# twice. A pr-verify run that ended startup_failure with no jobs is held for
+# a person, not re-run.
+#
+# A CI run on the PR's current head that ended failure only from an outside
+# outage (each failed job hit its time limit, failed in an install step, or
+# lost its runner: infra-failure.mjs) has its failed jobs re-run, at most
+# twice per run, 15 then 30 minutes after the attempt ended, and only while
+# status.npmjs.org and githubstatus.com both show indicator none. A run with
+# any other failure is never re-run.
+#
+# An intake-label-needs-triage run an issue event started whose first attempt
+# failed (a rate limit, most often) left the issue without its floor label;
+# its failed jobs are re-run once, taking no place under the cap.
+#
+# pr-verify's trigger check trusts a re-run github-actions[bot] starts only
+# through this run's record of it: the plan step names an artifact
+# reconcile-rerun-<run id>-2-<head sha> for each pr-verify run it will re-run,
+# the upload steps below write them, and only then does the act step re-run
+# those runs. That no other run can upload into this run's artifacts is
+# UNVERIFIED: GitHub does not document that it scopes the runtime upload token
+# to its own run, and the REST API has no endpoint that creates an artifact.
+# A forged record still needs a github-actions[bot] attempt-2 re-run of the
+# lane, and the check's actor checks still apply
+# (.github/actions/check-trusted-trigger/README.md).
+#
+# It does nothing while githubstatus.com shows Actions as anything but
+# operational, or the page cannot be read, so it adds no load mid-incident. At
+# most 3 re-runs are in flight at once, auto-merge PRs first, and its writes
+# are at least a second apart. A lost review or refine lane run is listed in
+# the run summary for a person: those lanes, or the lanes token broker, refuse
+# a re-run github-actions[bot] starts. No model, and no PR code is checked out.
+# Rules: .github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs.
+#
+# How to stop it: set the organization or repository lanes kill-switch
+# variable to anything but "false".
+
+on:
+  schedule:
+    - cron: "4,34 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: maintenance-reconcile-lost-runs
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  reconcile:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: write # list runs and re-run a lost run
+      contents: read # check out main
+      pull-requests: read # list the open PRs
+    steps:
+      - name: Check out the run's main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Find lost runs
+        id: plan
+        env:
+          MODE: plan
+          PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
+          RECORD_PATH: ${{ runner.temp }}/reconcile-record/record.json
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/reconcile-record"
+          node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
+
+      # One record per pr-verify run the act step re-runs, uploaded first. A
+      # failed upload fails the job, so that run is not re-run.
+      - name: Record lane re-run 1
+        if: steps.plan.outputs.record-1 != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-1 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Record lane re-run 2
+        if: steps.plan.outputs.record-2 != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-2 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Record lane re-run 3
+        if: steps.plan.outputs.record-3 != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.plan.outputs.record-3 }}
+          path: ${{ runner.temp }}/reconcile-record/record.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Re-run lost runs
+        env:
+          MODE: act
+          PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs

@@ -1,7 +1,8 @@
 """The shared interview session's control script: what `share.sh` runs. Python 3 stdlib.
 
   share.py --dir DATA_DIR ensure-running [--open] [--defaults-file F] [--guest-port N]
-                                         [--import STATE] [--adopt-tunnel PID URL]
+                                         [--adopt-tunnel PID URL]
+                                         [--tunnel-hostname H --tunnel-token-file F]
   share.py --dir DATA_DIR stop [--keep-tunnel]
   share.py --dir DATA_DIR restart
   share.py --dir DATA_DIR status
@@ -12,7 +13,7 @@
   share.py list --root MEMORY_DIR
 
 Each command prints one JSON line on stdout (`logs --summary` plain text, unless --json) and diagnostics on stderr. Exit codes: 0 done;
-1 refused (bad arguments, a newer schema, a failed migration); 2 a prerequisite is missing or the
+1 refused (bad arguments, a state file that does not load); 2 a prerequisite is missing or the
 server cannot start or be reached; 3 no tunnel address in time (the server keeps running on
 localUrl and the output says `tunnel: "down"`). User text never goes on a command line: it
 reaches the session through `apply`. The owner link is a credential: only `url --owner` prints it.
@@ -27,6 +28,7 @@ import contextlib
 import datetime
 import html
 import http.client
+import io
 import json
 import math
 import os
@@ -56,7 +58,8 @@ REPORTED = ".shared-reported"  # the guest link the last ensure-running printed
 SERVER_ERR = ".shared-server.err"
 LOCK = ".shared.lock"
 OPS_MAX = 1024 * 1024
-START_SECONDS = 15.0
+START_SECONDS = float(os.environ.get("SHARED_START_SECONDS") or 15.0)  # tests shorten it
+NAMED_PORT = 8765  # judgment: a named tunnel's guest port when none is given; its ingress rule names this port
 SYNC_SECONDS = 5.0  # how long the server may take to pick up a new tunnel record
 SERVER_MARKER = "python" if detached.WINDOWS else "server.py"
 OPEN_PAGE = ".owner-open-{}.html"  # the page --open hands the browser; it holds the owner link
@@ -139,15 +142,13 @@ def watch_command(d):
     return f"bash {shlex.quote(str(HERE / 'watch.sh'))} {shlex.quote(str(d))}"
 
 
-def start_server(d, guest, control, *, defaults_file=None, initial_state=None):
+def start_server(d, guest, control, *, defaults_file=None):
     """Start server.py detached on the given ports (0 picks one) and wait for its ping."""
     nonce = secrets.token_hex(8)
     cmd = detached.python(str(HERE / "server.py"), "--dir", str(d), "--guest-port", str(guest), "--control-port", str(control), "--nonce", nonce)
     if defaults_file:
         cmd += ["--defaults-file", str(Path(defaults_file).resolve())]
-    if initial_state:
-        cmd += ["--initial-state", str(Path(initial_state).resolve())]
-    proc = detached.spawn(cmd, log=d / SERVER_ERR, cwd=d)
+    proc = detached.spawn(cmd, log=d / SERVER_ERR, env=tunnel.child_env(), cwd=d)
     s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
     if s is not None:
         detached.release(proc)
@@ -222,7 +223,7 @@ def report(d, s, rec, resumed, *, opened=None):
         "ownerLinkFile": str(d / OWNER_LINK),
         "shareChanged": bool(before and url and before != url),
         "resumed": resumed,
-        "tunnel": "quick" if rec else "down",
+        "tunnel": kind(rec) if rec else "down",
         "watch": watch_command(d),
     }
     if opened is not None:
@@ -230,26 +231,51 @@ def report(d, s, rec, resumed, *, opened=None):
     return out
 
 
+def tunnel_check(s, url):
+    """Why the server says `url` does not reach it (its probe), or None when it does."""
+    code, body = call(s, "POST", "/api/tunnel-check", {"url": url}, timeout=float(os.environ.get("SHARED_PROBE_SECONDS") or 30) + 30)
+    if code != 200:
+        return f"the tunnel check was refused: HTTP {code} {body.get('error', '')}"
+    return None if body.get("ok") else body.get("error") or "the tunnel check failed"
+
+
+def kind(rec):
+    """named or quick: which tunnel a record runs."""
+    return "named" if tunnel.config(rec)[0] else "quick"
+
+
+def named_config(d, a):
+    """(hostname, token file) from the command line, ("", "") for a quick tunnel; refuses a named tunnel that cannot run.
+    Without --tunnel-hostname the recorded tunnel's kind stays: only an explicit empty hostname switches back to quick."""
+    if a.tunnel_hostname is None:
+        hostname, token_file = tunnel.config(tunnel.read(d))
+    else:
+        hostname, token_file = a.tunnel_hostname.strip().lower(), a.tunnel_token_file or ""
+    if not hostname:
+        return "", ""
+    problem = tunnel.hostname_problem(hostname) or tunnel.token_file_problem(token_file)
+    if problem:
+        raise Refused(1, f"refused: {problem}")
+    if a.adopt_tunnel:
+        raise Refused(1, "--adopt-tunnel records a quick tunnel; leave out --tunnel-hostname with it")
+    return hostname, token_file
+
+
 def creation(d, a, resumed):
-    """(import file, guest port, (pid, url) to adopt) from the command line, else from defaults.json,
+    """(guest port, (pid, url) to adopt) from the command line, else from defaults.json,
     whose keys apply only when the session is created. Refuses what cannot apply (exit 1)."""
     if resumed:
-        if a.import_file:
-            raise Refused(1, f"a session already exists in {d}: --import only creates one")
         if a.adopt_tunnel:
             raise Refused(1, "--adopt-tunnel applies only when a session is created")
-        return None, a.guest_port, None
+        return a.guest_port, None
     src = Path(a.defaults_file) if a.defaults_file else d / "defaults.json"
     defaults = (read_json(src) or {}) if src.exists() else {}
-    imp = a.import_file or defaults.get("import")
     port = a.guest_port if a.guest_port is not None else defaults.get("guestPort")
     adopt = a.adopt_tunnel or ([defaults["adoptTunnel"].get("pid"), defaults["adoptTunnel"].get("url")] if isinstance(defaults.get("adoptTunnel"), dict) else None)
-    if imp is not None and (not isinstance(imp, str) or not Path(imp).is_file()):
-        raise Refused(1, f"--import: no such file: {imp}")
     if port is not None and (isinstance(port, bool) or not isinstance(port, int) or not 0 < port < 65536):
         raise Refused(1, f"the guest port must be a port number, got {port!r}")
     if adopt is None:
-        return imp, port, None
+        return port, None
     try:
         pid, url = int(adopt[0]), str(adopt[1]).rstrip("/")
     except (TypeError, ValueError) as exc:
@@ -261,7 +287,7 @@ def creation(d, a, resumed):
     why = tunnel.adoptable(pid, port)
     if why:
         raise Refused(1, f"--adopt-tunnel: {why}")
-    return imp, port, (pid, url)
+    return port, (pid, url)
 
 
 def bring_up(d, a):
@@ -276,8 +302,11 @@ def bring_up(d, a):
     d.mkdir(parents=True, exist_ok=True)
     with detached.locked(d / LOCK):
         resumed = (d / "state.json").exists()
-        initial_state, wanted, adopt = creation(d, a, resumed)
+        hostname, token_file = named_config(d, a)
+        wanted, adopt = creation(d, a, resumed)
         ports = read_json(d / PORTS) or {}
+        if hostname and wanted is None and not ports.get("guest"):
+            wanted = NAMED_PORT  # the tunnel's ingress rule names a fixed port
         if wanted is not None and resumed and ports.get("guest") not in (None, wanted):
             raise Refused(1, f"this session's guest port is {ports['guest']}; --guest-port applies only when a session is created")
         s = live(d)
@@ -286,6 +315,8 @@ def bring_up(d, a):
                 raise Refused(2, f"port {wanted} is busy: the guest listener cannot start there")
             guest = wanted if wanted is not None else ports.get("guest") or 0
             if wanted is None and guest and not bridge.port_free(guest):
+                if hostname:
+                    raise Refused(2, f"port {guest} is busy: the named tunnel's ingress rule points there, so the guest listener cannot move")
                 print(f"port {guest} is busy: the guest link moves to a new port", file=sys.stderr)
                 guest = 0
             control = ports.get("control") or bridge.kept_port(d, NAME) or 0
@@ -297,7 +328,7 @@ def bring_up(d, a):
                 except tunnel.TunnelDown as exc:
                     raise Refused(1, f"--adopt-tunnel: {exc}") from exc
             try:
-                s = start_server(d, guest, control, defaults_file=a.defaults_file, initial_state=initial_state)
+                s = start_server(d, guest, control, defaults_file=a.defaults_file)
             except BaseException:
                 if adopt:  # forget the adopted tunnel, never stop it: it still serves whoever ran it
                     (d / tunnel.RECORD).unlink(missing_ok=True)
@@ -305,11 +336,18 @@ def bring_up(d, a):
         port = (bridge.ping(s["port"]) or {}).get("guestPort")
         if type(port) is not int:  # a tunnel to no port would replace one that works
             raise Refused(2, "the server did not name its guest port; run ensure-running again")
-        rec, down = None, None
+        rec, down, kept = None, None, None
         try:
-            rec = tunnel.ensure(d, port)
+            rec = tunnel.ensure(d, port, hostname, token_file, verify=lambda url: tunnel_check(s, url))
         except (tunnel.TunnelDown, TimeoutError) as exc:
             down = str(exc)
+            rec = kept = tunnel.alive(d)  # a refused switch leaves the running tunnel, and its link, in place
+        if hostname:
+            print(
+                f"named tunnel {hostname}: its ingress rule must name http://127.0.0.1:{port}. Run it on this machine only:"
+                " Cloudflare sends each guest to the nearest machine running it, so check `cfdns.py connectors` before starting it on another.",
+                file=sys.stderr,
+            )
         if rec:
             wait_public(s, rec["url"])
         bridge.set_wait_timeout(d, NAME, bridge.WAIT_DEFAULT)
@@ -318,6 +356,8 @@ def bring_up(d, a):
             link = (d / OWNER_LINK).read_text(encoding="utf-8").strip()
             opened = open_link(d, link)
         out = report(d, s, rec, resumed, opened=opened)
+    if kept:
+        raise Refused(1, f"refused: {down}", out)
     if down:
         raise Refused(3, f"no tunnel: {down}", out)
     return out
@@ -378,7 +418,7 @@ def cmd_status(d, a):
         return {
             "ok": True,
             "running": False,
-            "tunnel": "quick" if rec else ("down" if tunnel.read(d) else "off"),
+            "tunnel": kind(rec) if rec else ("down" if tunnel.read(d) else "off"),
             "guestUrl": guest_url(rec["url"] if rec else "", (doc.get("session") or {}).get("guestKey")),
             "round": {"n": last["n"], "status": last["status"]["kind"]} if last else None,
             "intro": bool((doc.get("session") or {}).get("intro")),
@@ -558,13 +598,22 @@ def browser(ua):
 
 def summarize(lines):
     """Counts from server.log lines: error fingerprints, refusals, network failures and unanswered actions, action
-    latency and rollbacks, reconnect gaps, layout anomalies, INP and LCP, and how many summaries there were (from the
-    summary-batch entries). The owner's own pages are left out of the timings, which a page on the owner's machine
-    would skew."""
+    latency and rollbacks, reconnect gaps, layout anomalies, INP and LCP, feature use and rage and dead taps by component,
+    and how many summaries there were (from the summary-batch entries). The owner's own pages are left out of the
+    timings, which a page on the owner's machine would skew."""
     faults, refusals, server_ms, repeats, repeat_at = {}, collections.Counter(), collections.defaultdict(list), collections.Counter(), {}
     lat, rollbacks, gaps, vitals = collections.defaultdict(lambda: [0] * (len(LAT_EDGES) + 1)), collections.Counter(), [], {}
     sm = {"count": 0, "batches": 0, "pages": 0, "ownerPages": 0, "dropped": 0}
-    pages = set()
+    pages, taps = set(), {k: collections.Counter() for k in ("use", "rage", "dead")}
+
+    def count(key, n, at):
+        """A `rep:<fp>`, `use:`, `rage:` or `dead:<component>` count, from a batch's counts or an older summary."""
+        kind, _, name = key.partition(":")
+        if kind == "rep" and name:
+            repeats[name] += n
+            repeat_at[name] = max(repeat_at.get(name, ""), at)
+        elif kind in taps and name:
+            taps[kind][name] += n
 
     def fold(message, ua, at):
         """One summary from a batch written at `at`."""
@@ -574,8 +623,7 @@ def summarize(lines):
         pages.add(pv)
         for k, v in t.items():
             if k.startswith("rep:") and _digits(v):
-                repeats[k[4:]] += int(v)
-                repeat_at[k[4:]] = max(repeat_at.get(k[4:], ""), at)
+                count(k, int(v), at)
         if t.get("owner") == "1":
             sm["ownerPages"] += pv not in vitals
             vitals.setdefault(pv, {"owner": True})
@@ -607,6 +655,11 @@ def summarize(lines):
                 continue  # cut short: not a batch this can read
             sm["batches"] += 1
             sm["dropped"] += int(f.get("dropped", "0")) if _digits(f.get("dropped", "")) else 0
+            with contextlib.suppress(ValueError):
+                counts = json.loads(f.get("counts") or "{}")
+                for k, n in counts.items() if isinstance(counts, dict) else ():
+                    if type(n) is int and n > 0:
+                        count(k, n, line[:19])
             for item in items if isinstance(items, list) else []:
                 if isinstance(item, list) and len(item) == 2 and all(isinstance(x, str) for x in item):
                     fold(*item, line[:19])
@@ -657,6 +710,7 @@ def summarize(lines):
         "layout": [{"anomaly": a, "at": at, "device": dev, "count": n} for (a, at, dev), n in anomalies.most_common()],
         "inp": vital("inp"),
         "lcp": vital("lcp"),
+        "features": {k: [{"component": c, "count": n} for c, n in sorted(v.items(), key=lambda x: (-x[1], x[0]))] for k, v in taps.items()},
         "summaries": {**sm, "pages": len(pages)},
         "repeatsUnmatched": sum(repeats.values()),
     }
@@ -689,6 +743,9 @@ def summary_text(s):
         v = s[name]
         p75 = "-" if v["p75Ms"] is None else f"{v['p75Ms']} ms"
         out.append(f"{name.upper()} p75: {p75} over {v['pages']} page views ({devs(v['byDevice'])}); API missing on {v['missing']}")
+    for k, title in (("use", "Feature use, taps by component:"), ("rage", "Rage taps (three quick taps on one control) by component:"),
+                     ("dead", "Dead taps (a tap that changed nothing on the page) by component:")):
+        out += ["", title] + ([f"  {x['component']}: {x['count']}" for x in s["features"][k]] or ["  none"])
     if s["repeatsUnmatched"]:
         out.append(f"Repeats whose first entry is no longer in the log: {s['repeatsUnmatched']}")
     return "\n".join(out)
@@ -708,8 +765,9 @@ def parser():
     s.add_argument("--open", action="store_true", help="open the owner's link in the default browser")
     s.add_argument("--defaults-file", help="settings for a new session: {\"settings\": {...}}")
     s.add_argument("--guest-port", type=int, help="the guest listener's port, chosen when the session is created")
-    s.add_argument("--import", dest="import_file", metavar="STATE", help="create the session from a prototype state file")
     s.add_argument("--adopt-tunnel", nargs=2, metavar=("PID", "URL"), help="record a running cloudflared to the guest port as the tunnel")
+    s.add_argument("--tunnel-hostname", help="run the named tunnel at this hostname (the tunnel_hostname option); empty: a quick tunnel; left out: the recorded tunnel's kind")
+    s.add_argument("--tunnel-token-file", help="the named tunnel's token file, an absolute path (the tunnel_token_file option); read by cloudflared only")
     s.set_defaults(fn=cmd_ensure_running)
     s = sub.add_parser("stop")
     s.add_argument("--keep-tunnel", action="store_true", help="keep the tunnel and the guest link")
@@ -738,6 +796,10 @@ def parser():
 
 
 def main(argv=None):
+    # A Windows pipe takes the ANSI code page, which has no room for an emoji or an arrow in a name or a log line (#8239).
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8", errors=stream.errors)  # encoding alone would reset errors to strict
     p = parser()
     a = p.parse_args(argv)
     if a.cmd == "list":

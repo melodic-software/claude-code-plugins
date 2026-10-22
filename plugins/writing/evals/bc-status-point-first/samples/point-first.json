@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Self-checkout rollout is paused at the 18 live stores.** Wave 3, planned for November 3, will not start until the receipt printer fix is in.\n\n- **Why:** a printer firmware bug prints duplicate receipts when a card payment times out.\n- **Next:** the vendor expects a patched build by October 28.\n- **Ask:** store ops, confirm which 6 stores can host a test install before we resume.\n\nBefore: 186 words. After: 72 words."
+    },
+    {
+      "answer": "Paused: no new self-checkout stores past today's 18; Nov 3 wave 3 is on hold.\n\nCause is a receipt-printer firmware fault (duplicate receipts on timed-out card payments). Vendor patch due Oct 28. Store ops: please name six stores that can take a test install before we restart.\n\n| Version | Words |\n|---|---|\n| Original | 186 |\n| Reshaped | 58 |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Quick update on the self-checkout rollout. We kicked things off in September with the pilot stores. At Tuesday's standup we discussed the receipt printer firmware issue, which causes duplicate receipts on card timeouts. We have decided to pause at the 18 live stores; wave 3 (November 3) is off until the patch lands October 28. Store ops: confirm 6 stores for a test install.\n\nBefore: 186 words. After: 70 words."
+    },
+    {
+      "answer": "Back in September we kicked off the pilot stores. Since then the rollout has been paused."
+    }
+  ]
+}

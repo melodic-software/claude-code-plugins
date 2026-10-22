@@ -3,6 +3,36 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0] - 2026-10-22
+
+### Added
+
+- The setup apply writer writes the settings file into the repository's convention home, read from the pointer region in AGENTS.md or CLAUDE.md, instead of the fixed docs/conventions. A repository with no region is offered one: with --yes the writer adds the region where the repository already keeps instructions (a new AGENTS.md only when neither file exists) and the overlay ignore line to .gitignore in the same step, and announces both. Without --yes it prints the offer and still creates a missing settings file in docs/conventions; changing an existing file, the region and the ignore line wait for --yes. --home names the home to offer, and --decline records a declined line so the offer is not made again. A home the repository already had lists the settings file in conventions-index.md. --home refuses a value holding a backtick or line break.
+
+### Changed
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line.
+
+## [0.18.1] - 2026-10-20
+
+### Changed
+
+- **`/education:teach` codebase mode looks for `GLOSSARY.md`.** The repository vocabulary lookup names `GLOSSARY.md` (or the domain-driven-design `glossary_file` setting) and `GLOSSARY-MAP.md` in a multi-context repository, in place of `UBIQUITOUS-LANGUAGE.md`.
+
+## [0.18.0] - 2026-10-20
+
+### Changed
+
+- `/education:illustrate` delivers a local file by default: with no medium argument and no `rendered-views` layer setting `medium:`, the ladder is now `file`, then `terminal`, and publishes an artifact only when an argument or a layer asks for it. (#6175)
+
+- `teach` pre-compute note points to the `/source-control:worktree` accepted-shapes heading instead of restating the `$`-expansion probe ([#5673](https://github.com/melodic-software/claude-code-plugins/issues/5673)).
+
+### Fixed
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- The shared settings checker behind `/education:setup` validates string and object settings, and reports a setting whose schema shape it does not check instead of stopping with a JavaScript error.
+
 ## [0.17.1] - 2026-10-18
 
 ### Fixed

@@ -85,7 +85,41 @@ fi`,
   stub("npm", 'mkdir -p "$3/node_modules"');
   stub("node", "");
   stub("sudo", "exit 1");
+  shellcheck("0.11.0");
 });
+
+// A shellcheck on PATH that reports VERSION and logs nothing.
+function shellcheck(version) {
+  writeFileSync(
+    join(stubs, "shellcheck"),
+    `#!/usr/bin/env bash\necho "version: ${version}"\n`,
+  );
+  chmodSync(join(stubs, "shellcheck"), 0o755);
+}
+
+const pin = readFileSync(script, "utf8").match(
+  /shellcheck_sha256=([0-9a-f]{64})/,
+)?.[1];
+
+// curl writes a release tarball holding a shellcheck that reports VERSION.
+function release(version) {
+  const src = join(dir, "release", `shellcheck-v${version}`);
+  mkdirSync(src, { recursive: true });
+  writeFileSync(
+    join(src, "shellcheck"),
+    `#!/usr/bin/env bash\necho "version: ${version}"\n`,
+  );
+  chmodSync(join(src, "shellcheck"), 0o755);
+  const tarball = join(dir, "release.tar.gz");
+  spawnSync("tar", [
+    "-czf",
+    tarball,
+    "-C",
+    join(dir, "release"),
+    `shellcheck-v${version}`,
+  ]);
+  stub("curl", `cp "${tarball}" "\${@: -1}"`);
+}
 
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -235,4 +269,57 @@ test("a relative --root resolves against the caller's directory", () => {
     readFileSync(pathFile, "utf8"),
     `${root}/.work/venv/bin\n${root}/node_modules/.bin\n`,
   );
+});
+
+test("an older shellcheck on PATH gets the pinned release in the venv's bin", () => {
+  shellcheck("0.9.0");
+  stub("uname", 'echo "Linux x86_64"');
+  release("0.11.0");
+  // The fixture tarball cannot match the real release's checksum, so the
+  // checksum tool reports the pin for it.
+  stub(
+    "sha256sum",
+    `case "$1" in *.tar.gz) echo "${pin}  $1" ;; *) ${which("sha256sum")} "$@" ;; esac`,
+  );
+  const r = run();
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(pin, "setup-env.sh pins a shellcheck_sha256");
+  assert.ok(
+    r.calls.some((c) =>
+      c.startsWith(
+        "curl -fsSL --retry 3 https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz -o ",
+      ),
+    ),
+    r.calls.join("\n"),
+  );
+  const installed = spawnSync(
+    join(root, ".work/venv/bin/shellcheck"),
+    ["--version"],
+    { encoding: "utf8" },
+  );
+  assert.equal(installed.stdout.trim(), "version: 0.11.0");
+  // The installed copy satisfies the next run.
+  assert.ok(!run().calls.some((c) => c.startsWith("curl ")));
+});
+
+test("a shellcheck download that fails its checksum installs nothing", () => {
+  shellcheck("0.9.0");
+  stub("uname", 'echo "Linux x86_64"');
+  release("0.11.0");
+  const r = run();
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /checksum/);
+  assert.equal(
+    spawnSync("test", ["-e", join(root, ".work/venv/bin/shellcheck")]).status,
+    1,
+  );
+});
+
+test("off Linux x86_64 an older shellcheck is reported, not replaced", () => {
+  shellcheck("0.9.0");
+  stub("uname", 'echo "Darwin arm64"');
+  const r = run();
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /no shellcheck 0\.11\.0/);
+  assert.ok(!r.calls.some((c) => c.startsWith("curl ")));
 });

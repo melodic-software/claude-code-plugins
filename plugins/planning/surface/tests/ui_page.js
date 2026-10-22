@@ -65,7 +65,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
     await page.click('[data-acceptall="g1"]'); await page.waitForSelector("#dlg[open]");
     const listed = await text("#dlgBody li");
-    ok("the Accept all list still shows the recommendation's first sentence only", /Ship it on Monday\./.test(listed) && !/Watch the error logs/.test(listed), listed);
+    ok("the group Accept all list shows every sentence of the recommendation", /Ship it on Monday\..*Watch the error logs.*Roll back on the first new error/.test(listed), listed);
     await page.click("#dlgCancel"); await page.waitForTimeout(150);
 
     // #5917: five prerequisites share one wrapped row, and a met one is marked by more than color
@@ -79,6 +79,50 @@ async page => { // the question page itself: choices, chips, banners, header and
       }).catch(e => ({error: String(e)}));
       ok("Q7's five needs chips sit in one wrapped row under its title at " + w + " px", row.rows === 1 && row.n === 5 && row.lines < 5 && row.below, JSON.stringify(row));
       if (w > 400) ok("the met prerequisite (Q2) carries a check and an answered label; an unmet one carries neither", /^needs Q2✓ \[answered\]$/.test(row.marks[0]) && row.marks.slice(1).every(m => !/✓|answered/.test(m)), JSON.stringify(row.marks));
+    }
+    await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
+
+    // #8083: an unpinned Notes or Activity flyout stays off the note box, Ask Claude and Rephrase at 1440 px
+    await pick("Q1");
+    for (const panel of ["notes", "activity"]) {
+      await page.click('.strip [data-panel="' + panel + '"]'); await page.waitForTimeout(400);
+      const hit = await page.evaluate(() => {
+        const box = s => { const e = document.querySelector(s); if (!e || !e.offsetParent) return null; const r = e.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom}; };
+        const fly = box("aside.fly.open"), hits = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+        const names = {note: "#note", ask: '#talkRow [data-act="ask"]', rephrase: '#talkRow [data-act="rephrase"]'}, out = {pinned: document.getElementById("layout").classList.contains("pinned"), fly: !!fly};
+        for (const k in names) { const b = box(names[k]); out[k] = !b ? "missing" : fly && hits(b, fly) ? "covered" : "clear"; }
+        out.decideBar = Math.round(document.getElementById("answer").getBoundingClientRect().height);
+        return out;
+      });
+      ok("at 1440 px the unpinned " + panel + " flyout does not cover the note box, Ask Claude or Rephrase", !hit.pinned && hit.fly && hit.note === "clear" && hit.ask === "clear" && hit.rephrase === "clear", JSON.stringify(hit));
+      await page.click('.strip [data-panel="' + panel + '"]'); await page.waitForTimeout(250);
+    }
+
+    // #8085: at phone widths an id chip in Activity or Notes keeps each id on one line, even beside long text
+    const toggle = panel => page.evaluate(p => document.querySelector('.strip [data-panel="' + p + '"]').click(), panel);
+    const onOneLine = () => page.evaluate(() => {
+      // Baseline-aligned boxes in two fonts have different tops on one line, so a rect starts a new line only below the last one's bottom.
+      const lines = el => { const r = document.createRange(); r.selectNodeContents(el); let n = 0, bottom = -Infinity; for (const x of [...r.getClientRects()].sort((a, b) => a.top - b.top)) { if (x.top >= bottom - 1) n++; bottom = Math.max(bottom, x.bottom); } return n; };
+      const chips = [...document.querySelectorAll("aside.fly.open .ref b, aside.fly.open .rrange")];
+      return {n: chips.length, split: chips.filter(c => lines(c) > 1).map(c => c.textContent), page: document.scrollingElement.scrollWidth - innerWidth};
+    });
+    for (const [w, h] of [[390, 844], [425, 900]]) {
+      await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(250);
+      await pick("Q1");
+      for (const panel of ["activity", "notes"]) {
+        await toggle(panel); await page.waitForTimeout(400);
+        await page.evaluate(panel => {
+          const chip = (id, title) => '<button type="button" class="ref" data-q="' + id + '"><b>' + id + "</b>" + title + "</button>";
+          const range = '<span class="rrange" title="Q4 to Q6">' + chip("Q4", "") + "<span>&ndash;</span>" + chip("Q6", "") + "</span>";
+          const host = document.querySelector(panel === "notes" ? "aside.fly.open .nthread" : "aside.fly.open .fbody");
+          const box = document.createElement("div"); box.className = panel === "notes" ? "nmsg" : "links";
+          box.innerHTML = "<p>Compare " + range + " with " + chip("Q2", "Build image cache key for the weekly release") + " and " + chip("Q7", "Pinned digests") + " before deciding.</p>";
+          host.appendChild(box);
+        }, panel);
+        const got = await onOneLine();
+        ok("at " + w + " px every id chip in " + panel + " keeps each id on one line", got.n > 0 && got.split.length === 0, JSON.stringify(got));
+        await toggle(panel); await page.waitForTimeout(250);
+      }
     }
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
   }
@@ -179,6 +223,19 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("#5908: a terminal decision whose prerequisite's earlier page decision was replaced reads 'changed'", /Stale: Q8Notes changed\./.test(b9) && !/decided after you answered/.test(b9), b9);
     const c9 = await page.$$eval("#choices .choice", els => els.map(e => e.textContent));
     ok("#5910: an older terminal accept (no rev) whose recommendation changed after it offers no Reconfirm", c9.length > 0 && !c9.some(t => /Reconfirm/.test(t)) && /support lead/.test(await text("#choices .choice.rec")), JSON.stringify(c9));
+  }
+  if (PHASE === 10) { // #7751: by now the feed holds revisions, an added question and a saved reply; Needs you lists only what waits on the user
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    const badge = await page.$eval("#actBadge", b => b.hidden ? 0 : +b.textContent.trim() || 0).catch(() => -1);
+    await page.click("#qhead"); await page.keyboard.press("l"); await page.waitForTimeout(300);
+    const split = await page.evaluate(() => {
+      const h = document.getElementById("actNeeds"), n = h.nextElementSibling, log = document.getElementById("actLog");
+      return {needs: (n ? n.textContent : "").replace(/\s+/g, " "), log: (log ? log.textContent : "").replace(/\s+/g, " "), count: +(h.textContent.match(/\((\d+)\)/) || [0, -1])[1], rows: n && n.matches("ol") ? n.children.length : 0, unseen: n && n.matches("ol") ? n.querySelectorAll("li.unseen").length : 0};
+    });
+    ok("#7751: added, revised and note-saved entries are in the log, not under Needs you", !/Added Q9|Revised Q|revised Q|added Q9/i.test(split.needs) && /Added Q9/.test(split.log) && /evised Q/.test(split.log), JSON.stringify(split));
+    ok("#8035: a Notes reply that asks is under Needs you, a plain one is in the log", /Note posted/.test(split.needs) && /Note posted/.test(split.log) && split.rows > 0, JSON.stringify(split));
+    ok("#7751: the Needs you heading counts only the entries listed under it", split.count === split.rows, JSON.stringify(split));
+    ok("#7751: the Activity badge equals the unseen entries listed under Needs you", badge === split.unseen, badge + " badge / " + split.unseen + " unseen of " + split.count + " listed");
   }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }

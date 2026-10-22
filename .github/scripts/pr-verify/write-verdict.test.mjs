@@ -4,15 +4,17 @@
 // verdict, summary, notes, run_id}, each linked issue records its author, and
 // malformed output writes nothing. The output comes from the last result
 // message of run-claude-cli's execution file, a JSON array of CLI messages
-// (its action.yml, output execution-file), and model text shaped like an
-// Anthropic key or OAuth token (both start sk-ant-) writes nothing.
+// (its action.yml, output execution-file), and model text shaped like a
+// credential (an Anthropic key or OAuth token, both sk-ant-; a GitHub token,
+// per GitHub's documented ghp_ prefix and 36-character body; an AWS access key
+// id, AKIA plus 16; a PEM private key header, RFC 7468) writes nothing.
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { artifactName, buildVerdict, main, structuredOutput } from "./write-verdict.mjs";
+import { artifactName, buildVerdict, checkKeyLeg, main, structuredOutput } from "./write-verdict.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -115,6 +117,32 @@ test("naming the key prefix alone is not a credential", () => {
   assert.equal(buildVerdict({ ...ids, output }).summary, "keys start with sk-ant-");
 });
 
+// Other credential shapes from their published formats, also built at run time.
+const GITHUB_TOKEN = `${"ghp_"}${"k".repeat(36)}`;
+const AWS_KEY = `${"AKIA"}${"Q7".repeat(8)}`;
+const PEM = `-----BEGIN ${"RSA PRIVATE"} KEY-----`;
+
+test("a summary or note shaped like any shared credential pattern throws, naming the kind", () => {
+  for (const [secret, kind] of [
+    [GITHUB_TOKEN, "GitHub token"],
+    [AWS_KEY, "AWS access key"],
+    [PEM, "private key"],
+  ]) {
+    for (const output of [
+      { verdict: "pass", summary: `found ${secret}`, notes: [] },
+      { verdict: "fail", summary: "s", notes: ["fine", `see ${secret}`] },
+    ]) {
+      assert.throws(() => buildVerdict({ ...ids, output: JSON.stringify(output) }), new RegExp(`credential \\(${kind}\\)`), kind);
+    }
+  }
+});
+
+test("an ordinary verdict naming SHAs, paths and the ghp_ prefix passes", () => {
+  const summary = `Checked ${HEAD} against ${BASE}; lib/publish-gate.mjs:27 matches tokens that start ghp_.`;
+  const output = JSON.stringify({ verdict: "pass-notes", summary, notes: [".github/scripts/pr-verify/write-verdict.mjs:95 changed"] });
+  assert.equal(buildVerdict({ ...ids, output }).summary, summary);
+});
+
 test("the structured output is the last result message's", () => {
   const first = { verdict: "fail", summary: "first", notes: [] };
   const last = { verdict: "pass", summary: "last", notes: [] };
@@ -209,7 +237,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     ["missing execution file", { EXECUTION_FILE: path.join(dir, "missing.json") }],
     ["unparsable execution file", { EXECUTION_FILE: unparsable }],
     ["unreadable spec", { EXECUTION_FILE: okFile, SPEC_FILE: path.join(dir, "missing.json") }],
-    // A denial on the key leg, then a credit stop and a clean subscription leg.
+    // A log with a denial on any leg.
     ["a denial on an earlier leg", { EXECUTION_FILE: okFile, LOG_FILE: log("denied-log", 1, 0) }],
     ["missing log file", { EXECUTION_FILE: okFile, LOG_FILE: path.join(dir, "missing.jsonl") }],
     ["no log file", { EXECUTION_FILE: okFile, LOG_FILE: "" }],
@@ -218,5 +246,28 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     assert.throws(() => main(other), undefined, label);
     assert.equal(existsSync(path.join(other.VERDICT_DIR, "verdict.json")), false, label);
     assert.equal(existsSync(other.GITHUB_OUTPUT), false, label);
+  }
+});
+
+test("checkKeyLeg clears the subscription job only for a readable log with no denial", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-key-leg-"));
+  const file = (name, text) => {
+    const target = path.join(dir, name);
+    writeFileSync(target, text);
+    return target;
+  };
+  const clean = { LOG_FILE: file("clean.jsonl", JSON.stringify({ leg: 1, denials: { count: 0 } })), GITHUB_OUTPUT: path.join(dir, "out") };
+  checkKeyLeg(clean);
+  assert.equal(readFileSync(clean.GITHUB_OUTPUT, "utf8"), "clean=true\n");
+
+  for (const [label, logFile] of [
+    ["a denial", file("denied.jsonl", JSON.stringify({ leg: 1, denials: { count: 2 } }))],
+    ["a malformed log", file("bad.jsonl", "{not json")],
+    ["a missing log", path.join(dir, "missing.jsonl")],
+    ["no log", ""],
+  ]) {
+    const env = { LOG_FILE: logFile, GITHUB_OUTPUT: path.join(dir, `out-${label}`) };
+    assert.throws(() => checkKeyLeg(env), undefined, label);
+    assert.equal(existsSync(env.GITHUB_OUTPUT), false, label);
   }
 });

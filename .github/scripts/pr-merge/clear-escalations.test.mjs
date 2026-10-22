@@ -219,3 +219,134 @@ test("a sweep that finds its own comment for this head retries only the removal"
     ["DELETE"],
   );
 });
+
+// pr-merge's own escalations, in babysit_merge.py's verify_escalation_body and
+// risk_comment_body formats: the marker line, then a line naming `at head `<sha>``.
+const OLD = "d".repeat(40);
+const verifyBody = (head) =>
+  `<!-- babysit-merge-verify-escalation -->\nUnattended merge: the verifier verdict refuses \`verify:fail\` at head \`${head}\`. That refusal needs a human, who merges in person; the pr-merge lane will not merge this pull request.`;
+const riskBody = (head) =>
+  `<!-- babysit-merge-risk -->\nUnattended merge: risk **HIGH** at head \`${head}\`. Only LOW merges without a human. This pull request waits for one.\n\n\`\`\`text\nHIGH workflow-change: .github/workflows/ci.yml\n\`\`\``;
+// pr-merge writes its comment, then the label.
+const mergeEscalated = (body) => [commented(BOT, body, "2026-10-18T09:59:58Z"), labeled(BOT, "2026-10-18T10:00:00Z")];
+
+test("a pr-merge verify escalation at an old head comes off as head-moved, naming both heads", async () => {
+  const w = world({ timeline: mergeEscalated(verifyBody(OLD)) });
+  const { code } = await run(w);
+  assert.equal(code, 0);
+  const [comment, removal] = w.writes();
+  assert.equal(w.writes().length, 2);
+  assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
+  assert.match(comment.body.body, /`head-moved`/);
+  assert.match(comment.body.body, new RegExp(`\`${OLD}\``));
+  assert.match(comment.body.body, new RegExp(`\`${HEAD}\``));
+  assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("a pr-merge risk comment at an old head comes off as head-moved", async () => {
+  const w = world({ timeline: mergeEscalated(riskBody(OLD)) });
+  await run(w);
+  assert.equal(w.writes().length, 2);
+  assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
+});
+
+const sharedCopyBody = (head) =>
+  `<!-- babysit-merge-shared-copy-escalation -->\nUnattended merge: the shared-library canonical \`lib/a.sh\` changed on \`main\` since merge base \`${OLD}\`, so the copies this pull request carries are stale at head \`${head}\`.`;
+
+test("a pr-merge shared-copy escalation at an old head comes off as head-moved", async () => {
+  const w = world({ timeline: mergeEscalated(sharedCopyBody(OLD)) });
+  await run(w);
+  assert.equal(w.writes().length, 2);
+  assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
+  assert.deepEqual(w.writes()[1], { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("a pr-merge shared-copy escalation at the current head is kept", async () => {
+  const w = world({ timeline: mergeEscalated(sharedCopyBody(HEAD)) });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("a pr-merge escalation naming the current head is kept", async () => {
+  for (const timeline of [
+    mergeEscalated(verifyBody(HEAD)),
+    mergeEscalated(riskBody(HEAD)),
+    // Rewritten in place at the new head after the label.
+    [commented(BOT, verifyBody(HEAD), "2026-10-18T09:59:58Z", "2026-10-18T12:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z")],
+    // Either marker at the current head holds it.
+    [...mergeEscalated(verifyBody(OLD)), commented(BOT, riskBody(HEAD), "2026-10-18T12:00:00Z")],
+  ]) {
+    const w = world({ timeline });
+    await run(w);
+    assert.deepEqual(w.writes(), []);
+  }
+});
+
+test("a comment after a pr-merge escalation's label keeps it", async () => {
+  const w = world({ timeline: [...mergeEscalated(verifyBody(OLD)), commented(OWNER, "Leave this for a person.", "2026-10-18T12:00:00Z")] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("another lane's marker beside a pr-merge escalation at an old head keeps it", async () => {
+  for (const marker of [
+    "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-dependabot-major -->",
+    "<!-- work-items:escalation lane=work-loop kind=escalated -->",
+  ]) {
+    const w = world({ timeline: [...mergeEscalated(verifyBody(OLD)), commented(BOT, `${marker}\nheld`, "2026-10-18T10:00:05Z")] });
+    await run(w);
+    assert.deepEqual(w.writes(), [], marker);
+  }
+});
+
+test("a pr-merge escalation whose head does not parse as 40-hex is kept", async () => {
+  for (const head of ["d".repeat(39), "D".repeat(40), `${OLD}0`, ""]) {
+    const w = world({ timeline: mergeEscalated(verifyBody(head)) });
+    await run(w);
+    assert.deepEqual(w.writes(), [], head);
+  }
+  const none = world({ timeline: mergeEscalated("<!-- babysit-merge-verify-escalation -->\nUnattended merge: held.") });
+  await run(none);
+  assert.deepEqual(none.writes(), []);
+});
+
+test("a pr-merge comment rewritten just before the label pairs with it", async () => {
+  const w = world({ timeline: [commented(BOT, verifyBody(OLD), "2026-10-17T08:00:00Z", "2026-10-18T09:59:58Z"), labeled(BOT, "2026-10-18T10:00:00Z")] });
+  await run(w);
+  assert.equal(w.writes().at(-1)?.method, "DELETE");
+});
+
+test("a pr-merge risk comment created long ago and rewritten to escalate just before the label pairs with it", async () => {
+  // babysit_merge.py appends its persisted-refusal line, then adds the label.
+  const escalatedRisk = `${riskBody(OLD)}\n\nThis refusal has stood unchanged at this head, so a person is needed: the pr-merge lane added the human-gated label.`;
+  const w = world({ timeline: [commented(BOT, escalatedRisk, "2026-10-18T08:30:00Z", "2026-10-18T09:59:59Z"), labeled(BOT, "2026-10-18T10:00:00Z")] });
+  await run(w);
+  assert.equal(w.writes().length, 2);
+  assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
+  assert.deepEqual(w.writes()[1], { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("an old pr-merge comment with nothing written beside a later label is kept", async () => {
+  // The label came on for another reason whose comment write failed.
+  const w = world({ timeline: [commented(BOT, riskBody(OLD), "2026-10-17T08:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z")] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("another lane's escalation just before the label keeps it beside an older pr-merge comment", async () => {
+  // babysit_merge.py's major_escalation_body, posted before the label it adds.
+  const major = `<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-dependabot-major -->\nUnattended merge: \`actions/checkout 5.0.0\` is a major version update at head \`${OLD}\`.`;
+  for (const prior of [riskBody(OLD), verifyBody(OLD)]) {
+    const w = world({
+      timeline: [commented(BOT, prior, "2026-10-17T08:00:00Z"), commented(BOT, major, "2026-10-18T09:59:58Z"), labeled(BOT, "2026-10-18T10:00:00Z")],
+    });
+    await run(w);
+    assert.deepEqual(w.writes(), [], prior.split("\n")[0]);
+  }
+});
+
+test("a needs-human a person added beside a pr-merge escalation at an old head is kept", async () => {
+  const w = world({ timeline: [commented(BOT, verifyBody(OLD), "2026-10-18T09:59:58Z"), labeled(OWNER, "2026-10-18T10:00:00Z")] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});

@@ -1,5 +1,30 @@
 # Changelog: discovery plugin
 
+## [0.36.0] - 2026-10-22
+
+### Added
+
+- The setup apply writer writes the settings file into the repository's convention home, read from the pointer region in AGENTS.md or CLAUDE.md, instead of the fixed docs/conventions. A repository with no region is offered one: with --yes the writer adds the region where the repository already keeps instructions (a new AGENTS.md only when neither file exists) and the overlay ignore line to .gitignore in the same step, and announces both. Without --yes it prints the offer and still creates a missing settings file in docs/conventions; changing an existing file, the region and the ignore line wait for --yes. --home names the home to offer, and --decline records a declined line so the offer is not made again. A home the repository already had lists the settings file in conventions-index.md. --home refuses a value holding a backtick or line break.
+
+### Changed
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line.
+
+## [0.35.1] - 2026-10-20
+
+### Changed
+
+- `/discovery:research` now bounds the verify-and-rework loop at medium budget and above to one rework round: a verifier row still FAIL after the re-verify is recorded as a Gap or Conflicts entry (or the named `verification: fail rows` value) instead of reworked again. The skill also states who writes `RESEARCH.md`: the `discovery:researcher` subagent in the standard dispatch, this session from the sweep result in the deep tier's workflow path.
+- Four new eval cases (45-48) grade the one-round cap, the fallback after a sweep artifact fails `check-source-applicability.py`, the researcher as the standard-dispatch `RESEARCH.md` writer, and the wide fan-out spawning the remaining researchers when usage has room.
+
+### Fixed
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- The shared settings checker behind `/discovery:setup` validates string and object settings, and reports a setting whose schema shape it does not check instead of stopping with a JavaScript error.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.35.0] - 2026-10-18
 
 ### Added

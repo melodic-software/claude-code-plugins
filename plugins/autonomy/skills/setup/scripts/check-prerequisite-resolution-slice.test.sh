@@ -163,6 +163,15 @@ else
   fail "envelope: $(cat "$tmp/env.err")"
 fi
 
+# executor_class is deprecated and optional: a security binding without it
+# passes the envelope checker's structural gate.
+if node "$ENVELOPE" "$tmp/envelope.md" --binding "$tmp/repo/.claude/autonomy/binding.json" \
+  --security-binding "$SELF_DIR/../evals/fixtures/security-binding/executor-class-absent.json" >/dev/null 2>"$tmp/env.err"; then
+  ok "envelope: security binding without executor_class passes the gate"
+else
+  fail "envelope: security binding without executor_class: $(cat "$tmp/env.err")"
+fi
+
 echo
 echo "Passed: $PASS  Failed: $FAIL"
 if [[ $FAIL -ne 0 ]]; then

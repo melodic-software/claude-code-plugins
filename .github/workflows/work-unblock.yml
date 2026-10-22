@@ -35,7 +35,19 @@ name: work-unblock
 # or was closed unmerged, the App adds needs-triage and takes agent-ready off,
 # after a comment; a person adding agent-ready again re-runs it. A Refs PR
 # merging also lifts the needs-human report-outcome put on the issue for it.
-# These share the five-a-run cap.
+# It also relabels a red-main fix issue post-merge-demotion-alert.yml reopened
+# on a repeat failure: that reopen keeps agent-ready but, made with the
+# workflow's GITHUB_TOKEN, starts no run. Matched by the issue's
+# `<!-- post-merge-fix check=... -->` first line and the workflow's
+# recurrence comment, the App removes and re-adds agent-ready once per such
+# comment, unless the issue is held, has an open lane PR or a lane run in
+# flight. These share the five-a-run cap.
+#
+# New agent-ready labels are paced by the issue lane's queued cap
+# (check-wip-cap): past its room an issue gets admission-deferred instead, and
+# each hourly sweep admits the deferred issues oldest first. Restarts,
+# re-fires and relabels are never paced. Its label-unblocked job runs one at
+# a time, so two runs cannot each admit the whole room.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label a person removed.
@@ -54,6 +66,33 @@ defaults:
     shell: bash
 
 jobs:
+  # The hourly sweep saves the WIP cap's last known state, which
+  # work-resolve-issue's pick-slot restores when its own reads fail. Only a
+  # trusted trigger such as schedule can save a default-branch cache; an
+  # issues run cannot. Its own job, with no id-token and no secret: the
+  # action restores a cache into the workspace, which must never reach a
+  # job that mints through the token broker.
+  wip-state:
+    if: github.event_name == 'schedule' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out main
+      pull-requests: read # count the lanes App's pull requests
+      issues: read # count the queued agent-ready issues
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Save the WIP cap's last known state
+        uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
+        with:
+          save-state: "true"
+
   label-unblocked:
     # A close by any bot (the lanes App, or a PR merge a bot ran) is a clean
     # skip: the broker would refuse it, and the sweep picks it up. The broker
@@ -61,6 +100,13 @@ jobs:
     if: >-
       (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
       || (github.event_name == 'issues' && github.event.sender.type != 'Bot')
+    # One run at a time across the repository, so two runs cannot each admit
+    # the queued cap's whole room. The rest wait in line and are never
+    # cancelled (`queue: max`).
+    concurrency:
+      group: work-unblock-label-unblocked
+      cancel-in-progress: false
+      queue: max
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

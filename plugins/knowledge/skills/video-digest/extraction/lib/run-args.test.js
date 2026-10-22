@@ -33,6 +33,8 @@ describe("parseRunArgs", () => {
       "/tmp/cookies.txt",
       "--acquire-phase-gap",
       "1.5",
+      "--asr-python",
+      "/venv/bin/python",
       "watch/run-watch.js",
       "https://x",
     ]);
@@ -43,6 +45,7 @@ describe("parseRunArgs", () => {
       cookiesFromBrowser: "firefox",
       maxConcurrentAcquires: "3",
       acquirePhaseGap: "1.5",
+      asrPython: "/venv/bin/python",
       script: "watch/run-watch.js",
       rest: ["https://x"],
     });
@@ -104,6 +107,7 @@ describe("buildChildEnv", () => {
         cookiesFromBrowser: "firefox",
         maxConcurrentAcquires: "3",
         acquirePhaseGap: "1.5",
+        asrPython: "/venv/bin/python",
       }),
     ).toEqual({
       PATH: "/usr/bin",
@@ -112,6 +116,7 @@ describe("buildChildEnv", () => {
       VIDEO_DIGEST_YT_DLP_COOKIES_FROM_BROWSER: "firefox",
       VIDEO_DIGEST_MAX_CONCURRENT_ACQUIRES: "3",
       VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC: "1.5",
+      VIDEO_DIGEST_ASR_PYTHON: "/venv/bin/python",
     });
   });
 

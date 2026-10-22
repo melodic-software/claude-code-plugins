@@ -5,6 +5,38 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-10-22
+
+### Changed
+
+- Synced the shared `exec-bash.mjs` launcher, which gains an opt-in `--fail-closed` flag. This plugin's hooks do not pass it, so their behavior is unchanged.
+
+## [1.0.6] - 2026-10-20
+
+### Fixed
+
+- With `model_notices` on, a compacted session whose reading has no figures yet now gets a line saying the context reading is unavailable until the next API response, instead of `dumb zone (3 of 3, compacted)`. Once a response brings figures, the compacted zone line is sent as before. The status tool JSON, the band and blocking mode are unchanged.
+
+## [1.0.5] - 2026-10-20
+
+### Changed
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- The reader contract and the capture reference now cite the Desktop WSL page's "What works in a WSL session" section for the claim that plugins are unavailable in WSL sessions, with an as-of date and recheck trigger.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+- A restatement after a compaction now absorbs an approach or threshold line recorded before it, so Claude no longer gets `smart zone (1 of 3), nearing acceptable` beside `dumb zone (3 of 3, compacted)`. A threshold keeps its action sentence, which the restatement does not carry.
+- Operator mode: a crossing held at the end of a turn is merged into a restatement the same way before the suggestion is built, so the person is not offered both.
+- A crossing toast no longer waits on the snapshot write at `session.measure`: the toast shows first, and the write still runs if the toast step fails.
+
 ## [1.0.4] - 2026-10-18
 
 ### Changed

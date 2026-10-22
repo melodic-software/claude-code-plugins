@@ -34,7 +34,7 @@
             { "type": "integer" },
             { "type": "string", "minLength": 1 }
           ],
-          "description": "Stable identifier within the skill's eval set. Integer or string."
+          "description": "Stable identifier within the skill's eval set. Integer or string; give a new case a slug (its kebab-case name), not the next integer, so parallel additions never claim the same id."
         },
         "prompt": {
           "type": "string",

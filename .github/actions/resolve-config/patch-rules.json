@@ -1,11 +1,13 @@
 {
   "ci-context": {
-    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"],
+    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused", "instruction-path"],
     "allow": ["any"],
-    "max-files": null,
+    "max-files": 300,
     "requires": [],
     "commit": { "parents": ["head"], "message": "Fix failing CI checks on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": "ci-escalations",
+    "skip-moved-head": true,
+    "empty-at-push": "invalid",
     "escalations": ["ci-fix-empty", "ci-fix-escalated", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-protected-path"]
   },
   "review-threads": {
@@ -19,7 +21,7 @@
   },
   "dependency-review": {
     "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"],
-    "allow": ["any"],
+    "allow": ["dependency-manifests"],
     "max-files": 300,
     "requires": ["dependency-verdict: fix"],
     "commit": { "parents": ["head"], "message": "Fix the dependency update on {ref} [dependabot skip]", "trailer": "Lane-Activity: {lane}/{activity}" },
@@ -36,18 +38,19 @@
     "escalations": ["unresolved-conflict", "unexpected-path-staged", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "default": {
-    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"],
+    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused", "instruction-path"],
     "allow": ["any"],
-    "max-files": null,
+    "max-files": 300,
     "requires": [],
     "commit": { "parents": ["head"], "message": "Apply {activity} on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": null,
+    "skip-moved-head": false,
     "escalations": ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "issue": {
     "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"],
     "allow": ["any"],
-    "max-files": null,
+    "max-files": 300,
     "requires": [],
     "commit": { "parents": ["head"], "message": "Resolve issue #{issue}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": null,

@@ -5,10 +5,12 @@
       "id": 1,
       "name": "preflight-reports-before-spending",
       "prompt": "/evals:plugin-eval preflight plugins/evals",
-      "expected_output": "Prints the preflight report with cli_version read from claude --version, floor_met, git_version, platform, sandbox_backend, target_type: plugin, suite_tools, same_model (the tested model against the judge model), estimate_usd, and ceiling, in that order, then stops. No claude plugin eval invocation happens during a preflight.",
+      "expected_output": "Prints the preflight report with cli_version read from claude --version, floor_met, git_version, platform, sandbox_backend, target_type: plugin, suite_tools, same_model (the tested model against the judge model), estimate_usd, ceiling, leftover_sandboxes (count and size of claude-eval-* directories in the temp directory, or unknown), and tmp_free, in that order, then stops. Preflight removes no sandbox directory; when any are left it prints the chmod -R u+w and rm -rf cleanup commands for the user to run. No claude plugin eval invocation happens during a preflight.",
       "narration": true,
       "expectations": [
         "Every preflight field is printed in order, including sandbox_backend, same_model, and estimate_usd",
+        "leftover_sandboxes and tmp_free are printed after ceiling, each with a value or unknown, never an invented 0 for a path the probe could not read",
+        "No sandbox directory is deleted; if any are left, the chmod -R u+w and rm -rf cleanup commands are printed for the user and the response says preflight removes nothing",
         "cli_version comes from reading claude --version rather than being asserted",
         "target_type is reported as plugin for a directory holding a plugin manifest and an eval dir",
         "No eval run is launched and no cost is incurred by the preflight action"

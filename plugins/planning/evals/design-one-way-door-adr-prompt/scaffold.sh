@@ -61,7 +61,7 @@ tell their customers.
 
 ### Captured assumptions
 - Quality bar: production
-- Intent: second variant = category; existing structure: no webhooks exist yet; upstream: none
+- Variation intent: second variant = category; existing structure: no webhooks exist yet; upstream: none
 MD
 
 git add .

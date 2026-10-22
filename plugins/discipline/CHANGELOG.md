@@ -5,6 +5,58 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.22.0] - 2026-10-22
+
+### Added
+
+- be-ambitious deepens work already in progress
+
+  Typed after work, alone or with feedback such as "too shallow",
+  /discipline:be-ambitious now deepens that work. It answers the four depth
+  questions (what a top practitioner would add, the rawest material, the
+  methods and tools, an outside check), rewrites the brief, and redoes the
+  work without waiting, reporting what the outside check showed. It pauses
+  only when the new brief changes the goal, widens the scope, or needs a
+  decision, money or access only the user can give. Typed bare after an
+  aside, it raises the request still waiting on the user's answer.
+
+- The setup apply writer writes the settings file into the repository's convention home, read from the pointer region in AGENTS.md or CLAUDE.md, instead of the fixed docs/conventions. A repository with no region is offered one: with --yes the writer adds the region where the repository already keeps instructions (a new AGENTS.md only when neither file exists) and the overlay ignore line to .gitignore in the same step, and announces both. Without --yes it prints the offer and still creates a missing settings file in docs/conventions; changing an existing file, the region and the ignore line wait for --yes. --home names the home to offer, and --decline records a declined line so the offer is not made again. A home the repository already had lists the settings file in conventions-index.md. --home refuses a value holding a backtick or line break.
+
+- reuse-or-replace writes paved-path entries; lever-check gains a migration row
+
+  /discipline:reuse-or-replace is now the one skill that writes paved-path
+  entries. When work sets a new way for a recurring concern or openly
+  replaces a listed one, it drafts the entry (concern, chosen way, enforcing
+  check or none) and writes it only after you say yes. With no index row or
+  file it offers to create both, and an unattended run only proposes. The
+  lever check gains a migration row: a change that moves many sites to a new
+  way uses an established codemod or structural-rewrite tool first, then a
+  written script, then hand edits.
+
+### Changed
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line.
+
+## [0.21.2] - 2026-10-20
+
+### Added
+
+- `do-your-research` has eval cases for a fan-out worker that errors twice (one retry, then reported unverifiable) and for a planted stale fact the ledger must flag as corrected.
+
+### Changed
+
+- The sweep-all fork-guard eval prompts for `do-your-research` and `recheck-against-upstream` no longer say "audit-only" or "self-audit only", and the cases now assert that the skills' own never-inside-a-fork guard keeps the fork inline when its Agent tool could spawn.
+
+### Fixed
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- Discipline outcome evals: the `uys`, `rau`, `ror`, `swa`, `mym` and `hmh` graders now accept the correct phrasings they rejected (a brief read with `cat`, "no written reason", "a second one", "I didn't audit anything", "came last", "I cut … the Poetry/Hatch/PDM comparison", "reply with … like this:" before a text fence), each with a must-pass and a must-fail sample. `hmh` `performer-labeled` now needs a label on every step, and `swa` gains a grader against Skill-tool calls to other correctors.
+
+- The shared settings checker behind `/discipline:setup` validates string and object settings, and reports a setting whose schema shape it does not check instead of stopping with a JavaScript error.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
 ## [0.21.1] - 2026-10-18
 
 ### Fixed

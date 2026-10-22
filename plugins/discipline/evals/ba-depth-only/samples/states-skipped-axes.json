@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Axes applied: Depth. Altitude and Range skipped: you asked for a deeper version, not a bigger one.",
+      "why": "names both skipped axes with a reason"
+    },
+    {
+      "answer": "I applied only the depth pass and the outside check. I left out the bigger-goal and other-field steps, because the depth argument asks for depth alone.",
+      "why": "says both were skipped and why, in plain words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Axes applied: Altitude | Depth | Range.",
+      "why": "lists the skipped axes as applied"
+    },
+    {
+      "answer": "Axes applied: Depth.",
+      "why": "does not say the others were skipped or why"
+    }
+  ]
+}

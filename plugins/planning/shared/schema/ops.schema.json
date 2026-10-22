@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/ops",
   "title": "Shared interview session ops file",
-  "description": "Input to `share.sh apply --file`, written by Claude. Every op applies under the state lock and all of them land or none does. `op` tags the variant. A question's `id` is the interview ledger's next `Q<N>`. An asset id from `add-asset` is usable only in a later apply. Rules that compare fields or count across ops (dependsOn names earlier ids, at most 8 questions per round, a placement per pending proposal, one placement per proposal) are checked by session.py, not here.",
+  "description": "Input to `share.sh apply --file`, written by Claude. Every op applies under the state lock and all of them land or none does. `op` tags the variant. A question's `id` is the interview ledger's next `Q<N>`. An asset id from `add-asset` is usable only in a later apply. Rules that compare fields or count across ops (dependsOn names earlier ids, a variant's `previous` names a variant of an earlier prototype question that no other variant names, at most 8 questions per round, a placement per pending proposal, one placement per proposal) are checked by session.py, not here.",
   "type": "object",
   "required": ["ops"],
   "additionalProperties": false,
@@ -14,6 +14,7 @@
         "oneOf": [
           {"$ref": "#/$defs/set-title"},
           {"$ref": "#/$defs/set-goal"},
+          {"$ref": "#/$defs/set-repo"},
           {"$ref": "#/$defs/set-intro"},
           {"$ref": "#/$defs/open-round"},
           {"$ref": "#/$defs/close-round"},
@@ -26,6 +27,11 @@
           {"$ref": "#/$defs/set-for"},
           {"$ref": "#/$defs/add-asset"},
           {"$ref": "#/$defs/make-question-from"},
+          {"$ref": "#/$defs/resolve-report"},
+          {"$ref": "#/$defs/share-result"},
+          {"$ref": "#/$defs/take-down-result"},
+          {"$ref": "#/$defs/propose-merge"},
+          {"$ref": "#/$defs/propose-admit"},
           {"$ref": "#/$defs/handle"}
         ]
       }
@@ -44,6 +50,17 @@
       "required": ["op", "goal"],
       "additionalProperties": false,
       "properties": {"op": {"enum": ["set-goal"]}, "goal": {"type": "string", "maxLength": 200}}
+    },
+    "set-repo": {
+      "description": "The session's GitHub repository and pinned commit: the page links #N to the repository's issues and a repository path (path or path:line) to the file at the commit. Both are replaced together; no commit removes the old one, and an empty repo removes both.",
+      "type": "object",
+      "required": ["op", "repo"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["set-repo"]},
+        "repo": {"anyOf": [{"enum": [""]}, {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/repo"}]},
+        "commit": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/commit"}
+      }
     },
     "set-intro": {
       "description": "\"Why you're here\", the card a guest reads before question 1, as the owner confirmed it in the terminal; an empty intro removes it.",
@@ -159,6 +176,59 @@
         "op": {"enum": ["make-question-from"]},
         "proposal": {"type": "string"},
         "question": {"$ref": "#/$defs/questionInput"}
+      }
+    },
+    "resolve-report": {
+      "description": "Marks a problem report seen or resolved under the same rules as the owner's report route, which tells the reporter.",
+      "type": "object",
+      "required": ["op", "id", "action"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["resolve-report"]}, "id": {"type": "string"}, "action": {"enum": ["seen", "resolved"]}}
+    },
+    "share-result": {
+      "description": "Shares an unshared result with everyone under the same rules as the result-share route, acting as the owner.",
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["share-result"]}, "id": {"type": "string"}}
+    },
+    "take-down-result": {
+      "description": "Takes a shared result down under the same rules as the owner's takedown action.",
+      "type": "object",
+      "required": ["op", "id"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["take-down-result"]}, "id": {"type": "string"}}
+    },
+    "personReasons": {
+      "description": "Why Claude proposes it, from what the person-joined event and the session show. Never an address or a location, which the page keeps none of, and never a person's own claim, which is their data.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {"enum": ["same-name", "was-offline", "same-device", "expected"]}
+    },
+    "propose-merge": {
+      "description": "Proposes that `from` (a new browser) is `to` (a person already here). Nothing merges until the owner approves it; neither may be the owner.",
+      "type": "object",
+      "required": ["op", "from", "to", "reasons"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["propose-merge"]},
+        "from": {"type": "string"},
+        "to": {"type": "string"},
+        "reasons": {"$ref": "#/$defs/personReasons"},
+        "note": {"type": "string", "maxLength": 200}
+      }
+    },
+    "propose-admit": {
+      "description": "Proposes letting in one join waiting under Approve new joins. Nobody is let in until the owner approves it.",
+      "type": "object",
+      "required": ["op", "pid", "reasons"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["propose-admit"]},
+        "pid": {"type": "string"},
+        "reasons": {"$ref": "#/$defs/personReasons"},
+        "note": {"type": "string", "maxLength": 200}
       }
     },
     "handle": {

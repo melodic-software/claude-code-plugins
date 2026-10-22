@@ -3,6 +3,60 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3] - 2026-10-22
+
+### Fixed
+
+- Reject a team-file `output_home` or `research_paths` entry with a dot-leading segment anywhere in it (such as `docs/.env` or `a/b/.git`), not only as the first segment.
+
+## [0.2.2] - 2026-10-20
+
+### Fixed
+
+- Team settings now resolve a `research_paths`, `persona_paths` or `output_home` entry that does not exist yet through its deepest existing ancestor before the root, dot and outside-the-project checks, so a committed link to the project root can no longer carry `rootlink/.claude` or `rootlink/.github/workflows` into a dot directory. `rootlink/new` stays allowed.
+
+## [0.2.1] - 2026-10-20
+
+### Changed
+
+- The plugin moves to changelog-fragment releases.
+
+- `scripts/detect.mjs` now reads the team file through a generated copy of the shared
+  resolver `lib/config-cascade.mjs` (ADR 0075), as `user-interface` does. The detection output for
+  a team file at the convention home is unchanged, and `--team FILE` still replaces the resolved
+  team file. The resolver also applies a `user-experience.local.yaml` beside the team file over its
+  keys, refuses a team file that is a symlink (the file is then skipped as unreadable), and reports
+  a rejected value as a warning; a warning for a local value names the local file. Only the team
+  file sets `version`.
+
+### Fixed
+
+- Team settings now drop a `research_paths`, `persona_paths` or `output_home` entry whose first path segment starts with a dot (`.env`, `.aws/credentials`, `.ssh/x`, `.claude-notes/ux`), as written and through symlinks, with a warning. `.claude` and `.git` stay dropped.
+
+## [0.2.0] - 2026-10-20
+
+### Added
+
+- `/user-experience:evaluate` expert review of a live app now runs three checks
+  (`reference/evaluation.md` "Live-app checks"): the primary action and the thing asked about on
+  screen without scrolling at a phone, a tablet and a desktop size; question, label and
+  instruction copy that could point at more than one view, element or device; and in-product
+  pictures compared with the live screen and theme, with natural against displayed size.
+- Three evaluate eval cases, one per check.
+
+- Shared `resolve-convention-home.sh` synced: `--ref` (a 40-hex commit id or `origin/<name>`) reads the pointer and the home as committed, `-` reads the region from stdin, a `declined` line in the region exits 4 so the caller does not ask again, and a root that is `$HOME`, an ancestor of it or outside a git work tree exits 5 (not applicable).
+
+### Changed
+
+- With no `--root`, `resolve-convention-home.sh` reads the git toplevel of `CLAUDE_PROJECT_DIR` (else of the current directory): one home per git root.
+- `detect.mjs` reads no team file when the repository declined a convention home or none applies (the project is `$HOME`, an ancestor of it, or outside git): the built-in routes and defaults apply, and `skipped_reason` says why.
+
+### Fixed
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`. This plugin declares neither kind, so its behavior is unchanged.
+
+- A `CLAUDE.md` symlinked to `AGENTS.md`, or the reverse, no longer prints a `duplicate:` notice.
+
 ## [0.1.8] - 2026-10-15
 
 ### Changed

@@ -3,6 +3,127 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.1] - 2026-10-22
+
+### Removed
+
+- `/harness-ops:morning-brief` no longer lists `pr-refine.yml` among its default lane workflows;
+  the pr-pipeline `pr-refine` lane and its workflow were removed.
+
+## [4.0.0] - 2026-10-22
+
+### Added
+
+- `/harness-ops:morning-brief` prints a Cost section. GitHub: the org's billing net per product this month, private-repo Actions minutes and artifact storage against the plan's included amounts, every billing budget, direct collaborators besides org admins, and workflows on `pull_request_target` or `workflow_run` that reference a `_CLAUDE_` secret. Azure, when az is logged in: budgets with their forecast, required budgets and the cost anomaly alert (missing, disabled or ending soon), Defender plan tiers (informational), month-to-date Defender charges, each Log Analytics workspace's peak day against its daily cap, the last day's Defender plan, policy assignment and role assignment writes, the secure score and Advisor counts. Each line is `OK`, `ALERT`, `INFO` or `UNREADABLE`; `ALERT` marks what is charging or could start charging, and an `UNREADABLE` line names its fix (`gh auth login` with an org admin account, install az, `az login`) and makes the brief exit 6. Budget lines carry the cost query's latest usage date. Fork-triggered workflows are found in quoted and flow-style `on:` forms, and `secrets: inherit`, `toJSON(secrets)` and a computed `secrets[...]` index count as passing every secret. All reads are read-only and run with the operator's own logins. The org, subscription, included amounts, thresholds, required budget and alert names and the workflow read cap are settings: a flag, else `morning_brief` in `docs/conventions/harness-ops.local.yaml`, else in `docs/conventions/harness-ops.yaml` (schema `plugins/harness-ops/schemas/harness-ops.schema.json`), else the default. Fixture flags run it offline.
+
+- **`/harness-ops:morning-brief` lists open items stuck in a queue label** ([#8649](https://github.com/melodic-software/claude-code-plugins/issues/8649)). A new Stuck section, right after Queues, shows the open issues and PRs whose newest labeled event for a queue label is older than `--stuck-days` (default 7), oldest first, with the days in stage. `--stuck-limit` (default 20) caps the lines and the section says `PARTIAL` past it. `--stuck-json` feeds the section from a fixture. The section is read-only, and renders `UNREADABLE` where GraphQL is not served.
+
+### Changed
+
+- Synced the shared `exec-bash.mjs` launcher, which gains an opt-in `--fail-closed` flag. This plugin's hooks do not pass it, so their behavior is unchanged.
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line.
+
+### Removed
+
+- The lanes launcher's cloud stage-start probe no longer tells the session to put the `<!-- execution-target:fallback v1 -->` marker comment on the item. No per-item dispatcher reads it; the session still sets `execution_target_fallback` in the lane's telemetry state block.
+
+### Fixed
+
+- lanes: `telemetry-upsert.sh` takes `--app-slug SLUG` and resolves its write identity as `restart-consumer.sh` does (User login, else `SLUG[bot]`, else the reported Bot login plus `[bot]`), so under an App installation token it adopts its own comment instead of failing to find it. A malformed slug exits 3; an unresolved identity writes nothing and exits 4 naming `--app-slug`. Both detection tiers match only that identity's comments, so a sentinel comment another account posts on the public issue is ignored, as `restart-consumer.sh` already ignores it when reading. A comment list that does not parse exits 5 instead of creating a duplicate.
+
+- **`/plugins` sync reports an `--only-install` id that no marketplace in the run claims** ([#7963](https://github.com/melodic-software/claude-code-plugins/issues/7963)). Before, a mistyped or foreign id was skipped by every marketplace and vanished from the report. It now renders as an `error:` row naming the id, and an id one marketplace claims raises no error from the others.
+
+### Security
+
+- The machine profile now refuses a stateless GitHub App installation token (`ghs_` followed by a JWT, with no app id) as a record value, using GitHub's recommended `ghs_` regex.
+
+## [3.20.3] - 2026-10-20
+
+### Fixed
+
+- `/harness-ops:plugins sync` no longer leaves an `ask` pick installed but off when a run is interrupted between the install and the enable. `sync-run.sh` journals the pick in `pending-enable.txt` (beside the run journals under the plugin data directory) before installing it and clears the entry once the enable lands. The next sync enables a leftover pick that is installed at user scope and off, lists it in the digest's `pending_enable[]`, and drops an entry whose install never finished. A user-set `enabledPlugins: false` with no entry is never re-enabled.
+
+## [3.20.2] - 2026-10-20
+
+### Fixed
+
+- `/harness-ops:audit-performance` no longer counts `Edit(**/<dir>/*.<ext>)` and `Write(*.<ext>)` hook gates as firing on a file of another extension, and each `fan_out.hooks.projection` row now reports a `floor` and a `ceiling` beside its existing fields, with each extra copy of a settings-file handler and each upper-case extension gate counted toward the ceiling only (#6786).
+
+## [3.20.1] - 2026-10-20
+
+### Fixed
+
+- `/harness-ops:plugins converge` no longer treats a user home directory as a project path. `fleet-state.sh` marks each project or local record whose `projectPath` is `$HOME`, `/home/<name>`, `/Users/<name>`, `C:\Users\<name>` or the WSL view `/mnt/<drive>/Users/<name>` with `projectPathIsHome: true`. `converge` reports such a row as BLOCKED and emits no command for it, because that directory's `.claude/settings.json` is user settings and a project-scope uninstall there would remove user-scope enables. `sync` leaves those records out of its divergence count and lists them in a `User-home project records` row.
+
+## [3.20.0] - 2026-10-20
+
+### Changed
+
+- `/harness-ops:plugins sync` and `audit` now split the `Divergences:` count by what can be done about each part: actionable here, actionable elsewhere on the machine, in linked worktrees, and blocked (path not present). Only the actionable parts point at `converge`; the worktree part points at `/source-control:worktree audit` (if installed), and the blocked part points at the stale-records note. The digest's `divergences` object carries the new `actionable_here`, `actionable_elsewhere`, `in_worktrees` and `blocked` counts; `divergences[]` is not filtered, and a digest written before the split renders as it did.
+
+## [3.19.1] - 2026-10-20
+
+### Fixed
+
+- `/harness-ops:plugins converge` no longer defaults to uninstalling a project pin whose id is enabled in the tracked `.claude/settings.json`: it defaults to `update -s project` and offers uninstall only as a warned non-default. Each preview row states why its default was chosen. The check reads that one `enabledPlugins` key with the Read tool, the plugin's only sanctioned settings read, and is removed once `sync` takes over project pin updates (#7458).
+
+## [3.19.0] - 2026-10-20
+
+### Added
+
+- `audit-plugin-landscape` skill: an on-demand, read-only report on installed plugins and known marketplaces. `scripts/landscape_ages.py` batches `gh api` calls to give each one's last upstream commit date and flags 60+ days without a commit, an archived repository, a moved or renamed repository, and a missing source path; the skill groups overlapping plugins, lists alternatives with evidence, and recommends adopt, adapt or drop without filing issues or changing installed state.
+
+### Fixed
+
+- `/harness-ops:plugins sync` under `install_new: ask` no longer tells the model to offer every new catalog plugin in one batched multi-select, which the `AskUserQuestion` tool rejects for a gap of 1 and cannot hold for a gap over 4. The offer now goes in chunks of at most 4 options per question and 4 questions per call, with a further call past 16. Each chunk's question text is distinct, a chunk of 1 (a gap of 1, or the one left over from a gap of 5, 9, 13 and so on) is a single-select Install/Skip question, and an unanswered chunk counts as declined. The skill body, the install-enable context, the README and the `install_new` manifest description state the same rule, and three new evals cover a gap of 1, a gap over 4, and a leftover chunk of 1 in a further call past 16.
+
+## [3.18.0] - 2026-10-20
+
+### Added
+
+- `/harness-ops:morning-brief` frames the issue, pull-request, review-thread, telemetry and annotation text it prints as data, reports an embedded instruction instead of following it, and treats the lane telemetry notes it re-reads as a poisoning route. It names its three lethal-trifecta legs (private data, untrusted text, an outbound channel) and the leg it cuts: the outbound channel. A new eval case, `mb-issue-body-is-data`, plants an instruction in an issue body.
+
+### Changed
+
+- The plugins skill's scope-semantics record now states that a removed marketplace's cache tree was observed gone after the 14-day orphan window (Claude Code 2.1.302, observed by absence), replacing the earlier inference.
+
+- `/harness-ops:morning-brief` labels the zone on every date stamp it prints: the header time, the stranded window's start and each lane's `last-cycle` now read `... UTC`. The stranded-findings bookmark file keeps the bare form. A scheduled prompt that runs the skill names UTC.
+
+- The vendored `hook-utils.sh` comments no longer name the retired `block-hook-bypass` guard. Comment-only change; no runtime behavior changes.
+
+- **Upstream pointers re-checked against the live docs.** The subagent-limit comment, the Windows Git Bash resolution record, the skill usage counters note, the `--bare` uninstall gotcha, the CLI-versus-desktop scope note and the content-capture key table each carry an anchor, an as-of date and a recheck trigger. The Git Bash finding now names the step-2 skip rule, and the desktop note no longer claims the statusline and env vars are shared.
+
+### Removed
+
+- The hook launcher no longer accepts the unused `--skip-if-all-false` flag.
+
+### Fixed
+
+- The plugins skill's `## Next` section is one `/harness-ops:prerequisites` line, and the no-jq test cases skip with a visible `SKIP` line where `ln -s` cannot make a runnable link.
+
+- `lane-launcher.sh` takes `LANES_PLUGIN_TEST_TIMEOUT_S`, a bound for `claude plugin test` alone, so the hung-plugin-test case no longer races the `claude --version` probe on a slow runner. The production bound stays 20 s.
+
+- `/harness-ops:plugins` sync no longer drops an install that moved during the run just because the CLI said it was already current. For each such id the script compares the post-run snapshot with the pre-mutation one: a different version is reported as `Moved during this run:` (a backward one also under `Downgraded:`), feeds the self-update note and the monitor reload advisory, and is split out of the divergence attribution as "moved during this run, cause unattributed". A version that cannot be read stays a no-op and shows as `Not verified:`. The digest gains `moved_during_run[]` and `noop_unverified`.
+- The self-update note reads "<plugin> moved during this run", since this plugin's install can move through a concurrent update as well as the sweep.
+- The sync spec's Concurrency section no longer calls a concurrent move indistinguishable from a no-op, and the skill's report contract and sync-context load rule account for the new row.
+
+- `/harness-ops:plugins` no longer states a marketplace clone depth or the `11 of 74` unverifiable example. The cache-content check and its context records now say the clone is shallow and re-cloned on update, that only installs recorded at a commit inside the clone can be compared, and that most installs read unverifiable after a refresh.
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- `/harness-ops:plugins sync`'s stale project records row now names the marketplace it covers (`Stale project records (market1): ...`), since the count is built from that marketplace's install records only and read like a machine-wide count. The row also says how many of the counted records are local-scope and that nothing reaps them yet, and the digest's `stale_project_records` gains a `local` count beside `project`.
+
+- The inventory extraction resolves a description or menu description that a bundled skill reads through an arrow over a mode table (`()=>s().description()`, where `s` returns `<table>[<expr>??"<key>"]`), so the `design` skill no longer lands in `integrity.undetermined.description_unresolved` (#7987).
+
+- inventory: a built-in tool whose `aliases` array holds a spread the reader cannot follow now carries `aliases_source: partial` (or `unresolved` when the field is not an array literal) instead of an empty list. `--reader compare` then reports a regex/parser disagreement on such a list as `wrong->unresolved`, not a `value->value` change (#6888).
+
+- `/harness-ops:plugins` audit no longer predicts `claude plugin update` for an in-repo record of a marketplace whose `directory` source is the repository the run stands in: the CLI reads that folder live and leaves the record pinned. The report lists the record as read live from the folder, pinned at its version, and suggests removing and re-adding the record if the pin matters.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+- `/harness-ops:plugins` no longer reports a no-op update as a success. `fleet-state.sh` marks each project or local record `linkedWorktree` and labels a lagging one in a linked git worktree `update ineffective; uninstall clears it`, keeping it in the divergence count. `sync` reports an "already at the latest version" update whose project record is still below the catalog as a failed row. `converge` offers linked-worktree rows only the uninstall strategy and counts an update whose re-read record did not move as a failure.
+
 ## [3.17.0] - 2026-10-18
 
 ### Added

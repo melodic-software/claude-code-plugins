@@ -9,7 +9,7 @@
 # ("fmt" for a fmt.Println call), removes an unused one, groups the module's own
 # imports after third-party ones under -local; the parse-error line is the line
 # of the fixture's broken call, counted by hand.
-# test-scope: plugins/go-format/git-hooks/entries.json plugins/go-format/lib/git-hooks/check-lib.sh plugins/go-format/lib/git-hooks/install.mjs
+# test-scope: plugins/go-format/git-hooks/entries.json plugins/go-format/lib/git-hooks/check-lib.sh plugins/go-format/lib/git-hooks/install.mjs plugins/go-format/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
 

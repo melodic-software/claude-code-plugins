@@ -3,6 +3,64 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.0] - 2026-10-22
+
+### Changed
+
+- Decompose copies the Brief's Problem, the Goal's Intent, Vision and conflict-preference lines, and the load-bearing assumptions each slice depends on into container bodies and stand-alone items; `/work-items:work` passes them to the worker.
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line. For triage's `set-dimensions.sh`, a `models.issue-dimensions` block in `docs/conventions/pr-pipeline.yaml` must now write each `options` map and each size in block style.
+- `set-dimensions.sh` now names the parser's line and message when `docs/conventions/pr-pipeline.yaml` does not parse, not only the file.
+
+## [2.10.0] - 2026-10-20
+
+### Changed
+
+- **`/work-items:decompose` item bodies inline each thread's decisions.** The body template gains a `## Decisions` section: each decision the slice rests on, redacted, with its Q/D id, so a body stands on its own in a public tracker. The fill rules still forbid a memory-slice path. Step 1 now reads those decisions from the PLAN.md decisions table and the topic's interview ledger, and a decision with no id in its source is inlined without one. The evals gain a case asserting inlined decisions with their Q/D ids and no memory-slice path.
+
+## [2.9.0] - 2026-10-20
+
+### Added
+
+- The Agent Brief template gains a bug-only `Root cause` field (`unknown` or `known: <cause>`). `/work-items:triage` writes it when it briefs a bug, and `/work-items:work` runs `/debugging:debug` (or `/testing:diagnose` for a failing test) before implementing when it reads `unknown`; a named cause or a brief without the field goes straight to the fix.
+
+- New optional `lane_app_slug` userConfig key. `/work-items:work-loop` passes it as `--app-slug` to its telemetry upsert, so a lane running under a GitHub App installation token no longer needs the launch prompt to supply the slug.
+- `lane-telemetry-upsert.sh` treats an empty or surviving literal `${user_config.…}` `--app-slug` as absent and resolves the write identity as before, the same way it treats an unset `lane_instance`.
+
+- `/work-items:triage` sets an item's issue dimensions when the repository's `docs/conventions/pr-pipeline.yaml` has `models.issue-dimensions`: before an autonomous-eligible outcome's label edit it chooses one key per dimension from that block and runs `skills/triage/scripts/set-dimensions.sh`, which maps each key to its option id through the block and sets the fields through the tracker seam. An item whose size is `split`, or whose uncertainty mode is not `run`, is human-gated with a comment naming the next step (`/work-items:decompose`, planning or research, or a probe) instead of taking `agent-ready`.
+- The tracker seam's `set-fields` verb sets single-select issue fields by option id, refusing an id that is not one of its field's options before writing. The GitHub adapter implements it for organization issue fields.
+
+- `/work-items:work` CI mode continues an earlier run's branch when the runner's `issue.json` carries `resume` (the branch, why that run ended, its commit subjects and changed files): it reads the committed work, does not redo it, and finishes what is left.
+
+### Changed
+
+- `list-frontier --autonomous` now excludes items labeled `status: needs-decision` or `status: needs-info`, even when they also carry the autonomous-eligible label. The default (attended) frontier still lists them.
+
+- Triage eval case 20 (`triage-signal-marker-applies-provenance-label`) states that the `needs-human` and `work-class: untrusted-provenance` labels exist, so a strict model no longer fails it on the label preflight's missing-label branch.
+
+- `/work-items:decompose` window bar now also asks that a slice can merge to the mainline at least daily, as practice guidance on integration cadence; it sets no hours estimate and no day cap.
+
+### Fixed
+
+- The escalation-marker reference now names `kind=ratify-c3` as an exception to label-scoped duplicate suppression: one marker per item, ever, whatever labels the item wears, with the C3 ratification queue as the rule's owner.
+
+- The work preflight no longer credits the main checkout's `settings.local.json` to a worktree where Claude Code keeps approvals per worktree: on Windows, with the repository root equal to `$HOME` (symlinks resolved), or with a root not owned by the user, it credits only the worktree's own file. A layout it cannot determine (including an unreadable platform) is not credited and ends `PREFLIGHT: INCOMPLETE`.
+
+- `parse-concern-value.sh --strict` now exits 3 when a mapping repeats a key, as the CI config parser does; the shared awk YAML reader took the first value. Non-strict calls are unchanged.
+
+- The GitHub adapter's `set-fields` now sends each field as one `{field_id, value}` object in a JSON body. The `gh api` array form it used split ids and values into separate entries, so every write failed with HTTP 422 and `set-dimensions.sh` could not set an issue's dimensions.
+
+- The session bridge's channel policy reader now reads the macOS managed preferences and the Windows HKLM registry policy, falls back to the loopback transport when one exists but cannot be read, and combines lists and merges nested blocks across managed-settings drop-ins.
+
+- The GitHub adapter reads and creates items over REST in Claude Code cloud sessions (`CLAUDE_CODE_REMOTE=true`) whatever the `gh` version, and retries a native read or create over REST when the proxy answers with its "GitHub GraphQL is not available from Claude Code sessions" 403. Sub-issue and dependency edges and the `blockedBy` listings, which have no REST form, now exit 3 with an "unavailable in this Claude Code cloud session" message instead of failing on a refused GraphQL call.
+
+- Shared `watch.sh` synced: the control token reaches curl on stdin (`-H @-`), so it is in no process's argv.
+- Shared `session_bridge.py` synced: on Windows the control server refuses address reuse and binds with `SO_EXCLUSIVEADDRUSE`.
+
+- Shared `prerequisites.mjs` synced: a `node-pkg` or `python-pkg` entry reads `CLAUDE_PLUGIN_DATA` only when its last path segment is this plugin's name or starts with `<plugin>-`, and treats a literal `${...}` value as unset, so another plugin's data directory reports `unverified` instead of `missing`.
+
+- The spec-container label fallback in `/work-items:ship` discovery and decompose's container lifecycle now accepts only an item whose body carries the `**Execution shape:**` line; a labeled item without it is skipped and named in the report, and a fetched `#<number>` without it is reported as not a spec container (#7993).
+
 ## [2.8.0] - 2026-10-18
 
 ### Changed

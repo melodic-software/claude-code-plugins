@@ -199,7 +199,10 @@ mapping for is listed in the record's `unmapped` array (tool, resource type, fil
 is placed and `unmapped` is not empty (a Terraform root of only `aws_lambda_function` and
 `aws_s3_bucket`), the record is refused as `no-mapped-container` and keeps the list, rather than
 drawn as an empty environment. A repository that also places containers is drawn with the list
-beside it. The Compose and Kubernetes readers add nothing to the list. A double-brace expression in
+beside it. The Compose reader adds nothing to the list. The Kubernetes reader lists a `CronJob` and
+a `Job` (tool `kubernetes`, the kind, the file) and places none of their containers or parameters,
+so a repository of only those is refused as `no-mapped-container`. They add no environment, and
+their `kind:` must come before `spec:` for their `env` entries to stay out of the record. A double-brace expression in
 a Compose or Kubernetes value (a Go template in a healthcheck) reads normally; one in a name,
 image, namespace, replicas, or kind field refuses the file as unreadable.
 
@@ -219,7 +222,13 @@ container present in one environment only, image, replicas, ports, a parameter p
 environment only, a plain parameter value, a secret parameter that differs, a network (a Compose
 network or a Kubernetes Service) or an Ingress present in one environment only, and a network
 exposure or port or an Ingress host that differs. A compute node (a cluster, service plan or node
-pool) of the Terraform, Bicep, ARM, CloudFormation and Pulumi readers is not compared. A Kubernetes
+pool) of the Terraform, Bicep, ARM, CloudFormation and Pulumi readers is compared too: present in
+one environment only (`compute-added`, `compute-removed`), or, for Bicep, CloudFormation and
+Pulumi, at one address with a different resource type (`compute`). It is matched by resource
+address, not name, since a name usually differs per environment, so a changed name alone is not a
+difference. An ARM resource has no stable address, so it is matched by type and its order among
+nodes of that type. A Terraform Kubernetes workload and an Azure container group are compute nodes
+too. A Kubernetes
 container port (`containerPort`) is the placement's ports. A Kubernetes `valueFrom` reference
 counts as a secret parameter whose presence is compared; `envFrom` is not read. The report's diff
 section lists these kinds, and an empty diff reads `No differences of these kinds: ...` so a clean

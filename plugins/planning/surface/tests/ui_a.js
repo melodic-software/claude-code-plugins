@@ -46,6 +46,9 @@ async page => {
   await page.click('.qbtn[data-q="N1"]'); await page.waitForTimeout(200);
   const refs = await page.evaluate(() => [...document.querySelectorAll("#qhead a, .blk a")].map(a => a.textContent + " " + a.getAttribute("href")));
   ok("bare #N and owner/repo#N in a title and in facts render as issue links", ["#123 https://github.com/o/r/issues/123", "x/y#4 https://github.com/x/y/issues/4"].every(r => refs.filter(x => x === r).length === 2) && !refs.some(r => /#9\b/.test(r)), refs.join(" | "));
+  const dec = await page.evaluate(() => { const t = [...document.querySelectorAll("#choices .choice .t")].find(e => /request/.test(e.textContent)); return t ? {code: [...t.querySelectorAll("code")].map(c => c.textContent), text: t.textContent, bold: [...t.querySelectorAll("b")].map(b => b.textContent), link: [...t.querySelectorAll("a")].map(a => a.textContent + " " + a.getAttribute("href"))} : null; });
+  ok("a Decide row renders backticked code as a code element and shows <b> as text, not markup", !!dec && dec.code.join() === "request" && dec.text.includes("<b>by default</b>") && !dec.bold.includes("by default"), JSON.stringify(dec));
+  ok("a bare issue number in a Decide row renders as an issue link", !!dec && dec.link.join() === "#77 https://github.com/o/r/issues/77", JSON.stringify(dec));
   const n0 = (await events()).length;
   await page.click("#note"); await page.keyboard.type("hello"); await page.keyboard.press("Enter"); await page.keyboard.type("world 1");
   await page.waitForTimeout(300);
@@ -88,12 +91,20 @@ async page => {
   // flyout tabs
   await page.keyboard.press("v"); await page.waitForTimeout(250);
   ok("v opens the Visuals tab", await page.evaluate(() => document.getElementById("fly").classList.contains("open") && document.getElementById("flyTitle").textContent.startsWith("Visuals")));
-  const flyBox = await page.evaluate(() => { const f = document.getElementById("fly").getBoundingClientRect(), m = document.querySelector("main.detail").getBoundingClientRect(); return {overlay: getComputedStyle(document.getElementById("fly")).position === "absolute", mainW: Math.round(m.width), flyL: Math.round(f.left), mainR: Math.round(m.right)}; });
-  ok("flyout overlays the answer pane", flyBox.overlay && flyBox.flyL < flyBox.mainR, JSON.stringify(flyBox));
+  const flyBox = await page.evaluate(() => { const f = document.getElementById("fly").getBoundingClientRect(), m = document.querySelector("main.detail").getBoundingClientRect(); return {overlay: getComputedStyle(document.getElementById("fly")).position === "absolute", vw: innerWidth, mainW: Math.round(m.width), flyL: Math.round(f.left), mainR: Math.round(m.right)}; });
+  ok("unpinned flyout floats beside the answer pane without covering it from 1100px", flyBox.overlay && (flyBox.vw < 1100 || flyBox.flyL >= flyBox.mainR), JSON.stringify(flyBox));
   await page.click('#tabs [data-panel="notes"]'); await page.waitForTimeout(200);
   ok("Notes tab", await page.textContent("#flyTitle") === "Notes to Claude" && !!(await page.$("#noteText")));
   await page.click('#tabs [data-panel="settings"]'); await page.waitForTimeout(200);
   ok("Settings tab", await page.textContent("#flyTitle") === "Settings" && !!(await page.$('[data-set="shortcuts"]')));
+  await page.focus('#tabs [data-panel="settings"]'); await page.keyboard.press("ArrowRight"); await page.waitForTimeout(200);
+  ok("ArrowRight wraps from the last tab to the first and moves focus with it", await page.evaluate(() => document.activeElement.dataset.panel === "visuals" && document.activeElement.getAttribute("aria-selected") === "true" && document.getElementById("flyTitle").textContent.startsWith("Visuals")));
+  await page.keyboard.press("End"); await page.waitForTimeout(150);
+  ok("End goes to the last tab; only the selected tab is in the tab order", await page.evaluate(() => document.activeElement.dataset.panel === "settings" && [...document.querySelectorAll('#tabs [role="tab"]')].filter(b => b.tabIndex === 0).length === 1));
+  await page.keyboard.press("ArrowLeft"); await page.waitForTimeout(150);
+  ok("ArrowLeft goes back one tab", await page.evaluate(() => document.activeElement.dataset.panel === "activity"));
+  await page.keyboard.press("ArrowRight"); await page.waitForTimeout(150); // back on Settings, where the steps below expect to be
+  ok("the font stacks name no web font the CSP cannot load", await page.evaluate(() => { const c = getComputedStyle(document.documentElement); return !/Plex|Newsreader/.test(c.getPropertyValue("--sans") + c.getPropertyValue("--mono") + c.getPropertyValue("--display")); }));
   await page.click("#pinBtn"); await page.waitForTimeout(200);
   const pinned = await page.evaluate(() => getComputedStyle(document.getElementById("fly")).position);
   ok("Pin splits the screen", pinned === "static", pinned);
@@ -108,12 +119,32 @@ async page => {
   await page.click('.strip [data-panel="notes"]'); await page.waitForTimeout(200);
   if (!(await page.$("#noteText"))) { await page.click('.strip [data-panel="notes"]'); await page.waitForTimeout(200); }
   const n3 = (await events()).length;
-  await page.click("#noteText"); await page.keyboard.type("Side note for Claude"); await page.keyboard.press("Enter");
+  await page.click("#noteText"); await page.keyboard.type("Side note for Claude, see #123"); await page.keyboard.press("Enter");
   ok("plain Enter in a note does not send", (await events()).length === n3);
   await page.keyboard.press("Control+Enter"); await page.waitForTimeout(600);
   const ev4 = await events();
   ok("note sent as event kind note", ev4[ev4.length - 1].kind === "note" && ev4[ev4.length - 1].id === null, ev4[ev4.length - 1].text);
   ok("note shows in the thread", /Side note for Claude/.test(await page.textContent(".nthread")));
+  ok("a bare issue number in a note renders as an issue link", (await page.$$eval(".nthread a", as => as.map(a => a.textContent + " " + a.getAttribute("href")))).includes("#123 https://github.com/o/r/issues/123"));
+  ok("a short thread has no jump control and no folded note", !(await page.$("[data-notenewest]")) && !(await page.$("[data-notetoggle]")));
+  for (let i = 1; i <= 6; i++) {
+    await page.fill("#noteText", "Folding note " + i + (i === 6 ? "\n" + "newest filler line\n".repeat(40) : "\nsecond line " + i));
+    await page.click("[data-sendnote]"); await page.waitForTimeout(500);
+  }
+  for (const pinned of [false, true]) {
+    if ((await page.getAttribute("#pinBtn", "aria-pressed")) !== String(pinned)) await page.click("#pinBtn");
+    await page.waitForTimeout(200);
+    const tag = pinned ? "pinned" : "unpinned";
+    ok("a long thread folds an older note to one line (" + tag + ")", await page.evaluate(() => { const b = document.querySelector('[data-notetoggle][aria-expanded="false"]'); return !!b && b.nextElementSibling.hidden && !document.querySelector("#noteNewest [data-notetoggle]"); }));
+    await page.evaluate(() => { document.getElementById("fbody").scrollTop = 0; });
+    await page.focus("[data-notenewest]"); await page.keyboard.press("Enter"); await page.waitForTimeout(200);
+    ok("the jump control, from the keyboard, brings the newest note into the panel (" + tag + ")", await page.evaluate(() => { const r = document.getElementById("noteNewest").getBoundingClientRect(), p = document.getElementById("fbody").getBoundingClientRect(); return r.top < p.bottom && r.bottom > p.top; }));
+    await page.evaluate(() => { document.getElementById("fbody").scrollTop = 0; });
+    await page.click('[data-notetoggle][aria-expanded="false"]'); await page.waitForTimeout(100);
+    ok("clicking a folded note expands it (" + tag + ")", await page.evaluate(() => { const b = document.querySelector("[data-notetoggle]"); return b.getAttribute("aria-expanded") === "true" && !b.nextElementSibling.hidden; }));
+    await page.click("[data-notetoggle]"); await page.waitForTimeout(100);
+  }
+  await page.click("#pinBtn"); await page.waitForTimeout(150); // leave the panel unpinned, as the rest of the run expects
   await page.keyboard.press("Escape"); await page.keyboard.press("Escape"); await page.waitForTimeout(200);
   ok("Esc then Esc closes the flyout", await page.evaluate(() => !document.getElementById("fly").classList.contains("open")));
 
@@ -173,6 +204,7 @@ async page => {
     if (w === 820) ok("at 820 px the rail ends in a border", m.railB === "1px", m.railB);
     ok("an option title may take two lines at " + w + " px", m.choice === "2", m.choice);
     await page.click(".sumbtn"); await page.waitForTimeout(250);
+    ok("the summary renders no Decisions table without a decision row at " + w + " px", await page.evaluate(() => [...document.querySelectorAll("#dscroll table.sum")].every(t => t.tBodies[0] && t.tBodies[0].rows.length > 0)));
     ok("the summary does not widen the page at " + w + " px", await page.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1));
     await page.click('.qbtn[data-q="N2"]').catch(() => {}); await page.waitForTimeout(150);
   }
@@ -189,6 +221,33 @@ async page => {
   await page.selectOption("#filter", "pending"); await page.waitForTimeout(200);
   ok("a filter that matches nothing says so in the rail, not a blank list", (await page.$$(".rail-list .qbtn")).length > 0 || /No questions match/.test(await page.textContent("#railList")));
   await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
+
+  // a session with no answered question, on a second page whose state has its events, page responses and terminal decisions stripped and whose stream is refused (the 3 s poll then feeds the page the same stripped state)
+  const stripped = await page.context().newPage();
+  await stripped.route("**/events", r => r.abort());
+  await stripped.route("**/api/state", async route => { const res = await route.fetch(); const body = await res.json(); body.responses.events = []; body.responses.responses = {}; for (const q of body.questions.questions) delete q.terminal; await route.fulfill({response: res, json: body}); });
+  await stripped.setViewportSize({width: 1400, height: 860});
+  await stripped.goto(base); await stripped.waitForSelector(".qbtn", {state: "attached"});
+  await stripped.click(".sumbtn"); await stripped.waitForTimeout(400);
+  const sum0 = await stripped.evaluate(() => { const hs = [...document.querySelectorAll("#dscroll h4")].map(h => h.textContent.trim()); return {table: !!document.querySelector("#dscroll table.sum"), decisions: hs.includes("Decisions"), loose: hs.includes("Loose ends")}; });
+  ok("with no answered question the summary has no Decisions table or heading but still renders its other sections", !sum0.table && !sum0.decisions && sum0.loose, JSON.stringify(sum0));
+  await stripped.close();
+
+  // the connection pill: neutral Connecting until a first attempt has failed, then Connection lost
+  const pillOf = p => p.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent}));
+  const wake = p => p.evaluate(() => { Object.defineProperty(document, "visibilityState", {configurable: true, get: () => "visible"}); document.dispatchEvent(new Event("visibilitychange")); });
+  const hung = await page.context().newPage();
+  await hung.route("**/api/state", () => {}); await hung.route("**/events", () => {});
+  await hung.goto(base, {waitUntil: "domcontentloaded"}); await wake(hung); await hung.waitForTimeout(500);
+  const pc = await pillOf(hung);
+  ok("before any connection result the pill reads Connecting, not Connection lost", /\bconnecting\b/.test(pc.cls) && pc.text === "Connecting", JSON.stringify(pc));
+  await hung.close();
+  const refused = await page.context().newPage();
+  await refused.route("**/api/state", r => r.abort()); await refused.route("**/events", r => r.abort());
+  await refused.goto(base, {waitUntil: "domcontentloaded"}); await wake(refused); await refused.waitForTimeout(500);
+  const pd = await pillOf(refused);
+  ok("after a failed connection attempt the pill reads Connection lost", /\boffline\b/.test(pd.cls) && /^Connection lost/.test(pd.text), JSON.stringify(pd));
+  await refused.close();
 
   // set up the 409 test on N2: pick a choice and write a note
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);

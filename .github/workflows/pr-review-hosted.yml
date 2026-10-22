@@ -3,8 +3,8 @@ name: pr-review-hosted
 # Locally owned: the `claude-review-hosted-caller` component of
 # melodic-software/standards (components/claude-lanes-hosted/claude-review.yml)
 # is `locally-owned` for this repository in distribution/sync-manifest.yml, so
-# this copy can add the resolve-model job below. It differs from the component
-# in that job and these comments.
+# this copy can add the resolve-model and kill-switch jobs below. It differs
+# from the component in those jobs and these comments.
 #
 # Thin caller for the org's reusable code-review lane. The reusable workflow
 # owns the action pin, model, and the secret-handling model; per its header,
@@ -23,7 +23,7 @@ name: pr-review-hosted
 # on a public repository. It is the hosted sibling of
 # components/claude-lanes/claude-review.yml, which names the private fleet
 # review label, and differs from it only in these comments, `runner`, the
-# resolve-model job and the workflow `name:`, which equals each file's stem. The job id is the same, so
+# resolve-model and kill-switch jobs and the workflow `name:`, which equals each file's stem. The job id is the same, so
 # the check context is the same on every target. A target manages one of the
 # two, never both.
 #
@@ -124,18 +124,64 @@ jobs:
             exit 1
           fi
 
+  # The pinned reusable reads no kill switch, so this caller does. The org
+  # and repository switches fail closed (check-kill-switch); the lane's own
+  # CLAUDE_REVIEW_DISABLED stops it only at `true`, as github-iac's README
+  # documents for the review-lane switches. A failed job leaves proceed empty,
+  # which also stops the review.
+  kill-switch:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out the default branch for the kill-switch action
+    outputs:
+      proceed: ${{ steps.kill.outputs.proceed == 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true' && 'true' || 'false' }}
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/check-kill-switch/
+            /.node-version
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true' || vars.CLAUDE_REVIEW_DISABLED == 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+          LANE_SWITCH: ${{ vars.CLAUDE_REVIEW_DISABLED }}
+        run: |
+          echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, CLAUDE_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
+
   pr-review:
-    needs: resolve-model
+    needs: [resolve-model, kill-switch]
     # A draft is work in progress and does not spend a review; the
     # ready_for_review trigger above is what delivers one when it is ready.
-    if: ${{ !cancelled() && github.event.pull_request.draft == false }}
+    if: ${{ !cancelled() && github.event.pull_request.draft == false && needs.kill-switch.outputs.proceed == 'true' }}
     permissions:
       contents: read         # checkout + read the diff
       pull-requests: write   # post review, tracking comment and the lane's
                              # reviewed-head marker comment
       id-token: write        # OIDC, mints the Claude GitHub App token (required
                              # even with an OAuth/API-key credential)
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@96b50d451c4483c476f2f963674e0a3ba9d50fe3 # v0.48.0
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@8bd4d7f963a06627dd2d551ffcd8d9db5e6b881b # v0.59.1
     with:
       runner: ubuntu-24.04
       # Empty unless resolve-model succeeded, so a failed job's partial output
@@ -146,6 +192,13 @@ jobs:
       # reviewed. Where the repository does not set this variable the value is
       # empty and the reusable reviews no bot.
       allowed-bot-sender-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+      # People whose closing issues the review reads in full, by numeric user
+      # id: the `human` entries of .github/standards/trusted-actors/trusted-actors.json
+      # (standards components/trusted-actors/trusted-actors.json). Empty
+      # would replace every person's closing issue with a placeholder. The
+      # bot ids in allowed-bot-sender-ids above also mark issues those bots
+      # wrote as trusted closing-issue context.
+      allowed-author-ids: '153232337'
     # Pass only the one named secret (least privilege) rather than
     # `secrets: inherit`, which would forward every parent secret to the
     # called workflow.

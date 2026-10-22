@@ -138,7 +138,9 @@ concurrency:
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
 # suite among them, plus about 55 s of setup), 9; test-python per leg about
-# 260, the 199 s planning server suite plus setup, 7; test-node about 50 (31 s
+# 310 on the whole tree (255 s of suites over 5 legs estimated from
+# scripts/suite-seconds.txt, a 201 s suite among them, plus up to 56 s of
+# setup), 7; test-node about 50 (31 s
 # of package chains measured on a warm npm cache), sized for a cold install, 5;
 # ci-status 9 / 42, 3. A job that outgrows its timeout is made faster or split,
 # not given a longer one.
@@ -150,6 +152,13 @@ concurrency:
 # serves that ref alone: on 2026-10-09, 169 of 190 entries were, with the
 # repository at 10.67 GB against the 10 GB cap. The setup-node and setup-python
 # `cache:` input always saves, so neither step sets it.
+#
+# NO AUDIT OR FUND REQUEST ON INSTALL. `npm ci` otherwise posts an audit report
+# to the registry after installing, and a stalled request held jobs for npm's
+# fetch timeout. https://docs.npmjs.com/cli/v10/using-npm/config#audit
+env:
+  npm_config_audit: "false"
+  npm_config_fund: "false"
 jobs:
   # Single resolution of the diff scope. Every gated step reads a
   # `needs.select-tests.outputs.*` row instead of re-running the detector, so the
@@ -315,10 +324,8 @@ jobs:
       # pull request touching only a lockfile, only a workflow file or only the
       # ShellCheck configuration changes what every lane would find, so it must
       # run every lane rather than none. `shell`, `python`, `docs` and
-      # `powershell` feed no output: `shell`, `python` and `powershell` are the
-      # groups the path filters of .github/workflows/pr-test-windows.yml repeat,
-      # and the unread groups exist so a consumer can be added without touching
-      # the resolver. The test lanes read the plan below, not a group.
+      # `powershell` feed no output: the unread groups exist so a consumer can
+      # be added without touching the resolver. The test lanes read the plan below, not a group.
       # Patterns are ROOT-ANCHORED gitignore rules, and the action rejects `!`,
       # `?` and `+` outright.
       #
@@ -341,7 +348,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           filters: |
             shell:
@@ -866,11 +873,11 @@ jobs:
           path: |
             ~/.npm/_npx
             ~/.npm/_cacache
-          key: npx-markdownlint-cli2-${{ runner.os }}-ab83b01273026ab5c23c6f3b40e946d97a863fa2
+          key: npx-markdownlint-cli2-${{ runner.os }}-5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -883,33 +890,46 @@ jobs:
             ~/.npm/_cacache
           key: ${{ steps.npx_cache.outputs.cache-primary-key }}
 
+      # typos skips hidden directories; naming .changes checks the changelog
+      # fragments without pulling in .github and .claude. The release branch
+      # consumes every fragment, and typos exits 64 on a missing path.
+      - name: Resolve spell-check paths
+        id: typos_paths
+        run: |
+          if [[ -d .changes ]]; then paths='. .changes'; else paths='.'; fi
+          echo "paths=$paths" >>"$GITHUB_OUTPUT"
+
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/typos@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           config: _typos.toml
-          # A pack's vendored baseline is replaced verbatim from upstream by its
-          # own update script, which reports drift by hashing the committed file
-          # against the fetched one, so any spelling correction here would read
-          # as permanent drift. The managed config cannot carry a consumer-local
+          paths: ${{ steps.typos_paths.outputs.paths }}
+          # A vendored baseline (a skill pack's, or a tool's gitleaks rules) is
+          # replaced verbatim from upstream or held byte-equal to its canonical
+          # copy, so any spelling correction here would read as permanent
+          # drift. The managed config cannot carry a consumer-local
           # exclusion, so the exemption lives on the caller. The judge
           # calibration cases are code copied verbatim from other repositories'
           # histories, so a correction would change what the judge is measured on.
-          exclude: plugins/*/skills/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/**
+          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/**
 
-      # `log-opts` is unset on purpose: the composite scopes the scan by event. A
-      # pull request scans only its own commits (<base>..HEAD), so a finding on
-      # another branch cannot fail it (#3599). A merge group scans HEAD's full
-      # history. A schedule or manual dispatch scans every ref present in the
-      # clone (--all).
+      # Every run scans only history the commit under test can reach, so a
+      # finding on another branch cannot fail it (#3599); each branch is scanned
+      # on its own pull request. A pull request or merge group leaves
+      # `log-opts` empty and the composite scans its own commits
+      # (<base>..HEAD). A schedule or dispatch passes HEAD, main's full
+      # ancestry: the composite's default there is --all, and the unshallow
+      # fetch above brings in every branch.
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           config: .gitleaks.toml
           scan-mode: git
+          log-opts: ${{ contains(fromJSON('["schedule","workflow_dispatch"]'), github.event_name) && 'HEAD' || '' }}
 
       # Offline links and anchors: local files and #fragments only, no
       # network. Ungated like the other whole-repo scanners, because a
@@ -920,7 +940,7 @@ jobs:
       - name: Check local links and anchors
         id: lychee
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           config: lychee.toml
           exclude: >-
@@ -930,7 +950,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           config: .editorconfig-checker.json
 
@@ -944,13 +964,13 @@ jobs:
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -958,7 +978,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -970,12 +990,12 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -1008,12 +1028,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -1479,7 +1499,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -1786,10 +1806,17 @@ jobs:
       # takes a fragment under .changes/<plugin>/ in each pull request, and the
       # release pull request (branch release/plugins) bumps it. --check
       # validates every fragment in the tree; --check-required asks a change to
-      # such a plugin for one. --check-release keeps a release from merging past
-      # a fragment it never consumed: on the release pull request against the
-      # base, and in the merge queue against HEAD^1, the tree the queued squash
-      # commit lands on (main plus every entry ahead of it).
+      # such a plugin for one. --check-release keeps a release from merging over
+      # a file it changes (a consumed fragment, a CHANGELOG.md, a plugin.json)
+      # that the base changed since the release was cut: on the release pull
+      # request against the base, and in the merge queue against the group's
+      # base commit, `merge_group.base_sha` ("The SHA of the merge group's
+      # parent commit", https://docs.github.com/en/webhooks/webhook-events-and-payloads#merge_group).
+      # That base already holds the entries ahead in the queue: a group has
+      # "changes from pull requests ahead of it in the queue"
+      # (https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue).
+      # The queue checks out a single-parent squash whose HEAD^1 is that base,
+      # so the release is read from the queued pull request's head instead.
       - name: Verify every changelog fragment is well formed
         id: changelog_fragments_check
         continue-on-error: true
@@ -1825,11 +1852,26 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
-          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          CHANGELOG_HEAD_REF: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.head_ref || github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          CHANGELOG_PR_HEAD: ${{ steps.queued_pr.outputs.head_sha }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          QUEUED_PR: ${{ steps.queued_pr.outcome }}
         shell: bash scripts/run-hygiene-gate.sh changelog-fragments-release {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
-            scripts/check-changelog-fragments.sh --check-release 'HEAD^1'
+            if [ "$QUEUED_PR" != success ]; then
+              echo "::error::The queued pull request could not be resolved; refusing to pass the release gate without knowing whether it is the release."
+              exit 1
+            fi
+            if [ "$CHANGELOG_HEAD_REF" != release/plugins ]; then
+              echo "::notice::Declined: the queued pull request is not the release."
+              exit 0
+            fi
+            if [ -z "$MERGE_GROUP_BASE_SHA" ]; then
+              echo "::error::The merge group carries no base_sha; refusing to judge the release without the commit it lands on."
+              exit 1
+            fi
+            scripts/check-changelog-fragments.sh --check-release "$MERGE_GROUP_BASE_SHA"
           elif [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$CHANGELOG_HEAD_REF" = release/plugins ]; then
             scripts/check-changelog-fragments.sh --check-release "origin/$BASE_REF"
           else
@@ -1871,7 +1913,7 @@ jobs:
         id: marketplace_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
@@ -1879,7 +1921,7 @@ jobs:
         id: plugin_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
@@ -2278,7 +2320,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -2521,7 +2563,7 @@ jobs:
         # available to the bash-format contract suites in this same job. It
         # verifies the install on one small file that sources nothing; the
         # ShellCheck gate in `lint-shell` is what lints the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -2666,7 +2708,10 @@ jobs:
   # collects unittest.TestCase suites as well as pytest-style ones, the
   # disk-hygiene module among them. Suites in different directories import
   # same-named helpers (`from conftest import ...`), and a shared process hands
-  # each the first one loaded, hence a process per module. Node and the root
+  # each the first one loaded, hence a process per module. A planning surface
+  # module spreads its tests over pytest-xdist workers, one test class to a
+  # worker (`--dist loadscope`), since a class's tests share ordered state.
+  # Node and the root
   # npm install come too: Python suites run the claude CLI from
   # node_modules/.bin and the inventory's parser packages through node.
   test-python:
@@ -2760,8 +2805,14 @@ jobs:
             echo "::error::the plan gives leg $LEG no suites; a leg exists only to run some."
             exit 1
           fi
-          tr '\n' '\0' <"$RUNNER_TEMP/leg-suites.txt" |
-            xargs -0 -r -t -n1 python -m pytest -q -o tmp_path_retention_policy=none --
+          rc=0
+          while IFS= read -r suite; do
+            workers=()
+            [[ $suite == plugins/planning/surface/* ]] && workers=(-n auto --dist loadscope)
+            echo "python -m pytest -q -o tmp_path_retention_policy=none ${workers[*]} -- $suite" >&2
+            python -m pytest -q -o tmp_path_retention_policy=none "${workers[@]}" -- "$suite" || rc=1
+          done <"$RUNNER_TEMP/leg-suites.txt"
+          exit "$rc"
 
   # THE NODE PACKAGES THE CHANGE REACHES: the five sub-projects with their own
   # install, typecheck, lint and test chains (the miro MCP server, the
@@ -2946,8 +2997,9 @@ jobs:
   # HEAD. That replaces code-owner review of sync pull requests, so the job is a
   # trust boundary only while all of this holds: the action pinned by full SHA,
   # called from this code-owned file, exactly the permissions below, full
-  # history, and no paths filter. A merge group, schedule or dispatch run has
-  # no pull request diff and passes. The synced
+  # history, and no paths filter. A merge group run checks each queued pull
+  # request's own diff, read from the pulls API, by the same rules; a sync
+  # pull request must be queued alone. The synced
   # pr-check-managed-files-hosted.yml runs the same guard advisory and
   # paths-filtered; this job is the gate.
   check-managed-files:
@@ -2968,7 +3020,7 @@ jobs:
           # The guard diffs base...head; both commits must be present.
           fetch-depth: 0
       - name: Guard managed files
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
 
   ci-status:
     needs:
@@ -2994,9 +3046,12 @@ jobs:
     # `ci-lanes` commit status the last full run recorded on this SHA.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    # Nothing here waits on another run, so the job is sized by its own work:
-    # 9 s p95 and 42 s max in full mode, about 10 s contract-only.
-    timeout-minutes: 3
+    # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap is
+    # the worst case of the pinned composites' waits: two 60 s rate-limit waits
+    # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 15 s
+    # of own-gate retries, 7 s of status-write retries and the 90 s
+    # `rerun-wait-seconds` wait, about four minutes.
+    timeout-minutes: 5
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
       # `rerun-contract-only-siblings` re-runs the red contract-only ones once
@@ -3011,7 +3066,7 @@ jobs:
       statuses: write
     steps:
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -3039,6 +3094,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           BROKER_PATHS='.github/actions/resolve-config/resolve.mjs
+          .github/actions/resolve-config/dimensions.mjs
           .github/actions/resolve-config/predicate.mjs
           .github/actions/resolve-config/vocabulary.mjs
           .github/actions/resolve-config/package.json
@@ -3064,6 +3120,64 @@ jobs:
             exit 1
           fi
           echo "Broker-fetched change:$touched; paired pin pull request: $pin"
+      # A BODY LINE MUST NOT START A SQUASH MESSAGE LINE WITH `committer `.
+      # GitHub builds the squash message from the body (squash_merge_commit_message
+      # PR_BODY) and wraps it: a line of at most 72 characters is kept as
+      # written, a longer one is split on runs of spaces and tabs and filled
+      # greedily to 72 (19,174 of 19,174 body lines across the 400 squash commits
+      # on main before 2026-10-20 match this). A message line starting with
+      # `committer ` is read as a header when GitHub signs the commit, so the
+      # signature verifies invalid, the signed-commit rule refuses the push, and
+      # the queue removes the pull request as `branch_protection_failure`
+      # (#7279, #7360). Only that word is checked: squash messages with lines
+      # starting `author ` (#8489) and `parent ` (#7933) verified valid, and the
+      # other header words have no evidence either way. Fenced code wraps the same
+      # way, so it is checked too. On a pull request the body is wrapped by that
+      # rule; in a merge group the squash commit's own message (its subject
+      # dropped) is read, which catches a body edited after enqueue. Pinned by
+      # scripts/ci-squash-header-lines.test.sh, which runs this body.
+      - name: Fail a body line that would break the squash signature
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          TEXT: ${{ github.event.merge_group.head_commit.message || github.event.pull_request.body }}
+          # Bash measures ${#line} in characters only under a UTF-8 locale.
+          LC_ALL: C.UTF-8
+        run: |
+          text=${TEXT//$'\r'/}
+          where='pull request body line'
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            where='merge-group commit message line'
+            case $text in *$'\n'*) text=${text#*$'\n'} ;; *) text= ;; esac
+            offset=1
+          fi
+          n=${offset:-0} found=0
+          while IFS= read -r line || [ -n "$line" ]; do
+            n=$((n + 1))
+            rows=("$line")
+            if [ "${#line}" -gt 72 ]; then
+              rows=() cur=
+              IFS=$' \t' read -ra words <<<"$line"
+              for w in "${words[@]}"; do
+                if [ -z "$cur" ]; then
+                  cur=$w
+                elif [ $((${#cur} + 1 + ${#w})) -le 72 ]; then
+                  cur="$cur $w"
+                else
+                  rows+=("$cur")
+                  cur=$w
+                fi
+              done
+              [ -z "$cur" ] || rows+=("$cur")
+            fi
+            for row in "${rows[@]}"; do
+              if [[ $row == 'committer '* ]]; then
+                found=1
+                echo "::error::$where $n puts '${row//%/%25}' at the start of a squash commit message line, and that line starts with 'committer '. GitHub's signer reads such a line as the commit's committer header, so the squash commit's signature fails and the merge queue removes this pull request. Reword so no line, as GitHub wraps it at 72 characters, starts with 'committer '."
+              fi
+            done
+          done <<<"$text"
+          [ "$found" -eq 0 ] || exit 1
+          echo "No squash message line starts with 'committer '."
       # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
       # and tested nothing, and the aggregate below passes those skips. A green
       # draft cannot admit a merge: a draft cannot merge, and the merge-queue
@@ -3147,7 +3261,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane
@@ -3169,4 +3283,7 @@ jobs:
           yield-to-full-run: 'true'
           rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
           carry-forward-wait-seconds: '0'
+          # This step's own name, so the own-step lookup never depends on
+          # how many steps of the job are in progress.
+          step-name: Aggregate lane results
           token: ${{ github.token }}

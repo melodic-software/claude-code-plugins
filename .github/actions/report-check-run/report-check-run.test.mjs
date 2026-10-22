@@ -44,7 +44,7 @@ function fakeFetch(status = 201) {
       init,
       body: init.body === undefined ? undefined : JSON.parse(init.body),
     });
-    return { ok: status < 300, status, json: async () => ({ id: 1 }) };
+    return new Response(JSON.stringify({ id: 1 }), { status });
   };
   fetchImpl.calls = calls;
   return fetchImpl;
@@ -356,6 +356,13 @@ test("a signed-commit check that should have run and left no result POSTs failur
 test("an unverified commit POSTs failure", async () => {
   const { calls } = await run({ CAN_COMMIT: "true", ALL_VERIFIED: "false" });
   assert.equal(calls[0].body.conclusion, "failure");
+});
+
+test("a failed signed-commit check with no unverified SHA says could not be verified", async () => {
+  const { calls } = await run({ CAN_COMMIT: "true", ALL_VERIFIED: "false", UNVERIFIED: "" });
+  assert.match(calls[0].body.output.summary, /could not be verified/);
+  const named = await run({ CAN_COMMIT: "true", ALL_VERIFIED: "false", UNVERIFIED: HEAD });
+  assert.match(named.calls[0].body.output.summary, /not GitHub-verified/);
 });
 
 test("every commit verified POSTs success", async () => {

@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`sample-kit check` cannot read the report files the upstream checker writes. A report is a series of sections, each ending with a line `=== END OF <NAME> ===`, and the last line is a JSON object with a `verdict` field.\n\n## Fix\n\nAdd `parseReport(text)` that returns `{ sections: { <NAME>: <body> }, verdict: <the verdict value> }`.\n\n## Done when\n\n- [ ] `parseReport` returns every section by name and the final verdict.\n- [ ] A test parses a fixture report with two sections."
+  },
+  "pr": {
+    "title": "feat(sample-kit): parse upstream checker reports",
+    "body": "Adds parseReport and a fixture-based test."
+  }
+}

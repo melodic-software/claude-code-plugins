@@ -34,7 +34,7 @@ fixing the encoding].
 
 Principles applied: SRP keeps the query apart from the writer; YAGNI rules out a pluggable format
 layer.
-Generalize now or wait: the Brief's `Intent: second variant = speculative` line settles it: wait
+Generalize now or wait: the Brief's `Variation intent: second variant = speculative` line settles it: wait
 for the third occurrence and keep the CSV writer specific.
 Rationale: no second export format is planned, so an abstraction now would have one implementation.
 

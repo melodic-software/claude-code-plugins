@@ -21,9 +21,10 @@ Known inventory keys (by check.id):
                       + detail.upgrades (list of name/id/current/available)
     drivers         : detail.code_integrity_events (time/provider/id/message)
                       + detail.oldest_drivers (list of name/version/date)
-    services        : detail.startup_inventory + detail.stopped_auto_services
+    services        : detail.stopped_auto_services
     event-log-errors: detail.top_sources (provider_and_id/count/first/last)
     windows-update  : detail.recent_hotfixes
+    any other check : detail.items (FindingItems: title, severity, muted)
 #>
 
 . (Join-Path $PSScriptRoot 'ConvertTo-DetailMarkdown.ps1')
@@ -52,7 +53,7 @@ function ConvertTo-AppendixMarkdown {
             'services' { Get-ServicesAppendix -Detail $r.detail }
             'event-log-errors' { Get-EventLogAppendix -Detail $r.detail }
             'windows-update' { Get-HotfixAppendix -Detail $r.detail }
-            default { $null }
+            default { Get-ItemsAppendix -CheckId $r.id -Detail $r.detail }
         }
         if ($section) { $sections.Add($section) }
     }
@@ -168,29 +169,15 @@ function Get-DriverAppendix {
 
 function Get-ServicesAppendix {
     param([Parameter(Mandatory)] $Detail)
-    $sections = [System.Collections.Generic.List[string]]::new()
-
     $stopped = @(Get-AppendixInventory -Detail $Detail -Key 'stopped_auto_services')
-    if ($stopped.Count -gt 0) {
-        $rows = foreach ($s in $stopped) {
-            $delayed = $s.delayed_auto_start ? 'delayed' : 'auto'
-            "| ``$($s.name)`` | $($s.display_name) | $delayed |"
-        }
-        $sections.Add((Format-AppendixDetail -Summary "stopped automatic services ($($stopped.Count))" `
-                    -Column @('Name', 'Display', 'StartType') -Row @($rows)))
-    }
+    if ($stopped.Count -eq 0) { return $null }
 
-    $startup = @(Get-AppendixInventory -Detail $Detail -Key 'startup_inventory')
-    if ($startup.Count -gt 0) {
-        $rows = foreach ($s in $startup) {
-            "| $($s.Name) | $($s.User) | $($s.Location) |"
-        }
-        $sections.Add((Format-AppendixDetail -Summary "startup items ($($startup.Count))" `
-                    -Column @('Name', 'User', 'Location') -Row @($rows)))
+    $rows = foreach ($s in $stopped) {
+        $delayed = $s.delayed_auto_start ? 'delayed' : 'auto'
+        "| ``$($s.name)`` | $($s.display_name) | $delayed |"
     }
-
-    if ($sections.Count -eq 0) { return $null }
-    return ($sections -join "`n`n")
+    return Format-AppendixDetail -Summary "stopped automatic services ($($stopped.Count))" `
+        -Column @('Name', 'Display', 'StartType') -Row @($rows)
 }
 
 function Get-EventLogAppendix {
@@ -221,4 +208,30 @@ function Get-HotfixAppendix {
 
     return Format-AppendixDetail -Summary "recent hotfixes ($($items.Count))" `
         -Column @('KB', 'Description', 'Installed') -Row @($rows)
+}
+
+function Get-ItemsAppendix {
+    <#
+    .SYNOPSIS
+    The generic arm: a list-style check's FindingItems as title, severity and muted.
+
+    .DESCRIPTION
+    An exclusion item's title is its Defender exclusion value, which stays out of
+    the report, so its row shows a fixed placeholder instead.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $CheckId,
+        [Parameter(Mandatory)] $Detail
+    )
+    $items = @(Get-AppendixInventory -Detail $Detail -Key 'items')
+    if ($items.Count -eq 0) { return $null }
+
+    $rows = foreach ($i in $items) {
+        $key = $i.PSObject.Properties['key'] ? "$($i.key)" : ''
+        $title = $key.StartsWith('exclusion:') ? '(exclusion value withheld)' : (Format-MarkdownCell $i.title)
+        $muted = $i.PSObject.Properties['muted'] -and $i.muted ? 'yes' : 'no'
+        "| $title | $(Format-MarkdownCell $i.severity) | $muted |"
+    }
+    return Format-AppendixDetail -Summary "$CheckId items ($($items.Count))" `
+        -Column @('Item', 'Severity', 'Muted') -Row @($rows)
 }

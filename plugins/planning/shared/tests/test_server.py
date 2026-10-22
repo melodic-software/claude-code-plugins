@@ -36,6 +36,8 @@ HTML_ASSET_CSP = (
     "connect-src 'none'; frame-ancestors 'self'"
 )
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
+# Sleeps past the one-write-a-second limit: time.sleep(WRITE_INTERVAL) can read as a hair under it on the throttle's time.time clock.
+PAST_WRITE = session.WRITE_INTERVAL + 0.05
 
 
 def raw_exchange(port, data, *, wait=5.0):
@@ -88,9 +90,16 @@ class ServerCase(unittest.TestCase):
 
     def join(self, name, ip=None):
         h = {"CF-Connecting-IP": ip} if ip else {}
-        code, _, out = self.post("/api/join", {"name": name, "device": "computer"}, h)
+        code, _, out = self.post("/api/join", {"name": name, "device": "computer", "key": self.app.session.state["session"]["guestKey"]}, h)
         self.assertEqual(code, 200, out)
         return out["pid"], {"X-Session-Secret": out["secret"]}
+
+    def claude_from_before(self):
+        """A person named "Claude" in a session from before join and rename refused that name."""
+        pid, _ = self.join("Cee")
+        with self.app.session._tx() as st:
+            st["people"][pid]["name"] = "Claude"
+        return pid
 
     def ops(self, *ops):
         s = self.app.hub
@@ -115,19 +124,20 @@ class TestAuthClasses(ServerCase):
         self.leader(lead_pid)
 
     def test_person_routes_refuse_a_request_with_no_identity(self):
-        # Join is the one route a newcomer reaches before holding a secret; any other public route goes unchecked here.
-        self.assertEqual(["/api/join"], sorted(p for p, (a, _) in server.ROUTES.items() if a == "public"))
+        # Join and a device's sign-in code are the routes a newcomer reaches before holding a credential; any other
+        # public route goes unchecked here.
+        self.assertEqual(["/api/join", "/api/owner/pair/redeem"], sorted(p for p, (a, _) in server.ROUTES.items() if a == "public"))
         for path, (auth, _) in server.ROUTES.items():
             if auth == "public":
                 continue
             with self.subTest(path=path):
                 code, _, out = self.post(path, {})
-                want = (403, "owner-only") if auth == "owner" else (401, "unknown-session")
+                want = (403, "owner-only") if auth in ("owner", "host") else (401, "unknown-session")
                 self.assertEqual((code, out["error"]), want)
 
     def test_owner_routes_refuse_a_leader(self):
         for path, (auth, _) in server.ROUTES.items():
-            if auth == "owner":
+            if auth in ("owner", "host"):
                 with self.subTest(path=path):
                     code, _, out = self.post(path, {}, self.lead)
                     self.assertEqual((code, out["error"]), (403, "owner-only"))
@@ -175,9 +185,87 @@ class TestAuthClasses(ServerCase):
         self.assertEqual((code, out["error"]), (401, "unknown-session"))
 
     def test_join_is_public(self):
-        code, _, out = self.post("/api/join", {"name": "Cy", "device": "phone"})
+        code, _, out = self.post("/api/join", {"name": "Cy", "device": "phone", "key": self.app.session.state["session"]["guestKey"]})
         self.assertEqual(code, 200)
         self.assertEqual(sorted(out), ["name", "ok", "pid", "secret"])
+
+
+class TestOwnerDevices(ServerCase):
+    """Signing the owner in on another device over HTTP. Expected values come from the owner's decision: the code is
+    made only where the owner link was opened, the device gets its own credential and owner rights, the owner link's
+    token never reaches it, and signing it out ends it at once, its asset cookie included."""
+
+    def setUp(self):
+        super().setUp()
+        self.guest_pid, self.guest = self.join("Ann")
+
+    def pair(self, ip="203.0.113.5"):
+        code, _, out = self.post("/api/owner/pair", {}, self.owner)
+        self.assertEqual(code, 200, out)
+        code, _, dev = self.post("/api/owner/pair/redeem", {"code": out["code"], "device": "phone"}, {"CF-Connecting-IP": ip})
+        self.assertEqual(code, 200, dev)
+        return out["code"], dev
+
+    def test_a_device_signs_in_once_and_acts_as_the_owner(self):
+        code, dev = self.pair()
+        mine = {"X-Owner-Token": dev["token"]}
+        status, _, out = self.get("/api/state", mine)
+        self.assertEqual((status, out["me"]["role"]), (200, "owner"))
+        self.assertEqual([d["id"] for d in out["ownerDevices"]], [dev["id"]])
+        status, _, out = self.post("/api/session/title", {"title": "From my phone"}, mine)
+        self.assertEqual((status, out["title"]), (200, "From my phone"))
+        status, _, out = self.post("/api/owner/pair/redeem", {"code": code}, {"CF-Connecting-IP": "198.51.100.7"})
+        self.assertEqual((status, out["error"]), (403, "bad-pair-code"))
+
+    def test_only_the_owner_links_device_makes_codes_or_a_new_owner_link(self):
+        _, dev = self.pair()
+        before = (self.d / server.SECRETS).read_text(encoding="utf-8")
+        for path in ("/api/owner/pair", "/api/link/owner"):
+            with self.subTest(path=path):
+                status, _, out = self.post(path, {}, {"X-Owner-Token": dev["token"]})
+                self.assertEqual((status, out["error"]), (403, "host-device-only"))
+                self.assertNotIn(self.app.secrets["owner"], json.dumps(out))
+                status, _, out = self.post(path, {}, self.guest)
+                self.assertEqual((status, out["error"]), (403, "owner-only"))
+        self.assertEqual((self.d / server.SECRETS).read_text(encoding="utf-8"), before)
+
+    def test_signing_a_device_out_ends_it_and_its_asset_cookie_at_once(self):
+        (self.d / "assets").mkdir()
+        (self.d / "assets" / "0123456789abcdef.png").write_bytes(PNG)
+        _, dev = self.pair()
+        mine = {"X-Owner-Token": dev["token"]}
+        cookie = {"Cookie": self.get("/api/state", mine)[1]["Set-Cookie"].split("; ")[0]}
+        self.assertEqual(self.get("/assets/0123456789abcdef.png", cookie)[0], 200)
+        status, _, out = self.post("/api/owner/devices/revoke", {"id": dev["id"]}, self.owner)
+        self.assertEqual(status, 200, out)
+        self.assertEqual(self.get("/api/state", mine)[0], 401)
+        self.assertEqual(self.get("/assets/0123456789abcdef.png", cookie)[0], 401)
+        self.assertEqual(self.get("/api/state", self.owner)[0], 200)
+
+    def test_a_new_owner_link_signs_out_every_device(self):
+        devs = [self.pair()[1]]
+        time.sleep(session.WRITE_INTERVAL)  # one code a second
+        devs.append(self.pair("198.51.100.7")[1])
+        status, _, out = self.post("/api/link/owner", {}, self.owner)
+        self.assertEqual(status, 200, out)
+        for dev in devs:
+            self.assertEqual(self.get("/api/state", {"X-Owner-Token": dev["token"]})[0], 401)
+
+    def test_closing_the_session_signs_out_every_device(self):
+        _, dev = self.pair()
+        status, _, out = self.post("/api/session/end", {"on": True}, self.owner)
+        self.assertEqual(status, 200, out)
+        status, _, out = self.get("/api/state", {"X-Owner-Token": dev["token"]})
+        self.assertEqual((status, out["error"]), (401, "unknown-session"))
+        self.assertEqual(self.get("/api/state", self.owner)[0], 200)
+
+    def test_the_log_never_holds_a_code_or_a_credential(self):
+        code, dev = self.pair()
+        self.post("/api/owner/pair/redeem", {"code": code}, {"CF-Connecting-IP": "198.51.100.7"})
+        log = (self.d / "server.log").read_text(encoding="utf-8")
+        self.assertIn("route=/api/owner/pair/redeem", log)
+        for secret in (code, dev["token"]):
+            self.assertNotIn(secret, log)
 
 
 class TestHostAndOrigin(ServerCase):
@@ -231,6 +319,112 @@ class TestHostAndOrigin(ServerCase):
         self.assertEqual(code, 403)
 
 
+class TestTunnelSwitch(ServerCase):
+    """A switch to a named tunnel (or any new address) while the old tunnel still runs: a guest keeps their identity on
+    the new host, and the old host answers only with where the session went, until its grace time is up."""
+
+    NAMED = "interview.example.com"
+
+    def setUp(self):
+        super().setUp()
+        # The probe goes to this server's guest port with the new hostname as Host, as Cloudflare's edge would send it.
+        probe = {"SHARED_PROBE_ORIGIN": f"http://127.0.0.1:{self.port}", "SHARED_PROBE_SECONDS": "2"}
+        patcher = mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": FAKE, "SHARED_TUNNEL_SECONDS": "10", **probe})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(tunnel.stop, self.d)
+        self.token = tmpdir(self) / "tunnel.token"
+        self.token.write_text("fake-tunnel-token-for-tests", encoding="utf-8")
+        os.chmod(self.token, 0o600)
+        self.pid, self.guest = self.join("Ann")
+        self.quick = tunnel.host(tunnel.ensure(self.d, self.port)["url"])
+        self.app.sync_tunnel(restart=False)
+
+    def state(self, host, headers=None):
+        return self.get("/api/state", {"Host": host, "Origin": f"https://{host}", **(headers or {})})
+
+    def switch(self):
+        tunnel.ensure(self.d, self.port, self.NAMED, str(self.token), verify=self.app.probe_tunnel)
+        self.app.sync_tunnel(restart=False)
+
+    def test_a_hostname_that_reaches_another_server_is_not_switched_to(self):
+        """A typo'd or foreign hostname: whatever answers there cannot give this server's probe answer, so no page is
+        ever sent there with its secret."""
+        other = server.App(tmpdir(self), watch_tunnel=False)
+        other.serve()
+        self.addCleanup(other.shutdown)
+        with mock.patch.dict(os.environ, {"SHARED_PROBE_ORIGIN": f"http://127.0.0.1:{other.guest_port}"}):
+            with self.assertRaisesRegex(tunnel.TunnelDown, "does not reach this server"):
+                tunnel.ensure(self.d, self.port, self.NAMED, str(self.token), verify=self.app.probe_tunnel)
+        self.app.sync_tunnel(restart=False)
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out["me"]["pid"]), (200, self.pid))
+        self.assertNotIn("moved", out)
+        self.assertIsNone(tunnel.retired(self.d))
+
+    def test_a_probe_nonce_is_answered_once_and_only_when_pending(self):
+        nonce = "ab" * 16
+        code, _, _ = self.get(f"/api/tunnel-probe/{nonce}", {"Host": "anything.example"})
+        self.assertEqual(code, 404)
+        self.app._probes[nonce] = ("cd" * 16, time.monotonic() + 30)
+        code, _, out = self.get(f"/api/tunnel-probe/{nonce}", {"Host": self.NAMED})
+        self.assertEqual((code, out), (200, {"probe": "cd" * 16}))
+        self.assertEqual(self.get(f"/api/tunnel-probe/{nonce}", {"Host": self.NAMED})[0], 404)
+
+    def test_only_an_https_address_is_probed(self):
+        self.assertIn("not an https address", self.app.probe_tunnel(f"http://{self.NAMED}"))
+
+    def test_a_guest_secret_from_the_old_host_is_the_same_person_on_the_new_one(self):
+        code, _, before = self.state(self.quick, self.guest)
+        self.assertEqual((code, before["me"]["pid"]), (200, self.pid))
+        self.switch()
+        code, _, after = self.state(self.NAMED, self.guest)
+        self.assertEqual((code, after["me"]["pid"], after["me"]["name"]), (200, self.pid, "Ann"))
+
+    def test_the_old_host_answers_only_where_the_session_went(self):
+        self.switch()
+        for headers in (self.guest, {}):
+            with self.subTest(identified=bool(headers)):
+                code, _, out = self.state(self.quick, headers)
+                self.assertEqual((code, out), (200, {"moved": f"https://{self.NAMED}"}))
+
+    def test_the_old_host_is_refused_once_its_grace_time_is_up(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        rec["retired"]["until"] = 0
+        detached.write_private(self.d / tunnel.RECORD, json.dumps(rec))
+        self.app.sync_tunnel(restart=False)
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out["error"]), (403, "bad-host"))
+
+    def test_a_named_tunnel_that_exits_comes_back_at_its_address_with_no_share_again(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        share_before = dict(self.app.session.state["session"]["share"])
+        detached.stop(rec["pid"], rec["marker"], rec["processStart"])
+        self.app.watch_tunnel = True
+        self.app.sync_tunnel()
+        now = tunnel.alive(self.d)
+        self.assertNotEqual(now["pid"], rec["pid"])
+        self.assertEqual((now["url"], self.app.public_url), (f"https://{self.NAMED}",) * 2)
+        self.assertEqual(self.app.session.state["session"]["share"], share_before)
+
+    def test_a_named_tunnel_restarted_in_the_grace_time_keeps_the_old_host_answering(self):
+        self.switch()
+        rec = tunnel.read(self.d)
+        detached.stop(rec["pid"], rec["marker"], rec["processStart"])
+        self.app.watch_tunnel = True
+        self.app.sync_tunnel()
+        self.assertNotEqual(tunnel.alive(self.d)["pid"], rec["pid"])
+        code, _, out = self.state(self.quick, self.guest)
+        self.assertEqual((code, out), (200, {"moved": f"https://{self.NAMED}"}))
+
+    def test_status_names_the_named_tunnel(self):
+        self.switch()
+        code, _, out = call(self.app.control_port, "GET", "/api/status", headers={"X-Shared-Token": self.app.hub.token})
+        self.assertEqual((code, out["tunnel"], out["publicUrl"]), (200, "named", f"https://{self.NAMED}"))
+
+
 class TestHeadersAndCaps(ServerCase):
     def test_every_json_answer_carries_the_security_headers(self):
         for path in ("/api/state", "/api/nope"):
@@ -264,12 +458,12 @@ class TestHeadersAndCaps(ServerCase):
         (self.d / "assets").mkdir()
         (self.d / "assets" / "0123456789abcdef.png").write_bytes(PNG)
         (self.d / "assets" / "fedcba9876543210.html").write_text("<html></html>", encoding="utf-8")
-        code, h, body = self.get("/assets/0123456789abcdef.png")
+        code, h, body = self.get("/assets/0123456789abcdef.png", self.owner)
         self.assertEqual((code, h["Content-Type"], h["Content-Security-Policy"], h["Content-Disposition"], body), (200, "image/png", "sandbox", "inline", PNG))
-        _, h, _ = self.get("/assets/fedcba9876543210.html")
+        _, h, _ = self.get("/assets/fedcba9876543210.html", self.owner)
         self.assertEqual(h["Content-Security-Policy"], HTML_ASSET_CSP)
         self.assertNotIn("allow-same-origin", h["Content-Security-Policy"])
-        code, _, _ = self.get("/assets/0123456789abcdef.exe")
+        code, _, _ = self.get("/assets/0123456789abcdef.exe", self.owner)
         self.assertEqual(code, 404)
 
     def test_a_non_json_post_is_415(self):
@@ -331,11 +525,11 @@ class TestFormatsAndPresenceRoutes(ServerCase):
 
     def test_multi_scale_and_rank_picks_travel_in_their_own_fields(self):
         self.assertEqual(self.pick({"qid": "Q1", "options": ["opt-2", "other"], "other": "Price"})[2], {"ok": True, "picks": ["opt-2", "other"]})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         self.assertEqual(self.pick({"qid": "Q2", "value": 4})[2], {"ok": True, "value": 4})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         self.assertEqual(self.pick({"qid": "Q3", "order": ["opt-3", "opt-1", "opt-2"]})[2], {"ok": True, "order": ["opt-3", "opt-1", "opt-2"]})
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         code, _, out = self.pick({"qid": "Q3", "order": ["opt-3"]})
         self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "order"))
 
@@ -362,10 +556,101 @@ class TestJoinLimit(ServerCase):
     def test_the_join_limit_keys_on_cf_connecting_ip_and_ignores_x_forwarded_for(self):
         for i in range(session.JOINS_PER_WINDOW):
             self.join(f"P{i}", ip="198.51.100.7")
-        code, _, out = self.post("/api/join", {"name": "Late"}, {"CF-Connecting-IP": "198.51.100.7", "X-Forwarded-For": "192.0.2.1"})
+        code, _, out = self.post("/api/join", {"name": "Late", "key": self.app.session.state["session"]["guestKey"]}, {"CF-Connecting-IP": "198.51.100.7", "X-Forwarded-For": "192.0.2.1"})
         self.assertEqual((code, out["error"]), (429, "join-rate"))
-        code, _, _ = self.post("/api/join", {"name": "Other"}, {"CF-Connecting-IP": "198.51.100.8"})
+        code, _, _ = self.post("/api/join", {"name": "Other", "key": self.app.session.state["session"]["guestKey"]}, {"CF-Connecting-IP": "198.51.100.8"})
         self.assertEqual(code, 200)
+
+
+class TestGuestKey(ServerCase):
+    def test_a_new_session_refuses_a_join_without_its_guest_key(self):
+        self.assertTrue(self.get("/api/state")[2]["joinNeedsKey"])
+        code, _, out = self.post("/api/join", {"name": "No key"})
+        self.assertEqual((code, out["error"]), (403, "bad-guest-key"))
+
+    def test_a_keyless_session_from_before_stays_keyless_across_a_restart(self):
+        self.app.shutdown()
+        doc = json.loads((self.d / server.STATE).read_text(encoding="utf-8"))
+        doc["session"]["guestKey"] = ""
+        (self.d / server.STATE).write_text(json.dumps(doc), encoding="utf-8")
+        app = server.App(self.d, watch_tunnel=False)
+        app.serve()
+        self.addCleanup(app.shutdown)
+        code, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+        self.assertEqual(code, 200, out)
+        self.assertEqual(app.session.state["session"]["guestKey"], "")
+
+
+class TestAssetAccess(ServerCase):
+    def setUp(self):
+        super().setUp()
+        (self.d / "assets").mkdir()
+        (self.d / "assets" / "0123456789abcdef.png").write_bytes(PNG)
+        self.pid, self.guest = self.join("Ann")
+
+    def png(self, headers=None):
+        code, _, body = self.get("/assets/0123456789abcdef.png", headers)
+        return code, body if code == 200 else body["error"]
+
+    def cookie(self, headers):
+        """The asset cookie a state read sets, as a Cookie header, and its attributes."""
+        _, h, _ = self.get("/api/state", headers)
+        pair, *attrs = h["Set-Cookie"].split("; ")
+        return {"Cookie": pair}, attrs
+
+    def test_an_asset_needs_a_person_or_the_owner(self):
+        self.assertEqual(self.png(), (401, "unknown-session"))
+        self.assertEqual(self.png({"X-Session-Secret": "forged"}), (401, "unknown-session"))
+        self.assertEqual(self.png(self.guest), (200, PNG))
+        self.assertEqual(self.png(self.owner), (200, PNG))
+
+    def test_a_state_read_sets_an_asset_cookie_that_reads_assets_only_while_the_person_may(self):
+        cookie, attrs = self.cookie(self.guest)
+        self.assertEqual(attrs, ["Path=/assets/", f"Max-Age={server.ASSET_COOKIE_SECONDS}", "HttpOnly", "SameSite=Strict"])
+        self.assertEqual(self.png(cookie), (200, PNG))
+        self.assertEqual(self.png(self.cookie(self.owner)[0]), (200, PNG))
+        code, _, out = self.post("/api/person/remove", {"pid": self.pid, "on": True}, self.owner)
+        self.assertEqual(code, 200, out)
+        self.assertEqual(self.png(cookie), (403, "removed"))
+
+    def test_the_asset_cookie_is_secure_on_the_tunnel_host(self):
+        self.app.tunnel_host = "fake-0123456789ab.trycloudflare.com"
+        _, attrs = self.cookie({**self.guest, "Host": self.app.tunnel_host})
+        self.assertIn("Secure", attrs)
+
+    def test_the_asset_cookie_is_secure_on_the_retired_host(self):
+        self.app.tunnel_host = "new.example.com"
+        self.app.retired_host = "fake-0123456789ab.trycloudflare.com"
+        _, attrs = self.cookie({**self.guest, "Host": self.app.retired_host})
+        self.assertIn("Secure", attrs)
+
+    def test_the_asset_cookie_is_not_secure_on_the_local_address(self):
+        self.app.tunnel_host = "new.example.com"
+        self.app.retired_host = "fake-0123456789ab.trycloudflare.com"
+        _, attrs = self.cookie(self.guest)
+        self.assertNotIn("Secure", attrs)
+
+    def test_an_anonymous_state_read_sets_no_cookie(self):
+        self.assertNotIn("Set-Cookie", self.get("/api/state")[1])
+
+    def test_a_forged_expired_or_other_session_cookie_reads_nothing(self):
+        cookie, _ = self.cookie(self.guest)
+        name, value = cookie["Cookie"].split("=", 1)
+        pid, exp, sig = value.split(".")
+        forged = {
+            "another pid": f"{name}=host.{exp}.{sig}",
+            "a later expiry": f"{name}={pid}.{int(exp) + 1}.{sig}",
+            "another port's name": f"shared-assets-1={value}",
+            "a superscript digit expiry": f"{name}={pid}.².{sig}",
+            "a huge expiry": f"{name}={pid}.{'9' * 5000}.{sig}",
+            "a non-ASCII signature": f"{name}={pid}.{exp}.é{sig[1:]}",
+        }
+        for what, c in forged.items():
+            with self.subTest(what):
+                self.assertEqual(self.png({"Cookie": c}), (401, "unknown-session"))
+        with mock.patch.object(server, "ASSET_COOKIE_SECONDS", -1):
+            expired, _ = self.cookie(self.guest)
+        self.assertEqual(self.png(expired), (401, "unknown-session"))
 
 
 class TestRateKeys(ServerCase):
@@ -410,6 +695,16 @@ class TestRawRequests(ServerCase):
         self.assertEqual(status_and_headers(got)[0], 408)
         self.assertTrue(closed)
         self.assertLess(took, 4.0)
+
+    def test_a_problem_report_has_its_own_longer_deadline_for_its_pictures(self):
+        _, ann = self.join("Ann")  # only a joined person's report waits for its body
+        with mock.patch.object(session, "BODY_SECONDS", 30.0), mock.patch.object(session, "REPORT_SECONDS", 1.0):
+            t0 = time.monotonic()
+            got, closed = self.request("POST /api/report HTTP/1.1", "Content-Type: application/json", "Content-Length: 100", *(f"{k}: {v}" for k, v in ann.items()), body=b'{"text"')
+            took = time.monotonic() - t0
+        self.assertEqual(status_and_headers(got)[0], 408)
+        self.assertTrue(closed)
+        self.assertLess(took, 4.0)  # REPORT_SECONDS applied, not the 30 s every other route waits
 
     def test_http_servers_own_refusals_carry_the_security_headers(self):
         cases = {501: "BREW /api/state HTTP/1.1", 414: "GET /" + "a" * 70000 + " HTTP/1.1"}
@@ -690,16 +985,16 @@ class TestDataFolderRule(unittest.TestCase):
 
 
 class TestSnapshot(ServerCase):
-    def test_the_anonymous_view_has_only_the_four_keys(self):
+    def test_the_anonymous_view_has_only_the_three_keys(self):
         code, _, out = self.get("/api/state")
         self.assertEqual(code, 200)
-        self.assertEqual(sorted(out), ["ended", "joinNeedsKey", "schemaVersion", "title"])
+        self.assertEqual(sorted(out), ["ended", "joinNeedsKey", "title"])
 
     def test_a_person_snapshot_carries_the_reload_trigger(self):
         _, guest = self.join("Ann")
         code, h, out = self.get("/api/state", guest)
         self.assertEqual(code, 200)
-        self.assertEqual(out["schemaVersion"], 6)
+        self.assertNotIn("schemaVersion", out)
         self.assertIsInstance(out["rev"], int)
         self.assertEqual(out["build"], server.build_hash())
         self.assertEqual(h["X-Shared-Build"], out["build"])
@@ -745,6 +1040,23 @@ class TestSnapshot(ServerCase):
         self.assertEqual((code, err["error"]), (403, "bad-guest-key"))
         code, _, _ = self.post("/api/join", {"name": "New link", "key": out["guestKey"]})
         self.assertEqual(code, 200)
+
+    def test_the_owner_renames_anyone_and_a_guest_only_themselves(self):
+        ann_pid, ann = self.join("Ann")
+        bo_pid, bo = self.join("Bo")
+        code, _, out = self.post("/api/rename", {"pid": ann_pid, "name": "Annabel"}, self.owner)
+        self.assertEqual((code, out["pid"], out["name"]), (200, ann_pid, "Annabel"))
+        self.assertEqual(self.get("/api/state", ann)[2]["me"]["name"], "Annabel")
+        code, _, out = self.post("/api/rename", {"pid": bo_pid, "name": "annabel"}, self.owner)
+        self.assertEqual((code, out["name"]), (200, "annabel 2"))
+        for target in (ann_pid, "host"):
+            code, _, err = self.post("/api/rename", {"pid": target, "name": "Mallory"}, bo)
+            self.assertEqual((code, err["error"]), (403, "owner-only"), target)
+        code, _, err = self.post("/api/rename", {"pid": "nobody", "name": "Ghost"}, self.owner)
+        self.assertEqual((code, err["error"]), (404, "not-found"))
+        self.assertEqual(self.get("/api/state", ann)[2]["me"]["name"], "Annabel")
+        code, _, out = self.post("/api/rename", {"pid": bo_pid, "name": "Bob"}, bo)
+        self.assertEqual((code, out["name"]), (200, "Bob"))
 
     def test_an_unchanged_snapshot_answers_304(self):
         _, guest = self.join("Ann")
@@ -887,19 +1199,20 @@ class TestSnapshot(ServerCase):
 
 
 class TestSnapshotContract(unittest.TestCase):
-    """The snapshot names the page's core.js reads, per .work/shared-interview-ui/snapshot-map.md
+    """The snapshot names the page's core.js reads, per plugins/planning/shared/snapshot-map.md
     (the page reads the prototype's names; core.js builds them from these). A key the server drops
     or renames fails here before it blanks part of the page."""
 
-    TOP_ALL = {"schemaVersion", "rev", "build", "title", "goal", "ended", "serverTime", "settings", "rounds", "round", "questions", "cards", "locks"}
+    TOP_ALL = {"rev", "build", "title", "goal", "ended", "serverTime", "settings", "rounds", "round", "questions", "cards", "locks"}
     TOP_ALL |= {"suggestions", "results", "chat", "people", "presence", "lastSeen", "requestCounts", "proposals", "myRequests", "myMergeRequests", "inbox", "me"}
     TOP_MODERATOR = {"share", "guestKey"}
-    TOP_OWNER = {"requests", "mergeRequests", "removed", "cardDetails"}
+    TOP_OWNER = {"requests", "mergeRequests", "claudeProposals", "removed", "cardDetails"}
     KEY = "Zk3yZk3yZk3y"  # the fixture's session.guestKey
 
     def setUp(self):
         self.d = tmpdir(self)
-        self.app = server.App(self.d, watch_tunnel=False, initial_state=FIXTURES / "state-v1.json")
+        detached.write_private(self.d / "state.json", (FIXTURES / "state-sample.json").read_text(encoding="utf-8"))
+        self.app = server.App(self.d, watch_tunnel=False)
         self.app.serve()
         self.addCleanup(self.app.shutdown)
         self.port = self.app.guest_port
@@ -1011,13 +1324,13 @@ class TestControl(ServerCase):
         code, _, out = self.ops({"op": "add-asset", "path": str(src), "scale": 2})
         self.assertEqual(code, 200, out)
         aid = out["results"][0]["id"]
-        code, h, body = self.get(f"/assets/{aid}")
+        code, h, body = self.get(f"/assets/{aid}", self.owner)
         self.assertEqual((code, body, h["Content-Security-Policy"]), (200, PNG, "sandbox"))
 
-    def test_the_ping_reports_the_guest_port_and_schema(self):
+    def test_the_ping_reports_the_guest_port_and_build(self):
         code, _, out = call(self.app.control_port, "GET", "/api/ping")
         self.assertEqual(code, 200)
-        self.assertEqual((out["guestPort"], out["schemaVersion"], out["build"]), (self.port, 6, server.build_hash()))
+        self.assertEqual((out["guestPort"], out["build"], "schemaVersion" in out), (self.port, server.build_hash(), False))
 
     def test_a_sent_round_reaches_the_watcher_and_is_stamped_delivered(self):
         self.open_round("Q1")
@@ -1059,34 +1372,17 @@ class TestStart(unittest.TestCase):
         with self.assertRaises(server.StartRefused):
             server.App(d, watch_tunnel=False)
 
-    def test_a_newer_schema_is_refused_naming_both_versions(self):
+    def test_a_state_file_with_a_schema_version_starts_and_its_next_write_drops_it(self):
         d = tmpdir(self)
         server.App(d, watch_tunnel=False).shutdown()
         doc = json.loads((d / "state.json").read_text(encoding="utf-8"))
-        doc["schemaVersion"] = 99
+        doc["schemaVersion"] = 7
         (d / "state.json").write_text(json.dumps(doc), encoding="utf-8")
-        with self.assertRaisesRegex(server.StartRefused, "99.*newer than 6"):
-            server.App(d, watch_tunnel=False)
-
-    def test_an_initial_state_file_seeds_a_new_session_through_migrate(self):
-        d, src = tmpdir(self), tmpdir(self)
-        server.App(src, watch_tunnel=False).shutdown()
-        doc = json.loads((src / "state.json").read_text(encoding="utf-8"))
-        doc["session"]["title"] = "Imported"
-        (src / "seed.json").write_text(json.dumps(doc), encoding="utf-8")
-        calls = []
-        real = session.migrate.migrate
-        with mock.patch.object(session.migrate, "migrate", side_effect=lambda *a: calls.append(a[0]) or real(*a)):
-            app = server.App(d, watch_tunnel=False, initial_state=src / "seed.json")
+        app = server.App(d, watch_tunnel=False)
         self.addCleanup(app.shutdown)
-        self.assertEqual((app.session.state["session"]["title"], len(calls)), ("Imported", 1))
-
-    def test_an_invalid_initial_state_leaves_no_state_file(self):
-        d = tmpdir(self)
-        (d / "seed.json").write_text(json.dumps({"schemaVersion": 1}), encoding="utf-8")
-        with self.assertRaises(server.StartRefused):
-            server.App(d, watch_tunnel=False, initial_state=d / "seed.json")
-        self.assertFalse((d / "state.json").exists())
+        app.session.set_title(session.HOST, {"title": "Still here"})
+        again = json.loads((d / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual((again["session"]["title"], again["people"], "schemaVersion" in again), ("Still here", doc["people"], False))
 
     def test_the_log_rotates_at_its_size_keeping_three(self):
         d = tmpdir(self)
@@ -1229,7 +1525,15 @@ class TestClientLog(LogCase):
     def test_a_lone_surrogate_in_a_message_still_reaches_the_log(self):
         _, guest = self.join("Ann")
         self.assertEqual(self.post("/api/client-log", {"kind": "error", "message": "cut-emoji-\ud83d"}, guest)[0], 200)
-        self.assertIn("cut-emoji-\\ud83d", self.entry_for("cut-emoji-"))
+        self.assertIn('message=cut-emoji- ', self.entry_for("cut-emoji-") + " ")  # the half emoji is dropped, the entry kept
+
+    def test_hidden_characters_never_reach_the_log(self):
+        pid, guest = self.join("Ann")
+        body = {"kind": "error", "message": "Type\U0000202eError\U0000200b", "source": "/app\U00002066.js", "route": "/\U000e0041x"}
+        self.assertEqual(self.post("/api/client-log", body, guest)[0], 200)
+        self.assertTrue(self.entry_for(" client ").endswith(f"client pid={pid} kind=error message=TypeError source=/app.js route=/x"))
+        code, _, out = self.post("/api/client-log", {"kind": "error", "message": "\U0000202e\U0000200b"}, guest)
+        self.assertEqual((code, out["error"]), (400, "empty"))
 
     def test_a_message_cannot_forge_a_log_line(self):
         """U+2028 and U+2029 end a line for str.splitlines(): escaped, the forged request entry stays inside the
@@ -1289,11 +1593,12 @@ class TestClientLog(LogCase):
         self.assertIn(" INFO request method=POST route=/api/heartbeat status=200 ms=", new[0])
         self.assertTrue(new[0].endswith(f" pid={pid}"), new[0])
         self.assertNotIn("pv=0a1b2c3d", self.log_text())
-        self.app.flush_summaries()
+        with mock.patch.object(server, "SUMMARY_MIN_SENDERS", 1):  # one guest's batch, written here to read its line
+            self.app.flush_summaries()
         new = self.log_text().splitlines()[before:]
         self.assertEqual(len(new), 2, new)
-        self.assertRegex(new[1], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} INFO summary-batch summaries=1 dropped=0 data=")
-        self.assertEqual(json.loads(new[1].split(" data=", 1)[1]), [[self.SUMMARY["message"], "safari phone"]])
+        self.assertRegex(new[1], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3} INFO summary-batch summaries=1 dropped=0 counts=\{\} data=")
+        self.assertEqual(json.loads(new[1].split(" data=", 1)[1]), [[self.SUMMARY["message"], "phone"]])
         self.assertNotIn("pid=", new[1])
         self.assertEqual(self.post("/api/client-log", {**self.ENTRY, "fp": "1a2b3c4d"}, guest)[0], 200)
         self.assertTrue(self.entry_for(" kind=error ").endswith(f'client pid={pid} kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d'))
@@ -1319,22 +1624,22 @@ class TestClientLog(LogCase):
         _, bo = self.join("Bo")
         self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=ffff0000 gap=10"}, ann)[0], 200)
         self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=00000000 gap=20"}, bo)[0], 200)
-        with mock.patch.object(server, "SUMMARY_BATCH_BYTES", 120):  # room for the two above (48 bytes each as batch JSON), not a third
+        with mock.patch.object(server, "SUMMARY_BATCH_BYTES", 80):  # room for the two above (37 bytes each as batch JSON), not a third
             self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=11111111 gap=30"}, bo)[0], 200)
         self.app.flush_summaries()
         line = self.entry_for(" summary-batch ")
-        self.assertIn(" summary-batch summaries=2 dropped=1 data=", line)
-        self.assertEqual(json.loads(line.split(" data=", 1)[1]), [["pv=00000000 gap=20", "safari phone"], ["pv=ffff0000 gap=10", "safari phone"]])
+        self.assertIn(" summary-batch summaries=2 dropped=1 counts={} data=", line)
+        self.assertEqual(json.loads(line.split(" data=", 1)[1]), [["pv=00000000 gap=20", "phone"], ["pv=ffff0000 gap=10", "phone"]])
         self.app.flush_summaries()
         self.assertEqual(self.log_text().count(" summary-batch "), 1)  # nothing held, nothing written
 
     def test_summaries_are_written_on_the_batch_cadence_and_at_shutdown(self):
         d = tmpdir(self)
-        with mock.patch.object(server, "SUMMARY_BATCH_SECONDS", 1.5):
+        with mock.patch.object(server, "SUMMARY_BATCH_SECONDS", 1.5), mock.patch.object(server, "SUMMARY_MIN_SENDERS", 1):
             app = server.App(d, watch_tunnel=False)
             app.serve()
             self.addCleanup(app.shutdown)
-            _, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+            _, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer", "key": app.session.state["session"]["guestKey"]})
             guest = {"X-Session-Secret": out["secret"]}
 
             def log():
@@ -1342,10 +1647,108 @@ class TestClientLog(LogCase):
 
             self.assertEqual(call(app.guest_port, "POST", "/api/client-log", self.SUMMARY, guest)[0], 200)
             self.assertTrue(wait_for(lambda: " summary-batch summaries=1 " in log(), seconds=10), log())
-            self.assertEqual(call(app.guest_port, "POST", "/api/client-log", {**self.SUMMARY, "message": "pv=0a1b2c3d gap=5"}, guest)[0], 200)
+            for gap in (5, 6):
+                self.assertEqual(call(app.guest_port, "POST", "/api/client-log", {**self.SUMMARY, "message": f"pv=0a1b2c3d gap={gap}"}, guest)[0], 200)
             app.shutdown()
-        self.assertEqual(log().count(" summary-batch summaries=1 "), 2, log())
+        self.assertEqual(log().count(" summary-batch summaries=1 "), 1, log())
         self.assertIn("gap=5", log().splitlines()[-1].replace("\\u0020", " "))
+        self.assertIn(" summary-batch summaries=2 ", log().splitlines()[-1])
+
+    def batch(self):
+        """The newest summary-batch entry: its counts and its [message, ua] pairs."""
+        line = self.entry_for(" summary-batch ")
+        return line, json.loads(line.split(" counts=", 1)[1].split(" ", 1)[0]), json.loads(line.split(" data=", 1)[1])
+
+    def test_a_summary_pair_cannot_be_matched_to_the_pid_on_a_fault_entry(self):
+        """A fault and a later repeat of it share one fingerprint, and the fault entry names the person and their
+        browser. The repeat count leaves the summary's pair for the batch's counts, and the pair keeps only the device
+        class, so no pair holds the fingerprint or the browser that would point to the pid."""
+        pid, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        self.assertEqual(self.post("/api/client-log", {**self.ENTRY, "ua": "firefox computer", "fp": "1a2b3c4d"}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 gap=10 rep:1a2b3c4d=2", "ua": "firefox computer"}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=bbbb0000 gap=20", "ua": "chrome computer"}, bo)[0], 200)
+        self.app.flush_summaries()
+        line, counts, pairs = self.batch()
+        self.assertEqual(pairs, [["pv=aaaa0000 gap=10", "computer"], ["pv=bbbb0000 gap=20", "computer"]])
+        self.assertEqual(counts, {"rep:1a2b3c4d": 2})
+        self.assertNotIn("firefox", line)
+        self.assertNotIn(pid, line)
+
+    def test_a_lone_summary_at_shutdown_is_counted_as_dropped_not_written(self):
+        """At shutdown a single summary would sit next to its sender's last heartbeat: it is only counted."""
+        d = tmpdir(self)
+        app = server.App(d, watch_tunnel=False)
+        self.addCleanup(app.shutdown)
+        app.hold_summary("pv=0a1b2c3d gap=5 use:vf-chat=1", "safari phone", "pidAnn001")
+        app.hold_summary("pv=0a1b2c3d gap=6 rep:1a2b3c4d=1", "safari phone", "pidAnn001")
+        app.shutdown()
+        lines = [x for x in (d / "server.log").read_text(encoding="utf-8").splitlines() if " summary-batch " in x]
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn(" summary-batch summaries=0 dropped=2 counts={} data=[]", lines[0])
+
+    def test_one_guests_summaries_wait_for_a_second_guest_before_any_batch(self):
+        """Every batch, not only the last: a batch holding one guest's summaries would be theirs, its counts beside a
+        fingerprint their fault entry names. It waits, and is written with the next guest's."""
+        _, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        for msg in ("pv=aaaa0000 gap=10 rep:1a2b3c4d=2", "pv=aaaa0000 use:vf-chat=1"):
+            self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": msg}, ann)[0], 200)
+        self.app.flush_summaries()
+        self.assertNotIn(" summary-batch ", self.log_text())
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=bbbb0000 use:vf-chat=2"}, bo)[0], 200)
+        self.app.flush_summaries()
+        line, counts, pairs = self.batch()
+        self.assertIn(" summary-batch summaries=3 dropped=0 ", line)
+        self.assertEqual(counts, {"rep:1a2b3c4d": 2, "use:vf-chat": 3})
+        self.assertEqual(pairs, [["pv=aaaa0000", "phone"], ["pv=aaaa0000 gap=10", "phone"], ["pv=bbbb0000", "phone"]])
+
+    def test_the_owners_own_summaries_are_written_alone(self):
+        """The owner's summaries are the reader's own: a batch with no guest's is written."""
+        code, _, _ = self.post("/api/client-log", {**self.SUMMARY, "message": "pv=cccc0000 owner=1 use:vf-gear=1"}, self.owner)
+        self.assertEqual(code, 200)
+        self.app.flush_summaries()
+        self.assertEqual(self.batch()[1:], ({"use:vf-gear": 1}, [["pv=cccc0000 owner=1", "phone"]]))
+
+    def test_the_batch_is_written_while_the_tunnel_sync_keeps_failing(self):
+        d = tmpdir(self)
+        with mock.patch.object(server, "SUMMARY_BATCH_SECONDS", 1.5):
+            app = server.App(d, watch_tunnel=False)
+            self.addCleanup(app.shutdown)
+            app.sync_tunnel = mock.Mock(side_effect=RuntimeError("tunnel record unreadable"))
+            app.hold_summary("pv=0a1b2c3d gap=5", "safari phone")
+            app.serve()
+            log = lambda: (d / "server.log").read_text(encoding="utf-8")  # noqa: E731
+            self.assertTrue(wait_for(lambda: " summary-batch summaries=1 " in log(), seconds=10), log())
+        self.assertGreater(app.sync_tunnel.call_count, 0)
+
+    def test_feature_counts_add_up_across_people_with_no_pid_and_no_text(self):
+        """use:<component> counts from many pages become one count per component in the batch; a token naming
+        anything but a vf- or core- component (text, a name, digits) is dropped."""
+        pid, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 use:vf-chat=2 use:vf-keysbtn=1 use:Quillon=4 use:vf-x1=1"}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=bbbb0000 use:vf-chat=3 use:core-records=1"}, bo)[0], 200)
+        self.app.flush_summaries()
+        line, counts, pairs = self.batch()
+        self.assertEqual(counts, {"use:core-records": 1, "use:vf-chat": 5, "use:vf-keysbtn": 1})
+        self.assertEqual(pairs, [["pv=aaaa0000", "phone"], ["pv=bbbb0000", "phone"]])
+        self.assertNotIn("Quillon", line)
+        self.assertNotIn("pid=", line)
+        self.assertNotIn(pid, line)
+
+    def test_rage_and_dead_taps_are_counted_by_component_name_only(self):
+        _, ann = self.join("Ann")
+        _, bo = self.join("Bo")
+        msg = "pv=aaaa0000 rage:vf-vote=1 dead:vf-pencil=2 rage:Send_it=1 dead:vf-Hello=1 rage:vf-vote=x"
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": msg}, ann)[0], 200)
+        self.assertEqual(self.post("/api/client-log", {**self.SUMMARY, "message": "pv=aaaa0000 rage:vf-vote=2"}, bo)[0], 200)
+        self.app.flush_summaries()
+        line, counts, pairs = self.batch()
+        self.assertEqual(counts, {"dead:vf-pencil": 2, "rage:vf-vote": 3})
+        self.assertEqual(pairs, [["pv=aaaa0000", "phone"], ["pv=aaaa0000", "phone"]])
+        self.assertNotIn("Send", line)
+        self.assertNotIn("Hello", line)
 
     def test_summaries_and_faults_have_separate_rate_buckets(self):
         """At most 6 summaries a minute per person, and a page in an error loop cannot starve them, or the reverse."""
@@ -1365,7 +1768,7 @@ class TestClientLog(LogCase):
             app = server.App(d, watch_tunnel=False)
             app.serve()
             self.addCleanup(app.shutdown)
-            code, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer"})
+            code, _, out = call(app.guest_port, "POST", "/api/join", {"name": "Ann", "device": "computer", "key": app.session.state["session"]["guestKey"]})
             guest = {"X-Session-Secret": out["secret"]}
             for i in range(20):
                 call(app.guest_port, "POST", "/api/client-log", {"kind": "error", "message": f"entry-{i:02d}"}, guest)
@@ -1373,55 +1776,6 @@ class TestClientLog(LogCase):
             h.flush()
         self.assertEqual(sorted(p.name for p in d.glob("server.log*")), ["server.log", "server.log.1", "server.log.2", "server.log.3"])
         self.assertIn("entry-19", (d / "server.log").read_text(encoding="utf-8"))
-
-
-class TestOldPages(unittest.TestCase):
-    """A prototype page left open across the cutover polls `GET /api/state` with no query string and
-    its identity headers (X-Session-Secret, and X-Owner-Token on the owner's tab), as its core.js
-    poll() does. In a session imported from the prototype it gets a payload its script reads."""
-
-    SECRET = "fixture-guest-secret-ann-not-a-real-secret-000"
-    OWNER = "fixture-owner-token-0001"
-
-    def setUp(self):
-        self.d = tmpdir(self)
-        self.app = server.App(self.d, watch_tunnel=False, initial_state=FIXTURES / "state-v0-prototype.json")
-        self.app.serve()
-        self.addCleanup(self.app.shutdown)
-
-    def poll(self, path, headers):
-        return call(self.app.guest_port, "GET", path, headers=headers)
-
-    def test_an_old_page_poll_gets_the_reload_banner(self):
-        for who in ({"X-Session-Secret": self.SECRET}, {"X-Owner-Token": self.OWNER}):
-            code, _, out = self.poll("/api/state", who)
-            self.assertEqual(code, 200)
-            self.assertEqual(out, {"schemaVersion": 6, "rev": self.app.session.state["rev"], "outdated": True, "title": "This page was updated: reload"})
-
-    def test_the_payload_overrides_no_default_of_the_old_script_with_another_type(self):
-        """fixtures/old-page-defaults.json is DEFAULTS from the prototype page's script
-        (.work/shared-interview-proto/web/core.js), which spreads each poll's answer over it."""
-        defaults = json.loads((FIXTURES / "old-page-defaults.json").read_text(encoding="utf-8"))["defaults"]
-        _, _, out = self.poll("/api/state", {"X-Session-Secret": self.SECRET})
-        self.assertEqual({k: type(v) for k, v in out.items()}, {"schemaVersion": int, "rev": int, "outdated": bool, "title": str})
-        self.assertIs(type(defaults["title"]), str)  # the one key the old script also has keeps its type
-        self.assertEqual(set(out) & set(defaults), {"title"})  # settings among them: absent keeps the script's own
-
-    def test_a_poll_with_a_query_string_gets_the_full_snapshot(self):
-        code, _, out = self.poll("/api/state?since=0", {"X-Session-Secret": self.SECRET})
-        self.assertEqual((code, out["me"]["pid"]), (200, "pidAnn001"))
-
-    def test_a_visitor_without_identity_gets_the_anonymous_view(self):
-        _, _, out = self.poll("/api/state", {})
-        self.assertEqual(sorted(out), ["ended", "joinNeedsKey", "schemaVersion", "title"])
-
-    def test_a_session_not_imported_answers_every_poll_in_full(self):
-        d = tmpdir(self)
-        app = server.App(d, watch_tunnel=False)
-        app.serve()
-        self.addCleanup(app.shutdown)
-        code, _, out = call(app.guest_port, "GET", "/api/state", headers={"X-Owner-Token": app.secrets["owner"]})
-        self.assertEqual((code, out["me"]["role"]), (200, "owner"))
 
 
 class TestTunnelWatch(unittest.TestCase):
@@ -1503,11 +1857,15 @@ class TestModerationRoutes(ServerCase):
     def test_a_join_waits_for_the_owner_when_approval_is_on(self):
         code, _, out = self.post("/api/session/settings", {"approveJoins": True}, self.owner)
         self.assertEqual(code, 200, out)
-        code, _, out = self.post("/api/join", {"name": "Jib"})
+        self.post("/api/session/intro", {"intro": "Why we meet."}, self.owner)
+        code, _, out = self.post("/api/join", {"name": "Jib", "key": self.app.session.state["session"]["guestKey"]})
         self.assertEqual((code, out["waiting"]), (200, True))
         jib = {"X-Session-Secret": out["secret"]}
         code, _, err = self.get("/api/state?since=0", jib)
         self.assertEqual((code, err["error"]), (403, "waiting"))
+        # The waiting page's one card: the title and the intro, and nothing else of the session.
+        self.assertEqual({k: err.get(k) for k in ("title", "intro")}, {"title": self.state(self.ann)["title"], "intro": "Why we meet."})
+        self.assertEqual(set(err) - {"error", "message", "title", "intro"}, set())
         self.assertEqual(self.state(self.ann)["me"]["pid"], self.ann_pid)  # a returning guest is not held
         code, _, err = self.post("/api/join/act", {"pid": out["pid"], "action": "admit"}, self.bo)
         self.assertEqual((code, err["error"]), (403, "owner-only"))
@@ -1527,7 +1885,7 @@ class TestModerationRoutes(ServerCase):
         self.assertEqual(code, 200, out)
         self.assertEqual(self.state(self.bo)["intro"], "Why you're here.")
         code, _, anon = self.get("/api/state")
-        self.assertEqual(sorted(anon), ["ended", "joinNeedsKey", "schemaVersion", "title"])
+        self.assertEqual(sorted(anon), ["ended", "joinNeedsKey", "title"])
 
     def test_the_owner_merges_a_second_identity_into_the_owner_and_its_secret_ends(self):
         code, _, out = self.post("/api/chat", {"text": "From my phone"}, self.bo)
@@ -1582,19 +1940,19 @@ class TestPrototypePage(ServerCase):
         self.assertEqual((code, h["Content-Type"]), (200, "text/javascript; charset=utf-8"))
 
     def test_an_html_variant_is_sandboxed_and_framable_by_the_session_only(self):
-        code, h, body = self.get(f"/assets/{self.html}")
+        code, h, body = self.get(f"/assets/{self.html}", self.guest)
         self.assertEqual((code, h["Content-Security-Policy"], h["X-Frame-Options"], body), (200, HTML_ASSET_CSP, "SAMEORIGIN", self.VARIANT_HTML))
         self.assertNotIn("allow-same-origin", h["Content-Security-Policy"])
-        code, h, _ = self.get(f"/assets/{self.png}?pin=1")
+        code, h, _ = self.get(f"/assets/{self.png}?pin=1", self.guest)
         self.assertEqual((code, h["Content-Security-Policy"], h["X-Frame-Options"]), (200, "sandbox", "DENY"))
 
     def test_pin_1_appends_the_pin_helper_as_the_one_inline_script(self):
-        _, h, body = self.get(f"/assets/{self.html}?pin=1")
+        _, h, body = self.get(f"/assets/{self.html}?pin=1", self.guest)
         self.assertEqual(h["Content-Security-Policy"], HTML_ASSET_CSP)
         self.assertTrue(body.startswith(self.VARIANT_HTML))
         helper = (server.WEB / "proto-pin.js").read_bytes()
         self.assertEqual(body[len(self.VARIANT_HTML):], b"\n<script>" + helper + b"</script>\n")
-        self.assertEqual(self.get(f"/assets/{self.png}?pin=1")[2], PNG)
+        self.assertEqual(self.get(f"/assets/{self.png}?pin=1", self.guest)[2], PNG)
 
     def test_a_pin_helper_that_could_end_or_hide_its_script_element_is_refused(self):
         for text in ("x</script>", "x</SCRIPT >", "x<!-- y", "x<script>", "x<ScRiPt src=a>"):
@@ -1785,8 +2143,34 @@ class TestReports(ServerCase):
         self.assertEqual((code, out["error"]), (403, "uploads-off"))
 
     def test_a_body_past_the_report_cap_is_refused_before_it_is_read(self):
-        code, _, out = call(self.port, "POST", "/api/report", raw=b"{}", headers={"Content-Type": "application/json", "Content-Length": str(session.REPORT_MAX + 1), **self.ann})
-        self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", session.REPORT_MAX))
+        for route, cap in (("/api/report", session.REPORT_SEND_MAX), ("/api/report/add", session.REPORT_MAX)):
+            with self.subTest(route=route):
+                code, _, out = call(self.port, "POST", route, raw=b"{}", headers={"Content-Type": "application/json", "Content-Length": str(cap + 1), **self.ann})
+                self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", cap))
+
+    def test_a_stranger_is_refused_a_report_before_its_body_is_read(self):
+        """No secret, no wait: the 401 comes from the headers, while the claimed 2.8 MB body never arrives."""
+        code, _, out = call(self.port, "POST", "/api/report", raw=b"{}", headers={"Content-Type": "application/json", "Content-Length": str(session.REPORT_SEND_MAX)})
+        self.assertEqual((code, out["error"]), (401, "unknown-session"))
+
+    def test_four_512_kb_screenshots_go_in_one_report_and_the_owner_reads_each_back(self):
+        """The owner's ask (2026-10-21): up to four pictures in the first send, each within the 512 KB cap."""
+        shots = [b"\xff\xd8\xff" + bytes([n]) * (512 * 1024 - 3) for n in range(4)]
+        code, _, out = self.post("/api/report", {"text": "Send does nothing", "ctx": {**self.CTX, "qid": "Q1"}, "images": [self.data_url("jpeg", b) for b in shots]}, self.ann)
+        self.assertEqual((code, out.get("id")), (200, "F1"), out)
+        self.assertEqual([(self.d / "reports" / f).read_bytes() for f in ("F1.jpg", "F1-p2.jpg", "F1-p3.jpg", "F1-p4.jpg")], shots)
+        mine = self.get("/api/state", self.owner)[2]["reports"]
+        self.assertEqual([(r["id"], r["image"], r["images"]) for r in mine], [("F1", True, 4)])
+        self.assertNotIn("reports/F1", json.dumps(mine))
+        self.assertEqual([self.get(f"/api/report/image?id=F1{q}", self.owner)[2]["image"] for q in ("", "&pic=2", "&pic=3", "&pic=4")], [self.data_url("jpeg", b) for b in shots])
+        code, _, out = self.get("/api/report/image?id=F1&pic=2", self.ann)
+        self.assertEqual((code, out["error"]), (403, "owner-only"))
+        for q, want in (("&pic=5", (400, "bad-field")), ("&pic=2&add=1", (400, "bad-field"))):
+            code, _, out = self.get(f"/api/report/image?id=F1{q}", self.owner)
+            self.assertEqual((code, out["error"]), want, q)
+        code, _, out = self.post("/api/report", {"text": "Five", "ctx": {**self.CTX, "qid": "Q1"}, "images": [self.data_url("png", PNG)] * 5}, self.ann)
+        self.assertEqual((code, out["error"], out.get("field")), (400, "bad-field", "images"))
+        self.assertEqual(sorted(self.app.session.state["reports"]), ["F1"])
 
     def test_a_picture_one_byte_past_512_kb_or_of_another_kind_is_refused(self):
         code, _, out = self.report(self.ann, self.data_url("png", PNG + b"\x00" * (512 * 1024 + 1 - len(PNG))))
@@ -1944,11 +2328,11 @@ class TestUploads(ServerCase):
             self.assertEqual(self.chunk(self.ann, done, i)[0], 200)
         code, _, out = self.post("/api/answer", {"qid": "Q1", "text": "The funnel.", "view": "focus", "attachments": [done]}, self.ann)
         self.assertEqual(code, 200, out)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         sending = self.accepted(self.ann, name="b.pdf")
         self.assertEqual(self.chunk(self.ann, sending, 0)[0], 200)
         offered = self.offer(self.bo)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         declined = self.accepted(self.bo, name="c.pdf")
         self.assertEqual(self.chunk(self.bo, declined, 0)[0], 200)
         self.post("/api/upload/act", {"id": declined, "action": "decline"}, self.owner)
@@ -1985,10 +2369,10 @@ class TestUploads(ServerCase):
                 self.assertEqual(self.chunk(who, uid, i, pic)[0], 200)
         for uid in (shown, hidden):
             self.assertEqual(self.post("/api/upload/act", {"id": uid, "action": "approve"}, self.owner)[0], 200)
-            time.sleep(session.WRITE_INTERVAL)
+            time.sleep(PAST_WRITE)
         code, _, out = self.post("/api/chat", {"text": "Look", "attachments": [shown]}, self.ann)
         self.assertEqual(code, 200, out)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         code, _, out = self.post("/api/discussion", {"qid": "Q1", "text": "Mine", "attachments": [hidden]}, self.bo)
         self.assertEqual(code, 200, out)
         self.assertEqual(self.post("/api/discussion/hide", {"qid": "Q1", "id": out["id"], "on": True}, self.owner)[0], 200)
@@ -2026,12 +2410,12 @@ class TestUploads(ServerCase):
                 got, _ = raw_exchange(self.port, f"POST /api/upload/chunk HTTP/1.1\r\n{head}\r\n".encode(), wait=3.0)
                 self.assertEqual(status_and_headers(got)[0], want)
                 self.assertLess(time.monotonic() - t0, 2.5)  # answered without waiting for a body that never comes
-        code, _, out = self.post("/api/upload/offer", {"file": "a.pdf", "size": 1, "type": "", "pad": "x" * session.OFFER_MAX})
+        code, _, out = self.post("/api/upload/offer", {"file": "a.pdf", "size": 1, "type": "", "pad": "x" * session.OFFER_MAX}, self.ann)
         self.assertEqual((code, out["error"], out["max"]), (413, "body-too-large", 96 * 1024))
 
     def test_one_piece_per_person_is_read_at_a_time(self):
         first = self.accepted(self.ann)
-        time.sleep(session.WRITE_INTERVAL)
+        time.sleep(PAST_WRITE)
         second = self.accepted(self.ann, name="b.pdf")
         piece = self.DATA[:self.CHUNK]
         head = "".join(f"{k}: {v}\r\n" for k, v in {"Host": f"127.0.0.1:{self.port}", "Content-Length": str(len(piece)), **self.chunk_headers(self.ann, first, 0, piece)}.items())
@@ -2258,7 +2642,7 @@ class TestDiscussion(ServerCase):
         self.assertEqual(len(self.app.session.state["requests"]), 1)
 
     def test_at_claude_naming_a_participant_called_claude_files_no_request(self):
-        claude_pid, _ = self.join("Claude")
+        claude_pid = self.claude_from_before()
         out = self.say(self.ann, "@Claude can you check the copy?")
         self.assertNotIn("request", out)
         self.assertEqual(self.comments(self.bo)[0]["text"], f"<@{claude_pid}> can you check the copy?")
@@ -2410,7 +2794,7 @@ class TestGeneralAsk(ServerCase):
         self.assertEqual(self.app.session.state["chat"][-1]["replyTo"]["id"], asked["id"])
 
     def test_at_claude_in_chat_matches_only_the_word(self):
-        claude_pid, _ = self.join("Claude")
+        claude_pid = self.claude_from_before()
         for who, text in ((self.ann, "@Claudette can you look?"), (self.bo, "Mail x@claude.ai about it")):
             self.assertNotIn("request", self.chat(who, text), text)
         time.sleep(1.05)
@@ -2762,6 +3146,146 @@ class TestSharingDefault(ServerCase):
         self.go(later)
         self.answer(later, "Shared at once.")
         self.assertEqual((self.sees(self.bo, "Still held."), self.sees(self.bo, "Shared at once.")), (False, True))
+
+
+class TestMoveRequest(ServerCase):
+    """Owner decision R27: Move to puts a request and its result on another question or the whole session; only its
+    asker or the owner moves it."""
+
+    ask, go, answer, state, sees, status = (TestSharingDefault.ask, TestSharingDefault.go, TestSharingDefault.answer, TestSharingDefault.state,
+                                          TestSharingDefault.sees, TestSharingDefault.status)
+
+    def setUp(self):
+        super().setUp()
+        self.open_round("Q1", "Q2")
+        self.ann_pid, self.ann = self.join("Ann")
+        self.bo_pid, self.bo = self.join("Bo")
+
+    def move(self, rid, who, **to):
+        return self.post("/api/request/act", {"action": "move", "id": rid, **to}, who)
+
+    def where(self, rid):
+        return next(r.get("qid") for r in self.app.session.state["requests"] if r["id"] == rid)
+
+    def own_answer(self, who, summary):
+        """`who` asks their own Claude on Q1 and it answers: the request's id and its result's."""
+        rid = self.ask(who, runner="self")
+        self.assertEqual(self.post("/api/mine/requests/claim", {"id": rid}, who)[0], 200)
+        body = {"id": rid, "summary": summary, "sources": [], "report": "", "used": [], "why": ""}
+        code, _, out = self.post("/api/mine/requests/result", body, who)
+        self.assertEqual(code, 200, out)
+        return rid, out["id"]
+
+    def test_the_asker_moves_a_request_and_its_answer_follows(self):
+        rid, _ = self.own_answer(self.ann, "Moved along.")
+        code, _, out = self.move(rid, self.ann, qid="Q2")
+        self.assertEqual((code, out), (200, {"ok": True, "id": rid, "qid": "Q2"}))
+        self.assertEqual((self.sees(self.ann, "Moved along.", "Q1"), self.sees(self.ann, "Moved along.", "Q2")), (False, True))
+        self.assertEqual(self.where(rid), "Q2")
+
+    def test_the_asker_cannot_move_a_request_the_host_took_up_but_the_owner_can(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        self.answer(rid, "Answered on Q1.")
+        code, _, out = self.move(rid, self.ann, qid="Q2")
+        self.assertEqual((code, out["error"], out["status"]), (409, "taken-up", "done"))
+        self.assertEqual(self.where(rid), "Q1")
+        self.assertEqual(self.move(rid, self.owner, qid="Q2")[0], 200)
+        self.assertTrue(self.sees(self.bo, "Answered on Q1.", "Q2"))
+
+    def test_a_waiting_request_its_asker_moves_reads_unread_again_for_the_owner(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.post("/api/inbox/read", {"keys": ["run:" + rid]}, self.owner)[2]["read"], 1)
+        self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
+        item = next(i for i in self.state(self.owner)["inbox"] if i["key"] == "run:" + rid)
+        self.assertEqual((item["qid"], item["unread"]), ("Q2", True))
+
+    def test_another_guest_cannot_move_it(self):
+        rid = self.ask(self.ann)
+        code, _, out = self.move(rid, self.bo, qid="Q2")
+        self.assertEqual((code, out["error"]), (404, "no-such-request"))
+        self.assertEqual(self.where(rid), "Q1")
+
+    def test_the_owner_moves_a_guests_request_to_the_whole_session(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        self.answer(rid, "For everyone.")
+        code, _, out = self.move(rid, self.owner, scope="session")
+        self.assertEqual((code, out), (200, {"ok": True, "id": rid, "scope": "session"}))
+        self.assertEqual((self.sees(self.ann, "For everyone.", "Q1"), self.sees(self.ann, "For everyone.", "session")), (False, True))
+        self.assertIsNone(self.where(rid))
+
+    def test_a_waiting_request_moved_is_answered_where_it_went(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.move(rid, self.owner, qid="Q2")[0], 200)
+        self.go(rid)
+        self.answer(rid, "Answered on Q2.", qid="Q2")
+        self.assertTrue(self.sees(self.bo, "Answered on Q2.", "Q2"))
+
+    def test_bad_targets_are_refused(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.move(rid, self.owner, qid="Q9")[2]["error"], "no-such-question")
+        self.assertEqual(self.move(rid, self.owner, scope="elsewhere")[0], 400)
+        self.assertEqual(self.move(rid, self.owner, qid="Q2", scope="session")[0], 400)
+        self.assertEqual(self.move(rid, self.owner, qid="Q1")[2]["error"], "same-place")
+        self.assertEqual(self.where(rid), "Q1")
+
+    def test_a_running_request_and_an_own_claude_one_to_the_session_stay_put(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        self.assertEqual(self.move(rid, self.owner, qid="Q2")[2]["error"], "wrong-status")
+        mine = self.ask(self.bo, runner="self")
+        code, _, out = self.move(mine, self.bo, scope="session")
+        self.assertEqual((code, out["field"]), (400, "scope"))
+
+    def test_a_shared_answer_its_asker_moves_waits_for_the_owners_share_and_the_owners_move_keeps_it_shared(self):
+        rid, xid = self.own_answer(self.ann, "Approved on Q1.")
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
+        self.assertTrue(self.sees(self.bo, "Approved on Q1.", "Q1"))
+        self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
+        self.assertFalse(self.sees(self.bo, "Approved on Q1.", "Q2"))
+        self.assertTrue(self.sees(self.ann, "Approved on Q1.", "Q2"))  # their own Claude's answer, as before it was shared
+        self.assertIn("share:" + xid, [i["key"] for i in self.state(self.owner)["inbox"]])
+        self.assertEqual(self.app.session.summary()["queue"]["results"], 1)
+        self.assertEqual(self.post("/api/request/act", {"action": "publish", "id": xid}, self.owner)[0], 200)
+        time.sleep(1.05)
+        self.assertEqual(self.move(rid, self.owner, qid="Q1")[0], 200)
+        self.assertTrue(self.sees(self.bo, "Approved on Q1.", "Q1"))
+        self.assertNotIn("share:" + xid, [i["key"] for i in self.state(self.owner)["inbox"]])
+
+    def test_a_cited_answer_is_refused_a_move_and_stays(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        xid = self.answer(rid, "Cite me.")["id"]
+        code, _, out = self.post("/api/answer", {"qid": "Q1", "text": "As Claude found.", "cites": [xid], "device": "computer", "view": "focus"}, self.bo)
+        self.assertEqual(code, 200, out)
+        code, _, out = self.move(rid, self.owner, qid="Q2")
+        self.assertEqual((code, out["error"]), (409, "cited"))
+        self.assertEqual(self.where(rid), "Q1")
+        self.assertEqual((self.sees(self.bo, "Cite me.", "Q1"), self.sees(self.bo, "Cite me.", "Q2")), (True, False))
+
+    def test_a_shared_answer_the_owner_moves_to_the_whole_session_is_claudes_chat_message(self):
+        rid = self.ask(self.ann)
+        self.go(rid)
+        xid = self.answer(rid, "Now for the session.")["id"]
+        self.assertEqual(self.move(rid, self.owner, scope="session")[0], 200)
+        said = [m for m in self.app.session.state["chat"] if m.get("claude") == {"result": xid}]
+        self.assertEqual([m["text"] for m in said], ["Now for the session."])
+
+    def test_a_second_move_within_a_second_is_throttled(self):
+        rid = self.ask(self.ann)
+        self.assertEqual(self.move(rid, self.ann, qid="Q2")[0], 200)
+        self.assertEqual(self.move(rid, self.ann, qid="Q1")[2]["error"], "slow-down")
+
+    def test_every_other_action_stays_the_owners(self):
+        lead_pid, lead = self.join("Lee")
+        self.leader(lead_pid)
+        rid = self.ask(self.ann)
+        for who in (self.ann, lead):
+            for action in ("edit", "decline", "fail", "rerun", "run", "publish", "discard", "takedown"):
+                with self.subTest(action=action):
+                    code, _, out = self.post("/api/request/act", {"action": action, "id": rid, "ids": [rid], "text": "x"}, who)
+                    self.assertEqual((code, out["error"]), (403, "owner-only"))
 
 
 if __name__ == "__main__":
