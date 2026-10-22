@@ -168,6 +168,22 @@ async function main() {
     await mic.click();
     ok("a second press stops listening", (await mic.getAttribute("aria-pressed")) === "false" && await ann.evaluate(() => window.__speech.recs[1].ended));
 
+    // ---------- moving to another question ends dictation; a late result writes nowhere ----------
+    const q2Answer = await ann.inputValue("#vf-answer"), q2Comment = await ann.inputValue(".vf-disc-ta");
+    await go("Q1");
+    const q1Before = await ann.inputValue("#vf-answer");
+    await mic.click();
+    const q1Rec = (await log()).recs - 1;
+    await go("Q2");
+    ok("moving to another question stops listening", (await mic.getAttribute("aria-pressed")) === "false" && await ann.evaluate(i => window.__speech.recs[i].ended, q1Rec));
+    await ann.evaluate(i => window.__speech.recs[i].say("words for the first question"), q1Rec);
+    await ann.waitForTimeout(300);
+    ok("a result that arrives after the move leaves the new question's answer and comment boxes as they were",
+      (await ann.inputValue("#vf-answer")) === q2Answer && (await ann.inputValue(".vf-disc-ta")) === q2Comment, JSON.stringify([await ann.inputValue("#vf-answer"), await ann.inputValue(".vf-disc-ta")]));
+    await go("Q1");
+    ok("and writes nothing into the first question's draft either", (await ann.inputValue("#vf-answer")) === q1Before, await ann.inputValue("#vf-answer"));
+    await go("Q2");
+
     // ---------- the comment box has its own ----------
     await ann.click(".vf-disc-head");
     const cmic = ann.locator(".vf-disc-form .vf-dictate");

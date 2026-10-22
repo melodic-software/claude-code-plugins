@@ -731,7 +731,7 @@
     // from here either: that would be a download the page starts.
     const TTS = "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance === "function" ? window.speechSynthesis : null;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
-    const SPEECH = { reading: false, qid: null, rec: null, btn: null, local: null };
+    const SPEECH = { reading: false, qid: null, rec: null, btn: null, dq: null, local: null };
     const speechLang = () => document.documentElement.lang || navigator.language || "en";
     const readOn = () => !!TTS && !!pref("readAloud", false);
     const dictOn = () => !!SR && !!pref("dictate", false);
@@ -822,7 +822,8 @@
       let heard = false, fallback = false;
       r.onresult = e => {
         const res = e.results[e.results.length - 1];
-        if (res?.isFinal === false || !res?.[0]) return;
+        // the boxes are reused across questions: a session stopped by a move, or replaced, writes nowhere
+        if (SPEECH.rec !== r || SPEECH.dq !== ui.cur || res?.isFinal === false || !res?.[0]) return;
         heard = true;
         if (local && SPEECH.local !== true) { SPEECH.local = true; fillPcard(); }
         dictInto(f, res[0].transcript.trim());
@@ -836,7 +837,7 @@
         if (fallback) return listen(f, b, false);
         SPEECH.rec = null; paintDict();
       };
-      SPEECH.rec = r; SPEECH.btn = b;
+      SPEECH.rec = r; SPEECH.btn = b; SPEECH.dq = ui.cur;
       try { r.start(); } catch { SPEECH.rec = null; flash("Dictation could not start."); }
       paintDict();
     }
@@ -846,7 +847,7 @@
       if (SPEECH.reading && (readBtn.hidden || SPEECH.qid !== ui.cur)) stopReading();
       const d = dictOn();
       for (const b of root.querySelectorAll(".vf-dictate")) b.hidden = !d;
-      if (!d) stopDictation();
+      if (!d || SPEECH.dq !== ui.cur) stopDictation();
     }
 
     /** Textareas grow with their text up to ~40% of the pane they sit in, then scroll inside. */
