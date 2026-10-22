@@ -219,6 +219,7 @@ QID = re.compile(r"Q[1-9][0-9]{0,5}")
 ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg|html)")
 IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")  # an image asset's file name
 SVG_ASSET = re.compile(r"[0-9a-f]{16}\.svg")
+HTML_ASSET = re.compile(r"[0-9a-f]{16}\.html")  # a prototype variant's snapshot
 VARIANT = re.compile(r"v-[1-9][0-9]?")
 # A note's element path (Annotation.anchor.selector), written by the prototype page's pin helper: "img" on an
 # image variant, else tag names from the variant's root down, each with its place among same-tag siblings,
@@ -580,7 +581,10 @@ def _bad_links_and_assets(doc):
     for q in doc["questions"]:
         fmt, at = q["format"], f"questions[{q['id']}]"
         checks = [(IMAGE_ASSET, o["image"], f"{at}.format.options.image") for o in fmt.get("options", []) if "image" in o]
-        checks += [(ASSET, v["asset"], f"{at}.format.variants.asset") for v in fmt.get("variants", [])]
+        for v in fmt.get("variants", []):
+            checks += [(ASSET, v["asset"], f"{at}.format.variants.asset")] if "asset" in v else []
+            checks += [(IMAGE_ASSET, x, f"{at}.format.variants.shots") for x in v.get("shots", [])]
+            checks += [(HTML_ASSET, v["snapshot"], f"{at}.format.variants.snapshot")] if "snapshot" in v else []
         if fmt["kind"] == "confirm":
             checks.append((IMAGE_ASSET, fmt["image"], f"{at}.format.image"))
         for r in q["references"]:
@@ -2489,17 +2493,37 @@ class Session:
             return {"kind": "scale", "min": 1, "max": fmt["max"], "labels": {**labels, **({"mid": mid} if mid else {})}}
         if kind == "confirm":
             return {"kind": "confirm", "image": self._asset(fmt["image"], f"{field}.image", image=True), "rect": _rect(fmt["rect"], f"{field}.rect")}
+        if fmt.get("lookAt") is None:
+            raise _bad(f"{field}.lookAt", "A prototype question says where to look: the area the variants change and the step that shows it.")
+        look = _text(fmt, "lookAt", limit=MAX_NOTE)
         variants, earlier = [], [*self.state["questions"], *made]
         taken = {_pair(v["previous"]) for q in earlier for v in q["format"].get("variants", []) if "previous" in v}
         for i, v in enumerate(fmt["variants"]):
+            at = f"{field}.variants[{i}]"
             if not VARIANT.fullmatch(v["id"]):
-                raise _bad(f"{field}.variants[{i}].id", "A variant id looks like v-1.")
-            variants.append({"id": v["id"], "label": _text(v, "label"), "asset": self._asset(v["asset"], f"{field}.variants[{i}].asset")})
+                raise _bad(f"{at}.id", "A variant id looks like v-1.")
+            variants.append({"id": v["id"], "label": _text(v, "label"), **self._views(v, at)})
             if "previous" in v:
-                variants[-1]["previous"] = _previous(v["previous"], earlier, taken, f"{field}.variants[{i}].previous")
+                variants[-1]["previous"] = _previous(v["previous"], earlier, taken, f"{at}.previous")
+            if v.get("lookAt") is not None:
+                variants[-1]["lookAt"] = _text(v, "lookAt", limit=MAX_NOTE)
         if len({v["id"] for v in variants}) != len(variants):
             raise _bad(f"{field}.variants", "Each variant needs its own id.")
-        return {"kind": "prototype", "variants": variants}
+        return {"kind": "prototype", "lookAt": look, "variants": variants}
+
+    def _views(self, v, at):
+        """A variant's views as written: `{asset}` for one view, so a variant with one picture or one html file keeps the
+        shape builds before `shots` and `snapshot` read; `{shots?, snapshot?}` for more than one. The schema has already
+        refused a variant with no view, or with `asset` beside `shots` or `snapshot`."""
+        if "asset" in v:
+            return {"asset": self._asset(v["asset"], f"{at}.asset")}
+        shots = [self._asset(x, f"{at}.shots[{j}]", image=True) for j, x in enumerate(v.get("shots", []))]
+        if len(set(shots)) != len(shots):
+            raise _bad(f"{at}.shots", "Each screenshot of a variant is its own picture.")
+        snap = [self._asset(v["snapshot"], f"{at}.snapshot", pattern=HTML_ASSET)] if "snapshot" in v else []
+        if len(shots) + len(snap) == 1:
+            return {"asset": (shots + snap)[0]}
+        return {**({"shots": shots} if shots else {}), **({"snapshot": snap[0]} if snap else {})}
 
     def _options(self, q):
         """Option id -> label for the option cards a non-text question offers, None of these included; Something
@@ -6471,15 +6495,17 @@ def prototype_tiers(settings):
 
 
 def _guest_questions(questions, tiers):
-    """`questions` as guests see them under `tiers`: a variant's picture leaves while screenshots are off, its html file
-    while snapshots are off. The same list when both are on; otherwise new prototype questions, the rest shared."""
+    """`questions` as guests see them under `tiers`: a variant's pictures (`shots`, or an `asset` picture) leave while
+    screenshots are off, its html file (`snapshot`, or an `asset` html file) while snapshots are off, each view on its
+    own. The same list when both are on; otherwise new prototype questions, the rest shared."""
     off = {t for t in ("screenshot", "snapshot") if t not in tiers}
     if not off:
         return questions
+    gone = {k for k, t in (("shots", "screenshot"), ("snapshot", "snapshot")) if t in off}
 
     def view(v):
-        tier = "snapshot" if v["asset"].endswith(".html") else "screenshot"
-        return {k: x for k, x in v.items() if k != "asset"} if tier in off else v
+        drop = gone | ({"asset"} if "asset" in v and ("snapshot" if v["asset"].endswith(".html") else "screenshot") in off else set())
+        return {k: x for k, x in v.items() if k not in drop} if drop & v.keys() else v
 
     return [{**q, "format": {**q["format"], "variants": [view(v) for v in q["format"]["variants"]]}} if q["format"]["kind"] == "prototype" else q
             for q in questions]

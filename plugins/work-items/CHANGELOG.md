@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.0] - 2026-10-22
+
+### Changed
+
+- Rule admission refuses an issue whose title or body names a charge (cost, billing, quota, retention, a larger or hosted runner and similar): work that adds or raises a charge waits for an owner decision.
+
 ## [3.0.0] - 2026-10-22
 
 ### Changed

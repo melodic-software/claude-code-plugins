@@ -6,12 +6,16 @@
 // Prototypes filter, the rail showing them without scrolling; reads Q3's version list (v1 on Q1, v2 on Q3, v2 marked
 // current, no list for Three steps); opens v1 from Q3's card and reads on its page which version is current; compares
 // v1 and v2 side by side (v1 in a sandboxed frame with no pin helper, beside the current one); sees a note pinned on
-// v1 stay on v1. A guest on a 390x844 phone sees the two versions stacked. No 429, no CSP violation, no page error.
+// v1 stay on v1. Q1 is stored as a build before the look-at line wrote it (no lookAt): its page shows no look-at line,
+// while Q3's shows its own. A guest on a 390x844 phone sees the two versions stacked. No 429, no CSP violation, no
+// page error.
 //   node plugins/planning/shared/tests/ui_proto_versions.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the issue's acceptance (open v1 and v2 from a later question, tell which is current, find
 // earlier prototypes without scrolling), the questions and links written below, never from the page.
 "use strict";
+const fs = require("node:fs");
+const path = require("node:path");
 const { loadPlaywright, suite, recorder, until, joinAs, png } = require("./browser_harness");
 
 const page = text => `<!doctype html><html><body><main><h1>${text}</h1><button>Pay now</button></main></body></html>`;
@@ -29,14 +33,20 @@ async function main() {
     const one = s.asset(A.dir, "one.html", page("One page")), shorter = s.asset(A.dir, "shorter.html", page("One page, shorter"));
     const two = s.asset(A.dir, "two.png", png(300, 200, [80, 120])), three = s.asset(A.dir, "three.png", png(300, 200, [20, 60]));
     s.apply(A.dir, [{ op: "set-title", title: "Checkout versions" }, { op: "open-round", questions: [
-      q("Q1", "Which checkout layout?", { kind: "prototype", variants: [{ id: "v-1", label: "One page", asset: one }, { id: "v-2", label: "Two steps", asset: two }] }),
+      q("Q1", "Which checkout layout?", { kind: "prototype", lookAt: "The layout.", variants: [{ id: "v-1", label: "One page", asset: one }, { id: "v-2", label: "Two steps", asset: two }] }),
       q("Q2", "What should the pay button say?", { kind: "text" }),
     ] }]);
+    // Q1 as a build before the look-at line wrote it: the server reads the file again when it starts.
+    s.share(A.dir, "stop");
+    const file = path.join(A.dir, "state.json"), doc = JSON.parse(fs.readFileSync(file, "utf8"));
+    delete doc.questions.find(x => x.id === "Q1").format.lookAt;
+    fs.writeFileSync(file, JSON.stringify(doc) + "\n");
+    s.share(A.dir, "ensure-running", "--guest-port", new URL(A.localUrl).port);
     const owner = await rec.open(A.ownerUrl);
     await until(owner, () => (window.Core?.snapshot()?.questions || []).some(x => x.id === "Q1"));
     await owner.evaluate(() => window.Core.sendRound());
     s.apply(A.dir, [{ op: "ack-round", round: 1 }, { op: "open-round", questions: [
-      q("Q3", "Which checkout layout now?", { kind: "prototype", variants: [
+      q("Q3", "Which checkout layout now?", { kind: "prototype", lookAt: "The order total, at the top of each page.", variants: [
         { id: "v-1", label: "One page, shorter", asset: shorter, previous: { qid: "Q1", variant: "v-1" } }, { id: "v-2", label: "Three steps", asset: three }] }),
       q("Q4", "Where should the total sit?", { kind: "text" }),
       q("Q5", "Anything else about checkout?", { kind: "text" }),
@@ -82,6 +92,7 @@ async function main() {
       items: [...document.querySelectorAll(".vp-versions li")].map(li => ({ text: li.querySelector(".vp-ver")?.textContent, viewing: li.querySelector(".vp-ver")?.getAttribute("aria-current") === "page",
         current: !!li.querySelector(".vp-ver-cur") })) }));
     ok("v1's page says it shows version 1 of 2", nav.head === "Version 1 of 2", nav.head);
+    ok("Q1, stored with no look-at line, shows none", await v1.evaluate(() => !document.querySelector(".vp-look").checkVisibility() && !window.Core.snapshot().questions[0].format.lookAt));
     ok("and marks v1 as the one shown and v2 as current", JSON.stringify(nav.items) === JSON.stringify([
       { text: "v1 · Q1 · One page", viewing: true, current: false }, { text: "v2 · Q3 · One page, shorter", viewing: false, current: true }]), JSON.stringify(nav.items));
     await until(v1, () => !!document.querySelector(".vp-frame"));
@@ -106,6 +117,7 @@ async function main() {
     ok("each side names its version, v2 as current", JSON.stringify(split.caps) === JSON.stringify(["v1 · Q1 · One page", "v2 · Q3 · One page, shorter · Current"]), JSON.stringify(split.caps));
     ok("v1 is framed in the sandbox with no pin helper, v2 with it", split.src === `/assets/${one}` && split.sandbox === "allow-scripts" && split.main === `/assets/${shorter}?pin=1`, JSON.stringify(split));
     ok("v1's note stays on v1: v2 has none", split.notes === "Notes on One page, shorter (0)", split.notes);
+    ok("Q3's page says where to look", (await both.locator(".vp-look").textContent()) === "Where to look: The order total, at the top of each page.");
     await both.locator(".vp-cmp-close").click();
     ok("Close side by side leaves v2 alone", await until(both, () => !document.querySelector(".vp-cmp-frame") && !new URLSearchParams(location.hash.slice(1)).has("with")));
     const tabs = gus.context().pages().length;

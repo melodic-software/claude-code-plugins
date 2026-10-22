@@ -398,14 +398,42 @@ def _write(args: list[str], label: str) -> Any:
     return _call(args, label, PostMergeWriteError)
 
 
+# A filtered workflow-run listing returns at most this many runs per search:
+# https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
+# (as of 2026-10-22; recheck when that page's result limit changes).
+RUN_SEARCH_CAP = 1000
+
+
 def _paginated(
-    endpoint: str, label: str, items_key: str | None = None
+    endpoint: str,
+    label: str,
+    items_key: str | None = None,
+    capped: list[str] | None = None,
 ) -> list[dict[str, Any]]:
+    """Every item of a paginated listing. An object listing whose
+    `total_count` exceeds the items its pages carried answered short (a
+    degraded API can), so it raises rather than read as complete. Past
+    RUN_SEARCH_CAP the search is short by design: given `capped`, a listing
+    that carried at least RUN_SEARCH_CAP items reads and a `listing-capped`
+    warning goes there instead; one that carried fewer still raises."""
     payload = _read(["api", endpoint, "--paginate", "--slurp"], label)
     try:
-        return flatten_paginated_items(payload, label, items_key=items_key)
+        items = flatten_paginated_items(payload, label, items_key=items_key)
     except RuntimeError as exc:
         raise PostMergeReadError(str(exc)) from exc
+    if items_key is not None:
+        pages = payload if is_json_array(payload) else [payload]
+        total = max(
+            (p["total_count"] for p in pages if isinstance(p.get("total_count"), int)),
+            default=0,
+        )
+        if total > len(items) and len(items) >= RUN_SEARCH_CAP and capped is not None:
+            capped.append(f"listing-capped: {label} total_count {total}")
+        elif total > len(items):
+            raise PostMergeReadError(
+                f"{label}: total_count {total}, but {len(items)} returned"
+            )
+    return items
 
 
 def _graphql(
@@ -556,8 +584,28 @@ class Run:
         )
 
 
+def _run_rows(
+    items: Iterable[dict[str, Any]], event: str, owner: str, name: str
+) -> list[Run]:
+    """The rows of a run listing that are runs of `event` from this
+    repository itself; a row the filter let through otherwise is dropped."""
+    return [
+        Run.from_api(item)
+        for item in items
+        if item.get("event") == event
+        and json_object(item.get("head_repository")).get("full_name")
+        == f"{owner}/{name}"
+    ]
+
+
 def _runs(
-    owner: str, name: str, workflow: str, event: str, branch: str, since: datetime
+    owner: str,
+    name: str,
+    workflow: str,
+    event: str,
+    branch: str,
+    since: datetime,
+    capped: list[str] | None = None,
 ) -> list[Run]:
     created = quote(
         f">={since.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
@@ -566,10 +614,12 @@ def _runs(
         f"repos/{owner}/{name}/actions/workflows/{workflow}/runs"
         f"?event={event}&branch={quote(branch, safe='')}&created={created}&per_page=100"
     )
-    runs = [
-        Run.from_api(item)
-        for item in _paginated(endpoint, f"{workflow} {event} runs", "workflow_runs")
-    ]
+    runs = _run_rows(
+        _paginated(endpoint, f"{workflow} {event} runs", "workflow_runs", capped),
+        event,
+        owner,
+        name,
+    )
     return [r for r in runs if r.created_at >= since and r.head_branch == branch]
 
 
@@ -767,6 +817,8 @@ class _Context:
     branch: str = ""
     branch_tip: str | None = None
     lane_cache: dict[str, bool] = field(default_factory=dict)
+    # Dispatch records whose artifact listing read empty twice.
+    lane_empty: set[str] = field(default_factory=set)
     checks_cache: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
     # Full-history clones `contains` asks first; None until first resolved.
     local_clones: list[Path] | None = None
@@ -793,6 +845,65 @@ class _Context:
     quarantine_issues: dict[str, dict[str, Any]] | None = None
     # Excused failing suites, by (suite, sighting).
     quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
+    # Warnings for the verdict, such as a listing past the search cap.
+    warnings: list[str] = field(default_factory=list)
+    # The branch's dispatch runs at each commit, read by SHA.
+    dispatch_at_cache: dict[str, dict[int, Run]] = field(default_factory=dict)
+
+    def dispatch_runs_through(
+        self, commit: str, merged_at: datetime, deadline: datetime
+    ) -> dict[int, Run]:
+        """The branch's full-run dispatches, by id, at `commit` or at any
+        commit the branch gained between `merged_at` and `deadline` that
+        descends from it: every run that could cover the merge in time, read
+        independently of the dated listing. A failed read raises. The commit
+        listing is a bare array with no total, so a 200 that silently drops a
+        commit cannot be told from a complete one; that case falls back to
+        the read at `commit` alone, which can still file a failure but never
+        reads as a pass. pr-merge's `.base` checkout holds full history, so
+        `contains` answers from it without an API call for every commit the
+        checkout already has."""
+        window = "&".join(
+            f"{key}={quote(t.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'), safe='')}"
+            for key, t in (("since", merged_at), ("until", deadline))
+        )
+        listed = _paginated(
+            f"repos/{self.owner}/{self.name}/commits"
+            f"?sha={quote(self.branch, safe='')}&{window}&per_page=100",
+            f"{self.branch} commits after {commit[:12]}",
+        )
+        shas = [commit] + [
+            sha
+            for sha in (c.get("sha") for c in listed)
+            if isinstance(sha, str)
+            and _FULL_SHA.fullmatch(sha)
+            and self.contains(commit, sha)
+        ]
+        return {
+            run.id: run
+            for sha in dict.fromkeys(shas)
+            for run in self.dispatch_runs_at(sha).values()
+        }
+
+    def dispatch_runs_at(self, commit: str) -> dict[int, Run]:
+        """The branch's full-run dispatches at `commit`, by id, read by head
+        SHA with no created filter: a check independent of the dated
+        listing. A failed or short read raises."""
+        if commit not in self.dispatch_at_cache:
+            rows = _paginated(
+                f"repos/{self.owner}/{self.name}/actions/workflows/{FULL_RUN_WORKFLOW}"
+                f"/runs?event=workflow_dispatch&branch={quote(self.branch, safe='')}"
+                f"&head_sha={commit}&per_page=100",
+                f"{FULL_RUN_WORKFLOW} dispatch runs at {commit[:12]}",
+                "workflow_runs",
+                self.warnings,
+            )
+            self.dispatch_at_cache[commit] = {
+                r.id: r
+                for r in _run_rows(rows, "workflow_dispatch", self.owner, self.name)
+                if r.head_branch == self.branch
+            }
+        return self.dispatch_at_cache[commit]
 
     def regressions(self, signal: str, run: Run, merged_at: datetime) -> frozenset[str]:
         """The checks failing on red full run `run` that were not failing on
@@ -1089,7 +1200,16 @@ class _Context:
         its `pr-merge-dispatched-<id>` artifact was uploaded by a run of
         pr-merge.yml in this repository on the branch."""
         return run.actor == LANE_DISPATCH_ACTOR and self._lane_record(
-            f"{LANE_DISPATCH_ARTIFACT}{run.id}", LANE_DISPATCH_EVENTS
+            f"{LANE_DISPATCH_ARTIFACT}{run.id}", LANE_DISPATCH_EVENTS, reread=True
+        )
+
+    def lane_unlisted(self, run: Run) -> bool:
+        """Whether this github-actions[bot] dispatch's record listing read
+        empty twice: a listing can answer without the artifacts it holds, so
+        that cannot tell a run the lane sent from one it did not."""
+        return (
+            not self.lane_dispatched(run)
+            and f"{LANE_DISPATCH_ARTIFACT}{run.id}" in self.lane_empty
         )
 
     def lane_rerun(self, run: Run) -> bool:
@@ -1100,27 +1220,22 @@ class _Context:
             f"{LANE_RERUN_ARTIFACT}{run.id}-attempt-2", LANE_RERUN_EVENTS
         )
 
-    def _lane_record(self, artifact: str, events: frozenset[str]) -> bool:
+    def _lane_record(
+        self, artifact: str, events: frozenset[str], *, reread: bool = False
+    ) -> bool:
         """Whether a run of the branch's own pr-merge.yml (`_lane_sender`)
         uploaded an artifact named `artifact`. Only steps of a run can upload
         its artifacts. A failed read raises, so the verdict is unreadable
-        rather than the record taken as present."""
+        rather than the record taken as present. With `reread`, an empty
+        listing is read once more, and a second empty one is noted in
+        `lane_empty`; the record still reads absent."""
         if artifact not in self.lane_cache:
             repo = f"{self.owner}/{self.name}"
-            listing = _read(
-                [
-                    "api",
-                    f"repos/{repo}/actions/artifacts?name={artifact}&per_page=100",
-                ],
-                f"record {artifact}",
-            )
-            senders = {
-                json_object(a.get("workflow_run")).get("id")
-                for a in map(
-                    json_object, json_array(json_object(listing).get("artifacts"))
-                )
-                if a.get("name") == artifact
-            }
+            senders = self._lane_senders(repo, artifact)
+            if not senders and reread:
+                senders = self._lane_senders(repo, artifact)
+                if not senders:
+                    self.lane_empty.add(artifact)
             self.lane_cache[artifact] = any(
                 isinstance(sender, int)
                 and self._lane_sender(
@@ -1135,6 +1250,18 @@ class _Context:
                 for sender in senders
             )
         return self.lane_cache[artifact]
+
+    def _lane_senders(self, repo: str, artifact: str) -> set[Any]:
+        """The ids of the runs that uploaded an artifact named `artifact`."""
+        listing = _read(
+            ["api", f"repos/{repo}/actions/artifacts?name={artifact}&per_page=100"],
+            f"record {artifact}",
+        )
+        return {
+            json_object(a.get("workflow_run")).get("id")
+            for a in map(json_object, json_array(json_object(listing).get("artifacts")))
+            if a.get("name") == artifact
+        }
 
     def _lane_sender(self, record: dict[str, Any], events: frozenset[str]) -> bool:
         """Whether workflow run `record` ran this repository's own pr-merge.yml
@@ -1430,6 +1557,40 @@ def _judge(
 
     deadline = merged_at + DISPATCH_DEADLINE
     if not any(r.created_at <= deadline for r in own) and now > deadline:
+        # A listing can answer without runs it holds, so the absence is read
+        # again by the merge commit and each descendant committed in time: a
+        # run there the listing lacked proves the listing incomplete, and the
+        # verdict is unreadable, not a failure.
+        # Only a run that could have counted as the identity's in time can
+        # prove that.
+        listed = {r.id for signal, r in full_runs if signal == SIGNAL_DISPATCH}
+        missing = [
+            run
+            for run_id, run in ctx.dispatch_runs_through(
+                commit, merged_at, deadline
+            ).items()
+            if run_id not in listed
+            and run.created_at <= deadline
+            and run.actor in (LANE_DISPATCH_ACTOR, ctx.identity)
+        ]
+        if missing:
+            raise PostMergeReadError(
+                f"#{merge.number}: the dispatch listing lacked a run at {commit[:12]}"
+            )
+        # Likewise a github-actions[bot] dispatch in time whose record listing
+        # read empty twice may be the lane's.
+        unlisted = [
+            run
+            for signal, run in fulls
+            if signal == SIGNAL_DISPATCH
+            and run.created_at <= deadline
+            and ctx.lane_unlisted(run)
+        ]
+        if unlisted:
+            raise PostMergeReadError(
+                f"#{merge.number}: the record listing of run {unlisted[0].id} "
+                "read empty twice"
+            )
         failures.append(
             Failure(
                 SIGNAL_DISPATCH,
@@ -1460,6 +1621,7 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
             "workflow_dispatch",
             ctx.branch,
             now - ctx.lane_rerun_lookback(),
+            ctx.warnings,
         )
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
             if (
@@ -1537,7 +1699,7 @@ def check(
             return PostMergeVerdict(
                 True,
                 reruns=tuple(tally.reruns.values()),
-                warnings=tuple(warnings),
+                warnings=tuple(warnings + ctx.warnings),
                 branch=branch,
             )
         floor = (
@@ -1547,16 +1709,24 @@ def check(
         )
         full_runs = [
             (SIGNAL_SCHEDULE, r)
-            for r in _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor)
+            for r in _runs(
+                owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, ctx.warnings
+            )
         ] + [
             (SIGNAL_DISPATCH, r)
             for r in _runs(
-                owner, name, FULL_RUN_WORKFLOW, "workflow_dispatch", branch, floor
+                owner,
+                name,
+                FULL_RUN_WORKFLOW,
+                "workflow_dispatch",
+                branch,
+                floor,
+                ctx.warnings,
             )
         ]
         full_runs.sort(key=lambda item: item[1].created_at)
         canary_runs = sorted(
-            _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor),
+            _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, ctx.warnings),
             key=lambda r: r.created_at,
         )
         states = tuple(
@@ -1582,7 +1752,7 @@ def check(
         reruns=tuple(tally.reruns.values()),
         flakes=tuple(tally.flakes),
         unattributed=tuple(tally.unattributed),
-        warnings=tuple(warnings),
+        warnings=tuple(warnings + ctx.warnings),
         branch=branch,
         quarantines=tuple(ctx.quarantines.values()),
     )
