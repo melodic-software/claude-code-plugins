@@ -79,6 +79,7 @@ MAX_MY_PROPOSALS = 10  # judgment: proposals one person has waiting (new) at onc
 MAX_PROPOSALS = 200  # judgment: proposals across the session; at the cap a new one is refused, none dropped
 MAX_DIGEST_PROPOSALS = 30  # judgment: new proposals one digest lists; the rest wait for a later digest
 MAX_DIGEST_CHARS = 30000  # judgment: summary characters one digest lists, seven summaries at their longest
+MAX_CLAUDE_PROPOSALS = 200  # judgment: Claude's merge and admit proposals across the session, as MAX_PROPOSALS
 MAX_OPEN_UPLOADS = 10
 MAX_RUN_IDS = 100
 NOTIFY_CAP = 500
@@ -86,6 +87,7 @@ MAX_INBOX_READ = 100  # judgment: Inbox items one read marks; a person opens one
 INBOX_MARKS = ("waiting", "running", "answered", "unshared", "shared", "declined", "failed", "open")  # state.schema.json inboxSeen
 INBOX_STATUS = {"pending": "waiting", "running": "running", "declined": "declined", "failed": "failed"}  # a request's Inbox status; done is answered, shared or unshared
 NOT_SHARED = "The owner did not share the result."  # a discarded result's request fails with this reason
+MERGED_NOTE = "The owner joined your two identities: your earlier answers are yours again."  # the kept person's merge notification
 NOTIFY_SHOWN = 100
 # What may pop up the moment it happens (web/app.js POPUP_KINDS, GUEST_POPUPS): the owner's Inbox items and
 # offered files, and a guest's answered request, mention and new round.
@@ -246,6 +248,8 @@ def _element(selector):
 
 
 URL = re.compile(r"https?://\S+", re.IGNORECASE)  # a link
+REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?!\.\.?$)[A-Za-z0-9._-]{1,100}")  # a GitHub owner/name, never . or ..; also in state.schema.json and web/app.js
+COMMIT = re.compile(r"[0-9a-f]{40}")  # a full commit SHA, which page links pin
 
 
 def tokenize(text, names):
@@ -406,6 +410,12 @@ def cross_field_errors(doc):
         errors.append("A session secret names the owner; only the owner link may.")
     if any(m["status"]["kind"] == "pending" and HOST in (m["from"], m["to"]) for m in doc["mergeRequests"]):
         errors.append("A pending merge request names the owner; the owner cannot be merged.")
+    if any(p["status"]["kind"] == "pending" and HOST in (p.get("from"), p.get("to"), p.get("pid")) for p in doc.get("claudeProposals", [])):
+        errors.append("An open proposal of Claude's names the owner; the owner is never merged or admitted.")
+    for p in doc.get("claudeProposals", []):
+        named = ("from", "to") if p["kind"] == "merge" else ("pid",)
+        if {k for k in ("from", "to", "pid") if k in p} != set(named) or any(p[k] not in p["names"] for k in named):
+            errors.append(f"Proposal {p['id']} ({p['kind']}) must name {' and '.join(named)}, each in names, and no one else.")
     errors += [f"{where} is not a link or asset name a write route takes." for where in _bad_links_and_assets(doc)]
     for q in doc["questions"]:
         later = [d for d in q["dependsOn"] if d not in seen]
@@ -509,6 +519,10 @@ def _bad_links_and_assets(doc):
     share = doc["session"]["share"]["url"]
     if share and not URL.fullmatch(share):
         bad.append("session.share.url")
+    sess = doc["session"]
+    bad += [f"session.{k}" for k, pattern in (("repo", REPO), ("commit", COMMIT)) if k in sess and not pattern.fullmatch(sess[k])]
+    if "commit" in sess and "repo" not in sess:
+        bad.append("session.commit")
     for q in doc["questions"]:
         fmt, at = q["format"], f"questions[{q['id']}]"
         checks = [(IMAGE_ASSET, o["image"], f"{at}.format.options.image") for o in fmt.get("options", []) if "image" in o]
@@ -1543,6 +1557,11 @@ class Session:
             st["credentials"]["secrets"][sha256(secret)] = new
             if waiting:
                 was = None
+            same = self._same_name(name, new, here)
+            if waiting or same:  # Claude may propose an admit or a merge; the owner's tap carries it out
+                names = st["session"]["settings"]["digestNames"]
+                self._event("person-joined", person=new, waiting=bool(waiting), **hint, **({"name": final} if names else {}),
+                            sameName=[{k: v for k, v in m.items() if names or k != "name"} for m in same])
         with self._lock:
             self._joins.pop(window, None)
             self._joins[window] = recent + [now]
@@ -1564,15 +1583,19 @@ class Session:
             if person["status"]["kind"] != "waiting":
                 raise DomainError(409, "wrong-status", "This person is not waiting to join.", status=person["status"]["kind"])
             if action == "admit":
-                person["status"] = {"kind": "active"}
+                self._admit(target)
             else:
                 person["status"] = {"kind": "removed", "at": self.now(), "by": HOST}
                 self._drop_watcher(target)
                 doomed = self._end_uploads_of(target, self.now())
-            self._presence_rev += 1
+                self._presence_rev += 1
         for f in doomed:
             self._discard(f)
         return {"pid": target, "status": person["status"]["kind"]}
+
+    def _admit(self, target):
+        self.state["people"][target]["status"] = {"kind": "active"}
+        self._presence_rev += 1
 
     def _prune_joins(self, now):
         """Forget join records whose windows have passed, least recently joined first."""
@@ -1582,6 +1605,24 @@ class Session:
             self._joins.popitem(last=False)
         for key in [k for k, times in self._key_joins.items() if now - times[-1] >= JOIN_KEY_WINDOW]:
             self._key_joins.pop(key)
+
+    def _same_name(self, name, new, here):
+        """Who else is in under `name`, or under it with the " 2" a taken name gets, and not here now: never the owner."""
+        if not name:
+            return []
+        key = _name_key(name)
+
+        def same(n):
+            n = _name_key(n)
+            return key in (n, re.sub(r" [0-9]+\Z", "", n))
+
+        out = []
+        for p, v in self.state["people"].items():
+            if p not in (HOST, new) and p not in here and self._active(p) and same(v["name"]):
+                seen = self._presence.get(p)
+                out.append({"pid": p, "name": v["name"], **({"device": seen["device"]} if seen and seen.get("device") else {}),
+                            **({"lastSeen": iso(self._seen(seen))} if seen else {})})
+        return out
 
     def _names_hidden_from(self, pid):
         """True when the session shows initials or "someone" and `pid` is not the owner or a leader."""
@@ -1873,8 +1914,96 @@ class Session:
             else:
                 self._merge(m["from"], m["to"])
                 m["status"] = {"kind": "approved", "at": now}
-                self._notify(m["to"], "merge", "The owner joined your two identities: your earlier answers are yours again.", actor=pid)
+                self._notify(m["to"], "merge", MERGED_NOTE, actor=pid)
             return {"status": m["status"]["kind"]}
+
+    # -- Claude's merge and admit proposals: Claude proposes, only the owner's approve acts --------
+
+    def _propose(self, kind, op, **people):
+        st = self.state
+        for field, p in people.items():
+            if p == HOST:
+                raise _bad(field, "The owner is never merged or let in by a proposal.")
+            if p not in st["people"]:
+                raise DomainError(404, "not-found", "No such person.", field=field)
+        if len(set(people.values())) < len(people):
+            raise _bad("to", "Pick two different people.")
+        record = {"kind": kind, **people}
+        if not self._proposal_live(record):
+            raise DomainError(409, "wrong-status", "Only a guest who is in, or for an admit one who waits, and neither a leader nor trusted.")
+        joined = [e for e in st["log"]["events"] if e["kind"] == "person-joined" and e["person"] == people.get("from", people.get("pid"))]
+        if not any(e["waiting"] if kind == "admit" else people["to"] in [m["pid"] for m in e["sameName"]] for e in joined):
+            raise DomainError(409, "not-reported", "Propose only the join a person-joined event reported: its person, and for a merge one of its sameName.")
+        lst = st.setdefault("claudeProposals", [])
+        same = [p for p in lst if {k: p.get(k) for k in record} == record]
+        if any(p["status"]["kind"] == "dismissed" for p in same):
+            raise DomainError(409, "dismissed", "The owner dismissed this proposal already.")
+        if any(p["status"]["kind"] == "pending" and self._proposal_live(p) for p in same):
+            raise DomainError(409, "wrong-status", "This proposal already waits for the owner.", status="pending")
+        open_ = self._open_claude_proposals()
+        if len(open_) >= MAX_CLAUDE_PROPOSALS:
+            raise DomainError(409, "full", f"{MAX_CLAUDE_PROPOSALS} proposals already wait for the owner.")
+        if len(lst) >= MAX_CLAUDE_PROPOSALS:  # the oldest answered or no longer live one makes room; a dismissal is kept
+            old = next((p for p in lst if p not in open_ and p["status"]["kind"] != "dismissed"), None)
+            if old is None:
+                raise DomainError(409, "full", f"{MAX_CLAUDE_PROPOSALS} proposals are kept, each waiting or dismissed.")
+            lst.remove(old)
+        kid = self._next("K")
+        names = {p: st["people"][p]["name"] for p in people.values()}
+        note = _text(op, "note", limit=MAX_NOTE, optional=True)
+        lst.append({"id": kid, **record, "names": names, "reasons": list(dict.fromkeys(op["reasons"])), **({"note": note} if note else {}),
+                    "at": self.now(), "status": {"kind": "pending"}})
+        return {"id": kid}
+
+    def _op_propose_merge(self, op):
+        return self._propose("merge", op, **{"from": op["from"], "to": op["to"]})
+
+    def _op_propose_admit(self, op):
+        return self._propose("admit", op, pid=op["pid"])
+
+    def _proposal_live(self, p):
+        """Still what Claude saw: guests, neither a leader nor trusted, in the status it needs (a merge's both in, as the
+        owner's Merge needs; an admit's waiting), each under the name it had then."""
+        people = self.state["people"]
+        need = {p["pid"]: "waiting"} if p["kind"] == "admit" else {p["from"]: "active", p["to"]: "active"}
+        return all(
+            q in people and people[q]["status"]["kind"] == kind and people[q]["role"] == "guest" and not people[q]["trusted"]
+            and people[q]["name"] == p.get("names", {}).get(q, people[q]["name"])
+            for q, kind in need.items()
+        )
+
+    def _open_claude_proposals(self):
+        """What waits on the owner: pending and still live; one whose people changed drops out, as the owner's tap would refuse it."""
+        return [p for p in self.state.get("claudeProposals", []) if p["status"]["kind"] == "pending" and self._proposal_live(p)]
+
+    def act_on_claude_proposal(self, pid, body):
+        """POST /api/claude-proposal/act: the owner approves one of Claude's proposals, which merges or lets in as the
+        owner's own Merge and Let in do, or dismisses it. One whose people changed since is marked stale, and 409."""
+        action = _choice(body, "action", ("approve", "dismiss"))
+        kid = _ident(body, "id")
+        now = self.now()
+        with self._tx() as st:
+            self._owner(pid)
+            p = next((p for p in st.get("claudeProposals", []) if p["id"] == kid), None)
+            if p is None:
+                raise DomainError(404, "not-found", "No such proposal.")
+            if p["status"]["kind"] != "pending":
+                raise DomainError(409, "wrong-status", "This proposal was already answered.", status=p["status"]["kind"])
+            stale = action == "approve" and not self._proposal_live(p)
+            if stale:
+                p["status"] = {"kind": "stale", "at": now}
+            elif action == "dismiss":
+                p["status"] = {"kind": "dismissed", "at": now}
+            else:
+                p["status"] = {"kind": "approved", "at": now}
+                if p["kind"] == "admit":
+                    self._admit(p["pid"])
+                else:
+                    self._merge(p["from"], p["to"])
+                    self._notify(p["to"], "merge", MERGED_NOTE, actor=pid)
+        if stale:
+            raise DomainError(409, "stale", "The people in this proposal changed since Claude made it. Nothing was merged or let in.")
+        return {"status": p["status"]["kind"]}
 
     def _merge(self, src, dst):
         """Into the owner too: then `src`'s secrets end rather than move (only the owner link names the owner),
@@ -4881,6 +5010,8 @@ class Session:
                   for m in st["mergeRequests"] if m["status"]["kind"] == "pending"),
                 *({"key": "join:" + v["pid"], "kind": "join", "id": v["pid"], "by": v["pid"], "at": v["status"]["at"]}
                   for v in st["people"].values() if v["status"]["kind"] == "waiting"),
+                *({"key": "people:" + p["id"], "kind": "people", "id": p["id"], "by": p.get("from", p.get("pid")), "at": p["at"]}
+                  for p in self._open_claude_proposals()),
             ]
             out += [{**w, "group": "waiting", "changed": w["at"], "status": "open"} for w in waiting]
         for i in out:
@@ -5305,6 +5436,22 @@ class Session:
         self.state["session"]["goal"] = _text(op, "goal", limit=MAX_GOAL, empty_ok=True)
         return {"goal": self.state["session"]["goal"]}
 
+    def _op_set_repo(self, op):
+        """The session's GitHub repository and pinned commit, which the page links #N and repository paths against.
+        Both are replaced together: no commit removes the old one, and an empty repo removes both."""
+        repo, commit, sess = op["repo"], op.get("commit"), self.state["session"]
+        if repo and not REPO.fullmatch(repo):
+            raise _bad("repo", "repo must be a GitHub owner/name.")
+        if commit is not None and not (repo and COMMIT.fullmatch(commit)):
+            raise _bad("commit", "commit must be a full 40-character lowercase SHA, with a repo.")
+        sess.pop("repo", None)
+        sess.pop("commit", None)
+        if repo:
+            sess["repo"] = repo
+            if commit:
+                sess["commit"] = commit
+        return {"repo": repo, **({"commit": commit} if commit else {})}
+
     def _op_set_intro(self, op):
         """Claude sets "Why you're here" once the owner said yes to its draft in the terminal."""
         return self._put_intro(_text(op, "intro", limit=MAX_INTRO, empty_ok=True))
@@ -5690,6 +5837,7 @@ class Session:
             "title": st["session"]["title"],
             "goal": st["session"]["goal"],
             "intro": st["session"].get("intro", ""),
+            **{k: st["session"][k] for k in ("repo", "commit") if k in st["session"]},
             "ended": self._ended(),
             "settings": st["session"]["settings"],
             "rounds": st["rounds"],
@@ -5949,6 +6097,7 @@ class Session:
                 snap["requests"] = copy.deepcopy([r for r in st["requests"] if r["runner"] == "host"])
                 snap["results"] = {q: copy.deepcopy(kept) for q, lst in st["results"].items() if (kept := [r for r in lst if self._from_active(r)])}
                 snap["mergeRequests"] = copy.deepcopy([m for m in st["mergeRequests"] if m["status"]["kind"] == "pending"])
+                snap["claudeProposals"] = copy.deepcopy(self._open_claude_proposals())
                 snap["uploads"] = [self._upload_view(u, owner=True) for u in st["uploads"] if self._active(u["pid"])]
                 snap["reports"] = [self._report_view(f, r) for f, r in st.get("reports", {}).items() if r["status"] != "resolved"]
                 snap["passes"] = {q: {p: dict(r) for p, r in by.items() if self._active(p)} for q, by in st.get("passes", {}).items()}

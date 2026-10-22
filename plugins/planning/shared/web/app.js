@@ -541,18 +541,40 @@
         else links(parent, part);
       }
     }
+    function link(text, url) { const a = E("a", "vf-link", text); a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; }
     function links(parent, line) {
       let i = 0;
       for (const m of line.matchAll(LINK)) {
         const url = m[0].replace(/[).,;:!?]+$/, "");
-        if (m.index > i) withMentions(parent, line.slice(i, m.index));
+        if (m.index > i) refs(parent, line.slice(i, m.index));
         let ok = false;
         try { ok = ["http:", "https:"].includes(new URL(url).protocol); } catch {}
-        if (ok) { const a = E("a", "vf-link", url); a.href = url; a.target = "_blank"; a.rel = "noopener noreferrer"; parent.append(a); }
-        else parent.append(url);
+        parent.append(ok ? link(url, url) : url);
         i = m.index + url.length;
       }
-      if (i < line.length) withMentions(parent, line.slice(i));
+      if (i < line.length) refs(parent, line.slice(i));
+    }
+    // ---------- #N and repository paths: links into the session's repository (set-repo), plain text without one ----------
+    const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$/, SHA = /^[0-9a-f]{40}$/;
+    /** `#N` not inside a word, an entity or a path; or a repo-relative path: a dot-free first folder of 2 or more
+     *  characters (a leading dot allowed, so never a host name or "w/e.g"), at least one slash and a file with a
+     *  lowercase letter-led extension, optionally `:line` or `:line-line`. The repo rule is also in session.py.
+     *  Never after a slash, dot, colon, ~ or @, so an absolute, home, drive or relative-to-parent path stays text. */
+    const REF = /(?<![\w&#/])#([1-9]\d{0,6})(?![\w-])|(?<![\w./:@~\\-])(\.?[\w-]{2,}(?:\/\.?[\w-][\w.-]*)*\/\.?[\w-][\w.-]*\.[a-z][a-z0-9]{0,9})(?::([1-9]\d{0,6})(?:-([1-9]\d{0,6}))?)?(?![\w/-]|\.\w)/g;
+    const repoOf = () => { const { repo, commit } = Core.state; return REPO.test(repo) ? { repo, commit: SHA.test(commit) ? commit : "" } : null; };
+    function refs(parent, s) {
+      const at = s.includes("#") || s.includes("/") ? repoOf() : null;
+      if (!at) { withMentions(parent, s); return; }
+      let i = 0;
+      for (const m of s.matchAll(REF)) {
+        const url = m[1] ? `https://github.com/${at.repo}/issues/${m[1]}`
+          : at.commit && `https://github.com/${at.repo}/blob/${at.commit}/${m[2]}${m[3] ? `#L${m[3]}${m[4] ? `-L${m[4]}` : ""}` : ""}`;
+        if (!url) continue;
+        if (m.index > i) withMentions(parent, s.slice(i, m.index));
+        parent.append(link(m[0], url));
+        i = m.index + m[0].length;
+      }
+      if (i < s.length) withMentions(parent, s.slice(i));
     }
     // ---------- @mentions: Core turns the server's <@pid> into "@Name" as this page shows that person; each renders as a chip ----------
     const MN = { labels: null, re: null };
@@ -593,7 +615,8 @@
       }
       return f;
     }
-    function setRich(el, text) { if (el._t !== text) { el._t = text; el.replaceChildren(rich(text)); } }
+    /** Rebuilt when the text or the session's repository changes; _t stays the text (the reader opens it). */
+    function setRich(el, text) { const k = `${Core.state.repo} ${Core.state.commit}`; if (el._t !== text || el._rk !== k) { el._t = text; el._rk = k; el.replaceChildren(rich(text)); } }
 
     // ---------- clamped text: ~6 lines, Show more expands in place, Open shows it in the reader ----------
     function clampBox(cls = "") {
@@ -2107,6 +2130,12 @@
       tourH.textContent = s.h; tourT.textContent = s.t;
       tourBack.hidden = TT.i === 0;
       tourNext.textContent = last ? "Done" : "Next";
+      placeTour(el);
+      tourNext.focus({ preventScroll: true });
+    }
+    /** Draw the ring round the step's target and put the card beside it; again after any re-render or resize moves it. */
+    function placeTour(el = TT.steps[TT.i]?.at()) {
+      if (!shown(el)) return;
       el.scrollIntoView({ block: "nearest", behavior: "auto" });
       const R = root.getBoundingClientRect(), r = el.getBoundingClientRect();
       const box = { l: Math.max(R.left + 4, r.left - 4), t: Math.max(R.top + 4, r.top - 4), r: Math.min(R.right - 4, r.right + 4), b: Math.min(R.bottom - 4, r.bottom + 4) };
@@ -2120,7 +2149,6 @@
       if (box.b + 12 + h <= R.bottom - 12) cs.insetBlockStart = box.b - R.top + 12 + "px";
       else if (box.t - 12 - h >= R.top + 12) cs.insetBlockStart = box.t - R.top - 12 - h + "px";
       else cs.insetBlockEnd = "12px";
-      tourNext.focus({ preventScroll: true });
     }
     tourNext.onclick = () => { if (TT.i >= TT.steps.length - 1) return endTour("done"); TT.i++; paintTour(); };
     tourBack.onclick = () => { if (TT.i > 0) { TT.i--; paintTour(); } };
@@ -2131,7 +2159,7 @@
     });
     // A click outside the card does nothing: the tour ends only by Skip, Done or Escape.
     on(tour, "pointerdown", e => { if (!tourCard.contains(e.target)) e.preventDefault(); });
-    const tourMove = () => { if (!tour.hidden) paintTour(); };
+    const tourMove = () => { if (!tour.hidden) placeTour(); };
     on(window, "resize", tourMove);
 
     // Ask Claude: right drawer on desktop, bottom sheet on phones.
@@ -3070,7 +3098,7 @@
         const S = Core.state;
         if (i.kind === "run" || i.kind === "fail") return openReview("r:" + i.id);
         if (i.kind === "share") { const row = revRows(S).find(r => r.x?.id === i.id); return openReview(row?.key || "x:" + i.id); }
-        return openReview({ report: "f:", merge: "m:", join: "j:" }[i.kind] + i.id);
+        return openReview({ report: "f:", merge: "m:", join: "j:", people: "c:" }[i.kind] + i.id);
       }
       closePop();
       if (i.unread) Core.readInbox([i.key], { [i.key]: i.status }).catch(() => {});
@@ -3158,7 +3186,7 @@
       return { q, ix };
     }
     const CHIP_WORD = { waiting: "Waiting", running: "Running", failed: "Failed", unshared: "Not shared", private: "Just me", shared: "Shared", answered: "Answered",
-      declined: "Declined", picture: "Pictures", file: "Files", report: "Problems", join: "Joins", merge: "Merges", proposal: "Proposals", suggestion: "Suggestions",
+      declined: "Declined", picture: "Pictures", file: "Files", report: "Problems", join: "Joins", merge: "Merges", people: "From Claude", proposal: "Proposals", suggestion: "Suggestions",
       ready: "Rounds", answer: "Answers", question: "Questions for you", mention: "Mentions", reply: "Replies", request: "Requests", round: "New rounds",
       role: "Roles", votes: "Agreement", reaction: "Reactions", discussion: "Discussions", queue: "Queue" };
     /** This tab's filter chips, one per kind of item it holds, with counts; a chip turned off hides its kind, remembered on this device. */
@@ -6617,12 +6645,21 @@
       for (const [qid, lst] of Object.entries(S.suggestions || {})) if (Core.lockOf(qid)) for (const x of lst) if (x.status === "open") out.push({ t: "suggestion", id: "s:" + x.id, ts: x.ts, x, qid });
       if (owner) for (const m of S.mergeRequests || []) out.push({ t: "merge", id: "m:" + m.id, ts: m.ts, m });
       if (owner) for (const j of S.joinRequests || []) out.push({ t: "join", id: "j:" + j.pid, ts: j.ts, j });
+      if (owner) for (const c of S.claudeProposals || []) out.push({ t: "people", id: "c:" + c.id, ts: c.ts, c });
       if (owner) for (const u of S.uploads || []) if (["offered", "accepted", "uploading"].includes(u.status) || (u.status === "done" && u.image && !u.shown && !isMe(u.cid))) out.push({ t: "upload", id: "u:" + u.id, ts: u.ts, u });
       if (owner) for (const f of S.reports || []) out.push({ t: "report", id: "f:" + f.id, ts: f.ts, f });
       if (R.ready && R.status === "open") out.push({ t: "ready", id: "ready:" + R.current, ts: R.ready.ts, ready: R.ready });
       return out.sort((a, b) => a.ts - b.ts);
     }
-    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join", report: "Problem" };
+    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join", report: "Problem", people: "Claude suggests" };
+    /** Why Claude proposes a merge or an admit, in the host's words (ops.schema.json personReasons). */
+    const WHY_WORD = { "same-name": "the same name", "was-offline": "the earlier one was offline when this one joined", "same-device": "the same kind of device", expected: "you told Claude to expect them" };
+    /** What Claude proposes, why, and for a merge the fix for next time: the earlier person's own link. */
+    const proposalText = c => {
+      const why = `Why: ${c.reasons.map(r => WHY_WORD[r] || r).join("; ")}.${c.note ? ` ${c.note}` : ""}`;
+      return c.kind === "admit" ? `Let ${c.name} in? ${why}`
+        : `${c.name} may be ${c.toName}, back on another device or browser. ${why} Merge moves ${c.name}'s answers, votes and chat to ${c.toName} in one tap, and this browser carries on as ${c.toName}; it cannot be undone. Next time, send ${c.toName} their own link (Use on another device), so they come back as themselves.`;
+    };
     const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"); // spellchecker:disable-line
     /** " (2nd waiting; phone · Safari)": the join order and what the join said about its device, never more. */
     const joinHint = j => {
@@ -6659,7 +6696,7 @@
       k.chip.textContent = QT[it.t];
       k.chip.className = "vf-chip " + ({ request: "vf-chip-accent", ready: "vf-chip-brass", merge: "vf-chip-quiet", upload: "vf-chip-quiet" }[it.t] || "vf-chip-quiet");
       const person = it.r ? [it.r.cid, it.r.name] : it.i ? [it.i.cid, it.i.name] : it.x ? [it.x.cid, it.x.name] : it.m ? [it.m.from, it.m.fromName] : it.u ? [it.u.cid, it.u.by] : it.f ? [it.f.cid, it.f.name]
-        : it.j ? [it.j.pid, it.j.name] : [it.ready.cid, it.ready.by];
+        : it.j ? [it.j.pid, it.j.name] : it.c ? [it.c.cid, it.c.name] : [it.ready.cid, it.ready.by];
       const wk = person.join("|") + it.ts;
       if (k.who._k !== wk) {
         k.who._k = wk;
@@ -6672,7 +6709,7 @@
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
         : it.m ? `${it.m.fromName} says they were ${it.m.toName} before. Approve to join them: ${it.m.fromName}'s answers and votes move to ${it.m.toName}.`
         : it.ready ? `${youOr(it.ready.cid, it.ready.by)} marked round ${curRound().current} ready to send.`
-        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.asked ? "Asked Claude. " : ""}${it.f.text}` : "";
+        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.c ? proposalText(it.c) : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.asked ? "Asked Claude. " : ""}${it.f.text}` : "";
       k.text.hidden = !txt;
       if (txt) fillClamp(k.text, "q:" + it.id, txt, `${QT[it.t]} from ${disp(person[1] || "someone")}`, q ? `${q.id}: ${q.text}` : "");
       if (k.up) fillUpRow(k.up, it.u);
@@ -6740,6 +6777,13 @@
         qAct("Decline", "vf-btn-ghost", guarded(() => ({ title: `Turn ${li._it.j.name} away?`, ok: "Decline", body: `${li._it.j.name} is not let in. You can restore them from Settings.` }),
           () => Core.joinAct(li._it.j.pid, "decline").then(() => flash(`${li._it.j.name} was not let in. Restore them from Settings if that was a mistake.`)).catch(fail))),
         qAct("Let in", "vf-btn-primary", () => Core.joinAct(li._it.j.pid, "admit").then(() => flash(`${li._it.j.name} is in.`)).catch(fail)));
+      // Claude only proposes: nothing merges or lets anyone in until the owner taps Merge or Let in here.
+      if (it.t === "people" && owner) {
+        const c = () => li._it.c, act = a => Core.claudeProposalAct(c().id, a);
+        a.push(qAct(it.c.kind === "merge" ? "Not the same person" : "Dismiss", "vf-btn-ghost", () => act("dismiss").then(() => flash("Dismissed.")).catch(fail)));
+        a.push(it.c.kind === "admit" ? qAct("Let in", "vf-btn-primary", () => act("approve").then(() => flash(`${c().name} is in.`)).catch(fail))
+          : qAct("Merge", "vf-btn-primary", () => act("approve").then(() => flash(`Merged into ${c().toName}.`)).catch(fail)));
+      }
       k.acts.replaceChildren(...a);
       k.acts.hidden = !a.length;
     }
@@ -7727,7 +7771,8 @@
 
       // a color someone just chose: repaint their avatars wherever they are
       for (const a of root.querySelectorAll(".core-avatar[data-who]")) { const c = Core.colorFor(a.dataset.who); if (a.style.getPropertyValue("--av") !== c) a.style.setProperty("--av", c); }
-      requestAnimationFrame(() => { measureAll(); if (toast.classList.contains("vf-on")) placeToast(); });
+      tourMove();
+      requestAnimationFrame(() => { measureAll(); if (toast.classList.contains("vf-on")) placeToast(); tourMove(); });
     }
 
     applyTheme();
