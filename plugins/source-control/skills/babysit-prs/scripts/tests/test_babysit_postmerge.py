@@ -727,6 +727,7 @@ class DroppedDispatchListing(CheckCase):
         verdict = self.check(now=self.LATE)
         self.assertFalse(verdict.readable)
         self.assertTrue(verdict.reason.startswith("unreadable:"), verdict.reason)
+        self.assertIn("lacked a run", verdict.reason)
         self.assertEqual(verdict.failures, ())
 
     def test_a_dropped_run_files_no_record_under_remediate(self) -> None:
