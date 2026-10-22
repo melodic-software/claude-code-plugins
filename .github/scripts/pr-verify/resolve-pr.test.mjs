@@ -337,7 +337,7 @@ test("a malformed run id throws", async () => {
   await assert.rejects(resolvePull({ github: fake(), repository: REPO, upstreamRunId: "1;x" }));
 });
 
-test("the spec text keeps only what trusted humans other than the PR author wrote and last edited", async () => {
+test("the spec text keeps only what trusted humans wrote and last edited", async () => {
   const human = { __typename: "User", login: "maintainer", databaseId: 100 };
   const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
   const stranger = { __typename: "User", login: "stranger", databaseId: 999 };
@@ -370,13 +370,27 @@ test("the spec text keeps only what trusted humans other than the PR author wrot
   ]);
   const byMaintainer = { issues: [issue], pulls: [pull({ user: { id: 100, login: "Maintainer", type: "User" } })] };
   const byAuthorRecord = (await resolve(byMaintainer, { verifyAuthors: "any" })).linkedIssues[0];
-  assert.deepEqual(byAuthorRecord.spec_comments, [], "the PR author's comments");
+  assert.deepEqual(
+    byAuthorRecord.spec_comments,
+    [
+      { id: 1, updated_at: "2026-10-11T00:00:00Z" },
+      { id: 6, updated_at: "2026-10-16T00:00:00Z" },
+    ],
+    "a trusted PR author's comments",
+  );
   const editedBody = { ...issue, lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
   assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, null, "a body the lanes App last edited");
   const byAuthor = (await resolve(byMaintainer, { verifyAuthors: "any" })).specText[0];
-  assert.deepEqual(byAuthor, { number: 7, body: null, comments: [] }, "the PR author's own text");
+  assert.deepEqual(byAuthor, { number: 7, body: "the spec", comments: ["kept", "edited by the human"] }, "a trusted PR author's own text");
   const lanesIssue = { ...issue, author: lanes };
   assert.equal((await resolve({ issues: [lanesIssue] })).specText[0].body, null, "an issue the lanes App wrote");
+  const strangerIssue = { ...issue, author: stranger, comments: { totalCount: 1, nodes: [comment("by the stranger", stranger)] } };
+  const byStranger = { issues: [strangerIssue], pulls: [pull({ user: { id: 999, login: "stranger", type: "User" } })] };
+  assert.deepEqual(
+    (await resolve(byStranger, { verifyAuthors: "any" })).specText[0],
+    { number: 7, body: null, comments: [] },
+    "an untrusted PR author's own text",
+  );
 });
 
 test("the linked issues record each body's last editor", async () => {

@@ -11,3 +11,10 @@ bump: minor
   at the current head keeps adoption though its pin comment refreshed the update time.
   pr-merge.yml lists those accounts' PRs. The decision records it as `eligibility.adoption`;
   every other gate applies unchanged.
+
+### Changed
+
+- The pr-merge verifier gate counts a linked issue a trusted human wrote, and last edited if ever,
+  as a trusted spec even when that human opened the pull request, so an adopted owner pull
+  request whose closing issue the owner wrote no longer refuses `verify:untrusted-spec`. A spec
+  by the lanes App, any other Bot or App, or an untrusted account still refuses.

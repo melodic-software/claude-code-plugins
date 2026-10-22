@@ -171,22 +171,17 @@ async function judged({ github, repository, number, head, base, numbers }) {
 
 // The closing issues in this repository with their authors and last body
 // editors (`linkedIssues`), and the spec text: each body and comment written,
-// and last edited if ever, by a User on the trusted list's humans other than
-// the PR author (`specText`). Bots, the lanes App and the PR author are left
-// out even where select-trusted-text keeps them.
-async function linkedIssues(github, repository, number, humans, prAuthor) {
+// and last edited if ever, by a User on the trusted list's humans, the PR
+// author included (`specText`). Bots and Apps, the lanes App among them, are
+// left out even where select-trusted-text keeps them.
+async function linkedIssues(github, repository, number, humans) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
   if (!refs || !Array.isArray(refs.nodes) || refs.totalCount !== refs.nodes.length) {
     throw new Error(`#${number}: the closing issues could not be read`);
   }
-  const author = String(prAuthor ?? "").toLowerCase();
-  const trusted = (actor) =>
-    actor?.__typename === "User" &&
-    humans.has(actor.databaseId) &&
-    author !== "" &&
-    String(actor.login ?? "").toLowerCase() !== author;
+  const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
   const issues = refs.nodes.filter(
     (issue) => issue?.repository?.nameWithOwner === repository && Number.isSafeInteger(issue.number),
@@ -277,7 +272,7 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
     headSha: head,
     baseSha: pull.base.sha,
     headRef: String(pull.head.ref ?? ""),
-    ...(await linkedIssues(github, repository, pull.number, humans, pull.user?.login)),
+    ...(await linkedIssues(github, repository, pull.number, humans)),
   };
 }
 

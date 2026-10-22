@@ -1144,11 +1144,11 @@ matched by login), whose idle pull
 requests the pr-merge lane adopts (Eligibility, above); any other author's is skipped with
 `author-not-lane-or-owner`. pr-verify runs when `pr-require-checks` passes, so it judges an owner
 pull request at each ready head, before it is idle. `any` judges every author's. Any other
-value judges none (`verify-authors-invalid`). The trusted-spec rule below is scoped to that: on a
-lane pull request the App is the author and a human wrote the issue, so the spec can be trusted,
-while a human author who also wrote the linked issue reads `verify:untrusted-spec`. That arises
-for an adopted owner pull request whose closing issue the owner wrote: the gate refuses it and it
-escalates for a human, unchanged by adoption.
+value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
+opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
+request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
+lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
+reads `verify:untrusted-spec`, so a lane pull request never supplies its own spec.
 
 With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
 run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
@@ -1173,8 +1173,8 @@ head:
   the carry-forward below stops only a head that changes nothing of its own, and a one-line edit
   gives a new change. A pull request that names the issue without closing it, or whose closing
   reference was removed, is not counted. Closing a newly filed duplicate issue instead starts the
-  count of other pull requests again; a pass then needs that issue written by a trusted human
-  other than the author, as below. More than 50 pull requests that claim to close one issue make
+  count of other pull requests again; a pass then needs that issue written by a trusted human,
+  as below. More than 50 pull requests that claim to close one issue make
   every pull request for that issue refuse `verify:unreadable`: a hold, not a way past the cap;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch) refuses (`verify:earlier-fail`). Counted `pass` or
@@ -1203,12 +1203,13 @@ head:
   reported before an untrusted one). Each refuses (`verify:spec-changed`) unless the
   pull request's closing issues in this repository now are the ones its verdict recorded, none
   was edited after the verdict's run started, and each issue's spec comments (written, and last
-  edited if ever, by a `User` on the trusted-actor list's humans other than the pull request's
-  author) are the ones it recorded by id and update time, none added, edited or deleted; a partial
+  edited if ever, by a `User` on the trusted-actor list's humans, the pull request's author
+  included) are the ones it recorded by id and update time, none added, edited or deleted; a partial
   comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
-  list's humans other than the pull request's author (otherwise `verify:untrusted-spec`). The
-  model's spec text holds only what such accounts wrote;
+  list's humans, the pull request's author included (otherwise `verify:untrusted-spec`); a Bot or
+  App, the lanes App among them, never counts. The model's spec text holds only what such
+  accounts wrote;
 - no counted verdict refuses (`verify:missing`).
 
 The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
