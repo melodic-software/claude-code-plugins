@@ -24,7 +24,7 @@ FILE="$DIR/findings.jsonl"
 LOCKDIR="$DIR/.lockdir"
 HELD=0
 TMP="$(mktemp)" || exit 1
-# Remove the lock only while it is still ours: a taker may have moved it aside.
+# Remove the lock only while its pid file still holds this process's pid.
 trap 'rm -f "$TMP"; if [[ $HELD -eq 1 && "$(cat "$LOCKDIR/pid" 2>/dev/null)" == "$$" ]]; then rm -rf "$LOCKDIR"; fi' EXIT
 trap 'exit 1' HUP INT TERM
 
@@ -49,39 +49,20 @@ write_rows() {
   sync "$FILE" 2>/dev/null || true
 }
 
-# lock_is_stale <dir>: its holder pid is no longer alive, or it has no pid and is
-# over a minute old.
-lock_is_stale() {
-  local holder
-  holder="$(cat "$1/pid" 2>/dev/null)"
-  if [[ -n "$holder" ]]; then
-    ! kill -0 "$holder" 2>/dev/null
-  else
-    [[ -n "$(find "$1" -maxdepth 0 -mmin +1 2>/dev/null)" ]]
-  fi
-}
-
-# take_mkdir_lock: mkdir is atomic. The holder writes its pid inside the lock. A
-# stale lock is taken over by renaming it aside, which only one taker can do; the
-# taker re-checks the moved lock and renames it back if its holder is alive (a
-# second taker that moved a lock just retaken), so a killed appender never wedges
-# later ones and a live lock is never removed.
+# take_mkdir_lock: mkdir is atomic, and the holder writes its pid inside the lock.
+# There is no automatic takeover: a lock whose holder pid is dead fails at once, and
+# a live holder that keeps it past the wait fails too, each naming the lock dir.
 take_mkdir_lock() {
-  local tries=0 aside="$LOCKDIR.stale.$$"
+  local tries=0 holder
   until mkdir "$LOCKDIR" 2>/dev/null; do
-    if lock_is_stale "$LOCKDIR" && mv "$LOCKDIR" "$aside" 2>/dev/null; then
-      if lock_is_stale "$aside"; then
-        rm -rf "$aside"
-      else
-        # Its holder is alive: put it back. When a new lock took the name meanwhile,
-        # mv nests it inside that one, whose holder removes both; then retry.
-        mv "$aside" "$LOCKDIR" 2>/dev/null
-      fi
-      continue
+    holder="$(cat "$LOCKDIR/pid" 2>/dev/null)"
+    if [[ -n "$holder" ]] && ! kill -0 "$holder" 2>/dev/null; then
+      echo "append.sh: buffer lock $LOCKDIR is stale (holder pid $holder is not running); remove it and retry" >&2
+      return 1
     fi
     tries=$((tries + 1))
     if [[ $tries -gt 600 ]]; then
-      echo "append.sh: could not take the buffer lock" >&2
+      echo "append.sh: could not take the buffer lock $LOCKDIR (holder pid ${holder:-unknown}); if no append is running, remove it and retry" >&2
       return 1
     fi
     sleep 0.05

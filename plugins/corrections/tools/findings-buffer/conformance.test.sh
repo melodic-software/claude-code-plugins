@@ -133,8 +133,8 @@ else
   fail "read.sh --since compares the top-level ts"
 fi
 
-# the mkdir lock (flock hidden from PATH): released after an append, and a lock
-# left by a killed holder does not wedge later appends
+# the mkdir lock (flock hidden from PATH): released after an append and on TERM,
+# and a lock left by a dead holder fails fast and stores nothing
 NOFLOCK="$TEST_TMPDIR/noflock-bin"
 mkdir -p "$NOFLOCK"
 for t in bash git jq mkdir rmdir rm mv cat sleep mktemp sync find wc grep; do
@@ -148,56 +148,62 @@ if [[ ! -e "$REPO/.work/buffer/.lockdir" ]]; then
 else
   fail "the mkdir lock is released after an append"
 fi
+
+# TERM while waiting on a live holder: the waiter never held the lock, so the
+# holder's lock stays; TERM to the holder side is the trap path below.
+mkdir "$REPO/.work/buffer/.lockdir"
+printf '%s\n' "$$" >"$REPO/.work/buffer/.lockdir/pid"
+(cd "$REPO" && PATH="$NOFLOCK" exec bash "$LOCAL/append.sh" <<<'{"obs_id":"nf-wait","ts":"2026-10-21T00:00:05Z"}') 2>/dev/null &
+waiter=$!
+sleep 0.5
+kill -TERM "$waiter" 2>/dev/null
+wait "$waiter" 2>/dev/null
+if [[ "$(cat "$REPO/.work/buffer/.lockdir/pid" 2>/dev/null)" == "$$" ]]; then
+  pass "a TERMed waiter leaves another holder's lock in place"
+else
+  fail "a TERMed waiter leaves another holder's lock in place"
+fi
+rm -rf "$REPO/.work/buffer/.lockdir"
+
+# TERM to a holder: a slow sync stub keeps the holder inside the lock; bash runs
+# the TERM trap once the stub returns, and the EXIT trap releases the lock.
+SLOW="$TEST_TMPDIR/slow-bin"
+mkdir -p "$SLOW"
+cp -P "$NOFLOCK"/* "$SLOW"/
+rm -f "$SLOW/sync"
+printf '#!%s\nexec %s 2\n' "$(command -v bash)" "$(command -v sleep)" >"$SLOW/sync"
+chmod +x "$SLOW/sync"
+(cd "$REPO" && PATH="$SLOW" exec bash "$LOCAL/append.sh" <<<'{"obs_id":"nf-term","ts":"2026-10-21T00:00:06Z"}') 2>/dev/null &
+holder=$!
+for _ in $(seq 1 50); do
+  [[ -f "$REPO/.work/buffer/.lockdir/pid" ]] && break
+  sleep 0.1
+done
+kill -TERM "$holder" 2>/dev/null
+wait "$holder" 2>/dev/null
+if [[ ! -e "$REPO/.work/buffer/.lockdir" ]]; then
+  pass "the mkdir lock is released when its holder gets TERM"
+else
+  fail "the mkdir lock is released when its holder gets TERM"
+  rm -rf "$REPO/.work/buffer/.lockdir"
+fi
+
 sleep 0 &
 dead=$!
 wait "$dead"
 mkdir "$REPO/.work/buffer/.lockdir"
 printf '%s\n' "$dead" >"$REPO/.work/buffer/.lockdir/pid"
+before="$(wc -l <"$REPO/.work/buffer/findings.jsonl")"
 start=$SECONDS
-printf '{"obs_id":"nf2","ts":"2026-10-21T00:00:04Z"}\n' | nf_append
+ERR="$(printf '{"obs_id":"nf2","ts":"2026-10-21T00:00:04Z"}\n' | nf_append 2>&1 >/dev/null)"
 RC=$?
-if [[ $RC -eq 0 && $((SECONDS - start)) -lt 10 ]] \
-  && grep -q '"obs_id":"nf2"' "$REPO/.work/buffer/findings.jsonl"; then
-  pass "a lock left by a dead holder is taken over"
+if [[ $RC -eq 1 && $((SECONDS - start)) -lt 5 && "$ERR" == *".lockdir is stale"*"remove it"* \
+  && "$(wc -l <"$REPO/.work/buffer/findings.jsonl")" -eq "$before" ]]; then
+  pass "a dead holder's lock fails fast, names the lock and stores nothing"
 else
-  fail "a lock left by a dead holder is taken over" "exit $RC after $((SECONDS - start))s"
+  fail "a dead holder's lock fails fast, names the lock and stores nothing" "exit $RC after $((SECONDS - start))s: $ERR"
 fi
-
-# several appenders racing for one dead holder's lock never interleave or lose rows.
-# Rows are large so cat writes each call in several chunks, which interleave if
-# two appenders ever hold the lock at once.
-for t in seq tr head printf; do
-  p="$(command -v "$t")" && ln -sf "$p" "$NOFLOCK/$t"
-done
-PAD="$(head -c 200000 /dev/zero | tr '\0' x)"
-RACE_REPO="$TEST_TMPDIR/race"
-git init -q -b main "$RACE_REPO" >/dev/null 2>&1
-race_bad=""
-for round in $(seq 1 20); do
-  rm -rf "$RACE_REPO/.work"
-  mkdir -p "$RACE_REPO/.work/buffer/.lockdir"
-  sleep 0 &
-  dead=$!
-  wait "$dead"
-  printf '%s\n' "$dead" >"$RACE_REPO/.work/buffer/.lockdir/pid"
-  pids=()
-  for w in $(seq 1 8); do
-    for k in 1 2 3; do
-      printf '{"obs_id":"r%d-%d-%d","ts":"2026-10-21T00:00:00Z","pad":"%s"}\n' "$round" "$w" "$k" "$PAD"
-    done >"$TEST_TMPDIR/race-$w.jsonl"
-    (cd "$RACE_REPO" && PATH="$NOFLOCK" bash "$LOCAL/append.sh" <"$TEST_TMPDIR/race-$w.jsonl") &
-    pids+=($!)
-  done
-  for p in "${pids[@]}"; do wait "$p" || race_bad="$race_bad round$round:exit"; done
-  ids="$(jq -r '.obs_id' "$RACE_REPO/.work/buffer/findings.jsonl" 2>/dev/null | sort)"
-  want="$(for w in $(seq 1 8); do for k in 1 2 3; do printf 'r%d-%d-%d\n' "$round" "$w" "$k"; done; done | sort)"
-  [[ "$ids" == "$want" ]] || race_bad="$race_bad round$round:rows"
-done
-if [[ -z "$race_bad" ]]; then
-  pass "8 appenders racing for a dead holder's lock keep every row whole, 20 rounds"
-else
-  fail "8 appenders racing for a dead holder's lock keep every row whole, 20 rounds" "$race_bad"
-fi
+rm -rf "$REPO/.work/buffer/.lockdir"
 
 # outside a repository
 NOREPO="$TEST_TMPDIR/norepo"
