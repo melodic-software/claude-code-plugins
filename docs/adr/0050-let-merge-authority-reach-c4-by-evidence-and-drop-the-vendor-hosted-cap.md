@@ -1,6 +1,7 @@
 # Let merge authority reach C4 by evidence, and drop the vendor-hosted cap
 
-- Status: accepted
+- Status: accepted; Decision 2 is superseded by
+  [ADR 0082](0082-drop-the-c4-rung-and-merge-on-the-verifier-verdict.md); Decisions 1 and 3 stand
 - Date: 2026-10-03
 
 ## Context
