@@ -583,9 +583,15 @@ Upstream link formats (volatile; read the pages, never copy their limits here):
 Off until the owner turns on Uploads (`shared_session.uploads`). Every place people write (the answer
 box, Ask Claude, a question's ask box, a suggestion, chat, the Discussion and Propose) then has an
 Attach button that offers "Upload a file" and lists the person's files the owner accepted. Every
-picture (PNG, JPEG, WebP or GIF), picked or pasted into any of those fields, is redrawn in the browser
+picture (PNG, JPEG or WebP), picked or pasted into any of those fields, is redrawn in the browser
 at most 1600 px and 512 KB, so no metadata such as EXIF or GPS leaves the device, then offered as a
-file. A pasted one shows as a thumbnail chip, never as text in the field; it reads "Waiting for the
+file. A GIF (its first bytes GIF87a or GIF89a, whatever its name or type) is not redrawn, which would
+keep only its first frame: it goes whole with only its frames, their graphic control blocks and the
+loop count, each extension rebuilt to its fixed size; every other extension (comment, plain text,
+application, unknown) is dropped, since any can carry text. One over 512 KB is refused before it is
+offered. An animated GIF shows as
+its first frame with a Play GIF button, on its tile and in the viewer, for everyone (WCAG 2.2.2,
+reduced motion). A pasted one shows as a thumbnail chip, never as text in the field; it reads "Waiting for the
 host" until the owner accepts it, and taking it off the form withdraws it (or removes it once
 received). Each question keeps its own unsent chips. Send waits while a file is waiting for the
 host, and takes off, naming it, a file declined, withdrawn, failed or removed meanwhile; a sent form
@@ -743,13 +749,13 @@ quoted when it holds a space, so only a newline ends an entry; `logs` splits on 
 |---|---|---|
 | `request` | INFO for 2xx/3xx, WARNING for 4xx, ERROR for 5xx | `method route status ms` and `pid` (the acting person's id, once known); a refusal adds `code field message` (its error body); a 5xx adds `trace`, the last 8000 characters of the traceback of the bug or of the session's refusal where it was raised. The one exception is 503 `busy`, answered before any request is read: `method=- route=- status=503 ms=0.0 code=busy message=...`, no pid, no trace. A `summary` the server takes gets no entry |
 | `client` | WARNING | `pid kind message source route code ua fp`, as the page sent them: a fault |
-| `summary-batch` | INFO | `summaries dropped counts data`: every `summary` taken since the last batch, written every 10 minutes and when the server stops, if there was one and it came from at least 2 guests or only the owner. `counts` is a JSON object of the summaries' `rep:`, `use:`, `rage:` and `dead:` counts added up; `data` is a JSON array of `[message, device]` pairs, the rest of each summary, sorted; both in ASCII with each space as `\u0020`. `dropped` counts summaries past the batch's 100,000 bytes, and at shutdown those from a single guest (see below). No pid, and no time but the batch's |
+| `summary-batch` | INFO | `summaries dropped counts data`: every `summary` taken since the last batch, written every 10 minutes and when the server stops, if there was one and it came from at least 2 guests or only the owner, or at shutdown of a session only one guest ever joined (counts only, see below). `counts` is a JSON object of the summaries' `use:`, `rage:` and `dead:` counts added up; `data` is a JSON array of `[message, device]` pairs, the rest of each summary, sorted; both in ASCII with each space as `\u0020`. `dropped` counts summaries past the batch's 100,000 bytes, and at shutdown those from a single guest, or a one-guest session's pairs (see below). No pid, and no time but the batch's |
 
 ```text
 2026-10-17 13:21:56,794 WARNING request method=POST route=/api/person/role status=400 ms=0.5 pid=host code=bad-field field=role message="role must be one of leader, guest."
 2026-10-17 13:21:57,102 ERROR request method=POST route=/api/rename status=500 ms=1.2 pid=pidAnn001 code=state-invalid message="The server could not do that; nothing was written." trace="Traceback (most recent call last):\x0a  File \x22...\x22 ..."
 2026-10-17 13:21:58,330 WARNING client pid=pidAnn001 kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d
-2026-10-17 13:30:00,412 INFO summary-batch summaries=2 dropped=0 counts={"dead:vf-pencil":1,"rep:1a2b3c4d":2,"use:vf-vote":5} data=[["pv=0a1b2c3d\u0020lat:/api/vote=0,3,1\u0020rb:/api/vote=1\u0020gap=900\u0020inp=184:pointer:vf-vote\u0020lcp=1200:vf-qtext","phone"],["pv=5e6f7a8b\u0020gap=400","computer"]]
+2026-10-17 13:30:00,412 INFO summary-batch summaries=2 dropped=0 counts={"dead:vf-pencil":1,"use:vf-vote":5} data=[["pv=0a1b2c3d\u0020lat:/api/vote=0,3,1\u0020rb:/api/vote=1\u0020gap=900\u0020inp=184:pointer:vf-vote\u0020lcp=1200:vf-qtext","phone"],["pv=5e6f7a8b\u0020gap=400","computer"]]
 ```
 
 A pid is no credential. No entry holds a token, secret, guest key, owner link, request body, answer
@@ -757,7 +763,7 @@ or chat text, or upload.
 
 **What the page records** (`web/core.js` telemetry). Faults go out at once, under the person's pid
 so they can be matched to that person's request entries, the first time each fingerprint (`fp`)
-shows; after that each repeat is a count in the next summary:
+shows; a repeat is not sent:
 
 - `error` and `rejection`: a script error (`source` as `/file:line`) or an unhandled rejection.
 - `api`: an action that never reached the server: `code` `network` (the request failed) or
@@ -776,7 +782,7 @@ so a summary with a time of its own could be matched to them. A summary holds `p
 page's INP counts once; `owner=1` on the owner's page; `lat:<route>` tap-to-answer counts per
 bucket (upper edges 100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000 and 10000 ms, then above),
 measured with `performance.now()`; `rb:<route>` optimistic changes rolled back; `gap`, ms from the
-page showing again to its first good poll; `rep:<fp>` repeats; `use:<control>` taps, `rage:<control>`
+page showing again to its first good poll; `use:<control>` taps, `rage:<control>`
 rage taps (the third tap on one control within a second of the first) and `dead:<control>` dead taps (a tap
 after which the page changes nothing, no DOM change and no scroll, for a second; never a link that opens
 elsewhere), counted on a person's taps on buttons, `input` buttons, links, `role=button` and `summary`, a
@@ -789,15 +795,27 @@ web-vitals names its target by a selector or an id instead (an element gone befo
 ancestor, never by its text, label or id.
 
 The server keeps only the device word of a summary's `ua` (`phone`, `tablet` or `computer`, else
-`unknown`) and lifts every `rep:`, `use:`, `rage:` and `dead:` token out of the summary into the batch's
-`counts`, dropping one not shaped like a fingerprint or a `vf-`/`core-` class name. A batch is written
-only once at least 2 guests sent summaries to it (or only the owner did): with fewer it waits for the
-next batch, and at shutdown its summaries are only counted as `dropped`. So no pair holds a fingerprint
-or a browser that would match it to a fault entry's pid, and no batch's counts are one guest's.
+`unknown`) and lifts every `use:`, `rage:` and `dead:` token out of the summary into the batch's
+`counts`, dropping one not shaped like a `vf-`/`core-` class name and every `rep:` token an older page
+sends, whose fingerprint is on a fault entry that names the person. A batch is written only once at
+least 2 guests sent summaries to it (or only the owner did): with fewer it waits for the next batch,
+and at shutdown its summaries are only counted as `dropped`. So no pair holds a fingerprint or a
+browser that would match it to a fault entry's pid, and in a session with two or more guests no
+batch's counts are one guest's.
+
+A one-on-one session (one person besides the owner ever joined, waiting ones included; a second
+guest who never sent a summary still counts) would otherwise record nothing, so its
+held batch is written at shutdown with its `counts` only, the session's totals, and its pairs, each
+one page view's record, counted as `dropped`. In one on one the host knows who the guest is, so
+these totals are that guest's: what keeps them unlinked is that they carry no pid, fingerprint,
+browser or page view, and no time but the session's end. A one-guest session's counts are kept
+only while its held batch is under 100,000 bytes, pairs included; past that a summary is dropped
+whole, and a crash or `share.sh stop` on Windows (below) loses them all.
 
 Never recorded: what anyone types, answers, chat, names, the address or its fragment, text on the
 page, or a credential. Help says so in one line, with a "What this page records" link to the plain
-list; the phone More sheet opens the same list. Recording has no off switch: every joined page
+list; the phone More sheet opens the same list. The list tells a guest that when they are the only
+guest, the host can tell their session's counts are theirs. Recording has no off switch: every joined page
 sends, and a `telemetry` key an older page left in `localStorage` is ignored. The join dialog shows
 only its heading, the invite line, the name prompt, the name box and Join.
 
@@ -821,7 +839,7 @@ device with the count of page views missing the API, taps, rage taps and dead ta
 (`features`), and how many summaries came in how many
 batches from how many page views, and how many were dropped.
 The owner's own page views stay out of the timings. A summary counts at its batch's time, for
-`--since` and for a fingerprint's last repeat. `logs --errors` leaves batches out.
+`--since`. A `rep:<fp>` count in an older log still adds to its fingerprint's count. `logs --errors` leaves batches out.
 
 ## Themes
 

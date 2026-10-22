@@ -194,6 +194,9 @@ class FakeGh:
         self.pin_comments: list[dict[str, Any]] = []
         # Comment pages served in order, one per pin read, when set.
         self.pin_pages: list[dict[str, Any]] = []
+        # The pull request's newest review, as the pin read returns it; a
+        # non-list is an unreadable review list.
+        self.pin_reviews: Any = []
         # Artifacts by name, and single workflow runs by id (GET .../runs/<id>).
         self.artifacts: dict[str, list[dict[str, Any]]] = {}
         self.run_records: dict[int, dict[str, Any]] = {}
@@ -277,7 +280,9 @@ class FakeGh:
                 {"status": "ahead" if head in self.descendants else "diverged"}
             )
         if endpoint == f"repos/{REPO}/git/ref/heads/main":
-            return completed({"ref": "refs/heads/main", "object": {"sha": self.main_tip}})
+            return completed(
+                {"ref": "refs/heads/main", "object": {"sha": self.main_tip}}
+            )
         if "/actions/runs/" in endpoint and endpoint.endswith("/rerun-failed-jobs"):
             return completed()
         if "/actions/artifacts?" in endpoint:
@@ -324,19 +329,17 @@ class FakeGh:
     def _graphql(self, joined: str) -> subprocess.CompletedProcess[str]:
         if "PolicyViewer" in joined:
             return completed({"data": {"viewer": {"login": self.viewer}}})
-        if "PostMergePin" in joined and self.pin_pages:
-            comments = self.pin_pages.pop(0)
-            return completed(
-                {"data": {"repository": {"pullRequest": {"comments": comments}}}}
-            )
         if "PostMergePin" in joined:
-            comments = {
-                "pageInfo": {"hasNextPage": False, "endCursor": None},
-                "nodes": self.pin_comments,
-            }
-            return completed(
-                {"data": {"repository": {"pullRequest": {"comments": comments}}}}
+            comments = (
+                self.pin_pages.pop(0)
+                if self.pin_pages
+                else {
+                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    "nodes": self.pin_comments,
+                }
             )
+            pull = {"comments": comments, "reviews": {"nodes": self.pin_reviews}}
+            return completed({"data": {"repository": {"pullRequest": pull}}})
         if "dequeuePullRequest" in joined:
             return completed(
                 {"data": {"dequeuePullRequest": {"clientMutationId": None}}}
@@ -2213,8 +2216,25 @@ class IdentityPreflight(CheckCase):
         self.assertEqual(self.gh.calls, [])
 
 
+PINNED_AT = "2026-10-12T10:00:00Z"
+
+
 def pin(sha: str, *, author: Any = APP_ACTOR, edited: str | None = None) -> Any:
-    return {"author": author, "body": pm.pin_comment(sha), "lastEditedAt": edited}
+    return {
+        "author": author,
+        "body": pm.pin_comment(sha),
+        "createdAt": PINNED_AT,
+        "lastEditedAt": edited,
+    }
+
+
+def said(author: Any, at: str = "2026-10-12T10:05:00Z") -> Any:
+    return {
+        "author": author,
+        "body": "please wait",
+        "createdAt": at,
+        "lastEditedAt": None,
+    }
 
 
 class PinnedHead(CheckCase):
@@ -2237,6 +2257,40 @@ class PinnedHead(CheckCase):
             pin(HEAD_SHA, edited="2026-10-12T10:30:00Z"),
         ]
         self.assertIsNone(pm.read_pin(REPO, 7001, IDENTITY))
+
+    # --- `alone`: nobody but the identity spoke after the pin --------------
+
+    def test_alone_keeps_a_pin_only_the_identity_followed(self) -> None:
+        # The lane's own pin, then its own enqueue (no comment) and comments.
+        self.gh.pin_comments = [
+            said(HUMAN, "2026-10-12T09:00:00Z"),
+            pin(HEAD_SHA),
+            said(APP_ACTOR),
+        ]
+        self.gh.pin_reviews = [{"author": HUMAN, "submittedAt": "2026-10-12T09:30:00Z"}]
+        self.assertEqual(pm.read_pin(REPO, 7001, IDENTITY, alone=True), HEAD_SHA)
+
+    def test_alone_drops_a_pin_another_author_commented_after(self) -> None:
+        for author in (HUMAN, {"__typename": "Bot", "login": "github-actions"}):
+            with self.subTest(author=author):
+                self.gh.pin_comments = [pin(HEAD_SHA), said(author)]
+                self.assertIsNone(pm.read_pin(REPO, 7001, IDENTITY, alone=True))
+                # Without `alone` the pin still reads.
+                self.assertEqual(pm.read_pin(REPO, 7001, IDENTITY), HEAD_SHA)
+
+    def test_alone_drops_a_pin_another_author_reviewed_after(self) -> None:
+        self.gh.pin_comments = [pin(HEAD_SHA)]
+        self.gh.pin_reviews = [{"author": HUMAN, "submittedAt": "2026-10-12T10:05:00Z"}]
+        self.assertIsNone(pm.read_pin(REPO, 7001, IDENTITY, alone=True))
+
+    def test_alone_fails_closed_on_an_unreadable_review_or_time(self) -> None:
+        self.gh.pin_comments = [pin(HEAD_SHA)]
+        self.gh.pin_reviews = None
+        with self.assertRaises(pm.PostMergeReadError):
+            pm.read_pin(REPO, 7001, IDENTITY, alone=True)
+        self.gh.pin_reviews = [{"author": HUMAN, "submittedAt": "soon"}]
+        with self.assertRaises(pm.PostMergeReadError):
+            pm.read_pin(REPO, 7001, IDENTITY, alone=True)
 
     def test_the_read_back_uses_the_pin_comment(self) -> None:
         self.all_green()

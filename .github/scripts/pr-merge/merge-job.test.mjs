@@ -6,7 +6,7 @@
 // never change to the next run.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -81,23 +81,36 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
   assert.doesNotMatch(job, /dispatch: .*needs-dispatch/);
 });
 
-// Runs the listing step's script against a fake `gh` that fails its first
-// `failures` calls, with `.base` pointing at this checkout.
-const runListing = (failures) => {
+// Runs the listing step's script against a fake `gh` whose `gh pr list`
+// fails its first `failures` calls and whose owner lookup answers `owner`
+// (null fails it), with `.base` pointing at this checkout, or, given
+// `ownerIds`, at a copy whose `adoption.owner-ids` line reads that.
+const runListing = (failures, owner = "owner-login", ownerIds) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-listing-"));
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
     writeFileSync(
       join(bin, "gh"),
-      `#!/usr/bin/env bash\nn=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/calls"\n` +
+      `#!/usr/bin/env bash\necho "$*" >>"${dir}/args"\n` +
+        `if [ "$1" = api ]; then ${owner === null ? "exit 1" : `echo ${owner}`}; exit; fi\n` +
+        `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/calls"\n` +
         `if [ "$n" -le ${failures} ]; then echo "HTTP 502: Bad Gateway" >&2; exit 1; fi\n` +
         `echo '[{"number":7,"headRefOid":"abc","isDraft":false,"updatedAt":"2026-10-18T00:00:00Z","labels":[],"body":""}]'\n`,
     );
     writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
     chmodSync(join(bin, "gh"), 0o755);
     chmodSync(join(bin, "sleep"), 0o755);
-    symlinkSync(root, join(dir, ".base"));
+    if (ownerIds === undefined) {
+      symlinkSync(root, join(dir, ".base"));
+    } else {
+      const conventions = join(dir, ".base/docs/conventions");
+      mkdirSync(conventions, { recursive: true });
+      const config = readFileSync(join(root, "docs/conventions/pr-pipeline.yaml"), "utf8");
+      assert.match(config, /^ {2}owner-ids: .*$/m);
+      writeFileSync(join(conventions, "pr-pipeline.yaml"), config.replace(/^ {2}owner-ids: .*\n/m, ownerIds));
+      symlinkSync(join(root, "plugins"), join(dir, ".base/plugins"));
+    }
     const output = join(dir, "output");
     const result = spawnSync("bash", ["-c", runScript("List the candidate PRs")], {
       cwd: dir,
@@ -116,6 +129,7 @@ const runListing = (failures) => {
       stdout: result.stdout,
       stderr: result.stderr,
       calls: Number(readFileSync(join(dir, "calls"), "utf8")),
+      args: readFileSync(join(dir, "args"), "utf8"),
       prefiltered: existsSync(join(dir, "prefilter.json")),
       output: existsSync(output) ? readFileSync(output, "utf8") : "",
     };
@@ -127,8 +141,37 @@ const runListing = (failures) => {
 test("the listing retries a failed gh pr list", () => {
   const run = runListing(2);
   assert.equal(run.status, 0, run.stderr);
-  assert.equal(run.calls, 3);
+  // Three tries for the lane's list, then one for the owner's.
+  assert.equal(run.calls, 4);
   assert.match(run.output, /^count=1$/m);
+});
+
+test("the listing adds the owner account, looked up by its id", () => {
+  const run = runListing(0);
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.args, /^api user\/153232337 --jq \.login$/m);
+  assert.match(run.args, /^pr list .*--author app\/[a-z0-9-]+ /m);
+  assert.match(run.args, /^pr list .*--author owner-login /m);
+});
+
+test("a failed owner lookup warns and lists the lane's PRs alone", () => {
+  for (const owner of [null, "not a login"]) {
+    const run = runListing(0, owner);
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /^::warning::the owner account's login is unreadable/m);
+    assert.equal(run.calls, 1, String(owner));
+    assert.match(run.output, /^count=1$/m);
+  }
+});
+
+test("an absent, null or empty adoption.owner-ids lists no owner account", () => {
+  for (const ownerIds of ["", "  owner-ids:\n", "  owner-ids: []\n"]) {
+    const run = runListing(0, "owner-login", ownerIds);
+    assert.equal(run.status, 0, run.stderr);
+    assert.doesNotMatch(run.args, /^api /m, JSON.stringify(ownerIds));
+    assert.doesNotMatch(run.args, /--author owner-login /, JSON.stringify(ownerIds));
+    assert.match(run.output, /^count=1$/m);
+  }
 });
 
 test("the listing fails with one clear error after three failed tries", () => {

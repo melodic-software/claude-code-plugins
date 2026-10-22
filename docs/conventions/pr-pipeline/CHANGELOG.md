@@ -1,5 +1,67 @@
 # Changelog for the PR pipeline convention
 
+## [3.4.0] - 2026-10-22
+
+### Added
+
+- `merge.verify-authors: lane-or-owner` judges the lanes App's pull requests and the owner
+  account's, matched by account id, so an idle owner pull request the pr-merge lane adopts has a
+  verdict. This repository sets it.
+
+### Changed
+
+- The verifier's spec now counts text a trusted human wrote even when that human opened the
+  pull request, so an owner pull request whose closing issue the owner wrote is judged against
+  that issue. Text by the lanes App, any other Bot or App, or an untrusted account is still left
+  out.
+
+### Fixed
+
+- The issue lane's new or changed scripts land executable. apply-patch now makes each file that
+  ends in `.sh` or starts with `#!` mode 100755 after every refusal passes, under the new
+  `script-exec-bit` row key that the `issue` row sets. The model still sets no mode:
+  `new-executable` refuses any executable bit the patch itself carries. Before this, the patch
+  committed such files as 100644 and check-affected's exec-bit check failed
+  ([run 39729937593](https://github.com/melodic-software/claude-code-plugins/actions/runs/39729937593)).
+  A resumed run keeps the executable scripts an earlier lane commit landed.
+- Inside an issue lane's patch run, `check-affected.sh --uncommitted` gives its snapshot the same
+  bits: the checks wrapper sets `CHECK_AFFECTED_SCRIPT_EXEC_BIT=1`, so exec-bit passes on a new
+  script. A run that commits gets no such flag and still has to chmod its own scripts.
+- The `issue` row now refuses `instruction-path`, so the issue lane pushes no plugin hooks,
+  monitors or bin, and no agent instruction file. A row that sets `script-exec-bit` must refuse it.
+
+## [3.3.3] - 2026-10-22
+
+### Fixed
+
+- Write lanes deny git commands: they reach git only through the base wrappers. In `merge-base`
+  mode, whose skill resolves the merge with git, the lane denies git's global options, the
+  subcommands that read config or reach a remote, absolute and parent paths, quotes, and the flags
+  or paths that read a file outside the index (including `blame` and `grep`) or run a diff or
+  text-conversion program
+  ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md)).
+
+- check-wip-cap treats a GitHub search answer with `incomplete_results: true` as unknown, not as a failed read: new admissions pause whether or not `pause-from` is set or reached, with `admission_basis` and `admission_reason` `search-incomplete` and a `check-wip-cap` warning, so work-unblock defers newly unblocked issues instead of admitting without limit on a false empty. A read that fails without that answer still fails open, the queued cap still pauses only past `pause-from`, and no run pause changes.
+- check-wip-cap's over-cap warning names why the lane keeps running (the base config could not be read, `pause-from` is not set, or `pause-from` not reached), and work-unblock's deferral log names its reason instead of always citing the queued cap.
+
+## [3.3.2] - 2026-10-22
+
+### Fixed
+
+- The verifier verdict rules say a failed read of a verify record, run time or diff refuses `verify:unreadable` rather than keeping `verify:earlier-fail`, except a diff GitHub answers with 404, which still keeps it (#9063).
+
+- fix-docs runs again, now in the read runner's default `dontAsk` mode instead of `auto`, which
+  run-claude-cli's subprocess env scrub forced back to the default mode
+  ([run 39723040443](https://github.com/melodic-software/claude-code-plugins/actions/runs/39723040443)).
+  Its Bash runs only explicit allow rules: each `ai-slop:audit` script by absolute path under
+  `.lane/plugins`, bare and double-quoted, plus `sha256sum` and `mkdir -p` in `.lane/scratch`
+  for the fix flow's digests, and `Edit(./.lane/scratch/**)` so a redirect into the scratch
+  directory is approved. It denies `git`, the `user-scope.sh` script, `NotebookEdit` on the
+  staged plugin and the write lanes' shell deny set. The staging step also makes `.lane/prompt.md`
+  and `.lane/` read-only, so a script's `--out` lands only in `.lane/scratch`.
+- Write lanes also deny `wc`, a read-only command that runs with no allow rule and can print
+  file contents in its errors.
+
 ## [3.3.1] - 2026-10-22
 
 ### Fixed

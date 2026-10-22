@@ -105,6 +105,22 @@ WORK_CLASS_LABELS = {
 WORK_CLASS_PREFIX = "work-class:"
 
 OPT_IN_LABEL = "merge: agent-allowed"
+# The PR author's own hold, written in the body ("Do not merge this draft", or
+# a line starting "Hold:"): the label is not the only way a PR says it must not
+# merge. The hyphenated form is the label's name and is not matched, so a body
+# that merely names the label does not block. A "Hold:" line may follow any
+# whitespace, NBSP included, and a bare CR counts as a line break. A "Hold:"
+# line holds the merge only: the pull-request ready flip ignores it.
+BODY_MERGE_HOLD_RE = re.compile(
+    r"\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:", re.I | re.M
+)
+# The label form of the same hold: blocks in every tier, whether or not the
+# autopilot merge tier is engaged. `--block-labels` only adds to it.
+MERGE_HOLD_LABELS = ("do-not-merge",)
+# `adoption.idle-hours` when absent; a value outside 1 to
+# `MAX_ADOPTION_IDLE_HOURS` adopts nothing.
+ADOPTION_IDLE_HOURS = 24
+MAX_ADOPTION_IDLE_HOURS = 720
 RUNG_CAP_VARIABLE = "CLAUDE_LANES_MERGE_RUNG_CAP"
 ORG_SWITCH = "CLAUDE_LANES_DISABLED"
 REPO_SWITCH = "CLAUDE_LANES_REPO_DISABLED"
@@ -552,6 +568,17 @@ class PipelineConfig:
     # The default branch head's `merge.check-inputs` not in `check_inputs`,
     # set by `stricter_config` and read on its own.
     head_check_inputs: tuple[str, ...] = ()
+    # `adoption.idle-hours`: how long an owner pull request's update and head
+    # commit must be idle before the pr-merge lane adopts it
+    # (`adoption_refusal`). Absent is `ADOPTION_IDLE_HOURS`; anything but a
+    # whole number from 1 to `MAX_ADOPTION_IDLE_HOURS` is None, which adopts
+    # nothing. `stricter_config` takes the
+    # default branch head's.
+    adoption_idle_hours: int | None = ADOPTION_IDLE_HOURS
+    # `adoption.owner-ids`: the account ids whose pull requests may be
+    # adopted. Absent, null, empty, or a list with an entry that is not a
+    # whole number is empty, which adopts nothing. The default branch head's.
+    adoption_owner_ids: tuple[int, ...] = ()
     # `merge.quarantine-days`: days a quarantined suite's failures on the
     # default branch stop demoting (`babysit_postmerge`). Absent, or anything
     # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
@@ -695,6 +722,8 @@ def read_config_at(
             ("merge.risk-escalation-minutes", False),
             ("merge.max-verify-fails", False),
             ("merge.check-inputs", True),
+            ("adoption.idle-hours", False),
+            ("adoption.owner-ids", True),
             ("merge.quarantine-days", False),
         ],
     )
@@ -780,6 +809,25 @@ def read_config_at(
             f"merge.max-verify-fails {verify_fails!r} is not a count of 1 or more"
         )
         verify_fails = "1"
+    idle_text = scalar("adoption.idle-hours")
+    idle_hours: int | None = ADOPTION_IDLE_HOURS
+    if idle_text is not None:
+        idle_hours = (
+            int(idle_text) if re.fullmatch(r"[1-9][0-9]{0,2}", idle_text) else None
+        )
+        if idle_hours is None or idle_hours > MAX_ADOPTION_IDLE_HOURS:
+            notes.append(
+                f"adoption.idle-hours {idle_text!r} is not a whole number from 1 "
+                f"to {MAX_ADOPTION_IDLE_HOURS}; nothing is adopted"
+            )
+            idle_hours = None
+    owner_ids = tuple(values["adoption.owner-ids"])
+    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in owner_ids):
+        notes.append(
+            f"adoption.owner-ids {list(owner_ids)!r} holds an entry that is not an "
+            "account id; nothing is adopted"
+        )
+        owner_ids = ()
     quarantine_days = scalar("merge.quarantine-days")
     if quarantine_days is not None and not (
         re.fullmatch(r"[1-9][0-9]?", quarantine_days)
@@ -815,6 +863,8 @@ def read_config_at(
         else RISK_ESCALATION_MINUTES,
         max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
         check_inputs=tuple(values["merge.check-inputs"]),
+        adoption_idle_hours=idle_hours,
+        adoption_owner_ids=tuple(int(i) for i in owner_ids),
         quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
     )
 
@@ -889,6 +939,9 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         # The gate reads it at the head (`_run_max_in_flight`); this is only
         # the fallback when that read fails, which never exceeds main's.
         max_in_flight=min(base.max_in_flight, main.max_in_flight),
+        # Read at main (owner decision Q22).
+        adoption_idle_hours=main.adoption_idle_hours,
+        adoption_owner_ids=main.adoption_owner_ids,
     )
 
 
@@ -954,6 +1007,13 @@ def _cached_config(value: Any) -> PipelineConfig | None:
             and count(c.max_queue_ejections, 1)
             and count(c.risk_escalation_minutes, 0)
             and count(c.max_verify_fails, 1)
+            and (
+                c.adoption_idle_hours is None
+                or count(c.adoption_idle_hours, 1)
+                and c.adoption_idle_hours <= MAX_ADOPTION_IDLE_HOURS
+            )
+            and isinstance(c.adoption_owner_ids, tuple)
+            and all(count(i, 1) for i in c.adoption_owner_ids)
         )
     except (TypeError, ValueError):
         return None
@@ -1466,6 +1526,9 @@ class Eligibility:
     issue: int | None = None
     # A Dependabot pull request's tier, in the pr-merge lane only.
     dependabot: dependabot.Classification | None = None
+    # Why the pr-merge lane adopted a pull request it did not open
+    # (`adoption_refusal`), else None.
+    adoption: str | None = None
 
 
 def _label_names(node: dict[str, Any]) -> list[str] | None:
@@ -1796,6 +1859,99 @@ def _denied_path_refusal(
     return f"denied-path:{','.join(hits)}" if hits else None
 
 
+AUTHOR_NOT_OWNER = "author-not-owner"
+
+
+def adoption_refusal(
+    pr: Mapping[str, Any],
+    head_committed: Callable[[], Any],
+    *,
+    idle_hours: int | None,
+    owner_ids: Collection[int],
+    human_gated: str | None,
+    now: datetime,
+    queued_at_head: Callable[[], bool] = lambda: False,
+) -> str | None:
+    """Why the pr-merge lane does not adopt this REST pull request, or None
+    when it does (owner decision Q22): not a draft; opened by an owner
+    account, a User whose id is in `owner_ids` (never matched by login); its
+    `updated_at` and its head commit's committer date, `head_committed()`,
+    read last, both at least `idle_hours` old, an unreadable one not idle;
+    and no hold: a `MERGE_HOLD_LABELS` label, the resolved `human_gated` role
+    label, or a body hold (`BODY_MERGE_HOLD_RE`). A fresh `updated_at` is
+    excused while `queued_at_head()` (`lane_queued_at_head`), read only
+    then: the lane's own pin comment and enqueue refresh it."""
+    user = json_object(pr.get("user"))
+    uid = user.get("id")
+    if user.get("type") != "User" or type(uid) is not int or uid not in owner_ids:
+        return AUTHOR_NOT_OWNER
+    if pr.get("draft") is not False:
+        return "draft"
+    if idle_hours is None:
+        return "idle-hours-invalid"
+    if not human_gated:
+        return "human-gated-label-unresolved"
+    labels = {
+        str(json_object(label).get("name") or "").casefold()
+        for label in json_array(pr.get("labels"))
+    }
+    held = next(
+        (h for h in (*MERGE_HOLD_LABELS, human_gated) if h.casefold() in labels), None
+    )
+    if held:
+        return f"hold-label:{held}"
+    if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
+        return "hold-body"
+
+    def idle(read: Callable[[], Any]) -> bool:
+        try:
+            return now - _time(read()) >= timedelta(hours=idle_hours)
+        except PolicyReadError:
+            return False
+
+    if not idle(lambda: pr.get("updated_at")) and not queued_at_head():
+        return "updated-fresh"
+    if not idle(head_committed):
+        return "head-fresh"
+    return None
+
+
+def _head_committed(owner: str, name: str, pr: Mapping[str, Any]) -> Any:
+    """The committer date of the pull request's head commit."""
+    sha = str(json_object(pr.get("head")).get("sha") or "")
+    status, payload = _get(f"repos/{owner}/{name}/commits/{sha}")
+    commit = json_object(payload) if status == 200 else {}
+    if not SHA_RE.fullmatch(sha) or commit.get("sha") != sha:
+        raise PolicyReadError(f"head commit {sha!r} unreadable (status {status})")
+    return json_object(json_object(commit.get("commit")).get("committer")).get("date")
+
+
+def lane_queued_at_head(
+    repo: str, number: int, branch: str, identity: str, head: str
+) -> bool:
+    """Whether the pull request sits in the merge queue on `branch` as the
+    agent identity's own entry, enqueued at `head`, and nobody else has
+    spoken since: the identity enqueued it, its newest unedited pin comment,
+    posted just before the enqueue, names `head`, and no other author
+    commented or reviewed after that pin (`read_pin(alone=True)`), so a
+    human asking to wait still refuses. An unreadable queue, pin, comment or
+    review is not queued."""
+    from babysit_postmerge import (  # noqa: PLC0415
+        PostMergeReadError,
+        identity_queue,
+        read_pin,
+    )
+
+    try:
+        return bool(
+            SHA_RE.fullmatch(head)
+            and number in identity_queue(repo, branch, identity)[0]
+            and read_pin(repo, number, identity, alone=True) == head
+        )
+    except PostMergeReadError:
+        return False
+
+
 def lane_eligibility(
     repo: str,
     number: int,
@@ -1805,17 +1961,28 @@ def lane_eligibility(
     agent_identity: str | None,
     self_logins: Collection[str] = frozenset(),
     permission: Permission | None = None,
+    adoption_idle_hours: int | None = None,
+    adoption_owner_ids: Collection[int] = (),
+    human_gated: str | None = None,
+    now: datetime | None = None,
+    queued_at_head: Callable[[], bool] = lambda: False,
 ) -> Eligibility:
     """Whether the pr-merge lane may consider a pull request: not a fork or a
-    dependency manager's, opened by the agent identity, exactly one closing
+    dependency manager's, opened by the agent identity or adopted
+    (`adoption_refusal`, with `adoption_idle_hours`, `adoption_owner_ids`,
+    the resolved `human_gated` label and `queued_at_head`; None or empty
+    adopts nothing),
+    exactly one closing
     issue in this repository (the verifier verdict binds to it), and a diff
     touching no `merge.diff-check.denied-paths`. Such a pull request is
     class `LANE_CLASS`; no `work-class:` label is read.
     `pr` is the REST record, whose `changed_files` the file listing must
-    reach. Holds (a hold label, a `Hold:` line) are the gate's.
+    reach. Holds (a hold label, a `Hold:` line) are the gate's, and
+    adoption's too.
     `self_logins` and `permission` are unused: no human read remains."""
     owner, name = _split_repo(repo)
     issue_number = None
+    adoption = None
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
@@ -1825,9 +1992,22 @@ def lane_eligibility(
         if foreign:
             return Eligibility(False, foreign)
         # Anyone could name an issue in `Closes #N`; only a pull request the
-        # lane opened counts.
+        # lane opened, or one it adopted, counts.
         if not _lane_authored(node, agent_identity):
-            return Eligibility(False, "not-lane-authored")
+            not_adopted = adoption_refusal(
+                pr,
+                lambda: _head_committed(owner, name, pr),
+                idle_hours=adoption_idle_hours,
+                owner_ids=adoption_owner_ids,
+                human_gated=human_gated,
+                now=now or datetime.now(UTC),
+                queued_at_head=queued_at_head,
+            )
+            if not_adopted == AUTHOR_NOT_OWNER:
+                return Eligibility(False, "not-lane-authored")
+            if not_adopted:
+                return Eligibility(False, f"not-adopted:{not_adopted}")
+            adoption = f"idle-owner:{adoption_idle_hours}h"
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
@@ -1838,7 +2018,9 @@ def lane_eligibility(
             )
     except PolicyReadError as exc:
         return Eligibility(False, f"unreadable: {exc}")
-    return Eligibility(refusal is None, refusal, LANE_CLASS, issue_number)
+    return Eligibility(
+        refusal is None, refusal, LANE_CLASS, issue_number, adoption=adoption
+    )
 
 
 # A commit's file list stops at this many entries, so a full one may hide more.
@@ -3588,6 +3770,7 @@ def assess(
     lane_rung_cap: str | None = None,
     shared: SharedPostMerge | None = None,
     share: Callable[[SharedPostMerge], object] | None = None,
+    human_gated: str | None = None,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
@@ -3622,6 +3805,8 @@ def assess(
     `share(answer)` receives those reads, when made and readable, bound as a
     `SharedPostMerge` for the next candidate, unless `shared` was refused as
     bound to another candidate (`SHARED_BINDING_REFUSALS`); it must not raise.
+    `human_gated`, the tracker's resolved human-gated role label, holds an
+    adopted pull request in the lane (`adoption_refusal`); None adopts none.
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
     promoted. `self_logins` names only lane or bot self identities (see
@@ -3895,6 +4080,16 @@ def assess(
             number,
             pr=pr,
             denied_paths=config.denied_paths,
+            adoption_idle_hours=config.adoption_idle_hours,
+            adoption_owner_ids=config.adoption_owner_ids,
+            human_gated=human_gated,
+            queued_at_head=lambda: lane_queued_at_head(
+                repo,
+                number,
+                base_ref,
+                inputs["identity"],
+                str(json_object(pr.get("head")).get("sha") or ""),
+            ),
             **readers,
         )
         promoted = True
@@ -3915,6 +4110,7 @@ def assess(
             "eligible": eligible.eligible,
             "reason": eligible.reason,
             "workClass": eligible.work_class,
+            "adoption": eligible.adoption,
         },
     )
     inputs["eligibility"] = eligible

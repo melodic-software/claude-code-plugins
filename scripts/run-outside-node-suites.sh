@@ -7,7 +7,8 @@
 # With no arguments, run `npm test` in every directory listed in
 # scripts/outside-node-packages.txt. That file is the package's own test
 # command, read from package.json "scripts.test". This script does not guess
-# node --test versus vitest.
+# node --test versus vitest. A package's `file:` dependency that has a lockfile
+# is installed (`npm ci`) before its tests run.
 #
 # --paths FILE is one repo-relative path per line (the suites affected-tests.sh
 # declined). A path is classified, not guessed:
@@ -95,11 +96,27 @@ run_package() {
     echo "outside-node: $pkg/package.json has no scripts.test; refusing to guess a runner" >&2
     return 1
   fi
+  install_locked_deps "$pkg" || return 1
   echo "outside-node: npm test in $pkg ($test_cmd)"
   (cd "$pkg" && npm test)
 }
 
-declare -A selected=()
+# install_locked_deps <pkg>: `npm ci` each `file:` dependency of <pkg> that has
+# a lockfile, once per run, so a suite that loads modules from it finds them.
+install_locked_deps() {
+  local dep dir
+  while IFS= read -r dep; do
+    [[ -n "$dep" ]] || continue
+    dir="$(cd "$1/$dep" && pwd)" || return 1
+    [[ -f "$dir/package-lock.json" && -z "${installed[$dir]:-}" ]] || continue
+    installed["$dir"]=1
+    echo "outside-node: npm ci in $dir, a file: dependency of $1"
+    npm ci --ignore-scripts --prefix "$dir" || return 1
+  done < <(jq -r '[.dependencies, .devDependencies] | map(. // {}) | add | to_entries[]
+      | select(.value | startswith("file:")) | .value | ltrimstr("file:")' "$1/package.json" | tr -d '\r')
+}
+
+declare -A selected=() installed=()
 failed=0
 
 if [[ -z "$paths_file" ]]; then

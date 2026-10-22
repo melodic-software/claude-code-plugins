@@ -125,7 +125,8 @@ jobs:
           mkdir -p "$(dirname "$SPEC_FILE")"
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY
+          OWNER_IDS=$(yq '.adoption."owner-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY OWNER_IDS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the
@@ -447,7 +448,8 @@ jobs:
           mkdir -p "$(dirname "$SPEC_FILE")"
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          export VERIFY_AUTHORS LANE_IDENTITY
+          OWNER_IDS=$(yq '.adoption."owner-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml)
+          export VERIFY_AUTHORS LANE_IDENTITY OWNER_IDS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
       # The gate and the resolver read the PR separately; both must name the

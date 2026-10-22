@@ -24,8 +24,9 @@
 // max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
 // x wip.merge-rate-window-hours, on or after wip.pause-from, new admissions
 // (work-unblock adding agent-ready) pause; runs never pause on it, since a
-// queued issue leaves the count only by running. A failed queued read leaves
-// admissions open.
+// queued issue leaves the count only by running. A search that answers
+// incomplete_results: true closes admissions whatever wip.pause-from says. A
+// failed queued read without that flag leaves admissions open.
 //
 // As the action's step it writes `capped` (the run pause), `admission-open`,
 // `wip` (the status as one flat JSON object) and `state-saved` (`true` when a
@@ -77,11 +78,13 @@ const isCount = (value) => Number.isSafeInteger(value) && value >= 0;
 
 // The open lane PRs as { createdAt, held, issue }, the merged and opened
 // counts in the window, and the queued issues' numbers; each null when its
-// read fails. Reads run one at a time, and
+// read fails. `searchIncomplete` is whether any answer said incomplete_results
+// true, which a degraded search answers with a false empty. Reads run one at a time, and
 // none starts once `remaining()` (the last x-ratelimit-remaining seen) is 0 or less.
 export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, windowHours, remaining = () => null }) {
   const author = `author:app/${bot.replace(/\[bot\]$/, "")}`;
   const since = isoSecond(now - windowHours * HOUR_MS);
+  let searchIncomplete = false;
   const search = async (q, page, perPage) => {
     const left = remaining();
     if (left !== null && left <= 0) {
@@ -89,6 +92,7 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
     }
     const answer = await github("GET", `/search/issues?q=${encodeURIComponent(q)}&per_page=${perPage}&page=${page}`);
     if (answer?.incomplete_results !== false) {
+      searchIncomplete ||= answer?.incomplete_results === true;
       throw new Error("the search answered incomplete results");
     }
     return answer;
@@ -147,14 +151,14 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
       );
     }
   }
-  return { open, merged, admitted, queued: queued?.items ?? null, queuedUnlisted: queued?.unlisted ?? null };
+  return { open, merged, admitted, queued: queued?.items ?? null, queuedUnlisted: queued?.unlisted ?? null, searchIncomplete };
 }
 
 const round = (value, places) => (value === null ? null : Number(value.toFixed(places)));
 
 // The status as one flat object; the field names are a published contract
 // (README.md, WIP cap).
-export function wipStatus({ open, merged, admitted, queued = null, queuedUnlisted = 0 }, { limits, wip, now }) {
+export function wipStatus({ open, merged, admitted, queued = null, queuedUnlisted = 0, searchIncomplete = false }, { limits, wip, now }) {
   const window = wip["merge-rate-window-hours"];
   const held = open?.filter((pr) => pr.held) ?? null;
   const ages = held?.map((pr) => (now - pr.createdAt) / HOUR_MS).filter(Number.isFinite) ?? [];
@@ -181,8 +185,16 @@ export function wipStatus({ open, merged, admitted, queued = null, queuedUnliste
   const queuedIssues = queued === null || open === null ? null : queued.filter((number) => !named.has(number)).length + (queuedUnlisted ?? 0);
   const queuedTotal = queuedIssues === null ? null : queuedIssues + heldCount;
   const queuedOver = queuedTotal !== null && (truncated || queuedTotal >= queuedCap - 1e-9);
-  // Admissions left before the cap; null when nothing gates them.
-  const room = pausing && queuedTotal !== null ? (truncated ? 0 : Math.max(0, Math.ceil(queuedCap - queuedTotal - 1e-9))) : null;
+  // Admissions left before the cap; null when nothing gates them. An
+  // incomplete search answer leaves none whatever pause-from says: its counts
+  // may be false empties.
+  const room = searchIncomplete
+    ? 0
+    : !pausing || queuedTotal === null
+      ? null
+      : truncated
+        ? 0
+        : Math.max(0, Math.ceil(queuedCap - queuedTotal - 1e-9));
   return {
     countable_lane_prs: countable,
     held_lane_prs: heldCount,
@@ -216,9 +228,9 @@ export function wipStatus({ open, merged, admitted, queued = null, queuedUnliste
     paused: pausing && reasons.length > 0,
     pause_reason: pausing && reasons.length > 0 ? reasons.join(",") : null,
     admission_open: room === null || room > 0,
-    admission_reason: room === 0 ? "queued" : null,
+    admission_reason: room === 0 ? (searchIncomplete ? "search-incomplete" : "queued") : null,
     admission_room: room,
-    admission_basis: queuedTotal === null ? "fail-open" : "read",
+    admission_basis: searchIncomplete ? "search-incomplete" : queuedTotal === null ? "fail-open" : "read",
   };
 }
 
@@ -326,9 +338,14 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
       `::warning title=check-wip-cap::${read.countable_lane_prs === null ? "the open lane PRs could not be listed" : "the base config could not be read"}, so ${status.pause_basis === "last-state" ? `the last known state applies (paused ${status.paused})` : "with no last known state the run starts"}`,
     );
   }
+  if (status.admission_basis === "search-incomplete") {
+    log(
+      `::warning title=check-wip-cap::GitHub search answered incomplete results (admission_basis search-incomplete), so its counts are unknown and no new admissions are made this run`,
+    );
+  }
   if (status.alert) {
     log(
-      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under both caps" : `the lane keeps running (${status.wip_over || status.held_over ? "pause-from not reached" : "only the WIP and held caps pause runs"})`}`,
+      `::warning title=check-wip-cap::${escape(alertText(status))}; ${status.paused ? "this run starts no work and work-unblock re-fires it once under both caps" : `the lane keeps running (${!(status.wip_over || status.held_over) ? "only the WIP and held caps pause runs" : configError ? "the base config could not be read, so the defaults apply" : wip["pause-from"] === "" ? "pause-from is not set" : "pause-from not reached"})`}`,
     );
   }
   if (status.paused) {

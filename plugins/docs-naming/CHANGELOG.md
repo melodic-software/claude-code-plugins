@@ -3,6 +3,12 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.5] - 2026-10-22
+
+### Changed
+
+- **`/docs-naming:generate-file-name-gate` can now be invoked by the model** ([#8978](https://github.com/melodic-software/claude-code-plugins/issues/8978)). Before, `disable-model-invocation: true` kept it user-typed only. It only emits new files, refuses to overwrite without `--force` and commits nothing, so the invocation-mode grade (#7974) flipped it to `false`.
+
 ## [0.3.4] - 2026-10-20
 
 ### Fixed

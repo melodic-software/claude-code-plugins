@@ -3,6 +3,37 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.88.2] - 2026-10-22
+
+### Removed
+
+- The page no longer sends `rep:<fp>` repeat counts, and the server drops any an older page sends, so a usage count can no longer be joined to a fault entry's pid.
+
+### Fixed
+
+- A one-on-one shared interview (only one guest ever joined) now records its tap counts: at shutdown the session's `use:`, `rage:` and `dead:` totals are written once with no pid, fingerprint, browser or page view, and its per-page-view pairs are counted as dropped. In a session two or more guests joined, a batch from one guest is still never written, even when only one of them sent summaries.
+
+## [0.88.1] - 2026-10-22
+
+### Fixed
+
+- A tap counts as dead even when the page's own polling redraws it
+
+  In a shared interview, the page's tap telemetry no longer treats its own
+  1.5 s state poll redraw as the answer to a tap. A tap that changes
+  nothing is counted as dead however busy the page or the device is, while a
+  tap that opens a sheet or runs an action is still answered.
+
+## [0.88.0] - 2026-10-22
+
+### Added
+
+- GIFs in chat and answers on the shared interview page: a pasted or picked GIF goes with only its frames, their timing and the loop count (no comment, plain text, application or unknown extension), up to 512 KB, through the owner-approved picture path. An animated GIF shows as its still first frame with a Play GIF button, on its tile and in the viewer.
+
+### Fixed
+
+- The host's urgent pop-up no longer writes its words back into the pop-up area while another message waits to show there, so a screen reader no longer hears the same problem report announced twice.
+
 ## [0.87.1] - 2026-10-22
 
 ### Fixed
