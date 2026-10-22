@@ -125,6 +125,16 @@ case "$endpoint" in
     fixture="$STUB_DIR/annotations.$(sed -E 's#.*/check-runs/([0-9]+)/.*#\1#' <<<"$endpoint").json"
     [[ -f "$fixture" ]] || fixture="$STUB_DIR/annotations.none.json"
     ;;
+  */actions/workflows/*status=success\&per_page=20)
+    # The newer-green lookup: STUB_FAIL_NEWER_READ fails it; before poll
+    # STUB_NEWER_FROM it lists no run.
+    [[ "${STUB_FAIL_NEWER_READ:-}" != 1 ]] || exit 1
+    fixture="$STUB_DIR/green.json"
+    if (($(cat "$STUB_DIR/polls" 2>/dev/null || echo 0) < ${STUB_NEWER_FROM:-0})); then
+      fixture="$STUB_DIR/none.json"
+      echo '{"workflow_runs": []}' >"$fixture"
+    fi
+    ;;
   */actions/workflows/*status=success*) fixture="$STUB_DIR/green.json" ;;
   */actions/workflows/*) fixture="$STUB_DIR/runs.json" ;;
   */compare/*) fixture="$STUB_DIR/compare.json" ;;
@@ -241,7 +251,7 @@ PY
   : >"$TMP_ROOT/stub/log"
   : >"$TMP_ROOT/stub/output"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
-    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" \
+    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
@@ -1167,11 +1177,31 @@ newer_run() {
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" VIA=workflow_dispatch STARTER='github-actions[bot]' \
   ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$OUT" == *"main already recovered: run 4300"*"nothing filed"* ]] &&
+  [[ "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 1 ]] &&
   ! grep -qv '^GET ' <<<"$LOG" && grep -qx 'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=20' <<<"$LOG" &&
   grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then
-  ok "a dispatched run with no re-run files nothing when a newer run on main passed"
+  ok "a dispatched run ends its wait at the first poll and files nothing when a newer run on main passed"
 else
   fail "dispatched run, main recovered: rc=$RC log='$LOG' out='$OUT' output='$(cat "$TMP_ROOT/stub/output")'"
+fi
+
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" NEWER_FROM=3 VIA=workflow_dispatch STARTER='github-actions[bot]' \
+  ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 3 && "$(posts)" -eq 0 ]] &&
+  grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then
+  ok "a dispatched run keeps waiting until a newer run on main passes, then files nothing"
+else
+  fail "dispatched run, main recovers at poll 3: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" FAIL_NEWER_READ=1 VIA=workflow_dispatch \
+  STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq "$confirm_wait" && "$(posts)" -eq 1 ]] &&
+  [[ "$(grep -c '^GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=20$' <<<"$LOG")" -eq $((confirm_wait + 1)) ]] &&
+  ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+  ok "a failing newer-run lookup keeps the dispatched run waiting the full $confirm_wait polls, then files"
+else
+  fail "dispatched run, newer-run lookup fails: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
 fi
 
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z feat/x), $(newer_run 4301 2026-10-17T16:51:00Z main x/fork)" \
@@ -1185,7 +1215,7 @@ else
   fail "dispatched run, main still red: rc=$RC log='$LOG' out='$OUT'"
 fi
 
-GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" VIA=workflow_dispatch STARTER='github-actions[bot]' \
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" NEWER_FROM=2 VIA=workflow_dispatch STARTER='github-actions[bot]' \
   ATTEMPT=1 RERUN=failure run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$(fixes)" -eq 0 && "$OUT" == *"at attempt 2, but main already recovered: run 4300"* ]] &&
   grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then

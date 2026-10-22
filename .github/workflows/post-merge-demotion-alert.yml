@@ -47,10 +47,11 @@ name: post-merge-demotion-alert
 # inside a lane merge's attribution window gets its one re-run from pr-merge's
 # post-merge-dispatch job, and one with no lane merge to charge gets none, so
 # the alert waits for a re-run as long as the report job does
-# (red-main.confirm-wait-minutes) and starts none itself. When the run is
-# still red after that wait (its re-run failed or did not finish) and a newer
+# (red-main.confirm-wait-minutes) and starts none itself. Once a newer
 # pr-require-checks run on this repository's main has passed, main already
-# recovered: no record, fix issue or report is filed.
+# recovered: no record, fix issue or report is filed. The wait checks for one
+# at each poll and ends early on a hit; a lookup that fails keeps waiting.
+# After the wait (the re-run failed or did not finish) it checks once more.
 #
 # After a failed scheduled or dispatched full run, the report-red-main job
 # applies the red-main rule (docs/conventions/pr-pipeline/README.md, "Red
@@ -325,6 +326,24 @@ jobs:
             # here either: pr-merge re-runs it only inside a lane merge's
             # attribution window, so the wait for a re-run is
             # red-main.confirm-wait-minutes (40), as the report job's.
+            # A dispatched red files nothing, and the report job skips it,
+            # once a newer run on this repository's main has passed: main
+            # already recovered. newer_green prints that run as <id>\t<sha>,
+            # or nothing when there is none.
+            newer_green() {
+              gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&per_page=20" \
+                --jq '[.workflow_runs[] | select(.conclusion == "success" and .head_branch == "main"
+                  and (.head_repository.full_name // "") == env.GITHUB_REPOSITORY
+                  and (.id > (env.RUN_ID | tonumber) or .created_at > env.RUN_CREATED))]
+                  | max_by(.created_at) // empty | [.id, .head_sha] | @tsv'
+            }
+            main_recovered() {
+              local newer_id newer_sha
+              IFS=$'\t' read -r newer_id newer_sha <<<"$1"
+              echo "::notice::$RUN_URL is red at attempt $RUN_ATTEMPT, but main already recovered: run $newer_id at ${newer_sha:0:12} passed on main after it, so nothing filed"
+              echo 'recovered=true' >>"$GITHUB_OUTPUT"
+              exit 0
+            }
             if [[ "$RUN_ATTEMPT" -eq 1 && ("$RUN_TRIGGERING_ACTOR" != 'github-actions[bot]' || "$EVENT_NAME" == workflow_dispatch) ]]; then
               polls=20
               if [[ "$RUN_TRIGGERING_ACTOR" == 'github-actions[bot]' ]]; then
@@ -345,26 +364,22 @@ jobs:
                   RUN_ATTEMPT="$attempt"
                   break
                 fi
+                # While the re-run is pending, a dispatched red ends the wait
+                # once main recovers. A failed lookup keeps waiting.
+                if [[ "$EVENT_NAME" == workflow_dispatch ]] && newer="$(newer_green)" && [[ -n "$newer" ]]; then
+                  main_recovered "$newer"
+                fi
               done
               if [[ "$RUN_ATTEMPT" -eq 1 ]]; then
                 echo "::warning::the re-run of $RUN_URL did not finish within $polls minutes: judging attempt 1"
               fi
             fi
-            # A dispatched red, re-run failed or not finished, files nothing,
-            # and the report job skips it, when a newer run on this
-            # repository's main has passed by now: main already recovered. A
-            # failed lookup files.
+            # Checked once more after the wait, since main can recover while
+            # the re-run fails. A failed lookup files.
             if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
-              newer="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&per_page=20" \
-                --jq '[.workflow_runs[] | select(.conclusion == "success" and .head_branch == "main"
-                  and (.head_repository.full_name // "") == env.GITHUB_REPOSITORY
-                  and (.id > (env.RUN_ID | tonumber) or .created_at > env.RUN_CREATED))]
-                  | max_by(.created_at) // empty | [.id, .head_sha] | @tsv')" || newer=''
+              newer="$(newer_green)" || newer=''
               if [[ -n "$newer" ]]; then
-                IFS=$'\t' read -r newer_id newer_sha <<<"$newer"
-                echo "::notice::$RUN_URL is red at attempt $RUN_ATTEMPT, but main already recovered: run $newer_id at ${newer_sha:0:12} passed on main after it, so nothing filed"
-                echo 'recovered=true' >>"$GITHUB_OUTPUT"
-                exit 0
+                main_recovered "$newer"
               fi
             fi
             # failing_checks <run id> <attempt>: one check per line.
