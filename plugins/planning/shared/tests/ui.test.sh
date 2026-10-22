@@ -6,8 +6,8 @@
 # is never the last to start. Each seeds its own session through share.sh ensure-running on spare ports (fake
 # cloudflared), prints SKIP and exits 0 without playwright-core and a Chromium, and exits non-zero on a failed check.
 # Under CI=true a missing node, playwright-core or Chromium fails this script instead of passing it.
-# A suite timed to the millisecond (SERIAL) runs alone after the rest, since parallel load slows it past its own
-# limits. Passes only when every suite exits 0.
+# A suite with timing windows (SERIAL: ui_snappy's millisecond limits, ui_telemetry's one-second dead-tap wait) runs
+# alone after the rest, since parallel load slows it past those windows. Passes only when every suite exits 0.
 #   bash plugins/planning/shared/tests/ui.test.sh
 # test-scope: plugins/planning/shared/tests/browser_harness.js plugins/planning/shared/tests/harness-open.js
 # test-scope: plugins/planning/shared/tests/ui_*.js plugins/planning/shared/web/*
@@ -25,7 +25,7 @@ max=${UI_JOBS:-$default_jobs}
   echo "UI_JOBS must be a whole number above 0, not: $max" >&2
   exit 2
 }
-SERIAL=" ui_snappy.js "
+SERIAL=" ui_snappy.js ui_telemetry.js "
 out=$(mktemp -d)
 trap 'rm -rf "${out:?}"' EXIT
 run() {
