@@ -10,6 +10,7 @@ import {
   classify,
   contentReason,
   contentStep,
+  bumpRefusal,
   fixContentRefusal,
   isDependabotSigned,
   isFixFile,
@@ -704,8 +705,13 @@ test("a review that only a parse gap caused is a classifier gap; any other reaso
 // existing dependency entry, registry-only lock tarballs with no install
 // script change, and `name==version` requirement pins with hashes.
 const FIX_PKG = (deps, extra = {}) => JSON.stringify({ name: "p", scripts: { test: "node t.js" }, dependencies: deps, ...extra });
-const FIX_LOCK = (resolved, extra = {}) => JSON.stringify({ lockfileVersion: 3, packages: { "": {}, "node_modules/x": { version: "2.0.0", resolved, ...extra } } });
-const FIX_REGISTRY = "https://registry.npmjs.org/x/-/x-2.0.0.tgz";
+// A lock of `entries` (key to entry) under the root; reg() is the registry
+// tarball npm records for a name and version (registry.npmjs.org/<name>/-/<base>-<v>.tgz).
+const FIX_LOCK = (entries) => JSON.stringify({ lockfileVersion: 3, packages: { "": {}, ...entries } });
+const INTEGRITY = `sha512-${"A".repeat(86)}==`;
+const reg = (name, version, extra = {}) => ({ version, resolved: `https://registry.npmjs.org/${name}/-/${name.split("/").pop()}-${version}.tgz`, integrity: INTEGRITY, ...extra });
+const X1 = { "node_modules/x": reg("x", "2.0.0") };
+const X2 = { "node_modules/x": reg("x", "2.0.1") };
 const FIX_HASH = `    --hash=sha256:${"b".repeat(64)}`;
 const FIX_VECTORS = [
   ["package.json", FIX_PKG({ x: "^1.0.0" }), FIX_PKG({ x: "^2.0.0" }), null],
@@ -722,11 +728,28 @@ const FIX_VECTORS = [
   ["package.json", FIX_PKG({ x: "^1.0.0" }), FIX_PKG({ x: "workspace:*" }), "package-json-range:dependencies:x"],
   ["package.json", FIX_PKG({ x: "^1.0.0" }), FIX_PKG({ x: "latest" }), "package-json-range:dependencies:x"],
   ["package.json", FIX_PKG({ x: "^1.0.0" }), "not json", "package-json-unreadable"],
-  ["package-lock.json", FIX_LOCK(FIX_REGISTRY), FIX_LOCK(FIX_REGISTRY.replace("2.0.0", "2.0.1")), null],
-  ["package-lock.json", FIX_LOCK(FIX_REGISTRY), FIX_LOCK("https://evil.example/x-2.0.0.tgz"), "lock-resolved"],
-  ["package-lock.json", FIX_LOCK(FIX_REGISTRY), FIX_LOCK("git+ssh://git@github.com/evil/x.git"), "lock-resolved"],
-  ["npm-shrinkwrap.json", FIX_LOCK(FIX_REGISTRY), FIX_LOCK(FIX_REGISTRY, { hasInstallScript: true }), "lock-install-script:node_modules/x"],
-  ["package-lock.json", FIX_LOCK(FIX_REGISTRY, { hasInstallScript: true }), FIX_LOCK(FIX_REGISTRY), "lock-install-script:node_modules/x"],
+  ["package-lock.json", FIX_LOCK(X1), FIX_LOCK(X2), null],
+  ["package-lock.json", FIX_LOCK({ "node_modules/@s/n": reg("@s/n", "1.0.0") }), FIX_LOCK({ "node_modules/@s/n": reg("@s/n", "1.0.1") }), null],
+  ["package-lock.json", FIX_LOCK({ "node_modules/a/node_modules/b": reg("b", "1.0.0") }), FIX_LOCK({ "node_modules/a/node_modules/b": reg("b", "1.0.1") }), null],
+  ["package-lock.json", FIX_LOCK({ "node_modules/alias": reg("real", "1.0.0", { name: "real" }) }), FIX_LOCK({ "node_modules/alias": reg("real", "1.0.1", { name: "real" }) }), null],
+  ["package-lock.json", FIX_LOCK(X1), FIX_LOCK({ "node_modules/x": { ...reg("x", "2.0.1"), resolved: "https://evil.example/x-2.0.1.tgz" } }), "lock-resolved:node_modules/x"],
+  ["package-lock.json", FIX_LOCK(X1), FIX_LOCK({ "node_modules/x": { ...reg("x", "2.0.1"), resolved: reg("evilpkg", "6.6.6").resolved } }), "lock-resolved:node_modules/x"],
+  ["package-lock.json", FIX_LOCK(X1), FIX_LOCK({ "node_modules/x": { ...reg("x", "2.0.1"), resolved: reg("x", "2.0.0").resolved } }), "lock-resolved:node_modules/x"],
+  ["package-lock.json", FIX_LOCK({ "node_modules/@s/n": reg("@s/n", "1.0.0") }), FIX_LOCK({ "node_modules/@s/n": reg("n", "1.0.1") }), "lock-resolved:node_modules/@s/n"],
+  ["package-lock.json", FIX_LOCK(X1), FIX_LOCK({ "node_modules/x": { version: "2.0.1", integrity: INTEGRITY } }), "lock-resolved:node_modules/x"],
+  ["package-lock.json", FIX_LOCK(X1), FIX_LOCK({ "node_modules/x": { version: "2.0.1", resolved: "git+ssh://git@github.com/evil/x.git#abc" } }), "lock-resolved:node_modules/x"],
+  ["package-lock.json", FIX_LOCK(X1), FIX_LOCK({ "node_modules/x": { ...reg("x", "2.0.1"), link: true } }), "lock-resolved:node_modules/x"],
+  ["package-lock.json", FIX_LOCK(X1), FIX_LOCK({ "node_modules/x": { ...reg("x", "2.0.1"), integrity: "sha1-abc=" } }), "lock-integrity:node_modules/x"],
+  ["package-lock.json", FIX_LOCK(X1), FIX_LOCK({ ...X2, "node_modules/evilpkg": reg("evilpkg", "1.0.0") }), "lock-packages-changed"],
+  ["package-lock.json", FIX_LOCK({ ...X1, "node_modules/y": reg("y", "1.0.0") }), FIX_LOCK(X2), "lock-packages-changed"],
+  ["package-lock.json", FIX_LOCK({ ...X1, "plugins/w": { version: "1.0.0" } }), FIX_LOCK({ ...X2, "plugins/w": { version: "1.0.0" } }), "lock-key:plugins/w"],
+  ["package-lock.json", JSON.stringify({ lockfileVersion: 1, dependencies: {} }), JSON.stringify({ lockfileVersion: 1, dependencies: {} }), "lock-packages"],
+  ["npm-shrinkwrap.json", FIX_LOCK(X1), FIX_LOCK({ "node_modules/x": reg("x", "2.0.1", { hasInstallScript: true }) }), "lock-install-script:node_modules/x"],
+  ["package-lock.json", FIX_LOCK({ "node_modules/x": reg("x", "2.0.0", { hasInstallScript: true }) }), FIX_LOCK(X2), "lock-install-script:node_modules/x"],
+  ["package.json", FIX_PKG({ x: "^1.0.0" }), FIX_PKG({ x: "*" }), "package-json-range:dependencies:x"],
+  ["package.json", FIX_PKG({ x: "^1.0.0" }), FIX_PKG({ x: ">=0" }), "package-json-range:dependencies:x"],
+  ["requirements.txt", "numpy==2.5.3\n", "numpy==2.5.4\nevil-pkg==1.0.0\n", "requirements-new-package:evil-pkg"],
+  ["requirements.txt", "Foo_Bar==1.0\n", "foo.bar==1.1\n", null],
   ["requirements.txt", `numpy==2.5.3 \\\n${FIX_HASH.replace("b", "a")}\n`, `numpy==2.5.4 \\\n${FIX_HASH}\n    # via onnxruntime\n`, null],
   ["requirements.txt", "colorama==0.4.5\n", "colorama==0.4.6 ; sys_platform == 'win32'\n", null],
   ["requirements.in", "manim[typst]==0.20.0\n", "manim[typst]==0.21.0\n", null],
@@ -747,8 +770,8 @@ test("the fix rule admits a version change and refuses anything else", () => {
 });
 
 test("a semver range is comparators, hyphen ranges or their union, nothing else", () => {
-  for (const value of ["1.2.3", "^1.2.3", "~1.2", ">=1 <2", "1.x", "*", "1.2.3-beta.1", "1.0.0 - 2.0.0", "^1 || ^2"]) assert.ok(isSemverRange(value), value);
-  for (const value of ["", "latest", "next", "evil/x", "github:evil/x", "git+https://x", "npm:y@1", "file:x", "link:x", "workspace:^", "^1 ||", ">= 1", 1]) assert.ok(!isSemverRange(value), String(value));
+  for (const value of ["1.2.3", "^1.2.3", "~1.2", ">=1 <2", "1.x", "<2", "1.2.3-beta.1", "1.0.0 - 2.0.0", "^1 || ^2"]) assert.ok(isSemverRange(value), value);
+  for (const value of ["", "latest", "next", "evil/x", "github:evil/x", "git+https://x", "npm:y@1", "file:x", "link:x", "workspace:^", "^1 ||", ">= 1", 1, "*", "x", ">=0", ">1.2.3", ">=1 || ^2", "x.1.2", "1.0.0 - *"]) assert.ok(!isSemverRange(value), String(value));
 });
 
 test("a fix file is a regular, non-executable blob", () => {
@@ -769,4 +792,21 @@ test("Dependabot's commit is matched on its account ids, not its author text alo
   assert.ok(!isDependabotSigned({ ...own, committer: { id: 5 } }));
   assert.ok(!isDependabotSigned({ ...own, commit: { ...own.commit, verification: { verified: false, reason: "unsigned" } } }));
   assert.ok(!isDependabotSigned({ ...own, commit: { ...own.commit, author: { name: "x", email: "x@example.com" } } }));
+});
+
+test("the version-bump commit changes only plugin.json's version and CHANGELOG.md", async () => {
+  const plugin = (version, extra = {}) => JSON.stringify({ name: "p", version, description: "d", ...extra });
+  const files = (...paths) => paths.map((filename) => ({ filename, status: "modified" }));
+  const regular = async () => ({ type: "blob", mode: 0o100644 });
+  const texts = (after) => async (side, path) => (path.endsWith("plugin.json") ? (side === "before" ? plugin("1.0.0") : after) : "# Changelog\n");
+  const both = files("plugins/p/.claude-plugin/plugin.json", "plugins/p/CHANGELOG.md");
+  assert.equal(await bumpRefusal(both, { entry: regular, text: texts(plugin("1.0.1")) }), null);
+  assert.equal(
+    await bumpRefusal(both, { entry: regular, text: texts(plugin("1.0.1", { hooks: { PreToolUse: [] } })) }),
+    "bump-content:plugins/p/.claude-plugin/plugin.json:plugin-json-key",
+  );
+  assert.equal(await bumpRefusal(both, { entry: regular, text: texts(plugin("next")) }), "bump-content:plugins/p/.claude-plugin/plugin.json:plugin-json-version");
+  assert.equal(await bumpRefusal(files("plugins/p/hooks/hooks.json"), { entry: regular, text: texts("") }), "bump-path:plugins/p/hooks/hooks.json");
+  assert.equal(await bumpRefusal(both, { entry: async () => ({ type: "blob", mode: 0o120000 }), text: texts(plugin("1.0.1")) }), "bump-mode:plugins/p/.claude-plugin/plugin.json");
+  assert.equal(await bumpRefusal([], { entry: regular, text: texts("") }), "bump-empty");
 });

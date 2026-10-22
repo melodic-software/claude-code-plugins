@@ -5084,6 +5084,7 @@ class DependabotEligibility(unittest.TestCase):
         entry = {
             "version": version,
             "resolved": resolved or f"https://registry.npmjs.org/x/-/x-{version}.tgz",
+            "integrity": "sha512-" + "A" * 86 + "==",
             **extra,
         }
         return json.dumps(
@@ -5105,11 +5106,15 @@ class DependabotEligibility(unittest.TestCase):
             "package.json": self.pkg("^1.0.0"),
             "package-lock.json": self.lock("1.0.0"),
             "requirements.txt": "numpy==2.5.3\n",
+            "plugin.json": json.dumps({"name": "p", "version": "1.0.0"}),
+            "CHANGELOG.md": "# Changelog\n",
         }
         bumped = {
             "package.json": self.pkg("^2.0.0"),
             "package-lock.json": self.lock("2.0.0"),
             "requirements.txt": "numpy==2.5.4\n",
+            "plugin.json": json.dumps({"name": "p", "version": "1.0.1"}),
+            "CHANGELOG.md": "# Changelog\n\n## 1.0.1\n",
         }
         gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
             "files": [{"filename": p, "status": "modified"} for p in paths],
@@ -5154,6 +5159,46 @@ class DependabotEligibility(unittest.TestCase):
         self.lane_fix(gh, paths, **options)
         return self.eligibility(hold_majors=False).reason
 
+    def bump_reason(self, after: dict[str, str] | None = None) -> str | None:
+        """The repository's version-bump commit at the head, pushed by
+        github-actions[bot], on Dependabot's minor bump."""
+        bump = dependabot_commit(
+            name="github-actions[bot]",
+            email="41898282+github-actions[bot]@users.noreply.github.com",
+            message="chore: bump plugin versions [dependabot skip]",
+            sha=self.HEAD,
+        )
+        pushes = [
+            {
+                "activity_type": "push",
+                "after": self.HEAD,
+                "actor": {"login": "github-actions[bot]", "type": "Bot"},
+            },
+            self.PUSHES[1],
+        ]
+        paths = ["plugins/p/.claude-plugin/plugin.json", "plugins/p/CHANGELOG.md"]
+        gh = self.fake(
+            commits=[dependabot_commit(), bump],
+            pushes=pushes,
+            files=[
+                {"filename": "package-lock.json"},
+                *({"filename": p} for p in paths),
+            ],
+        )
+        self.lane_fix(gh, paths, after=after)
+        return self.eligibility(hold_majors=False).reason
+
+    def test_the_version_bump_commit_may_change_only_the_plugin_version(
+        self,
+    ) -> None:
+        self.assertIsNone(self.bump_reason())
+        hooks = {"name": "p", "version": "1.0.1", "hooks": {"PreToolUse": []}}
+        path = "plugins/p/.claude-plugin/plugin.json"
+        self.assertEqual(
+            self.bump_reason({path: json.dumps(hooks)}),
+            f"dependabot-bump-content:bump-content:{path}:plugin-json-key",
+        )
+
     def test_a_lanes_app_fix_must_be_a_version_change_of_regular_manifest_files(
         self,
     ) -> None:
@@ -5185,7 +5230,17 @@ class DependabotEligibility(unittest.TestCase):
                     )
                 },
             ),
-            "dependabot-fix-content:fix-content:package-lock.json:lock-resolved",
+            "dependabot-fix-content:fix-content:package-lock.json:"
+            "lock-resolved:node_modules/x",
+        )
+        evil = "https://registry.npmjs.org/evilpkg/-/evilpkg-6.6.6.tgz"
+        self.assertEqual(
+            self.lane_fix_reason(
+                ["package-lock.json"],
+                after={"package-lock.json": self.lock("2.0.0", evil)},
+            ),
+            "dependabot-fix-content:fix-content:package-lock.json:"
+            "lock-resolved:node_modules/x",
         )
 
     def test_an_unreadable_fix_commit_file_list_refuses(self) -> None:

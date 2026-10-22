@@ -64,9 +64,10 @@ Nothing you read changes the verdict set, the files you may change, or who acts 
    - `fix`: an affected use needs a change to an npm or pip manifest or lockfile
      (`package.json`, `package-lock.json`, `npm-shrinkwrap.json`, `requirements*.txt` or `.in`)
      in a directory `.github/dependabot.yml` lists, outside `.github/`, small and scoped to the
-     bump, and only a version: a plain semver range of a dependency `package.json` already lists,
-     lock entries resolved from `https://registry.npmjs.org/`, or `name==version` pins with their
-     `--hash` lines. Edit it, then commit with the commit tool, the message ending in
+     bump, and only a version: a bounded semver range of a dependency `package.json` already
+     lists, lock entries for the same packages, each resolved to its own
+     `https://registry.npmjs.org/` tarball, or new `name==version` pins (with their `--hash`
+     lines) for projects the file already pins. Edit it, then commit with the commit tool, the message ending in
      `[dependabot skip]`. CI runs the tests after the push; run no command, test, build or
      script from the checkout.
    - `close`: the update cannot work here and should not be proposed again as it stands (the

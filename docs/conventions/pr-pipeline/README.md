@@ -879,15 +879,19 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   its commits change nothing but npm or pip manifest and lock files outside `.github/`, in a
   directory `.github/dependabot.yml` lists for that ecosystem, each modified in place as a regular
   `100644` file and changed only by a version (the **fix rule**: in `package.json` only an
-  existing dependency entry's plain semver range; in a lock every `resolved` an
-  `https://registry.npmjs.org/` tarball and no install-script change; in requirements only added
-  `name==version` pins and `--hash=sha256:` continuations); anything else keeps the fix off the
+  existing dependency entry's plain, bounded semver range (no `*` or lower bound alone); in a
+  lock the same package keys as the Dependabot commit's lock, each entry's `resolved` exactly
+  `https://registry.npmjs.org/<name>/-/<unscoped name>-<version>.tgz` for its own name (or
+  alias `name`) and version with a `sha512-` integrity, and no install-script change; in
+  requirements only added `name==version` pins of projects the fix also unpins, and
+  `--hash=sha256:` continuations); anything else keeps the fix off the
   branch and hands the pull request to a person. The verdict job posts no merge marker unless
   every commit is Dependabot's own, the version-bump commit, or a commit that passes the fix rule
   (`dependency-fix-refused`) ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
 - **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
   `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
-  only a plugin's `plugin.json` or `CHANGELOG.md`). On a reviewed pull request the lanes App's
+  only a plugin's `plugin.json` or `CHANGELOG.md`, each modified in place as a regular file, the
+  `plugin.json` changing only its `version`; else `dependabot-bump-content:<why>`). On a reviewed pull request the lanes App's
   verified `[dependabot skip]` fix commits count too, each only after it passes the fix rule. The commits listing must hold the pull
   request's whole commit count, else the reason is `commits-listed:<listed>-of:<total>` (the
   listing stops at 250). A lanes App commit must pass the fix rule against its one parent, read

@@ -163,7 +163,7 @@ const PAIRS = [["github-actions", "/"], ["npm", "/"], ["npm", "/plugins/miro/ser
 // A plain version bump of x, and of numpy, on each side of the fix.
 const pkg = (range, extra = {}) => JSON.stringify({ name: "p", scripts: { test: "node t.js" }, dependencies: { x: range }, ...extra });
 const lock = (version, resolved = `https://registry.npmjs.org/x/-/x-${version}.tgz`) =>
-  JSON.stringify({ lockfileVersion: 3, packages: { "": {}, "node_modules/x": { version, resolved } } });
+  JSON.stringify({ lockfileVersion: 3, packages: { "": {}, "node_modules/x": { version, resolved, integrity: `sha512-${"A".repeat(86)}==` } } });
 const reqs = (version) => `numpy==${version}\n`;
 const BEFORE = { "package.json": pkg("^1.0.0"), "package-lock.json": lock("1.0.0"), "requirements.txt": reqs("2.5.3"), "requirements.in": reqs("2.5.3") };
 const AFTER = { "package.json": pkg("^2.0.0"), "package-lock.json": lock("2.0.0"), "requirements.txt": reqs("2.5.4"), "requirements.in": reqs("2.5.4") };
@@ -295,6 +295,7 @@ test("a dependency fix whose content is more than a version change does not move
   const cases = {
     "a postinstall script": [modified("package.json"), { [`${LANE}:package.json`]: pkg("^2.0.0", { scripts: { test: "node t.js", postinstall: "node steal.js" } }) }],
     "a lock resolved to another host": [modified("package-lock.json"), { [`${LANE}:package-lock.json`]: lock("2.0.0", "https://evil.example/x.tgz") }],
+    "a lock repointed at another package": [modified("package-lock.json"), { [`${LANE}:package-lock.json`]: lock("2.0.0", "https://registry.npmjs.org/evilpkg/-/evilpkg-6.6.6.tgz") }],
     "an --extra-index-url line": [modified("plugins/animation/requirements.txt"), { [`${LANE}:plugins/animation/requirements.txt`]: `--extra-index-url https://evil.example/simple\n${reqs("2.5.4")}` }],
     "an added file": [{ filename: "package-lock.json", status: "added" }, {}],
   };

@@ -28,7 +28,8 @@
 //      workflow or action file escalates dependency-workflow-held: a person
 //      merges those. Every commit on the pull request must be Dependabot's
 //      own (its account ids, web-flow, a valid signature), the repository's
-//      version-bump commit, or a single-parent commit whose files pass the
+//      version-bump commit changing only plugin.json `version` and
+//      CHANGELOG.md (bumpRefusal), or a single-parent commit whose files pass the
 //      fix rule above against its parent; else dependency-fix-refused, so a
 //      commit the lanes App pushed outside a fix round is never merged on.
 //      A merge on a review-only dependency whose evidence does not quote each
@@ -65,6 +66,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
 import {
+  bumpRefusal,
   COMMIT_FILES_LIMIT,
   commitRefusal,
   fixRefusal,
@@ -152,14 +154,15 @@ async function entryAt(api, sha, path) {
   return (await api.listTree(sha, dir)).find((entry) => entry.name === name);
 }
 
-// fixRefusal over `files`, the change from `before` to `after`; a read that
-// fails is a refusal, never a pass.
-async function changeRefusal(api, files, pairs, before, after) {
+// fixRefusal (or, with `bump`, bumpRefusal) over `files`, the change from
+// `before` to `after`; a read that fails is a refusal, never a pass.
+async function changeRefusal(api, files, pairs, before, after, bump = false) {
+  const reads = {
+    entry: (path) => entryAt(api, after, path),
+    text: (side, path) => api.getText(path, side === "before" ? before : after),
+  };
   try {
-    return await fixRefusal(files, pairs, {
-      entry: (path) => entryAt(api, after, path),
-      text: (side, path) => api.getText(path, side === "before" ? before : after),
-    });
+    return await (bump ? bumpRefusal(files, reads) : fixRefusal(files, pairs, reads));
   } catch (error) {
     return `fix-unreadable:${String(error?.message ?? error).slice(0, 120)}`;
   }
@@ -179,11 +182,12 @@ async function commitFixRefusal(api, item, pairs) {
   }
   const files = detail?.files;
   if (!Array.isArray(files) || files.length === 0 || files.length >= COMMIT_FILES_LIMIT) return `commit-files-unreadable:${sha.slice(0, 12)}`;
-  if (isActionsCommit(item) && commitRefusal(item, () => files.map((file) => String(file?.filename ?? ""))) === null) return null;
   if (!Array.isArray(detail.parents) || detail.parents.length !== 1 || !SHA.test(String(detail.parents[0]?.sha))) {
     return `commit-parents:${sha.slice(0, 12)}`;
   }
-  return changeRefusal(api, files, pairs, detail.parents[0].sha, sha);
+  // The version-bump commit: its paths, then only a version in plugin.json.
+  const bump = isActionsCommit(item) && commitRefusal(item, () => files.map((file) => String(file?.filename ?? ""))) === null;
+  return changeRefusal(api, files, pairs, detail.parents[0].sha, sha, bump);
 }
 
 // The base's dependabot.yml pairs, or null when it does not read.

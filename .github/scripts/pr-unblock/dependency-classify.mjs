@@ -304,13 +304,21 @@ const HASH_LINE = /^\s+--hash=sha256:[0-9a-f]{64}(\s+\\)?$/;
 // A plain semver range: comparators (`^1.2.3`, `>=1 <2`, `1.x`), a hyphen
 // range, or `||` of either. No dist-tag, alias, URL, path, git or GitHub
 // shorthand, or workspace protocol.
+// Every set is bounded: no wildcard major (`*`, `x`) and no set of lower
+// bounds alone (`>=0`, `>1.2`).
+const WILD_MAJOR = /^(\^|~|[<>]=?|=)?v?[xX*]/;
 export function isSemverRange(value) {
   if (typeof value !== "string" || value.length === 0 || value.length > 200) return false;
   return value.split("||").every((part) => {
     const set = part.trim();
     const hyphen = /^(\S+) - (\S+)$/.exec(set);
-    if (hyphen) return RANGE_VERSION.test(hyphen[1]) && RANGE_VERSION.test(hyphen[2]);
-    return set !== "" && set.split(/\s+/).every((comparator) => COMPARATOR.test(comparator));
+    if (hyphen) return [hyphen[1], hyphen[2]].every((v) => RANGE_VERSION.test(v) && !WILD_MAJOR.test(v));
+    const comparators = set.split(/\s+/);
+    return (
+      set !== "" &&
+      comparators.every((comparator) => COMPARATOR.test(comparator) && !WILD_MAJOR.test(comparator)) &&
+      !comparators.every((comparator) => /^>/.test(comparator))
+    );
   });
 }
 
@@ -357,12 +365,45 @@ export function packageJsonRefusal(before, after) {
   return null;
 }
 
-// package-lock.json and npm-shrinkwrap.json: every `resolved` is an npm
-// registry tarball, and no package gains or loses an install script.
+// The package a lock key installs: the last `node_modules/<name>` of the
+// path, or the entry's `name` for an alias.
+const LOCK_KEY = /^(?:node_modules\/(?:@[^/]+\/)?[^/@][^/]*\/)*node_modules\/((?:@[^/]+\/)?[^/@][^/]*)$/;
+const PACKAGE_NAME = /^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+const LOCK_VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$/;
+const INTEGRITY = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
+
+// Why one `packages` entry is not a registry tarball of its own name and
+// version, or null.
+function lockEntryRefusal(key, entry) {
+  const at = LOCK_KEY.exec(key);
+  if (!at || !isObject(entry)) return `lock-key:${key}`;
+  const name = entry.name ?? at[1];
+  if (typeof name !== "string" || !PACKAGE_NAME.test(name) || typeof entry.version !== "string" || !LOCK_VERSION.test(entry.version)) {
+    return `lock-entry:${key}`;
+  }
+  const tarball = `${NPM_REGISTRY_TARBALL}${name}/-/${name.slice(name.lastIndexOf("/") + 1)}-${entry.version}.tgz`;
+  if (entry.link !== undefined || entry.resolved !== tarball) return `lock-resolved:${key}`;
+  if (typeof entry.integrity !== "string" || !INTEGRITY.test(entry.integrity)) return `lock-integrity:${key}`;
+  return null;
+}
+
+// package-lock.json and npm-shrinkwrap.json: every `packages` entry but the
+// root is the registry tarball its key and version name, with a sha512
+// integrity; the fix adds and removes no package (the before side is the
+// Dependabot commit's lock, so its own additions stand); every other
+// `resolved` is a registry tarball; and no package gains or loses an
+// install script.
 export function lockRefusal(before, after) {
   const old = parseJson(before);
   const now = parseJson(after);
   if (!old || !now) return "lock-unreadable";
+  if (!isObject(old.packages) || !isObject(now.packages)) return "lock-packages";
+  const keys = Object.keys(now.packages).sort();
+  if (canonical(keys) !== canonical(Object.keys(old.packages).sort())) return "lock-packages-changed";
+  for (const key of keys) {
+    const why = key === "" ? null : lockEntryRefusal(key, now.packages[key]);
+    if (why) return why;
+  }
   const stack = [now];
   while (stack.length) {
     const node = stack.pop();
@@ -383,10 +424,20 @@ export function lockRefusal(before, after) {
 // `name==version` pin (extras and an environment marker allowed), or an
 // indented `--hash=sha256:` continuation. No option line (`--index-url`,
 // `--extra-index-url`, `-e`, `-r`, `-c`, ...), URL or VCS requirement.
+// A requirement line's project name, normalized (PEP 503), or null.
+const PROJECT = /^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)/;
+const projectOf = (line) => {
+  const name = /^[A-Za-z0-9]/.test(line) ? PROJECT.exec(line)?.[1] : null;
+  return name ? name.toLowerCase().replace(/[-_.]+/g, "-") : null;
+};
+
+// Every pin the fix adds names a project a line it removed named: a fix
+// repins, it adds no package.
 export function requirementsRefusal(before, after) {
   if (typeof before !== "string" || typeof after !== "string") return "requirements-unreadable";
   const kept = new Map();
   for (const line of before.split("\n")) kept.set(line, (kept.get(line) ?? 0) + 1);
+  const added = [];
   for (const line of after.split("\n")) {
     if (kept.get(line)) {
       kept.set(line, kept.get(line) - 1);
@@ -394,8 +445,11 @@ export function requirementsRefusal(before, after) {
     }
     const text = line.replace(/\r$/, "");
     if (!/^\s*(#.*)?$/.test(text) && !REQUIREMENT.test(text) && !HASH_LINE.test(text)) return "requirements-line";
+    if (REQUIREMENT.test(text)) added.push(projectOf(text));
   }
-  return null;
+  const removed = new Set([...kept].filter(([, count]) => count > 0).map(([line]) => projectOf(line.replace(/\r$/, ""))));
+  const fresh = added.find((name) => !removed.has(name));
+  return fresh === undefined ? null : `requirements-new-package:${fresh}`;
 }
 
 // Why the fix's change to `path` from `before` to `after` (the file's text on
@@ -421,6 +475,36 @@ export async function fixRefusal(files, config, { entry, text }) {
     if (!isFixFile(await entry(path))) return `fix-mode:${path}`;
     const why = fixContentRefusal(path, await text("before", path), await text("after", path));
     if (why) return `fix-content:${path}:${why}`;
+  }
+  return null;
+}
+
+// The version-bump commit's plugin.json: only `version` changes, to a
+// plain version; every other key stays as it was.
+export function pluginJsonRefusal(before, after) {
+  const old = parseJson(before);
+  const now = parseJson(after);
+  if (!old || !now) return "plugin-json-unreadable";
+  if (typeof now.version !== "string" || !LOCK_VERSION.test(now.version)) return "plugin-json-version";
+  const rest = ({ version, ...other }) => canonical(other);
+  return rest(old) === rest(now) ? null : "plugin-json-key";
+}
+
+// The first reason the repository's version-bump commit (its files, as in
+// fixRefusal) is more than a version bump, or null: each file a plugin's
+// plugin.json or CHANGELOG.md, modified in place as a regular file, and a
+// plugin.json changing only its `version`. CHANGELOG.md is text.
+export async function bumpRefusal(files, { entry, text }) {
+  if (!files.length) return "bump-empty";
+  for (const file of files) {
+    const path = String(file?.filename ?? "");
+    if (file?.status !== "modified" || file.previous_filename) return `bump-status:${path}`;
+    if (!BUMP_PATH.test(path)) return `bump-path:${path}`;
+    if (!isFixFile(await entry(path))) return `bump-mode:${path}`;
+    if (path.endsWith("/plugin.json")) {
+      const why = pluginJsonRefusal(await text("before", path), await text("after", path));
+      if (why) return `bump-content:${path}:${why}`;
+    }
   }
   return null;
 }

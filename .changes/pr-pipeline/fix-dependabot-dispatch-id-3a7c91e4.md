@@ -22,9 +22,12 @@ bump: patch
   the verdict job's `fix` and `merge` paths, and the pr-merge lane refuse a fix file that is not
   modified in place, not a regular `100644` file (a symbolic link, submodule or executable), or
   whose content changes more than a version: in `package.json` only existing dependency entries'
-  plain semver ranges may change, every lock `resolved` must be an `https://registry.npmjs.org/`
-  tarball with no install-script change, and requirements lines may add only `name==version` pins
-  with `--hash=sha256:` continuations. The verdict job's `merge` path now checks every commit that
+  plain, bounded semver ranges may change; a lock keeps the Dependabot commit's package keys, and
+  each entry resolves to exactly its own `https://registry.npmjs.org/<name>/-/<name>-<version>.tgz`
+  with a `sha512-` integrity and no install-script change; and requirements lines may add only
+  `name==version` pins of projects the fix also unpins, with `--hash=sha256:` continuations. The
+  repository's version-bump commit is admitted only when its `plugin.json` changes nothing but
+  `version`. The verdict job's `merge` path now checks every commit that
   is not Dependabot's own (matched by account id, web-flow and a valid signature), reads the
   `[ecosystem, directory]` pairs from the base's `.github/dependabot.yml` itself, and requires
   run.json to name the head the model job's gate passed. A refusal escalates the new

@@ -1868,9 +1868,11 @@ def _dependabot_content(
     `dependabot-content:<x>`, names a diff that is not only covered manifests,
     lock files and `uses:` repins (`content_refusal`, per
     `.github/dependabot.yml` at the base); it sends the pull request to tier
-    `review`. The paths a version-bump commit touched count as checked; any
-    other commit that is not Dependabot's (a lanes App fix) must pass the fix
-    rule (`_fix_commit_refusal`), else `dependabot-fix-content:<why>` is the
+    `review`. The paths a version-bump commit touched count as checked once
+    it passes the bump rule (only plugin.json's `version` and CHANGELOG.md;
+    else `dependabot-bump-content:<why>`); any other commit that is not
+    Dependabot's (a lanes App fix) must pass the fix rule
+    (`_fix_commit_refusal`), else `dependabot-fix-content:<why>` is the
     refusal, as is a commit whose file list cannot be read whole. The changed
     paths (either side of a rename) are None when the files listing was not
     read whole. Raises `PolicyReadError` on a read failure."""
@@ -1887,10 +1889,11 @@ def _dependabot_content(
         if touched is None:
             # Unreadable (or past the listing cap) is not "touches nothing".
             return None, f"unreadable: commit files {sha[:12]}", None
-        if not dependabot.is_actions_commit(item):
-            refusal = _fix_commit_refusal(owner, name, sha, config)
-            if refusal:
-                return None, f"dependabot-fix-content:{refusal}", None
+        bump = dependabot.is_actions_commit(item)
+        refusal = _fix_commit_refusal(owner, name, sha, config, bump=bump)
+        if refusal:
+            kind = "bump" if bump else "fix"
+            return None, f"dependabot-{kind}-content:{refusal}", None
         extra.update(touched)
     if config is None:
         return "dependabot-config-unreadable", None, None
@@ -1938,12 +1941,18 @@ def _raw_at(owner: str, name: str, path: str, sha: str) -> str | None:
 
 
 def _fix_commit_refusal(
-    owner: str, name: str, sha: str, config: list[tuple[str, str]] | None
+    owner: str,
+    name: str,
+    sha: str,
+    config: list[tuple[str, str]] | None,
+    *,
+    bump: bool = False,
 ) -> str | None:
     """Why a lanes App commit is not a fix the lane may merge with
-    (`babysit_dependabot.fix_refusal` against its one parent), or None. The
-    commit's files, modes and both sides' text are read here; a read that
-    fails is a refusal."""
+    (`babysit_dependabot.fix_refusal` against its one parent), or, with
+    `bump`, the version-bump commit more than a version bump (`bump_refusal`),
+    or None. The commit's files, modes and both sides' text are read here; a
+    read that fails is a refusal."""
     status, payload = _get(f"repos/{owner}/{name}/commits/{sha}")
     detail = json_object(payload)
     listing = detail.get("files")
@@ -1977,6 +1986,8 @@ def _fix_commit_refusal(
         return _raw_at(owner, name, path, parent if side == "before" else sha)
 
     try:
+        if bump:
+            return dependabot.bump_refusal(listing, entry, text)
         return dependabot.fix_refusal(listing, config, entry, text)
     except PolicyReadError as exc:
         return f"fix-unreadable:{str(exc)[:120]}"

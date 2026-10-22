@@ -871,6 +871,16 @@ _REQUIREMENT = re.compile(
 )
 _HASH_LINE = re.compile(r"\s+--hash=sha256:[0-9a-f]{64}(\s+\\)?")
 _BLANK_OR_COMMENT = re.compile(r"\s*(#.*)?")
+# Every range set is bounded: no wildcard major and no lower bounds alone.
+_WILD_MAJOR = re.compile(r"(\^|~|[<>]=?|=)?v?[xX*]")
+# The package a lock key installs: the last `node_modules/<name>` of the path.
+_LOCK_KEY = re.compile(
+    r"(?:node_modules/(?:@[^/]+/)?[^/@][^/]*/)*node_modules/((?:@[^/]+/)?[^/@][^/]*)"
+)
+_PACKAGE_NAME = re.compile(r"(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*")
+_LOCK_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?")
+_INTEGRITY = re.compile(r"sha512-[A-Za-z0-9+/]+={0,2}")
+_PROJECT = re.compile(r"([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)")
 
 
 def in_fix_scope(path: Any, config: Sequence[tuple[str, str]] | None) -> bool:
@@ -905,10 +915,20 @@ def is_semver_range(value: Any) -> bool:
         group = part.strip()
         hyphen = re.fullmatch(r"(\S+) - (\S+)", group)
         if hyphen:
-            if not all(_RANGE_VERSION.fullmatch(v) for v in hyphen.groups()):
+            if not all(
+                _RANGE_VERSION.fullmatch(v) and not _WILD_MAJOR.match(v)
+                for v in hyphen.groups()
+            ):
                 return False
-        elif not group or not all(
-            _COMPARATOR.fullmatch(c) for c in re.split(r"\s+", group)
+            continue
+        comparators = re.split(r"\s+", group)
+        if (
+            not group
+            or not all(
+                _COMPARATOR.fullmatch(c) and not _WILD_MAJOR.match(c)
+                for c in comparators
+            )
+            or all(c.startswith(">") for c in comparators)
         ):
             return False
     return True
@@ -952,12 +972,50 @@ def package_json_refusal(before: Any, after: Any) -> str | None:
     return None
 
 
+def _lock_entry_refusal(key: str, entry: Any) -> str | None:
+    """Why one `packages` entry is not the registry tarball of its own name
+    and version with a sha512 integrity, or None."""
+    at = _LOCK_KEY.fullmatch(key)
+    if not at or not isinstance(entry, dict):
+        return f"lock-key:{key}"
+    name = entry.get("name", at.group(1))
+    version = entry.get("version")
+    if not (
+        isinstance(name, str)
+        and _PACKAGE_NAME.fullmatch(name)
+        and isinstance(version, str)
+        and _LOCK_VERSION.fullmatch(version)
+    ):
+        return f"lock-entry:{key}"
+    base = name.rsplit("/", 1)[-1]
+    tarball = f"{NPM_REGISTRY_TARBALL}{name}/-/{base}-{version}.tgz"
+    if "link" in entry or entry.get("resolved") != tarball:
+        return f"lock-resolved:{key}"
+    integrity = entry.get("integrity")
+    if not isinstance(integrity, str) or not _INTEGRITY.fullmatch(integrity):
+        return f"lock-integrity:{key}"
+    return None
+
+
 def lock_refusal(before: Any, after: Any) -> str | None:
-    """Every `resolved` is an npm registry tarball, and no package gains or
-    loses an install script."""
+    """Every `packages` entry but the root is the registry tarball its key
+    and version name, with a sha512 integrity; the fix adds and removes no
+    package (the before side is the Dependabot commit's lock, so its own
+    additions stand); every other `resolved` is a registry tarball; and no
+    package gains or loses an install script."""
     old, now = _json_mapping(before), _json_mapping(after)
     if old is None or now is None:
         return "lock-unreadable"
+    if not isinstance(old.get("packages"), dict) or not isinstance(
+        now.get("packages"), dict
+    ):
+        return "lock-packages"
+    if sorted(now["packages"]) != sorted(old["packages"]):
+        return "lock-packages-changed"
+    for key in sorted(now["packages"]):
+        why = None if key == "" else _lock_entry_refusal(key, now["packages"][key])
+        if why:
+            return why
     stack: list[Any] = [now]
     while stack:
         node = stack.pop()
@@ -990,6 +1048,7 @@ def requirements_refusal(before: Any, after: Any) -> str | None:
     kept: dict[str, int] = {}
     for line in before.split("\n"):
         kept[line] = kept.get(line, 0) + 1
+    added: list[str | None] = []
     for line in after.split("\n"):
         if kept.get(line):
             kept[line] -= 1
@@ -1001,7 +1060,18 @@ def requirements_refusal(before: Any, after: Any) -> str | None:
             or _HASH_LINE.fullmatch(text)
         ):
             return "requirements-line"
-    return None
+        if _REQUIREMENT.fullmatch(text):
+            added.append(_project(text))
+    # A fix repins; every pin it adds names a project a removed line named.
+    removed = {_project(line.removesuffix("\r")) for line, n in kept.items() if n > 0}
+    fresh = next((name for name in added if name not in removed), "")
+    return f"requirements-new-package:{fresh}" if fresh else None
+
+
+def _project(line: str) -> str | None:
+    """A requirement line's project name, normalized (PEP 503), or None."""
+    found = _PROJECT.match(line)
+    return re.sub(r"[-_.]+", "-", found.group(1).lower()) if found else None
 
 
 def fix_content_refusal(path: Any, before: Any, after: Any) -> str | None:
@@ -1040,4 +1110,47 @@ def fix_refusal(
         why = fix_content_refusal(path, text("before", path), text("after", path))
         if why:
             return f"fix-content:{path}:{why}"
+    return None
+
+
+def plugin_json_refusal(before: Any, after: Any) -> str | None:
+    """The version-bump commit's plugin.json: only `version` changes, to a
+    plain version; every other key stays as it was."""
+    old, now = _json_mapping(before), _json_mapping(after)
+    if old is None or now is None:
+        return "plugin-json-unreadable"
+    version = now.get("version")
+    if not isinstance(version, str) or not _LOCK_VERSION.fullmatch(version):
+        return "plugin-json-version"
+    rest = [
+        _canonical({k: v for k, v in side.items() if k != "version"})
+        for side in (old, now)
+    ]
+    return None if rest[0] == rest[1] else "plugin-json-key"
+
+
+def bump_refusal(
+    files: Sequence[Any],
+    entry: Callable[[str], Any],
+    text: Callable[[str, str], str | None],
+) -> str | None:
+    """The first reason the repository's version-bump commit is more than a
+    version bump, or None (the pr-unblock lane's `bumpRefusal`): each file a
+    plugin's plugin.json or CHANGELOG.md, modified in place as a regular file,
+    and a plugin.json changing only its `version`."""
+    if not files:
+        return "bump-empty"
+    for item in files:
+        file = json_object(item)
+        path = str(file.get("filename") or "")
+        if file.get("status") != "modified" or file.get("previous_filename"):
+            return f"bump-status:{path}"
+        if not _BUMP_PATH.match(path):
+            return f"bump-path:{path}"
+        if not is_fix_file(entry(path)):
+            return f"bump-mode:{path}"
+        if path.endswith("/plugin.json"):
+            why = plugin_json_refusal(text("before", path), text("after", path))
+            if why:
+                return f"bump-content:{path}:{why}"
     return None
