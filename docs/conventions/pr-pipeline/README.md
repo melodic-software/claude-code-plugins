@@ -20,6 +20,7 @@
 - [Limits](#limits)
 - [WIP cap](#wip-cap)
 - [Red main](#red-main)
+- [Branch cleanup](#branch-cleanup)
 - [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
 - [Outside this repository](#outside-this-repository)
@@ -1621,6 +1622,46 @@ the resolver refuses fails it. It holds the job's own `GITHUB_TOKEN` (`actions`,
 calls, and stops on any failed read. A range of more than 25 merges pins no culprit. The kill switch stops it, and it skips an event the lanes App
 sent. Owner decision 2026-10-20: `dry-run` stays true for 3 days of reports with no wrong blame
 before any revert merges.
+
+## Branch cleanup
+
+A branch lives as long as its issue is open and is deleted once the issue closes (owner decisions
+W-7, 2026-10-21, and #8958). No dates are involved.
+[`maintenance-delete-stale-branches.yml`](../../../.github/workflows/maintenance-delete-stale-branches.yml)
+runs daily and sorts every branch; its rules and tests are in
+[`.github/scripts/branch-cleanup/`](../../../.github/scripts/branch-cleanup/). It runs no model.
+
+1. **Never touched.** The default branch, `release/*`, `dependabot/*` and `gh-readonly-queue/*`.
+2. **Kept.** A protected branch or one a ruleset applies to; one with an open pull request; a lane
+   branch (`work-resolve-issue/issue-<n>-...`) while issue `n` is open; any other branch while an
+   issue its newest pull request's body links with `Closes`, `Fixes`, `Resolves` or `Refs` is
+   open.
+3. **Never deleted, reported.** A branch that never had a pull request (a lane branch excepted), a
+   merged branch with commits ahead of the default branch after its tip moved, a closed-unmerged
+   branch whose tip moved, and any branch a read failed on. The step summary lists them for a
+   person.
+4. **Deleted.** The newest pull request closed unmerged or merged at the branch tip, or merged
+   with the tip moved and 0 commits ahead of the default branch, and every linked issue closed;
+   or a lane branch with no pull request whose issue closed. A lane run's stop or resume marker
+   on the issue does not keep the branch once the issue is closed.
+
+The job prints how many it will delete, then deletes at most `max-deletes-per-run`, in listing
+order. It reserves four calls per planned delete from its call budget before evaluating, and stops
+evaluating once it has found `max-deletes-per-run` deletable branches or spent the rest of the
+budget. Each run starts at a different point in the listing, moved by the run number and wrapping
+around, so branches kept early in the listing do not hide the later ones from every run. Before each delete it re-reads the tip and the open pull requests from and into the branch,
+skips it when the tip moved or one opened, and appends `{repo, branch, sha, rule, issue, pr,
+deletedAt}` to the step summary and the run's `branch-cleanup-ledger-<run>-<attempt>` artifact. The
+delete is `DELETE git/refs/heads/<branch>` with the job's own `GITHUB_TOKEN` (`contents: write`,
+`issues` and `pull-requests` read); the API takes no expected SHA, so the delete also removes a push that lands between the re-read
+and the delete; the pusher's own copy restores it. The ledger SHA restores the deleted tip:
+`git push origin <sha>:refs/heads/<branch>`. A scheduled run
+deletes; a manual run is a dry-run unless `dry-run` is set to false, and in dry-run the client
+refuses every request but `GET`. The kill switch stops it.
+
+| Key | Default | What it sets |
+|---|---|---|
+| `max-deletes-per-run` | 25 | Deletes per run at most; 0 to 100, and 0 deletes none. |
 
 ## Planning lane work
 
