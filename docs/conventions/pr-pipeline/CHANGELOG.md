@@ -1,5 +1,53 @@
 # Changelog for the PR pipeline convention
 
+## [3.3.0] - 2026-10-22
+
+### Added
+
+- `models.issue-dimensions.complexity-profiles` maps an issue's Complexity to the profile its run starts on. This repository sends high Complexity to the new `code-xhigh` profile (Opus at effort xhigh); low, medium and unset keep the activity's default.
+- A profile's `escalate-to` names the profile one model rung up, which a run resolved at resolve-config's new `model-rung` input 1 takes instead. `code-fix` escalates to `code-xhigh`; nothing escalates past it.
+- fix-ci retries once one rung up: a run that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips apply-patch with the new `rung-up` reason, and the same pr-unblock run runs fix-ci and apply-patch again at `model-rung` 1. Unless that retry's patch applies cleanly, the pull request goes to a person, as do `protected-path`, `weaken-required` and `flaky` escalations.
+
+- A top-level `adoption` section (`idle-hours`, default 24; `owner-ids`, default empty) names
+  owner accounts whose pull requests the lanes adopt. pr-unblock-dispatch starts `fix-ci` for a
+  non-draft owner PR whose `ci-status` failed once its last update and its head commit are both
+  `idle-hours` old, with no `do-not-merge`, `needs-human` or tracker human-gated label and no
+  body line starting `Hold:` (babysit's reading: any case, after any whitespace, a bare CR ends
+  a line). This repository adopts kyle-sexton's PRs after 24 hours (owner decision Q22).
+
+### Changed
+
+- The Fable rung above `code-xhigh` stays off: no profile names `fable` or `best`, pending an owner decision on a per-week Fable allowance for the lanes.
+
+- While `adoption.owner-ids` lists anyone, the tracker's human-gated label also holds lanes App
+  PRs from `fix-ci`. A base `.work-item-tracker.json` that is not JSON holds only the adopted
+  owner PRs, and fails the dispatcher run; lanes App PRs still get `fix-ci`.
+
+- The pr-pipeline README's WIP cap section names each `agent-ready` writer and whether the queued cap paces it: only work-unblock's new labels are paced.
+
+### Fixed
+
+- fix-docs is paused: its pr-unblock slot is `enabled: false`, so a dispatched run skips at
+  resolve-config before any model turn, and the broker grants it nothing. Under run-claude-cli's
+  subprocess env scrub the CLI forces the default permission mode instead of `auto`, so every
+  fix-docs run failed its permission-mode check after spending a model leg
+  ([run 39723040443](https://github.com/melodic-software/claude-code-plugins/actions/runs/39723040443)).
+
+- The queued count no longer counts an issue twice when a person edits its lane PR's first body line: an open lane PR whose first line names no issue is matched by its `work-resolve-issue/issue-<n>-...` head branch, at one pull request read each.
+- work-unblock's `label-unblocked` job runs one at a time across the repository, so a burst of closes or a close run beside the hourly sweep can no longer each admit the queued cap's whole room.
+
+## [3.2.0] - 2026-10-22
+
+### Added
+
+- The lost-run reconciler re-runs the failed jobs of a PR CI run that failed only from an outside outage: each failed job hit its time limit, had an install step cancelled or timed out, or lost its runner. An install step that exits with a failure, such as `npm ci` on a stale lockfile, counts as a real failure. It re-runs at most twice per run, 15 then 30 minutes after the attempt ended, only while status.npmjs.org and githubstatus.com both show no incident, and never a run with any other failure.
+- fix-ci starts no model run on a head whose required-run failures are all infra while the reconciler will still re-run it; once both re-runs are used, or the run is older than the reconciler's 24-hour lookback, fix-ci takes the head.
+
+### Fixed
+
+- The red-main report names every red full run since the last green one that has no report on the log, so a report the repository-wide concurrency group cancelled while pending is seen in the next report, whose range re-decides over its merges.
+- The red-main report takes the oldest `github-actions[bot]` issue carrying the log marker as its log, and counts only that account's comments on it (matched by user id) toward the daily cap and the dedupe, so a newer issue carrying the marker can neither take the reports nor reset the cap.
+
 ## [3.1.1] - 2026-10-22
 
 ### Fixed

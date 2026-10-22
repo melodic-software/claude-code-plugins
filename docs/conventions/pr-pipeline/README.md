@@ -19,6 +19,7 @@
 - [Loop caps](#loop-caps)
 - [Limits](#limits)
 - [WIP cap](#wip-cap)
+- [Adoption](#adoption)
 - [Red main](#red-main)
 - [Branch cleanup](#branch-cleanup)
 - [Planning lane work](#planning-lane-work)
@@ -231,9 +232,10 @@ pushes and `ci-status` stays red. `protected-path`, `weaken-required` and `flaky
 without a retry. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
-same-repository ones into `main` that the lanes App opened (by bot id), with no `do-not-merge`
-or `needs-human` label, whose head's `ci-status` check run from the GitHub Actions app ended
-`failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
+same-repository ones into `main` that the lanes App opened (by bot id), or that an owner in
+[`adoption`](#adoption) opened and left idle, with no `do-not-merge`, `needs-human` or tracker
+human-gated label,
+whose head's `ci-status` check run from the GitHub Actions app ended `failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
 untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
 and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
@@ -1572,9 +1574,13 @@ longer pauses (`pause-from` cleared or in the future); with no saved state (none
 or the cache evicted it), the check fails open and the run starts. Without a merged count the
 cap is `limits.wip-cap`. A held PR's age runs from when it opened.
 
-Queued work is the open `agent-ready` issues no open lane PR names on its first body line
-(`Closes #<n>` or `Refs: #<n>`, as report-outcome writes it), plus the held lane PRs. The lane
-branch is not matched: the search answer carries no head ref. The queued cap is
+Queued work is the open `agent-ready` issues no open lane PR names, plus the held lane PRs. A lane
+PR names its issue on its first body line (`Closes #<n>` or `Refs: #<n>`, as report-outcome writes
+it), or else by its head branch `work-resolve-issue/issue-<n>-<run>-<attempt>`: the search answer
+carries no head ref, so each open lane PR whose first line names no issue (a person edited it) costs
+one pull request read, and one that fails leaves the PR unmatched. A dimension-skipped issue
+whose report-skip failed keeps `agent-ready` with no run; work-unblock's sweep re-fires that failed
+run like any other, and the fresh run's report-skip hands the issue back. The queued cap is
 `max(limits.admission-factor × lane merges per hour, limits.admission-min-per-hour) ×
 merge-rate-window-hours`, with the floor alone when the merged count cannot be read. At or over it,
 on or after `pause-from`, new admissions pause: the step output `admission-open` is `false`, and
@@ -1596,6 +1602,22 @@ revisited; any other is left as is with a warning annotation, since re-admitting
 `admission-deferred`, a held one stays deferred, and any other loses it. Restarts, re-fires and relabels re-run issues already admitted and are never
 paced. This queued cap replaces the admission window (`limits.admission-window-hours`) and owner
 decisions Q2, Q17 and Q22 of the 2026-10-21 lane-flow interview.
+
+work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
+group, queued, never cancelled), so a burst of closes or a close run beside the hourly sweep cannot
+each admit the full room. The search index can still lag an `agent-ready` label added moments
+before, so a run right after another may read the room as one admission too wide.
+
+The queued cap paces only work-unblock's new `agent-ready` labels. Every other writer is exempt by
+design (owner decision 2026-10-22, #8966), and the issues it labels still count as queued work:
+
+| Writer | Paced |
+|---|---|
+| work-unblock adding `agent-ready` to an unblocked or deferred issue | Yes |
+| work-unblock's restarts, re-fires and relabels (remove and re-add on an admitted issue) | No: they re-run work already admitted |
+| A person adding the label by hand | No |
+| A person-run skill: `/work-items:triage`, `/work-items:decompose`, `/work-items:attend-queue`, `/work-items:track` | No: a person's account, their call |
+| `post-merge-demotion-alert.yml` red-main fix issues | No: it files them unlabeled and reopens one on a repeat failure keeping the `agent-ready` a person gave it, which work-unblock relabels; guardrail work |
 
 The check publishes its status as one flat JSON object: the step output `wip`, the step summary
 and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pause;
@@ -1623,6 +1645,37 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 | `pause_basis` | `read` from this run's reads; on a failed read `last-state` (the last known pause) or `fail-open` (none saved). |
 | `admission_open`, `admission_reason`, `admission_room` | Whether new admissions are open; `queued` while paused, null otherwise; admissions left before the cap, null when nothing gates them. |
 | `admission_basis` | `read`, or `fail-open` when the queued count could not be read. |
+
+## Adoption
+
+The `adoption` section names owner accounts whose pull requests the lanes take over once the owner
+has left them (owner decision Q22, 2026-10-22). This grants the lanes unattended power over PRs a
+person opened. A PR is adopted when all of these hold:
+
+- one of `owner-ids` opened it (the author's numeric user id);
+- it is not a draft, it is a same-repository PR into `main`, and it carries no `do-not-merge`,
+  `needs-human` or human-gated label (`config.role_labels["human-gated"]` in the base
+  `.work-item-tracker.json`, as pr-merge resolves it; a tracker file that is not JSON holds every
+  owner PR for the run and fails the dispatcher run, while lanes App PRs proceed under the other
+  two labels);
+- no body line starts with `Hold:`, read as babysit reads it: any case, after any non-newline
+  whitespace (NBSP included), with a bare CR also ending a line;
+- its last update (`updatedAt`) and its head commit's committer date are both at least
+  `idle-hours` old. Neither one alone is enough.
+
+An adopted PR whose `ci-status` failed is dispatched `fix-ci` like a lanes App PR, under the same
+`limits.fix-ci-per-run`, `limits.fix-ci-restarts` and `loop.fix-ci-rounds`. The run still needs
+the author on the trusted-actor list, as every pr-unblock run does. A pushed fix commit updates the
+PR and its head, so the next fix waits another `idle-hours`: an owner PR gets at most one fix
+round per idle window. A lanes App PR waits for no idle window, and its
+`Hold: a human merges this` line holds the merge, not a CI fix. While `owner-ids` lists anyone,
+the human-gated label holds a lanes App PR from `fix-ci` too; with `owner-ids` empty the tracker
+file is not read, and only `do-not-merge` and `needs-human` hold.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `idle-hours` | 24 | Hours both the PR and its head commit must be unchanged; 1 to 720. |
+| `owner-ids` | `[]` | User ids whose PRs are adopted. Empty: none. |
 
 ## Red main
 

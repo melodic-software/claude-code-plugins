@@ -461,6 +461,9 @@
 .app .vf-qctx { margin-block: 8px 4px; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .app .vf-onit { display: flex; align-items: center; gap: 8px; margin-block: 12px 24px; color: var(--muted); font-size: 12px; min-block-size: 20px; }
 .app .vf-qonit { display: none; }
+/* Read aloud ends the question's row; its negative block margin keeps the row's height, so turning it on moves nothing */
+.app .vf-readbtn { flex: none; margin-inline-start: auto; margin-block: -5px; }
+.app :is(.vf-readbtn, .vf-dictate)[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 
 /* locked block: the one loud element */
 .app .vf-lock {
@@ -1699,10 +1702,10 @@
 .app .vf-citeopt-t { font-weight: 650; font-size: 12.5px; }
 .app .vf-citeopt-s { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .app .vf-citebtn .vf-i { margin-inline-end: 4px; }
-.app .vf-crow > .vf-attach, .app .vf-crow > .vf-citebtn { flex: none; }
+.app .vf-crow > :is(.vf-attach, .vf-citebtn, .vf-dictate) { flex: none; }
 /* Attach is one square icon button wherever it sits: the answer box, Discussion, chat, Ask Claude (44 px on a phone) */
-.app .vf-attach { --att: 32px; inline-size: var(--att); block-size: var(--att); padding: 0; border-radius: var(--r-sm); }
-.app .vf-attach .vf-i { margin: 0; }
+.app :is(.vf-attach, .vf-dictate) { --att: 32px; inline-size: var(--att); block-size: var(--att); padding: 0; border-radius: var(--r-sm); }
+.app :is(.vf-attach, .vf-dictate) .vf-i { margin: 0; }
 /* the file field's button looks like the page's own buttons, not the browser's "Choose File" */
 .app .vf-filein { padding: 4px; font-size: 12.5px; color: var(--muted); }
 .app .vf-filein::file-selector-button {
@@ -1931,7 +1934,7 @@
   .app .vf-pickbtn { min-block-size: 44px; }
   .app .vf-msgmore { inline-size: 36px; block-size: 36px; }
   .app .vf-citechip { min-block-size: 36px; }
-  .app .vf-attach { --att: 44px; }
+  .app :is(.vf-attach, .vf-dictate) { --att: 44px; }
   .app .vf-hostv { padding: 12px 10px 24px; }
   .app .vf-hsec { padding: 12px; }
   .app .vf-tab { flex-direction: column; gap: 3px; }
@@ -2110,6 +2113,7 @@
 
 /* ---------- Q86: More sheet (phones) ---------- */
 .app .vf-mslist { display: grid; padding: 4px 8px 12px; grid-template-columns: minmax(0, 1fr); }
+.app .vf-moresheet > .vf-mslist { min-block-size: 0; overflow: auto; } /* the sheet stops at 86% of a phone's height; its list scrolls */
 .app :is(.vf-msitem, .vf-hitem) {
   all: unset; box-sizing: border-box; cursor: pointer; inline-size: 100%;
   display: grid; grid-template-columns: 22px minmax(0, 1fr); grid-template-areas: "i l" ". d"; column-gap: 14px; align-items: center;
@@ -2271,7 +2275,7 @@
   .app .vf-composer > .vf-crow > * { pointer-events: auto; }
   .app .vf-composer:not(:focus-within) > .vf-crow > :is(.vf-citebtn, .vf-btn-ghost:not(.vf-attach), .vf-count-txt) { display: none; }
   .app .vf-composer > .vf-crow > .vf-citebtn { block-size: 32px; }
-  .app .vf-composer > .vf-crow > .vf-btn-ghost:not(.vf-attach, .vf-citebtn) { block-size: 32px; }
+  .app .vf-composer > .vf-crow > .vf-btn-ghost:not(.vf-attach, .vf-citebtn, .vf-dictate) { block-size: 32px; }
   .app .vf-composer .vf-sendbtn {
     margin-inline-start: auto; inline-size: 44px; block-size: 44px; padding: 0; border-radius: 22px;
     background: radial-gradient(circle closest-side, var(--accent) 16px, transparent 16.5px);
@@ -2450,6 +2454,9 @@
 
 /* C40: the ten person colors in the person card. */
 .app .vf-pcolors { display: grid; grid-template-columns: repeat(5, 32px); gap: 8px; margin-block: 4px 12px; }
+.app .vf-pavatar { display: grid; gap: 8px; justify-items: start; margin-block: 4px 12px; }
+.app .vf-pavatar .vf-pop-note { margin: 0; }
+.app .vf-pavatar-prev { inline-size: 64px; block-size: 64px; border-radius: 50%; object-fit: cover; }
 .app .vf-pcolor { inline-size: 32px; block-size: 32px; padding: 0; border: 0; border-radius: 50%; background: var(--av); cursor: pointer; }
 .app .vf-pcolor[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--pane), 0 0 0 4px var(--text); }
 .app .vf-pcolor:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -2546,6 +2553,14 @@
 .app .vf-hist-who { font-size: 11.5px; color: var(--muted); }
 .app .vf-hist-t { font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .app :is(.vf-history, .vf-hintro-shown)[hidden], .app .vf-pop-sub[hidden] { display: none; }
+/* The owner's decision history: folded under a question, and the session's Decisions timeline. */
+.app .vf-qhist { margin-block-start: 12px; }
+.app .vf-qhist[hidden] { display: none; }
+.app .vf-qhist-sum { cursor: pointer; font-size: 13px; color: var(--muted); }
+.app .vf-qhist > .vf-history { margin-block-start: 8px; }
+/* Folded, the list is not rendered at all: a closed details' content never runs its theme transitions to the end. */
+.app .vf-qhist:not([open]) > .vf-history { display: none; }
+.app .vf-decpop { inline-size: min(420px, calc(100vw - 24px)); }
 .app .vf-personpop { inline-size: min(480px, calc(100vw - 24px)); }
 .app .vf-ppv-body { display: grid; gap: 12px; max-block-size: min(70vh, 640px); overflow: auto; }
 .app .vf-ppv-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }

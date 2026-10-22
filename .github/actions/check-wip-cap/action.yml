@@ -2,7 +2,8 @@ name: Check the WIP cap
 description: >
   Read the lanes App's open, merged and opened pull requests and the open
   agent-ready issues in this repository with serial searches on the job's own
-  token; derive the issue lane's WIP cap from the merge rate and the default
+  token, plus one pull request read per open lane PR whose first body line
+  names no issue (its head branch then names it); derive the issue lane's WIP cap from the merge rate and the default
   branch's pr-pipeline.yaml `wip` block; count held pull requests apart; count
   queued work against the admission pace; and publish the status. Set
   `capped` to `true` only when runs pause (over the WIP cap or the held cap on
