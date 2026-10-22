@@ -12,7 +12,7 @@
 // Expected values come from the Phase 4b amendment (formats, Borda: first n-1, last 0; mean and median), the server
 // contract (session.py pick, vote and disagree), and numbers worked out by hand below, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, snap, joinAs, png } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs, png } = require("./browser_harness");
 
 const DIAGRAM_ALT = "Checkout flow: cart, then address, then payment, then review.";
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
@@ -304,17 +304,20 @@ async function main() {
     const niaPid = await joinAs(nia, "Nia");
     const tabTop = () => nia.evaluate(() => document.querySelector(".vf-tabs")?.getBoundingClientRect().top ?? innerHeight);
     await until(nia, () => document.querySelector(".vf-qtext")?.textContent === "Which checkout layout looks right?");
+    const firstStill = await settled(nia, { rects: true });
     const chooseBottoms = await nia.evaluate(() => [...document.querySelectorAll(".vf-opt:not(.vf-opt-other) .vf-optchoose")].filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().bottom)));
     const tabs = await tabTop();
-    ok("phone, picture options: both Choose buttons are above the tab bar at first view", chooseBottoms.length === 2 && chooseBottoms.every(b => b <= tabs), `${chooseBottoms} vs tab bar ${tabs}`);
+    ok("phone, picture options: both Choose buttons are above the tab bar at first view", firstStill && chooseBottoms.length === 2 && chooseBottoms.every(b => b <= tabs),
+      `${chooseBottoms} vs tab bar ${tabs}${firstStill ? "" : ", not settled"}`);
     // The mark is inside the picture and inside the part of it on screen; the picture uses the column's width.
-    const markIn = page => page.evaluate(() => {
+    // Measured once the page holds still; a page that does not counts as neither inside nor seen.
+    const markIn = async page => { const still = await settled(page, { rects: true }), m = await page.evaluate(() => {
       const f = document.querySelector(".vf-confirm-fig"), r = e => e.getBoundingClientRect();
       const box = r(f.querySelector(".vf-confirm-box")), img = r(f.querySelector(".vf-confirm-img")), m = r(f.querySelector(".vf-confirm-mark"));
       const inside = (a, b) => a.left >= b.left - 1 && a.right <= b.right + 1 && a.top >= b.top - 1 && a.bottom <= b.bottom + 1;
       const drawn = !f.querySelector(".vf-confirm-mark").hidden && m.width > 0 && m.height > 0 && inside(m, img);
       return { ok: drawn && inside(m, box), seen: drawn && m.top < box.bottom && m.bottom > box.top, box: [box.width, box.height].map(Math.round), m: [m.left, m.top, m.width, m.height].map(Math.round), img: [img.top, img.height].map(Math.round), col: Math.round(r(f).width) };
-    });
+    }); return { ...m, still, ok: still && m.ok, seen: still && m.seen }; };
     await nia.locator(".vf-tab", { hasText: "Questions" }).tap();
     await nia.locator(".vf-q", { hasText: "Did you mean this button?" }).first().tap();
     await until(nia, () => document.querySelector(".vf-confirm-img")?.naturalWidth > 0 && !document.querySelector(".vf-confirm-fig").hidden);

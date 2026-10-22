@@ -468,7 +468,7 @@ async function main() {
     ok("  and saving it asks to shorten it to 2000 characters, sending nothing", await until(jo, n => document.querySelector(".vf-toast.vf-on span")?.textContent === `Shorten your own option to 2000 characters; it has ${n}.`, LONG.length)
       && !((await myCard(jo, "Q5"))?.picks || []).includes("other"), await jo.evaluate(() => document.querySelector(".vf-toast.vf-on span")?.textContent));
     await jo.locator(".vf-otherbox button", { hasText: "Cancel" }).click();
-    await jo.waitForTimeout(300);
+    await until(jo, () => document.querySelector(".vf-otherbox").hidden);
     const multiBack = await jo.evaluate(() => [...document.querySelectorAll(".vf-check-row")].filter(r => r.querySelector("input")?.checked).map(r => r.textContent.trim()));
     ok("on a pick-many question, Cancel after Replace brings back the saved pick, with Save not live", multiBack.length === 1 && multiBack[0].includes("Card") && !(await saveLive())
       && await jo.evaluate(() => document.querySelector(".vf-otherbox").hidden), JSON.stringify({ multiBack, live: await saveLive() }));
@@ -481,7 +481,7 @@ async function main() {
     await askAndAnswer("Q6", "Which delivery option do buyers here prefer?", RANK_ANS);
     await useAndReplace(RANK_ANS);
     await jo.locator(".vf-otherbox button", { hasText: "Cancel" }).click();
-    await jo.waitForTimeout(300);
+    await until(jo, () => document.querySelector(".vf-otherbox").hidden);
     const rankBack = await jo.evaluate(() => [...document.querySelectorAll(".vf-rank-item .vf-rank-l")].map(x => x.textContent).join(","));
     ok("on a ranking, Cancel after Replace brings back the saved order without the own option, with Save not live", rankBack === "Fast,Cheap,Green" && !(await saveLive()),
       JSON.stringify({ rankBack, live: await saveLive() }));
@@ -507,7 +507,7 @@ async function main() {
     await until(annTab, () => !!document.querySelector("dialog.core-switch[open]"));
     // Switch reloads the page: wait for the new one, since a wait begun on the old page ends when it unloads.
     await Promise.all([annTab.waitForEvent("domcontentloaded"), annTab.click("dialog.core-switch button:text-is('Switch')")]);
-    await until(annTab, () => window.Core.snapshot()?.me?.name === "Bo Lee" && !!document.querySelector(".vf-chat"), null, 10000);
+    await until(annTab, () => window.Core?.snapshot()?.me?.name === "Bo Lee" && !!document.querySelector(".vf-chat"), null, 10000);
     if (await annTab.evaluate(() => document.querySelector(".vf-chat").hidden)) await annTab.click(".vf-fab");
     await annTab.waitForTimeout(500);
     ok("  and Switch to another personal link leaves Ann's unsent chat behind", (await annTab.inputValue(".vf-minput")) === "", await annTab.inputValue(".vf-minput"));

@@ -9,7 +9,7 @@
 // Expected values come from the consistency audit's F11 and F12 (one close control, an x whose name says what it closes;
 // one breakpoint at 720 px; one menu model; guest Settings on desktop) and the texts this suite writes, never the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
 const DESK = { context: { viewport: { width: 1440, height: 900 } } };
@@ -54,9 +54,9 @@ async function main() {
     await joinAs(mid, "Mia");
     await mid.click(".vf-asktop");
     await until(mid, () => !document.querySelector(".vf-drawer").hidden);
-    await mid.evaluate(() => Promise.all(document.querySelector(".vf-drawer").getAnimations().map(a => a.finished.catch(() => null))));
+    const still = await settled(mid, { rects: true });
     const dr = await mid.evaluate(() => { const r = document.querySelector(".vf-drawer").getBoundingClientRect(); return { left: r.left, right: r.right, w: r.width, inert: document.querySelector(".vf-body").inert }; });
-    ok("at 900 px the Ask Claude panel is a side drawer on the right, the page still live", dr.right === 900 && dr.w <= 420 && dr.left >= 480 && !dr.inert, JSON.stringify(dr));
+    ok("at 900 px the Ask Claude panel is a side drawer on the right, the page still live", still && dr.right === 900 && dr.w <= 420 && dr.left >= 480 && !dr.inert, JSON.stringify({ still, ...dr }));
     await mid.getByRole("button", { name: "Close Ask Claude", exact: true }).click();
     ok("  its x closes it and focus goes back to Ask Claude", await until(mid, () => document.querySelector(".vf-drawer").hidden && document.activeElement?.matches(".vf-asktop")));
 
@@ -156,7 +156,8 @@ async function main() {
     ok("  Escape sends nothing: no round send request went out", sends.length === 0, JSON.stringify(sends));
 
     // ---------- the message menu and React open beside what opened them (chat and a Discussion comment) ----------
-    const beside = (page, menuSel, btnSel) => page.evaluate(([m, b]) => {
+    // Measured once the page holds still: the menu and the chat it opens over scale in.
+    const beside = async (page, menuSel, btnSel) => (await settled(page, { rects: true })) && page.evaluate(([m, b]) => {
       const r = document.querySelector(m).getBoundingClientRect(), a = [...document.querySelectorAll(b)].find(x => x.getAttribute("aria-expanded") === "true" || x === document.activeElement)?.getBoundingClientRect()
         || document.querySelector(b).getBoundingClientRect();
       const gapX = Math.max(0, r.left - a.right, a.left - r.right), gapY = Math.max(0, r.top - a.bottom, a.top - r.bottom);
