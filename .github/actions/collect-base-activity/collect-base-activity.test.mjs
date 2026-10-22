@@ -1430,7 +1430,7 @@ function launchThreads({ runFile = true } = {}) {
 }
 
 const FEEDBACK_TOOL = `${WORKSPACE}/.lane/feedback/bin/feedback-thread`;
-const FEEDBACK_FILE_DENIED = ["threads.json", "run.json", "feedback-thread.sh", "bin/**"].flatMap((file) =>
+const FEEDBACK_FILE_DENIED = ["threads.json", "run.json", "feedback-thread.sh", "bin/**", "state/**"].flatMap((file) =>
   ["Edit", "Write", "NotebookEdit"].map((tool) => `${tool}(./.lane/feedback/${file})`),
 );
 
@@ -1452,9 +1452,13 @@ test("run-claude-cli: review-threads gets the patch tool set and the review-thre
   for (const rule of [...FEEDBACK_FILE_DENIED, "Bash(git *)", "Bash(wc *)", "Bash(cat *)", "Read(./.git/**)", "Read(//proc/**)", "NotebookEdit(./.lane/plugins/**)", "WebFetch", "WebSearch"]) {
     assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   }
-  // A deny rule beats an allow rule: none names the wrapper or state/.
+  // A deny rule beats an allow rule: none names the wrapper. state/ is the
+  // wrapper's to write, through Bash; the file tools are denied it, exactly.
   assert.ok(!run.deniedTools.some((rule) => rule.includes("feedback-thread *") || rule.includes("bin/feedback-thread")), run.deniedTools.join(" | "));
-  assert.ok(!run.deniedTools.some((rule) => rule.includes("feedback/state")), run.deniedTools.join(" | "));
+  assert.deepEqual(
+    run.deniedTools.filter((rule) => rule.includes("feedback/state")),
+    ["Edit(./.lane/feedback/state/**)", "Write(./.lane/feedback/state/**)", "NotebookEdit(./.lane/feedback/state/**)"],
+  );
   assert.equal(run.args, "", "no claude_args for the launcher");
 });
 
