@@ -159,10 +159,11 @@ the broker request, and no other permission; it never holds `checks: write` or `
 3. [`check-kill-switch`](../../../.github/actions/check-kill-switch/README.md), then
    [`check-trusted-trigger`](../../../.github/actions/check-trusted-trigger/README.md). Neither has
    `continue-on-error`. A stop at either ends the job green with no token minted and no head
-   checked out; the check is neutral, with one exception. The gate reads the re-runner's id from
+   checked out; the check is neutral, with two exceptions. The gate reads the re-runner's id from
    the run's own record, so a re-run started by an account not on the list, by a denied account,
    or with no readable triggering actor stops with `untrusted-rerunner`, and that check is a
-   failure: a re-run cannot turn an earlier red check on the same SHA neutral. The write file also
+   failure: a re-run cannot turn an earlier red check on the same SHA neutral. A PR whose base is
+   not the default branch stops with `untrusted-base`, also a failure. The write file also
    denies `AUTOMATION_LANES_APP_SENDER_ID`, so the lanes App bot as sender or `workflow_run` actor
    stops it with `bot-actor` (neutral) and one write activity never chains into the next. The read
    file denies nothing, so a `workflow_run` read lane still runs after a bot push; the bot's own
