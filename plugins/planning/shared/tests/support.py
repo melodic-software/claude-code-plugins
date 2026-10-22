@@ -102,7 +102,8 @@ def outside_cloudflared(case, url_arg, log, *extra, named=True, environ=None):
         cmd = [str(shutil.copy2(base, where / "cloudflared.exe")), FAKE]
         environ["PYTHONHOME"] = sys.base_prefix
     else:
-        cmd = [str(shutil.copy2(os.path.realpath(shutil.which("bash")), tmpdir(case) / "cloudflared")), FAKE]
+        # copy, not copy2: macOS marks /bin/bash with a flag only root may set, so copying flags fails
+        cmd = [str(shutil.copy(os.path.realpath(shutil.which("bash")), tmpdir(case) / "cloudflared")), FAKE]
     proc =detached.spawn([*cmd, *args], log=log, env=environ)
     case.addCleanup(lambda: (proc.kill(), proc.wait()))
     url = wait_for(lambda: (m := re.search(r"https://fake-[0-9a-f]{12}\.trycloudflare\.com", log.read_text(encoding="utf-8", errors="replace"))) and m.group(0))
