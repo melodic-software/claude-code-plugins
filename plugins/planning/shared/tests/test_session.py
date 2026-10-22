@@ -4013,6 +4013,12 @@ class TestPresenceStates(SessionCase):
                     self.clock.tick(1)
                 self.assertEqual((self.state_of(self.ann)["q"], self.state_of(self.ann)["typing"]), ("Q2", True))
 
+    def test_a_visible_tab_beats_a_hidden_one_focused_more_recently(self):
+        """A desk window that kept focus (focused 60 s ago) and a phone locked since its use 5 s ago: the desk's Q2."""
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=60)
+        self.beat(self.ann, tab="phone", q="Q1", visible=False, lastFocus=5)
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+
     def test_a_beat_without_a_focus_time_keeps_the_tabs_last_one(self):
         self.beat(self.ann, tab="desk", q="Q2", lastFocus=1)
         self.beat(self.ann, tab="phone", q="Q1", lastFocus=30)

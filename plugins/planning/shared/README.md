@@ -246,8 +246,9 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   without a beat; a person with no live tab is offline. A tab is Away while hidden, after 5 minutes
   visible with no input, or snoozed; the person is Active while any live tab is Active, and Away,
   `since` the last tab went Away, only when every live tab is. Their question and typing come
-  from the live tab focused or shown most recently (the server's receive time less `lastFocus`),
-  else, when no live tab sends one, from their latest beat; typing flags last 5 s. Each tab's beats have their own one-a-second
+  from a visible live tab before a hidden one and, within each, the one focused or shown most
+  recently (the server's receive time less `lastFocus`), else, when no live tab sends one, from
+  their latest beat; typing flags last 5 s. Each tab's beats have their own one-a-second
   limit, and a beat that changes `visible` or `away` is taken at once. The page beats every 2 s
   and at once on a visibility change, never two from one tab within the limit, and sends its own
   writes to one route a second apart. The write limits count per person, not per tab, so one

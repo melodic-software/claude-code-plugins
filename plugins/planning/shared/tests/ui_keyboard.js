@@ -338,6 +338,18 @@ async function main() {
     const flips = samples.filter(([q, shown]) => q !== deskQ || shown).length;
     ok("a host with two tabs shows on the question of the tab focused last, never flipping", phoneQ && deskQ && phoneQ !== deskQ && settledOnDesk && flips === 0,
       `phone on ${phoneQ}, desktop on ${deskQ}, settled: ${settledOnDesk}, ${flips} of 24 samples off the desktop's question or showing the host here`);
+    // The phone is used again and locked, while the desktop window keeps focus and fires nothing: the phone holds the newer
+    // focus time but is hidden, so the host stays on the desktop's (visible) question.
+    await phoneOwner.evaluate(() => {
+      const show = state => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state }); document.dispatchEvent(new Event("visibilitychange")); };
+      show("visible"); setTimeout(() => show("hidden"), 1500);
+    });
+    await phoneOwner.waitForTimeout(4500); // the shown beat, the hidden one, and a regular beat after it
+    const locked = [];
+    for (let i = 0; i < 24; i++) { locked.push(await hostQ()); await pia.waitForTimeout(250); }
+    const lockedOff = locked.filter(x => x !== deskQ).length;
+    ok("  and a locked phone used after the desktop does not take the host off the desktop's question", lockedOff === 0,
+      `${lockedOff} of 24 samples off the desktop's question (${[...new Set(locked)].join(", ")})`);
     // Closed, so the tour below starts with no one else on that question and moves its target only when it means to.
     await phoneOwner.close();
 
