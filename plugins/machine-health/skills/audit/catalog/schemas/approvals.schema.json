@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:claude-code-plugin:machine-health:approvals",
   "title": "Approvals",
-  "description": "Per-user approval state for machine-health remediations and check overrides. Lives at $OutputBase/state/approvals.json. Not checked into source control. Written only by /machine-health:setup (Set-ApprovalState) and by the one-time migration on first run; do not edit it by hand.",
+  "description": "Per-user approval state for machine-health remediations and check overrides. Lives at $OutputBase/state/approvals.json. Not checked into source control. Written by /machine-health:setup (Set-ApprovalState) and by the one-time migration on first run; do not edit it by hand, except check_overrides.services.service_exclusions, which setup cannot write yet.",
   "type": "object",
   "additionalProperties": false,
   "required": ["remediations", "schema_version"],

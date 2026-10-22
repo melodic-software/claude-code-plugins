@@ -95,7 +95,8 @@ change recorded in `CHANGELOG.md`, not a condition this file predicts.
 
 The optional `check_overrides` block carries per-host user curation. The one key read is
 `services.service_exclusions`: service names `Restart-StoppedService` never starts. A name
-matches when it equals the service name, ignoring case; the run log records each skip.
+matches when it equals the service name, ignoring case; the run log records each skip. Setup
+cannot write this list yet, so it is the one key in `approvals.json` the owner edits by hand.
 
 The schema still accepts `event-log-errors.noise_allowlist` so an older file validates, but no
 check reads it.
