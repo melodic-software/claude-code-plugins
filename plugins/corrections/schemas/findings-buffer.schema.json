@@ -10,7 +10,7 @@
     "adapter": {
       "type": "string",
       "default": "local-file",
-      "description": "The adapter buffer.sh hands rows to: local-file, or a repository-relative directory holding append.sh, read.sh and capabilities.json. A directory that resolves outside the repository, or is missing a verb, is refused and local-file is used."
+      "description": "The adapter buffer.sh hands rows to: local-file, or the bare name of an adapter the plugin ships under tools/findings-buffer/adapters/. A repository path, a name the plugin does not ship, or an adapter missing a verb is refused and local-file is used."
     }
   }
 }
