@@ -117,8 +117,10 @@ BODY_MERGE_HOLD_RE = re.compile(
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
 MERGE_HOLD_LABELS = ("do-not-merge",)
-# `adoption.idle-hours` when absent.
+# `adoption.idle-hours` when absent; a value outside 1 to
+# `MAX_ADOPTION_IDLE_HOURS` adopts nothing.
 ADOPTION_IDLE_HOURS = 24
+MAX_ADOPTION_IDLE_HOURS = 720
 RUNG_CAP_VARIABLE = "CLAUDE_LANES_MERGE_RUNG_CAP"
 ORG_SWITCH = "CLAUDE_LANES_DISABLED"
 REPO_SWITCH = "CLAUDE_LANES_REPO_DISABLED"
@@ -569,7 +571,8 @@ class PipelineConfig:
     # `adoption.idle-hours`: how long an owner pull request's update and head
     # commit must be idle before the pr-merge lane adopts it
     # (`adoption_refusal`). Absent is `ADOPTION_IDLE_HOURS`; anything but a
-    # whole number is None, which adopts nothing. `stricter_config` takes the
+    # whole number from 1 to `MAX_ADOPTION_IDLE_HOURS` is None, which adopts
+    # nothing. `stricter_config` takes the
     # default branch head's.
     adoption_idle_hours: int | None = ADOPTION_IDLE_HOURS
     # `adoption.owner-ids`: the account ids whose pull requests may be
@@ -806,12 +809,18 @@ def read_config_at(
             f"merge.max-verify-fails {verify_fails!r} is not a count of 1 or more"
         )
         verify_fails = "1"
-    idle_hours = scalar("adoption.idle-hours")
-    if idle_hours is not None and not re.fullmatch(r"0|[1-9][0-9]*", idle_hours):
-        notes.append(
-            f"adoption.idle-hours {idle_hours!r} is not a whole number of hours; "
-            "nothing is adopted"
+    idle_text = scalar("adoption.idle-hours")
+    idle_hours: int | None = ADOPTION_IDLE_HOURS
+    if idle_text is not None:
+        idle_hours = (
+            int(idle_text) if re.fullmatch(r"[1-9][0-9]{0,2}", idle_text) else None
         )
+        if idle_hours is None or idle_hours > MAX_ADOPTION_IDLE_HOURS:
+            notes.append(
+                f"adoption.idle-hours {idle_text!r} is not a whole number from 1 "
+                f"to {MAX_ADOPTION_IDLE_HOURS}; nothing is adopted"
+            )
+            idle_hours = None
     owner_ids = tuple(values["adoption.owner-ids"])
     if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in owner_ids):
         notes.append(
@@ -854,11 +863,7 @@ def read_config_at(
         else RISK_ESCALATION_MINUTES,
         max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
         check_inputs=tuple(values["merge.check-inputs"]),
-        adoption_idle_hours=ADOPTION_IDLE_HOURS
-        if idle_hours is None
-        else int(idle_hours)
-        if re.fullmatch(r"0|[1-9][0-9]*", idle_hours)
-        else None,
+        adoption_idle_hours=idle_hours,
         adoption_owner_ids=tuple(int(i) for i in owner_ids),
         quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
     )
@@ -1002,7 +1007,11 @@ def _cached_config(value: Any) -> PipelineConfig | None:
             and count(c.max_queue_ejections, 1)
             and count(c.risk_escalation_minutes, 0)
             and count(c.max_verify_fails, 1)
-            and (c.adoption_idle_hours is None or count(c.adoption_idle_hours, 0))
+            and (
+                c.adoption_idle_hours is None
+                or count(c.adoption_idle_hours, 1)
+                and c.adoption_idle_hours <= MAX_ADOPTION_IDLE_HOURS
+            )
             and isinstance(c.adoption_owner_ids, tuple)
             and all(count(i, 1) for i in c.adoption_owner_ids)
         )

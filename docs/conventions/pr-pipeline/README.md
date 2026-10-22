@@ -788,8 +788,8 @@ except six:
   whose account id is in `adoption.owner-ids` (absent or empty adopts none), never matched by
   login, that is not a draft, whose `updatedAt` and head commit committer date are both at least
   `adoption.idle-hours` old (24 when absent; an unreadable date is not idle; a value that is not a
-  whole number adopts nothing), both settings read at the default branch head, and that no hold
-  applies to: the `do-not-merge` label, the
+  whole number from 1 to 720 adopts nothing), both settings read at the default branch head,
+  and that no hold applies to: the `do-not-merge` label, the
   tracker's human-gated role label as `.work-item-tracker.json` resolves it, or a hold line in
   the body. The decision records it as `eligibility.adoption` (`idle-owner:<hours>h`); every
   other gate applies unchanged. Any other author refuses `not-lane-authored`, and an owner pull

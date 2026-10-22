@@ -3426,7 +3426,11 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         for text, expected, noted in (
             (PIPELINE, 24, False),
             (PIPELINE + "adoption:\n  idle-hours: 48\n", 48, False),
-            (PIPELINE + "adoption:\n  idle-hours: 0\n", 0, False),
+            (PIPELINE + "adoption:\n  idle-hours: 1\n", 1, False),
+            (PIPELINE + "adoption:\n  idle-hours: 720\n", 720, False),
+            (PIPELINE + "adoption:\n  idle-hours: 0\n", None, True),
+            (PIPELINE + "adoption:\n  idle-hours: 721\n", None, True),
+            (PIPELINE + "adoption:\n  idle-hours: 01\n", None, True),
             (PIPELINE + "adoption:\n  idle-hours: soon\n", None, True),
             (PIPELINE + "adoption:\n  idle-hours: -1\n", None, True),
             # Under merge it is another key, not the setting.
@@ -4173,6 +4177,8 @@ class TheStricterConfigEdges(unittest.TestCase):
             {**good, "max_in_flight": "five"},
             {**good, "notes": 7},
             {**good, "denied_paths": [1, 2]},
+            {**good, "adoption_idle_hours": 0},
+            {**good, "adoption_idle_hours": 721},
         ):
             with self.subTest(broken=broken):
                 policy.run_cache.put(policy.DEFAULT_BRANCH_CONFIG_SECTION, REPO, broken)
