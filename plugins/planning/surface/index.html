@@ -1172,7 +1172,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const links = link("Follow-up of", q.followUpOf ? [q.followUpOf] : []) + link("Follow-ups:", kids) + link("Needs", (q.dependsOn || []).filter(x => Q[x])) +
       link("Unblocks", unblocks) + link("Supersedes", q.supersedes ? [q.supersedes] : []);
     if (links) h += '<div class="links">' + links + "</div>";
-    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + inline((q.archived || {}).why || "off the current path") + "</div>";
+    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer that one instead." : inline((q.archived || {}).why || "off the current path")) + "</div>"; // a replacement named here is the one banner for a superseded, archived card
     if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". Research in progress" + (fmtT(q.waitingSince) ? ", started " + esc(fmtT(q.waitingSince)) : "") + ". You can answer anyway; it counts once the research returns.</div>";
@@ -1180,7 +1180,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q.revising && st !== "arch") h += '<div class="banner"><b>Answer not handled yet.</b> Claude has not handled your answer to this question yet, so it may be revised. You can still answer.</div>';
     if (q.claudeRevising && st !== "arch") h += '<div class="banner"><b>Claude is revising this:</b> ' + inline(q.claudeRevising.why) + " You can still answer.</div>";
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
-    if (q.supersededBy) h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
+    if (q.supersededBy && st !== "arch") h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
     if (q.revised) { // the full banner until the user has opened the question since its latest revision, then a chip
       const rr = recRev(q), prev = q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + md(q.previousRecommendation) + "</details>" : "";
       h += S.revSeen === rr ? '<div class="revchip"><span class="chip plain" title="Recommendation revised">Revised</span>' + prev + "</div>"
