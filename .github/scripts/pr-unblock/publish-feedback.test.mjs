@@ -837,3 +837,8 @@ test("main: a missing replies.jsonl writes the no-model-turn skip and no escalat
   await main(env, { api: fakeApi(), log: () => {} });
   assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n");
 });
+
+test("no-model-turn is a schema skip reason, so its check posts neutral, not red", () => {
+  const schema = JSON.parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url), "utf8"));
+  assert.ok(schema.$defs["skip-reason"].enum.includes("no-model-turn"));
+});

@@ -577,7 +577,8 @@ bounded re-reads), `cost-gated`, `awaiting-human` (among others, a `labels-absen
 PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no same-repository PR, or an
 actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
 write lane's mint for a workflow file the PR itself changes), `rung-up` (a fix-ci run's patch is
-held back for one retry one model rung up, [Lanes](#lanes)), or, for an issue run under
+held back for one retry one model rung up, [Lanes](#lanes)), `no-model-turn` (an address-feedback
+round whose model never ran, so the scan uploaded no replies), or, for an issue run under
 `models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
 account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
 `split`). Issue mode posts no check, so work-resolve-issue.yml reports those four dimension skips
