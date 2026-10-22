@@ -458,17 +458,22 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     policy: readPolicy(env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`, log),
     repository: env.GITHUB_REPOSITORY,
   });
-  // A missing lanes App id or an unreadable tracker config stops fix-ci
-  // alone, as a failure.
+  // A missing lanes App id stops fix-ci alone, as a failure. The tracker's
+  // human-gated label is read only when owners are adopted; an unreadable
+  // tracker config holds the adopted owner PRs alone, as a failure.
   let fixes = { dispatched: [], failed: 1 };
-  let humanGated = null;
-  try {
-    humanGated = baseHumanGatedLabel(env);
-  } catch (error) {
-    log(`::error::cannot read the human-gated label from the base .work-item-tracker.json (${error.message}); no fix-ci dispatched`);
+  const ownerIds = adoption["owner-ids"] ?? [];
+  let holdLabels = CI_FIX_DEFAULTS.holdLabels;
+  let ownersHeld = "";
+  if (ownerIds.length > 0) {
+    try {
+      holdLabels = [...new Set([...holdLabels, baseHumanGatedLabel(env)])];
+    } catch (error) {
+      log(`::error::cannot read the human-gated label from the base .work-item-tracker.json (${error.message}); no adopted owner PR gets fix-ci`);
+      ownersHeld = "base tracker config unreadable, so its human-gated label is unknown";
+    }
   }
-  const appIdSet = /^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "");
-  if (humanGated !== null && appIdSet) {
+  if (/^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "")) {
     fixes = await dispatchCiFixes({
       api: client,
       runId: env.GITHUB_RUN_ID,
@@ -476,11 +481,12 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       appSenderId: Number(env.APP_SENDER_ID),
       maxDispatch: limits["fix-ci-per-run"] ?? 2,
       restarts: limits["fix-ci-restarts"] ?? 1,
-      adoption: { ownerIds: adoption["owner-ids"] ?? [], idleHours: adoption["idle-hours"] ?? 24 },
-      holdLabels: [...new Set([...CI_FIX_DEFAULTS.holdLabels, humanGated])],
+      adoption: { ownerIds, idleHours: adoption["idle-hours"] ?? 24, held: ownersHeld },
+      holdLabels,
       now,
     });
-  } else if (!appIdSet) {
+    fixes.failed += ownersHeld === "" ? 0 : 1;
+  } else {
     log("::error::APP_SENDER_ID is not the lanes App's user id; no fix-ci dispatched");
   }
   const docs = await dispatchDocsFixes({

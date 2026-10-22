@@ -293,6 +293,13 @@ test("owner drafts, holds, unlisted or spoofed users and unreadable dates are le
   assert.deepEqual(none.result.dispatched, [], "with no adoption list no owner PR is adopted");
 });
 
+test("adoption.held skips every owner PR with its reason and leaves lanes App PRs alone", () => {
+  const held = "base tracker config unreadable, so its human-gated label is unknown";
+  const options = { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: "pr-unblock / fix-ci", holdLabels: ["do-not-merge", "needs-human"], restarts: 1, adoption: { ...ADOPTION, held }, now: NOW };
+  assert.equal(skipReason(ownerPr(15), options), held);
+  assert.equal(skipReason(pr(16), options), "");
+});
+
 test("a listed owner id is adopted whatever its login", async () => {
   const { result } = await run({ pages: [[ownerPr(11, { author: { login: "someone-else", databaseId: OWNER } })]] }, { adoption: ADOPTION, now: NOW });
   assert.deepEqual(result.dispatched.map((d) => d.number), [11]);

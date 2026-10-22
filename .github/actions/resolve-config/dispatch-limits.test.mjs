@@ -158,8 +158,18 @@ test("the base tracker config's human-gated label holds an adopted PR from fix-c
   const mapped = JSON.stringify({ config: { role_labels: { "human-gated": "awaiting-owner" } } });
   assert.deepEqual(await run(LIVE, [owner], [], mapped), { code: 0, dispatched: ["40"] });
   assert.deepEqual(await run(LIVE, [owner]), { code: 0, dispatched: ["40", "62"] }, "with no tracker file the label is needs-human");
-  // An unreadable tracker config stops fix-ci alone, as a failure.
-  assert.deepEqual(await run(LIVE, [ciFixPull(63)], [], "{not json"), { code: 1, dispatched: ["40"] });
+});
+
+test("an unreadable base tracker config holds adopted owner PRs only, and no owner-ids skips the read", async () => {
+  const idle = "2026-10-16T11:00:00Z";
+  const owner = ciFixPull(64);
+  owner.author = { databaseId: 153232337 };
+  owner.updatedAt = idle;
+  owner.commits.nodes[0].commit.committedDate = idle;
+  // The lanes App PR proceeds under the default hold labels; the failure still shows.
+  assert.deepEqual(await run(LIVE, [ciFixPull(63), owner], [], "{not json"), { code: 1, dispatched: ["40", "63"] });
+  const without = LIVE.replace(/^adoption:\n( {2}.*\n)*/m, "");
+  assert.deepEqual(await run(without, [ciFixPull(63)], [], "{not json"), { code: 0, dispatched: ["40", "63"] });
 });
 
 test("the base config's limits.fix-docs-per-run caps the fix-docs dispatches", async () => {

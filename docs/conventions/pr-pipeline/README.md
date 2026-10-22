@@ -1612,8 +1612,9 @@ person opened. A PR is adopted when all of these hold:
 - one of `owner-ids` opened it (the author's numeric user id);
 - it is not a draft, it is a same-repository PR into `main`, and it carries no `do-not-merge`,
   `needs-human` or human-gated label (`config.role_labels["human-gated"]` in the base
-  `.work-item-tracker.json`, as pr-merge resolves it; a tracker file that is not JSON stops
-  fix-ci for the run);
+  `.work-item-tracker.json`, as pr-merge resolves it; a tracker file that is not JSON holds every
+  owner PR for the run and fails the dispatcher run, while lanes App PRs proceed under the other
+  two labels);
 - no body line starts with `Hold:`, read as babysit reads it: any case, after any non-newline
   whitespace (NBSP included), with a bare CR also ending a line;
 - its last update (`updatedAt`) and its head commit's committer date are both at least
@@ -1623,8 +1624,10 @@ An adopted PR whose `ci-status` failed is dispatched `fix-ci` like a lanes App P
 `limits.fix-ci-per-run`, `limits.fix-ci-restarts` and `loop.fix-ci-rounds`. The run still needs
 the author on the trusted-actor list, as every pr-unblock run does. A pushed fix commit updates the
 PR and its head, so the next fix waits another `idle-hours`: an owner PR gets at most one fix
-round per idle window. A lanes App PR is unchanged: it waits for no idle window, and its
-`Hold: a human merges this` line holds the merge, not a CI fix.
+round per idle window. A lanes App PR waits for no idle window, and its
+`Hold: a human merges this` line holds the merge, not a CI fix. While `owner-ids` lists anyone,
+the human-gated label holds a lanes App PR from `fix-ci` too; with `owner-ids` empty the tracker
+file is not read, and only `do-not-merge` and `needs-human` hold.
 
 | Key | Default | Meaning |
 |---|---|---|

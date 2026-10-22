@@ -110,6 +110,10 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   if (owner && !adoption.ownerIds.includes(node.author?.databaseId)) {
     return "not opened by the lanes App or an adoptable owner";
   }
+  // adoption.held, when set, is why no owner PR is adopted this run.
+  if (owner && adoption.held) {
+    return adoption.held;
+  }
   if ((node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name))) {
     return "held";
   }
