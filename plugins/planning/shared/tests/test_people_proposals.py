@@ -1,4 +1,4 @@
-# test-scope: plugins/planning/shared/session.py plugins/planning/shared/schema/ops.schema.json plugins/planning/shared/schema/state.schema.json plugins/planning/shared/schema/event.schema.json
+# test-scope: plugins/planning/shared/session.py plugins/planning/shared/schema/ops.schema.json plugins/planning/shared/schema/state.schema.json plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/shared/schema/wire.schema.json plugins/planning/surface/schema/*.schema.json
 """Claude proposes a duplicate-person merge or a join admit; only the owner's tap carries it out.
 
 Expected values come from issue #8697 and the owner's decision on it (Claude proposes with its
