@@ -623,8 +623,10 @@ jobs:
     # still escalates. At most one escalates: one activity runs per dispatch,
     # a reply, verdict or push job runs only after a model turn, and a model
     # job, or fix-ci-context, escalates only before one. A rung-up stop
-    # escalates here too, even on a cancel, unless apply-patch-rung-up applied
-    # the retry's patch cleanly: its own reason, else ci-fix-escalated.
+    # escalates here too unless apply-patch-rung-up applied the retry's patch
+    # cleanly: its own reason, else ci-fix-escalated. On a cancelled run this
+    # always() branch fires, but the write workflow's run job skips, so no
+    # label is applied and ci-status stays red.
     if: >-
       ${{ (!cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
       || needs.address-feedback.outputs.escalation-reason != ''

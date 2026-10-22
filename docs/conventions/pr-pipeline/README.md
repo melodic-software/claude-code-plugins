@@ -225,8 +225,10 @@ exception: a run at `model-rung` 0 that changed nothing and escalated only `unfi
 runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
 `fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). `report-escalation`
 hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
-`ci-fix-escalated` (a neutral, failed or cancelled retry, or a cancelled run). `protected-path`,
-`weaken-required` and `flaky` go to a person without a retry. The same
+`ci-fix-escalated` (a neutral or failed retry). A cancelled run applies no label: the write
+workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
+pushes and `ci-status` stays red. `protected-path`, `weaken-required` and `flaky` go to a person
+without a retry. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), with no `do-not-merge`
