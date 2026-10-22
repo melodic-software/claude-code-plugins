@@ -63,7 +63,7 @@ const runRefusal = (step, settingsJson) =>
 // callers use (&&, ||, ==, !=, !), which JavaScript evaluates the same way
 // for the string and boolean operands here.
 function evaluate(expression, context) {
-  let body = expression.trim().replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").replaceAll("!cancelled()", "true");
+  let body = expression.trim().replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").replaceAll("!cancelled()", "true").replaceAll("always()", "true");
   for (const [name, value] of Object.entries(context)) {
     body = body.replaceAll(name, JSON.stringify(value));
   }
@@ -307,6 +307,72 @@ test("pr-unblock.yml: publish-feedback is reported neutral when address-feedback
   assert.equal(calls[0].head_sha, head);
   assert.equal(calls[0].conclusion, "neutral");
   assert.equal(calls[0].output.summary, "Skip reason: not-applicable");
+});
+
+// fix-ci's one retry one model rung up runs inside the same pr-unblock run,
+// so whatever it ends in reaches report-escalation: only a clean apply of
+// the retry's patch leaves the PR unlabeled.
+const ESCALATING = ["resolve-conflicts", "address-feedback", "publish-feedback", "review-dependency", "apply-dependency-verdict", "fix-ci-context", "apply-patch"];
+const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", skip = "" } = {}) => ({
+  ...Object.fromEntries(ESCALATING.map((job) => [`needs.${job}.outputs.escalation-reason`, ""])),
+  "needs.apply-patch.outputs.rung-up": rungUp,
+  "needs.apply-patch-rung-up.result": result,
+  "needs.apply-patch-rung-up.outputs.escalation-reason": escalation,
+  "needs.apply-patch-rung-up.outputs.patch-skip-reason": skip,
+});
+
+test("pr-unblock.yml: a rung-up stop runs fix-ci and apply-patch again at model-rung 1 in the same run", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const up = jobs["fix-ci-rung-up"];
+  const upSubscription = jobs["fix-ci-rung-up-subscription"];
+  const apply = jobs["apply-patch-rung-up"];
+  const gate = { "needs.apply-patch.outputs.rung-up": "true", "needs.fix-ci-context.outputs.proceed": "true" };
+  assert.equal(evaluate(up.if, gate), true);
+  assert.equal(evaluate(up.if, { ...gate, "needs.apply-patch.outputs.rung-up": "false" }), false);
+  assert.equal(evaluate(up.if, { ...gate, "needs.apply-patch.outputs.rung-up": "" }), false);
+  assert.equal(up.with["model-rung"], "1");
+  assert.equal(upSubscription.with["model-rung"], "1");
+  assert.equal(apply.with["patch-model-rung"], "1");
+  // The first pass runs at rung 0: no rung input, so a dispatch cannot skip it.
+  assert.equal(jobs["fix-ci"].with["model-rung"], undefined);
+  assert.equal(jobs["apply-patch"].with["patch-model-rung"], undefined);
+  assert.equal(workflow("pr-unblock.yml").on.workflow_dispatch.inputs["model-rung"], undefined);
+});
+
+for (const [why, given, want] of [
+  ["the retry ends neutral or cancelled before a patch", { result: "skipped" }, "ci-fix-escalated"],
+  ["the retry's apply-patch fails", { result: "failure" }, "ci-fix-escalated"],
+  ["the retry's apply-patch is cancelled", { result: "cancelled" }, "ci-fix-escalated"],
+  ["the retry escalates", { escalation: "ci-fix-escalated" }, "ci-fix-escalated"],
+  ["the retry's patch is invalid", { escalation: "ci-fix-invalid" }, "ci-fix-invalid"],
+  ["the retry's apply-patch skips", { skip: "superseded-sha" }, "ci-fix-escalated"],
+]) {
+  test(`pr-unblock.yml: ${why} hands the PR to a person as ${want}`, () => {
+    const job = workflow("pr-unblock.yml").jobs["report-escalation"];
+    const context = rungUpContext(given);
+    assert.equal(evaluate(job.if, context), true);
+    assert.equal(evaluate(job.with["escalation-reason"], context), want);
+  });
+}
+
+test("pr-unblock.yml: a retry that applies cleanly, or no rung-up stop, escalates nothing", () => {
+  const job = workflow("pr-unblock.yml").jobs["report-escalation"];
+  assert.equal(evaluate(job.if, rungUpContext()), false);
+  assert.equal(evaluate(job.if, rungUpContext({ rungUp: "false", result: "skipped" })), false);
+  assert.equal(evaluate(job.if, rungUpContext({ rungUp: "", result: "skipped" })), false);
+});
+
+// Both fix-ci passes upload in one workflow run, so the rung-1 pass's
+// artifacts carry their own name.
+test("pr-run-activity-read.yml: every artifact a model run uploads is named by its rung", () => {
+  const text = read("../../workflows/pr-run-activity-read.yml");
+  for (const kind of ["skill-reply", "patch", "verdict"]) {
+    const names = [...text.matchAll(new RegExp(`name: (${kind}-\\$\\{\\{ inputs\\.lane \\}\\}.*)$`, "gm"))].map((match) => match[1]);
+    assert.ok(names.length > 0, kind);
+    for (const name of names) {
+      assert.match(name, /inputs\.model-rung == '1'/, name);
+    }
+  }
 });
 
 // A fix-ci-context skip with no fix-ci check on the head would let the
@@ -806,6 +872,8 @@ test("every read-runner caller job passes exactly one Claude secret, named for i
   }
   assert.deepEqual(callers.sort(), [
     "pr-unblock.yml fix-ci",
+    "pr-unblock.yml fix-ci-rung-up",
+    "pr-unblock.yml fix-ci-rung-up-subscription",
     "pr-unblock.yml fix-ci-subscription",
     "pr-unblock.yml fix-docs",
     "pr-unblock.yml fix-docs-subscription",
@@ -2257,7 +2325,7 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
       }
     }
   }
-  assert.equal(callers, 5, "fix-ci, fix-ci-subscription, fix-docs, fix-docs-subscription and resolve-issue");
+  assert.equal(callers, 7, "fix-ci, fix-ci-subscription, their rung-up pair, fix-docs, fix-docs-subscription and resolve-issue");
   // In the read runner, one step of one job.
   for (const [id, job] of Object.entries(read.jobs)) {
     const steps = (job.steps ?? []).filter((step) => /scan-carrier-private-key|SCAN_CARRIER_PRIVATE_KEY/i.test(JSON.stringify(step)));
