@@ -24,8 +24,8 @@ FILE="$DIR/findings.jsonl"
 LOCKDIR="$DIR/.lockdir"
 HELD=0
 TMP="$(mktemp)" || exit 1
-# Remove the lock only while its pid file still holds this process's pid.
-trap 'rm -f "$TMP"; if [[ $HELD -eq 1 && "$(cat "$LOCKDIR/pid" 2>/dev/null)" == "$$" ]]; then rm -rf "$LOCKDIR"; fi' EXIT
+# Nothing takes a lock over, so a lock this process took is still its own.
+trap 'rm -f "$TMP"; if [[ $HELD -eq 1 ]]; then rm -rf "$LOCKDIR"; fi' EXIT
 trap 'exit 1' HUP INT TERM
 
 # Validate every line first, so a malformed row stores nothing from this call.
@@ -55,11 +55,10 @@ refuse_links() {
   done
 }
 refuse_links || exit 2
-if [[ ! -d "$DIR" ]]; then
-  mkdir -p "$DIR" || exit 1
-  # Rows never leave the machine: keep the buffer out of git.
-  printf '*\n' >"$DIR/.gitignore" || exit 1
-fi
+mkdir -p "$DIR" || exit 1
+# Rows never leave the machine: keep the buffer out of git, keyed on the file so an
+# interrupted or concurrent first append still ends with it in place.
+[[ -f "$DIR/.gitignore" ]] || printf '*\n' >"$DIR/.gitignore" || exit 1
 REAL_DIR="$(cd "$DIR" && pwd -P)" && REAL_ROOT="$(cd "$ROOT" && pwd -P)" || exit 1
 if [[ "$REAL_DIR" != "$REAL_ROOT/.work/buffer" ]]; then
   echo "append.sh: $DIR resolves outside the repository" >&2
@@ -76,8 +75,14 @@ write_rows() {
 # There is no automatic takeover: a lock whose holder pid is dead fails at once, and
 # a live holder that keeps it past the wait fails too, each naming the lock dir.
 take_mkdir_lock() {
-  local tries=0 holder
+  local tries=0 holder pending=0
+  # Defer HUP/INT/TERM from a successful mkdir until HELD and the pid are set, so
+  # the EXIT trap always removes a lock this process took.
+  trap 'pending=1' HUP INT TERM
   until mkdir "$LOCKDIR" 2>/dev/null; do
+    if [[ $pending -eq 1 ]]; then
+      exit 1
+    fi
     holder="$(cat "$LOCKDIR/pid" 2>/dev/null)"
     if [[ -n "$holder" ]] && ! kill -0 "$holder" 2>/dev/null; then
       echo "append.sh: buffer lock $LOCKDIR is stale (holder pid $holder is not running); remove it and retry" >&2
@@ -92,6 +97,10 @@ take_mkdir_lock() {
   done
   HELD=1
   printf '%s\n' "$$" >"$LOCKDIR/pid"
+  trap 'exit 1' HUP INT TERM
+  if [[ $pending -eq 1 ]]; then
+    exit 1
+  fi
 }
 
 if command -v flock >/dev/null 2>&1; then

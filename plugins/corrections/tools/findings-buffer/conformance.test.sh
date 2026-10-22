@@ -216,6 +216,13 @@ if [[ "$(cat "$LREPO/.work/buffer/.gitignore" 2>/dev/null)" == "*" \
 else
   fail "first append writes .work/buffer/.gitignore with *, so git sees no rows"
 fi
+rm -f "$LREPO/.work/buffer/.gitignore"
+printf '{"obs_id":"g2","ts":"2026-10-21T00:00:00Z"}\n' | la
+if [[ "$(cat "$LREPO/.work/buffer/.gitignore" 2>/dev/null)" == "*" ]]; then
+  pass "an append restores a missing .gitignore in an existing buffer directory"
+else
+  fail "an append restores a missing .gitignore in an existing buffer directory"
+fi
 if command -v flock >/dev/null 2>&1; then
   printf 'keep\n' >"$LREPO/.work/buffer/.lock"
   printf '{"obs_id":"g2","ts":"2026-10-21T00:00:00Z"}\n' | la
