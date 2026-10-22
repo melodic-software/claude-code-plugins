@@ -3,6 +3,17 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2] - 2026-10-22
+
+### Changed
+
+- `/improvement:find` unattended guidance names the ladder 2.0.0 rung `shared-helper` instead of `canonical-helper`.
+
+- standards-contract copy updated to 1.1.1
+
+  The synced standards-contract copy now names reuse-or-replace as the
+  paved-path writer and plan, implement and review as readers.
+
 ## [0.3.1] - 2026-10-16
 
 ### Changed

@@ -189,7 +189,7 @@ export function plannedRevert(culprit, decision, runUrl) {
 
 // The report: a marker line, then Markdown. `range` rows are
 // { sha, number, enqueuer, status, evidence }.
-export function renderReport({ run, verdict, base, range, attribution, culprit, decision, revert, config, record }) {
+export function renderReport({ run, verdict, base, range, attribution, culprit, decision, revert, config, record, unreported = [] }) {
   const lines = [
     reportMarker({
       runId: run.id,
@@ -207,6 +207,11 @@ export function renderReport({ run, verdict, base, range, attribution, culprit, 
     `- Last green full run: ${base ? `\`${base.sha}\` (${base.url})` : "not found"}`,
   ];
   if (record) lines.push(`- Post-merge record: #${record}`);
+  if (unreported.length > 0) {
+    lines.push(
+      `- Red full runs since the last green one with no report on this log (dropped, unconfirmed or skipped): ${unreported.map((r) => `${r.url} at \`${r.sha.slice(0, 12)}\``).join(", ")}. ${range ? "Their merges are in this report's range, so this decision covers them." : "The range could not be read, so a person checks their merges."}`,
+    );
+  }
   if (range) {
     lines.push("", "| Merge | Pull request | Queued by | Evidence | Status |", "|---|---|---|---|---|");
     for (const row of range) {

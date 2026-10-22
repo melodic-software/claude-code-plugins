@@ -3,6 +3,22 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-10-22
+
+### Added
+
+- `/verification:confirm` gains three rules for the live drive, ported from cursor/plugins#573: ready means usable from an empty data directory (a port answering or a passing health check is not enough), a user journey is never weakened to make it pass (a missing seed-data precondition is reported as a failed journey with that reason), and a proof run on a stand-in lists every setup step the stand-in did that the target will not and marks those unverified. The outcome report gains a `Stand-in` line, and the skill states that its proof is tests and observed behavior, not model checking or proof. Two eval cases cover the journey and stand-in rules.
+
+- The setup apply writer writes the settings file into the repository's convention home, read from the pointer region in AGENTS.md or CLAUDE.md, instead of the fixed docs/conventions. A repository with no region is offered one: with --yes the writer adds the region where the repository already keeps instructions (a new AGENTS.md only when neither file exists) and the overlay ignore line to .gitignore in the same step, and announces both. Without --yes it prints the offer and still creates a missing settings file in docs/conventions; changing an existing file, the region and the ignore line wait for --yes. --home names the home to offer, and --decline records a declined line so the offer is not made again. A home the repository already had lists the settings file in conventions-index.md. --home refuses a value holding a backtick or line break.
+
+### Changed
+
+- Confirm reads the Brief's Problem, Intent and Vision lines and the load-bearing assumptions, reports a falsified assumption on an `Assumptions:` line, and withholds CONFIRMED when an assumption is falsified or the problem is not solved. An assumption an approved re-plan retired (`RETIRED <date>, re-plan approved:`) withholds nothing.
+
+- `/verification:measure` description and `## Next` section state the boundary with `/performance:snapshot`: measure covers a code-shape or metrics claim or a baseline-and-compare of the change, and snapshot takes a host whose wall-clock spread makes a duration comparison meaningless.
+
+- **BREAKING:** the bundled YAML-subset reader (`yaml-subset.awk`) now refuses a flow mapping (`key: { a: 1 }`, `{}`, or a `{...}` item in a list) and a line opening with a `---` or `...` document marker, as the stricter `yaml-subset.mjs` grammar does. The error names the line and says to use block style; each caller adds the file. A `docs/conventions/*.yaml` file or `yaml config` block that used either one no longer parses, and its reader falls back to defaults until it is rewritten in block style, one key per line.
+
 ## [0.10.2] - 2026-10-20
 
 ### Changed

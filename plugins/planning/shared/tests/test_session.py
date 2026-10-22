@@ -3028,6 +3028,11 @@ class TestSessionControls(SessionCase):
         self.assertNotIn(self.ann, self.s.state["prefs"])
         self.assertNotIn("prefs", json.dumps(self.s.snapshot(self.bo)["people"]))
 
+    def test_the_prototypes_filter_is_a_toolbar_filter(self):
+        out = self.act("set_prefs", self.ann, {"set": {"filter": "proto", "expandedRounds": [1, 2]}})
+        self.assertEqual(out["prefs"], {"filter": "proto", "expandedRounds": [1, 2]})
+        self.refused("bad-field", "set_prefs", self.ann, {"set": {"filter": "prototypes"}})
+
     def test_tour_and_toolbar_prefs_take_only_their_named_values(self):
         out = self.act("set_prefs", self.ann, {"set": {"tour": "skipped", "toolbar": "full"}})
         self.assertEqual(out["prefs"], {"tour": "skipped", "toolbar": "full"})
@@ -4602,6 +4607,102 @@ class TestAnnotations(SessionCase):
         self.assertEqual([self.s.is_prototype(q) for q in ("Q1", "Q2", "Q9")], [True, False, False])
 
 
+def proto_q(qid, *variants):
+    """A prototype question; each variant is (id, label, asset) or (id, label, asset, previous)."""
+    vs = [{"id": v[0], "label": v[1], "asset": v[2], **({"previous": v[3]} if len(v) > 3 else {})} for v in variants]
+    return {**text_q(qid, rec=False), "format": {"kind": "prototype", "variants": vs}}
+
+
+class TestPrototypeVersions(SessionCase):
+    """A prototype keeps its identity across rounds: a variant of a later prototype question names the variant it
+    revises as `previous: {qid, variant}`. Each version stays its own (qid, variant), so a note stays on the version it
+    was pinned to. `previous` names a variant of an earlier prototype question, and each variant has one next version."""
+
+    BUTTON = "html > body:nth-of-type(1) > main:nth-of-type(1) > button:nth-of-type(1)"
+    AREA = {"x": 10, "y": 40, "w": 30, "h": 5}
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo = self.people("Ann", "Bo")
+        self.open_round(proto_q("Q1", ("v-1", "One page", HTML), ("v-2", "Two steps", PNG)), text_q("Q2"))
+
+    def next_round(self, *questions):
+        self.send()
+        self.ack(1)
+        return self.open_round(*questions)
+
+    def note(self, pid, qid, variant, text):
+        return self.act("annotate", pid, {"qid": qid, "variant": variant, "text": text, "anchor": {"selector": self.BUTTON, "rect": self.AREA}})
+
+    def test_a_new_version_names_the_one_it_revises_and_the_earlier_one_is_unchanged(self):
+        before = json.loads(json.dumps(self.question("Q1")))
+        self.next_round(proto_q("Q3", ("v-1", "One page, shorter", HTML, {"qid": "Q1", "variant": "v-1"}), ("v-2", "Two steps", PNG)))
+        on_disk = next(q for q in self.disk()["questions"] if q["id"] == "Q3")
+        self.assertEqual(on_disk["format"]["variants"][0]["previous"], {"qid": "Q1", "variant": "v-1"})
+        self.assertNotIn("previous", on_disk["format"]["variants"][1])
+        shown = next(q for q in self.s.snapshot(self.bo)["questions"] if q["id"] == "Q3")
+        self.assertEqual(shown["format"]["variants"][0]["previous"], {"qid": "Q1", "variant": "v-1"})
+        self.assertEqual(self.question("Q1"), before)
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_one_apply_can_add_two_versions_in_a_line(self):
+        self.next_round(
+            proto_q("Q3", ("v-1", "One page, shorter", HTML, {"qid": "Q1", "variant": "v-1"}), ("v-2", "Two steps", PNG)),
+            proto_q("Q4", ("v-1", "One page, shortest", HTML, {"qid": "Q3", "variant": "v-1"}), ("v-2", "Two steps", PNG)))
+        prev = {q["id"]: q["format"]["variants"][0].get("previous") for q in self.disk()["questions"] if q["format"]["kind"] == "prototype"}
+        self.assertEqual(prev, {"Q1": None, "Q3": {"qid": "Q1", "variant": "v-1"}, "Q4": {"qid": "Q3", "variant": "v-1"}})
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_note_stays_on_the_version_it_was_pinned_to(self):
+        self.note(self.ann, "Q1", "v-1", "The total is hard to find.")
+        self.next_round(proto_q("Q3", ("v-1", "One page, shorter", HTML, {"qid": "Q1", "variant": "v-1"}), ("v-2", "Two steps", PNG)))
+        self.note(self.bo, "Q3", "v-1", "Better now.")
+        got = [(a["qid"], a["variant"], a["text"]) for a in self.s.snapshot(self.bo)["annotations"]]
+        self.assertEqual(got, [("Q1", "v-1", "The total is hard to find."), ("Q3", "v-1", "Better now.")])
+        self.assertEqual([(a["qid"], a["variant"]) for a in self.disk()["annotations"]], [("Q1", "v-1"), ("Q3", "v-1")])
+
+    def test_previous_must_name_a_variant_of_an_earlier_prototype_with_no_next_version(self):
+        self.next_round(proto_q("Q3", ("v-1", "One page, shorter", HTML, {"qid": "Q1", "variant": "v-1"}), ("v-2", "Two steps", PNG)))
+        bad = {
+            "a question not in the session": {"qid": "Q9", "variant": "v-1"},
+            "a text question": {"qid": "Q2", "variant": "v-1"},
+            "a variant the question lacks": {"qid": "Q1", "variant": "v-5"},
+            "the question itself": {"qid": "Q4", "variant": "v-2"},
+            "a version that already has a next one": {"qid": "Q1", "variant": "v-1"},
+            "a field it does not take": {"qid": "Q3", "variant": "v-1", "round": 2},
+            "no variant": {"qid": "Q3"},
+        }
+        self.send()
+        self.ack(2)  # round 2 waits for Claude, so an open-round is refused only for its previous
+        before = self.disk()
+        for why, prev in bad.items():
+            with self.subTest(why):
+                self.refused_ops("bad-field", {"op": "open-round", "questions": [proto_q("Q4", ("v-1", "A", HTML), ("v-2", "B", PNG, prev))]})
+        with self.subTest("two variants naming one version"):
+            twice = proto_q("Q4", ("v-1", "A", HTML, {"qid": "Q3", "variant": "v-1"}), ("v-2", "B", PNG, {"qid": "Q3", "variant": "v-1"}))
+            self.refused_ops("bad-field", {"op": "open-round", "questions": [twice]})
+        with self.subTest("two questions in one apply naming one version"):
+            one, two = (proto_q(qid, ("v-1", "A", HTML, {"qid": "Q3", "variant": "v-2"}), ("v-2", "B", PNG)) for qid in ("Q4", "Q5"))
+            self.refused_ops("bad-field", {"op": "open-round", "questions": [one, two]})
+        self.assertEqual(self.disk(), before)
+
+    def test_a_state_file_holding_a_version_loads_and_one_naming_no_earlier_variant_does_not(self):
+        self.next_round(proto_q("Q3", ("v-1", "One page, shorter", HTML, {"qid": "Q1", "variant": "v-1"}), ("v-2", "Two steps", PNG)))
+        good = self.disk()
+        self.assertEqual(session.Session.load(self.path, validate_writes=True).state["questions"][2]["format"]["variants"][0]["previous"], {"qid": "Q1", "variant": "v-1"})
+        cases = {
+            "names a later question": lambda d: d["questions"][0]["format"]["variants"][0].update(previous={"qid": "Q3", "variant": "v-1"}),
+            "names a missing variant": lambda d: d["questions"][2]["format"]["variants"][0].update(previous={"qid": "Q1", "variant": "v-6"}),
+            "names a text question": lambda d: d["questions"][2]["format"]["variants"][0].update(previous={"qid": "Q2", "variant": "v-1"}),
+            "two next versions of one": lambda d: d["questions"][2]["format"]["variants"][1].update(previous={"qid": "Q1", "variant": "v-1"}),
+        }
+        for why, change in cases.items():
+            with self.subTest(why):
+                doc = json.loads(json.dumps(good))
+                change(doc)
+                self.assertIsNotNone(session.document_error(doc))
+
+
 class TestImageReferenceRect(SessionCase):
     """An image reference's rect (Reference, Contracts) is kept through open-round, the file and a reload. A verifier
     reported it gone after an open-round on 6579f21; this pins the round trip through each write path."""
@@ -4857,6 +4958,24 @@ class TestWaitingList(SessionCase):
             self.assertIn(jib, people)
             self.assertIn(kai, people)
             self.assertNotIn(idle, people)
+
+
+class TestStateFromF6f1318Versions(StateFixtureCase):
+    """state-written-f6f1318.json, from before prototype versions (a prototype question whose variants name no
+    `previous`, its round sent), loads unchanged and takes a later round that revises one of its variants."""
+
+    def test_a_state_with_no_version_fields_loads_and_takes_a_new_version(self):
+        s = self.load("state-written-f6f1318.json")
+        old = s.state["questions"][0]
+        self.assertEqual((old["format"]["kind"], [v.get("previous") for v in old["format"]["variants"]]), ("prototype", [None, None]))
+        for v in old["format"]["variants"]:
+            (s.path.parent / "assets" / v["asset"]).write_bytes(b"x")
+        html = old["format"]["variants"][0]["asset"]
+        s.clock.t += 5
+        s.apply({"ops": [{"op": "ack-round", "round": 1}, {"op": "open-round", "questions": [proto_q("Q3", ("v-1", "One page, shorter", html, {"qid": "Q1", "variant": "v-1"}), ("v-2", "B", html))]}]})
+        reloaded = session.Session.load(s.path, validate_writes=True)
+        self.assertEqual(reloaded.state["questions"][-1]["format"]["variants"][0]["previous"], {"qid": "Q1", "variant": "v-1"})
+        self.assertNotIn("previous", reloaded.state["questions"][0]["format"]["variants"][0])
 
 
 class TestStateFrom3153973(StateFixtureCase):
