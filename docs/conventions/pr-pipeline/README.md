@@ -873,13 +873,30 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   pip update whose [registry provenance](#registry-provenance) changed. The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
   when the newest round marker the lanes App posted on it
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
-  names the current head with `verdict=merge`. A marker from any other author is ignored.
+  names the current head with `verdict=merge`. A marker from any other author is ignored. The
+  review's verdict job posts no merge marker on a pull request that changes a workflow or action
+  file (`dependency-workflow-held`), so a person merges those. A `fix` verdict lands only when
+  its commits change nothing but npm or pip manifest and lock files outside `.github/`, in a
+  directory `.github/dependabot.yml` lists for that ecosystem, each modified in place as a regular
+  `100644` file and changed only by a version (the **fix rule**: in `package.json` only an
+  existing dependency entry's plain, bounded semver range (no `*` or lower bound alone); in a
+  lock the same package keys as the Dependabot commit's lock, each entry's `resolved` exactly
+  `https://registry.npmjs.org/<name>/-/<unscoped name>-<version>.tgz` for its own name (or
+  alias `name`, which must be the Dependabot commit's) and version with a `sha512-` integrity, and no install-script change; in
+  requirements only added `name==version` pins of projects the fix also unpins, and
+  `--hash=sha256:` continuations); anything else keeps the fix off the
+  branch and hands the pull request to a person. The verdict job posts no merge marker unless
+  every commit is Dependabot's own, the version-bump commit, or a commit that passes the fix rule
+  (`dependency-fix-refused`) ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
 - **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
   `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
-  only a plugin's `plugin.json` or `CHANGELOG.md`). On a reviewed pull request the lanes App's
-  verified `[dependabot skip]` fix commits count too. The commits listing must hold the pull
+  only a plugin's `plugin.json` or `CHANGELOG.md`, each modified in place as a regular file, the
+  `plugin.json` changing only its `version`; else `dependabot-bump-content:<why>`). On a reviewed pull request the lanes App's
+  verified `[dependabot skip]` fix commits count too, each only after it passes the fix rule. The commits listing must hold the pull
   request's whole commit count, else the reason is `commits-listed:<listed>-of:<total>` (the
-  listing stops at 250). A commit's author is text whoever creates it
+  listing stops at 250). A lanes App commit must pass the fix rule against its one parent, read
+  from the commit's files, tree modes and both sides' text, else the reason is
+  `dependabot-fix-content:<why>`. A commit's author is text whoever creates it
   chooses, so two more checks bind the pull request to Dependabot:
   - **Pushes.** The repository activity API for the head branch, read back to Dependabot's newest
     branch creation or force push, shows every push by `dependabot[bot]`, or by
@@ -893,7 +910,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     A directory holding `*` or `?` is a glob, read the same way in both lanes: `*` and `?` stay
     inside one path segment, `**/` is zero or more whole segments (so `**/*` covers the root and
     every layer below), any other `**` crosses segments, and everything else is literal. A path the version-bump or lanes App fix
-    commit touched counts as checked; a fix commit may not touch `.github/`, and one whose file
+    commit touched counts as checked; a fix commit may touch only npm or pip manifest and lock files
+    outside `.github/` in a listed directory (the pr-unblock lane enforces this before the fix
+    lands), and one whose file
     list cannot be read whole refuses. Anything else (a rebuilt bundle, a manifest outside a listed
     directory) makes the pull request tier `review` with the reason `dependabot-content:<path>`,
     so the AI review judges it; it is never left for a person. A failed push check, by contrast,

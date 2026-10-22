@@ -83,7 +83,8 @@ activities:
     skill: source-control:pull-request
     # The skill's CI mode for dependency bumps: reads the runner's context
     # file, the checkout and upstream release notes, runs no head code, and
-    # pushes a fix only outside .github/ with [dependabot skip].
+    # pushes a fix only to npm or pip manifest and lock files outside
+    # .github/, with [dependabot skip]; the runner lands no other fix.
     args: dependency --ci
     # Before any model turn the runner skips a pull request Dependabot did
     # not open or one sorted `auto`, and hands it to a person once
