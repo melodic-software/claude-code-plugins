@@ -553,6 +553,7 @@ Current emitters, grandfathered on their shipped ladder and `medium` only, since
 content-class rules bind them now (see Content classes): `adhd:clarify`,
 `architecture:improve`, `education:teach` (topic mode),
 `prototype:explore-directions`, `prototype:pressure-test`,
+`machine-health:audit` (its step-6 static report view; the decision page is on the shared builder),
 `planning:interview` (and planning's other rendered views, except the plan and brainstorm views below),
 `overengineering:audit`, `ai-briefing:generate`,
 `visualization:visualize`.
@@ -570,8 +571,8 @@ a layer asks for one; `planning:plan` and
 (`plugins/planning/scripts/build-view.mjs`); `debugging:debug` (post-mortem) and `discovery:blindspot`, built
 the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scripts/build-view.mjs`); and the
 `architecture` `map-*` skills, each offering a view of its JSON record from one checked-in template
-(`plugins/architecture/scripts/build-view.mjs`); and `machine-health:audit`, whose orchestrator builds
-each run's local decision page from `latest.json`
+(`plugins/architecture/scripts/build-view.mjs`); and the `machine-health:audit` decision page, which
+its orchestrator builds for each run from `latest.json`
 (`plugins/machine-health/skills/audit/scripts/build-checkup-view.mjs`), with a copied payload that
 `machine-health:setup picks` resolves against the run's id map.
 
