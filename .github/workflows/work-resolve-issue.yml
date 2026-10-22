@@ -120,11 +120,13 @@ jobs:
       issue-dimensions: ${{ steps.dimensions.outputs.issue-dimensions }}
       skip-reason: ${{ steps.dimensions.outputs.skip-reason }}
     steps:
-      # When the WIP cap check pauses the lane (over the WIP cap on or after
-      # wip.pause-from; the held cap only alerts), resolve-issue is skipped: no
+      # When the WIP cap check pauses the lane (over the WIP cap or the held
+      # cap on or after wip.pause-from), resolve-issue is skipped: no
       # slot, no token. work-unblock's sweep re-fires the issue once under the
       # cap. The check publishes its status as the `wip` output; one that fails
-      # starts the run. A read that fails keeps the last known pause.
+      # starts the run. A read that fails keeps the last known pause. Its
+      # queued cap (`admission-open`) gates only new agent-ready labels in
+      # work-unblock, never this run: a queued issue leaves the count by running.
       - name: Check out the default branch tip
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

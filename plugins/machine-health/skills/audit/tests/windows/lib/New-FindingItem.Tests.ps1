@@ -37,6 +37,7 @@ Describe 'Get-FindingKey' -Tag 'lib' {
         @{ Kind = 'exclusion'; Identity = @('path', 'c:\dev'); Expected = 'exclusion:d77aa3a2d460b8f4' }
         @{ Kind = 'detection'; Identity = @('2147735505', 'file:_c:\users\example\downloads\tool.exe'); Expected = 'detection:085a185a736c71d6' }
         @{ Kind = 'firewall'; Identity = @('{2b6a2c4e-0000-4000-8000-000000000001}'); Expected = 'firewall:20ec02ae1e9457e3' }
+        @{ Kind = 'process'; Identity = @('msedge.exe'); Expected = 'process:c35c0053dbcf9f6b' }
     ) {
         $key = Get-FindingKey -Kind $Kind -Identity $Identity
         $key | Should -BeExactly $Expected

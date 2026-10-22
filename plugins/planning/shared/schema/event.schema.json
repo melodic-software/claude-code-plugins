@@ -231,6 +231,7 @@
       }
     },
     "edited": {"description": "The owner edited this answer; the text is the current one.", "enum": [true]},
+    "answerFiles": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}, "description": "Upload ids the answer carries; each one's upload-received event names where it is stored. An answer may be these alone, with empty text."},
     "digest": {
       "type": "object",
       "required": ["round", "names", "questions", "late", "needsReview", "results", "proposals", "annotations", "people"],
@@ -249,6 +250,7 @@
               "id": {"$ref": "#/$defs/qid"},
               "round": {"type": "integer", "minimum": 1},
               "text": {"type": "string", "description": "The late answer or pick; with `act`, the answer the act is on (empty for a pass)."},
+              "attachments": {"$ref": "#/$defs/answerFiles"},
               "act": {"enum": ["vote", "back", "reaction", "disagree", "pass"], "description": "Absent for a late answer or pick; else what the person did late on someone's answer, or a pass."},
               "reactions": {"type": "array", "items": {"enum": ["thumbs", "down", "heart", "idea"]}},
               "reason": {"type": "string"},
@@ -421,7 +423,7 @@
             "type": "object",
             "required": ["text", "reason"],
             "additionalProperties": false,
-            "properties": {"text": {"type": "string"}, "reason": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
+            "properties": {"text": {"type": "string"}, "attachments": {"$ref": "#/$defs/answerFiles"}, "reason": {"type": "string"}, "by": {"$ref": "#/$defs/by"}}
           }
         },
         "outcome": {
@@ -433,6 +435,7 @@
               "properties": {
                 "kind": {"enum": ["locked"]},
                 "text": {"type": "string"},
+                "attachments": {"$ref": "#/$defs/answerFiles"},
                 "source": {"enum": ["person", "claude-rec", "claude-alt", "option", "edited", "suggestion"]},
                 "by": {"$ref": "#/$defs/by"},
                 "edited": {"$ref": "#/$defs/edited"}
@@ -456,6 +459,7 @@
                       "votes": {"type": "integer", "minimum": 0},
                       "source": {"type": "string"},
                       "other": {"enum": [true]},
+                      "attachments": {"$ref": "#/$defs/answerFiles"},
                       "by": {"$ref": "#/$defs/by"},
                       "edited": {"$ref": "#/$defs/edited"}
                     }
@@ -481,6 +485,7 @@
                         "description": "The label of the option the person picked, on a question with options; text is then their comment.",
                         "type": "string"
                       },
+                      "attachments": {"$ref": "#/$defs/answerFiles"},
                       "reactions": {"$ref": "#/$defs/reactionCounts"},
                       "endorsedBy": {
                         "description": "Who gave the answer a 👍 or ❤️ (weak agreement): their names with digestNames, else how many.",
