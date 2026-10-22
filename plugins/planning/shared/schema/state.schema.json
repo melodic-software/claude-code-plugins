@@ -365,15 +365,16 @@
     "purpose": {"enum": ["decide", "gather", "poll"]},
     "answerScope": {"enum": ["person", "device"]},
     "option": {
-      "description": "`other: true` marks the built-in Something else option (id `other`) the server adds to choice, multi and rank questions; Claude never writes it.",
+      "description": "`other: true` marks the built-in Something else option (id `other`) the server adds to choice, multi and rank questions; `none: true` marks the built-in None of these option (id `none`) it adds to a multi question whose format asks for it. Claude never writes either.",
       "type": "object",
       "required": ["id", "label"],
       "additionalProperties": false,
       "properties": {
-        "id": {"enum": ["opt-1", "opt-2", "opt-3", "opt-4", "opt-5", "opt-6", "opt-7", "opt-8", "other"]},
+        "id": {"enum": ["opt-1", "opt-2", "opt-3", "opt-4", "opt-5", "opt-6", "opt-7", "opt-8", "other", "none"]},
         "label": {"$ref": "#/$defs/text"},
         "image": {"$ref": "#/$defs/assetId"},
-        "other": {"enum": [true]}
+        "other": {"enum": [true]},
+        "none": {"enum": [true]}
       }
     },
     "variant": {
@@ -411,7 +412,8 @@
           "additionalProperties": false,
           "properties": {
             "kind": {"enum": ["multi"]},
-            "options": {"type": "array", "minItems": 2, "maxItems": 9, "items": {"$ref": "#/$defs/option"}}
+            "options": {"type": "array", "minItems": 2, "maxItems": 10, "items": {"$ref": "#/$defs/option"}},
+            "none": {"description": "In an open-round op only: asks the server to add None of these; the stored question holds the option instead.", "enum": [true]}
           }
         },
         {

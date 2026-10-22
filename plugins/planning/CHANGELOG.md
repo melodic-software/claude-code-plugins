@@ -3,6 +3,32 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.90.0] - 2026-10-22
+
+### Changed
+
+- `/planning:interview` now passes the `tunnel_hostname` and `tunnel_token_file` options to a shared session, so a configured named tunnel starts without restating it; an unset hostname runs a quick tunnel.
+
+## [0.89.0] - 2026-10-22
+
+### Added
+
+- On the shared interview page, a pick-any question can offer "None of these": Claude asks for it with `none: true` on a `multi` format, the server adds the option and refuses a Claude-written one, it excludes every other pick (picking it clears them, picking another clears it), and the digest counts it as its own row, apart from a Pass or an empty pick.
+
+### Fixed
+
+- `/planning:interview` page protocol (`surface.md`) now points at `lane-page.md` for the page start command and the "Question surface: the page" rule, which moved out of `SKILL.md`.
+
+## [0.88.2] - 2026-10-22
+
+### Removed
+
+- The page no longer sends `rep:<fp>` repeat counts, and the server drops any an older page sends, so a usage count can no longer be joined to a fault entry's pid.
+
+### Fixed
+
+- A one-on-one shared interview (only one guest ever joined) now records its tap counts: at shutdown the session's `use:`, `rage:` and `dead:` totals are written once with no pid, fingerprint, browser or page view, and its per-page-view pairs are counted as dropped. In a session two or more guests joined, a batch from one guest is still never written, even when only one of them sent summaries.
+
 ## [0.88.1] - 2026-10-22
 
 ### Fixed

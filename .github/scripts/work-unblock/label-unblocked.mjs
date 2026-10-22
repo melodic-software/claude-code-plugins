@@ -38,8 +38,11 @@
 // It re-fires the same way an open agent-ready issue whose newest
 // work-resolve-issue run (the one its newest agent-ready label started, by a
 // listed human or the App) failed with no lanes-App outcome marker since: a
-// crash before the report, or a rerun the token broker refused as
-// workflow-modified. A rerun keeps its first event's workflow files, so only a
+// crash before the report, a rerun the token broker refused as
+// workflow-modified, or a run cancelled after admit passed and before any
+// resolve-issue job started (pick-slot's timeout, a slot queue past GitHub's limit).
+// A run a newer agent-ready run replaced while it waited is never re-fired:
+// admit never ran in it. A rerun keeps its first event's workflow files, so only a
 // fresh label event runs on main's. Each issue is re-fired at most once per
 // version of the two lane workflow files on main, recorded in a marker comment
 // posted before the label moves, so a run that keeps failing stops until a
@@ -449,7 +452,7 @@ export const escalationComment = (stops) =>
 // The re-fire's record, posted before the label moves: one per issue per
 // version of the lane workflow files.
 export const refireComment = (key) =>
-  `<!-- work-unblock refired ${key} -->\nThe work-resolve-issue run that \`${LABEL}\` started failed before it reported, or the token broker refused it because its workflow files differ from main's. work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. It does this once per version of those files, so if this run fails the same way, a person looks at it.`;
+  `<!-- work-unblock refired ${key} -->\nThe work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, or the token broker refused it because its workflow files differ from main's. work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. It does this once per version of those files, so if this run fails the same way, a person looks at it.`;
 
 // The relabel's record, posted before the label moves: one per recurrence
 // comment.
@@ -521,6 +524,36 @@ async function didNoWork(actions, repo, runs) {
     }
   }
   return stalled;
+}
+
+// A job that never ran on a runner: skipped, or no step ran and no runner took
+// it. A job listing with no steps for a job a runner took is not one.
+const neverStarted = (job) =>
+  job?.conclusion === "skipped" || ((job?.steps ?? []).every((step) => step?.conclusion === "skipped") && (!job?.runner_id || !job?.started_at));
+
+// Whether one of `runs` was cancelled after admit passed and before any
+// resolve-issue job (pr-run-activity-read.yml's broker-check and run) started:
+// pick-slot cancelled (its timeout, or a person), or resolve-issue cancelled
+// while it waited for its slot (GitHub cancels a slot queue past its limit).
+// A run a newer agent-ready run replaced in the workflow's concurrency group
+// was cancelled while it waited, before admit ran, so it never counts.
+async function cancelledBeforeWork(actions, repo, runs) {
+  for (const run of runs.filter((item) => item.conclusion === "cancelled" && RUN_ID.test(String(item.id)))) {
+    const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
+    if (!Array.isArray(jobs)) {
+      throw new Error(`run ${run.id}'s job listing has an unexpected shape`);
+    }
+    const named = (name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
+    const resolve = named("resolve-issue");
+    if (
+      named("admit").some((job) => job.conclusion === "success") &&
+      resolve.every(neverStarted) &&
+      [...named("pick-slot"), ...resolve].some((job) => job.conclusion === "cancelled")
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const sameRepo = (side, repo) => String(side?.repo?.full_name ?? "").toLowerCase() === repo.toLowerCase();
@@ -712,7 +745,7 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
     }
     return { reason: null, resets: due, refire: key, recorded };
   }
-  if (!runs.some((run) => FAILED.has(run.conclusion))) {
+  if (!runs.some((run) => FAILED.has(run.conclusion)) && !(await cancelledBeforeWork(actions, repo, runs))) {
     return { reason: "its lane run did not fail" };
   }
   const key = await workflowKey();

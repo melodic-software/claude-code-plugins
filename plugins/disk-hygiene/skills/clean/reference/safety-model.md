@@ -705,14 +705,20 @@ semantics. The README states each surface in one table. The launch shape is asse
 `hooks/run-python-hook.test.sh` and `test_hygiene.py`, the no-interpreter posture by the former, and
 both are verified as step 1 of `/disk-hygiene:setup check`.
 
-**Claim:** the guard's PreToolUse `ask` on `hygiene.py apply --execute` held in the three modes
-probed. Headless default mode denied the call, `--bg` default mode parked at the permission prompt,
-and headless `--permission-mode bypassPermissions` listed the call in `permission_denials`; in each
-the target survived. Not probed: an interactive `bypassPermissions` session (where a person could
-answer the prompt), auto mode against this guard, and the Windows PowerShell tool. **Basis:** the
-probe table in <https://github.com/melodic-software/claude-code-plugins/pull/5590> and
+**Claim:** the guard's PreToolUse `ask` on `hygiene.py apply --execute` held in every mode probed.
+Headless default mode denied the call, `--bg` default mode parked at the permission prompt, headless
+`--permission-mode bypassPermissions` and headless auto mode listed the call in
+`permission_denials` with the target intact, and an interactive `bypassPermissions` session showed
+the person a prompt and ran the delete only after they approved it. So the guard needs no gate that
+does not depend on the permission mode: in each mode its `ask` reaches a person or is denied. Not
+probed: the Windows PowerShell tool. **Basis:** the probe table in
+<https://github.com/melodic-software/claude-code-plugins/pull/5590> and
 <https://github.com/melodic-software/claude-code-plugins/pull/5590#issuecomment-5916629407>
-(Claude Code 2.1.285, Linux/WSL2, Bash tool, fresh scratch target). The official docs do not name a
+(Claude Code 2.1.285, Linux/WSL2, Bash tool, fresh scratch target);
+<https://github.com/melodic-software/claude-code-plugins/issues/5609#issuecomment-6332348323> (auto
+mode, 2.1.307) and
+<https://github.com/melodic-software/claude-code-plugins/issues/5609#issuecomment-6347852406>
+(interactive bypass, 2.1.308). The official docs do not name a
 hook `ask` under `bypassPermissions`: <https://code.claude.com/docs/en/permission-modes> says
 "Allow rules have no effect in `bypassPermissions`", and its "Actions no mode auto-approves" list
 names "Tools matched by an explicit ask rule" and critical-path `rm` and `rmdir`, not a hook `ask`;
@@ -722,9 +728,9 @@ statement about permission modes. Upstream
 resets bypass mode; closed as not planned 2026-04-20) and
 [#79356](https://github.com/anthropics/claude-code/issues/79356) (a hook `ask` and `permissions.ask`
 not enforced on the PowerShell tool in default mode; closed as not planned 2026-09-21) leave the
-behavior undocumented. **As of:** 2026-09-30, both doc pages fetched that day. **Recheck:** a
-Claude Code changelog entry that names PreToolUse `ask` or `bypassPermissions`, a change to the
-"Actions no mode auto-approves" list, or the outcome of the unprobed-mode probes tracked in #5609.
+behavior undocumented. **As of:** 2026-10-22 for the probes; 2026-09-30 for the two doc pages.
+**Recheck:** a Claude Code changelog entry that names PreToolUse `ask` or `bypassPermissions`, a
+change to the "Actions no mode auto-approves" list, or the PowerShell-tool probe tracked in #5609.
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)

@@ -437,6 +437,66 @@ test("a review of a PR the lanes App did not open costs one API request", async 
   assert.match(lines.at(-1), /not opened by the lanes App/);
 });
 
+// GitHub Support's probe on 2026-10-22: GET /commits/{sha}/pulls answered 200
+// with an empty body while GraphQL's associatedPullRequests read the PR.
+test("pullsForCommit reads the commit's PRs from GraphQL when the REST answer is empty", async () => {
+  const sent = [];
+  const fetch = async (url, init) => {
+    sent.push(`${init.method} ${url}`);
+    if (url.endsWith("/graphql")) {
+      const { variables } = JSON.parse(init.body);
+      assert.deepEqual(variables, { owner: "melodic-software", name: "claude-code-plugins", oid: HEAD });
+      const node = {
+        number: 42,
+        state: "OPEN",
+        isDraft: false,
+        headRefName: "feat/x",
+        headRefOid: HEAD,
+        baseRefName: "main",
+        baseRefOid: OLD_HEAD,
+        headRepository: { nameWithOwner: REPOSITORY },
+        author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: APP_ID },
+        labels: { nodes: [{ name: "needs-human" }], pageInfo: { hasNextPage: false } },
+      };
+      return Response.json({ data: { repository: { object: { associatedPullRequests: { nodes: [node], pageInfo: { hasNextPage: false } } } } } });
+    }
+    return new Response("", { status: 200 });
+  };
+  const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  assert.deepEqual(await api.pullsForCommit(HEAD), [
+    {
+      number: 42,
+      state: "open",
+      draft: false,
+      user: { id: APP_ID, login: "melodic-automation-lanes[bot]", type: "Bot" },
+      labels: [{ name: "needs-human" }],
+      head: { sha: HEAD, ref: "feat/x", repo: { full_name: REPOSITORY } },
+      base: { ref: "main", sha: OLD_HEAD },
+    },
+  ]);
+  assert.deepEqual(sent, [`GET https://api.example/repos/${REPOSITORY}/commits/${HEAD}/pulls`, "POST https://api.example/graphql"]);
+});
+
+// The GraphQL fallback is a read: it is aborted at the attempt timeout (5 ms
+// here) instead of hanging the step. Without it the test times out.
+test("pullsForCommit aborts a hung GraphQL fallback at the attempt timeout", { timeout: 5000 }, async () => {
+  const fetch = async (url, init) => {
+    if (!url.endsWith("/graphql")) {
+      return new Response("{}", { status: 500 });
+    }
+    return new Promise((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal.reason)));
+  };
+  const api = createGitHubApi({
+    token: "t",
+    repository: REPOSITORY,
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch,
+    attemptTimeoutMs: 5,
+  });
+  await assert.rejects(api.pullsForCommit(HEAD), (error) => error.name === "TimeoutError");
+});
+
 test("a second dispatcher for one head skips while the first one's run is queued or going", async () => {
   for (const status of ["queued", "in_progress", "waiting", "pending"]) {
     const api = fakeApi({ workflowRuns: [{ id: 1, status, display_title: TITLE_42 }] });

@@ -31,7 +31,7 @@ run as SKILL.md states. Only the input surface differs, and the owner still conf
 understanding and the Brief in the terminal.
 
 `<plugin-root>` is the placeholder SKILL.md "Spoke paths" defines, and each `${user_config.KEY}`
-token below stands for the value SKILL.md's lane table shows. Every command is:
+token below stands for the value SKILL.md's lane table or "Variables" shows. Every command is:
 
 ```bash
 bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' <command>
@@ -63,11 +63,12 @@ designer session and a product owner session), each with its own data dir and li
    bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running --open --defaults-file '<data_dir>/defaults.json' --tunnel-hostname '${user_config.tunnel_hostname}' --tunnel-token-file '${user_config.tunnel_token_file}'
    ```
 
-   Drop `--open` when `shared_session_open_browser` resolves false, and drop both `--tunnel-*`
-   flags only when the `tunnel_hostname` token is unexpanded: an empty value is the quick tunnel,
-   and a left-out flag keeps whatever tunnel the session already runs. SKILL.md's lane table does
-   not show these two keys, so their tokens arrive unexpanded unless the owner gives the hostname
-   and token file path in the session; then pass those values. The output carries `guestUrl`
+   Drop `--open` when `shared_session_open_browser` resolves false. Pass the `tunnel_hostname`
+   and `tunnel_token_file` values SKILL.md "Variables" shows, or the hostname and token file path
+   the owner gives in the session. An empty `tunnel_hostname` (the key unset) means no named
+   tunnel: pass it as `''`, which runs a quick tunnel. Drop both `--tunnel-*` flags only when the
+   `tunnel_hostname` token is still unexpanded; a left-out flag keeps whatever tunnel the session
+   already runs. The output carries `guestUrl`
    (give it to the owner to share), `localUrl`, `ownerLinkFile`, `resumed`, `shareChanged`,
    `tunnel` (`quick`, `named` or `down`) and `watch`, the command that arms the watcher. A named
    start also prints, on stderr, that only this machine may run the tunnel: pass that line on once. `--open` opens the

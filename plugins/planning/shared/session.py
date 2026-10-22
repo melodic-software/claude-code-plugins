@@ -181,10 +181,14 @@ COLORS = tuple(f"c{i}" for i in range(1, 11))
 ROLES = ("owner", "leader", "guest")
 PURPOSES = ("decide", "gather", "poll")
 FORMATS = ("text", "choice", "multi", "scale", "rank", "confirm", "prototype")
-# Options Claude writes per format (amendment "Reactions and formats"); the server adds Something else.
+# Options Claude writes per format (amendment "Reactions and formats"); the server adds Something else, and
+# None of these on a multi question whose format sets `none: true`.
 OPTION_COUNTS = {"choice": (2, 4), "multi": (2, 8), "rank": (3, 6)}
 OTHER_OPTION = {"id": "other", "label": "Something else…", "other": True}
 OTHER = OTHER_OPTION["id"]
+NONE_OPTION = {"id": "none", "label": "None of these", "none": True}
+NONE = NONE_OPTION["id"]
+NONE_LABELS = ("none of these", "none of the above", "none")  # judgment: labels that mean the server's option
 MENTION = re.compile(r"<@([A-Za-z0-9_-]{1,32})>")  # how state.json stores a mention: the person's pid
 VIEWS = ("focus", "compare", "tree", "host", "prototype")
 DEVICES = ("phone", "tablet", "computer")
@@ -465,6 +469,9 @@ def cross_field_errors(doc):
         others = [o for o in q["format"].get("options", []) if o.get("other") or o["id"] == OTHER]
         if len(others) > 1 or any(not (o.get("other") and o["id"] == OTHER) for o in others):
             errors.append(f"{q['id']} holds more than one Something else option, or one without both its id and its flag.")
+        nones = [o for o in q["format"].get("options", []) if o.get("none") or o["id"] == NONE]
+        if nones and (len(nones) > 1 or q["format"]["kind"] != "multi" or any(not (o.get("none") and o["id"] == NONE) for o in nones)):
+            errors.append(f"{q['id']} holds a None of these option off a multi question, more than one, or one without both its id and its flag.")
         lock = doc["locks"].get(q["id"])
         if lock and lock["source"]["kind"] == "poll" and q["purpose"] != "poll":
             errors.append(f"{q['id']} holds a closed-poll lock but is not a poll.")
@@ -674,6 +681,11 @@ def ref_author(ref):
 
 def _bad(field, message):
     return DomainError(400, "bad-field", message, field=field)
+
+
+def _none_label(label):
+    """Whether an option label means "none applies": casefolded, ellipsis, full stops and spaces trimmed."""
+    return isinstance(label, str) and " ".join(label.casefold().strip(" .…").split()) in NONE_LABELS
 
 
 def _body(body):
@@ -2453,6 +2465,8 @@ class Session:
             ids = [o["id"] for o in fmt["options"]]
             if any(o["id"] == OTHER or "other" in o for o in fmt["options"]):
                 raise _bad(f"{field}.options", "The server adds the Something else option itself; leave it out.")
+            if kind == "multi" and any(o["id"] == NONE or "none" in o or _none_label(o.get("label")) for o in fmt["options"]):
+                raise _bad(f"{field}.options", "The server adds None of these itself: set format.none to true instead.")
             least, most = OPTION_COUNTS[kind]
             if not least <= len(ids) <= most:
                 raise _bad(f"{field}.options", f"A {kind} question takes {least} to {most} options.")
@@ -2464,7 +2478,7 @@ class Session:
                 if o.get("image") is not None:
                     opt["image"] = self._asset(o["image"], f"{field}.options[{i}].image", image=True)
                 options.append(opt)
-            return {"kind": kind, "options": [*options, dict(OTHER_OPTION)]}
+            return {"kind": kind, "options": [*options, dict(OTHER_OPTION), *([dict(NONE_OPTION)] if fmt.get("none") else [])]}
         if kind == "scale":
             labels = {k: _text(fmt["labels"], k, limit=80) for k in ("min", "max")}
             mid = _text(fmt["labels"], "mid", limit=80, optional=True)
@@ -2484,8 +2498,8 @@ class Session:
         return {"kind": "prototype", "variants": variants}
 
     def _options(self, q):
-        """Option id -> label for the option cards a non-text question offers; Something else has no
-        card, since each person who picks it writes their own (`_has_other`)."""
+        """Option id -> label for the option cards a non-text question offers, None of these included; Something
+        else has no card, since each person who picks it writes their own (`_has_other`)."""
         fmt = q["format"]
         if fmt["kind"] in OPTION_COUNTS:
             return {o["id"]: o["label"] for o in fmt["options"] if not o.get("other")}
@@ -2932,6 +2946,14 @@ class Session:
             comment, other = self._tokenize(pid, comment, "comment"), self._tokenize(pid, other, "other")
             q = self._question(body.get("qid"))
             key, fields = self._parse_pick(q, body)
+            late = self._answerable(q)
+            device = self._device_for(q, body)
+            qid = q["id"]
+            cards = self._cards(qid)
+            mine = next((c for c in cards if c["kind"] == "person" and c["pid"] == pid and c.get("device") == device), None)
+            picks = fields.get("picks", [])
+            if NONE in picks and len(picks) > 1:  # None of these excludes every other pick: the one just made wins
+                fields["picks"] = [i for i in picks if i != NONE] if NONE in (mine or {}).get("picks", ()) else [NONE]
             chose_other = self._is_other({"kind": "person", **fields})
             if chose_other and not other:
                 raise DomainError(400, "empty", "Something else needs your own option, in other.", field="other")
@@ -2939,11 +2961,6 @@ class Session:
                 raise _bad("other", "other goes only with picking Something else.")
             if other and comment:
                 raise _bad("comment", "Your own option is your card's text; send it in other, without a comment.")
-            late = self._answerable(q)
-            device = self._device_for(q, body)
-            qid = q["id"]
-            cards = self._cards(qid)
-            mine = next((c for c in cards if c["kind"] == "person" and c["pid"] == pid and c.get("device") == device), None)
             was_other = mine is not None and self._is_other(mine)
             if key == "pick":
                 votes = st["votes"].setdefault(qid, {})
@@ -2987,7 +3004,8 @@ class Session:
         """(the field the format takes, the card fields it sets: {} for no pick). choice, confirm and
         prototype take `option` ("" for none); multi takes `options`, a subset of at least one; scale
         takes `value`, a whole number in its range; rank takes `order`, every option once (Something
-        else may join it). Something else is `other` where the question has one."""
+        else may join it). Something else is `other` where the question has one; None of these is `none`,
+        which `pick` keeps apart from every other pick."""
         kind = q["format"]["kind"]
         known = set(self._options(q)) | ({OTHER} if self._has_other(q) else set())
         if kind == "scale":
@@ -5618,8 +5636,8 @@ class Session:
         return [c for c in self.state["cards"].get(q["id"], []) if self._is_other(c) and self._shown(c)]
 
     def _format_outcome(self, q, by, *, closed):
-        """The digest outcome of a multi, scale or rank question: counts per option (multi), counts
-        per value with the mean and median (scale), Borda totals and the full orders given (rank);
+        """The digest outcome of a multi, scale or rank question: counts per option (multi, None of these
+        a row of its own, marked `none`), counts per value with the mean and median (scale), Borda totals and the full orders given (rank);
         each with people's own options, their backers (author included), and the comments."""
         qid, fmt = q["id"], q["format"]
         cards = [c for c in self.state["cards"].get(qid, []) if c["kind"] == "person" and self._shown(c)]
@@ -5628,7 +5646,7 @@ class Session:
         comments = [{"text": c["text"], **by(c["pid"]), **_edited(c)} for c in cards if c["text"] and not self._is_other(c)]
         if fmt["kind"] == "multi":
             picked = [c["picks"] for c in cards if c.get("picks")]
-            counts = [{"option": label, "picks": sum(1 for p in picked if o in p)} for o, label in labels.items()]
+            counts = [{"option": label, "picks": sum(1 for p in picked if o in p), **({"none": True} if o == NONE else {})} for o, label in labels.items()]
             out = {"kind": "multi", "closed": closed, "people": len(picked), "counts": counts, "others": others, "comments": comments}
         elif fmt["kind"] == "scale":
             values = sorted(c["value"] for c in cards if "value" in c)
