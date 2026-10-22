@@ -121,7 +121,7 @@ async function main() {
       await gus.evaluate(() => JSON.stringify(window.Core.state.chat.find(m => m.id === "M5")?.reactions)));
 
     // ---------- 60 arrivals while frozen all count as unread ----------
-    await gus.click(".vf-fab"); // close the chat
+    await gus.click(".vf-chat-head .vf-icon-btn"); // close the chat
     const posters = [];
     for (let i = 1; i <= 6; i++) {
       const r = await fetch(`${A.localUrl}api/join`, { method: "POST", headers: { "Content-Type": "application/json", "CF-Connecting-IP": `198.51.100.${i}` }, body: JSON.stringify({ name: `Poster ${i}`, device: "computer", key: A.guestKey }) });

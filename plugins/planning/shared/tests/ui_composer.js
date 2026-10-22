@@ -121,7 +121,7 @@ async function main() {
 
     // ---------- drafts: chat and Discussion survive a reload; Ask Claude text stays with its question ----------
     await ann.fill(".vf-minput", "An unsent chat line");
-    await ann.click(".vf-fab");
+    await ann.click(".vf-chat-head .vf-icon-btn");
     await ann.fill(".vf-disc-ta", "An unsent comment on Q1");
     await ann.click(".vf-askbtn");
     await until(ann, () => !document.querySelector(".vf-askform").hidden);
