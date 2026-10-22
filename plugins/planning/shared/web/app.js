@@ -1,11 +1,13 @@
 // The shared interview page: top bar, question rail and a Focus | Compare | Tree | Host center, with votes,
 // reactions, locks and suggestions, Claude's cards, requests, roles, owner settings, per-viewer themes and a
-// floating side chat. It reads the state core.js builds (the prototype's names) and acts only through Core.
+// docked side chat. It reads the state core.js builds (the prototype's names) and acts only through Core.
 (() => {
     const Core = window.Core, root = document.getElementById("app");
     const E = Core.el;
     const phone = matchMedia("(max-width: 720px)");
     const coarse = matchMedia("(pointer: coarse)");
+    /** Wide enough that the open chat panel pushes the page over (app.css); narrower, it covers the page and is modal. */
+    const docked = matchMedia("(min-width: 1100px)");
     /** "Tap" on a touch screen, "Click" with a mouse. */
     const tapW = () => (coarse.matches ? "Tap" : "Click");
     const lightOS = matchMedia("(prefers-color-scheme: light)");
@@ -2654,12 +2656,15 @@
       ui.pop = null;
       syncModal();
     }
-    /** On a phone a chat or panel sheet covers the page: everything behind it goes inert, and Tab stays inside. */
-    const activeSheet = () => (phone.matches ? (ui.chatOpen ? chat : ui.pop?.dataset.phone === "sheet" ? ui.pop : null) : null);
+    /** The chat panel covers the page below 1100px wide, as does a phone's panel sheet: everything behind it goes inert,
+     *  and Tab stays inside. Docked beside the page, the chat is a region Tab moves in and out of. */
+    const activeSheet = () => (ui.chatOpen && !docked.matches ? chat : phone.matches && ui.pop?.dataset.phone === "sheet" ? ui.pop : null);
     function syncModal() {
       const sheet = activeSheet(), page = ui.pop === bellPop; // the Inbox page stands in for the session below the top bar
       for (const el of [top, body, tabs, fab]) el.inert = !!sheet || (page && el !== top);
       chat.inert = page;
+      if (sheet === chat) { chat.setAttribute("role", "dialog"); chat.setAttribute("aria-modal", "true"); }
+      else { chat.removeAttribute("role"); chat.removeAttribute("aria-modal"); }
       if (toast.classList.contains("vf-on")) placeToast(); // a chat or panel opened or closed under it
     }
     function setChat(open) {
@@ -5415,7 +5420,7 @@
       if (dlgOpen() || !tour.hidden) return; // a confirm or attach dialog, or the tour, handles its own keys
       // Tab stays inside an open phone sheet, and inside an open panel or the chat while focus is in it.
       const inside = el => !!el && !el.hidden && el.contains(document.activeElement) && el;
-      const sheet = e.key === "Tab" && (activeSheet() || inside(ui.pop) || (ui.chatOpen && inside(chat)));
+      const sheet = e.key === "Tab" && (activeSheet() || inside(ui.pop));
       if (sheet) { trapTab(e, sheet); return; }
       if (e.key === "Escape") {
         if (toast._tag === "alert" && toast.classList.contains("vf-on")) { ui.alertOpen = false; hideToast(); return; } // an urgent pop-up goes first
@@ -5423,7 +5428,8 @@
         if (!reader.hidden) { closeReader(); return; }
         if (ui.pop) { closeSurface(); return; }
         if (ui.pcard) { hideCard(); return; }
-        if (ui.chatOpen) { setChat(false); fab.focus(); }
+        // docked beside the page, the chat stays open while Escape is pressed in the page
+        if (ui.chatOpen && (!docked.matches || chat.contains(document.activeElement))) { setChat(false); fab.focus(); }
         return;
       }
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
@@ -5467,6 +5473,7 @@
     });
     const mqOff = () => { closePop(); closeSheet(); render(); syncModal(); };
     phone.addEventListener("change", mqOff); offs.push(() => phone.removeEventListener("change", mqOff));
+    docked.addEventListener("change", syncModal); offs.push(() => docked.removeEventListener("change", syncModal));
 
     // ---------- requests ----------
     async function saveOpenEdit(li) {
