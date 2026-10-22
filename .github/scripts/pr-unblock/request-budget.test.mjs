@@ -56,17 +56,129 @@ test("a POST is never conditional, and GraphQL calls are counted apart", async (
   );
 });
 
+// A rate-limited call waits, then is sent once more: retry-after seconds when
+// present, else until x-ratelimit-reset when remaining is 0, else one minute
+// (docs.github.com rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately).
+const RESET = 1792378942;
+const limited = (overrides = {}) => ({
+  status: 403,
+  body: '{"message":"API rate limit exceeded for installation."}',
+  headers: { ...rate(0), ...overrides },
+});
+function clock(startSeconds) {
+  let at = startSeconds * 1000;
+  const slept = [];
+  return {
+    now: () => at,
+    sleep: async (ms) => {
+      slept.push(ms);
+      at += ms;
+    },
+    slept,
+  };
+}
+
 test("a 403 or 429 logs GitHub's message and retry-after", async () => {
   const gh = github([
     { status: 403, body: '{"message":"You have exceeded a secondary rate limit."}', headers: { "retry-after": "60", ...rate(3000) } },
-    { status: 429, body: "not json", headers: rate(0) },
+    { status: 200, body: "{}", headers: rate(2999) },
+    { status: 429, body: "not json", headers: { ...rate(0), "x-ratelimit-reset": String(RESET + 10) } },
+    { status: 200, body: "{}", headers: rate(4999) },
   ]);
   const lines = [];
-  const budget = budgetedFetch({ fetch: gh.fetch, log: (line) => lines.push(line) });
-  assert.equal((await budget.fetch("https://api.example/repos/o/r/x", { headers: {} })).status, 403);
-  await budget.fetch("https://api.example/repos/o/r/y", { headers: {} });
-  assert.deepEqual(lines, [
-    '::warning::GET returned 403: message="You have exceeded a secondary rate limit." retry-after=60 remaining=3000',
-    '::warning::GET returned 429: message="" retry-after=none remaining=0',
+  const time = clock(RESET);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: (line) => lines.push(line), ...time });
+  assert.equal((await budget.fetch("https://api.example/repos/o/r/x", { headers: {} })).status, 200);
+  assert.equal((await budget.fetch("https://api.example/repos/o/r/y", { headers: {} })).status, 200);
+  assert.equal(lines.filter((line) => line.startsWith("::warning::GET returned")).length, 2);
+  assert.equal(lines[0], '::warning::GET returned 403: message="You have exceeded a secondary rate limit." retry-after=60 remaining=3000');
+  assert.ok(lines.includes('::warning::GET returned 429: message="" retry-after=none remaining=0'));
+});
+
+test("a 403 with remaining 0 waits past x-ratelimit-reset and is sent once more", async () => {
+  const gh = github([limited({ "x-ratelimit-reset": String(RESET) }), { status: 200, body: '{"ok":true}', headers: rate(4999) }]);
+  const time = clock(RESET - 300);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, ...time });
+  const response = await budget.fetch("https://api.example/repos/o/r/actions/runs", { headers: {} });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true });
+  // 300 s to the reset, plus one second so the retry lands after it.
+  assert.deepEqual(time.slept, [301_000]);
+  assert.equal(gh.sent.length, 2);
+  assert.equal(gh.sent[1].url, gh.sent[0].url);
+  assert.deepEqual(budget.counts, { rest: 2, notModified: 0, graphql: 0 });
+});
+
+test("a 429 with retry-after waits retry-after seconds", async () => {
+  const gh = github([
+    { status: 429, body: "{}", headers: { ...rate(10), "retry-after": "30" } },
+    { status: 200, body: "{}", headers: rate(9) },
   ]);
+  const time = clock(RESET - 3000);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, ...time });
+  assert.equal((await budget.fetch("https://api.example/repos/o/r/x", { method: "POST", headers: {}, body: "{}" })).status, 200);
+  assert.deepEqual(time.slept, [30_000]);
+  assert.equal(gh.sent[1].init.body, "{}");
+});
+
+test("a secondary limit with no retry-after waits one minute", async () => {
+  const gh = github([
+    { status: 403, body: '{"message":"You have exceeded a secondary rate limit."}', headers: rate(3000) },
+    { status: 200, body: "{}", headers: rate(2999) },
+  ]);
+  const time = clock(RESET - 3000);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, ...time });
+  assert.equal((await budget.fetch("https://api.example/repos/o/r/x", { headers: {} })).status, 200);
+  assert.deepEqual(time.slept, [60_000]);
+});
+
+test("a reset past the wait cap fails at once and names the reset", async () => {
+  const gh = github([limited({ "x-ratelimit-reset": String(RESET) })]);
+  const lines = [];
+  const time = clock(RESET - 20 * 60);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: (line) => lines.push(line), ...time });
+  assert.equal((await budget.fetch("https://api.example/repos/o/r/x", { headers: {} })).status, 403);
+  assert.deepEqual(time.slept, []);
+  assert.equal(gh.sent.length, 1);
+  assert.ok(lines.some((line) => line.startsWith("::error::") && line.includes("2026-10-19T03:02:22Z")));
+});
+
+test("waits are capped across the whole run, not per call", async () => {
+  const gh = github([
+    limited({ "retry-after": "200" }),
+    { status: 200, body: "{}", headers: rate(4999) },
+    limited({ "retry-after": "200" }),
+  ]);
+  const time = clock(RESET - 3000);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, ...time, maxWaitMs: 360_000 });
+  assert.equal((await budget.fetch("https://api.example/repos/o/r/x", { headers: {} })).status, 200);
+  assert.equal((await budget.fetch("https://api.example/repos/o/r/y", { headers: {} })).status, 403);
+  assert.deepEqual(time.slept, [200_000]);
+  assert.equal(gh.sent.length, 3);
+});
+
+test("a second rate limit after the wait is returned, with no third request", async () => {
+  const gh = github([limited({ "x-ratelimit-reset": String(RESET) }), limited({ "x-ratelimit-reset": String(RESET + 3600) })]);
+  const time = clock(RESET - 60);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, ...time });
+  assert.equal((await budget.fetch("https://api.example/repos/o/r/x", { headers: {} })).status, 403);
+  assert.deepEqual(time.slept, [61_000]);
+  assert.equal(gh.sent.length, 2);
+});
+
+test("a 200 that spends the last request is not waited on", async () => {
+  const gh = github([{ status: 200, body: "{}", headers: rate(0) }]);
+  const time = clock(RESET - 3000);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, ...time });
+  assert.equal((await budget.fetch("https://api.example/repos/o/r/x", { headers: {} })).status, 200);
+  assert.deepEqual(time.slept, []);
+});
+
+test("a permission 403 is not waited on", async () => {
+  const gh = github([{ status: 403, body: '{"message":"Resource not accessible by integration"}', headers: rate(4000) }]);
+  const time = clock(RESET - 3000);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, ...time });
+  assert.equal((await budget.fetch("https://api.example/repos/o/r/x", { method: "POST", headers: {} })).status, 403);
+  assert.deepEqual(time.slept, []);
+  assert.equal(gh.sent.length, 1);
 });
