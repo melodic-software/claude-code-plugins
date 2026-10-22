@@ -166,6 +166,12 @@ is "$(key bash_needs)" '{"0":"visualcheck"}'
 check "a check-visual-parity suite gets the visual-compare packages" $?
 rm -rf "$repo/plugins/testing"
 
+mk plugins/planning/shared/tests/ui.test.sh
+plan -- plugins/planning/shared/tests/ui.test.sh
+is "$(key bash_needs)" '{"0":"browser"}'
+check "the shared-page UI suite gets Chromium on whatever leg it lands" $?
+rm -rf "$repo/plugins/planning"
+
 plan -- plugins/p/p.py
 is "$(suites python)" "plugins/p/test_p.py" && is "$(key bash)" false && is "$(key python_legs)" "[0]"
 check "a Python change plans its test module on test-python, and test-bash has no work" $?

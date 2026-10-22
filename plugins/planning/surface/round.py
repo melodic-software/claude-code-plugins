@@ -121,9 +121,11 @@ ACTIVITY_CAP = 200
 # Free-text caps: one-line fields (a title, a recommendation, an alternative and its tradeoff, a
 # commitment, a hold, a status, an activity entry, a reason) and markdown fields (facts, a
 # basis, a revision reason, a group summary, a thread reply, a note, a terminal answer, a
-# restatement section). The short label's cap is the shared question shape's, which the schema
-# check in `prepare` enforces.
+# restatement section). A new or changed short label takes the shared question shape's cap.
 TEXT_CAP = 20000
+SHORT_SHAPE = {
+    "$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"
+}
 REQUIRED_FIELDS = (
     ("id", "the Q<N> id on the session's one counter"),
     ("short", "the one-line label the page lists"),
@@ -240,6 +242,13 @@ def capped(field, text, cap):
     if isinstance(text, str) and len(text) > cap:
         sys.exit(f"refused: {field} is {len(text)} characters; the cap is {cap}")
     return text
+
+
+def checked_short(qid, short):
+    """Refuse a `short` the shared question shape does not allow; stored ones are not rechecked."""
+    err = schema.first_error(short, SHORT_SHAPE, f"{qid} short")
+    if err:
+        sys.exit(f"refused: {err}")
 
 
 def find(doc, qid):
@@ -422,6 +431,7 @@ def add_question(doc, q, repoint=False, latest=None):
             alts,
             "a binary question's one alternative is the other answer",
         )
+    checked_short(q["id"], q["short"])
     for field, cap in QUESTION_CAPS:
         capped(f"{q['id']} {field}", q.get(field), cap)
     for i, alt in enumerate(alts, 1):
@@ -1026,6 +1036,8 @@ def op_revise(d, doc, a):
         ("text", a.text, TEXT_CAP),
     ):
         capped(f"revise {field}", val, cap)
+    if a.short is not None and a.short != q.get("short"):
+        checked_short(a.id, a.short)
     commits = a.commit
     if commits is not None:
         for i, c in enumerate(commits, 1):
