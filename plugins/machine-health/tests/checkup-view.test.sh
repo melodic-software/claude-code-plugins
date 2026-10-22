@@ -77,8 +77,13 @@ const hostile = [
 ];
 const stamp = "2026-10-21T120000000Z";
 const key = (n) => `ext:${String(n).padStart(16, "0")}`;
+// A Defender exclusion value is withheld from the page, its data and the id map (check catalog).
+const canary = "exclusion-canary-7f3a";
+const canaryPath = "D:\\Hidden\\" + canary;
+const exclusionKey = "exclusion:0011223344556677";
 // Expected ids, worked out by hand from this fixture: checks sort worst first (CRIT, WARN,
-// UNKNOWN, INFO, OK), so disk is area 1, ext area 2, svc area 3, ok area 4.
+// UNKNOWN, INFO, OK), then in input order, so disk is area 1, ext area 2, svc area 3,
+// defender-exclusions area 4, ok area 5.
 const latest = {
   run_id: "2026-10-21T07:00:00.0000000-05:00",
   hostname: hostile[0],
@@ -96,6 +101,12 @@ const latest = {
     },
     { id: "services", severity: "INFO", summary: "fine", detail: { items: [{ key: key(6), severity: "INFO", muted: false, title: "svc" }] } },
     { id: "disk-space", severity: "CRIT", summary: hostile[3], detail: { free_pct: 3 } },
+    {
+      id: "defender-exclusions", severity: "INFO", summary: "1 exclusion",
+      detail: { items: [
+        { key: exclusionKey, severity: "INFO", muted: false, title: `path exclusion: ${canaryPath}`, exclusion_type: "path", value: canaryPath, expected: false },
+      ] },
+    },
     { id: "<bad id>", severity: "OK", summary: "ok", detail: { items: [{ key: key(7), severity: "OK", muted: false, title: "t" }] } },
   ],
 };
@@ -103,13 +114,20 @@ const expectedRows = {
   "areas-2-items-1-mute-1": { action: "mute", check_id: "browser-extensions", finding_key: key(1), label: hostile[2] },
   "areas-2-items-5-mute-1": { action: "mute", check_id: "browser-extensions", finding_key: key(5), label: hostile[6] },
   "areas-3-items-1-mute-1": { action: "mute", check_id: "services", finding_key: key(6), label: "svc" },
+  "areas-4-items-1-mute-1": { action: "mute", check_id: "defender-exclusions", finding_key: exclusionKey, label: "(exclusion value withheld) path" },
   "remediations-1": { action: "approve", remediation_id: "restart-stopped-service" },
   "remediations-2": { action: "approve", remediation_id: "clear-temp-files" },
 };
 
 // Pure data step.
-const { data, rows } = toCheckupData(latest, ["restart-stopped-service", "clear-temp-files"]);
-check("areas sort worst first", data.areas.map((a) => a.title).join(",") === "disk-space,browser-extensions,services,<bad id>", data.areas.map((a) => a.title));
+const { data, rows } = toCheckupData(latest, ["restart-stopped-service", "clear-temp-files"], "health-x.md");
+check("areas sort worst first", data.areas.map((a) => a.title).join(",") === "disk-space,browser-extensions,services,defender-exclusions,<bad id>", data.areas.map((a) => a.title));
+check("the run row names the report it was given", data.run[0].report === "health-x.md", data.run[0].report);
+check("an item whose key is not a FindingKey says it cannot be muted", data.areas[1].items[3].detail === "cannot be muted", data.areas[1].items[3].detail);
+check("an exclusion item shows the withheld placeholder and no value",
+  data.areas[3].items[0].title === "(exclusion value withheld) path" && !JSON.stringify(data.areas[3]).includes(canary), JSON.stringify(data.areas[3]));
+check("a remediation shows its id and nothing else",
+  JSON.stringify(data.remediations) === JSON.stringify([{ title: "restart-stopped-service" }, { title: "clear-temp-files" }]), JSON.stringify(data.remediations));
 check("the id map offers a mute only for keyed, unmuted items of an id-shaped check", JSON.stringify(rows) === JSON.stringify(expectedRows), JSON.stringify(rows));
 check("an item with no key carries no mute pick", data.areas[1].items[1].mute.length === 0 && data.areas[1].items[1].detail === "cannot be muted");
 let threw = false;
@@ -130,6 +148,10 @@ const page = readFileSync(`${views}/checkup-${stamp}.html`, "utf8");
 const ids = JSON.parse(readFileSync(`${views}/checkup-${stamp}.ids.json`, "utf8"));
 check("the id map names its format and run", ids.format === "checkup-ids/1" && ids.run_id === latest.run_id && /^[0-9a-f]{64}$/.test(ids.page_sha256));
 check("the id map rows match the data step", JSON.stringify(ids.rows) === JSON.stringify(expectedRows));
+check("the run row names the run's report", JSON.parse(readFileSync(`${views}/checkup-${stamp}.json`, "utf8")).run[0].report === `health-${stamp}.md`);
+for (const suffix of [".html", ".json", ".ids.json"]) {
+  check(`no exclusion value reaches checkup-${stamp}${suffix}`, !readFileSync(`${views}/checkup-${stamp}${suffix}`, "utf8").includes(canary));
+}
 
 // Interactive profile.
 const result = validateView(page);
@@ -210,6 +232,8 @@ const pickValues = await evaluate("[...document.querySelectorAll('input[data-rv-
 check("browser: runtime row ids equal the builder's id map rows",
   JSON.stringify([...pickValues].sort()) === JSON.stringify(Object.keys(ids.rows).sort()), JSON.stringify(pickValues));
 check("browser: no hostile script or handler ran", (await evaluate("document.title + String(globalThis.pwned)")) === "Machine health checkupundefined");
+check("browser: no remediation row carries an empty line",
+  (await evaluate("[...document.querySelectorAll('[data-rv-each=\"remediations\"] > li')].every((li) => li.textContent.trim() !== '' && [...li.querySelectorAll('p, span, strong')].every((e) => e.textContent.trim() !== ''))")) === true);
 check("browser: hostile markup stays text", (await evaluate("document.querySelectorAll('main img, main svg, main b').length")) === 0 &&
   (await evaluate("document.body.textContent.includes('<img src=x')")));
 

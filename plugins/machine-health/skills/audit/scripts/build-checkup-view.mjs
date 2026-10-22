@@ -31,18 +31,9 @@ const SEVERITIES = ["crit", "warn", "unknown", "info", "ok"];
 const ITEM_FIELDS_SHOWN = 8;
 const TEXT_MAX = 300;
 const RUN_PLACEHOLDER = 'value="run-stamp"';
-
-// Checked-in text for the shipped remediations, keyed by id (K1).
-const REMEDIATION_TEXT = {
-  "restart-stopped-service": {
-    title: "Restart stopped automatic services",
-    detail: "One start attempt per stopped Automatic service when the services check reads WARN.",
-  },
-  "clear-temp-files": {
-    title: "Clear temp files older than 7 days",
-    detail: "Deletes temp files older than 7 days when the disk-space check reads WARN or CRIT.",
-  },
-};
+// A Defender exclusion value stays off the page, its data and the id map, as it stays out of
+// the report; the appendix shows the same placeholder.
+const EXCLUSION_WITHHELD = "(exclusion value withheld)";
 
 export class CheckupInputError extends Error {}
 
@@ -59,9 +50,10 @@ const severity = (value) => {
 };
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
-function itemEvidence(item) {
+function itemEvidence(item, exclusion) {
+  const hidden = ["key", "severity", "muted", "title", ...(exclusion ? ["value"] : [])];
   return Object.entries(item)
-    .filter(([name, value]) => !["key", "severity", "muted", "title"].includes(name) && ["string", "number", "boolean"].includes(typeof value))
+    .filter(([name, value]) => !hidden.includes(name) && ["string", "number", "boolean"].includes(typeof value))
     .slice(0, ITEM_FIELDS_SHOWN)
     .map(([name, value]) => text(`${name}: ${value}`));
 }
@@ -71,9 +63,10 @@ function itemEvidence(item) {
  *
  * @param {unknown} latest the parsed latest.json
  * @param {string[]} remediations the shipped remediation ids
+ * @param {string} report the file name of the run's markdown report
  * @returns {{ data: object, rows: Record<string, object> }}
  */
-export function toCheckupData(latest, remediations) {
+export function toCheckupData(latest, remediations, report) {
   if (!isObject(latest) || !Array.isArray(latest.checks)) {
     throw new CheckupInputError("latest.json holds no checks array");
   }
@@ -88,16 +81,18 @@ export function toCheckupData(latest, remediations) {
     const checkId = typeof check.id === "string" && CHECK_ID.test(check.id) ? check.id : null;
     const listed = isObject(check.detail) && Array.isArray(check.detail.items) ? check.detail.items.filter(isObject) : [];
     const items = listed.map((item, i) => {
-      const mutable = checkId !== null && typeof item.key === "string" && FINDING_KEY.test(item.key) && item.muted !== true;
-      const title = text(item.title);
+      const keyed = typeof item.key === "string" && FINDING_KEY.test(item.key);
+      const mutable = checkId !== null && keyed && item.muted !== true;
+      const exclusion = keyed && item.key.startsWith("exclusion:");
+      const title = exclusion ? [EXCLUSION_WITHHELD, text(item.exclusion_type), text(item.change)].filter(Boolean).join(" ") : text(item.title);
       if (mutable) {
         rows[`areas-${a + 1}-items-${i + 1}-mute-1`] = { action: "mute", check_id: checkId, finding_key: item.key, label: title };
       }
       return {
         title,
         severity: severity(item.severity),
-        detail: item.muted === true ? "muted" : item.key === null || item.key === undefined ? "cannot be muted" : "",
-        evidence: itemEvidence(item),
+        detail: item.muted === true ? "muted" : mutable ? "" : "cannot be muted",
+        evidence: itemEvidence(item, exclusion),
         mute: mutable ? [{ label: "Mute this item" }] : [],
       };
     });
@@ -123,15 +118,12 @@ export function toCheckupData(latest, remediations) {
           host: text(latest.hostname),
           "ran-at": text(latest.run_id),
           elevated: latest.elevated === true ? "elevated" : "not elevated",
-          report: "",
+          report: text(report),
         },
       ],
       counts,
       areas,
-      remediations: offered.map((id) => ({
-        title: REMEDIATION_TEXT[id]?.title ?? id,
-        detail: REMEDIATION_TEXT[id]?.detail ?? "",
-      })),
+      remediations: offered.map((id) => ({ title: id })),
     },
     rows,
   };
@@ -170,8 +162,7 @@ function main(argv) {
   }
   try {
     const remediations = args["--remediations"].split(",").filter(Boolean);
-    const { data, rows } = toCheckupData(latest, remediations);
-    data.run[0].report = `health-${stamp}.md`;
+    const { data, rows } = toCheckupData(latest, remediations, `health-${stamp}.md`);
     const page = buildView({ profile: "interactive", template: withRunChoice(template, stamp), data });
     const base = join(args["--views-dir"], `checkup-${stamp}`);
     const idMap = {
