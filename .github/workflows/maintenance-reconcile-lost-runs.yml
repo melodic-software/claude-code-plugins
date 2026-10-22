@@ -19,6 +19,10 @@ name: maintenance-reconcile-lost-runs
 # status.npmjs.org and githubstatus.com both show indicator none. A run with
 # any other failure is never re-run.
 #
+# An intake-label-needs-triage run an issue event started whose first attempt
+# failed (a rate limit, most often) left the issue without its floor label;
+# its failed jobs are re-run once, taking no place under the cap.
+#
 # pr-verify's trigger check trusts a re-run github-actions[bot] starts only
 # through this run's record of it: the plan step names an artifact
 # reconcile-rerun-<run id>-2-<head sha> for each pr-verify run it will re-run,
