@@ -54,7 +54,7 @@
 # LEGS ARE SIZED FROM SUITE-SECONDS: ceil(seconds / budget), at least 1, at most
 # the lane's cap and the suite count. test-bash takes 120 s a leg (three suites
 # run at a time, so about 40 s of wall) up to 6 legs, and the whole tree always
-# takes 6; test-python takes 180 s a leg (one suite at a time) up to 4. A
+# takes 6; test-python takes 180 s a leg (one suite at a time) up to 5. A
 # suite's seconds are its median wall in scripts/suite-seconds.txt, measured
 # over whole-tree CI runs; a suite the file does not list counts 5, and a suite
 # scripts/run-plugin-tests-serial.txt runs alone counts three times its
@@ -393,7 +393,7 @@ pack() {
 }
 
 pack bash 120 6 "$whole" 3 "$WORK/bash" scripts/run-plugin-tests-serial.txt
-pack python 180 4 0 1 "$WORK/python"
+pack python 180 5 0 1 "$WORK/python"
 echo "node=$([[ -n "$node_packages" ]] && echo true || echo false)"
 echo "node_packages=$node_packages"
 echo "node: ${node_packages:-nothing selected}" >&2

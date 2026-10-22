@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_proto_versions.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_speech.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -849,6 +849,25 @@ accent stays settable, since it still reaches anyone who picks another palette. 
 in the `theme` setting: a session written before palettes has none, loads as it was, and shows the
 default palette until the owner, or a person for themselves, picks one.
 
+## Read aloud and dictation
+
+Two switches in a person's own card, each off until they turn it on and kept with their other preferences (the
+`readAloud` and `dictate` prefs). Both use the browser's own Web Speech API; the page makes no request of its own for
+them and the CSP is unchanged.
+
+- **Read questions aloud** adds a speaker button to the question's row. It speaks the question, then each option label
+  the person's page shows, read from the page itself, so nothing hidden from them is spoken. A second press or Escape
+  stops it, and so does moving to another question. A voice on the device is used when the browser lists one for the
+  page's language.
+- **Dictate answers and comments** adds a microphone button to the answer box and the Discussion comment box. The words
+  land at the box's caret for the person to edit, and nothing is sent until they send it. A second press or Escape stops
+  listening. The switch and the buttons show only where the browser has `SpeechRecognition`.
+- Recognition may run on a server: Chrome's has by default. Where the browser offers on-device recognition
+  (`processLocally`), a press asks for it first; a device without the language falls back at once to the browser's
+  service. Until words have been heard on the device, the card shows under the switch: "Your browser may send what you
+  say to its maker's speech service to turn it into text." The page never calls `SpeechRecognition.available()`, which
+  ends the page's process in a Chromium build without Chrome's handler for it, and never installs a language pack.
+
 ## Data contract
 
 One folder per session: `<memory_dir>/<topic-slug>/shared/<session-slug>/`.
@@ -1078,6 +1097,12 @@ Merge folds the phone into the earlier Ann with her chat.
 `ui_advance.js` checks "Go to the next question after I answer" (the `autoAdvance` pref, off by default, in the
 person's own settings): a single pick or a scale value with the comment box empty shows "Next question in 2 s · Stay"
 and moves on; Stay cancels; a pick with a comment, pick-many, rank and a written answer never move on.
+
+`ui_speech.js` checks Read aloud and Dictate with the page's speech APIs replaced by recording stubs: both switches off
+by default and kept on the server, turning them on moves nothing, Read aloud speaks the question then its options and
+never an answer the owner has not shared, a second press or Escape stops it, Dictate fills its box and sends nothing,
+the disclosure and its on-device cases, and no Dictate switch or button without the API. `align.js` checks both
+controls on in its `speech-choice` and `speech-answer` views.
 
 `ui_askbox.js` checks the guest's one Ask Claude box: no Ask, Research or Explore picker in the panel or a question's
 form, a "Use the web" chip, off by default, that sends the request as `research` (else `ask`), and the owner keeping

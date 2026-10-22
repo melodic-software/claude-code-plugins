@@ -12,6 +12,7 @@
 # names the phrase, so a substring matcher would have blocked it.
 
 # shellcheck disable=SC2016  # command strings are literal test input, never expanded here
+# test-scope: plugins/guardrails/.claude-plugin/plugin.json
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

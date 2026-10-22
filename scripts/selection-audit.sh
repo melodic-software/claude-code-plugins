@@ -249,12 +249,13 @@ cmd_trace() {
   done <"$out/files"
   # gaps.tsv: suite, file, verdict, for every read the selector would not
   # take. An unmapped file is no gap for a suite the fallback runs, and a gap
-  # for one it does not; an unchecked file is counted apart.
+  # for one it does not; an unchecked file is counted apart; a file recorded in
+  # scripts/affected-tests-no-suite.txt is covered by a non-shell lane, so no gap.
   awk -F'\t' '
     FILENAME ~ /fallback$/ { fb[$0] = 1; next }
     FILENAME ~ /selected.tsv$/ { sel[$1 SUBSEP $2] = 1; next }
     FILENAME ~ /verdicts.tsv$/ { v[$1] = $2; next }
-    v[$2] ~ /^not checked/ || (($2 SUBSEP $1) in sel) { next }
+    v[$2] ~ /^(not checked|no-suite:)/ || (($2 SUBSEP $1) in sel) { next }
     v[$2] ~ /^unmapped/ { if ($1 in fb) next; print $1 "\t" $2 "\tunmapped: the fallback corpus does not run this suite"; next }
     { print $1 "\t" $2 "\t" v[$2] }
   ' "$out/fallback" "$out/selected.tsv" "$out/verdicts.tsv" "$out/edges.tsv" | sort >"$out/gaps.tsv"
