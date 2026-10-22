@@ -23,8 +23,8 @@ bump: minor
   lanes App and Dependabot, which are never adopted.
 - The own-lines floor exemption covers people and `adoption.spec-from-body-apps` Apps; every
   other App's adopted pull request (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) is
-  exempt only for its own lines under top-level `scripts/` and `plugins/*/scripts/` (owner
-  decision Q14 (c)). `.github/standards/**`, `.github/workflows/**`,
+  exempt only for its own lines under `plugins/*/scripts/` (owner decision Q14 (c)); top-level
+  `scripts/` still scores, since credentialed jobs on main run it. `.github/standards/**`, `.github/workflows/**`,
   `.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` are never exempt, nor are the
   merge gate, the review lanes, `docs/conventions/**` and agent permission config (`.claude/`,
   `.claude-plugin/`, `CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `.mcp.json`, `.lsp.json`,

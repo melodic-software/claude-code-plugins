@@ -3855,13 +3855,13 @@ class ForeignPaths(unittest.TestCase):
             self.assertEqual(policy.own_paths(REPO, owner_pr(), changed), frozenset())
 
     def test_a_model_app_owns_only_its_script_lines(self) -> None:
-        # Owner decision Q14 (c): top-level scripts/ and plugins/*/scripts/,
-        # less the never-exempt paths.
+        # Owner decision Q14 (c): plugins/*/scripts/, less the never-exempt
+        # paths. Top-level scripts/ runs in credentialed jobs on main (S&C).
         changed = frozenset(
             {
-                "scripts/x.sh",
+                "scripts/release-plugins.sh",
                 "plugins/x/scripts/y.py",
-                "Scripts/Z.SH",
+                "Plugins/X/Scripts/Z.SH",
                 "plugins/x/skills/s/scripts/y.py",
                 "plugins/x/hooks/scripts/h.sh",
                 "plugins/source-control/skills/babysit-prs/scripts/x.py",
@@ -3876,7 +3876,7 @@ class ForeignPaths(unittest.TestCase):
                 policy.own_paths(
                     REPO, owner_pr(user=user), changed, only=policy.MODEL_APP_OWN
                 ),
-                {"scripts/x.sh", "plugins/x/scripts/y.py", "Scripts/Z.SH"},
+                {"plugins/x/scripts/y.py", "Plugins/X/Scripts/Z.SH"},
             )
 
     def test_the_instruction_path_twin_matches_thread_scope(self) -> None:

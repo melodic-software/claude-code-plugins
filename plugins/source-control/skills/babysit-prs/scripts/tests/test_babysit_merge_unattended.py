@@ -888,16 +888,21 @@ class LaneMode(Unattended):
         self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
 
     def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
-        # Owner decision Q14 (c): a model-driven App's own top-level scripts/
-        # and plugins/*/scripts/ lines need no person; its other floor paths
-        # still score.
+        # Owner decision Q14 (c): a model-driven App's own plugins/*/scripts/
+        # lines need no person; its other floor paths still score, top-level
+        # scripts/ included (credentialed jobs on main run it).
         self.config = dataclasses.replace(self.config, high_path_floor=True)
         self.lane_eligible = policy.Eligibility(
             True, None, "C2", 41, adoption="trusted-app"
         )
         own, held = (
-            ("scripts/x.md", "plugins/p/scripts/x.md"),
-            ("plugins/p/hooks/x.md", ".github/x.md", "plugins/p/skills/s/scripts/x.md"),
+            ("plugins/p/scripts/x.md",),
+            (
+                "scripts/release-plugins.sh",
+                "plugins/p/hooks/x.md",
+                ".github/x.md",
+                "plugins/p/skills/s/scripts/x.md",
+            ),
         )
         self.files = (
             tuple(dataclasses.replace(LOW_FILE, path=p) for p in (*own, *held)),

@@ -3375,8 +3375,9 @@ INSTRUCTION_PATH_RE = re.compile(
 
 
 # A model-driven App's own lines skip the floor only here (owner decision
-# Q14 (c), #9107), still less the paths above.
-MODEL_APP_OWN = ("scripts/**", "plugins/*/scripts/**")
+# Q14 (c), #9107), still less the paths above. Not top-level scripts/:
+# credentialed jobs on main run it (release-publish-plugins.yml).
+MODEL_APP_OWN = ("plugins/*/scripts/**",)
 
 
 def own_paths(
