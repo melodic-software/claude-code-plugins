@@ -121,7 +121,7 @@
     }
     function setTb(patch) { setPrefs(patch); render(); }
     const claudePref = () => pref("claudeTake", "session");
-    const myTheme = () => { const p = prefs(); return { ...(p.theme ? { mode: p.theme } : {}), ...(p.accent ? { accent: p.accent } : {}) }; };
+    const myTheme = () => { const p = prefs(); return { ...(p.theme ? { mode: p.theme } : {}), ...(p.accent ? { accent: p.accent } : {}), ...(p.palette ? { palette: p.palette } : {}) }; };
     const openRounds = () => new Set(pref("expandedRounds", []));
     const setOpenRounds = set => { setPrefs({ expandedRounds: [...set].sort((a, b) => a - b) }); render(); };
     const following = () => !!pref("follow", false) && Core.state.settings.follow !== false;
@@ -504,6 +504,8 @@
     const assetUrl = id => "/assets/" + encodeURIComponent(id);
     /** People's answers and Claude's cards; a choice question's options render as their own cards above. */
     const peopleAnswers = qid => Core.answersFor(qid).filter(a => !a.option);
+    /** An answer's text, else how many files it carries (an answer may be pictures alone); "" for neither. */
+    const answerLine = a => a?.text || (a?.att?.length ? `${a.att.length} file${a.att.length === 1 ? "" : "s"}` : "");
     const iVoted = qid => Core.answersFor(qid).some(a => (a.votes || []).includes(Core.me.cid));
     /** C26: Claude's cards wait until I answered or voted, unless I chose Always show (session default from ⚙). */
     function claudeHidden(qid) {
@@ -1226,6 +1228,7 @@
     const editBtn = btn("vf-btn vf-btn-ghost vf-btn-sm", "Edit");
     lockTop.append(lockBadge, lockBy, E("span", "vf-spacer"), editBtn, unlockBtn);
     const lockText = clampBox("vf-lock-text");
+    const lockAtts = E("ul", "vf-reflist vf-attlist"); lockAtts.setAttribute("aria-label", "Attachments"); lockAtts.hidden = true; // the locked answer's files
     const lockFrom = E("div", "vf-lock-from");
     const editForm = E("form", "vf-edit"); editForm.hidden = true;
     const editTa = E("textarea", "vf-ta"); editTa.rows = 3; editTa.setAttribute("aria-label", "Locked answer text"); editTa.maxLength = 2000;
@@ -1251,7 +1254,7 @@
     sugForm.append(sugTa, sugNote, sugRow);
     const sList = E("ul", "vf-slist"); sList.setAttribute("role", "list");
     const sugMore = showMore("sugs", 10);
-    lockBox.append(lockTop, lockText, lockFrom, editForm, sugHead, sugForm, sList, sugMore.foot);
+    lockBox.append(lockTop, lockText, lockAtts, lockFrom, editForm, sugHead, sugForm, sList, sugMore.foot);
 
     const ansHead = E("div", "vf-anshead");
     const ansTitle = E("h2", "vf-h2", "Answers"), ansCount = E("span", "vf-meta");
@@ -1716,18 +1719,35 @@
     }
     const MODES = [["system", "System"], ["light", "Light"], ["dark", "Dark"]];
     const ACCENTS = [["teal", "Teal"], ["indigo", "Indigo"], ["violet", "Violet"], ["amber", "Amber"]];
-    /** Theme picker: mode buttons and accent swatches; get() returns the current choice, set(patch) saves. */
-    function themePicker(get, set) {
+    const PALETTES = [["default", "Default"], ["midnight", "Midnight"], ["slate", "Slate"], ["paper", "Paper"], ["contrast", "High contrast"]];
+    /** High contrast sets its own accent, so the accent choice waits until another palette is picked. */
+    const fixedAccent = c => c.palette === "contrast";
+    let themePickers = 0;
+    /** Theme picker: mode buttons, accent swatches and palette buttons; get() returns the current choice, set(patch) saves.
+     *  `own`: the viewer's own theme, whose accent High contrast fixes; the owner's default accent still reaches anyone on
+     *  another palette, so it stays live there. */
+    function themePicker(get, set, own = false) {
       const wrap = E("div", "vf-theme");
       const modes = E("div", "vf-seg vf-seg-sm"); modes.setAttribute("role", "group"); modes.setAttribute("aria-label", "Theme");
       const sw = E("div", "vf-swatches"); sw.setAttribute("role", "group"); sw.setAttribute("aria-label", "Accent color");
+      const pals = E("div", "vf-seg vf-seg-sm vf-palettes"); pals.setAttribute("role", "group"); pals.setAttribute("aria-label", "Palette");
+      const why = E("p", "vf-theme-why", "High contrast uses its own accent."); why.id = `vf-theme-why-${++themePickers}`;
       const mb = MODES.map(([k, l]) => { const b = btn("vf-seg-btn", l); b.onclick = () => set({ mode: k }); modes.append(b); return [k, b]; });
-      const ab = ACCENTS.map(([k, l]) => { const b = btn("vf-swatch"); b.dataset.accent = k; b.setAttribute("aria-label", `${l} accent`); b.title = l; b.onclick = () => set({ accent: k }); sw.append(b); return [k, b]; });
-      wrap.append(modes, sw);
-      wrap._paint = () => { const c = get(); for (const [k, b] of mb) b.setAttribute("aria-pressed", String(c.mode === k)); for (const [k, b] of ab) b.setAttribute("aria-pressed", String(c.accent === k)); };
+      const ab = ACCENTS.map(([k, l]) => { const b = btn("vf-swatch"); b.dataset.accent = k; b.setAttribute("aria-label", `${l} accent`); b.title = l; b.onclick = () => { if (!(own && fixedAccent(get()))) set({ accent: k }); }; sw.append(b); return [k, b]; });
+      const pb = PALETTES.map(([k, l]) => { const b = btn("vf-seg-btn", l); b.dataset.palette = k; b.onclick = () => set({ palette: k }); pals.append(b); return [k, b]; });
+      wrap.append(modes, sw, pals, why);
+      wrap._paint = () => {
+        const c = get(), fixed = own && fixedAccent(c);
+        for (const [k, b] of mb) b.setAttribute("aria-pressed", String(c.mode === k));
+        for (const [k, b] of ab) { b.setAttribute("aria-pressed", String(!fixed && c.accent === k)); b.setAttribute("aria-disabled", String(fixed)); }
+        for (const [k, b] of pb) b.setAttribute("aria-pressed", String(c.palette === k));
+        why.hidden = !fixed;
+        // a hidden note that aria-describedby points at is still read, so the link exists only while the note shows
+        if (fixed) sw.setAttribute("aria-describedby", why.id); else sw.removeAttribute("aria-describedby");
+      };
       return wrap;
     }
-    const sessionTheme = () => ({ mode: "system", accent: "teal", ...(st().theme || {}) });
+    const sessionTheme = () => ({ mode: "system", accent: "teal", palette: "default", ...(st().theme || {}) });
     const ownerTheme = themePicker(sessionTheme, patch => Core.saveSettings({ theme: patch }).catch(fail));
     settingsPop.append(E("h3", "vf-pop-sub", "Default theme for everyone"), ownerTheme);
     const newGuestBtn = btn("vf-menu-item vf-menu-plain", "New guest link");
@@ -1855,8 +1875,8 @@
       }
       const reqs = (S.requests || []).filter(r => r.cid === pid), msgs = S.chat.filter(m => m.cid === pid);
       const cleared = (S.cleared || []).filter(t => t.cid === pid);
-      const sig = JSON.stringify([name, gone, answers.map(([q, a]) => [q.id, a.ref, a.text, a.pick, a.picks, a.value, a.order, !!a.hidden, !!a.hostEdited, a.versions || 0]),
-        votes.map(([q, a]) => [q.id, a.ref, a.text]), reqs.map(r => [r.id, r.status, r.text]), msgs.map(m => [m.id, m.text]), cleared.map(t => [t.qid, t.ref, t.ts])]);
+      const sig = JSON.stringify([name, gone, answers.map(([q, a]) => [q.id, a.ref, answerLine(a), a.pick, a.picks, a.value, a.order, !!a.hidden, !!a.hostEdited, a.versions || 0]),
+        votes.map(([q, a]) => [q.id, a.ref, answerLine(a)]), reqs.map(r => [r.id, r.status, r.text]), msgs.map(m => [m.id, m.text]), cleared.map(t => [t.qid, t.ref, t.ts])]);
       if (ppvBody._sig === sig) return;
       ppvBody._sig = sig;
       const section = (title, rows, empty) => {
@@ -1873,7 +1893,7 @@
         return li;
       };
       const ansRows = answers.map(([q, a]) => {
-        const said = [a.text, pickedText(q, a)].filter(Boolean).join(" | ") || "(no text)";
+        const said = [answerLine(a), pickedText(q, a)].filter(Boolean).join(" | ") || "(no text)";
         const marks = [a.hidden ? "hidden" : "", a.hostEdited ? "edited by you" : "", a.versions ? `${a.versions} earlier version${a.versions === 1 ? "" : "s"}` : ""].filter(Boolean);
         const hide = btn("vf-btn vf-btn-ghost vf-btn-sm", a.hidden ? "Show" : "Hide");
         hide.setAttribute("aria-label", `${a.hidden ? "Show" : "Hide"} ${disp(name)}'s answer on ${q.id}`);
@@ -1883,7 +1903,7 @@
         edit.onclick = () => openEdit(q.id, a, edit);
         return row(`${q.id}${marks.length ? ` (${marks.join(", ")})` : ""}`, said, hide, edit);
       });
-      const voteRows = votes.map(([q, a]) => row(q.id, a.option ? `Picked: ${a.text}` : a.claude ? `Voted for Claude's card: ${a.text}` : `Voted for ${disp(a.name)}'s answer: ${a.text}`));
+      const voteRows = votes.map(([q, a]) => row(q.id, a.option ? `Picked: ${a.text}` : a.claude ? `Voted for Claude's card: ${a.text}` : `Voted for ${disp(a.name)}'s answer: ${answerLine(a)}`));
       const reqRows = reqs.map(r => row(`${r.qid}, ${r.status}`, `${KIND_REQ[r.kind] || "Request"}: ${r.text}`));
       const chatRows = msgs.map(m => row(since(m.ts), m.text));
       // An answer they cleared after you hid or edited it: its last text and versions, fetched when asked.
@@ -2263,6 +2283,7 @@
       const d = sessionTheme(), t = myTheme(), mode = t.mode || d.mode, accent = t.accent || d.accent;
       root.dataset.theme = mode === "system" ? (lightOS.matches ? "light" : "dark") : mode;
       root.dataset.accent = accent;
+      root.dataset.palette = t.palette || d.palette;
     }
     /** The Host view has no tab of its own on phones: More stands for it. */
     const paintTabs = () => { for (const [t, b] of Object.entries(tabBtns)) b.setAttribute("aria-current", t === (ui.tab === "host" ? "more" : ui.tab) ? "page" : "false"); };
@@ -3468,7 +3489,7 @@
       msFollow._l.textContent = Core.owner() ? `Follow ${disp(Core.owner().name)}` : "Follow host";
       msFollow._d.textContent = following() ? "On" : "Off";
       msFollow.setAttribute("aria-pressed", String(following()));
-      msSettings._d.textContent = menu.help.settings._d.textContent = Core.me.isOwner ? "Session settings for everyone" : "Your name, accent and devices";
+      msSettings._d.textContent = menu.help.settings._d.textContent = Core.me.isOwner ? "Session settings for everyone" : "Your name, theme and devices";
       const waitingQ = mod ? queueItems(S).length : 0;
       msHost._d.textContent = waitingQ ? `${waitingQ} waiting in the queue` : "Run the session";
       tabBtns.more.setAttribute("aria-expanded", String(ui.pop === moreSheet));
@@ -4507,7 +4528,7 @@
     on(ta, "focus", () => {
       if (!phone.matches || ta.disabled || tabbedIn || cForm.classList.contains("vf-composer-sheet")) return;
       ui.sheetFrom = ta.value;
-      sheetTitle.textContent = Core.myAnswer(ui.cur) ? "Edit your answer" : qById(ui.cur)?.text || "Your answer";
+      sheetTitle.textContent = answerLine(myRec(ui.cur)) ? "Edit your answer" : qById(ui.cur)?.text || "Your answer";
       cForm.classList.add("vf-composer-sheet"); root.dataset.sheet = "";
       renderComposer();
       requestAnimationFrame(() => ta.setSelectionRange(ta.value.length, ta.value.length));
@@ -4940,7 +4961,7 @@
       const k = (b, key) => { b.dataset.k = key; return b; };
       if (c.pinned) parts.unshift(k(ibtn("vf-tbtn vf-icon-btn vf-popx", "x", `Close ${me ? "your card" : `${disp(name)}'s card`}`), "x")); // F11: the one close control
       if (me) {
-        const t = themePicker(() => ({ ...sessionTheme(), ...myTheme() }), patch => { setPrefs({ ...(patch.mode ? { theme: patch.mode } : {}), ...(patch.accent ? { accent: patch.accent } : {}) }); applyTheme(); fillPcard(); });
+        const t = themePicker(() => ({ ...sessionTheme(), ...myTheme() }), patch => { setPrefs({ ...(patch.mode ? { theme: patch.mode } : {}), ...(patch.accent ? { accent: patch.accent } : {}), ...(patch.palette ? { palette: patch.palette } : {}) }); applyTheme(); fillPcard(); }, true);
         t._paint();
         t.querySelectorAll("button").forEach((b, i) => k(b, "t" + i));
         parts.push(E("h3", "vf-pop-sub", "Theme, just for you"), t);
@@ -5464,7 +5485,7 @@
       k.vote.setAttribute("aria-label", `${k.other && !isMe(a.cid) ? (k.mine ? "Backing this option. " : "Back this option. ") : ""}${votes.length} ${noun}${votes.length === 1 ? "" : "s"}${k.mine ? ", including you" : ""}${voterNames}`);
       li.setAttribute("aria-label", `${who}${tagTxt ? ", " + tagTxt.toLowerCase() : ""}, ${votes.length} ${noun}s`);
       if (k.goWith) {
-        k.goWith.hidden = !s.voting || locked || ro || isMe(a.cid) || !Core.myAnswer(qid) || isChoice(q) || gather;
+        k.goWith.hidden = !s.voting || locked || ro || isMe(a.cid) || !answerLine(myRec(qid)) || isChoice(q) || gather;
         // On a question with options, Lock this one sits on the option itself; a person's own option is a card, so it locks here.
         // A poll closes only as a whole (Close poll), never by locking one answer.
         k.lockThis.hidden = locked || !Core.canModerate() || (isChoice(q) && q.format !== "confirm" && !k.other) || gather || q?.purpose === "poll";
@@ -5522,7 +5543,7 @@
         : "Write your answer…";
       cForm.classList.toggle("vf-composer-locked", locked);
       const commenting = (q?.format === "choice" || isFormat(q) || q?.purpose === "poll") && (picked || early);
-      if (!sendBtn.disabled) { sendLbl.textContent = commenting ? (mine ? "Update comment" : "Comment") : mine ? "Update" : "Answer"; sendBtn.setAttribute("aria-label", sendLbl.textContent); }
+      if (!sendBtn.disabled) { sendLbl.textContent = commenting ? (mine ? "Update comment" : "Comment") : answerLine(rec) ? "Update" : "Answer"; sendBtn.setAttribute("aria-label", sendLbl.textContent); }
       ta.setAttribute("aria-label", commenting ? "Comment on your pick" : q?.format === "confirm" ? "Not exactly: what you meant" : "Your answer");
       sendBtn.setAttribute("aria-disabled", String(locked || (ta.value.trim() === mine && sameCites(qid) && sameAtt(qid)) || !qid));
       clearBtn.hidden = !ta.value || locked;
@@ -6119,8 +6140,8 @@
         confirmImgBox.style.setProperty("--my", String((r.y + r.h / 2) / 100));
         confirmImg.alt = `Screenshot with the area in question marked: ${q.text}`;
         confirmView.setAttribute("aria-label", "View the screenshot larger");
-        const n = id => byId[id]?.votes?.length || 0, els = peopleAnswers(q.id).filter(a => !a.claude && !a.pick && a.text).length;
-        const somethingElse = !!rec && !rec.pick && !!rec.text;
+        const n = id => byId[id]?.votes?.length || 0, els = peopleAnswers(q.id).filter(a => !a.claude && !a.pick && answerLine(a)).length;
+        const somethingElse = !!rec && !rec.pick && !!answerLine(rec);
         for (const [b, id, cnt] of [[yesBtn, "opt-yes", n("opt-yes")], [noBtn, "opt-no", n("opt-no")], [elseBtn, "", els]]) {
           const mine = id ? rec?.pick === id : somethingElse;
           b.setAttribute("aria-pressed", String(mine));
@@ -6530,7 +6551,7 @@
       const byId = wait ? {} : Object.fromEntries(Core.answersFor(q.id).filter(a => a.option).map(a => [a.cid, a])), lk = Core.lockOf(q.id);
       // Counts: votes on an option (picks on multi, people per value on scale), Borda points on rank, own options written.
       const rows = q.format === "confirm"
-        ? [{ id: "opt-yes", label: "Yes" }, { id: "opt-no", label: "No" }, { id: "", label: CONFIRM_OTHER, n: peopleAnswers(q.id).filter(a => !a.claude && !a.pick && a.text).length }]
+        ? [{ id: "opt-yes", label: "Yes" }, { id: "opt-no", label: "No" }, { id: "", label: CONFIRM_OTHER, n: peopleAnswers(q.id).filter(a => !a.claude && !a.pick && answerLine(a)).length }]
         : optionsOf(q).map(o => (o.other ? { ...o, id: "", n: peopleAnswers(q.id).filter(a => a.other).length }
           : q.format === "rank" ? { ...o, n: byId[o.id]?.points || 0 } : o));
       const sig = JSON.stringify([q.format, q.image, wait, rows.map(o => [o.id, o.label, o.image, o.n ?? byId[o.id]?.votes?.length, lk?.answerCid === o.id])]);
@@ -7467,6 +7488,8 @@
           const lname = lk.name === "Claude" && String(lk.answerCid).startsWith("claude") ? "Claude" : disp(lk.name);
           // A closed poll chose no answer: it names no author and has no locked text to edit.
           fillClamp(lockText, "l:" + q.id, lk.poll ? "The poll is closed. The counts are final." : lk.text, lk.poll ? "Closed poll" : `Locked answer`, `${q.id}: ${q.text}`);
+          lockText.hidden = !lk.poll && !lk.text && !!lk.att; // a locked answer of pictures alone shows them, not an empty line
+          fillAtts(lockAtts, lk.poll ? [] : lk.att, `Locked answer on ${q.id}`);
           const lkey = lk.poll ? "poll" : lk.answerCid + "|" + lname + "|" + lk.hostEdited;
           if (lockFrom._k !== lkey) {
             lockFrom._k = lkey;

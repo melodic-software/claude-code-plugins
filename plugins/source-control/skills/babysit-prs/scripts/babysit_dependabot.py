@@ -39,8 +39,11 @@ admits only Dependabot, and the github-actions or lanes App push of such a
 commit; a failure there always refuses. `content_refusal()` names any path
 beyond the manifests and lock files `.github/dependabot.yml` covers, a
 workflow or action file whose diff changes only `uses:` lines, and the paths
-those other commits touched; the caller makes such a pull request tier
-`review`, for the AI review to judge.
+the version-bump commits touched; the caller makes such a pull request tier
+`review`, for the AI review to judge. A lanes App fix commit is never counted
+as checked: `fix_refusal()` (the pr-unblock lane's `fixRefusal`) requires each
+of its files to be modified in place, in `in_fix_scope()`, a regular file, and
+changed only by a version.
 """
 
 from __future__ import annotations
@@ -836,3 +839,329 @@ def push_refusal(
         return f"pushed-by:{login or 'unknown'}"
     # No Dependabot branch creation or force push in reach: the history is cut.
     return "push-history-incomplete"
+
+
+# The lanes App fix rule, the same as the pr-unblock lane's `inFixScope` and
+# `fixRefusal` (`.github/scripts/pr-unblock/dependency-classify.mjs`): what a
+# lanes App commit on a reviewed Dependabot pull request may change. npm and
+# pip manifests and lock files only, narrower than MANIFESTS (no setup.py,
+# pyproject.toml or other file a build runs), never under `.github/`.
+_FIX_MANIFESTS = {
+    "npm": re.compile(r"package\.json|package-lock\.json|npm-shrinkwrap\.json"),
+    "pip": re.compile(r"requirements[^/]*\.(txt|in)"),
+}
+# A fix changes only regular, non-executable files: no symbolic link
+# (120000), submodule (160000) or executable (100755).
+FIX_MODE = 0o100644
+_DEPENDENCY_SECTIONS = (
+    "dependencies",
+    "devDependencies",
+    "optionalDependencies",
+    "peerDependencies",
+)
+_VERSION_PART = (
+    r"v?([0-9]+|[xX*])(\.([0-9]+|[xX*])){0,2}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?"
+)
+_RANGE_VERSION = re.compile(_VERSION_PART)
+_COMPARATOR = re.compile(r"(\^|~|[<>]=?|=)?" + _VERSION_PART)
+NPM_REGISTRY_TARBALL = "https://registry.npmjs.org/"
+_REQUIREMENT = re.compile(
+    r"[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?(\[[A-Za-z0-9._,-]+\])?==[0-9][0-9A-Za-z.+!-]*"
+    r"(\s*;\s*[A-Za-z0-9_.'\"<>=!~ ()]+?)?(\s+\\)?"
+)
+_HASH_LINE = re.compile(r"\s+--hash=sha256:[0-9a-f]{64}(\s+\\)?")
+_BLANK_OR_COMMENT = re.compile(r"\s*(#.*)?")
+# Every range set is bounded: no wildcard major and no lower bounds alone.
+_WILD_MAJOR = re.compile(r"(\^|~|[<>]=?|=)?v?[xX*]")
+# The package a lock key installs: the last `node_modules/<name>` of the path.
+_LOCK_KEY = re.compile(
+    r"(?:node_modules/(?:@[^/]+/)?[^/@][^/]*/)*node_modules/((?:@[^/]+/)?[^/@][^/]*)"
+)
+_PACKAGE_NAME = re.compile(r"(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*")
+_LOCK_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?")
+_INTEGRITY = re.compile(r"sha512-[A-Za-z0-9+/]+={0,2}")
+_PROJECT = re.compile(r"([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)")
+
+
+def in_fix_scope(path: Any, config: Sequence[tuple[str, str]] | None) -> bool:
+    """Whether a lanes App fix may change `path`: a fix manifest in a
+    directory of its ecosystem in `config` (the base dependabot.yml's pairs),
+    never under `.github/`. No config admits nothing."""
+    text = str(path or "")
+    name = posixpath.basename(text)
+    if re.match(r"\.github(/|$)", text, re.I):
+        return False
+    return any(
+        eco in _FIX_MANIFESTS
+        and _FIX_MANIFESTS[eco].fullmatch(name) is not None
+        and isinstance(folder, str)
+        and _directory(text, folder)
+        for eco, folder in config or ()
+    )
+
+
+def is_fix_file(entry: Any) -> bool:
+    """Whether a GraphQL tree entry is a regular, non-executable file."""
+    item = json_object(entry)
+    return item.get("type") == "blob" and item.get("mode") == FIX_MODE
+
+
+def is_semver_range(value: Any) -> bool:
+    """A plain semver range: comparators, a hyphen range, or `||` of either.
+    No dist-tag, alias, URL, path, git or GitHub shorthand, or workspace."""
+    if not isinstance(value, str) or not value or len(value) > 200:
+        return False
+    for part in value.split("||"):
+        group = part.strip()
+        hyphen = re.fullmatch(r"(\S+) - (\S+)", group)
+        if hyphen:
+            if not all(
+                _RANGE_VERSION.fullmatch(v) and not _WILD_MAJOR.match(v)
+                for v in hyphen.groups()
+            ):
+                return False
+            continue
+        comparators = re.split(r"\s+", group)
+        if (
+            not group
+            or not all(
+                _COMPARATOR.fullmatch(c) and not _WILD_MAJOR.match(c)
+                for c in comparators
+            )
+            or all(c.startswith(">") for c in comparators)
+        ):
+            return False
+    return True
+
+
+def _json_mapping(text: Any) -> dict[str, Any] | None:
+    try:
+        value = json.loads(str(text))
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _canonical(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def package_json_refusal(before: Any, after: Any) -> str | None:
+    """Only the version range of a dependency already listed in a dependency
+    section changes, to a plain semver range; every other key stays."""
+    old, now = _json_mapping(before), _json_mapping(after)
+    if old is None or now is None:
+        return "package-json-unreadable"
+    for key in sorted(set(old) | set(now)):
+        if key not in _DEPENDENCY_SECTIONS:
+            if _canonical(old.get(key)) != _canonical(now.get(key)) or (
+                (key in old) != (key in now)
+            ):
+                return f"package-json-key:{key}"
+            continue
+        was, is_ = old.get(key), now.get(key)
+        if not isinstance(was, dict) or not isinstance(is_, dict):
+            return f"package-json-key:{key}"
+        if sorted(was) != sorted(is_):
+            return f"package-json-entries:{key}"
+        for name in sorted(was):
+            if _canonical(was[name]) != _canonical(is_[name]) and not is_semver_range(
+                is_[name]
+            ):
+                return f"package-json-range:{key}:{name}"
+    return None
+
+
+_ABSENT = object()
+
+
+def _lock_entry_refusal(key: str, entry: Any, was: Any) -> str | None:
+    """Why one `packages` entry is not the registry tarball of its own name
+    and version with a sha512 integrity, or None. Its alias `name` is the
+    before side's (`was`): a fix never adds, drops or changes one."""
+    at = _LOCK_KEY.fullmatch(key)
+    if not at or not isinstance(entry, dict):
+        return f"lock-key:{key}"
+    old_name = was.get("name", _ABSENT) if isinstance(was, dict) else _ABSENT
+    if old_name != entry.get("name", _ABSENT):
+        return f"lock-name:{key}"
+    name = entry.get("name", at.group(1))
+    version = entry.get("version")
+    if not (
+        isinstance(name, str)
+        and _PACKAGE_NAME.fullmatch(name)
+        and isinstance(version, str)
+        and _LOCK_VERSION.fullmatch(version)
+    ):
+        return f"lock-entry:{key}"
+    base = name.rsplit("/", 1)[-1]
+    tarball = f"{NPM_REGISTRY_TARBALL}{name}/-/{base}-{version}.tgz"
+    if "link" in entry or entry.get("resolved") != tarball:
+        return f"lock-resolved:{key}"
+    integrity = entry.get("integrity")
+    if not isinstance(integrity, str) or not _INTEGRITY.fullmatch(integrity):
+        return f"lock-integrity:{key}"
+    return None
+
+
+def lock_refusal(before: Any, after: Any) -> str | None:
+    """Every `packages` entry but the root is the registry tarball its key
+    and version name, with a sha512 integrity; the fix adds and removes no
+    package (the before side is the Dependabot commit's lock, so its own
+    additions stand); every other `resolved` is a registry tarball; and no
+    package gains or loses an install script."""
+    old, now = _json_mapping(before), _json_mapping(after)
+    if old is None or now is None:
+        return "lock-unreadable"
+    if not isinstance(old.get("packages"), dict) or not isinstance(
+        now.get("packages"), dict
+    ):
+        return "lock-packages"
+    if sorted(now["packages"]) != sorted(old["packages"]):
+        return "lock-packages-changed"
+    for key in sorted(now["packages"]):
+        why = (
+            None
+            if key == ""
+            else _lock_entry_refusal(key, now["packages"][key], old["packages"][key])
+        )
+        if why:
+            return why
+    stack: list[Any] = [now]
+    while stack:
+        node = stack.pop()
+        items = node.items() if isinstance(node, dict) else enumerate(node)
+        for key, value in items:
+            if key == "resolved" and not (
+                isinstance(value, str) and value.startswith(NPM_REGISTRY_TARBALL)
+            ):
+                return "lock-resolved"
+            if isinstance(value, (dict, list)):
+                stack.append(value)
+    was = old.get("packages") if isinstance(old.get("packages"), dict) else {}
+    is_ = now.get("packages") if isinstance(now.get("packages"), dict) else {}
+
+    def script(packages: dict[str, Any], name: str) -> bool:
+        return json_object(packages.get(name)).get("hasInstallScript") is True
+
+    for name in sorted(set(was) | set(is_)):
+        if script(was, name) != script(is_, name):
+            return f"lock-install-script:{name}"
+    return None
+
+
+def requirements_refusal(before: Any, after: Any) -> str | None:
+    """Every line the fix adds is blank, a comment, a `name==version` pin
+    (extras and an environment marker allowed), or an indented
+    `--hash=sha256:` continuation: no option line, URL or VCS requirement."""
+    if not isinstance(before, str) or not isinstance(after, str):
+        return "requirements-unreadable"
+    kept: dict[str, int] = {}
+    for line in before.split("\n"):
+        kept[line] = kept.get(line, 0) + 1
+    added: list[str | None] = []
+    for line in after.split("\n"):
+        if kept.get(line):
+            kept[line] -= 1
+            continue
+        text = line.removesuffix("\r")
+        if not (
+            _BLANK_OR_COMMENT.fullmatch(text)
+            or _REQUIREMENT.fullmatch(text)
+            or _HASH_LINE.fullmatch(text)
+        ):
+            return "requirements-line"
+        if _REQUIREMENT.fullmatch(text):
+            added.append(_project(text))
+    # A fix repins; every pin it adds names a project a removed line named.
+    removed = {_project(line.removesuffix("\r")) for line, n in kept.items() if n > 0}
+    fresh = next((name for name in added if name not in removed), "")
+    return f"requirements-new-package:{fresh}" if fresh else None
+
+
+def _project(line: str) -> str | None:
+    """A requirement line's project name, normalized (PEP 503), or None."""
+    found = _PROJECT.match(line)
+    return re.sub(r"[-_.]+", "-", found.group(1).lower()) if found else None
+
+
+def fix_content_refusal(path: Any, before: Any, after: Any) -> str | None:
+    """Why the fix's change to `path` (each side's text) is not a version
+    change, or None."""
+    name = posixpath.basename(str(path or ""))
+    if name == "package.json":
+        return package_json_refusal(before, after)
+    if name in ("package-lock.json", "npm-shrinkwrap.json"):
+        return lock_refusal(before, after)
+    if re.fullmatch(r"requirements[^/]*\.(txt|in)", name):
+        return requirements_refusal(before, after)
+    return "content-unchecked"
+
+
+def fix_refusal(
+    files: Sequence[Any],
+    config: Sequence[tuple[str, str]] | None,
+    entry: Callable[[str], Any],
+    text: Callable[[str, str], str | None],
+) -> str | None:
+    """The first reason a fix's changed files (a REST commit `files` listing)
+    are not a lanes App fix, or None: each only modified in place, in fix
+    scope, a regular file at the fix's tip (`entry(path)`, read before any
+    content, since a contents read follows a symbolic link), and a version
+    change from `text("before", path)` to `text("after", path)`."""
+    for item in files:
+        file = json_object(item)
+        path = str(file.get("filename") or "")
+        if file.get("status") != "modified" or file.get("previous_filename"):
+            return f"fix-status:{path}"
+        if not in_fix_scope(path, config):
+            return f"fix-scope:{path}"
+        if not is_fix_file(entry(path)):
+            return f"fix-mode:{path}"
+        why = fix_content_refusal(path, text("before", path), text("after", path))
+        if why:
+            return f"fix-content:{path}:{why}"
+    return None
+
+
+def plugin_json_refusal(before: Any, after: Any) -> str | None:
+    """The version-bump commit's plugin.json: only `version` changes, to a
+    plain version; every other key stays as it was."""
+    old, now = _json_mapping(before), _json_mapping(after)
+    if old is None or now is None:
+        return "plugin-json-unreadable"
+    version = now.get("version")
+    if not isinstance(version, str) or not _LOCK_VERSION.fullmatch(version):
+        return "plugin-json-version"
+    rest = [
+        _canonical({k: v for k, v in side.items() if k != "version"})
+        for side in (old, now)
+    ]
+    return None if rest[0] == rest[1] else "plugin-json-key"
+
+
+def bump_refusal(
+    files: Sequence[Any],
+    entry: Callable[[str], Any],
+    text: Callable[[str, str], str | None],
+) -> str | None:
+    """The first reason the repository's version-bump commit is more than a
+    version bump, or None (the pr-unblock lane's `bumpRefusal`): each file a
+    plugin's plugin.json or CHANGELOG.md, modified in place as a regular file,
+    and a plugin.json changing only its `version`."""
+    if not files:
+        return "bump-empty"
+    for item in files:
+        file = json_object(item)
+        path = str(file.get("filename") or "")
+        if file.get("status") != "modified" or file.get("previous_filename"):
+            return f"bump-status:{path}"
+        if not _BUMP_PATH.match(path):
+            return f"bump-path:{path}"
+        if not is_fix_file(entry(path)):
+            return f"bump-mode:{path}"
+        if path.endswith("/plugin.json"):
+            why = plugin_json_refusal(text("before", path), text("after", path))
+            if why:
+                return f"bump-content:{path}:{why}"
+    return None

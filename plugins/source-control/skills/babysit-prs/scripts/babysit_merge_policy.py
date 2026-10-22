@@ -464,6 +464,10 @@ def _rest_actor(actor: Any) -> dict[str, Any] | None:
 # run, so a review still running at the head (scored MED, evidence unbound)
 # finishes before its refusal is labeled (judgment).
 RISK_ESCALATION_MINUTES = 60
+# `merge.quarantine-days` when absent or not a whole number from 1 to
+# `MAX_QUARANTINE_DAYS`.
+QUARANTINE_DAYS = 7
+MAX_QUARANTINE_DAYS = 30
 # The default `merge.max-verify-fails`: three heads' FAILs is a pull request
 # the verifier keeps refusing, not one noisy verdict (owner decision
 # 2026-10-21).
@@ -548,6 +552,10 @@ class PipelineConfig:
     # The default branch head's `merge.check-inputs` not in `check_inputs`,
     # set by `stricter_config` and read on its own.
     head_check_inputs: tuple[str, ...] = ()
+    # `merge.quarantine-days`: days a quarantined suite's failures on the
+    # default branch stop demoting (`babysit_postmerge`). Absent, or anything
+    # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
+    quarantine_days: int = QUARANTINE_DAYS
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -687,6 +695,7 @@ def read_config_at(
             ("merge.risk-escalation-minutes", False),
             ("merge.max-verify-fails", False),
             ("merge.check-inputs", True),
+            ("merge.quarantine-days", False),
         ],
     )
     if values is None:
@@ -771,6 +780,16 @@ def read_config_at(
             f"merge.max-verify-fails {verify_fails!r} is not a count of 1 or more"
         )
         verify_fails = "1"
+    quarantine_days = scalar("merge.quarantine-days")
+    if quarantine_days is not None and not (
+        re.fullmatch(r"[1-9][0-9]?", quarantine_days)
+        and int(quarantine_days) <= MAX_QUARANTINE_DAYS
+    ):
+        notes.append(
+            f"merge.quarantine-days {quarantine_days!r} is not a count from 1 to "
+            f"{MAX_QUARANTINE_DAYS}"
+        )
+        quarantine_days = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -796,6 +815,7 @@ def read_config_at(
         else RISK_ESCALATION_MINUTES,
         max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
         check_inputs=tuple(values["merge.check-inputs"]),
+        quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
     )
 
 
@@ -1868,12 +1888,18 @@ def _dependabot_content(
     `dependabot-content:<x>`, names a diff that is not only covered manifests,
     lock files and `uses:` repins (`content_refusal`, per
     `.github/dependabot.yml` at the base); it sends the pull request to tier
-    `review`. The paths a version-bump or lanes App fix commit touched count
-    as checked; a fix commit touching `.github/`, or one whose file list cannot
-    be read whole, is the refusal. The changed paths (either side of a rename)
-    are None when the files listing was not read whole. Raises
-    `PolicyReadError` on a read failure."""
+    `review`. The paths a version-bump commit touched count as checked once
+    it passes the bump rule (only plugin.json's `version` and CHANGELOG.md;
+    else `dependabot-bump-content:<why>`); any other commit that is not
+    Dependabot's (a lanes App fix) must pass the fix rule
+    (`_fix_commit_refusal`), else `dependabot-fix-content:<why>` is the
+    refusal, as is a commit whose file list cannot be read whole. The changed
+    paths (either side of a rename) are None when the files listing was not
+    read whole. Raises `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
+    config = dependabot.parse_config(
+        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
+    )
     extra: set[str] = set()
     for item in commits:
         if dependabot.is_dependabot_commit(item):
@@ -1883,14 +1909,12 @@ def _dependabot_content(
         if touched is None:
             # Unreadable (or past the listing cap) is not "touches nothing".
             return None, f"unreadable: commit files {sha[:12]}", None
-        if not dependabot.is_actions_commit(item):
-            gated = [p for p in touched if p == ".github" or p.startswith(".github/")]
-            if gated:
-                return None, f"dependabot-fix-content:{gated[0]}", None
+        bump = dependabot.is_actions_commit(item)
+        refusal = _fix_commit_refusal(owner, name, sha, config, bump=bump)
+        if refusal:
+            kind = "bump" if bump else "fix"
+            return None, f"dependabot-{kind}-content:{refusal}", None
         extra.update(touched)
-    config = dependabot.parse_config(
-        _file_at(owner, name, DEPENDABOT_CONFIG, base_sha) or ""
-    )
     if config is None:
         return "dependabot-config-unreadable", None, None
     listing = _paginated(
@@ -1906,6 +1930,87 @@ def _dependabot_content(
         if p
     ]
     return dependabot.content_refusal(listing, config, extra), None, paths
+
+
+FIX_TREE = """
+query FixTree($o: String!, $r: String!, $e: String!) {
+  repository(owner: $o, name: $r) {
+    object(expression: $e) { ... on Tree { entries { name type mode } } }
+  }
+}
+"""
+
+
+def _raw_at(owner: str, name: str, path: str, sha: str) -> str | None:
+    """The file's text at `sha` through the raw media type, which serves
+    files over 1 MB (docs.github.com/en/rest/repos/contents#get-repository-content,
+    as of 2026-10-21; recheck when that section changes its size limits);
+    None when absent. Raises `PolicyReadError` on any other failure."""
+    endpoint = f"repos/{owner}/{name}/contents/{quote(path)}?ref={sha}"
+    try:
+        proc = gh_capture(
+            ["api", endpoint, "-H", "Accept: application/vnd.github.raw+json"]
+        )
+    except (RuntimeError, ValueError, OSError) as exc:
+        raise PolicyReadError(f"{path} at {sha}: {exc}") from exc
+    if proc.returncode != 0:
+        if gh_http_status(proc.stderr or "") == 404:
+            return None
+        raise PolicyReadError(f"{path} at {sha} could not be read")
+    return proc.stdout
+
+
+def _fix_commit_refusal(
+    owner: str,
+    name: str,
+    sha: str,
+    config: list[tuple[str, str]] | None,
+    *,
+    bump: bool = False,
+) -> str | None:
+    """Why a lanes App commit is not a fix the lane may merge with
+    (`babysit_dependabot.fix_refusal` against its one parent), or, with
+    `bump`, the version-bump commit more than a version bump (`bump_refusal`),
+    or None. The commit's files, modes and both sides' text are read here; a
+    read that fails is a refusal."""
+    status, payload = _get(f"repos/{owner}/{name}/commits/{sha}")
+    detail = json_object(payload)
+    listing = detail.get("files")
+    parents = json_array(detail.get("parents"))
+    if (
+        status != 200
+        or not is_json_array(listing)
+        or not listing
+        or len(listing) >= COMMIT_FILES_LIMIT
+    ):
+        return f"commit-files-unreadable:{sha[:12]}"
+    parent = str(json_object(parents[0]).get("sha") or "") if parents else ""
+    if len(parents) != 1 or not SHA_RE.fullmatch(parent):
+        return f"commit-parents:{sha[:12]}"
+    trees: dict[str, list[Any]] = {}
+
+    def entry(path: str) -> Any:
+        folder = posixpath.dirname(path)
+        if folder not in trees:
+            data = _graphql(
+                FIX_TREE, f"{sha[:12]} tree", o=owner, r=name, e=f"{sha}:{folder}"
+            )
+            tree = json_object(json_object(data.get("repository")).get("object"))
+            trees[folder] = json_array(tree.get("entries"))
+        base = posixpath.basename(path)
+        return next(
+            (e for e in trees[folder] if json_object(e).get("name") == base), None
+        )
+
+    def text(side: str, path: str) -> str | None:
+        return _raw_at(owner, name, path, parent if side == "before" else sha)
+
+    try:
+        if bump:
+            return dependabot.bump_refusal(listing, entry, text)
+        return dependabot.fix_refusal(listing, config, entry, text)
+    except PolicyReadError as exc:
+        return f"fix-unreadable:{str(exc)[:120]}"
 
 
 def _dependabot_policy(owner: str, name: str, base_sha: str) -> Any:
@@ -3496,7 +3601,9 @@ def assess(
     merges in flight. The
     config at the base must enable that authority (`enabled_authority`).
 
-    Config at the pull request's base SHA, then authority, identity, the
+    Config at the pull request's base SHA (the default branch head's alone,
+    reported as `baseConfigFallback`, when the base's cannot be parsed), then
+    authority, identity, the
     credential chokepoint, the kill switch, a base that is the default
     branch, the config tightened by the default branch head's
     (`with_default_branch`; `merge.max-in-flight` the head's alone,
@@ -3527,8 +3634,21 @@ def assess(
     base_ref = str(json_object(pr.get("base")).get("ref"))
     base_sha = str(json_object(pr.get("base")).get("sha"))
     config = read_config_at(repo, base_sha)
+    fallback = None
+    if config.error == "config-parse-error":
+        # A base older than the reader's grammar answers to the default branch
+        # head's config alone, never the pull request head's; a head config
+        # that cannot be read or parsed raises, as the base's did.
+        config = _default_branch_config(repo)
+        fallback = (
+            f"{CONFIG_PATH} at {base_sha}: config-parse-error; "
+            f"read at the default branch head {config.base_sha}"
+        )
     if config.error:
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha}: {config.error}")
+    # The commit whose config history sets the post-merge floor: the base, or
+    # the default branch head the config fell back to.
+    history_sha = config.base_sha
     identity = config.agent_identity
     lane = authority == PR_MERGE
     # A Dependabot pull request in the lane answers to its own switch.
@@ -3537,6 +3657,8 @@ def assess(
         config.dependabot_mode != "enforce" if dependabot_pr else config.report_only
     )
     details: dict[str, Any] = {"baseSha": base_sha, "reportOnly": report_only}
+    if fallback:
+        details["baseConfigFallback"] = fallback
     inputs: dict[str, Any] = {
         "pr": pr,
         "config": config,
@@ -3625,7 +3747,7 @@ def assess(
             repo,
             shared,
             branch=default,
-            base_sha=base_sha,
+            base_sha=history_sha,
             identity=resolved.login,
             self_logins=self_logins,
             lane=lane,
@@ -3655,7 +3777,7 @@ def assess(
         floor = reuse.floor
     else:
         try:
-            floor = merged_since_floor(repo, base_sha, demotion, authority)
+            floor = merged_since_floor(repo, history_sha, demotion, authority)
         except PolicyReadError as exc:
             return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
     details["mergedSince"] = floor.isoformat()
@@ -3674,7 +3796,7 @@ def assess(
         and gate.report.get("readable") is True
     ):
         try:
-            config_sha = newest_config_commit(repo, base_sha)
+            config_sha = newest_config_commit(repo, history_sha)
         except PolicyReadError:
             config_sha = None
         if config_sha:

@@ -83,7 +83,8 @@ activities:
     skill: source-control:pull-request
     # The skill's CI mode for dependency bumps: reads the runner's context
     # file, the checkout and upstream release notes, runs no head code, and
-    # pushes a fix only outside .github/ with [dependabot skip].
+    # pushes a fix only to npm or pip manifest and lock files outside
+    # .github/, with [dependabot skip]; the runner lands no other fix.
     args: dependency --ci
     # Before any model turn the runner skips a pull request Dependabot did
     # not open or one sorted `auto`, and hands it to a person once
@@ -304,7 +305,9 @@ activities:
     # a merge, meaning a merged PR or a commit (a pull request blocker:
     # merged; another repository's: never), that carries no
     # hold label, and whose agent-ready label was never removed. The label
-    # starts resolve-issue. Hourly it also hands an agent-ready issue whose
+    # starts resolve-issue. At the issue lane's queued cap (check-wip-cap) it
+    # labels such an issue admission-deferred instead, and each hourly sweep
+    # admits the deferred ones oldest first within the room. Hourly it also hands an agent-ready issue whose
     # lanes-App PR merged with `Refs:` or closed unmerged to triage
     # (needs-triage on, agent-ready off), lifting only the needs-human
     # report-outcome set for a merged Refs PR. A script, no model.
@@ -491,14 +494,13 @@ limits:
   # 1: one capped run resumes from its pushed branch before a person is asked
   # again. Raise it further only with a security review (#7677).
   turn-cap-restarts: 1
-  # Hours of issue-lane admissions the admitted backlog (open issues with
-  # agent-ready) may hold before new agent-ready labels pause.
-  admission-window-hours: 24
-  # Share of the lane's hourly merge rate admitted per hour; the release point
-  # is this factor times hourly merges times admission-window-hours.
+  # Share of the lane's hourly merge rate admitted per hour. The queued cap
+  # (check-wip-cap) is the larger of this rate and admission-min-per-hour,
+  # times wip.merge-rate-window-hours; at it, past wip.pause-from, new
+  # agent-ready labels pause.
   admission-factor: 0.8
-  # Admissions per hour the release point never falls below, so a day with
-  # no lane merges cannot hold admissions shut (owner decision 2026-10-21).
+  # Admissions per hour the queued cap never falls below, so a day with no
+  # lane merges cannot hold admissions shut (owner decision 2026-10-21).
   admission-min-per-hour: 1
 
 wip:
@@ -509,17 +511,18 @@ wip:
   min-cap: 12
   merge-rate-window-hours: 24
   # Lane PRs opened in the window may be at most this share of those merged
-  # in it (not limits.admission-factor, which sizes the agent-ready backlog).
+  # in it (not limits.admission-factor, which sizes the queued cap).
   opened-to-merged-ratio: 0.8
   # Held lane PRs (needs-human, do-not-merge, or a "Hold: a human merges
   # this" body line) count here, not against the cap; at this many the lane
   # pauses (owner decision 2026-10-21).
   held-cap: 10
   held-alarm-hours: 24
-  # Over the WIP cap or the held cap the lane pauses from this date.
+  # Over the WIP cap or the held cap runs pause from this date, and over the
+  # queued cap new admissions do.
   # The owner clears it to only alert. Empty: over a cap the lane alerts and
   # keeps starting runs.
-  pause-from: "2026-10-18"
+  pause-from: ""
 
 # The red-main revert rule (owner decision 2026-10-20). post-merge-demotion-
 # alert.yml's report job reads it after a scheduled or dispatched
@@ -558,6 +561,14 @@ adoption:
   idle-hours: 24
   # kyle-sexton (.github/standards/trusted-actors/trusted-actors.json).
   owner-ids: [153232337]
+
+# The daily branch cleanup (owner decisions W-7, 2026-10-21, and #8958): a
+# branch lives as long as its issue is open. maintenance-delete-stale-branches.yml
+# deletes a branch once its pull request and linked issue are closed, and never
+# one with an open issue or an open pull request.
+branch-cleanup:
+  # A run deletes at most this many; the rest wait for the next run.
+  max-deletes-per-run: 25
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
@@ -615,6 +626,12 @@ merge:
   # whatever a later pass says, so pushing until the verifier passes once
   # does not merge it (owner decision 2026-10-21).
   max-verify-fails: 3
+  # Days a suite failing on main outside the merges' affected set stays
+  # quarantined: its quarantine issue excuses its failures from demotion
+  # until it closes or is this old, then they demote again, even when the
+  # suite was already red before the merge. 7 is judgment (owner decision
+  # Q645 left the default to planning); at most 30.
+  quarantine-days: 7
   # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
   # judges every author's.
   verify-authors: lane

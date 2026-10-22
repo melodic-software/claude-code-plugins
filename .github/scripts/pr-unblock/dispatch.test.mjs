@@ -529,7 +529,7 @@ test("main writes the recorded ids and exits 1 when another dispatch failed", as
 test("main records a review-dependency dispatch beside the conflict dispatches", async () => {
   const dependabot = pr(131, {
     mergeable: "MERGEABLE",
-    author: { login: "dependabot[bot]" },
+    author: { login: "dependabot", databaseId: 49699333 },
     headRefName: "dependabot/npm_and_yarn/x-2.0.0",
     title: "build(deps): bump x from 1.0.0 to 2.0.0",
     body: "",
