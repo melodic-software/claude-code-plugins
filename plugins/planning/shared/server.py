@@ -153,6 +153,14 @@ CLIENT_PER_MINUTE = 20  # judgment: entries one person's page may log a minute; 
 SUMMARY_PER_MINUTE = 6  # judgment: a page sends one summary each time it hides; tab switching rarely passes this
 SUMMARY_BATCH_SECONDS = 600  # judgment: summaries held per batch; long enough that many people's summaries share one
 SUMMARY_BATCH_BYTES = 100_000  # judgment: the most one batch entry holds; a summary past it is counted as dropped
+SUMMARY_MIN_SENDERS = 2  # judgment: a batch is written only once this many guests sent to it (or only the owner did),
+# so its counts and pairs are never one guest's; below it a batch waits for the next, and at shutdown is only counted
+# A summary's count tokens, added up per batch and never left in its pair: a repeat's fingerprint is also on its fault
+# entry, which names the person, and a component's taps (use, rage, dead) are no one's. Any other token with one of
+# these prefixes is dropped, so no text rides along.
+COUNT_PREFIXES = ("rep:", "use:", "rage:", "dead:")
+COUNT_TOKEN = re.compile(r"(rep:[0-9a-f]{1,16}|(?:use|rage|dead):(?:vf|core)-[a-z-]{1,60})=(\d{1,6})", re.ASCII)
+DEVICES = ("phone", "tablet", "computer")  # web/core.js deviceKind(); a summary keeps only this word of its ua
 TUNNEL_POLL = 1.0  # seconds between tunnel checks
 TUNNEL_BACKOFF_MAX = 60.0
 PRESENCE_TICK = 5  # the snapshot ETag moves at least this often, so expired presence shows
@@ -253,7 +261,7 @@ SERVER_ERROR = ("state-invalid", "The server could not do that; nothing was writ
 
 
 def batch_json(items):
-    """A summary batch's [message, ua] pairs as one line of ASCII with no space, so it is the last field of its entry."""
+    """A summary batch's counts or [message, device] pairs as ASCII with no space, so each is one field of its entry."""
     return json.dumps(items, separators=(",", ":")).replace(" ", "\\u0020")
 
 
@@ -965,7 +973,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         except DomainError as exc:
             return self.fail(exc)
         if usage:
-            self.app.hold_summary(fields["message"], fields["ua"])
+            self.app.hold_summary(fields["message"], fields["ua"], None if self.headers.get("X-Owner-Token") else pid)
             self.unlogged = True
         else:
             self.app.log.warning("%s", entry("client", pid=pid, **fields))
@@ -1004,7 +1012,7 @@ class App:
         self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)  # keyed by pid
         self.image_bucket = Bucket(IMAGE_PER_MINUTE / 60, IMAGE_PER_MINUTE)  # GET /api/upload/image, keyed by pid
         self.summary_bucket = Bucket(SUMMARY_PER_MINUTE / 60, SUMMARY_PER_MINUTE)  # keyed by pid, kept in memory only
-        self._summary_lock, self._summaries, self._summary_bytes, self._dropped = threading.Lock(), [], 0, 0
+        self._summary_lock, self._summaries, self._counts, self._senders, self._summary_bytes, self._dropped = threading.Lock(), [], collections.Counter(), set(), 0, 0
         self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
@@ -1043,26 +1051,45 @@ class App:
             with self._chunk_lock:
                 self._chunk_readers.discard(pid)
 
-    def hold_summary(self, message, ua):
-        """Keep a usage summary for the next batch; one past SUMMARY_BATCH_BYTES is only counted, as dropped."""
-        item = [message, ua or ""]
-        size = len(batch_json([item]))
+    def hold_summary(self, message, ua, sender=None):
+        """Keep a usage summary for the next batch: its count tokens (COUNT_TOKEN) added to the batch's counts, the
+        rest as a [message, device] pair; `sender`, a guest's pid (None for the owner), only in memory, to count the
+        batch's guests. One past SUMMARY_BATCH_BYTES is only counted, as dropped."""
+        words, counts = [], collections.Counter()
+        for t in message.split(" "):
+            m = COUNT_TOKEN.fullmatch(t)
+            if m:
+                counts[m[1]] += int(m[2])
+            elif not t.startswith(COUNT_PREFIXES):
+                words.append(t)
+        dev = (ua or "").split(" ")[-1]
+        item = [" ".join(words), dev if dev in DEVICES else "unknown"]
         with self._summary_lock:
+            size = len(batch_json([item])) + sum(len(k) + 10 for k in counts if k not in self._counts)
             if self._summary_bytes + size > SUMMARY_BATCH_BYTES:
                 self._dropped += 1
             else:
                 self._summaries.append(item)
+                self._counts.update(counts)
                 self._summary_bytes += size
+                if sender:
+                    self._senders.add(sender)
 
-    def flush_summaries(self):
+    def flush_summaries(self, stopping=False):
         """One summary-batch entry (README "Logs") for the summaries held since the last, sorted so their arrival order
-        is gone too; none when there were none."""
+        is gone too, and their counts; none when there were none. Summaries from 1 to SUMMARY_MIN_SENDERS - 1 guests
+        wait for the next batch, or at shutdown are only counted, as dropped."""
         with self._summary_lock:
-            items, dropped = sorted(self._summaries), self._dropped
-            self._summaries, self._summary_bytes, self._dropped = [], 0, 0
             self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
+            few = 0 < len(self._senders) < SUMMARY_MIN_SENDERS
+            if few and not stopping:
+                return
+            items, counts, dropped = sorted(self._summaries), dict(sorted(self._counts.items())), self._dropped
+            self._summaries, self._counts, self._senders, self._summary_bytes, self._dropped = [], collections.Counter(), set(), 0, 0
+        if few:
+            items, counts, dropped = [], {}, dropped + len(items)
         if items or dropped:
-            self.log.info("summary-batch summaries=%d dropped=%d data=%s", len(items), dropped, batch_json(items))
+            self.log.info("summary-batch summaries=%d dropped=%d counts=%s data=%s", len(items), dropped, batch_json(counts), batch_json(items))
 
     def asset_sign(self, pid, exp):
         return hmac.new(self._asset_key, f"{pid}.{exp}".encode(), hashlib.sha256).hexdigest()
@@ -1188,10 +1215,13 @@ class App:
             try:
                 tunnel.sweep(self.dir)
                 self.sync_tunnel()
-                if time.monotonic() >= self._batch_at:
-                    self.flush_summaries()
             except Exception:  # the watch must outlive any one bad pass
                 self.log.error("%s", entry("tunnel-watch", trace=trace()))
+            if time.monotonic() >= self._batch_at:
+                try:
+                    self.flush_summaries()
+                except Exception:  # nor may a failed batch stop the tunnel watch
+                    self.log.error("%s", entry("summary-batch-failed", trace=trace()))
 
     def serve(self):
         """Serve both listeners and watch the tunnel in threads; returns at once."""
@@ -1205,7 +1235,7 @@ class App:
         serving = getattr(self, "threads", None)  # shutdown() waits for serve_forever, so only once serving
         if serving:
             self.guest.shutdown()
-        self.flush_summaries()  # before the control listener goes, so `share.sh stop` returns after it
+        self.flush_summaries(stopping=True)  # before the control listener goes, so `share.sh stop` returns after it
         if serving:
             self.control.shutdown()
         self.guest.server_close()

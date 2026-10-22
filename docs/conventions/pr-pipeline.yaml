@@ -417,6 +417,18 @@ models:
       workload: code
       effort-role: verifier
       max-turns: 75
+      # One rung up, for fix-ci's retry after it escalated only unfixed or
+      # not-reproducible checks.
+      escalate-to: code-xhigh
+    # The rung above Opus high: Opus at effort xhigh, for a high-Complexity
+    # issue and fix-ci's one retry. The rung above it is Fable, which no
+    # profile names: it stays off, owner-gated pending a per-week Fable
+    # allowance for the lanes. code-xhigh has no escalate-to, so nothing
+    # climbs past it.
+    code-xhigh:
+      model: opus
+      effort: xhigh
+      max-turns: 75
     # A mechanical worker (prose fixes against a rule catalog), from the
     # multi-agent role map; the turn budget standard gave.
     docs-fix:
@@ -479,6 +491,11 @@ models:
       medium: 1.5
       # Double, the most a size's timeout covers.
       high: 2
+    # The profile a run starts on by Complexity, in place of its route's:
+    # high runs Opus at effort xhigh; low, medium and an unset field keep the
+    # activity's default.
+    complexity-profiles:
+      high: code-xhigh
     uncertainty:
       # The approach is known: run it.
       known: run
