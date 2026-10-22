@@ -69,6 +69,7 @@ else
   git_repo "$t"
   mkdir -p "$t/suites" "$t/data"
   echo hidden >"$t/data/hidden.txt"
+  echo recorded >"$t/data/recorded.txt"
   echo named >"$t/data/named.txt"
   echo odd >"$t/data/unmapped.txt"
   echo broken >"$t/data/broken.txt"
@@ -76,7 +77,7 @@ else
   echo '{}' >"$t/package.json"
   echo 22 >"$t/.node-version"
   echo '*.log' >"$t/.gitignore"
-  printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt data/named.txt data/unmapped.txt data/untracked.txt data/broken.txt' \
+  printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt data/recorded.txt data/named.txt data/unmapped.txt data/untracked.txt data/broken.txt' \
     'cat package.json .node-version .gitignore' >"$t/suites/reader.test.sh"
   printf '%s\n' '#!/usr/bin/env bash' 'true' >"$t/suites/quiet.test.sh"
   # Reads the unmapped file too, but the fallback corpus does not run it.
@@ -97,21 +98,21 @@ case "$f" in
 data/named.txt) echo suites/reader.test.sh ;;
 data/unmapped.txt) echo "UNMAPPED: 1 changed file(s) map to no test suite:" >&2 ;;
 data/broken.txt) exit 3 ;;
-*) echo "no-suite: $f (recorded in the stub)" >&2 ;;
+data/recorded.txt) echo "no-suite: $f (recorded in the stub)" >&2 ;;
 esac
 EOF
   rc=0
   (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-selector.sh" GITHUB_STEP_SUMMARY="$TMP_ROOT/summary.md" \
     bash "$AUDIT" trace --jobs 2 --out "$TMP_ROOT/out") >"$TMP_ROOT/trace.log" 2>&1 || rc=$?
   gaps="$(cat "$TMP_ROOT/out/gaps.tsv" 2>/dev/null)"
-  want=$'suites/reader.test.sh\tdata/hidden.txt\tno-suite: data/hidden.txt (recorded in the stub)\nsuites/zz-outside.test.sh\tdata/unmapped.txt\tunmapped: the fallback corpus does not run this suite'
+  want=$'suites/reader.test.sh\tdata/hidden.txt\tselects no suite\nsuites/zz-outside.test.sh\tdata/unmapped.txt\tunmapped: the fallback corpus does not run this suite'
   if [[ "$rc" -eq 1 ]]; then
     ok "trace: exits 1 on a gap"
   else
     fail "trace: exit $rc, want 1: $(cat "$TMP_ROOT/trace.log")"
   fi
   if [[ "$gaps" == "$want" ]]; then
-    ok "trace: gaps are the unmapped-to-suite read and the unmapped read of a suite the fallback does not run (mapped, fallback-run, unchecked, untracked, self and root toolchain files are not)"
+    ok "trace: gaps are the read that selects no suite, the unmapped-to-suite read and the unmapped read of a suite the fallback does not run (mapped, recorded no-suite, fallback-run, unchecked, untracked, self and root toolchain files are not)"
   else
     fail "trace: gaps.tsv [$gaps] want [$want]"
   fi
