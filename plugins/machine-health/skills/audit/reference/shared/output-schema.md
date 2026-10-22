@@ -116,6 +116,7 @@ Emitted by the orchestrator at the end of every run. Overwrites the previous sna
     "remediations":      { "type": "array", "items": { "$ref": "#/definitions/RemediationAttempt" } },
     "discovered_checks": { "type": "array", "items": { "type": "object" } },
     "urls_called":       { "type": "array", "items": { "type": "string" }, "description": "Egress allowlist audit trail." },
+    "elevated_checks":   { "type": "array", "items": { "type": "string" }, "description": "Present only on a run given -ElevatedResultPath: the check ids whose result came from the elevated pass's file. Empty when the file was refused." },
     "duration_seconds":  { "type": "number", "minimum": 0 }
   }
 }
