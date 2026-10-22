@@ -1603,7 +1603,8 @@ runs daily and sorts every branch; its rules and tests are in
 The job prints how many it will delete, then deletes at most `max-deletes-per-run`, in listing
 order. It reserves four calls per planned delete from its call budget before evaluating, and stops
 evaluating once it has found `max-deletes-per-run` deletable branches or spent the rest of the
-budget; the branches after that wait for the next run. Before each delete it re-reads the tip and the open pull requests from and into the branch,
+budget. Each run starts at a different point in the listing, moved by the run number and wrapping
+around, so branches kept early in the listing do not hide the later ones from every run. Before each delete it re-reads the tip and the open pull requests from and into the branch,
 skips it when the tip moved or one opened, and appends `{repo, branch, sha, rule, issue, pr,
 deletedAt}` to the step summary and the run's `branch-cleanup-ledger-<run>-<attempt>` artifact. The
 delete is `DELETE git/refs/heads/<branch>` with the job's own `GITHUB_TOKEN` (`contents: write`,

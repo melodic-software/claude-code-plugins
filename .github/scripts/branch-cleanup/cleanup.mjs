@@ -10,7 +10,7 @@
 //
 // Environment: GITHUB_TOKEN, REPOSITORY, DRY_RUN (`true` or `false`),
 // BASE_PATH (main's checkout), LEDGER_PATH (JSON Lines file), CALL_BUDGET,
-// GITHUB_API_URL, GITHUB_STEP_SUMMARY.
+// GITHUB_API_URL, GITHUB_STEP_SUMMARY, GITHUB_RUN_NUMBER.
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -151,14 +151,19 @@ export async function cleanup(env, { call, clock, loadConfig, append, log = cons
   const context = { repo, owner, defaultBranch };
 
   const branches = await pages(read, `/repos/${repo}/branches`);
+  // Evaluation stops once the cap is filled or its share is spent, so each run
+  // starts at a point the run number moves by about a quarter of what one run
+  // can read (a branch takes up to about four reads), wrapping around: kept
+  // branches early in the listing cannot hide the later ones from every run.
+  const stride = Number.isFinite(evalLimit) ? Math.max(1, Math.floor(evalLimit / 4)) : 0;
+  const start = branches.length === 0 ? 0 : ((Number.parseInt(env.GITHUB_RUN_NUMBER ?? "", 10) || 0) * stride) % branches.length;
+  const ordered = [...branches.slice(start), ...branches.slice(0, start)];
   const results = [];
-  // Evaluation stops once the cap is filled or its share is spent; the
-  // branches after that wait for the next run.
   let unevaluated = 0;
   let found = 0;
-  for (const [index, branch] of branches.entries()) {
+  for (const [index, branch] of ordered.entries()) {
     if (cap > 0 && found >= cap) {
-      unevaluated = branches.length - index;
+      unevaluated = ordered.length - index;
       break;
     }
     const name = branch.name;
@@ -174,7 +179,7 @@ export async function cleanup(env, { call, clock, loadConfig, append, log = cons
       results.push({ name, sha, ...verdict });
     } catch (error) {
       if (error instanceof BudgetSpent) {
-        unevaluated = branches.length - index;
+        unevaluated = ordered.length - index;
         break;
       }
       results.push({ name, sha, verdict: "report", reason: `a read failed: ${error.message}` });
@@ -234,7 +239,7 @@ export async function cleanup(env, { call, clock, loadConfig, append, log = cons
     ),
   ];
   if (unevaluated > 0) {
-    lines.push("", `${unevaluated} branch(es) not evaluated this run (cap ${cap} reached or call budget spent); the next run continues.`);
+    lines.push("", `${unevaluated} branch(es) not evaluated this run (cap ${cap} reached or call budget spent); the next run starts at a different point in the listing.`);
   }
   if (skipped.length > 0) {
     lines.push("", "#### Skipped at delete time", "", ...skipped.map((s) => `- \`${s.name}\`: ${s.reason}`));

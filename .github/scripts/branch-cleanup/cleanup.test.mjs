@@ -277,3 +277,41 @@ test("300 deletable branches under a 600-call budget: the run deletes the cap of
   assert.equal(result.deleted.length, 25);
   assert.equal(w.writes.length, 25);
 });
+
+// #8976 review: kept branches ahead of the deletable ones spent the
+// evaluation share every run, so the branches after them were never read.
+test("493 kept branches ahead of 8 deletable: successive runs reach and delete all 8", async (t) => {
+  const branches = [];
+  const pulls = {};
+  for (let i = 1; i <= 501; i += 1) {
+    const name = `feat/b-${i}`;
+    const tip = i.toString(16).padStart(40, "0");
+    branches.push({ name, sha: tip });
+    // A kept branch costs two reads: its pull requests and its open linked issue.
+    pulls[name] = [mergedPull(i, tip, OLD, i <= 493 ? "Closes #7000" : "")];
+  }
+  const w = world({ branches, pulls, issues: { 7000: openIssue } });
+  t.mock.method(globalThis, "fetch", async (url, { method }) => {
+    const path = String(url).slice("https://api.test".length);
+    const body = await w.call(method, path);
+    if (method !== "GET") {
+      const name = decodeURIComponent(path.slice(`/repos/${REPO}/git/refs/heads/`.length));
+      branches.splice(branches.findIndex((b) => b.name === name), 1);
+      return new Response(null, { status: 204 });
+    }
+    return body === null ? new Response(null, { status: 404 }) : Response.json(body);
+  });
+  for (let runNumber = 1; runNumber <= 5; runNumber += 1) {
+    const env = {
+      REPOSITORY: REPO,
+      DRY_RUN: "false",
+      CALL_BUDGET: "600",
+      GITHUB_API_URL: "https://api.test",
+      GITHUB_RUN_NUMBER: String(runNumber),
+    };
+    const call = client(env, { pace: async () => {}, dryRun: false });
+    await cleanup(env, { call, clock: () => NOW, loadConfig: () => ({}), append: () => {}, log: () => {} });
+  }
+  assert.equal(w.writes.length, 8);
+  assert.equal(branches.length, 493);
+});
