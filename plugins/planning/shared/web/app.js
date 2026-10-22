@@ -1991,8 +1991,9 @@
     const lbActs = E("div", "vf-lb-acts");
     const lbChoose = btn("vf-btn vf-lb-choose"), lbYes = btn("vf-btn vf-lb-yn", "Yes"), lbNo = btn("vf-btn vf-lb-yn", "No");
     const lbUndo = btn("vf-btn vf-btn-ghost vf-btn-sm vf-optundo vf-lb-undo", "Undo");
+    const lbGif = btn("vf-btn vf-lb-gif"); lbGif.hidden = true;
     const lbZoom = E("p", "vf-lb-zoomhint");
-    lbActs.append(lbChoose, lbYes, lbNo, lbUndo);
+    lbActs.append(lbGif, lbChoose, lbYes, lbNo, lbUndo);
     lbFoot.append(lbInfo, lbActs, lbZoom);
     lb.append(lbHead, lbStage, lbFoot);
     lb.setAttribute("aria-labelledby", lbTitle.id = "vf-lb-title");
@@ -2583,7 +2584,12 @@
       if (!items.length || LB.cur !== ui.cur || (LB.kind !== "att" && !q)) return closeLb();
       LB.i = Math.min(LB.i, items.length - 1);
       const it = items[LB.i], many = items.length > 1;
-      if (lbImg._src !== (it.src || it.asset)) { lbImg._src = it.src || it.asset; lbImg.src = it.src || assetUrl(it.asset); }
+      if (lbImg._src !== (it.src || it.asset)) {
+        const src = lbImg._src = it.src || it.asset;
+        lbGif.hidden = true;
+        if (!it.id) lbImg.src = it.src || assetUrl(it.asset);
+        else { lbImg.removeAttribute("src"); gifStill(it.id, src).then(still => { if (lbImg._src !== src) return; if (still) { gifToggle(lbGif, lbImg, src, still); lbGif.hidden = false; } else lbImg.src = src; }); }
+      }
       lbImg.alt = it.alt || (it.rect ? `${it.title}, with the area in question marked` : it.title);
       lbFrame.classList.toggle("vf-lb-diagram", !!it.alt);
       markRect(lbMark, it.rect);
@@ -3630,9 +3636,53 @@
       return p;
     };
     const localPics = new Map(); // upload id -> a thumbnail this browser made of a picture it offered
+    // upload id -> the promise of its first frame as a PNG data: URL when it is an animated GIF, else null. An animated
+    // GIF shows still until someone presses Play (WCAG 2.2.2): canvas draws an animated image's first frame.
+    const gifStills = new Map();
     /** Drop a cached picture the page may no longer show (removed, or no longer carried by anything it reads). */
     function prunePics() {
       for (const id of [...upPics.keys()]) if (!fileOf({ upload: id })?.image) upPics.delete(id);
+      for (const id of [...gifStills.keys()]) if (!upPics.has(id)) gifStills.delete(id);
+    }
+    /** A GIF's blocks, walked by the GIF89a spec: null unless the bytes start as a GIF, else its frame count, whether
+     *  it reached the trailer whole, and its blocks without comments or application blocks other than the loop count,
+     *  either of which can carry any text. */
+    function gifWalk(b) {
+      if (!/^GIF8[79]a$/.test(String.fromCharCode(...b.subarray(0, 6)))) return null;
+      const table = flags => (flags & 0x80 ? 3 << ((flags & 7) + 1) : 0);
+      const subs = j => { while (j < b.length && b[j]) j += b[j] + 1; return j + 1; }; // data sub-blocks end at a zero length
+      let i = 13 + table(b[10]), frames = 0;
+      const parts = [b.subarray(0, i)];
+      while (i < b.length) {
+        const at = i;
+        if (b[i] === 0x3b) return { frames, whole: true, parts: [...parts, b.subarray(i, i + 1)] };
+        if (b[i] === 0x2c) { frames++; i = subs(i + 11 + table(b[i + 9])); }
+        else if (b[i] === 0x21) {
+          i = subs(i + 2);
+          const app = b[at + 1] === 0xff && String.fromCharCode(...b.subarray(at + 3, at + 14));
+          if (b[at + 1] === 0xfe || (app && !/^(NETSCAPE2\.0|ANIMEXTS1\.0)$/.test(app))) continue;
+        } else break;
+        parts.push(b.subarray(at, Math.min(i, b.length)));
+      }
+      return { frames, whole: false, parts };
+    }
+    const gifStill = (id, src) => {
+      if (!src.startsWith("data:image/gif;")) return Promise.resolve(null);
+      if (!gifStills.has(id)) gifStills.set(id, (async () => {
+        if ((gifWalk(Uint8Array.from(atob(src.slice(src.indexOf(",") + 1)), c => c.charCodeAt(0)))?.frames || 0) < 2) return null;
+        const im = new Image(); im.src = src; await im.decode();
+        const c = document.createElement("canvas"); c.width = im.naturalWidth; c.height = im.naturalHeight;
+        c.getContext("2d").drawImage(im, 0, 0);
+        return c.toDataURL("image/png");
+      })().catch(() => null));
+      return gifStills.get(id);
+    };
+    /** Play GIF / Stop GIF on an animated GIF shown still in img. */
+    function gifToggle(b, img, src, still) {
+      const set = on => { img.src = on ? src : still; b.textContent = on ? "Stop GIF" : "Play GIF"; b._on = on; };
+      b.onclick = e => { e.stopPropagation(); set(!b._on); };
+      set(false);
+      return b;
     }
     /** A placeholder where a picture will show: to its uploader and the host until it arrives, and to everyone else
      *  until the host approves it once it has. */
@@ -3644,7 +3694,7 @@
     const isPic = a => !!attAsset(a) || !!fileOf(a)?.image;
     /** The viewer's items for a record's pictures: an asset, or a received upload read from the server. */
     const picItems = pics => Promise.all(pics.map(async p => (attAsset(p) ? { asset: attAsset(p), title: attTitle(p), rect: p.rect || null }
-      : { src: await upPic(p.upload), title: attTitle(p) })));
+      : { src: await upPic(p.upload), id: p.upload, title: attTitle(p) })));
     const attTitle = a => a.caption || fileOf(a)?.file || (a.kind === "diagram" ? "Diagram" : "Picture");
     /** The owner's view of whether a guest's received picture is approved. */
     const upShown = a => !!(Core.state.uploads || []).find(u => u.id === a.upload)?.shown;
@@ -3672,7 +3722,11 @@
         if (f.image) {
           const b = btn("vf-ref-img vf-uppic");
           img.hidden = true;
-          upPic(a.upload).then(u => { img.src = u; img.hidden = false; }).catch(() => {});
+          upPic(a.upload).then(async u => {
+            const still = await gifStill(a.upload, u);
+            if (still) li.append(gifToggle(btn("vf-btn vf-btn-sm vf-gifplay"), img, u, still)); else img.src = u;
+            img.hidden = false;
+          }).catch(() => {});
           thumb.append(zoomTag());
           b.append(thumb, E("span", "vf-ref-cap", attTitle(a)));
           b.setAttribute("aria-label", `View larger: ${attTitle(a)}`);
@@ -4130,6 +4184,7 @@
 
     // ---------- uploads: the file waits in this browser until the host accepts ----------
     const CHUNK_MAX = 8 * 1024 * 1024, GUEST_MAX = 100 * 1024 * 1024; // the server names its chunk size on each upload
+    const SHOWN_MAX = 512 * 1024; // the largest received picture the server reads back as one; a larger one shows as a file
     const AVATAR_MAX = 256 * 1024, AVATAR_EDGE = 256; // a profile picture: the server takes 256 KB at most; 256 px covers the largest avatar on a dense screen
     const GUEST_EXT = new Set("png jpg jpeg gif webp pdf txt md csv tsv log rtf doc docx xls xlsx ppt pptx odt ods odp".split(" "));
     const up = { files: new Map(), running: new Set(), sent: {}, retryAt: {}, memOnly: new Set(), loaded: false, noIdb: false };
@@ -4209,6 +4264,15 @@
       const type = shot.url.slice(5, shot.url.indexOf(";")), bytes = Uint8Array.from(atob(shot.url.slice(shot.url.indexOf(",") + 1)), c => c.charCodeAt(0));
       return new File([bytes], `${file.name.replace(/\.[^.]*$/, "")}.${type === "image/webp" ? "webp" : "jpg"}`, { type });
     }
+    /** A GIF as offered: whole, without its comment and application text, at most SHOWN_MAX so it shows in place. A
+     *  redraw would keep only its first frame. */
+    async function bareGif(file) {
+      const g = gifWalk(new Uint8Array(await file.arrayBuffer()));
+      if (!g?.whole) throw { error: `${file.name} could not be read as a GIF.` };
+      const out = new File(g.parts, `${file.name.replace(/\.[^.]*$/, "")}.gif`, { type: "image/gif" });
+      if (out.size > SHOWN_MAX) throw { error: `${file.name} is ${sizeTxt(out.size)}. A GIF shows in place up to 512 KB.` };
+      return out;
+    }
     /** Offer a file to the host; resolves to {id, status}, rejects with {error} or the server's refusal. `avatar`: my
      *  profile picture, redrawn as a small square; it replaces my last one once it arrives. */
     async function offerFile(file, qid, avatar = false) {
@@ -4216,9 +4280,11 @@
       if (!trusted && !GUEST_EXT.has(ext)) throw { error: "Guests can send pictures, PDF, text, CSV and Office files. Ask the host to trust you for other kinds." };
       if (!owner && file.size > GUEST_MAX) throw { error: `That file is ${sizeTxt(file.size)}. Guests can send up to 100 MB in all.` };
       if (!file.size) throw { error: "That file is empty." };
-      const pic = /^image\/(png|jpeg|webp|gif)$/.test(file.type);
+      const gif = !avatar && !!gifWalk(new Uint8Array(await file.slice(0, 6).arrayBuffer()));
+      const pic = gif || /^image\/(png|jpeg|webp|gif)$/.test(file.type);
       if (avatar && !/^image\/(png|jpeg|webp)$/.test(file.type)) throw { error: "A profile picture must be a PNG, JPEG or WebP picture." };
-      if (pic) file = await redrawn(file, avatar);
+      if (gif) file = await bareGif(file);
+      else if (pic) file = await redrawn(file, avatar);
       const thumb = pic ? await makeThumb(file) : "";
       const r = await Core.uploadOffer({ file: file.name, size: file.size, type: file.type.slice(0, 200), ...(qid ? { qid } : {}), ...(thumb ? { thumb } : {}), ...(avatar ? { avatar: true } : {}) });
       up.files.set(r.id, file);
