@@ -3,6 +3,35 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.87.0] - 2026-10-22
+
+### Added
+
+- The shared interview page can read a question and its options aloud, and take dictation into the answer and comment boxes, through the browser's own Web Speech API. Both are off until a person turns them on in their own card, and are kept as their `readAloud` and `dictate` preferences. Dictated words land in the box for review and are never sent on their own; turning Dictate on says when the browser may send the audio to its maker's speech service, and on-device recognition is asked for first where the browser offers it.
+
+## [0.86.0] - 2026-10-22
+
+### Added
+
+- The shared interview page counts taps by control, plus rage taps (three quick taps on one control) and dead taps (a tap that changes nothing), by the control's class name only. The server adds them up for everyone in each 10-minute summary batch, and `share.py logs --summary` lists them.
+
+- Shared interview: once its round has closed, a locked decision accepts a late Disagree. Votes, Passes and answers are still refused. One late Disagree with the locked answer of a decide question marks it "possibly reopened" in the owner's Inbox, with Keep decision and Unlock, and in every digest until the owner keeps, changes or unlocks it, or the last such Disagree is taken back. A late Disagree with a rejected alternative is recorded and raises nothing. Every question that depends on it shows "Needs review: <Q> may be reopened" to everyone. The decision itself never changes on its own.
+- Shared interview: the owner reads a decision history, folded under each question and session-wide under Decisions. It covers locks, changes to the locked text, unlocks, closed and reopened polls, late Disagrees, withdrawn ones and kept decisions, each with its time. Sessions saved before this release start with an empty history.
+- Interview shared lane: when to open a new round, what `dependsOn` names, and what to do with a possibly reopened decision in the digest.
+
+- The shared interview page shows an optional profile picture on each avatar: a PNG, JPEG or WebP of at most 256 KB, picked on your person card and shown as a circle crop. A guest's picture shows to others once the owner approves it, the owner's at once; initials on the person's color stay the fallback, and pictures hide while names do.
+
+### Fixed
+
+- Summary batches can no longer be matched to a fault entry's pid: repeat counts move from each summary to the batch's totals, a summary keeps only the device class, and a batch is written only once at least two guests sent to it, so a single guest's summaries wait for the next batch or, at shutdown, are counted as dropped (#8221).
+- The 10-minute summary batch is still written while the tunnel sync keeps failing.
+
+- A person with tabs on two questions no longer flips between them
+
+  In a shared interview, each tab now reports how long ago it was focused or
+  shown, and the person shows on the question of the tab they used last
+  instead of whichever tab sent the latest heartbeat.
+
 ## [0.85.1] - 2026-10-22
 
 ### Fixed

@@ -1,5 +1,50 @@
 # Changelog for the PR pipeline convention
 
+## [3.3.1] - 2026-10-22
+
+### Fixed
+
+- The read runner's permission-mode check accepts a leg whose CLI reports `default` when `dontAsk` was asked for, so read-runner skills such as fix-ci no longer fail after their model leg ([#8964](https://github.com/melodic-software/claude-code-plugins/pull/8964)). The launcher's `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` forces the CLI into `default`, and the launcher always passes `--permission-prompts none`, under which Claude Code denies every call no rule allows ([CLI reference](https://code.claude.com/docs/en/cli-reference)). Every other mismatch still fails, and a test fails any launcher pin not yet checked to pass that flag.
+
+- The pr-unblock and feedback dispatchers wait out a rate limit on the repository's job token instead of failing at once: retry-after when GitHub sends it, else until one second past the reset when no requests remain, else one minute, then the call is sent once more. Waits are capped at six minutes per run, summed; a reset further away fails at once and names the reset time.
+- The lost-run reconciler re-runs, once, the failed jobs of an intake-label-needs-triage run whose first attempt failed within its lookback, so an issue the floor label missed (a rate limit, most often) gets it on the next tick.
+
+## [3.3.0] - 2026-10-22
+
+### Added
+
+- `models.issue-dimensions.complexity-profiles` maps an issue's Complexity to the profile its run starts on. This repository sends high Complexity to the new `code-xhigh` profile (Opus at effort xhigh); low, medium and unset keep the activity's default.
+- A profile's `escalate-to` names the profile one model rung up, which a run resolved at resolve-config's new `model-rung` input 1 takes instead. `code-fix` escalates to `code-xhigh`; nothing escalates past it.
+- fix-ci retries once one rung up: a run that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips apply-patch with the new `rung-up` reason, and the same pr-unblock run runs fix-ci and apply-patch again at `model-rung` 1. Unless that retry's patch applies cleanly, the pull request goes to a person, as do `protected-path`, `weaken-required` and `flaky` escalations.
+
+- A top-level `adoption` section (`idle-hours`, default 24; `owner-ids`, default empty) names
+  owner accounts whose pull requests the lanes adopt. pr-unblock-dispatch starts `fix-ci` for a
+  non-draft owner PR whose `ci-status` failed once its last update and its head commit are both
+  `idle-hours` old, with no `do-not-merge`, `needs-human` or tracker human-gated label and no
+  body line starting `Hold:` (babysit's reading: any case, after any whitespace, a bare CR ends
+  a line). This repository adopts kyle-sexton's PRs after 24 hours (owner decision Q22).
+
+### Changed
+
+- The Fable rung above `code-xhigh` stays off: no profile names `fable` or `best`, pending an owner decision on a per-week Fable allowance for the lanes.
+
+- While `adoption.owner-ids` lists anyone, the tracker's human-gated label also holds lanes App
+  PRs from `fix-ci`. A base `.work-item-tracker.json` that is not JSON holds only the adopted
+  owner PRs, and fails the dispatcher run; lanes App PRs still get `fix-ci`.
+
+- The pr-pipeline README's WIP cap section names each `agent-ready` writer and whether the queued cap paces it: only work-unblock's new labels are paced.
+
+### Fixed
+
+- fix-docs is paused: its pr-unblock slot is `enabled: false`, so a dispatched run skips at
+  resolve-config before any model turn, and the broker grants it nothing. Under run-claude-cli's
+  subprocess env scrub the CLI forces the default permission mode instead of `auto`, so every
+  fix-docs run failed its permission-mode check after spending a model leg
+  ([run 39723040443](https://github.com/melodic-software/claude-code-plugins/actions/runs/39723040443)).
+
+- The queued count no longer counts an issue twice when a person edits its lane PR's first body line: an open lane PR whose first line names no issue is matched by its `work-resolve-issue/issue-<n>-...` head branch, at one pull request read each.
+- work-unblock's `label-unblocked` job runs one at a time across the repository, so a burst of closes or a close run beside the hourly sweep can no longer each admit the queued cap's whole room.
+
 ## [3.2.0] - 2026-10-22
 
 ### Added

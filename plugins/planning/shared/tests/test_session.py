@@ -3049,6 +3049,21 @@ class TestSessionControls(SessionCase):
         self.act("set_prefs", self.ann, {"set": {"autoAdvance": None}})
         self.assertNotIn(self.ann, self.s.state["prefs"])
 
+    def test_read_aloud_and_dictate_are_per_person_switches_off_until_set(self):
+        mine = self.s.snapshot(self.ann)["me"]["prefs"]
+        self.assertNotIn("readAloud", mine)
+        self.assertNotIn("dictate", mine)
+        out = self.act("set_prefs", self.ann, {"set": {"readAloud": True, "dictate": True}})
+        self.assertEqual(out["prefs"], {"readAloud": True, "dictate": True})
+        self.assertEqual((self.s.snapshot(self.ann)["me"]["prefs"], self.s.snapshot(self.bo)["me"]["prefs"]), ({"readAloud": True, "dictate": True}, {}))
+        self.assertIsNone(session.state_error(self.disk()))
+        for bad in ({"readAloud": "on"}, {"dictate": 1}, {"dictate": "true"}):
+            self.refused("bad-field", "set_prefs", self.ann, {"set": bad})
+        self.act("set_prefs", self.ann, {"set": {"readAloud": False}})
+        self.assertEqual(self.s.snapshot(self.ann)["me"]["prefs"], {"readAloud": False, "dictate": True})
+        self.act("set_prefs", self.ann, {"set": {"readAloud": None, "dictate": None}})
+        self.assertNotIn(self.ann, self.s.state["prefs"])
+
     def test_popups_name_only_pop_up_kinds_and_belong_to_their_person(self):
         self.assertEqual(self.act("set_prefs", HOST, {"set": {"popups": ["join", "share"]}})["prefs"], {"popups": ["join", "share"]})
         self.assertEqual(self.s.snapshot(self.ann)["me"]["prefs"], {})

@@ -632,3 +632,39 @@ test("a re-run still going under a newer failed contract-only run takes a place 
   assert.deepEqual(reruns, [201, 202]);
   assert.deepEqual(failedJobReruns, []);
 });
+
+// An issue's floor-label run whose first attempt failed (a rate limit left
+// the issue unlabeled) has its failed jobs re-run once.
+const INTAKE = ".github/workflows/intake-label-needs-triage.yml";
+const intakeRun = (id, opts = {}) => run(id, MAIN_TIP, { path: INTAKE, event: "issues", conclusion: "failure", ...opts });
+
+test("a failed first attempt of the floor-label run has its failed jobs re-run once", async () => {
+  const { code, failedJobReruns, reruns } = await reconcile({ pulls: [], runs: [intakeRun(301)] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [301]);
+  assert.deepEqual(reruns, []);
+});
+
+test("floor-label runs at attempt 2, older than the lookback, or from another event are left alone", async () => {
+  const runs = [
+    intakeRun(301, { attempt: 2 }),
+    intakeRun(302, { created: "2026-10-18T19:00:00Z" }),
+    intakeRun(303, { event: "workflow_dispatch" }),
+    intakeRun(304, { conclusion: "success" }),
+  ];
+  const { failedJobReruns, calls } = await reconcile({ pulls: [], runs });
+  assert.deepEqual(failedJobReruns, []);
+  assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
+});
+
+test("a floor-label run re-run since the listing is left alone", async () => {
+  const { failedJobReruns } = await reconcile({ pulls: [], runs: [intakeRun(301)], github: rerunSinceListing(301) });
+  assert.deepEqual(failedJobReruns, []);
+});
+
+test("a floor-label re-run takes no place under the cap of 3", async () => {
+  const runs = [run(201, sha(1)), run(202, sha(2)), run(203, sha(3)), intakeRun(301)];
+  const { reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3)], runs });
+  assert.deepEqual(reruns.sort(), [201, 202, 203]);
+  assert.deepEqual(failedJobReruns, [301]);
+});
