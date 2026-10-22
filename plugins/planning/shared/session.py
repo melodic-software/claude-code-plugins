@@ -1791,10 +1791,22 @@ class Session:
                 beat["hiddenAt"] = old.get("hiddenAt", now) if not old.get("visible", True) else now
             if away:
                 beat["awayAt"] = old.get("awayAt", now)
-            if "lastFocus" in body:  # an age, so never later than now: it orders only this person's own tabs
-                beat["focusAt"] = now - body["lastFocus"]
-            elif "focusAt" in old:
-                beat["focusAt"] = old["focusAt"]
+            # lastFocus is an age, so never later than now: it orders only this person's own tabs. The age arrives
+            # late by the beat's own delay, so the same focus (focusId) keeps its first estimate; with no focusId an
+            # estimate only moves earlier.
+            if "lastFocus" in body:
+                at = now - body["lastFocus"]
+                if "focusAt" not in old:
+                    pass
+                elif "focusId" not in body and "focusId" not in old:
+                    at = min(old["focusAt"], at)
+                elif body.get("focusId") == old.get("focusId"):
+                    at = old["focusAt"]
+                beat["focusAt"] = at
+                if "focusId" in body:
+                    beat["focusId"] = body["focusId"]
+            else:
+                beat.update({k: old[k] for k in ("focusAt", "focusId") if k in old})
             tabs = rec["tabs"]
             tabs.pop(tab, None)
             for t in [t for t, b in tabs.items() if now - b["seen"] >= OFFLINE_AFTER]:

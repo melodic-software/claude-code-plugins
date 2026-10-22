@@ -1365,7 +1365,9 @@
     HB.wanted = false; HB.busy = true;
     const body = { q: focusQ, typing: Date.now() < typingUntil, chatTyping: Date.now() < chatTypingUntil,
       visible, lastInput: Math.max(0, Math.round((Date.now() - lastInputAt) / 1000)), away, tab: TAB };
-    if (focusAt !== null) body.lastFocus = Math.max(0, (Date.now() - focusAt) / 1000); // unrounded: it orders tabs
+    // unrounded: it orders tabs. focusId names this focus, so the server keeps its first estimate of when it was
+    // rather than one a late beat would move later.
+    if (focusAt !== null) { body.lastFocus = Math.max(0, (Date.now() - focusAt) / 1000); body.focusId = focusAt; }
     send("/api/heartbeat", body).then(r => {
       if (r.ok) { HB.visible = visible; HB.away = away; }
       return r.ok ? r.json() : null;

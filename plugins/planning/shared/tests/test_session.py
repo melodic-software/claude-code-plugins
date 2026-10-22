@@ -3945,7 +3945,8 @@ class TestPresenceStates(SessionCase):
 
     def test_heartbeat_fields_are_checked(self):
         bad = (({"visible": "no"}, "visible"), ({"lastInput": -3}, "lastInput"), ({"lastInput": float("inf")}, "lastInput"), ({"away": "yes"}, "away"),
-               ({"lastFocus": -1}, "lastFocus"), ({"lastFocus": float("inf")}, "lastFocus"), ({"lastFocus": "now"}, "lastFocus"))
+               ({"lastFocus": -1}, "lastFocus"), ({"lastFocus": float("inf")}, "lastFocus"), ({"lastFocus": "now"}, "lastFocus"),
+               ({"focusId": -1}, "focusId"), ({"focusId": 1.5}, "focusId"), ({"focusId": "a"}, "focusId"))
         for body, field in bad:
             with self.subTest(body=body):
                 with self.assertRaises(session.DomainError) as ctx:
@@ -4018,6 +4019,33 @@ class TestPresenceStates(SessionCase):
         self.beat(self.ann, tab="desk", q="Q2", lastFocus=60)
         self.beat(self.ann, tab="phone", q="Q1", visible=False, lastFocus=5)
         self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+
+    def test_a_late_beat_does_not_move_an_unchanged_focus_later(self):
+        """Phone focused on Q1 at t=0, desk on Q2 at t=1; a phone beat built at t=2 arrives at t=4: still Q2."""
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=0, focusId=1000)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=0, focusId=2000)
+        self.clock.tick(3)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=2, focusId=1000)
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+
+    def test_a_new_focus_id_takes_the_new_focus_time(self):
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=0, focusId=1000)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=0, focusId=2000)
+        self.clock.tick(3)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=1, focusId=5000)  # focused again at t=3
+        self.assertEqual(self.state_of(self.ann)["q"], "Q1")
+
+    def test_without_a_focus_id_a_focus_time_only_moves_earlier(self):
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=0)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=0)
+        self.clock.tick(3)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=2)  # would put the phone's focus at t=2
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=4.5)  # a quicker beat: the desk's focus was at t=-0.5
+        self.assertEqual(self.state_of(self.ann)["q"], "Q1")
 
     def test_a_beat_without_a_focus_time_keeps_the_tabs_last_one(self):
         self.beat(self.ann, tab="desk", q="Q2", lastFocus=1)

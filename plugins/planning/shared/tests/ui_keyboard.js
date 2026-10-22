@@ -350,6 +350,20 @@ async function main() {
     const lockedOff = locked.filter(x => x !== deskQ).length;
     ok("  and a locked phone used after the desktop does not take the host off the desktop's question", lockedOff === 0,
       `${lockedOff} of 24 samples off the desktop's question (${[...new Set(locked)].join(", ")})`);
+    // Both tabs on screen: the phone shown first, the desktop focused 3 s later. From then on every phone beat reaches the
+    // server 5 s late, so its age of the same focus arrives stale; the phone's focus must stay where its first beat put it.
+    await phoneOwner.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" }); document.dispatchEvent(new Event("visibilitychange")); });
+    await phoneOwner.waitForTimeout(2500);
+    await phoneOwner.route("**/api/heartbeat", async r => { await new Promise(res => setTimeout(res, 5000)); await r.continue().catch(() => {}); });
+    await owner.waitForTimeout(500);
+    await owner.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await pia.waitForTimeout(9000); // a delayed phone beat lands
+    const late = [];
+    for (let i = 0; i < 24; i++) { late.push(await hostQ()); await pia.waitForTimeout(250); }
+    const lateOff = late.filter(x => x !== deskQ).length;
+    ok("  and a phone's late beats do not move its earlier focus past the desktop's", lateOff === 0,
+      `${lateOff} of 24 samples off the desktop's question (${[...new Set(late)].join(", ")})`);
+    await phoneOwner.unroute("**/api/heartbeat");
     // Closed, so the tour below starts with no one else on that question and moves its target only when it means to.
     await phoneOwner.close();
 
