@@ -42,7 +42,7 @@ These are **never** allowed, regardless of how obvious the need seems:
 - **No rollback of anything.** Rolling back a driver or a Windows update is destructive and requires context the skill doesn't have.
 - **No editing of user files.** `Documents\`, `Desktop\`, OneDrive, source repos, and dotfiles are off-limits.
 - **No network changes.** DNS, proxy, and routing table are read-only.
-- **No scheduled task creation.** The scheduling layer is explicitly out of scope.
+- **No scheduled task creation.** The audit never creates a task. `/machine-health:setup schedule` creates the monthly run, and only on the owner's explicit yes.
 
 A remediation requiring any of the above is not a remediation. It's a proposal for `<StateBase>/TODO.md`.
 

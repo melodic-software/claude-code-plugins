@@ -47,3 +47,23 @@ an update window.
   as an argument.
 - A payload pasted after its run has been pruned (more than 12 runs later) cannot be resolved; the
   owner re-picks on a newer page.
+
+## Amendment (2026-10-22): the shipped kinds and identity fields
+
+The kinds that shipped are the nine listed under Decision plus `process`, emitted by
+`top-processes` and named by the lowercased image file name, never the process id. Setup `check`
+accepts a muted `process` key.
+
+Two kinds carry more identity fields than the design listed, so each names an item more narrowly:
+
+- `startup` is named by scope, run kind (the Run or RunOnce key, or the Startup folder) and name,
+  so a Run entry and a RunOnce entry with the same name in the same scope get different keys.
+- `detection` is named by threat id, resource and detection id, so each detection of the same
+  threat at the same path gets its own key.
+
+Unkeyed items are not limited to listeners: a per-version firewall rule whose protocol and local
+port stay unread without elevation is also listed with no key and cannot be muted. No key is ever
+computed from missing data.
+
+The one-way consequence above applies to these shipped fields: changing any of them orphans the
+stored mutes of that kind.
