@@ -524,11 +524,11 @@ jobs:
             exit 1
           fi
           authors=("app/$slug")
-          # With an adoption section, each trusted-actors.json account, a
+          # With adoption.idle-hours set, each trusted-actors.json account, a
           # person by login and an App as app/<slug>: the gate adopts their
           # pull requests (babysit_merge_policy.adoption_refusal) and checks
           # the id again. Dependabot is listed below, by its own switch.
-          if [ "$(yq '.adoption | tag' .base/docs/conventions/pr-pipeline.yaml)" = '!!map' ]; then
+          if [ -n "$(yq '.adoption."idle-hours" // ""' .base/docs/conventions/pr-pipeline.yaml)" ]; then
             while IFS= read -r login; do
               author=$login
               [[ $login =~ ^(.*)\[bot\]$ ]] && author="app/${BASH_REMATCH[1]}"

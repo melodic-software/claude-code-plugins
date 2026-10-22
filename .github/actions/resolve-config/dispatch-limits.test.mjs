@@ -164,6 +164,10 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   const without = LIVE.replace(/^adoption:\n( {2}.*\n)*/m, "");
   assert.doesNotMatch(without, /^adoption:/m);
   assert.deepEqual(await run(without, [owner]), { code: 0, dispatched: ["40"] });
+  // A section without idle-hours adopts nothing, as in pr-merge.
+  const noIdle = LIVE.replace(/^ {2}idle-hours: 24\n/m, "");
+  assert.match(noIdle, /^adoption:\n {2}#/m);
+  assert.deepEqual(await run(noIdle, [owner, release]), { code: 0, dispatched: ["40"] });
 });
 
 test("the base tracker config's human-gated label holds an adopted PR from fix-ci", async () => {

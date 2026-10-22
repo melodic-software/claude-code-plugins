@@ -3332,6 +3332,19 @@ NEVER_FLOOR_EXEMPT = (
     ".github/actions/**",
     "CODEOWNERS",
     "**/CODEOWNERS",
+    # Owner decision 2026-10-20 (Gated PR Merge clause 5): the merge gate,
+    # the review lanes and agent permission config, even in his own PRs.
+    "plugins/source-control/skills/babysit-prs/**",
+    "plugins/review/**",
+    "docs/conventions/**",
+    "**/.claude/**",
+    "**/.claude-plugin/**",
+    "**/CLAUDE.md",
+    "**/AGENTS.md",
+    "REVIEW.md",
+    "**/.mcp.json",
+    "**/.lsp.json",
+    "**/settings*.json",
 )
 
 

@@ -169,6 +169,10 @@ test("without an adoption section no trusted actor is listed", () => {
   const run = runListing(0, (config) => config.replace(/^adoption:\n( {2}.*\n)*/m, ""));
   assert.equal(run.status, 0, run.stderr);
   assert.deepEqual(authorsOf(run.args), ["app/melodic-automation-lanes"]);
+  // Nor with a section that sets no idle-hours, which the gate adopts nothing under.
+  const noIdle = runListing(0, (config) => config.replace(/^ {2}idle-hours: 24\n/m, ""));
+  assert.equal(noIdle.status, 0, noIdle.stderr);
+  assert.deepEqual(authorsOf(noIdle.args), ["app/melodic-automation-lanes"]);
 });
 
 test("the listing fails with one clear error after three failed tries", () => {

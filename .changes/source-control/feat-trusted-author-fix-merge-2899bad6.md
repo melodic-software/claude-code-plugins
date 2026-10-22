@@ -23,7 +23,10 @@ bump: minor
   lanes App and Dependabot, which are never adopted.
 - The own-lines floor exemption covers only people and `adoption.spec-from-body-apps` Apps; every
   other App's adopted pull request is scored whole. `.github/standards/**`, `.github/workflows/**`,
-  `.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` are never exempt. An App's own
+  `.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` are never exempt, nor are the
+  merge gate, the review lanes, `docs/conventions/**` and agent permission config (`.claude/`,
+  `.claude-plugin/`, `CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `.mcp.json`, `.lsp.json`,
+  `settings*.json`), per owner decision 2026-10-20. An App's own
   commit needs a committer that is the App or GitHub's web-flow.
 - A pass judged on the pull request's title and body records their sha256, and the gate refuses
   it with `verify:spec-changed` once they change.

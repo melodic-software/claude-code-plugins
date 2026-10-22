@@ -3811,6 +3811,21 @@ class ForeignPaths(unittest.TestCase):
                 ".github/standards/runner-policy/runner-policy.mjs",
                 ".github/scripts/pr-verify/resolve-pr.mjs",
                 ".github/actions/x/action.yml",
+                # Owner decision 2026-10-20 (Gated PR Merge clause 5): the
+                # merge gate, the review lanes and agent permission config
+                # stay human-merged even in the owner's own PRs.
+                "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
+                "plugins/review/skills/code-review/SKILL.md",
+                "docs/conventions/pr-pipeline.yaml",
+                "AGENTS.md",
+                "plugins/x/Agents.md",
+                "plugins/x/CLAUDE.md",
+                "REVIEW.md",
+                ".claude/settings.json",
+                "plugins/x/.claude-plugin/plugin.json",
+                ".mcp.json",
+                "plugins/x/.lsp.json",
+                "config/settings.local.json",
                 "docs/x.md",
             }
         )

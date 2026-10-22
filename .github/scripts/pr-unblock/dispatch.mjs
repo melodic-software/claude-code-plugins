@@ -463,13 +463,14 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   // A missing lanes App id stops fix-ci alone, as a failure. The tracker's
   // human-gated label is read only when owners are adopted; an unreadable
   // tracker config holds the adopted owner PRs alone, as a failure.
-  // With an `adoption` section, every account on the base's trusted-actors
-  // list is adoptable, by id, but Dependabot: review-dependency owns its red PRs.
+  // With `adoption.idle-hours` set (as pr-merge requires), every account on
+  // the base's trusted-actors list is adoptable, by id, but Dependabot:
+  // review-dependency owns its red PRs.
   let fixes = { dispatched: [], failed: 1 };
   let ownerIds = [];
   let holdLabels = CI_FIX_DEFAULTS.holdLabels;
   let ownersHeld = "";
-  if (Object.keys(adoption).length > 0) {
+  if (adoption["idle-hours"] !== undefined) {
     try {
       ownerIds = [...loadTrustedList(`${env.BASE_PATH || ".base"}/${TRUSTED_ACTORS_PATH}`).ids].filter((id) => id !== DEPENDABOT_ID);
       holdLabels = [...new Set([...holdLabels, baseHumanGatedLabel(env)])];
@@ -486,7 +487,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       appSenderId: Number(env.APP_SENDER_ID),
       maxDispatch: limits["fix-ci-per-run"] ?? 2,
       restarts: limits["fix-ci-restarts"] ?? 1,
-      adoption: { ownerIds, idleHours: adoption["idle-hours"] ?? 24, held: ownersHeld },
+      adoption: { ownerIds, idleHours: adoption["idle-hours"], held: ownersHeld },
       holdLabels,
       now,
     });

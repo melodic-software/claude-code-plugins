@@ -1717,7 +1717,11 @@ author's own touched (a lane's fix among them): that author's own lines need no 
 App's PR (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) is scored whole, like the lanes
 App's, while staying adoptable for fix-and-merge. `.github/standards/**`, `.github/workflows/**`,
 `.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` always score, whoever wrote them:
-CI runs that code from main with tokens. The lanes App and
+CI runs that code from main with tokens. So do the merge gate
+(`plugins/source-control/skills/babysit-prs/**`), the review lanes (`plugins/review/**`),
+`docs/conventions/**`, and agent permission config: `.claude/` and `.claude-plugin/` directories,
+`CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `.mcp.json`, `.lsp.json` and `settings*.json` (owner
+decision 2026-10-20, clause 5 of the gated PR merge decision). Paths match case-insensitively. The lanes App and
 Dependabot are never adopted. A commit is the author's own
 only when GitHub verified its signature and its author account is the PR's author, and, for a
 person, its committer account too; the author account alone comes from the git author email,
