@@ -42,7 +42,7 @@ $skillRoot, $stateRoot, $reportRoot = @'
 |${CLAUDE_PLUGIN_ROOT}/skills/audit
 |${CLAUDE_PLUGIN_DATA}
 |${user_config.report_dir}
-'@ -split '\r?\n' | ForEach-Object { $_.Substring(1) }; $unset = '^(\$\{|[ 	]*$)'; if ($reportRoot -match $unset) { $reportRoot = Join-Path $env:USERPROFILE 'Documents\MachineHealth' }; if ($stateRoot -match $unset) { Write-Warning 'The plugin data folder did not resolve; state goes under the report root.'; $stateRoot = $reportRoot }
+'@ -split '\r?\n' | ForEach-Object { $_.Substring(1) }; $unset = '^(\$\{|[ \t]*$)'; if ($reportRoot -match $unset) { $reportRoot = Join-Path $env:USERPROFILE 'Documents\MachineHealth' }; if ($stateRoot -match $unset) { Write-Warning 'The plugin data folder did not resolve; state goes under the report root.'; $stateRoot = $reportRoot }
 ```
 
 - **Pointer**: skill content substitution of the plugin paths and of `${user_config.KEY}` is in
