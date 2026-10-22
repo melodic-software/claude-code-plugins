@@ -22,7 +22,9 @@ const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const RUN_ATTEMPT = /^[1-9][0-9]{0,4}$/;
 // github-actions[bot], the sender of every GITHUB_TOKEN workflow dispatch.
 const ACTIONS_BOT_ID = 41898282;
-const DISPATCHER_EVENTS = new Set(["push", "workflow_dispatch"]);
+// A workflow_dispatch dispatcher must come from a listed human; push and
+// schedule name none.
+const DISPATCHER_EVENTS = new Set(["push", "schedule", "workflow_dispatch"]);
 // The dispatcher dispatches within seconds of starting; a longer run must not
 // keep its window open.
 const WINDOW_MS = 10 * 60 * 1000;
@@ -591,8 +593,8 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, via
 
 // A dispatch sent by github-actions[bot] names no human, so it is trusted only
 // through the dispatcher run it names: that workflow, on the default branch,
-// started by a push or a listed human, its head SHA an ancestor of the branch
-// tip, a re-run attempt started by a listed human, its record listing this
+// started by a push, a schedule or a listed human, its head SHA an ancestor
+// of the branch tip, a re-run attempt started by a listed human, its record listing this
 // run, and this run, the dispatched workflow on the default branch, created
 // between the dispatcher run's start and the earlier of its last update and
 // WINDOW_MS after its start. A dispatcher started by workflow_run must be
@@ -653,7 +655,7 @@ async function verifyDispatcher({
     dispatcher.head_branch === defaultBranch &&
     (viaRun ||
       (DISPATCHER_EVENTS.has(dispatcher.event) &&
-        (dispatcher.event === "push" || isListedHuman(dispatcher.actor)))) &&
+        (dispatcher.event !== "workflow_dispatch" || isListedHuman(dispatcher.actor)))) &&
     SHA.test(dispatcher.head_sha ?? "") &&
     Number.isInteger(attempt) &&
     attempt >= 1 &&

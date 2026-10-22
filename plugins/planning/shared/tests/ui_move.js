@@ -47,7 +47,7 @@ async function main() {
       const key = await p.evaluate(() => localStorage.getItem("secret"));
       if (chat) await p.click(".vf-fab");
       await p.fill(field, text);
-      if (chat) await p.click(".vf-fab");
+      if (chat) await p.click(".vf-chat-head .vf-icon-btn");
       await stage(p, NEW);
       ok(`a guest with unsent text in ${field} is told the session moved and stays`, (await notice(p)) && (await stays(p)), p.url());
       await p.getByRole("button", { name: "Go to the new address" }).click();

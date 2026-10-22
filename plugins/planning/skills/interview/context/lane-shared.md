@@ -31,7 +31,7 @@ run as SKILL.md states. Only the input surface differs, and the owner still conf
 understanding and the Brief in the terminal.
 
 `<plugin-root>` is the placeholder SKILL.md "Spoke paths" defines, and each `${user_config.KEY}`
-token below stands for the value SKILL.md's lane table shows. Every command is:
+token below stands for the value SKILL.md's lane table or "Variables" shows. Every command is:
 
 ```bash
 bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' <command>
@@ -63,11 +63,12 @@ designer session and a product owner session), each with its own data dir and li
    bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running --open --defaults-file '<data_dir>/defaults.json' --tunnel-hostname '${user_config.tunnel_hostname}' --tunnel-token-file '${user_config.tunnel_token_file}'
    ```
 
-   Drop `--open` when `shared_session_open_browser` resolves false, and drop both `--tunnel-*`
-   flags only when the `tunnel_hostname` token is unexpanded: an empty value is the quick tunnel,
-   and a left-out flag keeps whatever tunnel the session already runs. SKILL.md's lane table does
-   not show these two keys, so their tokens arrive unexpanded unless the owner gives the hostname
-   and token file path in the session; then pass those values. The output carries `guestUrl`
+   Drop `--open` when `shared_session_open_browser` resolves false. Pass the `tunnel_hostname`
+   and `tunnel_token_file` values SKILL.md "Variables" shows, or the hostname and token file path
+   the owner gives in the session. An empty `tunnel_hostname` (the key unset) means no named
+   tunnel: pass it as `''`, which runs a quick tunnel. Drop both `--tunnel-*` flags only when the
+   `tunnel_hostname` token is still unexpanded; a left-out flag keeps whatever tunnel the session
+   already runs. The output carries `guestUrl`
    (give it to the owner to share), `localUrl`, `ownerLinkFile`, `resumed`, `shareChanged`,
    `tunnel` (`quick`, `named` or `down`) and `watch`, the command that arms the watcher. A named
    start also prints, on stderr, that only this machine may run the tunnel: pass that line on once. `--open` opens the
@@ -112,6 +113,7 @@ Resolve each key once, before the first `ensure-running`, through the layers in 
 | `shared_session.chat` | `true`, `false` | `true` | `chat` |
 | `shared_session.follow` | `true`, `false` | `true` | `follow` |
 | `shared_session.accent` | `teal`, `indigo`, `violet`, `amber` | `teal` | `theme.accent` |
+| `shared_session.prototype_tiers` | a list of `screenshot`, `snapshot`, `live`, each at most once | `[screenshot, snapshot]` | `prototypeTiers` |
 | userConfig `shared_session_open_browser` | `true`, `false` | `true` | none: adds `--open` |
 | userConfig `tunnel_hostname` | a hostname, or empty | empty | none: `--tunnel-hostname` (a named tunnel) |
 | userConfig `tunnel_token_file` | an absolute path | empty | none: `--tunnel-token-file` |
@@ -179,6 +181,16 @@ each revised variant `previous: {qid, variant}`, naming the variant it replaces 
 and shows two side by side. Notes stay on the version they were pinned to, so a digest note's
 `qid` and `variant` say which version it is about. Each variant is revised once, so name the
 newest version; a second variant naming the same one is refused (400 `bad-field`).
+
+**A prototype question.** Give its `format` a `lookAt`: one line of at most 200 characters naming
+the area the variants change and the step that shows it ("Open the chat with the round button at
+bottom right, then switch variants"). The page shows it on the question card beside Open prototype
+and above the variant tabs; an op without it is refused (400 `bad-field`). Give each variant its
+views: `shots`, one to four pictures in the order to view them, and `snapshot`, one self-contained
+HTML file, at least one of the two; a variant may add its own `lookAt` when where to look differs
+for it. `asset` (one picture or HTML file) is still taken in place of both, never beside them. A
+note pinned on a variant's k-th screenshot reaches the digest with element `img:nth-of-type(k)`
+(`img` for the first).
 
 **In-flight work.** When a lookup or a guest's request is still running, ask the rest of the
 frontier now; hold only the questions that pending async work can change.

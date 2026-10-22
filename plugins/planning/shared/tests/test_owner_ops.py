@@ -1,5 +1,6 @@
-# test-scope: plugins/planning/shared/session.py plugins/planning/shared/schema/ops.schema.json
-"""Claude's resolve-report, share-result and take-down-result ops act as the owner's page does.
+# test-scope: plugins/planning/shared/session.py plugins/planning/shared/schema/ops.schema.json plugins/planning/shared/schema/state.schema.json
+"""Claude's resolve-report, share-result and take-down-result ops act as the owner's page does, and a prototype
+question an op writes keeps the prototype rules.
 
 Expected values come from the owner routes' contract (act_on_report, share_result, the takedown
 action): their status codes, error codes and the notices the reporter or asker reads.
@@ -176,3 +177,34 @@ class TestTakeDownResultOp(OwnerOpsCase):
             {"op": "take-down-result", "id": xid, "action": "takedown"},
         )
         self.assertTrue(self.result(xid)["published"])
+
+
+class TestPrototypeQuestionOps(OwnerOpsCase):
+    """A prototype question an op writes (open-round, make-question-from) says where to look (`format.lookAt`) and
+    gives every variant at least one view (`shots`, `snapshot`, or the earlier `asset`); a refusal lands no op of the
+    apply."""
+
+    VIEWS = ({"id": "v-1", "label": "One page", "shots": [ts.PNG]}, {"id": "v-2", "label": "Two steps", "snapshot": ts.HTML})
+
+    def proto(self, qid, *variants, look=ts.LOOK):
+        fmt = {"kind": "prototype", **({"lookAt": look} if look else {}), "variants": list(variants or self.VIEWS)}
+        return {**ts.text_q(qid, rec=False), "format": fmt}
+
+    def test_open_round_refuses_no_look_at_line_or_a_variant_with_no_view_and_lands_nothing(self):
+        self.send()
+        self.ack(1)
+        before = self.disk()
+        rename = {"op": "set-title", "title": "Renamed"}
+        for why, q in (("no look-at line", self.proto("Q2", look=None)), ("a variant with no view", self.proto("Q2", {"id": "v-1", "label": "One page"}, self.VIEWS[1]))):
+            with self.subTest(why):
+                self.refused_at("bad-field", 400, rename, {"op": "open-round", "questions": [q]})
+        self.assertEqual(self.disk(), before)
+        self.apply({"op": "open-round", "questions": [self.proto("Q2")]})
+        fmt = self.question("Q2")["format"]
+        self.assertEqual((fmt["lookAt"], fmt["variants"]), (ts.LOOK, [{"id": "v-1", "label": "One page", "asset": ts.PNG}, {"id": "v-2", "label": "Two steps", "asset": ts.HTML}]))
+
+    def test_make_question_from_refuses_a_prototype_with_no_look_at_line(self):
+        prop = self.act("propose", self.bo, {"text": "Show the one-page checkout"})["id"]
+        self.refused_at("bad-field", 400, {"op": "make-question-from", "proposal": prop, "question": self.proto("Q20", look=None)})
+        self.apply({"op": "make-question-from", "proposal": prop, "question": self.proto("Q20")})
+        self.assertEqual(self.question("Q20")["format"]["lookAt"], ts.LOOK)

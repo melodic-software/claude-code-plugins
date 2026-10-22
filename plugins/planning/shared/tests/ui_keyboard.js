@@ -205,7 +205,20 @@ async function main() {
     await surface(owner, "keyboard shortcuts (?)", ".vf-keys", { opener: owner.locator(".vf-q").first(), key: "?" });
 
     // ---------- the guest's surfaces on a desktop ----------
-    await surface(gus, "chat", "section.vf-chat", { opener: gus.locator(".vf-fab") });
+    // Below 1100 px wide the chat covers the page, so it is a modal dialog (WAI-ARIA APG dialog pattern): Tab stays in it.
+    await gus.setViewportSize({ width: 1024, height: 900 });
+    await surface(gus, "chat over the page (1024 wide)", "section.vf-chat", { opener: gus.locator(".vf-fab") });
+    await gus.setViewportSize(DESK.viewport);
+    // From 1100 px the page makes room for it: a region beside the page that Tab moves on from, and Escape inside closes.
+    await gus.locator(".vf-fab").focus();
+    await gus.keyboard.press("Enter");
+    await until(gus, () => !document.querySelector(".vf-chat").hidden);
+    let leftChat = false;
+    for (let i = 0; i < 40 && !leftChat; i++) { await gus.keyboard.press("Tab"); leftChat = await gus.evaluate(() => !!document.activeElement && document.activeElement !== document.body && !document.querySelector(".vf-chat").contains(document.activeElement)); }
+    ok("chat docked beside the page (1440 wide): Tab moves on from it into the page", leftChat, await gus.evaluate(`(${describe})()`));
+    await gus.locator(".vf-chat .vf-minput").focus();
+    await gus.keyboard.press("Escape");
+    ok("chat docked: Escape inside it closes it, focus back on the chat button", await until(gus, () => document.querySelector(".vf-chat").hidden && document.activeElement === document.querySelector(".vf-fab"), null, 3000));
     await gus.locator(".vf-q", { hasText: "Did you mean this button?" }).first().click();
     await surface(gus, "picture viewer", ".vf-lb", { opener: gus.locator(".vf-confirm-fig .vf-imgbtn") });
 
@@ -307,7 +320,10 @@ async function main() {
     await swept(gus, "guest Compare (desktop)", { open: viewSeg(gus, "Compare") });
     await swept(gus, "guest Tree (desktop)", { open: viewSeg(gus, "Tree") });
     await viewSeg(gus, "Focus")();
-    await swept(gus, "chat (desktop)", { scope: "section.vf-chat", open: () => gus.locator(".vf-fab").click(), close: esc(gus) });
+    // swept where the chat is a modal (below 1100 px), so Tab comes round to its first control again
+    await gus.setViewportSize({ width: 1024, height: 900 });
+    await swept(gus, "chat (desktop, 1024 wide)", { scope: "section.vf-chat", open: () => gus.locator(".vf-fab").click(), close: esc(gus) });
+    await gus.setViewportSize(DESK.viewport);
     await swept(gus, "picture viewer (desktop)", { scope: ".vf-lb", open: async () => { await openQ(gus, "Did you mean this button?")(); await gus.locator(".vf-confirm-fig .vf-imgbtn").click(); }, close: esc(gus) });
     await swept(owner, "owner Host view (desktop)", { open: viewSeg(owner, "Host") });
     await swept(owner, "remove-person confirm dialog (desktop)", { open: () => owner.locator(".vf-hpeople .vf-btn-danger:visible", { hasText: "Remove" }).first().click(), close: esc(owner) });
