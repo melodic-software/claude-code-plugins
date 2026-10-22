@@ -345,8 +345,14 @@ jobs:
   # hands the PR to a person as feedback-not-landed.
   apply-feedback-patch:
     needs: [address-feedback-select, address-feedback, address-feedback-subscription]
+    # One leg answers the round: the fallback call when it ran, else the
+    # first, and every model-call input below is that leg's, so one leg's
+    # patch never pairs with the other's replies and an empty field never
+    # falls through. A patch with no replies is not pushed.
     if: >-
-      ${{ !cancelled() && (needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback.outputs.scan-patch-state) == 'written' }}
+      ${{ !cancelled()
+      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '') == 'written'
+      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != '' }}
     permissions:
       contents: read
       pull-requests: read
@@ -364,10 +370,10 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      # The scan job's outputs alone, never a run job's.
-      patch-state: ${{ needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback.outputs.scan-patch-state }}
-      patch-sha256: ${{ needs.address-feedback-subscription.outputs.scan-patch-sha256 || needs.address-feedback.outputs.scan-patch-sha256 }}
-      patch-attempt: ${{ needs.address-feedback-subscription.outputs.scan-patch-attempt || needs.address-feedback.outputs.scan-patch-attempt }}
+      # The scan job's outputs alone, never a run job's, from the one leg.
+      patch-state: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-attempt || '' }}
       patch-activity: address-feedback
       patch-prepare: review-threads
       # The head the select job read, from a job that ran no head code.
@@ -377,7 +383,7 @@ jobs:
       # true drops the human-gated label from the holds: the select job kept
       # only threads a trusted person with write access asked to fix.
       patch-fix-requested: ${{ needs.address-feedback-select.outputs.fix-requested }}
-      reply-attempt: ${{ needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback.outputs.scan-reply-attempt }}
+      reply-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
 
   # The reply job, a script with no model: it holds pull-requests: write and
   # posts the replies the model job recorded, exactly as written or not at
@@ -408,9 +414,12 @@ jobs:
       # run.json and its SHA-256, from the select job.
       review-run-sha256: ${{ needs.address-feedback-select.outputs.run-sha256 }}
       review-run-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
-      # The replies, from whichever model call's scan uploaded them; only the
-      # scan job, which ran no model or head code, sets this output.
-      review-replies-attempt: ${{ needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback.outputs.feedback-attempt }}
+      # The replies, their SHA-256 and the patch state, all from the one leg
+      # apply-feedback-patch reads; only the scan job, which ran no model or
+      # head code, sets these outputs.
+      review-replies-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
+      review-replies-sha256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
+      review-patch-state: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
       # The push job moved the PR head off the reviewed one; the gate and the
       # broker accept the review of the head the select job read when only
       # commits GitHub signed for the lanes App during this run follow it. A

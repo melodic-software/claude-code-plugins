@@ -34,13 +34,12 @@ say(gate["dispatcher-workflow"] === ".github/workflows/pr-unblock-dispatch.yml",
 say(gate["dispatched-workflow"] === ".github/workflows/pr-unblock.yml",
   "the gate admits a dispatcher-sent run only when it is pr-unblock.yml");
 // pr-feedback-dispatch.yml, started by workflow_run after a review lane,
-// vouches for address-feedback's model calls; the review must be of the
-// current head, since those calls run before any push.
-say(gate["run-dispatcher-workflow"] === ".github/workflows/pr-feedback-dispatch.yml",
-  "the gate trusts a pr-feedback-dispatch.yml dispatcher run through its review run");
-say(String(gate["run-dispatcher-upstreams"] ?? "").split(" ").filter(Boolean).sort().join(" ") ===
-  ".github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml",
-  "the review run must be one of the two review lanes");
+// vouches for address-feedback's model calls only: the gate gets it only with
+// the select job's feedback context, which only a review-threads call passes.
+say(gate["run-dispatcher-workflow"] === "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-feedback-dispatch.yml' || '' }}",
+  "the gate trusts a pr-feedback-dispatch.yml dispatcher run only for a review-threads call");
+say(gate["run-dispatcher-upstreams"] === "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}",
+  "the review run must be one of the two review lanes, for a review-threads call only");
 say(!("expected-upstream-head" in gate), "the gate passes no expected-upstream-head");
 
 // cant-fail-ok: the allowed_bots value is the contract the gate decides.

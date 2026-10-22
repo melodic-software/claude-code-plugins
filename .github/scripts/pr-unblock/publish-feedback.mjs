@@ -4,13 +4,13 @@
 // in an artifact; this posts exactly what it wrote, or nothing, and adds no
 // judgment of its own.
 //
-//   1. Validates the whole artifact strictly: the runner's run.json (the
-//      model job's gated head and kept threads) and the model's replies.jsonl,
+//   1. Validates the whole artifact strictly: the select job's run.json (the
+//      head it read and the kept threads) and the model's replies.jsonl,
 //      one object per kept thread at most, each with exactly the template's
 //      fields, within the limits below. Any failure posts no reply.
 //   2. For VALID replies, which name no commit (the model job commits
 //      nothing), finds the one commit apply-feedback-patch pushed: the lanes
-//      App's, after the model job's gated head, carrying the review-threads
+//      App's, after the select job's head, carrying the review-threads
 //      row's Lane-Activity trailer (fixCommitOf). Confirms it changes each
 //      VALID thread's path and that the branch changed no path outside the
 //      kept threads' scope (thread-scope.mjs) and none under .github/. A
@@ -23,8 +23,10 @@
 //      this job gated, nothing more is posted or resolved.
 //   4. Posts the round marker, as the lanes App, once per model run: a
 //      re-run of this job finds the marker naming that run and posts none.
-//   5. With no replies.jsonl (no model turn) posts nothing and skips
-//      no-model-turn, escalating nothing. Otherwise escalates
+//   5. With no replies.jsonl, no scanned patch and the selected head still
+//      current (no model turn) posts nothing and skips no-model-turn,
+//      escalating nothing; with a moved head it escalates
+//      feedback-not-landed, and beside a patch feedback-invalid. Otherwise escalates
 //      feedback-invalid, feedback-incomplete (a kept thread has no
 //      disposition), feedback-not-landed, feedback-partial (posting stopped
 //      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply)
@@ -42,6 +44,8 @@
 //   FEEDBACK_REPLIES_DIR  the downloaded artifacts: the select job's run.json
 //                         and the model run's scanned replies.jsonl
 //   RUN_SHA256            run.json's SHA-256, from the select job
+//   REPLIES_SHA256        replies.jsonl's SHA-256, from the scan job
+//   REVIEW_PATCH_STATE    the scan job's patch-state for the same model call
 //   GITHUB_WORKSPACE      the PR head checkout evidence paths are checked in
 //   SKIP_REASON_FILE, ESCALATION_REASON_FILE  where the runner reads them
 
@@ -214,7 +218,7 @@ export function fixCommitOf(commits, appId) {
   return fixes.length === 1 ? fixes[0].sha : null;
 }
 
-// Whenever the PR branch moved since the model job's gated head, or a reply is
+// Whenever the PR branch moved since the select job's head, or a reply is
 // VALID, that range may change only what inThreadScope allows around the kept
 // threads' paths (run.json, whose SHA-256 the select job recorded), and
 // nothing under .github/. With a VALID reply the range must hold exactly one
@@ -324,7 +328,7 @@ export async function publish(args) {
   return result;
 }
 
-async function postReplies({ api, pr, headSha, headRef, appId, reviewerId, trustedHumans, readArtifact, fileExists, log }) {
+async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", reviewerId, trustedHumans, readArtifact, fileExists, log }) {
   let escalationReason = "";
   // fixesLanded judged the range up to headSha; a push after it is unjudged.
   const headMoved = async () => (await api.readBranch(headRef)) !== headSha;
@@ -334,10 +338,20 @@ async function postReplies({ api, pr, headSha, headRef, appId, reviewerId, trust
     try {
       const { runText, repliesText } = readArtifact();
       run = parseRun(runText);
-      // No replies.jsonl: the model call never ran, so there is nothing to
-      // judge. The round still counts; the check is a skip, and the next
-      // review's dispatch may try again.
+      // No replies.jsonl. The run job decides that, so it is a skip only
+      // when the scan handed on no patch and the PR head is still the one
+      // the select job read: the model call never ran. The round still
+      // counts. A moved head is a push nothing replied to; a patch with no
+      // replies is an artifact the model job left half-written.
       if (repliesText === null) {
+        if (headSha !== run.head_sha) {
+          log("no reply is posted: no replies, and the PR head moved since the select job read it");
+          return { escalationReason: "feedback-not-landed", posted: [] };
+        }
+        if (patchState !== "") {
+          log(`no reply is posted: no replies beside a ${patchState} patch`);
+          return { escalationReason: "feedback-invalid", posted: [] };
+        }
         log("no reply is posted: no model turn uploaded replies");
         return { escalationReason: "", skipReason: "no-model-turn", posted: [] };
       }
@@ -449,6 +463,10 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   if (attempt !== "" && !/^[1-9][0-9]{0,4}$/.test(attempt)) {
     throw new Error("MODEL_RUN_ATTEMPT is not a run attempt");
   }
+  const patchState = env.REVIEW_PATCH_STATE ?? "";
+  if (!["", "written", "empty"].includes(patchState)) {
+    throw new Error("REVIEW_PATCH_STATE is not a patch state");
+  }
   const runId = positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID");
   const modelRun = attempt ? `${runId}-${attempt}` : null;
   const dir = env.FEEDBACK_REPLIES_DIR;
@@ -463,26 +481,31 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     }
     return readFileSync(path, "utf8");
   };
-  // run.json must be the bytes the model job's runner step wrote, whose
-  // SHA-256 that job passed out as a runner-computed output.
+  // run.json must be the bytes the select job wrote, whose SHA-256 that job
+  // passed out.
   const readRun = () => {
     const text = read("run.json", LIMITS.runBytes);
     if (!/^[0-9a-f]{64}$/.test(env.RUN_SHA256 ?? "") || createHash("sha256").update(text).digest("hex") !== env.RUN_SHA256) {
-      throw new Invalid("run.json does not match the SHA-256 the model job recorded");
+      throw new Invalid("run.json does not match the SHA-256 the select job recorded");
     }
     return text;
   };
-  // A missing replies.jsonl is no model turn; anything else wrong with it is
-  // feedback-invalid.
+  // A missing replies.jsonl is judged in postReplies; one present must be
+  // the bytes the scan job uploaded, whose SHA-256 it passed out.
   const readReplies = () => {
+    let text;
     try {
-      return read("replies.jsonl");
+      text = read("replies.jsonl");
     } catch (error) {
       if (error.code === "ENOENT") {
         return null;
       }
       throw error;
     }
+    if (!/^[0-9a-f]{64}$/.test(env.REPLIES_SHA256 ?? "") || createHash("sha256").update(text).digest("hex") !== env.REPLIES_SHA256) {
+      throw new Invalid("replies.jsonl does not match the SHA-256 the scan job recorded");
+    }
+    return text;
   };
   const { escalationReason, skipReason } = await publish({
     api:
@@ -498,6 +521,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     headRef: env.HEAD_REF,
     appId,
     modelRun,
+    patchState,
     maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),

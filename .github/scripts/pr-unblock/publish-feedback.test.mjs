@@ -649,10 +649,22 @@ test("main writes the escalation and skip reason files and refuses a symlinked a
     SKIP_REASON_FILE: join(dir, "skip"),
     ESCALATION_REASON_FILE: join(dir, "escalation"),
     RUN_SHA256: createHash("sha256").update(runText).digest("hex"),
+    REPLIES_SHA256: createHash("sha256").update(lines(reply({ disposition: "UNCERTAIN", evidence: [] }))).digest("hex"),
+    REVIEW_PATCH_STATE: "",
   };
   const api = fakeApi();
   assert.equal(await main(env, { api, log: () => {} }), 0);
   assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-uncertain\n");
+
+  // replies.jsonl must be the bytes the scan job uploaded, whose SHA-256 it
+  // passed out.
+  for (const sha of ["0".repeat(64), ""]) {
+    const forged = fakeApi();
+    await main({ ...env, REPLIES_SHA256: sha }, { api: forged, log: () => {} });
+    assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n", `replies SHA-256 ${JSON.stringify(sha)}`);
+    assert.deepEqual(forged.posted(), []);
+    assert.equal(forged.markers().length, 1);
+  }
   assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "awaiting-human\n");
   assert.equal(api.posted().length, 1);
   assert.equal(api.markers()[0][2].split("\n")[1], MODEL_RUN);
@@ -716,13 +728,44 @@ test("with no VALID reply no fix commit is needed: INCORRECT replies post on an 
 // A model call that never ran (credit stop on both legs, broker refusal, kill
 // switch, a head that moved before the call) uploads no replies.jsonl: the
 // round still counts, and the check posts a skip, not an escalation.
+const noReplies = (api, { headSha = GATED, patchState = "" } = {}) =>
+  publish({
+    api,
+    pr: 42,
+    headSha,
+    headRef: "feature",
+    appId: APP,
+    modelRun: null,
+    patchState,
+    reviewerId: REVIEWER,
+    trustedHumans: new Set([HUMAN]),
+    readArtifact: () => ({ runText: JSON.stringify(RUN), repliesText: null }),
+    fileExists: exists,
+  });
 test("no replies.jsonl is no escalation: the round counts and the check skips no-model-turn", async () => {
   const api = fakeApi();
-  const result = await run(api, null, JSON.stringify(RUN));
+  const result = await noReplies(api);
   assert.equal(result.escalationReason, "");
   assert.equal(result.skipReason, "no-model-turn");
   assert.deepEqual(api.posted(), []);
   assert.equal(api.markers().length, 1);
+});
+// Whether replies exist is the run job's to forge, so no-model-turn holds
+// only when the scan handed on no patch and the head is the selected one.
+test("no replies.jsonl beside a scanned patch or a moved head is an escalation", async () => {
+  for (const patchState of ["written", "empty"]) {
+    const api = fakeApi();
+    const result = await noReplies(api, { patchState });
+    assert.equal(result.escalationReason, "feedback-invalid", patchState);
+    assert.equal(result.skipReason ?? "", "", patchState);
+    assert.equal(api.markers().length, 1, patchState);
+  }
+  for (const patchState of ["", "written"]) {
+    const api = fakeApi();
+    const result = await noReplies(api, { headSha: NOW, patchState });
+    assert.equal(result.escalationReason, "feedback-not-landed", `a push happened, patch-state ${patchState}`);
+    assert.equal(api.markers().length, 1);
+  }
 });
 
 // The lanes App's address, the trailer and a range position are what a person
@@ -757,10 +800,12 @@ test("main: a missing replies.jsonl writes the no-model-turn skip and no escalat
     GH_TOKEN: "t",
     GITHUB_REPOSITORY: "o/r",
     PR_NUMBER: "42",
-    HEAD_SHA: NOW,
+    HEAD_SHA: GATED,
     HEAD_REF: "feature",
     GITHUB_RUN_ID: "5000",
     MODEL_RUN_ATTEMPT: "",
+    REPLIES_SHA256: "",
+    REVIEW_PATCH_STATE: "",
     APP_SENDER_ID: String(APP),
     TRUSTED_ACTORS: actors,
     FEEDBACK_REPLIES_DIR: replies,
@@ -774,8 +819,14 @@ test("main: a missing replies.jsonl writes the no-model-turn skip and no escalat
   assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "no-model-turn\n");
   assert.throws(() => readFileSync(env.ESCALATION_REASON_FILE), /ENOENT/);
   assert.equal(api.markers().length, 1);
-
+  // A written patch with no replies is no skip.
   rmSync(env.SKIP_REASON_FILE);
+  await main({ ...env, REVIEW_PATCH_STATE: "written" }, { api: fakeApi(), log: () => {} });
+  assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n");
+  rmSync(env.ESCALATION_REASON_FILE);
+  await assert.rejects(main({ ...env, REVIEW_PATCH_STATE: "maybe" }, { api: fakeApi() }), /REVIEW_PATCH_STATE/);
+
+  rmSync(env.SKIP_REASON_FILE, { force: true });
   const huge = JSON.stringify(RUN) + " ".repeat(1048577);
   writeFileSync(join(replies, "run.json"), huge);
   await main({ ...env, RUN_SHA256: createHash("sha256").update(huge).digest("hex") }, { api: fakeApi(), log: () => {} });

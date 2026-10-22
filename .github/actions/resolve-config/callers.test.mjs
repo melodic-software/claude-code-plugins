@@ -1280,7 +1280,7 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     const config = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
     assert.equal(apply.with["patch-prepare"] ?? "", config.activities[firstId].prepare ?? "", "the row of the producer's prepare mode");
     const context = (from) => {
-      const values = {};
+      const values = { [`needs.${subId}.result`]: from === subId ? "success" : "skipped" };
       for (const job of [subId, firstId]) {
         for (const output of Object.values(PATCH_OUTPUTS_OF(firstId))) {
           values[`needs.${job}.outputs.${output}`] = job === from ? `${job}:${output}` : "";
@@ -1304,7 +1304,13 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     }
     const state = PATCH_OUTPUTS_OF(firstId)["patch-state"];
     const runs = (firstState, subState) =>
-      evaluate(apply.if, { [`needs.${subId}.outputs.${state}`]: subState, [`needs.${firstId}.outputs.${state}`]: firstState });
+      evaluate(apply.if, {
+        [`needs.${subId}.result`]: subState === "" ? "skipped" : "success",
+        [`needs.${subId}.outputs.${state}`]: subState,
+        [`needs.${firstId}.outputs.${state}`]: firstState,
+        [`needs.${subId}.outputs.feedback-attempt`]: "1",
+        [`needs.${firstId}.outputs.feedback-attempt`]: "1",
+      });
     assert.equal(runs("written", ""), true);
     assert.equal(runs("", "written"), true);
     assert.equal(runs("", "empty"), EMPTY_RUNS_APPLY[firstId], "an empty patch");
@@ -2934,9 +2940,96 @@ test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adja
 // gate, a head or a reply input from anything else a model call reports.
 const MODEL_CALL_READS = {
   "address-feedback-subscription": ["credential-present", "lane-class"],
-  "apply-feedback-patch": ["scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
-  "publish-feedback": ["feedback-attempt"],
+  "apply-feedback-patch": ["feedback-attempt", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
+  "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state"],
 };
+
+// One leg answers the round: the fallback call when it ran, else the first.
+// Every model-call input is that leg's, so a forged leg cannot pair its
+// replies with the other's patch, and an empty field never falls through.
+test("pr-unblock.yml: the apply and reply jobs take every model-call input from one leg", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const apply = jobs["apply-feedback-patch"];
+  const publish = jobs["publish-feedback"].with;
+  const OUT = ["scan-patch-state", "scan-patch-sha256", "scan-patch-attempt", "scan-reply-attempt", "feedback-attempt", "feedback-sha256"];
+  const legs = (subResult, sub, first) => {
+    const values = { "needs.address-feedback-subscription.result": subResult };
+    for (const output of OUT) {
+      values[`needs.address-feedback-subscription.outputs.${output}`] = sub[output] ?? "";
+      values[`needs.address-feedback.outputs.${output}`] = first[output] ?? "";
+    }
+    return values;
+  };
+  const full = (leg) => Object.fromEntries(OUT.map((o) => [o, `${leg}:${o}`]).concat([["scan-patch-state", "written"]]));
+  const inputs = {
+    "patch-state": [apply.with, "scan-patch-state"],
+    "patch-sha256": [apply.with, "scan-patch-sha256"],
+    "patch-attempt": [apply.with, "scan-patch-attempt"],
+    "reply-attempt": [apply.with, "scan-reply-attempt"],
+    "review-replies-attempt": [publish, "feedback-attempt"],
+    "review-replies-sha256": [publish, "feedback-sha256"],
+    "review-patch-state": [publish, "scan-patch-state"],
+  };
+  for (const [subResult, from] of [["skipped", "first"], ["success", "sub"], ["failure", "sub"]]) {
+    const context = legs(subResult, from === "sub" ? full("sub") : {}, from === "first" ? full("first") : {});
+    for (const [input, [withs, output]] of Object.entries(inputs)) {
+      const want = output === "scan-patch-state" ? "written" : `${from}:${output}`;
+      assert.equal(evaluate(withs[input], context), want, `${input} when the fallback call is ${subResult}`);
+    }
+    assert.equal(evaluate(apply.if, context), true, `a written patch with replies when the fallback call is ${subResult}`);
+  }
+  // The fallback call ran and left a field empty: nothing comes from the first call.
+  const mixed = legs("success", { "feedback-attempt": "2", "feedback-sha256": "s" }, full("first"));
+  for (const [input, [withs]] of Object.entries(inputs)) {
+    if (!["review-replies-attempt", "review-replies-sha256"].includes(input)) {
+      assert.equal(evaluate(withs[input], mixed), "", `${input} never falls through to the first call`);
+    }
+  }
+  assert.equal(evaluate(apply.if, mixed), false, "the first call's patch never pairs with the fallback call's replies");
+  // No replies from the chosen leg, no push.
+  for (const subResult of ["skipped", "success"]) {
+    const leg = { ...full(subResult === "skipped" ? "first" : "sub"), "feedback-attempt": "" };
+    const context = legs(subResult, subResult === "skipped" ? {} : leg, subResult === "skipped" ? leg : {});
+    assert.equal(evaluate(apply.if, context), false, `a written patch with no replies when the fallback call is ${subResult}`);
+  }
+  // The scan job alone sets the replies' SHA-256, from the bytes it uploads.
+  const read = workflow("pr-run-activity-read.yml");
+  assert.equal(read.on.workflow_call.outputs["feedback-sha256"].value, "${{ jobs.scan.outputs.feedback-sha256 }}");
+  assert.equal(read.jobs.scan.outputs["feedback-sha256"], "${{ steps.feedback-upload.outcome == 'success' && steps.leak-scan.outputs.replies-sha256 || '' }}");
+  assert.equal(read.jobs.run.outputs["feedback-sha256"], undefined);
+  const scan = read.jobs.scan.steps.find((step) => step.id === "leak-scan").with.script;
+  assert.match(scan, /if \(replies\) core\.setOutput\('replies-sha256', crypto\.createHash\('sha256'\)\.update\(replies\)\.digest\('hex'\)\)/);
+  // The write runner hands both to the reply script.
+  const write = workflow("pr-run-activity-write.yml");
+  const script = write.jobs.run.steps.find((step) => step.id === "act-script");
+  assert.equal(script.env.REPLIES_SHA256, "${{ inputs.review-replies-sha256 }}");
+  assert.equal(script.env.REVIEW_PATCH_STATE, "${{ inputs.review-replies && inputs.review-patch-state || '' }}");
+});
+
+// The pr-feedback-dispatch.yml trust reaches the read gate only for a
+// review-threads call, which alone passes the select job's feedback context,
+// and a feedback context with any other prepare mode fails red.
+test("pr-run-activity-read.yml: the gate admits a feedback dispatch only for a review-threads call", () => {
+  const read = workflow("pr-run-activity-read.yml");
+  const steps = read.jobs.run.steps;
+  const gate = steps.find((step) => step.id === "gate").with;
+  // evaluate() refuses a dotted path literal, so the expressions are matched whole.
+  assert.equal(gate["run-dispatcher-workflow"], "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-feedback-dispatch.yml' || '' }}");
+  assert.equal(
+    gate["run-dispatcher-upstreams"],
+    "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}",
+  );
+  const assertStep = steps.find((step) => step.name === "Assert a feedback context goes with review-threads");
+  const config = steps.findIndex((step) => step.id === "config");
+  assert.ok(steps.indexOf(assertStep) > config);
+  const fails = (sha, prepare) =>
+    evaluate(assertStep.if, { "steps.config.outcome": "success", "inputs.feedback-context-sha256": sha, "steps.config.outputs.prepare": prepare });
+  assert.equal(fails("e".repeat(64), "ci-context"), true);
+  assert.equal(fails("e".repeat(64), ""), true);
+  assert.equal(fails("e".repeat(64), "review-threads"), false);
+  assert.equal(fails("", "ci-context"), false);
+  assert.match(assertStep.run, /exit 1/);
+});
 
 test("pr-unblock.yml: no job takes a gate, head or reply input from an address-feedback model call but the outputs it needs", () => {
   const { jobs } = workflow("pr-unblock.yml");
@@ -2964,13 +3057,6 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
     evaluate(publish["expected-upstream-head"], { "inputs.dispatcher-run-id": dispatcher, "needs.address-feedback-select.outputs.head-sha": "e".repeat(40) });
   assert.equal(upstream("39000000001"), "e".repeat(40));
   assert.equal(upstream(""), "", "a human dispatch passes none");
-  const replies = (sub, first) =>
-    evaluate(publish["review-replies-attempt"], {
-      "needs.address-feedback-subscription.outputs.feedback-attempt": sub,
-      "needs.address-feedback.outputs.feedback-attempt": first,
-    });
-  assert.equal(replies("", "1"), "1");
-  assert.equal(replies("2", ""), "2", "the fallback call's replies after a handoff");
   // The read runner's feedback-attempt and scan-* outputs come from its scan job alone.
   const read = workflow("pr-run-activity-read.yml");
   assert.equal(read.on.workflow_call.outputs["feedback-attempt"].value, "${{ jobs.scan.outputs.feedback-attempt }}");
@@ -3031,8 +3117,14 @@ test("pr-run-activity-read.yml: a pr-feedback-dispatch.yml dispatch passes the t
   const gateOf = (file) => workflow(file).jobs.run.steps.find((s) => s.id === "gate").with;
   const read = gateOf("pr-run-activity-read.yml");
   const write = gateOf("pr-run-activity-write.yml");
-  for (const input of ["dispatcher-run-id", "dispatcher-workflow", "run-dispatcher-workflow", "run-dispatcher-upstreams", "dispatched-workflow"]) {
+  for (const input of ["dispatcher-run-id", "dispatcher-workflow", "dispatched-workflow"]) {
     assert.equal(read[input], write[input], input);
+  }
+  // The feedback dispatcher's two inputs are the write runner's, passed only
+  // for a review-threads call (the next test).
+  for (const input of ["run-dispatcher-workflow", "run-dispatcher-upstreams"]) {
+    const value = String(write[input]).trim().split(/\s+/).join(" ");
+    assert.equal(read[input], `\${{ inputs.feedback-context-sha256 != '' && '${value}' || '' }}`, input);
   }
   // The App id reaches the gate on a dispatched run and in issue mode only, as before for every other read run.
   const appId = (issue, dispatcher) =>
@@ -3040,7 +3132,6 @@ test("pr-run-activity-read.yml: a pr-feedback-dispatch.yml dispatch passes the t
   assert.equal(appId("", "39000000001"), "337595936");
   assert.equal(appId("7", ""), "337595936");
   assert.equal(appId("", ""), "", "a PR run with no dispatcher passes none");
-  assert.equal(read["run-dispatcher-workflow"], ".github/workflows/pr-feedback-dispatch.yml");
   assert.equal(read["expected-upstream-head"], undefined, "the model calls run on the reviewed head");
 });
 

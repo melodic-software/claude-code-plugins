@@ -214,6 +214,11 @@ on:
           uploaded the review-thread replies a prepare: review-threads skill
           recorded. Only the scan job sets it: no run job output names it.
         value: ${{ jobs.scan.outputs.feedback-attempt }}
+      feedback-sha256:
+        description: >-
+          The SHA-256 of the review-thread replies the scan job uploaded, from
+          the bytes it uploaded. Only the scan job sets it.
+        value: ${{ jobs.scan.outputs.feedback-sha256 }}
       base-sha:
         description: >-
           The trusted base commit the run checked, set before any head code
@@ -510,17 +515,17 @@ jobs:
           pr-number: ${{ inputs.pr-number }}
           triggering-actor: ${{ github.triggering_actor }}
           # A dispatch from github-actions[bot] proceeds only when it names a
-          # pr-unblock-dispatch.yml run on the default branch, or a
+          # pr-unblock-dispatch.yml run on the default branch, or, for a
+          # review-threads call (the only one passing the select job's
+          # feedback context, held to that prepare mode below), a
           # pr-feedback-dispatch.yml run whose recorded review run (started by
           # the lanes App or a listed human) reviewed the PR's current head,
           # that sent it to pr-unblock.yml; any other run passes no id and the
           # bot stays unlisted.
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
           dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
-          run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml
-          run-dispatcher-upstreams: >-
-            .github/workflows/pr-review-hosted.yml
-            .github/workflows/pr-review-security-hosted.yml
+          run-dispatcher-workflow: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-feedback-dispatch.yml' || '' }}
+          run-dispatcher-upstreams: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}
           dispatched-workflow: .github/workflows/pr-unblock.yml
           # Issue mode reads no PR: the account that applied the label, and
           # any re-runner, must be listed as a human; the lanes App passes
@@ -603,6 +608,16 @@ jobs:
           PREPARE: ${{ steps.config.outputs.prepare }}
         run: |
           echo "::error::prepare: $PREPARE is not a read mode, or runs without an applied-by patch or in issue mode"
+          exit 1
+
+      # The gate admitted a pr-feedback-dispatch.yml dispatch because the
+      # caller passed a feedback context; only a review-threads skill may.
+      - name: Assert a feedback context goes with review-threads
+        if: >-
+          steps.config.outcome == 'success' && inputs.feedback-context-sha256 != ''
+          && steps.config.outputs.prepare != 'review-threads'
+        run: |
+          echo "::error::a feedback context is passed only to a prepare: review-threads skill"
           exit 1
 
       # PR mode runs a skill on run-claude-cli: a role names its secret, a
@@ -1777,6 +1792,7 @@ jobs:
       patch-attempt: ${{ steps.patch-upload.outcome == 'success' && format('{0}{1}', github.run_attempt, inputs.model-rung == '1' && '-rung-up' || '') || '' }}
       reply-attempt: ${{ steps.reply-upload.outcome == 'success' && format('{0}{1}', github.run_attempt, inputs.model-rung == '1' && '-rung-up' || '') || '' }}
       feedback-attempt: ${{ steps.feedback-upload.outcome == 'success' && github.run_attempt || '' }}
+      feedback-sha256: ${{ steps.feedback-upload.outcome == 'success' && steps.leak-scan.outputs.replies-sha256 || '' }}
     steps:
       # The opener and the public key, from the default branch's tip, named
       # by the event, never by a run job output: this code runs with the
@@ -2063,6 +2079,7 @@ jobs:
               const replies = keep(`${REPLY_DIR}/replies.jsonl`, 'replies.jsonl');
               core.setOutput('dir', out);
               if (patch) core.setOutput('patch-sha256', crypto.createHash('sha256').update(patch).digest('hex'));
+              if (replies) core.setOutput('replies-sha256', crypto.createHash('sha256').update(replies).digest('hex'));
               // A credential format blocks and asks for rotation. The one broad
               // label, an assignment that may be a test fixture, only warns, and
               // only on a plain line. Each line is judged on its own: every

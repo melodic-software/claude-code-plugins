@@ -104,12 +104,20 @@ test("pr-unblock.yml: publish-feedback runs exactly when the select job proceede
   }
 });
 
-test("pr-unblock.yml: apply-feedback-patch runs only on a written patch from either model call, not after a skip or an empty patch", () => {
+test("pr-unblock.yml: apply-feedback-patch runs only on a written patch with replies from the leg that answered, not after a skip or an empty patch", () => {
   const { gate } = jobGate(UNBLOCK, "apply-feedback-patch");
-  const runs = (sub, first) =>
-    evaluate(gate, { "needs.address-feedback-subscription.outputs.scan-patch-state": sub, "needs.address-feedback.outputs.scan-patch-state": first });
-  assert.equal(runs("", "written"), true, "the key call's patch, its subscription call skipped");
-  assert.equal(runs("written", ""), true, "the subscription call's patch after a handoff");
-  assert.equal(runs("", "empty"), false);
-  assert.equal(runs("", ""), false);
+  const runs = (subResult, sub, first, replies = "1") =>
+    evaluate(gate, {
+      "needs.address-feedback-subscription.result": subResult,
+      "needs.address-feedback-subscription.outputs.scan-patch-state": sub,
+      "needs.address-feedback.outputs.scan-patch-state": first,
+      "needs.address-feedback-subscription.outputs.feedback-attempt": subResult === "skipped" ? "" : replies,
+      "needs.address-feedback.outputs.feedback-attempt": subResult === "skipped" ? replies : "",
+    });
+  assert.equal(runs("skipped", "", "written"), true, "the key call's patch, its subscription call skipped");
+  assert.equal(runs("success", "written", ""), true, "the subscription call's patch after a handoff");
+  assert.equal(runs("success", "", "written"), false, "the key call's patch is not taken once the subscription call ran");
+  assert.equal(runs("skipped", "", "written", ""), false, "a patch with no replies");
+  assert.equal(runs("skipped", "", "empty"), false);
+  assert.equal(runs("skipped", "", ""), false);
 });

@@ -158,6 +158,22 @@ on:
         required: false
         type: string
         default: ""
+      review-replies-sha256:
+        description: >-
+          With review-replies, the read runner's feedback-sha256 output, set
+          only by its scan job from the replies it uploaded. A replies file
+          with another SHA-256 is refused as feedback-invalid.
+        required: false
+        type: string
+        default: ""
+      review-patch-state:
+        description: >-
+          With review-replies, the same read runner call's scan-patch-state.
+          With no replies, the reply script skips no-model-turn only when this
+          is empty.
+        required: false
+        type: string
+        default: ""
       dependency-verdict:
         description: >-
           For the verdict script of a review-dependency round: download the
@@ -2066,6 +2082,8 @@ jobs:
           FEEDBACK_REPLIES_DIR: ${{ inputs.review-replies && format('{0}/feedback-replies', runner.temp) || '' }}
           TRUSTED_ACTORS: ${{ (inputs.review-replies || inputs.issue-number != '') && format('{0}/base-script/.trusted-actors.json', runner.temp) || '' }}
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
+          REPLIES_SHA256: ${{ inputs.review-replies-sha256 }}
+          REVIEW_PATCH_STATE: ${{ inputs.review-replies && inputs.review-patch-state || '' }}
           # Issue mode, apply-patch: the new lane branch, named by the model
           # job's patch attempt so a re-run of this job names the same one.
           HEAD_REF: >-

@@ -65,6 +65,7 @@ permissions, and passes no App key.
 | `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, the head the select job read, passed to the gate and the broker (step 3) |
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the select job's `context-attempt` output, which names its `feedback-context-<attempt>` artifact so a re-run of the reply job alone still finds it |
 | `review-replies-attempt` | `''` | Write file only: with `review-replies`, the read file's `feedback-attempt` output, which names the scanned replies artifact |
+| `review-replies-sha256`, `review-patch-state` | `''` | Write file only: with `review-replies`, the same read call's `feedback-sha256` and `scan-patch-state` outputs, which bind the replies' bytes and decide whether missing replies are a `no-model-turn` skip |
 | `feedback-context-attempt`, `feedback-context-sha256` | `''` | Read file only: for [`prepare: review-threads`](#prepare-review-threads), the attempt naming the select job's `feedback-context-<attempt>` artifact and its thread file's SHA-256 |
 | `patch-threads-attempt`, `patch-threads-sha256`, `patch-fix-requested` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the select job's artifact attempt, its thread file's SHA-256 and its `fix-requested` output |
 | `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop` or `no-key` for its fallback call, on `claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
@@ -84,8 +85,9 @@ The read file has five `workflow_call` outputs: `head-sha`, as in the write file
 `skill-reply-<lane>-<activity>-<attempt>` artifact when the skill ran. In PR mode it also outputs
 `lane-class`, `credential-present` and `handed-off`, from the launcher and the credential steps,
 never from model text ([Two calls on one credential each](#two-calls-on-one-credential-each)),
-and, set by the scan job alone, `feedback-attempt`, the attempt naming a `prepare: review-threads`
-skill's scanned replies ([`prepare: review-threads`](#prepare-review-threads)), and
+and, set by the scan job alone, `feedback-attempt` and `feedback-sha256`, the attempt naming a
+`prepare: review-threads` skill's scanned replies and their SHA-256
+([`prepare: review-threads`](#prepare-review-threads)), and
 `scan-patch-state`, `scan-patch-sha256`, `scan-patch-attempt` and `scan-reply-attempt`, the patch
 outputs with no run job fallback, which a caller that takes nothing from a run job reads.
 
@@ -179,9 +181,10 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `github-actions[bot]` proceeds only when it names a run of that dispatcher on the default branch
    whose window holds this run's creation and whose `pr-unblock-dispatched-<id>[-<id>...]`
    artifact lists this run's id, and this run is `pr-unblock.yml`; every other bot-sent dispatch
-   stops with `untrusted-actor`. The write file alone also passes
-   `run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml` with the two review
-   workflows as `run-dispatcher-upstreams`: a run of that dispatcher, started by `workflow_run`,
+   stops with `untrusted-actor`. The write file, and the read file for a call that passes
+   `feedback-context-sha256` (which it fails red unless the skill is `prepare: review-threads`),
+   also pass `run-dispatcher-workflow: .github/workflows/pr-feedback-dispatch.yml` with the two
+   review workflows as `run-dispatcher-upstreams`: a run of that dispatcher, started by `workflow_run`,
    vouches with no actor check when its `pr-feedback-dispatched-<upstream id>-<this run's id>`
    artifact names a `pull_request` run of one of those workflows in this repository, started by
    the lanes App or a listed human, at the PR's current head. A job after pr-unblock's model job
@@ -849,9 +852,14 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    49152 bytes, sealed for the scan job ([Patch output mode](#patch-output-mode)), and only for a
    `review-threads` skill. The scan job scans it with the reply and the patch and, on a clean
    scan, uploads its scanned copy as `feedback-replies-<lane>-<activity>-<run attempt>`; the read
-   file's `feedback-attempt` output, set by the scan job alone, names that attempt.
-4. The push job runs on a written patch from either call, read from the calls' `scan-*` outputs,
-   never a run job's. Before the mint it downloads the select
+   file's `feedback-attempt` and `feedback-sha256` outputs, set by the scan job alone, name that
+   attempt and the uploaded bytes' SHA-256.
+4. One call answers the round: the subscription call when it ran (its job result is not
+   `skipped`), else the first. The push and reply jobs take every model-call input from that call
+   alone, so one call's patch never pairs with the other's replies and an empty output never falls
+   through to the other call. The push job runs on that call's written patch, read from its
+   `scan-*` outputs, never a run job's, and only when that call's scan also uploaded replies.
+   Before the mint it downloads the select
    job's thread file and fails red unless its SHA-256 is the select job's; `apply-patch.mjs` then
    admits only paths in a kept thread's scope (the `kept-threads` rule, `named_paths` included),
    skips `superseded-sha` when the head moved since the select job read it, keeps the
@@ -864,10 +872,14 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    downloads `run.json` from the select job's artifact (`review-run-attempt`) and `replies.jsonl`
    from the scan job's (`review-replies-attempt`), and copies the base's trusted-actors list.
    `publish-feedback.mjs` then:
-   - with no `replies.jsonl` (no model turn: a credit stop on both calls, a broker refusal, the
-     kill switch, a head that moved before the call) posts no reply, escalates nothing and skips
-     `no-model-turn`, after still recording the round. The dispatcher does not dispatch that head
-     again, since its check run is now completed; the next push and review do;
+   - with no `replies.jsonl`, which the run job can arrange, records the round and: skips
+     `no-model-turn`, escalating nothing, only when the same call's `review-patch-state` is empty
+     and the PR head is still the one in `run.json` (no model turn: a credit stop on both calls, a
+     broker refusal, the kill switch); escalates `feedback-not-landed` when the head moved; and
+     escalates `feedback-invalid` beside a scanned patch. The dispatcher does not dispatch a skipped
+     head again, since its check run is now completed; the next push and review do;
+   - refuses a `replies.jsonl` whose SHA-256 is not the scan job's (`review-replies-sha256`) as
+     `feedback-invalid`;
    - validates the whole artifact: `run.json` with the select job's SHA-256
      (`review-run-sha256`) and at most 1 MiB; each file a regular file read only when within its
      size limit; `replies.jsonl` at most 49152 bytes, each line an object with exactly `thread`,
