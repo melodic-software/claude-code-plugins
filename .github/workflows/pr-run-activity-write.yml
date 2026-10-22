@@ -212,7 +212,8 @@ on:
           apply-patch: the model rung the patch's producer ran at, empty or 0
           its profile's, 1 the rung above. At 0 an empty fix-ci patch whose
           report escalated only unfixed or not-reproducible checks skips
-          rung-up, for the dispatcher's one retry, instead of escalating.
+          rung-up instead of escalating, so the caller runs the producer once
+          more at rung 1. A rung-1 run's verdict artifact carries its own name.
         required: false
         type: string
         default: ""
@@ -269,6 +270,16 @@ on:
           empty otherwise.
           Set only by runner steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
+      rung-up:
+        description: >-
+          apply-patch: `true` when the patch's select skipped rung-up, so the
+          caller runs the producer once more one model rung up; else `false`.
+        value: ${{ jobs.run.outputs.rung-up }}
+      patch-skip-reason:
+        description: >-
+          apply-patch: the skip reason the patch's select gave, empty when it
+          proceeded.
+        value: ${{ jobs.run.outputs.patch-skip-reason }}
       head-sha:
         description: The PR head the gate passed, before any push of this run. Set only by runner steps.
         value: ${{ jobs.run.outputs.head-sha }}
@@ -358,6 +369,8 @@ jobs:
         ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason
         || steps.feedback-select.outputs.escalation-reason || steps.dependency-select.outputs.escalation-reason
         || steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
+      rung-up: ${{ steps.patch-select.outputs.skip-reason == 'rung-up' }}
+      patch-skip-reason: ${{ steps.patch-select.outputs.skip-reason }}
       feedback-round: >-
         ${{ steps.config.outputs.prepare == 'review-threads'
         && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
@@ -2243,7 +2256,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.patch-model-rung == '1' && '-rung-up' || '' }}
           path: ${{ runner.temp }}/verdict/verdict.json
           retention-days: 1
           if-no-files-found: error
@@ -2345,7 +2358,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.patch-model-rung == '1' && '-rung-up' || '' }}
           path: ${{ runner.temp }}/verdict
 
       - name: Check the lane's commits are signed

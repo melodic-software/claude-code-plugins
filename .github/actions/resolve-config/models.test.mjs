@@ -222,7 +222,7 @@ test("live config: resolve-issue keeps the standard profile's model, its turns f
   assert.equal(modelSettings(slot.models), "");
 });
 
-// Owner decision Q21 (2026-10-22): an issue's Complexity picks the starting
+// An issue's Complexity picks the starting
 // profile. High runs Opus at effort xhigh; low, medium and unset keep the
 // activity's default (resolve-issue has no route, so standard). The turn cap
 // still comes from the dimensions.
@@ -266,7 +266,7 @@ test("live config: an issue with no Complexity keeps the default profile (and is
   assert.equal(slot.models.profile, "standard");
 });
 
-// fix-ci's retry one rung up (owner decision Q21): rung 1 takes code-fix's
+// fix-ci's retry one rung up: rung 1 takes code-fix's
 // escalate-to profile, Opus at effort xhigh; rung 0 keeps code-fix.
 const fixCiSlot = (rung) =>
   resolve(LIVE, { lane: "pr-unblock", activity: "fix-ci", configPath: CONFIG_PATH, basePath: ".base", facts: LIVE_FACTS, rung })
@@ -364,6 +364,42 @@ for (const [why, models, code] of [
 ]) {
   test(`models: ${why} is rejected`, () => {
     assertRejected(() => fixtureSlot(withModels(models)), code);
+  });
+}
+
+// The model rung: only the selected slot climbs, one hop at most, and only
+// from a profile that names a rung above it.
+const LADDER = {
+  profiles: {
+    p1: { model: "sonnet", "max-turns": 5, "escalate-to": "p2" },
+    p2: { model: "opus", effort: "high", "max-turns": 5, "escalate-to": "p3" },
+    p3: { model: "opus", effort: "xhigh", "max-turns": 5 },
+  },
+  "default-profile": "p3",
+  routes: { "fix-docs": "p1" },
+};
+const rungSlot = (models, rung) =>
+  resolve(withModels(models), { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: { event: "synchronize", changedPaths: ["src/app.js"] }, rung });
+
+test("models: rung 1 climbs one rung, p1 to p2, never on to p3", () => {
+  assert.equal(rungSlot(LADDER, 1).selected.models.profile, "p2");
+  assert.equal(rungSlot(LADDER, 0).selected.models.profile, "p1");
+});
+
+test("models: rung 1 on a profile with no rung above is refused, so a retry never reruns the same model", () => {
+  assertRejected(() => rungSlot({ ...LADDER, routes: { "fix-docs": "p3" } }, 1), "no-rung-up");
+});
+
+test("models: rung 1 leaves every slot but the selected one at its own profile", () => {
+  const { lane, selected } = rungSlot({ ...LADDER, routes: { "fix-docs": "p1" } }, 1);
+  for (const slot of lane.slots.filter((entry) => entry.models !== null && entry.name !== selected.name)) {
+    assert.equal(slot.models.profile, "p3", slot.name);
+  }
+});
+
+for (const rung of [2, -1, "1", 0.5]) {
+  test(`models: model rung ${JSON.stringify(rung)} is refused as invalid-rung`, () => {
+    assertRejected(() => rungSlot(LADDER, rung), "invalid-rung");
   });
 }
 

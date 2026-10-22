@@ -404,7 +404,7 @@ models:
       effort-role: verifier
       max-turns: 75
       # One rung up, for fix-ci's retry after it escalated only unfixed or
-      # not-reproducible checks (owner decision Q21, 2026-10-22).
+      # not-reproducible checks.
       escalate-to: code-xhigh
     # The rung above Opus high: Opus at effort xhigh, for a high-Complexity
     # issue and fix-ci's one retry. The rung above it is Fable, which no
@@ -470,9 +470,9 @@ models:
       medium: 1.5
       # Double, the most a size's timeout covers.
       high: 2
-    # The profile a run starts on by Complexity, in place of its route's
-    # (owner decision Q21, 2026-10-22): high runs Opus at effort xhigh; low,
-    # medium and an unset field keep the activity's default.
+    # The profile a run starts on by Complexity, in place of its route's:
+    # high runs Opus at effort xhigh; low, medium and an unset field keep the
+    # activity's default.
     complexity-profiles:
       high: code-xhigh
     uncertainty:

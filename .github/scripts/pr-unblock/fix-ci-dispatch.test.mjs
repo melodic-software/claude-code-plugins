@@ -150,48 +150,6 @@ test("a head that already has a fix-ci run is skipped, unless every run failed w
   );
 });
 
-// Owner decision Q21: a fix-ci run that escalated only unfixed or
-// not-reproducible checks leaves apply-patch neutral `Skipped: rung-up` and no
-// label; the next dispatcher run retries it once, one model rung up.
-test("a head whose fix-ci run stopped for a rung-up retry is dispatched once at model-rung 1", async () => {
-  const failed = check("ci-status", "FAILURE");
-  const fix = (conclusion) => check("pr-unblock / fix-ci", conclusion);
-  const rungUp = check("pr-unblock / apply-patch", "NEUTRAL", { title: "Skipped: rung-up" });
-  const { api, result } = await run(
-    {
-      pages: [
-        [
-          pr(1, { checks: [failed, fix("SUCCESS"), rungUp] }),
-          // The rung-1 retry ran and finished: no third run.
-          pr(2, { checks: [failed, fix("SUCCESS"), rungUp, fix("SUCCESS")] }),
-          // The retry escalated to a person: the hold label stops it.
-          pr(3, { checks: [failed, fix("SUCCESS"), rungUp, fix("SUCCESS")], labels: { nodes: [{ name: "needs-human" }] } }),
-          // The retry failed (an outage): one restart, still at rung 1.
-          pr(4, { checks: [failed, fix("SUCCESS"), rungUp, fix("FAILURE")] }),
-          pr(5, { checks: [failed, fix("SUCCESS"), rungUp, fix("FAILURE"), fix("FAILURE")] }),
-          // A run that escalated to a person leaves no rung-up check.
-          pr(6, { checks: [failed, fix("SUCCESS"), check("pr-unblock / apply-patch", "NEUTRAL", { title: "Skipped: awaiting-human" })] }),
-          // A rung-up title from another app counts for nothing.
-          pr(7, { checks: [failed, fix("SUCCESS"), check("pr-unblock / apply-patch", "NEUTRAL", { title: "Skipped: rung-up", checkSuite: { app: { databaseId: 999 } } })] }),
-        ],
-      ],
-    },
-    { maxDispatch: 10 },
-  );
-  assert.deepEqual(
-    result.dispatched.map((d) => d.number),
-    [1, 4],
-  );
-  for (const call of api.calls.dispatch) {
-    assert.deepEqual(call.inputs, { "pr-number": call.inputs["pr-number"], activity: "fix-ci", "dispatcher-run-id": "4242", "model-rung": "1" });
-  }
-});
-
-test("a first fix-ci dispatch and an outage restart pass no model-rung", async () => {
-  const { api } = await run({ pages: [[pr(1), pr(2, { checks: [check("ci-status", "FAILURE"), check("pr-unblock / fix-ci", "FAILURE")] })]] });
-  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["model-rung"]), [undefined, undefined]);
-});
-
 test("a restart count of 0 never dispatches a head again", async () => {
   const { result } = await run(
     { pages: [[pr(4, { checks: [check("ci-status", "FAILURE"), check("pr-unblock / fix-ci", "FAILURE")] })]] },

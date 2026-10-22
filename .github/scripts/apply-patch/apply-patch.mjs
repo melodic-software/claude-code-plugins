@@ -134,8 +134,8 @@ const REASONS = "not-reproducible|flaky|protected-path|weaken-required|unfixed";
 const ESCALATED_LINE = new RegExp(`^(.+?): escalated (?:${REASONS})(?: |$)`);
 
 const ESCALATED_REASON = new RegExp(`^.+?: escalated (${REASONS})(?: |$)`);
-// The reasons a fix-ci retry one model rung up may answer (owner decision
-// Q21); protected-path, weaken-required and flaky stay with a person.
+// The reasons a fix-ci retry one model rung up may answer; protected-path,
+// weaken-required and flaky stay with a person.
 const RUNG_UP_REASONS = new Set(["unfixed", "not-reproducible"]);
 
 const reportLines = (text) => String(text).split("\n").map((line) => line.replace(/\r$/, ""));
@@ -337,7 +337,7 @@ export function patchProblem(file, expected) {
 
 // `rung` is the producer's model rung (0 or 1): at 0, an empty patch whose
 // report escalated only checks a stronger model may answer skips rung-up, and
-// the dispatcher retries it once at rung 1, instead of escalating.
+// the caller runs the producer once more at rung 1, instead of escalating.
 export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0 }) {
   checkRow(row);
   const decide = (proceed, skipReason, escalationReason) => ({ proceed, skipReason, escalationReason });

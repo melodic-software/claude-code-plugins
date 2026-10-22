@@ -13,9 +13,7 @@ name: pr-unblock
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or
 # a red ci-status) whose head has no review yet. fix-ci: pr-unblock-dispatch.yml
-# also sends one per lanes App PR whose ci-status failed, and one more at
-# model-rung 1 when that run escalated only unfixed or not-reproducible
-# checks and changed nothing (apply-patch skips rung-up). All set
+# also sends one per lanes App PR whose ci-status failed. All set
 # dispatcher-run-id; a
 # trusted human may dispatch with pr-number and activity alone. Every job
 # trusts the default branch tip, since a conflicting PR's base SHA is stale and
@@ -44,15 +42,6 @@ on:
         required: false
         type: string
         default: ""
-      model-rung:
-        description: >-
-          fix-ci only: 1 runs the model one rung up (fix-ci-dispatch.mjs sends
-          it once per head, after a run escalated only unfixed or
-          not-reproducible checks); 0 runs the route's profile.
-        required: false
-        type: choice
-        options: ["0", "1"]
-        default: "0"
 
 permissions: {}
 
@@ -396,7 +385,6 @@ jobs:
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
       head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
-      model-rung: ${{ inputs.model-rung }}
       # Reproducing, fixing and rerunning several checks outlasts the default.
       timeout-minutes: 60
     secrets:
@@ -435,7 +423,6 @@ jobs:
       ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
       ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
       head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
-      model-rung: ${{ inputs.model-rung }}
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
@@ -481,8 +468,110 @@ jobs:
       # own trigger gate reads at apply time, and its push needs the branch
       # still at that head.
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
-      patch-model-rung: ${{ inputs.model-rung }}
       reply-attempt: ${{ needs.fix-ci-subscription.outputs.reply-attempt || needs.fix-ci.outputs.reply-attempt }}
+
+  # fix-ci's one retry one model rung up, in this same run: when apply-patch
+  # skipped rung-up (the run changed nothing and escalated only unfixed or
+  # not-reproducible checks), fix-ci runs again at model-rung 1 on the same
+  # context and head, with its own subscription fallback and apply-patch.
+  # Whatever the retry ends in reaches report-escalation, which hands the PR
+  # to a person unless the retry's patch applied cleanly; nothing here runs
+  # at rung 1 twice.
+  fix-ci-rung-up:
+    needs: [fix-ci-context, apply-patch]
+    if: >-
+      ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
+      && needs.apply-patch.outputs.rung-up == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: fix-ci
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
+      ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      model-rung: "1"
+      timeout-minutes: 60
+    secrets:
+      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  fix-ci-rung-up-subscription:
+    needs: [fix-ci-context, fix-ci-rung-up]
+    if: >-
+      ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
+      && (needs.fix-ci-rung-up.outputs.lane-class == 'credit-stop'
+      || needs.fix-ci-rung-up.outputs.credential-present == 'false') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: fix-ci
+      fallback: ${{ needs.fix-ci-rung-up.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      ci-context-attempt: ${{ needs.fix-ci-context.outputs.context-attempt }}
+      ci-context-sha256: ${{ needs.fix-ci-context.outputs.context-sha256 }}
+      head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      model-rung: "1"
+      timeout-minutes: 60
+    secrets:
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  apply-patch-rung-up:
+    needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-subscription]
+    if: >-
+      ${{ !cancelled() && ((needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state) == 'written'
+      || (needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state) == 'empty') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: apply-patch
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      patch-state: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state }}
+      patch-sha256: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-sha256 || needs.fix-ci-rung-up.outputs.patch-sha256 }}
+      patch-attempt: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-attempt || needs.fix-ci-rung-up.outputs.patch-attempt }}
+      patch-activity: fix-ci
+      patch-prepare: ci-context
+      patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      # At rung 1 an escalation goes to a person: there is no rung above.
+      patch-model-rung: "1"
+      reply-attempt: ${{ needs.fix-ci-rung-up-subscription.outputs.reply-attempt || needs.fix-ci-rung-up.outputs.reply-attempt }}
 
   # GitHub starts no pull_request workflow on a conflicted PR, so a head the
   # lane could not resolve gets no CI and no sign why. This script job, with
@@ -525,20 +614,27 @@ jobs:
       - apply-dependency-verdict
       - fix-ci-context
       - apply-patch
+      - apply-patch-rung-up
     # escalation-reason is set only by the write runner's own steps, the
     # base's reply, verdict and apply-patch scripts, and fix-ci-context's
     # base script. A later failure in that run (a failed verdict upload)
     # still escalates. At most one escalates: one activity runs per dispatch,
     # a reply, verdict or push job runs only after a model turn, and a model
-    # job, or fix-ci-context, escalates only before one.
+    # job, or fix-ci-context, escalates only before one. A rung-up stop
+    # escalates here too, even on a cancel, unless apply-patch-rung-up applied
+    # the retry's patch cleanly: its own reason, else ci-fix-escalated.
     if: >-
-      ${{ !cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
+      ${{ (!cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
       || needs.address-feedback.outputs.escalation-reason != ''
       || needs.publish-feedback.outputs.escalation-reason != ''
       || needs.review-dependency.outputs.escalation-reason != ''
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
-      || needs.apply-patch.outputs.escalation-reason != '') }}
+      || needs.apply-patch.outputs.escalation-reason != ''))
+      || (always() && needs.apply-patch.outputs.rung-up == 'true'
+      && !(needs.apply-patch-rung-up.result == 'success'
+      && needs.apply-patch-rung-up.outputs.escalation-reason == ''
+      && needs.apply-patch-rung-up.outputs.patch-skip-reason == '')) }}
     permissions:
       contents: read
       pull-requests: read
@@ -561,7 +657,9 @@ jobs:
         || needs.review-dependency.outputs.escalation-reason
         || needs.apply-dependency-verdict.outputs.escalation-reason
         || needs.fix-ci-context.outputs.escalation-reason
-        || needs.apply-patch.outputs.escalation-reason }}
+        || needs.apply-patch.outputs.escalation-reason
+        || needs.apply-patch-rung-up.outputs.escalation-reason
+        || needs.apply-patch.outputs.rung-up == 'true' && 'ci-fix-escalated' || '' }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       expected-upstream-head: >-
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''

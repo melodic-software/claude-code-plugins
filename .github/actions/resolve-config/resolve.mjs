@@ -755,11 +755,15 @@ const routeProfile = (models, route) => {
   return Object.hasOwn(routes, route) ? routes[route] : models["default-profile"];
 };
 
-// A profile's resolved values, at `rung` 1 its escalate-to profile's when it
-// names one: one rung at most, never the escalate-to's own. A role profile
-// takes its model and effort from the role map.
+// A profile's resolved values, at `rung` 1 its escalate-to profile's: one
+// rung at most, never the escalate-to's own, and a profile with no rung above
+// is refused, so a retry never reruns the same model. A role profile takes
+// its model and effort from the role map.
 function profileModels(models, start, roleMapText, rung = 0) {
   const climbed = rung === 1 ? models.profiles[start]["escalate-to"] : undefined;
+  if (rung === 1 && climbed === undefined) {
+    throw new Rejection("no-rung-up", `model rung 1 asks for the rung above profile \`${start}\`, which names no escalate-to`);
+  }
   const profile = climbed ?? start;
   const values = models.profiles[profile];
   return {
@@ -1014,7 +1018,8 @@ export function resolve(
   const entries = laneSlots(doc, lane);
   const index = selectedIndex(entries, lane, activity);
   const slots = entries.map((entry, i) =>
-    resolveSlot(entry, files, facts, decides(i, index), doc.models, pinnedDimensions, modelRung),
+    // Only the selected slot runs, so only it climbs.
+    resolveSlot(entry, files, facts, decides(i, index), doc.models, pinnedDimensions, i === index ? modelRung : 0),
   );
   return {
     version: 1,

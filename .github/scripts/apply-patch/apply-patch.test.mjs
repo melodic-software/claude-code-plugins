@@ -651,7 +651,7 @@ test("an empty patch-state whose report escalated a check names ci-fix-escalated
   assert.equal(select({ ...base, reportDir: scratch(t) }).escalationReason, "ci-fix-empty");
 });
 
-// Owner decision Q21: a fix-ci run that changed nothing and escalated only
+// A fix-ci run that changed nothing and escalated only
 // unfixed or not-reproducible checks retries once, one model rung up, instead
 // of handing the PR to a person; protected-path, weaken-required and flaky
 // stay with a person, and a rung-1 run never retries again.

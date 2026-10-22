@@ -1005,7 +1005,8 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
    than `patch-head-sha` skips `superseded-sha` (the row's `skip-moved-head`), and the script checks it again. An `empty` patch escalates `ci-fix-empty`
    (`ci-fix-escalated` when the report escalated a check), except that at `patch-model-rung` 0 a
    report whose every escalated check is `unfixed` or `not-reproducible` skips `rung-up` with no
-   escalation, for the dispatcher's one retry at `model-rung` 1. A `patch-state` other than `written`
+   escalation (output `rung-up` `true`), so the caller runs the producer once more at
+   `model-rung` 1. A `patch-state` other than `written`
    or `empty`, or an artifact that is not exactly one regular `patch.diff` of at most 1 MiB with
    that SHA-256 and no credential shape, escalates `ci-fix-invalid`. Each skips `awaiting-human`
    with nothing minted. A report that escalated a check sets `ci-fix-escalated` and proceeds, so

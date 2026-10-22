@@ -1027,3 +1027,16 @@ test("a lane run fails closed on patch rules a row of which does not refuse the 
     (error) => error.code === "patch-rules" && /does not refuse claude/.test(error.message),
   );
 });
+
+test("MODEL_RUNG empty, 0 or 1 resolves; any other value is refused as invalid-rung", async () => {
+  for (const rung of ["", "0"]) {
+    const { env } = workspace();
+    env.MODEL_RUNG = rung;
+    assert.ok(await resolveFromBase({ env, github: noApi }), rung);
+  }
+  for (const rung of ["2", "01", "up", "-1"]) {
+    const { env } = workspace();
+    env.MODEL_RUNG = rung;
+    await assert.rejects(resolveFromBase({ env, github: noApi }), (error) => error.code === "invalid-rung", rung);
+  }
+});

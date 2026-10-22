@@ -220,9 +220,12 @@ universal set, an agent instruction path (`CLAUDE.md`, `AGENTS.md`, `.claude/` o
 [`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)). An empty, invalid or
 unappliable patch, or a check the model escalated, goes to `report-escalation`, with one
 exception: a run at `model-rung` 0 that changed nothing and escalated only `unfixed` or
-`not-reproducible` checks skips `apply-patch` with `rung-up` and labels nothing, so the
-dispatcher retries it once at `model-rung` 1 ([Models](#models)); `protected-path`,
-`weaken-required` and `flaky` still go to a person, and so does any escalation of the retry. The same
+`not-reproducible` checks skips `apply-patch` with `rung-up`, and the same `pr-unblock` run
+runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
+`fix-ci-rung-up-subscription`, `apply-patch-rung-up`; [Models](#models)). `report-escalation`
+hands the PR to a person unless that retry's patch applied cleanly: the retry's own reason, else
+`ci-fix-escalated` (a neutral, failed or cancelled retry, or a cancelled run). `protected-path`,
+`weaken-required` and `flaky` go to a person without a retry. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), with no `do-not-merge`
@@ -230,10 +233,7 @@ or `needs-human` label, whose head's `ci-status` check run from the GitHub Actio
 `failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
 untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
 and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
-lowest number first. A head whose `pr-unblock / apply-patch` check is neutral `Skipped: rung-up`
-is dispatched with `model-rung` 1 while the run that stopped for it is its only `fix-ci` run that
-did more than fail, and its failed runs stay within `limits.fix-ci-restarts`: one retry per head,
-never a loop. Their run ids join the dispatched-runs record. The dispatcher job's
+lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
 concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
@@ -1348,7 +1348,8 @@ Each profile under `models.profiles` names:
 - `max-turns`: the turn budget, passed as `--max-turns`.
 - `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
   (resolve-config's `model-rung` input) takes it in place of this one; at most one rung, so the
-  target's own `escalate-to` is never followed. Only fix-ci's retry passes `model-rung` 1.
+  target's own `escalate-to` is never followed, and a profile with none refuses `model-rung` 1
+  (`no-rung-up`). Only the selected slot climbs, and only fix-ci's retry passes `model-rung` 1.
 
 A role profile names a multi-agent role in place of `model`, and never both: `role`, `workload`
 and `effort-role`, plus `max-turns`. It has no `model` or `effort` key, so it can name neither
