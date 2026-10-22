@@ -102,7 +102,7 @@ test("the open listing pages until a short page", async () => {
 
 test("a search that answers incomplete results is an unknown read", async () => {
   const reads = await read({ open: [pr()], merged: 0, admitted: 3, incomplete: true });
-  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: null });
+  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null });
 });
 
 test("no read is made once the rate limit has nothing left; those reads are unknown", async () => {
@@ -246,6 +246,26 @@ test("over the queued cap new admissions pause only on or after pause-from, and 
   assert.equal(under.admission_room, 1);
   // 48 merged in 24 h: a cap of 38.4, so 3 queued leave room for 36.
   assert.equal(status(await read({ merged: 48, queued: issues(1, 2, 3) }), { "pause-from": "2026-10-01" }).admission_room, 36);
+});
+
+test("past the search's 1,000-result listing, unlisted queued issues still count and admissions pause", async () => {
+  // 1,050 queued issues: the search lists 1,000 (10 pages of 100) and answers
+  // total_count 1,050; the 50 unlisted ones count as queued, no lane PR names
+  // them. A cap above that (100/h x 24 h = 2,400) still pauses: a count the
+  // listing cut short never admits.
+  const queued = issues(...Array.from({ length: 1050 }, (_, i) => i + 1));
+  const reads = await read({ open: [pr({ body: "Closes #1" })], merged: 0, queued });
+  assert.equal(reads.queued.length, 1000);
+  assert.equal(reads.queuedUnlisted, 50);
+  const result = status(reads, { "pause-from": "2026-10-01" }, { ...LIMITS, "admission-min-per-hour": 100 });
+  assert.equal(result.queued_cap, 2400);
+  assert.equal(result.queued_issues, 1049);
+  assert.equal(result.queued_truncated, true);
+  assert.equal(result.queued_over, true);
+  assert.equal(result.admission_open, false);
+  assert.equal(result.admission_room, 0);
+  const listed = status(await read({ merged: 0, queued: issues(1, 2) }), { "pause-from": "2026-10-01" });
+  assert.equal(listed.queued_truncated, false);
 });
 
 test("a queued read that fails leaves admissions open and touches no run pause", async () => {

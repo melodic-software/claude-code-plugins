@@ -1491,13 +1491,17 @@ the log and step summary carry one line
 annotation titled `admission paused`). Under it, `admission_room` is how many more issues may be
 admitted now. The queued cap gates only new `agent-ready` labels, never a run: a queued issue
 leaves the count only by running, so pausing runs on it would hold the count shut. A queued read
-that fails leaves admissions open (`admission_basis: fail-open`) and changes no run pause.
+that fails leaves admissions open (`admission_basis: fail-open`) and changes no run pause. The
+search lists at most 1,000 issues: past that, the issues it counted but did not list count as
+queued, and admissions pause (`queued_truncated: true`).
 
 work-unblock is the one lane that adds `agent-ready` to a new issue. Past the room it labels a
 ready issue `admission-deferred` instead, and each hourly sweep revisits the open
-`admission-deferred` issues oldest first, before the issues closed in its window: one still ready
-gets `agent-ready` within the room and loses `admission-deferred`, a held one stays deferred, and
-any other loses it. Restarts, re-fires and relabels re-run issues already admitted and are never
+`admission-deferred` issues oldest first, before the issues closed in its window. Only an issue
+whose newest `admission-deferred` was added by the lanes App or a listed human (by id) is
+revisited; any other is left as is with a warning annotation, since re-admitting it adds the App's
+`agent-ready`. Of those, one still ready gets `agent-ready` within the room and loses
+`admission-deferred`, a held one stays deferred, and any other loses it. Restarts, re-fires and relabels re-run issues already admitted and are never
 paced. This queued cap replaces the admission window (`limits.admission-window-hours`) and owner
 decisions Q2, Q17 and Q22 of the 2026-10-21 lane-flow interview.
 
@@ -1518,6 +1522,7 @@ and the log line `check-wip-cap: <json>`. `capped` is `true` only while runs pau
 | `merged_lane_prs_window`, `merge_rate_per_hour`, `merge_rate_window_hours`, `target_lead_time_hours` | The merge rate and its inputs. |
 | `admitted_lane_prs_window`, `admission_cap`, `opened_to_merged_ratio` | Lane PRs opened in the window and their cap. |
 | `queued_issues`, `queued_total` | Queued issues with no open lane PR, and those plus the held lane PRs; null when a read failed. |
+| `queued_truncated` | `true` when the search counted more queued issues than it lists; admissions then pause. |
 | `queued_cap`, `admission_factor`, `admission_min_per_hour` | The queued cap and its inputs. |
 | `wip_over`, `held_over`, `admission_over`, `queued_over`, `held_alarm` | Which limit is crossed. |
 | `alert` | Any of the five. |

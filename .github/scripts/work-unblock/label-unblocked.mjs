@@ -189,6 +189,10 @@ function isRestart(events, index, markers, bot) {
   return next !== undefined && isLabel(next, "labeled") && next.actor?.login === bot;
 }
 
+// Whether a label event's actor is the lanes App (by its login) or a listed
+// human (by id): the labelers whose labels the lane acts on.
+const trustedLabeler = (event, { bot, humans }) => event?.actor?.login === bot || humans.has(event?.actor?.id);
+
 // Why `number` is not promoted (`reason`, null when it is ready), whether a
 // hold label is the reason, and whether it carries admission-deferred.
 async function refusal(args) {
@@ -358,6 +362,16 @@ async function admitDeferred({ github, repo, humans, bot, gate }) {
   for (const item of waiting) {
     const number = Number(item.number);
     try {
+      // Anyone who can label could add admission-deferred, and re-admitting
+      // it adds the App's agent-ready, which starts a credentialed run: only
+      // the App's or a listed human's newest add of it counts.
+      const adds = (await paginate(github, `/repos/${repo}/issues/${number}/events`)).filter(
+        (event) => event.event === "labeled" && String(event.label?.name).toLowerCase() === DEFERRED_LABEL,
+      );
+      if (!trustedLabeler(adds.at(-1), { bot, humans })) {
+        console.log(`::warning title=label-unblocked::#${number}: ${DEFERRED_LABEL} was added by neither the lanes App nor a listed human, so it is left as is and not re-admitted`);
+        continue;
+      }
       const { reason, held, deferred } = await refusal({ github, repo, number, humans, closes, bot });
       if (reason === null) {
         await admit({ github, repo, number, gate, deferred });
@@ -586,7 +600,7 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight })
   // The App's re-add admits on its own, so it may only repeat a label that
   // admission would take: a listed human's or the App's own.
   const lastAdd = events.filter((event) => isLabel(event, "labeled")).at(-1);
-  if (lastAdd === undefined || (lastAdd.actor?.login !== bot && !humans.has(lastAdd.actor?.id))) {
+  if (lastAdd === undefined || !trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
   const held = (issue.labels ?? []).map((label) => String(typeof label === "string" ? label : label.name).toLowerCase()).find((label) => HOLDS.has(label));
@@ -644,7 +658,7 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
 // Why an agent-ready issue whose newest label has no marker after it is not
 // re-fired or handed off now, or null with what to do.
 async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, markers, comments, events, humans, bot, workflowKey, held, limits, now, wipCapped }) {
-  if (lastAdd.actor?.login !== bot && !humans.has(lastAdd.actor?.id)) {
+  if (!trustedLabeler(lastAdd, { bot, humans })) {
     return { reason: `${LABEL} was added by neither a listed human nor the lanes App` };
   }
   const pull = await lastLanePull({ github, repo, number, addedAt, bot });

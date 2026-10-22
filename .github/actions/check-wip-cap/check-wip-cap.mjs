@@ -99,41 +99,48 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
       return null;
     }
   };
+  // The listed items, and how many more the search counted than it listed
+  // (past MAX_PAGES); null when a read fails.
   const list = async (q, map) => {
     const all = [];
     try {
       for (let page = 1; page <= MAX_PAGES; page += 1) {
-        const items = (await search(q, page, PAGE))?.items;
+        const answer = await search(q, page, PAGE);
+        const items = answer?.items;
         if (!Array.isArray(items)) {
           throw new Error("the search answered no items");
         }
         all.push(...items.map(map));
         if (items.length < PAGE) {
-          return all;
+          return { items: all, unlisted: 0 };
+        }
+        if (page === MAX_PAGES) {
+          const total = answer?.total_count;
+          return { items: all, unlisted: isCount(total) ? Math.max(1, total - all.length) : 1 };
         }
       }
-      return all;
     } catch {
       return null;
     }
+    return null;
   };
-  const open = await list(`repo:${repo} is:pr is:open ${author}`, (pr) => ({
+  const open = (await list(`repo:${repo} is:pr is:open ${author}`, (pr) => ({
     createdAt: Date.parse(pr?.created_at),
     held: isHeld(pr),
     issue: namedIssue(pr),
-  }));
+  })))?.items ?? null;
   const merged = await count(`repo:${repo} is:pr is:merged ${author} merged:>=${since}`);
   const admitted = await count(`repo:${repo} is:pr ${author} created:>=${since}`);
   const holds = ISSUE_HOLDS.map((label) => `-label:${label.includes(" ") ? `"${label}"` : label}`).join(" ");
   const queued = await list(`repo:${repo} is:issue is:open label:agent-ready ${holds}`, (issue) => Number(issue?.number));
-  return { open, merged, admitted, queued };
+  return { open, merged, admitted, queued: queued?.items ?? null, queuedUnlisted: queued?.unlisted ?? null };
 }
 
 const round = (value, places) => (value === null ? null : Number(value.toFixed(places)));
 
 // The status as one flat object; the field names are a published contract
 // (README.md, WIP cap).
-export function wipStatus({ open, merged, admitted, queued = null }, { limits, wip, now }) {
+export function wipStatus({ open, merged, admitted, queued = null, queuedUnlisted = 0 }, { limits, wip, now }) {
   const window = wip["merge-rate-window-hours"];
   const held = open?.filter((pr) => pr.held) ?? null;
   const ages = held?.map((pr) => (now - pr.createdAt) / HOUR_MS).filter(Number.isFinite) ?? [];
@@ -154,11 +161,14 @@ export function wipStatus({ open, merged, admitted, queued = null }, { limits, w
   const perHour = Math.max(computed ? (admission["admission-factor"] * merged) / window : 0, admission["admission-min-per-hour"]);
   const queuedCap = Number((perHour * window).toFixed(9));
   const named = new Set(open?.map((pr) => pr.issue) ?? []);
-  const queuedIssues = queued === null || open === null ? null : queued.filter((number) => !named.has(number)).length;
+  // Issues the search counted past its listing count as queued, and a count
+  // cut short that way never admits.
+  const truncated = (queuedUnlisted ?? 0) > 0;
+  const queuedIssues = queued === null || open === null ? null : queued.filter((number) => !named.has(number)).length + (queuedUnlisted ?? 0);
   const queuedTotal = queuedIssues === null ? null : queuedIssues + heldCount;
-  const queuedOver = queuedTotal !== null && queuedTotal >= queuedCap - 1e-9;
+  const queuedOver = queuedTotal !== null && (truncated || queuedTotal >= queuedCap - 1e-9);
   // Admissions left before the cap; null when nothing gates them.
-  const room = pausing && queuedTotal !== null ? Math.max(0, Math.ceil(queuedCap - queuedTotal - 1e-9)) : null;
+  const room = pausing && queuedTotal !== null ? (truncated ? 0 : Math.max(0, Math.ceil(queuedCap - queuedTotal - 1e-9))) : null;
   return {
     countable_lane_prs: countable,
     held_lane_prs: heldCount,
@@ -177,6 +187,7 @@ export function wipStatus({ open, merged, admitted, queued = null }, { limits, w
     admission_cap: admissionCap,
     opened_to_merged_ratio: wip["opened-to-merged-ratio"],
     queued_issues: queuedIssues,
+    queued_truncated: queuedIssues === null ? null : truncated,
     queued_total: queuedTotal,
     queued_cap: round(queuedCap, 3),
     admission_factor: admission["admission-factor"],
@@ -283,7 +294,7 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   github ??= createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
   const read = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
     ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining })
-    : wipStatus({ open: null, merged: null, admitted: null, queued: null }, { limits, wip, now });
+    : wipStatus({ open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null }, { limits, wip, now });
   const readError = configError || read.countable_lane_prs === null;
   const pausing = configError || (wip["pause-from"] !== "" && now >= Date.parse(wip["pause-from"]));
   const status = keepLastState(read, { readError, prior: readError && env.WIP_STATE ? lastState(env.WIP_STATE) : null, pausing });

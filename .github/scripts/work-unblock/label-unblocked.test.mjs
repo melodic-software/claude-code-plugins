@@ -1942,15 +1942,41 @@ test("an issue already deferred is not labeled admission-deferred again", async 
   assert.deepEqual(writes(calls), []);
 });
 
-// A deferred issue, number 25, whose one blocker is closed.
-const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", queuedIssues = [] } = {}) =>
+// A deferred issue, number 25, whose one blocker is closed; `deferredBy`
+// added its admission-deferred label (the lanes App by default).
+const deferredAdd = (actor, at = "2026-10-16T08:00:00Z") => ({ event: "labeled", label: { name: "admission-deferred" }, actor, created_at: at });
+const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)] } = {}) =>
   world({
     deferred: [issue(25, { labels })],
     issues: { 25: issue(25, { labels }) },
     blockedBy: { 25: [issue(10, { state: "closed" }), issue(11, { state: sibling })] },
     comments: { 25: [note()] },
+    events: { 25: events },
     queuedIssues,
   });
+
+test("the sweep re-admits a deferred issue only when the lanes App or a listed human added admission-deferred", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (line) => logs.push(line));
+  for (const actor of [LANES_BOT, OWNER]) {
+    const trusted = deferredWorld({ events: [deferredAdd(actor)] });
+    assert.equal(await sweep({ github: trusted.github }, PAUSING), 0);
+    assert.deepEqual(writes(trusted.calls), [labeled(25), undeferred(25)], actor.login);
+  }
+  // A stranger's label, or a stranger's newer re-add after the App's: left
+  // as is, with nothing written, and reported as a warning.
+  const stranger = { id: 999999, login: "drive-by", type: "User" };
+  for (const events of [[deferredAdd(stranger)], [deferredAdd(LANES_BOT), deferredAdd(stranger, "2026-10-16T09:00:00Z")], []]) {
+    logs.length = 0;
+    const untrusted = deferredWorld({ events });
+    assert.equal(await sweep({ github: untrusted.github }, PAUSING), 0);
+    assert.deepEqual(writes(untrusted.calls), [], JSON.stringify(events));
+    assert.ok(
+      logs.some((line) => line.startsWith("::warning title=label-unblocked::#25") && line.includes("neither the lanes App nor a listed human")),
+      logs.join("\n"),
+    );
+  }
+});
 
 test("the sweep admits a deferred issue once under the queued cap, and keeps it deferred at the cap", async (t) => {
   t.mock.method(console, "log", () => {});

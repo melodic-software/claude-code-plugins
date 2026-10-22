@@ -16,7 +16,8 @@ bump: major
   `wip.pause-from`, new admissions pause: the action's new `admission-open` output is `false` and
   it logs `admission paused: reason=queued queued=... held=... cap=...`. Runs never pause on it.
 - work-unblock admits at most the queued cap's room per run. A ready issue past it gets
-  `admission-deferred`, and each hourly sweep revisits those issues oldest first.
-- The status JSON gains `queued_issues`, `queued_total`, `queued_cap`, `admission_factor`,
+  `admission-deferred`, and each hourly sweep revisits those issues oldest first, re-admitting only
+  one whose newest `admission-deferred` the lanes App or a listed human added.
+- The status JSON gains `queued_issues`, `queued_truncated`, `queued_total`, `queued_cap`, `admission_factor`,
   `admission_min_per_hour`, `queued_over`, `admission_open`, `admission_reason`,
   `admission_room` and `admission_basis`.
