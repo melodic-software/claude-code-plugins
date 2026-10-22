@@ -246,6 +246,8 @@ def _element(selector):
 
 
 URL = re.compile(r"https?://\S+", re.IGNORECASE)  # a link
+REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?!\.\.?$)[A-Za-z0-9._-]{1,100}")  # a GitHub owner/name; never . or ..
+COMMIT = re.compile(r"[0-9a-f]{40}")  # a full commit SHA, which page links pin
 
 
 def tokenize(text, names):
@@ -5305,6 +5307,22 @@ class Session:
         self.state["session"]["goal"] = _text(op, "goal", limit=MAX_GOAL, empty_ok=True)
         return {"goal": self.state["session"]["goal"]}
 
+    def _op_set_repo(self, op):
+        """The session's GitHub repository and pinned commit, which the page links #N and repository paths against.
+        Both are replaced together: no commit removes the old one, and an empty repo removes both."""
+        repo, commit, sess = op["repo"], op.get("commit"), self.state["session"]
+        if repo and not REPO.fullmatch(repo):
+            raise _bad("repo", "repo must be a GitHub owner/name.")
+        if commit is not None and not (repo and COMMIT.fullmatch(commit)):
+            raise _bad("commit", "commit must be a full 40-character lowercase SHA, with a repo.")
+        sess.pop("repo", None)
+        sess.pop("commit", None)
+        if repo:
+            sess["repo"] = repo
+            if commit:
+                sess["commit"] = commit
+        return {"repo": repo, **({"commit": commit} if commit else {})}
+
     def _op_set_intro(self, op):
         """Claude sets "Why you're here" once the owner said yes to its draft in the terminal."""
         return self._put_intro(_text(op, "intro", limit=MAX_INTRO, empty_ok=True))
@@ -5690,6 +5708,7 @@ class Session:
             "title": st["session"]["title"],
             "goal": st["session"]["goal"],
             "intro": st["session"].get("intro", ""),
+            **{k: st["session"][k] for k in ("repo", "commit") if k in st["session"]},
             "ended": self._ended(),
             "settings": st["session"]["settings"],
             "rounds": st["rounds"],
