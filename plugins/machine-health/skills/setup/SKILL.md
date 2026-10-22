@@ -275,8 +275,8 @@ created before asking.
 **Desktop task** (recommended where the Claude Desktop app is open on the first of the month):
 
 1. Present it: a local task named `machine-health-monthly`, working folder `<StateBase>`,
-   instructions `/machine-health:audit on-demand --scheduled`, Custom schedule `0 9 1 * *` (09:00
-   local on the first of each month).
+   instructions `/machine-health:audit on-demand --scheduled`, Custom schedule `0 9 1 * *` (local
+   time, minute hour day-of-month month day-of-week).
 2. Ask which permission mode, offering exactly two, beside the tools the audit uses (the
    PowerShell or Bash tool to run its scripts, Read for its references, Write and Edit for
    `<StateBase>/TODO.md` and custom checks):
@@ -299,13 +299,18 @@ under the wrapper's time limit (its `-TimeoutSeconds` default) and records each 
 they become `--permission-mode dontAsk` with an exact `--allowedTools` list once the audit's tools
 are enumerated.
 
-1. Present the task: name `machine-health monthly`, monthly on day 1 at 09:00, only while the
-   owner is logged on (`/it`), running `pwsh -NoProfile -File <StateBase>\scheduler\monthly-run.ps1`.
+1. Present the task: the `schtasks` command in step 2, which names it `machine-health monthly`,
+   runs it only while the owner is logged on (`/it`), and runs
+   `pwsh -NoProfile -File <StateBase>\scheduler\monthly-run.ps1` on the schedule its `/sc`, `/d`
+   and `/st` arguments set. Refuse the fallback when `<StateBase>` or the plugin root holds a
+   control character or a single quote: the command quotes both in single quotes.
 2. On yes, run through the PowerShell tool (Git Bash rewrites slash-led arguments such as
    `/create` as paths; under Bash, run it only with `MSYS_NO_PATHCONV=1` set):
    `New-Item -ItemType Directory -Force -Path '<StateBase>\scheduler' | Out-Null; Copy-Item -LiteralPath '${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/monthly-run.ps1' -Destination '<StateBase>\scheduler\monthly-run.ps1'; $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source; schtasks /create /f /tn 'machine-health monthly' /sc MONTHLY /d 1 /st 09:00 /it /tr ('"{0}" -NoProfile -File "{1}"' -f $pwsh, '<StateBase>\scheduler\monthly-run.ps1')`
    The wrapper runs only from that `scheduler` folder, never from the plugin install, which a
-   plugin update replaces. Re-running this step refreshes the copy and replaces the task.
+   plugin update replaces. Re-running this step refreshes the copy and replaces the task. Then
+   show the owner the command the task will run:
+   `(Get-ScheduledTask -TaskName 'machine-health monthly').Actions | Format-List Execute, Arguments`.
 3. Offer one run now, on its own yes, as a background command:
    `pwsh -NoProfile -File '<StateBase>\scheduler\monthly-run.ps1'`, then run `check` and report
    step 6.

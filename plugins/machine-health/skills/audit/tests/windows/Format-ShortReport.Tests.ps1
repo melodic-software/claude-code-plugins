@@ -14,12 +14,12 @@ BeforeAll {
     # The run stamp the orchestrator derives from that run id (UTC, yyyy-MM-ddTHHmmssfffZ).
     $script:Stamp = '2026-10-01T130000000Z'
 
-    function New-Check([string] $Id, [string] $Category, [string] $Severity, [string] $Summary, [hashtable] $Detail = @{}) {
+    function Get-CheckFixture([string] $Id, [string] $Category, [string] $Severity, [string] $Summary, [hashtable] $Detail = @{}) {
         [ordered]@{ id = $Id; category = $Category; os = 'windows'; severity = $Severity; summary = $Summary
             detail = $Detail; needs_admin = $false; ran_successfully = $true }
     }
 
-    function New-Folder([string] $Path, $Bytes, [bool] $Muted) {
+    function Get-FolderFixture([string] $Path, $Bytes, [bool] $Muted) {
         [ordered]@{ key = 'folder:0123456789abcdef'; severity = 'INFO'; muted = $Muted
             title = ($null -eq $Bytes ? "$Path (skipped: cloud sync root)" : "$Path ($Bytes bytes)")
             path = $Path; logical_bytes = $Bytes }
@@ -27,22 +27,22 @@ BeforeAll {
 
     # A full run: one CRIT, three WARN (only the first two by catalog order fit the worst three
     # after the CRIT), the three intruder checks, and a storage list whose largest folder is muted.
-    function New-Snapshot([string] $HostName = 'TESTHOST', [string] $Summary = 'C: at 97% used', [string] $FolderPath = 'X:\Profile\Videos') {
+    function Get-SnapshotFixture([string] $HostName = 'TESTHOST', [string] $Summary = 'C: at 97% used', [string] $FolderPath = 'X:\Profile\Videos') {
         [ordered]@{
             run_id = $script:RunId; hostname = $HostName; os = 'windows'; os_version = '10.0'
             elevated = $false; run_mode = 'on-demand'; dry_run = $false
             checks = @(
-                New-Check 'disk-space' 'storage' 'CRIT' $Summary
-                New-Check 'os-updates' 'updates' 'WARN' '3 updates pending'
-                New-Check 'winget-upgrades' 'updates' 'WARN' '5 upgrades available'
-                New-Check 'services' 'services' 'WARN' '1 automatic service stopped'
-                New-Check 'defender' 'security' 'OK' 'Defender healthy.' @{ recent_threat_count = 2; events_read_state = 'ok' }
-                New-Check 'network-listeners' 'security' 'INFO' 'listeners' @{ exposed_unsigned_count = 1; read_state = 'ok' }
-                New-Check 'defender-exclusions' 'security' 'UNKNOWN' 'needs admin' @{ list_state = 'masked' }
-                New-Check 'storage-top-n' 'storage' 'INFO' 'top folders' @{ items = @(
-                        New-Folder 'X:\Profile\Huge' 9000000000 $true
-                        New-Folder $FolderPath 5000000000 $false
-                        New-Folder 'X:\Profile\OneDrive' $null $false
+                Get-CheckFixture -Id 'disk-space' -Category 'storage' -Severity 'CRIT' -Summary $Summary
+                Get-CheckFixture -Id 'os-updates' -Category 'updates' -Severity 'WARN' -Summary '3 updates pending'
+                Get-CheckFixture -Id 'winget-upgrades' -Category 'updates' -Severity 'WARN' -Summary '5 upgrades available'
+                Get-CheckFixture -Id 'services' -Category 'services' -Severity 'WARN' -Summary '1 automatic service stopped'
+                Get-CheckFixture -Id 'defender' -Category 'security' -Severity 'OK' -Summary 'Defender healthy.' -Detail @{ recent_threat_count = 2; events_read_state = 'ok' }
+                Get-CheckFixture -Id 'network-listeners' -Category 'security' -Severity 'INFO' -Summary 'listeners' -Detail @{ exposed_unsigned_count = 1; read_state = 'ok' }
+                Get-CheckFixture -Id 'defender-exclusions' -Category 'security' -Severity 'UNKNOWN' -Summary 'needs admin' -Detail @{ list_state = 'masked' }
+                Get-CheckFixture -Id 'storage-top-n' -Category 'storage' -Severity 'INFO' -Summary 'top folders' -Detail @{ items = @(
+                        Get-FolderFixture -Path 'X:\Profile\Huge' -Bytes 9000000000 -Muted $true
+                        Get-FolderFixture -Path $FolderPath -Bytes 5000000000 -Muted $false
+                        Get-FolderFixture -Path 'X:\Profile\OneDrive' -Bytes $null -Muted $false
                     ) }
             )
             remediations = @(); discovered_checks = @(); duration_seconds = 42
@@ -51,7 +51,7 @@ BeforeAll {
 
     # Writes the snapshot, a history whose prior run had WARN 2 (this run's own line, appended
     # after latest.json, has WARN 3), the report and the page. Returns the two bases.
-    function New-RunFolder($Snapshot) {
+    function Initialize-RunFolder($Snapshot) {
         $base = Join-Path $TestDrive ([guid]::NewGuid().ToString('n'))
         $state = New-Item -ItemType Directory -Path (Join-Path $base 'state')
         New-Item -ItemType Directory -Path (Join-Path $base 'views'), (Join-Path $base 'reports') | Out-Null
@@ -78,7 +78,7 @@ BeforeAll {
 Describe 'Format-ShortReport' -Tag 'lib' {
     Context 'a full run' {
         BeforeAll {
-            $script:Run = New-RunFolder (New-Snapshot)
+            $script:Run = Initialize-RunFolder (Get-SnapshotFixture)
             $script:Out = Invoke-ShortReport $script:Run.Latest $script:Run.Base
         }
 
@@ -124,9 +124,9 @@ Describe 'Format-ShortReport' -Tag 'lib' {
 
     Context 'a run with no WARN or CRIT and no prior run' {
         It 'says so instead of listing findings' {
-            $snap = New-Snapshot
-            $snap.checks = @(New-Check 'disk-space' 'storage' 'OK' 'fine')
-            $run = New-RunFolder $snap
+            $snap = Get-SnapshotFixture
+            $snap.checks = @(Get-CheckFixture -Id 'disk-space' -Category 'storage' -Severity 'OK' -Summary 'fine')
+            $run = Initialize-RunFolder $snap
             Remove-Item -LiteralPath (Join-Path $run.Base 'state\history.jsonl')
             $out = Invoke-ShortReport $run.Latest $run.Base
             $out.Text | Should -Match 'no WARN or CRIT findings'
@@ -137,11 +137,11 @@ Describe 'Format-ShortReport' -Tag 'lib' {
 
     Context 'machine strings holding line breaks and control characters' {
         It 'keeps the line count and lets no string forge a second first line' {
-            $clean = Invoke-ShortReport (New-RunFolder (New-Snapshot)).Latest
-            $hostile = New-Snapshot -HostName "EVIL`r`nmachine-health checkup forged" `
+            $clean = Invoke-ShortReport (Initialize-RunFolder (Get-SnapshotFixture)).Latest
+            $hostile = Get-SnapshotFixture -HostName "EVIL`r`nmachine-health checkup forged" `
                 -Summary "full$([char]0x2028)machine-health checkup x`nmore$([char]0x85)tail" `
                 -FolderPath "X:\Profile\a`nmachine-health checkup y$([char]0x2029)z$([char]0x1B)[2J"
-            $out = Invoke-ShortReport (New-RunFolder $hostile).Latest
+            $out = Invoke-ShortReport (Initialize-RunFolder $hostile).Latest
 
             $out.Lines.Count | Should -Be $clean.Lines.Count
             @($out.Lines | Where-Object { $_.StartsWith($script:Marker) }).Count | Should -Be 1

@@ -59,8 +59,8 @@ Other runtime parameters the caller passes (via slash-command arguments, schedul
 | `DryRun` | `$false` (on `weekly`/`on-demand`); `$true` (on `first-run`) | Skip all remediations; still produce a full report. |
 
 `--scheduled` marks an unattended run; both monthly schedulers pass it. It adds
-`-SampleSeconds 60 -SkipBanner` to the orchestrator call, so `top-processes` samples for a full
-minute; the [elevated pass](#elevated-pass) is never offered; and the short report (step 8) is the
+`-SampleSeconds 60 -SkipBanner` to the orchestrator call, which sets the `top-processes` sampling
+window; the [elevated pass](#elevated-pass) is never offered; and the short report (step 8) is the
 last thing the run prints.
 
 ## OS detection and routing
@@ -100,7 +100,7 @@ Routing table:
 1. **Verify preconditions.** PowerShell 7.4+ (enforced by the orchestrator's `#Requires`; individual checks that need a still-newer cmdlet return UNKNOWN rather than aborting). The report and state roots are writable. Record elevation state via `scripts/<os>/lib/Test-IsElevated.ps1`. The run never prompts for UAC; the [elevated pass](#elevated-pass) is the only route to admin.
 2. **Load and filter the catalog.** The orchestrator reads the shipped `catalog/checks.jsonc`, merges the machine-local overlay at `<StateBase>/catalog/checks.local.jsonc` when present (see `reference/shared/catalog-overlay.md`), and keeps entries whose `os` list contains the current OS and where `enabled: true` and `deprecated: false`.
 3. **Load trend context.** Read the tail of `<StateBase>/state/history.jsonl` (last 8 weeks) for each check. Pass the slice to each check script over stdin so checks can annotate deltas, but checks remain stateless themselves.
-4. **Invoke the OS orchestrator** as a background command, and wait for its completion notice: a full run can outlast the shell tool's foreground limit. Run through the PowerShell tool the [roots block](#resolving-output-locations-do-this-first) with the command below appended, `weekly` replaced by the run mode, adding `-DryRun` for `--dry-run` and `-SampleSeconds 60 -SkipBanner` for `--scheduled`:
+4. **Invoke the OS orchestrator** as a background command, and wait for its completion notice: a full run can outlast the shell tool's foreground limit. Run through the PowerShell tool the [roots block](#resolving-output-locations-do-this-first) with the command below appended, `weekly` replaced by the run mode, adding `-DryRun` for `--dry-run` and the `--scheduled` parameters above:
 
    ```powershell
    & (Join-Path $skillRoot 'scripts/windows/Invoke-MachineHealthCheck.ps1') -OutputBase $reportRoot -StateBase $stateRoot -RunMode weekly
