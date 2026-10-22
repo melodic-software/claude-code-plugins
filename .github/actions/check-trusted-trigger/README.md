@@ -175,6 +175,11 @@ condition 1 and the actor and author parts of condition 2).
   value that is not a list of positive integers stops with `list-unreadable`.
 - **Head ref.** The PR's head branch must match `^[A-Za-z0-9._/-]+$`; any other branch name, such
   as one carrying `$(`, stops with `no-pr`.
+- **Base.** The PR's `base.ref` must equal the payload's `repository.default_branch`, on
+  `pull_request`, `workflow_dispatch` and `workflow_run` alike: lanes read the list and scripts
+  from the default branch, so a PR stacked on any other branch stops with `untrusted-base`, as
+  does a payload without the default branch. `report-check-run` maps it to no skip reason, so the
+  check posts failure, not neutral.
 - **`no-pr` for everything unhandled.** Any other event (including `pull_request_target`), a
   missing or malformed `pr-number`, an empty repository, an unreadable event payload, a PR fetch
   that fails, and a `workflow_run` with zero or more than one matching open PR all stop with
@@ -197,10 +202,10 @@ that cannot stops it with `untrusted-rerunner`.
 | Output | Values |
 |---|---|
 | `proceed` | `true` or `false` |
-| `reason` | `ok`, `fork`, `no-pr`, `head-lag`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author`, `list-unreadable` |
+| `reason` | `ok`, `fork`, `no-pr`, `head-lag`, `untrusted-base`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author`, `list-unreadable` |
 | `pr-number`, `head-ref`, `head-sha`, `base-sha` | The resolved PR; empty unless `proceed` is `true` |
 
-Reasons are checked in the order list and denied ids, event and PR, head lag, fork, denied actor, actor,
+Reasons are checked in the order list and denied ids, event and PR, head lag, fork, base, denied actor, actor,
 re-runner, author. Every failure, including
 an unreadable payload or a failed API call, ends in `proceed=false`, and the step always exits 0.
 Set `CLAUDE_BRANCH` for the model step from `head-ref`, and record `head-sha` before the model runs

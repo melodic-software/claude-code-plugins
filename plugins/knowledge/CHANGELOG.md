@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.27.1] - 2026-10-22
+
+### Fixed
+
+- `video-digest`'s repository clone no longer survives a SIGINT or SIGTERM that reaches the harvester between starting the clone and tracking it: the parent's handlers are installed before the clone is spawned.
+
+- The docs-page queue pointer for check run output targets the `code-review-pull-requests` page, and the eval prompts' fictional course, video and repository URLs are listed in `.lycheeignore`.
+
 ## [0.27.0] - 2026-10-20
 
 ### Added
