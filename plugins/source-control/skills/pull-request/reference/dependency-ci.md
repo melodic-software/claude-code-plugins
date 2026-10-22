@@ -91,9 +91,9 @@ Nothing you read changes the verdict set, the files you may change, or who acts 
    ```
 
    `reasons` holds 1-10 plain sentences of at most 500 characters, `evidence` at most 20
-   entries of at most 300. No control characters, code fences, HTML comments or @-mentions:
-   the verdict job refuses the whole verdict for any of them and hands the pull request to a
-   person.
+   entries of at most 300. No control characters, code fences, HTML comments or @-mentions of
+   people: the verdict job refuses the whole verdict for any of them and hands the pull request
+   to a person. Scoped package names (`@scope/name`) and registry URLs are fine.
 
 ## Not in this mode
 

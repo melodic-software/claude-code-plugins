@@ -4626,7 +4626,8 @@
     }
     /** New urgent keys join the pop-up showing (or queued) now, else start one; each pass also drops what stopped waiting. */
     function hostAlerts(fresh) {
-      const showing = toast._tag === "alert" && toast.classList.contains("vf-on"), queued = toastQ.some(e => e[2] === "alert");
+      // Not while another toast waits to paint: flash has emptied the live region for it already.
+      const showing = !toastPaint && toast._tag === "alert" && toast.classList.contains("vf-on"), queued = toastQ.some(e => e[2] === "alert");
       if (fresh.length) ui.alertKeys = [...(showing || queued || ui.alertOpen ? ui.alertKeys || [] : []), ...fresh];
       if (showing) {
         const r = alertToast();
