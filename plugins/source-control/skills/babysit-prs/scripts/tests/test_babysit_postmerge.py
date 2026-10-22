@@ -1150,6 +1150,147 @@ class EmptyLaneRecordListing(CheckCase):
         self.assertEqual(self.record_reads(), 1)
 
 
+class UnlistedRecordRecovery(CheckCase):
+    """Owner decision Q676, under Security & Cost's conditions: an unlisted
+    record hold (the lane's dispatch by the deadline whose record listing read
+    empty twice) asks pr-merge for a fresh full run, and clears only on a
+    recorded github-actions[bot] run on main, created after the deadline,
+    that contains the merge and passes. Every other later run leaves the
+    verdict unreadable."""
+
+    AFTER = datetime(2026, 10, 12, 17, 30, tzinfo=UTC)
+    BOT = by("github-actions[bot]")
+    LATE_RUN = 12
+    lane_dispatch = LaneDispatch.lane_dispatch
+    LANE_RUN = LaneDispatch.LANE_RUN
+
+    def unlisted_hold(self) -> None:
+        """Run 11, dispatched by the bot in time, whose record never lists."""
+        self.lane_dispatch()
+        self.gh.artifacts.clear()
+
+    def late_run(
+        self, conclusion: str = "success", *, recorded: bool = True, **fields: Any
+    ) -> None:
+        """Run 12, created after the deadline (16:00) on main at LATER_SHA."""
+        overrides: dict[str, Any] = {
+            "created_at": "2026-10-12T16:30:00Z",
+            "actor": self.BOT,
+            "triggering_actor": self.BOT,
+        }
+        overrides.update(fields)
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(self.LATE_RUN, conclusion, **overrides),
+        )
+        if recorded:
+            name = f"pr-merge-dispatched-{self.LATE_RUN}"
+            self.gh.artifacts[name] = [
+                {"id": 13, "name": name, "workflow_run": {"id": self.LANE_RUN}}
+            ]
+
+    def test_the_hold_alone_is_unreadable_and_asks_for_a_dispatch(self) -> None:
+        self.unlisted_hold()
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertFalse(verdict.readable)
+        self.assertIn("run 11", verdict.reason)
+        self.assertTrue(verdict.needs_dispatch)
+        self.assertIs(verdict.report()["needsDispatch"], True)
+
+    def test_the_hold_reaches_pr_merge_as_exit_3_with_needs_dispatch(self) -> None:
+        # pr-merge.yml reads `.needsDispatch` from the JSON whatever the exit;
+        # the real clock is long past the merge's deadline.
+        self.unlisted_hold()
+        out = io.StringIO()
+        with (
+            contextlib.redirect_stdout(out),
+            mock.patch.object(pm, "_default_is_human", return_value=human),
+        ):
+            code = pm.main(
+                [
+                    "--repo",
+                    REPO,
+                    "--agent-identity",
+                    IDENTITY,
+                    "--since",
+                    SINCE.isoformat(),
+                ]
+            )
+        self.assertEqual(code, 3)
+        self.assertIs(json.loads(out.getvalue())["needsDispatch"], True)
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_a_later_recorded_green_bot_run_on_main_clears_the_hold(self) -> None:
+        self.unlisted_hold()
+        self.late_run()
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual(verdict.failures, ())
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertFalse(verdict.needs_dispatch)
+
+    def test_a_later_run_failing_a_condition_leaves_the_hold(self) -> None:
+        maintainer = by("maintainer")
+        cases = {
+            "unrecorded": ({"recorded": False}, True),
+            "another actor": (
+                {"actor": maintainer, "triggering_actor": maintainer},
+                True,
+            ),
+            "the agent identity, not the lane": (
+                {"actor": by(IDENTITY), "triggering_actor": by(IDENTITY)},
+                True,
+            ),
+            # A red attempt 1 with no attempt 2: an unreadable verdict names
+            # no run for the lane's re-run, so a fresh run is asked for.
+            "red": ({"conclusion": "failure"}, True),
+            "not containing the merge": ({"head_sha": OTHER_SHA}, True),
+        }
+        for name, (fields, dispatch) in cases.items():
+            with self.subTest(name):
+                self.setUp()
+                self.unlisted_hold()
+                self.late_run(**fields)
+                verdict = self.check(pinned=None, now=self.AFTER)
+                self.assertFalse(verdict.readable)
+                self.assertIn("run 11", verdict.reason)
+                self.assertEqual(verdict.failures, ())
+                self.assertIs(verdict.needs_dispatch, dispatch)
+
+    def test_a_recorded_later_run_still_running_asks_for_no_second_dispatch(
+        self,
+    ) -> None:
+        self.unlisted_hold()
+        self.late_run(status="in_progress", conclusion=None)
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertFalse(verdict.readable)
+        self.assertFalse(verdict.needs_dispatch)
+
+    def test_no_dispatch_at_all_still_fails_at_the_deadline(self) -> None:
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+    def test_a_later_recorded_green_run_without_the_hold_still_fails(self) -> None:
+        # Only the hold is recoverable: no dispatch by the deadline stays a failure.
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.run_records[self.LANE_RUN] = {
+            "id": self.LANE_RUN,
+            "path": ".github/workflows/pr-merge.yml",
+            "event": "schedule",
+            "head_branch": "main",
+            "head_sha": LATER_SHA,
+            "repository": {"full_name": REPO},
+            "head_repository": {"full_name": REPO},
+        }
+        self.late_run()
+        verdict = self.check(pinned=None, now=self.AFTER)
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+
 class LaneRerun(LaneDispatch):
     """The owner's decision on #8399 (option B): pr-merge.yml's
     post-merge-dispatch job starts the one re-run of a red lane-dispatched full
