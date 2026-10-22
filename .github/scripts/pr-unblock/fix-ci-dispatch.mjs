@@ -12,9 +12,13 @@
 // when it has no pr-unblock / fix-ci check run from the GitHub Actions app,
 // or when every such run failed and there are at most `fix-ci-restarts` of
 // them; at most `fix-ci-per-run` per dispatcher run, lowest PR number first.
+// A head whose pr-require-checks failures are all infra (infra-failure.mjs) is
+// skipped while the lost-run reconciler still re-runs it (infra-failure.mjs
+// reconcilerRetries: attempt and lookback); past that, fix-ci takes it.
 // The fix-ci-context job decides the round cap. Logs carry PR numbers, SHAs,
 // run ids and counts only.
 
+import { infraOnly, reconcilerRetries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -124,6 +128,12 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   if (!checks.some((run) => run.name === "ci-status" && run.status === "COMPLETED" && run.conclusion === "FAILURE")) {
     return "ci-status has not failed";
   }
+  // node.requiredRun, the head's tested pr-require-checks run and its latest
+  // jobs, is attached by dispatchCiFixes just before it would dispatch.
+  const required = node.requiredRun;
+  if (required !== undefined && infraOnly(required.jobs) && reconcilerRetries(required.run, now)) {
+    return "infra failure, re-run job owns it";
+  }
   // An untrusted-trigger skip ran nothing, so it does not count.
   const runs = checks.filter(
     (run) => run.name === checkName && !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")),
@@ -200,6 +210,20 @@ export async function dispatchCiFixes({
     }
     if (sent >= maxDispatch) {
       log(`defer fix-ci #${node.number}: ${maxDispatch} fix-ci dispatches this run; left for a later run`);
+      continue;
+    }
+    // A failure an outside outage explains is the lost-run reconciler's to
+    // re-run, never a model run's to fix.
+    let requiredRun;
+    try {
+      requiredRun = await api.readRequiredRun(node.headRefOid);
+    } catch (error) {
+      log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); left for a later run`);
+      continue;
+    }
+    const reason = skipReason({ ...node, requiredRun }, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, adoption, now });
+    if (reason !== "") {
+      log(`skip fix-ci #${node.number}: ${reason}`);
       continue;
     }
     sent += 1;

@@ -89,6 +89,7 @@ const api = (dispatched, ciFixPulls = [], docsPulls = []) => ({
   getPulls: async () => [],
   listCheckRuns: async () => [STOPPED],
   listWorkflowRuns: async () => [],
+  readRequiredRun: async () => ({ run: null, jobs: [] }),
   dispatchWorkflow: async ({ inputs }) => {
     dispatched.push(inputs["pr-number"]);
     return { workflowRunId: 9040 };

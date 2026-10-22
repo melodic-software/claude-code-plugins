@@ -32,6 +32,8 @@ import {
 const DAY_MS = 86_400_000;
 const FULL_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const BOT = "github-actions[bot]";
+// github-actions[bot]'s numeric user id, which the alert job also trusts.
+const BOT_ID = 41898282;
 const CANARY_RECORD = /^<!-- (?:babysit-merge-demotion|post-merge-failure) sha=([0-9a-f]{40}) signal=canary -->$/;
 
 export function client(env, { pace = () => delay(300) } = {}) {
@@ -199,11 +201,14 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
 
   // github-actions[bot]'s issues: the log issue, the post-merge record for
   // this run's SHA, and any canary record (a platform-side silent revert) in
-  // the range.
+  // the range. The log is the oldest issue carrying its marker, so a newer one
+  // another workflow files can neither take the reports nor reset the cap.
   const issues = (await pages(call, `/repos/${repo}/issues?state=all&creator=${encodeURIComponent(BOT)}`, null)).filter(
-    (i) => !i.pull_request,
+    (i) => !i.pull_request && i.user?.id === BOT_ID,
   );
-  const log = issues.find((i) => firstLine(i.body) === LOG_MARKER);
+  const log = issues
+    .filter((i) => firstLine(i.body) === LOG_MARKER)
+    .sort((a, b) => a.number - b.number)[0];
   const record = issues.find((i) =>
     [`<!-- babysit-merge-demotion sha=${env.RUN_SHA} `, `<!-- post-merge-failure sha=${env.RUN_SHA} `].some((p) =>
       firstLine(i.body).startsWith(p),
@@ -215,7 +220,7 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
   });
 
   const logComments = log
-    ? (await pages(call, `/repos/${repo}/issues/${log.number}/comments`, null)).filter((c) => c.user?.login === BOT)
+    ? (await pages(call, `/repos/${repo}/issues/${log.number}/comments`, null)).filter((c) => c.user?.id === BOT_ID)
     : [];
   const markers = logComments
     .map((c) => ({ match: MARKER_PATTERN.exec(firstLine(c.body)), at: c.created_at }))
@@ -223,6 +228,24 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
   if (markers.some((m) => m.match[1] === String(run.id) && m.match[2] === String(run.run_attempt))) {
     return { posted: false, summary: `#${log.number} already reports ${runUrl}/attempts/${run.run_attempt}.` };
   }
+
+  // Red full runs since the last green one that the log does not report: a
+  // report the repository-wide concurrency group cancelled while pending, or
+  // one that confirmed nothing or did not run. This report's range starts at
+  // that green run, so it decides over their merges too; it names them, so no
+  // dropped report passes unseen.
+  const unreported = green
+    ? runs
+        .filter(
+          (r) =>
+            r.conclusion === "failure" &&
+            String(r.id) !== String(run.id) &&
+            r.created_at > green.created_at &&
+            !markers.some((m) => m.match[1] === String(r.id)),
+        )
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+        .map((r) => ({ url: r.html_url, sha: r.head_sha }))
+    : [];
 
   const attribution = range ? attribute(base.sha, range, statuses) : null;
   let culprit = null;
@@ -276,6 +299,7 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
     revert,
     config,
     record,
+    unreported,
   });
   let target = log?.number;
   if (!target) {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { createGitHubApi } from "./dispatch.mjs";
@@ -8,6 +9,21 @@ import { dispatchCiFixes, humanGatedLabel, LIST_QUERY, skipReason } from "./fix-
 // (.github/standards/trusted-actors/trusted-actors.json; dispatch.mjs).
 const APP = 337595936;
 const ACTIONS = 15368;
+
+// pr-require-checks run 39710654665's latest jobs (recorded, trimmed): two
+// time-limit cancels and a real lint-shell failure. Without lint-shell its
+// failures are infra only.
+const MIXED_JOBS = JSON.parse(readFileSync(new URL("../maintenance-reconcile-lost-runs/fixtures/jobs-39710654665.json", import.meta.url), "utf8")).jobs;
+const INFRA_JOBS = MIXED_JOBS.filter((job) => job.name !== "lint-shell");
+
+// A tested pr-require-checks run that failed, an hour before NOW unless named.
+const NOW = Date.parse("2026-10-22T12:00:00Z");
+const tested = (attempt, hoursAgo = 1) => ({
+  status: "completed",
+  conclusion: "failure",
+  run_attempt: attempt,
+  created_at: new Date(NOW - hoursAgo * 3_600_000).toISOString(),
+});
 
 const check = (name, conclusion, extra = {}) => ({
   __typename: "CheckRun",
@@ -35,10 +51,20 @@ function pr(number, { checks = [check("ci-status", "FAILURE")], ...overrides } =
   };
 }
 
-function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new Set(), runIds = new Map() } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [] };
+function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new Set(), runIds = new Map(), requiredRuns = new Map() } = {}) {
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [] };
   return {
     calls,
+    // The head's tested pr-require-checks run and its latest jobs; a real
+    // failure at attempt 1 unless the test names the head.
+    async readRequiredRun(sha) {
+      calls.jobs.push(sha);
+      const required = requiredRuns.get(sha) ?? { run: tested(1), jobs: MIXED_JOBS };
+      if (required instanceof Error) {
+        throw required;
+      }
+      return required;
+    },
     async listCiFixCandidates({ after }) {
       calls.list += 1;
       const index = after === undefined ? 0 : Number(after);
@@ -71,6 +97,7 @@ async function run(apiOptions, options = {}) {
     appSenderId: APP,
     maxDispatch: 2,
     restarts: 1,
+    now: NOW,
     ...options,
   });
   return { api, lines, result };
@@ -217,7 +244,6 @@ test("a failed dispatch, or one with no usable run id, counts as failed and stil
 // Owner decision Q22 (2026-10-22): a non-draft PR by an adoptable owner
 // account is a candidate once both it and its head commit are 24 hours idle.
 const OWNER = 153232337;
-const NOW = Date.parse("2026-10-22T12:00:00Z");
 const hoursAgo = (hours) => new Date(NOW - hours * 3_600_000).toISOString();
 const ADOPTION = { ownerIds: [OWNER], idleHours: 24 };
 
@@ -322,4 +348,63 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
   for (const field of ["rateLimit", "cost", "statusCheckRollup", "commits(last: 1)", "databaseId", "... on User { databaseId }", "updatedAt", "committedDate", "body"]) {
     assert.ok(LIST_QUERY.includes(field), field);
   }
+});
+
+test("a head whose ci-status failed on infra only gets no fix-ci run, and takes no place under the cap", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const { api, lines, result } = await run({ pages: [[pr(5), pr(6), pr(7)]], requiredRuns: new Map([[head(5), { run: tested(1), jobs: INFRA_JOBS }]]) });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [6, 7],
+  );
+  assert.deepEqual(api.calls.jobs, [head(5), head(6), head(7)]);
+  assert.ok(lines.includes("skip fix-ci #5: infra failure, re-run job owns it"));
+});
+
+test("an adopted owner PR whose ci-status failed on infra only is the reconciler's too", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const requiredRuns = new Map([[head(13), { run: tested(1), jobs: INFRA_JOBS }]]);
+  const { lines, result } = await run({ pages: [[ownerPr(13), ownerPr(14)]], requiredRuns }, { adoption: ADOPTION, now: NOW });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [14],
+  );
+  assert.ok(lines.includes("skip fix-ci #13: infra failure, re-run job owns it"));
+});
+
+test("a head whose required run's jobs cannot be read gets no fix-ci run this time", async () => {
+  const head = "5".padStart(40, "a");
+  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, new Error("GET returned 502")]]) });
+  assert.deepEqual(result, { dispatched: [], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::#5: could not read its required run's jobs")));
+});
+
+test("an infra-only head is the reconciler's for its two re-runs; at attempt 3 fix-ci takes it", async () => {
+  // The reconciler re-runs an infra-only run at attempts 1 and 2 only (INFRA_BACKOFF_MINUTES, two entries).
+  const head = (number) => String(number).padStart(40, "a");
+  const requiredRuns = new Map([
+    [head(5), { run: tested(2), jobs: INFRA_JOBS }],
+    [head(6), { run: tested(3), jobs: INFRA_JOBS }],
+  ]);
+  const { lines, result } = await run({ pages: [[pr(5), pr(6)]], requiredRuns });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [6],
+  );
+  assert.ok(lines.includes("skip fix-ci #5: infra failure, re-run job owns it"));
+});
+
+test("an infra-only head past the reconciler's 24-hour lookback is fix-ci's", async () => {
+  // The reconciler re-runs only runs created in the last 24 hours (LOOKBACK_HOURS).
+  const head = (number) => String(number).padStart(40, "a");
+  const requiredRuns = new Map([
+    [head(5), { run: tested(1, 25), jobs: INFRA_JOBS }],
+    [head(6), { run: tested(1, 23), jobs: INFRA_JOBS }],
+  ]);
+  const { lines, result } = await run({ pages: [[pr(5), pr(6)]], requiredRuns });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [5],
+  );
+  assert.ok(lines.includes("skip fix-ci #6: infra failure, re-run job owns it"));
 });
