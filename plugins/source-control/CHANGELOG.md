@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-10-22
+
+### Fixed
+
+- The dependency review reference now says scoped package names (`@scope/name`) and registry URLs are allowed in a verdict's reasons and evidence; only @-mentions of people are refused. The verdict job had refused every verdict naming a scoped npm package.
+
+- pr-merge no longer escalates a pull request to a human as `verify:earlier-fail` when a verify record, run time or diff could not be read (a rate limit, say): it refuses `verify:unreadable`, which the next run re-derives. A diff GitHub answers with 404 (a head it no longer has) still keeps `verify:earlier-fail` (#9063).
+
 ## [2.0.0] - 2026-10-22
 
 ### Added

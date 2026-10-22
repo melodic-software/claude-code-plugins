@@ -42,7 +42,7 @@ function lines(text) {
 // ---------- adapter ----------
 
 function gitRoot(dir) {
-  const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
+  const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { cwd: ROOT, encoding: "utf8" });
   return r.status === 0 ? r.stdout.trim() : dir;
 }
 

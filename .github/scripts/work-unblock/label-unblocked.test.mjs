@@ -101,6 +101,7 @@ function world({
   pulls = {},
   queuedIssues = [],
   deferred = [],
+  searchIncomplete = false,
   failOn,
 } = {}) {
   const calls = [];
@@ -134,6 +135,9 @@ function world({
       return { workflow_runs: listed(inRange) };
     }
     if (method === "GET" && route === "/search/issues") {
+      if (searchIncomplete) {
+        return { total_count: 0, incomplete_results: true, items: [] };
+      }
       const q = new URL(path, "https://x").searchParams.get("q");
       if (q.startsWith(`repo:${REPO} is:issue is:open label:agent-ready `)) {
         const items = queuedIssues.map((number) => ({ number }));
@@ -1937,6 +1941,28 @@ test("under the queued cap, or before pause-from, a newly unblocked issue is lab
     assert.equal(await main({ env: envFor({}, config), github }), 0);
     assert.deepEqual(writes(calls), [labeled(20)], JSON.stringify(queuedIssues));
   }
+});
+
+// A degraded search answers a false empty (total_count 0, incomplete_results
+// true): past pause-from that admits nothing, where a failed read fails open.
+test("an incomplete search answer defers a newly unblocked issue, with or without pause-from, and names why", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  for (const config of [PAUSING, {}]) {
+    const { github, calls } = world({ ...oneDependentWorld(), searchIncomplete: true });
+    assert.equal(await main({ env: envFor({}, config), github }), 0);
+    assert.deepEqual(writes(calls), [deferredLabel(20)], JSON.stringify(config));
+  }
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #20 admission deferred: GitHub search answered incomplete results"), lines.join("\n"));
+  assert.ok(!lines.some((line) => line.includes("at the queued cap")), lines.join("\n"));
+});
+
+test("at the queued cap the deferral names the queued cap", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github } = world({ ...oneDependentWorld(), queuedIssues: queuedN(24) });
+  assert.equal(await main({ env: envFor({}, PAUSING), github }), 0);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #20 admission deferred: queued work is at the queued cap"), lines.join("\n"));
 });
 
 test("with room for one admission the first ready issue is labeled and the next deferred", async (t) => {

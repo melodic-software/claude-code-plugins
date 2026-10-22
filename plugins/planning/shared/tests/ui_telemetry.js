@@ -9,7 +9,7 @@
 // No client-log body ever holds the guest's name, typed text, an answer comment or chat. A `telemetry=off` flag an
 // older page left in localStorage is ignored: errors and summaries still send after a reload. A 320 px phone logs a too-wide pane as a layout anomaly naming components
 // only. Taps are counted by the tapped control's class: three quick ones are a rage tap, one that changes nothing a dead
-// tap, and no body holds the control's text, label, title or id. A page whose web-vitals file is missing still works and says so. A stub web-vitals whose attribution falls
+// tap even when the page's own poll renders in its second, one that opens a sheet no dead tap, and no body holds the control's text, label, title or id. A page whose web-vitals file is missing still works and says so. A stub web-vitals whose attribution falls
 // back to a selector and an id gets "-" sent for both.
 //   node plugins/planning/shared/tests/ui_telemetry.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
@@ -83,7 +83,7 @@ async function main() {
     // Three quick taps on a control that answers each one, and one tap on a control that changes nothing. Each carries
     // text, a label, a title and an id that are never sent: only the class this test gives it names it.
     await guest.evaluate(() => {
-      for (const [cls, tag, live, top] of [["vf-telemetry-rage", "RAGE", true, 0], ["vf-telemetry-dead", "DEAD", false, 60]]) {
+      for (const [cls, tag, live, top] of [["vf-telemetry-rage", "RAGE", true, 0], ["vf-telemetry-dead", "DEAD", false, 60], ["vf-telemetry-dead-poll", "POLL", false, 120]]) {
         const b = document.createElement("button");
         b.style.cssText = `position:fixed;inset-inline-start:0;inset-block-start:${top}px;z-index:2147483647`;
         b.type = "button"; b.className = `vf-btn vf-btn-sm ${cls}`; b.id = `${tag}-secret-id`; b.title = `${tag}-SECRET-TITLE`;
@@ -100,9 +100,8 @@ async function main() {
       }
     });
     await guest.locator(".vf-telemetry-rage").click({ clickCount: 3 });
-    // Any DOM change within a second of the dead tap counts as the page answering it, and a poll's render re-sets every
-    // attribute. Hold the polls and heartbeats until one poll waits (so none is rendering), let the page fall still,
-    // tap, and wait in the page past the tap's own timer, set first, so the dead tap is recorded before anything moves.
+    // Hold the polls and heartbeats until one poll waits (so none is rendering), let the page fall still, tap, and wait
+    // in the page past the tap's own timer, set first, so this dead tap is recorded with nothing else moving.
     const held = [], HELD = /\/api\/(?:state|heartbeat)(?:\?|$)/;
     await guest.route(HELD, r => { held.push(r); });
     for (let i = 0; i < 100 && !held.some(r => r.request().url().includes("/api/state")); i++) await guest.waitForTimeout(100);
@@ -118,8 +117,25 @@ async function main() {
     ok("the page holds still before the dead tap, its polls held", still && held.some(r => r.request().url().includes("/api/state")), held.map(r => r.request().url()).join(" "));
     await guest.locator(".vf-telemetry-dead").click();
     await guest.evaluate(() => new Promise(res => setTimeout(res, 1100))); // after the dead tap's 1000 ms timer
+    // A tap that opens a sheet is answered by the sheet, with nothing else moving.
+    await guest.locator(".vf-propose").click();
+    await guest.evaluate(() => new Promise(res => setTimeout(res, 1100)));
+    await guest.keyboard.press("Escape");
+    // A dead tap is still dead when the page's own poll renders inside its second, here with a new title to show: only a
+    // change the tap caused answers it. The suite's own observer proves the render changed the page in that second.
+    s.apply(A.dir, [{ op: "set-title", title: "Telemetry title after the tap" }]);
+    await guest.evaluate(() => {
+      const w = window.pollWindow = { at: 0, n: 0 };
+      document.querySelector(".vf-telemetry-dead-poll").addEventListener("click", () => { w.at = performance.now(); }, { once: true });
+      new MutationObserver(r => { if (w.at && performance.now() - w.at < 1000) w.n += r.length; })
+        .observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+    });
+    await guest.locator(".vf-telemetry-dead-poll").click();
+    await guest.waitForTimeout(150);
     await guest.unroute(HELD);
     for (const r of held.splice(0)) await r.fallback().catch(() => {});
+    const inWindow = await guest.evaluate(() => new Promise(res => setTimeout(() => res(window.pollWindow.n), Math.max(0, window.pollWindow.at + 1100 - performance.now()))));
+    ok("the held poll's render changes the page inside the second after a dead tap", inWindow > 0 && await guest.evaluate(() => document.title.includes("Telemetry title after the tap") || document.body.textContent.includes("Telemetry title after the tap")), inWindow);
     for (const b of await guest.locator(".vf-telemetry-trio").all()) await b.click({ delay: 0 });
 
     const errorsSent = () => parsed(w.bodies).filter(b => b.kind === "error" && b.message?.includes(THROWN));
@@ -144,6 +160,8 @@ async function main() {
     ok("  with taps counted by control: Help once, three on the answering control as one rage tap, one dead tap",
       t1["use:vf-keysbtn"] === "1" && t1["use:vf-telemetry-rage"] === "3" && t1["rage:vf-telemetry-rage"] === "1" && !("dead:vf-telemetry-rage" in t1)
       && t1["use:vf-telemetry-dead"] === "1" && t1["dead:vf-telemetry-dead"] === "1" && !("rage:vf-telemetry-dead" in t1), sums[0]?.message);
+    ok("  and a dead tap the page's own poll rendered after is still one dead tap", t1["use:vf-telemetry-dead-poll"] === "1" && t1["dead:vf-telemetry-dead-poll"] === "1", sums[0]?.message);
+    ok("  and taps that open a sheet or Help are no dead taps", t1["use:vf-propose"] === "2" && !("dead:vf-propose" in t1) && !("dead:vf-keysbtn" in t1), sums[0]?.message);
     ok("  and one quick tap on each of three controls of one kind is no rage tap", t1["use:vf-telemetry-trio"] === "3" && !("rage:vf-telemetry-trio" in t1), sums[0]?.message);
     ok("  and no body holds a tapped control's text, label, title or id", !w.bodies.some(b => /SECRET|secret-id/.test(b)), w.bodies.filter(b => /SECRET|secret-id/.test(b)).join(" | "));
     ok("  and no pid or name in its body", !("pid" in sums[0]) && !JSON.stringify(sums[0]).includes(pid) && !/owner=/.test(sums[0]?.message || ""), JSON.stringify(sums[0]));
@@ -298,8 +316,8 @@ async function main() {
     // and the second page's pick make four timed picks; two reconnect gaps; INP from the guest's page and the stub page.
     const sum = s.share(A.dir, "logs", "--summary", "--json");
     const comp = (k, c) => sum.features?.[k]?.find(x => x.component === c)?.count;
-    ok("logs --summary counts the taps by control: three, one rage tap, one dead tap", comp("use", "vf-telemetry-rage") === 3 && comp("rage", "vf-telemetry-rage") === 1
-      && comp("dead", "vf-telemetry-dead") === 1 && !comp("dead", "vf-telemetry-rage"), JSON.stringify(sum.features));
+    ok("logs --summary counts the taps by control: three, one rage tap, two dead taps", comp("use", "vf-telemetry-rage") === 3 && comp("rage", "vf-telemetry-rage") === 1
+      && comp("dead", "vf-telemetry-dead") === 1 && comp("dead", "vf-telemetry-dead-poll") === 1 && !comp("dead", "vf-telemetry-rage") && !comp("dead", "vf-propose"), JSON.stringify(sum.features));
     ok("logs --summary counts the error, the latency and the rollback", sum.summaries.count === 7 && sum.errors.some(g => g.message.includes(THROWN) && g.count === 1)
       && sum.latency["/api/pick"]?.actions === 4 && sum.latency["/api/pick"]?.rollbacks === 1 && sum.reconnect.count === 2 && sum.inp.pages === 2, JSON.stringify(sum));
   } catch (e) {

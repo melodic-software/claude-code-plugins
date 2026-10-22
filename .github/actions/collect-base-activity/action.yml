@@ -619,6 +619,24 @@ runs:
             # process files and out of the checkout's git config, where the
             # action stores its token.
             [[ $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the workspace path is missing or has a name a rule cannot carry"
+            # A write skill reaches git only through the base wrappers, so its
+            # Bash runs no git command. Merge-base mode's skill resolves the
+            # merge with git diff, show, merge-base, add, status, log, ls-files
+            # and rev-parse on repository-relative paths and revisions, with no
+            # quotes, commit or --continue, so there git loses only its global
+            # options, the subcommands that read config or reach a remote,
+            # absolute and parent paths, quotes, and the flags (any prefix
+            # git accepts) that read a file outside the index or run a
+            # program. A rule matches the whole command text, * at any
+            # position (https://code.claude.com/docs/en/permissions#wildcard-patterns),
+            # so this list is best-effort; the double quote is escaped for
+            # claude_args' quoted --disallowedTools.
+            if [ "$PREPARE" = merge-base ]; then
+              git_denied=("Bash(git -*)" "Bash(git config *)" "Bash(git remote *)" "Bash(git ls-remote *)" "Bash(git credential *)" "Bash(git var *)" "Bash(git fetch *)" "Bash(git push *)" "Bash(git pull *)" "Bash(git submodule *)" "Bash(git *--no-i*)" "Bash(git *--out*)" "Bash(git *--git-dir*)" "Bash(git *--work-tree*)" "Bash(git *.git/*)" "Bash(git *--ext*)" "Bash(git *--text*)" "Bash(git blame *)" "Bash(git *--cont*)" "Bash(git grep *)" "Bash(git *--pathspec*)" "Bash(git * /*)" "Bash(git *../*)" "Bash(git *..)" "Bash(git *'*)" 'Bash(git *\"*)')
+            else
+              git_denied=("Bash(git *)")
+            fi
+            disallowed="${disallowed:+$disallowed,}$(IFS=,; echo "${git_denied[*]}")"
             disallowed="${disallowed:+$disallowed,}$(IFS=,; echo "${shell_denied[*]}"),Read(//proc/**),Read(/$WORKSPACE/.git/**)"
             ;;
           *) fail "the activity's effect is not a known effect" ;;
