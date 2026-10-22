@@ -327,6 +327,20 @@ class TestShippedSchemas(unittest.TestCase):
         doc["questions"][0]["claudeRevising"] = {"why": "audit"}
         self.assertIsNotNone(schema.first_error(doc, schema.load("questions")))
 
+    def test_a_page_question_takes_the_shared_question_shape(self):
+        def doc(**q):
+            alts = [{"key": "a", "text": "No", "tradeoff": "Two writers"}, {"key": "was", "text": "Old"}]
+            return {"questions": [{"id": "Q1", "short": "s", "title": "t", "alternatives": alts, **q}]}
+
+        questions = schema.load("questions")
+        self.assertIsNone(schema.first_error(doc(short="x" * 80), questions))
+        self.assertIn("at most 80", schema.first_error(doc(short="x" * 81), questions))
+        self.assertIn("at most 2000", schema.first_error(doc(title="x" * 2001), questions))
+        self.assertIn("expected array", schema.first_error(doc(dependsOn="Q0"), questions))
+        bad = doc()
+        bad["questions"][0]["alternatives"][0]["why"] = "x"
+        self.assertIn("unexpected property 'why'", schema.first_error(bad, questions))
+
     def test_ops_text_caps_match_round_py(self):
         ops = schema.load("ops")
 

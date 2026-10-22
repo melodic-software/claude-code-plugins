@@ -241,6 +241,7 @@ nav.rail,.toolbar,.rail-list,.sec,.qlist,.tree,.act-list,.act-list li,main.detai
 .alts{display:grid;gap:8px;max-width:80ch}
 .alt{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;border:1px solid var(--line);border-radius:6px;padding:8px 12px}
 .alt .k{font:600 13px var(--mono)}
+.alt .to{display:block;margin-top:2px;color:var(--muted);font-size:13px}
 .alt.chosen{border-color:var(--chg);background:var(--chg-soft)}
 ol.hist{list-style:none;margin:0;padding:0 0 0 14px;display:grid;gap:10px;border-left:2px solid var(--line)}
 ol.hist li{font-size:13.5px;position:relative;display:grid;gap:2px}
@@ -1210,7 +1211,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     let more = "";
     if (facts.trim()) more += '<section class="blk"><h4>What we know</h4>' + md(facts) + "</section>";
     if (altsOf(q).length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + altsOf(q).map(a =>
-      '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + inline(a.text) + "</span></div>").join("") + "</div></section>";
+      '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + inline(a.text) + (a.tradeoff ? '<span class="to">' + inline(a.tradeoff) + "</span>" : "") + "</span></div>").join("") + "</div></section>";
     if (more) h += '<details class="more" id="more"' + (lsGet("moreOpen", false) ? " open" : "") + "><summary>Details: what we know, alternatives</summary>" + more + "</details>";
     const hist = historyOf(q); // every Claude reply stays in the Thread, the latest one too
     h += '<section class="blk" id="thread"><h4>Thread</h4>' + (hist.length ? '<ol class="hist">' + hist.map(x => histLine(x, q)).join("") + "</ol>" : '<p class="empty">No activity yet.</p>') + "</section>";
