@@ -449,6 +449,22 @@
     canModerate: () => Core.me.isOwner || Core.me.isLeader,
     lockOf: qid => Core.state.locks[qid] || null,
     suggestionsFor: qid => Core.state.suggestions[qid] || [],
+    /** One prototype variant's versions, oldest first, along the `previous` links between prototype questions:
+     *  [{qid, variant, label, asset, round, n, current}], `current` on the newest. Empty for a variant not in the session. */
+    versionsOf(qid, vid) {
+      const at = new Map(), next = new Map(), key = (q, v) => `${q}/${v}`;
+      for (const q of Core.state.questions) for (const v of q.formatKind === "prototype" ? q.variants || [] : []) {
+        at.set(key(q.id, v.id), { qid: q.id, variant: v.id, label: v.label, asset: v.asset, round: q.round, previous: v.previous });
+        if (v.previous) next.set(key(v.previous.qid, v.previous.variant), key(q.id, v.id));
+      }
+      if (!at.has(key(qid, vid))) return [];
+      const line = [key(qid, vid)], seen = new Set(line); // the server keeps the links a line; seen stops a loop anyway
+      for (let p = at.get(line[0]).previous; p && at.has(key(p.qid, p.variant)) && !seen.has(key(p.qid, p.variant)); p = at.get(line[0]).previous) {
+        line.unshift(key(p.qid, p.variant)); seen.add(line[0]);
+      }
+      for (let k = next.get(line.at(-1)); k && at.has(k) && !seen.has(k); k = next.get(k)) { line.push(k); seen.add(k); }
+      return line.map((k, i) => { const { previous: _, ...x } = at.get(k); return { ...x, n: i + 1, current: i === line.length - 1 }; });
+    },
 
     // Each action rejects with {status, error, message, ...} from the server; errorText(e) words it.
     /** My one answer to a question, citing results; empty text clears it. Carries the view and device it was made on. */
@@ -756,13 +772,13 @@
   const ident = () => (ownerToken ? { "X-Owner-Token": ownerToken } : secret ? { "X-Session-Secret": secret } : {});
 
   // The owner following a link to another page of this session (pageLink): the token goes in the fragment of the
-  // address opened, never in the link, and a new tab gets no handle on this one. A link within this page (a skip
-  // link) is left alone.
+  // address opened, never in the link, and a new tab gets no handle on this one. A plain click on a link within this
+  // page (a skip link, another version on this prototype page) is left alone.
   const SESSION_PAGE = /^\/(?:proto\/Q[1-9][0-9]{0,5})?$/;
   function followAsOwner(e) {
     if (!ownerToken || ownerDevice || e.defaultPrevented || e.button !== (e.type === "auxclick" ? 1 : 0)) return;
     const a = e.target.closest?.("a[href]"), u = a && new URL(a.href);
-    if (!u || u.origin !== location.origin || !SESSION_PAGE.test(u.pathname) || (u.pathname === location.pathname && a.target !== "_blank")) return;
+    if (!u || u.origin !== location.origin || !SESSION_PAGE.test(u.pathname) || (u.pathname === location.pathname && a.target !== "_blank" && e.type === "click" && !(e.ctrlKey || e.metaKey || e.shiftKey))) return;
     e.preventDefault();
     const h = new URLSearchParams(u.hash.slice(1));
     h.set("owner", ownerToken);
