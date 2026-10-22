@@ -62,9 +62,14 @@ Other runtime parameters the caller passes (via slash-command arguments, schedul
 `-SampleSeconds 60 -SkipBanner` to the orchestrator call, which sets the `top-processes` sampling
 window; the [elevated pass](#elevated-pass) is never offered; and the short report (step 8) is the
 run's whole final message. Nobody is present to review what the run writes, and discovery reads
-machine-derived text, so the only file the session writes is `<StateBase>/TODO.md`: discovery
-records every proposal in the report and `TODO.md`, and writes no custom check script and no
-catalog overlay entry; deprecations and demotions are proposed in `TODO.md` too.
+machine-derived text, so the only file the session writes is `<StateBase>/TODO.md`, with Write
+when it is missing and Edit when it exists (the Task Scheduler wrapper's one `Edit(/TODO.md)` rule
+covers both tools): discovery records every proposal in the report and `TODO.md`, and writes no
+custom check script and no catalog overlay entry; deprecations and demotions are proposed in
+`TODO.md` too. That wrapper allows exactly two shell commands, the ones in steps 4 and 8, matched
+as written, so under `--scheduled` write each exactly as shown there: `pwsh -NoProfile -File`, the
+script path in single quotes as the step prints it, then the arguments. Any other spelling is
+denied and the run fails.
 
 ## OS detection and routing
 
@@ -109,8 +114,8 @@ Routing table:
    & (Join-Path $skillRoot 'scripts/windows/Invoke-MachineHealthCheck.ps1') -OutputBase $reportRoot -StateBase $stateRoot -RunMode weekly
    ```
 
-   Under `--scheduled`, run this instead, with the resolved roots typed in; the Task Scheduler
-   wrapper allows shell commands only in this `pwsh -NoProfile -File` form:
+   Under `--scheduled`, run this instead, with the resolved roots typed in, keeping its start
+   exactly as printed here (see `--scheduled` above):
 
    ```text
    pwsh -NoProfile -File '${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/windows/Invoke-MachineHealthCheck.ps1' -OutputBase '<report-root>' -StateBase '<state-root>' -RunMode <mode> -SampleSeconds 60 -SkipBanner

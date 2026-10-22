@@ -5,16 +5,28 @@ Monthly machine-health checkup for the Task Scheduler fallback: runs the audit
 in print mode and records whether it really ran.
 
 .DESCRIPTION
-/machine-health:setup copies this file to <StateBase>/scheduler/monthly-run.ps1
-and creates the task that runs it; it refuses to run from any folder not named
-scheduler, so the copy in the plugin install never runs. <StateBase> is the
-parent of that folder, and the run starts there.
+/machine-health:setup writes this file to <StateBase>/scheduler/monthly-run.ps1,
+with its plugin root written in, beside scheduled-settings.json, and creates the
+task that runs it. It refuses to run from any folder not named scheduler, or
+before setup wrote the root in, so the copy in the plugin install never runs.
+<StateBase> is the parent of that folder, and the run starts there.
 
-The audit runs in dontAsk mode with only the tools a scheduled audit uses:
-Read, Edit of <StateBase>/TODO.md, and pwsh -NoProfile -File through the Bash
-or PowerShell tool. WebFetch and WebSearch are denied and no MCP server loads.
-Anything else is denied instead of prompting, unless the owner's own settings
-allow it.
+The audit runs in dontAsk mode. Its allow rules are Read, Write or Edit of
+<StateBase>/TODO.md (the one Edit(/TODO.md) rule covers both tools), and two
+commands through the Bash or PowerShell tool, matched as written:
+pwsh -NoProfile -File '<root>/skills/audit/scripts/windows/<script>.ps1' ...
+for Invoke-MachineHealthCheck.ps1 and Format-ShortReport.ps1, where <root> is
+the plugin root setup wrote in. pwsh reading a script from stdin (-File -),
+WebFetch and WebSearch are denied, and no MCP server loads.
+scheduled-settings.json adds deny rules for git, gh, download commands and the
+tools that write or act outside TODO.md; a deny beats every allow rule,
+the owner's own included. Anything else is denied instead of prompting, unless
+the owner's own settings allow it.
+
+A plugin update moves the plugin root. The next run's audit commands then no
+longer match the allow rules and are denied, so the run fails; once the old
+root is gone the wrapper refuses to start. Rerunning setup's schedule step
+rewrites the copy.
 
 The run counts as ok only when all of these hold: claude exits 0 within the
 timeout, its JSON result has is_error false, the result's first line is the
@@ -24,11 +36,12 @@ mode can exit 0 without running the skill.
 
 Writes, under <StateBase>/logs/: monthly-run-<runStamp>.status.json with
 { ok, exit_code, is_error, marker_found, latest_newer, timed_out,
-streams_incomplete }, plus whatever the run printed to stdout (.stdout.json)
-and stderr (.stderr.log). streams_incomplete is true when a process the run
-left behind still held its output open after the wait below. setup check
-reports the newest status file. Exits 0 when ok, 1 otherwise, 2 when
-misplaced.
+streams_incomplete }, written whole under a temporary name and then renamed,
+plus whatever the run printed to stdout (.stdout.json) and stderr (.stderr.log,
+which opens with the claude executable the wrapper resolved).
+streams_incomplete is true when a process the run left behind still held its
+output open after the wait below. setup check reports the newest status file.
+Exits 0 when ok, 1 otherwise, 2 when misplaced or not written by setup.
 
 .PARAMETER ClaudeCommand
 The claude executable, optionally followed by leading arguments. Tests pass a
@@ -55,13 +68,24 @@ if ((Split-Path -Leaf $PSScriptRoot) -cne 'scheduler') {
     exit 2
 }
 
+# Setup writes its ${CLAUDE_PLUGIN_ROOT} over this token when it installs the copy.
+$pluginRoot = '__PLUGIN_ROOT__'
+if ($pluginRoot -ceq ('__PLUGIN' + '_ROOT__')) {
+    Write-Error 'monthly-run.ps1 runs only as written by /machine-health:setup schedule, which fills in the plugin root.' -ErrorAction Continue
+    exit 2
+}
+
 $stateBase = Split-Path -Parent $PSScriptRoot
 $logsDir = Join-Path $stateBase 'logs'
+$settingsPath = Join-Path $PSScriptRoot 'scheduled-settings.json'
 $marker = 'machine-health checkup '
+$auditScripts = foreach ($name in 'Invoke-MachineHealthCheck', 'Format-ShortReport') { "$pluginRoot/skills/audit/scripts/windows/$name.ps1" }
+$shellRules = foreach ($tool in 'Bash', 'PowerShell') { foreach ($path in $auditScripts) { "$tool(pwsh -NoProfile -File '$path' *)" } }
 # Each tool list is variadic, so an option follows each one.
-$auditArgs = @('-p', '/machine-health:audit on-demand --scheduled', '--permission-mode', 'dontAsk',
-    '--allowedTools', 'Read', 'Edit(/TODO.md)', 'Bash(pwsh -NoProfile -File *)', 'PowerShell(pwsh -NoProfile -File *)',
-    '--disallowedTools', 'WebFetch', 'WebSearch', '--strict-mcp-config', '--output-format', 'json')
+$auditArgs = @('-p', '/machine-health:audit on-demand --scheduled', '--permission-mode', 'dontAsk', '--settings', $settingsPath,
+    '--allowedTools', 'Read', 'Edit(/TODO.md)') + $shellRules +
+    @('--disallowedTools', 'WebFetch', 'WebSearch', 'Bash(pwsh -NoProfile -File - *)', 'PowerShell(pwsh -NoProfile -File - *)',
+    '--strict-mcp-config', '--output-format', 'json')
 
 $start = [DateTimeOffset]::Now
 $runStamp = $start.UtcDateTime.ToString('yyyy-MM-ddTHHmmssfffZ', [Globalization.CultureInfo]::InvariantCulture)
@@ -79,9 +103,24 @@ $text = @{ out = [System.Text.StringBuilder]::new(); err = [System.Text.StringBu
 $pending = @{}
 $process = $null
 try {
+    foreach ($path in $auditScripts) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "$path is gone, so a plugin update moved the plugin root; rerun /machine-health:setup schedule."
+        }
+    }
+    if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
+        throw "$settingsPath is missing, so the run would lack its deny rules; rerun /machine-health:setup schedule."
+    }
     $exe = Get-Command -Name $ClaudeCommand[0] -CommandType Application -ErrorAction Stop | Select-Object -First 1
+    $allArgs = @($ClaudeCommand | Select-Object -Skip 1) + $auditArgs
+    $viaCmd = $exe.Source -match '\.(cmd|bat)$'
+    [void]$text.err.AppendLine("monthly-run: claude is $($exe.Source)$($viaCmd ? ', a batch file that cmd.exe runs' : '')")
+    # cmd.exe expands %...% even inside quotes, and reads & | < > ^ in an unquoted argument as syntax.
+    if ($viaCmd -and @($allArgs -match '[%&|<>^"]').Count) {
+        throw 'an argument holds a character cmd.exe would rewrite (% & | < > ^ ")'
+    }
     $psi = [System.Diagnostics.ProcessStartInfo]::new($exe.Source)
-    foreach ($a in @($ClaudeCommand | Select-Object -Skip 1) + $auditArgs) { $psi.ArgumentList.Add($a) }
+    foreach ($a in $allArgs) { $psi.ArgumentList.Add($a) }
     $psi.WorkingDirectory = $stateBase
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
@@ -160,7 +199,9 @@ $status.ok = $status.exit_code -eq 0 -and $status.is_error -eq $false -and $stat
 
 [System.IO.File]::WriteAllText("$logPrefix.stdout.json", $stdout)
 [System.IO.File]::WriteAllText("$logPrefix.stderr.log", $text.err.ToString())
-[System.IO.File]::WriteAllText("$logPrefix.status.json", ($status | ConvertTo-Json))
+# Written whole, then renamed, so a reader never sees a half-written status file.
+[System.IO.File]::WriteAllText("$logPrefix.status.json.tmp", ($status | ConvertTo-Json))
+[System.IO.File]::Move("$logPrefix.status.json.tmp", "$logPrefix.status.json")
 # A read still pending on a stream held open elsewhere could block disposal; the process exit frees it.
 if ($process -and $pending.Count -eq 0) { $process.Dispose() }
 exit ($status.ok ? 0 : 1)

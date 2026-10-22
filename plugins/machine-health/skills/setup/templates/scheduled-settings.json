@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git *)",
+      "Bash(gh *)",
+      "PowerShell(git *)",
+      "PowerShell(gh *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "PowerShell(Invoke-WebRequest *)",
+      "PowerShell(Invoke-RestMethod *)",
+      "MultiEdit",
+      "NotebookEdit",
+      "Agent",
+      "Workflow",
+      "Artifact",
+      "RemoteTrigger",
+      "CronCreate",
+      "SendMessage",
+      "SendUserFile",
+      "EnterWorktree"
+    ]
+  }
+}

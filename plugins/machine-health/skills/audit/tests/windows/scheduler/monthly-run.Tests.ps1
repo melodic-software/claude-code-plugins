@@ -18,6 +18,11 @@ the wrapper's marker check drift apart.
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1"
     $script:Template = Join-Path (Split-Path -Parent $script:SkillRoot) 'setup\templates\monthly-run.ps1'
+    . (Join-Path (Split-Path -Parent $script:SkillRoot) 'setup\scripts\Install-MonthlyRun.ps1')
+    # A plugin root with a space, in the forward-slash form ${CLAUDE_PLUGIN_ROOT} renders in on Windows.
+    $script:PluginRoot = (Join-Path $TestDrive 'plugin root').Replace('\', '/')
+    $scriptsDir = New-Item -ItemType Directory -Force -Path (Join-Path $TestDrive 'plugin root\skills\audit\scripts\windows')
+    foreach ($name in 'Invoke-MachineHealthCheck.ps1', 'Format-ShortReport.ps1') { New-Item -ItemType File -Path (Join-Path $scriptsDir $name) | Out-Null }
     $script:ShortReport = Join-Path $script:SkillRoot 'scripts\windows\Format-ShortReport.ps1'
     $script:Pwsh = (Get-Process -Id $PID).Path
     $script:OldRunId = '2020-01-01T00:00:00.0000000+00:00'
@@ -55,13 +60,30 @@ switch ($env:MH_SHIM_MODE) {
 }
 '@
 
-    function Invoke-Wrapper([string] $Mode, [string[]] $Command, [int] $TimeoutSeconds = 120, [int] $StreamWaitSeconds = 30, [string] $Folder = 'scheduler') {
+    # The audit command lines, as audit SKILL.md steps 4 and 8 write them, are the only shell commands allowed.
+    function Get-ExpectedArgumentList([string] $Base) {
+        $orchestrator = "pwsh -NoProfile -File '$script:PluginRoot/skills/audit/scripts/windows/Invoke-MachineHealthCheck.ps1' *"
+        $shortReport = "pwsh -NoProfile -File '$script:PluginRoot/skills/audit/scripts/windows/Format-ShortReport.ps1' *"
+        @('-p', '/machine-health:audit on-demand --scheduled', '--permission-mode', 'dontAsk',
+            '--settings', (Join-Path $Base 'scheduler\scheduled-settings.json'),
+            '--allowedTools', 'Read', 'Edit(/TODO.md)', "Bash($orchestrator)", "Bash($shortReport)", "PowerShell($orchestrator)", "PowerShell($shortReport)",
+            '--disallowedTools', 'WebFetch', 'WebSearch', 'Bash(pwsh -NoProfile -File - *)', 'PowerShell(pwsh -NoProfile -File - *)',
+            '--strict-mcp-config', '--output-format', 'json')
+    }
+
+    function Invoke-Wrapper([string] $Mode, [string[]] $Command, [int] $TimeoutSeconds = 120, [int] $StreamWaitSeconds = 30,
+        [string] $Folder = 'scheduler', [string] $PluginRoot = $script:PluginRoot, [switch] $Unrendered, [switch] $NoSettings) {
         $base = Join-Path $TestDrive ([guid]::NewGuid().ToString('n'))
-        $dir = New-Item -ItemType Directory -Path (Join-Path $base $Folder)
         New-Item -ItemType Directory -Path (Join-Path $base 'state') | Out-Null
         @{ run_id = $script:OldRunId; hostname = 'TESTHOST' } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $base 'state\latest.json')
-        $wrapper = Join-Path $dir 'monthly-run.ps1'
-        Copy-Item -LiteralPath $script:Template -Destination $wrapper
+        $wrapper = (Install-MonthlyRun -PluginRoot $PluginRoot -StateBase $base).WrapperPath
+        if ($Unrendered) { Copy-Item -LiteralPath $script:Template -Destination $wrapper -Force }
+        if ($NoSettings) { Remove-Item -LiteralPath (Join-Path $base 'scheduler\scheduled-settings.json') }
+        if ($Folder -cne 'scheduler') {
+            $moved = Join-Path (New-Item -ItemType Directory -Path (Join-Path $base $Folder)) 'monthly-run.ps1'
+            Move-Item -LiteralPath $wrapper -Destination $moved
+            $wrapper = $moved
+        }
         if (-not $Command) { $Command = @($script:Pwsh, '-NoProfile', '-File', $script:Shim) }
 
         $saved = $env:MH_SHIM_MODE, $env:MH_SHORT_REPORT
@@ -76,11 +98,14 @@ switch ($env:MH_SHIM_MODE) {
             $env:MH_SHIM_MODE, $env:MH_SHORT_REPORT = $saved
         }
         $statusFiles = @(Get-ChildItem -LiteralPath (Join-Path $base 'logs') -Filter 'monthly-run-*.status.json' -ErrorAction SilentlyContinue)
+        $stderrFile = Get-ChildItem -LiteralPath (Join-Path $base 'logs') -Filter 'monthly-run-*.stderr.log' -ErrorAction SilentlyContinue | Select-Object -First 1
         [pscustomobject]@{
             Base        = $base
             ExitCode    = $exit
             Seconds     = $clock.Elapsed.TotalSeconds
             Output      = ($output | Out-String)
+            Stderr      = $stderrFile ? (Get-Content -Raw -LiteralPath $stderrFile.FullName) : $null
+            LogNames    = @(Get-ChildItem -LiteralPath (Join-Path $base 'logs') -Name -ErrorAction SilentlyContinue)
             StatusFiles = $statusFiles
             Status      = $statusFiles.Count -eq 1 ? (Get-Content -Raw -LiteralPath $statusFiles[0].FullName | ConvertFrom-Json -AsHashtable) : $null
         }
@@ -104,13 +129,64 @@ Describe 'monthly-run wrapper' -Tag 'lib' {
         $r.ExitCode | Should -Be 0
     }
 
-    It 'runs the scheduled audit in print mode under dontAsk with only the audit tools, no web tools and no MCP servers, from the state root' {
+    It 'runs the scheduled audit in print mode under dontAsk with only the two audit scripts, the deny settings, no web tools and no MCP servers, from the state root' {
         $r = Invoke-Wrapper 'ok'
         $shimArgs = @(Get-Content -Raw -LiteralPath (Join-Path $r.Base 'shim-args.json') | ConvertFrom-Json)
-        $shimArgs | Should -Be @('-p', '/machine-health:audit on-demand --scheduled', '--permission-mode', 'dontAsk',
-            '--allowedTools', 'Read', 'Edit(/TODO.md)', 'Bash(pwsh -NoProfile -File *)', 'PowerShell(pwsh -NoProfile -File *)',
-            '--disallowedTools', 'WebFetch', 'WebSearch', '--strict-mcp-config', '--output-format', 'json')
+        $shimArgs | Should -Be (Get-ExpectedArgumentList $r.Base)
         Join-Path $r.Base 'logs' | Get-ChildItem -Filter 'monthly-run-*.stdout.json' | Should -HaveCount 1
+        $r.LogNames | Where-Object { $_ -like '*.tmp' } | Should -BeNullOrEmpty
+    }
+
+    It 'records which claude it ran in the stderr log' {
+        $r = Invoke-Wrapper 'ok'
+        $r.Stderr | Should -Match ([regex]::Escape("monthly-run: claude is $script:Pwsh"))
+    }
+
+    It 'passes every argument intact through a .cmd claude, which cmd.exe re-parses' {
+        $cmd = Join-Path $TestDrive 'claude-shim.cmd'
+        Set-Content -LiteralPath $cmd -Value "@`"$script:Pwsh`" -NoProfile -File `"$script:Shim`" %*"
+        $r = Invoke-Wrapper 'ok' -Command @($cmd)
+        $r.Status.ok | Should -BeTrue
+        @(Get-Content -Raw -LiteralPath (Join-Path $r.Base 'shim-args.json') | ConvertFrom-Json) | Should -Be (Get-ExpectedArgumentList $r.Base)
+        $r.Stderr | Should -Match 'cmd\.exe'
+    }
+
+    It 'refuses a .cmd claude when an argument holds a character cmd.exe would expand' {
+        $root = (Join-Path $TestDrive 'plugin%TEMP%root').Replace('\', '/')
+        $scripts = New-Item -ItemType Directory -Force -Path "$root/skills/audit/scripts/windows"
+        foreach ($name in 'Invoke-MachineHealthCheck.ps1', 'Format-ShortReport.ps1') { New-Item -ItemType File -Force -Path (Join-Path $scripts $name) | Out-Null }
+        $cmd = Join-Path $TestDrive 'claude-shim.cmd'
+        Set-Content -LiteralPath $cmd -Value "@`"$script:Pwsh`" -NoProfile -File `"$script:Shim`" %*"
+        $r = Invoke-Wrapper 'ok' -Command @($cmd) -PluginRoot $root
+        $r.StatusFiles.Count | Should -Be 1
+        $r.Status.ok | Should -BeFalse
+        $r.Status.exit_code | Should -BeNullOrEmpty
+        Join-Path $r.Base 'shim-args.json' | Should -Not -Exist
+        $r.Stderr | Should -Match 'cmd\.exe'
+    }
+
+    It 'refuses to start without the deny settings file, and says so' {
+        $r = Invoke-Wrapper 'ok' -NoSettings
+        $r.StatusFiles.Count | Should -Be 1
+        $r.Status.ok | Should -BeFalse
+        $r.Status.exit_code | Should -BeNullOrEmpty
+        Join-Path $r.Base 'shim-args.json' | Should -Not -Exist
+        $r.Stderr | Should -Match 'scheduled-settings\.json'
+    }
+
+    It 'refuses to start once the plugin root it pins no longer holds the audit scripts, naming setup schedule' {
+        $r = Invoke-Wrapper 'ok' -PluginRoot (Join-Path $TestDrive 'moved-away').Replace('\', '/')
+        $r.StatusFiles.Count | Should -Be 1
+        $r.Status.ok | Should -BeFalse
+        Join-Path $r.Base 'shim-args.json' | Should -Not -Exist
+        $r.Stderr | Should -Match 'setup schedule'
+    }
+
+    It 'refuses a copy setup never rendered, and writes nothing' {
+        $r = Invoke-Wrapper 'ok' -Unrendered
+        $r.ExitCode | Should -Be 2
+        Join-Path $r.Base 'logs' | Should -Not -Exist
+        Join-Path $r.Base 'shim-args.json' | Should -Not -Exist
     }
 
     It 'fails an exit-0 run whose result lacks the marker' {
