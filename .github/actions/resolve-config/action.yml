@@ -205,5 +205,5 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |
-        npm ci --ignore-scripts --omit=dev --prefix "$GITHUB_ACTION_PATH"
+        npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
         node "$GITHUB_ACTION_PATH/resolve-config.mjs"

@@ -401,15 +401,38 @@ test("a fix-ci patch of 300 files pushes with 307 API calls, and one of 301 is r
 });
 
 test("requires dependency-verdict: fix refuses a patch without that verdict and applies one with it", async (t) => {
-  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "package.json"), "{}\n"));
   const without = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, without, { row: row("dependency-review"), context: { dependencyVerdict: "close" } }), {
+  assert.deepEqual(await pushWith(fix, without, { row: row("dependency-review"), context: { dependencyVerdict: "close", dependabotConfig: [["npm", "/"]] } }), {
     outcome: "escalate",
     escalationReason: "patch-invalid",
   });
   assert.deepEqual(without.calls, []);
   const withVerdict = fakeApi(fix.repo, fix.head);
-  assert.equal((await pushWith(fix, withVerdict, { row: row("dependency-review"), context: { dependencyVerdict: "fix" } })).outcome, "pushed");
+  assert.equal((await pushWith(fix, withVerdict, { row: row("dependency-review"), context: { dependencyVerdict: "fix", dependabotConfig: [["npm", "/"], ["pip", "/"]] } })).outcome, "pushed");
+});
+
+test("dependency-manifests admits npm and pip manifests and lock files and refuses any other path", async (t) => {
+  const manifests = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "package.json"), "{}\n");
+    writeFileSync(join(repo, "package-lock.json"), "{}\n");
+    writeFileSync(join(repo, "requirements.txt"), "x==1\n");
+  });
+  const pushed = fakeApi(manifests.repo, manifests.head);
+  assert.equal((await pushWith(manifests, pushed, { row: row("dependency-review"), context: { dependencyVerdict: "fix", dependabotConfig: [["npm", "/"], ["pip", "/"]] } })).outcome, "pushed");
+  const code = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "package.json"), "{}\n");
+    writeFileSync(join(repo, "index.js"), "x\n");
+  });
+  const refused = fakeApi(code.repo, code.head);
+  assert.deepEqual(await pushWith(code, refused, { row: row("dependency-review"), context: { dependencyVerdict: "fix", dependabotConfig: [["npm", "/"], ["pip", "/"]] } }), {
+    outcome: "escalate",
+    escalationReason: "patch-protected-path",
+  });
+  assert.deepEqual(refused.calls, []);
+  const noConfig = fakeApi(manifests.repo, manifests.head);
+  await assert.rejects(pushWith(manifests, noConfig, { row: row("dependency-review"), context: { dependencyVerdict: "fix" } }), /dependabot\.yml/);
+  assert.deepEqual(noConfig.calls, []);
 });
 
 test("Git Data API calls per applied patch are one blob per changed file plus tree, commit and ref update plus the four re-reads", async (t) => {

@@ -253,6 +253,20 @@
         }
       }
     },
+    "branch-cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The scheduled branch cleanup: how many branches it deletes in one run. Contract: README.md, Branch cleanup.",
+      "properties": {
+        "max-deletes-per-run": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 25,
+          "description": "Branches one run deletes at most; the rest wait for the next run. 0 deletes none."
+        }
+      }
+    },
     "merge": { "$ref": "#/$defs/merge" },
     "models": { "$ref": "#/$defs/models" }
   },
