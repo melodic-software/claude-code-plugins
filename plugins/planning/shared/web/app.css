@@ -1495,6 +1495,7 @@
 .app .vf-lb-acts { grid-area: acts; display: flex; gap: 8px; }
 .app .vf-lb-acts .vf-btn { block-size: 44px; padding-inline: 18px; font-size: 14px; gap: 6px; }
 .app .vf-lb-yn { border: 1px solid var(--line-strong); color: var(--text); background: var(--pane); min-inline-size: 88px; }
+.app .vf-lb-gif { border: 1px solid var(--line-strong); color: var(--text); background: var(--pane); }
 .app .vf-lb-yn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .app .vf-lb-acts .vf-btn:disabled { opacity: 0.5; cursor: default; }
 @media (max-width: 720px) {
@@ -2075,6 +2076,11 @@
 .app .vf-ref-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; }
 .app .vf-ref-dom { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline-start: 20px; }
 .app .vf-ref-x { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; background: var(--pane); }
+/* Play GIF / Stop GIF sits on the picture's top-left corner, clear of the remove x */
+.app .vf-gifplay {
+  position: absolute; inset-block-start: 6px; inset-inline-start: 6px; border: 1px solid var(--line-strong); color: var(--text);
+  background: color-mix(in oklch, var(--pane) 88%, transparent);
+}
 /* a diagram is drawn whole on a light ground, whatever the theme */
 .app .vf-ref[data-kind="diagram"] .vf-ref-thumb img { object-fit: contain; background: oklch(0.99 0 none); }
 .app .vf-ref[data-kind="diagram"] .vf-ref-x,

@@ -314,7 +314,7 @@ cmd_plan() {
   fi
 
   local top
-  top="$(git -C "$(dirname "${paths[0]}")" rev-parse --show-toplevel 2>/dev/null)"
+  top="$(git -c core.fsmonitor= -c core.hooksPath=/dev/null -C "$(dirname "${paths[0]}")" rev-parse --show-toplevel 2>/dev/null)"
   if [[ "$order" == auto ]]; then
     order=mtime
     [[ -n "$top" ]] && order=repo
@@ -328,7 +328,7 @@ cmd_plan() {
       local n k
       while IFS=$'\t' read -r n k; do
         changes[$k]="$n"
-      done < <(git -C "$top" -c core.quotePath=false log --since=90.days --name-only --format= 2>/dev/null |
+      done < <(git -c core.fsmonitor= -c core.hooksPath=/dev/null -C "$top" -c core.quotePath=false log --since=90.days --name-only --format= 2>/dev/null |
         awk 'NF { c[$0]++ } END { for (k in c) printf "%d\t%s\n", c[k], k }')
     fi
     # Keys are relative to the project directory, which may sit below the
@@ -338,7 +338,7 @@ cmd_plan() {
     local d rel
     ordered="$(for i in "${!keys[@]}"; do
       d="$(dirname "${paths[$i]}")"
-      [[ -n "${prefix[$d]+set}" ]] || prefix[$d]="$(git -C "$d" rev-parse --show-prefix 2>/dev/null)"
+      [[ -n "${prefix[$d]+set}" ]] || prefix[$d]="$(git -c core.fsmonitor= -c core.hooksPath=/dev/null -C "$d" rev-parse --show-prefix 2>/dev/null)"
       rel="${prefix[$d]}${paths[$i]##*/}"
       c=1
       is_impact "${keys[$i]}" && c=0
