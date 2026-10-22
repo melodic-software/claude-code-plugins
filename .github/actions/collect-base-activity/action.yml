@@ -49,9 +49,10 @@ inputs:
       The activity's prepare mode from resolve-config, empty for none. With
       `merge-base` the runner commits the staged merge after the skill, so
       the skill gets neither the commit tool nor the instruction to commit.
-      With `review-threads` the skill also gets the review-thread tool, a
-      read-only wrapper over the base's feedback-thread.sh that reads the
-      thread file the runner wrote to $RUNNER_TEMP/lane-feedback. With
+      With `review-threads` (run-claude-cli only) the skill also gets the
+      review-thread tool, a read-only wrapper over the base's
+      feedback-thread.sh staged under .lane/feedback/ with the thread file the
+      runner checked in $RUNNER_TEMP/lane-feedback. With
       `dependency-review` the skill gets read access to the context file the
       runner wrote to $RUNNER_TEMP/lane-dependency, made read-only, and must
       end with the verdict JSON schema's structured output. With `ci-context`
@@ -157,7 +158,6 @@ runs:
         CHECKS_DIR: ${{ runner.temp }}/lane-checks
         VERIFY_DIR: ${{ runner.temp }}/lane-verify
         FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
-        FEEDBACK_STATE: ${{ runner.temp }}/lane-feedback-state
         DEPENDENCY_DIR: ${{ runner.temp }}/lane-dependency
         CI_DIR: ${{ runner.temp }}/lane-ci
         WORKSPACE: ${{ github.workspace }}
@@ -181,7 +181,8 @@ runs:
         [[ $marketplace =~ $name ]] || fail "the base marketplace name is malformed"
         [[ $SKILL =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]] || fail "the skill must be <plugin>:<skill>"
         case "$PREPARE" in
-          "" | merge-base | review-threads) ;;
+          "" | merge-base) ;;
+          review-threads) [ "$LAUNCHER" = run-claude-cli ] || fail "review-threads: the skill runs on run-claude-cli, in the read runner" ;;
           dependency-review) [ "$GATING" = advisory ] || fail "dependency-review: the activity must be advisory, since its verdict is the structured output" ;;
           ci-context) [ "$EFFECT" = read ] || fail "ci-context: the activity's effect must be read, since it runs head code" ;;
           *) fail "the activity's prepare mode is not a known mode" ;;
@@ -614,26 +615,6 @@ runs:
               if [ -e "$VERIFY_DIR/bin/run-test-file" ]; then
                 system_prompt="$system_prompt Run a test file only through $VERIFY_DIR/bin/run-test-file <test file>, with the path from the checkout root: it picks the runner, vitest included, and a compound command such as cd <dir>; <command> is refused."
               fi
-            fi
-            # review-threads: the skill reads the runner's thread file, and
-            # records its replies to those threads, only through this tool:
-            # a base copy behind a wrapper that fixes its environment, which
-            # the skill's Edit and Write cannot reach. The tool posts nothing;
-            # the runner uploads its replies file for the reply job.
-            if [ "$PREPARE" = review-threads ]; then
-              [[ $FEEDBACK_DIR =~ ^/[A-Za-z0-9_./-]+$ && $FEEDBACK_STATE =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
-                fail "the review-thread tool directory has a name a rule cannot carry"
-              [ -f "$FEEDBACK_DIR/threads.json" ] || fail "review-threads: the runner wrote no thread file"
-              mkdir -p "$FEEDBACK_DIR/bin" "$FEEDBACK_STATE"
-              cp "$BASE_PATH/plugins/source-control/skills/pull-request/scripts/feedback-thread.sh" "$FEEDBACK_DIR/feedback-thread.sh"
-              tool="$FEEDBACK_DIR/bin/feedback-thread"
-              printf '#!/usr/bin/env bash\nexport FEEDBACK_THREADS=%q FEEDBACK_LOG=%q FEEDBACK_SCRATCH=%q FEEDBACK_WORKSPACE=%q\nexec bash %q "$@"\n' \
-                "$FEEDBACK_DIR/threads.json" "$FEEDBACK_STATE/replies.jsonl" "$SCRATCH" "$WORKSPACE" "$FEEDBACK_DIR/feedback-thread.sh" >"$tool"
-              chmod +x "$tool"
-              chmod -R a-w "$FEEDBACK_DIR"
-              allowed="$allowed,Bash($tool *)"
-              disallowed="${disallowed:+$disallowed,}Edit(/$FEEDBACK_DIR/**),Write(/$FEEDBACK_DIR/**),Edit(/$FEEDBACK_STATE/**),Write(/$FEEDBACK_STATE/**)"
-              system_prompt="$system_prompt The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $SCRATCH. The tool posts nothing: a later job posts what you record."
             fi
             # dependency-review: the skill reads the runner's context file,
             # which its Edit and Write cannot reach, and returns its verdict

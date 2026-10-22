@@ -379,7 +379,6 @@ export async function select({
   api,
   pr,
   headSha,
-  laneBranch,
   repository,
   appId,
   reviewerId,
@@ -457,7 +456,7 @@ export async function select({
     rounds,
     fixRequested: gated,
     threads: worked,
-    file: { version: 1, repository, pr, head_sha: headSha, ...(laneBranch ? { lane_branch: laneBranch } : {}), threads: worked },
+    file: { version: 1, repository, pr, head_sha: headSha, threads: worked },
   };
 }
 
@@ -753,7 +752,6 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       api: client,
       pr,
       headSha: env.HEAD_SHA,
-      laneBranch: env.LANE_BRANCH ?? "",
       repository: env.GITHUB_REPOSITORY,
       appId,
       reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),

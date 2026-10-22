@@ -955,55 +955,15 @@ test("a read skill gets no check wrapper", () => {
   assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
 });
 
-// pr-run-activity.md, "prepare: review-threads": the skill keeps the commit
-// tool and gets one more Bash rule, the review-thread wrapper, which runs a
-// read-only base copy with the thread file, log, scratch and checkout fixed.
-function withThreads(threads = true) {
-  const dir = mkdtempSync(path.join(root, "threads-"));
-  const workspace = path.join(dir, "workspace");
-  const feedbackDir = path.join(dir, "lane-feedback");
-  const feedbackState = path.join(dir, "lane-feedback-state");
-  mkdirSync(workspace, { recursive: true });
-  mkdirSync(feedbackDir, { recursive: true });
-  if (threads) writeFileSync(path.join(feedbackDir, "threads.json"), "{}");
-  const scripts = path.join(base, "plugins", "source-control", "skills", "pull-request", "scripts");
-  mkdirSync(scripts, { recursive: true });
-  writeFileSync(
-    path.join(scripts, "feedback-thread.sh"),
-    'echo "threads=$FEEDBACK_THREADS log=$FEEDBACK_LOG scratch=$FEEDBACK_SCRATCH ws=$FEEDBACK_WORKSPACE args=$*"\n',
-  );
-  const staged = stage({ PREPARE: "review-threads", FEEDBACK_DIR: feedbackDir, FEEDBACK_STATE: feedbackState, WORKSPACE: workspace });
-  return { workspace, feedbackDir, feedbackState, ...staged };
-}
-
-test("prepare: review-threads keeps the commit tool and adds only the review-thread wrapper", () => {
-  const { status, args, allowed, denied, workspace, feedbackDir, feedbackState, env } = withThreads();
-  assert.equal(status, 0);
-  assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
-  assert.ok(args.includes(COMMIT_SENTENCE), args);
-  const tool = path.join(feedbackDir, "bin", "feedback-thread");
-  assert.deepEqual(
-    wrapperRules(allowed),
-    [`Bash(${tool} *)`],
-  );
-  for (const dir of [feedbackDir, feedbackState]) {
-    assert.ok(denied.includes(`Edit(/${dir}/**)`) && denied.includes(`Write(/${dir}/**)`), denied.join(" | "));
-  }
-  assert.ok(args.includes(`${tool} record <thread-id> <file>`), "the system prompt names the tool");
-  const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", path.join(feedbackDir, "feedback-thread.sh")]);
-  assert.notEqual(write.status, 0, "the tool's copy is read-only");
-  const run = spawnSync(tool, ["list", "x y"], { cwd: root, encoding: "utf8" });
-  assert.equal(run.status, 0, run.stderr);
-  assert.equal(
-    run.stdout.trim(),
-    `threads=${path.join(feedbackDir, "threads.json")} log=${path.join(feedbackState, "replies.jsonl")} scratch=${env.SCRATCH} ws=${workspace} args=list x y`,
-  );
-});
-
-test("prepare: review-threads with no thread file fails red before any output", () => {
-  const { status, stdout, args } = withThreads(false);
+// pr-run-activity.md, "prepare: review-threads": the skill runs on the read
+// runner's launcher; on claude-code-action, in the write runner, it fails red.
+test("prepare: review-threads on claude-code-action fails red before any output", () => {
+  const feedbackDir = mkdtempSync(path.join(root, "threads-"));
+  writeFileSync(path.join(feedbackDir, "threads.json"), "{}");
+  writeFileSync(path.join(feedbackDir, "run.json"), "{}");
+  const { status, stdout, args } = stage({ PREPARE: "review-threads", FEEDBACK_DIR: feedbackDir });
   assert.notEqual(status, 0);
-  assert.match(stdout, /::error::review-threads: the runner wrote no thread file/);
+  assert.match(stdout, /::error::review-threads: the skill runs on run-claude-cli, in the read runner/);
   assert.equal(args, "");
 });
 
@@ -1286,7 +1246,6 @@ for (const [name, run] of [
   ["merge", () => stage({ EFFECT: "merge" })],
   ["a lane that cannot commit", () => stage({ CAN_COMMIT: "false" })],
   ["prepare: merge-base", () => stage({ PREPARE: "merge-base" })],
-  ["prepare: review-threads", () => withThreads()],
   ["prepare: dependency-review", () => withDependency()],
   ["verify-scripts", () => withVerify([VERIFY])],
   ["checks", () => withChecks(["scripts/check-x.sh --check"])],

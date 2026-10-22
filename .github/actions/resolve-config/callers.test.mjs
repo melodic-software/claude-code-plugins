@@ -3237,12 +3237,8 @@ test("pr-run-activity-write.yml: apply-patch under the review-threads row reads 
 // fix-requested output leaves the human-gated label out of the holds.
 test("pr-run-activity-write.yml: apply-patch under the review-threads row drops the human-gated hold only on the select job's fix request", () => {
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "hold-label");
-  const requested = (prepare, fixRequested, selected = "") =>
-    evaluate(step.env.FIX_REQUESTED, {
-      "steps.feedback-select.outputs.fix-requested": selected,
-      "inputs.patch-prepare": prepare,
-      "inputs.patch-fix-requested": fixRequested,
-    });
+  const requested = (prepare, fixRequested) =>
+    evaluate(step.env.FIX_REQUESTED, { "inputs.patch-prepare": prepare, "inputs.patch-fix-requested": fixRequested });
   assert.equal(requested("review-threads", "true"), "true");
   assert.equal(requested("review-threads", "false"), "false");
   assert.equal(requested("ci-context", "true"), "", "another row's push keeps every hold");

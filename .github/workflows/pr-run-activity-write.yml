@@ -296,8 +296,7 @@ on:
         description: >-
           Why the activity handed the PR to a person: for merge-base
           protected-path-conflict, workflow-staged, unexpected-path-staged,
-          repeat-cap or unresolved-conflict; for review-threads, before any model turn,
-          feedback-protected-path or feedback-round-cap; for the
+          repeat-cap or unresolved-conflict; for the
           review-replies script feedback-uncertain, feedback-not-landed or
           feedback-invalid, feedback-partial, feedback-incomplete or
           feedback-disputed; for dependency-review, before any model turn,
@@ -324,24 +323,6 @@ on:
       head-sha:
         description: The PR head the gate passed, before any push of this run. Set only by runner steps.
         value: ${{ jobs.run.outputs.head-sha }}
-      feedback-round:
-        description: >-
-          `true` once a review-threads skill ran, so the round's replies were
-          uploaded (or the run ended before they could be) and its reply job
-          must run. Set only by runner steps.
-        value: ${{ jobs.run.outputs.feedback-round }}
-      feedback-run-sha256:
-        description: >-
-          The SHA-256 of the run.json the review-threads runner step wrote;
-          the caller passes it to the reply job as review-run-sha256. Set only
-          by runner steps.
-        value: ${{ jobs.run.outputs.feedback-run-sha256 }}
-      feedback-run-attempt:
-        description: >-
-          The run attempt whose feedback-replies-<attempt> artifact holds the
-          round's replies; the caller passes it to the reply job as
-          review-run-attempt. Set only by runner steps.
-        value: ${{ jobs.run.outputs.feedback-run-attempt }}
       dependency-round:
         description: >-
           `true` once a dependency-review skill ran, so its verdict was
@@ -391,8 +372,7 @@ jobs:
     # writes and a finished run could report anyway. merge-state and a
     # pre-model escalation-reason come from the prepare step, before any
     # model turn; a post-model escalation-reason comes from post.sh after it,
-    # and a forged one can only hand the PR to a person. In review-threads
-    # mode the select step decides before any model turn; the reply job's
+    # and a forged one can only hand the PR to a person. The reply job's
     # escalation-reason comes from the base's reply script, which runs no
     # model and no head code.
     outputs:
@@ -408,15 +388,10 @@ jobs:
       merge-state: ${{ steps.prepare.outputs.merge-state }}
       escalation-reason: >-
         ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason
-        || steps.feedback-select.outputs.escalation-reason || steps.dependency-select.outputs.escalation-reason
+        || steps.dependency-select.outputs.escalation-reason
         || steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
       rung-up: ${{ steps.patch-select.outputs.skip-reason == 'rung-up' }}
       patch-skip-reason: ${{ steps.patch-select.outputs.skip-reason }}
-      feedback-round: >-
-        ${{ steps.config.outputs.prepare == 'review-threads'
-        && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
-      feedback-run-sha256: ${{ steps.feedback-collect.outputs.run-sha256 }}
-      feedback-run-attempt: ${{ steps.feedback-collect.outcome == 'success' && github.run_attempt || '' }}
       dependency-round: >-
         ${{ steps.config.outputs.prepare == 'dependency-review'
         && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
@@ -627,6 +602,15 @@ jobs:
           echo "::error::issue-skill-in-write-runner: an issue skill runs in pr-run-activity-read.yml, which holds no write token"
           exit 1
 
+      # review-threads runs in pr-run-activity-read.yml, after its caller's
+      # select job kept the threads: this file keeps none and collects no
+      # replies.
+      - name: Assert review-threads runs in the read runner
+        if: steps.config.outcome == 'success' && steps.config.outputs.prepare == 'review-threads'
+        run: |
+          echo "::error::review-threads-in-write-runner: a review-threads skill runs in pr-run-activity-read.yml after its caller's select job"
+          exit 1
+
       # Issue mode, apply-patch, before the mint: the new lane branch starts
       # at the commit the model job's patch was made on, the default branch
       # commit it checked (which must be on the default branch) or the
@@ -647,44 +631,6 @@ jobs:
             exit 1
           fi
           echo "sha=${PATCH_RESUME_TIP:-$PATCH_BASE_SHA}" >>"$GITHUB_OUTPUT"
-
-      # review-threads, before the mint and any model turn, with the job's
-      # read-only token: keeps the unresolved threads the reviewer bot opened
-      # on a head a review lane's marker confirms, left by it alone, asked to be
-      # fixed by a trusted person with write access, or answered by a trusted
-      # person after the lane escalated them, then
-      # skips (none), escalates (a .github/** diff, or the round cap) or
-      # writes the thread file the skill's review-thread tool reads. It also
-      # copies out the base's thread-scope.mjs with its SHA-256, which the
-      # promote step checks before it imports the copy, and records the thread
-      # file's SHA-256, which the promote and collect steps check before they
-      # read it: the model's turn can reach both files.
-      - name: Select the review threads
-        id: feedback-select
-        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'review-threads'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-          LANE_BRANCH: ${{ format('lane-commits/{0}/{1}/{2}-{3}', inputs.lane, inputs.activity, github.run_id, github.run_attempt) }}
-          FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
-          SCOPE_BIN: ${{ runner.temp }}/lane-feedback-bin
-          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
-          TRACKER_CONFIG: .base/.work-item-tracker.json
-          RESOLVED: ${{ runner.temp }}/resolved-config.json
-        run: |
-          mkdir -p "$FEEDBACK_DIR" "$SCOPE_BIN"
-          cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$SCOPE_BIN/thread-scope.mjs"
-          sum=$(sha256sum <"$SCOPE_BIN/thread-scope.mjs")
-          echo "scope-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
-          REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
-          export REVIEW_ROUNDS
-          THREAD_FILE="$FEEDBACK_DIR/threads.json" node .base/.github/scripts/pr-unblock/address-feedback.mjs select
-          if [ -f "$FEEDBACK_DIR/threads.json" ]; then
-            sum=$(sha256sum <"$FEEDBACK_DIR/threads.json")
-            echo "threads-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
-          fi
 
       # dependency-review, before the mint and any model turn, with the job's
       # read-only token: skips a PR Dependabot did not open or one sorted
@@ -823,7 +769,6 @@ jobs:
         id: head-recheck
         if: >-
           steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
-          && steps.feedback-select.outputs.proceed != 'false'
           && steps.dependency-select.outputs.proceed != 'false'
           && steps.patch-select.outputs.proceed != 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -1029,10 +974,10 @@ jobs:
       # as a JSON array: do-not-merge, the human-gated role label resolved from the base
       # the way report-escalation.sh does, and the activity's labels-absent
       # list, all read before the head checkout replaces .base. The
-      # human-gated label is left out only when the review-threads select step
-      # (or, for apply-patch under the review-threads row, the caller's select
-      # job) kept nothing but threads a trusted person with write access asked
-      # the lane to fix on a PR carrying it, unless labels-absent lists it.
+      # human-gated label is left out only for apply-patch under the
+      # review-threads row, when the caller's select job kept nothing but
+      # threads a trusted person with write access asked the lane to fix on a
+      # PR carrying it, unless labels-absent lists it.
       - name: Read the hold labels from the base
         id: hold-label
         if: >-
@@ -1040,9 +985,7 @@ jobs:
           && (steps.config.outputs.kind == 'skill' || steps.config.outputs.prepare == 'apply-patch')
         env:
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-          FIX_REQUESTED: >-
-            ${{ steps.feedback-select.outputs.fix-requested
-            || inputs.patch-prepare == 'review-threads' && inputs.patch-fix-requested || '' }}
+          FIX_REQUESTED: ${{ inputs.patch-prepare == 'review-threads' && inputs.patch-fix-requested || '' }}
         run: |
           hold_label=needs-human
           if [ -f .base/.work-item-tracker.json ]; then
@@ -1824,16 +1767,6 @@ jobs:
           MERGE_BASE: ${{ steps.config.outputs.prepare == 'merge-base' }}
           COMMIT_OUTCOME: ${{ steps.commit.outcome }}
           COMMIT_SHA: ${{ steps.commit.outputs.commit }}
-          # review-threads mode moves the PR branch only when every path the
-          # lane branch changes is in the kept threads' scope, as the base's
-          # thread-scope.mjs decides, none is under .github/, and every path
-          # it adds or changes is a regular file at its tip.
-          THREAD_FILE: >-
-            ${{ steps.config.outputs.prepare == 'review-threads'
-            && format('{0}/lane-feedback/threads.json', runner.temp) || '' }}
-          SCOPE_SCRIPT: ${{ runner.temp }}/lane-feedback-bin/thread-scope.mjs
-          SCOPE_SHA256: ${{ steps.feedback-select.outputs.scope-sha256 }}
-          THREADS_SHA256: ${{ steps.feedback-select.outputs.threads-sha256 }}
           # dependency-review mode moves the PR branch only when every path
           # the lane branch changes is an npm or pip manifest or lock file
           # outside .github/ in a directory the base dependabot.yml lists for
@@ -1858,9 +1791,9 @@ jobs:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
           script: |
-            const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA, THREAD_FILE } = process.env;
+            const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA } = process.env;
             const { DEPENDENCY_REVIEW, DEPENDENCY_OUTPUT, PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
-            const { SCOPE_SCRIPT, SCOPE_SHA256, THREADS_SHA256, CLASSIFY_SCRIPT, CLASSIFY_SHA256, CONFIG_PAIRS } = process.env;
+            const { CLASSIFY_SCRIPT, CLASSIFY_SHA256, CONFIG_PAIRS } = process.env;
             core.setOutput('skip-reason', '');
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
@@ -1875,56 +1808,6 @@ jobs:
                 core.setFailed(`The lane branch is at ${lane}, not a merge commit the commit step made; the PR branch is not moved`);
                 return;
               }
-              if (THREAD_FILE) {
-                const fs = require('fs');
-                // Parsed from the bytes just hashed, as the scope copy below.
-                const threadText = fs.readFileSync(THREAD_FILE);
-                if (!THREADS_SHA256 || require('crypto').createHash('sha256').update(threadText).digest('hex') !== THREADS_SHA256) {
-                  core.setFailed('threads.json does not match the SHA-256 the select step recorded; the PR branch is not moved');
-                  return;
-                }
-                const { threads } = JSON.parse(threadText.toString('utf8'));
-                const paths = new Set(threads.map((t) => t.path));
-                // Imported from the bytes just hashed, so a rewrite after the
-                // check cannot reach the import.
-                const scope = fs.readFileSync(SCOPE_SCRIPT);
-                if (!SCOPE_SHA256 || require('crypto').createHash('sha256').update(scope).digest('hex') !== SCOPE_SHA256) {
-                  core.setFailed("thread-scope.mjs does not match the base's copy; the PR branch is not moved");
-                  return;
-                }
-                const { inThreadScope } = await import(`data:text/javascript;base64,${scope.toString('base64')}`);
-                const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${HEAD_SHA}...${lane}` });
-                const bad = data.files.length >= 300 ? ['(300 or more files)'] : data.files
-                  .flatMap((f) => [f.filename, f.previous_filename].filter(Boolean))
-                  .filter((p) => !inThreadScope(p, paths, threads));
-                if (bad.length > 0) {
-                  core.setFailed(`The lane branch changes a path outside the kept threads' scope or under .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
-                  return;
-                }
-                // The compare lists names, not modes: every path the lane adds
-                // or changes must be a regular file at its tip, never a
-                // symbolic link or gitlink.
-                const trees = new Map();
-                const notFile = [];
-                for (const f of data.files.filter((f) => f.status !== 'removed')) {
-                  const dir = f.filename.slice(0, Math.max(f.filename.lastIndexOf('/'), 0));
-                  if (!trees.has(dir)) {
-                    const { repository } = await github.graphql(
-                      'query($owner: String!, $name: String!, $expression: String!) { repository(owner: $owner, name: $name) { object(expression: $expression) { ... on Tree { entries { name type mode } } } } }',
-                      { owner: context.repo.owner, name: context.repo.repo, expression: `${lane}:${dir}` },
-                    );
-                    trees.set(dir, repository.object?.entries ?? []);
-                  }
-                  const entry = trees.get(dir).find((e) => e.name === f.filename.slice(dir ? dir.length + 1 : 0));
-                  if (!(entry?.type === 'blob' && [0o100644, 0o100755].includes(entry.mode))) {
-                    notFile.push(f.filename);
-                  }
-                }
-                if (notFile.length > 0) {
-                  core.setFailed(`The lane branch adds or changes a path that is not a regular file (${notFile.slice(0, 5).join(', ')}); the PR branch is not moved`);
-                  return;
-                }
-              }
               if (DEPENDENCY_REVIEW === 'true') {
                 let verdict = '';
                 try {
@@ -1936,7 +1819,8 @@ jobs:
                   core.info(`The verdict is ${JSON.stringify(String(verdict).slice(0, 20))}, not fix; the lane's commits (${lane}) are discarded`);
                   return;
                 }
-                // Imported from the bytes just hashed, as the thread scope.
+                // Imported from the bytes just hashed, so a rewrite after the
+                // check cannot reach the import.
                 const classify = require('fs').readFileSync(CLASSIFY_SCRIPT);
                 if (!CLASSIFY_SHA256 || require('crypto').createHash('sha256').update(classify).digest('hex') !== CLASSIFY_SHA256) {
                   core.setFailed("dependency-classify.mjs does not match the base's copy; the PR branch is not moved");
@@ -2046,69 +1930,6 @@ jobs:
                 .deleteRef({ ...context.repo, ref: `heads/${LANE_BRANCH}` })
                 .catch((error) => core.warning(`Could not delete ${LANE_BRANCH}: ${error.message}`));
             }
-
-      # review-threads, after any model turn, also after a failed, cancelled
-      # or timed-out skill: this job posts nothing to the PR. run.json is the
-      # runner's own record, the gated head and the threads the select step
-      # kept with the comment ids the model was shown, built from the thread
-      # file the skill could not write. replies.jsonl is the review-thread
-      # tool's file, model output, copied one byte past the reply script's
-      # size limit so an oversized file is refused there. The reply job
-      # validates both and posts. A pinned action, like the promote step,
-      # since the activity could have changed PATH.
-      - name: Collect the review-thread replies
-        id: feedback-collect
-        if: >-
-          always() && steps.config.outputs.prepare == 'review-threads'
-          && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != ''
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          THREAD_FILE: ${{ runner.temp }}/lane-feedback/threads.json
-          THREADS_SHA256: ${{ steps.feedback-select.outputs.threads-sha256 }}
-          REPLIES_FILE: ${{ runner.temp }}/lane-feedback-state/replies.jsonl
-          OUT_DIR: ${{ runner.temp }}/lane-feedback-out
-        with:
-          retries: 0
-          script: |
-            const fs = require('fs');
-            const { HEAD_SHA, THREAD_FILE, THREADS_SHA256, REPLIES_FILE, OUT_DIR } = process.env;
-            fs.rmSync(OUT_DIR, { recursive: true, force: true });
-            fs.mkdirSync(OUT_DIR);
-            const threadText = fs.readFileSync(THREAD_FILE);
-            if (!THREADS_SHA256 || require('crypto').createHash('sha256').update(threadText).digest('hex') !== THREADS_SHA256) {
-              core.setFailed('threads.json does not match the SHA-256 the select step recorded; no replies are collected');
-              return;
-            }
-            const { threads } = JSON.parse(threadText.toString('utf8'));
-            const run = {
-              version: 1,
-              head_sha: HEAD_SHA,
-              threads: threads.map((t) => ({ id: t.id, path: t.path, comment_ids: t.comments.map((c) => c.id), ...(t.named_paths ? { named_paths: t.named_paths } : {}) })),
-            };
-            const runText = `${JSON.stringify(run)}\n`;
-            fs.writeFileSync(`${OUT_DIR}/run.json`, runText);
-            core.setOutput('run-sha256', require('crypto').createHash('sha256').update(runText).digest('hex'));
-            let replies = Buffer.alloc(0);
-            if (fs.existsSync(REPLIES_FILE) && fs.lstatSync(REPLIES_FILE).isFile()) {
-              const fd = fs.openSync(REPLIES_FILE, 'r');
-              replies = Buffer.alloc(262145);
-              replies = replies.subarray(0, fs.readSync(fd, replies, 0, replies.length, 0));
-              fs.closeSync(fd);
-            }
-            fs.writeFileSync(`${OUT_DIR}/replies.jsonl`, replies);
-            core.info(`run.json names ${run.threads.length} kept thread(s); replies.jsonl holds ${replies.length} byte(s)`);
-
-      - name: Upload the review-thread replies
-        if: always() && steps.feedback-collect.outcome == 'success'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: feedback-replies-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/lane-feedback-out/run.json
-            ${{ runner.temp }}/lane-feedback-out/replies.jsonl
-          retention-days: 1
-          if-no-files-found: error
 
       # dependency-review, after any model turn, also after a failed,
       # cancelled or timed-out skill: this job posts nothing to the PR.
@@ -2391,7 +2212,6 @@ jobs:
             || steps.prepare.outputs.skip-reason || steps.post.outputs.skip-reason
             || steps.commit.outputs.skip-reason || steps.promote.outputs.skip-reason
             || steps.act-script.outputs.skip-reason
-            || steps.feedback-select.outputs.skip-reason
             || steps.dependency-select.outputs.skip-reason
             || steps.patch-select.outputs.skip-reason }}
           ACT_OUTCOME: >-
