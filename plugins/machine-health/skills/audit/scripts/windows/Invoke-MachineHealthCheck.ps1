@@ -108,7 +108,6 @@ $skillRoot = Resolve-SkillRoot
 . (Join-Path $libRoot 'Enter-RunLock.ps1')
 . (Join-Path $libRoot 'Assert-StateBaseLocation.ps1')
 . (Join-Path $libRoot 'New-RunSnapshot.ps1')
-. (Join-Path $libRoot 'Write-ElevatedResult.ps1')
 . (Join-Path $libRoot 'Import-ElevatedResult.ps1')
 . (Join-Path $libRoot 'New-UnknownCheckResult.ps1')
 
@@ -154,6 +153,8 @@ $logsDir = Join-Path $StateBase 'logs'
 # runs the elevation-matrix checks, fills the pre-created result file and exits. It
 # creates no directory and writes nothing else, so it branches before every write below.
 if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
+    # Write-ElevatedResult loads the no-follow file P/Invoke, which only this branch needs.
+    . (Join-Path $libRoot 'Write-ElevatedResult.ps1')
     $passLog = [System.Collections.Generic.List[string]]::new()
     $passResults = [System.Collections.Generic.List[object]]::new()
     if (-not (Test-FileIdFormat $ResultFileId)) {

@@ -16,14 +16,7 @@ Document: { "format": <Get-ElevatedResultFormat>, "ran_at": "<ISO>",
 #>
 
 . (Join-Path $PSScriptRoot 'Open-NoFollowFile.ps1')
-
-function Get-ElevatedResultFormat {
-    [CmdletBinding()]
-    [OutputType([string])]
-    param()
-
-    return 'elevated-result/1'
-}
+. (Join-Path $PSScriptRoot 'Get-ElevatedResultFormat.ps1')
 
 function Write-ElevatedResult {
     [CmdletBinding()]

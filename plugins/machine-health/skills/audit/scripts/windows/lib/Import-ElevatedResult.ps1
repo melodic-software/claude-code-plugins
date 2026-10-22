@@ -17,7 +17,7 @@ Returns Results (the merged list), ElevatedChecks (the ids replaced), Rejected
 line and capped, at most 200; empty when refused).
 #>
 
-. (Join-Path $PSScriptRoot 'Write-ElevatedResult.ps1')
+. (Join-Path $PSScriptRoot 'Get-ElevatedResultFormat.ps1')
 . (Join-Path $PSScriptRoot 'Assert-CheckResult.ps1')
 . (Join-Path $PSScriptRoot 'Read-SharedText.ps1')
 . (Join-Path $PSScriptRoot 'New-UnknownCheckResult.ps1')
