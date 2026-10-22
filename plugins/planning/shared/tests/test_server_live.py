@@ -10,13 +10,11 @@ session's own or answers the session-bridge ping is refused, and an owner's serv
 from __future__ import annotations
 
 import http.server
-import json
 import os
 import re
 import stat
 import threading
 import unittest
-from pathlib import Path
 from unittest import mock
 
 from support import FAKE, WINDOWS, call, tmpdir, wait_for
