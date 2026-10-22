@@ -1283,8 +1283,9 @@ outputs are sent), so the report job differs:
   decline cannot be told from a forged empty head in the report job, so both take this neutral.
 - pr-unblock passes `fix-ci-context`'s head, not the read runner's `head-sha` output, as
   apply-patch's `patch-head-sha`; apply-patch compares it with the head its own trigger gate reads
-  at apply time and pushes only while the branch is still there. No job gates the head before
-  `fix-docs`, so its calls pass no `head-sha` (the report job takes the PR's head it reads) and
+  at apply time and pushes only while the branch is still there. Both `fix-docs` calls pass the
+  head `fix-docs-head` reads, a job that runs no head code, as `head-sha`, so a push while the run
+  goes posts its check on the head it ran on, not failure on the new head; and
   `apply-docs-patch` passes the read runner's `head-sha` output as `patch-head-sha`; apply-patch still applies onto the head its own gate reads and measures the
   `default` row's refusals from there.
 

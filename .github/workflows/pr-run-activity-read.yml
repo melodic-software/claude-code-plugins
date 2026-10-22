@@ -104,9 +104,10 @@ on:
       head-sha:
         description: >-
           The PR head the caller gated in a job that ran no head code (pr-unblock's
-          fix-ci-context). The report job posts the check only on it, the event's
-          PR head, or the PR's head read from the API; a run job head-sha that is
-          none of these posts failure on the trusted head instead.
+          fix-ci-context or fix-docs-head). The report job posts the check only
+          on it, the event's PR head, or the PR's head read from the API; a run
+          job head-sha that is none of these posts failure on the trusted head
+          instead.
         required: false
         type: string
         default: ""
