@@ -51,7 +51,7 @@
       "additionalProperties": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/notification"}}
     },
     "inboxSeen": {
-      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join: and an id for the owner) and the status each had then; an item whose status moved since is unread.",
+      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join:/people: and an id for the owner) and the status each had then; an item whose status moved since is unread.",
       "type": "object",
       "additionalProperties": {
         "type": "object",
@@ -69,6 +69,11 @@
       "additionalProperties": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ts"}}
     },
     "mergeRequests": {"type": "array", "items": {"$ref": "#/$defs/mergeRequest"}},
+    "claudeProposals": {
+      "description": "Claude's proposals that a new browser is someone already here, or that a waiting join be let in; only the owner's approve carries one out. Optional: a file written before them has none.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/claudeProposal"}
+    },
     "aboutYou": {"type": "object", "additionalProperties": {"$ref": "#/$defs/aboutYou"}},
     "disagreements": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/disagreement"}}},
     "reports": {
@@ -173,7 +178,8 @@
             "N": {"type": "integer", "minimum": 0},
             "A": {"type": "integer", "minimum": 0},
             "F": {"type": "integer", "minimum": 0},
-            "D": {"type": "integer", "minimum": 0}
+            "D": {"type": "integer", "minimum": 0},
+            "K": {"type": "integer", "minimum": 0}
           }
         }
       }
@@ -1201,6 +1207,34 @@
         "techComfort": {"enum": ["low", "ok", "high"]},
         "note": {"type": "string"},
         "at": {"$ref": "#/$defs/ts"}
+      }
+    },
+    "claudeProposal": {
+      "description": "`names` holds each named person's name when Claude proposed it: a rename, a removal, a merge or an answered join since makes it stale. `merge` names `from` and `to`, `admit` names `pid` (session.py cross_field_errors checks which, and that `names` holds each); never the owner.",
+      "type": "object",
+      "required": ["id", "kind", "names", "reasons", "at", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"enum": ["merge", "admit"]},
+        "from": {"$ref": "#/$defs/pid"},
+        "to": {"$ref": "#/$defs/pid"},
+        "pid": {"$ref": "#/$defs/pid"},
+        "names": {"type": "object", "additionalProperties": {"type": "string"}},
+        "reasons": {"type": "array", "minItems": 1, "maxItems": 5, "items": {"enum": ["same-name", "was-offline", "same-device", "expected"]}},
+        "note": {"$ref": "#/$defs/note"},
+        "at": {"$ref": "#/$defs/ts"},
+        "status": {
+          "oneOf": [
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["pending"]}}},
+            {
+              "type": "object",
+              "required": ["kind", "at"],
+              "additionalProperties": false,
+              "properties": {"kind": {"enum": ["approved", "dismissed", "stale"]}, "at": {"$ref": "#/$defs/ts"}}
+            }
+          ]
+        }
       }
     },
     "eventLog": {

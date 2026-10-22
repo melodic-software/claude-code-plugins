@@ -29,6 +29,8 @@
           {"$ref": "#/$defs/resolve-report"},
           {"$ref": "#/$defs/share-result"},
           {"$ref": "#/$defs/take-down-result"},
+          {"$ref": "#/$defs/propose-merge"},
+          {"$ref": "#/$defs/propose-admit"},
           {"$ref": "#/$defs/handle"}
         ]
       }
@@ -184,6 +186,38 @@
       "required": ["op", "id"],
       "additionalProperties": false,
       "properties": {"op": {"enum": ["take-down-result"]}, "id": {"type": "string"}}
+    },
+    "personReasons": {
+      "description": "Why Claude proposes it, from what the person-joined event and the session show. Never an address or a location, which the page keeps none of, and never a person's own claim, which is their data.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {"enum": ["same-name", "was-offline", "same-device", "expected"]}
+    },
+    "propose-merge": {
+      "description": "Proposes that `from` (a new browser) is `to` (a person already here). Nothing merges until the owner approves it; neither may be the owner.",
+      "type": "object",
+      "required": ["op", "from", "to", "reasons"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["propose-merge"]},
+        "from": {"type": "string"},
+        "to": {"type": "string"},
+        "reasons": {"$ref": "#/$defs/personReasons"},
+        "note": {"type": "string", "maxLength": 200}
+      }
+    },
+    "propose-admit": {
+      "description": "Proposes letting in one join waiting under Approve new joins. Nobody is let in until the owner approves it.",
+      "type": "object",
+      "required": ["op", "pid", "reasons"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["propose-admit"]},
+        "pid": {"type": "string"},
+        "reasons": {"$ref": "#/$defs/personReasons"},
+        "note": {"type": "string", "maxLength": 200}
+      }
     },
     "handle": {
       "type": "object",

@@ -20,7 +20,7 @@ and the session-bridge watcher. Python 3 standard library only.
 | `session-bridge.conf` | `NAME=shared`, `CONTROL=share.sh` |
 | `schema/*.schema.json` | The persisted and wire shapes: `state`, `ops`, `event`, `question-shape`, and `wire` (the heartbeat body and a presence entry, kept only in memory) |
 | `web/` | The page, served from a fixed allowlist (`/`, `/core.js`, `/app.js`, `/connect.js`, `/core.css`, `/app.css`, `/proto.js`, `/web-vitals.attribution.iife.js`), plus `/proto/<qid>` (`proto.html`) for a prototype question; `proto-pin.js` is served only inside an html variant (see [Prototype page](#prototype-page)). `core.js` is the only code that talks to the server: it polls `/api/state?since=<rev>`, reloads the page when the build changes, builds the state `app.js` reads, and words errors by their code. The guest secret stays under the prototype's `localStorage` key, `secret`. `web-vitals.attribution.iife.js` is the web-vitals 6.2.3 attribution build, copied unedited from its npm package, with that package's Apache-2.0 license beside it as `web-vitals.LICENSE` (not served). `web/harness.html` is test-only and off the allowlist: `ui_inputs.js` serves it into the page's origin from the browser |
-| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
+| `tests/` | `test_session.py`, `test_server.py`, `test_share.py`, `test_tunnel.py`, `test_cfdns.py`, `test_load.py`, `test_schema_shapes.py`, `tracer.test.sh`, `tracer-live.test.sh`, `ui_journey.js`, `ui_formats.js`, `ui_presence.js`, `ui_layout.js`, `ui_keyboard.js`, `ui_inputs.js` (with `harness-open.js`), `ui_chat.js`, `ui_chat_history.js`, `ui_lists.js`, `ui_proto.js`, `ui_connect.js`, `ui_uploads.js`, `ui_report.js`, `ui_clientlog.js`, `ui_telemetry.js`, `ui_advance.js`, `ui_askbox.js`, `ui_myreports.js`, `ui_welcome.js`, `ui_review.js`, `ui_move.js`, `test_people_proposals.py`, `ui_claude_proposals.js`, `align.test.sh` (with `align.js`), `bench_snapshot.py`, `browser_harness.js`, and `fixtures/` (incl. `fake-cloudflared.sh` and `fake_cloudflared.py`) |
 
 ## Run
 
@@ -185,6 +185,8 @@ the refused op's index).
 | `set-purpose` | `qid`, `purpose` | The owner's `/api/question/purpose` rules |
 | `set-for` | `qid`, `for` | Who must answer, by name or pid; `[]` asks everyone. The owner's `/api/question/for` takes the same body. A question in `open-round` takes `for` too |
 | `make-question-from` | `proposal`, `question` | |
+| `propose-merge` | `from`, `to`, `reasons` (1..5), `note?` (0..200) | Proposes that `from` (a new browser) is `to`, someone already here, for the owner's Merge; merges nothing. `reasons` from `same-name`, `was-offline`, `same-device`, `expected`. Neither may be the owner (400 `bad-field`); both must be guests who are in, neither a leader nor trusted (409 `wrong-status`); `from` must be a `person-joined` event's `person` and `to` one of its `sameName` (409 `not-reported`); one open proposal per pair (409 `wrong-status`), none again for a pair the owner dismissed (409 `dismissed`), 200 waiting at once (409 `full`; past 200 in all the oldest answered one goes). See [Claude's merge and admit proposals](#claudes-merge-and-admit-proposals) |
+| `propose-admit` | `pid`, `reasons`, `note?` | Proposes letting in one join waiting under Approve new joins, which a `person-joined` event with `waiting` reported, for the owner's Let in; lets no one in. The same refusals |
 | `handle` | `seqs` | Marks events handled |
 
 ## Answering
@@ -262,6 +264,7 @@ Owner-only routes (`X-Owner-Token`); a leader cannot use them.
 | `/api/join/act` | `{pid, action: admit\|decline}` | With the `approveJoins` setting on, a join gets a secret but waits (`status: waiting`, 403 `waiting` on every route) in the owner's `joinRequests` (in join order `n`, with the `device` and `browser` the join named) until admitted; declining removes the person. At most 20 wait (503 `waiting-full`), and a full session never evicts a waiting person. People whose secret already resolves are not affected |
 | `/api/session/intro` | `{intro}` | Edits "Why you're here" |
 | `/api/proposal/all` | `{ids}` | Approve all in Proposed: each listed proposal, the new ones the owner's confirm counted, becomes a question in the next round as Make it a question makes one, and its author is told. All or none: one no longer new is 409 `wrong-status`, more than the round has room for 409 `round-full` (with `room`), so a proposal that arrived after the confirm stays in New |
+| `/api/claude-proposal/act` | `{id, action: approve\|dismiss}` | Carries out or dismisses one of [Claude's merge and admit proposals](#claudes-merge-and-admit-proposals) (409 `wrong-status` once answered) |
 | `/api/person/merge` | `{from, to}` | `from`'s answers, votes, reactions, chat, requests, uploads and problem reports move to `to`, every mention of `from` names `to`, and `from` goes. Into the owner, `from`'s secrets end instead of moving: that browser's next request gets 401 `merged-into-owner` (remembered until the server restarts), and its page asks for the owner link instead of joining again |
 | `/api/report/act` | `{id, action: seen\|resolved\|ask}` | Marks a problem report seen or resolved (409 `wrong-status` once resolved, or when it already is); either tells the reporter in a `report` notification. A resolved report leaves the owner's snapshot. `ask` sets `asked` on an open or seen report and writes `report-filed` for Claude (409 `wrong-status` on one that is resolved or already asked) |
 | `GET /api/report/image?id=[&pic=P\|&add=N]` | | One report's first screenshot, its `P`th sent with it (`P` 1 to 4), or its Nth addition's (`N` 1 to 999); else, or with both, 400 `bad-field`. As `{id, image}`, a data: URL |
@@ -297,6 +300,23 @@ the log, and a guest's own Claude through `/api/mine/requests`, gets "@Name", or
 
 There is no device or address blocking (C35): Remove stops a person's secret, and Approve new joins
 or a new guest link stops a removed person rejoining under a new name.
+
+## Claude's merge and admit proposals
+
+Claude proposes; only the owner's tap merges or lets anyone in. When someone joins and waits under Approve new joins,
+or joins under the name of someone already in who is not here now (less the " 2" a taken name gets; never the owner),
+the server writes `person-joined` (`person`, `waiting`, the `device` and `browser` the join named, `sameName` with each
+match's `pid`, `device` and `lastSeen` while the server remembers them, and names only with `digestNames`). Claude may
+answer with `propose-merge` or `propose-admit`, which the owner sees in the Host view and the Inbox's Needs you, with
+the reasons in words, Claude's note, and for a merge a reminder that the earlier person's own link (Use on another
+device) avoids the duplicate next time. No address or location is kept or offered as a reason.
+
+A proposal (`claudeProposals` in `state.json`, ids `K<N>`, the owner's snapshot only) keeps each person's name as Claude
+saw it. Approve merges `from` into `to` as `/api/person/merge` does (that browser carries on as `to`, who gets a `merge`
+notification) or lets the person in as Let in does; a waiting duplicate is let in first, as the owner's Merge requires.
+While a person in it is renamed, removed, merged, let in, turned away, made a leader or trusted, it is out of the
+owner's lists, and an approve then marks it `stale` and is refused (409 `stale`), merging no one. A person's own claim
+to be someone is never a reason: that is their merge request to the owner. Dismiss marks it `dismissed`, and Claude cannot propose that pair, or that admit, again.
 
 ## Prototype page
 
@@ -339,7 +359,7 @@ filter chips by status or kind that the device remembers, like the tab:
 - Needs you: what needs this person now. Everyone sees the answers to their requests they have not opened and the
   questions they are asked to answer; a leader adds proposals and suggestions to place and a round to mark ready; the
   owner adds requests to run, answers to share, requests Claude failed (until opened), files offered, pictures to
-  approve, open problem reports not yet asked about, merge and join requests, and a round marked ready, with Run,
+  approve, open problem reports not yet asked about, merge and join requests, Claude's merge and admit proposals, and a round marked ready, with Run,
   Share, Approve and the rest on the rows. Only the owner's actions do anything: the server refuses them from anyone
   else.
 - My requests: this person's requests that wait, run or have news, with the status they see: `waiting`, `running`,
@@ -350,12 +370,13 @@ filter chips by status or kind that the device remembers, like the tab:
   (running, shared, Just me, taken down, declined, discarded), reports seen or with Claude, and pictures done.
 
 The snapshot's `inbox` carries a person's own requests and, for the owner, what waits on them (`run:`, `share:`,
-`fail:` for a guest's request Claude failed, `report:` for an open report not yet asked about, `merge:`, `join:`),
+`fail:` for a guest's request Claude failed, `report:` for an open report not yet asked about, `merge:`, `join:`, `people:` for a
+proposal of Claude's),
 built by `session.py` for the viewer alone (never another person's request or a result its requester cannot see).
 `inboxSeen` in `state.json` keeps, per person, the status each item had when they opened it; an item whose status
 moved since is unread, and only `POST /api/inbox/read {keys}` (keys of the caller's own Inbox; others mark nothing)
 marks one read; Mark all read leaves `fail:` items alone, which clear only from their row. The badge leaves out the `request` notification kind, which the items already show. The owner gets
-no `queue` line for what its Inbox lists as waiting (requests, shares, reports, merges, joins); queue lines for
+no `queue` line for what its Inbox lists as waiting (requests, shares, reports, merges, joins, Claude's proposals); queue lines for
 proposals, suggestions and upload offers still count. The owner's own requests skip the queue: one starts running
 when sent. A guest's request, the owner's guest identity included, still waits for Run.
 
@@ -917,6 +938,7 @@ node plugins/planning/shared/tests/ui_connect.js
 node plugins/planning/shared/tests/ui_uploads.js
 node plugins/planning/shared/tests/ui_attach_paste.js
 node plugins/planning/shared/tests/ui_report.js
+node plugins/planning/shared/tests/ui_claude_proposals.js
 node plugins/planning/shared/tests/ui_general.js
 node plugins/planning/shared/tests/ui_advance.js
 node plugins/planning/shared/tests/ui_askbox.js
@@ -935,6 +957,11 @@ watcher key and its revoke, the owner taking a shared answer down, that the owne
 guest never see the request and another key cannot answer it, and that on the phone every Connect
 control lies inside the viewport. Before the browsers it checks the one-request prompt's data
 block against look-alike end markers.
+
+`ui_claude_proposals.js` checks Claude's merge proposal: a second Ann joins while the first is not here, the server
+writes `person-joined`, Claude's `propose-merge` shows in the owner's Host view and Inbox with its reasons and the
+own-link reminder, a guest sees none and a guest's approve is refused, nothing merges before the owner's Merge, and
+Merge folds the phone into the earlier Ann with her chat.
 
 `ui_advance.js` checks "Go to the next question after I answer" (the `autoAdvance` pref, off by default, in the
 person's own settings): a single pick or a scale value with the comment box empty shows "Next question in 2 s · Stay"
