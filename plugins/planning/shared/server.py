@@ -1084,17 +1084,20 @@ class App:
             self._stop_live(entry)
             self.session.live_start_failed(lid)
             raise DomainError(502, "live-failed", "The live prototype did not start; it waits for Approve again.") from None
-        try:
-            running = self.session.live_started(lid, url)
-        except DomainError:
+        with self._live_lock:  # held from running to recorded, so an end landing between them still finds it to stop
+            try:
+                running = self.session.live_started(lid, url)
+            except DomainError:
+                running = None
+            if running:
+                self._live_begun[lid] = entry
+        if running is None:
             self._stop_live(entry)
             self.session.live_start_failed(lid)
-            raise
+            raise DomainError(502, "live-failed", "The live prototype did not start: its server answered no https address.")
         if not running:
             self._stop_live(entry)
             raise DomainError(409, "wrong-status", f"Live prototype {lid} was stopped while it started.", status="ended")
-        with self._live_lock:
-            self._live_begun[lid] = entry
         return {"live": lid, "status": "running"}
 
     def _stop_live(self, entry):

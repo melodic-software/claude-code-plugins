@@ -5545,7 +5545,9 @@ class TestLiveEntries(SessionCase):
         self.live_on()
         self.add()
         bad = ["/a#b", "/#me=abc", "/x?y=1#join=k", "/%23owner=abc", "/%23me=x", "//evil.example/", "https://evil.example/", "javascript:alert(1)",
-               "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/a b", "", "relative/path", "/%zz", "/\u00e9"]
+               "/\\evil.example", "/\t/evil.example", "/\n/evil.example", "/a b", "", "relative/path", "/%zz", "/\u00e9",
+               "/.//evil.example", "/..//evil.example", "/a/../..//evil.example", "/%2e%2e//evil.example/", "/%2E//evil.example", "/a//b", "/a/./b",
+               "/?owner=abc", "/x?Me=abc", "/x?a=1&join=k"]
         before = self.disk()
         for path in bad:
             with self.subTest(path=path):
@@ -5632,6 +5634,14 @@ class TestLiveEntries(SessionCase):
         self.go_running("L1", attest=True)
         self.assertTrue(self.stored("L1")["status"]["attested"])
 
+    def test_approve_checks_a_port_against_the_sessions_ports_again(self):
+        self.live_on()
+        self.apply({"op": "add-live", "label": "Dev server", "port": 5173})
+        (self.tmp / ".shared-ports.json").write_text(json.dumps({"guest": 5173, "control": 41002}), encoding="utf-8")  # moved on a restart
+        exc = self.refused("bad-field", "approve_live", HOST, {"id": "L1", "attest": True}, http=400)
+        self.assertEqual(exc.details["field"], "port")
+        self.assertEqual(self.stored("L1")["status"], {"kind": "pending"})
+
     def test_approve_while_the_tier_is_off_or_of_an_unknown_entry_is_refused(self):
         self.live_on()
         self.add()
@@ -5713,6 +5723,9 @@ class TestLiveEntries(SessionCase):
             "an id the server never makes": lambda d: d["lives"][0].update(id="X1"),
             "a running url that is not an https origin": lambda d: d["lives"][0]["status"].update(url="http://a.example/x"),
             "a folder outside staging": lambda d: d["lives"][0].update(target={"kind": "folder", "folder": "../secrets"}),
+            "running with the live tier off": lambda d: d["session"]["settings"].update(prototypeTiers=["screenshot"]),
+            "running in an ended session": lambda d: d["session"].update(phase={"kind": "ended", "at": 1.0}),
+            "a port approved without the attestation": lambda d: d["lives"][0].update(target={"kind": "port", "port": 5173}),
         }
         for why, change in cases.items():
             with self.subTest(why):

@@ -36,6 +36,7 @@ import sys
 import threading
 import time
 import unicodedata
+import urllib.parse
 import zipfile
 from pathlib import Path
 
@@ -549,6 +550,10 @@ def _live_errors(doc):
         url = e["status"].get("url")
         if url is not None and not (len(url) <= MAX_LIVE_URL and LIVE_URL.fullmatch(url)):
             errors.append(f"Live prototype {e['id'][:40]} runs at an address that is not an https origin.")
+        if e["status"]["kind"] in ("starting", "running") and (doc["session"]["phase"]["kind"] == "ended" or "live" not in prototype_tiers(doc["session"]["settings"])):
+            errors.append(f"Live prototype {e['id'][:40]} runs while live prototypes are off or the session has ended.")
+        if e["target"]["kind"] == "port" and "approvedAt" in e["status"] and not e["status"].get("attested"):
+            errors.append(f"Live prototype {e['id'][:40]} on a port was approved without the owner's attestation.")
     for q in doc["questions"]:
         for v in q["format"].get("variants", []):
             link = v.get("live")
@@ -562,6 +567,12 @@ def _live_path_error(path):
     if not isinstance(path, str) or len(path) > MAX_LIVE_PATH or not LIVE_PATH.fullmatch(path) or "%23" in path:
         return (f"A live link's path starts with one / (never //), is at most {MAX_LIVE_PATH} characters of URL path and query "
                 "characters, and holds no fragment (# or %23), scheme, space or backslash.")
+    part, _, query = path.partition("?")
+    # "." and ".." segments (escaped too) collapse when a browser resolves the path, so "/.//x" would become "//x".
+    if "//" in part or any(urllib.parse.unquote(seg) in (".", "..") for seg in part.split("/")):
+        return "A live link's path holds no empty, . or .. segment."
+    if any(k.lower() in ("me", "join", "owner") for k, _ in urllib.parse.parse_qsl(query, keep_blank_values=True)):
+        return "A live link's query holds no me, join or owner key: those name the session's identities."
     return None
 
 
@@ -3974,6 +3985,8 @@ class Session:
             if e["status"]["kind"] != "pending":
                 raise DomainError(409, "wrong-status", f"Live prototype {e['id']} is {e['status']['kind']}.", status=e["status"]["kind"])
             port = e["target"]["kind"] == "port"
+            if port:
+                self._live_port(e["target"]["port"])  # the session's own ports can move on a restart: check again
             if port and body.get("attest") is not True:
                 raise _bad("attest", "A server on a port starts only once you confirm it runs on sample data only, with writes stubbed and no credentials in its environment.")
             e["status"] = {"kind": "starting", "approvedAt": self.now(), **({"attested": True} if port else {})}

@@ -501,7 +501,7 @@
     liveLink(v) {
       const e = Core.liveOf(v);
       if (!e?.url || e.status.kind !== "running" || !/^https:\/\/[a-z0-9.-]+(:[0-9]{1,5})?$/.test(e.url)) return "";
-      try { const u = new URL(v.live.path, e.url); return u.origin === e.url && !u.hash ? u.href : ""; } catch { return ""; }
+      try { const u = new URL(v.live.path, e.url); return u.origin === e.url && !u.hash && !u.pathname.startsWith("//") ? u.href : ""; } catch { return ""; }
     },
     /** Owner: start a pending live prototype (`attest` for a server on a port), or end one. */
     approveLive: (id, attest) => act("/api/live/approve", { id, ...(attest ? { attest: true } : {}) }),
