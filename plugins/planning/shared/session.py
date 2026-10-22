@@ -48,6 +48,7 @@ if str(HERE) not in sys.path:
 if str(HERE.parent / "surface") not in sys.path:
     sys.path.append(str(HERE.parent / "surface"))
 schema = importlib.import_module("schema")
+question_shape = importlib.import_module("question_shape")
 detached = importlib.import_module("detached")
 
 HOST = "host"
@@ -677,6 +678,17 @@ def ref_author(ref):
 
 
 # -- input parsing: every route and op body goes through these before any state changes ------
+
+
+def _question_view(q):
+    """A question as the snapshot sends it: the stored one, plus the question_shape flags the page reads
+    (`withheld`, `alternatives[i].restates`) on a copy, so state.json never holds them."""
+    rec = q.get("recommendation")
+    held = question_shape.withheld(rec)
+    alts = [{**a, "restates": True} if question_shape.restates(a["text"], rec) else a for a in q["alternatives"]]
+    if not held and all(x is a for x, a in zip(alts, q["alternatives"])):
+        return q
+    return {**q, "alternatives": alts, **({"withheld": True} if held else {})}
 
 
 def _bad(field, message):
@@ -2431,6 +2443,8 @@ class Session:
             if tradeoff:
                 alt["tradeoff"] = tradeoff
             q["alternatives"].append(alt)
+            if question_shape.restates(alt["text"], rec):
+                raise _bad(f"{field}.alternatives[{i}].text", f"Alternative ({a['key']}) repeats or contains the recommendation, or the recommendation contains it.")
         if rec:
             q["recommendation"] = rec
         deps = qi["dependsOn"]
@@ -2529,9 +2543,10 @@ class Session:
         now = self.now()
         if q["format"]["kind"] == "text":
             cards = []
-            if q.get("recommendation"):
+            rec = q.get("recommendation")
+            if rec and not question_shape.withheld(rec):  # a withheld recommendation is asked open, never on a card
                 cards.append({"kind": "claude", "key": "rec", "at": now})
-                cards += [{"kind": "claude", "key": a["key"], "at": now} for a in q["alternatives"]]
+            cards += [{"kind": "claude", "key": a["key"], "at": now} for a in q["alternatives"]]
         else:
             cards = [{"kind": "option", "option": o} for o in self._options(q)]
         st["cards"][q["id"]] = cards
@@ -6119,7 +6134,7 @@ class Session:
             "settings": st["session"]["settings"],
             "rounds": st["rounds"],
             "round": {"n": cur["n"], "status": cur["status"]["kind"]} if cur else None,
-            "questions": st["questions"],
+            "questions": [_question_view(q) for q in st["questions"]],
             "cards": cards,
             "locks": st["locks"],
             "suggestions": suggestions,

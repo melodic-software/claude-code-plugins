@@ -1054,6 +1054,37 @@ class TestQuestionParsing(SessionCase):
         self.open_round(text_q("Q1"))
         self.assertEqual([session.card_ref(c) for c in self.s.state["cards"]["Q1"]], ["c:rec", "c:a", "c:b"])
 
+    def test_an_alternative_restating_the_recommendation_is_refused(self):
+        for text in ("recommended for q1", "Recommended for Q1, but only on weekdays"):
+            q = text_q("Q1")
+            q["alternatives"][1]["text"] = text
+            err = self.refused_ops("bad-field", {"op": "open-round", "questions": [q]})
+            self.assertIn("alternatives[1]", err.details["field"])
+        self.assertEqual(self.s.state["questions"], [])
+
+    def test_a_withheld_question_keeps_its_alternative_cards_and_gets_no_rec_card(self):
+        q = text_q("Q1", recommendation="Withheld: the load test on Q1 would settle it.")
+        q["alternatives"][0]["text"] = "Load test on Q1"
+        self.open_round(q)
+        self.assertEqual([session.card_ref(c) for c in self.s.state["cards"]["Q1"]], ["c:a", "c:b"])
+        self.assertEqual(self.question("Q1")["recommendation"], "Withheld: the load test on Q1 would settle it.")
+
+    def test_the_snapshot_flags_a_withheld_question_and_leaves_state_unflagged(self):
+        self.open_round(text_q("Q1", recommendation="Withheld: the load test would settle it."), text_q("Q2"))
+        snap = {q["id"]: q for q in self.s.snapshot(HOST)["questions"]}
+        self.assertIs(snap["Q1"].get("withheld"), True)
+        self.assertNotIn("withheld", snap["Q2"])
+        self.assertNotIn("withheld", self.question("Q1"))
+        self.assertNotIn("withheld", json.dumps(self.disk()))
+
+    def test_the_snapshot_flags_a_stored_alternative_that_restates_the_recommendation(self):
+        self.open_round(text_q("Q1"))
+        self.question("Q1")["alternatives"][0]["text"] = "Recommended for Q1"  # a state saved before the refusal
+        self.s._base_cache = None
+        (q,) = self.s.snapshot(HOST)["questions"]
+        self.assertEqual([a.get("restates") for a in q["alternatives"]], [True, None])
+        self.assertNotIn("restates", self.question("Q1")["alternatives"][0])
+
     def test_a_choice_question_gets_one_option_card_per_option(self):
         self.open_round(choice_q("Q1"))
         self.assertEqual([session.card_ref(c) for c in self.s.state["cards"]["Q1"]], ["o:opt-1", "o:opt-2", "o:opt-3"])
