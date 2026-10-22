@@ -15,7 +15,6 @@ BeforeAll {
         param(
             [Parameter(Mandatory)] [bool] $Elevated,
             [switch] $Quiet,
-            [string] $StateBase,
             [string[]] $Coverage = @()
         )
         $writer = [System.IO.StringWriter]::new()
@@ -23,8 +22,7 @@ BeforeAll {
         try {
             [Console]::SetError($writer)
             Write-ElevationBanner -Elevated $Elevated -HostName 'HOST' `
-                -UserName 'DOMAIN\user' -OutputBase 'C:\out' `
-                -StateBase $StateBase -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix) `
+                -UserName 'DOMAIN\user' -Matrix @(Get-ElevationMatrix) `
                 -NonElevatedCoverage $Coverage -Quiet:$Quiet
         } finally {
             [Console]::SetError($saved)
@@ -41,11 +39,13 @@ Describe 'Write-ElevationBanner' -Tag 'lib' {
         $err | Should -Match 'Suppress this banner with -SkipBanner'
     }
 
-    It 'captures the elevated rerun to a transcript under the state root' {
-        $err = Invoke-BannerCapture -Elevated $false -StateBase 'C:\state'
-        $err | Should -Match ([regex]::Escape("Start-Transcript -Path 'C:\state\logs\elevated-run-"))
-        $err | Should -Match 'elevated-run-\d{4}-\d{2}-\d{2}\.log'
-        $err | Should -Match ([regex]::Escape("-StateBase 'C:\state'"))
+    It 'points to the session-driven elevated pass and prints no command to run' {
+        $err = Invoke-BannerCapture -Elevated $false
+        $err | Should -Match ([regex]::Escape(' To run elevated:'))
+        $err | Should -Match 'Ask the session that ran this audit for the elevated pass'
+        $err | Should -Match 'SHA-256'
+        $err | Should -Not -Match 'Start-Transcript'
+        $err | Should -Not -Match 'pwsh '
     }
 
     It 'lists each derived coverage label under Covered non-elevated' {
@@ -83,6 +83,8 @@ Describe 'Get-ElevationCoverageMarkdown' -Tag 'lib' {
         $md | Should -Match '<details>'
         $md | Should -Match 'admin-gated capabilities skipped'
         $md | Should -Match 'SMART disk reliability counters'
+        $md | Should -Match 'elevated pass'
+        $md | Should -Not -Match 'transcript'
     }
 
     It 'returns a placeholder when matrix is empty' {

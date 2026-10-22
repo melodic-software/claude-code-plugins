@@ -118,10 +118,12 @@ BODY_MERGE_HOLD_RE = re.compile(
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
 MERGE_HOLD_LABELS = ("do-not-merge",)
-# `adoption.idle-hours` when absent; a value outside 1 to
-# `MAX_ADOPTION_IDLE_HOURS` adopts nothing.
-ADOPTION_IDLE_HOURS = 24
+# An `adoption.idle-hours` value outside 1 to `MAX_ADOPTION_IDLE_HOURS`, or
+# none, adopts nothing.
 MAX_ADOPTION_IDLE_HOURS = 720
+# Whose pull requests the pr-merge lane adopts: every account on this list,
+# by id (`trusted_actor_ids`).
+TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 RUNG_CAP_VARIABLE = "CLAUDE_LANES_MERGE_RUNG_CAP"
 ORG_SWITCH = "CLAUDE_LANES_DISABLED"
 REPO_SWITCH = "CLAUDE_LANES_REPO_DISABLED"
@@ -574,17 +576,17 @@ class PipelineConfig:
     # The default branch head's `merge.check-inputs` not in `check_inputs`,
     # set by `stricter_config` and read on its own.
     head_check_inputs: tuple[str, ...] = ()
-    # `adoption.idle-hours`: how long an owner pull request's update and head
-    # commit must be idle before the pr-merge lane adopts it
-    # (`adoption_refusal`). Absent is `ADOPTION_IDLE_HOURS`; anything but a
-    # whole number from 1 to `MAX_ADOPTION_IDLE_HOURS` is None, which adopts
-    # nothing. `stricter_config` takes the
-    # default branch head's.
-    adoption_idle_hours: int | None = ADOPTION_IDLE_HOURS
-    # `adoption.owner-ids`: the account ids whose pull requests may be
-    # adopted. Absent, null, empty, or a list with an entry that is not a
-    # whole number is empty, which adopts nothing. The default branch head's.
-    adoption_owner_ids: tuple[int, ...] = ()
+    # `adoption.idle-hours`: how long a person's pull request's update and
+    # head commit must be idle before the pr-merge lane adopts it
+    # (`adoption_refusal`). Absent, or anything but a whole number from 1 to
+    # `MAX_ADOPTION_IDLE_HOURS`, is None, which adopts nothing.
+    # `stricter_config` takes the default branch head's.
+    adoption_idle_hours: int | None = None
+    # `adoption.spec-from-body-apps`: the App ids whose pull request bodies a
+    # script writes, so an adopted one closing no issue here is judged
+    # against its title and body, as a person's is. Any other App needs a
+    # closing issue. An entry that is not an id empties it. Main's.
+    spec_from_body_apps: tuple[int, ...] = ()
     # `merge.quarantine-days`: days a quarantined suite's failures on the
     # default branch stop demoting (`babysit_postmerge`). Absent, or anything
     # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
@@ -734,7 +736,7 @@ def read_config_at(
             ("merge.max-verify-fails", False),
             ("merge.check-inputs", True),
             ("adoption.idle-hours", False),
-            ("adoption.owner-ids", True),
+            ("adoption.spec-from-body-apps", True),
             ("merge.quarantine-days", False),
             ("red-main.confirm-wait-minutes", False),
         ],
@@ -822,7 +824,7 @@ def read_config_at(
         )
         verify_fails = "1"
     idle_text = scalar("adoption.idle-hours")
-    idle_hours: int | None = ADOPTION_IDLE_HOURS
+    idle_hours: int | None = None
     if idle_text is not None:
         idle_hours = (
             int(idle_text) if re.fullmatch(r"[1-9][0-9]{0,2}", idle_text) else None
@@ -833,13 +835,13 @@ def read_config_at(
                 f"to {MAX_ADOPTION_IDLE_HOURS}; nothing is adopted"
             )
             idle_hours = None
-    owner_ids = tuple(values["adoption.owner-ids"])
-    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in owner_ids):
+    body_apps = tuple(values["adoption.spec-from-body-apps"])
+    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in body_apps):
         notes.append(
-            f"adoption.owner-ids {list(owner_ids)!r} holds an entry that is not an "
-            "account id; nothing is adopted"
+            f"adoption.spec-from-body-apps {list(body_apps)!r} holds an entry that "
+            "is not an account id; every App needs a closing issue"
         )
-        owner_ids = ()
+        body_apps = ()
     quarantine_days = scalar("merge.quarantine-days")
     if quarantine_days is not None and not (
         re.fullmatch(r"[1-9][0-9]?", quarantine_days)
@@ -886,7 +888,7 @@ def read_config_at(
         max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
         check_inputs=tuple(values["merge.check-inputs"]),
         adoption_idle_hours=idle_hours,
-        adoption_owner_ids=tuple(int(i) for i in owner_ids),
+        spec_from_body_apps=tuple(int(i) for i in body_apps),
         quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
         confirm_wait_minutes=int(confirm_wait)
         if confirm_wait is not None
@@ -966,7 +968,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         max_in_flight=min(base.max_in_flight, main.max_in_flight),
         # Read at main (owner decision Q22).
         adoption_idle_hours=main.adoption_idle_hours,
-        adoption_owner_ids=main.adoption_owner_ids,
+        spec_from_body_apps=main.spec_from_body_apps,
     )
 
 
@@ -1037,8 +1039,8 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                 or count(c.adoption_idle_hours, 1)
                 and c.adoption_idle_hours <= MAX_ADOPTION_IDLE_HOURS
             )
-            and isinstance(c.adoption_owner_ids, tuple)
-            and all(count(i, 1) for i in c.adoption_owner_ids)
+            and isinstance(c.spec_from_body_apps, tuple)
+            and all(count(i, 1) for i in c.spec_from_body_apps)
         )
     except (TypeError, ValueError):
         return None
@@ -1554,6 +1556,11 @@ class Eligibility:
     # Why the pr-merge lane adopted a pull request it did not open
     # (`adoption_refusal`), else None.
     adoption: str | None = None
+    # An adopted pull request whose author is a person or an App in
+    # `adoption.spec-from-body-apps`: its title and body may be its intent,
+    # and its own lines skip the path floor (`own_paths`). Any other App's
+    # own lines skip it only under `MODEL_APP_OWN`.
+    body_is_intent: bool = False
 
 
 def _label_names(node: dict[str, Any]) -> list[str] | None:
@@ -1809,6 +1816,10 @@ def eligibility(
     return Eligibility(True, None, work_class, issue_number)
 
 
+# `_closing_issue` refusals that mean no closing issue in this repository.
+NO_ISSUE_HERE = ("linked-issues:0", "linked-issue-other-repository")
+
+
 def _closing_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str | None]:
     """(the issue, None) for a pull request with exactly one closing issue in
     this repository, else ({}, the refusal)."""
@@ -1948,6 +1959,38 @@ def _denied_path_refusal(
 
 
 AUTHOR_NOT_OWNER = "author-not-owner"
+# `trusted_actors` by (repo, ref), read once a run.
+_TRUSTED_IDS: dict[tuple[str, ...], tuple[tuple[int, ...], tuple[int, ...]]] = {}
+
+
+def trusted_actors(
+    repo: str, ref: str, exclude: Collection[str] = ()
+) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Every account id on `TRUSTED_ACTORS_PATH` at `ref`, people and Apps
+    alike (whose pull requests the lane adopts), but those whose login
+    (`_login_key`) is in `exclude`, and the ids of kind `human` (the people;
+    a GitHub User may be a model's account). A list that cannot be read or
+    does not match its schema is empty, which adopts nothing."""
+    key = (repo, ref, *sorted(exclude))
+    if key not in _TRUSTED_IDS:
+        owner, name = _split_repo(repo)
+        try:
+            listing = json_object(
+                json.loads(_file_at(owner, name, TRUSTED_ACTORS_PATH, ref) or "{}")
+            )
+        except (PolicyReadError, ValueError):
+            listing = {}
+        actors = [json_object(a) for a in json_array(listing.get("actors"))]
+        ids = tuple(a.get("id") for a in actors)
+        valid = listing.get("version") == 1 and all(
+            type(i) is int and i > 0 for i in ids
+        )
+        humans = tuple(a["id"] for a in actors if a.get("kind") == "human")
+        kept = tuple(
+            a.get("id") for a in actors if _login_key(a.get("login")) not in exclude
+        )
+        _TRUSTED_IDS[key] = (kept, humans) if valid else ((), ())
+    return _TRUSTED_IDS[key]
 
 
 def adoption_refusal(
@@ -1961,17 +2004,19 @@ def adoption_refusal(
     queued_at_head: Callable[[], bool] = lambda: False,
 ) -> str | None:
     """Why the pr-merge lane does not adopt this REST pull request, or None
-    when it does (owner decision Q22): not a draft; opened by an owner
-    account, a User whose id is in `owner_ids` (never matched by login); its
-    `updated_at` and its head commit's committer date, `head_committed()`,
-    read last, both at least `idle_hours` old, an unreadable one not idle;
-    and no hold: a `MERGE_HOLD_LABELS` label, the resolved `human_gated` role
-    label, or a body hold (`BODY_MERGE_HOLD_RE`). A fresh `updated_at` is
-    excused while `queued_at_head()` (`lane_queued_at_head`), read only
-    then: the lane's own pin comment and enqueue refresh it."""
+    when it does (owner decisions Q22 and 2026-10-22): not a draft; opened by
+    a User or Bot whose id is in `owner_ids` (`trusted_actor_ids`; never
+    matched by login); for a User, its `updated_at` and its head commit's
+    committer date, `head_committed()`, read last, both at least
+    `idle_hours` old, an unreadable one not idle; and no hold: a
+    `MERGE_HOLD_LABELS` label, the resolved `human_gated` role label, or a
+    body hold (`BODY_MERGE_HOLD_RE`). A fresh `updated_at` is excused while
+    `queued_at_head()` (`lane_queued_at_head`), read only then: the lane's
+    own pin comment and enqueue refresh it."""
     user = json_object(pr.get("user"))
     uid = user.get("id")
-    if user.get("type") != "User" or type(uid) is not int or uid not in owner_ids:
+    kind = user.get("type")
+    if kind not in ("User", "Bot") or type(uid) is not int or uid not in owner_ids:
         return AUTHOR_NOT_OWNER
     if pr.get("draft") is not False:
         return "draft"
@@ -1997,6 +2042,8 @@ def adoption_refusal(
         except PolicyReadError:
             return False
 
+    if kind == "Bot":
+        return None
     if not idle(lambda: pr.get("updated_at")) and not queued_at_head():
         return "updated-fresh"
     if not idle(head_committed):
@@ -2051,6 +2098,7 @@ def lane_eligibility(
     permission: Permission | None = None,
     adoption_idle_hours: int | None = None,
     adoption_owner_ids: Collection[int] = (),
+    spec_from_body_ids: Collection[int] = (),
     human_gated: str | None = None,
     now: datetime | None = None,
     queued_at_head: Callable[[], bool] = lambda: False,
@@ -2071,6 +2119,7 @@ def lane_eligibility(
     owner, name = _split_repo(repo)
     issue_number = None
     adoption = None
+    body_is_intent = False
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
@@ -2099,6 +2148,14 @@ def lane_eligibility(
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
+        # An adopted pull request closing no issue here is its own intent,
+        # the verifier judging its title and body (owner decision 2026-10-22),
+        # when a person or a script wrote them (`spec_from_body_ids`: the
+        # trusted list's kind human ids and adoption.spec-from-body-apps); a
+        # model-written body would be the spec the same run grades itself
+        # against, whatever the account's GitHub type.
+        body_is_intent = json_object(pr.get("user")).get("id") in spec_from_body_ids
+        if refusal is None or adoption and body_is_intent and refusal in NO_ISSUE_HERE:
             refusal = _base_refusal(owner, name, node, shared=True)
         if refusal is None:
             refusal = _denied_path_refusal(
@@ -2107,7 +2164,12 @@ def lane_eligibility(
     except PolicyReadError as exc:
         return Eligibility(False, f"unreadable: {exc}")
     return Eligibility(
-        refusal is None, refusal, LANE_CLASS, issue_number, adoption=adoption
+        refusal is None,
+        refusal,
+        LANE_CLASS,
+        issue_number,
+        adoption=adoption,
+        body_is_intent=bool(adoption) and body_is_intent,
     )
 
 
@@ -2515,6 +2577,8 @@ def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | No
         if not node:
             return "pull-request-unreadable"
         found, refusal = _closing_issue(node, repo)
+        if issue is None and refusal in NO_ISSUE_HERE:
+            return _base_refusal(owner, name, node)
         if refusal:
             return refusal
         if found["number"] != issue:
@@ -3283,6 +3347,123 @@ def changed_files(
     }
     return _changed_files(
         owner, name, shaped, str(json_object(pr.get("base")).get("sha"))
+    )
+
+
+# GitHub's web-flow account, which commits what an App writes through the API.
+WEB_FLOW_ID = 19864447
+
+
+def _own_commit(commit: Mapping[str, Any], user: Mapping[str, Any]) -> bool:
+    """Whether a pull request commit is its author's own: GitHub verified
+    its signature, its author account is the pull request's author, and,
+    for a person, so is its committer. The author account alone comes from
+    the git author email, which anyone can set. An App commits through the
+    API, which GitHub's web-flow (`WEB_FLOW_ID`) commits, so its committer
+    may be web-flow or itself: the weaker case."""
+    author = json_object(commit.get("author")).get("id")
+    committer = json_object(commit.get("committer")).get("id")
+    verified = json_object(
+        json_object(json_object(commit.get("commit")).get("verification"))
+    ).get("verified")
+    allowed = (author, WEB_FLOW_ID) if user.get("type") == "Bot" else (author,)
+    return verified is True and author == user.get("id") and committer in allowed
+
+
+def foreign_paths(
+    repo: str, pr: Mapping[str, Any], changed: Collection[str]
+) -> frozenset[str] | None:
+    """The `changed` paths (the pull request's, both sides of a rename) that
+    a commit not its author's own (`_own_commit`) touched: what an adopted
+    pull request's floor scores (owner decision 2026-10-22: a trusted
+    author's own lines, a person's or an App's, need no person; a lane's fix
+    still does, and the lanes App's own pull requests, never adopted, are
+    scored whole). A merge commit counts too, intersected with `changed`, so
+    main's incoming files outside the pull request's diff score nothing
+    while a conflict resolved inside it scores. None, which scores every
+    path, when a listing may be cut off or cannot be read."""
+    owner, name = _split_repo(repo)
+    user = json_object(pr.get("user"))
+    try:
+        commits = _paginated(
+            f"repos/{owner}/{name}/pulls/{pr.get('number')}/commits?per_page=100",
+            f"#{pr.get('number')} commits",
+        )
+        if type(user.get("id")) is not int or len(commits) >= 250:
+            return None
+        paths: set[str] = set()
+        for commit in commits:
+            if _own_commit(commit, user):
+                continue
+            status, payload = _get(f"repos/{owner}/{name}/commits/{commit.get('sha')}")
+            files = json_array(json_object(payload).get("files"))
+            if status != 200 or len(files) >= 300:
+                return None
+            for entry in map(json_object, files):
+                paths.update(
+                    p
+                    for p in (entry.get("filename"), entry.get("previous_filename"))
+                    if isinstance(p, str) and p
+                )
+    except PolicyReadError:
+        return None
+    return frozenset(paths.intersection(changed))
+
+
+# Paths never a trusted author's own, whoever wrote them (S&C review of
+# #9107): who is trusted, what CI runs with tokens (pr-verify runs
+# .github/scripts, actions and standards code from main), and who must review.
+NEVER_FLOOR_EXEMPT = (
+    ".github/standards/**",
+    ".github/workflows/**",
+    ".github/scripts/**",
+    ".github/actions/**",
+    # Owner decision 2026-10-20 (Gated PR Merge clause 5): the merge gate,
+    # the review lanes and agent permission config, even in his own PRs; the
+    # rest of that config is `INSTRUCTION_PATH_RE`.
+    "plugins/source-control/skills/babysit-prs/**",
+    "plugins/review/**",
+    "docs/conventions/**",
+    "REVIEW.md",
+    "**/settings*.json",
+)
+# The instruction and runnable-plugin paths (CLAUDE.md, AGENTS.md, .mcp.json,
+# .lsp.json, .gitmodules, CODEOWNERS, .claude/ and .claude-plugin/
+# directories, plugins/*/hooks, monitors and bin): the twin of
+# .github/scripts/pr-unblock/thread-scope.mjs INSTRUCTION_PATH, which a test
+# holds equal. Never floor-exempt either.
+INSTRUCTION_PATH_RE = re.compile(
+    r"(^|\/)((claude|agents)\.md|\.mcp\.json|\.lsp\.json|\.gitmodules|codeowners)$|(^|\/)\.claude(-plugin)?(\/|$)|(^|\/)plugins\/[^/]+\/(hooks|monitors|bin)(\/|$)",
+    re.I,
+)
+
+
+# A model-driven App's own lines skip the floor only here (owner decision
+# Q14 (c), #9107), still less the paths above. Not top-level scripts/:
+# credentialed jobs on main run it (release-publish-plugins.yml).
+MODEL_APP_OWN = ("plugins/*/scripts/**",)
+
+
+def own_paths(
+    repo: str,
+    pr: Mapping[str, Any],
+    changed: Collection[str],
+    only: tuple[str, ...] | None = None,
+) -> frozenset[str]:
+    """The `changed` paths only the author's own commits touched
+    (`foreign_paths`), less `NEVER_FLOOR_EXEMPT` and `INSTRUCTION_PATH_RE`,
+    and inside `only` when given: what the path floor leaves out of an
+    adopted pull request. Empty when the commits cannot be read."""
+    others = foreign_paths(repo, pr, changed)
+    if others is None:
+        return frozenset()
+    return frozenset(
+        p
+        for p in changed
+        if p not in others
+        and not INSTRUCTION_PATH_RE.search(p)
+        and not any(glob_match(g, p) for g in NEVER_FLOOR_EXEMPT)
+        and (only is None or any(glob_match(g, p) for g in only))
     )
 
 
@@ -4164,13 +4345,26 @@ def assess(
         }
     elif lane:
         promo = Promotion(None, "not-read-in-pr-merge-lane")
+        # The trusted list at the default branch head, as its config is read
+        # (owner decision Q22): a stacked pull request's base is its author's.
+        trusted: tuple[tuple[int, ...], tuple[int, ...]] = ((), ())
+        if config.adoption_idle_hours is not None:
+            try:
+                head = _default_branch_config(repo, default).base_sha
+                # Never adopted: the lanes App (its own path) and Dependabot
+                # (its tier and review-dependency), by login on the list.
+                skip = {_login_key(inputs["identity"]), "dependabot"}
+                trusted = trusted_actors(repo, head, exclude=skip)
+            except (PolicyReadError, StopReadError):
+                pass
         eligible = lane_eligibility(
             repo,
             number,
             pr=pr,
             denied_paths=config.denied_paths,
             adoption_idle_hours=config.adoption_idle_hours,
-            adoption_owner_ids=config.adoption_owner_ids,
+            adoption_owner_ids=trusted[0],
+            spec_from_body_ids=(*trusted[1], *config.spec_from_body_apps),
             human_gated=human_gated,
             queued_at_head=lambda: lane_queued_at_head(
                 repo,

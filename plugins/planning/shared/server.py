@@ -248,7 +248,10 @@ ROUTES = {
     "/api/report": ("person", "report"),
     "/api/report/act": ("owner", "act_on_report"),
     "/api/report/add": ("person", "add_to_report"),
+    "/api/live/approve": ("owner", "approve_live"),
+    "/api/live/stop": ("owner", "stop_live"),
 }
+LIVE_ENDERS = {"stop_live", "update_settings", "end_session"}  # the routes that can end a live prototype
 UPLOAD_CHUNK = "/api/upload/chunk"
 UPLOAD_IMAGE = "/api/upload/image"
 CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chunk-Total", "sha256": "X-Chunk-Sha256", "fileSha256": "X-File-Sha256"}
@@ -284,6 +287,22 @@ def client_fields(body):
     if not out["message"]:
         raise DomainError(400, "empty", "message is empty.", field="message")
     return out
+
+
+class NoLiveStarter:
+    """The live starter: what starts a live prototype the owner approved and stops it again. `start(entry)` gets the
+    stored entry (session.py liveEntry: its id, its build folder or port) and answers the https origin guests open, or
+    raises; `stop(entry)` ends whatever start began. This build starts no process, so Approve answers 503 and the
+    entry keeps waiting; tests hand App.live_starter their own."""
+
+    def start(self, entry):
+        raise DomainError(503, "live-unavailable", "This build cannot start a live prototype yet, so it keeps waiting.")
+
+    def stop(self, entry):
+        pass
+
+
+LIVE_STARTER = NoLiveStarter()
 
 
 class StartRefused(Exception):
@@ -909,6 +928,15 @@ class GuestHandler(BaseHTTPRequestHandler):
             app.write_owner_link()
         if method in ("rotate_owner_link", "revoke_device", "end_session"):
             app._asset_key = secrets.token_bytes(32)  # an asset cookie names the host, not the device: every one ends
+        if method == "approve_live":
+            app.changed()  # the entry reads starting while it starts
+            try:
+                out = app.start_live(out)
+            except DomainError as exc:
+                app.changed()
+                return self.fail(exc)
+        if method in LIVE_ENDERS:
+            app.stop_ended_lives()
         app.changed()
         return self.send(200, {"ok": True, **out})
 
@@ -1026,6 +1054,8 @@ class App:
         self._stop = threading.Event()
         self._chunk_lock, self._chunk_readers = threading.Lock(), set()
         self._probe_lock, self._probes = threading.Lock(), {}  # nonce asked -> (answer, expiry)
+        self.live_starter = LIVE_STARTER
+        self._live_lock, self._live_begun = threading.Lock(), {}  # live id -> the entry its starter began, until stopped
         self.guest = GuestServer(("127.0.0.1", guest_port), GuestHandler)
         self.guest.app = self
         self.guest_port = self.guest.server_address[1]
@@ -1038,6 +1068,53 @@ class App:
         self.write_owner_link()
         self.sync_tunnel(restart=False)  # a tunnel start can outlast share.py's wait for this one: share.py or the watch starts it
         self.log.info("started: guest %d, control %d, build %s", self.guest_port, self.control_port, self.build)
+
+    def start_live(self, approved):
+        """Start the live prototype approve_live marked starting, outside the state lock: the starter answers its https
+        origin, which session.py checks before the entry runs. A start that fails, or answers no https origin, stops what
+        it began and leaves the entry waiting for Approve again (502); one the owner ended meanwhile is stopped."""
+        lid, entry = approved["live"], approved["entry"]
+        try:
+            url = self.live_starter.start(entry)
+        except DomainError:
+            self.session.live_start_failed(lid)
+            raise
+        except Exception:
+            self.log.exception("live %s: the start failed", lid)
+            self._stop_live(entry)
+            self.session.live_start_failed(lid)
+            raise DomainError(502, "live-failed", "The live prototype did not start; it waits for Approve again.") from None
+        with self._live_lock:  # held from running to recorded, so an end landing between them still finds it to stop
+            try:
+                running = self.session.live_started(lid, url)
+            except DomainError:
+                running = None
+            if running:
+                self._live_begun[lid] = entry
+        if running is None:
+            self._stop_live(entry)
+            self.session.live_start_failed(lid)
+            raise DomainError(502, "live-failed", "The live prototype did not start: its server answered no https address.")
+        if not running:
+            self._stop_live(entry)
+            raise DomainError(409, "wrong-status", f"Live prototype {lid} was stopped while it started.", status="ended")
+        return {"live": lid, "status": "running"}
+
+    def _stop_live(self, entry):
+        try:
+            self.live_starter.stop(entry)
+        except Exception:  # a stop that fails is logged; the entry has ended either way
+            self.log.exception("live %s: the stop failed", entry["id"])
+
+    def stop_ended_lives(self):
+        """Stop each live prototype the starter began whose entry is no longer running (Stop, the live tier turned off,
+        the session ended)."""
+        with self._live_lock:
+            done = {lid: e for lid, e in self._live_begun.items() if self.session.live_status(lid) != "running"}
+            for lid in done:
+                del self._live_begun[lid]
+        for entry in done.values():
+            self._stop_live(entry)
 
     @contextlib.contextmanager
     def reading_chunk(self, pid):

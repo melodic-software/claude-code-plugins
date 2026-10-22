@@ -6389,7 +6389,7 @@
       citeChips.hidden = !citeChips.children.length;
     }
 
-    const OFF_NAME = { screenshot: "screenshots off", snapshot: "HTML snapshots off" };
+    const OFF_NAME = { screenshot: "screenshots off", snapshot: "HTML snapshots off", live: "live prototypes off" };
     /** Q98: the preview tile (the first picture variant, else a plain tile) and the link to the prototype's own page.
      *  With every view off for this guest (prototypeTiers) the question shows as text with a note; the owner, who still
      *  sees every view, is told which ones guests do not get. */
@@ -6397,7 +6397,7 @@
       protoBox.hidden = q.formatKind !== "prototype";
       if (protoBox.hidden) return;
       const vs = q.variants || [], views = vs.map(v => Core.viewsOf(v)), pic = views.map(w => w.shots[0]).find(Boolean) || "";
-      const off = !views.some(w => w.shots.length || w.snapshot), hidden = Core.me.isOwner ? vs.filter(v => Core.viewsOff(v).length) : [];
+      const off = !views.some(w => w.shots.length || w.snapshot || w.live), hidden = Core.me.isOwner ? vs.filter(v => Core.viewsOff(v).length) : [];
       protoTile.hidden = protoGo.hidden = off;
       protoLook.hidden = !q.lookAt;
       protoLookText.textContent = q.lookAt || "";

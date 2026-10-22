@@ -512,3 +512,5 @@ jobs:
       app-label: agent-ready
       reuse-branch: ${{ needs.resolve-issue.outputs.reuse-branch }}
       runner-checks: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
+      # Why apply-issue-patch committed nothing, so the hand-back names it.
+      escalation-reason: ${{ needs.apply-issue-patch.outputs.escalation-reason }}

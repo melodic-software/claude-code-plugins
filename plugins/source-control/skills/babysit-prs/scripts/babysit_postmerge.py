@@ -199,6 +199,22 @@ class PostMergeReadError(RuntimeError):
     """A GitHub read the verdict depends on failed or returned an unknown shape."""
 
 
+HOLD_UNLISTED_RECORD = "unlisted-record"
+HOLD_RECOVERY_UNRECORDED = "recovery-unrecorded"
+
+
+class UnlistedRecordHold(PostMergeReadError):
+    """A github-actions[bot] dispatch by the deadline whose record listing read
+    empty twice, with no recorded lane run after the deadline completed.
+    `hold` names the case for the report; `dispatch`: no bot dispatch after
+    the deadline exists yet, so the one fresh run is asked for."""
+
+    def __init__(self, message: str, *, hold: str, dispatch: bool = False) -> None:
+        super().__init__(message)
+        self.hold = hold
+        self.dispatch = dispatch
+
+
 class PostMergeWriteError(RuntimeError):
     """A remediation write failed."""
 
@@ -268,6 +284,10 @@ class PostMergeVerdict:
     # The branch judged: the caller's, or the repository's default branch.
     branch: str | None = None
     quarantines: tuple[Quarantine, ...] = ()
+    # Unreadable on an `UnlistedRecordHold`: its kind, and whether it asks
+    # for a fresh run.
+    hold: str | None = None
+    recover_dispatch: bool = False
 
     @property
     def ok(self) -> bool:
@@ -277,8 +297,9 @@ class PostMergeVerdict:
     def needs_dispatch(self) -> bool:
         """An unverified auto-merge has no identity dispatch run covering it.
         One run on the branch tip covers every earlier merge."""
-        return self.readable and any(
-            not s.verified and not s.dispatch_covered for s in self.merges
+        return self.recover_dispatch or (
+            self.readable
+            and any(not s.verified and not s.dispatch_covered for s in self.merges)
         )
 
     def is_verified(self, merge: Any) -> bool:
@@ -294,6 +315,7 @@ class PostMergeVerdict:
             "ok": self.ok,
             "readable": self.readable,
             "reason": self.reason,
+            "hold": self.hold,
             "autoMerges": [
                 {
                     "number": s.merge.number,
@@ -1587,18 +1609,45 @@ def _judge(
             and ctx.lane_unlisted(run)
         ]
         if unlisted:
-            raise PostMergeReadError(
-                f"#{merge.number}: the record listing of run {unlisted[0].id} "
-                "read empty twice"
+            # Every `own` run here was created after the deadline. A completed
+            # recorded lane run (github-actions[bot], on the branch, containing
+            # the merge) is a complete read, so the runs above judge the merge:
+            # one that passes clears it, a red one is its failure, and a red
+            # attempt 1 waits for the lane's re-run. With none completed the
+            # hold stands. It asks for one fresh run per merge: any bot
+            # dispatch after the deadline, recorded or not, spends it, so
+            # failing record uploads cannot dispatch every sweep.
+            late = [r for r in own if ctx.lane_dispatched(r)]
+            if all(ctx.outcome(r, attributable=True)[0] == PENDING for r in late):
+                bot_late = [
+                    r
+                    for signal, r in fulls
+                    if signal == SIGNAL_DISPATCH
+                    and r.actor == LANE_DISPATCH_ACTOR
+                    and r.created_at > deadline
+                ]
+                message = (
+                    f"#{merge.number}: the record listing of run {unlisted[0].id} "
+                    "read empty twice"
+                )
+                if bot_late and not late:
+                    raise UnlistedRecordHold(
+                        f"{message}, and recovery run {bot_late[0].id} has no "
+                        "record either",
+                        hold=HOLD_RECOVERY_UNRECORDED,
+                    )
+                raise UnlistedRecordHold(
+                    message, hold=HOLD_UNLISTED_RECORD, dispatch=not bot_late
+                )
+        else:
+            failures.append(
+                Failure(
+                    SIGNAL_DISPATCH,
+                    merge,
+                    None,
+                    "no dispatch run by the agent identity within 6 h",
+                )
             )
-        failures.append(
-            Failure(
-                SIGNAL_DISPATCH,
-                merge,
-                None,
-                "no dispatch run by the agent identity within 6 h",
-            )
-        )
 
     tally.failures.extend(failures)
     verified = verified_at is not None and not failures and not pending
@@ -1744,7 +1793,13 @@ def check(
         if lane_merges_only:
             warnings += _lane_reruns(ctx, now, tally)
     except (PostMergeReadError, policy.PolicyReadError) as exc:
-        return PostMergeVerdict(False, f"unreadable: {exc}")
+        held = exc if isinstance(exc, UnlistedRecordHold) else None
+        return PostMergeVerdict(
+            False,
+            f"unreadable: {exc}",
+            hold=held.hold if held else None,
+            recover_dispatch=bool(held and held.dispatch),
+        )
     return PostMergeVerdict(
         True,
         merges=states,

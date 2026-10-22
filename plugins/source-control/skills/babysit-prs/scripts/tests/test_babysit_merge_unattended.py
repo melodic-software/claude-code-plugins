@@ -861,6 +861,63 @@ class LaneMode(Unattended):
             *flags,
         )
 
+    def test_an_adopted_pr_scores_only_paths_its_author_did_not_write(self) -> None:
+        # Owner decision 2026-10-22: a trusted author's own floor lines need
+        # no person; a floor path a lane commit touched still holds.
+        self.files = ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)
+        self.lane_eligible = policy.Eligibility(
+            True, None, "C2", 41, adoption="idle-owner:24h", body_is_intent=True
+        )
+        for others, score in (
+            (frozenset(), "LOW"),
+            (frozenset({".github/x.yml"}), "HIGH"),
+            (None, "HIGH"),
+        ):
+            with (
+                self.subTest(others=others),
+                mock.patch.object(policy, "foreign_paths", return_value=others),
+            ):
+                _, out = self.lane()
+                self.assertEqual(out["unattended"]["risk"]["score"], score)
+        # A lane PR is scored whole like the lanes App's own.
+        self.lane_eligible = policy.Eligibility(True, None, "C2", 41)
+        with mock.patch.object(
+            policy, "foreign_paths", side_effect=AssertionError("read")
+        ):
+            _, out = self.lane()
+        self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
+
+    def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
+        # Owner decision Q14 (c): a model-driven App's own plugins/*/scripts/
+        # lines need no person; its other floor paths still score, top-level
+        # scripts/ included (credentialed jobs on main run it).
+        self.config = dataclasses.replace(self.config, high_path_floor=True)
+        self.lane_eligible = policy.Eligibility(
+            True, None, "C2", 41, adoption="trusted-app"
+        )
+        own, held = (
+            ("plugins/p/scripts/x.md",),
+            (
+                "scripts/release-plugins.sh",
+                "plugins/p/hooks/x.md",
+                ".github/x.md",
+                "plugins/p/skills/s/scripts/x.md",
+            ),
+        )
+        self.files = (
+            tuple(dataclasses.replace(LOW_FILE, path=p) for p in (*own, *held)),
+            True,
+        )
+        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
+            _, out = self.lane()
+        scored = {
+            path
+            for r in out["unattended"]["risk"]["reasons"]
+            if r["code"].startswith("high-path:")
+            for path in r["detail"].split(", ")
+        }
+        self.assertEqual(scored, set(held))
+
     def test_the_lane_takes_the_rung_cap_from_the_workflow(self) -> None:
         code, out = self.lane()
         self.assertEqual(code, 0, out["blockers"])

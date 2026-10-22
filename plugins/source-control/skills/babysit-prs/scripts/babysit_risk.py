@@ -211,6 +211,9 @@ class RiskInput:
     # The owner decision the caller verified for a `cost-review-required`
     # change (its comment URL); None keeps the hold.
     cost_decision: str | None = None
+    # Paths only a trusted author's own commits touched: the path floor and
+    # the manifest review leave them out (owner decision 2026-10-22).
+    floor_exempt: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -1393,7 +1396,9 @@ def _high_path_reasons(
     reasons = []
     if unsafe:
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
-    paths = [path for f in files for path in f.paths if path]
+    paths = [
+        path for f in files for path in f.paths if path and path not in inp.floor_exempt
+    ]
     evals = {
         p
         for f, raw in zip(files, raw_files)
@@ -1429,7 +1434,9 @@ def _high_path_reasons(
     review = [
         f"{f.path}: {', '.join(changes)}"
         for f, raw in zip(files, raw_files)
-        if f.path in manifests and (changes := _manifest_changes(f, raw))
+        if f.path in manifests
+        and f.path not in inp.floor_exempt
+        and (changes := _manifest_changes(f, raw))
     ]
     if review:
         reasons.append(Reason(_MANIFEST_CODE, Risk.HIGH, "; ".join(review)))
