@@ -89,7 +89,6 @@ const DEFAULT_RUN = {
 
 for (const [lane, activity] of [
   ["pr-unblock", "resolve-conflicts"],
-  ["pr-unblock", "address-feedback"],
   ["pr-unblock", "review-dependency"],
 ]) {
   test(`live config: ${lane} / ${activity} keeps no --model and 75 turns`, () => {
@@ -442,19 +441,23 @@ for (const [route, profile, args] of [
 // (plugins/multi-agent/reference/defaults.yaml): worker's model is inherit and
 // its mechanical workload sonnet, verifier's effort high; the owner's rule
 // sends inherit, and any role route that resolves no alias, to opus.
-test("live config: fix-ci runs as a worker on code, opus at the verifier's effort, 75 turns", () => {
-  const slot = liveSlot("pr-unblock", "fix-ci");
-  assert.deepEqual(slot.models, {
-    profile: "code-fix",
-    role: "worker",
-    workload: "code",
-    model: "opus",
-    effort: "high",
-    "subagent-model": "inherit",
-    "max-turns": 75,
+// address-feedback runs on run-claude-cli, which cannot pass the default
+// model, so it takes fix-ci's code-fix route.
+for (const activity of ["fix-ci", "address-feedback"]) {
+  test(`live config: ${activity} runs as a worker on code, opus at the verifier's effort, 75 turns`, () => {
+    const slot = liveSlot("pr-unblock", activity);
+    assert.deepEqual(slot.models, {
+      profile: "code-fix",
+      role: "worker",
+      workload: "code",
+      model: "opus",
+      effort: "high",
+      "subagent-model": "inherit",
+      "max-turns": 75,
+    });
+    assert.equal(modelArgs(slot.models), "--model opus --max-turns 75 --effort high");
   });
-  assert.equal(modelArgs(slot.models), "--model opus --max-turns 75 --effort high");
-});
+}
 
 // The role map's worker runs mechanical work on sonnet at its own effort,
 // medium; the profile keeps standard's 75 turns.
@@ -805,6 +808,7 @@ test("main gives fix-ci opus and no effort when the base has no role map", async
 test("main writes applied-by-patch as the activity that applies the selected one's patch", async () => {
   const doc = parse(LIVE.config);
   const applier = doc.lanes["pr-unblock"].slots
+    .filter((slot) => (slot.needs ?? []).includes("fix-ci"))
     .map((slot) => slot.activity)
     .find((name) => doc.activities[name].prepare === "apply-patch");
   assert.ok(applier, "pr-unblock holds no apply-patch activity");

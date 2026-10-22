@@ -38,13 +38,23 @@ activities:
     skill: source-control:pull-request
     args: comments --ci
     prepare: review-threads
-    effect: mutate-branch
+    effect: read
+    applied-by:
+      patch: apply-feedback-patch
+      feedback-replies: publish-feedback
     gating: advisory
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
+  apply-feedback-patch:
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: true
+    inputs: [pr, head-sha]
   publish-feedback:
     script: .github/scripts/pr-unblock/publish-feedback.mjs
     effect: publish-artifact
@@ -57,9 +67,18 @@ lanes:
     slots:
       - activity: resolve-conflicts
 ${addressFeedbackSlot}
-      - activity: publish-feedback
+      - activity: apply-feedback-patch
         needs: [address-feedback]
+      - activity: publish-feedback
+        needs: [address-feedback, apply-feedback-patch]
 `;
+
+// The lane with no address-feedback slot: nothing needs it.
+const withoutSlot = (text) =>
+  text.replace("      - activity: apply-feedback-patch\n        needs: [address-feedback]\n", "      - activity: apply-feedback-patch\n").replace(
+    "        needs: [address-feedback, apply-feedback-patch]\n",
+    "        needs: [apply-feedback-patch]\n",
+  );
 
 function baseWith(text) {
   const base = mkdtempSync(join(tmpdir(), "feedback-dispatch-base-"));
@@ -163,7 +182,7 @@ test("a lane whose resolve-conflicts slot has a mergeable predicate dispatches o
 });
 
 test("a lane with no address-feedback slot skips without failing the run", async () => {
-  const { dispatched, lines } = await run(null, config("").replace("        needs: [address-feedback]\n", ""));
+  const { dispatched, lines } = await run(null, withoutSlot(config("")));
   assert.deepEqual(dispatched, []);
   assert.match(lines.at(-1), /no enabled address-feedback and publish-feedback slots/);
 });
@@ -171,7 +190,7 @@ test("a lane with no address-feedback slot skips without failing the run", async
 test("a config the resolver refuses fails the run even when the lane has no address-feedback slot", async () => {
   // The lane names an activity the config never defines, and has no
   // address-feedback slot: the refusal is not an absent slot.
-  const text = config("      - activity: ghost").replace("        needs: [address-feedback]\n", "");
+  const text = withoutSlot(config("      - activity: ghost"));
   await assert.rejects(run(null, text), (error) => error.name === "Rejection" && error.code === "undefined-activity");
 });
 
@@ -190,23 +209,10 @@ test("a disabled address-feedback slot dispatches nothing", async () => {
   assert.match(lines.at(-1), /no enabled address-feedback and publish-feedback slots/);
 });
 
-// The live address-feedback hands on a patch and its replies; the dispatcher
-// resolves it as the read runner does, and still refuses a key neither hands on.
-test("an address-feedback that hands on its patch and replies dispatches; one handing on another key is refused", async () => {
-  const readSlot = (appliedBy) =>
-    config("      - activity: address-feedback\n      - activity: apply-feedback-patch\n        needs: [address-feedback]")
-      .replace(
-        "    prepare: review-threads\n    effect: mutate-branch\n",
-        `    prepare: review-threads\n    effect: read\n    applied-by:\n${appliedBy}`,
-      )
-      .replace(
-        "  publish-feedback:\n",
-        "  apply-feedback-patch:\n    script: .github/scripts/apply-patch/apply-patch.mjs\n    prepare: apply-patch\n    effect: mutate-branch\n    gating: advisory\n    reads-untrusted: true\n    inputs: [pr, head-sha]\n  publish-feedback:\n",
-      );
-  const supported = await run(null, readSlot("      patch: apply-feedback-patch\n      feedback-replies: publish-feedback\n"));
-  assert.equal(supported.dispatched.length, 1);
-  await assert.rejects(
-    run(null, readSlot("      patch: apply-feedback-patch\n      work-outcome: publish-feedback\n")),
-    (error) => error.name === "Rejection" && error.code === "applied-by-unsupported",
-  );
+// The read runner's address-feedback hands on a patch and its replies; the
+// dispatcher resolves it as that runner does (the cases above), and still
+// refuses a key neither hands on.
+test("an address-feedback handing on a key the read runner does not is refused", async () => {
+  const text = config("      - activity: address-feedback").replace("      feedback-replies: publish-feedback\n", "      feedback-replies: publish-feedback\n      work-outcome: publish-feedback\n");
+  await assert.rejects(run(null, text), (error) => error.name === "Rejection" && error.code === "applied-by-unsupported");
 });
