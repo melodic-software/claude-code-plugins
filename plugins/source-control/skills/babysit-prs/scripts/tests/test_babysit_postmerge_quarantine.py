@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from typing import Any
 from unittest import mock
 
@@ -253,6 +254,35 @@ class AffectedSet(AffectedBase):
         self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
         self.assertEqual(verdict.quarantines, ())
 
+    def red_baseline(self) -> None:
+        """Dispatch run 10, before the merge, red on the same leg."""
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                10, "failure", head_sha=OTHER_SHA, created_at="2026-10-12T09:30:00Z"
+            ),
+        )
+        self.gh.jobs[(10, 1)] = [
+            failed_job(102, "test-bash (0)", "Run this leg's shell suites")
+        ]
+
+    def test_expiry_restores_demotion_when_the_baseline_was_red_too(self) -> None:
+        # A persistent failure is in the baseline as well; its expired
+        # quarantine still demotes.
+        self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z")
+        self.red_baseline()
+        self.red_dispatch(bash_log((FLAKY, False)))
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+        self.assertFalse(verdict.merges[0].verified)
+
+    def test_a_baseline_failure_under_a_live_quarantine_stays_excused(self) -> None:
+        self.quarantine_issue(FLAKY, "2026-10-10T10:00:00Z")
+        self.red_baseline()
+        self.red_dispatch(bash_log((FLAKY, False)))
+        self.assertEqual(self.check().failures, ())
+
     def test_a_closed_quarantine_issue_quarantines_the_suite_afresh(self) -> None:
         self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z", state="closed")
         self.red_dispatch(bash_log((FLAKY, False)))
@@ -322,7 +352,11 @@ class JudgeRunCli(AffectedBase):
     """`--judge-run`, as post-merge-demotion-alert.yml calls it."""
 
     def judge(
-        self, *checks: str, file: bool = True, identity: bool = True
+        self,
+        *checks: str,
+        file: bool = True,
+        identity: bool = True,
+        baseline: tuple[str, ...] = (),
     ) -> tuple[int, dict[str, Any]]:
         self.red_dispatch(self.fake.logs.get(112) or bash_log((FLAKY, False)))
         with tempfile.TemporaryDirectory() as tmp:
@@ -332,6 +366,10 @@ class JudgeRunCli(AffectedBase):
             argv += ["--agent-identity", IDENTITY] if identity else []
             argv += ["--judge-run", "11", "--attempt", "2", "--checks-file", str(path)]
             argv += ["--file-quarantine"] if file else []
+            if baseline:
+                kept = pathlib.Path(tmp) / "baseline"
+                kept.write_text("\n".join(baseline) + "\n", encoding="utf-8")
+                argv += ["--baseline-checks-file", str(kept)]
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 code = pm.main(argv)
@@ -381,6 +419,20 @@ class JudgeRunCli(AffectedBase):
     def test_no_checks_is_a_usage_refusal(self) -> None:
         code, _ = self.judge()
         self.assertEqual(code, 2)
+
+    def test_an_expired_quarantine_on_a_baseline_check_exits_1(self) -> None:
+        self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z")
+        with mock.patch.object(pm, "datetime", wraps=datetime) as clock:
+            clock.now.return_value = datetime(2026, 10, 12, 11, 0, tzinfo=UTC)
+            code, report = self.judge(baseline=("test-bash (0)",))
+        self.assertEqual((code, report["demoting"]), (1, ["test-bash (0)"]))
+
+    def test_a_live_quarantine_on_a_baseline_check_exits_0(self) -> None:
+        self.quarantine_issue(FLAKY, "2026-10-10T10:00:00Z")
+        with mock.patch.object(pm, "datetime", wraps=datetime) as clock:
+            clock.now.return_value = datetime(2026, 10, 12, 11, 0, tzinfo=UTC)
+            code, report = self.judge(baseline=("test-bash (0)",))
+        self.assertEqual((code, report["demoting"]), (0, []))
 
 
 class AffectedSuites(unittest.TestCase):
@@ -570,8 +622,9 @@ class QuarantineDaysConfig(unittest.TestCase):
 
     def test_quarantine_days_is_read_and_defaults_to_7(self) -> None:
         self.assertEqual(self.config("  quarantine-days: 3\n").quarantine_days, 3)
+        self.assertEqual(self.config("  quarantine-days: 30\n").quarantine_days, 30)
         self.assertEqual(self.config("").quarantine_days, 7)
-        for bad in ("0", "x", "-1"):
+        for bad in ("0", "x", "-1", "31", "4000000"):
             with self.subTest(bad):
                 config = self.config(f"  quarantine-days: {bad}\n")
                 self.assertEqual(config.quarantine_days, 7)

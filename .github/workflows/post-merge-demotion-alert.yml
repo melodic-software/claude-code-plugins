@@ -402,6 +402,9 @@ jobs:
               echo "::warning::$RUN_URL failed only on checks no merge can cause (the all-branches gitleaks scan): not a demotion"
               exit 0
             fi
+            # The checks also failing on the baseline run, for the judge: one
+            # whose suite's quarantine expired demotes all the same.
+            kept="$(mktemp)"
             baseline="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?event=$RUN_EVENT&branch=main&status=completed&created=%3C$RUN_CREATED&per_page=20" \
               --jq '[.workflow_runs[] | select(.head_branch == "main" and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
                 | max_by(.created_at) // empty | [.id, .run_attempt, .conclusion] | @tsv')"
@@ -411,25 +414,35 @@ jobs:
               if [[ "$base_conclusion" != success ]]; then
                 failing_checks "$base_id" "$base_attempt" >"$before"
               fi
+              grep -xFf "$before" "$now" >"$kept" || true
               grep -vxFf "$before" "$now" >"$now.new" || true
               mv "$now.new" "$now"
+            fi
+            # Exit 0: every newly failing suite is outside the merges' affected
+            # set or quarantined, so each suite's quarantine issue is filed or
+            # commented and no record is. Exit 1: a suite demotes, which for a
+            # check red on the baseline too means its quarantine expired. Any
+            # other exit (the judge failed) files as before.
+            judged=0
+            judgment="$(python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+              --repo "$GITHUB_REPOSITORY" --judge-run "$RUN_ID" --attempt "$RUN_ATTEMPT" \
+              --checks-file "$now" --baseline-checks-file "$kept" --file-quarantine)" || judged=$?
+            printf '%s\n' "$judgment"
+            if [[ ! -s "$now" ]]; then
+              if [[ "$judged" -eq 1 ]]; then
+                jq -r '.demoting[]?' <<<"$judgment" >"$now" 2>/dev/null || true
+              fi
               if [[ ! -s "$now" ]]; then
                 echo "::warning::$RUN_URL failed only on checks already failing before ${RUN_SHA:0:12} (run $base_id): not a demotion"
                 exit 0
               fi
-            fi
-            newly="$(paste -sd ';' "$now" | sed 's/;/, /g')"
-            # Every newly failing suite outside the merges' affected set or
-            # quarantined: file or comment on each suite's quarantine issue,
-            # and no record. Any other exit (1 a suite demotes, else the judge
-            # failed) files as before.
-            if python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
-              --repo "$GITHUB_REPOSITORY" --judge-run "$RUN_ID" --attempt "$RUN_ATTEMPT" \
-              --checks-file "$now" --file-quarantine; then
+              echo "::warning::$RUN_URL failed on checks already failing before ${RUN_SHA:0:12}, whose suites' quarantine expired: a demotion"
+            elif [[ "$judged" -eq 0 ]]; then
               echo "::notice::$RUN_URL failed only in suites outside the merges' affected set or quarantined: not a demotion"
               echo 'excused=true' >>"$GITHUB_OUTPUT"
               exit 0
             fi
+            newly="$(paste -sd ';' "$now" | sed 's/;/, /g')"
           fi
           # A run's URL names no attempt, so every sighting names its attempt:
           # a later failing attempt of a recorded run is a new sighting.

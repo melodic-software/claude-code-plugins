@@ -689,8 +689,9 @@ and its queued entries leave; two different identities, or an unreadable head co
   is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, labeled
   needs-human and assigned to the suite's CODEOWNERS user when a rule names one, filed by the
   agent identity's `--remediate` or by post-merge-demotion-alert.yml. While that issue is open
-  and younger than `merge.quarantine-days` (default 7), the suite's out-of-set failures demote
-  nothing; after that they demote again. A failure inside the set demotes whether or not the suite
+  and younger than `merge.quarantine-days` (default 7, at most 30), the suite's out-of-set failures
+  demote nothing; after that they demote again, even when the suite was already failing before the
+  merge. A failure inside the set demotes whether or not the suite
   is quarantined, and an excused run gets no red-main report. Quarantine never changes a pull request's `ci-status` and starts no
   re-run.
 - **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the

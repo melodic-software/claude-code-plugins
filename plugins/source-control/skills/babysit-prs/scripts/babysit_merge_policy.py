@@ -464,8 +464,10 @@ def _rest_actor(actor: Any) -> dict[str, Any] | None:
 # run, so a review still running at the head (scored MED, evidence unbound)
 # finishes before its refusal is labeled (judgment).
 RISK_ESCALATION_MINUTES = 60
-# `merge.quarantine-days` when absent or not a whole number of at least 1.
+# `merge.quarantine-days` when absent or not a whole number from 1 to
+# `MAX_QUARANTINE_DAYS`.
 QUARANTINE_DAYS = 7
+MAX_QUARANTINE_DAYS = 30
 # The default `merge.max-verify-fails`: three heads' FAILs is a pull request
 # the verifier keeps refusing, not one noisy verdict (owner decision
 # 2026-10-21).
@@ -552,7 +554,7 @@ class PipelineConfig:
     head_check_inputs: tuple[str, ...] = ()
     # `merge.quarantine-days`: days a quarantined suite's failures on the
     # default branch stop demoting (`babysit_postmerge`). Absent, or anything
-    # but a whole number of at least 1, is `QUARANTINE_DAYS`.
+    # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
     quarantine_days: int = QUARANTINE_DAYS
 
 
@@ -779,11 +781,13 @@ def read_config_at(
         )
         verify_fails = "1"
     quarantine_days = scalar("merge.quarantine-days")
-    if quarantine_days is not None and not re.fullmatch(
-        r"[1-9][0-9]*", quarantine_days
+    if quarantine_days is not None and not (
+        re.fullmatch(r"[1-9][0-9]?", quarantine_days)
+        and int(quarantine_days) <= MAX_QUARANTINE_DAYS
     ):
         notes.append(
-            f"merge.quarantine-days {quarantine_days!r} is not a count of 1 or more"
+            f"merge.quarantine-days {quarantine_days!r} is not a count from 1 to "
+            f"{MAX_QUARANTINE_DAYS}"
         )
         quarantine_days = None
     return PipelineConfig(

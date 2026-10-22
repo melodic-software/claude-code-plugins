@@ -206,13 +206,22 @@ run_step() {
   rm -rf "$TMP_ROOT/stub" "$TMP_ROOT/work"
   mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work"
   # JUDGE: the exit of a stub babysit_postmerge.py --judge-run in main's
-  # checkout, which logs its arguments; unset, there is no checkout, so the
-  # judge fails and the run files as before.
+  # checkout, which logs its arguments and the checks files it is given and
+  # prints JUDGE_DEMOTING (a JSON list) as its verdict's `demoting`; unset,
+  # there is no checkout, so the judge fails and the run files as before.
   if [[ -n "${JUDGE:-}" ]]; then
     local judge="$TMP_ROOT/work/.base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py"
     mkdir -p "${judge%/*}"
-    printf 'import sys, shutil\nopen("%s", "w").write(" ".join(sys.argv[1:]))\nshutil.copy(sys.argv[sys.argv.index("--checks-file") + 1], "%s")\nsys.exit(%s)\n' \
-      "$TMP_ROOT/stub/judge" "$TMP_ROOT/stub/judge.checks" "$JUDGE" >"$judge"
+    cat >"$judge" <<PY
+import json, shutil, sys
+args = sys.argv[1:]
+open("$TMP_ROOT/stub/judge", "w").write(" ".join(args))
+shutil.copy(args[args.index("--checks-file") + 1], "$TMP_ROOT/stub/judge.checks")
+if "--baseline-checks-file" in args:
+    shutil.copy(args[args.index("--baseline-checks-file") + 1], "$TMP_ROOT/stub/judge.baseline")
+print(json.dumps({"demoting": json.loads('${JUDGE_DEMOTING:-[]}')}))
+sys.exit($JUDGE)
+PY
   fi
   printf '%s\n' "$7" >"$TMP_ROOT/stub/issues.json"
   printf '%s\n' "${8:-[]}" >"$TMP_ROOT/stub/comments.json"
@@ -863,6 +872,26 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && ! -e "$TMP_ROOT/stub/judge" ]]; then
   ok "a canary failure is never judged by suite"
 else
   fail "canary judged: rc=$RC log='$LOG'"
+fi
+
+# A check red on the baseline too is still judged for an expired quarantine.
+JUDGE=1 JUDGE_DEMOTING='["test-bash"]' RUNS="$(baseline_run 4141 failure)" \
+  BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: test-bash"* &&
+  "$(cat "$TMP_ROOT/stub/judge.baseline" 2>/dev/null)" == test-bash && ! -s "$TMP_ROOT/stub/judge.checks" ]] &&
+  ! grep -q excused "$TMP_ROOT/stub/output"; then
+  ok "a baseline-red check whose quarantine expired (judge exit 1) files the record"
+else
+  fail "expired quarantine on a baseline check: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+JUDGE=0 RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"already failing before"* ]] &&
+  ! grep -q excused "$TMP_ROOT/stub/output"; then
+  ok "a baseline-red check the judge does not demote (exit 0) files nothing, as before"
+else
+  fail "baseline-red, judge 0: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 # --- Fix issues for an agent (#7535) ------------------------------------------

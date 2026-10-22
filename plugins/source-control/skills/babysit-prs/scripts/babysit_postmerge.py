@@ -780,13 +780,40 @@ class _Context:
     def regressions(self, signal: str, run: Run, merged_at: datetime) -> frozenset[str]:
         """The checks failing on red full run `run` that were not failing on
         the newest completed run of the same event before the merge, less the
-        test legs whose every failing suite is excused (`demoting`). With no
-        such run, every failing check counts, as before the baseline existed."""
+        test legs whose every failing suite is excused (`demoting`), plus
+        any check failing on both whose suite's quarantine has expired
+        (`expired`): a persistent failure would otherwise sit in the
+        baseline for good. With no such run, every failing check counts, as
+        before the baseline existed."""
         attempt = 2 if run.id in self.red_on_rerun else 1
         failing = self.failing_checks(run.id, attempt)
         baseline = self._baseline(signal, merged_at) if failing else None
         new = failing if baseline is None else failing - baseline
-        return self.demoting(run, attempt, new) if new else new
+        demote = self.demoting(run, attempt, new) if new else new
+        return demote | self.expired(run, attempt, failing - new)
+
+    def expired(self, run: Run, attempt: int, checks: frozenset[str]) -> frozenset[str]:
+        """The checks among `checks`, failing on `attempt` of `run` and
+        already failing before, with a failing suite under an open quarantine
+        issue older than `merge.quarantine-days`. A gate suite has no
+        quarantine, and a check whose suites cannot be named stays excused as
+        a pre-existing failure."""
+        named = {c: self.failing_suites(run.id, attempt, c) for c in checks}
+        named = {c: suites for c, suites in named.items() if suites}
+        if not named:
+            return frozenset()
+        issues = self._quarantine_issues()
+        days = self._quarantine_days(run.head_sha)
+        return frozenset(
+            check
+            for check, suites in named.items()
+            if any(
+                not is_gate_suite(suite)
+                and (issue := issues.get(suite)) is not None
+                and self.now >= _time(issue.get("created_at")) + timedelta(days=days)
+                for suite in suites
+            )
+        )
 
     def demoting(
         self, run: Run, attempt: int, checks: frozenset[str]
@@ -2455,13 +2482,17 @@ def _judge_run(args: argparse.Namespace) -> int:
     try:
         with open(args.checks_file, encoding="utf-8") as handle:
             checks = frozenset(line.strip() for line in handle if line.strip())
+        kept: frozenset[str] = frozenset()
+        if args.baseline_checks_file:
+            with open(args.baseline_checks_file, encoding="utf-8") as handle:
+                kept = frozenset(line.strip() for line in handle if line.strip())
         identity = args.agent_identity or (
             policy.read_config_at(
                 args.repo, policy._default_branch_head(args.repo)[1]
             ).agent_identity
         )
         refusal = policy.resolve_identity(identity, identity, args.self_login).reason
-        if refusal or not identity or not checks:
+        if refusal or not identity or not (checks or kept):
             report["error"] = refusal or "no agent identity or no checks"
             code = 2
         else:
@@ -2479,7 +2510,9 @@ def _judge_run(args: argparse.Namespace) -> int:
             ctx = _Context(
                 owner, name, _login_key(identity), branch=run.head_branch or ""
             )
-            demoting = ctx.demoting(run, args.attempt, checks)
+            demoting = (
+                ctx.demoting(run, args.attempt, checks) if checks else frozenset()
+            ) | ctx.expired(run, args.attempt, kept - checks)
             quarantines = list(ctx.quarantines.values())
             report = {
                 "ok": not demoting,
@@ -2575,6 +2608,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--attempt", type=int, default=1, help="with --judge-run")
     parser.add_argument("--checks-file", help="with --judge-run")
+    parser.add_argument(
+        "--baseline-checks-file",
+        help=(
+            "with --judge-run: the failing checks also failing on the baseline run, "
+            "one per line; each whose suite's quarantine expired demotes"
+        ),
+    )
     parser.add_argument(
         "--file-quarantine",
         action="store_true",
