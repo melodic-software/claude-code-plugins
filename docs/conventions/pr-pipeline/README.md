@@ -1569,6 +1569,7 @@ and reports by run and attempt.
 | `daily-cap` | 3 | Auto-reverts decided in any 24 hours; 0 to 10, and 0 sends every culprit to a person. |
 | `max-culprit-age-hours` | 24 | Hours since the culprit merged past which a person decides; 1 to 168. |
 | `confirm-wait-minutes` | 40 | Minutes the job waits for the re-run to finish; 0 to 45. |
+| `remedy` | `rollback` | `rollback` applies rules 3 and 4. `fail-forward` plans no revert: the report's decision is `human`, it names the remedy as the reason, and a person or a fix pull request repairs `main`. |
 
 The job reads the leaf through the base checkout's resolve-config (`redMainFromBase`), so a config
 the resolver refuses fails it. It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`,
@@ -1685,8 +1686,8 @@ list. The config reader reads the synced copy from the base SHA's
 
 - Deferred: the `extends:` grammar for layering a repository file on org defaults. The reader
   rejects any value until a second repository adopts.
-- The post-merge failure remedy (revert or fail forward, by change type). Until it is decided, the
-  rung drop and `needs-human` issue above apply.
+- The post-merge failure remedy, revert or fail forward, is the per-repository `red-main.remedy`
+  key ([Red main](#red-main)), not a choice by change type.
 
 ## Versioning
 

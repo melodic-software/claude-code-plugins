@@ -1343,17 +1343,41 @@ jobs:
                 .map((m) => textOf(m.message?.content))
                 .filter((text) => text.includes('<local-command-stderr>'))
                 .map((text) => redact(text).slice(0, 2000)),
-              // The commands the permission mode denied, so a denial can be diagnosed.
-              denied: (result.permission_denials ?? []).map((d) =>
-                redact(String(d?.tool_input?.command ?? d?.tool_name ?? '')).slice(0, 300),
-              ),
+              // The first 20 calls the permission mode denied, each with its command,
+              // file_path, path or pattern, so a denial can be diagnosed; denied_total
+              // counts them all. Entries drop from the end until denied serializes
+              // to at most 8192 bytes (a JSON-escaped control character is 6 bytes),
+              // keeping it within the 32768-byte cap the read file's scan job carries
+              // it under; local_command_stderr's own escaped size is tracked in #8942.
+              denied: (() => {
+                const kept = (result.permission_denials ?? []).slice(0, 20).map((d) => {
+                  const i = d?.tool_input ?? {};
+                  const input = i.command ?? i.file_path ?? i.path ?? i.pattern ?? null;
+                  return { tool_name: String(d?.tool_name ?? ''), input: input == null ? null : redact(String(input)).slice(0, 300) };
+                });
+                while (kept.length > 0 && Buffer.byteLength(JSON.stringify(kept), 'utf8') > 8192) {
+                  const last = kept.at(-1);
+                  if (kept.length === 1 && last.input) last.input = last.input.slice(0, last.input.length >> 1);
+                  else kept.pop();
+                }
+                return kept;
+              })(),
+              denied_total: (result.permission_denials ?? []).length,
             };
             fs.mkdirSync(REPLY_DIR, { recursive: true });
             fs.writeFileSync(`${REPLY_DIR}/act-turns.json`, `${JSON.stringify(diag, null, 2)}\n`);
+            const more = diag.denied_total - diag.denied.length;
+            const shown = {
+              ...diag,
+              denied: [
+                ...diag.denied.map((d) => (d.input == null ? d.tool_name : `${d.tool_name}: ${d.input}`)),
+                ...(more > 0 ? [`(+${more} more)`] : []),
+              ],
+            };
             await core.summary
               .addHeading('Skill run', 3)
               // addCodeBlock does not escape its text.
-              .addCodeBlock(JSON.stringify(diag, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), 'json')
+              .addCodeBlock(JSON.stringify(shown, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), 'json')
               .write();
             // JSON escapes newlines, so no field can start a workflow command.
             core.info(JSON.stringify({ subtype: diag.subtype, is_error: diag.is_error, num_turns: diag.num_turns, models: diag.models.length }));
@@ -1412,7 +1436,7 @@ jobs:
           path: |
             ${{ runner.temp }}/skill-reply/reply.txt
             ${{ runner.temp }}/skill-reply/act-turns.json
-          retention-days: 3
+          retention-days: 7
           if-no-files-found: error
 
       # The verdict comes from the action's structured_output, read through env

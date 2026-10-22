@@ -71,6 +71,7 @@ class TestValidSamples(unittest.TestCase):
                 "upload-received",
                 "upload-removed",
                 "report-filed",
+                "person-joined",
             },
         )
 
@@ -129,6 +130,19 @@ class TestRefusedShapes(unittest.TestCase):
         ops = copy.deepcopy(fixture("ops-handle.json"))
         ops["ops"].append({"op": "drop-session"})
         self.assertIn("$.ops[2]", schema.first_error(ops, OPS))
+
+    def test_set_repo_op_and_the_sessions_repo_fields(self):
+        sha = "0123456789abcdef0123456789abcdef01234567"
+        self.assertIsNone(schema.first_error({"ops": [{"op": "set-repo", "repo": "octo-org/demo", "commit": sha}]}, OPS))
+        self.assertIsNone(schema.first_error({"ops": [{"op": "set-repo", "repo": ""}]}, OPS))
+        self.assertIn("$.ops[0]", schema.first_error({"ops": [{"op": "set-repo", "commit": sha}]}, OPS))
+        self.assertIn("$.ops[0]", schema.first_error({"ops": [{"op": "set-repo", "repo": "a/b", "branch": "main"}]}, OPS))
+        state = fixture("state-full.json")
+        self.assertNotIn("repo", state["session"])  # a state without the fields stays valid
+        state["session"].update(repo="octo-org/demo", commit=sha)
+        self.assertIsNone(schema.first_error(state, STATE))
+        state["session"]["branch"] = "main"
+        self.assertIn("unexpected property 'branch'", schema.first_error(state, STATE))
 
     def test_question_input_keeps_the_question_rules(self):
         ops = fixture("ops-open-round.json")

@@ -92,6 +92,8 @@ Before writing code, verify the knowledge base:
 - **Are there uncommitted changes?** If dirty working tree with unrelated changes, flag it, don't mix concerns in one commit
 - **Is the base current?** Before the first build or test run, fetch the base branch and bring this branch onto it the way the project integrates (merge or rebase; a brief or user instruction that forbids either wins), so a failure in that first run belongs to the real base and not to a stale copy. With no remote, or a failed fetch, say so in one line and carry on
 
+**Paved paths, read before the first edit.** Resolve the standards index (`docs/standards/README.md`, unless the repository's `.claude/standards.yaml` sets `standards_dir`). When it has a `paved-path` row, read the entries for the concerns the paths you are about to edit touch, and only those; do not load the rest of the file. An entry is the established way for its concern: follow it, and when the work replaces it, say so and hand the entry change to `/discipline:reuse-or-replace`, the one skill that writes entries (propose it, never write the entry here). A plan's per-phase criteria lines still win over an entry. With no index or no `paved-path` row, do nothing extra. This skill carries no copy of the standards contract: it resolves the index by this path rule.
+
 ## Step 2: Execute with Incremental Validation
 
 Core execution loop. Key discipline: **validate after each logical block, not just at the end.**

@@ -1206,7 +1206,7 @@ class TestSnapshotContract(unittest.TestCase):
     TOP_ALL = {"rev", "build", "title", "goal", "ended", "serverTime", "settings", "rounds", "round", "questions", "cards", "locks"}
     TOP_ALL |= {"suggestions", "results", "chat", "people", "presence", "lastSeen", "requestCounts", "proposals", "myRequests", "myMergeRequests", "inbox", "me"}
     TOP_MODERATOR = {"share", "guestKey"}
-    TOP_OWNER = {"requests", "mergeRequests", "removed", "cardDetails"}
+    TOP_OWNER = {"requests", "mergeRequests", "claudeProposals", "removed", "cardDetails"}
     KEY = "Zk3yZk3yZk3y"  # the fixture's session.guestKey
 
     def setUp(self):

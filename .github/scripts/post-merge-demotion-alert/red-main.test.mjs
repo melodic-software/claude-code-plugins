@@ -24,18 +24,21 @@ const job = (id, name, conclusion, failedSteps = ["Run tests"]) => ({
 });
 
 test("a value outside the schema's range falls back to the default", () => {
-  assert.deepEqual(resolveRedMain({ "dry-run": "no", "daily-cap": 11, "max-culprit-age-hours": 0, "confirm-wait-minutes": 46 }), {
-    "dry-run": true,
-    "daily-cap": 3,
-    "max-culprit-age-hours": 24,
-    "confirm-wait-minutes": 40,
-  });
-  assert.deepEqual(resolveRedMain({ "dry-run": false, "daily-cap": 0, "max-culprit-age-hours": 6, "confirm-wait-minutes": 0 }), {
-    "dry-run": false,
-    "daily-cap": 0,
-    "max-culprit-age-hours": 6,
-    "confirm-wait-minutes": 0,
-  });
+  assert.deepEqual(
+    resolveRedMain({ "dry-run": "no", "daily-cap": 11, "max-culprit-age-hours": 0, "confirm-wait-minutes": 46, remedy: "revert" }),
+    { "dry-run": true, "daily-cap": 3, "max-culprit-age-hours": 24, "confirm-wait-minutes": 40, remedy: "rollback" },
+  );
+  assert.deepEqual(
+    resolveRedMain({ "dry-run": false, "daily-cap": 0, "max-culprit-age-hours": 6, "confirm-wait-minutes": 0, remedy: "fail-forward" }),
+    { "dry-run": false, "daily-cap": 0, "max-culprit-age-hours": 6, "confirm-wait-minutes": 0, remedy: "fail-forward" },
+  );
+});
+
+test("the remedy defaults to rollback and takes rollback or fail-forward", () => {
+  assert.equal(resolveRedMain({}).remedy, "rollback");
+  assert.equal(resolveRedMain({ remedy: "rollback" }).remedy, "rollback");
+  assert.equal(resolveRedMain({ remedy: "fail-forward" }).remedy, "fail-forward");
+  assert.equal(resolveRedMain({ remedy: "Fail-Forward" }).remedy, "rollback");
 });
 
 test("a failed job is a check; a cancelled or timed-out job is not", () => {
@@ -189,6 +192,13 @@ test("a suspected platform fault or a revert that does not apply goes to a perso
   assert.equal(decideFor(laneMerge(), { platformFault: "canary record #9 is open" }).decision, "human");
   assert.equal(decideFor(laneMerge(), { revertApplies: false }).decision, "human");
   assert.equal(decideFor(laneMerge(), { revertApplies: null }).decision, "human");
+});
+
+test("under fail-forward even a lane merge under every limit goes to a person, named by the remedy", () => {
+  const verdict = decideFor(laneMerge(), { config: resolveRedMain({ remedy: "fail-forward" }) });
+  assert.equal(verdict.decision, "human");
+  assert.equal(verdict.reasons.length, 1);
+  assert.match(verdict.reasons[0], /fail-forward/);
 });
 
 test("a person's revert is a draft labeled needs-human; the bot's goes through the merge queue", () => {
