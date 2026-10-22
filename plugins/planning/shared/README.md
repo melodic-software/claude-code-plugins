@@ -365,10 +365,20 @@ new note gets 409 `notes-full` and none is dropped). Notes show on the page, in 
 Claude thread, and in the round's digest as `{qid, variant, text, element}`; `element` is `null`
 for a free-form selector an earlier build took.
 
+- **Look-at line and views.** A prototype question's `format.lookAt` (at most 200 characters, required
+  on every new one, absent on one from before it) names the area the variants change and the step
+  that shows it; the card shows it beside "Open prototype" and the page above the variant tabs, with
+  the shown variant's own `lookAt` under it. A variant shows `shots` (one to four pictures, stacked in
+  order, each captioned) and a `snapshot` (one html file), at least one; with both, the page
+  switches between the snapshot and the screenshots. A variant with one view is written as
+  `{id, label, asset}`, the shape builds before `shots` and `snapshot` read; the page takes an
+  `asset` by its file's kind. A state holding a question with `lookAt`, or a variant with more than
+  one view, does not load in a build before them: copy `state.json` aside before restarting onto one.
 - **Anchor.** `selector` is the element's path from the variant's root, such as
   `html > body:nth-of-type(1) > main:nth-of-type(1)` (tag names only, each below the root with
   `:nth-of-type(n)`, at most 32 levels and 1000 characters), or
-  `img` on a picture variant; anything else is refused (400 `bad-field`, `anchor.selector`).
+  `img` on a picture (`img:nth-of-type(k)` on a variant's k-th screenshot); anything else is
+  refused (400 `bad-field`, `anchor.selector`).
   `rect` is the element's box in percent of the variant's reference box: an html variant's whole
   scrollable page when the note was pinned, a picture variant's image. It places the pin when the
   path no longer finds the element.
@@ -391,6 +401,14 @@ for a free-form selector an earlier build took.
   nothing it posts is read, and dropped if it leaves its page. Notes stay on the version they were
   pinned to. The toolbar's Prototypes filter lists every round's prototype questions and opens the
   rounds that hold them.
+- **Views.** The `prototypeTiers` setting (Host settings, Prototypes; `[screenshot, snapshot]` when
+  absent) names the views guests get. A view switched off stays in the question; guests' state
+  leaves out a variant's pictures (`shots`, or a picture `asset`) while `screenshot` is off and its
+  html file (`snapshot`, or an html `asset`) while `snapshot` is off, each view on its own, and while `snapshot` is off `/assets/<id>.html` answers a guest 404 as if the
+  file were missing (pictures stay served: options, references and confirm questions share them).
+  The owner sees every view, each hidden one named. A guest's page shows "This view is off" for
+  such a variant, and with no view left the question shows as text with a note; the picks still
+  work. `live` is stored and shown only: nothing starts a live prototype yet.
 - **Owner token.** Links to session pages (`Core.pageLink`) never hold it. The page keeps it in
   the tab's `sessionStorage`, takes it out of the address bar, and uses it again only on a reload
   or Back in that tab; when the owner follows a session link, `core.js` opens the page with
@@ -1191,10 +1209,12 @@ with keyboards at 320 to 430 px wide.
 `ui_proto.js` checks the prototype page on a desktop and a 390x844 phone in separate browser
 contexts: the preview tile and its link, the variant switcher, Annotate, a note pinned to an
 element of an html variant and to a spot of a picture, the notes in the Claude thread and the
-digest, the variant's sandbox, and a forged pin message being ignored. `ui_proto_versions.js` checks
+digest, the variant's sandbox, a forged pin message being ignored, the look-at line on the card and
+the page, and a variant with a snapshot and two screenshots (both shown, a note on the second). `ui_proto_versions.js` checks
 a prototype revised in a later round: the Prototypes filter finding both rounds' prototypes without
 scrolling, the later question's version list with the current version marked, opening version 1
-from it, the two side by side on a desktop and stacked on a phone, and a note staying on its version.
+from it, the two side by side on a desktop and stacked on a phone, a note staying on its version, and
+a question stored with no look-at line showing none.
 
 `ui_contrast.js` checks WCAG 2.2 AA contrast on the main page states in every palette, in light
 and dark: text and placeholders, field edges, icon-only buttons and the Propose button's edge; per

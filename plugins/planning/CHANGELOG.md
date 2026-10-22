@@ -3,6 +3,56 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.91.0] - 2026-10-22
+
+### Added
+
+- A shared interview session has a `prototypeTiers` setting (`shared_session.prototype_tiers`, default screenshots and HTML snapshots, live off) with Screenshots, HTML snapshots and Live prototypes switches under Prototypes in the Host settings. A view switched off leaves guests' state (a picture variant's asset while screenshots are off, an html one's while snapshots are off), and a guest's request for an html variant answers 404 while snapshots are off; the owner still sees every view, each hidden one named. With every view off, a prototype question shows as text with a note and still takes picks. Live prototypes is only stored for now. A session from before the setting loads and is written back unchanged.
+
+- On the 1:1 interview page, an alternative can carry a `tradeoff`, which the page shows under the alternative.
+
+- A shared interview prototype variant can show up to four screenshots (`shots`) and an HTML snapshot (`snapshot`). The prototype page stacks the screenshots in order, each with a caption and its own pins, and switches between the snapshot and the screenshots when a variant has both. A variant with one view is still written as `{id, label, asset}`, and `asset` is still accepted. Every new prototype question carries a required `format.lookAt` line naming the area that changes and the step that shows it, and a variant may add its own. The line shows on the question card beside "Open prototype" and above the variant tabs. A question from before it loads and shows no line. A session holding a `lookAt` or a variant with more than one view does not load in an earlier build.
+
+### Changed
+
+- The 1:1 page's questions take `id`, `short`, `title`, `recommendation`, `dependsOn` and each alternative's text from the shared question shape schema, so `short` is now capped at 80 characters on the page as in the shared session; a file holding a longer `short` refuses every write until one `apply` revises each such label to fit.
+- The shared session schema states the stored option bounds exactly: a choice holds 3 to 5 options, a multi 3 to 10 and a rank 4 to 7 (Claude's options plus the server's Something else and None of these), and Claude's open-round input takes 2 to 4, 2 to 8 and 3 to 6.
+
+- On the shared interview page, the chat opens as a full-height panel on the right under the top bar instead of a floating popover. From 1100 px wide the page moves over to make room, so the question and the chat read side by side and Tab moves between them; narrower, the panel covers the page as a modal dialog. The chat button hides while the panel is open and the panel's close button closes it. On a phone the chat fills the screen instead of 80% of it.
+
+### Fixed
+
+- The interview surface's detail banner for an archived question that was superseded now shows one line naming its replacement as a link, in place of the batch `archived.why` sentence and a second Superseded banner.
+
+- On the shared interview page, a pop-up message no longer covers the open chat. While the chat covers the page (narrower than 1100 px, and the whole screen on a phone), the pop-up shows inside the chat between the messages and the message box, which make room for it. Beside the docked chat it centers on the page next to the chat.
+
+- The shared-page UI suite (`shared/tests/ui.test.sh`) fails under `CI=true` when node, playwright-core or Chromium is missing, instead of printing SKIP and passing. Local runs still skip.
+- The shared-page UI suite runs `ui_telemetry.js` alone after the parallel suites, since parallel load hides the dead tap its one-second check waits for.
+
+## [0.90.1] - 2026-10-22
+
+### Fixed
+
+- Shared interview page: a hovered primary button (Send, Propose, Save) now keeps its label at WCAG AA contrast (4.5:1) in every palette, accent and mode; light-mode teal measured 3.93:1 before.
+
+- `share.sh ensure-running --open` starts the 30-second clock that deletes the owner's open page only after the browser has been handed the page, so an opener that takes time to start (such as one named by `SHARED_BROWSER`) still finds it.
+
+## [0.90.0] - 2026-10-22
+
+### Changed
+
+- `/planning:interview` now passes the `tunnel_hostname` and `tunnel_token_file` options to a shared session, so a configured named tunnel starts without restating it; an unset hostname runs a quick tunnel.
+
+## [0.89.0] - 2026-10-22
+
+### Added
+
+- On the shared interview page, a pick-any question can offer "None of these": Claude asks for it with `none: true` on a `multi` format, the server adds the option and refuses a Claude-written one, it excludes every other pick (picking it clears them, picking another clears it), and the digest counts it as its own row, apart from a Pass or an empty pick.
+
+### Fixed
+
+- `/planning:interview` page protocol (`surface.md`) now points at `lane-page.md` for the page start command and the "Question surface: the page" rule, which moved out of `SKILL.md`.
+
 ## [0.88.2] - 2026-10-22
 
 ### Removed

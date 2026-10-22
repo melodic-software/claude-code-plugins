@@ -734,6 +734,17 @@ class TestRawRequests(ServerCase):
         self.assertNotIn("\x1b", log)
 
 
+class TestBind(unittest.TestCase):
+    def test_the_listeners_bind_without_looking_up_a_host_name(self):
+        """HTTPServer.server_bind resolves its address with socket.getfqdn, which took about 35 s on a macOS runner:
+        longer than share.py waits for the server to start."""
+        with mock.patch.object(socket, "getfqdn", side_effect=AssertionError("getfqdn called")):
+            app = server.App(tmpdir(self), watch_tunnel=False)
+        self.addCleanup(app.shutdown)
+        self.assertEqual((app.guest.server_name, app.guest.server_port), ("127.0.0.1", app.guest_port))
+        self.assertEqual((app.control.server_name, app.control.server_port), ("127.0.0.1", app.control_port))
+
+
 class TestBusy(unittest.TestCase):
     def test_a_connection_past_the_handler_cap_is_answered_503(self):
         d = tmpdir(self)
@@ -1958,7 +1969,7 @@ class TestPrototypePage(ServerCase):
         code, _, out = self.ops({"op": "add-asset", "path": str(self.d / "v1.html")}, {"op": "add-asset", "path": str(self.d / "v2.png")})
         self.assertEqual(code, 200, out)
         self.html, self.png = (r["id"] for r in out["results"])
-        proto = {**text_q("Q1"), "format": {"kind": "prototype", "variants": [{"id": "v-1", "label": "One page", "asset": self.html}, {"id": "v-2", "label": "Two steps", "asset": self.png}]}}
+        proto = {**text_q("Q1"), "format": {"kind": "prototype", "lookAt": "The payment step.", "variants": [{"id": "v-1", "label": "One page", "asset": self.html}, {"id": "v-2", "label": "Two steps", "asset": self.png}]}}
         code, _, out = self.ops({"op": "open-round", "questions": [proto, text_q("Q2")]})
         self.assertEqual(code, 200, out)
         _, self.guest = self.join("Ann")
@@ -1979,6 +1990,41 @@ class TestPrototypePage(ServerCase):
         self.assertNotIn("allow-same-origin", h["Content-Security-Policy"])
         code, h, _ = self.get(f"/assets/{self.png}?pin=1", self.guest)
         self.assertEqual((code, h["Content-Security-Policy"], h["X-Frame-Options"]), (200, "sandbox", "DENY"))
+
+    def test_with_snapshots_off_a_guest_gets_404_for_an_html_variant_and_the_owner_200(self):
+        code, _, out = self.post("/api/session/settings", {"prototypeTiers": ["screenshot"]}, self.owner)
+        self.assertEqual((code, out["settings"]["prototypeTiers"]), (200, ["screenshot"]), out)
+        missing = self.get("/assets/0000000000000000.html", self.guest)
+        for path in (f"/assets/{self.html}", f"/assets/{self.html}?pin=1"):
+            with self.subTest(path=path):
+                code, h, body = self.get(path, self.guest)
+                self.assertEqual((code, body), (missing[0], missing[2]))  # the same answer as no such asset
+                self.assertEqual((code, h["Cache-Control"]), (404, "no-store"))
+                code, _, body = self.get(path, self.owner)
+                self.assertEqual(code, 200)
+                self.assertTrue(body.startswith(self.VARIANT_HTML))
+        self.assertEqual(self.get(f"/assets/{self.png}", self.guest)[0], 200)
+        self.assertEqual(self.get(f"/assets/{self.html}")[0], 401)  # no credential is still 401
+        self.post("/api/session/settings", {"prototypeTiers": ["screenshot", "snapshot"]}, self.owner)
+        self.assertEqual(self.get(f"/assets/{self.html}", self.guest)[0], 200)
+
+    def test_with_screenshots_off_a_guests_state_holds_no_picture_variant(self):
+        code, _, out = self.post("/api/session/settings", {"prototypeTiers": ["snapshot"]}, self.owner)
+        self.assertEqual(code, 200, out)
+        variants = lambda snap: next(q for q in snap["questions"] if q["id"] == "Q1")["format"]["variants"]  # noqa: E731
+        code, _, snap = self.get("/api/state", self.guest)
+        self.assertEqual(code, 200)
+        self.assertEqual([v.get("asset") for v in variants(snap)], [self.html, None])
+        self.assertNotIn(self.png, json.dumps(snap))
+        self.assertEqual([v.get("asset") for v in variants(self.get("/api/state", self.owner)[2])], [self.html, self.png])
+
+    def test_prototype_tiers_take_each_tier_once(self):
+        for bad in (["live", "live"], ["video"], "live"):
+            with self.subTest(bad=bad):
+                code, _, out = self.post("/api/session/settings", {"prototypeTiers": bad}, self.owner)
+                self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "prototypeTiers"))
+        code, _, out = self.post("/api/session/settings", {"prototypeTiers": []}, self.guest)
+        self.assertEqual(code, 403, out)
 
     def test_pin_1_appends_the_pin_helper_as_the_one_inline_script(self):
         _, h, body = self.get(f"/assets/{self.html}?pin=1", self.guest)

@@ -188,7 +188,8 @@ def wait_public(s, want, seconds=SYNC_SECONDS):
 def open_link(d, url):
     """Open the owner's link in the default browser without putting it on a command line: the
     browser gets a 0600 page in the data folder that redirects to `url`, and a detached helper
-    deletes the page after OPEN_SECONDS. SHARED_BROWSER names another opener (tests stub it)."""
+    deletes the page OPEN_SECONDS after the browser is handed it. SHARED_BROWSER names another
+    opener (tests stub it)."""
     now = time.time()
     for old in d.glob(OPEN_PAGE.format("*")):
         with contextlib.suppress(OSError):
@@ -201,12 +202,14 @@ def open_link(d, url):
         '<!doctype html>\n<meta charset="utf-8">\n<meta name="referrer" content="no-referrer">\n<title>Opening the shared session</title>\n'
         f'<script>location.replace({script})</script>\n<meta http-equiv="refresh" content="0;url={html.escape(url, quote=True)}">\n',
     )
-    seconds = os.environ.get("SHARED_OPEN_SECONDS") or str(OPEN_SECONDS)
-    detached.release(detached.spawn(detached.python("-c", FORGET_PAGE, str(page), seconds), cwd=d))
     opener = os.environ.get("SHARED_BROWSER")
-    if opener:
-        return subprocess.run([opener, page.as_uri()], check=False, timeout=30, stdout=subprocess.DEVNULL).returncode == 0
-    return webbrowser.open(page.as_uri())
+    try:
+        if opener:
+            return subprocess.run([opener, page.as_uri()], check=False, timeout=30, stdout=subprocess.DEVNULL).returncode == 0
+        return webbrowser.open(page.as_uri())
+    finally:
+        seconds = os.environ.get("SHARED_OPEN_SECONDS") or str(OPEN_SECONDS)
+        detached.release(detached.spawn(detached.python("-c", FORGET_PAGE, str(page), seconds), cwd=d))
 
 
 def report(d, s, rec, resumed, *, opened=None):

@@ -8,6 +8,7 @@
   "run_attempt": 1,
   "head_branch": "main",
   "head_sha": "1111111111111111111111111111111111111111",
+  "head_repository": {"full_name": "example-org/example-repo"},
   "created_at": "2026-10-12T16:32:14Z",
   "html_url": "https://github.com/example-org/example-repo/actions/runs/1000000001",
   "actor": {"login": "github-merge-queue[bot]", "type": "Bot"},

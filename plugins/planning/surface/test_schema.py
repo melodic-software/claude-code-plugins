@@ -1,5 +1,5 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
-# test-scope: plugins/planning/surface/schema/*.schema.json
+# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/shared/schema/question-shape.schema.json
 """Tests for schema.py, the stdlib JSON Schema subset round.py validates with."""
 
 from __future__ import annotations
@@ -326,6 +326,20 @@ class TestShippedSchemas(unittest.TestCase):
         self.assertIsNone(schema.first_error(doc, schema.load("questions")))
         doc["questions"][0]["claudeRevising"] = {"why": "audit"}
         self.assertIsNotNone(schema.first_error(doc, schema.load("questions")))
+
+    def test_a_page_question_takes_the_shared_question_shape(self):
+        def doc(**q):
+            alts = [{"key": "a", "text": "No", "tradeoff": "Two writers"}, {"key": "was", "text": "Old"}]
+            return {"questions": [{"id": "Q1", "short": "s", "title": "t", "alternatives": alts, **q}]}
+
+        questions = schema.load("questions")
+        self.assertIsNone(schema.first_error(doc(short="x" * 500), questions))
+        self.assertIn("at most 500", schema.first_error(doc(short="x" * 501), questions))
+        self.assertIn("at most 2000", schema.first_error(doc(title="x" * 2001), questions))
+        self.assertIn("expected array", schema.first_error(doc(dependsOn="Q0"), questions))
+        bad = doc()
+        bad["questions"][0]["alternatives"][0]["why"] = "x"
+        self.assertIn("unexpected property 'why'", schema.first_error(bad, questions))
 
     def test_ops_text_caps_match_round_py(self):
         ops = schema.load("ops")

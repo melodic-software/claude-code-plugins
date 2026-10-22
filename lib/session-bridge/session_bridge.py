@@ -37,6 +37,7 @@ import shlex
 import select
 import signal
 import socket
+import socketserver
 import subprocess
 import sys
 import threading
@@ -615,7 +616,14 @@ class ControlServer(ThreadingHTTPServer):
     def server_bind(self):
         if os.name == "nt":
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        super().server_bind()
+        bind_without_lookup(self)
+
+
+def bind_without_lookup(server):
+    """HTTPServer.server_bind without its socket.getfqdn of the address: nothing reads the
+    name, and that reverse lookup of 127.0.0.1 can take half a minute on macOS."""
+    socketserver.TCPServer.server_bind(server)
+    server.server_name, server.server_port = server.server_address[:2]
 
 
 def start(handler, make_hub, port, nonce=""):

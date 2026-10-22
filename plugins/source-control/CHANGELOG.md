@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.2] - 2026-10-22
+
+### Fixed
+
+- The post-merge check no longer demotes unattended merging when a run listing answers without the dispatch runs it holds. Before a missing dispatch run becomes a failure, it reads the dispatch runs at the merge commit and at each later commit on the branch made by the deadline. A run there that the listing lacked, and that could have counted in time, makes the verdict unreadable. So does a listing whose `total_count` exceeds what it returned, unless it is past GitHub's 1,000-result search cap: that listing reads, with a `listing-capped` warning in the verdict.
+
+- The post-merge check no longer demotes unattended merging when the artifact listing for a github-actions[bot] dispatch run's `pr-merge-dispatched-<id>` record answers empty. It reads the listing once more, and when the second read is also empty and the run was created by the dispatch deadline, the verdict past the deadline is unreadable instead of a dispatch failure. A listing that names a sender other than the lane's pr-merge.yml still reads as not the lane's run.
+
+## [2.1.1] - 2026-10-22
+
+### Fixed
+
+- `babysit_postmerge.py --lane-merges-only` marks a red attempt 1 of a full run the pr-merge lane
+  dispatched for the lane's one re-run even when no judged lane merge covers it, when the run was
+  created within `red-main.confirm-wait-minutes` plus 50 minutes (90 by default) and a newly
+  failing check demotes by the affected-set rule. Before, such a run got no re-run and
+  post-merge-demotion-alert.yml demoted on attempt 1 alone. The probe files no quarantine issue,
+  and a failed read is a `lane-rerun-unreadable` warning, not an unreadable verdict.
+
 ## [2.1.0] - 2026-10-22
 
 ### Added

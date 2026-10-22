@@ -202,6 +202,13 @@ async page => {
     ok("AC20: archived question greyed in Tree", await page.$eval('.rail-list .tree .qbtn[data-q="X1"]', el => el.classList.contains("archived")));
     await page.click('.rail-list .tree .qbtn[data-q="X1"]'); await page.waitForTimeout(200);
     ok("AC20: archived question clickable in Tree and names why", await sel() === "X1" && /Archived: The old path left the plan/.test(await page.textContent("#dscroll")), await sel());
+    const banners = async () => page.$$eval("#dscroll .sup-banner", els => els.map(e => ({text: e.textContent, link: [...e.querySelectorAll("a, button")].map(a => a.textContent + "|" + (a.getAttribute("href") || a.dataset.ref || a.dataset.q || ""))})));
+    await page.click('.rail-list .tree .qbtn[data-q="D0"]'); await page.waitForTimeout(200);
+    const dBan = await banners();
+    ok("#8087: an archived question with supersededBy shows one banner that names and links the replacement", await sel() === "D0" && dBan.length === 1 && /superseded by D1/i.test(dBan[0].text) && !/The old path left the plan/.test(dBan[0].text) && dBan[0].link.some(l => l.includes("D1")), JSON.stringify(dBan));
+    await page.click('.rail-list .tree .qbtn[data-q="X1"]'); await page.waitForTimeout(200);
+    const xBan = await banners();
+    ok("#8087: an archived question without supersededBy still shows its archived.why", xBan.length === 1 && /Archived: The old path left the plan/.test(xBan[0].text), JSON.stringify(xBan));
     await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(150);
 
     // SPEC 6: stale after an upstream re-answer, upstream-pending further down

@@ -1114,9 +1114,9 @@ fi
 # --- A per-merge full run sent by workflow_dispatch (#8896) -------------------
 # pr-merge.yml starts a full run after each merge with GITHUB_TOKEN, so its
 # completion raises no workflow_run event; pr-merge sends a red one's id here.
-# pr-merge re-runs it only inside a lane merge's attribution window, so the
-# step waits for a re-run as long as red-main.confirm-wait-minutes and starts
-# none of its own.
+# pr-merge re-runs it inside a lane merge's attribution window or when it
+# demotes by the affected-set rule, so the step waits for a re-run as long
+# as red-main.confirm-wait-minutes and starts none of its own.
 confirm_wait="$(sed -n 's/^  confirm-wait-minutes: \([0-9]*\).*/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
 
 VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=failure \

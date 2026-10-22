@@ -187,12 +187,14 @@
       }
     },
     "alternative": {
+      "description": "The shared question shape's alternative, except that the key is any string: import-ledger keys the prior answer of a superseded-by-plan row `was`.",
       "type": "object",
       "required": ["key", "text"],
       "additionalProperties": false,
       "properties": {
         "key": {"type": "string"},
-        "text": {"type": "string"}
+        "text": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/text"},
+        "tradeoff": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/text"}
       }
     },
     "line": {
@@ -250,11 +252,12 @@
       }
     },
     "question": {
+      "description": "The page lane's question. `id`, `title` (the shared shape's `text`), `recommendation`, `dependsOn` and each alternative's `text` and `tradeoff` take their types and limits from the shared question shape, and round.py holds a new or changed `short` to the shared shape's cap; `facts` and `basis` keep the page's markdown cap.",
       "type": "object",
       "required": ["id", "short", "title"],
       "additionalProperties": false,
       "properties": {
-        "id": {"type": "string"},
+        "id": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/questionId"},
         "group": {"type": "string"},
         "round": {"type": "integer"},
         "addedInRound": {
@@ -266,10 +269,10 @@
           "description": "A yes/no question: true lets it carry one alternative instead of two."
         },
         "stage": {"type": "string"},
-        "short": {"type": "string"},
-        "title": {"type": "string"},
+        "short": {"$comment": "500, the cap before the shared shape's, so sessions written under it keep loading; writes hold a new or changed short to the shared shape's cap.", "type": "string", "maxLength": 500},
+        "title": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/text"},
         "facts": {"type": "string"},
-        "recommendation": {"type": "string"},
+        "recommendation": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/recommendation"},
         "basis": {"type": "string"},
         "commits": {"type": "array", "items": {"type": "string"}},
         "commitsSinceSeq": {
@@ -291,7 +294,7 @@
           }
         },
         "alternatives": {"type": "array", "items": {"$ref": "#/$defs/alternative"}},
-        "dependsOn": {"type": "array", "items": {"type": "string"}},
+        "dependsOn": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/dependsOn"},
         "followUpOf": {"type": "string"},
         "supersedes": {"type": "string"},
         "supersededBy": {"type": "string"},

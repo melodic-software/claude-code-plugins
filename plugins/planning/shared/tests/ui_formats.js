@@ -44,7 +44,7 @@ async function main() {
       q("Q5", "Where should the order summary sit?", { kind: "text" }, { references: [{ kind: "diagram", asset: svg, alt: DIAGRAM_ALT, caption: "Checkout flow" }] }),
       q("Q6", "What worries you about the new checkout?", { kind: "text" }, { purpose: "gather" }),
       q("Q7", "Did you mean this button?", { kind: "confirm", image: shot, rect: { x: 10, y: 10, w: 30, h: 20 } }),
-      q("Q8", "Which checkout layout?", { kind: "prototype", variants: [{ id: "v-1", label: "Layout one", asset: v1 }, { id: "v-2", label: "Layout two", asset: v2 }] }),
+      q("Q8", "Which checkout layout?", { kind: "prototype", lookAt: "The checkout page.", variants: [{ id: "v-1", label: "Layout one", asset: v1 }, { id: "v-2", label: "Layout two", asset: v2 }] }),
     ] }]);
     await until(owner, () => (window.Core.snapshot()?.questions || []).some(x => x.id === "Q8"));
 

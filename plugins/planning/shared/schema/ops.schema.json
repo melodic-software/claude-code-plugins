@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/ops",
   "title": "Shared interview session ops file",
-  "description": "Input to `share.sh apply --file`, written by Claude. Every op applies under the state lock and all of them land or none does. `op` tags the variant. A question's `id` is the interview ledger's next `Q<N>`. An asset id from `add-asset` is usable only in a later apply. Rules that compare fields or count across ops (dependsOn names earlier ids, a variant's `previous` names a variant of an earlier prototype question that no other variant names, at most 8 questions per round, a placement per pending proposal, one placement per proposal) are checked by session.py, not here.",
+  "description": "Input to `share.sh apply --file`, written by Claude. Every op applies under the state lock and all of them land or none does. `op` tags the variant. A question's `id` is the interview ledger's next `Q<N>`. An asset id from `add-asset` is usable only in a later apply. Rules that compare fields or count across ops (dependsOn names earlier ids, a variant's `previous` names a variant of an earlier prototype question that no other variant names, a prototype question's `format.lookAt` is present, a variant's screenshots are distinct, at most 8 questions per round, a placement per pending proposal, one placement per proposal) are checked by session.py, not here.",
   "type": "object",
   "required": ["ops"],
   "additionalProperties": false,
@@ -256,11 +256,48 @@
         "alternatives": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/alternatives"},
         "dependsOn": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/dependsOn"},
         "purpose": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/purpose"},
-        "format": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/format"},
+        "format": {"$ref": "#/$defs/format"},
         "answerScope": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/answerScope"},
         "references": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/references"},
         "for": {"$ref": "#/$defs/for"}
       }
+    },
+    "format": {
+      "description": "A question's format as Claude writes it: a choice, multi or rank question takes session.py OPTION_COUNTS options, without the Something else or None of these option the server adds; state.schema.json `format` is the stored form.",
+      "oneOf": [
+        {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/textFormat"},
+        {
+          "type": "object",
+          "required": ["kind", "options"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["choice"]},
+            "options": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/option"}}
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "options"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["multi"]},
+            "options": {"type": "array", "minItems": 2, "maxItems": 8, "items": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/option"}},
+            "none": {"description": "Asks the server to add None of these; the stored question holds the option instead.", "enum": [true]}
+          }
+        },
+        {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/scaleFormat"},
+        {
+          "type": "object",
+          "required": ["kind", "options"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {"enum": ["rank"]},
+            "options": {"type": "array", "minItems": 3, "maxItems": 6, "items": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/option"}}
+          }
+        },
+        {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/confirmFormat"},
+        {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state#/$defs/prototypeFormat"}
+      ]
     },
     "placements": {"type": "array", "items": {"$ref": "#/$defs/placement"}},
     "placement": {
