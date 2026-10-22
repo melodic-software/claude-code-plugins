@@ -237,3 +237,25 @@ Describe 'Test-ApprovalGranted' -Tag 'lib' {
         Test-ApprovalGranted -State $null -RemediationId 'clear-temp-files' | Should -BeFalse
     }
 }
+
+Describe 'Get-ServiceExclusion' -Tag 'lib' {
+    It 'returns the service_exclusions list from a loaded approvals.json' {
+        $state = '{"schema_version":"1.0","remediations":{},"check_overrides":{"services":{"service_exclusions":["Spooler","WSearch"]}}}' |
+            ConvertFrom-Json
+        @(Get-ServiceExclusion -State $state) | Should -Be @('Spooler', 'WSearch')
+    }
+
+    It 'returns an empty list when check_overrides is absent' {
+        @(Get-ServiceExclusion -State (New-DefaultApprovalState)).Count | Should -Be 0
+    }
+
+    It 'returns an empty list when the services override has no exclusions' {
+        $state = '{"schema_version":"1.0","remediations":{},"check_overrides":{"services":{}}}' |
+            ConvertFrom-Json
+        @(Get-ServiceExclusion -State $state).Count | Should -Be 0
+    }
+
+    It 'returns an empty list for a null state' {
+        @(Get-ServiceExclusion -State $null).Count | Should -Be 0
+    }
+}

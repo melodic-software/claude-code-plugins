@@ -13,6 +13,12 @@ the contract used by every other remediation; reading it from
 [Console]::In is unreliable under Start-Job isolation and some
 PowerShell hosts.
 
+-ExcludedService names services this remediation never touches: a target
+whose name equals an entry (case-insensitive) is skipped before any
+Get-Service or Start-Service call, gets no attempt record, and is reported
+on the information stream. The orchestrator passes the per-host list from
+approvals.json check_overrides.services.service_exclusions.
+
 Policy: reference/windows/remediation-policy.md#1-restart-stoppedservice
 Philosophy: reference/shared/remediation-philosophy.md
 #>
@@ -23,6 +29,8 @@ param(
 
     [Parameter(ParameterSetName = 'Finding')]
     $Finding,
+
+    [string[]]$ExcludedService = @(),
 
     [switch]$Human
 )
@@ -104,6 +112,10 @@ $attempts = [System.Collections.Generic.List[object]]::new()
 foreach ($t in $targets) {
     $tName = Get-PropertyValue -InputObject $t -Name 'name'
     $name = $tName ? $tName : "$t"
+    if ($name -in $ExcludedService) {
+        Write-Information "skipped $name (service_exclusions)"
+        continue
+    }
     $before = Get-ServiceState -Name $name
 
     $attemptedAt = (Get-Date).ToString('o')
