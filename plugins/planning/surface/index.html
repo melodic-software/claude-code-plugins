@@ -849,7 +849,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         const items = s.items.filter(passes);
         if (!items.length && filtering()) continue;
         const groupsView = S.view === "groups", arch = groupsView ? items.filter(q => stateOf(q) === "arch") : [], liveItems = groupsView ? items.filter(q => stateOf(q) !== "arch") : items;
-        const archOpen = !!arch.length && (lsGet("arch:" + s.key, false) === true || arch.some(q => q.id === S.sel) || (filtering() && !liveItems.length)); // the selected card's row opens whatever selected it; a filter that matches only archived cards shows them
+        const archOpen = !!arch.length && (lsGet("arch:" + s.key, false) === true || (filtering() && !liveItems.length)); // a filter that matches only archived cards shows them
         const li = q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + railItem(q, s, carry, fresh) + "</li>"; };
         const o = lsGet("col:" + s.key, null), coll = s.collapsed && !(filtering() && !(o && o.d === s.done)); // a filter opens a section with no applicable stored toggle that holds a match
         const elig = s.items.filter(q => s.gid ? eligible(q) : op.has(q.id) && eligible(q)), picked = s.gid ? elig.filter(q => S.pick.has(q.id)) : [], aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
@@ -1645,6 +1645,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (id !== SUMMARY && !Q[id]) return;
     if (S.sel !== id) { S.armed = null; S.vtab = null; if (S.conflict && S.conflict.early) S.conflict = null; S.revSeen = lsGet("revSeen", {})[id]; if (!S.undo) { S.toast = ""; S.toastBad = false; renderToast(); } } // a toast speaks for the view it was raised on; leaving a question drops its early changed notice, since the next visit re-snaps it
     S.sel = id; lsSet("sel", id);
+    if (S.view === "groups" && id !== SUMMARY && stateOf(Q[id]) === "arch") { const sec = sections().secs.find(x => x.items.some(q => q.id === id)); if (sec) lsSet("arch:" + sec.key, true); } // selecting an archived card opens its row once; a later click on the row still collapses it
     try { history.replaceState(null, "", location.pathname + location.search + (id === SUMMARY ? "" : "#" + encodeURIComponent(id))); } catch (e) {} // replace, so Back leaves the page rather than walking the questions
     if (id !== SUMMARY) {
       markSeen(e => (e.ids || []).includes(id));
