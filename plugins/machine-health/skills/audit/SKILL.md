@@ -72,22 +72,22 @@ so under `--scheduled` run those two through the Bash tool, each exactly as show
 `pwsh -NoProfile -File`, the script path in single quotes as the step prints it, then the
 arguments. Any other spelling, or the PowerShell tool, is denied and the run fails.
 
-These two commands type the roots into quoted strings because a permission rule matches the
-command text: a rule can name a script only by the path typed in the command, never through the
-roots block's variables, and the PowerShell tool approves no `pwsh` call by rule. The typed roots
-stay data because `/machine-health:setup schedule` refuses a plugin root or state folder holding a
-single quote (`'` or U+2018 to U+201B), a control character or a line break, and under the
-wrapper's dontAsk mode a command that breaks out of its quotes to run anything else matches no
-rule and is denied.
+These two commands are the one place this skill types the roots into quoted strings: the
+wrapper's allow rules name each command exactly as typed, roots included, so they run through the
+Bash tool, never the roots block or the PowerShell tool. The typed roots stay data because
+`/machine-health:setup schedule` refuses a plugin root, state folder or report folder holding a
+single quote (`'` or U+2018 to U+201B), a control character or a line break, and the wrapper
+allows no other command.
 
-- **Pointer**: that a Bash or PowerShell rule matches the command text, and that "A rule must match
-  each subcommand independently", are in [Configure permissions](https://code.claude.com/docs/en/permissions)
-  under "Wildcard patterns", "Compound commands" and "PowerShell". **Probe**: `claude -p` 2.1.305
-  in dontAsk, in a throwaway folder with only project settings: `Bash(pwsh -NoProfile -File '<script>' *)`
-  ran a plain call and denied one carrying `$( )` in its arguments; `PowerShell(pwsh *)` and an
-  exact `PowerShell(pwsh ...)` rule denied a plain call. **As of**: 2026-10-22. **Recheck
-  trigger**: that page changes how a PowerShell rule matches a native command, or a rerun of the
-  probe allows a `pwsh` call through the PowerShell tool.
+- **Pointer**: how a Bash or PowerShell rule matches a command is in
+  [Configure permissions, "Wildcard patterns"](https://code.claude.com/docs/en/permissions#wildcard-patterns),
+  ["Compound commands"](https://code.claude.com/docs/en/permissions#compound-commands) and
+  ["PowerShell"](https://code.claude.com/docs/en/permissions#powershell). **Probe**: `claude -p`
+  2.1.305 in dontAsk, in a throwaway folder with only project settings: an exact
+  `Bash(pwsh -NoProfile -File '<script>' -StateBase '<folder>')` rule ran that command and denied
+  it with another `-StateBase`; `PowerShell(pwsh *)` and an exact `PowerShell(pwsh ...)` rule denied
+  a plain call. **As of**: 2026-10-22. **Recheck trigger**: those sections change how a command
+  rule matches its text, or a rerun of the probe allows a `pwsh` call through the PowerShell tool.
 
 ## OS detection and routing
 
@@ -147,7 +147,7 @@ Routing table:
    literal text.
 
    The orchestrator dispatches checks under per-check 90s timeouts, collects JSON results, applies the upward-only trend adjustments and the custom-check clamp, and, on non-dry runs, dispatches authorized remediations with before/after logging.
-5. **Receive the structured result.** When the run reports a `state-location` result, its state folder sits under a cloud sync root and nothing was written there: write no `TODO.md` and no custom check, and go to step 6. Otherwise run discovery per `reference/shared/discovery-guide.md`. Propose 1–3 OS-appropriate new checks. Straightforward read-only ones may be implemented as custom checks (script under `<StateBase>/scripts/<os>/checks/`, registered in the catalog overlay), except under `--scheduled`, where every proposal goes to `<StateBase>/TODO.md` and nothing is authored or registered; anything needing new permissions or remediation lands in `<StateBase>/TODO.md` for human approval. Checks broadly useful to every consumer are best contributed to the plugin itself.
+5. **Receive the structured result.** When the run reports a `run-lock` result, another audit holds the state folder and this run wrote nothing: run no discovery, write nothing, and go to step 8. When the run reports a `state-location` result, its state folder sits under a cloud sync root and nothing was written there: write no `TODO.md` and no custom check, and go to step 6. Otherwise run discovery per `reference/shared/discovery-guide.md`. Propose 1–3 OS-appropriate new checks. Straightforward read-only ones may be implemented as custom checks (script under `<StateBase>/scripts/<os>/checks/`, registered in the catalog overlay), except under `--scheduled`, where every proposal goes to `<StateBase>/TODO.md` and nothing is authored or registered; anything needing new permissions or remediation lands in `<StateBase>/TODO.md` for human approval. Checks broadly useful to every consumer are best contributed to the plugin itself.
 6. **Render the markdown report** from `reference/shared/report-template.md` into `<OutputBase>/reports/health-<UTC-timestamp>.md` (one file per run, so a same-day rerun does not overwrite the earlier report).
 
    When the severity spread or trend deltas would read better visually, also generate a self-contained static HTML view of that report (color-coded CRIT/WARN/UNKNOWN, no remote fetch). The markdown `.md` report stays the durable record.
@@ -175,7 +175,10 @@ Routing table:
    this run's `run_id`. So under `--scheduled` the final message is the script's output alone:
    nothing before or after it, no decision-page sentence, and no code fence around it. When step 5 saw a `state-location` result, latest.json is not
    this run's: skip the script and print the fixed first line from the orchestrator's output, the
-   `state-location` summary quoted as data, and the report path.
+   `state-location` summary quoted as data, and the report path. When step 5 saw a `run-lock`
+   result, another audit held the state folder and this run wrote no report and no latest.json:
+   skip the script and print the fixed first line from the orchestrator's output and the
+   `run-lock` summary quoted as data.
 
 ## Elevated pass
 

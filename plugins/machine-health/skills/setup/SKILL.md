@@ -331,16 +331,21 @@ folder the monthly runs will write to: show it to the owner with the task.
    from any other surface, walk the owner through the **New task** form, then the task's **Edit**
    form, which holds the Custom schedule.
 
-- **Pointer**: creating a task, Custom cron, missed-run catch-up and per-task permission modes are
-  in [Schedule recurring tasks in Claude Code Desktop](https://code.claude.com/docs/en/desktop-scheduled-tasks).
-  **As of**: 2026-10-21. **Recheck trigger**: that page changes the run conditions (app open,
-  computer awake, one catch-up within seven days) or the permission modes a task can take.
+- **Pointer**: creating a task and its Custom schedule are in
+  [Desktop scheduled tasks, "Create a scheduled task"](https://code.claude.com/docs/en/desktop-scheduled-tasks#create-a-scheduled-task);
+  when a task runs and what happens to a missed run are in
+  ["How scheduled tasks run"](https://code.claude.com/docs/en/desktop-scheduled-tasks#how-scheduled-tasks-run)
+  and ["Missed runs"](https://code.claude.com/docs/en/desktop-scheduled-tasks#missed-runs); the
+  modes a task can take are in
+  ["Permissions for scheduled tasks"](https://code.claude.com/docs/en/desktop-scheduled-tasks#permissions-for-scheduled-tasks).
+  **As of**: 2026-10-22. **Recheck trigger**: any of those sections changes when a task runs, what
+  happens to a missed run, or which permission modes a task can take.
 
 **Task Scheduler fallback** (no Desktop app): a monthly task that runs a copied wrapper, which calls
 `claude -p "/machine-health:audit on-demand --scheduled"` in dontAsk mode under the wrapper's time
 limit (its `-TimeoutSeconds` default) and records each run in
-`<StateBase>/logs/monthly-run-<runStamp>.status.json` (read by `check` step 6). dontAsk denies,
-without prompting, every call no allow rule covers. The command-line allow rules are Read; Write or
+`<StateBase>/logs/monthly-run-<runStamp>.status.json` (read by `check` step 6). The run is meant to
+do only what its allow rules name. The command-line allow rules are Read; Write or
 Edit of `<StateBase>/TODO.md` (one `Edit(/TODO.md)` rule covers both tools; the wrapper starts the
 run in `<StateBase>`, where a command-line `/path` rule is anchored); and exactly two shell
 commands through the Bash tool, the two `--scheduled` commands audit SKILL.md prints, matched
@@ -348,8 +353,8 @@ exactly, with the plugin root, `<StateBase>` and the report folder written into 
 argument, such as a different `-StateBase`, is denied. WebFetch,
 WebSearch and `pwsh -NoProfile -File -` (a script read from stdin) are denied, and no MCP server
 loads. The run also gets `--settings <StateBase>/scheduler/scheduled-settings.json`, whose deny
-rules block git, gh, download commands and the tools that write or act outside `TODO.md`; a deny
-beats every allow rule, the owner's own included. The owner's other allow rules still apply.
+rules block git, gh, download commands and the tools that write or act outside `TODO.md`, including
+where the owner's own allow rules grant them. The owner's other allow rules still apply.
 
 A plugin update moves the plugin root, and a changed `report_dir` option moves the report folder;
 the copy keeps the old ones. The next run's audit
@@ -372,7 +377,8 @@ root is gone the wrapper refuses to start; and `check` step 6 FAILs the stale co
 
    and refuse on `True`.
 2. On yes, run, appended to the [roots block](#resolving-the-state-root), through the PowerShell
-   tool (Git Bash would rewrite slash-led arguments such as `/create` as paths):
+   tool, never Git Bash, so the slash-led `schtasks` arguments such as `/create` reach it unchanged
+   (pointer below):
 
    ```powershell
    . (Join-Path $pluginRoot 'skills/setup/scripts/Install-MonthlyRun.ps1'); $i = Install-MonthlyRun -PluginRoot $pluginRoot -StateBase $stateRoot -ReportRoot $reportRoot; $pwsh = (Get-Command pwsh -CommandType Application | Select-Object -First 1).Source; schtasks /create /f /tn 'machine-health monthly' /sc MONTHLY /d 1 /st 09:00 /it /tr ('"{0}" -NoProfile -File "{1}"' -f $pwsh, $i.WrapperPath)
@@ -399,15 +405,22 @@ root is gone the wrapper refuses to start; and `check` step 6 FAILs the stale co
   **As of**: 2026-10-22. **Recheck trigger**: a
   [Claude Code CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entry
   makes `--bare` the `-p` default or adds a `--no-bare`-style flag.
-- **Pointer**: what dontAsk denies and what it still runs, that a Bash or PowerShell rule matches
-  the command text as written, that deny rules from any source beat allow rules, how a
-  command-line `/path` rule is anchored, and that file permissions consult `Edit(path)` rules for
-  writes are in [Configure permissions](https://code.claude.com/docs/en/permissions); that a
-  `--settings` file merges its lists into the user's and leaves the keys it omits alone is in
+- **Pointer**: what dontAsk runs and denies is in
+  [Permission modes, "Allow only pre-approved tools with dontAsk mode"](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode);
+  how a command rule matches is in
+  [Configure permissions, "Wildcard patterns"](https://code.claude.com/docs/en/permissions#wildcard-patterns)
+  and ["PowerShell"](https://code.claude.com/docs/en/permissions#powershell); how `Edit` and path
+  rules apply to writes is in ["Read and Edit"](https://code.claude.com/docs/en/permissions#read-and-edit);
+  how deny and allow rules from different sources combine is in
+  ["Settings precedence"](https://code.claude.com/docs/en/permissions#settings-precedence) and
   [Settings, "Settings precedence"](https://code.claude.com/docs/en/settings#settings-precedence).
-  **As of**: 2026-10-22. **Recheck trigger**: either page changes whether dontAsk runs tools the
-  settings `permissions.allow` rules approve, how a command rule matches its text, the deny-first
-  order, where a command-line `/path` rule is anchored, or whether `--settings` lists merge.
+  **As of**: 2026-10-22. **Recheck trigger**: any of those sections changes what dontAsk runs, how
+  a command rule matches its text, how deny and allow rules combine, where a path rule is
+  anchored, or whether `--settings` lists merge.
+- **Pointer**: Git Bash's rewriting of slash-led arguments is in
+  [MSYS2, "Filesystem Paths"](https://www.msys2.org/docs/filesystem-paths/#automatic-unix-windows-path-conversion).
+  **As of**: 2026-10-22. **Recheck trigger**: that section stops converting slash-led arguments
+  passed to a native program.
 
 ## Output
 
