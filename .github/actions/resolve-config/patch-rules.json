@@ -53,6 +53,7 @@
     "max-files": 300,
     "requires": [],
     "script-exec-bit": true,
+    "plugin-version-bump": true,
     "commit": { "parents": ["head"], "message": "Resolve issue #{issue}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": null,
     "escalations": ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]

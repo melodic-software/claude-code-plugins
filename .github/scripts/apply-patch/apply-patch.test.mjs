@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { checkRow, credentialIn, loadRules, main, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { checkRow, credentialIn, loadRules, main, push, pushReason, reasonFor, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
 
 // The registry as committed: the rows these tests hold apply-patch to.
 const REPO_ROOT = join(import.meta.dirname, "../../..");
@@ -1008,6 +1008,83 @@ test("issue target: a script under an instruction path is refused before any API
   const api = fakeApi(fix.repo, fix.head, { labels: READY });
   assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" });
   assert.deepEqual(api.calls, []);
+});
+
+const MANIFEST = "plugins/p/.claude-plugin/plugin.json";
+const manifest = (version, extra = "") => `{\n  "name": "p",\n  "version": "${version}",${extra}\n  "description": "d"\n}\n`;
+
+// The patch an edit makes against the repository's current commit, written
+// to the fixture's patch file; the work tree is reset to that commit.
+function patchAt(fix, edit) {
+  const head = git(fix.repo, ["rev-parse", "HEAD"]);
+  edit(fix.repo);
+  git(fix.repo, ["add", "-A"]);
+  const text = execFileSync("git", ["diff", "--cached", "--binary", "--full-index", "--no-renames", head], { cwd: fix.repo, encoding: "utf8" });
+  git(fix.repo, ["reset", "-q", "--hard", head]);
+  writeFileSync(fix.patchFile, text);
+  return { ...fix, head, sum: sha256(text) };
+}
+
+// A head that holds a plugin manifest, and the patch an edit makes on it.
+function manifestPatch(t, edit) {
+  const fix = repoWithPatch(t, () => {});
+  mkdirSync(join(fix.repo, "plugins/p/.claude-plugin"), { recursive: true });
+  writeFileSync(join(fix.repo, MANIFEST), manifest("1.0.0"));
+  commitAll(fix.repo, "manifest");
+  return patchAt(fix, edit);
+}
+
+test("issue target: a plugin.json change of its version alone pushes", async (t) => {
+  const fix = manifestPatch(t, (repo) => writeFileSync(join(repo, MANIFEST), manifest("1.0.1")));
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.equal((await pushIssue(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:${MANIFEST}`]), manifest("1.0.1").trim());
+});
+
+test("issue target: any plugin.json change beyond its version is refused before any API call", async (t) => {
+  const cases = [
+    ["the version and another key", (repo) => writeFileSync(join(repo, MANIFEST), manifest("1.0.1").replace('"d"', '"e"'))],
+    ["a hooks key added", (repo) => writeFileSync(join(repo, MANIFEST), manifest("1.0.0", '\n  "hooks": "./h.json",'))],
+    ["a second version key", (repo) => writeFileSync(join(repo, MANIFEST), manifest("1.0.1", '\n  "version": "1.0.1",'))],
+    ["the version removed", (repo) => writeFileSync(join(repo, MANIFEST), manifest("1.0.0").replace('  "version": "1.0.0",\n', ""))],
+    ["a version that is not a string", (repo) => writeFileSync(join(repo, MANIFEST), manifest("1.0.0").replace('"1.0.0"', "2"))],
+    ["the manifest deleted", (repo) => rmSync(join(repo, MANIFEST))],
+    ["another plugin's new manifest", (repo) => (mkdirSync(join(repo, "plugins/q/.claude-plugin"), { recursive: true }), writeFileSync(join(repo, "plugins/q/.claude-plugin/plugin.json"), manifest("1.0.0")))],
+    ["a manifest in another case", (repo) => (mkdirSync(join(repo, "plugins/p/.Claude-Plugin"), { recursive: true }), writeFileSync(join(repo, "plugins/p/.Claude-Plugin/plugin.json"), manifest("1.0.0")))],
+    ["a nested version", (repo) => writeFileSync(join(repo, MANIFEST), manifest("1.0.0", '\n  "x": { "version": "2" },'))],
+  ];
+  for (const [what, edit] of cases) {
+    const fix = manifestPatch(t, edit);
+    const api = fakeApi(fix.repo, fix.head, { labels: READY });
+    assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" }, what);
+    assert.deepEqual(api.calls, [], what);
+  }
+});
+
+test("issue target: a resumed branch whose earlier commit changed more than the version is refused with a version-only patch", async (t) => {
+  const fix = manifestPatch(t, () => {});
+  writeFileSync(join(fix.repo, MANIFEST), manifest("1.0.0", '\n  "hooks": "./h.json",'));
+  commitAll(fix.repo, "earlier lane commit");
+  const resumed = patchAt(fix, (repo) => writeFileSync(join(repo, MANIFEST), manifest("1.0.1", '\n  "hooks": "./h.json",')));
+  const api = fakeApi(fix.repo, resumed.head, { labels: READY });
+  assert.deepEqual(await pushIssue(resumed, api, { headRef: `${LANE}/issue-7-124-1`, refusalBase: fix.head }), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.deepEqual(api.calls, []);
+});
+
+test("the ci-context and default rows still refuse a version-only plugin.json change", async (t) => {
+  for (const name of ["ci-context", "default"]) {
+    const fix = manifestPatch(t, (repo) => writeFileSync(join(repo, MANIFEST), manifest("1.0.1")));
+    const api = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await pushWith(fix, api, { row: row(name) }), { outcome: "escalate", escalationReason: reasonFor(row(name), "protected-path") }, name);
+  }
+});
+
+test("a row that admits a plugin version bump must refuse instruction paths", () => {
+  const { "script-exec-bit": _, ...row } = issueRow();
+  const refuse = row.refuse.filter((name) => name !== "instruction-path");
+  assert.throws(() => checkRow({ ...row, "plugin-version-bump": true, refuse }), /plugin-version-bump.*instruction-path/);
+  assert.doesNotThrow(() => checkRow({ ...row, "plugin-version-bump": true }));
 });
 
 test("issue target: an executable bit the patch itself sets is refused, on a script or not", async (t) => {
