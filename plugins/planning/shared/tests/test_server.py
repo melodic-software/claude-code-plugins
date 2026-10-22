@@ -1958,7 +1958,7 @@ class TestPrototypePage(ServerCase):
         code, _, out = self.ops({"op": "add-asset", "path": str(self.d / "v1.html")}, {"op": "add-asset", "path": str(self.d / "v2.png")})
         self.assertEqual(code, 200, out)
         self.html, self.png = (r["id"] for r in out["results"])
-        proto = {**text_q("Q1"), "format": {"kind": "prototype", "variants": [{"id": "v-1", "label": "One page", "asset": self.html}, {"id": "v-2", "label": "Two steps", "asset": self.png}]}}
+        proto = {**text_q("Q1"), "format": {"kind": "prototype", "lookAt": "The payment step.", "variants": [{"id": "v-1", "label": "One page", "asset": self.html}, {"id": "v-2", "label": "Two steps", "asset": self.png}]}}
         code, _, out = self.ops({"op": "open-round", "questions": [proto, text_q("Q2")]})
         self.assertEqual(code, 200, out)
         _, self.guest = self.join("Ann")

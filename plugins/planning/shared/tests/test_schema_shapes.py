@@ -216,6 +216,22 @@ class TestFormatsReactionsPresence(unittest.TestCase):
             state["session"]["settings"]["prototypeTiers"] = bad
             self.assertIsNotNone(schema.first_error(state, STATE), bad)
 
+    def test_a_variant_shows_shots_a_snapshot_or_an_earlier_asset_and_a_prototype_may_say_where_to_look(self):
+        q = question("Q4")
+        self.assertNotIn("lookAt", q["format"])  # a question from before the look-at line stays valid
+        self.assertIsNone(question_error(q))
+        v = {"id": "v-1", "label": "Flow"}
+        for ok in ({"shots": ["0123456789abcdef.png"]}, {"shots": ["0123456789abcdef.png"] * 4, "snapshot": "fedcba9876543210.html"},
+                   {"snapshot": "fedcba9876543210.html", "lookAt": "Step two."}, {"asset": "fedcba9876543210.html"}):
+            q["format"] = {"kind": "prototype", "lookAt": "The basket.", "variants": [{**v, **ok}, {**v, "id": "v-2", "asset": "0123456789abcdef.png"}]}
+            self.assertIsNone(question_error(q), ok)
+        for bad in ({}, {"asset": "0123456789abcdef.png", "shots": ["0123456789abcdef.png"]}, {"shots": []}, {"shots": ["0123456789abcdef.png"] * 5},
+                    {"shots": ["0123456789abcdef.png"], "live": {"id": "L1", "path": "/"}}, {"snapshot": "fedcba9876543210.html", "lookAt": "x" * 201}):
+            q["format"] = {"kind": "prototype", "variants": [{**v, **bad}, {**v, "id": "v-2", "asset": "0123456789abcdef.png"}]}
+            self.assertIn("$.format", question_error(q), bad)
+        q["format"] = {"kind": "prototype", "lookAt": "x" * 201, "variants": [{**v, "asset": "0123456789abcdef.png"}, {**v, "id": "v-2", "asset": "0123456789abcdef.png"}]}
+        self.assertIn("$.format", question_error(q))
+
     def test_a_file_from_before_disagreements_is_still_valid(self):
         state = fixture("state-full.json")
         del state["disagreements"]

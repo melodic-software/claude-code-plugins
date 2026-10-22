@@ -9,8 +9,10 @@
 // sandbox (no access to the page or its storage, and a forged pin message is ignored); a second pick while a note is
 // open; a variant that navigates its frame away (dropped, and the page it goes to refused); the owner token kept out of every link and
 // the address bar, the owner still the owner after a reload and on the pages its links open; the phone layout; the
-// Prototypes switches in the Host settings (a view switched off leaves guests' pages, the owner told which); no 429,
-// no CSP violation and no page error.
+// Prototypes switches in the Host settings (a view switched off leaves guests' pages, the owner told which); the
+// question's look-at line on its card beside Open prototype and above the variant tabs; a variant with an html snapshot
+// and two screenshots (both shown, a note pinned on the second, the snapshot alone while screenshots are off) and its own
+// look-at line; no 429, no CSP violation and no page error.
 //   node plugins/planning/shared/tests/ui_proto.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the Design (Q98 row, Annotation, /api/annotate), the variant markup written below (its
@@ -45,6 +47,8 @@ addEventListener("load", () => setTimeout(() => { location.href = "/assets/${to}
 </script></body></html>`;
 const q = (id, text, format, extra = {}) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format, ...extra });
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
+const LOOK = "The pay button: scroll to the order total, then compare the variants.";
+const FLOW_LOOK = "The second screenshot is the step after Pay.";
 
 async function main() {
   const pw = loadPlaywright();
@@ -55,10 +59,13 @@ async function main() {
   try {
     const A = await s.start("proto");
     const v1 = s.asset(A.dir, "v1.html", VARIANT), v2 = s.asset(A.dir, "v2.png", png(300, 200, [80, 120])), elsewhere = s.asset(A.dir, "elsewhere.html", ELSEWHERE), v3 = s.asset(A.dir, "v3.html", leaver(elsewhere));
+    const shot1 = s.asset(A.dir, "flow-1.png", png(320, 200, [20, 60])), shot2 = s.asset(A.dir, "flow-2.png", png(320, 200, [120, 160])), single = s.asset(A.dir, "single.png", png(300, 220, [40, 80]));
     s.apply(A.dir, [{ op: "set-title", title: "Checkout prototype" }, { op: "open-round", questions: [
-      q("Q1", "Which checkout layout?", { kind: "prototype", variants: [{ id: "v-1", label: "One page", asset: v1 }, { id: "v-2", label: "Two steps", asset: v2 }] }),
+      q("Q1", "Which checkout layout?", { kind: "prototype", lookAt: LOOK, variants: [{ id: "v-1", label: "One page", asset: v1 }, { id: "v-2", label: "Two steps", asset: v2 }] }),
       q("Q2", "What should the pay button say?", { kind: "text" }),
-      q("Q3", "Which sign-in page?", { kind: "prototype", variants: [{ id: "v-1", label: "Leaves", asset: v3 }, { id: "v-2", label: "Picture", asset: v2 }] }),
+      q("Q3", "Which sign-in page?", { kind: "prototype", lookAt: "The sign-in form.", variants: [{ id: "v-1", label: "Leaves", asset: v3 }, { id: "v-2", label: "Picture", asset: v2 }] }),
+      q("Q4", "Which pay flow?", { kind: "prototype", lookAt: "The pay step.", variants: [
+        { id: "v-1", label: "Flow", snapshot: v1, shots: [shot1, shot2], lookAt: FLOW_LOOK }, { id: "v-2", label: "Single", shots: [single] }] }),
     ] }]);
     const ownerToken = new URL(A.ownerUrl).hash.replace(/^#owner=/, "");
     const owner = await rec.open(A.ownerUrl);
@@ -76,6 +83,11 @@ async function main() {
     ok("the question shows a preview tile from its picture variant", tile.img === `/assets/${v2}`, tile.img);
     ok("the owner's Open prototype link holds no owner token", tile.text === "Open prototype" && tile.href === "/proto/Q1", tile.href);
     ok("the tile names both variants", tile.meta.startsWith("2 variants: One page, Two steps."), tile.meta);
+    const cardLook = await owner.evaluate(() => {
+      const go = document.querySelector(".vf-proto-go"), look = go?.querySelector(".vf-proto-look"), open = go?.querySelector(".vf-proto-open");
+      return { text: look?.textContent || "", shown: !!look?.checkVisibility(), beside: !!open && !!look && open.getBoundingClientRect().right <= look.getBoundingClientRect().left };
+    });
+    ok("the card says where to look, beside Open prototype", cardLook.text === `Where to look: ${LOOK}` && cardLook.shown && cardLook.beside, JSON.stringify(cardLook));
 
     // ---------- the owner token stays out of the address bar and every link ----------
     const tokenShown = page => page.evaluate(t => ({ hash: location.hash, hrefs: [...document.querySelectorAll("a[href]")].map(a => a.href).filter(h => h.includes(t)) }), ownerToken);
@@ -134,6 +146,13 @@ async function main() {
     ok("the page names the question and lists both variants, the first selected", head.title === "Q1: Which checkout layout?"
       && JSON.stringify(head.tabs) === JSON.stringify([["One page", "true"], ["Two steps", "false"]]), JSON.stringify(head));
     ok("the html variant is framed from /assets/ with the pin helper and a script-only sandbox", head.src === `/assets/${v1}?pin=1` && head.sandbox === "allow-scripts", JSON.stringify(head));
+    const pageLook = await proto.evaluate(() => {
+      const look = document.querySelector(".vp-look"), tabs = document.querySelector(".vp-tabs");
+      return { text: look?.textContent || "", above: !!look?.checkVisibility() && look.getBoundingClientRect().bottom <= tabs.getBoundingClientRect().top,
+        views: !!document.querySelector(".vp-viewseg")?.checkVisibility() };
+    });
+    ok("the prototype page says where to look above the variant tabs", pageLook.text === `Where to look: ${LOOK}` && pageLook.above, JSON.stringify(pageLook));
+    ok("a variant with one view offers no choice of views", !pageLook.views);
 
     const fb = await proto.locator(".vp-frame").boundingBox(), sb = await proto.locator(".vp-side").boundingBox();
     ok("desktop: the variant fills the stage beside the notes column", fb.height > 600 && fb.width > 800 && sb.x >= fb.x + fb.width - 1, JSON.stringify([fb, sb]));
@@ -276,6 +295,47 @@ async function main() {
     ok("the round's digest hands Claude each note with its element", JSON.stringify(digest?.annotations?.map(x => [x.variant, x.element, x.text])) === JSON.stringify([
       ["v-1", BUTTON_PATH, "Make the total sit next to Pay now."], ["v-2", "img", "This band hides the address."], ["v-1", "html", "Too long for a phone."]]), JSON.stringify(digest?.annotations));
 
+    // ---------- a variant with an html snapshot and two screenshots ----------
+    const flow = await rec.openIn(gus.context(), new URL("/proto/Q4", A.localUrl).href);
+    const flowState = () => flow.evaluate(() => ({
+      look: [...document.querySelectorAll(".vp-look > span")].map(x => x.textContent),
+      views: document.querySelector(".vp-viewseg")?.checkVisibility() ? [...document.querySelectorAll(".vp-viewbtn")].map(b => [b.textContent, b.getAttribute("aria-pressed")]) : null,
+      frame: document.querySelector(".vp-frame")?.getAttribute("src") || "",
+      shots: [...document.querySelectorAll(".vp-stage .vp-img")].map(i => { const r = i.getBoundingClientRect(); return [i.getAttribute("src"), i.naturalWidth, r.height > 0]; }),
+      caps: [...document.querySelectorAll(".vp-shot-cap")].map(c => c.textContent) }));
+    await until(flow, () => !!document.querySelector(".vp-frame"));
+    let fs1 = await flowState();
+    ok("Flow opens on its html snapshot, with a choice of views", fs1.frame === `/assets/${v1}?pin=1`
+      && JSON.stringify(fs1.views) === JSON.stringify([["HTML snapshot", "true"], ["Screenshots (2)", "false"]]), JSON.stringify(fs1));
+    ok("  and says where to look, the question's line then the variant's", JSON.stringify(fs1.look) === JSON.stringify(["Where to look: The pay step.", `Flow: ${FLOW_LOOK}`]), JSON.stringify(fs1.look));
+    await flow.locator(".vp-viewbtn", { hasText: "Screenshots" }).click();
+    ok("Screenshots shows both pictures, one under the other, each captioned", await until(flow, () => [...document.querySelectorAll(".vp-stage .vp-img")].filter(i => i.naturalWidth === 320).length === 2));
+    fs1 = await flowState();
+    ok("  in order, with no frame", !fs1.frame && JSON.stringify(fs1.shots) === JSON.stringify([[`/assets/${shot1}`, 320, true], [`/assets/${shot2}`, 320, true]])
+      && JSON.stringify(fs1.caps) === JSON.stringify(["Screenshot 1 of 2", "Screenshot 2 of 2"]), JSON.stringify(fs1));
+    await flow.locator(".vp-annotate").click();
+    const second = await flow.locator(".vp-stage .vp-img").nth(1);
+    await second.scrollIntoViewIfNeeded();
+    const sb2 = await second.boundingBox();
+    await flow.mouse.click(sb2.x + sb2.width / 2, sb2.y + sb2.height / 2);
+    ok("a spot on the second screenshot opens a note about it", await until(flow, () => document.querySelector(".vp-where")?.textContent === "Note on this spot on screenshot 2"));
+    await flow.locator("#vp-note").fill("Step two loses the total.");
+    await flow.waitForTimeout(1100); // one write a second per person per route
+    await flow.locator(".vp-save").click();
+    ok("the note is pinned on the second screenshot", await until(owner, () => (window.Core.snapshot()?.annotations || []).some(a => a.qid === "Q4"
+      && a.variant === "v-1" && a.anchor.selector === "img:nth-of-type(2)" && a.text === "Step two loses the total.")));
+    ok("  and its pin is drawn on that picture only", await until(flow, () => {
+      const layers = [...document.querySelectorAll(".vp-stage .vp-layer")].map(l => l.querySelectorAll(".vp-pin").length);
+      return JSON.stringify(layers) === "[0,1]";
+    }));
+    await flow.keyboard.press("Escape");
+    await flow.locator(".vp-tab", { hasText: "Single" }).click();
+    ok("a one-screenshot variant shows its picture as before: no choice of views, no caption, only the question's line", await until(flow, a => {
+      const imgs = [...document.querySelectorAll(".vp-stage .vp-img")];
+      return imgs.length === 1 && imgs[0].getAttribute("src") === `/assets/${a}` && !document.querySelector(".vp-shot-cap")
+        && !document.querySelector(".vp-viewseg").checkVisibility() && document.querySelector(".vp-look").textContent === "Where to look: The pay step.";
+    }, single), JSON.stringify(await flowState()));
+
     // ---------- which prototype views guests get (the prototypeTiers setting) ----------
     await away.close(); // its variant leaves its page whenever it is framed again
     await owner.locator(".vf-q", { hasText: "Which checkout layout?" }).first().click();
@@ -305,6 +365,9 @@ async function main() {
     ok("a guest's picture variant shows that the view is off, with no picture and no Annotate", await until(proto, () => document.querySelector(".vp-stage .vp-off")?.textContent.startsWith("This view is off")
       && !document.querySelector(".vp-img") && document.querySelector(".vp-annotate").hidden));
     ok("  and the guest's state holds no picture variant asset", await until(proto, a => !JSON.stringify(window.Core.snapshot().questions).includes(a), v2));
+    await flow.locator(".vp-tab", { hasText: "Flow" }).click();
+    ok("Flow shows the guest its snapshot alone, with no choice of views", await until(flow, ([html, a, b]) => document.querySelector(".vp-frame")?.getAttribute("src") === `/assets/${html}?pin=1`
+      && !document.querySelector(".vp-viewseg").checkVisibility() && ![a, b].some(x => JSON.stringify(window.Core.snapshot().questions).includes(x)), [v1, shot1, shot2]));
     await proto.locator(".vp-tab", { hasText: "One page" }).click();
     ok("the html variant still runs for the guest", await until(proto, a => document.querySelector(".vp-frame")?.getAttribute("src") === `/assets/${a}?pin=1`, v1));
     await owner.click(".vf-gear");
@@ -312,7 +375,7 @@ async function main() {
     await owner.keyboard.press("Escape");
     ok("the guest's question shows as text with the note, no tile and no Open prototype", await until(gus, () => {
       const box = document.querySelector(".vf-proto");
-      return box && !box.hidden && box.querySelector(".vf-proto-tile").hidden && box.querySelector(".vf-proto-open").hidden
+      return box && !box.hidden && box.querySelector(".vf-proto-tile").hidden && !box.querySelector(".vf-proto-open").checkVisibility()
         && box.querySelector(".vf-proto-meta").textContent.endsWith("Prototype views are off in this session.");
     }), await gus.evaluate(() => document.querySelector(".vf-proto-meta")?.textContent));
     ok("the guest's open html variant is taken down", await until(proto, () => !document.querySelector(".vp-frame") && !!document.querySelector(".vp-stage .vp-off")));
@@ -322,6 +385,7 @@ async function main() {
     ok("Live prototypes off restores the default", await setTier("Live prototypes", ["screenshot", "snapshot"]));
     await owner.keyboard.press("Escape");
     ok("the guest's html variant runs again", await until(proto, a => document.querySelector(".vp-frame")?.getAttribute("src") === `/assets/${a}?pin=1`, v1));
+    ok("Flow offers its screenshots again", await until(flow, () => document.querySelector(".vp-viewseg").checkVisibility()));
 
     await owner.evaluate(() => window.Core.endSession(true));
     ok("once the session ends, a guest's Choose is disabled and says the session has ended (B6)", await until(proto, () => {

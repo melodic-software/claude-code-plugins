@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/ops",
   "title": "Shared interview session ops file",
-  "description": "Input to `share.sh apply --file`, written by Claude. Every op applies under the state lock and all of them land or none does. `op` tags the variant. A question's `id` is the interview ledger's next `Q<N>`. An asset id from `add-asset` is usable only in a later apply. Rules that compare fields or count across ops (dependsOn names earlier ids, a variant's `previous` names a variant of an earlier prototype question that no other variant names, at most 8 questions per round, a placement per pending proposal, one placement per proposal) are checked by session.py, not here.",
+  "description": "Input to `share.sh apply --file`, written by Claude. Every op applies under the state lock and all of them land or none does. `op` tags the variant. A question's `id` is the interview ledger's next `Q<N>`. An asset id from `add-asset` is usable only in a later apply. Rules that compare fields or count across ops (dependsOn names earlier ids, a variant's `previous` names a variant of an earlier prototype question that no other variant names, a prototype question's `format.lookAt` is present, a variant's screenshots are distinct, at most 8 questions per round, a placement per pending proposal, one placement per proposal) are checked by session.py, not here.",
   "type": "object",
   "required": ["ops"],
   "additionalProperties": false,
