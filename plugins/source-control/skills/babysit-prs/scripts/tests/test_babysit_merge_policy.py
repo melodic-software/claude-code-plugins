@@ -86,11 +86,15 @@ def file_payload(text: str) -> dict[str, Any]:
     }
 
 
+class RawText(str):
+    """A REST answer gh prints as it is: a raw-media-type file read."""
+
+
 class GhFake:
     """A gh seam answering REST endpoints and named GraphQL operations.
 
-    `rest` maps an endpoint to a payload, or to an int HTTP status for a
-    failure. `graphql` maps an operation name to a payload or to a callable of
+    `rest` maps an endpoint to a payload, a `RawText` printed as it is, or to
+    an int HTTP status for a failure. `graphql` maps an operation name to a payload or to a callable of
     the query's string variables. Any other call fails the test.
     """
 
@@ -122,6 +126,8 @@ class GhFake:
         answer = self.rest[endpoint]
         if isinstance(answer, int):
             return http_error(answer)
+        if isinstance(answer, RawText):
+            return subprocess.CompletedProcess([], 0, str(answer), "")
         return ok([answer] if "--paginate" in args else answer)
 
     def install(self, case: unittest.TestCase) -> GhFake:
@@ -5011,9 +5017,7 @@ class DependabotEligibility(unittest.TestCase):
             sha=self.HEAD,
         )
         gh = self.fake(commits=[dependabot_commit(), fix])
-        gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
-            "files": [{"filename": "src/x.js"}]
-        }
+        self.lane_fix(gh, ["package.json"])
         self.assertEqual(
             self.eligibility(hold_majors=False).reason,
             f"commit-not-dependabot:{'e' * 12}",
@@ -5031,25 +5035,212 @@ class DependabotEligibility(unittest.TestCase):
             },
         ]
         major = [dependabot_commit("semver-major"), fix]
-        fixed = [{"filename": "package-lock.json"}, {"filename": "src/x.js"}]
+        fixed = [{"filename": "package-lock.json"}, {"filename": "package.json"}]
         gh = self.fake(
             commits=major, comments=[self.marker()], pushes=pushes, files=fixed
         )
-        gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
-            "files": [{"filename": "src/x.js"}]
-        }
+        self.lane_fix(gh, ["package.json"])
         result = self.eligibility(hold_majors=False)
         self.assertTrue(result.eligible, result.reason)
-        # A fix commit may not touch .github/.
-        gh = self.fake(
-            commits=major, comments=[self.marker()], pushes=pushes, files=fixed
+        # A fix commit may change only npm or pip manifests outside .github/.
+        for path in (".github/workflows/ci.yml", ".github/scripts/x.mjs", "src/x.js"):
+            with self.subTest(path=path):
+                gh = self.fake(
+                    commits=major, comments=[self.marker()], pushes=pushes, files=fixed
+                )
+                self.lane_fix(gh, [path])
+                self.assertEqual(
+                    self.eligibility(hold_majors=False).reason,
+                    f"dependabot-fix-content:fix-scope:{path}",
+                )
+
+    PARENT = "d" * 40
+    PUSHES = [
+        {
+            "activity_type": "push",
+            "after": "e" * 40,
+            "actor": {"login": IDENTITY, "type": "Bot"},
+        },
+        {
+            "activity_type": "branch_creation",
+            "after": "d" * 40,
+            "actor": {"login": "dependabot[bot]", "type": "Bot"},
+        },
+    ]
+
+    @staticmethod
+    def pkg(range_: str, **extra: Any) -> str:
+        return json.dumps(
+            {
+                "name": "p",
+                "scripts": {"test": "node t.js"},
+                "dependencies": {"x": range_},
+                **extra,
+            }
         )
-        gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
-            "files": [{"filename": ".github/workflows/ci.yml"}]
+
+    @staticmethod
+    def lock(version: str, resolved: str | None = None, **extra: Any) -> str:
+        entry = {
+            "version": version,
+            "resolved": resolved or f"https://registry.npmjs.org/x/-/x-{version}.tgz",
+            "integrity": "sha512-" + "A" * 86 + "==",
+            **extra,
         }
+        return json.dumps(
+            {"lockfileVersion": 3, "packages": {"": {}, "node_modules/x": entry}}
+        )
+
+    def lane_fix(
+        self,
+        gh: GhFake,
+        paths: list[str],
+        *,
+        after: dict[str, str] | None = None,
+        modes: dict[str, dict[str, Any]] | None = None,
+    ) -> None:
+        """The lanes App's fix commit at the head on Dependabot's commit: its
+        files, their tree entries (a regular file unless `modes` names it),
+        and each side's text (a plain bump of x unless `after` names it)."""
+        before = {
+            "package.json": self.pkg("^1.0.0"),
+            "package-lock.json": self.lock("1.0.0"),
+            "requirements.txt": "numpy==2.5.3\n",
+            "plugin.json": json.dumps({"name": "p", "version": "1.0.0"}),
+            "CHANGELOG.md": "# Changelog\n",
+        }
+        bumped = {
+            "package.json": self.pkg("^2.0.0"),
+            "package-lock.json": self.lock("2.0.0"),
+            "requirements.txt": "numpy==2.5.4\n",
+            "plugin.json": json.dumps({"name": "p", "version": "1.0.1"}),
+            "CHANGELOG.md": "# Changelog\n\n## 1.0.1\n",
+        }
+        gh.rest[f"repos/{REPO}/commits/{self.HEAD}"] = {
+            "files": [{"filename": p, "status": "modified"} for p in paths],
+            "parents": [{"sha": self.PARENT}],
+        }
+        for path in paths:
+            name = path.rsplit("/", 1)[-1]
+            for ref, side in ((self.PARENT, before), (self.HEAD, bumped)):
+                text = (after or {}).get(path) if ref == self.HEAD else None
+                gh.rest[f"repos/{REPO}/contents/{path}?ref={ref}"] = RawText(
+                    text if text is not None else side.get(name, "")
+                )
+
+        def tree(variables: dict[str, str]) -> dict[str, Any]:
+            at = variables["e"].split(":", 1)[1]
+            entries = [
+                {
+                    "name": p.rsplit("/", 1)[-1],
+                    **(modes or {}).get(p, {"type": "blob", "mode": 0o100644}),
+                }
+                for p in paths
+                if (p.rsplit("/", 1)[0] if "/" in p else "") == at
+            ]
+            return {"repository": {"object": {"entries": entries}}}
+
+        gh.graphql["FixTree"] = tree
+
+    def lane_fix_reason(self, paths: list[str], **options: Any) -> str | None:
+        fix = dependabot_commit(
+            name="agent-lanes[bot]",
+            email="1+agent-lanes[bot]@users.noreply.github.com",
+            message="fix: adapt [dependabot skip]",
+            login=IDENTITY,
+            sha=self.HEAD,
+        )
+        gh = self.fake(
+            commits=[dependabot_commit("semver-major"), fix],
+            comments=[self.marker()],
+            pushes=self.PUSHES,
+            files=[{"filename": p} for p in paths],
+        )
+        self.lane_fix(gh, paths, **options)
+        return self.eligibility(hold_majors=False).reason
+
+    def bump_reason(self, after: dict[str, str] | None = None) -> str | None:
+        """The repository's version-bump commit at the head, pushed by
+        github-actions[bot], on Dependabot's minor bump."""
+        bump = dependabot_commit(
+            name="github-actions[bot]",
+            email="41898282+github-actions[bot]@users.noreply.github.com",
+            message="chore: bump plugin versions [dependabot skip]",
+            sha=self.HEAD,
+        )
+        pushes = [
+            {
+                "activity_type": "push",
+                "after": self.HEAD,
+                "actor": {"login": "github-actions[bot]", "type": "Bot"},
+            },
+            self.PUSHES[1],
+        ]
+        paths = ["plugins/p/.claude-plugin/plugin.json", "plugins/p/CHANGELOG.md"]
+        gh = self.fake(
+            commits=[dependabot_commit(), bump],
+            pushes=pushes,
+            files=[
+                {"filename": "package-lock.json"},
+                *({"filename": p} for p in paths),
+            ],
+        )
+        self.lane_fix(gh, paths, after=after)
+        return self.eligibility(hold_majors=False).reason
+
+    def test_the_version_bump_commit_may_change_only_the_plugin_version(
+        self,
+    ) -> None:
+        self.assertIsNone(self.bump_reason())
+        hooks = {"name": "p", "version": "1.0.1", "hooks": {"PreToolUse": []}}
+        path = "plugins/p/.claude-plugin/plugin.json"
         self.assertEqual(
-            self.eligibility(hold_majors=False).reason,
-            "dependabot-fix-content:.github/workflows/ci.yml",
+            self.bump_reason({path: json.dumps(hooks)}),
+            f"dependabot-bump-content:bump-content:{path}:plugin-json-key",
+        )
+
+    def test_a_lanes_app_fix_must_be_a_version_change_of_regular_manifest_files(
+        self,
+    ) -> None:
+        self.assertIsNone(self.lane_fix_reason(["package.json", "package-lock.json"]))
+        for mode in (0o120000, 0o160000, 0o100755):
+            with self.subTest(mode=oct(mode)):
+                kind = "commit" if mode == 0o160000 else "blob"
+                self.assertEqual(
+                    self.lane_fix_reason(
+                        ["package.json"],
+                        modes={"package.json": {"type": kind, "mode": mode}},
+                    ),
+                    "dependabot-fix-content:fix-mode:package.json",
+                )
+        steal = {"test": "node t.js", "postinstall": "node steal.js"}
+        self.assertEqual(
+            self.lane_fix_reason(
+                ["package.json"],
+                after={"package.json": self.pkg("^2.0.0", scripts=steal)},
+            ),
+            "dependabot-fix-content:fix-content:package.json:package-json-key:scripts",
+        )
+        self.assertEqual(
+            self.lane_fix_reason(
+                ["package-lock.json"],
+                after={
+                    "package-lock.json": self.lock(
+                        "2.0.0", "https://evil.example/x.tgz"
+                    )
+                },
+            ),
+            "dependabot-fix-content:fix-content:package-lock.json:"
+            "lock-resolved:node_modules/x",
+        )
+        evil = "https://registry.npmjs.org/evilpkg/-/evilpkg-6.6.6.tgz"
+        self.assertEqual(
+            self.lane_fix_reason(
+                ["package-lock.json"],
+                after={"package-lock.json": self.lock("2.0.0", evil)},
+            ),
+            "dependabot-fix-content:fix-content:package-lock.json:"
+            "lock-resolved:node_modules/x",
         )
 
     def test_an_unreadable_fix_commit_file_list_refuses(self) -> None:

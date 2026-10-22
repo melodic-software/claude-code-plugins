@@ -79,6 +79,8 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // how many open lanes-App PRs, none held, the search lists; null makes the
 // listing fail. `mergedLanePrs` is the search's merged count in the window
 // (24 by default: a WIP cap of 2), null makes it fail.
+// `queuedIssues` are the numbers the open agent-ready issue search lists, and
+// `deferred` what the open admission-deferred listing answers.
 // `blobs` maps a path to its blob SHA on main.
 // `timeline` and `pulls` are per issue and per pull request number.
 function world({
@@ -97,6 +99,8 @@ function world({
   blobs = {},
   timeline = {},
   pulls = {},
+  queuedIssues = [],
+  deferred = [],
   failOn,
 } = {}) {
   const calls = [];
@@ -111,7 +115,12 @@ function world({
     const listed = (items) => (page === 1 ? items : []);
     let match;
     if (route === base && method === "GET") {
-      return listed(new URL(path, "https://x").searchParams.get("state") === "open" ? openReady : closedList);
+      const params = new URL(path, "https://x").searchParams;
+      if (params.get("labels") === "admission-deferred") {
+        assert.equal(params.get("state"), "open");
+        return listed(deferred);
+      }
+      return listed(params.get("state") === "open" ? openReady : closedList);
     }
     if (route === `/repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs` && method === "GET") {
       const params = new URL(path, "https://x").searchParams;
@@ -126,6 +135,10 @@ function world({
     }
     if (method === "GET" && route === "/search/issues") {
       const q = new URL(path, "https://x").searchParams.get("q");
+      if (q.startsWith(`repo:${REPO} is:issue is:open label:agent-ready `)) {
+        const items = queuedIssues.map((number) => ({ number }));
+        return { total_count: items.length, incomplete_results: false, items: items.slice((page - 1) * 100, page * 100) };
+      }
       if (q === `repo:${REPO} is:pr is:open author:app/melodic-automation-lanes`) {
         if (openLanePrs === null) {
           throw new Error(`${method} ${path} failed with status 403`);
@@ -171,7 +184,7 @@ function world({
     if (method === "POST" && (match = route.match(/\/issues\/(\d+)\/labels$/))) {
       return [];
     }
-    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human)$/)) {
+    if (method === "DELETE" && route.match(/\/issues\/(\d+)\/labels\/(agent-ready|needs-human|admission-deferred)$/)) {
       return [];
     }
     const lookup = (number) =>
@@ -220,6 +233,14 @@ const writes = (calls) => calls.filter((call) => !call.startsWith("GET ") && !ca
 const closerReads = (calls, number) =>
   calls.filter((call) => call.startsWith("POST /graphql ") && call.includes(`"number":${number}`)).length;
 const labeled = (n) => `POST /repos/${REPO}/issues/${n}/labels {"labels":["agent-ready"]}`;
+
+// Number 20, blocked by number 10 alone (now closed), as world() options.
+const oneDependentWorld = (labels = []) => ({
+  blocking: [issue(20, { labels })],
+  issues: { 20: issue(20, { labels }) },
+  blockedBy: { 20: [issue(10, { state: "closed" })] },
+  comments: { 20: [note()] },
+});
 
 // Number 20 is blocked by number 10 (now closed) and number 11.
 function oneDependent({ sibling = "closed", labels = [], comments = [note()], state = "open" } = {}) {
@@ -1279,8 +1300,10 @@ function stalledRun({
   comments = [note()],
   events = [added(LABELED_AT, OWNER)],
   blobs = BLOBS,
+  queuedIssues = [],
 } = {}) {
   const fake = world({
+    queuedIssues,
     openReady: [ready(number)],
     comments: { [number]: comments },
     events: { [number]: events },
@@ -1297,7 +1320,8 @@ test("a run whose lane token request failed is re-fired an hour after it ended, 
   const { github, actions, calls } = stalledRun();
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  assert.ok(!calls.some((call) => call.includes("needs-human")));
+  // The WIP read's queued search names needs-human; no write does.
+  assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
 test("a run that did no work waits until an hour after it ended, past any rate-limit reset", async () => {
@@ -1379,7 +1403,8 @@ test("a failed mint is re-fired again on the same workflow files up to the bound
   const { github, actions, calls } = stalledRun(earlierPumps(2));
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  assert.ok(!calls.some((call) => call.includes("needs-human")));
+  // The WIP read's queued search names needs-human; no write does.
+  assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
 test("a failed mint stops after limit-stops-per-issue re-fires on the same workflow files, with no needs-human", async () => {
@@ -1401,7 +1426,8 @@ test("a run the WIP cap skipped keeps re-firing past the failed-mint bound", asy
   const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, ...earlierPumps(3) });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  assert.ok(!calls.some((call) => call.includes("needs-human")));
+  // The WIP read's queued search names needs-human; no write does.
+  assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
 test("a run another gate stopped before its mint, with no WIP cap skip, is not re-fired", async () => {
@@ -1868,4 +1894,114 @@ test("a reopened fix issue whose agent-ready the App added is relabeled like a l
   const { github, actions, calls } = reopened({ events: [added("2026-10-10T09:00:00Z")] });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), relabeled(30));
+});
+
+// Admission pacing (owner decision 2026-10-21, #8794): at or over the queued
+// cap, on or after wip.pause-from, work-unblock adds no new agent-ready. With
+// the default limits (factor 0.8, floor 1/h) and window (24 h), 24 merged
+// lane PRs in 24 h is 0.8/h, under the floor, so the cap is 1 x 24 = 24. A
+// deferred issue carries admission-deferred, which each sweep revisits
+// oldest first; restarts and re-fires of admitted issues are never paced.
+const deferredLabel = (n) => `POST /repos/${REPO}/issues/${n}/labels {"labels":["admission-deferred"]}`;
+const undeferred = (n) => `DELETE /repos/${REPO}/issues/${n}/labels/admission-deferred`;
+// n queued issues that no lane PR names.
+const queuedN = (n) => Array.from({ length: n }, (_, i) => 100 + i);
+
+test("at the queued cap past pause-from a newly unblocked issue is deferred, not labeled", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = world({ ...oneDependentWorld(), queuedIssues: queuedN(24) });
+  assert.equal(await main({ env: envFor({}, PAUSING), github }), 0);
+  assert.deepEqual(writes(calls), [deferredLabel(20)]);
+});
+
+test("under the queued cap, or before pause-from, a newly unblocked issue is labeled", async () => {
+  for (const [queuedIssues, config] of [[queuedN(23), PAUSING], [queuedN(25), {}]]) {
+    const { github, calls } = world({ ...oneDependentWorld(), queuedIssues });
+    assert.equal(await main({ env: envFor({}, config), github }), 0);
+    assert.deepEqual(writes(calls), [labeled(20)], JSON.stringify(queuedIssues));
+  }
+});
+
+test("with room for one admission the first ready issue is labeled and the next deferred", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const blocker = [issue(10, { state: "closed" })];
+  const { github, calls } = world({
+    blocking: [issue(20), issue(21)],
+    issues: { 20: issue(20), 21: issue(21) },
+    blockedBy: { 20: blocker, 21: blocker },
+    queuedIssues: queuedN(23),
+  });
+  assert.equal(await main({ env: envFor({}, PAUSING), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20), deferredLabel(21)]);
+});
+
+test("an issue already deferred is not labeled admission-deferred again", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = world({ ...oneDependentWorld(["admission-deferred"]), queuedIssues: queuedN(24) });
+  assert.equal(await main({ env: envFor({}, PAUSING), github }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+// A deferred issue, number 25, whose one blocker is closed; `deferredBy`
+// added its admission-deferred label (the lanes App by default).
+const deferredAdd = (actor, at = "2026-10-16T08:00:00Z") => ({ event: "labeled", label: { name: "admission-deferred" }, actor, created_at: at });
+const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)] } = {}) =>
+  world({
+    deferred: [issue(25, { labels })],
+    issues: { 25: issue(25, { labels }) },
+    blockedBy: { 25: [issue(10, { state: "closed" }), issue(11, { state: sibling })] },
+    comments: { 25: [note()] },
+    events: { 25: events },
+    queuedIssues,
+  });
+
+test("the sweep re-admits a deferred issue only when the lanes App or a listed human added admission-deferred", async (t) => {
+  const logs = [];
+  t.mock.method(console, "log", (line) => logs.push(line));
+  for (const actor of [LANES_BOT, OWNER]) {
+    const trusted = deferredWorld({ events: [deferredAdd(actor)] });
+    assert.equal(await sweep({ github: trusted.github }, PAUSING), 0);
+    assert.deepEqual(writes(trusted.calls), [labeled(25), undeferred(25)], actor.login);
+  }
+  // A stranger's label, or a stranger's newer re-add after the App's: left
+  // as is, with nothing written, and reported as a warning.
+  const stranger = { id: 999999, login: "drive-by", type: "User" };
+  for (const events of [[deferredAdd(stranger)], [deferredAdd(LANES_BOT), deferredAdd(stranger, "2026-10-16T09:00:00Z")], []]) {
+    logs.length = 0;
+    const untrusted = deferredWorld({ events });
+    assert.equal(await sweep({ github: untrusted.github }, PAUSING), 0);
+    assert.deepEqual(writes(untrusted.calls), [], JSON.stringify(events));
+    assert.ok(
+      logs.some((line) => line.startsWith("::warning title=label-unblocked::#25") && line.includes("neither the lanes App nor a listed human")),
+      logs.join("\n"),
+    );
+  }
+});
+
+test("the sweep admits a deferred issue once under the queued cap, and keeps it deferred at the cap", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const under = deferredWorld({ queuedIssues: queuedN(23) });
+  assert.equal(await sweep({ github: under.github }, PAUSING), 0);
+  assert.deepEqual(writes(under.calls), [labeled(25), undeferred(25)]);
+  const at = deferredWorld({ queuedIssues: queuedN(24) });
+  assert.equal(await sweep({ github: at.github }, PAUSING), 0);
+  assert.deepEqual(writes(at.calls), []);
+});
+
+test("the sweep keeps a held deferred issue deferred and drops the deferral of one no longer ready", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const held = deferredWorld({ labels: ["admission-deferred", "needs-owner-decision"] });
+  assert.equal(await sweep({ github: held.github }, PAUSING), 0);
+  assert.deepEqual(writes(held.calls), []);
+  for (const options of [{ sibling: "open" }, { labels: ["admission-deferred", "agent-ready"] }]) {
+    const gone = deferredWorld(options);
+    assert.equal(await sweep({ github: gone.github }, PAUSING), 0);
+    assert.deepEqual(writes(gone.calls), [undeferred(25)], JSON.stringify(options));
+  }
+});
+
+test("at the queued cap a run the WIP cap skipped is still re-fired: runs are never paced", async () => {
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 1, queuedIssues: queuedN(25) });
+  assert.equal(await sweep({ github, actions }, PAUSING), 0);
+  assert.deepEqual(writes(calls), refired(30));
 });

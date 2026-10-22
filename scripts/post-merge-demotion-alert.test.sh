@@ -60,10 +60,12 @@ if [[ -n "$alert_job" ]] && grep -q '^permissions: {}$' "$WORKFLOW" &&
 else
   fail "the alert job's permissions are not exactly issues: write, actions: write, checks: read, contents: read, pull-requests: read"
 fi
-if grep -qE '^[[:space:]]*-?[[:space:]]*uses:' <<<"$alert_job"; then
-  fail "the alert job runs an action; it must check out and run nothing"
+uses="$(grep -E '^[[:space:]]*-?[[:space:]]*uses:' <<<"$alert_job" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//; s/@.*//')"
+checkout="$(awk '/- name: Check out the default branch tip/ { on = 1 } on && /^      - name: Read/ { exit } on' <<<"$alert_job")"
+if [[ "$uses" == actions/checkout && "$checkout" == *"ref: refs/heads/main"* && "$checkout" == *"persist-credentials: false"* ]]; then
+  ok "the alert job's one action checks out main's tip without credentials"
 else
-  ok "no action and no checkout in the alert job"
+  fail "the alert job runs an action other than one credential-less checkout of main: '$uses'"
 fi
 if grep -qF "\${{" "$TMP_ROOT/body.sh"; then
   fail "the step body interpolates an expression; pass it through env"
@@ -201,8 +203,26 @@ green_run() {
 # the green SHA to the failing one; default SHA alone).
 # run_step <workflow> <event> <conclusion> <branch> <head-repo> <sha> <issues-json> [comments-json]
 run_step() {
-  rm -rf "$TMP_ROOT/stub"
-  mkdir -p "$TMP_ROOT/stub"
+  rm -rf "$TMP_ROOT/stub" "$TMP_ROOT/work"
+  mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work"
+  # JUDGE: the exit of a stub babysit_postmerge.py --judge-run in main's
+  # checkout, which logs its arguments and the checks files it is given and
+  # prints JUDGE_DEMOTING (a JSON list) as its verdict's `demoting`; unset,
+  # there is no checkout, so the judge fails and the run files as before.
+  if [[ -n "${JUDGE:-}" ]]; then
+    local judge="$TMP_ROOT/work/.base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py"
+    mkdir -p "${judge%/*}"
+    cat >"$judge" <<PY
+import json, shutil, sys
+args = sys.argv[1:]
+open("$TMP_ROOT/stub/judge", "w").write(" ".join(args))
+shutil.copy(args[args.index("--checks-file") + 1], "$TMP_ROOT/stub/judge.checks")
+if "--baseline-checks-file" in args:
+    shutil.copy(args[args.index("--baseline-checks-file") + 1], "$TMP_ROOT/stub/judge.baseline")
+print(json.dumps({"demoting": json.loads('${JUDGE_DEMOTING:-[]}')}))
+sys.exit($JUDGE)
+PY
+  fi
   printf '%s\n' "$7" >"$TMP_ROOT/stub/issues.json"
   printf '%s\n' "${8:-[]}" >"$TMP_ROOT/stub/comments.json"
   printf '{"jobs": [%s]}\n' "$(job 1 test-bash 'Run the bash tests')" >"$TMP_ROOT/stub/jobs.default.json"
@@ -228,7 +248,7 @@ run_step() {
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
     RUN_COMMIT_MESSAGE="${COMMIT_MESSAGE:-fix: a change (#1234)}" \
-    bash -e "$TMP_ROOT/body.sh" 2>&1)" && RC=0 || RC=$?
+    bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "$TMP_ROOT/body.sh" 2>&1)" && RC=0 || RC=$?
   LOG="$(cat "$TMP_ROOT/stub/log")"
 }
 
@@ -823,6 +843,68 @@ PIPELINE="$PIPE" files "a non-demotion issue naming this run is not its record" 
 FAIL_LANE_READ=1 PIPELINE="$PIPE" files "an unreadable lane record list still files" schedule "$FULL" schedule '[]'
 if [[ "$OUT" != *"could not read melodic-automation-lanes[bot]'s records"* ]]; then
   fail "an unreadable lane record list did not warn: out='$OUT'"
+fi
+
+# --- Suites outside the merges' affected set (babysit_postmerge.py --judge-run)
+JUDGE=0 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+judged="$(cat "$TMP_ROOT/stub/judge" 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$(fixes)" -eq 0 && "$OUT" == *"not a demotion"* &&
+  "$(grep -x 'excused=true' "$TMP_ROOT/stub/output")" == excused=true &&
+  "$judged" == "--repo o/r --judge-run 4242 --attempt 2 --checks-file "*" --file-quarantine" &&
+  "$(cat "$TMP_ROOT/stub/judge.checks")" == test-bash ]]; then
+  ok "a run the judge excuses (exit 0) files no record and no fix issue"
+else
+  fail "excused run: rc=$RC judged='$judged' log='$LOG' out='$OUT'"
+fi
+
+for code in 1 3; do
+  JUDGE=$code RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: test-bash"* ]] &&
+    ! grep -q excused "$TMP_ROOT/stub/output"; then
+    ok "a judge exit $code files the record as before"
+  else
+    fail "judge exit $code: rc=$RC log='$LOG' out='$OUT'"
+  fi
+done
+
+JUDGE=0 run_step "$CANARY" push failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && ! -e "$TMP_ROOT/stub/judge" ]]; then
+  ok "a canary failure is never judged by suite"
+else
+  fail "canary judged: rc=$RC log='$LOG'"
+fi
+
+# A check red on the baseline too is still judged for an expired quarantine.
+JUDGE=1 JUDGE_DEMOTING='["test-bash"]' RUNS="$(baseline_run 4141 failure)" \
+  BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: test-bash"* &&
+  "$(cat "$TMP_ROOT/stub/judge.baseline" 2>/dev/null)" == test-bash && ! -s "$TMP_ROOT/stub/judge.checks" ]] &&
+  ! grep -q excused "$TMP_ROOT/stub/output"; then
+  ok "a baseline-red check whose quarantine expired (judge exit 1) files the record"
+else
+  fail "expired quarantine on a baseline check: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+JUDGE=0 RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"already failing before"* ]] &&
+  ! grep -q excused "$TMP_ROOT/stub/output"; then
+  ok "a baseline-red check the judge does not demote (exit 0) files nothing, as before"
+else
+  fail "baseline-red, judge 0: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+# A mixed run: the newly red check is excused, a baseline-red one demotes on
+# an expired quarantine; the record and its fix issue name the one that demoted.
+JUDGE=1 JUDGE_DEMOTING='["lint-shell"]' RUNS="$(baseline_run 4141 failure)" \
+  JOBS="$(job 1 test-bash 'Run the bash tests'),$(job 3 lint-shell ShellCheck)" \
+  BASE_JOBS="$(job 2 lint-shell ShellCheck)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: lint-shell"$'\n'* &&
+  "$(cat "$TMP_ROOT/stub/judge.checks")" == test-bash && "$(cat "$TMP_ROOT/stub/judge.baseline")" == lint-shell &&
+  "$(fixes)" -eq 1 && "$(fix_post 1)" == *"post-merge-fix check=lint-shell"* ]]; then
+  ok "a judge exit 1 names the checks it demoted, not the excused newly red ones"
+else
+  fail "mixed run: rc=$RC log='$LOG' out='$OUT' fields='$(post_fields)'"
 fi
 
 # --- Fix issues for an agent (#7535) ------------------------------------------

@@ -83,6 +83,7 @@
     const mode = p.theme || t.mode || "system";
     root.dataset.theme = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
     root.dataset.accent = p.accent || t.accent || "teal";
+    root.dataset.palette = p.palette || t.palette || "default";
   }
 
   // ---------- variant switcher ----------
