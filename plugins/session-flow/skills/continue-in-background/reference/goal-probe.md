@@ -8,6 +8,7 @@ probe, not on a docs page; the section to recheck for where a goal runs is
 |---|---|---|---|
 | Pass the condition as the launched session's first prompt, `/goal <payload>`, read from a prompt file into `claude --bg --permission-mode auto "$(cat <file>)"` | The two probes below, run 2026-10-20 on Claude Code 2.1.304, Linux (WSL2) | 2026-10-20 | A release note changes how a background session's first prompt runs a slash command, the section above starts or stops naming background sessions, or a launch's transcript has no `Goal set:` line |
 | When the CLI refuses the `--cloud` launch for lack of a terminal, take the local `--bg` delivery instead | Probe 3 below, run 2026-10-20 on Claude Code 2.1.306, Linux (WSL2) | 2026-10-20 | A release lets `--cloud` start without a terminal, or <https://code.claude.com/docs/en/claude-code-on-the-web#start-a-cloud-session-from-your-terminal> changes how the terminal launch starts |
+| Treat a cloud session as able to hold a goal without probing it | <https://code.claude.com/docs/en/goal#errors-you-have-to-fix-clear-the-goal> | 2026-10-22 | That section stops naming cloud sessions, or a `--cloud` launch's transcript has no `Goal set:` line |
 
 ## What the probes observed
 
@@ -32,5 +33,5 @@ Both ran from a trusted project directory. From the home directory the launch fa
    workspace-trust dialog. Neither attempt created a cloud session, so arming was never reached.
 
 Sessions 1 and 2 were stopped and removed with `claude stop` and `claude rm` afterwards; probe 3
-left no cloud session, branch or pull request. Whether a `--cloud` session arms a goal from its
-first prompt is still unprobed: it needs one launch typed in a terminal from a trusted checkout.
+left no cloud session, branch or pull request. Cloud goal support rests on the docs row above, not
+on a probe; the terminal refusal, not goal support, is why the skill falls back to `--bg`.
