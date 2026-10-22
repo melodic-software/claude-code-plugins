@@ -16,6 +16,7 @@ The seam follows the shape of the tracker seam
 - [Capabilities manifest](#capabilities-manifest)
 - [Privacy](#privacy)
 - [Adapters](#adapters)
+- [Core](#core)
 - [Conformance](#conformance)
 
 ## Rows
@@ -27,8 +28,8 @@ A row is one JSON object on one line (JSONL). Every row carries:
 | `obs_id` | Stable identifier of the observation. The reader dedupes by it. |
 | `ts` | UTC ISO-8601 timestamp of the observation, e.g. `2026-10-21T09:30:00Z`. |
 
-Everything else in a row is the scanner's. The core (a later slice) does redaction, `obs_id`
-assignment, caps and dedupe before a row reaches an adapter. Adapters only store and return rows.
+Everything else in a row is the scanner's. The core, `buffer.sh` (see [Core](#core)), does redaction,
+`obs_id` assignment, caps and dedupe before a row reaches an adapter. Adapters only store and return rows.
 
 ## Verbs
 
@@ -92,7 +93,29 @@ The core enforces this by routing; an off-machine adapter is not handed transcri
 |---|---|
 | `local-file` | `.work/buffer/findings.jsonl` under the repository root, created on first append together with a `.work/buffer/.gitignore` holding `*`, so rows never reach git. Both verbs refuse (exit `2`, nothing stored) when `.work`, `.work/buffer`, the lock or `findings.jsonl` is a symlink, or the buffer resolves outside the repository. Appends take an exclusive lock, so concurrent calls never interleave or lose a row: `flock` on `.work/buffer/.lock`, or where `flock` is absent (macOS) a `.work/buffer/.lockdir` directory holding the holder's pid. The holder removes that directory on exit, and on HUP, INT or TERM, while its pid file still holds the holder's pid. There is no automatic takeover: on a host without `flock`, an appender killed with SIGKILL (or a power loss) leaves the directory behind, and every later append exits `1` naming it (at once when its pid is no longer running) until an operator removes it. Needs `jq`. Exits `3` outside a git repository or without `jq`. |
 
-Adapter selection through `findings-buffer.yaml` belongs to the core slice, not to this contract.
+## Core
+
+Callers use `buffer.sh`, not an adapter:
+
+- `buffer.sh append < rows.jsonl` redacts each row's string values with the vendored gitleaks rules
+  (`lib/redact.py`), caps the row at 2048 bytes (the longest strings are trimmed, then large arrays
+  and objects become a size note, and `"truncated": true` is set; a row is never rejected), sets
+  `obs_id` (the first 16 hex characters of the sha256 of the RFC 8785 canonical row without `obs_id`
+  and `ts`; a caller id of 16 hex characters is kept) and sets `ts` when it is not a UTC ISO-8601
+  string, in that order. A row that cannot be redacted stops the call with nothing appended. It then
+  calls the bound adapter's `append.sh`; when that exits non-zero, it appends to `local-file` instead
+  and exits `0` only when that is durable.
+- `buffer.sh read [--since <UTC ISO-8601>]` reads the bound adapter and, when that is not
+  `local-file`, the `local-file` rows too, and prints the first row per `obs_id`. Either read failing
+  fails the call.
+
+The binding is `<home>/findings-buffer.yaml`, personal overlay `<home>/findings-buffer.local.yaml`,
+read through the config cascade (`<home>` from the convention-home pointer line, default
+`docs/conventions`). Its one key, `adapter`, is `local-file` (the default) or a repository-relative
+directory that must resolve physically inside the repository, hold `append.sh` and `read.sh` as
+regular files, and carry a `capabilities.json` whose `schema_version` MAJOR is `1`. A missing or
+refused binding uses `local-file` and says so on stderr. Exits as in [Exit codes](#exit-codes); `3`
+also means `node` or `python3` is missing.
 
 ## Conformance
 

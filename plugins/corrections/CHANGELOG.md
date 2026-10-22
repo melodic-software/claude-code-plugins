@@ -3,6 +3,24 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-10-21
+
+### Added
+
+- `tools/findings-buffer/buffer.sh append|read [--since <UTC ISO-8601>]`: the findings-buffer core.
+  It picks the adapter from `<home>/findings-buffer.yaml` (overlay `findings-buffer.local.yaml`,
+  default `local-file`) through the config cascade, refusing an adapter directory outside the
+  repository. `append` redacts string values with the vendored gitleaks rules, caps each row at 2048
+  bytes, sets `obs_id` and `ts`, and falls back to `local-file` when the bound adapter's append
+  fails. `read` merges the bound adapter's rows with the `local-file` rows and drops repeat
+  `obs_id`s.
+- `scripts/findings-buffer.mjs` and `schemas/findings-buffer.schema.json`, which resolve the binding,
+  cap rows, assign `obs_id` and dedupe.
+- Generated copies of `lib/config-cascade.mjs`, `lib/yaml-subset.mjs`,
+  `lib/resolve-convention-home.sh` and session-flow's `redact.py`, and the vendored gitleaks rules
+  under `tools/findings-buffer/vendor/gitleaks/`.
+- `prerequisites.json` declares `node` and `python3`, which `buffer.sh` runs.
+
 ## [0.3.0] - 2026-10-21
 
 ### Added
