@@ -9,4 +9,5 @@ bump: minor
   tracker's own size values. The GitHub adapter implements it from the organization issue-field
   listing `set-fields` validates against; a field the organization lacks prints an empty
   `options` list and exits 0, and an adapter that declares no `get-field-options` key exits 6
-  (unsupported).
+  (unsupported). The other bundled adapters' manifests, the adapter generator's verb list and the
+  adapter-spec reference now declare the verb too (`false` outside GitHub).
