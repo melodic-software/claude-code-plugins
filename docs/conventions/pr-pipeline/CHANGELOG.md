@@ -1,5 +1,14 @@
 # Changelog for the PR pipeline convention
 
+## [3.7.0] - 2026-10-22
+
+### Added
+
+- pr-merge holds a pull request that could add or raise a charge (IaC files, new workflow
+  schedules, billed runner labels, new secrets references, new model legs, raised model-leg
+  timeouts, pipeline config changes) for a human unless its body links an owner
+  `**Decision recorded.** Cost:` comment on its closing issue or the pull request itself.
+
 ## [3.6.1] - 2026-10-22
 
 ### Fixed
