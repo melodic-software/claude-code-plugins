@@ -1847,7 +1847,7 @@ COST_DECISION_LINK = re.compile(
 )
 # A cost decision's first line: the decision marker, then `Cost:`, so a
 # decision recorded for something else clears no cost hold.
-DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*\s+Cost:")
+DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
 # An HTML comment in the body, or an unclosed one to the end: a link inside
 # one is hidden from a reader, so it cites nothing.
 HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)

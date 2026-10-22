@@ -357,6 +357,15 @@ class SecurityAndCostHolds(unittest.TestCase):
                 held = _file(config, patch=patch)
                 self.assertIn(COST_CODE, _codes(_cost([held], public=True)))
 
+    def test_a_value_swap_between_pipeline_profiles_holds(self):
+        config = "docs/conventions/pr-pipeline.yaml"
+        swap = (
+            "@@ -10,3 +10,3 @@\n   review:\n-    max-turns: 60\n+    max-turns: 10\n"
+            "@@ -20,3 +20,3 @@\n   summary:\n-    max-turns: 10\n+    max-turns: 60"
+        )
+        held = _file(config, patch=swap)
+        self.assertIn(COST_CODE, _codes(_cost([held], public=True)))
+
     def test_any_net_new_secret_reference_holds(self):
         for line in (
             "+  KEY: ${{ secrets['ANTHROPIC_API_KEY'] }}",

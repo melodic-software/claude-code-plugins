@@ -735,7 +735,8 @@ and its queued entries leave; two different identities, or an unreadable head co
     [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
     on any other repository every one, and any added `windows` or `macos` line;
   - any `pr-pipeline.yaml` change except one whose added and removed lines are all blank,
-    comment-only, or a `description:` or `title:` value, or that only edits trailing comments.
+    comment-only, or a `description:` or `title:` value, or that only edits trailing comments
+    on the same lines in place.
     Flow style, quoted keys and new list items hold;
   - a workflow or pipeline file with no patch.
 

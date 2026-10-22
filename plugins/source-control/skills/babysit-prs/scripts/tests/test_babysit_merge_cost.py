@@ -118,6 +118,12 @@ class CostDecision(unittest.TestCase):
             "no cost marker": dict(
                 comment=_comment(body="**Decision recorded.** Option 2.")
             ),
+            "a cost marker on the next line": dict(
+                comment=_comment(body="**Decision recorded.**\nCost: approve it.")
+            ),
+            "a cost marker on a later line": dict(
+                comment=_comment(body="**Decision recorded.** Option 2.\n\nCost: n/a")
+            ),
             "a self login": dict(
                 comment=_comment(user={"login": "lane-operator", "type": "User"})
             ),

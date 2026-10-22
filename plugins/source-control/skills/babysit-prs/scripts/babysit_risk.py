@@ -1605,22 +1605,41 @@ def _patch_lines(patch: Any) -> tuple[list[str], list[str]] | None:
     return added, removed
 
 
-def _unsafe_pipeline_lines(added: list[str], removed: list[str]) -> list[str]:
-    """The changed pr-pipeline.yaml lines off `_SAFE_PIPELINE_LINE`, unless
-    the added and removed ones are the same lines once trailing comments are
-    stripped."""
+def _unsafe_pipeline_lines(patch: str) -> list[str]:
+    """The changed pr-pipeline.yaml lines off `_SAFE_PIPELINE_LINE`. A run of
+    removed lines and the added lines that follow it pass together only when
+    they are the same lines, in order, once trailing comments are stripped, so
+    a value moved between two places in the file still holds."""
 
-    def unsafe(lines: list[str]) -> Counter[str]:
-        return Counter(
+    def unsafe(lines: list[str]) -> list[str]:
+        return [
             line.split(" #", 1)[0].rstrip()
             for line in lines
             if not _SAFE_PIPELINE_LINE.fullmatch(line)
-        )
+        ]
 
-    gained, lost = unsafe(added), unsafe(removed)
-    if gained == lost:
-        return []
-    return [line.strip() for line in (gained - lost) + (lost - gained)]
+    found: list[str] = []
+    removed: list[str] = []
+    added: list[str] = []
+
+    def close() -> None:
+        lost, gained = unsafe(removed), unsafe(added)
+        if lost != gained:
+            found.extend(line.strip() for line in lost + gained)
+        removed.clear()
+        added.clear()
+
+    for line in patch.split("\n"):
+        if line.startswith("-") and not line.startswith("---"):
+            if added:
+                close()
+            removed.append(line[1:])
+        elif line.startswith("+") and not line.startswith("+++"):
+            added.append(line[1:])
+        else:
+            close()
+    close()
+    return found
 
 
 def _net_added(
@@ -1714,7 +1733,7 @@ def _cost_reasons(
                 f"runner {v}" for v in _new_runners(raw, added, inp.public is True)
             ]
         else:
-            found = _unsafe_pipeline_lines(added, removed)
+            found = _unsafe_pipeline_lines(getattr(raw, "patch", ""))
         if found:
             hits.append(f"{f.path}: {'; '.join(found)}")
     if not hits or inp.cost_decision:
