@@ -5,13 +5,15 @@ maxLength, minimum, maximum, minItems, maxItems, oneOf, anyOf, allOf, and $ref t
 Anything else in a schema is ignored. `first_error` returns the first failure as
 `<path>: <message>` (path in `$.a[0].b` form), or None when the instance is valid.
 `registry` and `load` take an optional schema directory (default `schema/` here); each
-directory keeps its own registry, and a cross-schema $ref resolves in any loaded one.
+directory keeps its own registry, and a cross-schema $ref resolves in any loaded one. This
+directory and `shared/schema/` always load, so a page schema can $ref the shared question shape.
 """
 
 import json
 from pathlib import Path
 
 SCHEMA_DIR = Path(__file__).resolve().parent / "schema"
+SHARED_SCHEMA_DIR = Path(__file__).resolve().parent.parent / "shared" / "schema"
 TYPES = {
     "object": lambda v: isinstance(v, dict),
     "array": lambda v: isinstance(v, list),
@@ -46,6 +48,7 @@ def load(name, schema_dir=SCHEMA_DIR):
 
 def _by_id(sid):
     registry()
+    registry(SHARED_SCHEMA_DIR)
     for reg in _REGISTRIES.values():
         if sid in reg:
             return reg[sid]

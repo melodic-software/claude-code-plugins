@@ -2,7 +2,8 @@
 // The Phase 4b formats in real browsers, against `share.sh ensure-running` with the fake cloudflared: the owner and a
 // guest on desktops, and a guest on a 390x844 phone with touch, in a session past its first round (so the phone's
 // Questions tab must take taps on the round toggle and the questions with two rounds listed). Covered: multi (checkboxes), scale (keyboard and touch),
-// rank (keyboard, and a touch drag), "Something else…" on choice, multi and rank (the person's own option becomes a card
+// rank (keyboard, and a touch drag), None of these on a multi that asks for it (exclusive both ways, on the page and
+// the server), "Something else…" on choice, multi and rank (the person's own option becomes a card
 // others back), Disagree with a reason, the 👎 reaction, a diagram reference's alt text, the digest numbers where the
 // page shows results, no Something else on confirm and prototype questions, no 429 and no CSP violation. ux-review-3:
 // the confirm mark is drawn inside a phone-width picture, a pixel-sized rect from an earlier build is clamped into it,
@@ -43,7 +44,7 @@ async function main() {
       q("Q5", "Where should the order summary sit?", { kind: "text" }, { references: [{ kind: "diagram", asset: svg, alt: DIAGRAM_ALT, caption: "Checkout flow" }] }),
       q("Q6", "What worries you about the new checkout?", { kind: "text" }, { purpose: "gather" }),
       q("Q7", "Did you mean this button?", { kind: "confirm", image: shot, rect: { x: 10, y: 10, w: 30, h: 20 } }),
-      q("Q8", "Which checkout layout?", { kind: "prototype", variants: [{ id: "v-1", label: "Layout one", asset: v1 }, { id: "v-2", label: "Layout two", asset: v2 }] }),
+      q("Q8", "Which checkout layout?", { kind: "prototype", lookAt: "The checkout page.", variants: [{ id: "v-1", label: "Layout one", asset: v1 }, { id: "v-2", label: "Layout two", asset: v2 }] }),
     ] }]);
     await until(owner, () => (window.Core.snapshot()?.questions || []).some(x => x.id === "Q8"));
 
@@ -298,6 +299,7 @@ async function main() {
       q("Q2", "Did you mean this button?", { kind: "confirm", image: phoneShot, rect: { x: 10, y: 83, w: 80, h: 7 } }),
       q("Q3", "Which default payment method?", { kind: "choice", options: [{ id: "opt-1", label: "Card" }, { id: "opt-2", label: "Saved method" }] }),
       q("Q4", "Which shipping speed should be the default?", { kind: "choice", options: [{ id: "opt-1", label: "Standard" }, { id: "opt-2", label: "Express" }] }, { purpose: "poll" }),
+      q("Q5", "Which wallets do you already use?", { kind: "multi", none: true, options: [{ id: "opt-1", label: "Apple Wallet" }, { id: "opt-2", label: "Google Wallet" }] }),
     ] }]);
     const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
     const nia = await rec.open(B.localUrl, { context: PHONE });
@@ -350,6 +352,28 @@ async function main() {
     ok("poll, as the owner: Close poll closes a tied poll as a tally (no card), and Unlock shows",
       await until(bOwner, () => JSON.stringify(window.Core.snapshot()?.locks?.Q4?.source) === '{"kind":"poll"}' && [...document.querySelectorAll("button")].some(b => b.offsetParent && b.textContent.trim() === "Unlock")),
       JSON.stringify((await snap(bOwner))?.locks?.Q4));
+
+    // ---------- multi: None of these, which the server adds when the format asks and keeps apart from every other pick ----------
+    const q5 = (await snap(bOwner)).questions.find(x => x.id === "Q5").format.options;
+    ok("multi with none: the server adds None of these after Something else…", JSON.stringify(q5.slice(-2).map(o => [o.id, o.label, !!o.other, !!o.none])) === '[["other","Something else…",true,false],["none","None of these",false,true]]', JSON.stringify(q5));
+    await bOwner.locator(".vf-q", { hasText: "Which wallets do you already use?" }).first().click();
+    await until(bOwner, () => document.querySelector(".vf-qtext")?.textContent === "Which wallets do you already use?");
+    const row5 = label => bOwner.locator(".vf-check-row", { hasText: label });
+    const picks5 = () => bOwner.evaluate(() => JSON.stringify((window.Core.snapshot().cards.Q5 || []).find(c => c.ref === "p:host")?.picks));
+    const saved5 = want => until(bOwner, w => JSON.stringify((window.Core.snapshot().cards.Q5 || []).find(c => c.ref === "p:host")?.picks) === w, want);
+    ok("None of these looks like Something else…", (await row5("None of these").getAttribute("class")).includes("vf-check-other"));
+    await row5("Apple Wallet").locator("input").check();
+    await row5("None of these").locator("input").check();
+    ok("ticking None of these clears the other picks on the page", !(await row5("Apple Wallet").locator("input").isChecked()) && await row5("None of these").locator("input").isChecked());
+    await bOwner.click(".vf-fmt-save");
+    ok("None of these saves as the only pick", await saved5('["none"]'), await picks5());
+    await row5("Google Wallet").locator("input").check();
+    ok("ticking another option clears None of these on the page", !(await row5("None of these").locator("input").isChecked()) && await row5("Google Wallet").locator("input").isChecked());
+    await bOwner.click(".vf-fmt-save");
+    ok("the saved picks no longer hold None of these", await saved5('["opt-2"]'), await picks5());
+    // The server enforces it too: a page that sends both keeps the pick just made.
+    const both = await bOwner.evaluate(() => window.Core.pickWith("Q5", { options: ["opt-2", "none"] }, {}).then(() => "", e => String(e)));
+    ok("the server keeps None of these alone when it is the pick just made", !both && await saved5('["none"]'), both || await picks5());
     await bOwner.close();
     // A state.json the 6579f21 build wrote can hold a pixel-sized rect (it took any number); it loads as it is and
     // the page clamps the mark into the picture.

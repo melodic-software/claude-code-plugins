@@ -14,7 +14,8 @@
 #   bash_plan, python_plan    a JSON object from leg number to the suites that leg runs
 #   bash_needs, python_needs  a JSON object from leg number to the optional toolchains
 #                             its suites need: animation (the animation and
-#                             speech suites), inventory, duckdb, visualcheck
+#                             speech suites), inventory, duckdb, visualcheck, browser
+#                             (the shared-page UI suite, which drives Chromium)
 #   node_packages             the Node packages to install and test, space-separated
 #   windows_jobs              the pr-test-windows.yml jobs to run, a JSON list
 #   windows_steps             the pr-test-windows.yml steps to run, a JSON list of the keys
@@ -54,7 +55,7 @@
 # LEGS ARE SIZED FROM SUITE-SECONDS: ceil(seconds / budget), at least 1, at most
 # the lane's cap and the suite count. test-bash takes 120 s a leg (three suites
 # run at a time, so about 40 s of wall) up to 6 legs, and the whole tree always
-# takes 6; test-python takes 180 s a leg (one suite at a time) up to 4. A
+# takes 6; test-python takes 180 s a leg (one suite at a time) up to 5. A
 # suite's seconds are its median wall in scripts/suite-seconds.txt, measured
 # over whole-tree CI runs; a suite the file does not list counts 5, and a suite
 # scripts/run-plugin-tests-serial.txt runs alone counts three times its
@@ -347,6 +348,7 @@ pack() {
         if (p ~ /^plugins\/harness-ops\/skills\/inventory\//) s = s " inventory"
         if (p ~ /^plugins\/harness-ops\//) s = s " duckdb"
         if (p ~ /^plugins\/testing\/skills\/check-visual-parity\//) s = s " visualcheck"
+        if (p == "plugins/planning/shared/tests/ui.test.sh") s = s " browser"
         return s
       }
       {
@@ -381,6 +383,7 @@ pack() {
           if ((l, "inventory") in has) s = s " inventory"
           if ((l, "duckdb") in has) s = s " duckdb"
           if ((l, "visualcheck") in has) s = s " visualcheck"
+          if ((l, "browser") in has) s = s " browser"
           sub(/^ /, "", s)
           legsj = legsj (l ? "," : "") l
           planj = planj (l ? "," : "") "\"" l "\":[" items[l] "]"
@@ -393,7 +396,7 @@ pack() {
 }
 
 pack bash 120 6 "$whole" 3 "$WORK/bash" scripts/run-plugin-tests-serial.txt
-pack python 180 4 0 1 "$WORK/python"
+pack python 180 5 0 1 "$WORK/python"
 echo "node=$([[ -n "$node_packages" ]] && echo true || echo false)"
 echo "node_packages=$node_packages"
 echo "node: ${node_packages:-nothing selected}" >&2

@@ -1,5 +1,5 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
-# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
+# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/.claude-plugin/plugin.json
 """Tests for round.py V1: schema validation, refusals and warnings, --affects, apply, archive,
 status --latency, the sidecar lock and the rebuild check.
 
@@ -619,6 +619,76 @@ class TestRevise(DirCase):
         rc, out, err = self.rp("revise", "Q1", "--alt", "a:One", "--alt", "b:Two")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual([a["key"] for a in self.q("Q1")["alternatives"]], ["a", "b"])
+
+
+class TestSharedQuestionShape(DirCase):
+    """The page question takes `short` and the alternative's `tradeoff` from the shared question shape."""
+
+    def apply(self, *ops):
+        return self.rp("apply", "--file", self.file("ops.json", {"ops": list(ops)}))
+
+    def test_short_is_capped_at_80_on_every_write_path(self):
+        rc, out, err = self.rp("revise", "Q1", "--short", "x" * 80)
+        self.assertEqual(rc, 0, out + err)
+        for args in (
+            ("revise", "Q1", "--short", "x" * 81),
+            ("apply", "--file", self.file("r.json", {"ops": [{"op": "revise", "id": "Q1", "short": "x" * 81}]})),
+            ("apply", "--file", self.file("a.json", {"ops": [{"op": "add", "question": question("Q4", short="x" * 81)}]})),
+        ):
+            with self.subTest(args=args[:2]):
+                self.assertIn("allows at most 80 characters, has 81", self.assert_refused(*args))
+
+    def test_an_alternative_keeps_its_tradeoff(self):
+        alts = [{"key": "a", "text": "No", "tradeoff": "Two writers"}, {"key": "b", "text": "Later"}]
+        rc, out, err = self.apply(
+            {"op": "revise", "id": "Q1", "alternatives": alts},
+            {"op": "add", "question": question("Q4", alternatives=alts)},
+        )
+        self.assertEqual(rc, 0, out + err)
+        for qid in ("Q1", "Q4"):
+            self.assertEqual(self.q(qid)["alternatives"], alts)
+
+    def test_a_tradeoff_over_the_line_cap_is_refused(self):
+        alts = [{"key": "a", "text": "No", "tradeoff": "x" * 501}, {"key": "b", "text": "Later"}]
+        for op in (
+            {"op": "revise", "id": "Q1", "alternatives": alts},
+            {"op": "add", "question": question("Q4", alternatives=alts)},
+        ):
+            with self.subTest(op=op["op"]):
+                out = self.assert_refused("apply", "--file", self.file("ops.json", {"ops": [op]}))
+                self.assertRegex(out, "the cap is 500|allows at most 500")
+
+
+class TestStoredLongShort(DirCase):
+    """A stored `short` over the 80 cap, from a session written under the old cap, keeps loading;
+    only a write that sets a new or changed `short` is held to 80."""
+
+    LONG = "x" * 90
+
+    def setUp(self):
+        super().setUp()
+        doc = base_doc()
+        doc["questions"][0]["short"] = self.LONG
+        self.write_doc(doc)
+
+    def test_an_answer_and_a_revise_of_other_fields_are_accepted(self):
+        for args in (
+            ("apply", "--file", self.file("t.json", {"ops": [{"op": "record-terminal", "id": "Q1", "decision": "accept"}]})),
+            ("revise", "Q1", "--title", "New title?", "--facts", "New facts."),
+        ):
+            with self.subTest(args=args[:2]):
+                rc, out, err = self.rp(*args)
+                self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["short"], self.LONG)
+        self.assertEqual(self.q("Q1")["title"], "New title?")
+
+    def test_setting_a_long_short_is_refused(self):
+        for args in (
+            ("revise", "Q2", "--short", self.LONG),
+            ("add", "--file", self.file("q.json", question("Q4", short=self.LONG))),
+        ):
+            with self.subTest(args=args[:2]):
+                self.assertIn("allows at most 80 characters, has 90", self.assert_refused(*args))
 
 
 class TestRecAlternativeCollision(DirCase):

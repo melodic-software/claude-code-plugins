@@ -904,7 +904,7 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
   const { jobs } = workflow("pr-run-activity-read.yml");
   assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" }, "read-only, no id-token");
   const step = (id) => jobs.run.steps.find((s) => s.id === id);
-  const launcher = "melodic-software/ci-workflows/.github/actions/run-claude-cli@7b362428c76085a160e28656cd2c75c3147a69ff";
+  const launcher = "melodic-software/ci-workflows/.github/actions/run-claude-cli@164c2809f6150429b6f24d4a2777bb377af953d9";
   for (const [id, input, secret] of [
     ["act-key", "api-key", "claude-api-key"],
     ["act-token", "subscription-token", "claude-code-oauth-token"],
@@ -938,6 +938,8 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
   assert.ok(index("Stage the skill's files in the checkout") < index("Run the skill on the API key"));
   // The staged trusted context is read-only, as the plugin and the CI context are.
   assert.match(jobs.run.steps[index("Stage the skill's files in the checkout")].run, /chmod a-w \.lane\/trusted-context\.json/);
+  // The prompt and .lane/ itself too, so a script's --out lands only in .lane/scratch.
+  assert.match(jobs.run.steps[index("Stage the skill's files in the checkout")].run, /chmod a-w \.lane\/prompt\.md \.lane\n/);
 });
 
 test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_TEMP or /proc", () => {
@@ -956,15 +958,43 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
   assert.ok(launchers.includes("pr-run-activity-read.yml run act-key") && launchers.includes("pr-run-activity-read.yml run act-token"), launchers.join(", "));
 });
 
+// Launcher SHAs checked to pass `--permission-prompts none` unconditionally,
+// under which the default mode denies every call no rule allows, as dontAsk
+// does; check-permission-mode.sh accepts default for dontAsk on that basis.
+// 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; in cliArgs. A pin bump fails here until its
+// lane.cjs is read and its SHA added.
+const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set(["7b362428c76085a160e28656cd2c75c3147a69ff", "164c2809f6150429b6f24d4a2777bb377af953d9"]);
+
+test("pr-run-activity-read.yml: every run-claude-cli pin is a launcher checked to pass --permission-prompts none", () => {
+  const pins = [];
+  for (const [id, job] of Object.entries(workflow("pr-run-activity-read.yml").jobs ?? {})) {
+    for (const step of job.steps ?? []) {
+      const uses = String(step.uses ?? "");
+      if (!uses.includes("/run-claude-cli@")) continue;
+      const sha = uses.slice(uses.indexOf("@") + 1);
+      pins.push(sha);
+      assert.match(sha, /^[0-9a-f]{40}$/, `${id} ${step.id} pins a full SHA`);
+      assert.ok(PERMISSION_PROMPTS_NONE_LAUNCHERS.has(sha), `${id} ${step.id}: ${sha} is not checked to pass --permission-prompts none`);
+    }
+  }
+  assert.ok(pins.length >= 2, pins.join(", "));
+});
+
 // Each launcher leg is followed by a check that the CLI's init message
-// reports the permission mode the base config asked for; a mismatch, a
-// missing init message or an empty mode fails it. The key leg's credit stop
-// hands off unchecked.
+// reports the permission mode the base config asked for, or default for
+// dontAsk; any other mismatch, a missing init message or an empty mode fails
+// it. The key leg's credit stop hands off unchecked. The check runs from the
+// base copy in RUNNER_TEMP; check-permission-mode.test.sh holds its cases.
 test("pr-run-activity-read.yml: each launcher leg is followed by a check of the CLI's reported permission mode", (t) => {
   const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
   const at = (id) => steps.findIndex((s) => s.id === id);
   const dir = mkdtempSync(join(tmpdir(), "mode-check-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const copy = steps.find((s) => s.name === "Copy the patch collector and the output sealer from the base");
+  assert.match(copy.run, /cp [^\n]*\.base\/\.github\/scripts\/read-patch\/check-permission-mode\.sh [^\n]*"\$DEST\/"/);
+  assert.ok(steps.indexOf(copy) < at("act-key"));
+  mkdirSync(join(dir, "read-patch"));
+  writeFileSync(join(dir, "read-patch", "check-permission-mode.sh"), read("../../scripts/read-patch/check-permission-mode.sh"));
   const file = (name, messages) => {
     const path = join(dir, name);
     writeFileSync(path, typeof messages === "string" ? messages : JSON.stringify(messages));
@@ -978,9 +1008,11 @@ test("pr-run-activity-read.yml: each launcher leg is followed by a check of the 
     assert.equal(step.env.MODE, "${{ steps.config.outputs.permission-mode }}");
     assert.ok(!writesSummary(step), `${check} writes no summary`);
     const runs = (mode, execution) =>
-      spawnSync("bash", ["-e", "-c", step.run], { env: { PATH: process.env.PATH, MODE: mode, EXECUTION_FILE: execution } }).status;
+      spawnSync("bash", ["-e", "-c", step.run], { env: { PATH: process.env.PATH, RUNNER_TEMP: dir, MODE: mode, EXECUTION_FILE: execution } }).status;
     assert.equal(runs("auto", file(`${check}-auto.json`, init("auto"))), 0);
     assert.equal(runs("dontAsk", file(`${check}-dontask.json`, init("dontAsk"))), 0);
+    assert.equal(runs("dontAsk", file(`${check}-default.json`, init("default"))), 0, "default for dontAsk");
+    assert.equal(runs("auto", file(`${check}-auto-default.json`, init("default"))), 1, "default for auto");
     assert.equal(runs("auto", file(`${check}-other.json`, init("dontAsk"))), 1, "another mode");
     assert.equal(runs("auto", file(`${check}-none.json`, [{ type: "result", subtype: "success" }])), 1, "no init message");
     assert.equal(runs("auto", join(dir, "missing.json")), 1, "no execution file");
@@ -2450,7 +2482,7 @@ test("scan job: every gate, skip and launcher class value the runner sets passes
   const schema = JSON.parse(read("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json"));
   const gateReasons = Object.keys(JSON.parse(read("../report-check-run/gate-skip-reasons.json")));
   // run-claude-cli's failure classes, the keys of SUMMARY_NOTES in lane.cjs at
-  // the pinned 7b362428. cant-fail-ok: an external contract's value list.
+  // the pinned 164c2809. cant-fail-ok: an external contract's value list.
   const laneClasses = ["credit-stop", "rate-limit", "auth", "overloaded", "max-turns", "timeout", "other"];
   const cases = [
     ...schema.$defs["skip-reason"].enum.map((value) => ["skip-reason", value]),

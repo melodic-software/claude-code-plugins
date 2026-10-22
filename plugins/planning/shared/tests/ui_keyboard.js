@@ -205,7 +205,20 @@ async function main() {
     await surface(owner, "keyboard shortcuts (?)", ".vf-keys", { opener: owner.locator(".vf-q").first(), key: "?" });
 
     // ---------- the guest's surfaces on a desktop ----------
-    await surface(gus, "chat", "section.vf-chat", { opener: gus.locator(".vf-fab") });
+    // Below 1100 px wide the chat covers the page, so it is a modal dialog (WAI-ARIA APG dialog pattern): Tab stays in it.
+    await gus.setViewportSize({ width: 1024, height: 900 });
+    await surface(gus, "chat over the page (1024 wide)", "section.vf-chat", { opener: gus.locator(".vf-fab") });
+    await gus.setViewportSize(DESK.viewport);
+    // From 1100 px the page makes room for it: a region beside the page that Tab moves on from, and Escape inside closes.
+    await gus.locator(".vf-fab").focus();
+    await gus.keyboard.press("Enter");
+    await until(gus, () => !document.querySelector(".vf-chat").hidden);
+    let leftChat = false;
+    for (let i = 0; i < 40 && !leftChat; i++) { await gus.keyboard.press("Tab"); leftChat = await gus.evaluate(() => !!document.activeElement && document.activeElement !== document.body && !document.querySelector(".vf-chat").contains(document.activeElement)); }
+    ok("chat docked beside the page (1440 wide): Tab moves on from it into the page", leftChat, await gus.evaluate(`(${describe})()`));
+    await gus.locator(".vf-chat .vf-minput").focus();
+    await gus.keyboard.press("Escape");
+    ok("chat docked: Escape inside it closes it, focus back on the chat button", await until(gus, () => document.querySelector(".vf-chat").hidden && document.activeElement === document.querySelector(".vf-fab"), null, 3000));
     await gus.locator(".vf-q", { hasText: "Did you mean this button?" }).first().click();
     await surface(gus, "picture viewer", ".vf-lb", { opener: gus.locator(".vf-confirm-fig .vf-imgbtn") });
 
@@ -307,7 +320,10 @@ async function main() {
     await swept(gus, "guest Compare (desktop)", { open: viewSeg(gus, "Compare") });
     await swept(gus, "guest Tree (desktop)", { open: viewSeg(gus, "Tree") });
     await viewSeg(gus, "Focus")();
-    await swept(gus, "chat (desktop)", { scope: "section.vf-chat", open: () => gus.locator(".vf-fab").click(), close: esc(gus) });
+    // swept where the chat is a modal (below 1100 px), so Tab comes round to its first control again
+    await gus.setViewportSize({ width: 1024, height: 900 });
+    await swept(gus, "chat (desktop, 1024 wide)", { scope: "section.vf-chat", open: () => gus.locator(".vf-fab").click(), close: esc(gus) });
+    await gus.setViewportSize(DESK.viewport);
     await swept(gus, "picture viewer (desktop)", { scope: ".vf-lb", open: async () => { await openQ(gus, "Did you mean this button?")(); await gus.locator(".vf-confirm-fig .vf-imgbtn").click(); }, close: esc(gus) });
     await swept(owner, "owner Host view (desktop)", { open: viewSeg(owner, "Host") });
     await swept(owner, "remove-person confirm dialog (desktop)", { open: () => owner.locator(".vf-hpeople .vf-btn-danger:visible", { hasText: "Remove" }).first().click(), close: esc(owner) });
@@ -322,8 +338,48 @@ async function main() {
     await swept(pia, "chat sheet (phone)", { scope: "section.vf-chat", open: () => pia.locator(".vf-fab").click(), close: esc(pia) });
     await swept(phoneOwner, "More sheet (phone)", { scope: ".vf-moresheet", open: tab(phoneOwner, "More"), close: esc(phoneOwner) });
     await swept(phoneOwner, "owner Host view (phone)", { open: async () => { await tab(phoneOwner, "More")(); await phoneOwner.locator(".vf-msitem", { hasText: "Host view" }).click(); } });
-    // The host's presence names the question of whichever tab beat last, so with this tab on the first question and the
-    // desktop one on another, "The host is on this question" comes and goes on a guest's first question every few seconds.
+    // One person, two tabs on two questions: the phone tab on the guest's question and hidden, the desktop tab on another
+    // and focused after it. The host shows on the desktop tab's question only (the tab focused or shown last), so the
+    // guest's page never says "The host is on this question" while it is sampled every 250 ms, whichever tab beats last.
+    const piaQ = await pia.evaluate(() => document.querySelector(".vf-qtext")?.textContent);
+    const qidOf = (page, text) => page.evaluate(t => window.Core.state.questions.find(x => x.text === t)?.id, text);
+    const phoneQ = await qidOf(phoneOwner, piaQ), deskQ = await qidOf(owner, "Did you mean this button?"); // Gus is there already, so the tour below has its own question
+    await phoneOwner.evaluate(id => window.Core.setFocus(id), phoneQ);
+    await phoneOwner.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }); document.dispatchEvent(new Event("visibilitychange")); });
+    await owner.evaluate(id => { window.Core.setFocus(id); window.dispatchEvent(new Event("focus")); }, deskQ);
+    const hostQ = () => pia.evaluate(() => window.Core.owner()?.q);
+    const settledOnDesk = await until(pia, id => window.Core.owner()?.q === id, deskQ, 10000);
+    const samples = [];
+    for (let i = 0; i < 24; i++) { samples.push([await hostQ(), await pia.evaluate(() => !document.querySelector(".vf-onit").hidden)]); await pia.waitForTimeout(250); }
+    const flips = samples.filter(([q, shown]) => q !== deskQ || shown).length;
+    ok("a host with two tabs shows on the question of the tab focused last, never flipping", phoneQ && deskQ && phoneQ !== deskQ && settledOnDesk && flips === 0,
+      `phone on ${phoneQ}, desktop on ${deskQ}, settled: ${settledOnDesk}, ${flips} of 24 samples off the desktop's question or showing the host here`);
+    // The phone is used again and locked, while the desktop window keeps focus and fires nothing: the phone holds the newer
+    // focus time but is hidden, so the host stays on the desktop's (visible) question.
+    await phoneOwner.evaluate(() => {
+      const show = state => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state }); document.dispatchEvent(new Event("visibilitychange")); };
+      show("visible"); setTimeout(() => show("hidden"), 1500);
+    });
+    await phoneOwner.waitForTimeout(4500); // the shown beat, the hidden one, and a regular beat after it
+    const locked = [];
+    for (let i = 0; i < 24; i++) { locked.push(await hostQ()); await pia.waitForTimeout(250); }
+    const lockedOff = locked.filter(x => x !== deskQ).length;
+    ok("  and a locked phone used after the desktop does not take the host off the desktop's question", lockedOff === 0,
+      `${lockedOff} of 24 samples off the desktop's question (${[...new Set(locked)].join(", ")})`);
+    // Both tabs on screen: the phone shown first, the desktop focused 3 s later. From then on every phone beat reaches the
+    // server 5 s late, so its age of the same focus arrives stale; the phone's focus must stay where its first beat put it.
+    await phoneOwner.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" }); document.dispatchEvent(new Event("visibilitychange")); });
+    await phoneOwner.waitForTimeout(2500);
+    await phoneOwner.route("**/api/heartbeat", async r => { await new Promise(res => setTimeout(res, 5000)); await r.continue().catch(() => {}); });
+    await owner.waitForTimeout(500);
+    await owner.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await pia.waitForTimeout(9000); // a delayed phone beat lands
+    const late = [];
+    for (let i = 0; i < 24; i++) { late.push(await hostQ()); await pia.waitForTimeout(250); }
+    const lateOff = late.filter(x => x !== deskQ).length;
+    ok("  and a phone's late beats do not move its earlier focus past the desktop's", lateOff === 0,
+      `${lateOff} of 24 samples off the desktop's question (${[...new Set(late)].join(", ")})`);
+    await phoneOwner.unroute("**/api/heartbeat");
     // Closed, so the tour below starts with no one else on that question and moves its target only when it means to.
     await phoneOwner.close();
 

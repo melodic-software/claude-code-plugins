@@ -16,7 +16,7 @@ two surfaces:
 - `feature_map_dir` is a top-level key of the same YAML config, set only in team
   `docs/conventions/testing.yaml` or the local overlay `.claude/testing.local.yaml`. It is a path
   inside one repository, so the user-global file is not read for it and it has no `userConfig`
-  option. `scripts/resolve-config.sh e2e` resolves it with the other two.
+  option. `scripts/resolve-config.sh e2e` resolves it with the other three.
 
 This file owns the keys: their meaning, allowed values, defaults, and precedence. How the layers
 merge is owned by the layering contract; see the

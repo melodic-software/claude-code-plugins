@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://melodic-software.github.io/claude-code-plugins/planning/shared/state",
   "title": "Shared interview session file",
-  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, a variant's `previous` names a variant of an earlier prototype question that no other variant names, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements`, `reports`, `passes`, `lateActs`, a question's `for` and a variant's `previous` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks). A mention in text a person wrote is stored as `<@pid>` (session.py MENTION), so it shows the person's current name.",
+  "description": "state.json of one shared interview session. Sum types are objects tagged by a one-value `kind` enum. Maps keyed by person id (`pid`), question id (`Q<N>`) or card ref are objects. Times (`at`, `Ts`) are float epoch seconds from the server clock. Rules that compare fields (dependsOn names earlier ids, a variant's `previous` names a variant of an earlier prototype question that no other variant names, one review flag per because and why, at most 8 questions per round, one vote per person, at most one `other` option per question, how many options each format takes from Claude) are checked by session.py, not here. `disagreements`, `reports`, `passes`, `lateActs`, `decisions`, a question's `for`, a variant's `previous` and a prototype's `lookAt` are optional: a file written before them has none. `reactions` maps qid -> card ref -> pid -> the reactions that person holds on that answer (several at once; never one twice, nor both thumbs and down, which session.py checks). A mention in text a person wrote is stored as `<@pid>` (session.py MENTION), so it shows the person's current name.",
   "type": "object",
   "required": [
     "pluginVersion", "writtenBy", "rev", "session", "people", "credentials", "rounds",
@@ -51,7 +51,7 @@
       "additionalProperties": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/notification"}}
     },
     "inboxSeen": {
-      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join:/people: and an id for the owner) and the status each had then; an item whose status moved since is unread.",
+      "description": "Per person, the Inbox items they opened (a request id, or run:/share:/report:/merge:/join:/people: and an id, or reopen:<qid>:<n> for the owner) and the status each had then; an item whose status moved since is unread.",
       "type": "object",
       "additionalProperties": {
         "type": "object",
@@ -113,6 +113,26 @@
       "additionalProperties": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/cardRef"}}}
     },
     "cleared": {"type": "object", "additionalProperties": {"type": "array", "items": {"$ref": "#/$defs/clearedCard"}}},
+    "decisions": {
+      "description": "The decision log, oldest first; only the owner reads it. Each entry is one lock (`text`), change to the locked text (`lock-change`, `text`), unlock, poll closed or reopened, late Disagree on the locked answer (`late-disagree`, with the `card` and `reason`), the last of them taken back (`withdrawn`) or Keep decision (`kept`); a `lock-change` that rewords the locked answer names it in `card`, with when, the question, who and `seq`, which numbers entries in order and keys the owner's Inbox item. Kept to session.py MAX_DECISIONS, oldest first, sparing a locked decision's late Disagrees in force and its last lock-change; a take-back followed soon by the same person's raise again drops the take-back and moves that person's late Disagree to the end with a new `seq`, instead of adding entries. A question's decision is possibly reopened while late-disagree entries follow its last other entry. Optional: a file written before it has none.",
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "required": ["at", "qid", "kind", "by"],
+        "additionalProperties": false,
+        "properties": {
+          "at": {"$ref": "#/$defs/ts"},
+          "qid": {"$ref": "#/$defs/qid"},
+          "kind": {"enum": ["lock", "lock-change", "unlock", "poll-close", "poll-reopen", "late-disagree", "withdrawn", "kept"]},
+          "by": {"$ref": "#/$defs/pid"},
+          "text": {"$ref": "#/$defs/text"},
+          "card": {"$ref": "#/$defs/cardRef"},
+          "reason": {"$ref": "#/$defs/note"},
+          "seq": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
     "log": {"$ref": "#/$defs/eventLog"}
   },
   "$defs": {
@@ -129,6 +149,7 @@
     "commit": {"description": "A full commit SHA.", "type": "string", "pattern": "^[0-9a-f]{40}$"},
     "attachments": {"description": "Upload ids, each an accepted upload of the record's author.", "type": "array", "minItems": 1, "maxItems": 4, "items": {"type": "string"}},
     "svgAssetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.svg$"},
+    "htmlAssetId": {"type": "string", "pattern": "^[0-9a-f]{16}\\.html$"},
     "reaction": {"enum": ["thumbs", "down", "heart", "idea"]},
     "rect": {
       "description": "An area in percent (0-100) of the image or page it marks: x and w of its width, y and h of its height. Writes refuse x + w or y + h above 100; a file written before that rule loads as it is, and the page clamps such an area into the image.",
@@ -204,6 +225,7 @@
         "approveJoins": {"description": "New joins wait for the owner's admit; absent is off.", "type": "boolean"},
         "reviewAnswers": {"description": "Every answer waits for the owner's Share. A new session writes it off; absent (a session from before it) is on.", "type": "boolean"},
         "guestPopups": {"description": "The pop-ups a guest starts with, set by the owner; a guest's own popups pref wins. Absent, all three are on.", "type": "array", "maxItems": 3, "items": {"enum": ["request", "mention", "round"]}},
+        "prototypeTiers": {"description": "The prototype views the session offers guests: screenshots, HTML snapshots, live prototypes, each at most once. Absent, screenshots and HTML snapshots are on and live is off.", "type": "array", "maxItems": 3, "uniqueItems": true, "items": {"enum": ["screenshot", "snapshot", "live"]}},
         "theme": {
           "type": "object",
           "required": ["mode", "accent"],
@@ -345,26 +367,31 @@
     "purpose": {"enum": ["decide", "gather", "poll"]},
     "answerScope": {"enum": ["person", "device"]},
     "option": {
-      "description": "`other: true` marks the built-in Something else option (id `other`) the server adds to choice, multi and rank questions; Claude never writes it.",
+      "description": "`other: true` marks the built-in Something else option (id `other`) the server adds to choice, multi and rank questions; `none: true` marks the built-in None of these option (id `none`) it adds to a multi question whose format asks for it. Claude never writes either.",
       "type": "object",
       "required": ["id", "label"],
       "additionalProperties": false,
       "properties": {
-        "id": {"enum": ["opt-1", "opt-2", "opt-3", "opt-4", "opt-5", "opt-6", "opt-7", "opt-8", "other"]},
+        "id": {"enum": ["opt-1", "opt-2", "opt-3", "opt-4", "opt-5", "opt-6", "opt-7", "opt-8", "other", "none"]},
         "label": {"$ref": "#/$defs/text"},
         "image": {"$ref": "#/$defs/assetId"},
-        "other": {"enum": [true]}
+        "other": {"enum": [true]},
+        "none": {"enum": [true]}
       }
     },
     "variant": {
       "type": "object",
-      "required": ["id", "label", "asset"],
+      "required": ["id", "label"],
       "additionalProperties": false,
-      "description": "previous: the variant of an earlier prototype question this one revises, so the variants form one prototype's versions; each variant has at most one next version.",
+      "description": "A variant's views: `shots`, one to four pictures, and `snapshot`, one HTML file; or `asset`, one picture or one HTML file, which is how a variant with a single view is written (the shape builds before `shots` and `snapshot` read). session.py writes `shots` and `snapshot` only for a variant with more than one view. lookAt: where to look on this variant, beside the question's own line. previous: the variant of an earlier prototype question this one revises, so the variants form one prototype's versions; each variant has at most one next version.",
+      "oneOf": [{"required": ["asset"]}, {"anyOf": [{"required": ["shots"]}, {"required": ["snapshot"]}]}],
       "properties": {
         "id": {"type": "string"},
         "label": {"$ref": "#/$defs/text"},
         "asset": {"type": "string", "pattern": "^[0-9a-f]{16}\\.(png|jpg|webp|svg|html)$"},
+        "shots": {"type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": true, "items": {"$ref": "#/$defs/assetId"}},
+        "snapshot": {"$ref": "#/$defs/htmlAssetId"},
+        "lookAt": {"$ref": "#/$defs/note"},
         "previous": {
           "type": "object",
           "required": ["qid", "variant"],
@@ -374,15 +401,16 @@
       }
     },
     "format": {
+      "description": "A stored question's format. A choice, multi or rank question holds Claude's options (session.py OPTION_COUNTS) plus the Something else option the server adds, and on a multi question asking for it, None of these; ops.schema.json `format` is the input form.",
       "oneOf": [
-        {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["text"]}}},
+        {"$ref": "#/$defs/textFormat"},
         {
           "type": "object",
           "required": ["kind", "options"],
           "additionalProperties": false,
           "properties": {
             "kind": {"enum": ["choice"]},
-            "options": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"$ref": "#/$defs/option"}}
+            "options": {"type": "array", "minItems": 3, "maxItems": 5, "items": {"$ref": "#/$defs/option"}}
           }
         },
         {
@@ -391,50 +419,55 @@
           "additionalProperties": false,
           "properties": {
             "kind": {"enum": ["multi"]},
-            "options": {"type": "array", "minItems": 2, "maxItems": 9, "items": {"$ref": "#/$defs/option"}}
+            "options": {"type": "array", "minItems": 3, "maxItems": 10, "items": {"$ref": "#/$defs/option"}}
           }
         },
-        {
-          "type": "object",
-          "required": ["kind", "min", "max", "labels"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": {"enum": ["scale"]},
-            "min": {"enum": [1]},
-            "max": {"type": "integer", "minimum": 3, "maximum": 10},
-            "labels": {
-              "type": "object",
-              "required": ["min", "max"],
-              "additionalProperties": false,
-              "properties": {"min": {"$ref": "#/$defs/scaleLabel"}, "max": {"$ref": "#/$defs/scaleLabel"}, "mid": {"$ref": "#/$defs/scaleLabel"}}
-            }
-          }
-        },
+        {"$ref": "#/$defs/scaleFormat"},
         {
           "type": "object",
           "required": ["kind", "options"],
           "additionalProperties": false,
           "properties": {
             "kind": {"enum": ["rank"]},
-            "options": {"type": "array", "minItems": 3, "maxItems": 7, "items": {"$ref": "#/$defs/option"}}
+            "options": {"type": "array", "minItems": 4, "maxItems": 7, "items": {"$ref": "#/$defs/option"}}
           }
         },
-        {
-          "type": "object",
-          "required": ["kind", "image", "rect"],
-          "additionalProperties": false,
-          "properties": {"kind": {"enum": ["confirm"]}, "image": {"$ref": "#/$defs/assetId"}, "rect": {"$ref": "#/$defs/rect"}}
-        },
-        {
-          "type": "object",
-          "required": ["kind", "variants"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": {"enum": ["prototype"]},
-            "variants": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"$ref": "#/$defs/variant"}}
-          }
-        }
+        {"$ref": "#/$defs/confirmFormat"},
+        {"$ref": "#/$defs/prototypeFormat"}
       ]
+    },
+    "textFormat": {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["text"]}}},
+    "scaleFormat": {
+      "type": "object",
+      "required": ["kind", "min", "max", "labels"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["scale"]},
+        "min": {"enum": [1]},
+        "max": {"type": "integer", "minimum": 3, "maximum": 10},
+        "labels": {
+          "type": "object",
+          "required": ["min", "max"],
+          "additionalProperties": false,
+          "properties": {"min": {"$ref": "#/$defs/scaleLabel"}, "max": {"$ref": "#/$defs/scaleLabel"}, "mid": {"$ref": "#/$defs/scaleLabel"}}
+        }
+      }
+    },
+    "confirmFormat": {
+      "type": "object",
+      "required": ["kind", "image", "rect"],
+      "additionalProperties": false,
+      "properties": {"kind": {"enum": ["confirm"]}, "image": {"$ref": "#/$defs/assetId"}, "rect": {"$ref": "#/$defs/rect"}}
+    },
+    "prototypeFormat": {
+      "type": "object",
+      "required": ["kind", "variants"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["prototype"]},
+        "lookAt": {"description": "Where to look: the area the variants change and the step that shows it. Every prototype question an op writes has one (session.py checks it); a question from before it has none.", "$ref": "#/$defs/note"},
+        "variants": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"$ref": "#/$defs/variant"}}
+      }
     },
     "reference": {
       "oneOf": [
@@ -509,6 +542,7 @@
           "oneOf": [
             {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["lock-changed"]}}},
             {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["unlocked"]}}},
+            {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["possibly-reopened"]}}},
             {
               "type": "object",
               "required": ["kind", "suggestion"],
@@ -1064,6 +1098,7 @@
         "shown": {"const": true, "description": "The owner approved this guest's received picture: everyone who sees what carries it sees it."},
         "draft": {"const": true, "description": "Offered from a form and not sent with anything yet: never shown under its question."},
         "carried": {"const": true, "description": "A record has carried it: never shown under its question again, even once nothing carries it."},
+        "avatar": {"const": true, "description": "Offered as its sender's profile picture: a PNG, JPEG or WebP of at most 256 KB that no record carries. Once received it replaces their last one; a guest's shows to others once the owner approves it (shown)."},
         "chunks": {"type": "integer", "minimum": 0},
         "status": {
           "oneOf": [
@@ -1163,6 +1198,8 @@
         "tour": {"$ref": "#/$defs/pref"},
         "toolbar": {"$ref": "#/$defs/pref"},
         "autoAdvance": {"$ref": "#/$defs/pref"},
+        "readAloud": {"$ref": "#/$defs/pref"},
+        "dictate": {"$ref": "#/$defs/pref"},
         "popups": {"$ref": "#/$defs/pref"}
       }
     },

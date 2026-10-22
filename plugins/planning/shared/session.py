@@ -132,6 +132,8 @@ MAX_ANNOTATIONS = 2000  # judgment: notes across all prototype questions; at the
 MAX_MY_NOTES = 30  # judgment: notes one person pins on one prototype question
 MAX_SELECTOR = 1000  # judgment: characters in a note's element path; 32 levels of tag:nth-of-type(n) fit
 MAX_SUGGESTIONS = 200  # judgment: suggestions kept per question, oldest dropped first
+MAX_DECISIONS = 1000  # judgment: decision log entries kept, oldest dropped first; state.schema.json decisions maxItems
+DISAGREE_CHURN_WINDOW = 60.0  # judgment: seconds within which a take-back and a raise again by the same person log nothing
 MAX_HISTORY = 50  # judgment: earlier versions kept per answer the owner hid or edited; the original stays, the oldest after it go first
 MAX_CHAT_EMOJI = 20  # distinct emoji on one chat message (Phase 4c item 6)
 MAX_MY_CHAT_EMOJI = 6  # judgment: emoji one person puts on one chat message
@@ -179,10 +181,14 @@ COLORS = tuple(f"c{i}" for i in range(1, 11))
 ROLES = ("owner", "leader", "guest")
 PURPOSES = ("decide", "gather", "poll")
 FORMATS = ("text", "choice", "multi", "scale", "rank", "confirm", "prototype")
-# Options Claude writes per format (amendment "Reactions and formats"); the server adds Something else.
+# Options Claude writes per format (amendment "Reactions and formats"); the server adds Something else, and
+# None of these on a multi question whose format sets `none: true`.
 OPTION_COUNTS = {"choice": (2, 4), "multi": (2, 8), "rank": (3, 6)}
 OTHER_OPTION = {"id": "other", "label": "Something else…", "other": True}
 OTHER = OTHER_OPTION["id"]
+NONE_OPTION = {"id": "none", "label": "None of these", "none": True}
+NONE = NONE_OPTION["id"]
+NONE_LABELS = ("none of these", "none of the above", "none")  # judgment: labels that mean the server's option
 MENTION = re.compile(r"<@([A-Za-z0-9_-]{1,32})>")  # how state.json stores a mention: the person's pid
 VIEWS = ("focus", "compare", "tree", "host", "prototype")
 DEVICES = ("phone", "tablet", "computer")
@@ -213,6 +219,7 @@ QID = re.compile(r"Q[1-9][0-9]{0,5}")
 ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg|html)")
 IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")  # an image asset's file name
 SVG_ASSET = re.compile(r"[0-9a-f]{16}\.svg")
+HTML_ASSET = re.compile(r"[0-9a-f]{16}\.html")  # a prototype variant's snapshot
 VARIANT = re.compile(r"v-[1-9][0-9]?")
 # A note's element path (Annotation.anchor.selector), written by the prototype page's pin helper: "img" on an
 # image variant, else tag names from the variant's root down, each with its place among same-tag siblings,
@@ -303,10 +310,14 @@ DEFAULT_SETTINGS = {
 }
 # Settings a session gains only once the owner sets one, so a state file written before them stays as
 # it was (and still loads in the build before them) until then.
-OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None}
+OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None, "prototypeTiers": None}
 # guestPopups: the pop-ups a guest starts with (round 11), set by the owner; a guest's own `popups` pref wins. Absent,
 # all of GUEST_POPUPS are on.
 GUEST_POPUPS = ("request", "mention", "round")
+# prototypeTiers: the prototype views the session offers guests. Absent, screenshots and HTML snapshots are on and live
+# prototypes are off. A view switched off stays in the question; only guests' state and the html asset route drop it.
+PROTOTYPE_TIERS = ("screenshot", "snapshot", "live")
+DEFAULT_PROTOTYPE_TIERS = ("screenshot", "snapshot")
 LAST_SCHEMA_VERSION = 7  # the last versioned build's file; an older one needs that build's migrations first
 # reviewAnswers: every answer waits for the owner's Share. A new session writes it off; a state file from before it lacks
 # it and so keeps that review-first behavior.
@@ -340,6 +351,8 @@ PREFS = {
     "tour": lambda v: v in ("done", "skipped"),
     "toolbar": lambda v: v in ("simple", "full"),
     "autoAdvance": lambda v: isinstance(v, bool),
+    "readAloud": lambda v: isinstance(v, bool),
+    "dictate": lambda v: isinstance(v, bool),
     "popups": lambda v: isinstance(v, list) and all(isinstance(k, str) and k in POPUP_KINDS for k in v) and all(v.count(k) == 1 for k in v),
 }
 
@@ -461,6 +474,9 @@ def cross_field_errors(doc):
         others = [o for o in q["format"].get("options", []) if o.get("other") or o["id"] == OTHER]
         if len(others) > 1 or any(not (o.get("other") and o["id"] == OTHER) for o in others):
             errors.append(f"{q['id']} holds more than one Something else option, or one without both its id and its flag.")
+        nones = [o for o in q["format"].get("options", []) if o.get("none") or o["id"] == NONE]
+        if nones and (len(nones) > 1 or q["format"]["kind"] != "multi" or any(not (o.get("none") and o["id"] == NONE) for o in nones)):
+            errors.append(f"{q['id']} holds a None of these option off a multi question, more than one, or one without both its id and its flag.")
         lock = doc["locks"].get(q["id"])
         if lock and lock["source"]["kind"] == "poll" and q["purpose"] != "poll":
             errors.append(f"{q['id']} holds a closed-poll lock but is not a poll.")
@@ -533,6 +549,11 @@ def _approved(u):
     return u["pid"] == HOST or u.get("shown") is True
 
 
+def _avatars(uploads):
+    """pid -> that person's profile picture: their newest received upload offered as one (`avatar`)."""
+    return {u["pid"]: u for u in uploads if u.get("avatar") and _shows_as_image(u)}
+
+
 def _attaching(doc):
     """(where, record) for every record that may carry `attachments`: answers, chat messages, requests, suggestions,
     proposals and Discussion comments."""
@@ -560,7 +581,10 @@ def _bad_links_and_assets(doc):
     for q in doc["questions"]:
         fmt, at = q["format"], f"questions[{q['id']}]"
         checks = [(IMAGE_ASSET, o["image"], f"{at}.format.options.image") for o in fmt.get("options", []) if "image" in o]
-        checks += [(ASSET, v["asset"], f"{at}.format.variants.asset") for v in fmt.get("variants", [])]
+        for v in fmt.get("variants", []):
+            checks += [(ASSET, v["asset"], f"{at}.format.variants.asset")] if "asset" in v else []
+            checks += [(IMAGE_ASSET, x, f"{at}.format.variants.shots") for x in v.get("shots", [])]
+            checks += [(HTML_ASSET, v["snapshot"], f"{at}.format.variants.snapshot")] if "snapshot" in v else []
         if fmt["kind"] == "confirm":
             checks.append((IMAGE_ASSET, fmt["image"], f"{at}.format.image"))
         for r in q["references"]:
@@ -665,6 +689,11 @@ def ref_author(ref):
 
 def _bad(field, message):
     return DomainError(400, "bad-field", message, field=field)
+
+
+def _none_label(label):
+    """Whether an option label means "none applies": casefolded, ellipsis, full stops and spaces trimmed."""
+    return isinstance(label, str) and " ".join(label.casefold().strip(" .…").split()) in NONE_LABELS
 
 
 def _body(body):
@@ -1003,6 +1032,8 @@ OOXML_KINDS, OPENDOC_KINDS = {"docx", "xlsx", "pptx"}, {"odt", "ods", "odp"}
 _WINDOWS = os.name == "nt"
 THUMB_KINDS = {"png", "jpg", "jpeg", "gif", "webp"}
 IMAGE_KINDS = THUMB_KINDS  # a received upload of one of these, its bytes that kind, reads back as a picture: never SVG or HTML
+AVATAR_KINDS = {"png", "jpg", "jpeg", "webp"}  # the owner's choice: a profile picture is a PNG, JPEG or WebP
+AVATAR_MAX = 256 * 1024  # the owner's choice: bytes of a profile picture, which the page redraws small first
 
 
 def _file_name(body):
@@ -1246,7 +1277,7 @@ class Session:
         self._joins = collections.OrderedDict()  # (guest key, address) -> times of recent joins, least recent first
         self._key_joins = {}  # guest key -> times of recent joins from any address
         self._reported = {}  # pid -> time of their last report, which REPORT_INTERVAL spaces; never persisted
-        self._base_cache = None
+        self._base_cache = self._guest_q_cache = None
         self._chat_touch, self._chat_touches = {}, 0  # message id -> the count of reaction or forward changes at its last one; never persisted
         self._undo = []  # (file, bytes before or None) an apply wrote, put back when the apply is refused
         self.uploads_dir = self.path.parent / "uploads"  # in the private data folder; never under web/ or assets/
@@ -1752,8 +1783,9 @@ class Session:
         if err:
             m = re.match(r"\$\.(\w+)", err)
             raise _bad(m.group(1) if m else "body", err)
-        if not math.isfinite(body.get("lastInput", 0)):  # json.loads takes Infinity and NaN
-            raise _bad("lastInput", "lastInput must be a finite number of seconds.")
+        for field in ("lastInput", "lastFocus"):
+            if not math.isfinite(body.get(field, 0)):  # json.loads takes Infinity and NaN
+                raise _bad(field, f"{field} must be a finite number of seconds.")
         tab = body.get("tab", "")
         if "tab" in body and not TAB_ID.fullmatch(tab):
             raise _bad("tab", "tab must name the tab: 1 to 32 letters, digits, - or _.")
@@ -1790,6 +1822,22 @@ class Session:
                 beat["hiddenAt"] = old.get("hiddenAt", now) if not old.get("visible", True) else now
             if away:
                 beat["awayAt"] = old.get("awayAt", now)
+            # lastFocus is an age, so never later than now: it orders only this person's own tabs. The age arrives
+            # late by the beat's own delay, so the same focus (focusId) keeps its first estimate; with no focusId an
+            # estimate only moves earlier.
+            if "lastFocus" in body:
+                at = now - body["lastFocus"]
+                if "focusAt" not in old:
+                    pass
+                elif "focusId" not in body and "focusId" not in old:
+                    at = min(old["focusAt"], at)
+                elif body.get("focusId") == old.get("focusId"):
+                    at = old["focusAt"]
+                beat["focusAt"] = at
+                if "focusId" in body:
+                    beat["focusId"] = body["focusId"]
+            else:
+                beat.update({k: old[k] for k in ("focusAt", "focusId") if k in old})
             tabs = rec["tabs"]
             tabs.pop(tab, None)
             for t in [t for t, b in tabs.items() if now - b["seen"] >= OFFLINE_AFTER]:
@@ -2123,6 +2171,10 @@ class Session:
             lst[:] = sorted(kept.values(), key=lambda d: d["at"])
         for qid in [q for q, lst in st.get("disagreements", {}).items() if not lst]:
             st["disagreements"].pop(qid)
+        for e in st.get("decisions", ()):
+            e["by"] = swap(e["by"])
+            if "card" in e:
+                e["card"] = moved.get((e["qid"], e["card"]), e["card"])
         for key in ("passes", "lateActs"):  # the kept person's own record wins
             for by in st.get(key, {}).values():
                 rec = by.pop(src, None)
@@ -2312,14 +2364,15 @@ class Session:
             raise DomainError(404, "no-such-question", f"No question {qid}.")
         return q
 
-    def _answerable(self, q):
-        """Refuse unless people may answer, vote, pick or react on q; returns `late` for a closed round."""
-        if q["id"] in self.state["locks"]:
-            raise DomainError(409, "locked", f"Question {q['id']} is locked; suggest a change instead.")
+    def _answerable(self, q, *, late_on_lock=False):
+        """Refuse unless people may answer, vote, pick or react on q; returns `late` for a closed round. With
+        `late_on_lock` (a Disagree) a locked question of a closed round is answerable too."""
         r = self._round(q["round"])
+        kind = r["status"]["kind"] if r else None
+        if q["id"] in self.state["locks"] and not (late_on_lock and kind == "closed"):
+            raise DomainError(409, "locked", f"Question {q['id']} is locked; suggest a change instead.")
         if r is None:
             raise DomainError(409, "round-not-open", f"Round {q['round']} has not opened yet.")
-        kind = r["status"]["kind"]
         if kind in ("sent", "working"):
             raise DomainError(409, "round-sent", "This round went to Claude, so it is read-only; suggest a change instead.")
         return {"round": q["round"]} if kind == "closed" else None
@@ -2420,6 +2473,8 @@ class Session:
             ids = [o["id"] for o in fmt["options"]]
             if any(o["id"] == OTHER or "other" in o for o in fmt["options"]):
                 raise _bad(f"{field}.options", "The server adds the Something else option itself; leave it out.")
+            if kind == "multi" and any(o["id"] == NONE or "none" in o or _none_label(o.get("label")) for o in fmt["options"]):
+                raise _bad(f"{field}.options", "The server adds None of these itself: set format.none to true instead.")
             least, most = OPTION_COUNTS[kind]
             if not least <= len(ids) <= most:
                 raise _bad(f"{field}.options", f"A {kind} question takes {least} to {most} options.")
@@ -2431,28 +2486,48 @@ class Session:
                 if o.get("image") is not None:
                     opt["image"] = self._asset(o["image"], f"{field}.options[{i}].image", image=True)
                 options.append(opt)
-            return {"kind": kind, "options": [*options, dict(OTHER_OPTION)]}
+            return {"kind": kind, "options": [*options, dict(OTHER_OPTION), *([dict(NONE_OPTION)] if fmt.get("none") else [])]}
         if kind == "scale":
             labels = {k: _text(fmt["labels"], k, limit=80) for k in ("min", "max")}
             mid = _text(fmt["labels"], "mid", limit=80, optional=True)
             return {"kind": "scale", "min": 1, "max": fmt["max"], "labels": {**labels, **({"mid": mid} if mid else {})}}
         if kind == "confirm":
             return {"kind": "confirm", "image": self._asset(fmt["image"], f"{field}.image", image=True), "rect": _rect(fmt["rect"], f"{field}.rect")}
+        if fmt.get("lookAt") is None:
+            raise _bad(f"{field}.lookAt", "A prototype question says where to look: the area the variants change and the step that shows it.")
+        look = _text(fmt, "lookAt", limit=MAX_NOTE)
         variants, earlier = [], [*self.state["questions"], *made]
         taken = {_pair(v["previous"]) for q in earlier for v in q["format"].get("variants", []) if "previous" in v}
         for i, v in enumerate(fmt["variants"]):
+            at = f"{field}.variants[{i}]"
             if not VARIANT.fullmatch(v["id"]):
-                raise _bad(f"{field}.variants[{i}].id", "A variant id looks like v-1.")
-            variants.append({"id": v["id"], "label": _text(v, "label"), "asset": self._asset(v["asset"], f"{field}.variants[{i}].asset")})
+                raise _bad(f"{at}.id", "A variant id looks like v-1.")
+            variants.append({"id": v["id"], "label": _text(v, "label"), **self._views(v, at)})
             if "previous" in v:
-                variants[-1]["previous"] = _previous(v["previous"], earlier, taken, f"{field}.variants[{i}].previous")
+                variants[-1]["previous"] = _previous(v["previous"], earlier, taken, f"{at}.previous")
+            if v.get("lookAt") is not None:
+                variants[-1]["lookAt"] = _text(v, "lookAt", limit=MAX_NOTE)
         if len({v["id"] for v in variants}) != len(variants):
             raise _bad(f"{field}.variants", "Each variant needs its own id.")
-        return {"kind": "prototype", "variants": variants}
+        return {"kind": "prototype", "lookAt": look, "variants": variants}
+
+    def _views(self, v, at):
+        """A variant's views as written: `{asset}` for one view, so a variant with one picture or one html file keeps the
+        shape builds before `shots` and `snapshot` read; `{shots?, snapshot?}` for more than one. The schema has already
+        refused a variant with no view, or with `asset` beside `shots` or `snapshot`."""
+        if "asset" in v:
+            return {"asset": self._asset(v["asset"], f"{at}.asset")}
+        shots = [self._asset(x, f"{at}.shots[{j}]", image=True) for j, x in enumerate(v.get("shots", []))]
+        if len(set(shots)) != len(shots):
+            raise _bad(f"{at}.shots", "Each screenshot of a variant is its own picture.")
+        snap = [self._asset(v["snapshot"], f"{at}.snapshot", pattern=HTML_ASSET)] if "snapshot" in v else []
+        if len(shots) + len(snap) == 1:
+            return {"asset": (shots + snap)[0]}
+        return {**({"shots": shots} if shots else {}), **({"snapshot": snap[0]} if snap else {})}
 
     def _options(self, q):
-        """Option id -> label for the option cards a non-text question offers; Something else has no
-        card, since each person who picks it writes their own (`_has_other`)."""
+        """Option id -> label for the option cards a non-text question offers, None of these included; Something
+        else has no card, since each person who picks it writes their own (`_has_other`)."""
         fmt = q["format"]
         if fmt["kind"] in OPTION_COUNTS:
             return {o["id"]: o["label"] for o in fmt["options"] if not o.get("other")}
@@ -2899,6 +2974,14 @@ class Session:
             comment, other = self._tokenize(pid, comment, "comment"), self._tokenize(pid, other, "other")
             q = self._question(body.get("qid"))
             key, fields = self._parse_pick(q, body)
+            late = self._answerable(q)
+            device = self._device_for(q, body)
+            qid = q["id"]
+            cards = self._cards(qid)
+            mine = next((c for c in cards if c["kind"] == "person" and c["pid"] == pid and c.get("device") == device), None)
+            picks = fields.get("picks", [])
+            if NONE in picks and len(picks) > 1:  # None of these excludes every other pick: the one just made wins
+                fields["picks"] = [i for i in picks if i != NONE] if NONE in (mine or {}).get("picks", ()) else [NONE]
             chose_other = self._is_other({"kind": "person", **fields})
             if chose_other and not other:
                 raise DomainError(400, "empty", "Something else needs your own option, in other.", field="other")
@@ -2906,11 +2989,6 @@ class Session:
                 raise _bad("other", "other goes only with picking Something else.")
             if other and comment:
                 raise _bad("comment", "Your own option is your card's text; send it in other, without a comment.")
-            late = self._answerable(q)
-            device = self._device_for(q, body)
-            qid = q["id"]
-            cards = self._cards(qid)
-            mine = next((c for c in cards if c["kind"] == "person" and c["pid"] == pid and c.get("device") == device), None)
             was_other = mine is not None and self._is_other(mine)
             if key == "pick":
                 votes = st["votes"].setdefault(qid, {})
@@ -2954,7 +3032,8 @@ class Session:
         """(the field the format takes, the card fields it sets: {} for no pick). choice, confirm and
         prototype take `option` ("" for none); multi takes `options`, a subset of at least one; scale
         takes `value`, a whole number in its range; rank takes `order`, every option once (Something
-        else may join it). Something else is `other` where the question has one."""
+        else may join it). Something else is `other` where the question has one; None of these is `none`,
+        which `pick` keeps apart from every other pick."""
         kind = q["format"]["kind"]
         known = set(self._options(q)) | ({OTHER} if self._has_other(q) else set())
         if kind == "scale":
@@ -3006,6 +3085,8 @@ class Session:
                 raise DomainError(404, "no-such-upload", f"No upload {uid[:40]}.")
             if u["status"]["kind"] not in UPLOAD_ACCEPTED:
                 raise DomainError(409, "wrong-status", "Attach a file once the host has accepted it.", status=u["status"]["kind"])
+            if u.get("avatar"):
+                raise DomainError(409, "wrong-status", "A profile picture goes with no post.", status="avatar")
         for uid in ids:  # carried from now on: never a loose picture again (a refused write restores the state)
             u = self._upload(uid)
             u.pop("draft", None)
@@ -3208,7 +3289,7 @@ class Session:
             q = self._question(body.get("qid"))
             if q["purpose"] != "decide":
                 raise DomainError(409, "wrong-purpose", "Disagree is for decide questions; react or pick instead.")
-            late = self._answerable(q)
+            late = self._answerable(q, late_on_lock=True)
             self._card(q["id"], ref)
             if ref_author(ref) == pid:
                 raise DomainError(400, "cannot-vote-own", "You cannot disagree with your own answer.")
@@ -3221,7 +3302,30 @@ class Session:
                 by_q[q["id"]] = kept
             else:
                 by_q.pop(q["id"], None)
+            locked = self._locked_card(q["id"])
+            if locked is not None and ref == locked:  # a Disagree on a rejected alternative raises nothing
+                raised = {e["by"] for _, e in self._reopened(q["id"])}
+                if on and pid not in raised:
+                    if not self._undo_take_back(q["id"], pid, reason):
+                        self._decided(q["id"], "late-disagree", pid, card=ref, reason=reason)
+                    self._flag(q["id"], {"kind": "possibly-reopened"})
+                elif not on and raised and not any(d["pid"] in raised and d["card"] == locked for d in kept):
+                    self._decided(q["id"], "withdrawn", pid)  # the last late Disagree on it went: it is no longer reopened
             return {"disagree": on}
+
+    def _locked_card(self, qid):
+        """The answer qid is locked on: the card it was locked on or its locked text was edited from, kept through a
+        rewording; None when it is not locked, or its text came from a suggestion."""
+        lk = self.state["locks"].get(qid)
+        src = lk["source"] if lk else {}
+        if src.get("kind") == "card":
+            return src["card"]
+        if src.get("kind") == "edited" and (src.get("from") or "").startswith(("p:", "c:", "o:")):
+            return src["from"]
+        if src.get("kind") == "edited" and src.get("from") is None:  # reworded: the log names the answer it rewords
+            last = next((e for e in reversed(self.state.get("decisions", ())) if e["qid"] == qid and e["kind"] == "lock-change"), None)
+            return last.get("card") if last else None
+        return None
 
     # -- locks and suggestions ---------------------------------------------------------------
 
@@ -3294,6 +3398,63 @@ class Session:
                 flagged.append(d["id"])
         return flagged
 
+    def _decided(self, qid, kind, by, **fields):
+        """Append one entry to the decision log (`decisions`, the owner's alone): a lock, a change to the locked
+        text, an unlock, a poll closed or reopened, a late Disagree on a lock, the last such Disagree taken back
+        (`withdrawn`), or the owner keeping the decision. Any
+        entry but a late Disagree ends a possibly reopened decision, so the `possibly-reopened` flags it put on
+        dependents go; returns how many went."""
+        cleared = 0
+        if kind != "late-disagree" and self._reopened(qid):
+            for d in self.state["questions"]:
+                kept = [f for f in d["needsReview"] if not (f["because"] == qid and f["why"] == {"kind": "possibly-reopened"})]
+                cleared += len(d["needsReview"]) - len(kept)
+                d["needsReview"] = kept
+        log = self.state.setdefault("decisions", [])
+        seq = 1 + max((e.get("seq", i) for i, e in enumerate(log)), default=-1)
+        log.append({"at": self.now(), "qid": qid, "kind": kind, "by": by, "seq": seq, **fields})
+        self._trim_decisions()
+        return cleared
+
+    def _undo_take_back(self, qid, pid, reason):
+        """pid raises a Disagree again on qid's locked answer soon after their take-back ended its late Disagrees:
+        drop that `withdrawn` entry rather than log a new pair. True when pid's own late Disagree is back in force;
+        it moves to the end of the log with a new `seq`, time and reason, so the owner's Inbox row is unread again."""
+        log = self.state.get("decisions", [])
+        last = next((i for i in range(len(log) - 1, -1, -1) if log[i]["qid"] == qid), None)
+        if last is None or log[last]["kind"] != "withdrawn" or log[last]["by"] != pid or self.now() - log[last]["at"] > DISAGREE_CHURN_WINDOW:
+            return False
+        del log[last]
+        mine = next((i for i, e in self._reopened(qid) if e["by"] == pid), None)
+        if mine is None:
+            return False
+        seq = 1 + max(e.get("seq", i) for i, e in enumerate(log))
+        log.append({**log.pop(mine), "at": self.now(), "reason": reason, "seq": seq})
+        return True
+
+    def _trim_decisions(self):
+        """Keep the log at MAX_DECISIONS, oldest first, sparing what a locked decision still reads: its late
+        Disagrees in force and its last `lock-change`, which names the answer a reworded lock stands on."""
+        log = self.state["decisions"]
+        over = len(log) - MAX_DECISIONS
+        if over <= 0:
+            return
+        keep = set()
+        for qid in self.state["locks"]:
+            keep.update(i for i, _ in self._reopened(qid))
+            keep.update(i for i in [next((i for i in range(len(log) - 1, -1, -1) if log[i]["qid"] == qid and log[i]["kind"] == "lock-change"), None)] if i is not None)
+        drop = set(sorted(range(len(log)), key=lambda i: (i in keep, i))[:over])
+        log[:] = [e for i, e in enumerate(log) if i not in drop]
+
+    def _reopened(self, qid):
+        """(log index, entry) of each late Disagree logged on qid since its decision was last made, changed, unlocked or kept: while there
+        is one, the owner's Inbox and the digest say the decision is possibly reopened."""
+        out = []
+        for i, e in enumerate(self.state.get("decisions", ())):
+            if e["qid"] == qid:
+                out = [*out, (i, e)] if e["kind"] == "late-disagree" else []
+        return out
+
     def _lock_changed(self, q, text):
         prev = q.get("lockedText")
         q["lockedText"] = text
@@ -3319,6 +3480,7 @@ class Session:
                     raise DomainError(409, "wrong-purpose", "A poll closes as a whole; no single answer is locked.")
                 self._answerable(q)
                 st["locks"][qid] = {"at": now, "by": pid, "source": {"kind": "poll"}}
+                self._decided(qid, "poll-close", pid)
                 return {"closed": True, "flagged": []}
             self._answerable(q)
             tally = self._tally(qid)
@@ -3343,6 +3505,7 @@ class Session:
             card = self._card(qid, target)
             edited = {"editedBy": HOST} if "edited" in card else {}  # the locked text is the owner's, not its author's
             st["locks"][qid] = {"at": now, "by": pid, "source": {"kind": "card", "card": target, "text": text, **_files(card), **edited}}
+            self._decided(qid, "lock", pid, text=text)
             flagged = self._lock_changed(q, text)
             return {"text": text, "flagged": flagged}
 
@@ -3363,6 +3526,7 @@ class Session:
                     s["status"] = {"kind": "closed", "by": "unlock", "at": now}
                     closed += 1
             flagged = self._flag(q["id"], {"kind": "unlocked"})
+            self._decided(q["id"], "poll-reopen" if q["purpose"] == "poll" else "unlock", pid)
             return {"closed": closed, "flagged": flagged}
 
     def _suggestion(self, qid, sid):
@@ -3421,6 +3585,7 @@ class Session:
                     raise DomainError(409, "wrong-purpose", "A closed poll keeps its counts; no answer replaces them.")
                 st["locks"][q["id"]] = {"at": now, "by": pid, "source": {"kind": "suggestion", "suggestion": sid, "text": s["text"]}}
                 s["status"] = {"kind": "used", "at": now}
+                self._decided(q["id"], "lock-change", pid, text=s["text"])
                 flagged = self._lock_changed(q, s["text"])
             else:
                 s["status"] = {"kind": "dismissed", "at": now}
@@ -3445,10 +3610,23 @@ class Session:
                     self._card(q["id"], source)
                 else:
                     used = self._suggestion(q["id"], source)
+            reworded = self._locked_card(q["id"]) if source is None else None  # new words for the same answer
             st["locks"][q["id"]] = {"at": now, "by": pid, "source": {"kind": "edited", "text": text, "from": source}}
             if used is not None and used["status"]["kind"] == "open":
                 used["status"] = {"kind": "used", "at": now}
+            self._decided(q["id"], "lock-change", pid, text=text, **({"card": reworded} if reworded else {}))
             return {"flagged": self._lock_changed(q, text)}
+
+    def keep_decision(self, pid, body):
+        """POST /api/decision/keep: the owner keeps a decision a late Disagree may have reopened. The Inbox item goes,
+        and so do the `possibly-reopened` flags it put on dependents; the log records it. A newer late Disagree raises
+        the item again."""
+        with self._tx() as st:
+            self._owner(pid)
+            q = self._question(_body(body).get("qid"))
+            if q["id"] not in st["locks"] or not self._reopened(q["id"]):
+                raise DomainError(409, "not-reopened", "No late Disagree has reopened this decision.")
+            return {"cleared": self._decided(q["id"], "kept", pid)}
 
     def clear_review(self, pid, body):
         """POST /api/review/clear: drop Needs review flags, all of them or those naming `because`."""
@@ -3665,6 +3843,20 @@ class Session:
             self._touch_chat(mid)
             self._notify(msg["pid"], "proposal", "Your chat message became a proposal.", actor=pid, msg=mid)
             return {"proposal": prop["id"]}
+
+    def _guest_questions(self):
+        """The questions every guest is sent, built once per rev (every page polls)."""
+        st = self.state
+        if not (self._guest_q_cache and self._guest_q_cache[0] == st["rev"]):
+            self._guest_q_cache = (st["rev"], _guest_questions(st["questions"], prototype_tiers(st["session"]["settings"])))
+        return self._guest_q_cache[1]
+
+    def asset_hidden(self, pid, name):
+        """Whether /assets/<name> is off for `pid`: an html file, which only prototype variants hold, to anyone but the
+        owner while the session's HTML snapshots are off. Pictures are never hidden here: option pictures, references
+        and confirm questions share them."""
+        with self._lock:
+            return pid != HOST and name.endswith(".html") and "snapshot" not in prototype_tiers(self.state["session"]["settings"])
 
     def is_prototype(self, qid):
         """GET /proto/<qid> serves the prototype page only for a prototype question."""
@@ -4416,13 +4608,21 @@ class Session:
         ext = ext if FILE_EXT.fullmatch(ext) else ""
         thumb = _thumb(body.get("thumb"), ext)
         qid = body.get("qid") or None
+        avatar = _bool(body, "avatar")
+        if avatar and ext not in AVATAR_KINDS:
+            raise DomainError(415, "file-type", "A profile picture must be a PNG, JPEG or WebP picture.", field="file")
+        if avatar and size > AVATAR_MAX:
+            raise DomainError(413, "upload-too-large", "A profile picture is 256 KB at most.", field="size", max=AVATAR_MAX)
+        if avatar and qid is not None:
+            raise _bad("qid", "A profile picture belongs to no question.")
+        doomed = []
         with self._write_as(pid, "upload-offer") as st:
             person = st["people"][pid]
-            if not st["session"]["settings"]["uploads"]:
-                raise DomainError(403, "uploads-off", "Uploads are off in this session.")
+            owner = pid == HOST
+            if not st["session"]["settings"]["uploads"] and not (avatar and owner):  # the owner's own picture needs no switch
+                raise DomainError(403, "uploads-off", "The host has pictures off in this session." if avatar else "Uploads are off in this session.")
             if qid is not None:
                 qid = self._question(qid)["id"]
-            owner = pid == HOST
             if ext not in GUEST_KINDS and not (owner or person["trusted"]):
                 raise DomainError(415, "file-type", "Guests can send pictures, PDF, text, CSV and Office files.")
             held = [u for u in st["uploads"] if u["status"]["kind"] in UPLOAD_HELD]
@@ -4437,15 +4637,27 @@ class Session:
             uid = f"{self._next('U')}-{self.ids.hex(4)}"
             mime = UPLOAD_KINDS[ext][0] if ext in UPLOAD_KINDS else "application/octet-stream"
             # a draft until something carries it: a form offers it before its post is sent
-            rec = {"id": uid, "pid": pid, "at": self.now(), "qid": qid, "file": name, "ext": ext, "mime": mime, "size": size, "chunks": -(-size // CHUNK_SIZE), "draft": True}
+            rec = {"id": uid, "pid": pid, "at": self.now(), "qid": qid, "file": name, "ext": ext, "mime": mime, "size": size, "chunks": -(-size // CHUNK_SIZE)}
+            if avatar:  # a new profile picture replaces one still on its way
+                rec["avatar"] = True
+                for u in held:
+                    if u["pid"] == pid and u.get("avatar") and u["status"]["kind"] in UPLOAD_LIVE:
+                        doomed.append(self._end_upload(u, {"kind": "withdrawn", "at": rec["at"]}))
+            else:
+                rec["draft"] = True
             shown = [(u["pid"], len(u["thumb"])) for u in st["uploads"] if "thumb" in u]
             if thumb and sum(n for p, n in shown if p == pid) + len(thumb) <= PERSON_THUMB_MAX and sum(n for _, n in shown) + len(thumb) <= SESSION_THUMB_MAX:
                 rec["thumb"] = thumb  # past either bound the offer keeps no preview; the owner sees its icon
-            rec["status"] = {"kind": "accepted", "tmp": self.ids.hex(16)} if owner else {"kind": "offered"}
+            # the owner's own, and a profile picture (small, and shown to others only once approved), need no accept
+            rec["status"] = {"kind": "accepted", "tmp": self.ids.hex(16)} if owner or avatar else {"kind": "offered"}
             st["uploads"].append(rec)
             if not owner:
                 self._queue_note([HOST], pid)
-            return {"id": uid, "status": rec["status"]["kind"], "chunks": rec["chunks"], "chunkSize": CHUNK_SIZE}
+            out = {"id": uid, "status": rec["status"]["kind"], "chunks": rec["chunks"], "chunkSize": CHUNK_SIZE}
+        for f in doomed:
+            if f:
+                self._discard(f)
+        return out
 
     def _session_upload_total(self):
         """Bytes the session has said yes to (accepted, uploading or done): what SESSION_UPLOAD_MAX bounds."""
@@ -4485,7 +4697,8 @@ class Session:
             if action == "remove":
                 stored = u["status"]["stored"]
                 self._end_upload(u, {"kind": "removed", "at": now, "by": pid})
-                self._event("upload-removed", upload=uid, file=u["file"])
+                if not u.get("avatar"):  # Claude never heard of a profile picture
+                    self._event("upload-removed", upload=uid, file=u["file"])
                 doomed = self.path.parent / stored if STORED_PATH.fullmatch(stored) else None
             if action == "accept":
                 if not self._active(u["pid"]):
@@ -4594,6 +4807,7 @@ class Session:
                     if u["status"]["kind"] in ("accepted", "uploading"):
                         self._end_upload(u, {"kind": "failed", "reason": failure[1]})
                 raise failure[0]
+            replaced = []
             try:
                 with self._tx():
                     u = self._upload(uid)
@@ -4601,7 +4815,13 @@ class Session:
                         raise DomainError(409, "wrong-status", f"That file is {u['status']['kind']}.", status=u["status"]["kind"])
                     if last:
                         self._end_upload(u, {"kind": "done", "stored": stored, "sha256": digest})
-                        self._event("upload-received", upload=uid, file=u["file"], stored=stored, qid=u["qid"])
+                        if u.get("avatar"):  # a profile picture is no file for Claude; it replaces the sender's last one
+                            old = [x for x in self.state["uploads"] if x is not u and x["pid"] == pid and x.get("avatar") and x["status"]["kind"] == "done"]
+                            for x in old:
+                                replaced.append(x["status"]["stored"])
+                                self._end_upload(x, {"kind": "removed", "at": now, "by": pid})
+                        else:
+                            self._event("upload-received", upload=uid, file=u["file"], stored=stored, qid=u["qid"])
                     else:
                         u["status"] = {"kind": "uploading", "tmp": tmp.name, "received": m["index"] + 1, "bytes": offset + len(data)}
             except BaseException:
@@ -4611,6 +4831,9 @@ class Session:
                     if self._upload(uid)["status"]["kind"] not in ("accepted", "uploading"):
                         self._discard(tmp)
                 raise
+            for stored_old in replaced:
+                if STORED_PATH.fullmatch(stored_old):
+                    self._discard(self.path.parent / stored_old)
         finally:
             self._sending.discard(uid)
         return {"received": m["index"] + 1, "status": u["status"]["kind"]}
@@ -4659,6 +4882,8 @@ class Session:
         """An upload as the page reads it: never `tmp`, `stored` or any path; the preview to the owner only; `image` on a
         received picture GET /api/upload/image reads back."""
         out = {k: u[k] for k in ("id", "pid", "at", "qid", "file", "ext", "size", "chunks")}
+        if u.get("avatar"):
+            out["avatar"] = True
         if _shows_as_image(u):
             out["image"] = True
             if _approved(u):
@@ -5073,10 +5298,26 @@ class Session:
                   for v in st["people"].values() if v["status"]["kind"] == "waiting"),
                 *({"key": "people:" + p["id"], "kind": "people", "id": p["id"], "by": p.get("from", p.get("pid")), "at": p["at"]}
                   for p in self._open_claude_proposals()),
+                *self._reopen_items(),
             ]
             out += [{**w, "group": "waiting", "changed": w["at"], "status": "open"} for w in waiting]
         for i in out:
             i["unread"] = seen.get(i["key"]) != i["status"]
+        return out
+
+    def _reopen_items(self):
+        """The owner's `reopen:` Inbox items: a locked decision someone disagreed with late. The key names the newest
+        such Disagree's `seq` in the log, so each new one makes the item unread again; `n`, `by` and `at` count and
+        name the late Disagrees with the locked answer people hold now, as the digest does."""
+        out = []
+        for qid in self.state["locks"]:
+            acts = self._reopened(qid)  # a removed person's too: the flags they raised stay until Keep or Unlock
+            if acts:
+                card = self._locked_card(qid)
+                holding = {d["pid"] for d in self.state.get("disagreements", {}).get(qid, []) if d["card"] == card}
+                held = [e for _, e in acts if e["by"] in holding] or [acts[-1][1]]
+                out.append({"key": f"reopen:{qid}:{acts[-1][1].get('seq', acts[-1][0])}", "kind": "reopen", "id": qid, "qid": qid, "by": held[-1]["by"], "at": held[-1]["at"],
+                            "n": len(held), "card": card})
         return out
 
     @staticmethod
@@ -5219,15 +5460,26 @@ class Session:
         review = []
         for q in st["questions"]:
             newest = {}
-            for f in q["needsReview"]:
-                newest[f["because"]] = f
+            for f in q["needsReview"]:  # a change not yet reviewed outranks a later possibly-reopened on the same question
+                if f["why"]["kind"] != "possibly-reopened" or newest.get(f["because"], f)["why"]["kind"] == "possibly-reopened":
+                    newest[f["because"]] = f
             for because, f in newest.items():
                 lk = st["locks"].get(because)
                 now_ = {"kind": "locked", "text": lk["source"].get("text", "")} if lk else {"kind": "unlocked"}  # a closed poll has no text
                 item = {"id": q["id"], "because": because, "now": now_}
                 if f["why"]["kind"] == "suggested":
                     item["suggestion"] = f["why"]["suggestion"]
+                if f["why"]["kind"] == "possibly-reopened":
+                    item["possiblyReopened"] = True
                 review.append(item)
+        reopened = []
+        for i in self._reopen_items():
+            q = self._question(i["qid"])
+            raised = list(dict.fromkeys(e["by"] for _, e in self._reopened(q["id"])))  # each reason as it is now; a take-back drops it
+            locked = self._locked_card(q["id"])
+            held = [d for p in raised if self._active(p) for d in st.get("disagreements", {}).get(q["id"], []) if d["pid"] == p and d["card"] == locked]
+            lines = [{**said, "reason": d["reason"], **by(d["pid"])} for d in held if (said := self._named(q, d["card"])) is not None]  # never `n`: that is the round
+            reopened.append({"id": q["id"], "locked": st["locks"][q["id"]]["source"]["text"], "disagreements": lines})
         results, more, chars = [], 0, 0
         for r in (r for lst in st["results"].values() for r in lst if self._result_shown(r) and r.get("publishedAt", r["at"]) > prev):
             chars += len(r["summary"])
@@ -5250,6 +5502,7 @@ class Session:
             "questions": questions,
             "late": late,
             "needsReview": review,
+            "possiblyReopened": reopened,
             "results": results,
             **({"resultsMore": f"{more} more on the page"} if more else {}),
             "proposals": proposals,
@@ -5425,8 +5678,8 @@ class Session:
         return [c for c in self.state["cards"].get(q["id"], []) if self._is_other(c) and self._shown(c)]
 
     def _format_outcome(self, q, by, *, closed):
-        """The digest outcome of a multi, scale or rank question: counts per option (multi), counts
-        per value with the mean and median (scale), Borda totals and the full orders given (rank);
+        """The digest outcome of a multi, scale or rank question: counts per option (multi, None of these
+        a row of its own, marked `none`), counts per value with the mean and median (scale), Borda totals and the full orders given (rank);
         each with people's own options, their backers (author included), and the comments."""
         qid, fmt = q["id"], q["format"]
         cards = [c for c in self.state["cards"].get(qid, []) if c["kind"] == "person" and self._shown(c)]
@@ -5435,7 +5688,7 @@ class Session:
         comments = [{"text": c["text"], **by(c["pid"]), **_edited(c)} for c in cards if c["text"] and not self._is_other(c)]
         if fmt["kind"] == "multi":
             picked = [c["picks"] for c in cards if c.get("picks")]
-            counts = [{"option": label, "picks": sum(1 for p in picked if o in p)} for o, label in labels.items()]
+            counts = [{"option": label, "picks": sum(1 for p in picked if o in p), **({"none": True} if o == NONE else {})} for o, label in labels.items()]
             out = {"kind": "multi", "closed": closed, "people": len(picked), "counts": counts, "others": others, "comments": comments}
         elif fmt["kind"] == "scale":
             values = sorted(c["value"] for c in cards if "value" in c)
@@ -5896,6 +6149,8 @@ class Session:
         cur = self._current_round()
         chat = self._visible_chat(active)
         discussions = self._discussions_for(None, active)
+        # a profile picture everyone may see: the owner's at once, a guest's once the owner approved it
+        avatars = {p: u["id"] for p, u in _avatars(st["uploads"]).items() if _approved(u)}
         base = {
             "rev": st["rev"],
             "title": st["session"]["title"],
@@ -5916,7 +6171,7 @@ class Session:
             "discussions": discussions,
             "annotations": [a for a in st["annotations"] if a["pid"] in active],
             "people": [
-                {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")}
+                {**{k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")}, **({"avatar": avatars[v["pid"]]} if v["pid"] in avatars else {})}
                 for v in st["people"].values()
                 if v["pid"] in active
             ],
@@ -5991,6 +6246,9 @@ class Session:
             return True
         if not _approved(u):
             return False
+        if u.get("avatar"):  # what people lists show: hidden with the names, and never a picture since replaced
+            names = "full" if me["role"] in ("owner", "leader") else self.state["session"]["settings"]["names"]
+            return names == "full" and any(p.get("avatar") == u["id"] for p in self._base()["people"])
         if u["id"] in self._public_uploads:
             return True
         return me["role"] == "leader" and self._active(u["pid"]) and any(u["id"] in p.get("attachments", ()) for p in self.state["proposals"])
@@ -6103,10 +6361,12 @@ class Session:
             own = self._own_view_cards(pid, {p["pid"] for p in base["people"]})
             if own:
                 snap["cards"] = {**base["cards"], **own}
+            if not owner:
+                snap["questions"] = self._guest_questions()
             if owner or any(c["pid"] == pid and "hidden" in c for lst in st["discussions"].values() for c in lst):
                 snap["discussions"] = self._discussions_for(pid, {p["pid"] for p in base["people"]})
             if mode != "full":
-                snap["people"] = [{**p, "name": initials(p["name"]) if mode == "initials" else "Someone"} for p in base["people"]]
+                snap["people"] = [{**{k: v for k, v in p.items() if k != "avatar"}, "name": initials(p["name"]) if mode == "initials" else "Someone"} for p in base["people"]]
                 snap["mentions"] = {p: initials(n) if mode == "initials" else "Someone" for p, n in base["mentions"].items()}
                 snap["cards"] = {q: [{**c, "votes": [v if v == pid else "" for v in c["votes"]]} for c in lst] for q, lst in snap["cards"].items()}
                 snap["chat"] = self._masked_chat(base["chat"], pid)
@@ -6166,6 +6426,7 @@ class Session:
                 snap["reports"] = [self._report_view(f, r) for f, r in st.get("reports", {}).items() if r["status"] != "resolved"]
                 snap["passes"] = {q: {p: dict(r) for p, r in by.items() if self._active(p)} for q, by in st.get("passes", {}).items()}
                 snap["aboutYou"] = copy.deepcopy(st["aboutYou"])
+                snap["decisions"] = copy.deepcopy(st.get("decisions", []))
                 snap["ownerDevices"] = sorted((dict(d) for d in st["credentials"].get("devices", {}).values()), key=lambda d: d["at"])
                 snap["removed"] = [
                     {k: v[k] for k in ("pid", "name", "role", "trusted", "color", "joinedAt")} for v in st["people"].values() if v["status"]["kind"] == "removed"
@@ -6202,15 +6463,18 @@ class Session:
             return self._presence_view()
 
     def _presence_entry(self, pid, v, now):
-        """One wire.schema.json `presence` entry from the person's live tabs: q and typing from the latest
-        beat (typing lasts TYPING_TTL after it), active while any live tab is, else away since the last
-        one went away. Just joined with no beat yet is active."""
+        """One wire.schema.json `presence` entry from the person's live tabs: q and typing from a visible tab
+        before a hidden one, and within each the tab focused or shown most recently (a locked phone used last
+        loses to a desk window that kept focus), else (no live tab sends `lastFocus`) the latest beat, so a person
+        with tabs on two questions shows on one; typing lasts TYPING_TTL after that tab's beat. Active while any
+        live tab is, else away since the last one went away. Just joined with no beat yet is active."""
         live = [b for b in v["tabs"].values() if now - b["seen"] < OFFLINE_AFTER]
         if not live:
             return {"pid": pid, "q": "", "typing": False, "chatTyping": False, "state": "active"}
-        latest = live[-1]
-        fresh = now - latest["seen"] < TYPING_TTL
-        entry = {"pid": pid, "q": latest["q"], "typing": latest["typing"] and fresh, "chatTyping": latest["chatTyping"] and fresh}
+        ranked = any("focusAt" in b for b in live)
+        shown = max(reversed(live), key=lambda b: (b["visible"], b.get("focusAt", float("-inf"))) if ranked else 0)  # a tie goes to the later beat
+        fresh = now - shown["seen"] < TYPING_TTL
+        entry = {"pid": pid, "q": shown["q"], "typing": shown["typing"] and fresh, "chatTyping": shown["chatTyping"] and fresh}
         sinces = [self._away_since(b, now) for b in live]
         return {**entry, "state": "active"} if None in sinces else {**entry, "state": "away", "since": max(sinces)}
 
@@ -6223,6 +6487,28 @@ class Session:
             return {}
         qs = [q for q in st["questions"] if q["round"] == cur["n"] and q["id"] not in st["locks"]]
         return {p: sum(1 for q in qs if self._owes(q, p)) for p in st["people"] if p != HOST and self._active(p)}
+
+
+def prototype_tiers(settings):
+    """The prototype views a session offers: its `prototypeTiers`, or screenshots and HTML snapshots when absent."""
+    return list(settings.get("prototypeTiers", DEFAULT_PROTOTYPE_TIERS))
+
+
+def _guest_questions(questions, tiers):
+    """`questions` as guests see them under `tiers`: a variant's pictures (`shots`, or an `asset` picture) leave while
+    screenshots are off, its html file (`snapshot`, or an `asset` html file) while snapshots are off, each view on its
+    own. The same list when both are on; otherwise new prototype questions, the rest shared."""
+    off = {t for t in ("screenshot", "snapshot") if t not in tiers}
+    if not off:
+        return questions
+    gone = {k for k, t in (("shots", "screenshot"), ("snapshot", "snapshot")) if t in off}
+
+    def view(v):
+        drop = gone | ({"asset"} if "asset" in v and ("snapshot" if v["asset"].endswith(".html") else "screenshot") in off else set())
+        return {k: x for k, x in v.items() if k not in drop} if drop & v.keys() else v
+
+    return [{**q, "format": {**q["format"], "variants": [view(v) for v in q["format"]["variants"]]}} if q["format"]["kind"] == "prototype" else q
+            for q in questions]
 
 
 def _settings_patch(settings, patch):
@@ -6239,6 +6525,9 @@ def _settings_patch(settings, patch):
         elif k == "guestPopups":
             if not isinstance(v, list) or any(x not in GUEST_POPUPS for x in v) or len(set(v)) != len(v):
                 raise _bad(k, f"guestPopups is a list of {', '.join(GUEST_POPUPS)}, each at most once.")
+        elif k == "prototypeTiers":
+            if not isinstance(v, list) or any(x not in PROTOTYPE_TIERS for x in v) or len(set(v)) != len(v):
+                raise _bad(k, f"prototypeTiers is a list of {', '.join(PROTOTYPE_TIERS)}, each at most once.")
         elif k in SETTING_VALUES:
             if v not in SETTING_VALUES[k]:
                 raise _bad(k, f"{k} must be one of {', '.join(SETTING_VALUES[k])}.")
@@ -6249,6 +6538,8 @@ def _settings_patch(settings, patch):
             settings["theme"] = {**settings["theme"], **v}
         elif k == "guestPopups":
             settings[k] = [x for x in GUEST_POPUPS if x in v]
+        elif k == "prototypeTiers":
+            settings[k] = [x for x in PROTOTYPE_TIERS if x in v]
         else:
             settings[k] = v
     return settings

@@ -5,7 +5,7 @@
 # keeps it from blocking twice in one turn; the plugin kill switch wins. The
 # spawn budget case fences the cost every user pays per turn with the option
 # off: the node launcher only.
-# test-scope: plugins/ruff-format/hooks/hooks.json plugins/ruff-format/git-hooks/ruff-check.sh plugins/ruff-format/.claude-plugin/plugin.json
+# test-scope: plugins/ruff-format/hooks/hooks.json plugins/ruff-format/git-hooks/ruff-check.sh plugins/ruff-format/.claude-plugin/plugin.json plugins/ruff-format/hooks/exec-bash.mjs
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_END_OF_TURN CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED
 

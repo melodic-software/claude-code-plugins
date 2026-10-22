@@ -118,11 +118,14 @@ START_SECONDS = 3
 FINISH_SECONDS = 1
 REC_BUDGET = 200
 ACTIVITY_CAP = 200
-# Free-text caps: one-line fields (a title, a short label, a recommendation, an alternative, a
+# Free-text caps: one-line fields (a title, a recommendation, an alternative and its tradeoff, a
 # commitment, a hold, a status, an activity entry, a reason) and markdown fields (facts, a
 # basis, a revision reason, a group summary, a thread reply, a note, a terminal answer, a
-# restatement section).
+# restatement section). A new or changed short label takes the shared question shape's cap.
 TEXT_CAP = 20000
+SHORT_SHAPE = {
+    "$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"
+}
 REQUIRED_FIELDS = (
     ("id", "the Q<N> id on the session's one counter"),
     ("short", "the one-line label the page lists"),
@@ -130,7 +133,6 @@ REQUIRED_FIELDS = (
 )
 QUESTION_CAPS = (
     ("title", LINE_CAP),
-    ("short", LINE_CAP),
     ("recommendation", LINE_CAP),
     ("facts", TEXT_CAP),
     ("basis", TEXT_CAP),
@@ -242,6 +244,13 @@ def capped(field, text, cap):
     return text
 
 
+def checked_short(qid, short):
+    """Refuse a `short` the shared question shape does not allow; stored ones are not rechecked."""
+    err = schema.first_error(short, SHORT_SHAPE, f"{qid} short")
+    if err:
+        sys.exit(f"refused: {err}")
+
+
 def find(doc, qid):
     for q in doc["questions"]:
         if q.get("id") == qid:
@@ -251,7 +260,10 @@ def find(doc, qid):
 
 def split_alt(s):
     if isinstance(s, dict):
-        return {"key": str(s.get("key", "")).strip(), "text": str(s.get("text", ""))}
+        alt = {"key": str(s.get("key", "")).strip(), "text": str(s.get("text", ""))}
+        if s.get("tradeoff"):
+            alt["tradeoff"] = str(s["tradeoff"])
+        return alt
     key, sep, text = s.partition(":")
     if not sep:
         sys.exit(f"--alt needs key:text, got {s!r}")
@@ -377,6 +389,7 @@ def checked_alts(q, alts):
     alts = [split_alt(s) for s in alts]
     for alt in alts:
         capped(f"{q['id']} alternative {alt['key']}", alt["text"], LINE_CAP)
+        capped(f"{q['id']} alternative {alt['key']} tradeoff", alt.get("tradeoff"), LINE_CAP)
     check_alt_count(q["id"], len(alts), q)
     return alts
 
@@ -418,11 +431,14 @@ def add_question(doc, q, repoint=False, latest=None):
             alts,
             "a binary question's one alternative is the other answer",
         )
+    checked_short(q["id"], q["short"])
     for field, cap in QUESTION_CAPS:
         capped(f"{q['id']} {field}", q.get(field), cap)
     for i, alt in enumerate(alts, 1):
         text = alt.get("text") if isinstance(alt, dict) else alt
         capped(f"{q['id']} alternative {i}", text, LINE_CAP)
+        if isinstance(alt, dict):
+            capped(f"{q['id']} alternative {i} tradeoff", alt.get("tradeoff"), LINE_CAP)
     for i, c in enumerate(q.get("commits") or [], 1):
         capped(f"{q['id']} commitment {i}", c, LINE_CAP)
     if any(x.get("id") == q["id"] for x in doc["questions"]):
@@ -1013,7 +1029,6 @@ def op_revise(d, doc, a):
     q = find(doc, a.id)
     for field, val, cap in (
         ("title", a.title, LINE_CAP),
-        ("short", a.short, LINE_CAP),
         ("rec", a.rec, LINE_CAP),
         ("facts", a.facts, TEXT_CAP),
         ("basis", a.basis, TEXT_CAP),
@@ -1021,6 +1036,8 @@ def op_revise(d, doc, a):
         ("text", a.text, TEXT_CAP),
     ):
         capped(f"revise {field}", val, cap)
+    if a.short is not None and a.short != q.get("short"):
+        checked_short(a.id, a.short)
     commits = a.commit
     if commits is not None:
         for i, c in enumerate(commits, 1):

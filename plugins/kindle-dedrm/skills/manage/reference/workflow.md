@@ -128,7 +128,7 @@ Expect `2.8.0.70980`. If anything else, installer ran an upgrade (see `reference
 
 ## Step 4: Sign-in race window (CRITICAL)
 
-Highest-risk window in the entire workflow. Amazon stages a 2.9.x installer aggressively when Kindle.exe phones home. Firewall block from step 7 stops the download, but at this point we don't have it in place yet. Sign-in REQUIRES network access, so we accept a small race window.
+Highest-risk window in the entire workflow. Amazon stages a 2.9.x installer aggressively when Kindle.exe phones home. Firewall block from step 5 stops the download, but at this point we don't have it in place yet. Sign-in REQUIRES network access, so we accept a small race window.
 
 Before the user opens Kindle, brief them with:
 
