@@ -3,6 +3,12 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.9] - 2026-10-22
+
+### Fixed
+
+- Correct the workflow's sign-in race window note to cite the firewall block as step 5, not step 7.
+
 ## [0.8.8] - 2026-10-20
 
 ### Fixed
