@@ -938,32 +938,33 @@
     }
     return node ? String(node.nodeName || "node").toLowerCase() : "none";
   }
-  // Taps on controls, by the control's name (tapName), never its text: each tap is `use`; the RAGE_TAPS-th tap on one
-  // control within RAGE_MS of the first is a `rage` tap; a tap the page shows no change for (no DOM change, no scroll)
-  // within DEAD_MS is a `dead` tap. A disabled control gets no click, so it is not counted.
+  // A person's taps on controls, by the control's name (tapName), never its text: each tap is `use`; the RAGE_TAPS-th
+  // tap on one control within RAGE_MS of the first is a `rage` tap; a tap the page shows no change for (no DOM change,
+  // no scroll) within DEAD_MS is a `dead` tap, unless it opens a link elsewhere. A disabled control gets no click.
   const TAPPABLE = "button, a[href], [role=button], summary, input[type=button], input[type=submit]";
   const STYLE = /^(?:vf|core)-(?:btn|tbtn|lbtn|icon-btn|toggle|chip)(?:-[a-z-]+)?$/; // looks, not what the control is
   const RAGE_TAPS = 3, RAGE_MS = 1000; // judgment: three taps within a second on one control is impatience, not use
   const DEAD_MS = 1000; // judgment: the page answers a tap at once; the polls' own changes can only hide a dead tap
-  /** A control's name: the last vf- or core- class (letters and hyphens only) that is not a style class, on it or
-   *  its nearest ancestor with one; null when there is none. */
+  /** A control's name: the first vf- or core- class (letters and hyphens only) that is not a style class, on it or
+   *  its nearest ancestor with one (state classes such as vf-vote-back are added after it); null when there is none. */
   function tapName(el) {
     for (; el && el !== document.body; el = el.parentElement) {
-      const c = [...el.classList].filter(x => /^(?:vf|core)-[a-z-]+$/.test(x) && !STYLE.test(x)).pop();
+      const c = [...el.classList].find(x => /^(?:vf|core)-[a-z-]+$/.test(x) && !STYLE.test(x));
       if (c) return c;
     }
     return null;
   }
-  const rages = new WeakMap(), waiting = new Set();
+  const rages = new Map(), waiting = new Set(); // rages by name: a control drawn again between taps is the same one
   const changed = () => { waiting.clear(); seer.disconnect(); };
   const seer = new MutationObserver(changed);
   addEventListener("scroll", () => waiting.size && changed(), { capture: true, passive: true });
   document.addEventListener("click", e => {
-    const el = e.target?.closest?.(TAPPABLE), name = el && tapName(el);
+    const el = e.isTrusted && e.target?.closest?.(TAPPABLE), name = el && tapName(el);
     if (!name) return;
     bump(tel.use, name);
-    const now = performance.now(), r = rages.get(el);
-    if (r && now - r.at <= RAGE_MS) { if (++r.n === RAGE_TAPS) bump(tel.rage, name); } else rages.set(el, { at: now, n: 1 });
+    const now = performance.now(), r = rages.get(name);
+    if (r && now - r.at <= RAGE_MS) { if (++r.n === RAGE_TAPS) bump(tel.rage, name); } else rages.set(name, { at: now, n: 1 });
+    if (el.matches("a[target], a[download]")) return; // it opens elsewhere: this page need not change
     const tap = { name };
     if (!waiting.size) seer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
     waiting.add(tap);

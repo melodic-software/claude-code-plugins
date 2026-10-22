@@ -609,7 +609,7 @@ def summarize(lines):
     def count(key, n, at):
         """A `rep:<fp>`, `use:`, `rage:` or `dead:<component>` count, from a batch's counts or an older summary."""
         kind, _, name = key.partition(":")
-        if kind == "rep":
+        if kind == "rep" and name:
             repeats[name] += n
             repeat_at[name] = max(repeat_at.get(name, ""), at)
         elif kind in taps and name:

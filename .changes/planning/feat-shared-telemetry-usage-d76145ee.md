@@ -8,5 +8,5 @@ bump: minor
 
 ### Fixed
 
-- Summary batches can no longer be matched to a fault entry's pid: repeat counts move from each summary to the batch's totals, a summary keeps only the device class, and a lone summary at shutdown is counted as dropped instead of written (#8221).
+- Summary batches can no longer be matched to a fault entry's pid: repeat counts move from each summary to the batch's totals, a summary keeps only the device class, and a batch is written only once at least two guests sent to it, so a single guest's summaries wait for the next batch or, at shutdown, are counted as dropped (#8221).
 - The 10-minute summary batch is still written while the tunnel sync keeps failing.
