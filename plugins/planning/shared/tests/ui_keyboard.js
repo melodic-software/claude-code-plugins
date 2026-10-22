@@ -322,8 +322,22 @@ async function main() {
     await swept(pia, "chat sheet (phone)", { scope: "section.vf-chat", open: () => pia.locator(".vf-fab").click(), close: esc(pia) });
     await swept(phoneOwner, "More sheet (phone)", { scope: ".vf-moresheet", open: tab(phoneOwner, "More"), close: esc(phoneOwner) });
     await swept(phoneOwner, "owner Host view (phone)", { open: async () => { await tab(phoneOwner, "More")(); await phoneOwner.locator(".vf-msitem", { hasText: "Host view" }).click(); } });
-    // The host's presence names the question of whichever tab beat last, so with this tab on the first question and the
-    // desktop one on another, "The host is on this question" comes and goes on a guest's first question every few seconds.
+    // One person, two tabs on two questions: the phone tab on the guest's question and hidden, the desktop tab on another
+    // and focused after it. The host shows on the desktop tab's question only (the tab focused or shown last), so the
+    // guest's page never says "The host is on this question" while it is sampled every 250 ms, whichever tab beats last.
+    const piaQ = await pia.evaluate(() => document.querySelector(".vf-qtext")?.textContent);
+    const qidOf = (page, text) => page.evaluate(t => window.Core.state.questions.find(x => x.text === t)?.id, text);
+    const phoneQ = await qidOf(phoneOwner, piaQ), deskQ = await qidOf(owner, "Did you mean this button?"); // Gus is there already, so the tour below has its own question
+    await phoneOwner.evaluate(id => window.Core.setFocus(id), phoneQ);
+    await phoneOwner.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }); document.dispatchEvent(new Event("visibilitychange")); });
+    await owner.evaluate(id => { window.Core.setFocus(id); window.dispatchEvent(new Event("focus")); }, deskQ);
+    const hostQ = () => pia.evaluate(() => window.Core.owner()?.q);
+    const settledOnDesk = await until(pia, id => window.Core.owner()?.q === id, deskQ, 10000);
+    const samples = [];
+    for (let i = 0; i < 24; i++) { samples.push([await hostQ(), await pia.evaluate(() => !document.querySelector(".vf-onit").hidden)]); await pia.waitForTimeout(250); }
+    const flips = samples.filter(([q, shown]) => q !== deskQ || shown).length;
+    ok("a host with two tabs shows on the question of the tab focused last, never flipping", phoneQ && deskQ && phoneQ !== deskQ && settledOnDesk && flips === 0,
+      `phone on ${phoneQ}, desktop on ${deskQ}, settled: ${settledOnDesk}, ${flips} of 24 samples off the desktop's question or showing the host here`);
     // Closed, so the tour below starts with no one else on that question and moves its target only when it means to.
     await phoneOwner.close();
 

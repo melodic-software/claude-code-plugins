@@ -239,13 +239,15 @@ How people answer each `format` through `POST /api/pick` (`{qid, view, device?, 
   names with `digestNames`, else a count; on a question with options it carries `picked`, the
   label of the option the person chose, and its `text` is their comment, which may be empty.
 - **Presence.** The heartbeat (`schema/wire.schema.json`) carries `visible`, `lastInput` (seconds
-  since the last key, pointer or touch) and `away` (the person's own snooze, sent until their next
-  input), and `tab`, an id each browser tab keeps for its life (in `sessionStorage`). The server
+  since the last key, pointer or touch), `lastFocus` (seconds since the tab last gained focus or
+  was shown), `away` (the person's own snooze, sent until their next input), and `tab`, an id each
+  browser tab keeps for its life (in `sessionStorage`). The server
   keeps a beat per tab, at most 8 per person, the least recent dropped. A tab is live until 90 s
   without a beat; a person with no live tab is offline. A tab is Away while hidden, after 5 minutes
   visible with no input, or snoozed; the person is Active while any live tab is Active, and Away,
   `since` the last tab went Away, only when every live tab is. Their question and typing come
-  from their latest beat, and typing flags last 5 s. Each tab's beats have their own one-a-second
+  from the live tab focused or shown most recently (the server's receive time less `lastFocus`),
+  else, when no live tab sends one, from their latest beat; typing flags last 5 s. Each tab's beats have their own one-a-second
   limit, and a beat that changes `visible` or `away` is taken at once. The page beats every 2 s
   and at once on a visibility change, never two from one tab within the limit, and sends its own
   writes to one route a second apart. The write limits count per person, not per tab, so one

@@ -3939,7 +3939,8 @@ class TestPresenceStates(SessionCase):
         self.assertEqual((self.state_of(self.ann)["typing"], self.state_of(self.ann)["chatTyping"]), (False, False))
 
     def test_heartbeat_fields_are_checked(self):
-        bad = (({"visible": "no"}, "visible"), ({"lastInput": -3}, "lastInput"), ({"lastInput": float("inf")}, "lastInput"), ({"away": "yes"}, "away"))
+        bad = (({"visible": "no"}, "visible"), ({"lastInput": -3}, "lastInput"), ({"lastInput": float("inf")}, "lastInput"), ({"away": "yes"}, "away"),
+               ({"lastFocus": -1}, "lastFocus"), ({"lastFocus": float("inf")}, "lastFocus"), ({"lastFocus": "now"}, "lastFocus"))
         for body, field in bad:
             with self.subTest(body=body):
                 with self.assertRaises(session.DomainError) as ctx:
@@ -3995,6 +3996,31 @@ class TestPresenceStates(SessionCase):
         self.clock.tick(1)
         self.beat(self.ann, tab="b", q="Q3", typing=False)
         self.assertEqual((self.state_of(self.ann)["q"], self.state_of(self.ann)["typing"]), ("Q3", False))
+
+    def test_question_and_typing_come_from_the_most_recently_focused_tab_whatever_beats_last(self):
+        """A desk tab on Q2 focused 5 s ago and a phone tab on Q1 last shown 60 s ago: Q2, whichever tab beats last."""
+        for order in (("phone", "desk"), ("desk", "phone")):
+            with self.subTest(beats_last=order[1]):
+                self.clock.tick(session.OFFLINE_AFTER)
+                body = {"desk": {"q": "Q2", "typing": True, "lastFocus": 5}, "phone": {"q": "Q1", "visible": False, "lastFocus": 60}}
+                for tab in order:
+                    self.beat(self.ann, tab=tab, **body[tab])
+                    self.clock.tick(1)
+                self.assertEqual((self.state_of(self.ann)["q"], self.state_of(self.ann)["typing"]), ("Q2", True))
+
+    def test_a_beat_without_a_focus_time_keeps_the_tabs_last_one(self):
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=1)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=30)
+        self.clock.tick(2)
+        self.beat(self.ann, tab="desk", q="Q2")
+        self.beat(self.ann, tab="phone", q="Q1")
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+
+    def test_a_tab_reporting_a_focus_time_wins_over_one_that_does_not(self):
+        self.beat(self.ann, tab="new", q="Q2", lastFocus=40)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="old", q="Q1")
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
 
     def test_a_person_keeps_at_most_8_tabs_the_oldest_dropped(self):
         self.beat(self.ann, tab="t0", visible=True)  # the only visible tab

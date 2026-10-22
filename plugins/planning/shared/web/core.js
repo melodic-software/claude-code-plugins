@@ -1327,7 +1327,9 @@
   // one answered (a change beat, after the last change beat only), and many asks in that wait send one beat, built
   // from the state when it goes out.
   // Each tab beats under its own id (kept across reloads of the tab), so the server keeps one presence per tab and a
-  // person's other tabs and devices never take their beats: the person is Away only when every tab is.
+  // person's other tabs and devices never take their beats: the person is Away only when every tab is. Each beat also
+  // says how long ago this tab gained focus or was shown (lastFocus), so the server names the person's question from
+  // the tab they used last rather than whichever tab beat last.
   const TAB = (() => {
     const fresh = [...crypto.getRandomValues(new Uint8Array(12))].map(b => b.toString(16).padStart(2, "0")).join("");
     try { const t = sessionStorage.getItem("tab"); if (/^[0-9a-f]{24}$/.test(t || "")) return t; sessionStorage.setItem("tab", fresh); } catch { /* storage off */ }
@@ -1336,6 +1338,7 @@
   const HB = { busy: false, timer: 0, wanted: false, done: -Infinity, changeDone: -Infinity, visible: null, away: null };
   let away = false, lastInputAt = Date.now();
   const visibleNow = () => document.visibilityState !== "hidden";
+  let focusAt = visibleNow() ? Date.now() : null; // loaded in view counts as shown; loaded in the background, not yet
   function beat() { HB.wanted = true; pumpBeat(); }
   function pumpBeat() {
     // a person still waiting to be let in has no presence to send: the server refuses it (403) every beat (sweep S31)
@@ -1346,6 +1349,7 @@
     HB.wanted = false; HB.busy = true;
     const body = { q: focusQ, typing: Date.now() < typingUntil, chatTyping: Date.now() < chatTypingUntil,
       visible, lastInput: Math.max(0, Math.round((Date.now() - lastInputAt) / 1000)), away, tab: TAB };
+    if (focusAt !== null) body.lastFocus = Math.max(0, (Date.now() - focusAt) / 1000); // unrounded: it orders tabs
     send("/api/heartbeat", body).then(r => {
       if (r.ok) { HB.visible = visible; HB.away = away; }
       return r.ok ? r.json() : null;
@@ -1367,7 +1371,10 @@
     if (away) { away = false; emit(); beat(); }
   };
   for (const ev of ["keydown", "pointerdown", "touchstart"]) window.addEventListener(ev, input, { capture: true, passive: true });
-  document.addEventListener("visibilitychange", beat);
+  // Set before the beat goes out, so the beat that says "visible" carries the new time.
+  const focused = () => { if (visibleNow()) focusAt = Date.now(); beat(); };
+  document.addEventListener("visibilitychange", focused);
+  window.addEventListener("focus", focused);
   // iOS freezes a background tab's timers: catch up at once when the page shows again (triage 24). The time from
   // showing again to the first good poll is the reconnect gap.
   let hidden = !visibleNow();

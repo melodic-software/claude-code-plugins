@@ -1724,8 +1724,9 @@ class Session:
         if err:
             m = re.match(r"\$\.(\w+)", err)
             raise _bad(m.group(1) if m else "body", err)
-        if not math.isfinite(body.get("lastInput", 0)):  # json.loads takes Infinity and NaN
-            raise _bad("lastInput", "lastInput must be a finite number of seconds.")
+        for field in ("lastInput", "lastFocus"):
+            if not math.isfinite(body.get(field, 0)):  # json.loads takes Infinity and NaN
+                raise _bad(field, f"{field} must be a finite number of seconds.")
         tab = body.get("tab", "")
         if "tab" in body and not TAB_ID.fullmatch(tab):
             raise _bad("tab", "tab must name the tab: 1 to 32 letters, digits, - or _.")
@@ -1762,6 +1763,10 @@ class Session:
                 beat["hiddenAt"] = old.get("hiddenAt", now) if not old.get("visible", True) else now
             if away:
                 beat["awayAt"] = old.get("awayAt", now)
+            if "lastFocus" in body:  # an age, so never later than now: it orders only this person's own tabs
+                beat["focusAt"] = now - body["lastFocus"]
+            elif "focusAt" in old:
+                beat["focusAt"] = old["focusAt"]
             tabs = rec["tabs"]
             tabs.pop(tab, None)
             for t in [t for t, b in tabs.items() if now - b["seen"] >= OFFLINE_AFTER]:
@@ -6170,15 +6175,16 @@ class Session:
             return self._presence_view()
 
     def _presence_entry(self, pid, v, now):
-        """One wire.schema.json `presence` entry from the person's live tabs: q and typing from the latest
-        beat (typing lasts TYPING_TTL after it), active while any live tab is, else away since the last
-        one went away. Just joined with no beat yet is active."""
+        """One wire.schema.json `presence` entry from the person's live tabs: q and typing from the tab focused
+        or shown most recently, else (no live tab sends `lastFocus`) the latest beat, so a person with tabs on
+        two questions shows on one; typing lasts TYPING_TTL after that tab's beat. Active while any live tab
+        is, else away since the last one went away. Just joined with no beat yet is active."""
         live = [b for b in v["tabs"].values() if now - b["seen"] < OFFLINE_AFTER]
         if not live:
             return {"pid": pid, "q": "", "typing": False, "chatTyping": False, "state": "active"}
-        latest = live[-1]
-        fresh = now - latest["seen"] < TYPING_TTL
-        entry = {"pid": pid, "q": latest["q"], "typing": latest["typing"] and fresh, "chatTyping": latest["chatTyping"] and fresh}
+        shown = max(reversed(live), key=lambda b: b.get("focusAt", float("-inf")))  # a tie goes to the later beat
+        fresh = now - shown["seen"] < TYPING_TTL
+        entry = {"pid": pid, "q": shown["q"], "typing": shown["typing"] and fresh, "chatTyping": shown["chatTyping"] and fresh}
         sinces = [self._away_since(b, now) for b in live]
         return {**entry, "state": "active"} if None in sinces else {**entry, "state": "away", "since": max(sinces)}
 
