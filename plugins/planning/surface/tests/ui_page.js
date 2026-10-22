@@ -97,6 +97,34 @@ async page => { // the question page itself: choices, chips, banners, header and
       ok("at 1440 px the unpinned " + panel + " flyout does not cover the note box, Ask Claude or Rephrase", !hit.pinned && hit.fly && hit.note === "clear" && hit.ask === "clear" && hit.rephrase === "clear", JSON.stringify(hit));
       await page.click('.strip [data-panel="' + panel + '"]'); await page.waitForTimeout(250);
     }
+
+    // #8085: at phone widths an id chip in Activity or Notes keeps each id on one line, even beside long text
+    const toggle = panel => page.evaluate(p => document.querySelector('.strip [data-panel="' + p + '"]').click(), panel);
+    const onOneLine = () => page.evaluate(() => {
+      // Baseline-aligned boxes in two fonts have different tops on one line, so a rect starts a new line only below the last one's bottom.
+      const lines = el => { const r = document.createRange(); r.selectNodeContents(el); let n = 0, bottom = -Infinity; for (const x of [...r.getClientRects()].sort((a, b) => a.top - b.top)) { if (x.top >= bottom - 1) n++; bottom = Math.max(bottom, x.bottom); } return n; };
+      const chips = [...document.querySelectorAll("aside.fly.open .ref b, aside.fly.open .rrange")];
+      return {n: chips.length, split: chips.filter(c => lines(c) > 1).map(c => c.textContent), page: document.scrollingElement.scrollWidth - innerWidth};
+    });
+    for (const [w, h] of [[390, 844], [425, 900]]) {
+      await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(250);
+      await pick("Q1");
+      for (const panel of ["activity", "notes"]) {
+        await toggle(panel); await page.waitForTimeout(400);
+        await page.evaluate(panel => {
+          const chip = (id, title) => '<button type="button" class="ref" data-q="' + id + '"><b>' + id + "</b>" + title + "</button>";
+          const range = '<span class="rrange" title="Q4 to Q6">' + chip("Q4", "") + "<span>&ndash;</span>" + chip("Q6", "") + "</span>";
+          const host = document.querySelector(panel === "notes" ? "aside.fly.open .nthread" : "aside.fly.open .fbody");
+          const box = document.createElement("div"); box.className = panel === "notes" ? "nmsg" : "links";
+          box.innerHTML = "<p>Compare " + range + " with " + chip("Q2", "Build image cache key for the weekly release") + " and " + chip("Q7", "Pinned digests") + " before deciding.</p>";
+          host.appendChild(box);
+        }, panel);
+        const got = await onOneLine();
+        ok("at " + w + " px every id chip in " + panel + " keeps each id on one line", got.n > 0 && got.split.length === 0, JSON.stringify(got));
+        await toggle(panel); await page.waitForTimeout(250);
+      }
+    }
+    await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
   }
   if (PHASE === 2) { // the shell revised Q1's recommendation with no why while Q8 was not open
     const banner = () => page.$$eval("#dscroll .banner", els => els.map(e => e.textContent).join(" | "));
