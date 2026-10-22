@@ -39,7 +39,10 @@ re-captures it, and it never edits a capture harness or the app's styles to make
 2. **A driver that writes PNG files.** When `/app-control:drive` is among the available skills,
    capture each state with `/app-control:drive capture --kind screenshot --out <the baseline or
    after directory>`, and use the result only when drive reports a PNG file at that path that is
-   not empty. When drive reports `screenshot` as a capability gap, or writes no PNG, fall through
+   not empty. Drive names its files for the feature and a step number
+   (`checkout-cart-02-screenshot.png`), and compare pairs images by filename, so rename or copy each
+   drive PNG to its state name (`invoice-list-empty.png`) in the baseline or after directory, and
+   record that state name in `baseline-routes.txt`. When drive reports `screenshot` as a capability gap, or writes no PNG, fall through
    to the next choice. Otherwise capture only through the Playwright CLI
    (`/playwright:playwright`, when it is among the available skills) or through the repository's
    own harness when that harness writes PNG files. Any other driver, including one that returns
