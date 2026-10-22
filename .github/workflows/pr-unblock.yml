@@ -184,7 +184,8 @@ jobs:
 
   # review-dependency's model job holds contents: write, posts nothing, and
   # returns its verdict as structured output that the runner uploads; it
-  # pushes a fix only outside .github/ with [dependabot skip]. Its upstream
+  # pushes a fix only to npm or pip manifest and lock files outside .github/,
+  # with [dependabot skip]. Its upstream
   # release notes are untrusted text, so it holds no pull-requests or issues
   # write. The verdict job, with no model, holds those and acts on the
   # verdict: the round marker, a close (never a security update) with an
@@ -235,6 +236,7 @@ jobs:
       trusted-base: default-tip
       dependency-verdict: true
       dependency-run-sha256: ${{ needs.review-dependency.outputs.dependency-run-sha256 }}
+      dependency-head-sha: ${{ needs.review-dependency.outputs.head-sha }}
       # The model job's attempt names the verdict artifact, so "Re-run failed
       # jobs" on this job alone still downloads it.
       dependency-run-attempt: ${{ needs.review-dependency.outputs.dependency-run-attempt }}
