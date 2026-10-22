@@ -253,6 +253,27 @@
         }
       }
     },
+    "adoption": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Owner accounts whose non-draft pull requests the lanes adopt once idle: fix-ci fixes a failed ci-status, and pr-merge merges under its usual gates once its adoption path lands. Contract: README.md, Adoption.",
+      "properties": {
+        "idle-hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 720,
+          "default": 24,
+          "description": "Hours both the pull request (its last update) and its head commit (its committer date) must be unchanged before it is adopted."
+        },
+        "owner-ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1 },
+          "default": [],
+          "description": "Numeric GitHub user ids whose pull requests are adopted; each must also be on the trusted-actor list for the run to proceed. Empty: none."
+        }
+      }
+    },
     "branch-cleanup": {
       "type": "object",
       "additionalProperties": false,
@@ -386,7 +407,8 @@
         "split-required",
         "research-first",
         "probe-first",
-        "workflow-modified"
+        "workflow-modified",
+        "rung-up"
       ],
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
     },
@@ -694,6 +716,12 @@
           "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": { "enum": ["run", "research-first", "probe-first"] },
           "description": "Uncertainty -> run, or the skip reason that sends the issue to research or a probe first."
+        },
+        "complexity-profiles": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "$ref": "#/$defs/name" },
+          "description": "Complexity -> the profile the run starts on, in place of its route's; a key is a key of complexity, a value a key of profiles. A complexity with no entry keeps the route's profile. The dimensions' turn cap still applies (README.md, Models)."
         }
       }
     },
@@ -758,6 +786,10 @@
           "type": "integer",
           "minimum": 1,
           "description": "Turn budget, passed as --max-turns."
+        },
+        "escalate-to": {
+          "$ref": "#/$defs/name",
+          "description": "The profile one model rung up, a key of profiles, which a run resolved at model-rung 1 takes in place of this one. A run climbs at most one rung (README.md, Models)."
         }
       }
     },

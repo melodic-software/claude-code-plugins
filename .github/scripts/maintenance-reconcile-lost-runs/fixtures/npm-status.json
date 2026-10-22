@@ -1,0 +1,13 @@
+{
+  "page": {
+    "id": "wyvgptkd90hm",
+    "name": "npm",
+    "url": "https://status.npmjs.org",
+    "time_zone": "Etc/UTC",
+    "updated_at": "2026-10-22T03:20:37.515Z"
+  },
+  "status": {
+    "indicator": "minor",
+    "description": "Minor Service Outage"
+  }
+}

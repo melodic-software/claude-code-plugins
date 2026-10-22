@@ -1444,6 +1444,23 @@ test("a run that minted its token and failed later keeps the once-per-version re
   assert.deepEqual(writes(calls), []);
 });
 
+// #8965: a dimension skip (split-required and the rest) ran resolve-issue's
+// read runner, which mints nothing, and report-skip, whose failure leaves
+// agent-ready on with no marker. The sweep re-fires that run, the fresh run
+// skips again, and report-skip reports it, so the issue leaves the queued count.
+test("a dimension-skipped run whose report-skip failed is re-fired, so report-skip reports it again", async () => {
+  const readRunner = { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: "success" }] };
+  for (const [name, mint] of [
+    ["failed after its mint", "success"],
+    ["failed at its mint", "failure"],
+  ]) {
+    const jobs = [pickSlot, readRunner, { name: "report-skip / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: mint }] }];
+    const { github, actions, calls } = stalledRun({ jobs });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), refired(30), name);
+  }
+});
+
 test("re-fires of runs that did no work share the restarts-per-run cap", async () => {
   const numbers = [31, 32, 33, 34, 35, 36];
   const fake = world({

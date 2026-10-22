@@ -3028,6 +3028,11 @@ class TestSessionControls(SessionCase):
         self.assertNotIn(self.ann, self.s.state["prefs"])
         self.assertNotIn("prefs", json.dumps(self.s.snapshot(self.bo)["people"]))
 
+    def test_the_prototypes_filter_is_a_toolbar_filter(self):
+        out = self.act("set_prefs", self.ann, {"set": {"filter": "proto", "expandedRounds": [1, 2]}})
+        self.assertEqual(out["prefs"], {"filter": "proto", "expandedRounds": [1, 2]})
+        self.refused("bad-field", "set_prefs", self.ann, {"set": {"filter": "prototypes"}})
+
     def test_tour_and_toolbar_prefs_take_only_their_named_values(self):
         out = self.act("set_prefs", self.ann, {"set": {"tour": "skipped", "toolbar": "full"}})
         self.assertEqual(out["prefs"], {"tour": "skipped", "toolbar": "full"})
@@ -3042,6 +3047,21 @@ class TestSessionControls(SessionCase):
         self.assertEqual((self.s.snapshot(self.ann)["me"]["prefs"], self.s.snapshot(self.bo)["me"]["prefs"]), ({"autoAdvance": True}, {}))
         self.refused("bad-field", "set_prefs", self.ann, {"set": {"autoAdvance": "on"}})
         self.act("set_prefs", self.ann, {"set": {"autoAdvance": None}})
+        self.assertNotIn(self.ann, self.s.state["prefs"])
+
+    def test_read_aloud_and_dictate_are_per_person_switches_off_until_set(self):
+        mine = self.s.snapshot(self.ann)["me"]["prefs"]
+        self.assertNotIn("readAloud", mine)
+        self.assertNotIn("dictate", mine)
+        out = self.act("set_prefs", self.ann, {"set": {"readAloud": True, "dictate": True}})
+        self.assertEqual(out["prefs"], {"readAloud": True, "dictate": True})
+        self.assertEqual((self.s.snapshot(self.ann)["me"]["prefs"], self.s.snapshot(self.bo)["me"]["prefs"]), ({"readAloud": True, "dictate": True}, {}))
+        self.assertIsNone(session.state_error(self.disk()))
+        for bad in ({"readAloud": "on"}, {"dictate": 1}, {"dictate": "true"}):
+            self.refused("bad-field", "set_prefs", self.ann, {"set": bad})
+        self.act("set_prefs", self.ann, {"set": {"readAloud": False}})
+        self.assertEqual(self.s.snapshot(self.ann)["me"]["prefs"], {"readAloud": False, "dictate": True})
+        self.act("set_prefs", self.ann, {"set": {"readAloud": None, "dictate": None}})
         self.assertNotIn(self.ann, self.s.state["prefs"])
 
     def test_popups_name_only_pop_up_kinds_and_belong_to_their_person(self):
@@ -3789,6 +3809,375 @@ class TestDisagree(FormatCase):
         self.assertEqual(answers, [{"text": "Slow form", "reactions": {"thumbs": 0, "down": 1, "heart": 0, "idea": 0}, "endorsedBy": 0}])
 
 
+# ---------------------------------------------------------------------------------------------
+# A late Disagree on a locked decision. Expected values come from the owner's decisions: a locked question takes a
+# late Disagree only (votes, Passes and answers stay 409 `locked`); one such Disagree raises "possibly reopened" for
+# the owner (Inbox and digest) and flags its dependents `possibly-reopened` for everyone; Keep decision clears both
+# and is logged, Unlock is the existing unlock; the decision log is the owner's alone.
+# ---------------------------------------------------------------------------------------------
+
+
+class ReopenCase(SessionCase):
+    """Q1 locked on Claude's recommendation in round 1, which closed; Q2 and Q3 depend on Q1; round 2 is open."""
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo, self.cy = self.people("Ann", "Bo", "Cy")
+        self.act("set_role", HOST, {"pid": self.ann, "role": "leader"})
+        self.open_round(text_q("Q1"), text_q("Q2", depends=["Q1"]), text_q("Q3", depends=["Q1"]))
+        self.act("vote", self.bo, {"qid": "Q1", "card": "c:a", "on": True})
+        self.act("lock", HOST, {"qid": "Q1", "card": "c:rec"})
+        self.lock_at = self.clock.t
+        self.send()
+        self.ack(1)
+        self.open_round(text_q("Q4"))
+
+    def reopen_rows(self, pid=HOST):
+        return [i for i in self.s.snapshot(pid)["inbox"] if i["kind"] == "reopen"]
+
+    def flags(self, qid, kind="possibly-reopened"):
+        return [f for f in self.question(qid)["needsReview"] if f["why"]["kind"] == kind]
+
+
+class TestLateDisagreeOnALock(ReopenCase):
+    def test_a_late_disagree_on_a_locked_question_is_kept_and_changes_no_count(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.assertEqual(self.s.state["disagreements"]["Q1"], [{"pid": self.cy, "card": "c:rec", "reason": "Too costly", "at": self.clock.t}])
+        self.assertEqual(self.s.state["lateActs"]["Q1"][self.cy]["round"], 1)
+        self.assertEqual(self.s._tally("Q1"), {"c:rec": 0, "c:a": 1, "c:b": 0})
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"]["text"], "Recommended for Q1.")
+
+    def test_every_other_late_act_on_a_locked_question_stays_refused(self):
+        self.refused("locked", "vote", self.cy, {"qid": "Q1", "card": "c:b", "on": True}, http=409)
+        self.refused("locked", "pass_", self.cy, {"qid": "Q1", "reason": "Missed it"}, http=409)
+        self.refused("locked", "answer", self.cy, {"qid": "Q1", "text": "Late", "view": "focus"}, http=409)
+
+    def test_a_disagree_on_a_question_locked_in_an_open_round_stays_refused(self):
+        self.act("lock", HOST, {"qid": "Q4", "card": "c:rec"})
+        self.refused("locked", "disagree", self.cy, {"qid": "Q4", "card": "c:rec", "reason": "No"}, http=409)
+
+    def test_a_late_disagree_is_taken_back(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
+        self.assertNotIn("Q1", self.s.state["disagreements"])
+
+
+class TestDecisionLogBound(ReopenCase):
+    """A guest toggling Disagree on a locked answer cannot grow the decision log without bound."""
+
+    def toggle(self, pid, qid, n, gap=0.0):
+        for i in range(n):
+            self.clock.tick(gap)
+            self.act("disagree", pid, {"qid": qid, "card": "c:rec", "reason": "Too costly", "on": i % 2 == 0})
+
+    def test_a_thousand_quick_toggles_leave_one_late_disagree_and_one_take_back(self):
+        self.toggle(self.cy, "Q1", 1000)
+        self.assertEqual([e["kind"] for e in self.s.state["decisions"] if e["qid"] == "Q1"], ["lock", "late-disagree", "withdrawn"])
+        self.toggle(self.cy, "Q1", 1)
+        self.assertEqual([e["kind"] for e in self.s.state["decisions"] if e["qid"] == "Q1"], ["lock", "late-disagree"])
+        self.assertEqual((len(self.reopen_rows()), len(self.flags("Q2"))), (1, 1))
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_raise_again_inside_the_window_brings_the_row_back_unread(self):
+        self.toggle(self.cy, "Q1", 1)
+        (row,) = self.reopen_rows()
+        self.act("read_inbox", HOST, {"keys": [row["key"]]})
+        self.assertFalse(self.reopen_rows()[0]["unread"])
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Still too costly"})
+        (again,) = self.reopen_rows()
+        self.assertTrue(again["unread"])
+        self.assertEqual([e["kind"] for e in self.s.state["decisions"] if e["qid"] == "Q1"], ["lock", "late-disagree"])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_take_back_and_raise_again_after_the_window_are_both_logged(self):
+        self.toggle(self.cy, "Q1", 3, gap=session.DISAGREE_CHURN_WINDOW + 1)
+        self.assertEqual([e["kind"] for e in self.s.state["decisions"] if e["qid"] == "Q1"], ["lock", "late-disagree", "withdrawn", "late-disagree"])
+
+    def test_a_thousand_slow_toggles_stay_under_the_cap_and_keep_a_held_disagree(self):
+        cap = 6
+        with mock.patch.object(session, "MAX_DECISIONS", cap):
+            self.act("lock", HOST, {"qid": "Q3", "card": "c:rec"})
+            self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "reason": "Wrong call"})
+            row = self.reopen_rows()
+            self.toggle(self.cy, "Q3", 1000, gap=session.DISAGREE_CHURN_WINDOW + 1)
+            self.assertLessEqual(len(self.s.state["decisions"]), cap)
+            self.assertEqual(self.reopen_rows(), row)
+            self.assertEqual((row[0]["by"], row[0]["n"], len(self.flags("Q2"))), (self.bo, 1, 1))
+            self.act("disagree", self.cy, {"qid": "Q3", "card": "c:rec", "reason": "Too costly"})
+            self.assertEqual(sorted(r["qid"] for r in self.reopen_rows()), ["Q1", "Q3"])
+            self.assertIsNone(session.document_error(self.disk()))
+        self.assertEqual(session.schema.load("state", session.SCHEMA_DIR)["properties"]["decisions"]["maxItems"], session.MAX_DECISIONS)
+
+
+class TestPossiblyReopened(ReopenCase):
+    def test_one_late_disagree_raises_one_owner_row_and_flags_each_dependent_once(self):
+        self.assertEqual(self.reopen_rows(), [])
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        (row,) = self.reopen_rows()
+        self.assertEqual((row["qid"], row["by"], row["group"], row["status"], row["unread"]), ("Q1", self.cy, "waiting", "open", True))
+        self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "reason": "Users want it"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Far too costly"})
+        (row,) = self.reopen_rows()
+        self.assertEqual(row["n"], 2)  # Cy changing their reason raises nothing new
+        for qid in ("Q2", "Q3"):
+            self.assertEqual([f["because"] for f in self.flags(qid)], ["Q1"], qid)
+        self.assertEqual(self.flags("Q1") + self.flags("Q4"), [])
+
+    def test_the_locked_question_and_its_answers_never_change(self):
+        before = (json.dumps(self.s.state["locks"]), json.dumps(self.s.state["votes"]), json.dumps(self.s.state["cards"]))
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.assertEqual((json.dumps(self.s.state["locks"]), json.dumps(self.s.state["votes"]), json.dumps(self.s.state["cards"])), before)
+
+    def test_only_the_owner_sees_the_row_and_everyone_sees_the_dependents_badge(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        for pid in (self.ann, self.bo, self.cy):
+            snap = self.s.snapshot(pid)
+            self.assertEqual([i for i in snap["inbox"] if i["kind"] == "reopen"], [], pid)
+            q2 = next(q for q in snap["questions"] if q["id"] == "Q2")
+            self.assertEqual([f["why"] for f in q2["needsReview"]], [{"kind": "possibly-reopened"}], pid)
+
+    def test_taking_a_disagree_back_raises_nothing(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("keep_decision", HOST, {"qid": "Q1"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
+        self.assertEqual((self.reopen_rows(), self.flags("Q2")), ([], []))
+
+    def test_a_late_disagree_on_a_rejected_alternative_is_kept_and_raises_nothing(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:a", "reason": "Porto was never right"})
+        self.assertEqual([(d["pid"], d["card"]) for d in self.s.state["disagreements"]["Q1"]], [(self.cy, "c:a")])
+        self.assertEqual((self.reopen_rows(), self.flags("Q2"), self.flags("Q3")), ([], [], []))
+        self.assertEqual([e["kind"] for e in self.s.state["decisions"]], ["lock"])
+
+    def test_taking_back_the_only_late_disagree_ends_it_and_is_logged(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
+        self.assertEqual((self.reopen_rows(), self.flags("Q2"), self.flags("Q3")), ([], [], []))
+        self.assertEqual(self.s.state["decisions"][-1], {"at": self.clock.t, "qid": "Q1", "kind": "withdrawn", "by": self.cy, "seq": 2})
+        self.send()
+        d = self.events("round-sent")[-1]["digest"]
+        self.assertEqual((d["possiblyReopened"], d["needsReview"]), ([], []))
+
+    def test_taking_back_one_of_two_late_disagrees_keeps_it(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "reason": "Users want it"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
+        (row,) = self.reopen_rows()
+        self.assertEqual((row["n"], row["by"]), (1, self.bo))  # the Disagrees held now: Bo's alone
+        self.assertEqual([f["because"] for f in self.flags("Q2")], ["Q1"])
+        self.assertNotIn("withdrawn", [e["kind"] for e in self.s.state["decisions"]])
+
+    def test_a_reworded_lock_still_names_its_answer_and_a_suggestion_lock_none(self):
+        self.act("edit_lock", HOST, {"qid": "Q1", "text": "Recommended, reworded."})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.assertEqual(len(self.reopen_rows()), 1)
+        self.act("keep_decision", HOST, {"qid": "Q1"})
+        sid = self.act("suggest", self.bo, {"qid": "Q1", "text": "Collapse it"})["id"]
+        self.act("act_on_suggestion", HOST, {"qid": "Q1", "id": sid, "action": "use"})
+        self.act("disagree", self.ann, {"qid": "Q1", "card": "c:rec", "reason": "Lost the point"})
+        self.assertEqual(self.reopen_rows(), [])
+
+    def test_the_digest_and_row_name_only_disagreements_with_the_locked_answer(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:a", "reason": "Porto is worse"})
+        self.assertEqual(self.reopen_rows()[0]["card"], "c:rec")
+        self.send()
+        (item,) = self.events("round-sent")[-1]["digest"]["possiblyReopened"]
+        self.assertEqual(item["disagreements"], [{"text": "Recommended for Q1.", "reason": "Too costly"}])
+
+    def test_the_row_names_the_newest_disagree_still_held(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "reason": "Users want it"})
+        self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "on": False})
+        (row,) = self.reopen_rows()
+        self.assertEqual((row["n"], row["by"]), (1, self.cy))
+
+    def test_a_disagree_after_a_withdrawal_raises_it_again(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "on": False})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly after all"})
+        self.assertEqual(len(self.reopen_rows()), 1)
+        self.assertEqual([f["because"] for f in self.flags("Q2")], ["Q1"])
+
+    def test_the_row_stays_while_its_flags_do_after_the_disagreer_is_removed(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("set_removed", HOST, {"pid": self.cy, "on": True})
+        self.assertEqual(len(self.reopen_rows()), 1)
+        self.act("keep_decision", HOST, {"qid": "Q1"})
+        self.assertEqual(self.flags("Q2"), [])
+
+    def test_a_lock_change_not_yet_reviewed_is_not_hidden_by_a_later_possibly_reopened(self):
+        self.act("edit_lock", HOST, {"qid": "Q1", "text": "Reworded"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        q2 = next(q for q in self.s.snapshot(self.bo)["questions"] if q["id"] == "Q2")
+        self.assertEqual([f["why"]["kind"] for f in q2["needsReview"]], ["lock-changed", "possibly-reopened"])
+        self.send()
+        d = self.events("round-sent")[-1]["digest"]
+        self.assertEqual([r["id"] for r in d["needsReview"] if "possiblyReopened" not in r], ["Q2", "Q3"])
+
+    def test_the_digest_reads_each_reason_as_it_is_now(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Far too costly"})
+        self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "reason": "Users want it"})
+        self.act("disagree", self.bo, {"qid": "Q1", "card": "c:rec", "on": False})
+        self.send()
+        (item,) = self.events("round-sent")[-1]["digest"]["possiblyReopened"]
+        self.assertEqual(item["disagreements"], [{"text": "Recommended for Q1.", "reason": "Far too costly"}])
+
+    def test_a_closed_poll_never_raises(self):
+        self.send()
+        self.ack(2)
+        self.open_round(choice_q("Q5"))
+        self.act("pick", self.bo, {"qid": "Q5", "option": "opt-1", "view": "focus"})
+        self.act("lock", HOST, {"qid": "Q5"})
+        self.send()
+        self.ack(3)
+        self.open_round(text_q("Q6", depends=["Q5"]))
+        self.refused("wrong-purpose", "disagree", self.cy, {"qid": "Q5", "card": "o:opt-1", "reason": "No"}, http=409)
+        self.assertEqual((self.reopen_rows(), self.flags("Q6")), ([], []))
+
+
+class TestKeepOrUnlock(ReopenCase):
+    def raise_it(self, pid=None, reason="Too costly"):
+        self.act("disagree", pid or self.cy, {"qid": "Q1", "card": "c:rec", "reason": reason})
+
+    def test_keep_clears_the_row_and_only_the_flags_it_raised_and_is_logged(self):
+        self.act("edit_lock", HOST, {"qid": "Q1", "text": "Recommended, reworded."})
+        self.raise_it()
+        self.act("keep_decision", HOST, {"qid": "Q1"})
+        self.assertEqual(self.reopen_rows(), [])
+        for qid in ("Q2", "Q3"):
+            self.assertEqual([f["why"]["kind"] for f in self.question(qid)["needsReview"]], ["lock-changed"], qid)
+        last = self.s.state["decisions"][-1]
+        self.assertEqual(last, {"at": self.clock.t, "qid": "Q1", "kind": "kept", "by": HOST, "seq": 3})
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"]["text"], "Recommended, reworded.")
+
+    def test_keep_is_the_owners_and_needs_a_raised_row(self):
+        self.refused("not-reopened", "keep_decision", HOST, {"qid": "Q1"}, http=409)
+        self.raise_it()
+        self.refused("owner-only", "keep_decision", self.ann, {"qid": "Q1"}, http=403)
+        self.refused("no-such-question", "keep_decision", HOST, {"qid": "Q9"}, http=404)
+
+    def test_unlock_ends_the_row_flags_the_dependents_and_is_logged(self):
+        self.raise_it()
+        self.act("unlock", HOST, {"qid": "Q1"})
+        self.assertEqual(self.reopen_rows(), [])
+        self.assertEqual(self.question("Q2")["needsReview"][-1]["why"], {"kind": "unlocked"})
+        self.assertEqual(self.s.state["decisions"][-1], {"at": self.clock.t, "qid": "Q1", "kind": "unlock", "by": HOST, "seq": 2})
+
+    def test_changing_the_locked_text_ends_it_and_the_flags_it_raised(self):
+        self.raise_it()
+        self.act("edit_lock", HOST, {"qid": "Q1", "text": "Recommended for Q1."})
+        self.assertEqual((self.reopen_rows(), self.flags("Q2"), self.flags("Q3")), ([], [], []))
+        self.assertEqual(self.question("Q2")["needsReview"], [])  # the same text changes nothing to review
+
+    def test_unlock_drops_the_possibly_reopened_flags(self):
+        self.raise_it()
+        self.act("unlock", HOST, {"qid": "Q1"})
+        self.assertEqual([f["why"]["kind"] for f in self.question("Q2")["needsReview"]], ["unlocked"])
+
+    def test_a_newer_late_disagree_after_keep_raises_the_row_again_unread(self):
+        self.raise_it()
+        (row,) = self.reopen_rows()
+        self.act("read_inbox", HOST, {"keys": [row["key"]]})
+        self.assertFalse(self.reopen_rows()[0]["unread"])
+        self.act("keep_decision", HOST, {"qid": "Q1"})
+        self.raise_it(reason="Still too costly")
+        (again,) = self.reopen_rows()
+        self.assertTrue(again["unread"])
+        self.assertEqual([f["because"] for f in self.flags("Q2")], ["Q1"])
+
+    def test_another_persons_late_disagree_makes_the_row_unread_again(self):
+        self.raise_it()
+        self.act("read_inbox", HOST, {"keys": [self.reopen_rows()[0]["key"]]})
+        self.raise_it(self.bo, "Users want it")
+        (row,) = self.reopen_rows()
+        self.assertEqual((row["by"], row["n"], row["unread"]), (self.bo, 2, True))
+
+
+class TestDecisionLog(ReopenCase):
+    def test_each_decision_is_logged_in_order_with_its_time_and_who(self):
+        lock_at = self.lock_at
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        late_at = self.clock.t
+        self.act("edit_lock", self.ann, {"qid": "Q1", "text": "Reworded"})
+        change_at = self.clock.t
+        self.act("unlock", self.ann, {"qid": "Q1"})
+        unlock_at = self.clock.t
+        self.assertEqual(self.s.state["decisions"], [
+            {"at": lock_at, "qid": "Q1", "kind": "lock", "by": HOST, "seq": 0, "text": "Recommended for Q1."},
+            {"at": late_at, "qid": "Q1", "kind": "late-disagree", "by": self.cy, "seq": 1, "card": "c:rec", "reason": "Too costly"},
+            {"at": change_at, "qid": "Q1", "kind": "lock-change", "by": self.ann, "seq": 2, "text": "Reworded", "card": "c:rec"},
+            {"at": unlock_at, "qid": "Q1", "kind": "unlock", "by": self.ann, "seq": 3},
+        ])
+        self.assertLess(lock_at, late_at)
+
+    def test_a_used_suggestion_is_a_lock_change(self):
+        sid = self.act("suggest", self.bo, {"qid": "Q1", "text": "Collapse it"})["id"]
+        self.act("act_on_suggestion", HOST, {"qid": "Q1", "id": sid, "action": "use"})
+        self.assertEqual(self.s.state["decisions"][-1], {"at": self.clock.t, "qid": "Q1", "kind": "lock-change", "by": HOST, "seq": 1, "text": "Collapse it"})
+
+    def test_a_poll_closed_and_reopened_is_logged(self):
+        self.send()
+        self.ack(2)
+        self.open_round(choice_q("Q5"))
+        self.act("pick", self.bo, {"qid": "Q5", "option": "opt-1", "view": "focus"})
+        self.act("lock", HOST, {"qid": "Q5"})
+        closed = self.clock.t
+        self.act("unlock", HOST, {"qid": "Q5"})
+        self.assertEqual([e for e in self.s.state["decisions"] if e["qid"] == "Q5"], [
+            {"at": closed, "qid": "Q5", "kind": "poll-close", "by": HOST, "seq": 1},
+            {"at": self.clock.t, "qid": "Q5", "kind": "poll-reopen", "by": HOST, "seq": 2},
+        ])
+
+    def test_only_the_owners_snapshot_carries_the_log(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("keep_decision", HOST, {"qid": "Q1"})
+        self.assertEqual([e["kind"] for e in self.s.snapshot(HOST)["decisions"]], ["lock", "late-disagree", "kept"])
+        for pid in (self.ann, self.bo, self.cy):
+            snap = self.s.snapshot(pid)
+            self.assertNotIn("decisions", snap, pid)
+            self.assertNotIn('"late-disagree"', json.dumps(snap), pid)
+
+    def test_a_merge_moves_the_merged_persons_log_entries(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("merge_people", HOST, {"from": self.cy, "to": self.bo})
+        self.assertEqual([e["by"] for e in self.s.state["decisions"]], [HOST, self.bo])
+        self.assertEqual(self.reopen_rows()[0]["by"], self.bo)
+
+    def test_a_merge_moves_the_answer_a_logged_disagree_names(self):
+        self.act("answer", self.cy, {"qid": "Q4", "text": "Porto", "view": "focus"})
+        self.act("lock", HOST, {"qid": "Q4", "card": f"p:{self.cy}"})
+        self.send()
+        self.ack(2)
+        self.open_round(text_q("Q5"))
+        self.act("disagree", self.bo, {"qid": "Q4", "card": f"p:{self.cy}", "reason": "Too far"})
+        self.act("merge_people", HOST, {"from": self.cy, "to": self.ann})
+        self.assertEqual(self.s.state["decisions"][-1]["card"], f"p:{self.ann}")
+        self.send()
+        (item,) = self.events("round-sent")[-1]["digest"]["possiblyReopened"]
+        self.assertEqual(item["disagreements"], [{"text": "Porto", "reason": "Too far"}])
+
+    def test_the_digest_says_possibly_reopened_and_marks_the_dependents(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.send()
+        ev = self.events("round-sent")[-1]
+        self.assertIsNone(support_event_error(ev))
+        d = ev["digest"]
+        self.assertEqual(d["possiblyReopened"], [{"id": "Q1", "locked": "Recommended for Q1.", "disagreements": [{"text": "Recommended for Q1.", "reason": "Too costly"}]}])
+        self.assertEqual(d["needsReview"], [
+            {"id": "Q2", "because": "Q1", "now": {"kind": "locked", "text": "Recommended for Q1."}, "possiblyReopened": True},
+            {"id": "Q3", "because": "Q1", "now": {"kind": "locked", "text": "Recommended for Q1."}, "possiblyReopened": True},
+        ])
+
+    def test_a_kept_decision_leaves_the_next_digest(self):
+        self.act("disagree", self.cy, {"qid": "Q1", "card": "c:rec", "reason": "Too costly"})
+        self.act("keep_decision", HOST, {"qid": "Q1"})
+        self.send()
+        d = self.events("round-sent")[-1]["digest"]
+        self.assertEqual((d["possiblyReopened"], d["needsReview"]), ([], []))
+
+
 class TestDiagramReference(SessionCase):
     SVG = "abcdefabcdef0123.svg"
 
@@ -3939,7 +4328,9 @@ class TestPresenceStates(SessionCase):
         self.assertEqual((self.state_of(self.ann)["typing"], self.state_of(self.ann)["chatTyping"]), (False, False))
 
     def test_heartbeat_fields_are_checked(self):
-        bad = (({"visible": "no"}, "visible"), ({"lastInput": -3}, "lastInput"), ({"lastInput": float("inf")}, "lastInput"), ({"away": "yes"}, "away"))
+        bad = (({"visible": "no"}, "visible"), ({"lastInput": -3}, "lastInput"), ({"lastInput": float("inf")}, "lastInput"), ({"away": "yes"}, "away"),
+               ({"lastFocus": -1}, "lastFocus"), ({"lastFocus": float("inf")}, "lastFocus"), ({"lastFocus": "now"}, "lastFocus"),
+               ({"focusId": -1}, "focusId"), ({"focusId": 1.5}, "focusId"), ({"focusId": "a"}, "focusId"))
         for body, field in bad:
             with self.subTest(body=body):
                 with self.assertRaises(session.DomainError) as ctx:
@@ -3995,6 +4386,64 @@ class TestPresenceStates(SessionCase):
         self.clock.tick(1)
         self.beat(self.ann, tab="b", q="Q3", typing=False)
         self.assertEqual((self.state_of(self.ann)["q"], self.state_of(self.ann)["typing"]), ("Q3", False))
+
+    def test_question_and_typing_come_from_the_most_recently_focused_tab_whatever_beats_last(self):
+        """A desk tab on Q2 focused 5 s ago and a phone tab on Q1 last shown 60 s ago: Q2, whichever tab beats last."""
+        for order in (("phone", "desk"), ("desk", "phone")):
+            with self.subTest(beats_last=order[1]):
+                self.clock.tick(session.OFFLINE_AFTER)
+                body = {"desk": {"q": "Q2", "typing": True, "lastFocus": 5}, "phone": {"q": "Q1", "visible": False, "lastFocus": 60}}
+                for tab in order:
+                    self.beat(self.ann, tab=tab, **body[tab])
+                    self.clock.tick(1)
+                self.assertEqual((self.state_of(self.ann)["q"], self.state_of(self.ann)["typing"]), ("Q2", True))
+
+    def test_a_visible_tab_beats_a_hidden_one_focused_more_recently(self):
+        """A desk window that kept focus (focused 60 s ago) and a phone locked since its use 5 s ago: the desk's Q2."""
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=60)
+        self.beat(self.ann, tab="phone", q="Q1", visible=False, lastFocus=5)
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+
+    def test_a_late_beat_does_not_move_an_unchanged_focus_later(self):
+        """Phone focused on Q1 at t=0, desk on Q2 at t=1; a phone beat built at t=2 arrives at t=4: still Q2."""
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=0, focusId=1000)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=0, focusId=2000)
+        self.clock.tick(3)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=2, focusId=1000)
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+
+    def test_a_new_focus_id_takes_the_new_focus_time(self):
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=0, focusId=1000)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=0, focusId=2000)
+        self.clock.tick(3)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=1, focusId=5000)  # focused again at t=3
+        self.assertEqual(self.state_of(self.ann)["q"], "Q1")
+
+    def test_without_a_focus_id_a_focus_time_only_moves_earlier(self):
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=0)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=0)
+        self.clock.tick(3)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=2)  # would put the phone's focus at t=2
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=4.5)  # a quicker beat: the desk's focus was at t=-0.5
+        self.assertEqual(self.state_of(self.ann)["q"], "Q1")
+
+    def test_a_beat_without_a_focus_time_keeps_the_tabs_last_one(self):
+        self.beat(self.ann, tab="desk", q="Q2", lastFocus=1)
+        self.beat(self.ann, tab="phone", q="Q1", lastFocus=30)
+        self.clock.tick(2)
+        self.beat(self.ann, tab="desk", q="Q2")
+        self.beat(self.ann, tab="phone", q="Q1")
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
+
+    def test_a_tab_reporting_a_focus_time_wins_over_one_that_does_not(self):
+        self.beat(self.ann, tab="new", q="Q2", lastFocus=40)
+        self.clock.tick(1)
+        self.beat(self.ann, tab="old", q="Q1")
+        self.assertEqual(self.state_of(self.ann)["q"], "Q2")
 
     def test_a_person_keeps_at_most_8_tabs_the_oldest_dropped(self):
         self.beat(self.ann, tab="t0", visible=True)  # the only visible tab
@@ -4602,6 +5051,102 @@ class TestAnnotations(SessionCase):
         self.assertEqual([self.s.is_prototype(q) for q in ("Q1", "Q2", "Q9")], [True, False, False])
 
 
+def proto_q(qid, *variants):
+    """A prototype question; each variant is (id, label, asset) or (id, label, asset, previous)."""
+    vs = [{"id": v[0], "label": v[1], "asset": v[2], **({"previous": v[3]} if len(v) > 3 else {})} for v in variants]
+    return {**text_q(qid, rec=False), "format": {"kind": "prototype", "variants": vs}}
+
+
+class TestPrototypeVersions(SessionCase):
+    """A prototype keeps its identity across rounds: a variant of a later prototype question names the variant it
+    revises as `previous: {qid, variant}`. Each version stays its own (qid, variant), so a note stays on the version it
+    was pinned to. `previous` names a variant of an earlier prototype question, and each variant has one next version."""
+
+    BUTTON = "html > body:nth-of-type(1) > main:nth-of-type(1) > button:nth-of-type(1)"
+    AREA = {"x": 10, "y": 40, "w": 30, "h": 5}
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.bo = self.people("Ann", "Bo")
+        self.open_round(proto_q("Q1", ("v-1", "One page", HTML), ("v-2", "Two steps", PNG)), text_q("Q2"))
+
+    def next_round(self, *questions):
+        self.send()
+        self.ack(1)
+        return self.open_round(*questions)
+
+    def note(self, pid, qid, variant, text):
+        return self.act("annotate", pid, {"qid": qid, "variant": variant, "text": text, "anchor": {"selector": self.BUTTON, "rect": self.AREA}})
+
+    def test_a_new_version_names_the_one_it_revises_and_the_earlier_one_is_unchanged(self):
+        before = json.loads(json.dumps(self.question("Q1")))
+        self.next_round(proto_q("Q3", ("v-1", "One page, shorter", HTML, {"qid": "Q1", "variant": "v-1"}), ("v-2", "Two steps", PNG)))
+        on_disk = next(q for q in self.disk()["questions"] if q["id"] == "Q3")
+        self.assertEqual(on_disk["format"]["variants"][0]["previous"], {"qid": "Q1", "variant": "v-1"})
+        self.assertNotIn("previous", on_disk["format"]["variants"][1])
+        shown = next(q for q in self.s.snapshot(self.bo)["questions"] if q["id"] == "Q3")
+        self.assertEqual(shown["format"]["variants"][0]["previous"], {"qid": "Q1", "variant": "v-1"})
+        self.assertEqual(self.question("Q1"), before)
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_one_apply_can_add_two_versions_in_a_line(self):
+        self.next_round(
+            proto_q("Q3", ("v-1", "One page, shorter", HTML, {"qid": "Q1", "variant": "v-1"}), ("v-2", "Two steps", PNG)),
+            proto_q("Q4", ("v-1", "One page, shortest", HTML, {"qid": "Q3", "variant": "v-1"}), ("v-2", "Two steps", PNG)))
+        prev = {q["id"]: q["format"]["variants"][0].get("previous") for q in self.disk()["questions"] if q["format"]["kind"] == "prototype"}
+        self.assertEqual(prev, {"Q1": None, "Q3": {"qid": "Q1", "variant": "v-1"}, "Q4": {"qid": "Q3", "variant": "v-1"}})
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_note_stays_on_the_version_it_was_pinned_to(self):
+        self.note(self.ann, "Q1", "v-1", "The total is hard to find.")
+        self.next_round(proto_q("Q3", ("v-1", "One page, shorter", HTML, {"qid": "Q1", "variant": "v-1"}), ("v-2", "Two steps", PNG)))
+        self.note(self.bo, "Q3", "v-1", "Better now.")
+        got = [(a["qid"], a["variant"], a["text"]) for a in self.s.snapshot(self.bo)["annotations"]]
+        self.assertEqual(got, [("Q1", "v-1", "The total is hard to find."), ("Q3", "v-1", "Better now.")])
+        self.assertEqual([(a["qid"], a["variant"]) for a in self.disk()["annotations"]], [("Q1", "v-1"), ("Q3", "v-1")])
+
+    def test_previous_must_name_a_variant_of_an_earlier_prototype_with_no_next_version(self):
+        self.next_round(proto_q("Q3", ("v-1", "One page, shorter", HTML, {"qid": "Q1", "variant": "v-1"}), ("v-2", "Two steps", PNG)))
+        bad = {
+            "a question not in the session": {"qid": "Q9", "variant": "v-1"},
+            "a text question": {"qid": "Q2", "variant": "v-1"},
+            "a variant the question lacks": {"qid": "Q1", "variant": "v-5"},
+            "the question itself": {"qid": "Q4", "variant": "v-2"},
+            "a version that already has a next one": {"qid": "Q1", "variant": "v-1"},
+            "a field it does not take": {"qid": "Q3", "variant": "v-1", "round": 2},
+            "no variant": {"qid": "Q3"},
+        }
+        self.send()
+        self.ack(2)  # round 2 waits for Claude, so an open-round is refused only for its previous
+        before = self.disk()
+        for why, prev in bad.items():
+            with self.subTest(why):
+                self.refused_ops("bad-field", {"op": "open-round", "questions": [proto_q("Q4", ("v-1", "A", HTML), ("v-2", "B", PNG, prev))]})
+        with self.subTest("two variants naming one version"):
+            twice = proto_q("Q4", ("v-1", "A", HTML, {"qid": "Q3", "variant": "v-1"}), ("v-2", "B", PNG, {"qid": "Q3", "variant": "v-1"}))
+            self.refused_ops("bad-field", {"op": "open-round", "questions": [twice]})
+        with self.subTest("two questions in one apply naming one version"):
+            one, two = (proto_q(qid, ("v-1", "A", HTML, {"qid": "Q3", "variant": "v-2"}), ("v-2", "B", PNG)) for qid in ("Q4", "Q5"))
+            self.refused_ops("bad-field", {"op": "open-round", "questions": [one, two]})
+        self.assertEqual(self.disk(), before)
+
+    def test_a_state_file_holding_a_version_loads_and_one_naming_no_earlier_variant_does_not(self):
+        self.next_round(proto_q("Q3", ("v-1", "One page, shorter", HTML, {"qid": "Q1", "variant": "v-1"}), ("v-2", "Two steps", PNG)))
+        good = self.disk()
+        self.assertEqual(session.Session.load(self.path, validate_writes=True).state["questions"][2]["format"]["variants"][0]["previous"], {"qid": "Q1", "variant": "v-1"})
+        cases = {
+            "names a later question": lambda d: d["questions"][0]["format"]["variants"][0].update(previous={"qid": "Q3", "variant": "v-1"}),
+            "names a missing variant": lambda d: d["questions"][2]["format"]["variants"][0].update(previous={"qid": "Q1", "variant": "v-6"}),
+            "names a text question": lambda d: d["questions"][2]["format"]["variants"][0].update(previous={"qid": "Q2", "variant": "v-1"}),
+            "two next versions of one": lambda d: d["questions"][2]["format"]["variants"][1].update(previous={"qid": "Q1", "variant": "v-1"}),
+        }
+        for why, change in cases.items():
+            with self.subTest(why):
+                doc = json.loads(json.dumps(good))
+                change(doc)
+                self.assertIsNotNone(session.document_error(doc))
+
+
 class TestImageReferenceRect(SessionCase):
     """An image reference's rect (Reference, Contracts) is kept through open-round, the file and a reload. A verifier
     reported it gone after an open-round on 6579f21; this pins the round trip through each write path."""
@@ -4857,6 +5402,24 @@ class TestWaitingList(SessionCase):
             self.assertIn(jib, people)
             self.assertIn(kai, people)
             self.assertNotIn(idle, people)
+
+
+class TestStateFromF6f1318Versions(StateFixtureCase):
+    """state-written-f6f1318.json, from before prototype versions (a prototype question whose variants name no
+    `previous`, its round sent), loads unchanged and takes a later round that revises one of its variants."""
+
+    def test_a_state_with_no_version_fields_loads_and_takes_a_new_version(self):
+        s = self.load("state-written-f6f1318.json")
+        old = s.state["questions"][0]
+        self.assertEqual((old["format"]["kind"], [v.get("previous") for v in old["format"]["variants"]]), ("prototype", [None, None]))
+        for v in old["format"]["variants"]:
+            (s.path.parent / "assets" / v["asset"]).write_bytes(b"x")
+        html = old["format"]["variants"][0]["asset"]
+        s.clock.t += 5
+        s.apply({"ops": [{"op": "ack-round", "round": 1}, {"op": "open-round", "questions": [proto_q("Q3", ("v-1", "One page, shorter", html, {"qid": "Q1", "variant": "v-1"}), ("v-2", "B", html))]}]})
+        reloaded = session.Session.load(s.path, validate_writes=True)
+        self.assertEqual(reloaded.state["questions"][-1]["format"]["variants"][0]["previous"], {"qid": "Q1", "variant": "v-1"})
+        self.assertNotIn("previous", reloaded.state["questions"][0]["format"]["variants"][0])
 
 
 class TestStateFrom3153973(StateFixtureCase):
@@ -5594,6 +6157,20 @@ class TestPictureOnlyAnswer(UploadCase):
         self.assertNotIn("attachments", self.s.state["locks"]["Q1"]["source"])
         self.assertIsNone(session.document_error(self.disk()))
 
+    def test_a_late_disagree_on_a_locked_picture_only_answer_reaches_the_digest_with_its_picture(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.act("lock", HOST, {"qid": "Q1", "card": f"p:{self.ann}"})
+        self.send()
+        self.ack(1)
+        self.open_round(text_q("Q5"))
+        self.act("disagree", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "reason": "Wrong picture"})
+        self.send()
+        ev = self.events("round-sent")[-1]
+        self.assertEqual((ev["digest"]["round"], ev["digest"]["possiblyReopened"][0]["disagreements"]),
+                         (2, [{"text": "", "attachments": [uid], "reason": "Wrong picture"}]))
+        self.assertIsNone(support_event_error(ev))
+
     def test_a_picture_only_answer_in_a_sent_round_stays_when_its_picture_goes(self):
         uid = self.offered_and_accepted(self.ann)
         self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
@@ -5695,6 +6272,148 @@ class TestUploadRecovery(UploadCase):
 
 
 PIC = b"\x89PNG\r\n\x1a\n" + bytes(300)  # 308 bytes: chunks of 200 and 108
+
+
+class TestAvatars(UploadCase):
+    """A profile picture is an upload offered with `avatar`: a PNG, JPEG or WebP of at most 256 KB whose first bytes
+    are that kind. A guest's shows to others once the owner approves it, the owner's at once; a new one replaces the
+    last; the person or the owner removes it; while names are hidden, so are pictures."""
+
+    def avatar(self, pid, name="me.png", data=PIC, approve=False):
+        uid = self.offer(pid, name, data, avatar=True)["id"]
+        self.send_all(pid, uid, data)
+        if approve:
+            self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
+        return uid
+
+    def shown(self, viewer, pid):
+        """The avatar viewer's snapshot lists for pid, else None."""
+        return next(p for p in self.s.snapshot(viewer)["people"] if p["pid"] == pid).get("avatar")
+
+    def test_a_guests_offer_is_accepted_at_once_and_stays_hidden_until_approved(self):
+        out = self.offer(self.ann, "me.png", PIC, avatar=True)
+        self.assertEqual(out["status"], "accepted")
+        self.send_all(self.ann, out["id"], PIC)
+        self.assertIsNone(self.shown(self.bo, self.ann))
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": out["id"]}).http, 404)
+        self.act("act_on_upload", HOST, {"id": out["id"], "action": "approve"})
+        self.assertEqual(self.shown(self.bo, self.ann), out["id"])
+
+    def test_the_owners_picture_works_with_uploads_off(self):
+        self.act("update_settings", HOST, {"uploads": False})
+        uid = self.avatar(HOST)
+        self.assertEqual(self.shown(self.bo, HOST), uid)
+        self.refused("uploads-off", "offer_upload", HOST, {"file": "a.pdf", "size": len(PDF), "type": ""})
+
+    def test_a_guests_picture_is_refused_with_uploads_off(self):
+        self.act("update_settings", HOST, {"uploads": False})
+        e = self.refused("uploads-off", "offer_upload", self.ann, {"file": "me.png", "size": len(PIC), "type": "image/png", "avatar": True})
+        self.assertEqual((e.http, e.message), (403, "The host has pictures off in this session."))
+
+    def test_only_a_png_jpeg_or_webp_of_at_most_256_kb_is_offered_as_one(self):
+        gif = {"file": "me.gif", "size": 10, "type": "image/gif", "avatar": True}
+        self.assertEqual(self.refused("file-type", "offer_upload", self.ann, gif).http, 415)
+        self.refused("file-type", "offer_upload", self.ann, {**gif, "file": "me.pdf"})
+        self.refused("file-type", "offer_upload", self.ann, {**gif, "file": "me.svg"})
+        big = {"file": "me.png", "size": 256 * 1024 + 1, "type": "image/png", "avatar": True}
+        self.assertEqual(self.refused("upload-too-large", "offer_upload", self.ann, big).http, 413)
+        self.refused("bad-field", "offer_upload", self.ann, {**big, "size": 10, "qid": "Q1"})
+        for name in ("a.png", "b.jpg", "c.jpeg", "d.webp"):
+            out = self.act("offer_upload", self.ann, {**big, "file": name, "size": 256 * 1024})
+            self.assertEqual(out["status"], "accepted")
+            self.assertTrue(self.upload(out["id"])["avatar"])
+
+    def test_its_bytes_must_be_the_kind_its_name_says(self):
+        jpeg = b"\xff\xd8\xff\xe0" + bytes(100)
+        uid = self.offer(self.ann, "me.png", jpeg, avatar=True)["id"]
+        self.assertEqual(self.refused("file-type", "upload_chunk", self.ann, piece_meta(uid, 0, 1, jpeg, jpeg), jpeg).http, 415)
+        self.assertEqual(self.upload(uid)["status"]["kind"], "failed")
+        self.assertIsNone(self.shown(HOST, self.ann))
+        ok = self.avatar(self.ann, "me.jpg", jpeg)
+        self.assertEqual(self.s.upload_image(self.ann, {"id": ok})["image"][:23], "data:image/jpeg;base64,")
+
+    def test_more_bytes_than_offered_are_refused(self):
+        uid = self.offer(self.ann, "me.png", PIC, avatar=True)["id"]
+        self.chunk(self.ann, uid, 0, PIC)
+        longer = PIC[SMALL:] + b"x"
+        self.assertEqual(self.refused("bad-field", "upload_chunk", self.ann, piece_meta(uid, 1, 2, longer, PIC[:SMALL] + longer), longer).http, 400)
+
+    def test_a_guests_picture_shows_to_others_only_once_the_owner_approves_it(self):
+        uid = self.avatar(self.ann)
+        self.assertIsNone(self.shown(self.bo, self.ann))
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
+        self.assertEqual(self.s.upload_image(self.ann, {"id": uid})["id"], uid)
+        self.assertEqual(self.s.upload_image(HOST, {"id": uid})["id"], uid)
+        mine = next(u for u in self.s.snapshot(self.ann)["myUploads"] if u["id"] == uid)
+        self.assertEqual((mine["avatar"], mine["image"], "shown" in mine), (True, True, False))
+        owners = next(u for u in self.s.snapshot(HOST)["uploads"] if u["id"] == uid)
+        self.assertEqual((owners["avatar"], "shown" in owners), (True, False))
+        self.assertEqual(self.events("upload-received"), [])  # no file for Claude to read
+        self.refused("owner-only", "act_on_upload", self.ann, {"id": uid, "action": "approve"})
+        self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
+        self.assertEqual((self.shown(self.bo, self.ann), self.shown(self.ann, self.ann), self.shown(HOST, self.ann)), (uid, uid, uid))
+        self.assertEqual(self.s.upload_image(self.bo, {"id": uid})["image"][:22], "data:image/png;base64,")
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_the_owners_own_picture_shows_at_once(self):
+        uid = self.avatar(HOST)
+        self.assertEqual(self.shown(self.bo, HOST), uid)
+        self.assertEqual(self.s.upload_image(self.bo, {"id": uid})["id"], uid)
+
+    def test_a_new_picture_replaces_the_last_and_waits_for_approval_again(self):
+        old = self.avatar(self.ann, approve=True)
+        stored = self.tmp / self.upload(old)["status"]["stored"]
+        new = self.avatar(self.ann, "new.png", PIC + b"!")
+        self.assertEqual(self.upload(old)["status"]["kind"], "removed")
+        self.assertFalse(stored.exists())
+        self.assertIsNone(self.shown(self.bo, self.ann))
+        for uid in (old, new):
+            self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
+        self.assertEqual(self.refused("not-found", "upload_image", self.ann, {"id": old}).http, 404)
+        self.assertEqual(self.s.upload_image(self.ann, {"id": new})["id"], new)
+        self.assertEqual(self.s.upload_image(HOST, {"id": new})["id"], new)
+        self.act("act_on_upload", HOST, {"id": new, "action": "approve"})
+        self.assertEqual(self.shown(self.bo, self.ann), new)
+
+    def test_a_new_offer_withdraws_one_still_on_its_way(self):
+        first = self.offer(self.ann, "a.png", PIC, avatar=True)["id"]
+        second = self.offer(self.ann, "b.png", PIC, avatar=True)["id"]
+        self.assertEqual((self.upload(first)["status"]["kind"], self.upload(second)["status"]["kind"]), ("withdrawn", "accepted"))
+        own = self.offer(HOST, "a.png", PIC, avatar=True)["id"]
+        self.chunk(HOST, own, 0, PIC)
+        tmp = self.upload(own)["status"]["tmp"]
+        self.assertEqual(self.pending(), [tmp])
+        self.offer(HOST, "b.png", PIC, avatar=True)
+        self.assertEqual(self.upload(own)["status"]["kind"], "withdrawn")
+        self.assertNotIn(tmp, self.pending())
+
+    def test_the_person_or_the_owner_removes_it(self):
+        ann, own = self.avatar(self.ann, approve=True), self.avatar(HOST)
+        files = [self.tmp / self.upload(u)["status"]["stored"] for u in (ann, own)]
+        self.act("act_on_upload", self.ann, {"id": ann, "action": "remove"})
+        self.act("act_on_upload", HOST, {"id": own, "action": "remove"})
+        self.assertEqual((self.shown(self.bo, self.ann), self.shown(self.bo, HOST)), (None, None))
+        self.assertEqual([f.exists() for f in files], [False, False])
+        bo = self.avatar(self.bo, approve=True)
+        self.refused("no-such-upload", "act_on_upload", self.ann, {"id": bo, "action": "remove"})
+        self.act("act_on_upload", HOST, {"id": bo, "action": "remove"})
+        self.assertIsNone(self.shown(self.ann, self.bo))
+        self.assertEqual(self.events("upload-removed"), [])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_pictures_hide_while_names_do(self):
+        uid = self.avatar(self.ann, approve=True)
+        self.act("update_settings", HOST, {"names": "initials"})
+        self.assertIsNone(self.shown(self.bo, self.ann))
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": uid}).http, 404)
+        self.assertEqual(self.s.upload_image(self.ann, {"id": uid})["id"], uid)
+        self.act("update_settings", HOST, {"names": "full"})
+        self.assertEqual(self.shown(self.bo, self.ann), uid)
+        self.assertEqual(self.s.upload_image(self.bo, {"id": uid})["id"], uid)
+
+    def test_no_post_carries_it(self):
+        uid = self.avatar(self.ann, approve=True)
+        self.assertEqual(self.refused("wrong-status", "chat", self.ann, {"text": "Me", "attachments": [uid]}).http, 409)
 
 
 class TestAttachmentsEverywhere(UploadCase):
@@ -6901,6 +7620,13 @@ class TestMentionPointers(SessionCase):
         self.assertEqual(self.s.my_requests(self.bo, {})["requests"][0]["text"], "@Philippa asked")
         self.act("update_settings", HOST, {"names": "initials"})
         self.assertEqual(self.s.my_requests(self.bo, {})["requests"][0]["text"], "@someone asked")
+
+
+class TestDecisionLogOnOldStates(StateFixtureCase):
+    def test_a_state_written_before_the_log_loads_and_the_owner_reads_an_empty_one(self):
+        s = self.load("state-sample.json")
+        self.assertNotIn("decisions", s.state)
+        self.assertEqual(s.snapshot(HOST)["decisions"], [])
 
 
 def support_event_error(ev):

@@ -1,5 +1,114 @@
 # Changelog for the PR pipeline convention
 
+## [3.3.1] - 2026-10-22
+
+### Fixed
+
+- The read runner's permission-mode check accepts a leg whose CLI reports `default` when `dontAsk` was asked for, so read-runner skills such as fix-ci no longer fail after their model leg ([#8964](https://github.com/melodic-software/claude-code-plugins/pull/8964)). The launcher's `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` forces the CLI into `default`, and the launcher always passes `--permission-prompts none`, under which Claude Code denies every call no rule allows ([CLI reference](https://code.claude.com/docs/en/cli-reference)). Every other mismatch still fails, and a test fails any launcher pin not yet checked to pass that flag.
+
+- The pr-unblock and feedback dispatchers wait out a rate limit on the repository's job token instead of failing at once: retry-after when GitHub sends it, else until one second past the reset when no requests remain, else one minute, then the call is sent once more. Waits are capped at six minutes per run, summed; a reset further away fails at once and names the reset time.
+- The lost-run reconciler re-runs, once, the failed jobs of an intake-label-needs-triage run whose first attempt failed within its lookback, so an issue the floor label missed (a rate limit, most often) gets it on the next tick.
+
+## [3.3.0] - 2026-10-22
+
+### Added
+
+- `models.issue-dimensions.complexity-profiles` maps an issue's Complexity to the profile its run starts on. This repository sends high Complexity to the new `code-xhigh` profile (Opus at effort xhigh); low, medium and unset keep the activity's default.
+- A profile's `escalate-to` names the profile one model rung up, which a run resolved at resolve-config's new `model-rung` input 1 takes instead. `code-fix` escalates to `code-xhigh`; nothing escalates past it.
+- fix-ci retries once one rung up: a run that changed nothing and escalated only `unfixed` or `not-reproducible` checks skips apply-patch with the new `rung-up` reason, and the same pr-unblock run runs fix-ci and apply-patch again at `model-rung` 1. Unless that retry's patch applies cleanly, the pull request goes to a person, as do `protected-path`, `weaken-required` and `flaky` escalations.
+
+- A top-level `adoption` section (`idle-hours`, default 24; `owner-ids`, default empty) names
+  owner accounts whose pull requests the lanes adopt. pr-unblock-dispatch starts `fix-ci` for a
+  non-draft owner PR whose `ci-status` failed once its last update and its head commit are both
+  `idle-hours` old, with no `do-not-merge`, `needs-human` or tracker human-gated label and no
+  body line starting `Hold:` (babysit's reading: any case, after any whitespace, a bare CR ends
+  a line). This repository adopts kyle-sexton's PRs after 24 hours (owner decision Q22).
+
+### Changed
+
+- The Fable rung above `code-xhigh` stays off: no profile names `fable` or `best`, pending an owner decision on a per-week Fable allowance for the lanes.
+
+- While `adoption.owner-ids` lists anyone, the tracker's human-gated label also holds lanes App
+  PRs from `fix-ci`. A base `.work-item-tracker.json` that is not JSON holds only the adopted
+  owner PRs, and fails the dispatcher run; lanes App PRs still get `fix-ci`.
+
+- The pr-pipeline README's WIP cap section names each `agent-ready` writer and whether the queued cap paces it: only work-unblock's new labels are paced.
+
+### Fixed
+
+- fix-docs is paused: its pr-unblock slot is `enabled: false`, so a dispatched run skips at
+  resolve-config before any model turn, and the broker grants it nothing. Under run-claude-cli's
+  subprocess env scrub the CLI forces the default permission mode instead of `auto`, so every
+  fix-docs run failed its permission-mode check after spending a model leg
+  ([run 39723040443](https://github.com/melodic-software/claude-code-plugins/actions/runs/39723040443)).
+
+- The queued count no longer counts an issue twice when a person edits its lane PR's first body line: an open lane PR whose first line names no issue is matched by its `work-resolve-issue/issue-<n>-...` head branch, at one pull request read each.
+- work-unblock's `label-unblocked` job runs one at a time across the repository, so a burst of closes or a close run beside the hourly sweep can no longer each admit the queued cap's whole room.
+
+## [3.2.0] - 2026-10-22
+
+### Added
+
+- The lost-run reconciler re-runs the failed jobs of a PR CI run that failed only from an outside outage: each failed job hit its time limit, had an install step cancelled or timed out, or lost its runner. An install step that exits with a failure, such as `npm ci` on a stale lockfile, counts as a real failure. It re-runs at most twice per run, 15 then 30 minutes after the attempt ended, only while status.npmjs.org and githubstatus.com both show no incident, and never a run with any other failure.
+- fix-ci starts no model run on a head whose required-run failures are all infra while the reconciler will still re-run it; once both re-runs are used, or the run is older than the reconciler's 24-hour lookback, fix-ci takes the head.
+
+### Fixed
+
+- The red-main report names every red full run since the last green one that has no report on the log, so a report the repository-wide concurrency group cancelled while pending is seen in the next report, whose range re-decides over its merges.
+- The red-main report takes the oldest `github-actions[bot]` issue carrying the log marker as its log, and counts only that account's comments on it (matched by user id) toward the daily cap and the dedupe, so a newer issue carrying the marker can neither take the reports nor reset the cap.
+
+## [3.1.1] - 2026-10-22
+
+### Fixed
+
+- The skill-run diagnostics in both run-activity files (`act-turns.json` and the step summary) now fit the 32768-byte carry cap after JSON escaping: each `denied` entry's `tool_name` is cut to 100 characters, the write file keeps at most 4 `local_command_stderr` messages as the read file does, `subtype` and up to 10 model names are cut to 100 characters, and `local_command_stderr_total` counts every stderr message. When the file would still exceed the cap, the oldest stderr messages drop first, then denials from the end, so a PR-mode read run's scan job no longer refuses an oversized file.
+
+- `check-trusted-trigger` stops a pull request whose `base.ref` is not the payload's `repository.default_branch` with the new reason `untrusted-base`, on `pull_request`, `workflow_dispatch` and `workflow_run` alike, as it does a payload without the default branch. Before, a listed author's PR stacked on another branch passed. `report-check-run` maps `untrusted-base` to no skip reason, so the check posts failure, not neutral.
+
+## [3.1.0] - 2026-10-22
+
+### Added
+
+- A skill activity's `permission-mode` (`dontAsk`, the default, or `auto`) sets the read
+  runner's launcher mode, through `resolve-config`'s new `permission-mode` output. A step after
+  each launcher leg fails the run unless the CLI's init message reports that mode. fix-docs sets
+  `auto`
+  ([ADR 0049](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md)).
+
+### Changed
+
+- fix-docs moves into the `pr-unblock` lane, so its check is `pr-unblock / fix-docs`.
+  `pr-unblock-dispatch.yml` dispatches it on each push to main, once per open, ready pull request
+  a person opened that changes a Markdown file, carries no `do-not-merge` or `needs-human` label
+  and never had a fix-docs run, at most `limits.fix-docs-per-run` (default 2) per run
+  ([README, fix-docs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md)).
+- fix-docs runs on the read runner with no write token, on ci-workflows' run-claude-cli and the
+  automations role's API key first. pr-unblock.yml calls the read runner twice, each call with one
+  Claude secret: `fix-docs` passes only `AUTOMATIONS_CLAUDE_API_KEY`, and `fix-docs-subscription`
+  passes only `AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN` and runs only after a credit stop or with the
+  key empty. Every fix-docs job trusts the default branch tip
+  ([pr-run-activity.md, Two calls on one credential each](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#two-calls-on-one-credential-each)).
+- fix-docs's change leaves as a patch that the `apply-docs-patch` job pushes as one commit, only
+  when a patch was written. A refused patch posts the `pr-unblock / apply-patch` check neutral and
+  labels nothing
+  ([pr-run-activity.md, prepare: apply-patch](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#prepare-apply-patch)).
+- The `default` row of
+  [`patch-rules.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/resolve-config/patch-rules.json)
+  refuses every agent instruction path, caps a patch at 300 files and takes a moved head with
+  `--3way` (`skip-moved-head: false`).
+- The read runner's launcher takes a skill with no prepare mode that hands on a patch: Bash,
+  Edit, Write and Agent as tools, no Bash allow rule, and `Read(./.git/**)` denied. It fails red
+  on `checks`, `self-checks` and `verify-scripts`.
+- fix-docs routes to the new `docs-fix` profile, a mechanical worker from the multi-agent role
+  map, which resolves to sonnet.
+- The launcher accepts `web-access` (`domains: any` only), staging the research skills and their
+  plugins under `.lane/`. fix-docs leaves it off.
+
+### Removed
+
+- The `pr-refine` lane and `pr-refine.yml`, whose `pull_request` trigger ran the read runner's
+  scan job off main, where the `pr-pipeline-scan-carrier` environment refuses it.
+
 ## [3.0.0] - 2026-10-22
 
 ### Added

@@ -174,6 +174,8 @@
       plus: ["M12 5v14M5 12h14"],
       at: ["M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z", "M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.6 7.2"],
       help: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8", "M12 17h.01"],
+      speaker: ["M4.5 9.5h3l4.5-4v13l-4.5-4h-3a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1z", "M15.5 9a4 4 0 0 1 0 6", "M18 6.5a7.5 7.5 0 0 1 0 11"],
+      mic: ["M12 3.5a3 3 0 0 1 3 3V12a3 3 0 0 1-6 0V6.5a3 3 0 0 1 3-3z", "M5.5 11.5a6.5 6.5 0 0 0 13 0", "M12 18v3"],
     };
     function icon(name, cls = "vf-i") {
       const s = document.createElementNS(SVG, "svg");
@@ -719,6 +721,135 @@
       else if (e.key === "Escape" && k.escape) { e.preventDefault(); e.stopPropagation(); k.escape(); }
     }, true);
 
+    // ---------- read aloud and dictation: the browser's own Web Speech API, each off until the person turns it on ----------
+    // Read aloud speaks what this person's page shows of the question: its text, then the option labels on screen, read
+    // from the page itself, never from state, so nothing hidden from them is spoken. Dictate fills its own box for review
+    // and never sends. Where the browser offers on-device recognition (processLocally), a press asks for it first; words
+    // heard that way confirm it, and a device that cannot take the language falls back at once to the browser's own
+    // service, which the settings line discloses until on-device is confirmed. SpeechRecognition.available() is never
+    // called: a Chromium build without Chrome's handler for it ends the page's process. No language pack is installed
+    // from here either: that would be a download the page starts.
+    const TTS = "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance === "function" ? window.speechSynthesis : null;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    const SPEECH = { reading: false, qid: null, rec: null, btn: null, dq: null, local: null };
+    const speechLang = () => document.documentElement.lang || navigator.language || "en";
+    const readOn = () => !!TTS && !!pref("readAloud", false);
+    const dictOn = () => !!SR && !!pref("dictate", false);
+    const readBtn = ibtn("vf-tbtn vf-tbtn-quiet vf-icon-btn vf-readbtn", "speaker", "Read the question aloud");
+    readBtn.setAttribute("aria-pressed", "false"); readBtn.hidden = true;
+    function paintRead() {
+      const label = SPEECH.reading ? "Stop reading aloud" : "Read the question aloud";
+      readBtn.setAttribute("aria-pressed", String(SPEECH.reading)); readBtn.setAttribute("aria-label", label); readBtn.title = label;
+    }
+    /** The question's text, then its option labels, as this person's page shows them now. */
+    function spokenParts() {
+      const shown = el => el.getClientRects().length > 0;
+      const opts = [...fmtBox.querySelectorAll(".vf-optlabel, .vf-check-l, .vf-rank-l, .vf-pickbtn .vf-pick-l, .vf-scale-end")];
+      return [qText, ...opts].filter(shown).map(el => el.textContent.trim()).filter(Boolean);
+    }
+    function stopReading() {
+      if (!SPEECH.reading) return;
+      SPEECH.reading = false; SPEECH.qid = null;
+      TTS.cancel(); paintRead();
+    }
+    function readAloud() {
+      if (SPEECH.reading) return stopReading();
+      const parts = spokenParts(); if (!parts.length) return;
+      TTS.cancel();
+      // a voice on the device first, so the words are not sent to a voice service either
+      const lang = speechLang().toLowerCase().split("-")[0];
+      const voice = TTS.getVoices().find(v => v.localService && v.lang.toLowerCase().startsWith(lang)) || null;
+      SPEECH.reading = true; SPEECH.qid = ui.cur;
+      parts.forEach((t, i) => {
+        const u = new SpeechSynthesisUtterance(t);
+        if (voice) u.voice = voice;
+        if (i === parts.length - 1) u.onend = () => { if (SPEECH.reading) { SPEECH.reading = false; SPEECH.qid = null; paintRead(); } };
+        u.onerror = () => stopReading();
+        TTS.speak(u);
+      });
+      paintRead();
+    }
+    readBtn.onclick = readAloud;
+    // Escape stops reading or dictation wherever focus is; it runs before the fields' own Escape, and that press does
+    // nothing else.
+    on(window, "keydown", e => {
+      if (e.key !== "Escape" || (!SPEECH.reading && !SPEECH.rec)) return;
+      e.preventDefault(); e.stopPropagation(); stopReading(); stopDictation();
+    }, true);
+    const CAN_LOCAL = !!SR && "processLocally" in SR.prototype;
+    const DICT_ERR = {
+      "not-allowed": "Dictation needs the microphone. Allow it for this page in the browser, then try again.",
+      "service-not-allowed": "This browser will not run dictation here.",
+      "language-not-supported": "This browser cannot dictate in this language.",
+      "audio-capture": "No microphone found.",
+      network: "Dictation could not reach the browser's speech service.",
+    };
+    function stopDictation() { const r = SPEECH.rec; if (r) { SPEECH.rec = null; r.abort(); paintDict(); } }
+    function paintDict() {
+      for (const b of root.querySelectorAll(".vf-dictate")) {
+        const on = SPEECH.btn === b && !!SPEECH.rec, label = on ? "Stop dictating" : b._label;
+        b.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-label", label); b.title = label;
+      }
+    }
+    /** Put the words at the box's caret, within its limit, and tell the box it changed; nothing is sent. */
+    function dictInto(f, words) {
+      const start = f.selectionStart ?? f.value.length, end = f.selectionEnd ?? start;
+      const before = f.value.slice(0, start), sep = before && !/\s$/.test(before) ? " " : "";
+      const room = (f.maxLength > 0 ? f.maxLength : Infinity) - (f.value.length - (end - start));
+      const text = (sep + words).slice(0, Math.max(0, room));
+      if (!text.trim()) return;
+      f.focus({ preventScroll: true });
+      f.setRangeText(text, start, end, "end");
+      f.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    /** A Dictate button for field f: press to start, press again to stop. */
+    function dictBtn(f, label) {
+      const b = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-dictate", "mic", label);
+      b._label = label; b.hidden = true; b.setAttribute("aria-pressed", "false");
+      b.onpointerdown = e => e.preventDefault(); // the box keeps focus, so a phone's composer stays open
+      b.onclick = () => {
+        const was = SPEECH.btn === b && !!SPEECH.rec;
+        stopDictation();
+        if (!was && dictOn()) listen(f, b, CAN_LOCAL && SPEECH.local !== false);
+      };
+      return b;
+    }
+    /** One recognition session into field f, on the device when local. */
+    function listen(f, b, local) {
+      const r = new SR();
+      r.lang = speechLang(); r.interimResults = false; r.continuous = false; r.maxAlternatives = 1;
+      if (local) r.processLocally = true;
+      let heard = false, fallback = false;
+      r.onresult = e => {
+        const res = e.results[e.results.length - 1];
+        // the boxes are reused across questions: a session stopped by a move, or replaced, writes nowhere
+        if (SPEECH.rec !== r || SPEECH.dq !== ui.cur || res?.isFinal === false || !res?.[0]) return;
+        heard = true;
+        if (local && SPEECH.local !== true) { SPEECH.local = true; fillPcard(); }
+        dictInto(f, res[0].transcript.trim());
+      };
+      r.onerror = e => {
+        if (local && !heard && (e.error === "language-not-supported" || e.error === "service-not-allowed")) { SPEECH.local = false; fallback = true; return; }
+        if (e.error !== "aborted" && e.error !== "no-speech") flash(DICT_ERR[e.error] || "Dictation stopped.");
+      };
+      r.onend = () => {
+        if (SPEECH.rec !== r) return;
+        if (fallback) return listen(f, b, false);
+        SPEECH.rec = null; paintDict();
+      };
+      SPEECH.rec = r; SPEECH.btn = b; SPEECH.dq = ui.cur;
+      try { r.start(); } catch { SPEECH.rec = null; flash("Dictation could not start."); }
+      paintDict();
+    }
+    /** Each render: the controls show only with their pref on and the API there; what runs stops when it should. */
+    function paintSpeech(hasQ) {
+      readBtn.hidden = !readOn() || !hasQ;
+      if (SPEECH.reading && (readBtn.hidden || SPEECH.qid !== ui.cur)) stopReading();
+      const d = dictOn();
+      for (const b of root.querySelectorAll(".vf-dictate")) b.hidden = !d;
+      if (!d || SPEECH.dq !== ui.cur) stopDictation();
+    }
+
     /** Textareas grow with their text up to ~40% of the pane they sit in, then scroll inside. */
     function grow(t) {
       const pane = t.closest(".vf-center, .vf-chat, .vf-pop, .vf-rail") || root;
@@ -1053,10 +1184,12 @@
     sortSel.s.onchange = () => setTb({ sort: sortSel.s.value });
     const chips = E("div", "vf-chips"); chips.setAttribute("role", "group"); chips.setAttribute("aria-label", "Show questions");
     const chipBtns = {};
-    const FILTERS = [["all", "All"], ["open", "Open"], ["locked", "Locked"], ["review", "Needs review"], ["mine", "Mine"], ["research", "Has research"]];
+    const FILTERS = [["all", "All"], ["open", "Open"], ["locked", "Locked"], ["review", "Needs review"], ["mine", "Mine"], ["research", "Has research"], ["proto", "Prototypes"]];
     const FILTER_LABEL = Object.fromEntries(FILTERS);
     for (const [k, label] of FILTERS) {
-      const b = btn("vf-fchip", label); b.onclick = () => setTb({ filter: k }); chips.append(b); chipBtns[k] = b;
+      const b = btn("vf-fchip", label); chips.append(b); chipBtns[k] = b;
+      // Prototypes shows every round's, so it clears the round choice; the rail opens each round while it is on.
+      b.onclick = () => setTb(k === "proto" ? { filter: k, round: "all" } : { filter: k });
     }
     const roundSel = selWrap("Round", [["all", "All rounds"]]);
     roundSel.s.onchange = () => { setTb({ round: roundSel.s.value }); board.scrollLeft = 0; };
@@ -1076,6 +1209,7 @@
         case "review": return !!q.needsReview;
         case "mine": return hasAnswered(q.id) || Core.state.ideas.some(i => isMe(i.cid) && i.qid === q.id);
         case "research": return !!(Core.state.research?.[q.id] || []).length;
+        case "proto": return q.formatKind === "prototype";
         default: return true;
       }
     }
@@ -1131,6 +1265,10 @@
     reviewTag.append(icon("alert"), reviewTxt);
     const reviewClear = btn("vf-btn vf-btn-ghost vf-btn-sm", "Mark reviewed");
     reviewRow.append(reviewTag, reviewClear);
+    // The owner's history of this question's decision (Core.state.decisions), folded until opened.
+    const qHist = E("details", "vf-qhist"), qHistList = E("ol", "vf-history");
+    qHistList.setAttribute("aria-label", "Decision history");
+    qHist.append(E("summary", "vf-qhist-sum", "History"), qHistList); qHist.hidden = true;
     const onIt = E("div", "vf-onit");
     const onItAv = E("span", "vf-avrow"), onItTxt = E("span"), onItDots = dots();
     onIt.append(onItAv, onItTxt, onItDots);
@@ -1324,7 +1462,8 @@
     protoTile.target = "_blank"; protoTile.rel = "noopener noreferrer"; protoTile.tabIndex = -1; protoTile.setAttribute("aria-hidden", "true");
     const protoMeta = E("p", "vf-proto-meta"), protoOpen = E("a", "vf-btn vf-btn-primary vf-btn-sm vf-proto-open", "Open prototype");
     protoOpen.target = "_blank"; protoOpen.rel = "noopener noreferrer";
-    protoInfo.append(protoMeta, protoOpen);
+    const protoVers = E("div", "vf-proto-versions"); protoVers.hidden = true;
+    protoInfo.append(protoMeta, protoVers, protoOpen);
     protoBox.append(protoTile, protoInfo);
     fmtBox.append(fmtHint, protoBox, optGrid, multiList, scaleBox, rankList, confirmFig, cfRow, otherBox, fmtActs, fmtNote, fmtRes);
     // Layout A: Answers, then "Claude on this question", one column at every width. The Claude section starts folded to its
@@ -1368,7 +1507,7 @@
     discTa.setAttribute("aria-describedby", discHint.id);
     const discPost = E("button", "vf-btn vf-btn-primary vf-btn-sm vf-disc-post", "Post"); discPost.type = "submit";
     const discK = composer(discTa, { send: () => discForm.requestSubmit(), mentions: "claude", draftKey: () => "disc:" + ui.cur, verb: "post" });
-    const discRow = E("div", "vf-crow"); discRow.append(discK.count, discHint, discK.hint, discPost);
+    const discRow = E("div", "vf-crow"); discRow.append(discK.count, dictBtn(discTa, "Dictate a comment"), discHint, discK.hint, discPost);
     discForm.append(discTa, discRow);
     discBody.append(discList, discEmpty, discForm);
     discSec.append(discH, discBody);
@@ -1409,7 +1548,7 @@
     // On phones the on-it avatars sit in this row, before the arrows, so presence costs the question no height.
     const qOnIt = E("span", "vf-qonit"), qOnItAv = E("span", "vf-avrow");
     qOnIt.setAttribute("role", "img"); qOnIt.append(qOnItAv);
-    qMeta.append(qOnIt, qNav);
+    qMeta.append(qOnIt, readBtn, qNav);
     const cForm = E("form", "vf-composer");
     const ta = E("textarea", "vf-ta"); ta.rows = 3; ta.setAttribute("aria-label", "Your answer"); ta.maxLength = 2000; ta.id = "vf-answer";
     const cRow = E("div", "vf-crow");
@@ -1426,7 +1565,7 @@
     const attachBtn = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach a file");
     const citeChips = E("ul", "vf-citechips"); citeChips.setAttribute("aria-label", "Cited results");
     const upStrip = E("ul", "vf-upstrip"); upStrip.setAttribute("aria-label", "Your files on this question");
-    cRow.append(attachBtn, citeBtn, cHint, clearBtn, sendBtn);
+    cRow.append(attachBtn, dictBtn(ta, "Dictate your answer"), citeBtn, cHint, clearBtn, sendBtn);
     // The phone sheet (triage 18): Cancel and what is being answered on top; Save ends the row under the field, right on
     // the keyboard, in thumb reach (O114). Both show only in the sheet.
     const sheetHead = E("div", "vf-sheethead");
@@ -1480,7 +1619,7 @@
     // Triage 13: the answer box sits right under the question and its options, never at the pane's foot.
     // Follow-up 47: a question asked once per device, answered from another kind of device, asks again on this one.
     const devNote = E("p", "vf-devnote"); devNote.hidden = true;
-    scroll.append(orient, goalBack, qMeta, forBox, qText, qCtx, refBox, qPicBox, reviewRow, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
+    scroll.append(orient, goalBack, qMeta, forBox, qText, qCtx, refBox, qPicBox, reviewRow, qHist, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
     focusV.append(scroll);
 
     // Compare view
@@ -1785,7 +1924,8 @@
       ["follow", "forward", "Follow host", "", "more"], ["share", "link", "Share", "", "more"], ["settings", "gear", "Settings", "", "more help"],
       ["host", "host", "Host view", "", "more"], ["tour", "help", "Show me around", "A one-minute tour", "more help"], ["intro", "doc", "Why you're here", "", "more help"],
       ["report", "alert", "Report a problem", "Tell the host something is broken", "more help"],
-      ["myreps", "doc", "Your reports", "What you reported and where it stands", "more help"], ["records", "doc", "What this page records", "", "more"]];
+      ["myreps", "doc", "Your reports", "What you reported and where it stands", "more help"], ["records", "doc", "What this page records", "", "more"],
+      ["decisions", "doc", "Decisions", "Every decision and what moved it, for you only", "more help"]];
     const msList = E("div", "vf-mslist"), helpList = E("div", "vf-mslist vf-helplist"), menu = { more: {}, help: {} };
     for (const [k, ico, label, desc, on] of MENU) for (const where of on.split(" ")) {
       const b = btn(where === "help" ? `vf-hitem vf-help-${k}` : `vf-msitem vf-ms-${k}`), t = E("span", "vf-ms-l", label), d = E("span", "vf-ms-d", desc);
@@ -1804,6 +1944,29 @@
     const ipEdit = btn("vf-btn vf-btn-ghost vf-btn-sm", "Edit in Host view");
     introPop.append(ipH, ipText, ipGoal, ipEdit);
     const introBtn = ibtn("vf-tbtn vf-icon-btn vf-introbtn", "doc", "Why you're here"); introBtn.setAttribute("aria-haspopup", "dialog");
+
+    // The owner's decision timeline: every lock, change, unlock, closed or reopened poll, late Disagree and Keep decision.
+    const decPop = E("div", "vf-pop vf-decpop"); decPop.setAttribute("role", "dialog"); decPop.setAttribute("aria-labelledby", "vf-decpop-h"); decPop.hidden = true;
+    const dpH = E("h2", "vf-pop-title", "Decisions"); dpH.id = "vf-decpop-h";
+    const dpList = E("ol", "vf-history"); dpList.setAttribute("aria-label", "Decisions, oldest first");
+    const dpEmpty = E("p", "vf-pop-note", "No decision yet.");
+    decPop.append(dpH, E("p", "vf-pop-note", "Only you see this, oldest first."), dpList, dpEmpty);
+    const DECIDED = { lock: e => `Locked: ${e.text}`, "lock-change": e => `Changed the locked answer: ${e.text}`, unlock: () => "Unlocked",
+      "poll-close": () => "Closed the poll", "poll-reopen": () => "Reopened the poll",
+      "late-disagree": e => `Disagreed after the round closed, so it may be reopened: ${e.reason}`,
+      withdrawn: () => "Took back the last late Disagree, so it is no longer reopened", kept: () => "Kept the decision" };
+    /** A decision list, oldest first: who and when (the time in full on hover), then what happened. */
+    function fillDecisions(ol, list, withQ) {
+      const sig = JSON.stringify([list.map(e => [e.ts, e.kind, e.by, e.text, e.reason]), withQ, Math.floor(Date.now() / 60000)]);
+      if (ol._sig === sig) return;
+      ol._sig = sig;
+      ol.replaceChildren(...list.map(e => {
+        const li = E("li", "vf-hist"); li.title = new Date(e.ts * 1000).toLocaleString();
+        li.append(E("span", "vf-hist-who", `${withQ ? `${e.qid} · ` : ""}${e.cid === "host" ? "The host" : disp(e.by)}, ${since(e.ts)}`), E("span", "vf-hist-t", DECIDED[e.kind]?.(e) || e.kind));
+        return li;
+      }));
+    }
+    function openDecisions(anchor) { fillDecisions(dpList, Core.state.decisions, true); dpEmpty.hidden = Core.state.decisions.length > 0; openSurface(decPop, anchor); }
 
     // Phase 4c: the owner edits one answer's text; every earlier version, with who and when, shows only here.
     const editPop = E("div", "vf-pop vf-editpop"); editPop.setAttribute("role", "dialog"); editPop.setAttribute("aria-labelledby", "vf-editpop-h"); editPop.hidden = true;
@@ -2266,10 +2429,10 @@
     pairPop.append(E("h2", "vf-pop-title", "Sign in on another device"), pairNote, pairQr, pairCode, pairWhen, pairRow, E("h3", "vf-pop-sub", "Signed-in devices"), pairList);
 
     keysBtn.before(introBtn);
-    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, editPop, personPop, PP.pop, tiePop, proposePop, reportPop, myRepPop, citePop, msgMenu, askPanel, devicePop,
+    root.append(top, body, tabs, fab, chat, pcard, settingsPop, sharePop, keysPop, introPop, decPop, editPop, personPop, PP.pop, tiePop, proposePop, reportPop, myRepPop, citePop, msgMenu, askPanel, devicePop,
       pairPop, bellPop, moreSheet, mentionBox, reader, lb, toast, srLive, tour);
     // F11: the surfaces made without a close control get the one x, named for what it closes; the forms keep Cancel too.
-    for (const [pop, name, ph] of [[settingsPop, "Session settings"], [sharePop, "Invite people"], [keysPop, "Help"], [introPop, "Why you're here"],
+    for (const [pop, name, ph] of [[settingsPop, "Session settings"], [sharePop, "Invite people"], [keysPop, "Help"], [introPop, "Why you're here"], [decPop, "Decisions"],
       [citePop, "Cite a result"], [tiePop, "Tied on votes"], [devicePop, "Use on another device"], [pairPop, "Sign in on another device"], [editPop, "Edit this answer"],
       [proposePop, "Propose a question", "sheet"], [reportPop, "Report a problem", "sheet"], [myRepPop, "Your reports", "sheet"]]) {
       pop.dataset.kind = "pop"; pop.dataset.phone = ph || "pop";
@@ -3119,7 +3282,7 @@
         const S = Core.state;
         if (i.kind === "run" || i.kind === "fail") return openReview("r:" + i.id);
         if (i.kind === "share") { const row = revRows(S).find(r => r.x?.id === i.id); return openReview(row?.key || "x:" + i.id); }
-        return openReview({ report: "f:", merge: "m:", join: "j:", people: "c:" }[i.kind] + i.id);
+        return openReview({ report: "f:", merge: "m:", join: "j:", people: "c:", reopen: "o:" }[i.kind] + i.id);
       }
       closePop();
       if (i.unread) Core.readInbox([i.key], { [i.key]: i.status }).catch(() => {});
@@ -3207,7 +3370,7 @@
       return { q, ix };
     }
     const CHIP_WORD = { waiting: "Waiting", running: "Running", failed: "Failed", unshared: "Not shared", private: "Just me", shared: "Shared", answered: "Answered",
-      declined: "Declined", picture: "Pictures", file: "Files", report: "Problems", join: "Joins", merge: "Merges", people: "From Claude", proposal: "Proposals", suggestion: "Suggestions",
+      declined: "Declined", picture: "Pictures", file: "Files", report: "Problems", join: "Joins", merge: "Merges", people: "From Claude", reopen: "Possibly reopened", proposal: "Proposals", suggestion: "Suggestions",
       ready: "Rounds", answer: "Answers", question: "Questions for you", mention: "Mentions", reply: "Replies", request: "Requests", round: "New rounds",
       role: "Roles", votes: "Agreement", reaction: "Reactions", discussion: "Discussions", queue: "Queue" };
     /** This tab's filter chips, one per kind of item it holds, with counts; a chip turned off hides its kind, remembered on this device. */
@@ -3475,6 +3638,7 @@
       report: from => openReport(from),
       myreps: from => openSurface(myRepPop, from),
       records: () => { closePop(); Core.telemetry.openRecords(); },
+      decisions: from => { closePop(); openDecisions(from); },
     };
     for (const [where, m] of Object.entries(menu)) for (const [k, b] of Object.entries(m)) {
       b.onclick = () => { const from = where === "more" ? tabBtns.more : keysBtn.offsetParent ? keysBtn : gear.offsetParent ? gear : top; MENU_RUN[k](from); };
@@ -3484,6 +3648,8 @@
       menuShow("ask", !askTop.hidden);
       menuShow("share", mod);
       menuShow("host", mod);
+      menuShow("decisions", Core.me.isOwner);
+      if (ui.pop === decPop) { fillDecisions(dpList, S.decisions, true); dpEmpty.hidden = S.decisions.length > 0; }
       msFollow.hidden = Core.me.isOwner || !S.settings.follow;
       menu.help.settings.hidden = Core.me.isOwner; // the owner's settings are behind the gear; a guest's are their own card
       msFollow._l.textContent = Core.owner() ? `Follow ${disp(Core.owner().name)}` : "Follow host";
@@ -4095,6 +4261,7 @@
 
     // ---------- uploads: the file waits in this browser until the host accepts ----------
     const CHUNK_MAX = 8 * 1024 * 1024, GUEST_MAX = 100 * 1024 * 1024; // the server names its chunk size on each upload
+    const AVATAR_MAX = 256 * 1024, AVATAR_EDGE = 256; // a profile picture: the server takes 256 KB at most; 256 px covers the largest avatar on a dense screen
     const GUEST_EXT = new Set("png jpg jpeg gif webp pdf txt md csv tsv log rtf doc docx xls xlsx ppt pptx odt ods odp".split(" "));
     const up = { files: new Map(), running: new Set(), sent: {}, retryAt: {}, memOnly: new Set(), loaded: false, noIdb: false };
     const idb = (() => {
@@ -4168,24 +4335,26 @@
     }
     /** A picture as this browser redraws it before it is offered: at most 1600 px and 512 KB (shrinkShot), so no
      *  metadata (EXIF, GPS) survives and others can be shown it; the name keeps its stem with the new kind's extension. */
-    async function redrawn(file) {
-      const shot = await shrinkShot(file).catch(() => { throw { error: `${file.name} could not be read as a picture.` }; });
+    async function redrawn(file, avatar = false) {
+      const shot = await (avatar ? shrinkShot(file, AVATAR_EDGE, AVATAR_MAX, true) : shrinkShot(file)).catch(() => { throw { error: `${file.name} could not be read as a picture.` }; });
       const type = shot.url.slice(5, shot.url.indexOf(";")), bytes = Uint8Array.from(atob(shot.url.slice(shot.url.indexOf(",") + 1)), c => c.charCodeAt(0));
       return new File([bytes], `${file.name.replace(/\.[^.]*$/, "")}.${type === "image/webp" ? "webp" : "jpg"}`, { type });
     }
-    /** Offer a file to the host; resolves to {id, status}, rejects with {error} or the server's refusal. */
-    async function offerFile(file, qid) {
+    /** Offer a file to the host; resolves to {id, status}, rejects with {error} or the server's refusal. `avatar`: my
+     *  profile picture, redrawn as a small square; it replaces my last one once it arrives. */
+    async function offerFile(file, qid, avatar = false) {
       const ext = (file.name.split(".").pop() || "").toLowerCase(), owner = Core.me.isOwner, trusted = owner || Core.me.isTrusted;
       if (!trusted && !GUEST_EXT.has(ext)) throw { error: "Guests can send pictures, PDF, text, CSV and Office files. Ask the host to trust you for other kinds." };
       if (!owner && file.size > GUEST_MAX) throw { error: `That file is ${sizeTxt(file.size)}. Guests can send up to 100 MB in all.` };
       if (!file.size) throw { error: "That file is empty." };
       const pic = /^image\/(png|jpeg|webp|gif)$/.test(file.type);
-      if (pic) file = await redrawn(file);
+      if (avatar && !/^image\/(png|jpeg|webp)$/.test(file.type)) throw { error: "A profile picture must be a PNG, JPEG or WebP picture." };
+      if (pic) file = await redrawn(file, avatar);
       const thumb = pic ? await makeThumb(file) : "";
-      const r = await Core.uploadOffer({ file: file.name, size: file.size, type: file.type.slice(0, 200), ...(qid ? { qid } : {}), ...(thumb ? { thumb } : {}) });
+      const r = await Core.uploadOffer({ file: file.name, size: file.size, type: file.type.slice(0, 200), ...(qid ? { qid } : {}), ...(thumb ? { thumb } : {}), ...(avatar ? { avatar: true } : {}) });
       up.files.set(r.id, file);
       if (thumb) localPics.set(r.id, thumb);
-      try { await idb.put(r.id, file); flash(owner ? "Sending the file to your computer." : "Offered to the host. The file stays on this device until they accept."); }
+      try { await idb.put(r.id, file); flash(avatar ? "Your picture is on its way." : owner ? "Sending the file to your computer." : "Offered to the host. The file stays on this device until they accept."); }
       catch { up.memOnly.add(r.id); flash("Offered. This browser cannot keep files (private mode?), so keep this tab open until it is sent."); }
       render();
       return r;
@@ -4269,7 +4438,7 @@
       if (pre || k.thumb._real) { if (pre && k.thumbImg.src !== pre && !k.thumb._real) k.thumbImg.src = pre; k.thumb.hidden = false; k.ico.hidden = true; k.thumb.setAttribute("aria-label", `View larger: ${u.file}`); }
       else { k.thumb.hidden = true; k.ico.hidden = false; }
       const q = u.qid && qById(u.qid);
-      const where = q ? ` · ${q.id}` : "";
+      const where = q ? ` · ${q.id}` : u.avatar ? " · Profile picture" : "";
       let s = UPSTAT[u.status] || u.status;
       if (u.status === "uploading" || (u.status === "accepted" && bytes)) s = `Sending, ${pct}%`;
       if (u.status === "failed" && u.reason) s = `Failed: ${u.reason}`;
@@ -4289,7 +4458,7 @@
       k.withdraw.hidden = !(mine && ["offered", "accepted", "uploading"].includes(u.status));
       k.remove.hidden = !((mine || Core.me.isOwner) && u.status === "done");
       k.approve.hidden = !(host && Core.me.isOwner && !mine && u.status === "done" && u.image && !u.shown);
-      if (!k.approve.hidden) k.stat.textContent = `${disp(u.by)} · Received. Approve the picture before others see it.`;
+      if (!k.approve.hidden) k.stat.textContent = `${disp(u.by)}${u.avatar ? " · Profile picture" : ""} · Received. Approve the picture before others see it.`;
     }
     /** Progress moves between polls: repaint just the rows. */
     function paintUploads() {
@@ -4653,15 +4822,16 @@
       paintSent();
       openSurface(reportPop, anchor || (keysBtn.offsetParent ? keysBtn : tabBtns.more.offsetParent ? tabBtns.more : top));
     }
-    /** A screenshot re-encoded in this browser: at most 1600 px on its long edge and 512 KB, WebP where the browser
-     *  writes it, else JPEG. */
-    async function shrinkShot(file) {
-      const bmp = await createImageBitmap(file), k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
-      const c = E("canvas"); c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
-      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height); bmp.close?.();
+    /** A screenshot re-encoded in this browser: at most `edge` px (1600) on its long edge and `max` bytes (512 KB), WebP
+     *  where the browser writes it, else JPEG. `square` keeps the middle square, as a profile picture's circle shows it. */
+    async function shrinkShot(file, edge = 1600, max = 512 * 1024, square = false) {
+      const bmp = await createImageBitmap(file), side = Math.min(bmp.width, bmp.height);
+      const [sw, sh] = square ? [side, side] : [bmp.width, bmp.height], k = Math.min(1, edge / Math.max(sw, sh));
+      const c = E("canvas"); c.width = Math.max(1, Math.round(sw * k)); c.height = Math.max(1, Math.round(sh * k));
+      c.getContext("2d").drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) / 2, sw, sh, 0, 0, c.width, c.height); bmp.close?.();
       for (const [type, q] of [["image/webp", 0.85], ["image/webp", 0.6], ["image/jpeg", 0.7], ["image/jpeg", 0.45], ["image/jpeg", 0.3]]) {
         const url = c.toDataURL(type, q), head = `data:${type};base64,`;
-        if (url.startsWith(head) && (url.length - head.length) * 3 / 4 <= 512 * 1024) return { url, w: c.width, h: c.height };
+        if (url.startsWith(head) && (url.length - head.length) * 3 / 4 <= max) return { url, w: c.width, h: c.height };
       }
       throw new Error("too large");
     }
@@ -4936,12 +5106,55 @@
       scroll.scrollTop = 0;
       orStart.focus({ preventScroll: true });
     }
+    /** A person's profile picture uploads as this page reads them: the received one (`done`) and, for me, one on its way. */
+    function avatarUps(pid, mine) {
+      const list = (mine ? Core.state.myUploads : Core.state.uploads) || [];
+      return { done: list.find(u => u.avatar && u.cid === pid && u.status === "done"), going: mine && list.find(u => u.avatar && ["offered", "accepted", "uploading"].includes(u.status)) };
+    }
+    const avatarSig = pid => { const a = avatarUps(pid, isMe(pid)); return [a.done?.id, a.done?.shown, a.going?.status, st().uploads, st().showNames]; };
+    /** A person card's picture section: mine to choose, replace or remove; the owner's Approve picture and Remove on
+     *  anyone's. A guest's picture shows to others once the host approves it, as every received picture does. */
+    function avatarControls(pid, mine, k) {
+      const box = E("div", "vf-pavatar"), { done, going } = avatarUps(pid, mine), owner = Core.me.isOwner;
+      const say = t => box.append(E("p", "vf-pop-note", t));
+      if (!mine && done) {
+        const prev = E("img", "vf-pavatar-prev"); prev.alt = `${disp(nameOf(pid, ""))}'s picture`;
+        Core.uploadImage(done.id).then(u => { prev.src = u; }, () => prev.remove());
+        box.append(prev);
+      }
+      if (!st().showNames) say("Pictures are hidden while names are.");
+      if (mine && going) say(going.status === "offered" ? "Your new picture waits for the host to accept it." : "Sending your new picture.");
+      if (done && !done.shown && pid !== "host") say(mine ? "Only you and the host see it until the host approves it." : "Waiting for your approval before others see it.");
+      const row = E("div", "vf-crow");
+      if (mine) {
+        if (st().uploads || owner) { // the owner's own picture needs no Uploads switch; a guest's does
+          const input = E("input"); input.type = "file"; input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true;
+          const pick = k(btn("vf-btn vf-btn-ghost vf-btn-sm", done ? "Replace picture" : "Choose a picture"), "avPick");
+          pick.onclick = () => input.click();
+          input.onchange = () => { const f = input.files?.[0]; input.value = ""; if (f) offerFile(f, "", true).catch(e => flash(e?.error || Core.errorText(e))); };
+          row.append(input, pick);
+        } else say("The host has pictures off in this session.");
+      }
+      if (!mine && owner && done && !done.shown) {
+        const ok = k(btn("vf-btn vf-btn-primary vf-btn-sm vf-upapprove", "Approve picture"), "avOk");
+        ok.onclick = () => Core.uploadAct(done.id, "approve").then(() => flash("Approved. Everyone sees the picture now.")).catch(fail);
+        row.append(ok);
+      }
+      if (done && (mine || owner)) {
+        const x = k(btn("vf-btn vf-btn-ghost vf-btn-sm", "Remove picture"), "avX");
+        x.onclick = guarded({ title: "Remove the picture?", ok: "Remove picture", body: "Initials on the color show in its place, and it is deleted from the host's computer." },
+          () => Core.uploadAct(done.id, "remove").then(() => flash("Picture removed.")).catch(fail));
+        row.append(x);
+      }
+      if (row.childElementCount) box.append(row);
+      return box;
+    }
     function fillPcard() {
       const c = ui.pcard; if (!c) return;
       const S = Core.state, pid = c.pid, name = nameOf(pid, c.name), here = S.presence.find(p => p.cid === pid);
       const role = roleOf(pid), joined = S.people?.[pid]?.ts, me = isMe(pid), owner = Core.me.isOwner;
       const q = here?.q && qById(here.q), ab = owner && !me && S.aboutYou?.[pid]; // follow-up 46: for the owner only
-      const sig = JSON.stringify([pid, name, role, ab, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, S.myAbout], Core.colorIdOf(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
+      const sig = JSON.stringify([pid, name, role, ab, here?.q, q?.text, here?.away, here && awayFor(here), me && Core.isAway(), joined, c.pinned, ui.mergeFrom, ui.mergeTo, ui.renameFor === pid, me && [myTheme(), sessionTheme(), ui.renaming, claudePref(), st().hideClaude, !!prefs().autoAdvance, !!prefs().readAloud, !!prefs().dictate, SPEECH.local, S.myAbout], Core.colorIdOf(pid), Core.avatarOf(pid), avatarSig(pid), owner, S.leaders, S.trusted, owner && ui.mergeFrom && Object.keys(S.people || {})]);
       if (c.sig === sig) return;
       const refocus = pcard.contains(document.activeElement) ? document.activeElement.dataset.k : null;
       c.sig = sig;
@@ -4975,6 +5188,7 @@
           colors.append(b);
         });
         parts.push(E("h3", "vf-pop-sub", "Your color"), colors);
+        parts.push(E("h3", "vf-pop-sub", "Your picture"), avatarControls(pid, true, k));
         // C26 / Q79: see Claude's cards before or after answering. "Session default" follows the host's setting.
         const pref = claudePref(), sessWant = st().hideClaude !== false ? "answerFirst" : "always";
         const eff = pref === "session" ? sessWant : pref;
@@ -4991,7 +5205,26 @@
         adv.onclick = () => { setPrefs({ autoAdvance: !advOn }); if (advOn) stopAdvance(); fillPcard(); };
         const again = k(lbtn("vf-menu-item vf-menu-plain vf-tour-again", "help", "Show the tour again"), "tourAgain");
         again.onclick = showWelcomeAgain;
-        parts.push(adv, again);
+        parts.push(adv);
+        // Read aloud and Dictate: off until turned on; a switch shows only where the browser has the API.
+        const sw = (key, cls, isOn, text, flip) => {
+          const b = k(btn(`vf-sw-row ${cls}`), key);
+          b.setAttribute("role", "switch"); b.setAttribute("aria-checked", String(isOn));
+          b.append(E("span", "vf-sw-txt vf-sw-label", text), E("span", "vf-switch"));
+          b.onclick = () => { setPrefs(flip); fillPcard(); render(); };
+          return b;
+        };
+        if (TTS) { const isOn = !!prefs().readAloud; parts.push(sw("read", "vf-readsw", isOn, "Read questions aloud", { readAloud: !isOn })); }
+        if (SR) {
+          const isOn = !!prefs().dictate, d = sw("dict", "vf-dictsw", isOn, "Dictate answers and comments", { dictate: !isOn });
+          parts.push(d);
+          if (isOn && SPEECH.local !== true) {
+            const note = E("p", "vf-pop-note vf-dictnote", "Your browser may send what you say to its maker's speech service to turn it into text.");
+            note.id = "vf-dictnote"; d.setAttribute("aria-describedby", note.id);
+            parts.push(note);
+          }
+        }
+        parts.push(again);
         if (c.pinned && !owner) {
           // Follow-up 46: optional, for the host and Claude only, so questions can be worded for me.
           const a = S.myAbout || {}, aseg = E("div", "vf-seg vf-seg-sm vf-about"); aseg.setAttribute("role", "group"); aseg.setAttribute("aria-label", "How comfortable are you with tech?");
@@ -5041,6 +5274,7 @@
           parts.push(rn);
         }
       }
+      if (owner && c.pinned && !me && avatarUps(pid, false).done) parts.push(E("h3", "vf-pop-sub", "Their picture"), avatarControls(pid, false, k));
       if (owner && c.pinned && !me && role !== "Host" && S.people) {
         const acts = E("div", "vf-pc-acts"), pa = personActs(() => pid, true, p => {
           ui.renameFor = p; ui.renameDraft = null; fillPcard();
@@ -5489,10 +5723,10 @@
         // On a question with options, Lock this one sits on the option itself; a person's own option is a card, so it locks here.
         // A poll closes only as a whole (Close poll), never by locking one answer.
         k.lockThis.hidden = locked || !Core.canModerate() || (isChoice(q) && q.format !== "confirm" && !k.other) || gather || q?.purpose === "poll";
-        // Disagree: decide questions only, never on my own answer.
-        const dis = Core.disagreementsOn(qid, k.ref);
+        // Disagree: decide questions only, never on my own answer; a locked one takes it only once its round closed.
+        const dis = Core.disagreementsOn(qid, k.ref), shut = locked && !(q && roundStatus(roundOf(q)) === "closed");
         k.myDis = dis.find(d => d.cid && isMe(d.cid)) || null;
-        k.disBtn.hidden = q?.purpose !== "decide" || isMe(a.cid) || locked || ro || !!Core.state.youRemoved;
+        k.disBtn.hidden = q?.purpose !== "decide" || isMe(a.cid) || shut || ro || !!Core.state.youRemoved;
         k.disBtn.textContent = k.myDis ? "Change why I disagree" : "Disagree";
         if (k.disBtn.hidden) k.disForm.hidden = true;
         const dKey = JSON.stringify(dis.map(d => [d.cid, d.name, d.reason]));
@@ -5501,7 +5735,7 @@
           k.disList.replaceChildren(...dis.map(d => {
             const li2 = E("li", "vf-dis"), mineD = !!d.cid && isMe(d.cid);
             li2.append(E("span", "vf-dis-who", mineD ? "You disagree:" : `${d.cid ? disp(d.name) : "Someone"} disagrees:`), E("span", "vf-dis-why", d.reason));
-            if (mineD && !ro && !locked) {
+            if (mineD && !ro && !shut) {
               const back = btn("vf-lbtn vf-dis-back", "Take back");
               back.setAttribute("aria-label", "Take back your disagreement");
               back.onclick = () => Core.disagree(qid, k.ref, "", false).then(() => flash("Disagreement taken back.")).catch(fail);
@@ -5570,13 +5804,16 @@
         : askNoteText(ui.askAud || "everyone", "on this question", ui.askWeb);
       if (ui.askOpen) grow(askTa);
     }
-    function reviewText(q) { return q.needsReview ? `Needs review: ${q.needsReview.because} changed` : ""; }
+    function reviewText(q) {
+      const r = q.needsReview;
+      return !r ? "" : `Needs review: ${r.because} ${r.why === "possibly-reopened" ? "may be reopened" : "changed"}`;
+    }
 
     function renderTree(S, mod, cur) {
       const parked = mod ? S.ideas.filter(i => i.status === "parked") : [];
       const later = S.ideas.filter(i => i.status === "later");
       const shownT = shownQuestions(), T = tb();
-      const sig = JSON.stringify([S.questions.map(q => [q.id, q.text, roundOf(q), q.needsReview?.because, Core.lockOf(q.id)?.text, Core.answersFor(q.id).length]), parked.map(i => [i.id, i.text]),
+      const sig = JSON.stringify([S.questions.map(q => [q.id, q.text, roundOf(q), q.needsReview?.because, q.needsReview?.why, Core.lockOf(q.id)?.text, Core.answersFor(q.id).length]), parked.map(i => [i.id, i.text]),
         later.map(i => [i.id, i.text, i.reason]), ui.cur, cur, st().showNames, shownT.map(q => q.id), [...ui.treeClosed], T.round]);
       if (tree._sig === sig) return;
       tree._sig = sig;
@@ -6047,6 +6284,33 @@
       protoMeta.textContent = `${vs.length} variants: ${vs.map(v => v.label).join(", ")}. ${n ? `${n} note${n === 1 ? "" : "s"} pinned so far.` : "Try them and pin notes on any part."}`;
       protoOpen.href = protoTile.href = Core.pageLink(`/proto/${q.id}`);
       protoOpen.setAttribute("aria-label", `Open prototype for ${q.id} in a new tab`);
+      renderProtoVersions(q, vs);
+    }
+    const newTab = (a, href) => { a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer"; return a; };
+    /** Each variant with earlier or later versions on other prototype questions: every version, the current one marked,
+     *  and a link to see this one (or, on the current one, its previous) beside the current one. */
+    function renderProtoVersions(q, vs) {
+      const lines = vs.map(v => Core.versionsOf(q.id, v.id)).filter(l => l.length > 1), key = JSON.stringify(lines);
+      if (protoVers._key === key) return;
+      protoVers._key = key;
+      protoVers.hidden = !lines.length;
+      protoVers.replaceChildren(...lines.map(line => {
+        const here = line.find(x => x.qid === q.id), cur = line.at(-1), other = here.current ? line.at(-2) : here;
+        const ol = E("ol", "vf-proto-line");
+        ol.setAttribute("aria-label", `Versions of ${here.label}`);
+        ol.append(...line.map(x => {
+          const li = E("li"), a = newTab(E("a", "vf-proto-ver", `v${x.n} · ${x.qid} · ${x.label}`), Core.pageLink(`/proto/${x.qid}`, { v: x.variant }));
+          a.setAttribute("aria-label", `Open version ${x.n} of ${line.length}, ${x.label}, on ${x.qid}${x.current ? ", the current version" : ""}, in a new tab`);
+          li.append(a, ...(x.current ? [E("span", "vf-proto-cur", "Current")] : []));
+          return li;
+        }));
+        const cmp = newTab(E("a", "vf-proto-cmp", `Compare v${other.n} and v${cur.n} side by side`),
+          Core.pageLink(`/proto/${cur.qid}`, { v: cur.variant, with: `${other.qid}.${other.variant}` }));
+        cmp.setAttribute("aria-label", `Compare version ${other.n} and version ${cur.n} of ${here.label} side by side, in a new tab`);
+        const box = E("div", "vf-proto-vline");
+        box.append(ol, cmp);
+        return box;
+      }));
     }
 
     // ---------- choice and confirm questions (Q76) ----------
@@ -6669,10 +6933,11 @@
       if (owner) for (const c of S.claudeProposals || []) out.push({ t: "people", id: "c:" + c.id, ts: c.ts, c });
       if (owner) for (const u of S.uploads || []) if (["offered", "accepted", "uploading"].includes(u.status) || (u.status === "done" && u.image && !u.shown && !isMe(u.cid))) out.push({ t: "upload", id: "u:" + u.id, ts: u.ts, u });
       if (owner) for (const f of S.reports || []) out.push({ t: "report", id: "f:" + f.id, ts: f.ts, f });
+      if (owner) for (const i of inbox()) if (i.kind === "reopen") out.push({ t: "reopen", id: "o:" + i.qid, ts: i.ts, qid: i.qid, o: i });
       if (R.ready && R.status === "open") out.push({ t: "ready", id: "ready:" + R.current, ts: R.ready.ts, ready: R.ready });
       return out.sort((a, b) => a.ts - b.ts);
     }
-    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join", report: "Problem", people: "Claude suggests" };
+    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join", report: "Problem", people: "Claude suggests", reopen: "Possibly reopened" };
     /** Why Claude proposes a merge or an admit, in the host's words (ops.schema.json personReasons). */
     const WHY_WORD = { "same-name": "the same name", "was-offline": "the earlier one was offline when this one joined", "same-device": "the same kind of device", expected: "you told Claude to expect them" };
     /** What Claude proposes, why, and for a merge the fix for next time: the earlier person's own link. */
@@ -6687,6 +6952,14 @@
       const hint = [j.device, BROWSER_NAME[j.browser]].filter(Boolean).join(" · ");
       return j.n ? ` (${ordinal(j.n)} waiting${hint ? `; ${hint}` : ""})` : "";
     };
+    /** A possibly reopened decision: the locked answer, and the reason each person who disagreed late holds now. */
+    function reopenText(qid, n, card) {
+      const who = new Set();
+      for (const e of Core.state.decisions) if (e.qid === qid) { if (e.kind === "late-disagree") who.add(e.cid); else who.clear(); }
+      const said = new Map(Core.answersFor(qid).map(a => [a.ref, a.text]));
+      return `${n} late Disagree${n === 1 ? "" : "s"}. Locked: ${Core.lockOf(qid)?.text || ""}\nThe decision stands until you keep it or unlock it.`
+        + (Core.state.disagreements[qid] || []).filter(d => who.has(d.cid) && d.card === card).map(d => `\n${disp(d.name)} disagrees with "${said.get(d.card) ?? "an answer"}": ${d.reason}`).join("");
+    }
     function makeQItem(it) {
       const li = E("li", "vf-qitem");
       li.dataset.t = it.t;
@@ -6717,7 +6990,7 @@
       k.chip.textContent = QT[it.t];
       k.chip.className = "vf-chip " + ({ request: "vf-chip-accent", ready: "vf-chip-brass", merge: "vf-chip-quiet", upload: "vf-chip-quiet" }[it.t] || "vf-chip-quiet");
       const person = it.r ? [it.r.cid, it.r.name] : it.i ? [it.i.cid, it.i.name] : it.x ? [it.x.cid, it.x.name] : it.m ? [it.m.from, it.m.fromName] : it.u ? [it.u.cid, it.u.by] : it.f ? [it.f.cid, it.f.name]
-        : it.j ? [it.j.pid, it.j.name] : it.c ? [it.c.cid, it.c.name] : [it.ready.cid, it.ready.by];
+        : it.j ? [it.j.pid, it.j.name] : it.c ? [it.c.cid, it.c.name] : it.o ? [it.o.byCid, it.o.by] : [it.ready.cid, it.ready.by];
       const wk = person.join("|") + it.ts;
       if (k.who._k !== wk) {
         k.who._k = wk;
@@ -6730,7 +7003,7 @@
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
         : it.m ? `${it.m.fromName} says they were ${it.m.toName} before. Approve to join them: ${it.m.fromName}'s answers and votes move to ${it.m.toName}.`
         : it.ready ? `${youOr(it.ready.cid, it.ready.by)} marked round ${curRound().current} ready to send.`
-        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.c ? proposalText(it.c) : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.asked ? "Asked Claude. " : ""}${it.f.text}` : "";
+        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.c ? proposalText(it.c) : it.o ? reopenText(it.qid, it.o.n, it.o.card) : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.asked ? "Asked Claude. " : ""}${it.f.text}` : "";
       k.text.hidden = !txt;
       if (txt) fillClamp(k.text, "q:" + it.id, txt, `${QT[it.t]} from ${disp(person[1] || "someone")}`, q ? `${q.id}: ${q.text}` : "");
       if (k.up) fillUpRow(k.up, it.u);
@@ -6793,6 +7066,9 @@
         ...(!it.f.asked ? [qAct("Ask Claude about this report", "vf-btn-ghost vf-rep-ask", guarded(REPORT_ASK, () => Core.reportAct(li._it.f.id, "ask").then(() => flash("Asked. Claude proposes a fix in the terminal.")).catch(fail)))] : []),
         ...(it.f.status === "open" ? [qAct("Seen", "vf-btn-ghost", () => Core.reportAct(li._it.f.id, "seen").then(() => flash("Marked seen. The reporter is told.")).catch(fail))] : []),
         qAct("Resolved", "vf-btn-primary", () => Core.reportAct(li._it.f.id, "resolved").then(() => flash("Resolved. The reporter is told.")).catch(fail)));
+      if (it.t === "reopen" && owner) a.push(
+        qAct("Unlock", "vf-btn-ghost", () => Core.unlock(li._it.qid).then(() => flash(`${li._it.qid} is unlocked. Questions that depend on it are marked for review.`)).catch(fail)),
+        qAct("Keep decision", "vf-btn-primary", () => Core.keepDecision(li._it.qid).then(() => flash("Decision kept.")).catch(fail)));
       if (it.t === "ready" && owner) a.push(qAct("Send round to Claude", "vf-btn-primary", e => roundAction(e.currentTarget)));
       if (it.t === "join" && owner) a.push(
         qAct("Decline", "vf-btn-ghost", guarded(() => ({ title: `Turn ${li._it.j.name} away?`, ok: "Decline", body: `${li._it.j.name} is not let in. You can restore them from Settings.` }),
@@ -7174,10 +7450,10 @@
       }, (g, n) => {
         const k = g._k, list = byRound.get(n) || [], isCur = n === cur, inRound = qs.filter(x => roundOf(x) === n);
         const decided = inRound.filter(x => Core.lockOf(x.id)).length, all = inRound.length > 0 && decided === inRound.length;
-        const expanded = isCur || openRounds().has(n);
+        const expanded = isCur || tf.filter === "proto" || openRounds().has(n);
         g.classList.toggle("vf-round-cur", isCur);
         k.cu._paint(cuNow?.n === n ? cuNow : null);
-        k.toggle.hidden = isCur; k.curHead.hidden = !isCur;
+        k.toggle.hidden = isCur || tf.filter === "proto"; k.curHead.hidden = !isCur;
         k.toggle.setAttribute("aria-expanded", String(expanded));
         // ux-review-2 #7: guests count what they answered; "decided" is the moderators' word.
         const done = mod ? decided : inRound.filter(mineDone).length, word = mod ? "decided" : "answered";
@@ -7451,6 +7727,9 @@
         reviewTxt.textContent = reviewText(q);
         reviewRow.hidden = !q.needsReview;
         reviewClear.hidden = !mod;
+        const hist = me.isOwner ? S.decisions.filter(e => e.qid === q.id) : [];
+        qHist.hidden = !hist.length;
+        fillDecisions(qHistList, hist, false);
         const others = Core.others(q.id), typers = others.filter(p => p.typing);
         avStack(onItAv, others, 5);
         onItTxt.textContent = typers.length ? `${names(typers)} ${typers.length > 1 ? "are" : "is"} typing` : others.length ? `${names(others)} ${others.length > 1 ? "are" : "is"} on this question` : "";
@@ -7603,9 +7882,10 @@
         qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = qCtx.hidden = true; qText.textContent = "No questions yet";
         qTools.hidden = qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
         onItTxt.textContent = ""; ansCount.textContent = ""; aEmpty.hidden = true; lockBox.hidden = true; lockBtn.hidden = true;
-        reviewRow.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;
+        reviewRow.hidden = qHist.hidden = true; tools.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;
       }
       tools.hidden = !q;
+      paintSpeech(!!q);
       if (!ui.dirty && document.activeElement !== ta && q && ta.value !== Core.myAnswer(q.id)) { ta.value = Core.myAnswer(q.id); grow(ta); }
       renderComposer();
 
@@ -7792,8 +8072,8 @@
       renderMore(S, mod);
       renderMyReps(S);
 
-      // a color someone just chose: repaint their avatars wherever they are
-      for (const a of root.querySelectorAll(".core-avatar[data-who]")) { const c = Core.colorFor(a.dataset.who); if (a.style.getPropertyValue("--av") !== c) a.style.setProperty("--av", c); }
+      // a color or profile picture someone just chose, or names hidden or shown: repaint their avatars wherever they are
+      for (const a of root.querySelectorAll(".core-avatar[data-who]")) { const c = Core.colorFor(a.dataset.who); if (a.style.getPropertyValue("--av") !== c) a.style.setProperty("--av", c); Core.paintAvatar(a); }
       tourMove();
       requestAnimationFrame(() => { measureAll(); if (toast.classList.contains("vf-on")) placeToast(); tourMove(); });
     }

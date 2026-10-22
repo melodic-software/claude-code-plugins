@@ -87,7 +87,8 @@ function world({ merges, head = { attempts: [[failedJob(1, "test-node")], [faile
       return { number: Number(m[1]), labels: [], merged_at: "2026-10-20T09:00:00Z" };
     }
     if (path.includes("labels=auto-revert")) return autoReverts;
-    if (/\/issues\/\d+\/comments/.test(path)) return comments;
+    // `comments` is one list for every issue, or lists keyed by issue number.
+    if ((m = /\/issues\/(\d+)\/comments/.exec(path))) return Array.isArray(comments) ? comments : (comments[m[1]] ?? []);
     if (path.includes("/issues?state=all&creator=")) return issues;
     throw new Error(`unexpected GET ${path}`);
   };
@@ -196,9 +197,11 @@ test("the job waits for the re-run a later pr-merge run starts", async () => {
   assert.equal(decisionOf(result.body), "auto-revert");
 });
 
-const LOG = { number: 77, state: "open", body: "<!-- red-main-revert-log -->\n\nlog" };
-const logged = (culprit, decision, at, runId = 1) => ({
-  user: { login: "github-actions[bot]" },
+// github-actions[bot]'s numeric user id, which GitHub assigns and no account can take.
+const BOT = { login: "github-actions[bot]", id: 41898282 };
+const LOG = { number: 77, state: "open", user: BOT, body: "<!-- red-main-revert-log -->\n\nlog" };
+const logged = (culprit, decision, at, runId = 1, user = BOT) => ({
+  user,
   created_at: at,
   body: `<!-- red-main-report run=${runId} attempt=2 culprit=${culprit} decision=${decision} -->\n\nreport`,
 });
@@ -245,7 +248,7 @@ test("a decision older than a day does not count against the cap", async () => {
 test("an open canary record on a merge in the range is a suspected platform fault", async () => {
   const w = world({
     merges: [{ sha: HEAD, number: 101, by: LANES }],
-    issues: [{ number: 12, state: "open", body: `<!-- babysit-merge-demotion sha=${HEAD} signal=canary -->\n\ncanary` }],
+    issues: [{ number: 12, state: "open", user: BOT, body:`<!-- babysit-merge-demotion sha=${HEAD} signal=canary -->\n\ncanary` }],
   });
   const result = await run(ENV, w);
   assert.equal(decisionOf(result.body), "human");
@@ -274,4 +277,60 @@ test("the culprit's age is read after the wait for the re-run, not before it", a
   });
   assert.equal(decisionOf(result.body), "human");
   assert.match(result.body, /past max-culprit-age-hours/);
+});
+
+// #8699 item 2: the cap counts only the log issue's own decisions.
+test("a newer issue carrying the log marker is not the log, so its decisions neither fill the cap nor take the report", async () => {
+  const decoy = { number: 99, state: "open", user: BOT, body: "<!-- red-main-revert-log -->\n\ndecoy" };
+  const w = world({
+    merges: [{ sha: HEAD, number: 101, by: LANES }],
+    // Newest first, as the issues list returns them.
+    issues: [decoy, LOG],
+    comments: {
+      99: [
+        logged(sha("1"), "auto-revert", "2026-10-20T01:00:00Z", 11),
+        logged(sha("2"), "auto-revert", "2026-10-20T02:00:00Z", 12),
+        logged(sha("3"), "auto-revert", "2026-10-20T03:00:00Z", 13),
+      ],
+    },
+  });
+  const result = await run(ENV, w);
+  assert.equal(decisionOf(result.body), "auto-revert");
+  assert.deepEqual(w.writes.map((x) => x.path), [`/repos/${REPO}/issues/77/comments`]);
+});
+
+test("a marker comment from an account other than github-actions[bot]'s id does not count against the cap", async () => {
+  const other = { login: "github-actions[bot]", id: 1 };
+  const w = world({
+    merges: [{ sha: HEAD, number: 101, by: LANES }],
+    issues: [LOG],
+    comments: [
+      logged(sha("1"), "auto-revert", "2026-10-20T01:00:00Z", 11, other),
+      logged(sha("2"), "auto-revert", "2026-10-20T02:00:00Z", 12, other),
+      logged(sha("3"), "auto-revert", "2026-10-20T03:00:00Z", 13, other),
+    ],
+  });
+  assert.equal(decisionOf((await run(ENV, w)).body), "auto-revert");
+});
+
+// #8699 item 1: a red whose report was dropped is named by the next report.
+const midRangeRed = () => [
+  { sha: sha("a"), number: 201, by: LANES, run: confirmedRed(41) },
+  { sha: HEAD, number: 203, by: LANES },
+];
+
+test("a red full run since the last green one with no report on the log is named in the next report", async () => {
+  const w = world({ merges: midRangeRed(), issues: [LOG], comments: [] });
+  const result = await run(ENV, w);
+  assert.match(result.body, /no report on this log/);
+  assert.match(result.body, /run-41 at `a{12}`/);
+});
+
+test("a red full run the log already reports is not named again", async () => {
+  const w = world({
+    merges: midRangeRed(),
+    issues: [LOG],
+    comments: [logged(sha("a"), "auto-revert", "2026-10-20T07:30:00Z", 41)],
+  });
+  assert.doesNotMatch((await run(ENV, w)).body, /no report on this log/);
 });
