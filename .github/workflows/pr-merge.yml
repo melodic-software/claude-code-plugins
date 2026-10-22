@@ -499,8 +499,8 @@ jobs:
             github-token ${{ github.token }}
 
       # Candidates: open, non-draft PRs into main that the lanes App
-      # (merge.agent-identity on main) opened, plus Dependabot's unless
-      # merge.dependabot.mode is off. This is only a shortlist; the gate checks
+      # (merge.agent-identity on main) or the owner account opened, plus
+      # Dependabot's unless merge.dependabot.mode is off. This is only a shortlist; the gate checks
       # the author, the closing issue and verifier verdict or the Dependabot
       # tier, and every other rule again. A candidate the gate would refuse on
       # its listed labels or body alone (the `do-not-merge` label, the
@@ -524,6 +524,19 @@ jobs:
             exit 1
           fi
           authors=("app/$slug")
+          # The owner accounts (adoption.owner-ids; absent, the owner's id),
+          # each looked up by account id: the gate adopts their idle pull
+          # requests (babysit_merge_policy.adoption_refusal) and checks the id
+          # again. A failed lookup lists none of that account's PRs.
+          for owner_id in $(yq '.adoption."owner-ids" // [153232337] | .[]' .base/docs/conventions/pr-pipeline.yaml); do
+            if [[ $owner_id =~ ^[1-9][0-9]*$ ]] &&
+              owner_login=$(gh api "user/$owner_id" --jq .login) &&
+              [[ $owner_login =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]]; then
+              authors+=("$owner_login")
+            else
+              echo "::warning::the owner account's login is unreadable; no owner PR is a candidate this run"
+            fi
+          done
           # The gate resolves the same label through babysit_postmerge._role_label.
           human_gated=needs-human
           if [ -f .base/.work-item-tracker.json ]; then

@@ -11,8 +11,11 @@
 //   one of DEPENDENCY_MANAGERS' logins);
 // - under merge.verify-authors `lane` (the default) the lanes App opened it:
 //   a Bot account whose login is merge.agent-identity, compared as the
-//   pr-merge lane does (babysit_merge_policy._lane_authored); under `any`
-//   anyone may have; any other value judges nothing;
+//   pr-merge lane does (babysit_merge_policy._lane_authored); under
+//   `lane-or-owner` that App or the owner account, a User whose id is
+//   OWNER_ACCOUNT_ID (never its login), whose PRs the pr-merge lane adopts
+//   once idle (babysit_merge_policy.adoption_refusal); under `any` anyone may
+//   have; any other value judges nothing;
 // - the head has no counted verdict yet: a FAIL at it under this PR's number
 //   or another the commit's pull requests carry, or a PASS or PASS-NOTES for
 //   this PR, each looked up by exact artifact name, uploaded by a completed
@@ -20,7 +23,8 @@
 //   babysit_verify_evidence.py). A run still going or one that uploaded
 //   nothing does not stop a new judgment.
 // The babysit-prs test test_verify_rules_sync.py runs this file to keep
-// DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
+// DEPENDENCY_MANAGERS, isDependencyManager, countedBy and OWNER_ACCOUNT_ID in
+// step with the gate.
 // It also writes the PR's closing issues with their authors and last body
 // editors to SPEC_FILE, and the spec text trusted humans wrote to
 // SPEC_TEXT_FILE (linkedIssues).
@@ -37,6 +41,9 @@ export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
 // babysit_classify.DEPENDENCY_MANAGER_LOGINS: the pr-merge lane refuses these
 // Bot accounts' pull requests before reading a verdict.
 export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
+// babysit_merge_policy.OWNER_ACCOUNT_ID: the owner account, by GitHub account id.
+export const OWNER_ACCOUNT_ID = 153232337;
+const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
@@ -74,6 +81,7 @@ export const isDependencyManager = (user) =>
 const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
 const laneAuthored = (user, laneIdentity) =>
   loginKey(laneIdentity) !== "" && user?.type === "Bot" && loginKey(user.login) === loginKey(laneIdentity);
+const ownerAuthored = (user) => user?.type === "User" && user.id === OWNER_ACCOUNT_ID;
 
 // Every artifact with exactly this name; a read that fails throws.
 async function artifactsNamed(github, repository, name) {
@@ -245,11 +253,14 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
   if (isDependencyManager(pull.user)) {
     return skip("dependency-manager");
   }
-  if (verifyAuthors !== "lane" && verifyAuthors !== "any") {
+  if (!VERIFY_AUTHORS.includes(verifyAuthors)) {
     return skip("verify-authors-invalid");
   }
   if (verifyAuthors === "lane" && !laneAuthored(pull.user, laneIdentity)) {
     return skip("author-not-lane");
+  }
+  if (verifyAuthors === "lane-or-owner" && !laneAuthored(pull.user, laneIdentity) && !ownerAuthored(pull.user)) {
+    return skip("author-not-lane-or-owner");
   }
   const numbers = associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0);
   if (await judged({ github, repository, number: pull.number, head, base, numbers })) {
@@ -307,6 +318,7 @@ export async function main(env = process.env, { github } = {}) {
   appendFileSync(env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
   const summary = {
     "author-not-lane": "skipped: author not the lanes App",
+    "author-not-lane-or-owner": "skipped: author neither the lanes App nor the owner account",
     "verify-authors-invalid": "skipped: verify-authors value is invalid",
   }[result.reason];
   if (summary && env.GITHUB_STEP_SUMMARY) {

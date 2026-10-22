@@ -715,7 +715,7 @@ head, and keeps every read above
 except six:
 
 - **Eligibility.** Not a fork or a dependency manager's pull request, opened by
-  `merge.agent-identity` (the lanes App; refused `not-lane-authored` otherwise), exactly one closing issue
+  `merge.agent-identity` (the lanes App) or adopted, exactly one closing issue
   (`closingIssuesReferences`) in this repository, and a diff where no path, either side of a
   rename, matches `merge.diff-check.denied-paths`. Such a pull request is class C2, as a
   Dependabot pull request is: no `work-class:` label is read, on the issue or the pull request,
@@ -724,7 +724,17 @@ except six:
   enqueue the closing issue is read again and a different one refuses
   (`closing-issue-changed:<was>><now>`). A pull request into any branch but the default refuses
   `base-not-default:<ref>`, read at eligibility and again before the enqueue; any read that fails
-  refuses.
+  refuses. An adopted pull request (owner decision Q22) is one an owner account opened, a `User`
+  whose account id is in `adoption.owner-ids` (the owner's id when absent), never matched by
+  login, that is not a draft, whose `updatedAt` and head commit committer date are both at least
+  `adoption.idle-hours` old (24 when absent; an unreadable date is not idle; a value that is not a
+  whole number adopts nothing), both settings read at the default branch head, and that no hold
+  applies to: the `do-not-merge` label, the
+  tracker's human-gated role label as `.work-item-tracker.json` resolves it, or a hold line in
+  the body. The decision records it as `eligibility.adoption` (`idle-owner:<hours>h`); every
+  other gate applies unchanged. Any other author refuses `not-lane-authored`, and an owner pull
+  request that is not adopted refuses `not-adopted:<reason>`. The candidate listing adds each
+  owner account's open pull requests, looked up by id.
 - **Verdict criterion.** No promotion evidence is read. The merge criterion is the pr-verify
   verdict at the head ([Verifier verdict](#verifier-verdict)), which binds to that one closing
   issue and its trusted spec, so with a rung above off the gate refuses
@@ -1046,11 +1056,16 @@ head and never cancel a running judgment.
 the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, compared as the
 pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
 the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
-only lane-authored pull requests reach the pr-merge lane. `any` judges every author's. Any other
+only lane-authored pull requests reach the pr-merge lane. `lane-or-owner` also judges the owner
+account's: a `User` whose account id is the owner's (never matched by login), whose idle pull
+requests the pr-merge lane adopts (Eligibility, above); any other author's is skipped with
+`author-not-lane-or-owner`. pr-verify runs when `pr-require-checks` passes, so it judges an owner
+pull request at each ready head, before it is idle. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below is scoped to that: on a
 lane pull request the App is the author and a human wrote the issue, so the spec can be trusted,
-while a human author who also wrote the linked issue would read `verify:untrusted-spec`, which
-never arises because such a pull request is neither judged nor read by the pr-merge lane.
+while a human author who also wrote the linked issue reads `verify:untrusted-spec`. That arises
+for an adopted owner pull request whose closing issue the owner wrote: the gate refuses it and it
+escalates for a human, unchanged by adoption.
 
 With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
 run records, since only steps of a run can upload its artifacts. A run is of verifier origin when

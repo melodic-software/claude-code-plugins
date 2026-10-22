@@ -1016,6 +1016,10 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    lane, which reads no promotion), and the refusal is `in-flight:<reason>` as it would be after
    the full read. A queued pull request, a Dependabot one, or one whose queue read was not whole
    is still read in full.
+   In the pr-merge lane, eligibility admits a pull request the lanes App opened or one it adopts:
+   an idle, unheld, ready pull request of the owner account, matched by account id
+   (`adoption_refusal`; owner decision Q22; the pr-pipeline README's "The pr-merge lane"). The
+   decision records why as `eligibility.adoption`; every later read applies unchanged.
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
    A head commit whose author or committer is linked to no account refuses
    (`head-pusher-unproven:<sha>`): its pusher cannot be shown not to be a human. So does a pull

@@ -603,9 +603,10 @@ merge:
   # whatever a later pass says, so pushing until the verifier passes once
   # does not merge it (owner decision 2026-10-21).
   max-verify-fails: 3
-  # pr-verify.yml judges only PRs the lanes App (agent-identity) opened; `any`
-  # judges every author's.
-  verify-authors: lane
+  # pr-verify.yml judges PRs the lanes App (agent-identity) opened and, so an
+  # idle owner PR the pr-merge lane adopts has a verdict (owner decision Q22),
+  # the owner account's; `lane` judges the App's alone, `any` every author's.
+  verify-authors: lane-or-owner
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge
