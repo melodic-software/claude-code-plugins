@@ -3349,6 +3349,85 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             with self.subTest(body=body):
                 self.assertEqual(self.refusal(owner_pr(body=body)), "hold-body")
 
+    # --- While the lane's own queue entry is pending ------------------------
+
+    def test_a_fresh_update_keeps_adoption_while_the_lane_entry_is_queued(self) -> None:
+        # The lane's pin comment and enqueue refresh `updated_at`; its own
+        # entry at this head must not then leave the queue as not adopted.
+        pr = owner_pr(updated_at=FRESH)
+        self.assertIsNone(self.refusal(pr, queued_at_head=lambda: True))
+        self.assertEqual(
+            self.refusal(pr, queued_at_head=lambda: False), "updated-fresh"
+        )
+        self.assertEqual(self.refusal(pr), "updated-fresh")
+
+    def test_a_queued_entry_still_needs_an_idle_head_commit(self) -> None:
+        pr = owner_pr(updated_at=FRESH)
+        self.assertEqual(
+            self.refusal(pr, committed=FRESH, queued_at_head=lambda: True),
+            "head-fresh",
+        )
+
+    def test_a_queued_entry_still_answers_to_every_hold(self) -> None:
+        for pr, refused in (
+            (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
+            (owner_pr(labels=[{"name": "needs-human"}]), "hold-label:needs-human"),
+            (owner_pr(body="Hold: the owner merges"), "hold-body"),
+            (owner_pr(draft=True), "draft"),
+        ):
+            with self.subTest(refused=refused):
+                pr["updated_at"] = FRESH
+                self.assertEqual(
+                    self.refusal(pr, queued_at_head=lambda: True), refused
+                )
+
+    def test_the_queue_is_not_read_for_an_idle_update(self) -> None:
+        def unread() -> bool:
+            raise AssertionError("queue read")
+
+        self.assertIsNone(self.refusal(queued_at_head=unread))
+
+    def test_the_lane_entry_is_its_own_at_the_current_head(self) -> None:
+        cases = (
+            ("queued and pinned at the head", [7], HEAD, True),
+            ("no entry of the identity", [8], HEAD, False),
+            ("pinned at another head", [7], "d" * 40, False),
+            ("no pin, or an edited one", [7], None, False),
+        )
+        for label, queued, pinned, expected in cases:
+            with self.subTest(label):
+                with (
+                    mock.patch.object(
+                        babysit_postmerge, "identity_queue", return_value=(queued, 0)
+                    ) as queue,
+                    mock.patch.object(
+                        babysit_postmerge, "read_pin", return_value=pinned
+                    ) as read,
+                ):
+                    self.assertIs(
+                        policy.lane_queued_at_head(REPO, 7, "trunk", IDENTITY, HEAD),
+                        expected,
+                    )
+                    queue.assert_called_once_with(REPO, "trunk", IDENTITY)
+                    if queued == [7]:
+                        read.assert_called_once_with(REPO, 7, IDENTITY)
+
+    def test_an_unreadable_queue_or_pin_is_not_queued(self) -> None:
+        error = babysit_postmerge.PostMergeReadError("502")
+        for target in ("identity_queue", "read_pin"):
+            with self.subTest(target):
+                with (
+                    mock.patch.object(
+                        babysit_postmerge, "identity_queue", return_value=([7], 0)
+                    ),
+                    mock.patch.object(babysit_postmerge, "read_pin", return_value=HEAD),
+                    mock.patch.object(babysit_postmerge, target, side_effect=error),
+                ):
+                    self.assertFalse(
+                        policy.lane_queued_at_head(REPO, 7, "trunk", IDENTITY, HEAD)
+                    )
+        self.assertFalse(policy.lane_queued_at_head(REPO, 7, "trunk", IDENTITY, ""))
+
     def test_no_idle_hours_adopts_nothing(self) -> None:
         self.assertEqual(self.refusal(idle_hours=None), "idle-hours-invalid")
 
@@ -3401,6 +3480,15 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertFalse(result.eligible)
         self.assertEqual(result.reason, "not-adopted:head-fresh")
         self.assertIsNone(result.adoption)
+
+    def test_a_fresh_owner_pr_queued_by_the_lane_stays_adopted(self) -> None:
+        self.owner_fake()
+        pr = owner_pr(updated_at=FRESH)
+        result = self.eligibility(pr, queued_at_head=lambda: True)
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.adoption, "idle-owner:24h")
+        result = self.eligibility(pr, queued_at_head=lambda: False)
+        self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
     def test_another_author_stays_not_lane_authored(self) -> None:
         self.owner_fake()
@@ -3573,6 +3661,12 @@ class LaneAssess(unittest.TestCase):
         self.assertIsNone(result.reason)
         kwargs = lane.call_args.kwargs
         self.assertEqual(kwargs["human_gated"], "awaiting-owner")
+        # The queue read names the resolved identity, the base and the head.
+        with mock.patch.object(
+            policy, "lane_queued_at_head", return_value=True
+        ) as queued:
+            self.assertTrue(kwargs["queued_at_head"]())
+        queued.assert_called_once_with(REPO, 1, "trunk", IDENTITY, "e" * 40)
         self.assertEqual(kwargs["adoption_idle_hours"], 48)
         self.assertEqual(kwargs["adoption_owner_ids"], (5, 77))
         self.assertEqual(result.details["eligibility"]["adoption"], "idle-owner:24h")

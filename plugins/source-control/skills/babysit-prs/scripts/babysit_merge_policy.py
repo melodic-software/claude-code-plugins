@@ -1870,6 +1870,7 @@ def adoption_refusal(
     owner_ids: Collection[int],
     human_gated: str | None,
     now: datetime,
+    queued_at_head: Callable[[], bool] = lambda: False,
 ) -> str | None:
     """Why the pr-merge lane does not adopt this REST pull request, or None
     when it does (owner decision Q22): not a draft; opened by an owner
@@ -1877,7 +1878,9 @@ def adoption_refusal(
     `updated_at` and its head commit's committer date, `head_committed()`,
     read last, both at least `idle_hours` old, an unreadable one not idle;
     and no hold: a `MERGE_HOLD_LABELS` label, the resolved `human_gated` role
-    label, or a body hold (`BODY_MERGE_HOLD_RE`)."""
+    label, or a body hold (`BODY_MERGE_HOLD_RE`). A fresh `updated_at` is
+    excused while `queued_at_head()` (`lane_queued_at_head`), read only
+    then: the lane's own pin comment and enqueue refresh it."""
     user = json_object(pr.get("user"))
     uid = user.get("id")
     if user.get("type") != "User" or type(uid) is not int or uid not in owner_ids:
@@ -1906,7 +1909,7 @@ def adoption_refusal(
         except PolicyReadError:
             return False
 
-    if not idle(lambda: pr.get("updated_at")):
+    if not idle(lambda: pr.get("updated_at")) and not queued_at_head():
         return "updated-fresh"
     if not idle(head_committed):
         return "head-fresh"
@@ -1923,6 +1926,29 @@ def _head_committed(owner: str, name: str, pr: Mapping[str, Any]) -> Any:
     return json_object(json_object(commit.get("commit")).get("committer")).get("date")
 
 
+def lane_queued_at_head(
+    repo: str, number: int, branch: str, identity: str, head: str
+) -> bool:
+    """Whether the pull request sits in the merge queue on `branch` as the
+    agent identity's own entry, enqueued at `head`: the identity enqueued it,
+    and the identity's newest unedited pin comment, posted just before the
+    enqueue, names `head`. An unreadable queue or pin is not queued."""
+    from babysit_postmerge import (  # noqa: PLC0415
+        PostMergeReadError,
+        identity_queue,
+        read_pin,
+    )
+
+    try:
+        return bool(
+            SHA_RE.fullmatch(head)
+            and number in identity_queue(repo, branch, identity)[0]
+            and read_pin(repo, number, identity) == head
+        )
+    except PostMergeReadError:
+        return False
+
+
 def lane_eligibility(
     repo: str,
     number: int,
@@ -1936,11 +1962,13 @@ def lane_eligibility(
     adoption_owner_ids: Collection[int] = (),
     human_gated: str | None = None,
     now: datetime | None = None,
+    queued_at_head: Callable[[], bool] = lambda: False,
 ) -> Eligibility:
     """Whether the pr-merge lane may consider a pull request: not a fork or a
     dependency manager's, opened by the agent identity or adopted
-    (`adoption_refusal`, with `adoption_idle_hours`, `adoption_owner_ids`
-    and the resolved `human_gated` label; None or empty adopts nothing),
+    (`adoption_refusal`, with `adoption_idle_hours`, `adoption_owner_ids`,
+    the resolved `human_gated` label and `queued_at_head`; None or empty
+    adopts nothing),
     exactly one closing
     issue in this repository (the verifier verdict binds to it), and a diff
     touching no `merge.diff-check.denied-paths`. Such a pull request is
@@ -1970,6 +1998,7 @@ def lane_eligibility(
                 owner_ids=adoption_owner_ids,
                 human_gated=human_gated,
                 now=now or datetime.now(UTC),
+                queued_at_head=queued_at_head,
             )
             if not_adopted == AUTHOR_NOT_OWNER:
                 return Eligibility(False, "not-lane-authored")
@@ -4051,6 +4080,13 @@ def assess(
             adoption_idle_hours=config.adoption_idle_hours,
             adoption_owner_ids=config.adoption_owner_ids,
             human_gated=human_gated,
+            queued_at_head=lambda: lane_queued_at_head(
+                repo,
+                number,
+                base_ref,
+                inputs["identity"],
+                str(json_object(pr.get("head")).get("sha") or ""),
+            ),
             **readers,
         )
         promoted = True

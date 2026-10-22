@@ -1019,7 +1019,9 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    In the pr-merge lane, eligibility admits a pull request the lanes App opened or one it adopts:
    an idle, unheld, ready pull request of the owner account, matched by account id
    (`adoption_refusal`; owner decision Q22; the pr-pipeline README's "The pr-merge lane"). The
-   decision records why as `eligibility.adoption`; every later read applies unchanged.
+   decision records why as `eligibility.adoption`; every later read applies unchanged. The lane's
+   own queue entry at the current head (`lane_queued_at_head`) keeps adoption though its pin
+   comment refreshed `updated_at`.
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
    A head commit whose author or committer is linked to no account refuses
    (`head-pusher-unproven:<sha>`): its pusher cannot be shown not to be a human. So does a pull
