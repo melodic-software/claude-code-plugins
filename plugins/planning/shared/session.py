@@ -5283,7 +5283,7 @@ class Session:
             raised = list(dict.fromkeys(e["by"] for _, e in self._reopened(q["id"])))  # each reason as it is now; a take-back drops it
             locked = self._locked_card(q["id"])
             held = [d for p in raised if self._active(p) for d in st.get("disagreements", {}).get(q["id"], []) if d["pid"] == p and d["card"] == locked]
-            lines = [{"text": t, "reason": d["reason"], **by(d["pid"])} for d in held if (t := self._card_text_or_none(q, d["card"])) is not None]
+            lines = [{**said, "reason": d["reason"], **by(d["pid"])} for d in held if (said := self._named(q, d["card"])) is not None]  # never `n`: that is the round
             reopened.append({"id": q["id"], "locked": st["locks"][q["id"]]["source"]["text"], "disagreements": lines})
         results, more, chars = [], 0, 0
         for r in (r for lst in st["results"].values() for r in lst if self._result_shown(r) and r.get("publishedAt", r["at"]) > prev):
@@ -5335,12 +5335,6 @@ class Session:
         if "value" in c:
             return labels[str(c["value"])]
         return labels.get(c.get("pick"), "")
-
-    def _card_text_or_none(self, q, ref):
-        try:
-            return self._card_text(q, ref)
-        except DomainError:
-            return None
 
     def _named(self, q, ref):
         """How the digest names the answer `ref` of q: its text, and its files, so an answer of pictures alone is
