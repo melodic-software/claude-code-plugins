@@ -3580,6 +3580,8 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     spec_from_body_ids=(OWNER_ID, release["id"]),
                 )
                 self.assertEqual(result.reason, reason)
+                # S&C B: only these authors' own lines skip the floor.
+                self.assertEqual(result.body_is_intent, reason is None)
         self.fake_lane(author=user(OWNER_LOGIN), closing=[])
         self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=None))
 
@@ -3769,6 +3771,53 @@ class ForeignPaths(unittest.TestCase):
             self.paths([own, unsigned], files, app), frozenset({"scripts/x.sh"})
         )
 
+    def test_s_and_c_forged_merged_and_parentless_commits_score(self) -> None:
+        # S&C review of #9107: an owner-email commit the lanes App committed,
+        # a lanes App merge adding a PR file, and a parentless commit.
+        changed = (".github/workflows/x.yml", "plugins/x/hooks/evil.sh")
+        workflow = {"w": [{"filename": ".github/workflows/x.yml"}]}
+        evil = {"m": [{"filename": "plugins/x/hooks/evil.sh"}]}
+        cases = (
+            (self.commit("w", OWNER_ID, self.LANES), workflow, changed[:1]),
+            (self.commit("m", self.LANES, parents=2), evil, changed[1:]),
+            (self.commit("w", self.LANES, parents=0), workflow, changed[:1]),
+        )
+        for commit, files, expected in cases:
+            with (
+                self.subTest(commit=commit["sha"], parents=len(commit["parents"])),
+                mock.patch.object(policy, "_paginated", return_value=[commit]),
+                mock.patch.object(
+                    policy, "_get", return_value=(200, {"files": files[commit["sha"]]})
+                ),
+            ):
+                self.assertEqual(
+                    policy.foreign_paths(REPO, owner_pr(), changed), frozenset(expected)
+                )
+
+    def test_some_paths_are_never_the_authors_own(self) -> None:
+        # S&C C: the trust list, workflows and CODEOWNERS always score, even
+        # in a standards-sync PR whose every commit is its own.
+        changed = frozenset(
+            {
+                ".github/standards/trusted-actors/trusted-actors.json",
+                ".github/workflows/x.yml",
+                "CODEOWNERS",
+                "docs/CODEOWNERS",
+                "docs/x.md",
+            }
+        )
+        sync = owner_pr(
+            user={
+                "login": "melodic-standards-sync[bot]",
+                "id": 300666570,
+                "type": "Bot",
+            }
+        )
+        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
+            self.assertEqual(policy.own_paths(REPO, sync, changed), {"docs/x.md"})
+        with mock.patch.object(policy, "foreign_paths", return_value=None):
+            self.assertEqual(policy.own_paths(REPO, sync, changed), frozenset())
+
     def test_a_merge_commit_scores_its_files_the_pr_changed(self) -> None:
         resolved = self.commit("m1", self.LANES, parents=2)
         files = {"m1": [{"filename": ".github/x.yml"}, {"filename": "main-only.md"}]}
@@ -3884,6 +3933,9 @@ class LaneAssess(unittest.TestCase):
                         "actors": [
                             {"id": 5, "login": "a", "kind": "human"},
                             {"id": 77, "login": "b[bot]", "kind": "bot"},
+                            # S&C E: never adopted, the lanes App and Dependabot.
+                            {"id": 9, "login": IDENTITY, "kind": "bot"},
+                            {"id": 49699333, "login": "dependabot[bot]", "kind": "bot"},
                         ],
                     }
                 )

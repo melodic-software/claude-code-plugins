@@ -1707,9 +1707,17 @@ pull-request`, and the pr-merge gate accepts it with no closing issue. Any other
 App included, still needs a closing issue a trusted person wrote: a model that wrote the diff
 would also have written the spec it is graded against.
 
-In the pr-merge lane, for an adopted PR, the HIGH path floor and the manifest review score only
-the PR's changed paths that a commit not its author's own touched (a lane's fix among them): a
-trusted author's own lines, a person's or an App's, need no person. A commit is the author's own
+The body counts only if it was never edited, or was last edited by its author or a trusted person;
+the verdict records its sha256 (`intent_sha256`), and the gate refuses the pass
+(`verify:spec-changed`) once the live title and body differ.
+
+In the pr-merge lane, for an adopted PR a person or a `spec-from-body-apps` App opened, the HIGH
+path floor and the manifest review score only the PR's changed paths that a commit not its
+author's own touched (a lane's fix among them): that author's own lines need no person. Any other
+App's PR (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) is scored whole, like the lanes
+App's, while staying adoptable for fix-and-merge. `.github/standards/trusted-actors/**`,
+`.github/workflows/**` and any `CODEOWNERS` always score, whoever wrote them. The lanes App and
+Dependabot are never adopted. A commit is the author's own
 only when GitHub verified its signature and its author account is the PR's author, and, for a
 person, its committer account too; the author account alone comes from the git author email,
 which anyone can set. An App's commits go through the API and GitHub's web-flow commits them, so

@@ -19,4 +19,10 @@ bump: minor
   files the pull request changed. The lanes App's own pull requests stay scored whole, and an
   unreadable commit list scores every path.
 - A person, whose title and body serve as intent with no closing issue, is a `kind: human` id on
-  the trusted list, not any GitHub `User`; the list is read at the default branch head.
+  the trusted list, not any GitHub `User`; the list is read at the default branch head, less the
+  lanes App and Dependabot, which are never adopted.
+- The own-lines floor exemption covers only people and `adoption.spec-from-body-apps` Apps; every
+  other App's adopted pull request is scored whole. The trusted-actor list, workflows and any
+  `CODEOWNERS` are never exempt.
+- A pass judged on the pull request's title and body records their sha256, and the gate refuses
+  it with `verify:spec-changed` once they change.

@@ -1531,6 +1531,11 @@ class Eligibility:
     # Why the pr-merge lane adopted a pull request it did not open
     # (`adoption_refusal`), else None.
     adoption: str | None = None
+    # An adopted pull request whose author is a person or an App in
+    # `adoption.spec-from-body-apps`: its title and body may be its intent,
+    # and its own lines skip the path floor (`own_paths`). Any other App's is
+    # scored whole, like the lanes App's.
+    body_is_intent: bool = False
 
 
 def _label_names(node: dict[str, Any]) -> list[str] | None:
@@ -1867,16 +1872,18 @@ def _denied_path_refusal(
 
 AUTHOR_NOT_OWNER = "author-not-owner"
 # `trusted_actors` by (repo, ref), read once a run.
-_TRUSTED_IDS: dict[tuple[str, str], tuple[tuple[int, ...], tuple[int, ...]]] = {}
+_TRUSTED_IDS: dict[tuple[str, ...], tuple[tuple[int, ...], tuple[int, ...]]] = {}
 
 
-def trusted_actors(repo: str, ref: str) -> tuple[tuple[int, ...], tuple[int, ...]]:
+def trusted_actors(
+    repo: str, ref: str, exclude: Collection[str] = ()
+) -> tuple[tuple[int, ...], tuple[int, ...]]:
     """Every account id on `TRUSTED_ACTORS_PATH` at `ref`, people and Apps
-    alike (whose pull requests the lane adopts), and the ids of kind
-    `human` (the people; a GitHub User may be a model's account). A list
-    that cannot be read or does not match its schema is empty, which adopts
-    nothing."""
-    key = (repo, ref)
+    alike (whose pull requests the lane adopts), but those whose login
+    (`_login_key`) is in `exclude`, and the ids of kind `human` (the people;
+    a GitHub User may be a model's account). A list that cannot be read or
+    does not match its schema is empty, which adopts nothing."""
+    key = (repo, ref, *sorted(exclude))
     if key not in _TRUSTED_IDS:
         owner, name = _split_repo(repo)
         try:
@@ -1891,7 +1898,10 @@ def trusted_actors(repo: str, ref: str) -> tuple[tuple[int, ...], tuple[int, ...
             type(i) is int and i > 0 for i in ids
         )
         humans = tuple(a["id"] for a in actors if a.get("kind") == "human")
-        _TRUSTED_IDS[key] = (ids, humans) if valid else ((), ())
+        kept = tuple(
+            a.get("id") for a in actors if _login_key(a.get("login")) not in exclude
+        )
+        _TRUSTED_IDS[key] = (kept, humans) if valid else ((), ())
     return _TRUSTED_IDS[key]
 
 
@@ -2021,6 +2031,7 @@ def lane_eligibility(
     owner, name = _split_repo(repo)
     issue_number = None
     adoption = None
+    body_is_intent = False
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
@@ -2065,7 +2076,12 @@ def lane_eligibility(
     except PolicyReadError as exc:
         return Eligibility(False, f"unreadable: {exc}")
     return Eligibility(
-        refusal is None, refusal, LANE_CLASS, issue_number, adoption=adoption
+        refusal is None,
+        refusal,
+        LANE_CLASS,
+        issue_number,
+        adoption=adoption,
+        body_is_intent=bool(adoption) and body_is_intent,
     )
 
 
@@ -3305,6 +3321,33 @@ def foreign_paths(
     return frozenset(paths.intersection(changed))
 
 
+# Paths never a trusted author's own, whoever wrote them (S&C review of
+# #9107): who is trusted, what CI runs, and who must review.
+NEVER_FLOOR_EXEMPT = (
+    ".github/standards/trusted-actors/**",
+    ".github/workflows/**",
+    "CODEOWNERS",
+    "**/CODEOWNERS",
+)
+
+
+def own_paths(
+    repo: str, pr: Mapping[str, Any], changed: Collection[str]
+) -> frozenset[str]:
+    """The `changed` paths only the author's own commits touched
+    (`foreign_paths`), less `NEVER_FLOOR_EXEMPT`: what the path floor leaves
+    out of an adopted pull request whose author's lines count as its own
+    (`Eligibility.body_is_intent`). Empty when the commits cannot be read."""
+    others = foreign_paths(repo, pr, changed)
+    if others is None:
+        return frozenset()
+    return frozenset(
+        p
+        for p in changed
+        if p not in others and not any(glob_match(g, p) for g in NEVER_FLOOR_EXEMPT)
+    )
+
+
 # Capability file text by (owner, name, path, sha): a SHA pins the text, so a
 # run reads each side of each file once.
 _TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
@@ -4188,7 +4231,10 @@ def assess(
         if config.adoption_idle_hours is not None:
             try:
                 head = _default_branch_config(repo, default).base_sha
-                trusted = trusted_actors(repo, head)
+                # Never adopted: the lanes App (its own path) and Dependabot
+                # (its tier and review-dependency), by login on the list.
+                skip = {_login_key(inputs["identity"]), "dependabot"}
+                trusted = trusted_actors(repo, head, exclude=skip)
             except (PolicyReadError, StopReadError):
                 pass
         eligible = lane_eligibility(

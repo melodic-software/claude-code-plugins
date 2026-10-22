@@ -13,6 +13,7 @@
 // uploads nothing. Model text is cut to fixed lengths (judgment) and never
 // reaches a shell.
 
+import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -96,6 +97,7 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
       throw new Error(`the structured output holds text shaped like a credential (${hit[0]})`);
     }
   }
+  const own = Array.isArray(specText) ? specText.find((entry) => entry?.source === "pull-request") : undefined;
   return {
     pr: Number(pr),
     head_sha: headSha,
@@ -104,7 +106,10 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     linked_issues: checkIssues(linkedIssues),
     // What the spec was: the pull request's own title and body
     // (babysit_verify_evidence.INTENT_PULL_REQUEST), else its closing issues.
-    intent: Array.isArray(specText) && specText.some((entry) => entry?.source === "pull-request") ? "pull-request" : "issues",
+    intent: own ? "pull-request" : "issues",
+    // The title and body it judged, which the gate compares live
+    // (babysit_verify_evidence): an edit since refuses the pass.
+    ...(own ? { intent_sha256: createHash("sha256").update(String(own.body)).digest("hex") } : {}),
     verdict: parsed.verdict,
     summary: parsed.summary.slice(0, SUMMARY_MAX),
     notes: parsed.notes.slice(0, NOTES_MAX).map((note) => note.slice(0, NOTE_MAX)),

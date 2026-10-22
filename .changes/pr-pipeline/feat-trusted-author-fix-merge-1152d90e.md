@@ -9,7 +9,8 @@ bump: minor
   title and body when a person or one of these Apps opened it; resolve-pr hands the verifier that
   text as the spec, and the verdict records `intent: pull-request`. Any other App, the lanes App
   included, still needs a closing issue, since a model that wrote the diff would also have
-  written its spec.
+  written its spec. A body last edited by anyone but its author or a trusted person is not the
+  spec, and the verdict records the body's sha256 (`intent_sha256`).
 
 ### Changed
 

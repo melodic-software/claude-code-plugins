@@ -866,7 +866,7 @@ class LaneMode(Unattended):
         # no person; a floor path a lane commit touched still holds.
         self.files = ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)
         self.lane_eligible = policy.Eligibility(
-            True, None, "C2", 41, adoption="idle-owner:24h"
+            True, None, "C2", 41, adoption="idle-owner:24h", body_is_intent=True
         )
         for others, score in (
             (frozenset(), "LOW"),
@@ -879,12 +879,18 @@ class LaneMode(Unattended):
             ):
                 _, out = self.lane()
                 self.assertEqual(out["unattended"]["risk"]["score"], score)
-        self.lane_eligible = policy.Eligibility(True, None, "C2", 41)
-        with mock.patch.object(
-            policy, "foreign_paths", side_effect=AssertionError("read")
+        # A lane PR, or an adopted one a model-driven App opened (S&C B), is
+        # scored whole like the lanes App's own.
+        for eligible in (
+            policy.Eligibility(True, None, "C2", 41),
+            policy.Eligibility(True, None, "C2", 41, adoption="idle-owner:24h"),
         ):
-            _, out = self.lane()
-        self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
+            self.lane_eligible = eligible
+            with mock.patch.object(
+                policy, "foreign_paths", side_effect=AssertionError("read")
+            ):
+                _, out = self.lane()
+            self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
 
     def test_the_lane_takes_the_rung_cap_from_the_workflow(self) -> None:
         code, out = self.lane()

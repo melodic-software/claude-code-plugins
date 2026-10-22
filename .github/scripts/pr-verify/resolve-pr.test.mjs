@@ -85,13 +85,13 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE] } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null } } = {}) {
   const github = async (method, apiPath) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
     if (listed && listed[1] === HEAD) return pulls.slice((Number(listed[2]) - 1) * 100, Number(listed[2]) * 100);
     if (apiPath === "/graphql") {
-      return { data: { repository: { pullRequest: { closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
+      return { data: { repository: { pullRequest: { ...edit, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
     }
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(apiPath);
     if (named) {
@@ -249,6 +249,22 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
     const result = await resolve({ pulls: [own(user)], issues: [] }, opts);
     assert.deepEqual(result.specText, expected, user.login);
     assert.deepEqual(result.linkedIssues, [], user.login);
+  }
+  // S&C D: a body last edited by anyone but its author or a trusted person
+  // is not the spec; edited by them, it still is.
+  const owner = own({ id: OWNER_ID, login: "kyle-sexton", type: "User" });
+  const releasePr = own({ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" });
+  const by = (databaseId, __typename = "User") => ({ lastEditedAt: "2026-10-22T00:00:00Z", editor: { __typename, login: "x", databaseId } });
+  for (const [pr, edit, expected] of [
+    [owner, by(4242), []],
+    [releasePr, by(CLAUDE, "Bot"), []],
+    [owner, by(OWNER_ID), spec],
+    [releasePr, by(RELEASE, "Bot"), spec],
+    [releasePr, by(100), spec],
+    [owner, { lastEditedAt: "2026-10-22T00:00:00Z", editor: null }, []],
+  ]) {
+    const result = await resolve({ pulls: [pr], issues: [], edit }, opts);
+    assert.deepEqual(result.specText, expected, JSON.stringify(edit));
   }
   // A closing issue here keeps it the spec.
   const result = await resolve({ pulls: [own({ id: OWNER_ID, login: "kyle-sexton", type: "User" })] }, opts);

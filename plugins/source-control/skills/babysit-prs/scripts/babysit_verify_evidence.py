@@ -925,7 +925,7 @@ class Reader:
                 )
             else:
                 refusals = {
-                    self._pass_refusal(run_id, name, number, head, live)
+                    self._pass_refusal(run_id, name, number, head, live, pr)
                     for run_id, name in passes
                 }
                 refusal = next(
@@ -1052,8 +1052,10 @@ class Reader:
         number: int,
         head: str,
         live: dict[Any, Any],
+        pr: dict[str, Any] | None = None,
     ) -> str | None:
-        """One counted pass at the head against the live closing issues."""
+        """One counted pass at the head against the live closing issues, or,
+        for an `intent` `pull-request` verdict, the live title and body."""
         record = self._record(run_id, name)
         if record.get("pr") != number or record.get("head_sha") != head:
             raise _Unreadable(f"artifact {name} records another pull request or head")
@@ -1078,7 +1080,12 @@ class Reader:
         # request's own title and body, which only a trusted author's adopted
         # pull request reaches the gate with (`lane_eligibility`).
         if not issues and record.get("intent") == INTENT_PULL_REQUEST:
-            return None
+            # The title and body it judged, by sha256 (write-verdict.mjs):
+            # an edit since, or no recorded hash, is a spec it never read.
+            pr = json_object(pr)
+            text = f"{pr.get('title') or ''}\n\n{pr.get('body') or ''}"
+            live_digest = hashlib.sha256(text.encode()).hexdigest()
+            return None if record.get("intent_sha256") == live_digest else SPEC_CHANGED
         return None if self._trusted_spec(record) else UNTRUSTED_SPEC
 
     def queued_hold(self, number: int) -> str | None:

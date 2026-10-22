@@ -22,6 +22,7 @@ at the `gh_capture` seam the reader shares with the post-merge check.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import os
 import pathlib
@@ -1421,11 +1422,16 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
     def test_the_pull_request_is_the_intent_when_it_closes_no_issue(self) -> None:
         # Owner decision 2026-10-22: a trusted PR with no closing issue is
         # judged against its own title and body, recorded as the intent.
+        pr = pull()
+        text = f"{pr.get('title') or ''}\n\n{pr.get('body') or ''}"
+        digest = hashlib.sha256(text.encode()).hexdigest()
+
         def evidence(closing: list[Any], **recorded: Any) -> Any:
             fake = passing()
             fake.closing = closing
+            recorded.setdefault("intent_sha256", digest)
             fake.records[named(HEAD, "pass")] = record(linked_issues=[], **recorded)
-            return read(fake).refusal
+            return read(fake, pr).refusal
 
         self.assertIsNone(evidence([], intent="pull-request"))
         self.assertIsNone(evidence([(3, "someone/else")], intent="pull-request"))
@@ -1434,6 +1440,22 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         self.assertEqual(
             evidence([(7, REPO)], intent="pull-request"), "verify:spec-changed"
         )
+
+    def test_a_pull_request_intent_edited_since_its_verdict_refuses(self) -> None:
+        # S&C D: the verdict records the hash of the title and body it judged.
+        def evidence(title: str, body: str, digest: str | None) -> Any:
+            fake = passing()
+            fake.closing = []
+            recorded = {"intent": "pull-request"}
+            if digest is not None:
+                recorded["intent_sha256"] = digest
+            fake.records[named(HEAD, "pass")] = record(linked_issues=[], **recorded)
+            return read(fake, pull(title=title, body=body)).refusal
+
+        judged = hashlib.sha256(b"feat: x\n\nthe body").hexdigest()
+        self.assertIsNone(evidence("feat: x", "the body", judged))
+        self.assertEqual(evidence("feat: x", "edited", judged), "verify:spec-changed")
+        self.assertEqual(evidence("feat: x", "the body", None), "verify:spec-changed")
 
     def test_a_record_whose_issues_are_not_a_list_refuses(self) -> None:
         fake = passing()

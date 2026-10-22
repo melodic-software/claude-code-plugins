@@ -50,6 +50,7 @@ const MAX_PAGES = 100;
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
+      lastEditedAt editor { ...actor }
       closingIssuesReferences(first: 10) {
         totalCount
         nodes {
@@ -185,7 +186,10 @@ async function linkedIssues(github, repository, number, humans) {
       throw new Error(`#${issue.number}: the issue's comments could not be read`);
     }
   }
+  const pullRequest = data.data.repository.pullRequest;
   return {
+    // Who last edited the pull request's own body: null when never edited.
+    bodyEditor: pullRequest.lastEditedAt == null ? null : (pullRequest.editor?.databaseId ?? 0),
     linkedIssues: issues.map((issue) => ({
       number: issue.number,
       ...actorFields(issue.author, "author"),
@@ -258,14 +262,19 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
   if (await judged({ github, repository, number: pull.number, head, base, numbers })) {
     return skip("already-judged");
   }
-  const spec = await linkedIssues(github, repository, pull.number, humans);
+  const specRead = await linkedIssues(github, repository, pull.number, humans);
   // No closing issue here: the title and body of a trusted person's PR, or
   // of an App whose bodies a script writes (adoption.spec-from-body-apps),
   // are the spec. A model-written body, the lanes App's included, never is:
   // the run that wrote the diff would have written its spec too.
   // A person is a kind human id on the trusted list, not a GitHub User: a
   // model's account may be a User (babysit_merge_policy.lane_eligibility's twin).
-  const bodyIsIntent = humans.has(pull.user?.id) || specFromBodyApps.includes(pull.user?.id);
+  // A body someone else edited is not the author's intent, unless a trusted
+  // person did it; an editor GitHub cannot name is someone else.
+  const { bodyEditor, ...spec } = specRead;
+  const bodyIsIntent =
+    (humans.has(pull.user?.id) || specFromBodyApps.includes(pull.user?.id)) &&
+    (bodyEditor === null || bodyEditor === pull.user?.id || humans.has(bodyEditor));
   if (spec.linkedIssues.length === 0 && bodyIsIntent) {
     const body = `${String(pull.title ?? "")}\n\n${String(pull.body ?? "")}`;
     spec.specText = [{ number: pull.number, source: "pull-request", body, comments: [] }];
