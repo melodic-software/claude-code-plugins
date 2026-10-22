@@ -50,7 +50,7 @@
             "type": "object",
             "required": ["key", "text"],
             "additionalProperties": false,
-            "properties": {"key": {"type": "string"}, "text": {"$ref": "#/$defs/line"}}
+            "properties": {"key": {"type": "string"}, "text": {"$ref": "#/$defs/line"}, "tradeoff": {"$ref": "#/$defs/line"}}
           }
         ]
       }
@@ -91,7 +91,7 @@
         "op": {"enum": ["revise"]},
         "id": {"type": "string"},
         "title": {"$ref": "#/$defs/line"},
-        "short": {"$ref": "#/$defs/line"},
+        "short": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"},
         "facts": {"$ref": "#/$defs/markdown"},
         "basis": {"$ref": "#/$defs/markdown"},
         "rec": {"$ref": "#/$defs/line"},

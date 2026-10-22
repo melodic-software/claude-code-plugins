@@ -1,5 +1,5 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
-# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
+# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/.claude-plugin/plugin.json
 """Tests for round.py V1: schema validation, refusals and warnings, --affects, apply, archive,
 status --latency, the sidecar lock and the rebuild check.
 
@@ -619,6 +619,44 @@ class TestRevise(DirCase):
         rc, out, err = self.rp("revise", "Q1", "--alt", "a:One", "--alt", "b:Two")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual([a["key"] for a in self.q("Q1")["alternatives"]], ["a", "b"])
+
+
+class TestSharedQuestionShape(DirCase):
+    """The page question takes `short` and the alternative's `tradeoff` from the shared question shape."""
+
+    def apply(self, *ops):
+        return self.rp("apply", "--file", self.file("ops.json", {"ops": list(ops)}))
+
+    def test_short_is_capped_at_80_on_every_write_path(self):
+        rc, out, err = self.rp("revise", "Q1", "--short", "x" * 80)
+        self.assertEqual(rc, 0, out + err)
+        for args in (
+            ("revise", "Q1", "--short", "x" * 81),
+            ("apply", "--file", self.file("r.json", {"ops": [{"op": "revise", "id": "Q1", "short": "x" * 81}]})),
+            ("apply", "--file", self.file("a.json", {"ops": [{"op": "add", "question": question("Q4", short="x" * 81)}]})),
+        ):
+            with self.subTest(args=args[:2]):
+                self.assertIn("allows at most 80 characters, has 81", self.assert_refused(*args))
+
+    def test_an_alternative_keeps_its_tradeoff(self):
+        alts = [{"key": "a", "text": "No", "tradeoff": "Two writers"}, {"key": "b", "text": "Later"}]
+        rc, out, err = self.apply(
+            {"op": "revise", "id": "Q1", "alternatives": alts},
+            {"op": "add", "question": question("Q4", alternatives=alts)},
+        )
+        self.assertEqual(rc, 0, out + err)
+        for qid in ("Q1", "Q4"):
+            self.assertEqual(self.q(qid)["alternatives"], alts)
+
+    def test_a_tradeoff_over_the_line_cap_is_refused(self):
+        alts = [{"key": "a", "text": "No", "tradeoff": "x" * 501}, {"key": "b", "text": "Later"}]
+        for op in (
+            {"op": "revise", "id": "Q1", "alternatives": alts},
+            {"op": "add", "question": question("Q4", alternatives=alts)},
+        ):
+            with self.subTest(op=op["op"]):
+                out = self.assert_refused("apply", "--file", self.file("ops.json", {"ops": [op]}))
+                self.assertRegex(out, "the cap is 500|allows at most 500")
 
 
 class TestRecAlternativeCollision(DirCase):

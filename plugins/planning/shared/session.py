@@ -181,10 +181,14 @@ COLORS = tuple(f"c{i}" for i in range(1, 11))
 ROLES = ("owner", "leader", "guest")
 PURPOSES = ("decide", "gather", "poll")
 FORMATS = ("text", "choice", "multi", "scale", "rank", "confirm", "prototype")
-# Options Claude writes per format (amendment "Reactions and formats"); the server adds Something else.
+# Options Claude writes per format (amendment "Reactions and formats"); the server adds Something else, and
+# None of these on a multi question whose format sets `none: true`.
 OPTION_COUNTS = {"choice": (2, 4), "multi": (2, 8), "rank": (3, 6)}
 OTHER_OPTION = {"id": "other", "label": "Something else…", "other": True}
 OTHER = OTHER_OPTION["id"]
+NONE_OPTION = {"id": "none", "label": "None of these", "none": True}
+NONE = NONE_OPTION["id"]
+NONE_LABELS = ("none of these", "none of the above", "none")  # judgment: labels that mean the server's option
 MENTION = re.compile(r"<@([A-Za-z0-9_-]{1,32})>")  # how state.json stores a mention: the person's pid
 VIEWS = ("focus", "compare", "tree", "host", "prototype")
 DEVICES = ("phone", "tablet", "computer")
@@ -305,10 +309,14 @@ DEFAULT_SETTINGS = {
 }
 # Settings a session gains only once the owner sets one, so a state file written before them stays as
 # it was (and still loads in the build before them) until then.
-OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None}
+OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None, "prototypeTiers": None}
 # guestPopups: the pop-ups a guest starts with (round 11), set by the owner; a guest's own `popups` pref wins. Absent,
 # all of GUEST_POPUPS are on.
 GUEST_POPUPS = ("request", "mention", "round")
+# prototypeTiers: the prototype views the session offers guests. Absent, screenshots and HTML snapshots are on and live
+# prototypes are off. A view switched off stays in the question; only guests' state and the html asset route drop it.
+PROTOTYPE_TIERS = ("screenshot", "snapshot", "live")
+DEFAULT_PROTOTYPE_TIERS = ("screenshot", "snapshot")
 LAST_SCHEMA_VERSION = 7  # the last versioned build's file; an older one needs that build's migrations first
 # reviewAnswers: every answer waits for the owner's Share. A new session writes it off; a state file from before it lacks
 # it and so keeps that review-first behavior.
@@ -465,6 +473,9 @@ def cross_field_errors(doc):
         others = [o for o in q["format"].get("options", []) if o.get("other") or o["id"] == OTHER]
         if len(others) > 1 or any(not (o.get("other") and o["id"] == OTHER) for o in others):
             errors.append(f"{q['id']} holds more than one Something else option, or one without both its id and its flag.")
+        nones = [o for o in q["format"].get("options", []) if o.get("none") or o["id"] == NONE]
+        if nones and (len(nones) > 1 or q["format"]["kind"] != "multi" or any(not (o.get("none") and o["id"] == NONE) for o in nones)):
+            errors.append(f"{q['id']} holds a None of these option off a multi question, more than one, or one without both its id and its flag.")
         lock = doc["locks"].get(q["id"])
         if lock and lock["source"]["kind"] == "poll" and q["purpose"] != "poll":
             errors.append(f"{q['id']} holds a closed-poll lock but is not a poll.")
@@ -674,6 +685,11 @@ def ref_author(ref):
 
 def _bad(field, message):
     return DomainError(400, "bad-field", message, field=field)
+
+
+def _none_label(label):
+    """Whether an option label means "none applies": casefolded, ellipsis, full stops and spaces trimmed."""
+    return isinstance(label, str) and " ".join(label.casefold().strip(" .…").split()) in NONE_LABELS
 
 
 def _body(body):
@@ -1257,7 +1273,7 @@ class Session:
         self._joins = collections.OrderedDict()  # (guest key, address) -> times of recent joins, least recent first
         self._key_joins = {}  # guest key -> times of recent joins from any address
         self._reported = {}  # pid -> time of their last report, which REPORT_INTERVAL spaces; never persisted
-        self._base_cache = None
+        self._base_cache = self._guest_q_cache = None
         self._chat_touch, self._chat_touches = {}, 0  # message id -> the count of reaction or forward changes at its last one; never persisted
         self._undo = []  # (file, bytes before or None) an apply wrote, put back when the apply is refused
         self.uploads_dir = self.path.parent / "uploads"  # in the private data folder; never under web/ or assets/
@@ -2453,6 +2469,8 @@ class Session:
             ids = [o["id"] for o in fmt["options"]]
             if any(o["id"] == OTHER or "other" in o for o in fmt["options"]):
                 raise _bad(f"{field}.options", "The server adds the Something else option itself; leave it out.")
+            if kind == "multi" and any(o["id"] == NONE or "none" in o or _none_label(o.get("label")) for o in fmt["options"]):
+                raise _bad(f"{field}.options", "The server adds None of these itself: set format.none to true instead.")
             least, most = OPTION_COUNTS[kind]
             if not least <= len(ids) <= most:
                 raise _bad(f"{field}.options", f"A {kind} question takes {least} to {most} options.")
@@ -2464,7 +2482,7 @@ class Session:
                 if o.get("image") is not None:
                     opt["image"] = self._asset(o["image"], f"{field}.options[{i}].image", image=True)
                 options.append(opt)
-            return {"kind": kind, "options": [*options, dict(OTHER_OPTION)]}
+            return {"kind": kind, "options": [*options, dict(OTHER_OPTION), *([dict(NONE_OPTION)] if fmt.get("none") else [])]}
         if kind == "scale":
             labels = {k: _text(fmt["labels"], k, limit=80) for k in ("min", "max")}
             mid = _text(fmt["labels"], "mid", limit=80, optional=True)
@@ -2484,8 +2502,8 @@ class Session:
         return {"kind": "prototype", "variants": variants}
 
     def _options(self, q):
-        """Option id -> label for the option cards a non-text question offers; Something else has no
-        card, since each person who picks it writes their own (`_has_other`)."""
+        """Option id -> label for the option cards a non-text question offers, None of these included; Something
+        else has no card, since each person who picks it writes their own (`_has_other`)."""
         fmt = q["format"]
         if fmt["kind"] in OPTION_COUNTS:
             return {o["id"]: o["label"] for o in fmt["options"] if not o.get("other")}
@@ -2932,6 +2950,14 @@ class Session:
             comment, other = self._tokenize(pid, comment, "comment"), self._tokenize(pid, other, "other")
             q = self._question(body.get("qid"))
             key, fields = self._parse_pick(q, body)
+            late = self._answerable(q)
+            device = self._device_for(q, body)
+            qid = q["id"]
+            cards = self._cards(qid)
+            mine = next((c for c in cards if c["kind"] == "person" and c["pid"] == pid and c.get("device") == device), None)
+            picks = fields.get("picks", [])
+            if NONE in picks and len(picks) > 1:  # None of these excludes every other pick: the one just made wins
+                fields["picks"] = [i for i in picks if i != NONE] if NONE in (mine or {}).get("picks", ()) else [NONE]
             chose_other = self._is_other({"kind": "person", **fields})
             if chose_other and not other:
                 raise DomainError(400, "empty", "Something else needs your own option, in other.", field="other")
@@ -2939,11 +2965,6 @@ class Session:
                 raise _bad("other", "other goes only with picking Something else.")
             if other and comment:
                 raise _bad("comment", "Your own option is your card's text; send it in other, without a comment.")
-            late = self._answerable(q)
-            device = self._device_for(q, body)
-            qid = q["id"]
-            cards = self._cards(qid)
-            mine = next((c for c in cards if c["kind"] == "person" and c["pid"] == pid and c.get("device") == device), None)
             was_other = mine is not None and self._is_other(mine)
             if key == "pick":
                 votes = st["votes"].setdefault(qid, {})
@@ -2987,7 +3008,8 @@ class Session:
         """(the field the format takes, the card fields it sets: {} for no pick). choice, confirm and
         prototype take `option` ("" for none); multi takes `options`, a subset of at least one; scale
         takes `value`, a whole number in its range; rank takes `order`, every option once (Something
-        else may join it). Something else is `other` where the question has one."""
+        else may join it). Something else is `other` where the question has one; None of these is `none`,
+        which `pick` keeps apart from every other pick."""
         kind = q["format"]["kind"]
         known = set(self._options(q)) | ({OTHER} if self._has_other(q) else set())
         if kind == "scale":
@@ -3797,6 +3819,20 @@ class Session:
             self._touch_chat(mid)
             self._notify(msg["pid"], "proposal", "Your chat message became a proposal.", actor=pid, msg=mid)
             return {"proposal": prop["id"]}
+
+    def _guest_questions(self):
+        """The questions every guest is sent, built once per rev (every page polls)."""
+        st = self.state
+        if not (self._guest_q_cache and self._guest_q_cache[0] == st["rev"]):
+            self._guest_q_cache = (st["rev"], _guest_questions(st["questions"], prototype_tiers(st["session"]["settings"])))
+        return self._guest_q_cache[1]
+
+    def asset_hidden(self, pid, name):
+        """Whether /assets/<name> is off for `pid`: an html file, which only prototype variants hold, to anyone but the
+        owner while the session's HTML snapshots are off. Pictures are never hidden here: option pictures, references
+        and confirm questions share them."""
+        with self._lock:
+            return pid != HOST and name.endswith(".html") and "snapshot" not in prototype_tiers(self.state["session"]["settings"])
 
     def is_prototype(self, qid):
         """GET /proto/<qid> serves the prototype page only for a prototype question."""
@@ -5618,8 +5654,8 @@ class Session:
         return [c for c in self.state["cards"].get(q["id"], []) if self._is_other(c) and self._shown(c)]
 
     def _format_outcome(self, q, by, *, closed):
-        """The digest outcome of a multi, scale or rank question: counts per option (multi), counts
-        per value with the mean and median (scale), Borda totals and the full orders given (rank);
+        """The digest outcome of a multi, scale or rank question: counts per option (multi, None of these
+        a row of its own, marked `none`), counts per value with the mean and median (scale), Borda totals and the full orders given (rank);
         each with people's own options, their backers (author included), and the comments."""
         qid, fmt = q["id"], q["format"]
         cards = [c for c in self.state["cards"].get(qid, []) if c["kind"] == "person" and self._shown(c)]
@@ -5628,7 +5664,7 @@ class Session:
         comments = [{"text": c["text"], **by(c["pid"]), **_edited(c)} for c in cards if c["text"] and not self._is_other(c)]
         if fmt["kind"] == "multi":
             picked = [c["picks"] for c in cards if c.get("picks")]
-            counts = [{"option": label, "picks": sum(1 for p in picked if o in p)} for o, label in labels.items()]
+            counts = [{"option": label, "picks": sum(1 for p in picked if o in p), **({"none": True} if o == NONE else {})} for o, label in labels.items()]
             out = {"kind": "multi", "closed": closed, "people": len(picked), "counts": counts, "others": others, "comments": comments}
         elif fmt["kind"] == "scale":
             values = sorted(c["value"] for c in cards if "value" in c)
@@ -6301,6 +6337,8 @@ class Session:
             own = self._own_view_cards(pid, {p["pid"] for p in base["people"]})
             if own:
                 snap["cards"] = {**base["cards"], **own}
+            if not owner:
+                snap["questions"] = self._guest_questions()
             if owner or any(c["pid"] == pid and "hidden" in c for lst in st["discussions"].values() for c in lst):
                 snap["discussions"] = self._discussions_for(pid, {p["pid"] for p in base["people"]})
             if mode != "full":
@@ -6427,6 +6465,26 @@ class Session:
         return {p: sum(1 for q in qs if self._owes(q, p)) for p in st["people"] if p != HOST and self._active(p)}
 
 
+def prototype_tiers(settings):
+    """The prototype views a session offers: its `prototypeTiers`, or screenshots and HTML snapshots when absent."""
+    return list(settings.get("prototypeTiers", DEFAULT_PROTOTYPE_TIERS))
+
+
+def _guest_questions(questions, tiers):
+    """`questions` as guests see them under `tiers`: a variant's picture leaves while screenshots are off, its html file
+    while snapshots are off. The same list when both are on; otherwise new prototype questions, the rest shared."""
+    off = {t for t in ("screenshot", "snapshot") if t not in tiers}
+    if not off:
+        return questions
+
+    def view(v):
+        tier = "snapshot" if v["asset"].endswith(".html") else "screenshot"
+        return {k: x for k, x in v.items() if k != "asset"} if tier in off else v
+
+    return [{**q, "format": {**q["format"], "variants": [view(v) for v in q["format"]["variants"]]}} if q["format"]["kind"] == "prototype" else q
+            for q in questions]
+
+
 def _settings_patch(settings, patch):
     """Apply a partial Settings object in place after checking every key; returns settings."""
     if not isinstance(patch, dict):
@@ -6441,6 +6499,9 @@ def _settings_patch(settings, patch):
         elif k == "guestPopups":
             if not isinstance(v, list) or any(x not in GUEST_POPUPS for x in v) or len(set(v)) != len(v):
                 raise _bad(k, f"guestPopups is a list of {', '.join(GUEST_POPUPS)}, each at most once.")
+        elif k == "prototypeTiers":
+            if not isinstance(v, list) or any(x not in PROTOTYPE_TIERS for x in v) or len(set(v)) != len(v):
+                raise _bad(k, f"prototypeTiers is a list of {', '.join(PROTOTYPE_TIERS)}, each at most once.")
         elif k in SETTING_VALUES:
             if v not in SETTING_VALUES[k]:
                 raise _bad(k, f"{k} must be one of {', '.join(SETTING_VALUES[k])}.")
@@ -6451,6 +6512,8 @@ def _settings_patch(settings, patch):
             settings["theme"] = {**settings["theme"], **v}
         elif k == "guestPopups":
             settings[k] = [x for x in GUEST_POPUPS if x in v]
+        elif k == "prototypeTiers":
+            settings[k] = [x for x in PROTOTYPE_TIERS if x in v]
         else:
             settings[k] = v
     return settings

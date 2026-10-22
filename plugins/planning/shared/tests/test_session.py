@@ -3751,6 +3751,114 @@ class TestSomethingElse(FormatCase):
         self.assertEqual(self.s.state["votes"]["Q4"], {self.bo: f"p:{self.ann}"})
 
 
+def none_q(qid, labels=("Card", "PayPal", "Bank transfer")):
+    q = options_q(qid, "multi", labels)
+    q["format"]["none"] = True
+    return q
+
+
+class TestNoneOfThese(FormatCase):
+    """None of these on a pick-any question: the server adds it when the open-round op asks, and it
+    excludes every other pick. Expected values come from the owner's decision (Q4) and its research."""
+
+    def setUp(self):
+        super().setUp()
+        self.send()
+        self.ack(1)
+        self.open_round(none_q("Q7"))
+
+    def test_the_server_adds_none_of_these_last_when_the_format_asks(self):
+        options = self.question("Q7")["format"]["options"]
+        self.assertEqual(options[-2:], [{"id": "other", "label": "Something else…", "other": True}, {"id": "none", "label": "None of these", "none": True}])
+        self.assertNotIn("none", self.question("Q7")["format"])  # the option is the record, not the flag
+        self.assertIn("o:none", [session.card_ref(c) for c in self.s.state["cards"]["Q7"]])
+        self.assertNotIn("none", [o["id"] for o in self.question("Q1")["format"]["options"]])  # a multi without the flag
+
+    def test_only_a_multi_question_takes_the_flag(self):
+        self.send()
+        self.ack(2)
+        for kind, labels in (("choice", ("A", "B")), ("rank", ("A", "B", "C"))):
+            with self.subTest(kind=kind):
+                q = options_q("Q8", kind, labels)
+                q["format"]["none"] = True
+                self.refused_ops("bad-field", {"op": "open-round", "questions": [q]})
+
+    def test_claude_cannot_write_a_none_of_these_option_on_a_multi(self):
+        self.send()
+        self.ack(2)
+        rev = self.s.state["rev"]
+        for label in ("None of these", "none of the above.", "None…", " NONE "):
+            with self.subTest(label=label):
+                self.refused_ops("bad-field", {"op": "open-round", "questions": [options_q("Q8", "multi", ("A", label))]})
+        q = options_q("Q8", "multi", ("A", "B"))
+        q["format"]["options"].append({"id": "none", "label": "Nothing", "none": True})
+        self.refused_ops("bad-field", {"op": "open-round", "questions": [q]})
+        self.assertEqual(self.s.state["rev"], rev)
+
+    def test_a_choice_question_keeps_a_claude_written_none_option(self):
+        self.send()
+        self.ack(2)
+        self.open_round(options_q("Q8", "choice", ("Card", "None of these")))
+        self.assertEqual([o["label"] for o in self.question("Q8")["format"]["options"]], ["Card", "None of these", "Something else…"])
+
+    def test_picking_none_of_these_clears_the_other_picks(self):
+        self.pick(self.ann, "Q7", options=["opt-1", "opt-2"])
+        self.assertEqual(self.pick(self.ann, "Q7", options=["opt-1", "opt-2", "none"]), {"picks": ["none"]})
+        self.assertEqual(self.mine("Q7", self.ann)["picks"], ["none"])
+
+    def test_picking_another_option_clears_none_of_these(self):
+        self.pick(self.ann, "Q7", options=["none"])
+        self.assertEqual(self.pick(self.ann, "Q7", options=["none", "opt-3"]), {"picks": ["opt-3"]})
+        self.assertEqual(self.mine("Q7", self.ann)["picks"], ["opt-3"])
+
+    def test_writing_your_own_option_clears_none_of_these(self):
+        self.pick(self.ann, "Q7", options=["none"])
+        self.pick(self.ann, "Q7", options=["none", "other"], other="Apple Pay")
+        card = self.mine("Q7", self.ann)
+        self.assertEqual((card["picks"], card["text"]), (["other"], "Apple Pay"))
+
+    def test_picking_none_of_these_drops_your_own_option_and_its_text(self):
+        self.pick(self.ann, "Q7", options=["other"], other="Apple Pay")
+        self.refused("bad-field", "pick", self.ann, {"qid": "Q7", "options": ["other", "none"], "other": "Apple Pay", "view": "focus"}, http=400)
+        self.pick(self.ann, "Q7", options=["other", "none"])
+        card = self.mine("Q7", self.ann)
+        self.assertEqual((card["picks"], card["text"]), (["none"], ""))
+
+    def test_none_of_these_is_recorded_apart_from_a_pass_and_an_empty_pick(self):
+        self.pick(self.ann, "Q7", options=["none"])
+        self.act("pass_", self.bo, {"qid": "Q7"})
+        self.pick(self.cy, "Q7", options=[], comment="Not sure yet")
+        self.pick(HOST, "Q7", options=["opt-1"])
+        self.pick(HOST, "Q7", options=[])
+        people = {c["pid"]: c for c in self.s.state["cards"]["Q7"] if c["kind"] == "person"}
+        self.assertEqual(people[self.ann]["picks"], ["none"])
+        self.assertNotIn(self.ann, self.s.state.get("passes", {}).get("Q7", {}))
+        self.assertNotIn(self.bo, people)
+        self.assertIn(self.bo, self.s.state["passes"]["Q7"])
+        self.assertNotIn("picks", people[self.cy])
+        self.assertNotIn(HOST, people)  # an empty pick with no comment records nothing
+        self.act("pass_", self.cy, {"qid": "Q7"})
+        self.pick(self.cy, "Q7", options=["none"])  # None of these is an answer: it takes back the Pass
+        self.assertNotIn(self.cy, self.s.state["passes"]["Q7"])
+
+    def test_the_digest_counts_none_of_these_as_its_own_row(self):
+        # Ann Card, Bo None, Cy None with a comment, the owner passes: Card 1, None 2; 3 people.
+        self.pick(self.ann, "Q7", options=["opt-1"])
+        self.pick(self.bo, "Q7", options=["none"])
+        self.pick(self.cy, "Q7", options=["none"], comment="We pay cash")
+        self.act("pass_", HOST, {"qid": "Q7"})
+        out = self.outcome("Q7")["outcome"]
+        self.assertEqual(out["counts"], [{"option": "Card", "picks": 1}, {"option": "PayPal", "picks": 0}, {"option": "Bank transfer", "picks": 0},
+                                         {"option": "None of these", "picks": 2, "none": True}])
+        self.assertEqual((out["people"], [c["text"] for c in out["comments"]]), (3, ["We pay cash"]))
+
+    def test_state_refuses_a_none_of_these_option_off_a_multi_question(self):
+        doc = json.loads(json.dumps(self.s.state))
+        q4 = next(q for q in doc["questions"] if q["id"] == "Q4")
+        q4["format"]["options"].append(dict(session.NONE_OPTION))
+        self.assertIn("None of these", session.document_error(doc))
+
+
 class TestDisagree(FormatCase):
     def test_disagree_needs_a_reason_of_1_to_200_characters(self):
         self.refused("empty", "disagree", self.ann, {"qid": "Q5", "card": "c:rec"}, http=400)
@@ -5147,6 +5255,70 @@ class TestPrototypeVersions(SessionCase):
                 self.assertIsNotNone(session.document_error(doc))
 
 
+class TestPrototypeTiers(SessionCase):
+    """The `prototypeTiers` setting: which prototype views the session offers (screenshot, snapshot, live). Absent,
+    screenshots and HTML snapshots are on and live is off. A tier switched off leaves the stored question whole; only
+    what guests are sent changes: an image variant's asset leaves their state while screenshots are off, an html one
+    while snapshots are off, and the owner still sees both."""
+
+    OPT_PIC, REF_PIC = "1111222233334444.png", "aaaabbbbccccdddd.webp"  # not the variant's picture, so each check is its own
+
+    def setUp(self):
+        super().setUp()
+        self.ann, self.lee = self.people("Ann", "Lee")
+        self.act("set_role", HOST, {"pid": self.lee, "role": "leader"})
+        pick = {**choice_q("Q2"), "format": {"kind": "choice", "options": [{"id": "opt-1", "label": "Card", "image": self.OPT_PIC}, {"id": "opt-2", "label": "Saved"}]}}
+        self.open_round(proto_q("Q1", ("v-1", "One page", HTML), ("v-2", "Two steps", PNG)), pick, text_q("Q3", references=[{"kind": "image", "asset": self.REF_PIC}]))
+
+    def variants(self, pid):
+        return next(q for q in self.s.snapshot(pid)["questions"] if q["id"] == "Q1")["format"]["variants"]
+
+    def test_absent_means_screenshots_and_snapshots_and_stays_absent_until_the_owner_sets_it(self):
+        self.assertNotIn("prototypeTiers", self.disk()["session"]["settings"])
+        self.assertEqual(session.prototype_tiers(self.s.state["session"]["settings"]), ["screenshot", "snapshot"])
+        self.assertEqual([v.get("asset") for v in self.variants(self.ann)], [HTML, PNG])
+        out = self.act("update_settings", HOST, {"prototypeTiers": ["live", "snapshot", "screenshot"]})
+        self.assertEqual(out["settings"]["prototypeTiers"], ["screenshot", "snapshot", "live"])  # canonical order
+        self.assertEqual(self.disk()["session"]["settings"]["prototypeTiers"], ["screenshot", "snapshot", "live"])
+        self.assertEqual(self.act("update_settings", HOST, {"prototypeTiers": []})["settings"]["prototypeTiers"], [])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_tier_twice_an_unknown_tier_or_not_a_list_is_refused_and_only_the_owner_sets_it(self):
+        for bad in (["live", "live"], ["video"], "live", [1], None, {"live": True}):
+            with self.subTest(bad=bad):
+                self.refused("bad-field", "update_settings", HOST, {"prototypeTiers": bad}, http=400)
+        self.refused("owner-only", "update_settings", self.lee, {"prototypeTiers": []})
+        self.assertNotIn("prototypeTiers", self.disk()["session"]["settings"])
+
+    def test_screenshots_off_takes_picture_variants_out_of_guests_state_only(self):
+        self.act("update_settings", HOST, {"prototypeTiers": ["snapshot"]})
+        for pid in (self.ann, self.lee):
+            snap = self.s.snapshot(pid)
+            self.assertEqual(self.variants(pid), [{"id": "v-1", "label": "One page", "asset": HTML}, {"id": "v-2", "label": "Two steps"}])
+            self.assertNotIn(PNG, json.dumps(snap))
+            q2, q3 = (next(q for q in snap["questions"] if q["id"] == i) for i in ("Q2", "Q3"))
+            self.assertEqual(q2["format"]["options"][0]["image"], self.OPT_PIC)  # option pictures stay
+            self.assertEqual(q3["references"][0]["asset"], self.REF_PIC)  # and references
+        self.assertEqual([v.get("asset") for v in self.variants(HOST)], [HTML, PNG])
+        self.assertEqual(self.question("Q1")["format"]["variants"][1]["asset"], PNG)  # the record stays whole
+        self.assertFalse(self.s.asset_hidden(self.ann, PNG))  # pictures are shared with options and references
+
+    def test_snapshots_off_takes_html_variants_out_of_guests_state_and_hides_html_assets_from_them(self):
+        self.act("update_settings", HOST, {"prototypeTiers": ["screenshot"]})
+        self.assertEqual(self.variants(self.ann), [{"id": "v-1", "label": "One page"}, {"id": "v-2", "label": "Two steps", "asset": PNG}])
+        self.assertEqual([v.get("asset") for v in self.variants(HOST)], [HTML, PNG])
+        self.assertEqual([self.s.asset_hidden(p, HTML) for p in (self.ann, self.lee, HOST)], [True, True, False])
+        self.act("update_settings", HOST, {"prototypeTiers": ["screenshot", "snapshot"]})
+        self.assertFalse(self.s.asset_hidden(self.ann, HTML))
+        self.assertEqual([v.get("asset") for v in self.variants(self.ann)], [HTML, PNG])
+
+    def test_every_tier_off_leaves_the_question_and_its_picks(self):
+        self.act("update_settings", HOST, {"prototypeTiers": []})
+        self.assertEqual(self.variants(self.ann), [{"id": "v-1", "label": "One page"}, {"id": "v-2", "label": "Two steps"}])
+        self.act("pick", self.ann, {"qid": "Q1", "option": "v-2", "view": "focus"})
+        self.assertEqual([c["pick"] for c in self.s.snapshot(self.ann)["cards"]["Q1"] if c.get("pid") == self.ann], ["v-2"])
+
+
 class TestImageReferenceRect(SessionCase):
     """An image reference's rect (Reference, Contracts) is kept through open-round, the file and a reload. A verifier
     reported it gone after an open-round on 6579f21; this pins the round trip through each write path."""
@@ -5420,6 +5592,17 @@ class TestStateFromF6f1318Versions(StateFixtureCase):
         reloaded = session.Session.load(s.path, validate_writes=True)
         self.assertEqual(reloaded.state["questions"][-1]["format"]["variants"][0]["previous"], {"qid": "Q1", "variant": "v-1"})
         self.assertNotIn("previous", reloaded.state["questions"][0]["format"]["variants"][0])
+
+    def test_a_state_from_before_prototype_tiers_round_trips_byte_equal_and_shows_both_views(self):
+        raw = (FIXTURES / "state-written-f6f1318.json").read_text(encoding="utf-8")
+        s = self.load("state-written-f6f1318.json")
+        self.assertNotIn("prototypeTiers", s.state["session"]["settings"])
+        self.assertEqual(json.dumps(s.state, ensure_ascii=False) + "\n", raw)  # written back as it was read
+        guest = next(p for p in s.state["people"] if p != HOST)
+        shown = [v.get("asset") for v in s.snapshot(guest)["questions"][0]["format"]["variants"]]
+        self.assertEqual(shown, [v["asset"] for v in s.state["questions"][0]["format"]["variants"]])
+        s.update_settings(HOST, {"names": "initials"})  # another setting leaves prototypeTiers absent
+        self.assertNotIn("prototypeTiers", json.loads(s.path.read_text(encoding="utf-8"))["session"]["settings"])
 
 
 class TestStateFrom3153973(StateFixtureCase):

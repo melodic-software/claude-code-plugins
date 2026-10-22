@@ -3,6 +3,30 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.90.1] - 2026-10-22
+
+### Fixed
+
+- Shared interview page: a hovered primary button (Send, Propose, Save) now keeps its label at WCAG AA contrast (4.5:1) in every palette, accent and mode; light-mode teal measured 3.93:1 before.
+
+- `share.sh ensure-running --open` starts the 30-second clock that deletes the owner's open page only after the browser has been handed the page, so an opener that takes time to start (such as one named by `SHARED_BROWSER`) still finds it.
+
+## [0.90.0] - 2026-10-22
+
+### Changed
+
+- `/planning:interview` now passes the `tunnel_hostname` and `tunnel_token_file` options to a shared session, so a configured named tunnel starts without restating it; an unset hostname runs a quick tunnel.
+
+## [0.89.0] - 2026-10-22
+
+### Added
+
+- On the shared interview page, a pick-any question can offer "None of these": Claude asks for it with `none: true` on a `multi` format, the server adds the option and refuses a Claude-written one, it excludes every other pick (picking it clears them, picking another clears it), and the digest counts it as its own row, apart from a Pass or an empty pick.
+
+### Fixed
+
+- `/planning:interview` page protocol (`surface.md`) now points at `lane-page.md` for the page start command and the "Question surface: the page" rule, which moved out of `SKILL.md`.
+
 ## [0.88.2] - 2026-10-22
 
 ### Removed
