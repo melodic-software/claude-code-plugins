@@ -1472,15 +1472,25 @@ const CANCELLED_AT_PICK_SLOT = [
   { name: "report-outcome", conclusion: "skipped", steps: [] },
 ];
 
-// resolve-issue's slot queue keeps at most 100 waiting; GitHub cancels the rest
-// before they get a runner, so no step ran.
+// A resolve-issue job cancelled while it waited for its slot never got a
+// runner: run 39106011628's `resolve-issue / run` has started_at set, runner_id
+// 0 and no steps. resolve-issue calls pr-run-activity-read.yml, whose jobs
+// are broker-check (`Ask the broker whether the lane may run`) and run.
+const ADMITTED = { name: "admit", conclusion: "success", runner_id: 11, steps: [{ name: "Check the trigger", conclusion: "success" }] };
 const CANCELLED_IN_SLOT_QUEUE = [
-  { name: "admit", conclusion: "success", steps: [] },
+  ADMITTED,
   pickSlot,
-  { name: "resolve-issue / run", conclusion: "cancelled", steps: [] },
+  { name: "resolve-issue / run", conclusion: "cancelled", started_at: "2026-10-16T10:01:00Z", runner_id: 0, steps: [] },
 ];
+const BROKER_ALLOWED = {
+  name: "resolve-issue / broker-check",
+  conclusion: "success",
+  started_at: "2026-10-16T10:01:00Z",
+  runner_id: 12,
+  steps: [{ name: "Ask the broker whether the lane may run", conclusion: "success" }],
+};
 
-test("a run cancelled before its lane token mint is re-fired like a failed run, once per version of the lane workflow files", async () => {
+test("a run cancelled before resolve-issue started is re-fired like a failed run, once per version of the lane workflow files", async () => {
   for (const [name, jobs] of [
     ["at pick-slot", CANCELLED_AT_PICK_SLOT],
     ["in the slot queue", CANCELLED_IN_SLOT_QUEUE],
@@ -1504,14 +1514,28 @@ test("a run cancelled before its lane token mint is re-fired like a failed run, 
   assert.deepEqual(writes(again.calls), []);
 });
 
-test("a cancelled run admit did not pass, one that minted its token, or a held issue's, is not re-fired", async () => {
-  const modelRun = { name: "resolve-issue / run", conclusion: "cancelled", steps: [{ name: "Request the lane token", conclusion: "success" }] };
+test("a cancelled run admit did not pass, one whose resolve-issue started, or a held issue's, is not re-fired", async () => {
+  // The broker allowed the run and the model started before the cancel.
+  const modelRun = {
+    name: "resolve-issue / run",
+    conclusion: "cancelled",
+    started_at: "2026-10-16T10:02:00Z",
+    runner_id: 13,
+    steps: [
+      { name: "Set up job", conclusion: "success" },
+      { name: "Run the skill activity", conclusion: "cancelled" },
+    ],
+  };
+  // A runner took the job, but the listing carries no steps.
+  const stepless = { name: "resolve-issue / run", conclusion: "cancelled", started_at: "2026-10-16T10:02:00Z", runner_id: 14 };
   for (const [name, jobs, labels] of [
     // A newer agent-ready run for the issue replaced this one while it waited
     // in the workflow's concurrency group, so none of its jobs ran.
     ["superseded before any job ran", [], []],
     ["superseded with its jobs cancelled unstarted", [{ name: "admit", conclusion: "cancelled", steps: [] }, { name: "pick-slot", conclusion: "cancelled", steps: [] }], []],
-    ["cancelled after its mint", [CANCELLED_IN_SLOT_QUEUE[0], pickSlot, modelRun], []],
+    ["cancelled after the broker allowed it and the model started", [ADMITTED, pickSlot, BROKER_ALLOWED, modelRun], []],
+    ["cancelled on a runner with no steps listed", [ADMITTED, pickSlot, BROKER_ALLOWED, stepless], []],
+    ["cancelled while waiting, after its broker check ran", [ADMITTED, pickSlot, BROKER_ALLOWED, CANCELLED_IN_SLOT_QUEUE[2]], []],
     ["cancelled at pick-slot on a held issue", CANCELLED_AT_PICK_SLOT, ["needs-owner-decision"]],
   ]) {
     const fake = world({
@@ -1525,6 +1549,34 @@ test("a cancelled run admit did not pass, one that minted its token, or a held i
     assert.equal(await sweep({ github: fake.github, actions: fake.github }), 0, name);
     assert.deepEqual(writes(fake.calls), [], name);
   }
+});
+
+// The job ids and step names the sweep matches in a run's job listing. A job a
+// reusable workflow runs is listed as `<caller job id> / <called job id>` when
+// the called job sets no name.
+test("the job ids and step names the sweep matches exist in the lane workflows", () => {
+  const workflow = (name) => readFileSync(join(HERE, "../../workflows", name), "utf8");
+  const jobs = (text) => {
+    const body = text.split("\njobs:\n")[1];
+    const ids = [...body.matchAll(/^ {2}([a-z][a-z-]*):$/gm)].map((m) => m[1]);
+    return Object.fromEntries(ids.map((id, i) => [id, body.split(/^ {2}[a-z][a-z-]*:$/m)[i + 1]]));
+  };
+  const steps = (block) => [...block.matchAll(/^ {6}- name: (.+)$/gm)].map((m) => m[1]);
+  const caller = jobs(workflow("work-resolve-issue.yml"));
+  for (const id of ["admit", "pick-slot", "resolve-issue"]) {
+    assert.ok(caller[id] !== undefined, id);
+  }
+  assert.ok(steps(caller["pick-slot"]).includes("Check the WIP cap"));
+  assert.match(caller["resolve-issue"], /^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/m);
+  const read = jobs(workflow("pr-run-activity-read.yml"));
+  assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));
+  assert.ok(read.run !== undefined);
+  for (const id of ["broker-check", "run"]) {
+    assert.doesNotMatch(read[id], /^ {4}name:/m, `read runner job ${id} keeps its id as its name`);
+  }
+  // The write runner mints; the read runner resolve-issue calls never does.
+  assert.ok(Object.values(jobs(workflow("pr-run-activity-write.yml"))).some((block) => steps(block).includes("Request the lane token")));
+  assert.ok(!Object.values(read).some((block) => steps(block).includes("Request the lane token")));
 });
 
 test("re-fires of runs that did no work share the restarts-per-run cap", async () => {

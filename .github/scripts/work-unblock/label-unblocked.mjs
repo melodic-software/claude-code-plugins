@@ -38,8 +38,8 @@
 // work-resolve-issue run (the one its newest agent-ready label started, by a
 // listed human or the App) failed with no lanes-App outcome marker since: a
 // crash before the report, a rerun the token broker refused as
-// workflow-modified, or a run cancelled after admit passed and before any job
-// minted a lane token (pick-slot's timeout, a slot queue past GitHub's limit).
+// workflow-modified, or a run cancelled after admit passed and before any
+// resolve-issue job started (pick-slot's timeout, a slot queue past GitHub's limit).
 // A run a newer agent-ready run replaced while it waited is never re-fired:
 // admit never ran in it. A rerun keeps its first event's workflow files, so only a
 // fresh label event runs on main's. Each issue is re-fired at most once per
@@ -521,12 +521,17 @@ async function didNoWork(actions, repo, runs) {
   return stalled;
 }
 
-// Whether one of `runs` was cancelled after admit passed and before any job
-// minted a lane token: pick-slot cancelled (its timeout, or a person), or
-// resolve-issue cancelled while it waited for its slot (GitHub cancels a slot
-// queue past its limit). A run a newer agent-ready run replaced in the
-// workflow's concurrency group was cancelled while it waited, before admit
-// ran, so it never counts.
+// A job that never ran on a runner: skipped, or no step ran and no runner took
+// it. A job listing with no steps for a job a runner took is not one.
+const neverStarted = (job) =>
+  job?.conclusion === "skipped" || ((job?.steps ?? []).every((step) => step?.conclusion === "skipped") && (!job?.runner_id || !job?.started_at));
+
+// Whether one of `runs` was cancelled after admit passed and before any
+// resolve-issue job (pr-run-activity-read.yml's broker-check and run) started:
+// pick-slot cancelled (its timeout, or a person), or resolve-issue cancelled
+// while it waited for its slot (GitHub cancels a slot queue past its limit).
+// A run a newer agent-ready run replaced in the workflow's concurrency group
+// was cancelled while it waited, before admit ran, so it never counts.
 async function cancelledBeforeWork(actions, repo, runs) {
   for (const run of runs.filter((item) => item.conclusion === "cancelled" && RUN_ID.test(String(item.id)))) {
     const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
@@ -534,11 +539,11 @@ async function cancelledBeforeWork(actions, repo, runs) {
       throw new Error(`run ${run.id}'s job listing has an unexpected shape`);
     }
     const named = (name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
-    const minted = jobs.some((job) => (job?.steps ?? []).some((step) => step?.name === MINT_STEP && step.conclusion === "success"));
+    const resolve = named("resolve-issue");
     if (
       named("admit").some((job) => job.conclusion === "success") &&
-      !minted &&
-      [...named("pick-slot"), ...named("resolve-issue")].some((job) => job.conclusion === "cancelled")
+      resolve.every(neverStarted) &&
+      [...named("pick-slot"), ...resolve].some((job) => job.conclusion === "cancelled")
     ) {
       return true;
     }

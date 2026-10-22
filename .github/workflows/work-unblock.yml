@@ -30,7 +30,7 @@ name: work-unblock
 # report: a crash, a rerun the token broker refused as workflow-modified
 # (a rerun keeps its first event's workflow files), or a run that waited in
 # its slot past a lane workflow change and stopped as workflow-stale, or a run
-# cancelled after admit and before its lane token mint (pick-slot's timeout); a
+# cancelled after admit and before resolve-issue started (pick-slot's timeout); a
 # run a newer agent-ready run replaced is not. It does that once per issue
 # per version of the lane's two workflow files on main, recorded in a comment.
 # When that run opened a lanes-App PR instead, and the PR merged with `Refs:`
