@@ -314,7 +314,12 @@ SETTING_VALUES = {
     "names": ("full", "initials", "someone"),
     "claudeTake": ("answerFirst", "always"),
 }
-THEME_VALUES = {"mode": ("system", "light", "dark"), "accent": ("teal", "indigo", "violet", "amber")}
+# palette is optional: absent is "default", so a theme written before palettes loads and is written back as it was.
+THEME_VALUES = {
+    "mode": ("system", "light", "dark"),
+    "accent": ("teal", "indigo", "violet", "amber"),
+    "palette": ("default", "midnight", "slate", "paper", "contrast"),
+}
 
 
 def _is_int(v):
@@ -329,6 +334,7 @@ PREFS = {
     "expandedRounds": lambda v: isinstance(v, list) and len(v) <= 100 and all(_is_int(n) and 1 <= n <= 9999 for n in v),
     "theme": lambda v: v in THEME_VALUES["mode"],
     "accent": lambda v: v in THEME_VALUES["accent"],
+    "palette": lambda v: v in THEME_VALUES["palette"],
     "follow": lambda v: isinstance(v, bool),
     "mute": lambda v: isinstance(v, list) and len(v) <= len(NOTIFY_KINDS) and all(k in NOTIFY_KINDS for k in v),
     "tour": lambda v: v in ("done", "skipped"),
@@ -587,6 +593,11 @@ write_private = detached.write_private
 def _edited(card):
     """The digest's mark on an answer the owner edited: it carries the current text."""
     return {"edited": True} if "edited" in card else {}
+
+
+def _files(card):
+    """The digest's list of the uploads an answer carries, so one with no text still says what it holds."""
+    return {"attachments": list(card["attachments"])} if "attachments" in card else {}
 
 
 def card_ref(card):
@@ -2773,7 +2784,8 @@ class Session:
             return {"pass": on}
 
     def answer(self, pid, body):
-        """POST /api/answer: write, edit or (with empty text) clear one's own answer card."""
+        """POST /api/answer: write, edit or clear one's own answer card. Empty text with `attachments` saves a
+        picture-only card; empty text with `attachments` left out or empty clears the card."""
         text = _text(body, "text", empty_ok=True)
         view = _choice(body, "view", VIEWS)
         info = _device_info(body.get("deviceInfo"))
@@ -2801,7 +2813,7 @@ class Session:
                 published = {r["id"] for r in st["results"].get(qid, []) if self._result_shown(r)}
                 if any(c not in published for c in cites):
                     raise _bad("cites", "cites must name results shown on this question.")
-            if not text:
+            if not text and not _body(body).get("attachments"):
                 if mine:
                     self._clear_card(qid, mine)
                 ref = None
@@ -2814,7 +2826,7 @@ class Session:
                     votes = len(self._votes_on(qid, card_ref(mine)))
                     if mine.get("editedAfterVotes"):
                         card["editedAfterVotes"] = mine["editedAfterVotes"]
-                    if votes and old_text != text:
+                    if votes and (old_text != text or mine.get("attachments") != card.get("attachments")):
                         card["editedAfterVotes"] = votes
                 if info or (mine and mine.get("deviceInfo")):
                     card["deviceInfo"] = info or mine["deviceInfo"]
@@ -3018,7 +3030,7 @@ class Session:
                 moved = votes.get(pid) not in (None, ref)
                 if q["format"]["kind"] == "choice":  # one pick: backing someone's own option moves it
                     for mine in [c for c in st["cards"][qid] if c["kind"] == "person" and c["pid"] == pid]:
-                        if self._is_other(mine) or not mine["text"]:
+                        if self._is_other(mine) or not (mine["text"] or "attachments" in mine):
                             self._clear_card(qid, mine)
                         else:
                             mine.pop("pick", None)
@@ -3298,7 +3310,7 @@ class Session:
             text = self._card_text(q, target)
             card = self._card(qid, target)
             edited = {"editedBy": HOST} if "edited" in card else {}  # the locked text is the owner's, not its author's
-            st["locks"][qid] = {"at": now, "by": pid, "source": {"kind": "card", "card": target, "text": text, **edited}}
+            st["locks"][qid] = {"at": now, "by": pid, "source": {"kind": "card", "card": target, "text": text, **_files(card), **edited}}
             flagged = self._lock_changed(q, text)
             return {"text": text, "flagged": flagged}
 
@@ -4297,12 +4309,29 @@ class Session:
         return min(CHUNK_SIZE, u["size"] - index * CHUNK_SIZE)
 
     def _detach(self, uid):
-        """Take an upload off every answer, message, request, suggestion, proposal and comment that carries it."""
+        """Take an upload off every answer, message, request, suggestion, proposal and comment that carries it. An
+        answer left with no text, pick or file is cleared, as its author's empty answer would be, while its question
+        still takes answers; on a locked question or a round sent to Claude it stays, as answer() would keep it."""
+        emptied = set()
         for _, c in _attaching(self.state):
             if uid in c.get("attachments", []):
                 c["attachments"].remove(uid)
                 if not c["attachments"]:
                     c.pop("attachments")
+                    emptied.add(id(c))
+        for lk in self.state["locks"].values():  # a lock keeps its answer's files only while they last
+            src = lk["source"]
+            if uid in src.get("attachments", []):
+                src["attachments"].remove(uid)
+                if not src["attachments"]:
+                    src.pop("attachments")
+        for qid, cards in self.state["cards"].items():
+            for c in [c for c in cards if id(c) in emptied and not c["text"] and not {"pick", "picks", "value", "order"} & c.keys()]:
+                try:
+                    self._answerable(self._question(qid))
+                except DomainError:
+                    continue
+                self._clear_card(qid, c)
 
     def _touch_carriers(self, uid):
         """An upload changed how it shows: chat messages carrying it are touched, so a page holding older ones reads
@@ -5151,7 +5180,7 @@ class Session:
         for q in st["questions"]:
             for c in st["cards"].get(q["id"], []):
                 if c["kind"] == "person" and c.get("late") and c["at"] > prev and self._shown(c):
-                    late.append({"id": q["id"], "round": c["late"]["round"], "text": self._said(q, c), **by(c["pid"]), **_edited(c)})
+                    late.append({"id": q["id"], "round": c["late"]["round"], "text": self._said(q, c), **_files(c), **by(c["pid"]), **_edited(c)})
             for pid, mark in st.get("lateActs", {}).get(q["id"], {}).items():
                 if mark["at"] > prev and self._active(pid):
                     late += [{"id": q["id"], "round": mark["round"], **act, **by(pid)} for act in self._late_acts(q, pid)]
@@ -5217,17 +5246,23 @@ class Session:
             return labels[str(c["value"])]
         return labels.get(c.get("pick"), "")
 
+    def _named(self, q, ref):
+        """How the digest names the answer `ref` of q: its text, and its files, so an answer of pictures alone is
+        still told apart; None when that answer is gone."""
+        try:
+            return {"text": self._card_text(q, ref), **_files(self._card(q["id"], ref))}
+        except DomainError:
+            return None
+
     def _digest_disagreements(self, q, by):
         """Who disagreed with which answer of q and why, while that answer and its disagreer remain."""
         out = []
         for d in self.state.get("disagreements", {}).get(q["id"], []):
             if not self._active(d["pid"]):
                 continue
-            try:
-                text = self._card_text(q, d["card"])
-            except DomainError:
-                continue
-            out.append({"text": text, "reason": d["reason"], **by(d["pid"])})
+            named = self._named(q, d["card"])
+            if named is not None:
+                out.append({**named, "reason": d["reason"], **by(d["pid"])})
         return out
 
     def _digest_turns(self, q, by):
@@ -5256,19 +5291,16 @@ class Session:
         st, qid, out = self.state, q["id"], []
 
         def about(ref):
-            try:
-                return self._card_text(q, ref)
-            except DomainError:
-                return None
+            return self._named(q, ref)
 
         ref = st["votes"].get(qid, {}).get(pid)
         if ref and not ref.startswith("o:") and about(ref) is not None:
-            out.append({"act": "vote", "text": about(ref)})
-        out += [{"act": "back", "text": about(r)} for r in st.get("backs", {}).get(qid, {}).get(pid, []) if about(r) is not None]
+            out.append({"act": "vote", **about(ref)})
+        out += [{"act": "back", **about(r)} for r in st.get("backs", {}).get(qid, {}).get(pid, []) if about(r) is not None]
         for r, held in st["reactions"].get(qid, {}).items():
             if pid in held and about(r) is not None:
-                out.append({"act": "reaction", "text": about(r), "reactions": list(held[pid])})
-        out += [{"act": "disagree", "text": about(d["card"]), "reason": d["reason"]} for d in st.get("disagreements", {}).get(qid, []) if d["pid"] == pid and about(d["card"]) is not None]
+                out.append({"act": "reaction", **about(r), "reactions": list(held[pid])})
+        out += [{"act": "disagree", **about(d["card"]), "reason": d["reason"]} for d in st.get("disagreements", {}).get(qid, []) if d["pid"] == pid and about(d["card"]) is not None]
         mine = st.get("passes", {}).get(qid, {}).get(pid)
         if mine is not None:
             out.append({"act": "pass", "text": "", **({"reason": mine["reason"]} if "reason" in mine else {})})
@@ -5305,7 +5337,7 @@ class Session:
             return {"kind": "poll", "closed": lk is not None, "counts": counts}
         if lk:
             src = lk["source"]
-            out = {"kind": "locked", "text": src["text"]}
+            out = {"kind": "locked", "text": src["text"], **_files(src)}
             if src["kind"] == "card":
                 ref = src["card"]
                 out["source"] = {"p": "person", "o": "option"}.get(ref[0]) or ("claude-rec" if ref == "c:rec" else "claude-alt")
@@ -5329,10 +5361,10 @@ class Session:
             labels = self._options(q)  # multi, scale and rank report through _format_outcome, so a pick is one option
             for c in people:
                 picked = labels.get(c.get("pick"))
-                if c["text"] or picked:
+                if c["text"] or picked or "attachments" in c:
                     ref = card_ref(c)
                     endorsers = [st["people"][v]["name"] for v, held in st["reactions"].get(qid, {}).get(ref, {}).items() if v in active and ENDORSING & set(held)]
-                    answers.append({"text": c["text"], **({"picked": picked} if picked else {}), "reactions": self._reaction_counts(qid, ref, active), "endorsedBy": endorsers if names else len(endorsers), **by(c["pid"]), **_edited(c)})
+                    answers.append({"text": c["text"], **({"picked": picked} if picked else {}), **_files(c), "reactions": self._reaction_counts(qid, ref, active), "endorsedBy": endorsers if names else len(endorsers), **by(c["pid"]), **_edited(c)})
             return {"kind": "gathered", "answers": answers} if answers else {"kind": "unanswered"}
         tally = self._tally(qid)
         ranked = []
@@ -5349,7 +5381,7 @@ class Session:
             entry = {"text": self._card_text(q, ref), "votes": tally[ref], "source": source}
             if self._is_other(c):
                 entry["other"] = True
-            ranked.append(((-tally[ref], ref != "c:rec", c.get("at", 0.0), i), {**entry, **(by(c["pid"]) if c["kind"] == "person" else {}), **_edited(c)}))
+            ranked.append(((-tally[ref], ref != "c:rec", c.get("at", 0.0), i), {**entry, **_files(c), **(by(c["pid"]) if c["kind"] == "person" else {}), **_edited(c)}))
         if not ranked:
             return {"kind": "unanswered"}
         ranked.sort(key=lambda pair: pair[0])
@@ -6170,7 +6202,8 @@ def _settings_patch(settings, patch):
             raise _bad(k, f"{k} is not a setting.")
         if k == "theme":
             if not isinstance(v, dict) or set(v) - set(THEME_VALUES) or any(v[t] not in THEME_VALUES[t] for t in v):
-                raise _bad("theme", "theme takes mode (system, light, dark) and accent (teal, indigo, violet, amber).")
+                raise _bad("theme", "theme takes mode (" + ", ".join(THEME_VALUES["mode"]) + "), accent (" + ", ".join(THEME_VALUES["accent"])
+                           + ") and palette (" + ", ".join(THEME_VALUES["palette"]) + ").")
         elif k == "guestPopups":
             if not isinstance(v, list) or any(x not in GUEST_POPUPS for x in v) or len(set(v)) != len(v):
                 raise _bad(k, f"guestPopups is a list of {', '.join(GUEST_POPUPS)}, each at most once.")

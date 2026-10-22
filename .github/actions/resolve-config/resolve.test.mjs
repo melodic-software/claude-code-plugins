@@ -141,7 +141,7 @@ test("rejection 3: a gate activity in pr-explain is rejected", () => {
 
 test("rejection 3: a merge effect outside pr-merge is rejected in a lane the run did not ask for", () => {
   const config = edited((doc) => {
-    doc.activities["fix-docs"].effect = "merge";
+    doc.activities["fix-prose"].effect = "merge";
   });
   assertRejected(() => run(config), "forbidden-by-lane");
 });
@@ -221,7 +221,7 @@ test("rejection 7: a requested lane the config lacks is rejected", () => {
 
 test("rejection 7: a requested activity the lane has no slot for is rejected", () => {
   assertRejected(
-    () => run(fixture("valid.yaml"), { activity: "fix-docs" }),
+    () => run(fixture("valid.yaml"), { activity: "fix-prose" }),
     "undefined-activity",
   );
 });
@@ -350,8 +350,8 @@ const LIMITS = {
   // The fix-ci defaults the owner chose (2026-10-18 interview).
   "fix-ci-per-run": 2,
   "fix-ci-restarts": 1,
-  // The admission window the owner chose (Q17/Q22, 2026-10-19).
-  "admission-window-hours": 24,
+  "fix-docs-per-run": 2,
+  // The queued cap's pace the owner chose (2026-10-19).
   "admission-factor": 0.8,
   // The release-point floor the owner chose (2026-10-21 interview).
   "admission-min-per-hour": 1,
@@ -363,13 +363,13 @@ test("limits: a config with no limits leaf resolves today's thirteen values", ()
 
 test("limits: a set leaf overrides its default and leaves the others", () => {
   const config = edited((doc) => {
-    doc.limits = { "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1 };
+    doc.limits = { "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1, "admission-factor": 0.5 };
   });
-  assert.deepEqual(run(config).limits, { ...LIMITS, "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1 });
+  assert.deepEqual(run(config).limits, { ...LIMITS, "fallback-reset": 2, "limit-stops-per-issue": 4, "turn-cap-restarts": 1, "admission-factor": 0.5 });
 });
 
 test("limits: an unknown key, a value that is not an integer, or one out of its range is rejected", () => {
-  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }, { "turn-cap-restarts": -1 }, { "turn-cap-restarts": 6 }, { "fix-ci-per-run": 0 }, { "fix-ci-per-run": 21 }, { "fix-ci-restarts": -1 }, { "fix-ci-restarts": 6 }, { "admission-window-hours": 0 }, { "admission-window-hours": 721 }, { "admission-factor": 0 }, { "admission-factor": 1.1 }, { "admission-min-per-hour": -1 }, { "admission-min-per-hour": 101 }]) {
+  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }, { "turn-cap-restarts": -1 }, { "turn-cap-restarts": 6 }, { "fix-ci-per-run": 0 }, { "fix-ci-per-run": 21 }, { "fix-ci-restarts": -1 }, { "fix-ci-restarts": 6 }, { "fix-docs-per-run": 0 }, { "fix-docs-per-run": 21 }, { "admission-window-hours": 24 }, { "admission-factor": 0 }, { "admission-factor": 1.1 }, { "admission-min-per-hour": -1 }, { "admission-min-per-hour": 101 }]) {
     const config = edited((doc) => {
       doc.limits = limits;
     });
@@ -679,7 +679,7 @@ test("resolveGrant returns the selected slot's effect and grant", () => {
     grant: READ_GRANT,
   });
   assert.deepEqual(
-    grantOf(fixture("valid.yaml"), { lane: "pr-refine", activity: "fix-docs" }),
+    grantOf(fixture("valid.yaml"), { lane: "pr-refine", activity: "fix-prose" }),
     {
       effect: "mutate-branch",
       grant: { contents: "write", "pull-requests": "read", issues: "read" },
@@ -727,7 +727,7 @@ test("resolveGrant rejects an unknown lane", () => {
 
 test("resolveGrant rejects an activity outside the lane, or none", () => {
   assertRejected(
-    () => grantOf(fixture("valid.yaml"), { activity: "fix-docs" }),
+    () => grantOf(fixture("valid.yaml"), { activity: "fix-prose" }),
     "undefined-activity",
   );
   for (const activity of [undefined, ""]) {
@@ -845,8 +845,8 @@ const CODEOWNERS = `# owned and unowned entries
 
 const withChangedPaths = (edit = () => {}) =>
   edited((doc) => {
-    doc.activities["fix-docs"].inputs = ["changed-paths"];
-    doc.activities["fix-docs"]["applies-when"] = { paths: ["**/*.md"] };
+    doc.activities["fix-prose"].inputs = ["changed-paths"];
+    doc.activities["fix-prose"]["applies-when"] = { paths: ["**/*.md"] };
     edit(doc);
   });
 
@@ -855,7 +855,7 @@ const targetsOf = (changedTargets, config = withChangedPaths()) =>
     config,
     {
       lane: "pr-refine",
-      activity: "fix-docs",
+      activity: "fix-prose",
       facts: { ...FACTS, changedPaths: changedTargets, changedTargets },
     },
     { codeowners: CODEOWNERS },
@@ -909,7 +909,7 @@ test("changed-paths with nothing left skips the activity as not-applicable-paths
 
 test("a read activity's changed-paths keeps instruction surfaces and owned paths", () => {
   const config = withChangedPaths((doc) => {
-    doc.activities["fix-docs"].effect = "read";
+    doc.activities["fix-prose"].effect = "read";
   });
   assert.deepEqual(
     targetsOf(["CLAUDE.md", "plugins/ai-slop/README.md"], config)[
@@ -921,12 +921,12 @@ test("a read activity's changed-paths keeps instruction surfaces and owned paths
 
 test("an activity with the changed-paths input needs the changed files even without a paths predicate", () => {
   const config = edited((doc) => {
-    doc.activities["fix-docs"].inputs = ["changed-paths"];
+    doc.activities["fix-prose"].inputs = ["changed-paths"];
   });
   assert.deepEqual(
     neededFacts(files(config), {
       lane: "pr-refine",
-      activity: "fix-docs",
+      activity: "fix-prose",
       configPath: CONFIG_PATH,
     }),
     ["changedPaths"],
@@ -1494,7 +1494,7 @@ function resolveEveryExampleSlot(vocabulary) {
 
 test("the README example validates and resolves for each of its lanes", () => {
   const results = resolveEveryExampleSlot(VOCABULARY);
-  assert.equal(Object.keys(results).length, 14);
+  assert.equal(Object.keys(results).length, 15);
   // The example's models block routes claude to review and leaves the rest
   // on default-profile standard.
   assert.deepEqual(results["pr-review / claude"].models, {
@@ -1504,10 +1504,10 @@ test("the README example validates and resolves for each of its lanes", () => {
     "subagent-model": "inherit",
     "max-turns": 100,
   });
-  assert.equal(results["pr-refine / fix-docs"].models.profile, "standard");
+  assert.equal(results["pr-unblock / fix-docs"].models.profile, "standard");
   assert.equal(results["pr-require-checks / require-checks"].models, null);
-  assert.equal(results["pr-refine / fix-docs"].applies, true);
-  assert.deepEqual(results["pr-refine / fix-docs"]["changed-paths"], [
+  assert.equal(results["pr-unblock / fix-docs"].applies, true);
+  assert.deepEqual(results["pr-unblock / fix-docs"]["changed-paths"], [
     "README.md",
   ]);
   const resolveConflicts = results["pr-unblock / resolve-conflicts"];
@@ -1543,7 +1543,7 @@ test("integration: the README example resolves against the synced standards voca
   const results = resolveEveryExampleSlot(
     JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")),
   );
-  assert.equal(Object.keys(results).length, 14);
+  assert.equal(Object.keys(results).length, 15);
 });
 
 // applied-by: a read skill names the script activity that applies each thing

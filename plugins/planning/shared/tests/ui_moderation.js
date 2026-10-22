@@ -12,7 +12,7 @@
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from PLAN.md Phase 4c and the texts this suite writes, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs } = require("./browser_harness");
 
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
 const GOAL = "Pick the offsite venue";
@@ -56,6 +56,7 @@ async function main() {
     const onIt = await until(pia, () => [...document.querySelectorAll(":is(.vf-onit, .vf-qonit) .core-avatar")].filter(a => a.offsetParent).length === 2);
     ok("phone: the owner and Gus show as on the question", onIt);
     // The fold is the bottom of the scrolling question pane (the tab bar sits under it).
+    const foldStill = await settled(pia, { rects: true });
     const fold = await pia.evaluate(() => {
       const end = document.querySelector(".vf-scroll").getBoundingClientRect().bottom;
       const at = (sel, whole) => { const el = document.querySelector(sel); if (!el || !el.offsetParent) return `${sel} not shown`; const r = el.getBoundingClientRect(); return r.top >= 0 && (whole ? r.bottom : r.top) < end ? "" : `${sel} at ${r.top.toFixed(0)}-${r.bottom.toFixed(0)}, fold ${end.toFixed(0)}`; };
@@ -64,7 +65,7 @@ async function main() {
         card.height <= innerHeight * 0.15 ? "" : `the card is ${card.height.toFixed(0)} px tall`].filter(Boolean);
     });
     ok("phone 390x844: the card takes at most 15% of the screen; the goal, the ask, Start here and Something else… show whole, and the answer box starts above the fold",
-      first && fold.length === 0, fold.join("; "));
+      first && foldStill && fold.length === 0, (foldStill ? "" : "not settled; ") + fold.join("; "));
     ok("phone: the intro folds behind its toggle", await until(pia, () => document.querySelector(".vf-orient-why").hidden && !document.querySelector(".vf-orient-whybtn").hidden
       && document.querySelector(".vf-orient-whybtn").getAttribute("aria-expanded") === "false"));
     await pia.locator(".vf-orient-whybtn").tap();

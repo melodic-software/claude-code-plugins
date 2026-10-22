@@ -9,7 +9,8 @@ ReadState closed set and the unmuted severity fold.
 A FindingKey names one listed item across runs so the owner can mute it:
 <kind>:<first 16 hex of SHA-256(lower(kind + "|" + identity fields joined by "|"))>.
 The kind list and each kind's identity fields are one-way; changing either
-orphans every stored mute in state/mutes.json.
+orphans every stored mute in state/mutes.json. A process key's identity is
+the lowercased image file name (msedge.exe), never the process id.
 
 A check receives its muted keys as a -MutedKeys string[] argument; it never
 reads mutes.json. A muted item stays in detail.items[] with muted = $true and
@@ -30,7 +31,7 @@ function Get-FindingKey {
     param(
         [Parameter(Mandatory = $true)]
         [ValidateSet('startup', 'task', 'folder', 'app', 'ext', 'listener', 'exclusion', 'detection', 'firewall',
-            IgnoreCase = $false)]
+            'process', IgnoreCase = $false)]
         [string] $Kind,
         [Parameter(Mandatory = $true)] [ValidateNotNullOrEmpty()] [string[]] $Identity
     )

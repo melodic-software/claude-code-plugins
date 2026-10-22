@@ -27,7 +27,9 @@ name: intake-reenter
 # allowlisted labels, posts with mentions broken, and never adds
 # `agent-ready`.
 on:
-  issue_comment:
+  # Runs from the default branch; the job's `if` drops PR, bot and App
+  # comments, and only the issue and comment numbers reach the script.
+  issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created]
 
 permissions: {}

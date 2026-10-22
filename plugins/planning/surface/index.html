@@ -144,7 +144,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .qbody{min-width:0;display:flex;flex-direction:column;gap:2px}
 .qtitle{font-size:13.5px;line-height:1.35}
 .qmeta{display:flex;gap:5px;align-items:center;flex-wrap:wrap;min-width:0}
-.qmeta .chip{white-space:normal;overflow-wrap:anywhere;line-height:1.3;max-width:100%}
+.qmeta .chip{white-space:normal;overflow-wrap:break-word;line-height:1.3;max-width:100%} /* break-word keeps an id whole; only a token wider than the chip itself breaks */
 .needs{font:11.5px var(--mono);color:var(--faint);display:flex;gap:4px;align-items:center}
 .needs::before{content:"";width:9px;height:8px;border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;margin-top:-5px}
 .needs.unmet{color:var(--chg)}
@@ -201,7 +201,7 @@ main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8
 .links{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
 .links span{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 .ref{display:inline-flex;gap:5px;align-items:baseline;border:1px solid var(--line-strong);background:var(--ground);border-radius:4px;padding:1px 6px;font:13px var(--sans);cursor:pointer;color:var(--ink)}
-.ref b{font:600 12px var(--mono)}
+.ref b{font:600 12px var(--mono);flex:none;white-space:nowrap;overflow-wrap:normal;word-break:normal} /* an id never splits, whatever wraps around it */
 .rrange{display:inline-flex;align-items:baseline;gap:3px;white-space:nowrap;border:1px solid var(--line-strong);background:var(--ground);border-radius:4px;padding:0 3px}
 .rrange .ref{border:0;background:none;padding:1px 3px}
 .rrange .ref:hover{border:0;text-decoration:underline}
@@ -363,11 +363,12 @@ aside.fly.open{display:grid;position:absolute;top:0;right:calc(var(--strip-w) + 
 .fsstage .md{background:var(--panel);padding:24px;max-width:90ch;margin:0 auto}
 
 .done-h{font:600 24px/1.2 var(--display);margin:0}
-.sumwrap{overflow-x:auto}
-table.sum{border-collapse:collapse;width:100%;max-width:90ch;font-size:13.5px;overflow-wrap:normal}
+.sumwrap{overflow-x:auto;max-width:100%;min-width:0}
+table.sum{border-collapse:collapse;width:100%;max-width:90ch;font-size:13.5px}
+table.sum,table.sum *{overflow-wrap:normal;word-break:normal} /* cells wrap at word boundaries; a token too long for its cell scrolls .sumwrap */
 table.sum .ref b{flex:none;white-space:nowrap}
 table.sum td.dec,table.sum th{white-space:nowrap}
-table.sum td .kbd{display:block;overflow-wrap:break-word}
+table.sum td .kbd{display:block}
 #restate h5{font:600 16px var(--sans);margin:.8em 0 .3em}
 #sumRest{display:grid;gap:var(--gap)}
 table.sum th,table.sum td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -397,8 +398,17 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   .agrid{grid-template-rows:none;flex:none}
   .choices{overflow:visible}
   h1{font-size:20px;margin-top:2px}
+  .app{gap:8px;padding:10px 12px 12px}
   header.top{gap:4px;padding-bottom:4px}
+  .hrow{gap:4px 12px}
+  .hright{justify-content:flex-start;gap:6px 10px}
+  .bar{width:80px}
+  .hrow2{min-height:0;gap:4px 8px}
   .cline{white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
+  .cline:not(.wline){display:flex;align-items:flex-start;overflow:hidden}
+  .cline:not(.wline) #clText{min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;text-overflow:ellipsis}
+  .cline:not(.wline) .age{flex:none} /* only the text is clamped, so the age stays inline beside it; the full line is in Activity; two lines keep the question title on the first screen */
+  .cline[hidden]{display:none}
   button.act,.choice{min-height:44px}
   .notice{max-width:100%}
   aside.fly.open{position:fixed;inset:0;width:auto;border-radius:0}

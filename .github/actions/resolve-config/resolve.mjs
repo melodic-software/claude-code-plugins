@@ -861,6 +861,7 @@ function resolveSlot(
     ...(activity["self-checks"] === undefined ? {} : { "self-checks": activity["self-checks"] }),
     ...(activity["verify-scripts"] === undefined ? {} : { "verify-scripts": activity["verify-scripts"] }),
     ...(activity["web-access"] === undefined ? {} : { "web-access": activity["web-access"] }),
+    ...(activity["permission-mode"] === undefined ? {} : { "permission-mode": activity["permission-mode"] }),
     ...(activity["applied-by"] === undefined ? {} : { "applied-by": activity["applied-by"] }),
     effect: activity.effect,
     gating: activity.gating,
@@ -934,7 +935,7 @@ const limitsOf = (limits = {}) => ({
   "turn-cap-restarts": limits["turn-cap-restarts"] ?? 0,
   "fix-ci-per-run": limits["fix-ci-per-run"] ?? 2,
   "fix-ci-restarts": limits["fix-ci-restarts"] ?? 1,
-  "admission-window-hours": limits["admission-window-hours"] ?? 24,
+  "fix-docs-per-run": limits["fix-docs-per-run"] ?? 2,
   "admission-factor": limits["admission-factor"] ?? 0.8,
   "admission-min-per-hour": limits["admission-min-per-hour"] ?? 1,
 });

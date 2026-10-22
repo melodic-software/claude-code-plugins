@@ -136,26 +136,26 @@
           "default": 1,
           "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
         },
-        "admission-window-hours": {
+        "fix-docs-per-run": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 720,
-          "default": 24,
-          "description": "Hours of issue-lane admissions the admitted backlog (open issues labeled agent-ready) may hold before new agent-ready labels pause. Admissions are open while that backlog is under the admission factor times lane merges per hour times this window."
+          "maximum": 20,
+          "default": 2,
+          "description": "fix-docs dispatches one pr-unblock-dispatch run sends at most."
         },
         "admission-factor": {
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 1,
           "default": 0.8,
-          "description": "Share of the issue lane's hourly merge rate (lanes App PRs merged in the last 24 hours, divided by 24) admitted per hour. The release point is this factor times hourly merges times admission-window-hours."
+          "description": "Share of the issue lane's merge rate (lanes App PRs merged per hour over wip.merge-rate-window-hours) admitted per hour. The queued cap is the larger of this share and admission-min-per-hour, times wip.merge-rate-window-hours."
         },
         "admission-min-per-hour": {
           "type": "number",
           "minimum": 0,
           "maximum": 100,
           "default": 1,
-          "description": "Admissions per hour the release point never falls below: it is at least this rate times admission-window-hours, so a day with no lane merges cannot hold admissions shut. 0 removes the floor."
+          "description": "Admissions per hour the queued cap never falls below: it is at least this rate times wip.merge-rate-window-hours, so a day with no lane merges cannot hold admissions shut. 0 removes the floor."
         }
       }
     },
@@ -244,6 +244,26 @@
           "maximum": 45,
           "default": 40,
           "description": "Minutes the report waits for the one re-run of a red full run to finish; a run with no finished re-run is not confirmed red."
+        },
+        "remedy": {
+          "type": "string",
+          "enum": ["rollback", "fail-forward"],
+          "default": "rollback",
+          "description": "How a pinned culprit is repaired. rollback: the revert rule decides who reverts it. fail-forward: no revert is planned, and a person or a fix pull request repairs main."
+        }
+      }
+    },
+    "branch-cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The scheduled branch cleanup: how many branches it deletes in one run. Contract: README.md, Branch cleanup.",
+      "properties": {
+        "max-deletes-per-run": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 25,
+          "description": "Branches one run deletes at most; the rest wait for the next run. 0 deletes none."
         }
       }
     },
@@ -415,7 +435,8 @@
         "self-checks": ["skill"],
         "verify-scripts": ["skill"],
         "web-access": ["skill"],
-        "applied-by": ["skill"]
+        "applied-by": ["skill"],
+        "permission-mode": ["skill"]
       },
       "dependentSchemas": {
         "applied-by": {
@@ -515,6 +536,11 @@
           "if": { "properties": { "enabled": { "const": true } } },
           "then": { "required": ["domains"] },
           "description": "Whether the skill may read the web, off when absent. On, the runner that stages the skill's edit tools allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true."
+        },
+        "permission-mode": {
+          "enum": ["dontAsk", "auto"],
+          "default": "dontAsk",
+          "description": "The Claude Code permission mode a PR-mode skill runs in on the read runner's launcher (run-claude-cli), dontAsk when absent. auto lets the auto-mode classifier approve tool calls no rule allows; the run job fails red unless the CLI's init message reports the mode asked for. Other runners run dontAsk whatever this says."
         },
         "script": {
           "type": "string",
@@ -836,6 +862,13 @@
           "maximum": 20,
           "default": 2,
           "description": "Merge-queue removals for failed checks since the pull request's head last changed (a pushed commit or a force push) at which the unattended merge gate stops enqueuing that head: the queue would eject it again on the same commits. A push resets the count."
+        },
+        "quarantine-days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30,
+          "default": 7,
+          "description": "Days a quarantine issue excuses its suite's failures outside the merges' affected set from post-merge demotion, counted from when it was filed (README.md, The local babysit lane, Quarantined suites). At most 30, so a flaky suite goes no more than a month without its failures demoting again (judgment) and the date arithmetic stays in range; any other value is 7."
         },
         "max-verify-fails": {
           "type": "integer",

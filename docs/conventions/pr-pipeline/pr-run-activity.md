@@ -553,8 +553,8 @@ to `$RUNNER_TEMP/base-script` before the head checkout and checked against its r
 Read file only, chosen by the activity's `applied-by.patch` in the base config, which names the
 `prepare: apply-patch` script that applies it ([README.md, Activities](README.md#activities));
 `resolve-config` outputs it as `applied-by-patch`. It lets an activity run head code with no
-write token and hand its change to a separate job that holds one; `fix-ci` and `resolve-issue`
-use it. The read file passes `applied-by-supported: patch` to `resolve-config`, so a leaf whose
+write token and hand its change to a separate job that holds one; `fix-docs`, `fix-ci` and
+`resolve-issue` use it. The read file passes `applied-by-supported: patch` to `resolve-config`, so a leaf whose
 `applied-by` sets any other key fails red before the head checkout. A `gating: gate` leaf cannot
 set `applied-by`, and an issue-mode activity must set it. The steps:
 
@@ -609,7 +609,8 @@ Read file, PR mode: a skill runs on ci-workflows'
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`AUTOMATIONS_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
-(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`). The second runs only when the first's `lane-class` output
+(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs` and `fix-docs-subscription` do the
+same. The second runs only when the first's `lane-class` output
 is `credit-stop` or its `credential-present` is `false`, each compared to that fixed string, and
 passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr>`.
 
@@ -626,12 +627,27 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    settings pin `apiKeyHelper` and `ANTHROPIC_BASE_URL` and allow managed hooks only, which
    run-claude-cli checks before every leg. This is why PR mode needs no swap of the head's config
    paths for the base's. A head `CLAUDE.md` is still read, as untrusted text. The tools, allow
-   and deny rules come from the stage, with `permission-mode: dontAsk`; the preamble stands in for the
-   system prompt, and the prompt asks for the Skill tool.
+   and deny rules come from the stage, with the activity's `permission-mode`; the preamble stands
+   in for the system prompt, and the prompt asks for the Skill tool. The launcher takes a read
+   skill, either `prepare: ci-context` or one with no prepare mode that hands on a patch
+   (`fix-docs`), and fails red on any other prepare mode with a patch and on `checks`,
+   `self-checks` or `verify-scripts`, which have no wrapper there. The no-prepare patch skill gets
+   the tools `Read`, `Glob`, `Grep`, `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules
+   name its skill, `Grep`, `Glob`, `Edit`, `Write` and `Agent` but no `Bash` rule, so Bash runs
+   only what the skill's own frontmatter grants; it adds no deny rule, since the base set already
+   denies `Read(./.git/**)`; and the preamble says to keep scratch files in `.lane/scratch` and leave every change
+   uncommitted. With `web-access` (`domains: any` only; a domain list fails red) it also gets the
+   `WebFetch` and `WebSearch` tools, no longer denied, the rules `WebFetch(domain:*)`, `WebSearch`
+   and the four research skills, and the `discovery` and `knowledge` plugins staged read-only
+   beside its own, one `plugin-dirs` line each. The docs scripts are not staged, so the preamble
+   says to read each page with WebFetch and cite it.
 3. One step checks the call's secret is set (only that leaves it), and one launcher step per
    secret runs the skill: `act-key` on the first call, `act-token` on the fallback call, with
    `continue-on-error`, a 50-minute step timeout and a 45-minute leg. setup-python's
-   `LD_LIBRARY_PATH` is cleared for the launcher, which refuses a loader variable.
+   `LD_LIBRARY_PATH` is cleared for the launcher, which refuses a loader variable. Each leg runs
+   in `resolve-config`'s `permission-mode` output, `dontAsk` unless the activity sets `auto`, and
+   a step after it fails the job, so no patch is collected, unless the CLI's init message in the
+   leg's execution file reports that mode; a credit stop hands off unchecked.
 4. The first call hands off (`handed-off: true`) when its key is empty or its key leg ends in a
    credit stop. It then skips the scan job, so it uploads no reply, patch or verdict, and records
    no lane outcome, collects no patch and posts no check, so the fallback call's artifacts and check are the run's. Otherwise
@@ -850,7 +866,7 @@ since it could hide a `.github/` path. Residual: a reviewed-head marker confirms
 review run, so any reviewer-bot review on that head is kept.
 
 The head re-read in step 5 applies to every `mutate-branch` activity, not only this mode: a
-pr-refine run whose PR branch moved before the mint now posts neutral `superseded-sha` without a
+pr-unblock run whose PR branch moved before the mint now posts neutral `superseded-sha` without a
 model turn.
 
 ### prepare: dependency-review
@@ -899,14 +915,26 @@ warns of a [classifier gap](README.md#classifier-gaps).
    `verdict` (`merge`, `fix`, `close`, `escalate`), 1-10 `reasons` of at most 500 characters and
    at most 20 `evidence` entries of at most 300. The activity's `web-access` names the release-note
    hosts. The skill runs no head code; `ci-status` runs the tests on the pushed head.
-3. The promote step moves the PR branch only when the skill's structured verdict is `fix`, the
-   lane branch changes nothing under `.github/` in fewer than 300 files, and every commit's
-   message carries `[dependabot skip]`, so Dependabot may still rebase over the fix. Commits made
+3. The promote step moves the PR branch only when the skill's structured verdict is `fix`, every
+   path the lane branch changes, either side of a rename, in fewer than 300 files, is an npm
+   (`package.json`, `package-lock.json`, `npm-shrinkwrap.json`) or pip (`requirements*.txt` or
+   `.in`) manifest or lock file outside `.github/`, in a directory the base
+   `.github/dependabot.yml` lists for that ecosystem (`inFixScope` in the base's
+   `dependency-classify.mjs`, copied out with its SHA-256 by the select step before any model
+   turn and imported from the checked bytes; the select step also hands on the config's
+   `[ecosystem, directory]` pairs, and an unreadable config admits no path), every commit's message carries
+   `[dependabot skip]`, so Dependabot may still rebase over the fix, and each file passes the
+   rest of the fix rule (`fixRefusal` in the same copy): modified in place, a regular `100644`
+   file at the lane tip (no symbolic link, submodule or executable, read from the tree before any
+   content), and changed from the PR head only by a version
+   ([README, "Dependabot pull requests"](README.md)). A fix that changes any other path or
+   content does not land, and the verdict job escalates `dependency-fix-not-landed`. Commits made
    beside any other verdict are discarded with the lane branch.
 4. After the promote step, and after a skill that failed, was cancelled or timed out, a pinned
    `github-script` step writes `run.json` (`version`, `pr`, the gated `head_sha`, the select
    step's `security`, `config_unreadable` and `files_truncated` flags, its `started-at` as
-   `started_at`, its `controls` (the matched review-only entries' `control` strings), and the
+   `started_at`, its `controls` (the matched review-only entries' `control` strings), its
+   `config` (those `[ecosystem, directory]` pairs), and the
    skill's structured output as `output`, `null` when absent or
    unparsable) and the job uploads it as `dependency-verdict-<run attempt>`. Its
    `dependency-round` output is then `true`, with `dependency-run-sha256` and
@@ -928,14 +956,31 @@ warns of a [classifier gap](README.md#classifier-gaps).
      the App's, committer `web-flow`, `verification.verified` `true` with reason `valid`, and a
      committer date no earlier than `run.json`'s `started_at` (taken before any model turn, so
      the verdict job reads no Actions API and needs no `actions` permission), else
-     `superseded-sha`. Those commits may change
-     nothing under `.github/`, either side of a rename, else `dependency-invalid`;
+     `superseded-sha`. Those commits must pass the fix rule the promote step applies
+     ([README, "Dependabot pull requests"](README.md)), with the `[ecosystem, directory]` pairs
+     this job reads from `.github/dependabot.yml` at `BASE_SHA` (never `run.json`'s `config`):
+     each file modified in place, a regular `100644` file at the head (read from the tree before
+     any content), a manifest or lock file in fix scope, and changed from the reviewed head only
+     by a version; else `dependency-fix-refused`, or `dependency-config-unreadable` when the base
+     config does not read. `run.json`'s `head_sha` must equal the model job's gated head
+     (`dependency-head-sha`), else `dependency-invalid`;
    - `merge`: posts the round marker, whose first line
      `<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<run id>-<attempt> -->`
      from the lanes App is the record the pr-merge lane merges a review-tier pull request on,
      at the current head and through its own gate. With `config_unreadable` it posts no merge
      marker and escalates `dependency-config-unreadable`; with `files_truncated` it posts no
-     merge marker and escalates `dependency-files-truncated`; without each of `controls` quoted
+     merge marker and escalates `dependency-files-truncated`; when the pull request's files
+     (re-read here) change a workflow or action file (`.github/workflows/**` or an
+     `action.yml`), either side of a rename, it posts no merge marker and escalates
+     `dependency-workflow-held`, so a person merges it; a listing at its 3,000-file limit
+     escalates `dependency-files-truncated`; unless the pull request's commits are listed whole
+     (fewer than 250, the pull request's count, the last one the head) and each is Dependabot's
+     own (author id 49699333, committer `web-flow`, a valid signature, Dependabot's name and
+     email), the version-bump commit (only plugins' `plugin.json` `version` and `CHANGELOG.md`
+     changing, as regular files), or a single-parent commit that passes the fix rule against
+     its parent, it posts no merge marker and escalates `dependency-fix-refused`; it reads
+     `.github/dependabot.yml` at `BASE_SHA` itself, and a config that does not read escalates
+     `dependency-config-unreadable`; without each of `controls` quoted
      in `evidence` it escalates `dependency-control-uncited`
      ([README, "Review-only dependencies"](README.md#review-only-dependencies)). This job never
      merges or enqueues;
@@ -948,7 +993,7 @@ warns of a [classifier gap](README.md#classifier-gaps).
    - posts the round marker once per model run, named `none` when the model run uploaded no
      verdict: a re-run that finds its own marker posts none.
 
-   The runner accepts only those six reasons, and only with `dependency-verdict`.
+   The runner accepts only the reasons above, and only with `dependency-verdict`.
 
 ### prepare: ci-context
 
@@ -1028,6 +1073,15 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
 The run's `escalation-reason` output is the script's reason, else the select step's. The runner
 accepts the script's reasons only in this mode.
 
+In `pr-unblock.yml` the same leaf, as the `apply-docs-patch` job, follows `fix-docs`, which has
+no prepare mode: the caller passes no `patch-prepare`, so the script takes the `default` row, and
+runs the job only on a `written` patch. That row refuses the universal set and the `instruction-path` list, escalating
+`patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
+`--3way` when the moved commits touch no patched path (`skip-moved-head: false`), and commits
+`Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-unblock/fix-docs`.
+`report-escalation` does not need `apply-docs-patch` and takes no `patch-*` reason, so an
+escalation leaves only the neutral `awaiting-human` check.
+
 In issue mode the same leaf is `apply-issue-patch`, which runs
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) with `PATCH_TARGET=issue`
 and the `issue` row of `patch-rules.json`. The caller passes `patch-base-sha` and
@@ -1052,7 +1106,7 @@ The rules each producer's patch is to be held to are registered in
 producer prepare mode ([README.md, Patch rules](README.md#patch-rules)): the refusals every row
 carries, what else a path must meet, a file cap, the producer output required, the commit's
 parents, message and trailer, and the row's escalation reasons. A row may also name an optional
-refusal, such as `ci-context`'s `instruction-path`.
+refusal, such as the `instruction-path` of `ci-context` and `default`.
 
 ## The scan job
 
@@ -1206,7 +1260,10 @@ outputs are sent), so the report job differs:
   decline cannot be told from a forged empty head in the report job, so both take this neutral.
 - pr-unblock passes `fix-ci-context`'s head, not the read runner's `head-sha` output, as
   apply-patch's `patch-head-sha`; apply-patch compares it with the head its own trigger gate reads
-  at apply time and pushes only while the branch is still there.
+  at apply time and pushes only while the branch is still there. No job gates the head before
+  `fix-docs`, so its calls pass no `head-sha` (the report job takes the PR's head it reads) and
+  `apply-docs-patch` passes the read runner's `head-sha` output as `patch-head-sha`; apply-patch still applies onto the head its own gate reads and measures the
+  `default` row's refusals from there.
 
 What it trusts:
 

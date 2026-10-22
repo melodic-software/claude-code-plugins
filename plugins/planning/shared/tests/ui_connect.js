@@ -15,7 +15,7 @@
 // and the texts this suite types, never from the page's own prompt builder.
 "use strict";
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, snap, joinAs, openClaude } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs, openClaude } = require("./browser_harness");
 const Connect = require(path.join(__dirname, "..", "web", "connect.js"));
 
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
@@ -227,9 +227,9 @@ async function main() {
     await openAsk(bo.page);
     await bo.page.click(".vf-apself");
     await until(bo.page, () => !document.querySelector(".vf-apconnect").hidden);
-    await bo.page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => null))));
+    const panelStill = await settled(bo.page, { rects: true });
     const panelOut = await outside(bo.page, [".vf-apself", ".vf-apc-code", ".vf-apc-desk", ".vf-apc-copyw", ".vf-apc-key", ".vf-apform button[type=submit]", "#vf-ap-ta"]);
-    ok("on a phone, with the switch on, every Connect control lies inside the viewport", panelOut.length === 0, panelOut.join("; "));
+    ok("on a phone, with the switch on, every Connect control lies inside the viewport", panelStill && panelOut.length === 0, (panelStill ? "" : "not settled; ") + panelOut.join("; "));
     await bo.page.click(".vf-apc-key");
     await until(bo.page, () => !document.querySelector(".vf-apc-revoke").hidden);
     const revokeOut = await outside(bo.page, [".vf-apc-revoke"]);

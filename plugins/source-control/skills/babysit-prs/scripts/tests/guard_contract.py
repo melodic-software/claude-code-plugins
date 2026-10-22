@@ -1340,6 +1340,17 @@ MECHANISMS: tuple[Mechanism, ...] = (
         must_contain=("elif args.remediate and verdict.readable and branch:",),
     ),
     Mechanism(
+        id="postmerge.file-quarantine-gates-its-writes",
+        claim=(
+            "babysit_postmerge.py --judge-run files or comments on a quarantine "
+            "issue only inside one branch of its --judge-run path that needs "
+            "--file-quarantine; without it --judge-run reads GitHub and prints its "
+            "judgment."
+        ),
+        entry_point=POSTMERGE_CLI,
+        must_contain=("if args.file_quarantine and quarantines:",),
+    ),
+    Mechanism(
         id="postmerge.parser-refuses-abbreviation",
         claim=(
             "babysit_postmerge.py sets allow_abbrev=False, so a permission rule written "
@@ -1467,12 +1478,14 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutates_what=(
             "re-runs failed jobs of a red full run; dispatches a full run when none "
             "covers an unverified auto-merge; dequeues the agent identity's "
-            "merge-queue entries; files, reopens, or comments on the demotion issue"
+            "merge-queue entries; files, reopens, or comments on the demotion issue; "
+            "files or comments on a quarantine issue"
         ),
-        gate="--remediate",
-        claim="Read-only without --remediate.",
+        gate="--remediate, --file-quarantine",
+        claim="Read-only without --remediate or --file-quarantine.",
         backed_by=(
             "postmerge.remediate-gates-every-write",
+            "postmerge.file-quarantine-gates-its-writes",
             "postmerge.parser-refuses-abbreviation",
         ),
     ),

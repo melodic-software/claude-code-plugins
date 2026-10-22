@@ -9,7 +9,7 @@
 // Expected values come from the consistency audit's F11 and F12 (one close control, an x whose name says what it closes;
 // one breakpoint at 720 px; one menu model; guest Settings on desktop) and the texts this suite writes, never the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
 const DESK = { context: { viewport: { width: 1440, height: 900 } } };
@@ -54,9 +54,9 @@ async function main() {
     await joinAs(mid, "Mia");
     await mid.click(".vf-asktop");
     await until(mid, () => !document.querySelector(".vf-drawer").hidden);
-    await mid.evaluate(() => Promise.all(document.querySelector(".vf-drawer").getAnimations().map(a => a.finished.catch(() => null))));
+    const still = await settled(mid, { rects: true });
     const dr = await mid.evaluate(() => { const r = document.querySelector(".vf-drawer").getBoundingClientRect(); return { left: r.left, right: r.right, w: r.width, inert: document.querySelector(".vf-body").inert }; });
-    ok("at 900 px the Ask Claude panel is a side drawer on the right, the page still live", dr.right === 900 && dr.w <= 420 && dr.left >= 480 && !dr.inert, JSON.stringify(dr));
+    ok("at 900 px the Ask Claude panel is a side drawer on the right, the page still live", still && dr.right === 900 && dr.w <= 420 && dr.left >= 480 && !dr.inert, JSON.stringify({ still, ...dr }));
     await mid.getByRole("button", { name: "Close Ask Claude", exact: true }).click();
     ok("  its x closes it and focus goes back to Ask Claude", await until(mid, () => document.querySelector(".vf-drawer").hidden && document.activeElement?.matches(".vf-asktop")));
 
@@ -68,7 +68,7 @@ async function main() {
     const help = await gus.evaluate(() => [...document.querySelectorAll(".vf-keys .vf-hitem")].filter(b => !b.hidden).map(b => b.querySelector(".vf-ms-l").textContent));
     ok("a guest's desktop Help lists Settings, the tour, Why you're here and Report a problem", ["Settings", "Show me around", "Why you're here", "Report a problem"].every(l => help.includes(l)), JSON.stringify(help));
     await gus.locator(".vf-keys .vf-hitem", { hasText: "Settings" }).click();
-    ok("  Settings opens Gus's own card: his name, accent and devices", await until(gus, () => { const c = document.querySelector(".vf-pcard"); return !!c && !c.hidden && /Gus/.test(c.getAttribute("aria-label") || "") && !!c.querySelector(".vf-swatch"); }),
+    ok("  Settings opens Gus's own card: his name, theme and devices", await until(gus, () => { const c = document.querySelector(".vf-pcard"); return !!c && !c.hidden && /Gus/.test(c.getAttribute("aria-label") || "") && !!c.querySelector(".vf-swatch"); }),
       await gus.evaluate(() => document.querySelector(".vf-pcard")?.getAttribute("aria-label")));
     const pho = await rec.open(A.localUrl, { context: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } });
     await joinAs(pho, "Pho");
@@ -77,7 +77,7 @@ async function main() {
     const more = await pho.evaluate(() => [...document.querySelectorAll(".vf-moresheet .vf-msitem")].filter(b => !b.hidden).map(b => b.querySelector(".vf-ms-l").textContent + "|" + b.querySelector(".vf-ms-d").textContent));
     const helpRows = await gus.evaluate(() => [...document.querySelectorAll(".vf-keys .vf-hitem")].filter(b => !b.hidden).map(b => b.querySelector(".vf-ms-l").textContent + "|" + b.querySelector(".vf-ms-d").textContent));
     // F12: Help's entries for a guest, in More's own words (the menu entries the spec moves out of the two copies).
-    const HELP = ["Settings|Your name, accent and devices", "Show me around|A one-minute tour", "Why you're here|", "Report a problem|Tell the host something is broken"];
+    const HELP = ["Settings|Your name, theme and devices", "Show me around|A one-minute tour", "Why you're here|", "Report a problem|Tell the host something is broken"];
     ok("a guest's desktop Help lists Settings, the tour, Why you're here and Report a problem, in those words", JSON.stringify(helpRows) === JSON.stringify(HELP), JSON.stringify(helpRows));
     ok("  and a guest's phone More lists each of them in the same words", HELP.every(h => more.includes(h)), JSON.stringify(more));
 
@@ -156,7 +156,8 @@ async function main() {
     ok("  Escape sends nothing: no round send request went out", sends.length === 0, JSON.stringify(sends));
 
     // ---------- the message menu and React open beside what opened them (chat and a Discussion comment) ----------
-    const beside = (page, menuSel, btnSel) => page.evaluate(([m, b]) => {
+    // Measured once the page holds still: the menu and the chat it opens over scale in.
+    const beside = async (page, menuSel, btnSel) => (await settled(page, { rects: true })) && page.evaluate(([m, b]) => {
       const r = document.querySelector(m).getBoundingClientRect(), a = [...document.querySelectorAll(b)].find(x => x.getAttribute("aria-expanded") === "true" || x === document.activeElement)?.getBoundingClientRect()
         || document.querySelector(b).getBoundingClientRect();
       const gapX = Math.max(0, r.left - a.right, a.left - r.right), gapY = Math.max(0, r.top - a.bottom, a.top - r.bottom);

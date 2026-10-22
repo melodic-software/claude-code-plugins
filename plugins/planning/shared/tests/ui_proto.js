@@ -2,7 +2,7 @@
 // The prototype page (Q98) in real browsers, against `share.sh ensure-running` with the fake cloudflared: the owner on a
 // desktop, a guest on a desktop who opens the prototype from the question's "Open prototype" link, and a guest on a
 // 390x844 phone with touch who opens /proto/<qid> directly, in separate browser contexts (separate storage). Covered:
-// the preview tile and its link; the variant switcher (click and arrow keys); the Annotate toggle; a note pinned to an
+// the preview tile and its link; the session's palette on the prototype page; the variant switcher (click and arrow keys); the Annotate toggle; a note pinned to an
 // element inside an html variant (its path and box reach the server, its pin is drawn in the variant, and the variant's
 // own click handler does not run while Annotate is on); a note on a spot of a picture variant; the notes in the
 // question's Claude thread on the main page and in the round's digest for Claude; picking a variant; the variant's
@@ -17,7 +17,7 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, snap, joinAs, png, openClaude } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs, png, openClaude } = require("./browser_harness");
 
 // The html variant. Its button's path, from its markup: html > body(1st) > main(1st) > section(1st) > div(1st) > button(1st).
 const BUTTON_PATH = "html > body:nth-of-type(1) > main:nth-of-type(1) > section:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1)";
@@ -94,6 +94,10 @@ async function main() {
     await ownerProto.waitForLoadState();
     ok("the owner's Open prototype opens /proto/Q1 as the owner", new URL(ownerProto.url()).pathname === "/proto/Q1" && await isOwner(ownerProto), ownerProto.url());
     await until(ownerProto, () => document.querySelector(".vp-back")?.getAttribute("href") === "/");
+    await solo.evaluate(() => window.Core.saveSettings({ theme: { palette: "contrast" } }));
+    ok("the prototype page shows the session's palette", await until(ownerProto, () => document.querySelector(".vp-app")?.dataset.palette === "contrast"),
+      await ownerProto.evaluate(() => document.querySelector(".vp-app")?.dataset.palette));
+    await solo.evaluate(() => window.Core.saveSettings({ theme: { palette: "default" } }));
     const protoShown = await tokenShown(ownerProto);
     ok("the prototype tab's address and links hold no owner token", protoShown.hash === "" && protoShown.hrefs.length === 0, JSON.stringify(protoShown));
     ok("the prototype tab has no handle on the page that opened it", (await ownerProto.evaluate(() => window.opener)) === null);
@@ -226,14 +230,15 @@ async function main() {
     ok("a phone opening the prototype first joins on that page", !!piaPid && piaPid !== gusPid);
     await until(pia, () => document.querySelectorAll(".vp-notes li").length === 1);
     ok("the phone sees the desktop guest's note on One page", (await pia.locator(".vp-notes li").first().textContent()).includes("Make the total sit next to Pay now."));
+    const still = await settled(pia, { rects: true });
     const layout = await pia.evaluate(() => {
       const r = el => document.querySelector(el).getBoundingClientRect();
       return { overflow: document.documentElement.scrollWidth - innerWidth, stage: r(".vp-stage"), side: r(".vp-side"),
         tabs: [...document.querySelectorAll(".vp-tab, .vp-annotate, .vp-choose")].map(b => Math.round(b.getBoundingClientRect().height)) };
     });
-    ok("phone: nothing runs past the width", layout.overflow <= 0, layout.overflow);
-    ok("phone: the variant sits above the notes, both on screen", layout.stage.bottom <= layout.side.top + 1 && layout.stage.height > 200 && layout.side.top < 844 && layout.side.height > 100, JSON.stringify(layout));
-    ok("phone: the switcher, Annotate and Choose are at least 40 px tall", layout.tabs.every(h => h >= 40), JSON.stringify(layout.tabs));
+    ok("phone: nothing runs past the width", still && layout.overflow <= 0, still ? layout.overflow : "not settled");
+    ok("phone: the variant sits above the notes, both on screen", still && layout.stage.bottom <= layout.side.top + 1 && layout.stage.height > 200 && layout.side.top < 844 && layout.side.height > 100, JSON.stringify(layout));
+    ok("phone: the switcher, Annotate and Choose are at least 40 px tall", still && layout.tabs.every(h => h >= 40), JSON.stringify({ still, tabs: layout.tabs }));
     await pia.locator(".vp-annotate").tap();
     await pia.locator(".vp-whole").tap();
     await pia.locator("#vp-note").fill("Too long for a phone.");

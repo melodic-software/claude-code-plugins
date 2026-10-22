@@ -260,6 +260,7 @@ function outputsFor({ lane, selected }) {
     "can-commit": String(selected.grant.contents !== "read"),
     ...(selected["applied-by"]?.patch === undefined ? {} : { "applied-by-patch": selected["applied-by"].patch }),
     ...(selected.prepare === undefined ? {} : { prepare: selected.prepare }),
+    ...(selected.kind === "skill" ? { "permission-mode": selected["permission-mode"] ?? "dontAsk" } : {}),
     ...(selected["issue-dimensions"] === undefined
       ? {}
       : { "issue-dimensions": selected["issue-dimensions"], "timeout-minutes": String(selected["timeout-minutes"]) }),
@@ -375,6 +376,14 @@ export function redMainFromBase(env) {
   const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
   const doc = loadConfig(filesUnderBase(basePath, configPath), { configPath });
   return { redMain: doc["red-main"] ?? {}, agentIdentity: doc.merge?.["agent-identity"] ?? "" };
+}
+
+// The base config's `branch-cleanup` leaf as set, likewise; its defaults have
+// one copy, in .github/scripts/branch-cleanup/rules.mjs.
+export function branchCleanupFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  return loadConfig(filesUnderBase(basePath, configPath), { configPath })["branch-cleanup"] ?? {};
 }
 
 // A run that is no lane activity resolves only its model route.

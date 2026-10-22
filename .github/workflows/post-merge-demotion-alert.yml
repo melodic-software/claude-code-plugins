@@ -24,7 +24,10 @@ name: post-merge-demotion-alert
 # applies the same rule). A check is a failed job, or one gate the hygiene
 # aggregator names in a titled annotation; the lane aggregator ci-status adds
 # nothing beside another failed job, and the gitleaks gate, which scans every
-# branch on these events, counts against no merge.
+# branch on these events, counts against no merge. Of those, a run whose every
+# newly failing test-leg suite is outside the affected set of the merges since
+# main's last green full run, or quarantined, files nothing but each suite's
+# quarantine issue (babysit_postmerge.py --judge-run, run from main's tip).
 #
 # Beside a new record of a full run, it files one fix issue per newly failing
 # check (at most 5) and dispatches intake-triage.yml for each, so an agent can
@@ -60,9 +63,11 @@ name: post-merge-demotion-alert
 # .github/scripts/post-merge-demotion-alert/ tests the report job.
 
 on:
-  # The alert job checks out nothing and runs no action; the report job checks
-  # out main's tip and runs main's own scripts. So no code from the triggering
-  # run executes here. Each
+  # Both jobs check out main's tip and run its scripts; the alert's
+  # --judge-run also runs scripts/plan-test-lanes.sh from main's last green
+  # full run's commit (never the failing one, which the judged merges wrote),
+  # with every *TOKEN* variable removed from its environment. No code from
+  # outside main executes here. Each
   # step reads the event's fields through env and acts only on runs of this
   # repository's main branch.
   workflow_run: # zizmor: ignore[dangerous-triggers]
@@ -121,7 +126,20 @@ jobs:
       created: ${{ steps.run.outputs.created }}
       # 'true' when a dispatched run stayed red and main recovered since.
       recovered: ${{ steps.file.outputs.recovered }}
+      # 'true' when every newly failing suite was outside the merges'
+      # affected set or quarantined: no record, and no red-main report.
+      excused: ${{ steps.file.outputs.excused }}
     steps:
+      # main's tip, for babysit_postmerge.py --judge-run and the plan script it
+      # runs in a worktree of the last green SHA; full history for that worktree.
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          fetch-depth: 0
+          persist-credentials: false
+
       # A workflow_run event's fields pass through as they are. A dispatch's
       # run id is read back from the API, as attempt 1 of the run: accepted
       # only from github-actions[bot] (actor id 41898282) or a listed human,
@@ -384,6 +402,9 @@ jobs:
               echo "::warning::$RUN_URL failed only on checks no merge can cause (the all-branches gitleaks scan): not a demotion"
               exit 0
             fi
+            # The checks also failing on the baseline run, for the judge: one
+            # whose suite's quarantine expired demotes all the same.
+            kept="$(mktemp)"
             baseline="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?event=$RUN_EVENT&branch=main&status=completed&created=%3C$RUN_CREATED&per_page=20" \
               --jq '[.workflow_runs[] | select(.head_branch == "main" and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
                 | max_by(.created_at) // empty | [.id, .run_attempt, .conclusion] | @tsv')"
@@ -393,12 +414,38 @@ jobs:
               if [[ "$base_conclusion" != success ]]; then
                 failing_checks "$base_id" "$base_attempt" >"$before"
               fi
+              grep -xFf "$before" "$now" >"$kept" || true
               grep -vxFf "$before" "$now" >"$now.new" || true
               mv "$now.new" "$now"
-              if [[ ! -s "$now" ]]; then
-                echo "::warning::$RUN_URL failed only on checks already failing before ${RUN_SHA:0:12} (run $base_id): not a demotion"
-                exit 0
-              fi
+            fi
+            # Exit 0: every newly failing suite is outside the merges' affected
+            # set or quarantined, so each suite's quarantine issue is filed or
+            # commented and no record is. Exit 1: a suite demotes, which for a
+            # check red on the baseline too means its quarantine expired. Any
+            # other exit (the judge failed) files as before.
+            judged=0
+            judgment="$(python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+              --repo "$GITHUB_REPOSITORY" --judge-run "$RUN_ID" --attempt "$RUN_ATTEMPT" \
+              --checks-file "$now" --baseline-checks-file "$kept" --file-quarantine)" || judged=$?
+            printf '%s\n' "$judgment"
+            if [[ "$judged" -eq 0 && -s "$now" ]]; then
+              echo "::notice::$RUN_URL failed only in suites outside the merges' affected set or quarantined: not a demotion"
+              echo 'excused=true' >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+            # Exit 1 names the checks that demote, a baseline-red one among
+            # them; the record and fix issues follow that list when it reads.
+            newly_red="$(cat "$now")"
+            if [[ "$judged" -eq 1 ]] &&
+              demoted="$(jq -r '.demoting[]?' <<<"$judgment" 2>/dev/null)" && [[ -n "$demoted" ]]; then
+              printf '%s\n' "$demoted" >"$now"
+            fi
+            if [[ ! -s "$now" ]]; then
+              echo "::warning::$RUN_URL failed only on checks already failing before ${RUN_SHA:0:12} (run $base_id): not a demotion"
+              exit 0
+            fi
+            if [[ -z "$newly_red" ]]; then
+              echo "::warning::$RUN_URL failed on checks already failing before ${RUN_SHA:0:12}, whose suites' quarantine expired: a demotion"
             fi
             newly="$(paste -sd ';' "$now" | sed 's/;/, /g')"
           fi
@@ -787,7 +834,7 @@ jobs:
   # lanes App token, writes only its log issue, and skips an event the lanes
   # App sent. It reads the run from the alert job's outputs, which a refused
   # dispatch leaves empty, and skips a dispatched run the alert found main
-  # already recovered from.
+  # already recovered from, and a run the alert excused by suite.
   report-red-main:
     name: Report the red-main culprit
     needs: [alert]
@@ -799,6 +846,7 @@ jobs:
       && needs.alert.outputs.branch == 'main'
       && needs.alert.outputs.repo == github.repository
       && needs.alert.outputs.recovered != 'true'
+      && needs.alert.outputs.excused != 'true'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
     runs-on: ubuntu-24.04
     # Up to red-main.confirm-wait-minutes (at most 45) waiting on the re-run.

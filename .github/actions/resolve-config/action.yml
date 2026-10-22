@@ -142,6 +142,12 @@ outputs:
   applied-by-patch:
     description: The activity that applies the selected activity's patch (its applied-by.patch); empty when it hands on none.
     value: ${{ steps.resolve.outputs.applied-by-patch }}
+  permission-mode:
+    description: >
+      A skill activity's launcher permission mode, `dontAsk` (the default)
+      or `auto`, for run-claude-cli's `permission-mode` input; empty for a
+      script.
+    value: ${{ steps.resolve.outputs.permission-mode }}
   issue-dimensions:
     description: >
       `<size>/<complexity>/<uncertainty>` as models.issue-dimensions reads
@@ -199,5 +205,5 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |
-        npm ci --ignore-scripts --omit=dev --prefix "$GITHUB_ACTION_PATH"
+        npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
         node "$GITHUB_ACTION_PATH/resolve-config.mjs"
