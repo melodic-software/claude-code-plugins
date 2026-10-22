@@ -173,6 +173,20 @@ else
   done
 fi
 
+# A target repository's own core.fsmonitor never runs: CI audits head
+# directories, and a nested .git there is the PR author's config.
+FSM="$TEST_TMPDIR/fsmonitor-repo"
+git init -q "$FSM"
+printf '# A\n' >"$FSM/a.md"
+git -C "$FSM" -c user.name=t -c user.email=t@invalid add a.md
+git -C "$FSM" -c user.name=t -c user.email=t@invalid commit -qm t
+printf '#!/bin/sh\ntouch %q\n' "$TEST_TMPDIR/fsmonitor-ran" >"$TEST_TMPDIR/fsmonitor.sh"
+chmod +x "$TEST_TMPDIR/fsmonitor.sh"
+git -C "$FSM" config core.fsmonitor "$TEST_TMPDIR/fsmonitor.sh"
+declare -a fsm_list=()
+resolve_targets fsm_list "$TEST_TMPDIR" "" 0 0 0 "$FSM" 2>/dev/null
+assert_eq "a target repository's core.fsmonitor does not run" "$([[ -e "$TEST_TMPDIR/fsmonitor-ran" ]] && echo ran || echo not-run)" "not-run"
+
 if [[ "$FAILED" -ne 0 ]]; then
   printf 'Result: %s failed, %s host skip(s)\n' "$FAILED" "$SKIPPED" >&2
   exit 1

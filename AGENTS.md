@@ -55,9 +55,9 @@ what agents may do unattended and the owner has not decided that change. Launch 
 `--permission-mode auto`; a lane whose action the auto-mode classifier denies records the denial
 in its lane telemetry and moves on. CI lanes run with no prompt handler, so an unlisted tool is denied: intake triage passes
 `--permission-mode dontAsk`, and the review lanes run claude-code-action's tag mode, which passes
-`acceptEdits` with a fixed tool allowlist. A read-runner activity that sets `permission-mode: auto`
-in `docs/conventions/pr-pipeline.yaml` (`fix-docs`) runs in auto mode instead, with no write token,
-and fails red unless the CLI reports that mode. All run under
+`acceptEdits` with a fixed tool allowlist. Read-runner activities (`fix-ci`, `fix-docs`) run
+dontAsk with explicit allow rules and no write token; `permission-mode: auto` there fails red,
+because under the launcher's subprocess env scrub the CLI starts in the default mode. All run under
 the hardening in [ADR 0049](docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
 which also answers the untrusted-text risk below for them. A hook `ask` or `permissions.ask` rule can open a dialog no one
 answers, so lane sessions carry none. `--permission-prompts none` is documented for print mode and
