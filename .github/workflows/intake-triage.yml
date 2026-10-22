@@ -207,8 +207,9 @@ jobs:
       instructions: |
         COST. When the work an issue asks for would add or raise a charge (a new Azure resource or
         SKU, a retention or quota change, a paid GitHub feature, larger or hosted runners, macOS or
-        private-repo minutes, new API spend, or a new paid service or plan), escalate to needs-human
-        and add one line to your comment: `Cost: <what bills, where; the owner decision it lacks>`.
+        private-repo minutes, new API spend, or a new paid service or plan), apply the `needs-human`
+        label and keep needs_human false, so your comment is kept, and add one line to it:
+        `Cost: <what bills, where; the owner decision it lacks>`.
         Skip this only when a comment whose first line is exactly `**Decision recorded.**`, by an
         author whose login does not end in `[bot]`, already covers that charge; then name it on the
         Cost line.
