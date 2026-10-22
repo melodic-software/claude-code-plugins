@@ -27,7 +27,8 @@ const HOUR = 3_600_000;
 const LIMITS = { "wip-cap": 12 };
 const WIP = { ...WIP_DEFAULTS };
 
-const pr = ({ labels = [], body = "", ageHours = 1 } = {}) => ({
+const pr = ({ labels = [], body = "", ageHours = 1, number } = {}) => ({
+  ...(number === undefined ? {} : { number }),
   labels: labels.map((name) => ({ name })),
   body,
   created_at: new Date(NOW - ageHours * HOUR).toISOString(),
@@ -36,12 +37,21 @@ const pr = ({ labels = [], body = "", ageHours = 1 } = {}) => ({
 // A search API that answers by query: the open listing pages through `open`,
 // the queued issue listing through `queued` (issues as { number }), the
 // merged and opened counts answer `merged` and `admitted`; an Error
-// answer throws. Each path is recorded.
-function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplete = false } = {}) {
+// answer throws. A pull request read answers `heads[number]` as its head
+// ref. Each path is recorded.
+function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplete = false, heads = {} } = {}) {
   const paths = [];
   const github = async (method, path) => {
     paths.push(`${method} ${path}`);
     const url = new URL(path, "https://api.github.com");
+    const pull = /^\/repos\/[^/]+\/[^/]+\/pulls\/([0-9]+)$/.exec(url.pathname);
+    if (pull) {
+      const head = heads[pull[1]];
+      if (head instanceof Error) {
+        throw head;
+      }
+      return { number: Number(pull[1]), head: { ref: head } };
+    }
     const q = url.searchParams.get("q");
     const answer = q.includes("is:issue") ? queued : q.includes("is:merged") ? merged : q.includes("created:") ? admitted : open;
     if (answer instanceof Error) {
@@ -184,7 +194,8 @@ test("admissions may reach the admission factor times the merges, no more", asyn
 
 // Queued work (owner decision 2026-10-21, #8794): open agent-ready issues no
 // open lane PR names on its first body line (`Closes #n` or `Refs: #n`, as
-// report-outcome writes it), plus held lane PRs. The queued cap is
+// report-outcome writes it) or, failing that, by its lane branch (#8965), plus
+// held lane PRs. The queued cap is
 // max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
 // x wip.merge-rate-window-hours. Over it, on or after pause-from, new
 // admissions pause; runs never pause on it.
@@ -202,6 +213,38 @@ test("queued work is the agent-ready issues no open lane PR names first, plus th
   assert.equal(result.queued_issues, 2);
   assert.equal(result.held_lane_prs, 2);
   assert.equal(result.queued_total, 4);
+});
+
+// #8965: a lane PR's head branch (work-resolve-issue/issue-<n>-<run>-<attempt>,
+// as apply-issue-patch names it) names its issue too, so a person editing the
+// body's first line does not leave the issue queued. Only a PR whose first
+// line names no issue costs a pull request read.
+test("a lane PR whose edited body names no issue still takes its issue out of the queue by its head branch", async () => {
+  const open = [pr({ number: 50, body: "Closes #1" }), pr({ number: 51, body: "Edited by a person.\n\nCloses #3" })];
+  const { github, paths } = searchApi({ open, merged: 24, queued: issues(1, 2, 3), heads: { 51: "work-resolve-issue/issue-3-123-1" } });
+  const result = status(await readLaneWip(github, { repo: REPO, now: NOW, windowHours: 24 }));
+  assert.equal(result.queued_issues, 1);
+  assert.deepEqual(
+    paths.filter((path) => path.includes("/pulls/")),
+    [`GET /repos/${REPO}/pulls/51`],
+  );
+});
+
+test("a held lane PR with an edited body counts once, as held, not again as a queued issue", async () => {
+  const open = [pr({ number: 52, labels: ["needs-human"], body: "Rewritten summary" })];
+  const result = status(await read({ open, merged: 24, queued: issues(7), heads: { 52: "work-resolve-issue/issue-7-9-2" } }));
+  assert.equal(result.held_lane_prs, 1);
+  assert.equal(result.queued_issues, 0);
+  assert.equal(result.queued_total, 1);
+});
+
+test("a head branch outside the lane's shape names no issue, and a failed pull request read keeps the listing", async () => {
+  const open = [pr({ number: 53, body: "x" }), pr({ number: 54, body: "y" }), pr({ number: 55, body: "z" })];
+  const heads = { 53: "work-resolve-issue/issue-1-abc-1", 54: "feat/issue-2", 55: new Error("GET failed with status 502") };
+  const reads = await read({ open, merged: 24, queued: issues(1, 2, 3), heads });
+  assert.equal(reads.open.length, 3);
+  assert.equal(status(reads).queued_issues, 3);
+  assert.equal(status(reads).countable_lane_prs, 3);
 });
 
 test("the queued cap is max(factor x merges per hour, the floor) x the merge-rate window", async () => {
