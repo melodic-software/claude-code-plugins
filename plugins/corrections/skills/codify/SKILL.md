@@ -124,8 +124,8 @@ did not escape review needs no answer.
 ## 6. Consent and write
 
 - **A person invoked the skill** (they typed `/corrections:codify`): that is consent to write the
-  proposal. Write it to `.work/codify/<branch-slug>/<UTC-timestamp>-proposal.md`, the only path
-  the skill's write grant covers, where `<branch-slug>` is the current branch lowercased with every
+  proposal. Write it to `.work/codify/<branch-slug>/<UTC-timestamp>-proposal.md`, the path the
+  proposal is written to, where `<branch-slug>` is the current branch lowercased with every
   character outside `[a-z0-9._-]` replaced by `-`. An empty slug means no file; present the proposal
   in the report only. Announce the path before writing. On the first write, check that
   `.work/codify/` holds a `.gitignore` containing `*` and create it (announced) when absent; never
