@@ -18,9 +18,11 @@
 // hold label (needs-human, status: needs-info, status: needs-decision) is on
 // the issue, and nothing it found conflicts; otherwise `status: needs-decision`
 // (unless a needs-info or needs-decision status is already there) and never
-// `status: ready`. A work-class label another class already holds, and a field
-// a listed human set to another value, are left as they are and send the issue
-// to needs-decision. When it applied a class it rewrites the comment's
+// `status: ready`; `area: security` or a `needs-triage` the triage left also
+// keep it from ready. A work-class label a listed human added for another
+// class, and a field a listed human set to another value, are left as they are
+// and send the issue to needs-decision; the lanes App's own earlier class and
+// values give way to the new verdict. When it applied a class it rewrites the comment's
 // "a maintainer confirms" lines. It never adds `agent-ready`.
 //
 // Issue text can only refuse: a line the model quotes is prefixed `> ` and
@@ -64,6 +66,9 @@ export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
 const NEEDS_INFO = "status: needs-info";
 const NEEDS_HUMAN = "needs-human";
+const SECURITY = "area: security";
+// The reusable removes this floor label only from a triage it routed.
+const NEEDS_TRIAGE = "needs-triage";
 const ESCALATED = "Automated triage handed this issue to a maintainer.";
 export const DIMENSIONS = Object.freeze({
 	size: "Size",
@@ -175,7 +180,7 @@ export function parseVerdict(body, dimensionsConfig) {
 // field values ({fieldId: {option, setter}}). Pure.
 export function planWrites(
 	verdict,
-	{ labels, fields, dimensionsConfig, humans },
+	{ labels, fields, dimensionsConfig, humans, classSetters = {} },
 ) {
 	const reasons = [...verdict.problems];
 	const add = [];
@@ -194,6 +199,11 @@ export function planWrites(
 			add.push(verdict.workClass);
 			classApplied = true;
 		} else if (held.length === 1 && held[0] === verdict.workClass) {
+			classApplied = true;
+		} else if (held.length === 1 && !humans.has(classSetters[held[0]])) {
+			// The lanes App's (or an unlisted account's) earlier class gives way.
+			remove.push(held[0]);
+			add.push(verdict.workClass);
 			classApplied = true;
 		} else {
 			reasons.push(`the issue already carries ${held.join(", ")}`);
@@ -236,6 +246,11 @@ export function planWrites(
 	if (holds.length > 0) {
 		reasons.push(`held by ${holds.join(", ")}`);
 	}
+	for (const label of [SECURITY, NEEDS_TRIAGE]) {
+		if (labels.includes(label)) {
+			reasons.push(`the issue carries ${label}`);
+		}
+	}
 
 	const ready =
 		reasons.length === 0 &&
@@ -264,6 +279,24 @@ export function rewordComment(body) {
 		.replace(OLD_BASIS, NEW_BASIS)
 		.replace(OLD_FOOTER, NEW_FOOTER);
 	return next === body ? null : next;
+}
+
+// {label: account id} for each work-class label on the issue: who added it
+// last, from the issue's events; none when no event names it.
+async function classSetters(github, base, labels) {
+	const held = new Set(
+		labels.filter((label) => label.startsWith("work-class:")),
+	);
+	const setters = {};
+	if (held.size === 0) {
+		return setters;
+	}
+	for (const event of await paginate(github, `${base}/events`)) {
+		if (event?.event === "labeled" && held.has(event.label?.name)) {
+			setters[event.label.name] = event.actor?.id ?? null;
+		}
+	}
+	return setters;
 }
 
 // {fieldId: {option, setter}} from the REST values and the GraphQL setters.
@@ -362,6 +395,7 @@ export async function run({
 		fields,
 		dimensionsConfig,
 		humans,
+		classSetters: await classSetters(github, base, labels),
 	});
 
 	if (plan.fieldWrites.length > 0) {

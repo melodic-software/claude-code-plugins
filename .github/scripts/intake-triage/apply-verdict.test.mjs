@@ -182,12 +182,13 @@ describe("parseVerdict", () => {
 });
 
 describe("planWrites", () => {
-	const plan = (body, { labels = [], fields = {} } = {}) =>
+	const plan = (body, { labels = [], fields = {}, classSetters = {} } = {}) =>
 		planWrites(parseVerdict(body, DIMS), {
 			labels,
 			fields,
 			dimensionsConfig: DIMS,
 			humans,
+			classSetters,
 		});
 
 	test("a clean verdict adds the class and status: ready and writes the three fields", () => {
@@ -242,11 +243,48 @@ describe("planWrites", () => {
 		});
 	}
 
-	test("another work class on the issue is kept and holds the issue", () => {
-		const result = plan(laneBody(), { labels: ["work-class: structural"] });
+	test("another work class a listed human added is kept and holds the issue", () => {
+		const result = plan(laneBody(), {
+			labels: ["work-class: structural"],
+			classSetters: { "work-class: structural": HUMAN },
+		});
+		assert.equal(result.classApplied, false);
+		assert.deepEqual(result.add, [NEEDS_DECISION]);
+		assert.deepEqual(result.remove, []);
+	});
+
+	for (const [name, setter] of [
+		["the lanes App", LANES_APP],
+		["an unlisted account", OUTSIDER],
+		["no recorded event", undefined],
+	]) {
+		test(`another work class ${name} added gives way to the new verdict`, () => {
+			const result = plan(laneBody(), {
+				labels: ["work-class: structural"],
+				classSetters:
+					setter === undefined ? {} : { "work-class: structural": setter },
+			});
+			assert.equal(result.ready, true);
+			assert.deepEqual(result.remove, ["work-class: structural"]);
+			assert.deepEqual(result.add, ["work-class: scoped", READY]);
+		});
+	}
+
+	test("two work classes on the issue hold it", () => {
+		const result = plan(laneBody(), {
+			labels: ["work-class: structural", "work-class: mechanical"],
+		});
 		assert.equal(result.classApplied, false);
 		assert.deepEqual(result.add, [NEEDS_DECISION]);
 	});
+
+	for (const label of ["area: security", "needs-triage"]) {
+		test(`${label} keeps a clean verdict from ready and adds needs-decision`, () => {
+			const result = plan(laneBody(), { labels: [label] });
+			assert.equal(result.ready, false);
+			assert.deepEqual(result.add, ["work-class: scoped", NEEDS_DECISION]);
+		});
+	}
 
 	test("the same work class already on the issue counts as applied", () => {
 		const result = plan(laneBody(), { labels: ["work-class: scoped"] });
@@ -348,10 +386,19 @@ describe("checkActors", () => {
 });
 
 // A fake GitHub: the issue, its comments and field values, recording every call.
-function fakeGitHub({ issue = {}, comments, fieldRows = [], answerRows } = {}) {
+function fakeGitHub({
+	issue = {},
+	comments,
+	fieldRows = [],
+	answerRows,
+	events = [],
+} = {}) {
 	const calls = [];
 	const github = async (method, path, body) => {
 		calls.push({ method, path, body });
+		if (method === "GET" && path.startsWith("/repos/o/r/issues/7/events")) {
+			return events;
+		}
 		if (method === "GET" && path === "/repos/o/r/issues/7") {
 			return {
 				number: 7,
@@ -531,6 +578,63 @@ describe("run", () => {
 			labelWrites.map(({ body }) => body.labels),
 			[[NEEDS_DECISION]],
 		);
+	});
+
+	test("swaps a class the lanes App added, read from the issue's events, before adding the new one", async () => {
+		const fake = fakeGitHub({
+			issue: { labels: [{ name: "work-class: structural" }] },
+			comments: [laneComment()],
+			events: [
+				{
+					event: "labeled",
+					label: { name: "work-class: structural" },
+					actor: { id: HUMAN },
+				},
+				{
+					event: "unlabeled",
+					label: { name: "work-class: structural" },
+					actor: { id: HUMAN },
+				},
+				{
+					event: "labeled",
+					label: { name: "work-class: structural" },
+					actor: { id: LANES_APP },
+				},
+			],
+		});
+		const result = await go(fake);
+		assert.equal(result.outcome, "ready");
+		const done = writes(fake.calls).map(
+			({ method, path }) => `${method} ${path}`,
+		);
+		const removal = done.indexOf(
+			`DELETE /repos/o/r/issues/7/labels/${encodeURIComponent("work-class: structural")}`,
+		);
+		assert.ok(
+			removal >= 0 && removal < done.indexOf("POST /repos/o/r/issues/7/labels"),
+			done.join("\n"),
+		);
+	});
+
+	test("keeps a class a listed human added last", async () => {
+		const fake = fakeGitHub({
+			issue: { labels: [{ name: "work-class: structural" }] },
+			comments: [laneComment()],
+			events: [
+				{
+					event: "labeled",
+					label: { name: "work-class: structural" },
+					actor: { id: LANES_APP },
+				},
+				{
+					event: "labeled",
+					label: { name: "work-class: structural" },
+					actor: { id: HUMAN },
+				},
+			],
+		});
+		assert.equal((await go(fake)).outcome, "needs-decision");
+		assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
 	});
 
 	test("status: ready is taken off when the verdict no longer holds", async () => {

@@ -230,9 +230,9 @@ jobs:
         - Flags: intent when the intended outcome is not exact or needs the owner's decision;
           security for security, auth, credentials or personal data; cost as COST below describes.
 
-        VERDICT LINES. End your comment with these four lines, each at the start of its own line,
+        VERDICT LINES. Begin your comment with these four lines, each at the start of its own line,
         exactly in this form, one value each (the Flags line lists every flag that applies, comma
-        separated, or none):
+        separated, or none), before any quote or other text:
         Size: Small|Medium|Large
         Complexity: Low|Medium|High
         Uncertainty: Known|Knowable|Unknown
