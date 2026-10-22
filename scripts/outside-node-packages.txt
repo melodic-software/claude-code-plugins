@@ -16,6 +16,7 @@
 .github/actions/seal-lane-output
 .github/actions/select-trusted-text
 .github/scripts/apply-patch
+.github/scripts/branch-cleanup
 .github/scripts/intake-reenter
 .github/scripts/maintenance-audit-lane-runs
 .github/scripts/maintenance-monitor-signals

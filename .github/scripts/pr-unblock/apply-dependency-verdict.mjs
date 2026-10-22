@@ -14,13 +14,24 @@
 //      close and escalate need the head the model reviewed; a moved head is
 //      superseded and the next dispatcher run reviews the new one. fix needs
 //      only commits GitHub signed for the lanes App during this workflow run
-//      on top of that head, listed whole and touching nothing under .github/
-//      (else dependency-invalid), else dependency-fix-not-landed (no commit)
-//      or superseded (Dependabot rebased, or another commit).
+//      on top of that head, listed whole (else dependency-invalid), each file
+//      only modified, a regular file, an npm or pip manifest or lock file
+//      outside .github/ in a directory the base's dependabot.yml (read here,
+//      never from run.json) lists, and changed only by a version change
+//      (fixRefusal; else dependency-fix-refused), else
+//      dependency-fix-not-landed (no commit) or superseded (Dependabot
+//      rebased, or another commit).
 //   3. merge: the round marker it posts, naming the reviewed head, is the
 //      record the pr-merge lane merges on; this job never merges or enqueues.
 //      A model that saw a truncated files listing escalates
-//      dependency-files-truncated instead.
+//      dependency-files-truncated instead, and a pull request that changes a
+//      workflow or action file escalates dependency-workflow-held: a person
+//      merges those. Every commit on the pull request must be Dependabot's
+//      own (its account ids, web-flow, a valid signature), the repository's
+//      version-bump commit changing only plugin.json `version` and
+//      CHANGELOG.md (bumpRefusal), or a single-parent commit whose files pass the
+//      fix rule above against its parent; else dependency-fix-refused, so a
+//      commit the lanes App pushed outside a fix round is never merged on.
 //      A merge on a review-only dependency whose evidence does not quote each
 //      matched entry's control (run.json `controls`) escalates
 //      dependency-control-uncited instead.
@@ -38,6 +49,10 @@
 //   GH_TOKEN                the lane token
 //   GITHUB_REPOSITORY       owner/repo
 //   PR_NUMBER, HEAD_SHA     the gated pull request and its head
+//   BASE_SHA                the trusted base commit; its .github/dependabot.yml
+//                           gives the fix rule's [ecosystem, directory] pairs
+//   DEPENDENCY_HEAD_SHA     the head the model job's gate passed, which
+//                           run.json's head_sha must name
 //   GITHUB_RUN_ID, DEPENDENCY_RUN_ATTEMPT  the model run the round marker names
 //   APP_SENDER_ID           the lanes App bot's user id
 //   DEPENDENCY_VERDICT_DIR  the downloaded artifact holding run.json
@@ -50,17 +65,26 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
-import { isSecurityUpdate } from "./dependency-classify.mjs";
-import { roundLine, rounds, VERDICTS } from "./review-dependency.mjs";
+import {
+  bumpRefusal,
+  COMMIT_FILES_LIMIT,
+  commitRefusal,
+  fixRefusal,
+  isActionsCommit,
+  isDependabotSigned,
+  isSecurityUpdate,
+  isWorkflowFile,
+  parseConfig,
+  WEB_FLOW_ID,
+} from "./dependency-classify.mjs";
+import { FILES_CAP, roundLine, rounds, VERDICTS } from "./review-dependency.mjs";
 
-export const LIMITS = { bytes: 65536, reasons: 10, reason: 500, evidence: 20, evidenceItem: 300 };
+export const LIMITS = { bytes: 65536, reasons: 10, reason: 500, evidence: 20, evidenceItem: 300, config: 200 };
 // The compare listing stops at 250 commits and 300 files
 // (docs.github.com/en/rest/commits/commits#compare-two-commits, as of
 // 2026-10-17; recheck when that section changes its limits).
 export const COMPARE_LIMITS = { commits: 250, files: 300 };
-// web-flow, the committer GitHub records on commits it signs, as
-// check-trusted-trigger.mjs reads it.
-const WEB_FLOW_ID = 19864447;
+export const CONFIG_PATH = ".github/dependabot.yml";
 
 // A commit GitHub signed for the lanes App during this workflow run: author
 // the App, committer web-flow, signature valid, committed no earlier than
@@ -99,7 +123,7 @@ export function validateRun(run, pr) {
   const fail = (why) => {
     throw new Invalid(`run.json is invalid: ${why}`);
   };
-  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "controls", "output"])) fail("its fields are not the runner's");
+  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "controls", "config", "output"])) fail("its fields are not the runner's");
   if (run.version !== 1) fail("version is not 1");
   if (run.pr !== pr) fail("it names another pull request");
   if (!SHA.test(String(run.head_sha))) fail("head_sha is not a commit id");
@@ -110,6 +134,9 @@ export function validateRun(run, pr) {
   if (!Array.isArray(run.controls) || run.controls.length > LIMITS.evidence || !run.controls.every((c) => typeof c === "string" && c.length >= 1)) {
     fail("controls is not a list of review-only controls");
   }
+  if (!Array.isArray(run.config) || run.config.length > LIMITS.config || !run.config.every((pair) => Array.isArray(pair) && pair.length === 2 && pair.every((part) => typeof part === "string" && part.length >= 1))) {
+    fail("config is not a list of [ecosystem, directory] pairs");
+  }
   const out = run.output;
   if (!exactKeys(out, ["verdict", "reasons", "evidence"])) fail("the verdict's fields are not the template's");
   if (!VERDICTS.includes(out.verdict)) fail("the verdict is not merge, fix, close or escalate");
@@ -118,6 +145,58 @@ export function validateRun(run, pr) {
   if (!Array.isArray(out.evidence) || out.evidence.length > LIMITS.evidence) fail("evidence is not 0-20 entries");
   if (!out.evidence.every((item) => plain(item, LIMITS.evidenceItem))) fail("an evidence entry is not plain prose within the limit");
   return run;
+}
+
+// The tree entry for `path` at `sha`, or undefined.
+async function entryAt(api, sha, path) {
+  const dir = path.slice(0, Math.max(path.lastIndexOf("/"), 0));
+  const name = path.slice(dir ? dir.length + 1 : 0);
+  return (await api.listTree(sha, dir)).find((entry) => entry.name === name);
+}
+
+// fixRefusal (or, with `bump`, bumpRefusal) over `files`, the change from
+// `before` to `after`; a read that fails is a refusal, never a pass.
+async function changeRefusal(api, files, pairs, before, after, bump = false) {
+  const reads = {
+    entry: (path) => entryAt(api, after, path),
+    text: (side, path) => api.getText(path, side === "before" ? before : after),
+  };
+  try {
+    return await (bump ? bumpRefusal(files, reads) : fixRefusal(files, pairs, reads));
+  } catch (error) {
+    return `fix-unreadable:${String(error?.message ?? error).slice(0, 120)}`;
+  }
+}
+
+// Why one pull-request commit is not one the merge path may stand on, or
+// null: Dependabot's own, the version-bump commit, or a single-parent commit
+// whose files pass the fix rule against its parent.
+async function commitFixRefusal(api, item, pairs) {
+  const sha = String(item?.sha ?? "");
+  if (isDependabotSigned(item)) return null;
+  let detail;
+  try {
+    detail = SHA.test(sha) ? await api.getCommit(sha) : null;
+  } catch {
+    detail = null;
+  }
+  const files = detail?.files;
+  if (!Array.isArray(files) || files.length === 0 || files.length >= COMMIT_FILES_LIMIT) return `commit-files-unreadable:${sha.slice(0, 12)}`;
+  if (!Array.isArray(detail.parents) || detail.parents.length !== 1 || !SHA.test(String(detail.parents[0]?.sha))) {
+    return `commit-parents:${sha.slice(0, 12)}`;
+  }
+  // The version-bump commit: its paths, then only a version in plugin.json.
+  const bump = isActionsCommit(item) && commitRefusal(item, () => files.map((file) => String(file?.filename ?? ""))) === null;
+  return changeRefusal(api, files, pairs, detail.parents[0].sha, sha, bump);
+}
+
+// The base's dependabot.yml pairs, or null when it does not read.
+async function basePairs(api, baseSha) {
+  try {
+    return SHA.test(String(baseSha)) ? parseConfig(await api.getText(CONFIG_PATH, baseSha)) : null;
+  } catch {
+    return null;
+  }
 }
 
 const fenced = (lines) => ["~~~text", ...lines, "~~~"].join("\n");
@@ -165,7 +244,7 @@ function ignoreIssue({ pr, head, title, reasons }) {
   };
 }
 
-export async function apply({ api, pr, appId, modelRun, run, log }) {
+export async function apply({ api, pr, appId, modelRun, run, baseSha, log }) {
   // One value names the model run in the marker and in the re-run check.
   const runKey = modelRun ?? "none";
   const pull = await api.getPull(pr);
@@ -225,11 +304,18 @@ export async function apply({ api, pr, appId, modelRun, run, log }) {
       log(`#${pr}: the head moved from ${run.head_sha} to ${head} by more than the lane's fix; the next run reviews it`);
       return { escalationReason: "", skipReason: "superseded-sha" };
     }
-    // The promote step already refuses this; checked again on what landed.
-    if (files.some((file) => [file.filename, file.previous_filename].some((path) => /^\.github(\/|$)/i.test(path ?? "")))) {
-      log(`#${pr}: the lane's fix changes a path under .github/, which it may not push`);
+    // The promote step already refuses this; checked again on what landed,
+    // since the model job's token could write the branch itself.
+    const pairs = await basePairs(api, baseSha);
+    if (pairs === null) {
       await record("invalid", { reasons, evidence });
-      return { escalationReason: "dependency-invalid", skipReason: "" };
+      return { escalationReason: "dependency-config-unreadable", skipReason: "" };
+    }
+    const refusal = await changeRefusal(api, files, pairs, run.head_sha, head);
+    if (refusal) {
+      log(`#${pr}: the lane's fix is refused (${refusal})`);
+      await record("invalid", { reasons, evidence });
+      return { escalationReason: "dependency-fix-refused", skipReason: "" };
     }
     await record("fix", { reasons, evidence });
     return { escalationReason: "", skipReason: "" };
@@ -240,7 +326,8 @@ export async function apply({ api, pr, appId, modelRun, run, log }) {
   }
   if (verdict === "merge") {
     // The content rule could not run, so no merge marker is posted on it.
-    if (run.config_unreadable) {
+    const pairs = await basePairs(api, baseSha);
+    if (run.config_unreadable || pairs === null) {
       await record("escalate", { reasons, evidence });
       return { escalationReason: "dependency-config-unreadable", skipReason: "" };
     }
@@ -248,6 +335,40 @@ export async function apply({ api, pr, appId, modelRun, run, log }) {
     if (run.files_truncated) {
       await record("escalate", { reasons, evidence });
       return { escalationReason: "dependency-files-truncated", skipReason: "" };
+    }
+    // A bump that changes a workflow or action file waits for a person.
+    const files = await api.listPullFiles(pr);
+    if (!Array.isArray(files) || files.length >= FILES_CAP) {
+      await record("escalate", { reasons, evidence });
+      return { escalationReason: "dependency-files-truncated", skipReason: "" };
+    }
+    if (files.some((file) => [file.filename, file.previous_filename].filter(Boolean).some(isWorkflowFile))) {
+      log(`#${pr}: the pull request changes a workflow or action file; a person merges it`);
+      await record("escalate", { reasons, evidence });
+      return { escalationReason: "dependency-workflow-held", skipReason: "" };
+    }
+    // Every commit that is not Dependabot's own: a lanes App commit pushed
+    // outside a fix round reaches the head the model reviewed, and pr-merge
+    // merges on this marker.
+    const commits = await api.listPullCommits(pr);
+    let refusal = null;
+    if (
+      !Array.isArray(commits) ||
+      commits.length === 0 ||
+      commits.length >= COMPARE_LIMITS.commits ||
+      commits.length !== pull.commits ||
+      commits.at(-1)?.sha !== head
+    ) {
+      refusal = "commits-not-listed-whole";
+    }
+    for (const item of refusal ? [] : commits) {
+      refusal = await commitFixRefusal(api, item, pairs);
+      if (refusal) break;
+    }
+    if (refusal) {
+      log(`#${pr}: a commit is not Dependabot's or a lane fix (${refusal}); a person decides`);
+      await record("escalate", { reasons, evidence });
+      return { escalationReason: "dependency-fix-refused", skipReason: "" };
     }
     // A review-only dependency merges only on a verdict that quotes each
     // matched entry's control verbatim in an evidence entry.
@@ -289,6 +410,8 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     "GITHUB_REPOSITORY",
     "PR_NUMBER",
     "HEAD_SHA",
+    "BASE_SHA",
+    "DEPENDENCY_HEAD_SHA",
     "GITHUB_RUN_ID",
     "APP_SENDER_ID",
     "DEPENDENCY_VERDICT_DIR",
@@ -317,6 +440,10 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       throw new Invalid("run.json does not match the SHA-256 the model job recorded");
     }
     run = validateRun(JSON.parse(text), pr);
+    // The head comes from the model job's gate, not from the file.
+    if (!SHA.test(env.DEPENDENCY_HEAD_SHA) || run.head_sha !== env.DEPENDENCY_HEAD_SHA) {
+      throw new Invalid("run.json's head_sha is not the head the model job's gate passed");
+    }
   } catch (error) {
     log(`the verdict is refused: ${String(error?.message ?? error).slice(0, 300)}`);
     run = null;
@@ -334,6 +461,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     appId,
     modelRun,
     run,
+    baseSha: env.BASE_SHA,
     log,
   });
   if (escalationReason) {

@@ -5242,7 +5242,10 @@ class UploadCase(SessionCase):
             self.addCleanup(patcher.stop)
         self.act("update_settings", HOST, {"uploads": True})
         (self.ann, _), (self.bo, _) = self.join("Ann"), self.join("Bo")
-        self.open_round(text_q("Q1"), choice_q("Q2", purpose="decide"))
+        self.open_round(*self.round_questions())
+
+    def round_questions(self):
+        return text_q("Q1"), choice_q("Q2", purpose="decide")
 
     def offer(self, pid, name="funnel.pdf", data=PDF, **extra):
         return self.act("offer_upload", pid, {"file": name, "size": len(data), "type": "application/pdf", **extra})
@@ -5525,6 +5528,132 @@ class TestUploadAttachments(UploadCase):
         self.assertRegex(self.upload(uid)["status"]["tmp"], r"^[0-9a-f]{32}$")
         self.act("act_on_upload", HOST, {"id": uid, "action": "decline"})
         self.assertEqual(victim.read_bytes(), b"keep me")
+
+
+class TestPictureOnlyAnswer(UploadCase):
+    """A picture with no typed text is an answer to a text question; empty text with no attachments still clears."""
+
+    def round_questions(self):
+        return text_q("Q1"), text_q("Q3", purpose="gather"), options_q("Q4", "choice", ("Card", "PayPal"))
+
+    def card(self, qid, pid):
+        return next((c for c in self.s.state["cards"].get(qid, []) if c.get("kind") == "person" and c["pid"] == pid), None)
+
+    def test_empty_text_with_attachments_saves_a_card_holding_them(self):
+        uid = self.offered_and_accepted(self.ann)
+        out = self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.assertEqual(out, {"card": f"p:{self.ann}"})
+        card = self.card("Q1", self.ann)
+        self.assertEqual((card["text"], card["attachments"]), ("", [uid]))
+        self.assertIsNone(session.document_error(self.disk()))
+        theirs = next(c for c in self.s.snapshot(self.bo)["cards"]["Q1"] if c.get("pid") == self.ann)
+        self.assertEqual((theirs["text"], theirs["attachments"]), ("", [uid]))
+
+    def test_empty_text_with_no_attachments_clears(self):
+        uid = self.offered_and_accepted(self.ann)
+        for clear in ({}, {"attachments": []}):
+            with self.subTest(clear=clear):
+                self.act("answer", self.ann, {"qid": "Q1", "text": "See it.", "view": "focus", "attachments": [uid]})
+                self.assertEqual(self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", **clear}), {"card": None})
+                self.assertIsNone(self.card("Q1", self.ann))
+
+    def test_a_picture_only_card_edited_to_add_text_keeps_its_pictures(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.act("vote", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "The box, front and back.", "view": "focus"})
+        card = self.card("Q1", self.ann)
+        self.assertEqual((card["text"], card["attachments"], card["editedAfterVotes"]), ("The box, front and back.", [uid], 1))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "The box.", "view": "focus", "attachments": [uid]})
+        self.assertEqual((self.card("Q1", self.ann)["text"], self.card("Q1", self.ann)["attachments"]), ("The box.", [uid]))
+
+    def test_a_picture_only_card_whose_picture_is_declined_is_cleared(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.act("act_on_upload", HOST, {"id": uid, "action": "decline"})
+        self.assertIsNone(self.card("Q1", self.ann))
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_locked_picture_only_answer_stays_when_its_picture_goes(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.act("lock", HOST, {"qid": "Q1", "card": f"p:{self.ann}"})
+        self.act("act_on_upload", self.ann, {"id": uid, "action": "withdraw"})
+        self.assertEqual(self.card("Q1", self.ann)["text"], "")
+        self.assertNotIn("attachments", self.s.state["locks"]["Q1"]["source"])
+        self.assertIsNone(session.document_error(self.disk()))
+
+    def test_a_picture_only_answer_in_a_sent_round_stays_when_its_picture_goes(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.send()
+        self.act("act_on_upload", self.ann, {"id": uid, "action": "withdraw"})
+        self.assertEqual(self.card("Q1", self.ann)["text"], "")
+
+    def test_a_picked_answer_keeps_its_pick_when_its_picture_goes(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("pick", self.ann, {"qid": "Q4", "option": "opt-1", "comment": "", "view": "focus", "attachments": [uid]})
+        self.act("act_on_upload", HOST, {"id": uid, "action": "decline"})
+        card = self.card("Q4", self.ann)
+        self.assertEqual((card["pick"], "attachments" in card), ("opt-1", False))
+
+    def test_a_late_picture_only_answer_lists_its_files_in_the_digest(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.send()
+        self.ack(1)
+        self.apply({"op": "open-round", "questions": [text_q("Q7")]})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.assertEqual(digest_of(self)["late"], [{"id": "Q1", "round": 1, "text": "", "attachments": [uid]}])
+
+    def test_a_locked_picture_only_answer_carries_its_files_to_the_digest(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.act("lock", HOST, {"qid": "Q1", "card": f"p:{self.ann}"})
+        self.assertEqual(self.s.state["locks"]["Q1"]["source"]["attachments"], [uid])
+        outcome = {q["id"]: q for q in digest_of(self)["questions"]}["Q1"]["outcome"]
+        self.assertEqual((outcome["kind"], outcome["text"], outcome["attachments"]), ("locked", "", [uid]))
+
+    def test_a_disagreement_with_a_picture_only_answer_names_its_files(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.act("disagree", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "reason": "Wrong box"})
+        q1 = {q["id"]: q for q in digest_of(self)["questions"]}["Q1"]
+        self.assertEqual(q1["disagreements"], [{"text": "", "reason": "Wrong box", "attachments": [uid]}])
+
+    def test_a_late_vote_on_a_picture_only_answer_names_its_files(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.send()
+        self.ack(1)
+        self.apply({"op": "open-round", "questions": [text_q("Q7")]})
+        self.act("vote", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.assertIn({"id": "Q1", "round": 1, "act": "vote", "text": "", "attachments": [uid]}, digest_of(self)["late"])
+
+    def test_changing_a_picture_only_answers_pictures_after_votes_marks_it_edited(self):
+        first, second = self.offered_and_accepted(self.ann), self.offered_and_accepted(self.ann, name="back.pdf")
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [first]})
+        self.act("vote", self.bo, {"qid": "Q1", "card": f"p:{self.ann}", "on": True})
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [first]})
+        self.assertNotIn("editedAfterVotes", self.card("Q1", self.ann))
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [second]})
+        self.assertEqual(self.card("Q1", self.ann)["editedAfterVotes"], 1)
+
+    def test_backing_an_own_option_keeps_a_picture_only_card(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q4", "text": "", "view": "focus", "attachments": [uid]})
+        self.act("pick", self.bo, {"qid": "Q4", "option": "other", "other": "Pay by bank app", "view": "focus"})
+        self.act("vote", self.ann, {"qid": "Q4", "card": f"p:{self.bo}", "on": True})
+        self.assertEqual(self.card("Q4", self.ann)["attachments"], [uid])
+
+    def test_the_digest_carries_a_picture_only_answer(self):
+        uid = self.offered_and_accepted(self.ann)
+        self.act("answer", self.ann, {"qid": "Q1", "text": "", "view": "focus", "attachments": [uid]})
+        self.act("answer", self.ann, {"qid": "Q3", "text": "", "view": "focus", "attachments": [uid]})
+        qs = {q["id"]: q for q in digest_of(self)["questions"]}
+        self.assertEqual(qs["Q1"]["outcome"], {"kind": "open", "top": [{"text": "", "votes": 0, "source": "person", "attachments": [uid]}]})
+        gathered = qs["Q3"]["outcome"]
+        self.assertEqual(gathered["kind"], "gathered")
+        self.assertEqual([(a["text"], a["attachments"]) for a in gathered["answers"]], [("", [uid])])
 
 
 class TestUploadRecovery(UploadCase):
