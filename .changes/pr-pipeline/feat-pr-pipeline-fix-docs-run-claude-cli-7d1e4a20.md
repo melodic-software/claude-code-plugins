@@ -23,6 +23,5 @@ bump: minor
   on `checks`, `self-checks` and `verify-scripts`.
 - fix-docs routes to the new `docs-fix` profile, a mechanical worker from the multi-agent role
   map, which resolves to sonnet.
-- fix-docs sets `web-access: any`: on the launcher it may search the web and read any page with
-  WebFetch, with the research skills and their plugins staged under `.lane/`. The launcher takes
-  `domains: any` only.
+- The launcher accepts `web-access` (`domains: any` only), staging the research skills and their
+  plugins under `.lane/`. fix-docs leaves it off.

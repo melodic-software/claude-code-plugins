@@ -120,9 +120,8 @@ jobs:
       patch-sha256: ${{ needs.fix-docs-subscription.outputs.patch-sha256 || needs.fix-docs.outputs.patch-sha256 }}
       patch-attempt: ${{ needs.fix-docs-subscription.outputs.patch-attempt || needs.fix-docs.outputs.patch-attempt }}
       patch-activity: fix-docs
-      # The run job's head-sha output, which head code could forge: this lane
-      # has no job that gates the head without running head code. apply-patch
-      # still applies onto the head its own gate reads and measures the
-      # default row's refusals from there.
+      # The run job's head-sha output, set by its gate step before head code
+      # runs. apply-patch still applies onto the head its own gate reads and
+      # measures the default row's refusals from there.
       patch-head-sha: ${{ needs.fix-docs-subscription.outputs.head-sha || needs.fix-docs.outputs.head-sha }}
       reply-attempt: ${{ needs.fix-docs-subscription.outputs.reply-attempt || needs.fix-docs.outputs.reply-attempt }}

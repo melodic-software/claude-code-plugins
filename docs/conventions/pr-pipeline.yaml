@@ -11,12 +11,8 @@ activities:
     effect: read
     applied-by:
       patch: apply-patch
-    # Lets the run search the web and read any page, so it can check a claim
-    # in the prose against its source; it cites each page it read. The job
-    # holds no write token, and apply-patch refuses every instruction path.
-    web-access:
-      enabled: true
-      domains: any
+    # No web access: under the default row apply-patch can push more than
+    # markdown, so a page the run read could steer a push or carry a key out.
     gating: advisory
     # Head markdown can quote issue, PR or web text.
     reads-untrusted: true
