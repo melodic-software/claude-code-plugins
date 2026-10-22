@@ -129,11 +129,11 @@ UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
 # runner's `FAIL: <suite>` lines, or each pytest invocation's summary. The
 # affected set is scripts/plan-test-lanes.sh, the PR runs' own selector, over
 # the diff from the last green full run's SHA, run in a worktree of the red
-# run's SHA. A suite outside the set, or one with an open quarantine issue,
-# demotes nothing: an out-of-set suite with no such issue gets one
-# (`file_quarantines`). A quarantine issue older than `merge.quarantine-days`
-# no longer excuses its suite, and the merge gate's own suites are never
-# excused. post-merge-demotion-alert.yml applies the same rule through
+# run's SHA, with no token in its environment. A suite inside the set always
+# demotes, quarantined or not. A suite outside it demotes nothing and is
+# quarantined: with no open quarantine issue it gets one (`file_quarantines`);
+# an open one older than `merge.quarantine-days` makes it demote again. The
+# merge gate's own suites are never excused. post-merge-demotion-alert.yml applies the same rule through
 # `--judge-run`.
 SUITE_STEPS = {
     "Run this leg's shell suites": "bash",
@@ -149,6 +149,8 @@ GATE_SUITE_PREFIXES = (
     ".github/scripts/pr-merge/",
     ".github/scripts/post-merge-demotion-alert/",
     "scripts/post-merge-demotion-alert.",
+    "scripts/plan-test-lanes.",
+    "scripts/affected-tests.",
 )
 QUARANTINE_NOTE = "The quarantined suite failed again: "
 BORN_TRIAGED = "<!-- work-items:born-triaged -->"
@@ -208,9 +210,9 @@ class Rerun:
 
 @dataclass(frozen=True)
 class Quarantine:
-    """A failing suite excused from demotion: outside the affected set (no
-    open quarantine issue yet, `file_quarantines` files one) or under an open
-    one that has not expired (it gets a sighting comment)."""
+    """A failing suite outside the affected set, excused from demotion: with
+    no open quarantine issue yet (`file_quarantines` files one) or under an
+    open one that has not expired (it gets a sighting comment)."""
 
     suite: str
     run_url: str
@@ -588,8 +590,9 @@ def _full_history_clones() -> list[Path]:
 _LOG_STAMP = re.compile(r"^\ufeff?\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z ?")
 _BASH_START = re.compile(r"=== (\S+\.test\.sh) ===")
 _BASH_PASS = re.compile(r"PASS: (\S+)")
-_BASH_FAIL = re.compile(
-    r"FAIL: (\S+)(?: \(no result recorded; the worker never reported\))?"
+_BASH_FAIL = re.compile(r"FAIL: (\S+\.test\.sh)")
+_BASH_NO_RESULT = re.compile(
+    r"FAIL: (\S+\.test\.sh) \(no result recorded; the worker never reported\)"
 )
 _BASH_ADVISORY = re.compile(
     r"(?:::warning::|##\[warning\])(\S+) failed \(exit \d+\) but is advisory"
@@ -619,12 +622,17 @@ def suite_failures(log: str, kind: str) -> frozenset[str] | None:
                 started.add(m[1])
             elif m := _BASH_PASS.fullmatch(line):
                 passed.add(m[1])
-            elif m := _BASH_FAIL.fullmatch(line):
+            elif m := _BASH_FAIL.fullmatch(line) or _BASH_NO_RESULT.fullmatch(line):
                 failed.add(m[1])
+                if _BASH_NO_RESULT.fullmatch(line):
+                    started.add(m[1])
             elif m := _BASH_ADVISORY.match(line):
                 advisory.add(m[1])
         if started - passed - failed:
             return None
+        # A suite's own output can print `FAIL: <name>`; only a suite the
+        # runner started (`=== <suite> ===`) is one.
+        failed &= started
         failed -= advisory
     else:
         suite: str | None = None
@@ -675,10 +683,18 @@ def affected_suites(base_sha: str, head_sha: str) -> frozenset[str] | None:
         try:
             if not (tree / PLAN_SCRIPT).is_file():
                 return None
+            # The plan is the red commit's code: it gets no token the
+            # caller holds (the alert job's GH_TOKEN can write issues).
+            unset = [
+                arg
+                for key in sorted(os.environ)
+                if "TOKEN" in key.upper()
+                for arg in ("-u", key)
+            ]
             try:
                 proc = run_command(
-                    ["bash", PLAN_SCRIPT, "--base", base_sha],
-                    allowed_executables=("bash",),
+                    ["env", *unset, "bash", PLAN_SCRIPT, "--base", base_sha],
+                    allowed_executables=("env",),
                     check=False,
                     cwd=tree,
                     timeout_seconds=PLAN_TIMEOUT_SECONDS,
@@ -753,9 +769,10 @@ class _Context:
     ) -> frozenset[str]:
         """The checks among `checks` (failing on `attempt` of `run`) that
         demote: any whose suites cannot be named, and any with a failing
-        suite that is a gate suite, is under an expired quarantine issue, or
-        is in the merges' affected set, or with no computable set. Each other
-        failing suite is recorded in `quarantines`."""
+        suite that is a gate suite, is in the merges' affected set (or no set
+        can be computed), or is outside it under an expired quarantine
+        issue. Each other failing suite, outside the set, is recorded in
+        `quarantines`."""
         key = (run.id, attempt, checks)
         if key in self.demoting_cache:
             return self.demoting_cache[key]
@@ -769,16 +786,17 @@ class _Context:
             days = self._quarantine_days(run.head_sha)
             for check, suites in judged.items():
                 for suite in sorted(suites):
-                    issue = issues.get(suite)
-                    if is_gate_suite(suite):
+                    if (
+                        is_gate_suite(suite)
+                        or (affected := self.affected(run)) is None
+                        or suite in affected
+                    ):
                         demote.add(check)
-                    elif issue is not None:
-                        created = _time(issue.get("created_at"))
-                        if self.now >= created + timedelta(days=days):
-                            demote.add(check)
-                        else:
-                            excused.append(Quarantine(suite, sighting, run.head_sha))
-                    elif (affected := self.affected(run)) is None or suite in affected:
+                        continue
+                    issue = issues.get(suite)
+                    if issue is not None and self.now >= _time(
+                        issue.get("created_at")
+                    ) + timedelta(days=days):
                         demote.add(check)
                     else:
                         excused.append(Quarantine(suite, sighting, run.head_sha))

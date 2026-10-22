@@ -28,6 +28,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import babysit_merge_policy as policy
 import babysit_postmerge as pm
 from test_babysit_postmerge import (
+    FIXTURES,
     IDENTITY,
     LATER_SHA,
     OTHER_SHA,
@@ -219,15 +220,30 @@ class AffectedSet(AffectedBase):
         self.red_dispatch(bash_log((GATE, False)))
         self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
 
-    def test_an_open_quarantine_excuses_its_suite_inside_the_set(self) -> None:
+    def test_an_open_quarantine_never_excuses_a_failure_inside_the_set(self) -> None:
         self.quarantine_issue(TOUCHED, "2026-10-10T09:00:00Z")
         self.red_dispatch(bash_log((TOUCHED, False)))
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+        self.assertEqual(verdict.quarantines, ())
+
+    def test_an_open_quarantine_takes_an_out_of_set_sighting(self) -> None:
+        self.quarantine_issue(FLAKY, "2026-10-10T09:00:00Z")
+        self.red_dispatch(bash_log((FLAKY, False)))
         verdict = self.check()
         self.assertEqual(verdict.failures, ())
         report = self.remediate(verdict)
         self.assertEqual(report["quarantine"], {"issues": [], "comments": [501]})
         (post,) = self.posts()
         self.assertIn(f"body={pm.QUARANTINE_NOTE}{SIGHTING}", post)
+
+    def test_the_selector_scripts_are_gate_suites(self) -> None:
+        for suite in (
+            "scripts/plan-test-lanes.test.sh",
+            "scripts/affected-tests.test.sh",
+        ):
+            with self.subTest(suite):
+                self.assertTrue(pm.is_gate_suite(suite))
 
     def test_expiry_restores_demotion(self) -> None:
         # Filed 8 days before the check's 2026-10-12T11:00Z; the default is 7.
@@ -245,10 +261,14 @@ class AffectedSet(AffectedBase):
         self.assertEqual(self.remediate(verdict)["quarantine"]["issues"], [9001])
 
     def test_a_quarantine_issue_someone_else_opened_counts_for_nothing(self) -> None:
-        self.quarantine_issue(TOUCHED, "2026-10-12T09:00:00Z")
+        # An outsider's expired issue would demote, and an open one would take
+        # the sighting: it is neither, so the filers' own issue is filed.
+        self.quarantine_issue(FLAKY, "2026-10-01T09:00:00Z")
         self.gh.issues[-1]["user"] = {"login": "outsider"}
-        self.red_dispatch(bash_log((TOUCHED, False)))
-        self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
+        self.red_dispatch(bash_log((FLAKY, False)))
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(self.remediate(verdict)["quarantine"]["issues"], [9001])
 
     def test_a_leg_whose_suites_cannot_be_named_demotes(self) -> None:
         cases = {
@@ -407,6 +427,19 @@ class AffectedSuites(unittest.TestCase):
         )
         self.assertEqual(self.git(self.root, "worktree", "list").count("\n"), 0)
 
+    def test_the_plan_runs_with_no_token_in_its_environment(self) -> None:
+        plan = (
+            "#!/usr/bin/env bash\n"
+            'echo "bash_plan={\\"0\\":[\\"t-${GH_TOKEN:-}${GITHUB_TOKEN:-}'
+            '${ACTIONS_RUNTIME_TOKEN:-}${PATH:+p}\\"]}"\n'
+        )
+        (self.root / pm.PLAN_SCRIPT).write_text(plan, encoding="utf-8")
+        self.git(self.root, "commit", "-q", "-am", "token probe")
+        red = self.git(self.root, "rev-parse", "HEAD")
+        secrets = {"GH_TOKEN": "a", "GITHUB_TOKEN": "b", "ACTIONS_RUNTIME_TOKEN": "c"}
+        with mock.patch.dict("os.environ", secrets):
+            self.assertEqual(pm.affected_suites(self.green, red), frozenset({"t-p"}))
+
     def test_a_tree_without_the_plan_script_has_no_set(self) -> None:
         self.assertIsNone(pm.affected_suites(self.red, self.green))
 
@@ -423,6 +456,15 @@ class SuiteFailures(unittest.TestCase):
             tail=f"::warning::{TOUCHED} failed (exit 1) but is advisory on this run",
         )
         self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY}))
+
+    def test_a_real_leg_log_names_only_runner_suites(self) -> None:
+        # Job 119563204870: the ui suite's own output prints `FAIL: <file>`
+        # lines, and the runner's stderr `FAIL: <suite>` lands inside them.
+        log = (FIXTURES / "job-log-bash-ui-fail.txt").read_text(encoding="utf-8")
+        self.assertEqual(
+            pm.suite_failures(log, "bash"),
+            frozenset({"plugins/planning/shared/tests/ui.test.sh"}),
+        )
 
     def test_bash_names_a_suite_that_never_reported(self) -> None:
         log = STAMP + f"FAIL: {FLAKY} (no result recorded; the worker never reported)"

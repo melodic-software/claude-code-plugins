@@ -840,6 +840,7 @@ fi
 JUDGE=0 RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 judged="$(cat "$TMP_ROOT/stub/judge" 2>/dev/null)"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$(fixes)" -eq 0 && "$OUT" == *"not a demotion"* &&
+  "$(grep -x 'excused=true' "$TMP_ROOT/stub/output")" == excused=true &&
   "$judged" == "--repo o/r --judge-run 4242 --attempt 2 --checks-file "*" --file-quarantine" &&
   "$(cat "$TMP_ROOT/stub/judge.checks")" == test-bash ]]; then
   ok "a run the judge excuses (exit 0) files no record and no fix issue"
@@ -849,7 +850,8 @@ fi
 
 for code in 1 3; do
   JUDGE=$code RUNS="$(baseline_run 4141 success)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: test-bash"* ]]; then
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"- Newly failing: test-bash"* ]] &&
+    ! grep -q excused "$TMP_ROOT/stub/output"; then
     ok "a judge exit $code files the record as before"
   else
     fail "judge exit $code: rc=$RC log='$LOG' out='$OUT'"

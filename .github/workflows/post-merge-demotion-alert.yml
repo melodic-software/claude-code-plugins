@@ -63,8 +63,10 @@ name: post-merge-demotion-alert
 # .github/scripts/post-merge-demotion-alert/ tests the report job.
 
 on:
-  # Both jobs check out main's tip and run only main's own scripts, so no code
-  # from the triggering run executes here. Each
+  # Both jobs check out main's tip and run its scripts; the alert's
+  # --judge-run also runs scripts/plan-test-lanes.sh from the failing run's
+  # own commit on main, with every *TOKEN* variable removed from its
+  # environment. No code from outside main executes here. Each
   # step reads the event's fields through env and acts only on runs of this
   # repository's main branch.
   workflow_run: # zizmor: ignore[dangerous-triggers]
@@ -123,6 +125,9 @@ jobs:
       created: ${{ steps.run.outputs.created }}
       # 'true' when a dispatched run stayed red and main recovered since.
       recovered: ${{ steps.file.outputs.recovered }}
+      # 'true' when every newly failing suite was outside the merges'
+      # affected set or quarantined: no record, and no red-main report.
+      excused: ${{ steps.file.outputs.excused }}
     steps:
       # main's tip, for babysit_postmerge.py --judge-run and the plan script it
       # runs in a worktree of the failing SHA; full history for that worktree.
@@ -421,6 +426,7 @@ jobs:
               --repo "$GITHUB_REPOSITORY" --judge-run "$RUN_ID" --attempt "$RUN_ATTEMPT" \
               --checks-file "$now" --file-quarantine; then
               echo "::notice::$RUN_URL failed only in suites outside the merges' affected set or quarantined: not a demotion"
+              echo 'excused=true' >>"$GITHUB_OUTPUT"
               exit 0
             fi
           fi
@@ -809,7 +815,7 @@ jobs:
   # lanes App token, writes only its log issue, and skips an event the lanes
   # App sent. It reads the run from the alert job's outputs, which a refused
   # dispatch leaves empty, and skips a dispatched run the alert found main
-  # already recovered from.
+  # already recovered from, and a run the alert excused by suite.
   report-red-main:
     name: Report the red-main culprit
     needs: [alert]
@@ -821,6 +827,7 @@ jobs:
       && needs.alert.outputs.branch == 'main'
       && needs.alert.outputs.repo == github.repository
       && needs.alert.outputs.recovered != 'true'
+      && needs.alert.outputs.excused != 'true'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
     runs-on: ubuntu-24.04
     # Up to red-main.confirm-wait-minutes (at most 45) waiting on the re-run.
